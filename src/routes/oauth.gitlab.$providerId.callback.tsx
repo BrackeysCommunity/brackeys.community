@@ -1,0 +1,54 @@
+import { useMutation } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
+
+import { gitlabInstance } from "@/lib/gitlab-instances";
+import { reportMutationError } from "@/lib/product-insights";
+import { toast } from "@/lib/toast";
+import { client } from "@/orpc/client";
+
+export const Route = createFileRoute("/oauth/gitlab/$providerId/callback")({
+  component: GitLabCallbackPage,
+});
+
+function GitLabCallbackPage() {
+  const { providerId } = Route.useParams();
+  const navigate = useNavigate();
+  const processed = useRef(false);
+  const instance = gitlabInstance(providerId);
+
+  const { mutate: syncGitLab } = useMutation({
+    mutationFn: () => client.syncGitLabLink({ providerId }),
+    onSuccess: (data) => {
+      toast.success(`Linked ${data.host} account: ${data.providerUsername}`);
+      navigate({ to: "/profile" });
+    },
+    onError: (err: Error) => {
+      reportMutationError(err, "profile.link_gitlab_callback");
+      toast.error(err.message || "Failed to link GitLab account");
+      navigate({ to: "/profile" });
+    },
+  });
+
+  useEffect(() => {
+    if (processed.current) return;
+    processed.current = true;
+    if (!instance) {
+      toast.error("Unknown GitLab instance.");
+      navigate({ to: "/profile" });
+      return;
+    }
+    syncGitLab();
+  }, [syncGitLab, instance, navigate]);
+
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="space-y-3 text-center">
+        <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <p className="text-sm text-muted-foreground">
+          Linking your {instance?.host ?? "GitLab"} account...
+        </p>
+      </div>
+    </div>
+  );
+}

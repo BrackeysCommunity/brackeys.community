@@ -1,4 +1,4 @@
-import { inferAdditionalFields } from "better-auth/client/plugins";
+import { genericOAuthClient, inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 import { EVENTS, type SigninSource } from "@/lib/event-taxonomy";
@@ -11,6 +11,8 @@ import { captureEvent } from "@/lib/product-insights";
 export const authClient = createAuthClient({
   baseURL: typeof window !== "undefined" ? window.location.origin : "",
   plugins: [
+    // `authClient.oauth2.link` — the GitLab instances (src/lib/gitlab-instances.ts).
+    genericOAuthClient(),
     inferAdditionalFields({
       user: {
         bannedAt: { type: "date", required: false },

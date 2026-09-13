@@ -82,7 +82,9 @@ import {
   unblockUser,
   listBlockedUsers,
 } from "./comments";
-import { syncGitHubLink, unlinkGitHub, getContributions } from "./github";
+import { getContributions } from "./contributions";
+import { syncGitHubLink, unlinkGitHub } from "./github";
+import { listGitLabInstances, syncGitLabLink, unlinkGitLab } from "./gitlab";
 import { linkItchIo, unlinkItchIo, getLinkedAccounts, importItchIoGames } from "./itchio";
 import {
   archiveJams,
@@ -184,6 +186,7 @@ import {
   updateTeamProject,
   removeTeamProject,
 } from "./team";
+import { getWebsiteVerification, verifyWebsite } from "./website";
 
 export default {
   listJams,
@@ -236,6 +239,9 @@ export default {
   syncGitHubLink,
   unlinkGitHub,
   getContributions,
+  listGitLabInstances,
+  syncGitLabLink,
+  unlinkGitLab,
   linkItchIo,
   unlinkItchIo,
   getLinkedAccounts,
@@ -363,4 +369,6 @@ export default {
   importMemberProject,
   updateTeamProject,
   removeTeamProject,
+  getWebsiteVerification,
+  verifyWebsite,
 };

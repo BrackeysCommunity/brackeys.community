@@ -3,10 +3,11 @@ import {
   ArrowUpRight01Icon,
   Delete02Icon,
   GithubIcon,
+  GitlabIcon,
   Link01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,20 +19,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { gitlabCallbackPath, isGitLabProvider } from "@/lib/gitlab-instances";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
-import { client } from "@/orpc/client";
+import { client, orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 import type { ProfileLink } from "./helpers";
 import { ProfileEmptyState } from "./ProfileEmptyState";
 import { ProfileSectionHeader } from "./ProfileSectionHeader";
+import { WebsiteVerifyDialog } from "./WebsiteVerifyDialog";
 
 interface ProfileLinkedAccountsSectionProps {
   index: string;
@@ -78,6 +83,14 @@ export function ProfileLinkedAccountsSection({
     },
     onError: toastMutationError("profile.unlink_github", "Failed to unlink GitHub"),
   });
+  const unlinkGitlab = useMutation({
+    mutationFn: (providerId: string) => client.unlinkGitLab({ providerId }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Unlinked GitLab");
+    },
+    onError: toastMutationError("profile.unlink_gitlab", "Failed to unlink GitLab"),
+  });
   const unlinkItch = useMutation({
     mutationFn: () => client.unlinkItchIo({}),
     onSuccess: () => {
@@ -87,17 +100,26 @@ export function ProfileLinkedAccountsSection({
     onError: toastMutationError("profile.unlink_itchio", "Failed to unlink itch.io"),
   });
 
-  // Map a row's display label back to the OAuth provider whose
-  // unlink mutation owns the row. Custom-URL rows (synthesized
-  // from the legacy `githubUrl` / `websiteUrl` columns) bounce to
-  // the flyout instead of running an unlink — those values live on
-  // `developer_profiles`, not the `linked_accounts` table.
+  // Map a row back to the OAuth provider whose unlink mutation owns it.
+  // Custom-URL rows (synthesized from the legacy `githubUrl` /
+  // `websiteUrl` columns) carry no `provider` and bounce to the flyout
+  // instead — those values live on `developer_profiles`, not the
+  // `linked_accounts` table.
   const handleRemove = (link: ProfileLink) => {
-    const provider = link.label.toUpperCase();
-    if (provider === "GITHUB" && link.id !== "github-url") unlinkGithub.mutate();
-    else if (provider === "ITCHIO" || provider === "ITCH.IO") unlinkItch.mutate();
+    const provider = link.provider;
+    if (provider === "github") unlinkGithub.mutate();
+    else if (isItchProvider(provider)) unlinkItch.mutate();
+    else if (provider && isGitLabProvider(provider)) unlinkGitlab.mutate(provider);
     else onEdit();
   };
+
+  // One PORTFOLIO row per profile, so one piece of state rather than a
+  // dialog mounted per row.
+  const [verifyOpen, setVerifyOpen] = useState(false);
+
+  const linkedProviders = new Set(
+    links.map((l) => l.provider).filter((p): p is string => p != null),
+  );
 
   return (
     <section className="flex flex-col gap-3">
@@ -105,18 +127,7 @@ export function ProfileLinkedAccountsSection({
         index={index}
         title="LINKED"
         action={
-          isOwner ? (
-            <AddProviderMenu
-              onManual={onEdit}
-              hideGithub={links.some(
-                (l) => l.label.toUpperCase() === "GITHUB" && l.id !== "github-url",
-              )}
-              hideItch={links.some((l) => {
-                const lbl = l.label.toUpperCase();
-                return lbl === "ITCHIO" || lbl === "ITCH.IO";
-              })}
-            />
-          ) : null
+          isOwner ? <AddProviderMenu onManual={onEdit} linkedProviders={linkedProviders} /> : null
         }
       />
       {links.length === 0 ? (
@@ -142,26 +153,58 @@ export function ProfileLinkedAccountsSection({
           <ul className="flex flex-col divide-y divide-muted/30">
             {links.map((link) => (
               <li key={link.id}>
-                <LinkRow link={link} onRemove={isOwner ? () => handleRemove(link) : undefined} />
+                <LinkRow
+                  link={link}
+                  onRemove={isOwner ? () => handleRemove(link) : undefined}
+                  // The PORTFOLIO row is the only one whose host nobody has
+                  // proved — GITHUB and GITLAB rows are their own proof.
+                  verify={
+                    isOwner && link.id === "website-url" ? (
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => setVerifyOpen(true)}
+                        className="relative z-10 tracking-widest"
+                      >
+                        {link.verifiedAt ? "RECHECK" : "VERIFY"}
+                      </Button>
+                    ) : null
+                  }
+                />
               </li>
             ))}
           </ul>
         </Well>
       )}
+      {isOwner ? (
+        <WebsiteVerifyDialog
+          open={verifyOpen}
+          onClose={() => setVerifyOpen(false)}
+          onVerified={invalidate}
+        />
+      ) : null}
     </section>
   );
 }
 
 function AddProviderMenu({
   onManual,
-  hideGithub,
-  hideItch,
+  linkedProviders,
 }: {
   onManual: () => void;
-  hideGithub: boolean;
-  hideItch: boolean;
+  /** `linked_accounts.provider` values already on the profile — each one
+   *  drops out of the menu. */
+  linkedProviders: Set<string>;
 }) {
-  const [linking, setLinking] = useState<"github" | "itchio" | null>(null);
+  const [linking, setLinking] = useState<string | null>(null);
+  // Which GitLab instances this deployment has credentials for. An
+  // unconfigured instance is absent rather than an entry that 500s.
+  const { data: gitlabInstances } = useQuery({
+    ...orpc.listGitLabInstances.queryOptions({ input: {} }),
+    staleTime: STALE.taxonomy,
+  });
+  const hideGithub = linkedProviders.has("github");
+  const hideItch = linkedProviders.has("itchio") || linkedProviders.has("itch.io");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -203,6 +246,22 @@ function AddProviderMenu({
             itch.io
           </DropdownMenuItem>
         )}
+        {(gitlabInstances ?? [])
+          .filter((instance) => !linkedProviders.has(instance.providerId))
+          .map((instance) => (
+            <DropdownMenuItem
+              key={instance.providerId}
+              onClick={() => {
+                setLinking(instance.providerId);
+                void linkGitlab(instance.providerId).finally(() => setLinking(null));
+              }}
+              disabled={linking === instance.providerId}
+              className="text-xs tracking-widest uppercase"
+            >
+              <HugeiconsIcon icon={GitlabIcon} size={14} />
+              {linking === instance.providerId ? "Connecting…" : instance.label}
+            </DropdownMenuItem>
+          ))}
         <DropdownMenuItem onClick={onManual} className="text-xs tracking-widest uppercase">
           <HugeiconsIcon icon={Link01Icon} size={14} />
           Custom URL
@@ -235,14 +294,45 @@ async function linkGithub(): Promise<void> {
   }
 }
 
-function LinkRow({ link, onRemove }: { link: ProfileLink; onRemove?: () => void }) {
+function isItchProvider(provider: string | undefined): boolean {
+  return provider === "itchio" || provider === "itch.io";
+}
+
+async function linkGitlab(providerId: string): Promise<void> {
+  try {
+    captureEvent(EVENTS.accountLinkStarted, { provider: providerId });
+    // `oauth2.link` rather than `signIn.oauth2`: the member is already
+    // signed in, and this attaches the instance to that account.
+    const result = await authClient.oauth2.link({
+      providerId,
+      callbackURL: gitlabCallbackPath(providerId),
+    });
+    if (result?.error) {
+      throw new Error(result.error.message || "Failed to start GitLab OAuth");
+    }
+  } catch (e) {
+    reportMutationError(e, "profile.link_gitlab");
+    toast.error(errorMessage(e, "Failed to link GitLab"));
+  }
+}
+
+function LinkRow({
+  link,
+  onRemove,
+  verify,
+}: {
+  link: ProfileLink;
+  onRemove?: () => void;
+  /** Owner-only domain-proof control, on the PORTFOLIO row. */
+  verify?: React.ReactNode;
+}) {
   // The row is anchor-by-default — clicking opens the linked
   // account in a new tab. When `onRemove` is provided we layer a
   // standalone remove `Button` on top of it (taking its own click
   // out of the anchor's bubble), so owners get a one-tap unlink
   // without losing the rest of the row's open-on-click behaviour.
   return (
-    <div className="group relative grid grid-cols-[3rem_minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/15">
+    <div className="group relative grid grid-cols-[3rem_minmax(0,1fr)_auto_auto_auto] items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/15">
       <Chonk
         variant="surface"
         size="lg"
@@ -255,9 +345,21 @@ function LinkRow({ link, onRemove }: { link: ProfileLink; onRemove?: () => void 
           <Text size="xs" variant="muted" className="tracking-widest">
             {link.label}
           </Text>
-          {link.needsReconnect ? (
+          {link.verifiedAt ? (
+            // Domain control, never identity — so a word, not a checkmark.
+            <SimpleTooltip
+              content={`Domain control verified on ${new Date(link.verifiedAt).toLocaleDateString()}`}
+            >
+              <Badge variant="success" size="label">
+                VERIFIED
+              </Badge>
+            </SimpleTooltip>
+          ) : null}
+          {link.needsReconnect && isItchProvider(link.provider) ? (
             // z-10 lifts the button above the row's stretched anchor so the
             // click starts the OAuth flow instead of opening the stale link.
+            // Itch is the only provider whose tokens are swept, and the only
+            // one this button knows how to restart.
             <button
               type="button"
               onClick={() => startItchOAuth()}
@@ -274,6 +376,7 @@ function LinkRow({ link, onRemove }: { link: ProfileLink; onRemove?: () => void 
           {link.display}
         </Text>
       </div>
+      {verify ?? <span />}
       {onRemove ? (
         <Button
           variant="ghost"

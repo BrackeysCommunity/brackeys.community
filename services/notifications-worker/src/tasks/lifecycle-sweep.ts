@@ -22,6 +22,7 @@ import {
   SIDE_EFFECTS_JOB_OPTIONS,
 } from "../../../../src/lib/notify-core.ts";
 import { sweepOrphanProjects } from "../../../../src/lib/project-orphan-sweep.ts";
+import { sweepWebsiteVerifications } from "../../../../src/lib/website-verification-sweep.ts";
 import { db } from "../db/client.ts";
 import { notificationsQueue } from "../queue.ts";
 
@@ -246,6 +247,9 @@ export async function handleLifecycleSweep(): Promise<void> {
   // ── 7. Orphan projects: manual rows nothing has pointed at for 30 days ────
   const orphansCollected = await sweepOrphanProjects(db, now);
 
+  // ── 8. Domain proofs: re-run the stamps that are a month old ──────────────
+  const websiteProofs = await sweepWebsiteVerifications(db, now);
+
   console.log("[lifecycle_sweep] done", {
     repaired: repaired.length,
     nudged,
@@ -256,5 +260,7 @@ export async function handleLifecycleSweep(): Promise<void> {
     ...jamPings,
     retired,
     orphansCollected,
+    websiteProofsChecked: websiteProofs.checked,
+    websiteProofsCleared: websiteProofs.cleared,
   });
 }

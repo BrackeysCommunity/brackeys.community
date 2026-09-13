@@ -7,8 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { MicroLabel } from "@/components/ui/typography";
+import {
+  assignSourceHues,
+  contributionCellStyle,
+  contributionTooltip,
+  INTENSITY_ALPHA,
+  intensityMix,
+  type ContributionDay,
+  type ContributionSource,
+} from "@/lib/contributions";
 import { formatCount } from "@/lib/format-count";
-import type { ContributionDay } from "@/lib/github";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
@@ -52,6 +60,7 @@ const intensityClasses = [
   "bg-primary/75",
   "bg-primary",
 ] as const;
+
 const cellBase =
   "aspect-square w-full rounded-[2px] transition-[transform,background-color,box-shadow] duration-150";
 // Snake variants — head and body are the only cells that lift,
@@ -191,6 +200,7 @@ function CalendarGrid({
   weeks,
   totalContributions,
   maxCount,
+  sources,
   monthHeaders,
   playing,
   onToggleSnake,
@@ -201,6 +211,8 @@ function CalendarGrid({
   weeks: Array<{ contributionDays: ContributionDay[] }>;
   totalContributions: number;
   maxCount: number;
+  /** Forges behind the graph, in the server's order — one colour each. */
+  sources: ContributionSource[];
   monthHeaders: Array<{ label: string; col: number }>;
   playing: boolean;
   onToggleSnake: () => void;
@@ -218,6 +230,10 @@ function CalendarGrid({
   largeLabels?: boolean;
 }) {
   const cols = weeks.length;
+  const hues = useMemo(() => assignSourceHues(sources), [sources]);
+  // The intensity ramp has to pick one hue; the first source is the one the
+  // server ordered first (GitHub when it's there).
+  const rampHue = (sources[0] && hues.get(sources[0].key)) ?? "var(--primary)";
 
   const initialFood = useMemo(() => {
     const set = new Set<string>();
@@ -342,22 +358,28 @@ function CalendarGrid({
                 const baseIntensity = day ? getIntensity(day.contributionCount, maxCount) : 0;
 
                 let cellClass: string;
+                let style: React.CSSProperties | undefined;
                 if (snakePart === "head") cellClass = snakeHeadClass;
                 else if (snakePart === "body") cellClass = snakeBodyClass;
-                else if (isFood) cellClass = intensityClasses[baseIntensity];
-                else cellClass = emptyCellClass;
+                else if (isFood && day) {
+                  // Food keeps the heatmap's own colours, so the board the
+                  // snake eats is still the member's year.
+                  style = contributionCellStyle(day, baseIntensity, hues);
+                  cellClass = style ? "" : intensityClasses[baseIntensity];
+                } else cellClass = emptyCellClass;
 
-                return <div key={k} className={cn(cellBase, cellClass)} />;
+                return <div key={k} className={cn(cellBase, cellClass)} style={style} />;
               }
 
               if (!day) return <div key={k} className="aspect-square w-full" />;
               const intensity = getIntensity(day.contributionCount, maxCount);
+              const style = contributionCellStyle(day, intensity, hues);
               return (
-                <SimpleTooltip
-                  key={day.date}
-                  content={`${day.date}: ${day.contributionCount} contribution${day.contributionCount === 1 ? "" : "s"}`}
-                >
-                  <div className={cn(cellBase, intensityClasses[intensity])} />
+                <SimpleTooltip key={day.date} content={contributionTooltip(day, sources)}>
+                  <div
+                    className={cn(cellBase, !style && intensityClasses[intensity])}
+                    style={style}
+                  />
                 </SimpleTooltip>
               );
             })}
@@ -394,15 +416,40 @@ function CalendarGrid({
       {/* Legend */}
       <div
         className={cn(
-          "flex items-center justify-end gap-1 transition-opacity",
+          "flex flex-wrap items-center justify-end gap-x-2 gap-y-1 transition-opacity",
           playing && "opacity-0",
         )}
       >
-        <span className="mr-0.5 font-mono text-[7px] text-muted-foreground/25">Less</span>
-        {intensityClasses.map((cls) => (
-          <div key={cls} className={cn("h-[8px] w-[8px] rounded-[2px]", cls)} />
-        ))}
-        <span className="ml-0.5 font-mono text-[7px] text-muted-foreground/25">More</span>
+        {/* Which colour is which forge — only worth the row when there is
+            more than one, which is every profile until they link a second. */}
+        {sources.length > 1 ? (
+          <div className="mr-auto flex items-center gap-2">
+            {sources.map((source) => (
+              <span key={source.key} className="flex items-center gap-1">
+                <span
+                  className="h-[8px] w-[8px] rounded-[2px]"
+                  style={{ background: hues.get(source.key) }}
+                />
+                <span className="font-mono text-[7px] tracking-wider text-muted-foreground/50 uppercase">
+                  {source.label}
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <div className="flex items-center gap-1">
+          <span className="mr-0.5 font-mono text-[7px] text-muted-foreground/25">Less</span>
+          {INTENSITY_ALPHA.map((alpha, level) => (
+            <div
+              key={alpha}
+              className={cn("h-[8px] w-[8px] rounded-[2px]", level === 0 && intensityClasses[0])}
+              // The ramp shows the graph's own leading colour, so a
+              // GitLab-only profile isn't given a GitHub-blue key.
+              style={level === 0 ? undefined : { background: intensityMix(rampHue, level) }}
+            />
+          ))}
+          <span className="ml-0.5 font-mono text-[7px] text-muted-foreground/25">More</span>
+        </div>
       </div>
     </div>
   );
@@ -493,6 +540,7 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
         <CalendarGrid
           weeks={data.weeks}
           totalContributions={data.totalContributions}
+          sources={data.sources}
           maxCount={maxCount}
           monthHeaders={monthHeaders}
           playing={snakeMode}
@@ -503,6 +551,7 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
         <SnakeFullscreenOverlay
           weeks={data.weeks}
           totalContributions={data.totalContributions}
+          sources={data.sources}
           maxCount={maxCount}
           monthHeaders={monthHeaders}
           onClose={() => setFullscreen(false)}
@@ -513,6 +562,7 @@ export function ContributionCalendar({ userId, className }: ContributionCalendar
         onOpenChange={setDesktopModal}
         weeks={data.weeks}
         totalContributions={data.totalContributions}
+        sources={data.sources}
         maxCount={maxCount}
         monthHeaders={monthHeaders}
       />
@@ -541,12 +591,14 @@ function SnakeFullscreenOverlay({
   weeks,
   totalContributions,
   maxCount,
+  sources,
   monthHeaders,
   onClose,
 }: {
   weeks: Array<{ contributionDays: ContributionDay[] }>;
   totalContributions: number;
   maxCount: number;
+  sources: ContributionSource[];
   monthHeaders: Array<{ label: string; col: number }>;
   onClose: () => void;
 }) {
@@ -642,6 +694,7 @@ function SnakeFullscreenOverlay({
             <CalendarGrid
               weeks={weeks}
               totalContributions={totalContributions}
+              sources={sources}
               maxCount={maxCount}
               monthHeaders={monthHeaders}
               playing
@@ -746,6 +799,7 @@ function SnakeDesktopModal({
   weeks,
   totalContributions,
   maxCount,
+  sources,
   monthHeaders,
 }: {
   open: boolean;
@@ -753,6 +807,7 @@ function SnakeDesktopModal({
   weeks: Array<{ contributionDays: ContributionDay[] }>;
   totalContributions: number;
   maxCount: number;
+  sources: ContributionSource[];
   monthHeaders: Array<{ label: string; col: number }>;
 }) {
   useEffect(() => {
@@ -818,6 +873,7 @@ function SnakeDesktopModal({
               <CalendarGrid
                 weeks={weeks}
                 totalContributions={totalContributions}
+                sources={sources}
                 maxCount={maxCount}
                 monthHeaders={monthHeaders}
                 playing

@@ -1,5 +1,6 @@
 import { normalizeCurrency } from "@/lib/currency";
 import { formatRate } from "@/lib/format-rate";
+import { gitlabInstance, gitlabOrigin, isSelfHostedGitLab } from "@/lib/gitlab-instances";
 import {
   ANON_VIEWER,
   memberAvatarUrl,
@@ -7,6 +8,7 @@ import {
   type MemberViewer,
 } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
+import { stampCoversUrl } from "@/lib/website-verification";
 
 import type {
   EditableProject,
@@ -41,6 +43,10 @@ export interface RpcProfile {
     githubUrl: string | null;
     twitterUrl: string | null;
     websiteUrl: string | null;
+    /** Domain-control stamp for `websiteUrl`, and the host it was proved on
+     *  — a stamp naming a different host belongs to a URL since replaced. */
+    websiteVerifiedAt?: Date | null;
+    websiteVerifiedHost?: string | null;
     availableForWork: boolean | null;
     availability: string | null;
     lookingFor: string | null;
@@ -200,16 +206,25 @@ export function adaptProfile(
 
   const links: ProfileLink[] = rpc.linkedAccounts
     .filter((acc) => acc.providerProfileUrl)
-    .map((acc) => ({
-      id: String(acc.id),
-      monogram: providerMonogram(acc.provider),
-      label: acc.provider.toUpperCase(),
-      url: acc.providerProfileUrl ?? "",
-      display: acc.providerUsername ?? acc.providerProfileUrl ?? acc.provider,
-      // Owner-only affordance; visitors never see the health of someone
-      // else's token.
-      needsReconnect: rpc.isOwner && acc.tokenInvalidAt != null,
-    }));
+    .map((acc) => {
+      const gitlab = gitlabInstance(acc.provider);
+      return {
+        id: String(acc.id),
+        provider: acc.provider,
+        monogram: gitlab ? "GL" : providerMonogram(acc.provider),
+        // Every instance is GitLab; which one is the sub-line's job, so
+        // `gitlab-booth` never prints as GITLAB-BOOTH.
+        label: gitlab ? "GITLAB" : acc.provider.toUpperCase(),
+        url: acc.providerProfileUrl ?? "",
+        display:
+          gitlab && isSelfHostedGitLab(gitlab)
+            ? stripUrlScheme(acc.providerProfileUrl ?? gitlabOrigin(gitlab))
+            : (acc.providerUsername ?? acc.providerProfileUrl ?? acc.provider),
+        // Owner-only affordance; visitors never see the health of someone
+        // else's token.
+        needsReconnect: rpc.isOwner && acc.tokenInvalidAt != null,
+      };
+    });
   // Surface profile-level URLs as virtual linked accounts when the
   // user hasn't connected the corresponding provider yet — keeps the
   // section meaningful for users who only filled in the legacy text
@@ -230,6 +245,9 @@ export function adaptProfile(
       label: "PORTFOLIO",
       url: profile.websiteUrl,
       display: stripUrlScheme(profile.websiteUrl),
+      verifiedAt: stampCoversUrl(profile.websiteVerifiedHost ?? null, profile.websiteUrl)
+        ? (profile.websiteVerifiedAt ?? null)
+        : null,
     });
   }
   if (profile.twitterUrl && !links.some((l) => l.label === "TWITTER" || l.label === "X")) {

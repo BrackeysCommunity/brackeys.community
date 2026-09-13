@@ -6,6 +6,16 @@ export const env = createEnv({
     SERVER_URL: z.url().optional(),
     GITHUB_CLIENT_ID: z.string().min(1).optional(),
     GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
+    // One OAuth application per GitLab instance in `src/lib/gitlab-instances.ts`
+    // (scope `read_user`). Read through `process.env` there so the registry
+    // stays the single list; declared here for visibility/validation. An unset
+    // pair means that instance is simply absent from the LINKED menu.
+    GITLAB_CLIENT_ID: z.string().min(1).optional(),
+    GITLAB_CLIENT_SECRET: z.string().min(1).optional(),
+    GITLAB_BOOTH_CLIENT_ID: z.string().min(1).optional(),
+    GITLAB_BOOTH_CLIENT_SECRET: z.string().min(1).optional(),
+    GITLAB_BRACKEYS_CLIENT_ID: z.string().min(1).optional(),
+    GITLAB_BRACKEYS_CLIENT_SECRET: z.string().min(1).optional(),
     // 32 bytes base64 — seals linked_accounts.access_token at rest (see
     // src/lib/token-crypto.ts, which reads process.env directly so the
     // sync service can share it; declared here for visibility/validation).

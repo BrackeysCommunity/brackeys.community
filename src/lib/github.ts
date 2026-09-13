@@ -10,19 +10,21 @@ export interface GitHubUser {
   bio: string | null;
 }
 
-export interface ContributionDay {
+/** GitHub's own calendar shape. The app's merged model — every forge, one
+ *  grid — is `@/lib/contributions`; this is only what the GraphQL returns. */
+export interface GitHubContributionDay {
   date: string;
   contributionCount: number;
   color: string;
 }
 
-export interface ContributionWeek {
-  contributionDays: ContributionDay[];
+export interface GitHubContributionWeek {
+  contributionDays: GitHubContributionDay[];
 }
 
-export interface ContributionCalendarData {
+export interface GitHubContributionCalendar {
   totalContributions: number;
-  weeks: ContributionWeek[];
+  weeks: GitHubContributionWeek[];
 }
 
 export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
@@ -43,7 +45,7 @@ export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> 
 export async function fetchContributionCalendar(
   accessToken: string,
   username: string,
-): Promise<ContributionCalendarData> {
+): Promise<GitHubContributionCalendar> {
   const now = new Date();
   const oneYearAgo = new Date(now);
   oneYearAgo.setFullYear(now.getFullYear() - 1);
@@ -89,7 +91,7 @@ export async function fetchContributionCalendar(
 
   const json = (await res.json()) as {
     data?: {
-      user?: { contributionsCollection?: { contributionCalendar?: ContributionCalendarData } };
+      user?: { contributionsCollection?: { contributionCalendar?: GitHubContributionCalendar } };
     };
     errors?: Array<{ message: string }>;
   };

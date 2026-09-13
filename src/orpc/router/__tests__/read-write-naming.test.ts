@@ -60,6 +60,9 @@ const WRITE_VERBS = [
   "unblock",
   "unlink",
   "update",
+  // `verifyWebsite` stamps the profile row on a pass and clears it on a
+  // fail — a write, however much it reads like a question.
+  "verify",
   "withdraw",
 ] as const;
 

@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { oAuthProxy } from "better-auth/plugins";
+import { genericOAuth, oAuthProxy } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { createElement } from "react";
 
@@ -11,6 +11,8 @@ import { env, siteOrigin } from "@/env";
 import { cleanupUserData } from "@/lib/account-deletion";
 import { sendEmail } from "@/lib/email";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { GITLAB_INSTANCES } from "@/lib/gitlab-instances";
+import { gitlabOAuthConfigs } from "@/lib/gitlab-oauth";
 import { applyGuildBanOnSignIn } from "@/lib/guild-ban-gate";
 import { syncDiscordProfile } from "@/lib/guild-sync";
 import { captureServerEvent } from "@/lib/posthog-server";
@@ -35,6 +37,9 @@ export const auth = betterAuth({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
       scope: ["read:user"],
+      // Linking only. Discord is the sole way to become a user here, and
+      // the `user.create` hook below reports every signup as one.
+      disableSignUp: true,
     },
   },
   account: {
@@ -43,7 +48,16 @@ export const auth = betterAuth({
     // on better-auth's defaults).
     accountLinking: {
       enabled: true,
-      trustedProviders: ["discord", "github"],
+      // Every GitLab instance is trusted: on a self-hosted one the email is
+      // routinely unverified or different from the Discord one, and
+      // better-auth refuses to link an untrusted provider in either case.
+      trustedProviders: ["discord", "github", ...GITLAB_INSTANCES.map((i) => i.providerId)],
+      // Only loosens the three *session-authenticated* link flows (the
+      // member is signed in and pressed LINK); sign-in still matches
+      // accounts by email. Without it a GitLab account whose address isn't
+      // the Discord one — the normal case on a self-hosted instance —
+      // bounces off `email_doesn't_match`.
+      allowDifferentEmails: true,
     },
     // OAuth tokens encrypted at rest under BETTER_AUTH_SECRET (hardening
     // Phase 7). Rows written before this flag are plaintext; better-auth's
@@ -144,6 +158,9 @@ export const auth = betterAuth({
     oAuthProxy({
       productionURL: env.VITE_OAUTH_PROXY_ORIGIN ?? "https://staging.brackeys.dev",
     }),
+    // One provider per GitLab instance; an instance with no credentials in
+    // the environment produces no config and no menu entry.
+    genericOAuth({ config: gitlabOAuthConfigs() }),
   ],
   databaseHooks: {
     user: {

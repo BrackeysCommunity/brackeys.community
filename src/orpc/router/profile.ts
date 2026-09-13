@@ -73,6 +73,7 @@ import { isOwnedProfileProjectImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { isValidTimezone } from "@/lib/timezones";
 import { discordUsernameToStub, STUB_REGEX } from "@/lib/url-stub";
+import { stampCoversUrl } from "@/lib/website-verification";
 import { requireAdmin, requireAuth, userIsGuildMember } from "@/orpc/middleware/auth";
 import { profileNameSearch } from "@/orpc/profile-projection";
 
@@ -489,6 +490,11 @@ export const getProfileByDiscordId = os
 /** Everything a public profile read returns once the row is resolved. */
 async function buildPublicProfile(profile: typeof developerProfiles.$inferSelect) {
   const profileId = profile.id;
+  // The row is spread wholesale into the response, so the one secret on it
+  // leaves here: `website_verification_token` is what proves domain control,
+  // and anyone holding it could place it on a host they own and claim
+  // someone else's site. The owner reads it through `getWebsiteVerification`.
+  const { websiteVerificationToken: _token, ...publicProfile } = profile;
 
   const [
     skillList,
@@ -549,7 +555,7 @@ async function buildPublicProfile(profile: typeof developerProfiles.$inferSelect
   );
 
   return {
-    profile,
+    profile: publicProfile,
     skills: skillList,
     roles: roleList,
     projects: await serializeProfileProjects(projects),
@@ -567,13 +573,18 @@ export const getMyProfile = os
   .handler(async ({ context }) => {
     const userId = context.user.id;
 
-    const [profile] = await db
+    const [stored] = await db
       .select()
       .from(developerProfiles)
       .where(eq(developerProfiles.id, userId))
       .limit(1);
 
-    if (!profile) return null;
+    if (!stored) return null;
+
+    // Same omission as the public view: the owner's own token is read
+    // through `getWebsiteVerification`, which is the one surface that shows
+    // it — nothing else needs it in a payload.
+    const { websiteVerificationToken: _token, ...profile } = stored;
 
     const roleNames = applyRoleOverrides(profile.discordId, profile.guildRoles ?? []);
 
@@ -692,6 +703,27 @@ async function assertRatePairOrdered(
   });
 }
 
+/**
+ * A verified badge belongs to the host that passed, not to the member — so
+ * pointing the PORTFOLIO row at a different host drops the stamp, while
+ * moving to another page on the same host keeps it. Returns the columns to
+ * merge into the update, empty when the save doesn't touch the URL.
+ */
+async function websiteStampPatch(
+  userId: string,
+  nextUrl: string | null | undefined,
+): Promise<{ websiteVerifiedAt: null; websiteVerifiedHost: null } | Record<string, never>> {
+  if (nextUrl === undefined) return {};
+  const [stored] = await db
+    .select({ verifiedHost: developerProfiles.websiteVerifiedHost })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, userId))
+    .limit(1);
+  if (!stored?.verifiedHost) return {};
+  if (stampCoversUrl(stored.verifiedHost, nextUrl ?? null)) return {};
+  return { websiteVerifiedAt: null, websiteVerifiedHost: null };
+}
+
 export const updateProfile = os
   .use(requireAuth)
   .input(
@@ -751,9 +783,11 @@ export const updateProfile = os
 
     await assertRatePairOrdered(userId, input);
 
+    const stampPatch = await websiteStampPatch(userId, input.websiteUrl);
+
     const [updated] = await db
       .update(developerProfiles)
-      .set({ ...input, updatedAt: new Date() })
+      .set({ ...input, ...stampPatch, updatedAt: new Date() })
       .where(eq(developerProfiles.id, userId))
       .returning();
 
@@ -1447,10 +1481,16 @@ export async function applyProfileUpdate(
     throw new ORPCError("BAD_REQUEST", { message: "Nothing to change." });
   }
 
+  const stampPatch = await websiteStampPatch(
+    userId,
+    touched.includes("websiteUrl") ? (patch.websiteUrl ?? null) : undefined,
+  );
+
   const [updated] = await db
     .update(developerProfiles)
     .set({
       ...Object.fromEntries(touched.map((key) => [key, patch[key] ?? null])),
+      ...stampPatch,
       updatedAt: new Date(),
     })
     .where(eq(developerProfiles.id, userId))

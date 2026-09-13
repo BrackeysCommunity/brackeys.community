@@ -127,6 +127,14 @@ export const developerProfiles = userSchema.table(
     githubUrl: text("github_url"),
     twitterUrl: text("twitter_url"),
     websiteUrl: text("website_url"),
+    /** Domain-control proof for `websiteUrl` — see `@/lib/website-verification`.
+     *  The token is minted on the member's first VERIFY and never rotates, so
+     *  the instructions can't change under someone mid-check. The stamp names
+     *  the host that passed: it is cleared when `websiteUrl` moves to a
+     *  different host, and survives a path change on the same one. */
+    websiteVerificationToken: text("website_verification_token"),
+    websiteVerifiedAt: timestamp("website_verified_at"),
+    websiteVerifiedHost: text("website_verified_host"),
     availableForWork: boolean("available_for_work").default(false),
     availability: text("availability"),
     rateType: text("rate_type"),

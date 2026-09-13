@@ -143,6 +143,11 @@ The app runs on `http://localhost:3000`.
 
 - `GITHUB_CLIENT_ID`: GitHub account linking
 - `GITHUB_CLIENT_SECRET`: GitHub account linking
+- `GITLAB_CLIENT_ID`: gitlab.com account linking
+- `GITLAB_BOOTH_CLIENT_ID`: `git.booth.dev` linking
+- `GITLAB_BRACKEYS_CLIENT_ID`: `git.brackeys.dev` linking
+  (register each application non-confidential — a public PKCE client needs no
+  secret; `GITLAB_*_CLIENT_SECRET` exists for instances that require one)
 - `VITE_ITCHIO_CLIENT_ID`: itch.io linking flow
 - `VITE_STRAPI_URL`: Strapi-backed uploads / demo content
 - `MINIO_ENDPOINT`: MinIO server URL, for example `https://your-minio-host.up.railway.app`

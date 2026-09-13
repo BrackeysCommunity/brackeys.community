@@ -335,6 +335,11 @@ export interface ProfileSkill {
 
 export interface ProfileLink {
   id: string;
+  /** `linked_accounts.provider` for a real OAuth row; absent on the virtual
+   * rows synthesized from the profile's own URL columns. Three GitLab
+   * instances all label themselves GITLAB, so the unlink action keys on
+   * this rather than on the label. */
+  provider?: string;
   /** Two-letter monogram displayed in the leading well (e.g. "GH"). */
   monogram: string;
   /** Capitalized provider name (e.g. "GITHUB"). */
@@ -346,6 +351,9 @@ export interface ProfileLink {
   /** Owner-only: the provider rejected our stored token (revoked on their
    * side) — surfaces the RECONNECT affordance. */
   needsReconnect?: boolean;
+  /** PORTFOLIO rows only: when the member last proved they control the
+   * host. Domain control, never identity — see `@/lib/website-verification`. */
+  verifiedAt?: Date | null;
 }
 
 /** A row of seven day-counts, oldest → newest, padded with `null` when

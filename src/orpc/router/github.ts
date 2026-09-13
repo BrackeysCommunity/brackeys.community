@@ -7,9 +7,8 @@ import { db } from "@/db";
 import { account, linkedAccounts } from "@/db/schema";
 import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import { EVENTS } from "@/lib/event-taxonomy";
-import { fetchGitHubUser, fetchContributionCalendar } from "@/lib/github";
+import { fetchGitHubUser } from "@/lib/github";
 import { captureServerEvent } from "@/lib/posthog-server";
-import { openToken } from "@/lib/token-crypto";
 import { sealLinkedAccountToken } from "@/orpc/linked-account-tokens";
 import { requireAuth } from "@/orpc/middleware/auth";
 
@@ -103,34 +102,4 @@ export const unlinkGitHub = os
       .where(and(eq(account.userId, userId), eq(account.providerId, "github")));
 
     return { success: true };
-  });
-
-export const getContributions = os
-  .route({ method: "GET" })
-  .input(z.object({ userId: z.string() }))
-  .handler(async ({ input }) => {
-    const [ghLink] = await db
-      .select()
-      .from(linkedAccounts)
-      .where(and(eq(linkedAccounts.profileId, input.userId), eq(linkedAccounts.provider, "github")))
-      .limit(1);
-
-    if (!ghLink?.accessToken || !ghLink.providerUsername) {
-      return null;
-    }
-
-    // A sealed token with no key to open it is a config error, not a
-    // reason to 500 the profile page: the graph is just absent.
-    let token: string;
-    try {
-      token = openToken(ghLink.accessToken);
-    } catch (err) {
-      console.error("[github] cannot open stored token:", err);
-      return null;
-    }
-    const calendar = await fetchContributionCalendar(token, ghLink.providerUsername).catch(
-      () => null,
-    );
-
-    return calendar;
   });

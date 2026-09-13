@@ -8,7 +8,7 @@ import {
   listCollabRoles,
   listPosts,
 } from "./collab";
-import { getContributions } from "./github";
+import { getContributions } from "./contributions";
 import {
   archiveJams,
   getJam,
