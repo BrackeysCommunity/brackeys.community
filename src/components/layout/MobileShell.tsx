@@ -70,7 +70,9 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           {session?.user ? null : (
             <Button
               variant="default"
-              size="sm"
+              // `lg` is h-9, matching the cog's `icon-lg` beside it — the
+              // header's one control height.
+              size="lg"
               className="px-4 text-xs font-bold tracking-widest"
               onClick={() => signInWithDiscord("mobile_shell")}
             >
@@ -108,10 +110,12 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Bottom fade so content scrolling under the nav island remains
-          legible against the island chrome. */}
+          legible against the island chrome. Named for the same reason the
+          nav below is: content moving under it during a route change has to
+          pass behind it, not over it. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-40"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 [view-transition-name:bottom-nav-fade]"
         style={{
           height: BOTTOM_NAV_HEIGHT,
           background:

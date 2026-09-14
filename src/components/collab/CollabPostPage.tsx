@@ -592,8 +592,11 @@ function PostHero({
 
           {/* The clock and the actions share the right column — the
               countdown at the top, the buttons at the bottom, like the
-              browse heroes' CTA; on a narrow screen it wraps below. */}
-          <div className="flex shrink-0 flex-col items-end justify-between gap-4">
+              browse heroes' CTA. Once it wraps below, "right column" stops
+              meaning anything: it takes the full line and aligns left with
+              the title it now sits under, rather than stranding the
+              countdown against the right edge of its own widest button. */}
+          <div className="flex w-full shrink-0 flex-col items-start justify-between gap-4 sm:w-auto sm:items-end">
             {closesIn && !closesIn.past ? (
               <HeroStat
                 label="CLOSES IN"
@@ -632,7 +635,7 @@ function HeroStat({
   align?: "start" | "end";
 }) {
   return (
-    <div className={cn("min-w-0", align === "end" && "text-right")}>
+    <div className={cn("min-w-0", align === "end" && "sm:text-right")}>
       <MicroLabel as="div">{label}</MicroLabel>
       <Text
         as="div"
@@ -675,7 +678,7 @@ function HeroActions({
 }) {
   const navigate = useNavigate();
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
       {!isOwner && !isClosed ? (
         currentUserId ? (
           <Button

@@ -5,9 +5,22 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * How long a pointer has to rest on a trigger before its hint appears.
+ * Opening on contact means every pass of the cursor across a toolbar fires
+ * a row of tooltips at whatever it grazes; a beat of hover is what separates
+ * "I want to know what this is" from "I am on my way somewhere else".
+ *
+ * Both entry points below default to it — `SimpleTooltip` mounts its own
+ * provider, so it does not inherit the app-level one's delay. Pass `delay`
+ * explicitly to override (`censored.tsx` opens faster; the tooltip story
+ * demonstrates a slower one).
+ */
+const TOOLTIP_DELAY = 500;
+
 // ── Compound API (backward-compatible) ─────────────────────────────
 
-function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
+function TooltipProvider({ delay = TOOLTIP_DELAY, ...props }: TooltipPrimitive.Provider.Props) {
   return <TooltipPrimitive.Provider data-slot="tooltip-provider" delay={delay} {...props} />;
 }
 
@@ -42,7 +55,10 @@ const arrowVariantStyles: Record<TooltipContentVariant, string> = {
 function TooltipContent({
   className,
   side = "top",
-  sideOffset = 4,
+  // The arrow is a rotated 10px square that reaches ~5px past the popup
+  // edge, so a 4px offset left it grazing its own trigger — worst on a
+  // header control, where the tooltip flips below and lands on the button.
+  sideOffset = 10,
   align = "center",
   alignOffset = 0,
   variant = "default",
@@ -64,8 +80,19 @@ function TooltipContent({
           data-variant={variant}
           className={cn(
             "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
-            "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-            "z-50 w-fit origin-(--transform-origin) -translate-y-0.5 rounded px-3 py-1.5 text-xs filter-[drop-shadow(0_2px_0_var(--tooltip-shadow))]",
+            // A hint always rises into place and sinks back out, whichever
+            // side it lands on — a tooltip that flips below its trigger
+            // shouldn't reverse its motion as well as its position. Each
+            // side's exit mirrors its entry, so dismissing retraces the way
+            // it came.
+            "data-[side=top]:slide-in-from-bottom-2 data-[side=top]:slide-out-to-bottom-2",
+            "data-[side=bottom]:slide-in-from-bottom-2 data-[side=bottom]:slide-out-to-bottom-2",
+            "data-[side=left]:slide-in-from-right-2 data-[side=left]:slide-out-to-right-2",
+            "data-[side=right]:slide-in-from-left-2 data-[side=right]:slide-out-to-left-2",
+            // No static nudge here: the enter/exit keyframes overwrite
+            // `transform` outright, so one would pop on and off at each end
+            // of the animation. Distance from the trigger is `sideOffset`.
+            "z-50 w-fit origin-(--transform-origin) rounded px-3 py-1.5 text-xs filter-[drop-shadow(0_2px_0_var(--tooltip-shadow))]",
             variantStyles[variant],
             className,
           )}
@@ -116,7 +143,7 @@ function SimpleTooltip({
   maxWidth = 225,
   hoverable = false,
   disabled = false,
-  delay = 0,
+  delay = TOOLTIP_DELAY,
   open,
   children,
   className,
@@ -137,5 +164,5 @@ function SimpleTooltip({
   );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, SimpleTooltip };
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, SimpleTooltip, TOOLTIP_DELAY };
 export type { TooltipContentProps, SimpleTooltipProps, TooltipContentVariant };

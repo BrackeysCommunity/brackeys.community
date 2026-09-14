@@ -521,13 +521,22 @@
     transition-duration: 50ms;
   }
 
-  /* Dropdown/menu trigger stays depressed while popup is open — overrides hover */
-  .chonk-emboss[data-popup-open],
-  .chonk-emboss[data-popup-open]:hover,
-  [data-popup-open] > .chonk-emboss,
-  [data-popup-open] > .chonk-emboss:hover,
-  [data-popup-open] .chonk-emboss,
-  [data-popup-open] .chonk-emboss:hover {
+  /* Dropdown/menu trigger stays depressed while popup is open — overrides
+     hover.
+
+     `data-pressed`, not `data-popup-open`: Base UI puts the latter on every
+     trigger, hover-opened ones included, so keying off it sank a button
+     under its own tooltip as though the hint had been a click. `data-pressed`
+     is the one Base UI reserves for triggers you press to open — menu,
+     select, popover, combobox, context menu — which is exactly the set that
+     should read as held down. A dialog trigger doesn't get it, but it spends
+     that whole time behind a modal overlay. */
+  .chonk-emboss[data-pressed],
+  .chonk-emboss[data-pressed]:hover,
+  [data-pressed] > .chonk-emboss,
+  [data-pressed] > .chonk-emboss:hover,
+  [data-pressed] .chonk-emboss,
+  [data-pressed] .chonk-emboss:hover {
     --chonk-y: 0px !important;
     transition-duration: 50ms;
   }
@@ -706,6 +715,29 @@
     opacity: 0;
     transform: translateY(6px);
   }
+}
+
+/* The mobile shell's bottom chrome sits *above* the page scroller, but the
+   scroller is the full viewport — so leaving the nav island in the frozen
+   root put the arriving `page` snapshot on top of it, and the nav faded and
+   rose along with the page it is supposed to stand still behind. Naming both
+   gives them groups of their own, which sort above `page` (z-50/z-40 against
+   the scroller's auto), and these rules hold the arriving state still for the
+   duration instead of cross-fading to it. */
+::view-transition-group(bottom-nav),
+::view-transition-group(bottom-nav-fade) {
+  animation: none;
+}
+::view-transition-old(bottom-nav),
+::view-transition-new(bottom-nav),
+::view-transition-old(bottom-nav-fade),
+::view-transition-new(bottom-nav-fade) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(bottom-nav),
+::view-transition-old(bottom-nav-fade) {
+  display: none;
 }
 
 /* ── Reduced motion ───────────────────────────────────────────────────

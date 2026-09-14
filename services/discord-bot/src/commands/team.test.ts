@@ -19,8 +19,8 @@ describe("/team", () => {
           itchUrl: null,
           recruiting: true,
           members: [
-            { username: "josh", role: "owner", title: null },
-            { username: "ana", role: "member", title: "Art" },
+            { guildNickname: "josh", discordUsername: "josh_dev", role: "owner", title: null },
+            { guildNickname: null, discordUsername: "ana", role: "member", title: "Art" },
           ],
           skills: [{ id: 7, name: "Unity", memberCount: 2 }],
           projects: [{}, {}, {}],

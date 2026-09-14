@@ -1,4 +1,4 @@
-import { CheckmarkCircle02Icon, EyeIcon, ViewOffSlashIcon } from "@hugeicons/core-free-icons";
+import { CheckmarkCircle02Icon, EyeIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
@@ -13,13 +13,19 @@ import { STALE } from "@/orpc/public-procedures";
 import type { JamPhase } from "./JamCalendarPage/helpers";
 
 /**
- * The only user-declared thing about a jam: WATCH, and — for guild members
- * on a jam that hasn't ended — the stronger "I'M ENTERING".
+ * The only user-declared thing about a jam: watching it, and — for guild
+ * members on a jam that hasn't ended — the stronger "entering".
  *
  * Two buttons rather than a three-state cycle. A cycling control makes the
  * common case (drop a jam you no longer care about) take two clicks through
  * a state you didn't want, and hides "entering" from anyone who doesn't
  * think to keep clicking.
+ *
+ * Icon-only, because these are standing toggles sitting beside the jam's
+ * real calls to action and shouldn't compete with them for width. The icon
+ * names the thing, the lit variant carries the state, and the label lives in
+ * the tooltip and `aria-label` — which is also where the wording that only
+ * matters once you're deciding ("you'll still watch it") belongs.
  *
  * Declaring is gated server-side on guild membership; this renders the
  * button regardless and lets the refusal explain itself, because hiding it
@@ -73,34 +79,39 @@ export function JamWatchToggle({
   const watching = intent != null;
   const entering = intent === "entering";
 
+  const watchLabel = watching ? "Stop watching this jam" : "Watch this jam";
+  const enterLabel = entering
+    ? "Stop showing yourself as entering (you'll still watch it)"
+    : "Show up on this jam's page as entering";
+
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <Button
-        size="sm"
+        size="icon-sm"
         variant={watching ? "secondary" : "outline"}
         onClick={() => set.mutate(watching ? null : "watching")}
         disabled={set.isPending}
-        className="tracking-widest"
+        aria-pressed={watching}
+        aria-label={watchLabel}
+        tooltip={watchLabel}
       >
-        <HugeiconsIcon icon={watching ? ViewOffSlashIcon : EyeIcon} size={12} />
-        {watching ? "UNWATCH" : "WATCH"}
+        {/* The eye stays an eye whether or not you're watching: on an
+            icon-only toggle the crossed-out variant reads as the current
+            state ("hidden") rather than as what a click would do. */}
+        <HugeiconsIcon icon={EyeIcon} size={14} />
       </Button>
 
       {canDeclare ? (
         <Button
-          size="sm"
+          size="icon-sm"
           variant={entering ? "secondary" : "outline"}
           onClick={() => set.mutate(entering ? "watching" : "entering")}
           disabled={set.isPending}
-          className="tracking-widest"
-          tooltip={
-            entering
-              ? "Stop showing yourself as entering (you'll still watch it)"
-              : "Show up on this jam's page as entering"
-          }
+          aria-pressed={entering}
+          aria-label={enterLabel}
+          tooltip={enterLabel}
         >
-          <HugeiconsIcon icon={CheckmarkCircle02Icon} size={12} />
-          {entering ? "ENTERING" : "I'M ENTERING"}
+          <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} />
         </Button>
       ) : null}
     </div>

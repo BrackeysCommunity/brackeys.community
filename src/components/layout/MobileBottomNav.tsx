@@ -210,7 +210,13 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
       className={cn(
         inline
           ? "pointer-events-auto"
-          : "pointer-events-auto fixed inset-x-0 bottom-0 z-50 flex justify-center px-3",
+          : // `view-transition-name` keeps the island out of the frozen root
+            // snapshot. The shells' `page` scroller is the full viewport, so
+            // its snapshot covers the nav, and being painted below it the nav
+            // fades and rises along with the arriving page. Its own group
+            // sorts above `page` (z-50 against the scroller's auto) and is
+            // pinned still in `styles.css`.
+            "pointer-events-auto fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 [view-transition-name:bottom-nav]",
       )}
       style={
         inline

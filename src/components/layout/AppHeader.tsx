@@ -220,6 +220,9 @@ export function AppHeader() {
               ) : (
                 <Button
                   variant="default"
+                  // Matches the `icon-lg` triggers it sits beside; the
+                  // default `h-8` left it a step short of the cluster.
+                  size="lg"
                   className="px-5 text-xs font-bold tracking-widest"
                   onClick={() => signInWithDiscord("header")}
                 >
