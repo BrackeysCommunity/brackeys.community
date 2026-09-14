@@ -1,0 +1,8 @@
+# Trimmed from the tarball `railway up` sends. A release uploads this tree five
+# times (once per service), and none of these are read by any build.
+.gitlab/
+storybook-static/
+coverage/
+docs/
+test-results/
+playwright-report/

@@ -257,19 +257,136 @@ user-only commands. Do not have agents execute them.
 `define` assembled at build time in `vite.config.ts`:
 
 ```
-<package.json version>+<UTC build stamp>.<short sha>
-0.0.0-alpha+20260906.0441.8ab5478
+<package.json version>+<UTC build stamp>.<short sha>     # staging, previews, local
+0.1.0+20260906.0441.8ab5478
+
+<tag without v>+<short sha>                              # tagged prod release
+0.1.0+8ab5478
 ```
 
-The stamp orders builds and the sha pins one. Railway exposes
-`RAILWAY_GIT_COMMIT_SHA`, GitLab exposes `CI_COMMIT_SHA`, and a local build
-falls back to `git rev-parse`. Nothing bumps `package.json` automatically;
-change its `version` by hand when the release line moves:
+The stamp orders builds and the sha pins one. On a tagged release the tag does
+the ordering, so the stamp is dropped: the release pipeline sets `APP_RELEASE`
+as a Railway service variable and `vite.config.ts` takes that branch. The
+standalone services have no Vite build and read `APP_RELEASE` at runtime
+(`src/lib/service-telemetry.ts`), falling back to `RAILWAY_GIT_COMMIT_SHA`.
+
+For the sha: Railway exposes `RAILWAY_GIT_COMMIT_SHA` on repo-connected
+deploys, the release pipeline sets `APP_COMMIT_SHA`, GitLab exposes
+`CI_COMMIT_SHA`, and a local build falls back to `git rev-parse`.
+
+Nothing bumps `package.json` automatically; you change its `version` by hand
+when the release line moves:
 
 ```bash
-npm version preminor --preid=beta --no-git-tag-version  # → 0.1.0-beta.0
-npm version minor --no-git-tag-version                   # → 0.1.0
+npm version minor --no-git-tag-version   # → 0.2.0
 ```
+
+**Landing that on `main` releases to prod** — the bump is the trigger, not a
+bookkeeping step. See "Releasing" below before you merge one.
+
+## Releasing
+
+**A production release is a git tag.** Pushing `vX.Y.Z` to GitLab runs one
+pipeline that gates the commit, migrates the prod database, and deploys **all
+five application services** — Web, `itch-crawler`, `media-scan`,
+`notifications-worker`, `discord-bot` — from that one tree. Nothing in prod
+moves because a branch moved; the Railway auto-deploy triggers on the prod
+instances are off.
+
+Staging is unchanged: it still tracks `main` through the GitHub mirror.
+
+### The loop
+
+Ordinary work never touches a tag. Branch off `main`, open an MR, and get the
+usual MR pipeline (`lint`, `test`, `sonar`, a Railway preview). Merging to
+`main` deploys **staging** through the GitHub mirror, and applies staging
+migrations if the MR touched `drizzle/`. Soak it there.
+
+Because staging is where you decide, **soak first, then bump** — the bump MR is
+the release decision, not a step after it.
+
+### Cutting one
+
+Open an MR that bumps `package.json`'s `version` and nothing else:
+
+```bash
+npm version minor --no-git-tag-version   # → 0.2.0
+```
+
+Merge it. That is the whole release. The `auto-tag` job on `main` sees the
+`version` field change, pushes `v0.2.0`, and the tag runs the release pipeline.
+
+Two things it deliberately will not do:
+
+- **A dependency bump does not release.** `auto-tag` diffs the `version` field
+  itself, not the file, so Renovate MRs pass through untouched.
+- **A prerelease does not release.** Set `0.3.0-rc.1` and it lands on `main`
+  and deploys to staging with no tag and no prod deploy. Only `X.Y.Z` ships.
+
+Pushing a tag by hand does the same thing, and is the fallback if `auto-tag` is
+ever wedged:
+
+```bash
+git tag -a v0.2.0 -m "v0.2.0" && git push origin v0.2.0
+```
+
+From the tag on: `release-gate` checks the tag matches `package.json`, that the
+commit is reachable from `main`, and type-checks every `services/*` package —
+the only place CI does, since root `vp check` does not cover them. Then
+`db-migrate-prod` runs (always, not only when `drizzle/` changed — that filter
+is what let schema and code race), five parallel `deploy-prod` jobs
+`railway up` each service and poll it to `SUCCESS`, `smoke-prod` asserts
+`/api/health` reports the new version, and `publish-release` writes the GitLab
+Release from `git log`.
+
+`auto-tag` needs `RELEASE_TOKEN`: a project access token, Maintainer (the
+`v*` protected-tag rule requires it), `write_repository`, masked and protected.
+**It expires.** A previous incarnation of CI-side versioning died exactly that
+way and went unnoticed for three months, so this job fails loudly on a missing
+token and verifies the tag actually landed rather than trusting `git push` —
+but a red `auto-tag` on `main` is the only thing between an expired token and a
+release that silently never happens. Put its expiry in a calendar.
+
+### Verifying
+
+`/api/health` returns `{ ok, version }`; the footer shows `v0.1.0+<sha>`;
+PostHog `app_version` reads `0.1.0` for web and services alike; Railway shows
+five deployments messaged `v0.1.0 @ <sha>`.
+
+### Rolling back
+
+1. **Fast** — Railway rollback, per affected service: find the previous
+   `SUCCESS` deployment (`railway deployment list --service X --environment prod
+--json`) and call `deploymentRollback(id)` over GraphQL (the CLI has no
+   rollback verb). Image and variables come back together, so `APP_RELEASE`
+   reverts with it. Only deployments with `canRollback: true` qualify.
+2. **Correct** — re-run the previous tag's pipeline and retry `deploy-prod`.
+   Same code path as a release, so it is the one to trust.
+
+Migrations do not roll back; drizzle has no down. A release whose migration is
+not backwards-compatible with the previous code needs a forward fix (`v0.1.1`),
+not a rollback. A deploy that fails mid-release leaves that service on its
+previous deployment — the failure mode is "one service stale", not "prod down".
+
+### When a job fails
+
+- **`auto-tag`** — no tag, so no release happened at all; `main` and staging
+  are fine. Usually the token: expired, unmasked, or its user is not a
+  Maintainer so the `v*` rule refused the push (the job says which). Fix the
+  token and re-run the job, or push the tag by hand.
+- **`release-gate`** — nothing has moved. Fix and re-tag: delete the tag
+  locally and remotely (`git push origin :v0.1.0`), then tag again.
+- **`db-migrate-prod`** — nothing has deployed, and drizzle applies pending
+  migrations in one transaction, so prod's schema is untouched. Fix the
+  migration on `main` and cut the next patch tag.
+- **One `deploy-prod` job** — that service is still on its previous
+  deployment; the other four are on the new one. Retry the job from the
+  pipeline. If the build itself is broken, fix forward with `v0.1.1` rather
+  than leaving the split in place.
+- **`smoke-prod`** — all five deployed but the origin is not serving the new
+  version. Check `/api/health` by hand before assuming the job is wrong; if
+  prod really is bad, roll back Web first, since it is the only user-facing
+  one.
 
 ## Development Notes
 

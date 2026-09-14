@@ -1,0 +1,261 @@
+# Tagged production releases.
+#
+# Pushing `vX.Y.Z` runs one pipeline that gates the commit, migrates the prod
+# database, uploads that exact tree to all five application services in
+# Railway's `prod` environment, waits for each to report SUCCESS, smoke-checks
+# the live origin, and publishes a GitLab Release.
+#
+# Every service ships on the tag — Web, itch-crawler, media-scan,
+# notifications-worker and discord-bot all come from this one tree, so prod
+# can no longer hold a mix of commits the way branch triggers allowed.
+#
+# Prod does not move because a branch moved: the Railway auto-deploy triggers
+# on the prod service instances are off (see docs/plans/32-tagged-ci-prod-releases.md).
+#
+# Cutting a release is merging an MR that bumps `package.json`'s `version`:
+# `auto-tag` below turns that into the tag, and the tag runs everything else.
+# A hand-pushed `vX.Y.Z` works identically — release-gate holds either way.
+
+.release:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+
+# Cuts the tag when a merge to `main` changes package.json's `version`, so a
+# release is one action: merge the bump MR. The tag it pushes then triggers the
+# release pipeline below exactly as a hand-pushed tag would.
+#
+# Lives in the `release` stage rather than using `needs:`, which is deliberate.
+# Stage ordering means a red lint/test/sonar blocks it without naming those
+# jobs — and `lint` skips a commit titled "Merge branch …", which would make a
+# `needs: [lint]` fail *pipeline creation*, not just the job.
+#
+# `3dfa009` deleted a job that pushed to main with a PAT, and that PAT's silent
+# expiry stopped the version counter for three months. The guards below exist
+# because of it: this job fails loudly rather than no-oping, and confirms the
+# tag landed instead of trusting the push.
+auto-tag:
+  stage: release
+  image: oven/bun:latest
+  variables:
+    # `git show HEAD~1` needs the parent; a merge commit's parents are not
+    # guaranteed present at a shallow depth.
+    GIT_DEPTH: "0"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    # `changes:` is the cheap filter — every dependency bump trips it too, so
+    # the script diffs the version field itself before doing anything.
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - package.json
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+  script:
+    - |
+      set -eu
+
+      CURRENT=$(bun -p 'require("./package.json").version')
+      git show "${CI_COMMIT_SHA}~1:package.json" > /tmp/prev-package.json 2>/dev/null || {
+        echo "No parent commit to compare against — nothing to tag."
+        exit 0
+      }
+      PREVIOUS=$(bun -p 'require("/tmp/prev-package.json").version')
+
+      echo "package.json version: ${PREVIOUS} → ${CURRENT}"
+
+      if [ "$CURRENT" = "$PREVIOUS" ]; then
+        echo "Version unchanged (a dependency edit, most likely). Nothing to tag."
+        exit 0
+      fi
+
+      # Stable releases only. A prerelease is a deliberate "not yet" — it lands
+      # on main and deploys to staging without ever reaching prod.
+      case "$CURRENT" in
+        [0-9]*.[0-9]*.[0-9]*)
+          if ! printf '%s' "$CURRENT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Version ${CURRENT} is a prerelease — no tag, no prod release."
+            exit 0
+          fi
+          ;;
+        *)
+          echo "Version ${CURRENT} is not X.Y.Z — no tag."
+          exit 0
+          ;;
+      esac
+
+      TAG="v${CURRENT}"
+
+      # The token is the one part of this that can rot without anyone noticing.
+      # Fail the job rather than skip the release quietly.
+      if [ -z "${RELEASE_TOKEN:-}" ]; then
+        echo "✗ RELEASE_TOKEN is not set — ${TAG} was NOT created."
+        echo "  A protected+masked project access token (Maintainer, write_repository)."
+        echo "  If it expired, that is why this release did not ship."
+        exit 1
+      fi
+
+      git config user.name "gitlab-ci[bot]"
+      git config user.email "gitlab-ci[bot]@noreply.gitlab.com"
+      git remote set-url origin "https://oauth2:${RELEASE_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+
+      # Idempotent: a re-run of this pipeline must not fail on an existing tag.
+      if [ -n "$(git ls-remote --tags origin "refs/tags/${TAG}" 2>/dev/null)" ]; then
+        echo "${TAG} already exists — nothing to do."
+        exit 0
+      fi
+
+      git tag -a "$TAG" -m "$TAG"
+      git push origin "$TAG"
+
+      # `git push` exiting 0 is not proof the ref is there (a protected-tag rule
+      # the token cannot satisfy is the case that matters).
+      if [ -z "$(git ls-remote --tags origin "refs/tags/${TAG}" 2>/dev/null)" ]; then
+        echo "✗ push succeeded but ${TAG} is absent on the remote."
+        echo "  Most likely the token's user is not a Maintainer, so the v* protected-tag rule refused it."
+        exit 1
+      fi
+
+      echo "✓ ${TAG} pushed — the release pipeline should now be running."
+
+release-gate:
+  extends: .release
+  stage: check
+  image: oven/bun:latest
+  variables:
+    # merge-base needs real history, not the tag's tip alone.
+    GIT_DEPTH: "0"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - bun install --frozen-lockfile
+  script:
+    # 1. The tag and package.json agree, so the footer, PostHog's app_version
+    #    and the Railway deployment can never disagree about what shipped.
+    - |
+      PKG_VERSION=$(bun -p 'require("./package.json").version')
+      if [ "$PKG_VERSION" != "${CI_COMMIT_TAG#v}" ]; then
+        echo "✗ package.json is $PKG_VERSION but the tag is $CI_COMMIT_TAG"
+        echo "  Land a 'release: ${CI_COMMIT_TAG#v}' MR on main first, then tag that commit."
+        exit 1
+      fi
+    # 2. The tag points at a commit that is on main — never a side branch that
+    #    skipped staging.
+    - git fetch --quiet origin main
+    - |
+      if ! git merge-base --is-ancestor "$CI_COMMIT_SHA" origin/main; then
+        echo "✗ $CI_COMMIT_SHA is not reachable from origin/main"
+        exit 1
+      fi
+    # 3. Type-check every service. Root `vp check` does not cover services/**,
+    #    so this is the only place CI catches a service type error before it
+    #    reaches a prod container.
+    - |
+      for dir in services/*/; do
+        [ -f "$dir/tsconfig.json" ] || continue
+        [ -f "$dir/package.json" ] || continue
+        echo "── typecheck ${dir}"
+        (cd "$dir" && bun install --frozen-lockfile && bun run typecheck)
+      done
+
+# db-migrate-prod lives in .gitlab/db-migrate.gitlab-ci.yml with the other
+# migration jobs; it runs on the same tag rule and gates the deploys below.
+
+deploy-prod:
+  extends: .release
+  stage: deploy
+  image: ghcr.io/railwayapp/cli:latest
+  # db-migrate-prod carries the lint/test gate transitively, but naming them
+  # here keeps the dependency readable at the job that replaces containers.
+  needs:
+    - job: release-gate
+      artifacts: false
+    - job: lint
+      artifacts: false
+    - job: test
+      artifacts: false
+    - job: db-migrate-prod
+      artifacts: false
+  interruptible: false
+  timeout: 50m
+  # Per-service, so a second tag pushed mid-release queues behind this one for
+  # each service instead of interleaving uploads.
+  resource_group: prod-release-$SERVICE
+  parallel:
+    matrix:
+      - SERVICE:
+          - Web
+          - itch-crawler
+          - media-scan
+          - notifications-worker
+          - discord-bot
+  environment:
+    name: production/$SERVICE
+    url: https://brackeys.community
+    deployment_tier: production
+  variables:
+    # Pencil and Librarian each deploy with a bare `RAILWAY_TOKEN` CI/CD
+    # variable, which is all a one-service, one-environment repo needs. This
+    # repo cannot: `deploy-preview` already relies on an ambient RAILWAY_TOKEN
+    # that has to be account-scoped (it creates environments, which a project
+    # token cannot, and runs `railway whoami`, which a project token cannot
+    # resolve). So the prod-scoped project token keeps a distinct name and is
+    # mapped onto RAILWAY_TOKEN here, where only this job sees it.
+    #
+    # Do not add a `railway whoami` preflight — it fails for a project token.
+    RAILWAY_TOKEN: $RAILWAY_PROD_TOKEN
+    GIT_DEPTH: "1"
+  before_script:
+    - apk add --no-cache jq
+  script:
+    # Uploads carry no RAILWAY_GIT_COMMIT_SHA, so release identity is set as
+    # service variables instead — read by vite.config.ts at build time and by
+    # src/lib/service-telemetry.ts at runtime. --skip-deploys so setting them
+    # does not itself trigger a deployment.
+    - |
+      railway variable set \
+        APP_RELEASE="${CI_COMMIT_TAG#v}" \
+        APP_COMMIT_SHA="$CI_COMMIT_SHA" \
+        --service "$SERVICE" --environment prod --skip-deploys
+    - railway up --ci --service "$SERVICE" --environment prod -m "$CI_COMMIT_TAG @ $CI_COMMIT_SHORT_SHA"
+    # media-scan bakes a ~750 MB model on every build; the timeout covers it.
+    - TIMEOUT_SECONDS=1800 sh scripts/ci/railway-wait.sh "$SERVICE" prod
+
+smoke-prod:
+  extends: .release
+  stage: release
+  image: alpine:latest
+  needs:
+    - job: deploy-prod
+      artifacts: false
+  before_script:
+    - apk add --no-cache curl
+  script:
+    # The health route reports the same string the footer renders, so this
+    # asserts the origin is serving *this* release rather than merely serving.
+    - |
+      BODY=$(curl -fsS --max-time 30 https://brackeys.community/api/health)
+      echo "$BODY"
+      echo "$BODY" | grep -q "\"${CI_COMMIT_TAG#v}+" || {
+        echo "✗ /api/health does not report ${CI_COMMIT_TAG#v}"
+        exit 1
+      }
+    - curl -fsS -o /dev/null --max-time 30 https://brackeys.community/
+
+publish-release:
+  extends: .release
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: smoke-prod
+      artifacts: false
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - PREV=$(git describe --tags --abbrev=0 "$CI_COMMIT_TAG^" 2>/dev/null || true)
+    - echo "Previous tag: ${PREV:-none}"
+    - git log --no-merges --pretty='- %s (%h)' ${PREV:+$PREV..}$CI_COMMIT_TAG > notes.md
+    - cat notes.md
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: notes.md

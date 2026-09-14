@@ -2,8 +2,9 @@ stages:
   - check
   - test
   - sonar
-  - deploy
   - db-migrate
+  - deploy
+  - release
   - renovate
 
 include:
@@ -11,5 +12,6 @@ include:
   - local: .gitlab/sonar.gitlab-ci.yml
   - local: .gitlab/db-migrate.gitlab-ci.yml
   - local: .gitlab/railway-preview.gitlab-ci.yml
+  - local: .gitlab/release.gitlab-ci.yml
   - local: .gitlab/renovate.gitlab-ci.yml
   - local: .gitlab/chromatic.gitlab-ci.yml

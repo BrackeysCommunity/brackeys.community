@@ -43,6 +43,15 @@ applied via the same `drizzle-kit` flow as the rest of the app.
    - `DATABASE_URL` — reference the Railway Postgres service variable
    - `REDIS_URL` — reference the Railway Redis service variable
 
+### Deploys
+
+Staging tracks `main` through the GitHub mirror. **Prod ships only on a
+`vX.Y.Z` tag**: the release pipeline uploads that tag's tree to this service
+with a Railway project token, so prod never holds a mix of commits — this
+worker tracked `main` directly until then, and ran ahead of the web app that
+enqueues its jobs. Auto-deploy is off on the prod instance. See "Releasing" in
+the root README.
+
 ## Running locally
 
 ```bash

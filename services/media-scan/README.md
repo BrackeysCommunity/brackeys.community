@@ -78,6 +78,15 @@ The worker writes one heartbeat row (`media-scan-reconcile`) per reconcile.
    `src/scan/warm-nsfw.ts`; size the container for the model resident
    (measure RSS after the first tick — plan 24's open question 2).
 
+### Deploys
+
+Staging tracks `main` through the GitHub mirror. **Prod ships only on a
+`vX.Y.Z` tag**: the release pipeline uploads that tag's tree to this service
+with a Railway project token, so prod never holds a mix of commits.
+Auto-deploy is off on the prod instance. The model bake makes this the slowest
+job in a release — it sets the 30-minute deploy poll. See "Releasing" in the
+root README.
+
 ## Running locally
 
 ```bash

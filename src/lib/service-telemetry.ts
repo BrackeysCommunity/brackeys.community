@@ -40,11 +40,13 @@ const HOST =
 /**
  * Common properties on every capture, matching `@/lib/posthog-server`'s pair
  * so the error dashboard slices web and services the same way. Services have
- * no Vite build, so the closest thing to a release id is Railway's commit
- * sha; the environment name is Railway's own, absent means local dev.
+ * no Vite build, so the release id is read at runtime: `APP_RELEASE` on a
+ * tagged prod release, otherwise Railway's commit sha — which exists only on
+ * repo-connected deploys, never on the uploads a release pipeline sends. The
+ * environment name is Railway's own, absent means local dev.
  */
 const COMMON_PROPS: Record<string, unknown> = {
-  app_version: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7),
+  app_version: process.env.APP_RELEASE ?? process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7),
   environment: process.env.RAILWAY_ENVIRONMENT_NAME ?? "development",
 };
 

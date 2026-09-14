@@ -47,6 +47,9 @@ lint:
         - tsconfig*.json
         - vite.config.*
         - "*.config.*"
+    # Release tags gate unconditionally — deploy-prod needs this job, and
+    # `changes:` means nothing on a tag pipeline anyway.
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
 
 test:
   stage: test
@@ -90,3 +93,5 @@ test:
         - tsconfig*.json
         - vite.config.*
         - "*.config.*"
+    # Release tags gate unconditionally — deploy-prod needs this job.
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/

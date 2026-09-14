@@ -54,6 +54,7 @@ import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
 import { Route as AuthErrorRouteImport } from './routes/auth.error'
 import { Route as ArcadeEnPrisonRouteImport } from './routes/arcade.en-prison'
+import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as ProjectsGameGameIdRouteImport } from './routes/projects.game.$gameId'
 import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
@@ -290,6 +291,11 @@ const ArcadeEnPrisonRoute = ArcadeEnPrisonRouteImport.update({
   path: '/en-prison',
   getParentRoute: () => ArcadeRoute,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
@@ -363,6 +369,7 @@ export interface FileRoutesByFullPath {
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/health': typeof ApiHealthRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -413,6 +420,7 @@ export interface FileRoutesByTo {
   '/suspended': typeof SuspendedRoute
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/health': typeof ApiHealthRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -471,6 +479,7 @@ export interface FileRoutesById {
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/health': typeof ApiHealthRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
@@ -530,6 +539,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/terms'
     | '/api/$'
+    | '/api/health'
     | '/arcade/en-prison'
     | '/auth/error'
     | '/collab/$postId'
@@ -580,6 +590,7 @@ export interface FileRouteTypes {
     | '/suspended'
     | '/terms'
     | '/api/$'
+    | '/api/health'
     | '/arcade/en-prison'
     | '/auth/error'
     | '/collab/$postId'
@@ -637,6 +648,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/terms'
     | '/api/$'
+    | '/api/health'
     | '/arcade/en-prison'
     | '/auth/error'
     | '/collab/$postId'
@@ -695,6 +707,7 @@ export interface RootRouteChildren {
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   AuthErrorRoute: typeof AuthErrorRoute
   ImagesSplatRoute: typeof ImagesSplatRoute
   JamsJamSlugRoute: typeof JamsJamSlugRoute
@@ -1029,6 +1042,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArcadeEnPrisonRouteImport
       parentRoute: typeof ArcadeRoute
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/$': {
       id: '/api/$'
       path: '/api/$'
@@ -1224,6 +1244,7 @@ const rootRouteChildren: RootRouteChildren = {
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,
+  ApiHealthRoute: ApiHealthRoute,
   AuthErrorRoute: AuthErrorRoute,
   ImagesSplatRoute: ImagesSplatRoute,
   JamsJamSlugRoute: JamsJamSlugRoute,

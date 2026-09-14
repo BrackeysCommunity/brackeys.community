@@ -41,7 +41,15 @@ const buildStamp = new Date()
   .replace(/T(\d{4})\d{2}\.\d{3}Z$/, ".$1");
 
 const commitSha = resolveCommitSha();
-const appVersion = `${pkg.version}+${[buildStamp, commitSha].filter(Boolean).join(".")}`;
+
+// A tagged prod release sets APP_RELEASE (the tag without its `v`) on every
+// Railway service before uploading, so the tag itself orders releases and the
+// build stamp is noise. Staging and previews have no tag and keep the stamped
+// form.
+const appRelease = process.env.APP_RELEASE;
+const appVersion = appRelease
+  ? [appRelease, commitSha].filter(Boolean).join("+")
+  : `${pkg.version}+${[buildStamp, commitSha].filter(Boolean).join(".")}`;
 
 // Source-map upload is keyed off the credential being present, never off
 // NODE_ENV — MR previews build as `staging`, and a gate on

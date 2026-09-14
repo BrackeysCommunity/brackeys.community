@@ -189,6 +189,13 @@ The old per-tier services (live, discovery, results, scan, backfill) and
 `itchio-library-sync` are retired by this one; delete them once it is running,
 or they will scrape alongside it.
 
+### Deploys
+
+Staging tracks `main` through the GitHub mirror. **Prod ships only on a
+`vX.Y.Z` tag**: the release pipeline uploads that tag's tree to this service
+with a Railway project token, so prod never holds a mix of commits.
+Auto-deploy is off on the prod instance. See "Releasing" in the root README.
+
 ## Running locally
 
 ```bash

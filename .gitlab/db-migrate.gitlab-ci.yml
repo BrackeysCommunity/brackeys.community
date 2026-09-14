@@ -1,5 +1,6 @@
-# Apply Drizzle migrations to staging (main) and prod (prod) when files under
-# drizzle/ change. `drizzle-kit migrate` (v1) scans the timestamped migration
+# Apply Drizzle migrations to staging (on `main`, when files under drizzle/
+# change) and to prod (on every `vX.Y.Z` release tag, always).
+# `drizzle-kit migrate` (v1) scans the timestamped migration
 # folders under drizzle/, compares folder names against rows recorded in
 # drizzle.__drizzle_migrations on the target DB, and applies every migration
 # not yet recorded there. See drizzle/README.md for the one-time re-baseline
@@ -28,8 +29,26 @@ db-migrate-staging:
       changes:
         - drizzle/**/*
 
+# Prod migrates on a release tag, before any container is replaced — see
+# .gitlab/release.gitlab-ci.yml. Deliberately has no `changes:` filter: the
+# migrator is a no-op when nothing is pending, and filtering is what let the
+# schema and the code race under the old `prod`-branch trigger. A failure here
+# stops the release with prod still whole, since drizzle applies pending
+# migrations in one transaction.
 db-migrate-prod:
   extends: .db-migrate
+  # The full gate, not just release-gate: `needs` runs a job as soon as its
+  # dependencies finish, so listing only the gate would let a migration land on
+  # prod while the test suite was still running.
+  needs:
+    - job: release-gate
+      artifacts: false
+    - job: lint
+      artifacts: false
+    - job: test
+      artifacts: false
+  resource_group: prod-release-db
+  interruptible: false
   variables:
     DATABASE_URL: $PROD_DATABASE_URL
   script:
@@ -37,6 +56,4 @@ db-migrate-prod:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
-    - if: $CI_COMMIT_BRANCH == 'prod'
-      changes:
-        - drizzle/**/*
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/

@@ -78,6 +78,14 @@ Root `vp check` formats these files but does not type-check them.
    `APP_URL` (required, never defaulted), optional `JAM_HOST_NAME`,
    `BOT_API_TIMEOUT_MS`, and the PostHog pair the other services read.
 
+### Deploys
+
+Staging tracks `main` through the GitHub mirror. **Prod ships only on a
+`vX.Y.Z` tag**: the release pipeline uploads that tag's tree to this service
+with a Railway project token, so prod never holds a mix of commits — this bot
+tracked `main` directly until then, and ran ahead of the web app it calls.
+Auto-deploy is off on the prod instance. See "Releasing" in the root README.
+
 ### Portal work (one-time, human)
 
 - The bot and the site's OAuth sign-in are **one Discord application**; the

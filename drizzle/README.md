@@ -14,8 +14,10 @@ SQL migrations for the Brackeys schema, managed by drizzle-kit v1 (pinned in
   `DATABASE_URL`. Drizzle records each applied migration in
   `drizzle.__drizzle_migrations`, matching by folder name.
 
-CI applies migrations on `main` (staging) and `prod` whenever files under
-`drizzle/` change — see `.gitlab/db-migrate.gitlab-ci.yml`.
+CI applies migrations to staging on `main` whenever files under `drizzle/`
+change, and to prod on every `vX.Y.Z` release tag — unconditionally, before any
+container is replaced, since the migrator is a no-op when nothing is pending.
+See `.gitlab/db-migrate.gitlab-ci.yml` and `.gitlab/release.gitlab-ci.yml`.
 
 ## Conventions
 
@@ -38,7 +40,9 @@ Existing databases must have their tracking table reconciled **before** the
 first v1 `db:migrate` run against them (the migrator otherwise tries to
 execute the baseline and fails on the first `CREATE SCHEMA`; the transaction
 rolls back, so it's harmless but blocking). One-time, per DB.
-**Status: staging done 2026-07-30; prod still pending.**
+**Status: done on both. Staging 2026-07-30, prod confirmed 2026-09-14.**
+The statement below is kept for reference and for any new database; neither
+staging nor prod needs it again.
 
 ```sql
 BEGIN;
