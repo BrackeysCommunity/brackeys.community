@@ -37,21 +37,31 @@ db-migrate-staging:
 # migrations in one transaction.
 db-migrate-prod:
   extends: .db-migrate
-  # The full gate, not just release-gate: `needs` runs a job as soon as its
-  # dependencies finish, so listing only the gate would let a migration land on
-  # prod while the test suite was still running.
+  # Only release-gate: lint/test do not run on a tag pipeline, because the
+  # tag's commit already passed them on `main` before auto-tag cut the tag.
   needs:
     - job: release-gate
-      artifacts: false
-    - job: lint
-      artifacts: false
-    - job: test
       artifacts: false
   resource_group: prod-release-db
   interruptible: false
   variables:
     DATABASE_URL: $PROD_DATABASE_URL
   script:
+    # An empty DATABASE_URL reaches drizzle-kit as `url: ''` and fails with a
+    # message that says nothing about why. The usual cause is variable
+    # exposure, not a missing variable.
+    - |
+      if [ -z "${DATABASE_URL:-}" ]; then
+        echo "✗ PROD_DATABASE_URL is empty on this pipeline — prod was NOT migrated."
+        echo "  Ref: ${CI_COMMIT_TAG:-$CI_COMMIT_REF_NAME}"
+        echo "  Most likely one of:"
+        echo "   1. The variable is 'Protected' but this tag is not. Add a protected-tag"
+        echo "      rule for 'v*' (Settings → Repository → Protected tags, Maintainers)."
+        echo "   2. The variable is scoped to an environment. This job declares none,"
+        echo "      so an environment-scoped variable never reaches it — scope it to '*'."
+        echo "   3. It is genuinely unset, or the name is misspelled."
+        exit 1
+      fi
     - bun run db:migrate
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
