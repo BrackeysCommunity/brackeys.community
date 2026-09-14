@@ -253,7 +253,10 @@ publish-release:
     GIT_DEPTH: "0"
   script:
     - PREV=$(git describe --tags --abbrev=0 "$CI_COMMIT_TAG^" 2>/dev/null || true)
-    - echo "Previous tag: ${PREV:-none}"
+    # Quoted: an unquoted scalar containing ": " parses as a YAML mapping, and
+    # GitLab then rejects the whole pipeline ("script config should be a string
+    # or a nested array of strings").
+    - 'echo "Previous tag: ${PREV:-none}"'
     - git log --no-merges --pretty='- %s (%h)' ${PREV:+$PREV..}$CI_COMMIT_TAG > notes.md
     - cat notes.md
   release:
