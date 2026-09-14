@@ -1,17 +1,7 @@
-import { SortByDown02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
 
-import { FILTER_TOGGLE } from "@/components/common/ActiveFilterBar";
-import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Toolbar, ToolbarFloatingControls } from "@/components/common/Toolbar";
+import { FilterToggle, SortMenu } from "@/components/ui/filter-menu";
 import { SearchField } from "@/components/ui/search-field";
 
 import {
@@ -59,45 +49,29 @@ export function TeamsToolbar({
   if (controlsElsewhere) return searchInput;
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Line 1 — search owns the width. */}
-      {searchInput}
-
-      {/* Line 2 — facets on the left, display controls on the right. */}
-      <div className="flex flex-wrap items-center gap-2">
-        {onOpenFilters ? (
-          <Button variant="outline" size="sm" onClick={onOpenFilters} className="tracking-widest">
-            FILTERS
-          </Button>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSearch({ recruiting: search.recruiting ? undefined : true })}
-              className={FILTER_TOGGLE}
-              aria-pressed={!!search.recruiting}
-            >
-              RECRUITING
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSearch({ shipped: search.shipped ? undefined : true })}
-              className={FILTER_TOGGLE}
-              aria-pressed={!!search.shipped}
-            >
-              HAS SHIPPED
-            </Button>
-            <TeamsSkillPicker search={search} setSearch={setSearch} />
-          </>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          <TeamsSortMenu sort={search.sort ?? DEFAULT_SORT} setSearch={setSearch} />
-        </div>
-      </div>
-    </div>
+    <Toolbar
+      search={searchInput}
+      onOpenFilters={onOpenFilters}
+      controls={
+        <SortMenu
+          options={SORT_OPTIONS}
+          value={search.sort ?? DEFAULT_SORT}
+          onChange={(v) => setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as TeamsSort) })}
+        />
+      }
+    >
+      <FilterToggle
+        label="RECRUITING"
+        pressed={!!search.recruiting}
+        onPressedChange={(on) => setSearch({ recruiting: on ? true : undefined })}
+      />
+      <FilterToggle
+        label="HAS SHIPPED"
+        pressed={!!search.shipped}
+        onPressedChange={(on) => setSearch({ shipped: on ? true : undefined })}
+      />
+      <TeamsSkillPicker search={search} setSearch={setSearch} />
+    </Toolbar>
   );
 }
 
@@ -121,74 +95,14 @@ export function TeamsFloatingControls({
   onOpenFilters: () => void;
 }) {
   return (
-    <div
-      className="pointer-events-none fixed inset-x-0 z-40 flex items-center justify-between px-4"
-      style={{
-        bottom: `calc(${BOTTOM_NAV_HEIGHT} - 0.5rem)`,
-        paddingLeft: "calc(1rem + env(safe-area-inset-left))",
-        paddingRight: "calc(1rem + env(safe-area-inset-right))",
-      }}
-    >
-      <Button
-        variant="outline"
+    <ToolbarFloatingControls onOpenFilters={onOpenFilters}>
+      <SortMenu
         size="lg"
-        onClick={onOpenFilters}
-        className="pointer-events-auto tracking-widest"
-      >
-        FILTERS
-      </Button>
-      <div className="pointer-events-auto flex items-center gap-2">
-        <TeamsSortMenu sort={search.sort ?? DEFAULT_SORT} setSearch={setSearch} large />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Sort as a bare icon button, jam-board style. A native `title` hint rather
- * than SimpleTooltip, which renders its own button trigger and would nest a
- * button in a button.
- */
-function TeamsSortMenu({
-  sort,
-  setSearch,
-  large,
-}: {
-  sort: TeamsSort;
-  setSearch: SetTeamsSearch;
-  large?: boolean;
-}) {
-  const label = SORT_OPTIONS.find((o) => o.value === sort)!.label;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size={large ? "icon-lg" : "icon-sm"}
-            tooltip={`Sort: ${label}`}
-            aria-label={`Sort order: ${label}`}
-          />
-        }
-      >
-        <HugeiconsIcon icon={SortByDown02Icon} size={large ? 18 : 14} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-auto min-w-48 p-1">
-        <DropdownMenuRadioGroup
-          value={sort}
-          onValueChange={(value) =>
-            setSearch({ sort: value === DEFAULT_SORT ? undefined : (value as TeamsSort) })
-          }
-        >
-          {SORT_OPTIONS.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        options={SORT_OPTIONS}
+        value={search.sort ?? DEFAULT_SORT}
+        onChange={(v) => setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as TeamsSort) })}
+      />
+    </ToolbarFloatingControls>
   );
 }
 

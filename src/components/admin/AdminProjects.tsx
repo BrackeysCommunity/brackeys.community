@@ -9,12 +9,12 @@ import {
   AdminSection,
   ReasonField,
 } from "@/components/admin/AdminUI";
+import { Toolbar } from "@/components/common/Toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Confirm } from "@/components/ui/confirm";
 import { Empty } from "@/components/ui/empty";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { type FilterOption, FilterMenu, FilterToggle, SortMenu } from "@/components/ui/filter-menu";
 import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
@@ -120,89 +120,85 @@ export function AdminProjects({ isAdmin }: { isAdmin: boolean }) {
       count={projects.isPending ? undefined : total}
       hint="Every project page, unpublished included. An orphan is a row no profile or team showcase points at any more — what a deleted team leaves behind. Unpublishing hides the page from everyone but its editors; deleting is for rows nothing else needs."
     >
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-4">
+      <Toolbar
+        search={
           <SearchField
             value={search}
             onChange={(next) => setFilter(() => setSearch(next))}
             placeholder="Title or handle — typos welcome…"
-            containerClassName="min-w-56 flex-1"
+            containerClassName="w-full"
           />
-          <label htmlFor="admin-projects-orphans-only" className="flex items-center gap-2">
-            <Checkbox
-              id="admin-projects-orphans-only"
-              checked={filters.orphansOnly}
-              onCheckedChange={(checked) => patch({ orphansOnly: !!checked })}
+        }
+        controls={
+          <>
+            {filtered ? (
+              <Button
+                variant="ghost"
+                size="xs"
+                className="tracking-widest"
+                onClick={() => setFilter(() => setFilters(DEFAULT_FILTERS))}
+              >
+                RESET
+              </Button>
+            ) : null}
+            <SortMenu
+              value={filters.sort}
+              onChange={(sort) => patch({ sort: sort as Filters["sort"] })}
+              options={(Object.keys(SORT_LABELS) as Filters["sort"][]).map((sort) => ({
+                value: sort,
+                label: SORT_LABELS[sort],
+              }))}
             />
-            <MicroLabel as="span">ORPHANS ONLY</MicroLabel>
-          </label>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <FilterSelect
-            id="admin-projects-source"
-            label="Source"
-            value={filters.source}
-            onChange={(source) => patch({ source: source as Filters["source"] })}
-            options={[
-              ["all", "Any"],
-              ["itchio", "itch.io"],
-              ["manual", "Added by hand"],
-            ]}
-          />
-          <FilterSelect
-            id="admin-projects-visibility"
-            label="Visibility"
-            value={filters.visibility}
-            onChange={(visibility) => patch({ visibility: visibility as Filters["visibility"] })}
-            options={[
-              ["all", "Any"],
-              ["published", "Published"],
-              ["unpublished", "Unpublished"],
-            ]}
-          />
-          <FilterSelect
-            id="admin-projects-type"
-            label="Kind"
-            value={filters.type}
-            onChange={(type) => patch({ type: type as Filters["type"] })}
-            options={[
-              ["all", "Any"],
-              ...PROJECT_TYPES.map((type): [string, string] => [type, projectTypeLabel({ type })]),
-            ]}
-          />
-          <FilterSelect
-            id="admin-projects-creator"
-            label="Creator"
-            value={filters.creator}
-            onChange={(creator) => patch({ creator: creator as Filters["creator"] })}
-            options={[
-              ["all", "Any"],
-              ["member", "A member"],
-              ["none", "Nobody (scraped)"],
-            ]}
-          />
-          <FilterSelect
-            id="admin-projects-sort"
-            label="Sort"
-            value={filters.sort}
-            onChange={(sort) => patch({ sort: sort as Filters["sort"] })}
-            options={(Object.keys(SORT_LABELS) as Filters["sort"][]).map((sort) => [
-              sort,
-              SORT_LABELS[sort],
-            ])}
-          />
-          {filtered ? (
-            <Button
-              variant="ghost"
-              size="xs"
-              className="tracking-widest"
-              onClick={() => setFilter(() => setFilters(DEFAULT_FILTERS))}
-            >
-              RESET
-            </Button>
-          ) : null}
-        </div>
-      </div>
+          </>
+        }
+      >
+        <FilterMenu
+          label="SOURCE"
+          value={filters.source}
+          onChange={(source) => patch({ source: source as Filters["source"] })}
+          options={[
+            { value: "all", label: "Any source" },
+            { value: "itchio", label: "itch.io" },
+            { value: "manual", label: "Added by hand" },
+          ]}
+        />
+        <FilterMenu
+          label="VISIBILITY"
+          value={filters.visibility}
+          onChange={(visibility) => patch({ visibility: visibility as Filters["visibility"] })}
+          options={[
+            { value: "all", label: "Any visibility" },
+            { value: "published", label: "Published" },
+            { value: "unpublished", label: "Unpublished" },
+          ]}
+        />
+        <FilterMenu
+          label="KIND"
+          value={filters.type}
+          onChange={(type) => patch({ type: type as Filters["type"] })}
+          options={[
+            { value: "all", label: "Any kind" },
+            ...PROJECT_TYPES.map(
+              (type): FilterOption => ({ value: type, label: projectTypeLabel({ type }) }),
+            ),
+          ]}
+        />
+        <FilterMenu
+          label="CREATOR"
+          value={filters.creator}
+          onChange={(creator) => patch({ creator: creator as Filters["creator"] })}
+          options={[
+            { value: "all", label: "Any creator" },
+            { value: "member", label: "A member" },
+            { value: "none", label: "Nobody (scraped)" },
+          ]}
+        />
+        <FilterToggle
+          label="ORPHANS ONLY"
+          pressed={filters.orphansOnly}
+          onPressedChange={(on) => patch({ orphansOnly: on })}
+        />
+      </Toolbar>
 
       <AdminPager
         page={page}
@@ -319,11 +315,11 @@ function ProjectAdminRow({
               message={
                 <>
                   The page stays up for the people credited on it and disappears for everyone else.
-                  A reason is required.
                   <ReasonField
                     id={`project-unpublish-reason-${project.id}`}
                     value={reason}
                     onChange={onReason}
+                    required
                   />
                 </>
               }
@@ -361,11 +357,11 @@ function ProjectAdminRow({
                 <>
                   The page, its credits, jam links and team claims are gone for good, and the handle
                   is free again. Showcase entries that pointed at it stay on their pages, unlinked.
-                  A reason is required.
                   <ReasonField
                     id={`project-delete-reason-${project.id}`}
                     value={reason}
                     onChange={onReason}
+                    required
                   />
                 </>
               }
@@ -385,34 +381,5 @@ function ProjectAdminRow({
         </div>
       </div>
     </AdminRow>
-  );
-}
-
-function FilterSelect({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: [value: string, label: string][];
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id}>
-        <MicroLabel as="span">{label.toUpperCase()}</MicroLabel>
-      </label>
-      <NativeSelect id={id} size="sm" value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map(([optionValue, optionLabel]) => (
-          <NativeSelectOption key={optionValue} value={optionValue}>
-            {optionLabel}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-    </div>
   );
 }

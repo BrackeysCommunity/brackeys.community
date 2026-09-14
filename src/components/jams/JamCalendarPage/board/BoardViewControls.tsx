@@ -1,18 +1,8 @@
-import {
-  GridViewIcon,
-  LeftToRightListBulletIcon,
-  SortByDown02Icon,
-} from "@hugeicons/core-free-icons";
+import { GridViewIcon, LeftToRightListBulletIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { SortMenu } from "@/components/ui/filter-menu";
 
 import type { BoardLayout, BoardSort } from "./build-board";
 
@@ -42,27 +32,17 @@ export function BoardViewControls({
   const nextLayoutLabel = nextLayout === "list" ? "list" : "card";
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className="size-10"
-              tooltip={`Sort: ${SORT_LABELS[sort]}`}
-              aria-label={`Sort order: ${SORT_LABELS[sort]}`}
-            />
-          }
-        >
-          <HugeiconsIcon icon={SortByDown02Icon} size={16} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuRadioGroup value={sort} onValueChange={(v) => onSortChange(v as BoardSort)}>
-            <DropdownMenuRadioItem value="signal">BIGGEST</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="soonest">SOONEST</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SortMenu
+        size="lg"
+        className="size-10"
+        contentClassName="w-40"
+        options={(Object.keys(SORT_LABELS) as BoardSort[]).map((value) => ({
+          value,
+          label: SORT_LABELS[value],
+        }))}
+        value={sort}
+        onChange={(v) => onSortChange(v as BoardSort)}
+      />
 
       <Button
         variant="outline"

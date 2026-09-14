@@ -1,9 +1,6 @@
-import { SortByDown02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
 
-import { FILTER_TOGGLE } from "@/components/common/ActiveFilterBar";
-import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
+import { Toolbar, ToolbarFloatingControls } from "@/components/common/Toolbar";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -19,6 +16,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { FILTER_TOGGLE, FilterToggle, SortMenu } from "@/components/ui/filter-menu";
 import { SearchField } from "@/components/ui/search-field";
 
 import {
@@ -71,43 +69,31 @@ export function MembersToolbar({
   if (controlsElsewhere) return searchInput;
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Line 1 — search owns the width. */}
-      {searchInput}
-
-      {/* Line 2 — facets on the left, display controls on the right. */}
-      <div className="flex flex-wrap items-center gap-2">
-        {onOpenFilters ? (
-          <Button variant="outline" size="sm" onClick={onOpenFilters} className="tracking-widest">
-            FILTERS
-          </Button>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSearch({ open: search.open ? undefined : true })}
-              className={FILTER_TOGGLE}
-              aria-pressed={!!search.open}
-            >
-              OPEN TO WORK
-            </Button>
-            <MembersRolePicker search={search} setSearch={setSearch} />
-            <AvailabilityMenu
-              selected={search.availability ?? []}
-              onChange={(next) => setSearch({ availability: next.length > 0 ? next : undefined })}
-            />
-            <MembersSkillPicker search={search} setSearch={setSearch} />
-            <RateMenu rate={search.rate} setSearch={setSearch} />
-            <TimezoneMenu tz={search.tz} setSearch={setSearch} />
-          </>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          <MembersSortMenu sort={search.sort ?? DEFAULT_SORT} setSearch={setSearch} />
-        </div>
-      </div>
-    </div>
+    <Toolbar
+      search={searchInput}
+      onOpenFilters={onOpenFilters}
+      controls={
+        <SortMenu
+          options={SORT_OPTIONS}
+          value={search.sort ?? DEFAULT_SORT}
+          onChange={(v) => setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as MembersSort) })}
+        />
+      }
+    >
+      <FilterToggle
+        label="OPEN TO WORK"
+        pressed={!!search.open}
+        onPressedChange={(on) => setSearch({ open: on ? true : undefined })}
+      />
+      <MembersRolePicker search={search} setSearch={setSearch} />
+      <AvailabilityMenu
+        selected={search.availability ?? []}
+        onChange={(next) => setSearch({ availability: next.length > 0 ? next : undefined })}
+      />
+      <MembersSkillPicker search={search} setSearch={setSearch} />
+      <RateMenu rate={search.rate} setSearch={setSearch} />
+      <TimezoneMenu tz={search.tz} setSearch={setSearch} />
+    </Toolbar>
   );
 }
 
@@ -127,74 +113,14 @@ export function MembersFloatingControls({
   onOpenFilters: () => void;
 }) {
   return (
-    <div
-      className="pointer-events-none fixed inset-x-0 z-40 flex items-center justify-between px-4"
-      style={{
-        bottom: `calc(${BOTTOM_NAV_HEIGHT} - 0.5rem)`,
-        paddingLeft: "calc(1rem + env(safe-area-inset-left))",
-        paddingRight: "calc(1rem + env(safe-area-inset-right))",
-      }}
-    >
-      <Button
-        variant="outline"
+    <ToolbarFloatingControls onOpenFilters={onOpenFilters}>
+      <SortMenu
         size="lg"
-        onClick={onOpenFilters}
-        className="pointer-events-auto tracking-widest"
-      >
-        FILTERS
-      </Button>
-      <div className="pointer-events-auto flex items-center gap-2">
-        <MembersSortMenu sort={search.sort ?? DEFAULT_SORT} setSearch={setSearch} large />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Sort as a bare icon button, jam-board style. A native `title` hint rather
- * than SimpleTooltip, which renders its own button trigger and would nest a
- * button in a button.
- */
-function MembersSortMenu({
-  sort,
-  setSearch,
-  large,
-}: {
-  sort: MembersSort;
-  setSearch: SetMembersSearch;
-  large?: boolean;
-}) {
-  const label = SORT_OPTIONS.find((o) => o.value === sort)!.label;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size={large ? "icon-lg" : "icon-sm"}
-            tooltip={`Sort: ${label}`}
-            aria-label={`Sort order: ${label}`}
-          />
-        }
-      >
-        <HugeiconsIcon icon={SortByDown02Icon} size={large ? 18 : 14} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-auto min-w-48 p-1">
-        <DropdownMenuRadioGroup
-          value={sort}
-          onValueChange={(value) =>
-            setSearch({ sort: value === DEFAULT_SORT ? undefined : (value as MembersSort) })
-          }
-        >
-          {SORT_OPTIONS.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        options={SORT_OPTIONS}
+        value={search.sort ?? DEFAULT_SORT}
+        onChange={(v) => setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as MembersSort) })}
+      />
+    </ToolbarFloatingControls>
   );
 }
 

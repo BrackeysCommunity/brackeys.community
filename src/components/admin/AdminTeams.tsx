@@ -242,12 +242,12 @@ function TeamAdminRow({
               title={`Hide “${team.name}”?`}
               message={
                 <>
-                  The team page disappears for everyone but staff and its members. A reason is
-                  required.
+                  The team page disappears for everyone but staff and its members.
                   <ReasonField
                     id={`team-hide-reason-${team.id}`}
                     value={reason}
                     onChange={onReason}
+                    required
                   />
                 </>
               }
@@ -272,12 +272,12 @@ function TeamAdminRow({
                   title={`Delete “${team.name}”?`}
                   message={
                     <>
-                      The team, its membership, and its projects are gone for good. A reason is
-                      required.
+                      The team, its membership, and its projects are gone for good.
                       <ReasonField
                         id={`team-delete-reason-${team.id}`}
                         value={reason}
                         onChange={onReason}
+                        required
                       />
                     </>
                   }

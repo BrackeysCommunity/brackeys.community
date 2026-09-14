@@ -332,17 +332,20 @@ export function ReasonField({
   value,
   onChange,
   id,
+  required = false,
   placeholder = "e.g. Off-topic self-promotion",
 }: {
   value: string;
   onChange: (value: string) => void;
   id: string;
+  /** Set wherever the action's endpoint rejects a blank reason. */
+  required?: boolean;
   placeholder?: string;
 }) {
   return (
     <span className="mt-3 flex flex-col gap-1">
       <label htmlFor={id}>
-        <MicroLabel as="span">REASON (OPTIONAL)</MicroLabel>
+        <MicroLabel as="span">{required ? "REASON (REQUIRED)" : "REASON (OPTIONAL)"}</MicroLabel>
       </label>
       <Textarea
         id={id}
@@ -351,8 +354,11 @@ export function ReasonField({
         placeholder={placeholder}
         maxLength={500}
         rows={2}
+        aria-required={required || undefined}
       />
-      <MicroLabel as="span">SHOWN TO THEM — BLANK SENDS THE GENERIC NOTICE</MicroLabel>
+      <MicroLabel as="span">
+        {required ? "SHOWN TO THEM" : "SHOWN TO THEM — BLANK SENDS THE GENERIC NOTICE"}
+      </MicroLabel>
     </span>
   );
 }

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { AdminPager, AdminRow, AdminSection, Field } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Empty } from "@/components/ui/empty";
-import { NativeSelect } from "@/components/ui/native-select";
+import { FilterMenu } from "@/components/ui/filter-menu";
 import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
@@ -98,22 +98,15 @@ export function AdminLog() {
       hint="Every staff action, with the reason typed at the time. Rows outlive the things they were taken against."
       actions={
         <div className="flex flex-wrap items-end gap-2">
-          <Field label="Action" htmlFor="log-action">
-            <NativeSelect
-              id="log-action"
-              value={action}
-              onChange={(e) => {
-                setAction(e.target.value);
-                setPage(1);
-              }}
-            >
-              {ACTIONS.map((entry) => (
-                <option key={entry.value} value={entry.value}>
-                  {entry.label}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
+          <FilterMenu
+            label="ACTION"
+            options={ACTIONS}
+            value={action}
+            onChange={(next) => {
+              setAction(next);
+              setPage(1);
+            }}
+          />
           <Field label="Subject id" htmlFor="log-subject">
             <SearchField
               id="log-subject"

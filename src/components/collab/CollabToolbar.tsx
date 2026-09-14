@@ -1,23 +1,12 @@
-import {
-  ArrowDown01Icon,
-  GridViewIcon,
-  LeftToRightListBulletIcon,
-  SortByDown02Icon,
-} from "@hugeicons/core-free-icons";
+import { GridViewIcon, LeftToRightListBulletIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useState } from "react";
 
-import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
+import { Toolbar, ToolbarFloatingControls } from "@/components/common/Toolbar";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { FacetPicker } from "@/components/ui/facet-picker";
+import { type FilterOption, FilterMenu, SortMenu } from "@/components/ui/filter-menu";
 import { SearchField } from "@/components/ui/search-field";
 import {
   type CollabCompensationType,
@@ -27,14 +16,12 @@ import {
   setCollabLayout,
 } from "@/lib/collab-store";
 import { useRolesCatalog, useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
-import { cn } from "@/lib/utils";
 
 import {
   type CollabBoardSearch,
   type CollabBoardSort,
   DEFAULT_SORT,
   SORT_OPTIONS,
-  sortPreset,
   useCollabBoardSearch,
 } from "./collab-filters";
 import { useCollabRoleCounts, useCollabSkillCounts } from "./use-collab-counts";
@@ -42,7 +29,7 @@ import { useCollabRoleCounts, useCollabSkillCounts } from "./use-collab-counts";
 export const COLLAB_SEARCH_INPUT_ID = "collab-search";
 
 /** Menus put the "no constraint" choice first; picking it clears the filter. */
-type Option = { value: string; label: string };
+type Option = FilterOption;
 
 const TYPE_OPTIONS: Option[] = [
   { value: "all", label: "All" },
@@ -109,68 +96,50 @@ export function CollabToolbar({ onOpenFilters, controlsElsewhere }: CollabToolba
   if (controlsElsewhere) return <CollabSearchInput className="h-10 w-full" />;
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Line 1 — search owns the width. */}
-      <CollabSearchInput className="h-10 w-full" />
-
-      {/* Line 2 — facets on the left, display controls on the right. */}
-      <div className="flex flex-wrap items-center gap-2">
-        {onOpenFilters ? (
-          <Button variant="outline" size="sm" onClick={onOpenFilters} className="tracking-widest">
-            FILTERS
-          </Button>
-        ) : (
-          <>
-            <FilterMenu
-              label="TYPE"
-              options={TYPE_OPTIONS}
-              value={search.type ?? "all"}
-              onChange={(v) => setSearch({ type: v === "all" ? undefined : (v as CollabPostType) })}
-            />
-            <RoleFilterMenu selected={search.roles ?? []} />
-            <FilterMenu
-              label="STATUS"
-              options={STATUS_OPTIONS}
-              value={search.status ?? "any"}
-              onChange={(v) => setSearch({ status: v === "any" ? undefined : (v as CollabStatus) })}
-            />
-            <FilterMenu
-              label="LEVEL"
-              options={EXPERIENCE_OPTIONS}
-              value={search.level ?? "any"}
-              onChange={(v) =>
-                setSearch({
-                  level: v === "any" ? undefined : (v as CollabBoardSearch["level"]),
-                })
-              }
-            />
-            {search.type === "paid" ? (
-              <FilterMenu
-                label="PAY"
-                options={COMP_OPTIONS}
-                value={search.comp ?? "all"}
-                onChange={(v) =>
-                  setSearch({
-                    comp: v === "all" ? undefined : (v as CollabCompensationType),
-                  })
-                }
-              />
-            ) : null}
-            <StackFilterMenu selected={search.skills ?? []} />
-            <FilterMenu
-              label="POSTED BY"
-              options={POSTER_OPTIONS}
-              value={soloToPoster(search.solo)}
-              onChange={(v) => setSearch({ solo: posterToSolo(v) })}
-            />
-          </>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          <CollabDisplayControls />
-        </div>
-      </div>
-    </div>
+    <Toolbar
+      search={<CollabSearchInput className="h-10 w-full" />}
+      onOpenFilters={onOpenFilters}
+      controls={<CollabDisplayControls />}
+    >
+      <FilterMenu
+        label="TYPE"
+        options={TYPE_OPTIONS}
+        value={search.type ?? "all"}
+        onChange={(v) => setSearch({ type: v === "all" ? undefined : (v as CollabPostType) })}
+      />
+      <RoleFilterMenu selected={search.roles ?? []} />
+      <FilterMenu
+        label="STATUS"
+        options={STATUS_OPTIONS}
+        value={search.status ?? "any"}
+        onChange={(v) => setSearch({ status: v === "any" ? undefined : (v as CollabStatus) })}
+      />
+      <FilterMenu
+        label="LEVEL"
+        options={EXPERIENCE_OPTIONS}
+        value={search.level ?? "any"}
+        onChange={(v) =>
+          setSearch({ level: v === "any" ? undefined : (v as CollabBoardSearch["level"]) })
+        }
+      />
+      {search.type === "paid" ? (
+        <FilterMenu
+          label="PAY"
+          options={COMP_OPTIONS}
+          value={search.comp ?? "all"}
+          onChange={(v) =>
+            setSearch({ comp: v === "all" ? undefined : (v as CollabCompensationType) })
+          }
+        />
+      ) : null}
+      <StackFilterMenu selected={search.skills ?? []} />
+      <FilterMenu
+        label="POSTED BY"
+        options={POSTER_OPTIONS}
+        value={soloToPoster(search.solo)}
+        onChange={(v) => setSearch({ solo: posterToSolo(v) })}
+      />
+    </Toolbar>
   );
 }
 
@@ -183,41 +152,20 @@ function CollabDisplayControls({ large }: { large?: boolean }) {
   const { search, setSearch } = useCollabBoardSearch();
   const layout = useStore(collabStore, (s) => s.layout);
 
-  const sortLabel = sortPreset(search.sort).label;
   const nextLayout = layout === "cards" ? "list" : "cards";
   const size = large ? "icon-lg" : "icon-sm";
   const iconSize = large ? 18 : 14;
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="outline"
-              size={size}
-              tooltip={`Sort: ${sortLabel}`}
-              aria-label={`Sort order: ${sortLabel}`}
-            />
-          }
-        >
-          <HugeiconsIcon icon={SortByDown02Icon} size={iconSize} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-auto min-w-44 p-1">
-          <DropdownMenuRadioGroup
-            value={search.sort ?? DEFAULT_SORT}
-            onValueChange={(v) =>
-              setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as CollabBoardSort) })
-            }
-          >
-            {SORT_OPTIONS.map((option) => (
-              <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
-                {option.label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <SortMenu
+        size={large ? "lg" : "sm"}
+        options={SORT_OPTIONS}
+        value={search.sort ?? DEFAULT_SORT}
+        onChange={(v) =>
+          setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as CollabBoardSort) })
+        }
+      />
 
       <Button
         variant="outline"
@@ -247,26 +195,9 @@ function CollabDisplayControls({ large }: { large?: boolean }) {
  */
 export function CollabFloatingControls({ onOpenFilters }: { onOpenFilters: () => void }) {
   return (
-    <div
-      className="pointer-events-none fixed inset-x-0 z-40 flex items-center justify-between px-4"
-      style={{
-        bottom: `calc(${BOTTOM_NAV_HEIGHT} - 0.5rem)`,
-        paddingLeft: "calc(1rem + env(safe-area-inset-left))",
-        paddingRight: "calc(1rem + env(safe-area-inset-right))",
-      }}
-    >
-      <Button
-        variant="outline"
-        size="lg"
-        onClick={onOpenFilters}
-        className="pointer-events-auto tracking-widest"
-      >
-        FILTERS
-      </Button>
-      <div className="pointer-events-auto flex items-center gap-2">
-        <CollabDisplayControls large />
-      </div>
-    </div>
+    <ToolbarFloatingControls onOpenFilters={onOpenFilters}>
+      <CollabDisplayControls large />
+    </ToolbarFloatingControls>
   );
 }
 
@@ -369,46 +300,5 @@ export function StackFilterMenu({ selected, inline }: { selected: number[]; inli
       hint={matchAll ? "Shows posts using all of these." : "Shows posts using any of these."}
       inline={inline}
     />
-  );
-}
-
-interface FilterMenuProps {
-  label: string;
-  options: Option[];
-  value: string;
-  onChange: (value: string) => void;
-}
-
-function FilterMenu({ label, options, value, onChange }: FilterMenuProps) {
-  const isConstrained = value !== options[0]?.value;
-  const selected = options.find((o) => o.value === value);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "tracking-widest uppercase",
-              isConstrained && "border-primary text-primary",
-            )}
-          />
-        }
-      >
-        {isConstrained && selected ? selected.label : label}
-        <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-auto min-w-44 p-1">
-        <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as string)}>
-          {options.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
