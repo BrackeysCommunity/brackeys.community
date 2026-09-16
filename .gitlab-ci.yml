@@ -8,6 +8,8 @@ stages:
   - renovate
 
 include:
+  # First, so `!reference` can resolve the shared rule fragments below.
+  - local: .gitlab/rules.gitlab-ci.yml
   - local: .gitlab/ci.gitlab-ci.yml
   - local: .gitlab/sonar.gitlab-ci.yml
   - local: .gitlab/db-migrate.gitlab-ci.yml

@@ -15,6 +15,7 @@ chromatic:
   pages:
     publish: storybook-static
   rules:
+    - !reference [.skip-version-bump-storybook, rules]
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $CI_COMMIT_BRANCH == 'main'

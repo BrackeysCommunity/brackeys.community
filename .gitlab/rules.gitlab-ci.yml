@@ -1,0 +1,50 @@
+# Reusable rule fragments. Included first so `!reference` can resolve them from
+# the other .gitlab/*.yml files (YAML anchors do not cross an `include:`,
+# `!reference` does).
+#
+# ── Version-bump commits skip the check/test stages ──────────────────────────
+#
+# Cutting a release is merging a commit whose only change is `package.json`'s
+# `version` (see .gitlab/release.gitlab-ci.yml). Nothing lint, test, sonar or
+# chromatic inspects can differ from the commit before it, and that commit
+# already ran them green on `main`. So the release pipeline goes straight to
+# `auto-tag` → tag pipeline → deploy.
+#
+# The commit title is not the gate on its own. The first rule below lists every
+# path the job actually cares about *except* package.json: a bump-titled commit
+# that also touched one of them matches there and runs as usual. Only when
+# nothing but package.json moved does the second rule take the job out of the
+# pipeline.
+#
+# Both rules are scoped to `$CI_COMMIT_TAG == null`. `changes:` is always true
+# on a tag pipeline, so without that guard the first rule would drag lint/test
+# back onto every release tag — the thing `024ffd2` removed.
+#
+# The `if:` expressions are quoted because the regex contains ": ", which an
+# unquoted YAML scalar parses as a mapping — same trap as `publish-release`.
+
+.skip-version-bump:
+  rules:
+    - if: '$CI_COMMIT_TAG == null && $CI_COMMIT_TITLE =~ /^((chore|ci)(\([^)]*\))?: bump |release(\([^)]*\))?: )/'
+      changes:
+        - src/**/*
+        - services/**/*
+        - scripts/**/*
+        - public/**/*
+        - bun.lock
+        - tsconfig*.json
+        - vite.config.*
+        - "*.config.*"
+    - if: '$CI_COMMIT_TAG == null && $CI_COMMIT_TITLE =~ /^((chore|ci)(\([^)]*\))?: bump |release(\([^)]*\))?: )/'
+      when: never
+
+# Same shape, against chromatic's narrower set of inputs.
+.skip-version-bump-storybook:
+  rules:
+    - if: '$CI_COMMIT_TAG == null && $CI_COMMIT_TITLE =~ /^((chore|ci)(\([^)]*\))?: bump |release(\([^)]*\))?: )/'
+      changes:
+        - src/**/*
+        - .storybook/**/*
+        - bun.lock
+    - if: '$CI_COMMIT_TAG == null && $CI_COMMIT_TITLE =~ /^((chore|ci)(\([^)]*\))?: bump |release(\([^)]*\))?: )/'
+      when: never

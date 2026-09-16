@@ -23,6 +23,7 @@ lint:
   script:
     - bun run lint
   rules:
+    - !reference [.skip-version-bump, rules]
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
@@ -71,6 +72,7 @@ test:
         coverage_format: cobertura
         path: coverage/cobertura-coverage.xml
   rules:
+    - !reference [.skip-version-bump, rules]
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
