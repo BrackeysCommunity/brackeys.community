@@ -28,6 +28,7 @@ import {
   userSkills,
 } from "@/db/schema";
 import { MEMBER_AVAILABILITY } from "@/lib/member-vocabulary";
+import { PUBLIC_PLACEMENT } from "@/lib/project-visibility";
 import { escapeLike } from "@/lib/sql-like";
 import { timezonesWithinOffset } from "@/lib/timezones";
 import { profileNameSearch } from "@/orpc/profile-projection";
@@ -62,12 +63,6 @@ const SCORE_ALIAS = "activity_score";
 // type. Every numeric weight below is inline for the same reason.
 const RECENT_CUTOFF = sql.raw(`(now() - interval '${ACTIVE_WINDOW_DAYS} days')`);
 
-/** Only work the public can actually open counts as a ship. */
-const VISIBLE_SHIP = sql`${profileProjects.status} = 'approved'
-  and ${profileProjects.published} = true
-  and ${profileProjects.restrictedAt} is null
-  and ${profileProjects.missingSince} is null`;
-
 /** Provider publish date where there is one, else when the row landed. */
 const SHIPPED_AT = sql`coalesce(
   ${profileProjects.publishedAt},
@@ -77,11 +72,11 @@ const SHIPPED_AT = sql`coalesce(
 
 const shipsTotal = sql<number>`(
   select count(*)::int from ${profileProjects}
-  where ${profileProjects.profileId} = ${developerProfiles.id} and ${VISIBLE_SHIP}
+  where ${profileProjects.profileId} = ${developerProfiles.id} and ${PUBLIC_PLACEMENT}
 )`;
 const shipsRecent = sql<number>`(
   select count(*)::int from ${profileProjects}
-  where ${profileProjects.profileId} = ${developerProfiles.id} and ${VISIBLE_SHIP}
+  where ${profileProjects.profileId} = ${developerProfiles.id} and ${PUBLIC_PLACEMENT}
     and ${SHIPPED_AT} >= ${RECENT_CUTOFF}
 )`;
 

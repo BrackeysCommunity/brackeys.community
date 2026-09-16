@@ -1,0 +1,1 @@
+ALTER TABLE "user"."developer_profiles" ADD COLUMN "website_label" text;

@@ -57,6 +57,11 @@ import { PAGE_CUES } from "@/lib/sound";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_WEBSITE_LINK_TYPE,
+  WEBSITE_LINK_TYPE_OPTIONS,
+  type WebsiteLinkType,
+} from "@/lib/website-link-type";
 import { client, orpc } from "@/orpc/client";
 
 import type { ProfileSkill, ProfileViewModel } from "./helpers";
@@ -1169,6 +1174,9 @@ function LinksStep({ profile, queryKey, save }: StepProps) {
   const [githubUrl, setGithubUrl] = useState(profile.socialUrls.githubUrl ?? "");
   const [twitterUrl, setTwitterUrl] = useState(profile.socialUrls.twitterUrl ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(profile.socialUrls.websiteUrl ?? "");
+  const [websiteLabel, setWebsiteLabel] = useState<WebsiteLinkType>(
+    (profile.socialUrls.websiteLabel as WebsiteLinkType | null) ?? DEFAULT_WEBSITE_LINK_TYPE,
+  );
   return (
     <StepFrame title="LINKS">
       <Text size="sm" variant="muted">
@@ -1237,13 +1245,35 @@ function LinksStep({ profile, queryKey, save }: StepProps) {
           placeholder="https://x.com/you"
         />
       </FieldRow>
-      <FieldRow label="WEBSITE / PORTFOLIO">
-        <Input
-          value={websiteUrl}
-          onChange={(e) => setWebsiteUrl(e.target.value)}
-          onBlur={() => update.mutate({ websiteUrl: websiteUrl.trim() || null })}
-          placeholder="https://yoursite.dev"
-        />
+      <FieldRow label="YOUR OWN SITE" hint="the type is what the LINKED row is labelled">
+        <div className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] items-center gap-2">
+          <Select
+            value={websiteLabel}
+            onValueChange={(v) => {
+              if (typeof v !== "string") return;
+              const next = v as WebsiteLinkType;
+              setWebsiteLabel(next);
+              update.mutate({ websiteLabel: next });
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WEBSITE_LINK_TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            value={websiteUrl}
+            onChange={(e) => setWebsiteUrl(e.target.value)}
+            onBlur={() => update.mutate({ websiteUrl: websiteUrl.trim() || null })}
+            placeholder="https://yoursite.dev"
+          />
+        </div>
       </FieldRow>
     </StepFrame>
   );

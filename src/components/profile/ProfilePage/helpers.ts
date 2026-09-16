@@ -66,6 +66,8 @@ export interface ProfileViewModel {
     githubUrl: string | null;
     twitterUrl: string | null;
     websiteUrl: string | null;
+    /** One of `WEBSITE_LINK_TYPES`, or null for the PORTFOLIO default. */
+    websiteLabel: string | null;
   };
 
   /** Last N weeks of activity, ordered oldest → newest. Each cell is a

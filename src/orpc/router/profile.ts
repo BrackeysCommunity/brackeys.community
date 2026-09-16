@@ -10,7 +10,6 @@ import {
   ilike,
   inArray,
   isNotNull,
-  isNull,
   ne,
   or,
   sql,
@@ -65,6 +64,7 @@ import {
   placementTypeForProjectType,
 } from "@/lib/profile-projects";
 import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
+import { PUBLIC_PLACEMENT } from "@/lib/project-visibility";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { escapeLike, likeContains } from "@/lib/sql-like";
@@ -73,6 +73,7 @@ import { isOwnedProfileProjectImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { isValidTimezone } from "@/lib/timezones";
 import { discordUsernameToStub, STUB_REGEX } from "@/lib/url-stub";
+import { WEBSITE_LINK_TYPES } from "@/lib/website-link-type";
 import { stampCoversUrl } from "@/lib/website-verification";
 import { requireAdmin, requireAuth, userIsGuildMember } from "@/orpc/middleware/auth";
 import { profileNameSearch } from "@/orpc/profile-projection";
@@ -508,21 +509,7 @@ async function buildPublicProfile(profile: typeof developerProfiles.$inferSelect
   ] = await Promise.all([
     queryUserSkills(profileId),
     queryUserRoles(profileId),
-    queryProfileProjects(
-      and(
-        eq(profileProjects.profileId, profileId),
-        eq(profileProjects.status, "approved"),
-        // Unpublished titles (e.g. itch.io drafts) are owner-only.
-        eq(profileProjects.published, true),
-        // itch.io "Restricted" pages report published=true from the
-        // API but 404 for anonymous visitors; the library-sync
-        // sweep's URL probe records that here. Owner-only too.
-        isNull(profileProjects.restrictedAt),
-        // Games that vanished from the linked library (deleted on
-        // itch, or access lost) are owner-only until removed.
-        isNull(profileProjects.missingSince),
-      ),
-    ),
+    queryProfileProjects(and(eq(profileProjects.profileId, profileId), PUBLIC_PLACEMENT)),
     db.select().from(profileUrlStubs).where(eq(profileUrlStubs.profileId, profileId)).limit(1),
     // Display-safe columns only. `tokenInvalidAt` says whether someone's
     // linked account needs reconnecting, which is between them and the
@@ -734,6 +721,9 @@ export const updateProfile = os
         githubUrl: socialUrlSchema,
         twitterUrl: socialUrlSchema,
         websiteUrl: socialUrlSchema,
+        // What that site is called on the profile — "portfolio" was
+        // hardcoded, which is wrong for a blog or a plain homepage.
+        websiteLabel: z.enum(WEBSITE_LINK_TYPES).optional().nullable(),
         availableForWork: z.boolean().optional(),
         availability: availabilitySchema.optional().nullable(),
         rateType: rateTypeSchema.optional().nullable(),

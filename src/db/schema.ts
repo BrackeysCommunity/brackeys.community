@@ -127,6 +127,10 @@ export const developerProfiles = userSchema.table(
     githubUrl: text("github_url"),
     twitterUrl: text("twitter_url"),
     websiteUrl: text("website_url"),
+    /** What that site is — see `@/lib/website-link-type`. NULL reads as
+     *  "portfolio", which is the label every row carried before members
+     *  could say otherwise. */
+    websiteLabel: text("website_label"),
     /** Domain-control proof for `websiteUrl` — see `@/lib/website-verification`.
      *  The token is minted on the member's first VERIFY and never rotates, so
      *  the instructions can't change under someone mid-check. The stamp names

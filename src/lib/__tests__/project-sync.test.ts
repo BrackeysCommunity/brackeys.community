@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { ProjectDb } from "../project-sync";
-import { diffItchGameRow, ensureProjectContributors, fillProviderFields } from "../project-sync";
+import {
+  diffItchGameRow,
+  ensureProjectContributors,
+  fillProviderFields,
+  reconcileRestricted,
+} from "../project-sync";
 
 /**
  * A fake drizzle handle. The real schema and the real `eq`/`inArray` builders
@@ -481,5 +486,45 @@ describe("fillProviderFields() — provider-owned facts", () => {
     ]);
     expect(count).toBe(0);
     expect(updates[0]).toBeUndefined();
+  });
+});
+
+/**
+ * The visibility probe owns `restricted_at` at both levels. It used to own
+ * it only on the placement, which left project pages advertising an itch
+ * link that 404s for everyone but the owner.
+ */
+describe("reconcileRestricted()", () => {
+  const NOW = new Date("2026-09-16T00:00:00Z");
+  const EARLIER = new Date("2026-08-01T00:00:00Z");
+
+  it("stamps both levels when a public game goes restricted", () => {
+    expect(
+      reconcileRestricted("hidden", { restrictedAt: null, canonicalRestrictedAt: null }, NOW),
+    ).toEqual({ placement: NOW, project: NOW });
+  });
+
+  it("clears both levels when a restricted game comes back", () => {
+    expect(
+      reconcileRestricted("public", { restrictedAt: EARLIER, canonicalRestrictedAt: EARLIER }, NOW),
+    ).toEqual({ placement: null, project: null });
+  });
+
+  it("catches up a project minted before the probe wrote this level", () => {
+    expect(
+      reconcileRestricted("hidden", { restrictedAt: EARLIER, canonicalRestrictedAt: null }, NOW),
+    ).toEqual({ placement: undefined, project: EARLIER });
+  });
+
+  it("writes nothing when both levels already agree", () => {
+    expect(
+      reconcileRestricted("hidden", { restrictedAt: EARLIER, canonicalRestrictedAt: EARLIER }, NOW),
+    ).toEqual({ placement: undefined, project: undefined });
+  });
+
+  it("writes nothing for a verdict that proves nothing", () => {
+    expect(
+      reconcileRestricted(null, { restrictedAt: null, canonicalRestrictedAt: EARLIER }, NOW),
+    ).toEqual({ placement: undefined, project: undefined });
   });
 });

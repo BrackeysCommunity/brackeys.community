@@ -193,6 +193,57 @@ export async function upsertProjectForItchGame(
   return insertProject(db, { ...seed, source: "itchio", sourceGameId: gameId });
 }
 
+/**
+ * What a visibility probe's verdict means for the two `restricted_at` stamps
+ * — the placement's and the canonical project's. `undefined` leaves a stamp
+ * alone; a `Date` or `null` is a write.
+ *
+ * The two are reconciled independently because the canonical one can be
+ * stale on its own: the probe used to write only the placement, so every
+ * project minted before that carries a null no placement-only flip would
+ * ever revisit. A verdict of `null` proves nothing (timeout, odd status) and
+ * writes nothing.
+ */
+export function reconcileRestricted(
+  verdict: "public" | "hidden" | null,
+  current: { restrictedAt: Date | null; canonicalRestrictedAt: Date | null },
+  now: Date,
+): { placement: Date | null | undefined; project: Date | null | undefined } {
+  if (verdict == null) return { placement: undefined, project: undefined };
+  // A game already known restricted keeps its original stamp — the date is
+  // when we first saw it hidden, not when we last confirmed it.
+  const stamp = verdict === "hidden" ? (current.restrictedAt ?? now) : null;
+  const stale = (held: Date | null) => (held == null) !== (stamp == null);
+  return {
+    placement: stale(current.restrictedAt) ? stamp : undefined,
+    project: stale(current.canonicalRestrictedAt) ? stamp : undefined,
+  };
+}
+
+/**
+ * Mirror a placement's probed visibility onto the canonical project.
+ *
+ * `restricted_at` was seeded at insert and then left alone, so a game that
+ * went Restricted *after* its project row existed — the ordinary case, since
+ * the row is minted on import — kept a canonical `null` forever and its page
+ * went on offering an itch link that 404s for every visitor. The probe owns
+ * the stamp at both levels now.
+ *
+ * Restriction is a property of the game, not of whoever imported it, so the
+ * placements of a game several members hold all report the same verdict; a
+ * disagreement can only be probe timing, and the next sweep settles it.
+ */
+export async function setProjectRestricted(
+  db: ProjectDb,
+  projectId: string,
+  restrictedAt: Date | null,
+): Promise<void> {
+  await db
+    .update(projects)
+    .set({ restrictedAt, updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
+}
+
 // ── Credits ─────────────────────────────────────────────────────────────────
 
 export interface ContributorSeed {

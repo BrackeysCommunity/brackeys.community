@@ -109,3 +109,28 @@ describe("adaptProfile — GitLab rows", () => {
     expect(githubUrlRow?.provider).toBeUndefined();
   });
 });
+
+/**
+ * The row synthesized from `websiteUrl` shipped hardcoded as PORTFOLIO,
+ * which is simply wrong for the members whose link is a blog.
+ */
+describe("adaptProfile — the member's own site", () => {
+  function websiteRow(websiteLabel: string | null) {
+    const base = rpcProfile().profile;
+    const { links } = adaptProfile(
+      rpcProfile({
+        profile: { ...base, websiteUrl: "https://blog.duxez.dev", websiteLabel },
+      }),
+    );
+    return links.find((l) => l.id === "website-url");
+  }
+
+  it("labels the row with the type the member picked", () => {
+    expect(websiteRow("blog")).toMatchObject({ label: "BLOG", monogram: "BL" });
+    expect(websiteRow("website")).toMatchObject({ label: "WEBSITE", monogram: "WE" });
+  });
+
+  it("falls back to PORTFOLIO for rows that predate the column", () => {
+    expect(websiteRow(null)).toMatchObject({ label: "PORTFOLIO", display: "blog.duxez.dev" });
+  });
+});

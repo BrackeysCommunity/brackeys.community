@@ -37,6 +37,7 @@ import { EVENTS } from "@/lib/event-taxonomy";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { resolveTeamAvatarUrl } from "@/lib/profile-project-image-storage";
+import { PUBLIC_PLACEMENT } from "@/lib/project-visibility";
 import { likeContains } from "@/lib/sql-like";
 import { requireAuth, requireStaff, userIsGuildMember } from "@/orpc/middleware/auth";
 import { jamMemberIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
@@ -554,8 +555,7 @@ async function matchMembersToEntries(
       .where(
         and(
           eq(profileProjects.source, "itchio-jam"),
-          eq(profileProjects.status, "approved"),
-          eq(profileProjects.published, true),
+          PUBLIC_PLACEMENT,
           inArray(profileProjects.sourceId, entryIds.map(String)),
         ),
       ),
@@ -744,9 +744,8 @@ export const getJamCommunity = os
           and(
             eq(profileProjects.jamId, input.jamId),
             // Moderation and provider visibility are the profile surface's
-            // rules; a shelf on someone else's page has to honour both.
-            eq(profileProjects.status, "approved"),
-            eq(profileProjects.published, true),
+            // rules; a shelf on someone else's page has to honour all of them.
+            PUBLIC_PLACEMENT,
           ),
         )
         .limit(COMMUNITY_MEMBERS_MAX),

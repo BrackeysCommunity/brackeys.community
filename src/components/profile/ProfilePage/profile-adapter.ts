@@ -8,6 +8,7 @@ import {
   type MemberViewer,
 } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
+import { isWebsiteLinkLabel, websiteLinkLabel, websiteLinkMonogram } from "@/lib/website-link-type";
 import { stampCoversUrl } from "@/lib/website-verification";
 
 import type {
@@ -43,6 +44,8 @@ export interface RpcProfile {
     githubUrl: string | null;
     twitterUrl: string | null;
     websiteUrl: string | null;
+    /** Which of `WEBSITE_LINK_TYPES` the member calls that site. */
+    websiteLabel?: string | null;
     /** Domain-control stamp for `websiteUrl`, and the host it was proved on
      *  — a stamp naming a different host belongs to a URL since replaced. */
     websiteVerifiedAt?: Date | null;
@@ -238,11 +241,12 @@ export function adaptProfile(
       display: stripUrlScheme(profile.githubUrl),
     });
   }
-  if (profile.websiteUrl && !links.some((l) => l.label === "WEBSITE" || l.label === "PORTFOLIO")) {
+  const websiteLabel = websiteLinkLabel(profile.websiteLabel);
+  if (profile.websiteUrl && !links.some((l) => isWebsiteLinkLabel(l.label))) {
     links.push({
       id: "website-url",
-      monogram: "WE",
-      label: "PORTFOLIO",
+      monogram: websiteLinkMonogram(profile.websiteLabel),
+      label: websiteLabel,
       url: profile.websiteUrl,
       display: stripUrlScheme(profile.websiteUrl),
       verifiedAt: stampCoversUrl(profile.websiteVerifiedHost ?? null, profile.websiteUrl)
@@ -359,6 +363,7 @@ export function adaptProfile(
       githubUrl: profile.githubUrl,
       twitterUrl: profile.twitterUrl,
       websiteUrl: profile.websiteUrl,
+      websiteLabel: profile.websiteLabel ?? null,
     },
     activity: [],
     totalCommits: 0,

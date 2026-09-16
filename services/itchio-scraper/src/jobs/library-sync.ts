@@ -7,6 +7,7 @@ import {
   itchJams,
   linkedAccounts,
   profileProjects,
+  projects,
 } from "../../../../src/db/schema.ts";
 import { normalizeItchProfileUrl, parseJamSubmissionSlugs } from "../../../../src/lib/itch-urls.ts";
 // The canonical-project writes are shared with the app on purpose: this
@@ -17,6 +18,8 @@ import { fetchGames, ItchApiError, validateToken } from "../../../../src/lib/itc
 import {
   convergeJamPlacements,
   convergeLibraryPlacements,
+  reconcileRestricted,
+  setProjectRestricted,
 } from "../../../../src/lib/project-sync.ts";
 import { placementTypeFromClassification } from "../../../../src/lib/project-taxonomy.ts";
 import { openToken } from "../../../../src/lib/token-crypto.ts";
@@ -237,8 +240,14 @@ async function probeRestricted(gate: StopGate): Promise<{
       url: profileProjects.url,
       sourceId: profileProjects.sourceId,
       restrictedAt: profileProjects.restrictedAt,
+      projectId: profileProjects.projectId,
+      // The canonical row's own stamp, so a project minted before the probe
+      // propagated to this level can be reconciled even when the placement
+      // it hangs off is already correct.
+      canonicalRestrictedAt: projects.restrictedAt,
     })
     .from(profileProjects)
+    .leftJoin(projects, eq(profileProjects.projectId, projects.id))
     .where(
       and(
         eq(profileProjects.source, "itchio"),
@@ -296,20 +305,23 @@ async function probeRestricted(gate: StopGate): Promise<{
       throw err;
     }
     probed++;
-    if (verdict === "hidden" && row.restrictedAt == null) {
+    const { placement, project } = reconcileRestricted(verdict, row, new Date());
+    if (placement !== undefined) {
       await db
         .update(profileProjects)
-        .set({ restrictedAt: new Date() })
+        .set({ restrictedAt: placement })
         .where(eq(profileProjects.id, row.id));
-      marked++;
-      console.log(`[probe] marked restricted: ${row.url}`);
-    } else if (verdict === "public" && row.restrictedAt != null) {
-      await db
-        .update(profileProjects)
-        .set({ restrictedAt: null })
-        .where(eq(profileProjects.id, row.id));
-      cleared++;
-      console.log(`[probe] cleared restricted: ${row.url}`);
+      if (placement) {
+        marked++;
+        console.log(`[probe] marked restricted: ${row.url}`);
+      } else {
+        cleared++;
+        console.log(`[probe] cleared restricted: ${row.url}`);
+      }
+    }
+    if (project !== undefined && row.projectId) {
+      await setProjectRestricted(db, row.projectId, project);
+      console.log(`[probe] project page ${row.projectId} restricted=${project != null}`);
     }
 
     if (html != null) {
