@@ -12,6 +12,11 @@ const schema = z
     // so a worker that silently minted production URLs would email real
     // users working unsubscribe links for the real site.
     APP_URL: z.url(),
+    // Only the lifecycle sweep uses it, and only to DELETE the Discord
+    // mirror of a post it just expired. Optional: without it the sweep
+    // simply leaves mirrors alone, which is how every deploy behaved
+    // before the mirror existed.
+    DISCORD_BOT_TOKEN: z.string().min(1).optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_FROM: z.string().min(1).optional(),
     DISABLE_EMAIL: z.string().optional(),

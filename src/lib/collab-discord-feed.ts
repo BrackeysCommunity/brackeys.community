@@ -1,6 +1,7 @@
 import { siteUrl } from "@/env";
 import { discordWriteFetch } from "@/lib/discord";
 import { discordMessageLink } from "@/lib/discord-links";
+import { deleteDiscordMessage } from "@/lib/discord-message-delete";
 import { formatRate } from "@/lib/format-rate";
 import { jamSlug } from "@/lib/jam-links";
 import { teamSlug } from "@/lib/team-links";
@@ -368,15 +369,24 @@ export async function editCollabFeedMessage(
   throw await failure(response, "edit");
 }
 
-/** Removes a mirror. A message that is already gone counts as removed. */
+/**
+ * Removes a mirror. A message that is already gone counts as removed.
+ *
+ * The DELETE itself lives in `discord-message-delete.ts`, which the
+ * notifications worker also copies — the expiry sweep takes mirrors down
+ * too, and both sides must agree on what "gone" means.
+ */
 export async function deleteCollabFeedMessage(
   config: CollabFeedConfig,
   channelId: string,
   messageId: string,
 ): Promise<void> {
-  const response = await discordWriteFetch(
-    `https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`,
-    { method: "DELETE", headers: authHeaders(config) },
-  );
-  if (!response.ok && response.status !== 404) throw await failure(response, "delete");
+  await deleteDiscordMessage({
+    botToken: config.botToken,
+    channelId,
+    messageId,
+    // The web app's guarded funnel, so a 429 here opens the same backoff
+    // window a member read would.
+    fetchImpl: (url, init) => discordWriteFetch(url, init),
+  });
 }

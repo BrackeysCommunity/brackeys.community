@@ -29,6 +29,9 @@ COPY src/lib/bull-redis.ts ./src/lib/bull-redis.ts
 COPY src/lib/notify-core.ts ./src/lib/notify-core.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 COPY src/lib/profanity.ts ./src/lib/profanity.ts
+# The lifecycle sweep takes a collab post's Discord mirror down when it
+# expires. Dependency-free on purpose — see the module's header.
+COPY src/lib/discord-message-delete.ts ./src/lib/discord-message-delete.ts
 COPY src/lib/format-time.ts ./src/lib/format-time.ts
 COPY src/lib/og/palette.ts ./src/lib/og/palette.ts
 COPY src/lib/unsubscribe.ts ./src/lib/unsubscribe.ts

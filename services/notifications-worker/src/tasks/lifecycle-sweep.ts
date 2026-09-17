@@ -1,6 +1,7 @@
-import { and, eq, gt, isNotNull, isNull, lt, notExists, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lt, notExists, sql } from "drizzle-orm";
 
 import {
+  collabPostDiscordShares,
   collabPosts,
   projectTeams,
   teamMembers,
@@ -14,6 +15,7 @@ import {
   POST_EXPIRY_DAYS,
   TEAM_QUIET_DAYS,
 } from "../../../../src/lib/collab-lifecycle.ts";
+import { deleteDiscordMessage } from "../../../../src/lib/discord-message-delete.ts";
 import { sweepJamWatches } from "../../../../src/lib/jam-watch-sweep.ts";
 import { sweepReadNotifications } from "../../../../src/lib/notification-retention.ts";
 import {
@@ -139,6 +141,8 @@ export async function handleLifecycleSweep(): Promise<void> {
     });
   }
 
+  const unmirrored = await removeExpiredMirrors(expired.map((post) => post.id));
+
   // ── 3 + 4 share the definition of a team the sweep may touch ──────────────
   // Never a team that shipped: a showcase project or a canonical
   // `project_teams` claim makes a team permanent history (the claim is the
@@ -254,6 +258,7 @@ export async function handleLifecycleSweep(): Promise<void> {
     repaired: repaired.length,
     nudged,
     expired: expired.length,
+    unmirrored,
     warned,
     cancelled: cancelled.length,
     archived: archived.length,
@@ -263,4 +268,51 @@ export async function handleLifecycleSweep(): Promise<void> {
     websiteProofsChecked: websiteProofs.checked,
     websiteProofsCleared: websiteProofs.cleared,
   });
+}
+
+/**
+ * Take the Discord mirrors down for posts this sweep just expired.
+ *
+ * The web app removes a mirror the moment a post is closed or deleted; a
+ * post that simply runs out of time ends here instead, and the channel
+ * would otherwise keep advertising an opening nobody is offering. This is
+ * the only reach this service has into Discord — one DELETE per message,
+ * through a module that can do nothing else.
+ *
+ * `channel_id` comes off the share row rather than configuration, so a
+ * message posted before the feed channel moved is still deleted from the
+ * channel it actually lives in. Best-effort per message: one refusal must
+ * not strand the rest, and the row is only dropped once the message is
+ * gone, so a failure is retried by the next sweep.
+ */
+async function removeExpiredMirrors(postIds: number[]): Promise<number> {
+  if (postIds.length === 0) return 0;
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!botToken) return 0;
+
+  const shares = await db
+    .select()
+    .from(collabPostDiscordShares)
+    .where(inArray(collabPostDiscordShares.postId, postIds));
+
+  let removed = 0;
+  for (const share of shares) {
+    try {
+      await deleteDiscordMessage({
+        botToken,
+        channelId: share.channelId,
+        messageId: share.messageId,
+      });
+      await db
+        .delete(collabPostDiscordShares)
+        .where(eq(collabPostDiscordShares.postId, share.postId));
+      removed++;
+    } catch (error) {
+      console.warn("[lifecycle] could not remove the Discord mirror", {
+        post_id: share.postId,
+        error,
+      });
+    }
+  }
+  return removed;
 }

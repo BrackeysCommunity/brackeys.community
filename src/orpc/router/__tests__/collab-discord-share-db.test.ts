@@ -4,7 +4,13 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { collabPostDiscordShares, collabPosts, developerProfiles, user } from "@/db/schema";
-import { closePost, deletePost, getPostViewerState, shareToDiscord } from "@/orpc/router/collab";
+import {
+  closePost,
+  deletePost,
+  getPostViewerState,
+  reopenPost,
+  shareToDiscord,
+} from "@/orpc/router/collab";
 import { seedCollabPost, seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
@@ -160,13 +166,31 @@ describe("shareToDiscord", () => {
 });
 
 describe("the mirror's lifecycle", () => {
-  it("rewrites the message when the post stops recruiting", async () => {
+  it("takes the message down when the post stops recruiting", async () => {
     const postId = await seedCollabPost(db, "author");
     await call(shareToDiscord, { postId }, asUser("author"));
 
     await call(closePost, { postId }, asUser("author"));
-    // The refresh is fire-and-forget, so let its microtasks drain.
-    await vi.waitFor(() => expect(calls.map((c) => c.method)).toEqual(["POST", "PATCH"]));
+    // Fire-and-forget, so let its microtasks drain. A feed of openings
+    // should hold openings — a closed post leaves rather than greys.
+    await vi.waitFor(() => expect(calls.map((c) => c.method)).toEqual(["POST", "DELETE"]));
+    await vi.waitFor(async () =>
+      expect(await db.select().from(collabPostDiscordShares)).toHaveLength(0),
+    );
+  });
+
+  it("re-shares cleanly after a close, rather than editing a message that is gone", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+    await call(closePost, { postId }, asUser("author"));
+    await vi.waitFor(async () =>
+      expect(await db.select().from(collabPostDiscordShares)).toHaveLength(0),
+    );
+
+    await call(reopenPost, { postId }, asUser("author"));
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    expect(calls.map((c) => c.method)).toEqual(["POST", "DELETE", "POST"]);
   });
 
   it("takes the message down with the post", async () => {

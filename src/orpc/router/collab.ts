@@ -1028,7 +1028,15 @@ async function loadShareRow(postId: number) {
 }
 
 /**
- * Re-render a post's existing mirror after the post changed underneath it.
+ * Re-render a post's existing mirror after the post changed underneath it —
+ * or take it down, if what changed is that the post stopped recruiting.
+ *
+ * **The invariant: a mirror exists only while its post does.** A feed of
+ * openings should contain openings, and members were asking staff by hand
+ * to remove posts that had already closed. Closing, expiring, hiding and
+ * deleting therefore all end the same way, and only an edit to a live post
+ * rewrites rather than removes.
+ *
  * A no-op when the post was never shared or the channel is unconfigured, and
  * best-effort throughout: the channel is a copy, and a copy must never be
  * able to fail the write it is copying.
@@ -1040,6 +1048,12 @@ async function refreshDiscordMirror(postId: number): Promise<void> {
   if (!share) return;
   const post = await loadFeedPost(postId);
   if (!post) return;
+
+  if (post.status !== "recruiting") {
+    await deleteCollabFeedMessage(config, share.channelId, share.messageId);
+    await db.delete(collabPostDiscordShares).where(eq(collabPostDiscordShares.postId, postId));
+    return;
+  }
 
   const outcome = await editCollabFeedMessage(
     config,
@@ -2953,6 +2967,14 @@ export const resolvePostReport = os
         .where(and(eq(collabPosts.id, report.postId), eq(collabPosts.status, "recruiting")))
         .returning();
       if (closed) {
+        // Staff closing a reported post is the case members were asking
+        // for by hand ("can you take my post out of the channel") — the
+        // mirror goes with it, same as any other close.
+        void bestEffort(
+          "collab.discord_mirror_refresh",
+          { post_id: closed.id, on: "moderation_close" },
+          () => refreshDiscordMirror(closed.id),
+        );
         await notify({
           userId: closed.authorId,
           type: "collab_post_closed_by_staff",
