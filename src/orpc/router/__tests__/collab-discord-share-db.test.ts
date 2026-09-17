@@ -1,0 +1,150 @@
+import { ORPCError } from "@orpc/client";
+import { call } from "@orpc/server";
+import { eq } from "drizzle-orm";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+
+import { collabPostDiscordShares, collabPosts, developerProfiles, user } from "@/db/schema";
+import { closePost, deletePost, getPostViewerState, shareToDiscord } from "@/orpc/router/collab";
+import { seedCollabPost, seedUser, type TestDb } from "@/test/db";
+import { asUser } from "@/test/orpc";
+
+vi.mock("@/db", async () => {
+  const { createTestDb } = await import("@/test/db");
+  return { db: await createTestDb() } as unknown as typeof import("@/db");
+});
+vi.mock("@/lib/auth", async () => {
+  const { fakeAuthModule } = await import("@/test/orpc");
+  return fakeAuthModule();
+});
+
+/** Every discord.com call the mirror makes, recorded instead of sent. */
+const calls: { method: string; url: string; body: unknown }[] = [];
+/** Status the next write answers with, so the 404 branch is reachable. */
+let nextStatus = 200;
+
+vi.mock("@/lib/discord", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/discord")>()),
+  isGuildMember: async () => true,
+  discordWriteFetch: async (url: string, init: { method: string; body?: unknown }) => {
+    calls.push({ method: init.method, url, body: init.body });
+    const status = nextStatus;
+    nextStatus = 200;
+    return new Response(status === 200 ? JSON.stringify({ id: "message-1" }) : "", { status });
+  },
+}));
+vi.mock("@/lib/guild-sync", () => ({ refreshGuildRolesThrottled: async () => {} }));
+vi.mock("@/lib/queue", () => ({
+  getNotificationsQueue: async () => ({ add: async () => ({}) }),
+}));
+
+let db: TestDb;
+
+beforeEach(async () => {
+  ({ db } = (await import("@/db")) as unknown as { db: TestDb });
+  await db.delete(collabPostDiscordShares);
+  await db.delete(collabPosts);
+  await db.delete(developerProfiles);
+  await db.delete(user);
+  calls.length = 0;
+  nextStatus = 200;
+
+  process.env.DISCORD_COLLAB_CHANNEL_ID = "9001";
+  process.env.DISCORD_GUILD_ID = "7";
+  process.env.DISCORD_BOT_TOKEN = "bot-token";
+
+  await seedUser(db, "author");
+  await seedUser(db, "stranger");
+});
+
+/** The mirror's rate limits run on Redis, which these tests don't stand up —
+ *  `checkRateLimit` degrades open without it, so every call is allowed. */
+
+describe("shareToDiscord", () => {
+  it("posts the embed once and remembers the message", async () => {
+    const postId = await seedCollabPost(db, "author");
+
+    const result = await call(shareToDiscord, { postId }, asUser("author"));
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].url).toContain("/channels/9001/messages");
+    expect(result.messageUrl).toBe("https://discord.com/channels/7/9001/message-1");
+
+    const [row] = await db
+      .select()
+      .from(collabPostDiscordShares)
+      .where(eq(collabPostDiscordShares.postId, postId));
+    expect(row.messageId).toBe("message-1");
+    expect(row.channelId).toBe("9001");
+    expect(row.sharedById).toBe("author");
+  });
+
+  it("edits the same message on a second press instead of posting a new one", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    expect(calls.map((c) => c.method)).toEqual(["POST", "PATCH"]);
+    const rows = await db.select().from(collabPostDiscordShares);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("re-posts when the remembered message is gone from Discord", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    nextStatus = 404;
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    expect(calls.map((c) => c.method)).toEqual(["POST", "PATCH", "POST"]);
+  });
+
+  it("is the author's alone", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await expect(call(shareToDiscord, { postId }, asUser("stranger"))).rejects.toBeInstanceOf(
+      ORPCError,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a post that is no longer recruiting", async () => {
+    const postId = await seedCollabPost(db, "author", { status: "party_full" });
+    await expect(call(shareToDiscord, { postId }, asUser("author"))).rejects.toThrow(
+      /reopen it first/i,
+    );
+  });
+
+  it("answers the author's own page with the mirror's state, and nobody else's", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    const mine = await call(getPostViewerState, { postId }, asUser("author"));
+    expect(mine.discordShare?.available).toBe(true);
+    expect(mine.discordShare?.sharedAt).toBeInstanceOf(Date);
+    expect(mine.discordShare?.messageUrl).toContain("/channels/7/9001/message-1");
+
+    const theirs = await call(getPostViewerState, { postId }, asUser("stranger"));
+    expect(theirs.discordShare).toBeNull();
+  });
+});
+
+describe("the mirror's lifecycle", () => {
+  it("rewrites the message when the post stops recruiting", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    await call(closePost, { postId }, asUser("author"));
+    // The refresh is fire-and-forget, so let its microtasks drain.
+    await vi.waitFor(() => expect(calls.map((c) => c.method)).toEqual(["POST", "PATCH"]));
+  });
+
+  it("takes the message down with the post", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    await call(deletePost, { postId }, asUser("author"));
+
+    expect(calls.map((c) => c.method)).toEqual(["POST", "DELETE"]);
+    expect(await db.select().from(collabPostDiscordShares)).toHaveLength(0);
+  });
+});

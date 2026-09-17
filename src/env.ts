@@ -34,6 +34,12 @@ export const env = createEnv({
     DISABLE_EMAIL: z.string().optional(),
     // Public origin fallback for server-side URL minting (`siteOrigin()`).
     APP_URL: z.url().optional(),
+    // The collab feed channel and its per-author cooldown. Read via
+    // `process.env` in `src/lib/collab-discord-feed.ts` (server-only, beside
+    // the rest of the Discord plumbing); declared here for visibility. No
+    // channel means no mirror — see that module's header.
+    DISCORD_COLLAB_CHANNEL_ID: z.string().min(1).optional(),
+    DISCORD_COLLAB_SHARE_COOLDOWN_SECONDS: z.string().optional(),
   },
 
   /**
@@ -61,6 +67,12 @@ export const env = createEnv({
     VITE_POSTHOG_HOST: z.url().optional(),
     // Read through `siteOrigin()` below, never directly.
     VITE_SITE_ORIGIN: z.url().optional(),
+    // Which deployment this bundle is. Only the staging marker reads it, and
+    // only as an override: `src/lib/deploy-env.ts` derives the same answer
+    // from the origin above, which is already set per environment. Set this
+    // when the origin can't tell the truth — a rehearsal on the production
+    // domain, or a preview that must not wear the badge.
+    VITE_DEPLOY_ENV: z.enum(["production", "staging", "development"]).optional(),
   },
 
   /**

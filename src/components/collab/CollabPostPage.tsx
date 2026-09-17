@@ -1,6 +1,7 @@
 import {
   Cancel01Icon,
   Delete02Icon,
+  DiscordIcon,
   Flag01Icon,
   GlobeIcon,
   Login01Icon,
@@ -125,6 +126,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
     contact,
     authorDiscordId,
     authorDiscordUsername,
+    discordShare,
     viewerOverlap,
   } = usePostViewerState(postId, post, currentUserId);
   const isClosed = post.status !== "recruiting";
@@ -153,6 +155,7 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
             closesIn={closesIn}
             currentUserId={currentUserId}
             actions={actions}
+            discordShare={discordShare}
             onEdit={() => {
               startWizardEdit(post.id, draftFromPost(post, contact));
               setEditOpen(true);
@@ -666,6 +669,7 @@ function HeroActions({
   closesIn,
   currentUserId,
   actions,
+  discordShare,
   onEdit,
 }: {
   post: CollabPostDetailData;
@@ -674,6 +678,7 @@ function HeroActions({
   closesIn: { text: string; past: boolean } | null;
   currentUserId: string | null;
   actions: ReturnType<typeof useCollabPostActions>;
+  discordShare: ReturnType<typeof usePostViewerState>["discordShare"];
   onEdit: () => void;
 }) {
   const navigate = useNavigate();
@@ -703,6 +708,11 @@ function HeroActions({
 
       {isOwner ? (
         <>
+          <ShareToDiscordAction
+            share={discordShare}
+            isClosed={isClosed}
+            mutation={actions.shareToDiscord}
+          />
           {isEditablePostType(post.type) ? (
             <Button
               variant="outline"
@@ -783,6 +793,46 @@ function HeroActions({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The author's one-press mirror into the guild's collab feed. Absent on a
+ * deployment with no feed channel, and on a closed post — nothing recruits
+ * from a party that is already full.
+ *
+ * A post already in the feed keeps the button: pressing it again rewrites
+ * that message rather than posting a second one, which is the answer to
+ * "I edited the post, does Discord know?".
+ */
+function ShareToDiscordAction({
+  share,
+  isClosed,
+  mutation,
+}: {
+  share: ReturnType<typeof usePostViewerState>["discordShare"];
+  isClosed: boolean;
+  mutation: ReturnType<typeof useCollabPostActions>["shareToDiscord"];
+}) {
+  if (!share?.available || isClosed) return null;
+
+  const shared = share.sharedAt != null;
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => mutation.mutate()}
+      disabled={mutation.isPending}
+      tooltip={
+        shared
+          ? `Shared ${timeAgo(share.sharedAt!)} — press again to update the Discord message`
+          : "Post this to the Discord collab feed"
+      }
+      className="tracking-widest"
+    >
+      <HugeiconsIcon icon={DiscordIcon} size={12} />
+      {shared ? "UPDATE ON DISCORD" : "SHARE TO DISCORD"}
+    </Button>
   );
 }
 

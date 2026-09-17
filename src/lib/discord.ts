@@ -122,7 +122,7 @@ export function isAdmin(guildRoles: string[] | null): boolean {
 // Railway egress IPs are shared across tenants, and a Cloudflare 1015 ban
 // on discord.com takes OAuth sign-in down with it (better-auth's token
 // exchange hits the same zone). So we are deliberately heavy handed:
-// every call funnels through `discordFetch`, any 429 opens a Redis-backed
+// every call funnels through `guardedFetch`, any 429 opens a Redis-backed
 // backoff window shared across instances, and guild membership is cached
 // so middleware traffic to discord.com is near zero. Redis being down must
 // never hurt more than Discord being down — the cache/backoff plumbing
@@ -139,6 +139,13 @@ const NOT_GUILD_BANNED_CACHE_TTL_SECONDS = 300;
 
 /** All `discordFetch` takes: no method, no body, nowhere to put a write. */
 type DiscordReadInit = { headers: Record<string, string> };
+
+/** The write funnel's init — a method it must name, and a JSON body. */
+export type DiscordWriteInit = {
+  method: "POST" | "PATCH" | "DELETE";
+  headers: Record<string, string>;
+  body?: unknown;
+};
 
 /** Thrown when we refuse to call discord.com because a rate-limit backoff window is active. */
 export class DiscordBackoffError extends Error {
@@ -192,25 +199,55 @@ function parseRetryAfter(response: Response): number {
 }
 
 /**
- * Fetch against discord.com that fails fast while the shared backoff window
- * is active and opens/extends that window whenever Discord answers 429.
- *
- * Read-only by construction: the method is hardcoded to GET and the init type
- * carries nothing else, so no caller can reach a Discord mutation through this
- * funnel — and every discord.com call in the app goes through it. Moderation
- * flows one way: guild bans are mirrored *into* the app (`isGuildBanned`),
- * never written back out. Banning on Discord stays a thing humans do in
- * Discord.
+ * The one place discord.com is called from. Fails fast while the shared
+ * backoff window is active, and opens/extends that window on any 429 —
+ * whichever caller provoked it, because the thing being protected is the
+ * shared egress IP, not a per-route budget.
  */
-async function discordFetch(url: string, init: DiscordReadInit): Promise<Response> {
+async function guardedFetch(url: string, init: RequestInit): Promise<Response> {
   const backoffUntil = await getBackoffUntil();
   if (backoffUntil) throw new DiscordBackoffError(backoffUntil);
 
-  const response = await fetch(url, { headers: init.headers, method: "GET" });
+  const response = await fetch(url, init);
   if (response.status === 429) {
     await openBackoffWindow(parseRetryAfter(response));
   }
   return response;
+}
+
+/**
+ * Every *read* against discord.com. Read-only by construction: the method is
+ * hardcoded to GET and the init type carries nothing else, so no caller can
+ * reach a Discord mutation through this funnel.
+ *
+ * Moderation still flows one way: guild bans are mirrored *into* the app
+ * (`isGuildBanned`), never written back out. Banning on Discord stays a
+ * thing humans do in Discord.
+ */
+async function discordFetch(url: string, init: DiscordReadInit): Promise<Response> {
+  return guardedFetch(url, { headers: init.headers, method: "GET" });
+}
+
+/**
+ * The single write funnel, added for the collab feed mirror
+ * (`src/lib/collab-discord-feed.ts`) and deliberately narrow: it writes
+ * *messages* into one configured channel and nothing else. Guild state —
+ * members, roles, bans — stays read-only above.
+ *
+ * Exported rather than left private so the mirror shares this file's
+ * rate-limit hygiene: a 429 on a message POST is the same Cloudflare 1015
+ * risk to OAuth sign-in as a 429 on a member read, and it has to open the
+ * same window.
+ */
+export async function discordWriteFetch(url: string, init: DiscordWriteInit): Promise<Response> {
+  return guardedFetch(url, {
+    method: init.method,
+    headers:
+      init.body === undefined
+        ? init.headers
+        : { ...init.headers, "content-type": "application/json" },
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+  });
 }
 
 export async function fetchGuildMember(accessToken: string): Promise<DiscordGuildMember> {

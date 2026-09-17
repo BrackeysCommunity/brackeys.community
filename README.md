@@ -148,6 +148,11 @@ The app runs on `http://localhost:3000`.
 - `GITLAB_BRACKEYS_CLIENT_ID`: `git.brackeys.dev` linking
   (register each application non-confidential — a public PKCE client needs no
   secret; `GITLAB_*_CLIENT_SECRET` exists for instances that require one)
+- `DISCORD_BOT_TOKEN`: guild membership and ban probes, and the collab feed mirror below
+- `DISCORD_COLLAB_CHANNEL_ID`: the channel an author's SHARE TO DISCORD posts their collab
+  post into. Unset means the feature does not exist — the button never renders. The bot
+  needs View Channel / Send Messages / Embed Links there and nothing more; it only ever
+  edits or deletes the messages it wrote itself.
 - `VITE_ITCHIO_CLIENT_ID`: itch.io linking flow
 - `VITE_STRAPI_URL`: Strapi-backed uploads / demo content
 - `MINIO_ENDPOINT`: MinIO server URL, for example `https://your-minio-host.up.railway.app`
@@ -159,6 +164,13 @@ The app runs on `http://localhost:3000`.
 ### Optional
 
 - `VITE_APP_TITLE`: client title override
+- `VITE_DEPLOY_ENV`: `production` | `staging` | `development` — overrides the staging marker
+  (badge beside the logo, top-edge stripe, `[STAGING]` tab-title prefix). Derived from
+  `VITE_SITE_ORIGIN` when unset, which is right for every deploy we have; set it only where
+  the origin can't tell the truth.
+- `DISCORD_COLLAB_SHARE_COOLDOWN_SECONDS`: how long a member waits between announcing posts
+  in the collab feed channel (default `21600`, six hours). Updating a message they already
+  posted is limited separately, at ten an hour.
 - `SERVER_URL`: server-side absolute URL override
 - `VITE_POSTHOG_KEY`: PostHog project API key — analytics, feature flags, error tracking (all off when unset)
 - `VITE_POSTHOG_HOST`: PostHog ingestion host, for example `https://eu.i.posthog.com`, or the
@@ -167,7 +179,8 @@ The app runs on `http://localhost:3000`.
 - `POSTHOG_PERSONAL_API_KEY`: **build-time, server-only** — enables source-map upload so error
   stacks are un-minified. Never give this a `VITE_` prefix: it is a write credential and the
   prefix would inline it into the browser bundle. Absent means maps are simply not uploaded.
-- `POSTHOG_PROJECT_ID`: build-time, pairs with the personal API key
+- `POSTHOG_PROJECT_ID`: build-time, pairs with the personal API key — the numeric project id
+  (269454 prod, 269446 staging). Both must be set or the build skips maps entirely.
 - `POSTHOG_API_HOST`: build-time, optional — the PostHog **API/UI** host for source-map
   upload (`https://eu.posthog.com`). Distinct from the ingestion host below; do not
   set both to the same value.

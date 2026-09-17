@@ -6,6 +6,7 @@ import * as z from "zod";
 import { db } from "@/db";
 import {
   collabPosts,
+  collabPostDiscordShares,
   collabRoles,
   collabPostRoles,
   collabPostSkills,
@@ -25,6 +26,16 @@ import {
   skills,
 } from "@/db/schema";
 import {
+  buildCollabFeedMessage,
+  collabFeedConfig,
+  collabFeedMessageUrl,
+  deleteCollabFeedMessage,
+  DiscordFeedError,
+  editCollabFeedMessage,
+  postCollabFeedMessage,
+  type CollabFeedPost,
+} from "@/lib/collab-discord-feed";
+import {
   daysFromNow,
   EXTEND_DAYS,
   initialPostExpiry,
@@ -40,6 +51,7 @@ import {
   MAX_POST_SKILLS,
 } from "@/lib/collab-vocabulary";
 import { CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency";
+import { DiscordBackoffError } from "@/lib/discord";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { optionalExternalUrlSchema } from "@/lib/external-url";
 import { jamSlug } from "@/lib/jam-links";
@@ -48,6 +60,7 @@ import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
+import { profileSlug } from "@/lib/profile-links";
 import {
   getProfileProjectImageUrl,
   removeProfileProjectImageFromStorage,
@@ -550,6 +563,10 @@ export const updatePost = os
 
     captureServerEvent(EVENTS.collabPostUpdated, context.user.id, { post_id: postId });
 
+    void bestEffort("collab.discord_mirror_refresh", { post_id: postId, on: "update" }, () =>
+      refreshDiscordMirror(postId),
+    );
+
     return { ...updated, jamWarning };
   });
 
@@ -626,6 +643,9 @@ async function writePostLinks(post: PostRow, set: Partial<PostRow>) {
     .where(eq(collabPosts.id, post.id))
     .returning();
   await touchTeamActivity(set.teamId);
+  void bestEffort("collab.discord_mirror_refresh", { post_id: post.id, on: "links" }, () =>
+    refreshDiscordMirror(post.id),
+  );
   return updated!;
 }
 
@@ -697,6 +717,10 @@ export const updatePostTerms = os
       fields: Object.keys(set),
     });
 
+    void bestEffort("collab.discord_mirror_refresh", { post_id: post.id, on: "terms" }, () =>
+      refreshDiscordMirror(post.id),
+    );
+
     return updated!;
   });
 
@@ -731,6 +755,11 @@ export const deletePost = os
       .select({ imageKey: collabPostImages.imageKey })
       .from(collabPostImages)
       .where(eq(collabPostImages.postId, input.postId));
+    // Before the cascade takes the share row with it: a mirror left behind
+    // links to a 404, which is worse than no mirror at all.
+    await bestEffort("collab.discord_mirror_remove", { post_id: input.postId }, () =>
+      removeDiscordMirror(input.postId),
+    );
     await db.delete(collabPosts).where(eq(collabPosts.id, input.postId));
     for (const { imageKey } of images) {
       if (imageKey && isCollabPostImageKey(input.postId, imageKey)) {
@@ -769,6 +798,10 @@ export const closePost = os
       .set({ status: "party_full", updatedAt: new Date() })
       .where(eq(collabPosts.id, input.postId))
       .returning();
+
+    void bestEffort("collab.discord_mirror_refresh", { post_id: input.postId, on: "close" }, () =>
+      refreshDiscordMirror(input.postId),
+    );
 
     if (!isOwner && context.isStaff) {
       await notify({
@@ -818,6 +851,10 @@ export const reopenPost = os
 
     await touchTeamActivity(post.teamId);
 
+    void bestEffort("collab.discord_mirror_refresh", { post_id: input.postId, on: "reopen" }, () =>
+      refreshDiscordMirror(input.postId),
+    );
+
     if (!isOwner && context.isStaff) {
       await recordModerationAction({
         action: "post_reopened",
@@ -866,6 +903,292 @@ export const extendPost = os
     await touchTeamActivity(post.teamId);
 
     return updated;
+  });
+
+// ── The Discord mirror ───────────────────────────────────────────────────────
+//
+// One message per post in the guild's feed channel, owned by the author and
+// pressed by hand. Not automatic on create: the board publishes first and
+// strengthens after (`docs/plans/26`), so an auto-mirror would broadcast
+// every post at its barest. Pressing it again rewrites the same message
+// rather than posting a second one, which is also how `closePost` and
+// `deletePost` keep the channel honest without the author doing anything.
+
+const DEFAULT_SHARE_COOLDOWN_SECONDS = 6 * 3600;
+/** Edits are cheap and invisible, so they get their own looser budget. */
+const DISCORD_RESHARE_LIMIT = 10;
+
+/**
+ * How long one author waits between announcing posts to the whole guild.
+ * A blank or nonsense value reads as the default rather than as zero — an
+ * empty variable is how `.env.example` ships, and a zero-second window is
+ * no cooldown at all.
+ */
+function shareCooldownSeconds(): number {
+  const raw = Number(process.env.DISCORD_COLLAB_SHARE_COOLDOWN_SECONDS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SHARE_COOLDOWN_SECONDS;
+}
+
+/** Assembles the embed input for a post, or null when the post is gone. */
+async function loadFeedPost(postId: number): Promise<CollabFeedPost | null> {
+  const [post] = await db.select().from(collabPosts).where(eq(collabPosts.id, postId)).limit(1);
+  if (!post) return null;
+
+  const [roles, postSkills, jam, team, [authorRow], [image]] = await Promise.all([
+    db
+      .select({ name: collabRoles.name })
+      .from(collabPostRoles)
+      .innerJoin(collabRoles, eq(collabPostRoles.roleId, collabRoles.id))
+      .where(eq(collabPostRoles.postId, postId)),
+    db
+      .select({ name: skills.name })
+      .from(collabPostSkills)
+      .innerJoin(skills, eq(collabPostSkills.skillId, skills.id))
+      .where(eq(collabPostSkills.postId, postId)),
+    post.jamId != null
+      ? db
+          .select({ jamId: itchJams.jamId, title: itchJams.title, slug: itchJams.slug })
+          .from(itchJams)
+          .where(eq(itchJams.jamId, post.jamId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+    post.teamId != null
+      ? db
+          .select({
+            id: teams.id,
+            name: teams.name,
+            slug: teams.slug,
+            avatarUrl: teams.avatarUrl,
+            avatarKey: teams.avatarKey,
+          })
+          .from(teams)
+          .where(and(eq(teams.id, post.teamId), isNull(teams.hiddenAt)))
+          .limit(1)
+          .then(async (rows) => {
+            if (!rows[0]) return null;
+            const { avatarKey, ...row } = rows[0];
+            return {
+              ...row,
+              avatarUrl: await resolveTeamAvatarUrl({ avatarKey, avatarUrl: row.avatarUrl }),
+            };
+          })
+      : Promise.resolve(null),
+    db
+      .select({ id: developerProfiles.id, ...profileIdentityColumns })
+      .from(developerProfiles)
+      .leftJoin(profileUrlStubs, profileStubJoin)
+      .where(eq(developerProfiles.id, post.authorId))
+      .limit(1),
+    db
+      .select({ imageKey: collabPostImages.imageKey, url: collabPostImages.url })
+      .from(collabPostImages)
+      .where(eq(collabPostImages.postId, postId))
+      .orderBy(asc(collabPostImages.sortOrder))
+      .limit(1),
+  ]);
+
+  return {
+    id: post.id,
+    title: post.title,
+    description: post.description,
+    type: post.type,
+    status: post.status,
+    compensationType: post.compensationType,
+    compensationMin: post.compensationMin,
+    compensationMax: post.compensationMax,
+    currency: post.currency,
+    projectName: post.projectName,
+    createdAt: post.createdAt,
+    expiresAt: post.expiresAt,
+    roles: roles.map((role) => role.name),
+    skills: postSkills.map((skill) => skill.name),
+    jam,
+    team,
+    author: authorRow
+      ? {
+          name: memberName(authorRow, "A member")!,
+          // The guild avatar first, same order every byline on the site uses.
+          avatarUrl: authorRow.guildAvatarUrl ?? authorRow.avatarUrl,
+          profilePath: `/profile/${profileSlug(authorRow)}`,
+        }
+      : null,
+    imageUrl: image ? ((await getProfileProjectImageUrl(image.imageKey)) ?? image.url) : null,
+  };
+}
+
+/** The stored mirror for a post, or null if it has never been shared. */
+async function loadShareRow(postId: number) {
+  const [row] = await db
+    .select()
+    .from(collabPostDiscordShares)
+    .where(eq(collabPostDiscordShares.postId, postId))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Re-render a post's existing mirror after the post changed underneath it.
+ * A no-op when the post was never shared or the channel is unconfigured, and
+ * best-effort throughout: the channel is a copy, and a copy must never be
+ * able to fail the write it is copying.
+ */
+async function refreshDiscordMirror(postId: number): Promise<void> {
+  const config = collabFeedConfig();
+  if (!config) return;
+  const share = await loadShareRow(postId);
+  if (!share) return;
+  const post = await loadFeedPost(postId);
+  if (!post) return;
+
+  const outcome = await editCollabFeedMessage(
+    config,
+    share.channelId,
+    share.messageId,
+    buildCollabFeedMessage(post),
+  );
+  // Someone deleted the message in Discord. Forget it rather than resurrect
+  // it — a mirror the author didn't ask for twice isn't ours to restore.
+  if (outcome === "gone") {
+    await db.delete(collabPostDiscordShares).where(eq(collabPostDiscordShares.postId, postId));
+  } else {
+    await db
+      .update(collabPostDiscordShares)
+      .set({ updatedAt: new Date() })
+      .where(eq(collabPostDiscordShares.postId, postId));
+  }
+}
+
+/** Takes a post's mirror down. Called before the row itself disappears. */
+async function removeDiscordMirror(postId: number): Promise<void> {
+  const config = collabFeedConfig();
+  if (!config) return;
+  const share = await loadShareRow(postId);
+  if (!share) return;
+  await deleteCollabFeedMessage(config, share.channelId, share.messageId);
+}
+
+/** Turns a Discord-side failure into something the author can act on. */
+function shareFailure(error: unknown): ORPCError<string, unknown> {
+  if (error instanceof DiscordBackoffError) {
+    return new ORPCError("SERVICE_UNAVAILABLE", {
+      message: "Discord is rate limiting us right now. Try again in a few minutes.",
+    });
+  }
+  if (error instanceof DiscordFeedError && error.status === 403) {
+    return new ORPCError("SERVICE_UNAVAILABLE", {
+      message: "The bot can't post in the collab channel. Staff have been told.",
+    });
+  }
+  return new ORPCError("SERVICE_UNAVAILABLE", {
+    message: "Discord didn't take the message. Try again in a minute.",
+  });
+}
+
+/**
+ * Put this post in the guild's collab feed, or update the message already
+ * there. Author-only — the mirror carries their name, and the cooldown is
+ * theirs to spend.
+ */
+export const shareToDiscord = os
+  .use(requireGuildMember)
+  .input(z.object({ postId: z.number() }))
+  .handler(async ({ input, context }) => {
+    const config = collabFeedConfig();
+    if (!config) {
+      throw new ORPCError("NOT_IMPLEMENTED", {
+        message: "This deployment has no Discord collab channel.",
+      });
+    }
+
+    const { post } = await loadOwnedPost(
+      input.postId,
+      { userId: context.user.id },
+      "You can only share your own posts to Discord.",
+    );
+    if (post.status !== "recruiting") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Only an open post can be shared — reopen it first.",
+      });
+    }
+
+    const existing = await loadShareRow(input.postId);
+    // A first share is an announcement to everyone in the server; a re-share
+    // is an edit to a message they already scrolled past. Only the first
+    // kind is worth a long cooldown.
+    if (existing) {
+      await assertRateLimit(
+        "collab-discord-update",
+        context.user.id,
+        DISCORD_RESHARE_LIMIT,
+        "You've refreshed your Discord posts a lot in the last hour. Try again later.",
+      );
+    } else {
+      await assertRateLimit(
+        "collab-discord-share",
+        context.user.id,
+        1,
+        "You've already posted to the Discord feed recently. Give it a few hours.",
+        shareCooldownSeconds(),
+      );
+    }
+
+    const feedPost = await loadFeedPost(input.postId);
+    if (!feedPost) throw new ORPCError("NOT_FOUND", { message: "Post not found." });
+    const payload = buildCollabFeedMessage(feedPost);
+
+    let messageId = existing?.messageId ?? null;
+    let channelId = existing?.channelId ?? config.channelId;
+    try {
+      if (existing) {
+        const outcome = await editCollabFeedMessage(
+          config,
+          existing.channelId,
+          existing.messageId,
+          payload,
+        );
+        // The message is gone, or the feed channel moved since it was
+        // posted: the author asked for their post to be in the feed, so put
+        // it in the one the feed is now.
+        if (outcome === "gone") {
+          messageId = await postCollabFeedMessage(config, payload);
+          channelId = config.channelId;
+        }
+      } else {
+        messageId = await postCollabFeedMessage(config, payload);
+        channelId = config.channelId;
+      }
+    } catch (error) {
+      throw shareFailure(error);
+    }
+
+    const now = new Date();
+    const [row] = await db
+      .insert(collabPostDiscordShares)
+      .values({
+        postId: input.postId,
+        channelId,
+        messageId: messageId!,
+        sharedById: context.user.id,
+        sharedAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: collabPostDiscordShares.postId,
+        set: { channelId, messageId: messageId!, updatedAt: now },
+      })
+      .returning();
+
+    captureServerEvent(EVENTS.collabPostSharedToDiscord, context.user.id, {
+      post_id: input.postId,
+      updated: existing != null,
+    });
+
+    return {
+      sharedAt: row.sharedAt,
+      updatedAt: row.updatedAt,
+      messageUrl: collabFeedMessageUrl(config.guildId, row.channelId, row.messageId),
+    };
   });
 
 /**
@@ -1045,7 +1368,7 @@ export const getPostViewerState = os
   .use(requireAuth)
   .input(z.object({ postId: z.number() }))
   .handler(async ({ input, context }) => {
-    const [[own], [post], inGuild] = await Promise.all([
+    const [[own], [post], inGuild, share] = await Promise.all([
       db
         .select({
           id: collabResponses.id,
@@ -1072,6 +1395,7 @@ export const getPostViewerState = os
         .where(eq(collabPosts.id, input.postId))
         .limit(1),
       userIsGuildMember(context.user.id),
+      loadShareRow(input.postId),
     ]);
 
     // The author always sees their own contact block, guild or not. Not a
@@ -1105,10 +1429,28 @@ export const getPostViewerState = os
     // thread on this application has anything in it yet.
     const threadCommentCount = own ? ((await responseThreadCounts([own.id])).get(own.id) ?? 0) : 0;
 
+    // The Discord mirror is the author's own bookkeeping: whether the
+    // button exists at all, and what it has already done. Readers of
+    // someone else's post get `null` and never learn a message id.
+    const feed = collabFeedConfig();
+    const isAuthor = post != null && post.authorId === context.user.id;
+    const discordShare = isAuthor
+      ? {
+          available: feed != null,
+          sharedAt: share?.sharedAt ?? null,
+          updatedAt: share?.updatedAt ?? null,
+          messageUrl:
+            feed && share
+              ? collabFeedMessageUrl(feed.guildId, share.channelId, share.messageId)
+              : null,
+        }
+      : null;
+
     return {
       viewerResponse: own ? { ...own, threadCommentCount } : null,
       authorDiscordId,
       authorDiscordUsername,
+      discordShare,
       contact: canSeeContact
         ? { contactType: post.contactType, contactMethod: post.contactMethod }
         : null,

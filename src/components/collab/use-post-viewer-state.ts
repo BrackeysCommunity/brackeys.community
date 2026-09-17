@@ -22,9 +22,10 @@ type ViewedPost = { authorId: string; skills: { id: number; name: string }[] } |
  * - **The applicant list** comes from `listResponses`, which enforces
  *   owner-or-staff server-side. It is only requested when the viewer plausibly
  *   passes that gate, so ordinary visitors never provoke a 403.
- * - **The viewer's own application** and **the contact block** come from
- *   `getPostViewerState`. Owners fetch it too — they cannot apply to their own
- *   post, but they should see the contact details they published.
+ * - **The viewer's own application**, **the contact block**, and **the
+ *   Discord mirror's state** come from `getPostViewerState`. Owners fetch it
+ *   too — they cannot apply to their own post, but they should see the
+ *   contact details they published, and the mirror is theirs alone.
  */
 export function usePostViewerState(
   postId: number,
@@ -69,6 +70,10 @@ export function usePostViewerState(
     contact: viewerStateQuery.data?.contact ?? null,
     authorDiscordId: viewerStateQuery.data?.authorDiscordId ?? null,
     authorDiscordUsername: viewerStateQuery.data?.authorDiscordUsername ?? null,
+    // Null for everyone but the author, and for the author on a deployment
+    // with no feed channel — so the SHARE control is absent rather than
+    // present-and-broken.
+    discordShare: viewerStateQuery.data?.discordShare ?? null,
     viewerOverlap,
   };
 }

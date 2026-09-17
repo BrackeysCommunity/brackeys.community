@@ -1,4 +1,5 @@
 import { siteOrigin, siteUrl } from "@/env";
+import { deployEnvLabel } from "@/lib/deploy-env";
 import { cfImagesEnabled, itchImageUrl, itchOriginalUrl } from "@/lib/itch-image";
 import { SITE } from "@/lib/legal-meta";
 
@@ -63,8 +64,16 @@ export interface PageMetaInput {
   links?: HeadLinkTag[];
 }
 
+/**
+ * The browser-tab title. Carries the deploy marker's prefix on every
+ * non-production deploy — a tab strip with both environments open in it is
+ * exactly where the badge beside the logo can't be seen. Social titles keep
+ * the clean name: a staging page is `noindex` and never meant to be shared.
+ */
 export function pageTitle(title?: string): string {
-  return title ? `${title} · ${SITE_NAME}` : SITE_NAME;
+  const name = title ? `${title} · ${SITE_NAME}` : SITE_NAME;
+  const marker = deployEnvLabel();
+  return marker ? `[${marker}] ${name}` : name;
 }
 
 /** Dimensions ride along only when we resized the image ourselves. */

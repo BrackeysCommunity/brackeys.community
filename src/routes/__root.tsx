@@ -11,12 +11,14 @@ import { lazy, Suspense, useEffect } from "react";
 
 import { SiteFooter } from "@/components/home/SiteFooter";
 import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
+import { DeployEnvStripe } from "@/components/layout/DeployEnvMarker";
 import { PageSkeleton } from "@/components/layout/PageSkeleton";
 import { siteUrl } from "@/env";
 import {
   DEFAULT_OG_CARD,
   OG_IMAGE_HEIGHT,
   OG_IMAGE_WIDTH,
+  pageTitle,
   SITE_DESCRIPTION,
   SITE_NAME,
 } from "@/lib/site-meta";
@@ -91,7 +93,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: SITE_NAME },
+      { title: pageTitle() },
       { name: "description", content: SITE_DESCRIPTION },
       { name: "theme-color", content: "#09090b" },
       { property: "og:site_name", content: SITE_NAME },
@@ -267,6 +269,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </div>
           </AppMotionConfig>
         </AppSettingsProvider>
+        <DeployEnvStripe />
         <Toaster position="bottom-right" style={{ zIndex: 9999 }} />
         <ConfirmPortal />
         <Scripts />

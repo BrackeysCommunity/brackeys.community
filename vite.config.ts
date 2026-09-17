@@ -51,12 +51,20 @@ const appVersion = appRelease
   ? [appRelease, commitSha].filter(Boolean).join("+")
   : `${pkg.version}+${[buildStamp, commitSha].filter(Boolean).join(".")}`;
 
-// Source-map upload is keyed off the credential being present, never off
+// Source-map upload is keyed off its credentials being present, never off
 // NODE_ENV — MR previews build as `staging`, and a gate on
 // `NODE_ENV === "production"` would silently exclude them.
-// A build without the key is a normal build with no maps.
+// A build without them is a normal build with no maps: the plugin throws when
+// `sourcemaps.enabled` is set without a project id, and a half-configured
+// service must not be able to fail a deploy over un-minified stacks.
 const posthogPersonalApiKey = process.env.POSTHOG_PERSONAL_API_KEY;
-const posthogSourcemapsEnabled = Boolean(posthogPersonalApiKey);
+const posthogProjectId = process.env.POSTHOG_PROJECT_ID;
+const posthogSourcemapsEnabled = Boolean(posthogPersonalApiKey && posthogProjectId);
+if (posthogPersonalApiKey && !posthogProjectId) {
+  console.warn(
+    "[posthog] POSTHOG_PERSONAL_API_KEY is set but POSTHOG_PROJECT_ID is not; building without source maps.",
+  );
+}
 
 /**
  * Hardens the PostHog source-map plugin against two behaviours that are
@@ -379,7 +387,7 @@ const config = defineConfig({
             ...resilientSourcemapUpload(
               posthogRollupPlugin({
                 personalApiKey: posthogPersonalApiKey!,
-                projectId: process.env.POSTHOG_PROJECT_ID,
+                projectId: posthogProjectId,
                 // The API/UI host (eu.posthog.com), NOT the ingestion host
                 // (eu.i.posthog.com) that `POSTHOG_HOST` carries for the
                 // services. Two different hosts; a shared variable under one

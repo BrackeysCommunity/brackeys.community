@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 
 import { AttentionMenu } from "@/components/attention/AttentionMenu";
+import { DeployEnvBadge } from "@/components/layout/DeployEnvMarker";
 import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
@@ -122,47 +123,50 @@ export function AppHeader() {
             edges on a wide monitor. */}
         <div className="mx-auto flex w-full max-w-[84rem] items-center justify-between">
           {/* Logo */}
-          <MagneticLink className="pointer-events-auto shrink-0">
-            <Link to="/" className="flex items-center gap-2">
-              <motion.div
-                className="h-7 w-7"
-                style={{
-                  // The gradient sweep below repaints every frame; its own layer
-                  // keeps the bar's hide/reveal a pure composited transform.
-                  transform: "translateZ(0)",
-                  maskImage: "url(/brackeys-logo.svg)",
-                  maskSize: "contain",
-                  maskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskImage: "url(/brackeys-logo.svg)",
-                  WebkitMaskSize: "contain",
-                  WebkitMaskRepeat: "no-repeat",
-                  WebkitMaskPosition: "center",
-                }}
-                initial={{
-                  backgroundImage:
-                    "linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))",
-                  backgroundPosition: "0 0%",
-                  backgroundSize: "100% 500%",
-                }}
-                animate={{
-                  backgroundPosition: ["0 0%", "0 0%", "0 100%", "0 100%", "0 0%"],
-                }}
-                transition={{
-                  duration: 6,
-                  times: [0, 0.2, 0.4, 0.6, 0.8],
-                  repeat: Infinity,
-                  ease: "linear",
-                }}
-              />
-              <span className="leading-wide hidden font-sans text-xl font-bold text-foreground sm:inline">
-                Brackeys
-                <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
-                  Community
+          <div className="flex items-center gap-2">
+            <MagneticLink className="pointer-events-auto shrink-0">
+              <Link to="/" className="flex items-center gap-2">
+                <motion.div
+                  className="h-7 w-7"
+                  style={{
+                    // The gradient sweep below repaints every frame; its own layer
+                    // keeps the bar's hide/reveal a pure composited transform.
+                    transform: "translateZ(0)",
+                    maskImage: "url(/brackeys-logo.svg)",
+                    maskSize: "contain",
+                    maskRepeat: "no-repeat",
+                    maskPosition: "center",
+                    WebkitMaskImage: "url(/brackeys-logo.svg)",
+                    WebkitMaskSize: "contain",
+                    WebkitMaskRepeat: "no-repeat",
+                    WebkitMaskPosition: "center",
+                  }}
+                  initial={{
+                    backgroundImage:
+                      "linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))",
+                    backgroundPosition: "0 0%",
+                    backgroundSize: "100% 500%",
+                  }}
+                  animate={{
+                    backgroundPosition: ["0 0%", "0 0%", "0 100%", "0 100%", "0 0%"],
+                  }}
+                  transition={{
+                    duration: 6,
+                    times: [0, 0.2, 0.4, 0.6, 0.8],
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
+                />
+                <span className="leading-wide hidden font-sans text-xl font-bold text-foreground sm:inline">
+                  Brackeys
+                  <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
+                    Community
+                  </span>
                 </span>
-              </span>
-            </Link>
-          </MagneticLink>
+              </Link>
+            </MagneticLink>
+            <DeployEnvBadge />
+          </div>
 
           {/* Desktop nav */}
           <div className="pointer-events-auto hidden items-center gap-6 lg:flex">

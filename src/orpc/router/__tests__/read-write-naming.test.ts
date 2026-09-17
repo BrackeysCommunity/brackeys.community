@@ -51,6 +51,8 @@ const WRITE_VERBS = [
   "respond",
   "revoke",
   "set",
+  // `shareToDiscord` writes the mirror row and posts (or edits) the message.
+  "share",
   // Prefix, not a verb: the admin-direct moderation twins
   // (staffUpdateProfile, staffResetUrlStub) — writes either way.
   "staff",

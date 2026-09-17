@@ -69,6 +69,9 @@ export const EVENTS = {
   collabPostUpdated: "collab_post_updated",
   // The post-publish upgrades — `field` names which row was completed.
   collabPostStrengthened: "collab_post_strengthened",
+  // The author put their post in the guild's feed channel. `updated`
+  // separates a fresh announcement from a rewrite of the same message.
+  collabPostSharedToDiscord: "collab_post_shared_to_discord",
 
   // Collab post responses — the other half of the loop.
   collabResponseFormOpened: "collab_response_form_opened",

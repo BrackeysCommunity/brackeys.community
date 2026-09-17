@@ -596,6 +596,29 @@ export const collabPostImages = collabSchema.table("collab_post_images", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/**
+ * The Discord message a post has been mirrored into, one per post.
+ *
+ * Its own table rather than columns on `collab_posts`: that row is the
+ * anonymous, edge-cached `getPost` payload, and the mirror is the author's
+ * own bookkeeping — nobody else's business, and nothing the board reads.
+ * `channelId` travels with the message id because the feed channel is an
+ * environment variable: after it moves, the old message still lives where
+ * it was posted, and editing it needs the channel it is actually in.
+ */
+export const collabPostDiscordShares = collabSchema.table("collab_post_discord_shares", {
+  postId: integer("post_id")
+    .primaryKey()
+    .references(() => collabPosts.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  messageId: text("message_id").notNull(),
+  // Who pressed the button — the author today, recorded rather than assumed
+  // so the row still reads correctly if staff ever gain the action.
+  sharedById: text("shared_by_id").references(() => user.id, { onDelete: "set null" }),
+  sharedAt: timestamp("shared_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const collabPostReports = collabSchema.table("collab_post_reports", {
   id: serial("id").primaryKey(),
   postId: integer("post_id")

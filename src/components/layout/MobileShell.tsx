@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 
+import { DeployEnvBadge } from "@/components/layout/DeployEnvMarker";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { BrackeysMark } from "@/components/ui/brackeys-mark";
 import { Button } from "@/components/ui/button";
@@ -45,15 +46,18 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           height: HEADER_HEIGHT,
         }}
       >
-        <Link to="/" className="flex items-center gap-1.5">
-          <BrackeysMark className="h-7 w-7" />
-          <span className="font-display text-base leading-none font-bold text-foreground">
-            Brackeys
-            <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
-              Community
+        <div className="flex min-w-0 items-center gap-2">
+          <Link to="/" className="flex items-center gap-1.5">
+            <BrackeysMark className="h-7 w-7" />
+            <span className="font-display text-base leading-none font-bold text-foreground">
+              Brackeys
+              <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
+                Community
+              </span>
             </span>
-          </span>
-        </Link>
+          </Link>
+          <DeployEnvBadge />
+        </div>
 
         {/* The cog outlives the session: theme, motion, and sound are stored
             in this browser, so signed-out visitors reach them the same way. */}
