@@ -2,6 +2,7 @@ import { DiscordIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { Button } from "@/components/ui/button";
+import { discordUserLink } from "@/lib/discord-links";
 import { toast } from "@/lib/toast";
 
 /**
@@ -11,10 +12,10 @@ import { toast } from "@/lib/toast";
  * this button is the whole "two matched people can now talk" story and wants
  * to look the same everywhere it appears.
  *
- * **The link is not guaranteed to land.** `discord.com/users/<id>` resolves
- * to a profile popout in the app and in a signed-in web client, and to
- * nothing useful anywhere else — a browser with no Discord session, or a
- * viewer who shares no server with the person. That is the whole of "the
+ * **The link is not guaranteed to land.** It is a `discord://` app link
+ * (`@/lib/discord-links`), so it opens the desktop client directly — and
+ * does nothing at all for someone who hasn't got it. Even when it does
+ * resolve, a popout needs a shared server. That is the whole of "the
  * message button leads nowhere", so the button no longer pretends
  * otherwise: it says it opens Discord, and it puts the handle on the
  * clipboard on the way out, which is what someone needs when the popout
@@ -44,7 +45,7 @@ export function DiscordMessageButton({
   if (!discordId) return null;
 
   const who = personLabel ?? (discordUsername ? `@${discordUsername}` : null);
-  const description = who ? `Opens Discord — ${who}` : "Opens Discord in a new tab";
+  const description = who ? `Opens Discord — ${who}` : "Opens Discord";
 
   const onCopyHandle = () => {
     if (!discordUsername) return;
@@ -62,9 +63,11 @@ export function DiscordMessageButton({
       tooltip={description}
       nativeButton={false}
       render={
+        // No `target="_blank"`: handing a custom scheme to a new tab leaves
+        // a blank one behind when the OS takes the handoff. Navigating the
+        // current tab to `discord://` doesn't unload the page either way.
         <a
-          href={`https://discord.com/users/${discordId}`}
-          target="_blank"
+          href={discordUserLink(discordId)}
           rel="noopener noreferrer"
           aria-label={who ? `Message ${who} on Discord` : "Message on Discord"}
           onClick={onCopyHandle}

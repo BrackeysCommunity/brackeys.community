@@ -33,6 +33,20 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
   },
 }));
 vi.mock("@/lib/guild-sync", () => ({ refreshGuildRolesThrottled: async () => {} }));
+
+/** The limiter runs on Redis, which these tests don't stand up — so the
+ *  spend/refund pair is recorded here instead, and the handler's contract
+ *  ("a share that didn't happen isn't charged") is what gets asserted. */
+const limiter: string[] = [];
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
+  assertRateLimit: async (bucket: string) => {
+    limiter.push(`spend:${bucket}`);
+  },
+  refundRateLimit: async (bucket: string) => {
+    limiter.push(`refund:${bucket}`);
+  },
+}));
 vi.mock("@/lib/queue", () => ({
   getNotificationsQueue: async () => ({ add: async () => ({}) }),
 }));
@@ -46,6 +60,7 @@ beforeEach(async () => {
   await db.delete(developerProfiles);
   await db.delete(user);
   calls.length = 0;
+  limiter.length = 0;
   nextStatus = 200;
 
   process.env.DISCORD_COLLAB_CHANNEL_ID = "9001";
@@ -56,9 +71,6 @@ beforeEach(async () => {
   await seedUser(db, "stranger");
 });
 
-/** The mirror's rate limits run on Redis, which these tests don't stand up —
- *  `checkRateLimit` degrades open without it, so every call is allowed. */
-
 describe("shareToDiscord", () => {
   it("posts the embed once and remembers the message", async () => {
     const postId = await seedCollabPost(db, "author");
@@ -68,7 +80,7 @@ describe("shareToDiscord", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe("POST");
     expect(calls[0].url).toContain("/channels/9001/messages");
-    expect(result.messageUrl).toBe("https://discord.com/channels/7/9001/message-1");
+    expect(result.messageUrl).toBe("discord://-/channels/7/9001/message-1");
 
     const [row] = await db
       .select()
@@ -114,6 +126,25 @@ describe("shareToDiscord", () => {
     );
   });
 
+  it("hands the cooldown back when Discord refuses the message", async () => {
+    const postId = await seedCollabPost(db, "author");
+    nextStatus = 500;
+
+    await expect(call(shareToDiscord, { postId }, asUser("author"))).rejects.toThrow(
+      /didn't take the message/i,
+    );
+
+    expect(limiter).toEqual(["spend:collab-discord-share", "refund:collab-discord-share"]);
+    // Nothing recorded either — the next press is a first share, not an edit.
+    expect(await db.select().from(collabPostDiscordShares)).toHaveLength(0);
+  });
+
+  it("keeps the cooldown when the message actually landed", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+    expect(limiter).toEqual(["spend:collab-discord-share"]);
+  });
+
   it("answers the author's own page with the mirror's state, and nobody else's", async () => {
     const postId = await seedCollabPost(db, "author");
     await call(shareToDiscord, { postId }, asUser("author"));
@@ -121,7 +152,7 @@ describe("shareToDiscord", () => {
     const mine = await call(getPostViewerState, { postId }, asUser("author"));
     expect(mine.discordShare?.available).toBe(true);
     expect(mine.discordShare?.sharedAt).toBeInstanceOf(Date);
-    expect(mine.discordShare?.messageUrl).toContain("/channels/7/9001/message-1");
+    expect(mine.discordShare?.messageUrl).toBe("discord://-/channels/7/9001/message-1");
 
     const theirs = await call(getPostViewerState, { postId }, asUser("stranger"));
     expect(theirs.discordShare).toBeNull();

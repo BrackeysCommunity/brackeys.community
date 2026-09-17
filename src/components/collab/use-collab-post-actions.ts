@@ -43,8 +43,16 @@ export function useCollabPostActions(postId: number, opts: { onDeleted?: () => v
       void queryClient.invalidateQueries({ queryKey: viewerStateKey });
       toast.success("Posted to the Discord collab feed.", {
         description: "Edit the post here and the message follows.",
+        // `location.href`, not `window.open`: the URL is a `discord://` app
+        // link, and a new tab opened for a custom scheme is left blank
+        // behind the handoff. Assigning it hands off without navigating.
         action: result.messageUrl
-          ? { label: "OPEN", onClick: () => window.open(result.messageUrl, "_blank", "noopener") }
+          ? {
+              label: "OPEN",
+              onClick: () => {
+                window.location.href = result.messageUrl;
+              },
+            }
           : undefined,
       });
     },

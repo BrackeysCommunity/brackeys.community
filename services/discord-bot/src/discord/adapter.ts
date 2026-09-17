@@ -28,11 +28,13 @@ import {
   replyVisibility,
   runInvocation,
   runPage,
+  shareRequested,
 } from "../commands/dispatch.ts";
+import { decideShare, type ShareGateConfig } from "../commands/share-gate.ts";
 import type { Cooldown } from "../cooldown.ts";
 import { classifyFailure, type Failure, failureReply } from "../failure.ts";
 import type { Choice, Memo } from "../memo.ts";
-import { type Button, type Embed, httpUrl, type Reply } from "../reply.ts";
+import { type Button, type Embed, httpUrl, type Reply, withNotice } from "../reply.ts";
 
 /**
  * The one file that touches discord.js interaction objects. It turns an
@@ -54,6 +56,7 @@ export interface AdapterOptions {
   telemetry: ServiceTelemetry;
   appUrl: string;
   hostName: string;
+  shareGate: ShareGateConfig;
   now?: () => Date;
   log?: (line: string) => void;
 }
@@ -66,6 +69,7 @@ export function createInteractionHandler(options: AdapterOptions) {
     telemetry,
     appUrl,
     hostName,
+    shareGate,
     now = () => new Date(),
     log = console.log,
   } = options;
@@ -91,6 +95,8 @@ export function createInteractionHandler(options: AdapterOptions) {
       command: PROFILE_CONTEXT_MENU,
       options: {},
       targetUserId: interaction.targetId,
+      actorRoleIds: actorRoleIds(interaction),
+      channelId: interaction.channelId,
     };
     await runCommand(interaction, inv, "member (context menu)");
   }
@@ -101,7 +107,18 @@ export function createInteractionHandler(options: AdapterOptions) {
     label: string,
   ) {
     const startedAt = performance.now();
-    const visibility = replyVisibility(inv);
+    // Before the defer, because Discord fixes visibility at the first
+    // response: a refused share has to be private from the outset, not
+    // corrected afterwards.
+    const decision = decideShare(
+      {
+        wanted: shareRequested(inv),
+        actorRoleIds: inv.actorRoleIds ?? [],
+        channelId: inv.channelId ?? null,
+      },
+      shareGate,
+    );
+    const visibility = replyVisibility(inv, decision);
     const props = {
       command: inv.command === PROFILE_CONTEXT_MENU ? COMMAND.member : inv.command,
       subcommand: inv.command === PROFILE_CONTEXT_MENU ? "context_menu" : inv.subcommand,
@@ -124,11 +141,15 @@ export function createInteractionHandler(options: AdapterOptions) {
       await interaction.deferReply(
         visibility === "ephemeral" ? { flags: MessageFlags.Ephemeral } : {},
       );
-      const reply = await runInvocation(api, inv, context());
+      const answer = await runInvocation(api, inv, context());
+      const reply = decision.denied ? withNotice(answer, decision.notice) : answer;
       await interaction.editReply(toMessage(reply));
       telemetry.capture(EVENTS.botCommandInvoked, {
         ...props,
         api_outcome: reply.outcome,
+        // How often the gate bites — the number that says whether the
+        // rule is right or merely annoying.
+        share_denied: decision.denied,
         latency_ms: elapsed(startedAt),
       });
     } catch (error) {
@@ -277,9 +298,26 @@ function failureHint(inv: Invocation, failure: Failure): string | undefined {
   return undefined;
 }
 
+/**
+ * The caller's guild role ids. `member.roles` is a manager in a cached
+ * guild and a raw id array in a partial payload, so both shapes are read
+ * rather than assumed — an empty list only ever costs a share.
+ */
+export function actorRoleIds(interaction: { member: unknown }): string[] {
+  const roles = (interaction.member as { roles?: unknown } | null)?.roles;
+  if (Array.isArray(roles)) return roles.filter((id): id is string => typeof id === "string");
+  const cache = (roles as { cache?: Map<string, unknown> } | undefined)?.cache;
+  return cache ? [...cache.keys()] : [];
+}
+
 /** Options as plain values. One level of subcommand; the manifest has no groups. */
 export function toInvocation(interaction: ChatInputCommandInteraction): Invocation {
-  const inv: Invocation = { command: interaction.commandName, options: {} };
+  const inv: Invocation = {
+    command: interaction.commandName,
+    options: {},
+    actorRoleIds: actorRoleIds(interaction),
+    channelId: interaction.channelId,
+  };
   let list: readonly CommandInteractionOption[] = interaction.options.data;
   const head = list[0];
   if (head?.type === ApplicationCommandOptionType.Subcommand) {

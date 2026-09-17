@@ -12,6 +12,7 @@ import {
 import { jamEntries, jamEntriesPage, jamInfo, jamNow, jamResults } from "./jam.ts";
 import { memberByDiscordId, memberByName } from "./member.ts";
 import { ping } from "./ping.ts";
+import type { ShareDecision } from "./share-gate.ts";
 import { teamInfo } from "./team.ts";
 
 /** Command and option names — the manifest and the adapter both read these. */
@@ -57,17 +58,30 @@ export interface Invocation {
   options: Record<string, OptionValue | undefined>;
   /** The Discord id behind a `user` option or a user context menu. */
   targetUserId?: string;
+  /** The caller's guild roles, which a guild interaction already carries —
+   *  the share gate reads them without an API call. */
+  actorRoleIds?: readonly string[];
+  /** Where the command was run, for the bot channel's own exemption. */
+  channelId?: string | null;
+}
+
+/** Whether the caller asked for the answer to go to the channel. */
+export function shareRequested(inv: Invocation): boolean {
+  if (inv.command === COMMAND.ping || inv.command === PROFILE_CONTEXT_MENU) return false;
+  return inv.options[OPT.share] === true;
 }
 
 /**
  * Decided *before* the reply is deferred: Discord fixes a message's
  * visibility at the first response. `/jam now` is the one command posted
- * for the channel; everything else is ephemeral unless `share: true`.
+ * for the channel; everything else is ephemeral unless `share: true` — and
+ * a refused share (`decision.denied`) is ephemeral whatever was asked for.
  */
-export function replyVisibility(inv: Invocation): "public" | "ephemeral" {
+export function replyVisibility(inv: Invocation, decision?: ShareDecision): "public" | "ephemeral" {
   if (inv.command === COMMAND.jam && inv.subcommand === SUB.jam.now) return "public";
-  if (inv.command === COMMAND.ping || inv.command === PROFILE_CONTEXT_MENU) return "ephemeral";
-  return inv.options[OPT.share] === true ? "public" : "ephemeral";
+  if (!shareRequested(inv)) return "ephemeral";
+  // No decision handed in means no gate configured — the old behaviour.
+  return decision == null || decision.shared ? "public" : "ephemeral";
 }
 
 export async function runInvocation(

@@ -39,6 +39,11 @@ client.on(
     telemetry,
     appUrl: config.APP_URL,
     hostName: config.JAM_HOST_NAME,
+    shareGate: {
+      roleIds: config.SHARE_ROLE_IDS,
+      botChannelId: config.BOT_CHANNEL_ID ?? null,
+      botChannelName: config.BOT_CHANNEL_NAME,
+    },
     log,
   }),
 );

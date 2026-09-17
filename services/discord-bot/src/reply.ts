@@ -32,6 +32,14 @@ export interface Reply {
   embeds: Embed[];
   buttons: Button[];
   ephemeral: boolean;
+  /**
+   * One line about the reply itself rather than its subject — today, why an
+   * answer the caller asked to share stayed private. Rendered into the
+   * first embed's footer, because the footer is the only part of an embed
+   * that already reads as chrome. Plain text: footers don't resolve
+   * mentions, so the copy names `#bot` rather than linking it.
+   */
+  notice?: string;
   /** What the API said, for the command telemetry. Thrown errors carry the
    *  other two outcomes. */
   outcome: "hit" | "not_found";
@@ -193,6 +201,20 @@ export function textReply(content: string, outcome: Reply["outcome"] = "hit"): R
 
 export function notFound(content: string): Reply {
   return textReply(content, "not_found");
+}
+
+/**
+ * Attach a notice to a reply, folding it into the first embed's footer.
+ * A reply with no embed carries it as content instead — a refusal has to
+ * be visible even when the answer is one line of text.
+ */
+export function withNotice(reply: Reply, notice: string): Reply {
+  const [first, ...rest] = reply.embeds;
+  if (!first) {
+    return { ...reply, content: reply.content ? `${reply.content}\n-# ${notice}` : notice };
+  }
+  const footer = first.footer ? `${first.footer} · ${notice}` : notice;
+  return { ...reply, embeds: [clampEmbed({ ...first, footer }), ...rest], notice };
 }
 
 /** Pluralise the boring way; every count in an embed goes through it. */

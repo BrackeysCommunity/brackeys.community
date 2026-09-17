@@ -85,6 +85,80 @@ describe("buildCollabFeedMessage", () => {
     expect(embed.fields.find((f) => f.name === "Closes")?.value).toBe("<t:1792058400:R>");
   });
 
+  it("absolutizes a stored image path — a relative one fails the whole message", () => {
+    const [embed] = buildCollabFeedMessage(
+      feedPost({ imageUrl: "/images/collab/42/a.png" }),
+    ).embeds;
+    expect(embed.thumbnail?.url).toMatch(/^https?:\/\/.+\/images\/collab\/42\/a\.png$/);
+  });
+
+  it("absolutizes the byline avatar too, team or person", () => {
+    const team = buildCollabFeedMessage(
+      feedPost({
+        team: { id: "t", name: "Wirecraft", slug: "wirecraft", avatarUrl: "/images/team/w.png" },
+      }),
+    ).embeds[0];
+    expect(team.author?.icon_url).toMatch(/^https?:\/\/.+\/images\/team\/w\.png$/);
+
+    const cdn = buildCollabFeedMessage(
+      feedPost({
+        author: {
+          name: "ada",
+          avatarUrl: "https://cdn.discordapp.com/avatars/1/a.png",
+          profilePath: "/profile/ada",
+        },
+      }),
+    ).embeds[0];
+    expect(cdn.author?.icon_url).toBe("https://cdn.discordapp.com/avatars/1/a.png");
+  });
+
+  it("drops an image URL it can't make sense of rather than losing the message", () => {
+    const [embed] = buildCollabFeedMessage(
+      feedPost({ imageUrl: "data:image/png;base64,AAAA" }),
+    ).embeds;
+    expect(embed.thumbnail).toBeUndefined();
+  });
+
+  it("puts an apply button under the embed, pointing at the post", () => {
+    const [row] = buildCollabFeedMessage(feedPost()).components;
+    expect(row.type).toBe(1);
+    const [apply] = row.components;
+    expect(apply).toMatchObject({ type: 2, style: 5, label: "Apply on Brackeys" });
+    expect(apply.url).toMatch(/\/collab\/42$/);
+  });
+
+  it("offers the jam alongside it only when the post names one", () => {
+    const plain = buildCollabFeedMessage(feedPost()).components[0].components;
+    expect(plain.map((b) => b.label)).toEqual(["Apply on Brackeys", "All open posts"]);
+
+    const withJam = buildCollabFeedMessage(
+      feedPost({ jam: { jamId: 7, title: "Brackeys Game Jam 2026.2", slug: "bjam" } }),
+    ).components[0].components;
+    expect(withJam.map((b) => b.label)).toEqual([
+      "Apply on Brackeys",
+      "Jam: Brackeys Game Jam 2026.2",
+      "All open posts",
+    ]);
+    expect(withJam[1].url).toMatch(/\/jams\/bjam$/);
+  });
+
+  it("stops a closed post's button from saying apply", () => {
+    const [row] = buildCollabFeedMessage(feedPost({ status: "party_full" })).components;
+    expect(row.components[0].label).toBe("View the post");
+  });
+
+  it("keeps every button inside Discord's limits", () => {
+    const [row] = buildCollabFeedMessage(
+      feedPost({ jam: { jamId: 7, title: "J".repeat(200), slug: "long" } }),
+    ).components;
+    expect(row.components.length).toBeLessThanOrEqual(5);
+    for (const button of row.components) {
+      expect(button.label.length).toBeLessThanOrEqual(80);
+      // Discord validates button URLs as http(s) — an app link is refused.
+      expect(button.url).toMatch(/^https?:\/\//);
+    }
+  });
+
   it("greys a closed post and says so, so a stale message can't recruit", () => {
     const [embed] = buildCollabFeedMessage(feedPost({ status: "party_full" })).embeds;
     expect(embed.color).toBe(0x4b5563);

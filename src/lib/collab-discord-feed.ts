@@ -1,5 +1,6 @@
 import { siteUrl } from "@/env";
 import { discordWriteFetch } from "@/lib/discord";
+import { discordMessageLink } from "@/lib/discord-links";
 import { formatRate } from "@/lib/format-rate";
 import { jamSlug } from "@/lib/jam-links";
 import { teamSlug } from "@/lib/team-links";
@@ -61,13 +62,34 @@ export function collabFeedEnabled(): boolean {
   return collabFeedConfig() != null;
 }
 
-/** The permalink a client can open to read the mirrored message. */
+/** The link a client can open to read the mirrored message, in the app. */
 export function collabFeedMessageUrl(
   guildId: string,
   channelId: string,
   messageId: string,
 ): string {
-  return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+  return discordMessageLink(guildId, channelId, messageId);
+}
+
+/**
+ * Every image URL in the payload, made absolute.
+ *
+ * Discord fetches embed images from its own servers, so a site-relative
+ * path is not merely unrenderable — it fails the **whole message** with
+ * `50035 / URL_TYPE_INVALID_URL`, and one bad thumbnail means nothing
+ * posts. Stored images resolve to `/images/<key>` (see
+ * `getProfileProjectImageUrl`), which is exactly that case. Anything that
+ * still won't parse as http(s) is dropped rather than sent: a missing
+ * thumbnail costs a little, a rejected message costs the whole share.
+ */
+function absoluteImageUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(siteUrl(value));
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function truncate(value: string, max: number): string {
@@ -103,6 +125,29 @@ interface DiscordEmbedField {
   inline?: boolean;
 }
 
+/**
+ * A link button — component type 2, style 5.
+ *
+ * The one button kind that carries no `custom_id` and fires no
+ * interaction: Discord just opens the URL. That is why the mirror can have
+ * buttons at all while the web app listens on no gateway and the bot
+ * service (`28`) stays a read client — nothing has to be *handled*.
+ *
+ * Discord validates these as http(s), so they lead to the site. That suits
+ * them: the buttons are the call to action, and the action is here.
+ */
+interface DiscordLinkButton {
+  type: 2;
+  style: 5;
+  label: string;
+  url: string;
+}
+
+interface DiscordActionRow {
+  type: 1;
+  components: DiscordLinkButton[];
+}
+
 export interface DiscordMessagePayload {
   embeds: [
     {
@@ -117,12 +162,58 @@ export interface DiscordMessagePayload {
       timestamp?: string;
     },
   ];
+  components: DiscordActionRow[];
   /**
    * Belt and braces. Mentions inside an embed never notify anyone, but the
    * body is user-written and this payload should stay safe if a `content`
    * line is ever added above it.
    */
   allowed_mentions: { parse: [] };
+}
+
+/** Discord's cap on a button label. */
+const LABEL_MAX = 80;
+
+/**
+ * The row under the embed. An embed's title is a link, but it reads as
+ * decoration — a member who wants to apply should have something obviously
+ * pressable, and the primary one names the actual next step rather than
+ * the destination.
+ *
+ * Ordered by how many people want each: apply, then the jam the post is
+ * for, then the board it came from. Discord allows five per row; three is
+ * already the point at which the row stops being a call to action.
+ */
+function feedButtons(post: CollabFeedPost, postUrl: string): DiscordActionRow[] {
+  const isClosed = post.status !== "recruiting";
+  const buttons: DiscordLinkButton[] = [
+    {
+      type: 2,
+      style: 5,
+      // A closed post's button must not still say "apply" — the page it
+      // opens won't let them, and the embed above already says so.
+      label: isClosed ? "View the post" : "Apply on Brackeys",
+      url: postUrl,
+    },
+  ];
+
+  if (post.jam) {
+    buttons.push({
+      type: 2,
+      style: 5,
+      label: truncate(`Jam: ${post.jam.title}`, LABEL_MAX),
+      url: siteUrl(`/jams/${jamSlug(post.jam)}`),
+    });
+  }
+
+  buttons.push({
+    type: 2,
+    style: 5,
+    label: "All open posts",
+    url: siteUrl("/collab"),
+  });
+
+  return [{ type: 1, components: buttons }];
 }
 
 /** `$25–$50/hr`, `HOBBY`, `REV SHARE` — one line for what the post pays. */
@@ -142,6 +233,7 @@ function rateLine(post: CollabFeedPost): string {
 export function buildCollabFeedMessage(post: CollabFeedPost): DiscordMessagePayload {
   const url = siteUrl(`/collab/${post.id}`);
   const isClosed = post.status !== "recruiting";
+  const thumbnailUrl = absoluteImageUrl(post.imageUrl);
 
   const fields: DiscordEmbedField[] = [];
   if (post.roles.length > 0) {
@@ -188,13 +280,13 @@ export function buildCollabFeedMessage(post: CollabFeedPost): DiscordMessagePayl
     ? {
         name: truncate(post.team.name, 200),
         url: siteUrl(`/teams/${teamSlug(post.team)}`),
-        iconUrl: post.team.avatarUrl,
+        iconUrl: absoluteImageUrl(post.team.avatarUrl),
       }
     : post.author
       ? {
           name: truncate(post.author.name, 200),
           url: post.author.profilePath ? siteUrl(post.author.profilePath) : null,
-          iconUrl: post.author.avatarUrl,
+          iconUrl: absoluteImageUrl(post.author.avatarUrl),
         }
       : null;
 
@@ -215,13 +307,15 @@ export function buildCollabFeedMessage(post: CollabFeedPost): DiscordMessagePayl
               },
             }
           : {}),
-        ...(post.imageUrl ? { thumbnail: { url: post.imageUrl } } : {}),
-        // The one call to action: applications are read, tracked and
+        ...(thumbnailUrl ? { thumbnail: { url: thumbnailUrl } } : {}),
+        // Attribution now that the button below carries the call to
+        // action. Still worth saying: applications are read, tracked and
         // answered on the site, and a Discord reply reaches nobody.
-        footer: { text: "Apply on the Brackeys collab board" },
+        footer: { text: "Brackeys collab board" },
         ...(post.createdAt ? { timestamp: new Date(post.createdAt).toISOString() } : {}),
       },
     ],
+    components: feedButtons(post, url),
     allowed_mentions: { parse: [] },
   };
 }

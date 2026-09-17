@@ -58,7 +58,7 @@ import { jamSlug } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
-import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
+import { bestEffort, captureServerEvent, captureServerException } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import { profileSlug } from "@/lib/profile-links";
 import {
@@ -67,7 +67,7 @@ import {
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
 import { loadProjectForEditor } from "@/lib/project-editors";
-import { assertRateLimit } from "@/lib/rate-limit";
+import { assertRateLimit, refundRateLimit } from "@/lib/rate-limit";
 import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resolution";
 import { escapeLike } from "@/lib/sql-like";
 import { stackOverlap } from "@/lib/stack-overlap";
@@ -1070,6 +1070,12 @@ async function removeDiscordMirror(postId: number): Promise<void> {
 
 /** Turns a Discord-side failure into something the author can act on. */
 function shareFailure(error: unknown): ORPCError<string, unknown> {
+  // The copy below is deliberately vague — the cause must not be. Without
+  // this, a refused mirror reaches the logs as a bare SERVICE_UNAVAILABLE
+  // and the Discord status that explains it (a missing permission, a
+  // malformed embed) is gone.
+  console.warn("[collab.discord_share] Discord refused the mirror", error);
+  captureServerException(error, { scope: "collab.discord_share" });
   if (error instanceof DiscordBackoffError) {
     return new ORPCError("SERVICE_UNAVAILABLE", {
       message: "Discord is rate limiting us right now. Try again in a few minutes.",
@@ -1116,16 +1122,17 @@ export const shareToDiscord = os
     // A first share is an announcement to everyone in the server; a re-share
     // is an edit to a message they already scrolled past. Only the first
     // kind is worth a long cooldown.
+    const bucket = existing ? "collab-discord-update" : "collab-discord-share";
     if (existing) {
       await assertRateLimit(
-        "collab-discord-update",
+        bucket,
         context.user.id,
         DISCORD_RESHARE_LIMIT,
         "You've refreshed your Discord posts a lot in the last hour. Try again later.",
       );
     } else {
       await assertRateLimit(
-        "collab-discord-share",
+        bucket,
         context.user.id,
         1,
         "You've already posted to the Discord feed recently. Give it a few hours.",
@@ -1133,13 +1140,13 @@ export const shareToDiscord = os
       );
     }
 
-    const feedPost = await loadFeedPost(input.postId);
-    if (!feedPost) throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-    const payload = buildCollabFeedMessage(feedPost);
-
     let messageId = existing?.messageId ?? null;
     let channelId = existing?.channelId ?? config.channelId;
     try {
+      const feedPost = await loadFeedPost(input.postId);
+      if (!feedPost) throw new ORPCError("NOT_FOUND", { message: "Post not found." });
+      const payload = buildCollabFeedMessage(feedPost);
+
       if (existing) {
         const outcome = await editCollabFeedMessage(
           config,
@@ -1159,7 +1166,15 @@ export const shareToDiscord = os
         channelId = config.channelId;
       }
     } catch (error) {
-      throw shareFailure(error);
+      // The cooldown is priced for an announcement. Nothing was announced,
+      // so hand it back rather than billing six hours to a Discord outage —
+      // the author's next press is their first, not their second. The
+      // refund stops at the Discord call on purpose: past it the message
+      // exists, and a failure writing our own row must not buy a duplicate.
+      await bestEffort("collab.discord_share_refund", { post_id: input.postId, bucket }, () =>
+        refundRateLimit(bucket, context.user.id),
+      );
+      throw error instanceof ORPCError ? error : shareFailure(error);
     }
 
     const now = new Date();
