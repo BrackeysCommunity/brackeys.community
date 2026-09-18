@@ -35,10 +35,19 @@ async function handle({ request }: { request: Request }) {
     const png = await renderOgPng(ogCard(input));
     return pngResponse(png, { headers: { "cache-control": "public, max-age=0, s-maxage=86400" } });
   } catch (error) {
-    console.error("[og] card render failed", target, error);
-    // The redirect below means `withErrorReporting` never sees this — report
-    // here, with the target so the report says *which* card degraded.
-    captureServerException(error, { scope: "og.render", target });
+    // Name rather than `instanceof`: importing the class would pull the
+    // renderer (and satori) back into the SSR static graph.
+    if (error instanceof Error && error.name === "OgRenderBusyError") {
+      // Shed load, not a defect — a crawler walking uncached slugs would
+      // otherwise report thousands of exceptions. The redirect below still
+      // hands back a card, so the unfurl degrades rather than breaking.
+      console.warn("[og] rasterizer saturated, serving static card", target);
+    } else {
+      console.error("[og] card render failed", target, error);
+      // The redirect below means `withErrorReporting` never sees this — report
+      // here, with the target so the report says *which* card degraded.
+      captureServerException(error, { scope: "og.render", target });
+    }
     // The `/og/**` route rule overwrites `cache-control` with the day-long
     // edge TTL; `cdn-cache-control` outranks it at Cloudflare and the rule
     // leaves it alone, so a transient failure is never edge-cached.

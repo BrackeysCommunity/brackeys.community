@@ -14,12 +14,10 @@ declare global {
   var __brackeysQueues: Queues | undefined;
 }
 
-// Dynamic imports keep bullmq + ioredis out of the SSR static graph entirely.
-// Nitro's tracer was producing a partial `.output/server/node_modules/bullmq/`
-// (ESM files present, CJS `main` missing), so any static `import` from the
-// router would 500 at runtime. Loading the modules only when an enqueue
-// actually happens sidesteps the tracer and keeps the client/server bundles
-// free of redis client code.
+// Dynamic imports keep bullmq + ioredis out of the SSR static graph, so the
+// client/server bundles carry no redis client code. They do not affect what
+// the tracer emits: bullmq is force-externalised and its traced copy is only
+// loadable because `inlineRuntimeClosure` in vite.config.ts replaces it.
 async function getRedis(): Promise<IORedis> {
   if (globalThis.__brackeysRedis) return globalThis.__brackeysRedis;
   globalThis.__brackeysRedis = await createRedisClient("queue", {

@@ -122,6 +122,65 @@ async function removeSourceMaps(dir: string) {
   );
 }
 
+/**
+ * Replaces a traced package and its runtime dependencies in the server output
+ * with the complete copies from `node_modules`.
+ *
+ * nf3 lists `bullmq` as non-bundleable, so it is always externalised and
+ * traced. The tracer follows the ESM graph and copies `dist/esm`, but bullmq
+ * ships no `exports` map, so Node resolves the bare specifier through `main` —
+ * `dist/cjs/index.js`, which the trace omits. Every enqueue then threw
+ * ERR_MODULE_NOT_FOUND at runtime. The traced ESM tree is not a substitute:
+ * it uses extensionless directory imports that Node cannot load, and the same
+ * split runs through the transitive deps (msgpackr, ioredis, ...), so the
+ * whole closure is copied rather than just the one missing entry.
+ */
+async function inlineRuntimeClosure(serverDir: string, roots: string[]) {
+  const { existsSync } = await import("node:fs");
+  const { cp, readFile, rm } = await import("node:fs/promises");
+  const { createRequire } = await import("node:module");
+
+  const resolvePackageDir = (name: string, fromDir: string) => {
+    const require = createRequire(join(fromDir, "package.json"));
+    try {
+      return dirname(require.resolve(`${name}/package.json`));
+    } catch {
+      // The package keeps package.json out of its `exports`; walk up from the
+      // entry point instead, stopping at the manifest that names it.
+      try {
+        let dir = dirname(require.resolve(name));
+        while (dir !== dirname(dir)) {
+          if (existsSync(join(dir, "package.json"))) return dir;
+          dir = dirname(dir);
+        }
+      } catch {
+        // An optional dependency that was never installed.
+      }
+      return null;
+    }
+  };
+
+  const seen = new Set<string>();
+  const pending = roots.map((name) => [name, process.cwd()] as const);
+  while (pending.length > 0) {
+    const [name, fromDir] = pending.shift()!;
+    if (seen.has(name)) continue;
+    seen.add(name);
+
+    const dir = resolvePackageDir(name, fromDir);
+    if (!dir) continue;
+
+    const target = join(serverDir, "node_modules", name);
+    await rm(target, { recursive: true, force: true });
+    await cp(dir, target, { recursive: true, dereference: true });
+
+    const manifest = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+    };
+    for (const dep of Object.keys(manifest.dependencies ?? {})) pending.push([dep, dir] as const);
+  }
+}
+
 // Unhashed files in public/ are served at the site root, so nothing busts
 // their URLs on deploy: give browsers a day and let Cloudflare hold them at
 // the edge (purge the zone cache if one is ever swapped in place).
@@ -320,6 +379,8 @@ const config = defineConfig({
           );
           await mkdir(dirname(target), { recursive: true });
           await copyFile(source, target);
+
+          await inlineRuntimeClosure(nitro.options.output.serverDir, ["bullmq"]);
         },
       },
       rolldownConfig: {
