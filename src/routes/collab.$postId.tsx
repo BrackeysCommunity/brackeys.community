@@ -5,7 +5,7 @@ import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { componentEmbed } from "@/lib/discord-embed";
 import { collabLinkPreview } from "@/lib/discord-link-preview";
 import { markdownToPlainText } from "@/lib/markdown-text";
-import { ANON_VIEWER, memberAvatarUrl, memberDisplayName } from "@/lib/member-name";
+import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
 
@@ -75,13 +75,7 @@ export const Route = createFileRoute("/collab/$postId")({
             ]),
           },
         ]),
-        ...componentEmbed(
-          collabLinkPreview(post, {
-            authorName,
-            authorAvatarUrl: post.author ? memberAvatarUrl(post.author, ANON_VIEWER) : null,
-            description,
-          }),
-        ),
+        ...componentEmbed(collabLinkPreview(post, { authorName })),
       ],
     };
   },

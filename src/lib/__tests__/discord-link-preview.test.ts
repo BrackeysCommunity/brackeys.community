@@ -17,20 +17,11 @@ vi.mock("@/env", () => ({
     /^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith("//") ? path : `${ORIGIN}${path}`,
 }));
 
-const NOW = new Date("2026-09-17T12:00:00Z");
-
 function jam(overrides: Partial<JamPreviewSource> = {}): JamPreviewSource {
   return {
     slug: "brackeys-game-jam-2026-1",
     title: "Brackeys Game Jam 2026.1",
-    bannerUrl: "https://img.itch.zone/aW1nLzI5MTE1MDQwLnBuZw==/original/8ZTMSe.png",
     themeColor: "#222034",
-    startsAt: "2026-09-14T19:00:00Z",
-    endsAt: "2026-09-21T19:00:00Z",
-    votingEndsAt: "2026-09-28T19:00:00Z",
-    joinedCount: 4120,
-    ratingsCount: 39344,
-    hosts: [{ name: "Brackeys" }],
     ...overrides,
   };
 }
@@ -46,92 +37,51 @@ function post(overrides: Partial<CollabPreviewSource> = {}): CollabPreviewSource
     compensationMax: 50,
     currency: "USD",
     responseCount: 6,
-    roles: [{ name: "2D Artist" }, { name: "Animator" }],
     images: [{ url: "/images/collab/412-a.png", alt: "Early combat mockup" }],
     jam: { jamId: 991, title: "Brackeys Game Jam 2026.1", slug: "brackeys-game-jam-2026-1" },
     team: null,
-    project: null,
     author: { id: "usr_9", urlStub: "mellobacon" },
     ...overrides,
   };
 }
 
-const AUTHOR = {
-  authorName: "mellobacon",
-  authorAvatarUrl: "https://cdn.discordapp.com/avatars/1/2.png",
-  description: "Six-week build, combat is in, looking for someone to own the character art.",
-};
+const AUTHOR = { authorName: "mellobacon" };
 
 describe("jamLinkPreview", () => {
-  it("leads with a linked heading and the phase", () => {
-    const [heading] = jamLinkPreview(jam(), { trackedEntries: 1893 }, NOW)!.components;
+  it("leads with a linked title and nothing the card already prints", () => {
+    const [heading] = jamLinkPreview(jam())!.components;
     expect(heading).toEqual({
       type: 10,
-      content:
-        `## [Brackeys Game Jam 2026.1](${ORIGIN}/jams/brackeys-game-jam-2026-1)\n` +
-        "**LIVE** · 14 Sept 2026 – 21 Sept 2026",
+      content: `## [Brackeys Game Jam 2026.1](${ORIGIN}/jams/brackeys-game-jam-2026-1)`,
     });
   });
 
-  it("names the phase the dates imply, not the scraped status column", () => {
-    const voting = jamLinkPreview(jam(), { trackedEntries: 0 }, new Date("2026-09-24T12:00:00Z"))!;
-    const ended = jamLinkPreview(jam(), { trackedEntries: 0 }, new Date("2026-10-24T12:00:00Z"))!;
-    expect(JSON.stringify(voting)).toContain("**VOTING**");
-    expect(JSON.stringify(ended)).toContain("**CLOSED**");
+  it("shows our own generated card, full width", () => {
+    const gallery = jamLinkPreview(jam())!.components.find((component) => component.type === 12);
+    expect(gallery?.type === 12 ? gallery.items : []).toEqual([
+      {
+        media: { url: `${ORIGIN}/og/jam/brackeys-game-jam-2026-1.png` },
+        description: "Brackeys Game Jam 2026.1",
+      },
+    ]);
   });
 
   it("takes its accent from the jam's own theme color", () => {
-    expect(jamLinkPreview(jam(), { trackedEntries: 0 }, NOW)?.accent_color).toBe(0x222034);
-    expect(
-      jamLinkPreview(jam({ themeColor: null }), { trackedEntries: 0 }, NOW)?.accent_color,
-    ).toBe(0xffa949);
+    expect(jamLinkPreview(jam())?.accent_color).toBe(0x222034);
+    expect(jamLinkPreview(jam({ themeColor: null }))?.accent_color).toBe(0xffa949);
     // Scraped junk falls back rather than poisoning the payload.
-    expect(
-      jamLinkPreview(jam({ themeColor: "url(evil)" }), { trackedEntries: 0 }, NOW)?.accent_color,
-    ).toBe(0xffa949);
+    expect(jamLinkPreview(jam({ themeColor: "url(evil)" }))?.accent_color).toBe(0xffa949);
   });
 
-  it("puts the banner in a gallery, at its own aspect ratio", () => {
-    const gallery = jamLinkPreview(jam(), { trackedEntries: 0 }, NOW)!.components.find(
-      (component) => component.type === 12,
-    );
-    const url = gallery?.type === 12 ? gallery.items[0]!.media.url : "";
-    expect(url).toContain(`${ORIGIN}/cdn-cgi/image/`);
-    expect(url).toContain("fit=scale-down");
-    // A height is what forces the crop that mangles a poster banner.
-    expect(url).not.toContain("height=");
-  });
-
-  it("drops the gallery, not the layout, for a jam with no banner", () => {
-    const jamless = jamLinkPreview(jam({ bannerUrl: null }), { trackedEntries: 0 }, NOW)!;
-    expect(jamless.components.some((component) => component.type === 12)).toBe(false);
-    expect(componentEmbed(jamless)).toHaveLength(1);
-  });
-
-  it("carries the host blurb as its own line", () => {
-    const withBlurb = jamLinkPreview(
-      jam(),
-      { trackedEntries: 0, blurb: "One week to make a game!" },
-      NOW,
-    )!;
+  it("carries the host blurb, the one thing the card leaves out", () => {
+    const withBlurb = jamLinkPreview(jam(), { blurb: "One week to make a game!" })!;
     expect(withBlurb.components[1]).toEqual({ type: 10, content: "One week to make a game!" });
-  });
-
-  it("counts sign-ups before the deadline and ratings after it", () => {
-    const live = jamLinkPreview(jam(), { trackedEntries: 1893 }, NOW)!;
-    expect(JSON.stringify(live)).toContain(
-      "-# Hosted by Brackeys · 1,893 submissions tracked here · 4,120 joined",
-    );
-    const ended = jamLinkPreview(
-      jam(),
-      { trackedEntries: 1893 },
-      new Date("2026-10-24T12:00:00Z"),
-    )!;
-    expect(JSON.stringify(ended)).toContain("39,344 ratings");
+    // And skips the line entirely for a jam whose page has no body.
+    expect(jamLinkPreview(jam())!.components[1]?.type).toBe(12);
   });
 
   it("offers both destinations", () => {
-    const row = jamLinkPreview(jam(), { trackedEntries: 0 }, NOW)!.components.at(-1);
+    const row = jamLinkPreview(jam())!.components.at(-1);
     expect(row?.type === 1 ? row.components.map((b) => [b.label, b.url]) : []).toEqual([
       ["Open on Brackeys", `${ORIGIN}/jams/brackeys-game-jam-2026-1`],
       ["View on itch.io", "https://itch.io/jam/brackeys-game-jam-2026-1"],
@@ -139,37 +89,39 @@ describe("jamLinkPreview", () => {
   });
 
   it("fits the payload budget", () => {
-    const full = jamLinkPreview(jam(), { trackedEntries: 1893, blurb: "x".repeat(180) }, NOW);
-    expect(componentEmbed(full)).toHaveLength(1);
+    expect(componentEmbed(jamLinkPreview(jam(), { blurb: "x".repeat(180) }))).toHaveLength(1);
   });
 });
 
 describe("collabLinkPreview", () => {
-  it("reads like the feed mirror — looking for, terms, byline", () => {
-    const [section] = collabLinkPreview(post(), AUTHOR)!.components;
-    expect(section?.type === 9 ? section.components[0]?.content : "").toBe(
-      `## [Pixel artist for a co-op roguelite](${ORIGIN}/collab/412)\n` +
-        "**Looking for** 2D Artist · Animator\n" +
+  it("states the terms the card only summarizes as Paid or Hobby", () => {
+    const [heading] = collabLinkPreview(post(), AUTHOR)!.components;
+    expect(heading).toEqual({
+      type: 10,
+      content:
+        `## [Pixel artist for a co-op roguelite](${ORIGIN}/collab/412)\n` +
         `$25 - $50 /hr · [Brackeys Game Jam 2026.1](${ORIGIN}/jams/brackeys-game-jam-2026-1)`,
-    );
+    });
   });
 
-  it("puts the byline and the application count in the footer subtext", () => {
-    expect(JSON.stringify(collabLinkPreview(post(), AUTHOR))).toContain(
-      `-# Posted by [mellobacon](${ORIGIN}/profile/mellobacon) · 6 applied`,
-    );
-  });
-
-  it("leads the gallery with the project cover", () => {
-    const withProject = collabLinkPreview(
-      post({ project: { title: "Deep Delve", imageUrl: "/images/projects/dd.png" } }),
+  it("leads the gallery with the card and skips the shot the card already used", () => {
+    const withShots = collabLinkPreview(
+      post({
+        images: [
+          { url: "/images/collab/412-a.png", alt: "On the card" },
+          { url: "/images/collab/412-b.png", alt: "Tileset" },
+        ],
+      }),
       AUTHOR,
     )!;
-    const gallery = withProject.components.find((component) => component.type === 12);
+    const gallery = withShots.components.find((component) => component.type === 12);
     expect(gallery?.type === 12 ? gallery.items.map((item) => item.description) : []).toEqual([
-      "Deep Delve",
-      "Early combat mockup",
+      "Pixel artist for a co-op roguelite",
+      "Tileset",
     ]);
+    expect(gallery?.type === 12 ? gallery.items[0]!.media.url : "").toBe(
+      `${ORIGIN}/og/collab/412.png`,
+    );
   });
 
   it("goes grey and stops saying apply once the post closes", () => {
@@ -180,20 +132,19 @@ describe("collabLinkPreview", () => {
     expect(row?.type === 1 ? row.components[0]?.label : "").toBe("View the post");
   });
 
+  it("puts a linked byline and the application count in the footer subtext", () => {
+    expect(JSON.stringify(collabLinkPreview(post(), AUTHOR))).toContain(
+      `-# Posted by [mellobacon](${ORIGIN}/profile/mellobacon) · 6 applied`,
+    );
+  });
+
   it("bylines the team, not whoever pressed the button", () => {
     const teamPost = collabLinkPreview(
-      post({ team: { id: "t_1", name: "Night Shift", slug: "night-shift", avatarUrl: null } }),
+      post({ team: { id: "t_1", name: "Night Shift", slug: "night-shift" } }),
       AUTHOR,
     )!;
     expect(JSON.stringify(teamPost)).toContain(
       `Posted by [Night Shift](${ORIGIN}/teams/night-shift)`,
-    );
-  });
-
-  it("makes stored image paths absolute", () => {
-    const gallery = collabLinkPreview(post(), AUTHOR)!.components.find((c) => c.type === 12);
-    expect(gallery?.type === 12 ? gallery.items[0]?.media.url : "").toContain(
-      `${ORIGIN}/cdn-cgi/image/`,
     );
   });
 
@@ -204,7 +155,7 @@ describe("collabLinkPreview", () => {
 
   it("fits the payload budget with a full gallery", () => {
     const busy = post({
-      images: Array.from({ length: 4 }, (_, i) => ({
+      images: Array.from({ length: 6 }, (_, i) => ({
         url: `/images/collab/412-${i}.png`,
         alt: "A screenshot of the prototype",
       })),
