@@ -1,0 +1,61 @@
+name: Feature Request
+description: Have something you want see on the website? Suggest an idea.
+title: "[Feature] <title>"
+labels: ["enhancement"]
+body:
+- type: checkboxes
+  attributes:
+    label: Is there an existing issue for this?
+    description: Please search to see if an issue already exists for the feature you want.
+    options:
+    - label: I have searched the existing issues and confirmed a similar one does not exist
+      required: true
+- type: textarea
+  attributes:
+    label: Is your feature request related to a problem? Please describe.
+    description: "A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]"
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: "Describe the solution you'd like"
+    description: A clear and concise description of what you want to happen.
+  validations:
+    required: true
+- type: dropdown
+  attributes:
+    label: Browser
+    description: Select the browser you are running.
+    options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Other
+  validations:
+    required: true
+- type: input
+  attributes:
+    label: Other Browser
+    description: If you are using a browser not listed name it here.
+  validations:
+    required: false
+- type: input
+  attributes:
+    label: OS
+    description: Describe the OS you are on.
+    placeholder: "Example: Windows 11, Fedora Linux 47, ...Mac or whatever..."
+  validations:
+    required: true
+- type: upload
+  attributes:
+    label: Screenshots/Screen Recordings
+    description: If you have a screenshot or video of the feature you want upload it here.
+  validations:
+    required: false
+    accept: ".png,.jpg,.jpeg,.gif,.svg,.webp,.mp4,.mov,.webm"
+- type: textarea
+  attributes:
+    label: Anything else?
+    description: Add any other context about feature here.
+  validations:
+    required: false
