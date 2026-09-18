@@ -100,8 +100,8 @@ const MAX_URL_LENGTH = 2048;
  */
 const MAX_PAYLOAD_BYTES = 3000;
 
-/** Gallery ceiling. Matches the four-image cap on standard previews. */
-export const MAX_GALLERY_ITEMS = 4;
+/** A Media Gallery takes 1-10 items. */
+export const MAX_GALLERY_ITEMS = 10;
 
 /** `--color-brackeys-yellow`, the accent bar for anything with no color of
  *  its own. */
@@ -161,6 +161,14 @@ export function mdEscape(text: string): string {
 export function mdLink(label: string, url: string): string {
   const safe = mdEscape(label.replace(/[[\]]/g, "")).trim();
   return `[${safe || "link"}](${url})`;
+}
+
+/**
+ * Discord's small grey text. The right voice for a line that supports the
+ * one above it rather than competing with it — provenance, counts, dates.
+ */
+export function subtext(line: string): string {
+  return `-# ${line}`;
 }
 
 export function clampText(text: string, max: number): string {

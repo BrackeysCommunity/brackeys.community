@@ -74,21 +74,15 @@ describe("builders", () => {
     expect(actionRow([null, linkButton("Open", "not a url")])).toBeNull();
   });
 
-  it("caps a gallery at four items and skips unusable urls", () => {
+  it("caps a gallery at the protocol's ten items and skips unusable urls", () => {
     const gallery = mediaGallery([
       { url: "https://x.test/1.png" },
       { url: null },
-      { url: "https://x.test/2.png" },
-      { url: "https://x.test/3.png" },
-      { url: "https://x.test/4.png" },
-      { url: "https://x.test/5.png" },
+      ...Array.from({ length: 11 }, (_, i) => ({ url: `https://x.test/${i + 2}.png` })),
     ]);
-    expect(gallery?.items.map((item) => item.media.url)).toEqual([
-      "https://x.test/1.png",
-      "https://x.test/2.png",
-      "https://x.test/3.png",
-      "https://x.test/4.png",
-    ]);
+    expect(gallery?.items).toHaveLength(10);
+    expect(gallery?.items[0]?.media.url).toBe("https://x.test/1.png");
+    expect(gallery?.items[1]?.media.url).toBe("https://x.test/2.png");
   });
 
   it("degrades a section to its text when the accessory could not be built", () => {

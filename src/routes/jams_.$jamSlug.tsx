@@ -144,7 +144,15 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
             ]),
           },
         ]),
-        ...componentEmbed(jamLinkPreview(jam, detail.trackedEntries)),
+        ...componentEmbed(
+          jamLinkPreview(jam, {
+            trackedEntries: detail.trackedEntries,
+            // The host's own blurb, on its own. `description` above folds the
+            // dates and counts into the same string for the meta tag; the
+            // preview renders those as their own lines and would repeat them.
+            blurb: htmlToPlainText(jam.contentHtml, 180),
+          }),
+        ),
       ],
     };
   },
