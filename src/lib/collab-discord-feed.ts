@@ -1,8 +1,9 @@
 import { siteUrl } from "@/env";
 import { discordWriteFetch } from "@/lib/discord";
+import { ACCENT_CLOSED, ACCENT_RECRUITING } from "@/lib/discord-embed";
 import { discordMessageLink } from "@/lib/discord-links";
 import { deleteDiscordMessage } from "@/lib/discord-message-delete";
-import { formatRate } from "@/lib/format-rate";
+import { collabRateLine } from "@/lib/format-rate";
 import { jamSlug } from "@/lib/jam-links";
 import { teamSlug } from "@/lib/team-links";
 
@@ -25,10 +26,6 @@ import { teamSlug } from "@/lib/team-links";
 const TITLE_MAX = 240;
 const DESCRIPTION_MAX = 480;
 const FIELD_MAX = 1000;
-
-/** Brackeys purple for a live post, muted grey once it stops recruiting. */
-const COLOR_RECRUITING = 0x5865f2;
-const COLOR_CLOSED = 0x4b5563;
 
 export class DiscordFeedError extends Error {
   constructor(
@@ -217,16 +214,6 @@ function feedButtons(post: CollabFeedPost, postUrl: string): DiscordActionRow[] 
   return [{ type: 1, components: buttons }];
 }
 
-/** `$25–$50/hr`, `HOBBY`, `REV SHARE` — one line for what the post pays. */
-function rateLine(post: CollabFeedPost): string {
-  const rate = formatRate(post.compensationType, post.compensationMin, post.compensationMax, {
-    currency: post.currency,
-    negotiableLabel: "Negotiable",
-  });
-  if (rate) return rate;
-  return post.type === "paid" ? "Paid — terms not set" : "Hobby / unpaid";
-}
-
 /**
  * The embed, as a pure function of the post — so what lands in the channel
  * is testable without a Discord token.
@@ -251,7 +238,7 @@ export function buildCollabFeedMessage(post: CollabFeedPost): DiscordMessagePayl
       inline: false,
     });
   }
-  fields.push({ name: "Terms", value: rateLine(post), inline: true });
+  fields.push({ name: "Terms", value: collabRateLine(post), inline: true });
   if (!isClosed && post.expiresAt) {
     // Discord's own relative timestamp, re-rendered by every client that
     // reads it. The lifecycle sweep expires posts from a worker that holds
@@ -297,7 +284,7 @@ export function buildCollabFeedMessage(post: CollabFeedPost): DiscordMessagePayl
         title: truncate(post.title, TITLE_MAX),
         url,
         description: truncate(post.description, DESCRIPTION_MAX),
-        color: isClosed ? COLOR_CLOSED : COLOR_RECRUITING,
+        color: isClosed ? ACCENT_CLOSED : ACCENT_RECRUITING,
         fields,
         ...(byline
           ? {

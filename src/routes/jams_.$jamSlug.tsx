@@ -4,6 +4,8 @@ import { JamDetailPage } from "@/components/jams/JamDetailPage";
 import { JamDetailSkeleton } from "@/components/jams/JamDetailPage/JamDetailSkeleton";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { siteUrl } from "@/env";
+import { componentEmbed } from "@/lib/discord-embed";
+import { jamLinkPreview } from "@/lib/discord-link-preview";
 import { formatCount } from "@/lib/format-count";
 import { htmlToPlainText } from "@/lib/html-text";
 import { hostName, jamDateRange } from "@/lib/jam-links";
@@ -94,53 +96,56 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
         card: ogCardPath("jam", jam.slug),
         imageAlt: `${jam.title} — dates, entry count and status`,
       }),
-      scripts: jsonLd([
-        {
-          "@context": "https://schema.org",
-          "@type": "Event",
-          name: jam.title,
-          url: siteUrl(path),
-          description,
-          ...(jam.bannerUrl ? { image: jam.bannerUrl } : {}),
-          ...(jam.startsAt ? { startDate: new Date(jam.startsAt).toISOString() } : {}),
-          ...(jam.endsAt ? { endDate: new Date(jam.endsAt).toISOString() } : {}),
-          eventStatus: "https://schema.org/EventScheduled",
-          eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
-          location: {
-            "@type": "VirtualLocation",
-            url: `https://itch.io/jam/${jam.slug}`,
+      scripts: [
+        ...jsonLd([
+          {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            name: jam.title,
+            url: siteUrl(path),
+            description,
+            ...(jam.bannerUrl ? { image: jam.bannerUrl } : {}),
+            ...(jam.startsAt ? { startDate: new Date(jam.startsAt).toISOString() } : {}),
+            ...(jam.endsAt ? { endDate: new Date(jam.endsAt).toISOString() } : {}),
+            eventStatus: "https://schema.org/EventScheduled",
+            eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+            location: {
+              "@type": "VirtualLocation",
+              url: `https://itch.io/jam/${jam.slug}`,
+            },
+            organizer: jam.hosts[0]
+              ? { "@type": "Organization", name: hostName(jam, "itch.io community") }
+              : organizationNode(),
           },
-          organizer: jam.hosts[0]
-            ? { "@type": "Organization", name: hostName(jam, "itch.io community") }
-            : organizationNode(),
-        },
-        ...(initialEntries.entries.length > 0
-          ? [
-              {
-                "@context": "https://schema.org",
-                "@type": "ItemList",
-                name: `${jam.title} submissions`,
-                numberOfItems: detail.trackedEntries,
-                itemListElement: initialEntries.entries.slice(0, 20).map((entry, index) => {
-                  const slug = projectSlugByGame.get(entry.gameId);
-                  return {
-                    "@type": "ListItem",
-                    position: index + 1,
-                    name: entry.gameTitle,
-                    url: slug ? siteUrl(`/projects/${encodeURIComponent(slug)}`) : entry.gameUrl,
-                  };
-                }),
-              },
-            ]
-          : []),
-        {
-          "@context": "https://schema.org",
-          ...breadcrumbNode([
-            { name: "Game jams", path: "/jams" },
-            { name: jam.title, path },
-          ]),
-        },
-      ]),
+          ...(initialEntries.entries.length > 0
+            ? [
+                {
+                  "@context": "https://schema.org",
+                  "@type": "ItemList",
+                  name: `${jam.title} submissions`,
+                  numberOfItems: detail.trackedEntries,
+                  itemListElement: initialEntries.entries.slice(0, 20).map((entry, index) => {
+                    const slug = projectSlugByGame.get(entry.gameId);
+                    return {
+                      "@type": "ListItem",
+                      position: index + 1,
+                      name: entry.gameTitle,
+                      url: slug ? siteUrl(`/projects/${encodeURIComponent(slug)}`) : entry.gameUrl,
+                    };
+                  }),
+                },
+              ]
+            : []),
+          {
+            "@context": "https://schema.org",
+            ...breadcrumbNode([
+              { name: "Game jams", path: "/jams" },
+              { name: jam.title, path },
+            ]),
+          },
+        ]),
+        ...componentEmbed(jamLinkPreview(jam, detail.trackedEntries)),
+      ],
     };
   },
   component: JamDetailRoute,

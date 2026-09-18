@@ -2,8 +2,10 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { CollabPostPage } from "@/components/collab/CollabPostPage";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
+import { componentEmbed } from "@/lib/discord-embed";
+import { collabLinkPreview } from "@/lib/discord-link-preview";
 import { markdownToPlainText } from "@/lib/markdown-text";
-import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
+import { ANON_VIEWER, memberAvatarUrl, memberDisplayName } from "@/lib/member-name";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
 
@@ -63,15 +65,24 @@ export const Route = createFileRoute("/collab/$postId")({
       // No `JobPosting` node: Google requires real countries in
       // `applicantLocationRequirements` for a remote posting, and posts
       // carry no country data — "Worldwide" is not a country.
-      scripts: jsonLd([
-        {
-          "@context": "https://schema.org",
-          ...breadcrumbNode([
-            { name: "Collab board", path: "/collab" },
-            { name: post.title, path },
-          ]),
-        },
-      ]),
+      scripts: [
+        ...jsonLd([
+          {
+            "@context": "https://schema.org",
+            ...breadcrumbNode([
+              { name: "Collab board", path: "/collab" },
+              { name: post.title, path },
+            ]),
+          },
+        ]),
+        ...componentEmbed(
+          collabLinkPreview(post, {
+            authorName,
+            authorAvatarUrl: post.author ? memberAvatarUrl(post.author, ANON_VIEWER) : null,
+            description,
+          }),
+        ),
+      ],
     };
   },
   component: CollabPostRoute,

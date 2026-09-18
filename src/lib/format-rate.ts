@@ -72,3 +72,26 @@ export function formatRate(
   if (max < min) return `${money(min, symbol)}${suffix}`;
   return `${money(min, symbol)} - ${money(max, symbol)}${suffix}`;
 }
+
+/**
+ * What a collab post pays, as a whole line — `formatRate` plus the fallback
+ * for the rows it returns nothing for (legacy posts with no numbers, and
+ * every hobby post). Lives here so the Discord feed mirror and the link
+ * preview can't drift apart on the wording.
+ */
+export interface CollabRateSource {
+  type: string;
+  compensationType: string | null;
+  compensationMin: number | null;
+  compensationMax: number | null;
+  currency: string | null;
+}
+
+export function collabRateLine(post: CollabRateSource): string {
+  const rate = formatRate(post.compensationType, post.compensationMin, post.compensationMax, {
+    currency: post.currency,
+    negotiableLabel: "Negotiable",
+  });
+  if (rate) return rate;
+  return post.type === "paid" ? "Paid — terms not set" : "Hobby / unpaid";
+}
