@@ -11,6 +11,7 @@ import { TransformedImage } from "@/components/ui/transformed-image";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { projectEntryUrl } from "@/lib/jam-links";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { type ProfileProjectSubType } from "@/lib/profile-projects";
 import {
@@ -285,7 +286,7 @@ function editableToDisplay(p: EditableProject): ProfileProject {
     year,
     shortDescription: p.description,
     bannerUrl: p.imageUrl,
-    url: p.submissionUrl ?? p.url,
+    url: projectEntryUrl(p),
     tags: (p.subTypes ?? []).slice(0, 4),
     jamName: p.jamName,
     jamPlacement: p.result ?? null,

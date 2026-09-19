@@ -175,6 +175,7 @@ function ContributorCard({
     <>
       <UserAvatar
         avatarUrl={contributor.avatarUrl}
+        guildAvatarUrl={contributor.guildAvatarUrl}
         username={contributor.displayName}
         shape="round"
         size={36}

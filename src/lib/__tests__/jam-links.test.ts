@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { hostName, jamLinkParams, jamMonthDay, jamSlug, jamUrl } from "../jam-links";
+import {
+  hostName,
+  jamEntryUrl,
+  jamLinkParams,
+  jamMonthDay,
+  jamSlug,
+  jamUrl,
+  projectEntryUrl,
+} from "../jam-links";
 
 /** The short month label the UTC calendar puts a date in, independent of
  * the runner's timezone. */
@@ -11,6 +19,36 @@ function utcShortMonth(d: Date): string {
 describe("jamUrl", () => {
   it("builds the itch.io jam permalink", () => {
     expect(jamUrl("brackeys-13")).toBe("https://itch.io/jam/brackeys-13");
+  });
+});
+
+describe("jamEntryUrl", () => {
+  it("absorbs the root-relative submission_url the scraper stores", () => {
+    expect(jamEntryUrl("/jam/gmtk-jam-2026/rate/4815752")).toBe(
+      "https://itch.io/jam/gmtk-jam-2026/rate/4815752",
+    );
+  });
+
+  it("passes a full URL through", () => {
+    expect(jamEntryUrl("https://itch.io/jam/x/rate/1")).toBe("https://itch.io/jam/x/rate/1");
+  });
+});
+
+describe("projectEntryUrl", () => {
+  it("prefers the entry page and makes it absolute", () => {
+    expect(
+      projectEntryUrl({
+        submissionUrl: "/jam/gmtk-jam-2026/rate/4815752",
+        url: "https://a.itch.io/b",
+      }),
+    ).toBe("https://itch.io/jam/gmtk-jam-2026/rate/4815752");
+  });
+
+  it("falls back to the project's own URL", () => {
+    expect(projectEntryUrl({ submissionUrl: null, url: "https://a.itch.io/b" })).toBe(
+      "https://a.itch.io/b",
+    );
+    expect(projectEntryUrl({ submissionUrl: null, url: null })).toBeNull();
   });
 });
 

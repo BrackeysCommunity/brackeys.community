@@ -1,6 +1,7 @@
 import { normalizeCurrency } from "@/lib/currency";
 import { formatRate } from "@/lib/format-rate";
 import { gitlabInstance, gitlabOrigin, isSelfHostedGitLab } from "@/lib/gitlab-instances";
+import { projectEntryUrl } from "@/lib/jam-links";
 import {
   ANON_VIEWER,
   memberAvatarUrl,
@@ -422,7 +423,7 @@ function adaptJamLogEntry(p: RpcProject): JamLogEntry {
     jamId: p.jamId,
     shortNote: p.description?.trim() || null,
     startedAt,
-    url: p.submissionUrl ?? p.url,
+    url: projectEntryUrl(p),
     rank,
     totalEntries: p.jamEntriesCount,
     pill: rank == null && p.result ? p.result.toUpperCase() : null,
@@ -502,7 +503,7 @@ function adaptProject(p: RpcProfile["projects"][number]): ProfileProject {
     year,
     shortDescription: p.description,
     bannerUrl: p.imageUrl,
-    url: p.submissionUrl ?? p.url,
+    url: projectEntryUrl(p),
     tags: [...(p.subTypes ?? []), ...(p.tags ?? [])].slice(0, 4),
     jamName: p.jamName,
     jamPlacement: p.result ? formatJamPlacement(p.result) : null,

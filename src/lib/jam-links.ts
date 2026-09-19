@@ -26,6 +26,20 @@ export function jamEntryUrl(submissionUrl: string): string {
 }
 
 /**
+ * Where a project row links out: its jam entry page when it has one,
+ * else the project's own URL. Every surface that showed a project used
+ * to write `submissionUrl ?? url` inline, and each copy handed the raw
+ * root-relative `submission_url` to an anchor, which the browser then
+ * resolved against *this* host.
+ */
+export function projectEntryUrl(project: {
+  submissionUrl: string | null;
+  url: string | null;
+}): string | null {
+  return project.submissionUrl ? jamEntryUrl(project.submissionUrl) : project.url;
+}
+
+/**
  * How a jam turns into a `/jams/$jamSlug` link. Mirrors
  * `profile-links.ts` / `team-links.ts`, which exist for the same reason.
  * `getJam` resolves either form of the segment server-side.

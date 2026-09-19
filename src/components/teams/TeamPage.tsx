@@ -37,8 +37,7 @@ import { isHostOrSubdomainOf } from "@/lib/external-url";
 import { timeAgo } from "@/lib/format-time";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { itchImageUrl } from "@/lib/itch-image";
-import { jamLinkParams } from "@/lib/jam-links";
-import { jamMonthYear } from "@/lib/jam-links";
+import { jamLinkParams, jamMonthYear, projectEntryUrl } from "@/lib/jam-links";
 import { fadeUp } from "@/lib/motion";
 import { profileLinkParams } from "@/lib/profile-links";
 import { isRecruiting, isRecruitingWithoutPosts } from "@/lib/team-recruiting";
@@ -419,7 +418,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                   {p.participatedAt ? (
                     <MicroLabel tabular>{jamMonthYear(p.participatedAt)}</MicroLabel>
                   ) : null}
-                  <ExternalLink href={p.submissionUrl ?? p.url} label="ENTRY" />
+                  <ExternalLink href={projectEntryUrl(p)} label="ENTRY" />
                 </div>
               ))}
             </Well>

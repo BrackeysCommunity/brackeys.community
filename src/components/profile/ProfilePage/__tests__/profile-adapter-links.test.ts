@@ -134,3 +134,61 @@ describe("adaptProfile — the member's own site", () => {
     expect(websiteRow(null)).toMatchObject({ label: "PORTFOLIO", display: "blog.duxez.dev" });
   });
 });
+
+/**
+ * The scraper stores `submission_url` root-relative, and the jam log used
+ * to hand that straight to an anchor — so the game name resolved against
+ * brackeys.community instead of itch.io (BC-203).
+ */
+describe("adaptProfile — jam log entry links", () => {
+  function jamProject(
+    overrides: Partial<RpcProfile["projects"][number]> = {},
+  ): RpcProfile["projects"][number] {
+    return {
+      id: "p1",
+      type: "jam",
+      subTypes: null,
+      title: "Meltdown",
+      description: null,
+      url: "https://someone.itch.io/meltdown",
+      imageUrl: null,
+      tags: null,
+      pinned: null,
+      sortOrder: null,
+      status: "published",
+      source: "itchio-jam",
+      jamId: 402922,
+      jamName: "GMTK Jam 2026",
+      jamUrl: null,
+      jamSlug: "gmtk-jam-2026",
+      projectSlug: null,
+      canonicalType: null,
+      canonicalLinks: null,
+      canonicalPlatforms: null,
+      canonicalMinPrice: null,
+      missingSince: null,
+      jamStartsAt: new Date("2026-08-01T00:00:00Z"),
+      jamEntriesCount: 7000,
+      jamOverallRank: null,
+      submissionTitle: null,
+      submissionUrl: "/jam/gmtk-jam-2026/rate/4815752",
+      result: null,
+      participatedAt: null,
+      publishedAt: null,
+      createdAt: new Date("2026-08-02T00:00:00Z"),
+      ...overrides,
+    };
+  }
+
+  it("links the entry to its itch.io rate page", () => {
+    const { jamLog } = adaptProfile(rpcProfile({ projects: [jamProject()] }));
+    expect(jamLog[0]?.url).toBe("https://itch.io/jam/gmtk-jam-2026/rate/4815752");
+  });
+
+  it("falls back to the game page when there is no entry page", () => {
+    const { jamLog } = adaptProfile(
+      rpcProfile({ projects: [jamProject({ submissionUrl: null })] }),
+    );
+    expect(jamLog[0]?.url).toBe("https://someone.itch.io/meltdown");
+  });
+});

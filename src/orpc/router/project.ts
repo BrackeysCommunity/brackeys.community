@@ -83,6 +83,7 @@ async function buildProjectDetail(project: typeof projects.$inferSelect) {
         source: projectContributors.source,
         sortOrder: projectContributors.sortOrder,
         avatarUrl: developerProfiles.avatarUrl,
+        guildAvatarUrl: developerProfiles.guildAvatarUrl,
         username: developerProfiles.guildNickname,
         discordUsername: developerProfiles.discordUsername,
         urlStub: profileUrlStubs.stub,
@@ -791,6 +792,7 @@ async function readContributor(contributorId: number) {
       source: projectContributors.source,
       sortOrder: projectContributors.sortOrder,
       avatarUrl: developerProfiles.avatarUrl,
+      guildAvatarUrl: developerProfiles.guildAvatarUrl,
       urlStub: profileUrlStubs.stub,
     })
     .from(projectContributors)
