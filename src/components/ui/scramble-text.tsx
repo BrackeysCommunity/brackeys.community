@@ -1,8 +1,12 @@
 import * as React from "react";
 
+import { useOptionalAppSettings } from "@/lib/hooks/use-app-settings";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_CHARS = "■□▲△◆◇●◼●○◎◉◌●•⋱⋰⋮⋯⋆⋇⋈∘☉☀☼▪▫●‣⁃◦▣▦▧▨▩▭▰▱▬▭◢◣◤◥!@#%^*[]-_=+\\|/";
+
+/** How often a scrambling character picks a new glyph. Slower than a frame. */
+const SCRAMBLE_MIN_CYCLE_MS = 30;
 
 interface StaggerOptions {
   startDelay?: number;
@@ -55,22 +59,43 @@ export function ScrambleText({
 }: ScrambleTextProps) {
   const containerRef = React.useRef<HTMLSpanElement>(null);
   const rafRef = React.useRef<number | null>(null);
-  const startTimeRef = React.useRef<number | null>(null);
 
-  // Slowness multiplier: scramble updates every X milliseconds (e.g., 40ms is slower than 16ms)
-  const SCRAMBLE_MIN_CYCLE_MS = 30; // was 16ms for requestAnimationFrame; increase for slower effect
-  const lastScrambleUpdateRef = React.useRef<number>(0);
+  // Optional so the component still renders outside the settings provider.
+  const reduced = useOptionalAppSettings()?.reduceMotion ?? false;
+  const scrambling = active && !reduced;
 
-  // Stable ref that always holds the latest props — read inside RAF without restarts
-  const paramsRef = React.useRef({ children, active, duration, delay, chars });
+  // Stable ref for the values the loop reads but must not restart on —
+  // `stagger()` callers build a new function every render.
+  const timingRef = React.useRef({ duration, delay });
   React.useEffect(() => {
-    paramsRef.current = { children, active, duration, delay, chars };
+    timingRef.current = { duration, delay };
   });
 
-  // Track previous children+active to know when to reset the animation clock
-  const prevSnapshotRef = React.useRef(`${active}::${children}`);
-
   React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const spans = container.querySelectorAll<HTMLSpanElement>("[data-scramble-char]");
+    const textChars = Array.from(children);
+    const count = textChars.length;
+
+    const write = (span: HTMLSpanElement, char: string) => {
+      // Writing an unchanged textContent still invalidates layout.
+      if (span.textContent !== char) span.textContent = char;
+    };
+
+    const settle = () => {
+      textChars.forEach((char, i) => {
+        const span = spans[i];
+        if (span) write(span, char);
+      });
+    };
+
+    if (!scrambling) {
+      settle();
+      return;
+    }
+
     const getRandomChar = (charSet: string) => {
       const arr = Array.from(charSet);
       return arr[Math.floor(Math.random() * arr.length)];
@@ -79,81 +104,51 @@ export function ScrambleText({
     const resolveValue = (val: number | StaggerFn, index: number, count: number) =>
       typeof val === "function" ? val(index, count) : val;
 
+    let startTime: number | null = null;
+    let lastUpdate = 0;
+
     const tick = (timestamp: number) => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      const {
-        children: text,
-        active: isActive,
-        chars: charSet,
-        duration: dur,
-        delay: del,
-      } = paramsRef.current;
-      const snapshot = `${isActive}::${text}`;
-
-      // Reset animation clock when active toggles on or text changes
-      if (snapshot !== prevSnapshotRef.current) {
-        startTimeRef.current = null;
-        prevSnapshotRef.current = snapshot;
+      if (startTime === null) {
+        startTime = timestamp;
+        lastUpdate = timestamp;
       }
 
-      const spans = container.querySelectorAll<HTMLSpanElement>("[data-scramble-char]");
-
-      if (!isActive) {
-        Array.from(text).forEach((char, i) => {
-          const span = spans[i];
-          if (span) span.textContent = char;
-        });
-        startTimeRef.current = null;
+      if (timestamp - lastUpdate < SCRAMBLE_MIN_CYCLE_MS && timestamp !== startTime) {
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
+      lastUpdate = timestamp;
 
-      if (startTimeRef.current === null) {
-        startTimeRef.current = timestamp;
-        lastScrambleUpdateRef.current = timestamp;
-      }
+      const elapsed = (timestamp - startTime) / 1000;
+      const { duration: dur, delay: del } = timingRef.current;
+      let pending = false;
 
-      const elapsed = (timestamp - startTimeRef.current) / 1000;
-      const textChars = Array.from(text);
-      const count = textChars.length;
+      textChars.forEach((char, index) => {
+        const span = spans[index];
+        if (!span) return;
 
-      // Control the "generation" rate of new random characters
-      if (timestamp - lastScrambleUpdateRef.current >= SCRAMBLE_MIN_CYCLE_MS || elapsed === 0) {
-        lastScrambleUpdateRef.current = timestamp;
+        if (char === " " || char === "\n") {
+          write(span, char);
+          return;
+        }
 
-        textChars.forEach((char, index) => {
-          const span = spans[index];
-          if (!span) return;
+        const charDelay = resolveValue(del, index, count);
+        const charDuration = resolveValue(dur, index, count);
 
-          if (char === " " || char === "\n") {
-            span.textContent = char;
-            return;
-          }
+        if (charDuration !== Infinity && elapsed - charDelay >= charDuration) {
+          write(span, char);
+          return;
+        }
 
-          const charDelay = resolveValue(del, index, count);
-          const charDuration = resolveValue(dur, index, count);
+        pending = true;
+        span.textContent = getRandomChar(chars);
+      });
 
-          if (elapsed < charDelay) {
-            span.textContent = getRandomChar(charSet);
-            return;
-          }
-
-          const charElapsed = elapsed - charDelay;
-
-          if (charDuration === Infinity) {
-            span.textContent = getRandomChar(charSet);
-            return;
-          }
-
-          if (charElapsed >= charDuration) {
-            span.textContent = char;
-            return;
-          }
-
-          span.textContent = getRandomChar(charSet);
-        });
+      // Every character has landed on its final glyph: nothing left to draw
+      // until `children` or `active` changes, which restarts this effect.
+      if (!pending) {
+        rafRef.current = null;
+        return;
       }
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -166,7 +161,7 @@ export function ScrambleText({
         rafRef.current = null;
       }
     };
-  }, []);
+  }, [children, scrambling, chars]);
 
   const originalChars = Array.from(children);
 

@@ -1,9 +1,9 @@
 import { AdminSkills } from "@/components/admin/AdminSkills";
 import { AdminVocabulary } from "@/components/admin/AdminVocabulary";
+import { type TaxonomyPane, TAXONOMY_PANES } from "@/components/admin/panes";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 
-export const TAXONOMY_PANES = ["skills", "roles"] as const;
-export type TaxonomyPane = (typeof TAXONOMY_PANES)[number];
+export { TAXONOMY_PANES, type TaxonomyPane };
 
 /**
  * The two controlled vocabularies in one section: the skills a profile can

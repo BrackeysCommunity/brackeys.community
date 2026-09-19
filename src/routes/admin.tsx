@@ -25,10 +25,13 @@ import { AdminProjects } from "@/components/admin/AdminProjects";
 import { AdminProposals } from "@/components/admin/AdminProposals";
 import { AdminRecentComments } from "@/components/admin/AdminRecentComments";
 import { AdminReportQueue } from "@/components/admin/AdminReportQueue";
-import { AdminSpotlight, SPOTLIGHT_PANES } from "@/components/admin/AdminSpotlight";
-import { AdminTaxonomy, TAXONOMY_PANES } from "@/components/admin/AdminTaxonomy";
+import { AdminSpotlight } from "@/components/admin/AdminSpotlight";
+import { AdminTaxonomy } from "@/components/admin/AdminTaxonomy";
 import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminHero } from "@/components/admin/AdminUI";
+// From the standalone module, not the pane components: `validateSearch`
+// runs in the route shell, which the client entry preloads for everyone.
+import { SPOTLIGHT_PANES, TAXONOMY_PANES } from "@/components/admin/panes";
 import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";

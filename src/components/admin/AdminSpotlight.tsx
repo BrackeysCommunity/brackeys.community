@@ -1,9 +1,9 @@
 import { AdminFeatured } from "@/components/admin/AdminFeatured";
 import { AdminHeroJam } from "@/components/admin/AdminHeroJam";
+import { type SpotlightPane, SPOTLIGHT_PANES } from "@/components/admin/panes";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 
-export const SPOTLIGHT_PANES = ["featured", "hero"] as const;
-export type SpotlightPane = (typeof SPOTLIGHT_PANES)[number];
+export { SPOTLIGHT_PANES, type SpotlightPane };
 
 const TABS = [
   { key: "featured", label: "BOARD FEATURED" },

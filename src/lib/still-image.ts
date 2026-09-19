@@ -1,6 +1,9 @@
-import { type ItchImageOpts, isTransformable, itchImageUrl } from "@/lib/itch-image";
-
-const DISCORD_CDN = "https://cdn.discordapp.com/";
+import {
+  DISCORD_CDN_ORIGIN,
+  type ItchImageOpts,
+  isTransformable,
+  itchImageUrl,
+} from "@/lib/itch-image";
 
 /** Everything before the query/hash — a `.gif` in either is not the format. */
 function pathOf(url: string): string {
@@ -28,9 +31,11 @@ export function stillImageUrl<T extends string | null | undefined>(
   opts?: ItchImageOpts,
 ): T {
   if (!url || !isAnimatedImageUrl(url)) return url;
-  if (url.startsWith(DISCORD_CDN)) {
+  if (url.startsWith(DISCORD_CDN_ORIGIN)) {
     const path = pathOf(url);
-    return `${path.slice(0, -4)}.png${url.slice(path.length)}` as T;
+    // The twin, then the transformer: Discord's own still is full-size.
+    const twin = `${path.slice(0, -4)}.png${url.slice(path.length)}`;
+    return itchImageUrl(twin, opts) as T;
   }
   if (isTransformable(url)) return itchImageUrl(url, { ...opts, anim: false });
   return url;

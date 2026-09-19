@@ -141,12 +141,14 @@ export function AppHeader() {
           <div className="flex items-center gap-2">
             <MagneticLink className="pointer-events-auto shrink-0">
               <Link to="/" className="flex items-center gap-2">
-                <motion.div
-                  className="h-7 w-7"
+                {/* The mark's colour sweep: a tall gradient sliding behind
+                    the logo mask. The slide is a CSS transform rather than a
+                    framer loop writing `background-position` inline — the old
+                    shape repainted, and wrote style, on every frame of every
+                    route. */}
+                <div
+                  className="relative h-7 w-7 overflow-hidden"
                   style={{
-                    // The gradient sweep below repaints every frame; its own layer
-                    // keeps the bar's hide/reveal a pure composited transform.
-                    transform: "translateZ(0)",
                     maskImage: "url(/brackeys-logo.svg)",
                     maskSize: "contain",
                     maskRepeat: "no-repeat",
@@ -156,22 +158,15 @@ export function AppHeader() {
                     WebkitMaskRepeat: "no-repeat",
                     WebkitMaskPosition: "center",
                   }}
-                  initial={{
-                    backgroundImage:
-                      "linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))",
-                    backgroundPosition: "0 0%",
-                    backgroundSize: "100% 500%",
-                  }}
-                  animate={{
-                    backgroundPosition: ["0 0%", "0 0%", "0 100%", "0 100%", "0 0%"],
-                  }}
-                  transition={{
-                    duration: 6,
-                    times: [0, 0.2, 0.4, 0.6, 0.8],
-                    repeat: Infinity,
-                    ease: "linear",
-                  }}
-                />
+                >
+                  <div
+                    className="animate-logo-sweep absolute inset-x-0 top-0 h-[500%]"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))",
+                    }}
+                  />
+                </div>
                 <span className="leading-wide hidden font-sans text-xl font-bold text-foreground sm:inline">
                   Brackeys
                   <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">

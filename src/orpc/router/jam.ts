@@ -45,8 +45,20 @@ import { likeContains } from "@/lib/sql-like";
 import { requireAuth, requireStaff, userIsGuildMember } from "@/orpc/middleware/auth";
 import { jamMemberIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
 
-/** How far back the "calendar" filter keeps archived jams. */
+/** How far back the "calendar" filter keeps archived jams when no month is
+ * asked for — the shape the public API and the bot still get. */
 const CALENDAR_ARCHIVE_MONTHS = 12;
+
+/** The half-open range a `YYYY-MM` calendar request covers: that month and
+ * one either side, which is always wider than the six-week grid drawn for
+ * it. */
+export function monthWindowRange(month: string): { start: Date; end: Date } {
+  const [year, monthNumber] = month.split("-").map(Number) as [number, number];
+  return {
+    start: new Date(Date.UTC(year, monthNumber - 2, 1)),
+    end: new Date(Date.UTC(year, monthNumber + 1, 1)),
+  };
+}
 
 /**
  * Latest calendar event a jam will ever produce. '-infinity' keeps
@@ -98,6 +110,14 @@ const jamListInput = z.object({
   filter: z.enum(["live", "upcoming", "active", "board", "calendar", "all"]).default("active"),
   sortBy: z.enum(["soonest", "popularity"]).default("soonest"),
   limit: z.number().min(1).max(5000).default(20),
+  /** `YYYY-MM`, `calendar` only: return the jams whose run overlaps that
+   * month and its two neighbours, instead of the trailing archive window.
+   * The calendar grid draws one month (plus the week either side of it),
+   * and the unwindowed set was a 3.5 MB payload in the document. */
+  month: z
+    .string()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+    .optional(),
 });
 
 type JamListInput = z.infer<typeof jamListInput>;
@@ -159,6 +179,18 @@ async function queryJamListing(input: JamListInput) {
   archiveCutoff.setUTCMonth(archiveCutoff.getUTCMonth() - CALENDAR_ARCHIVE_MONTHS);
   const isOnCalendar = sql`${lastEventAt} >= ${archiveCutoff}`;
 
+  // A month window: every jam whose run overlaps [month - 1, month + 2).
+  // Overlap rather than "last event inside the window", so a jam that
+  // started in March and runs through May still draws its bar in April.
+  // A row with no `starts_at` is placed by its last event.
+  const monthWindow = input.month ? monthWindowRange(input.month) : null;
+  const isInMonthWindow =
+    monthWindow &&
+    and(
+      sql`${lastEventAt} >= ${monthWindow.start}`,
+      sql`COALESCE(${itchJams.startsAt}, ${lastEventAt}) < ${monthWindow.end}`,
+    );
+
   const where = (() => {
     switch (input.filter) {
       case "live":
@@ -170,7 +202,7 @@ async function queryJamListing(input: JamListInput) {
       case "board":
         return and(notMissing, isOnBoard);
       case "calendar":
-        return and(notMissing, isOnCalendar);
+        return and(notMissing, isInMonthWindow ?? isOnCalendar);
       case "all":
         return notMissing;
     }
@@ -209,7 +241,9 @@ async function queryJamListing(input: JamListInput) {
   // The jams page's hero advertises how many jams we track overall,
   // which the windowed payload no longer reveals — count it separately.
   let trackedTotal: number | undefined;
-  if (input.filter === "calendar" || input.filter === "board") {
+  // A month window never reports it: only the board hero renders the
+  // figure, and the count is a full-table scan.
+  if ((input.filter === "calendar" && !monthWindow) || input.filter === "board") {
     const [row] = await db.select({ count: count() }).from(itchJams).where(notMissing);
     trackedTotal = row?.count ?? jams.length;
   }

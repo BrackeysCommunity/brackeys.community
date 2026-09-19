@@ -1,6 +1,11 @@
 import { siteOrigin, siteUrl } from "@/env";
 import { deployEnvLabel } from "@/lib/deploy-env";
-import { cfImagesEnabled, itchImageUrl, itchOriginalUrl } from "@/lib/itch-image";
+import {
+  cfImagesEnabled,
+  DISCORD_CDN_ORIGIN,
+  itchImageUrl,
+  itchOriginalUrl,
+} from "@/lib/itch-image";
 import { SITE } from "@/lib/legal-meta";
 
 export const SITE_NAME = "Brackeys Community";
@@ -92,6 +97,10 @@ export function socialImage(source?: string | null): {
     };
   }
   if (!cfImagesEnabled()) return { url: siteUrl(source) };
+  // A Discord avatar is transformable everywhere else on the site, but a
+  // card is 1200x630 and `cover` enlarges: a 128px avatar comes back as a
+  // blurred crop. Leave it at its own size and let the platform frame it.
+  if (source.startsWith(DISCORD_CDN_ORIGIN)) return { url: siteUrl(source) };
   const transformed = itchImageUrl(itchOriginalUrl(source), {
     width: OG_IMAGE_WIDTH,
     height: OG_IMAGE_HEIGHT,

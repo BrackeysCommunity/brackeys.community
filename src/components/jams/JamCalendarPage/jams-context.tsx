@@ -75,7 +75,7 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const board = useBoardJams(now, search);
-  const calendar = useCalendarJams(search, view === "calendar");
+  const calendar = useCalendarJams(monthStart, search, view === "calendar");
   const archive = useArchiveJams({ ...archiveState, search: debouncedSearch }, view === "archive");
 
   // A new search should always show archive page 1.

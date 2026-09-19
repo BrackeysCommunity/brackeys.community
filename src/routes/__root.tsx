@@ -66,10 +66,12 @@ import { AppSettingsProvider, useReducedMotion } from "@/lib/hooks/use-app-setti
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider, useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { ServerNowContext } from "@/lib/hooks/use-date-now";
+import { useLowEndDevice } from "@/lib/hooks/use-low-end-device";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
-import { captureError } from "@/lib/product-insights";
+import { DISCORD_CDN_ORIGIN } from "@/lib/itch-image";
+import { captureError, posthogIngestHost } from "@/lib/product-insights";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 
 import fontsCss from "../fonts.css?url";
@@ -124,6 +126,13 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { name: "twitter:image", content: siteUrl(DEFAULT_OG_CARD) },
     ],
     links: [
+      // The two cross-origin hosts every page reaches: the analytics beacon
+      // and Discord's CDN, which serves member avatars (the LCP element on
+      // a listing page). Both cost a DNS + TLS round trip otherwise, and
+      // neither is referenced early enough in the document for the
+      // preload scanner to start one.
+      { rel: "preconnect", href: posthogIngestHost() },
+      { rel: "preconnect", href: DISCORD_CDN_ORIGIN, crossOrigin: "anonymous" },
       // Support for `media` on `rel="icon"` is patchy; without this entry a
       // browser that ignores it picks whichever SVG it saw last, or nothing.
       { rel: "icon", href: "/favicon.ico", sizes: "any" },
@@ -311,6 +320,9 @@ function AppMotionConfig({ children }: { children: React.ReactNode }) {
 
 function BackgroundDotField() {
   const reduced = useReducedMotion();
+  // The field repaints a viewport-sized canvas every frame on every route;
+  // a machine that cannot spare that gets the still grid.
+  const lowEnd = useLowEndDevice();
   return (
     <ThemedDotField
       dotRadius={1}
@@ -321,7 +333,7 @@ function BackgroundDotField() {
       cursorRadius={500}
       cursorForce={0.0075}
       bulgeOnly={false}
-      static={reduced}
+      static={reduced || lowEnd}
       className="pointer-events-none fixed inset-0 z-0 opacity-50"
     />
   );
@@ -396,7 +408,9 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
     // bottom. A great-grandparent (`overflow-hidden` at the root shell)
     // still clips horizontally so we don't risk a page-level scrollbar.
     return (
-      <div
+      // The landmark, not a plain box: the skip link targets it, and a
+      // screen reader has no other way to reach the page's content region.
+      <main
         id="main-content"
         data-scroll-root
         // Stable key for router scroll restoration. Without it the router
@@ -432,12 +446,12 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <SiteFooter />
-      </div>
+      </main>
     );
   }
 
   return (
-    <div
+    <main
       id="main-content"
       className="mx-auto flex w-full max-w-480 flex-1 overflow-hidden pt-[var(--app-header-height)]"
     >
@@ -465,6 +479,6 @@ function TwoColumnShell({ children }: { children: React.ReactNode }) {
       >
         <div className="flex h-full w-full max-w-2xl min-w-0 flex-col xl:min-w-xl">{sidebar}</div>
       </aside>
-    </div>
+    </main>
   );
 }

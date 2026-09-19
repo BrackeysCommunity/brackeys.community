@@ -44,7 +44,9 @@ describe("socialImage", () => {
     expect(image.type).toBe("image/png");
   });
 
-  it("leaves a foreign absolute URL alone but claims no dimensions for it", () => {
+  // Transformable on every other surface, but not as a card: `cover` would
+  // enlarge a 128px avatar into a 1200x630 blur.
+  it("leaves a Discord avatar alone but claims no dimensions for it", () => {
     const image = socialImage("https://cdn.discordapp.com/avatars/1/2.png");
     expect(image.url).toBe("https://cdn.discordapp.com/avatars/1/2.png");
     expect(image.width).toBeUndefined();

@@ -67,17 +67,34 @@ export const BOARD_BANNER_TRANSFORM: ItchImageOpts = { width: 640 };
 
 const ITCH_IMAGE_ORIGIN = "https://img.itch.zone/";
 
+/**
+ * Discord's CDN, which serves every member avatar the site renders. Raw,
+ * those are 25–40 KB PNGs for a 40px circle, on a connection nothing
+ * preconnects, and they trip the third-party-cookie audit; through the
+ * transformer they are avatar-sized, same-origin and cached on our edge.
+ *
+ * The zone's transformation sources must allow this host — a zone that
+ * refuses answers 403, which `TransformedImage` retries as the plain
+ * source, so a missing allow-list entry costs a round trip rather than a
+ * broken avatar.
+ */
+export const DISCORD_CDN_ORIGIN = "https://cdn.discordapp.com/";
+
 export const cfImagesEnabled = () => env.VITE_CF_IMAGES !== undefined;
 
 /**
- * True only for itch-hosted https URLs and our own `/images/` uploads that
- * haven't already been rewritten. Excludes `blob:`/`data:` URIs,
- * Discord/GitHub avatars, other relative paths — everything that must never
- * hit the transformer.
+ * True only for itch-hosted https URLs, Discord avatars, and our own
+ * `/images/` uploads that haven't already been rewritten. Excludes
+ * `blob:`/`data:` URIs, GitHub avatars, other relative paths — everything
+ * that must never hit the transformer.
  */
 export function isTransformable(url: string): boolean {
   if (url.includes("/cdn-cgi/image/")) return false;
-  return url.startsWith(ITCH_IMAGE_ORIGIN) || url.startsWith(STORED_IMAGE_ROUTE_PREFIX);
+  return (
+    url.startsWith(ITCH_IMAGE_ORIGIN) ||
+    url.startsWith(DISCORD_CDN_ORIGIN) ||
+    url.startsWith(STORED_IMAGE_ROUTE_PREFIX)
+  );
 }
 
 function optionString(opts: ItchImageOpts): string {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import router from "@/orpc/router";
 import {
+  monthWindowRange,
   RECENT_ENTRIES_MAX_JAMS,
   RECENT_ENTRIES_MAX_LIMIT,
   recentEntriesQuery,
@@ -12,6 +13,44 @@ describe("jam router surface", () => {
     expect(router.listRecentEntries).toBeDefined();
     expect(router.listJams).toBeDefined();
     expect(router.archiveJams).toBeDefined();
+  });
+});
+
+describe("monthWindowRange", () => {
+  const iso = (month: string) => {
+    const { start, end } = monthWindowRange(month);
+    return [start.toISOString(), end.toISOString()];
+  };
+
+  it("covers the asked-for month and one either side", () => {
+    expect(iso("2026-06")).toEqual(["2026-05-01T00:00:00.000Z", "2026-08-01T00:00:00.000Z"]);
+  });
+
+  it("rolls back across the year for January", () => {
+    expect(iso("2026-01")).toEqual(["2025-12-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"]);
+  });
+
+  it("rolls forward across the year for December", () => {
+    expect(iso("2026-12")).toEqual(["2026-11-01T00:00:00.000Z", "2027-02-01T00:00:00.000Z"]);
+  });
+
+  // The grid drawn for a month runs from the Sunday on or before the 1st to
+  // the Saturday on or after the last day — at most six days into the
+  // previous month and twelve into the next. The window has to contain it,
+  // or a bar would be missing from a visible cell.
+  it("contains the whole six-week grid the month is drawn on", () => {
+    for (const month of ["2026-01", "2026-02", "2026-08", "2026-12"]) {
+      const [year, monthNumber] = month.split("-").map(Number) as [number, number];
+      const first = new Date(Date.UTC(year, monthNumber - 1, 1));
+      const gridStart = new Date(first);
+      gridStart.setUTCDate(1 - first.getUTCDay());
+      const gridEnd = new Date(gridStart);
+      gridEnd.setUTCDate(gridStart.getUTCDate() + 42);
+
+      const { start, end } = monthWindowRange(month);
+      expect(start.getTime()).toBeLessThanOrEqual(gridStart.getTime());
+      expect(end.getTime()).toBeGreaterThanOrEqual(gridEnd.getTime());
+    }
   });
 });
 

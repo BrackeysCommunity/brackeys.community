@@ -36,8 +36,9 @@ const PROSE_CLASSES = [
   "[&_h6]:mt-3 [&_h6]:mb-1 [&_h6]:text-xs [&_h6]:font-semibold [&_h6]:uppercase [&_h6]:tracking-wide",
   "[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-accent [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_blockquote]:italic",
   "[&_hr]:my-6 [&_hr]:border-border",
-  // No width/height survives the attribute strip, so a tall source image
-  // would otherwise render at its natural size and own the viewport.
+  // `h-auto` is what turns a kept width/height pair into an aspect ratio
+  // rather than a fixed size, and the cap is what keeps a tall source
+  // image from owning the viewport.
   "[&_img]:my-3 [&_img]:h-auto [&_img]:max-h-96 [&_img]:max-w-full [&_img]:rounded",
   "[&_figure]:my-3",
   "[&_figcaption]:mt-1 [&_figcaption]:text-xs [&_figcaption]:text-muted-foreground",
@@ -367,9 +368,16 @@ function normalizeBody(html: string, censor: (text: string) => CensorSegment[]):
     if (src.startsWith("http://")) el.setAttribute("src", `https://${src.slice(7)}`);
   }
 
-  // Sizing attributes are a hint on an embed and noise on an image,
-  // where our own cap is what should win.
+  // Intrinsic dimensions, kept only as a matched pair: with `h-auto` and
+  // `max-w-full` from the prose styles, a browser reads them as an aspect
+  // ratio and reserves the box before the image arrives, which is the whole
+  // of the layout shift a scraped body used to cause. Our cap still wins the
+  // rendered size. A lone `width` or `height` has no ratio to give and would
+  // fight the cap, so it goes.
   for (const image of doc.querySelectorAll("img[width], img[height]")) {
+    const width = Number(image.getAttribute("width"));
+    const height = Number(image.getAttribute("height"));
+    if (Number.isInteger(width) && width > 0 && Number.isInteger(height) && height > 0) continue;
     image.removeAttribute("width");
     image.removeAttribute("height");
   }
@@ -383,6 +391,11 @@ function normalizeBody(html: string, censor: (text: string) => CensorSegment[]):
   for (const image of doc.querySelectorAll("img[src]")) {
     image.setAttribute("loading", "lazy");
     image.setAttribute("decoding", "async");
+    // Scraped markup rarely carries alt text, and a missing attribute is
+    // read aloud as the filename. These images illustrate a body a screen
+    // reader is already being given in full, so the honest value is empty:
+    // decorative, skip it.
+    if (!image.hasAttribute("alt")) image.setAttribute("alt", "");
     const src = image.getAttribute("src") ?? "";
     if (isTransformable(src)) image.setAttribute("src", itchImageUrl(src, BODY_IMAGE_TRANSFORM));
   }

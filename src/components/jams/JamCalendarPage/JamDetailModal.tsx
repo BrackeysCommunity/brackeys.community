@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Heading, Link, RichHtml, Text } from "@/components/ui/typography";
 import { formatCount } from "@/lib/format-count";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
+import { useLowEndDevice } from "@/lib/hooks/use-low-end-device";
 import { useThemeChartColors } from "@/lib/hooks/use-theme-chart-colors";
 import { BACKDROP_TRANSFORM, BOARD_BANNER_TRANSFORM } from "@/lib/itch-image";
 import { durationDays, formatJamShortDates } from "@/lib/jam-countdown";
@@ -303,6 +304,7 @@ function JamStatsLine({ jam }: { jam: JamFromList }) {
 function ModalGrainientBanner({ layoutKey, jamId }: { layoutKey: string; jamId: number }) {
   const palette = useThemeChartColors();
   const reduced = useReducedMotion();
+  const lowEnd = useLowEndDevice();
   const colors = useMemo(() => jamPaletteColors(palette, jamId), [palette, jamId]);
   return (
     <motion.div
@@ -310,7 +312,13 @@ function ModalGrainientBanner({ layoutKey, jamId }: { layoutKey: string; jamId: 
       transition={MODAL_TRANSITION}
       className="absolute inset-0"
     >
-      <Grainient color1={colors[0]} color2={colors[1]} color3={colors[0]} paused={reduced} />
+      <Grainient
+        color1={colors[0]}
+        color2={colors[1]}
+        color3={colors[0]}
+        paused={reduced}
+        fallback={lowEnd}
+      />
     </motion.div>
   );
 }

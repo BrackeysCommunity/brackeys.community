@@ -1,0 +1,389 @@
+import { Mesh, Program, Renderer, Triangle } from "ogl";
+import { useCallback, useEffect, useRef } from "react";
+
+import { useInViewport } from "@/lib/hooks/use-in-viewport";
+import { usePageVisible } from "@/lib/hooks/use-page-visible";
+import { cn } from "@/lib/utils";
+import FRAGMENT from "@/shaders/grainient.frag.glsl?raw";
+import VERTEX from "@/shaders/grainient.vert.glsl?raw";
+
+export interface GrainientProps {
+  color1?: string;
+  color2?: string;
+  color3?: string;
+  timeSpeed?: number;
+  colorBalance?: number;
+  warpStrength?: number;
+  warpFrequency?: number;
+  warpSpeed?: number;
+  warpAmplitude?: number;
+  blendAngle?: number;
+  blendSoftness?: number;
+  rotationAmount?: number;
+  noiseScale?: number;
+  grainAmount?: number;
+  grainScale?: number;
+  grainAnimated?: boolean;
+  contrast?: number;
+  gamma?: number;
+  saturation?: number;
+  centerX?: number;
+  centerY?: number;
+  zoom?: number;
+  /** When true, output animated grayscale grain only — designed for use as
+   * an overlay over photo backdrops with `mix-blend-mode: overlay`. */
+  grainOnly?: boolean;
+  /** Freeze the animation: colors snap to their targets and the surface is
+   * rendered once instead of every frame. For reduced motion. The surface
+   * freezes itself on the same terms while the tab is hidden or the
+   * container has scrolled out of range. */
+  paused?: boolean;
+  /** Skip WebGL entirely and paint the static gradient stand-in. For
+   * machines where the shader is not worth its cost — a paused surface
+   * still holds a live context and a full-size backing store. */
+  fallback?: boolean;
+  className?: string;
+}
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return [1, 1, 1];
+  return [
+    parseInt(result[1]!, 16) / 255,
+    parseInt(result[2]!, 16) / 255,
+    parseInt(result[3]!, 16) / 255,
+  ];
+};
+
+const toCss = ([r, g, b]: [number, number, number]) =>
+  `rgb(${Math.round(r * 255)} ${Math.round(g * 255)} ${Math.round(b * 255)})`;
+
+/** Static stand-in for machines without WebGL: the same three colors as a
+ * plain CSS gradient. Grain-only surfaces stay transparent instead. */
+const applyFallbackGradient = (
+  el: HTMLElement,
+  t: { c1: [number, number, number]; c2: [number, number, number]; c3: [number, number, number] },
+) => {
+  el.style.background = `linear-gradient(135deg, ${toCss(t.c1)}, ${toCss(t.c3)}, ${toCss(t.c2)})`;
+};
+
+/**
+ * Animated WebGL grainient — three-color gradient with warp + noise + grain,
+ * all moving over time. Pass `grainOnly` to render only the grain channel
+ * (for layering over photo backdrops with `mix-blend-mode: overlay`).
+ */
+export function Grainient({
+  color1 = "#FF9FFC",
+  color2 = "#5227FF",
+  color3 = "#B497CF",
+  timeSpeed = 0.25,
+  colorBalance = 0,
+  warpStrength = 1,
+  warpFrequency = 5,
+  warpSpeed = 2,
+  warpAmplitude = 50,
+  blendAngle = 0,
+  blendSoftness = 0.05,
+  rotationAmount = 500,
+  noiseScale = 2,
+  grainAmount = 0.1,
+  grainScale = 2,
+  grainAnimated = false,
+  contrast = 1.5,
+  gamma = 1,
+  saturation = 1,
+  centerX = 0,
+  centerY = 0,
+  zoom = 0.9,
+  grainOnly = false,
+  paused = false,
+  fallback = false,
+  className,
+}: GrainientProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // A shader running behind a scrolled-past hero, or in a hidden tab, costs
+  // a full-size GPU pass per frame for nothing.
+  const pageVisible = usePageVisible();
+  const inViewport = useInViewport(containerRef);
+  const frozen = paused || !pageVisible || !inViewport;
+  const programRef = useRef<Program | null>(null);
+  // The renderer and its mesh outlive the init effect: the render loop
+  // lives in its own effect so pausing never touches the WebGL context.
+  const rendererRef = useRef<Renderer | null>(null);
+  const meshRef = useRef<Mesh | null>(null);
+  const pausedRef = useRef(frozen);
+  pausedRef.current = frozen;
+  // True once WebGL context creation has failed (driver blocklist, context
+  // budget exhausted). The surface then falls back to a static CSS gradient.
+  const fallbackRef = useRef(false);
+
+  /** One frame at the target colors — the ease is skipped so a frozen
+   * surface shows where it was heading, not where the loop stopped. */
+  const renderPausedFrame = useCallback(() => {
+    const renderer = rendererRef.current;
+    const mesh = meshRef.current;
+    const program = programRef.current;
+    if (!renderer || !mesh || !program) return;
+    const targets = targetsRef.current;
+    (program.uniforms.uColor1 as { value: Float32Array }).value.set(targets.c1);
+    (program.uniforms.uColor2 as { value: Float32Array }).value.set(targets.c2);
+    (program.uniforms.uColor3 as { value: Float32Array }).value.set(targets.c3);
+    renderer.render({ scene: mesh });
+  }, []);
+  // Color uniforms are eased toward these targets each frame so prop
+  // changes morph smoothly (e.g. swapping jams in the carousel) instead
+  // of snapping. Initialized lazily on first prop apply.
+  const targetsRef = useRef({
+    c1: hexToRgb(color1),
+    c2: hexToRgb(color2),
+    c3: hexToRgb(color3),
+    initialized: false,
+  });
+
+  // Init: the renderer and its mesh are stable across prop changes — only
+  // uniform values flow through (see the second effect). Only `fallback`
+  // tears the context down, because there is then nothing to draw with.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    if (fallback) {
+      // The uniforms effect only re-runs on a colour change, and `fallback`
+      // flips after hydration, so paint the stand-in from here.
+      fallbackRef.current = true;
+      if (!grainOnly) applyFallbackGradient(container, targetsRef.current);
+      return;
+    }
+    fallbackRef.current = false;
+    container.style.background = "";
+
+    // WebGL can be unavailable entirely (Firefox blocklists many Linux
+    // GPU/driver combos, VMs, remote desktops) or the per-page context
+    // budget can be exhausted — ogl's Renderer throws on a null context
+    // either way. Degrade to a static CSS gradient instead of letting the
+    // throw take down the whole tree.
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({
+        webgl: 2,
+        alpha: true,
+        antialias: false,
+        dpr: Math.min(window.devicePixelRatio || 1, 2),
+      });
+      if (!renderer.gl) throw new Error("no context");
+    } catch {
+      // The uniforms effect below runs next and paints the CSS fallback.
+      fallbackRef.current = true;
+      return;
+    }
+    const gl = renderer.gl;
+    const canvas = gl.canvas as HTMLCanvasElement;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.display = "block";
+    container.appendChild(canvas);
+
+    const program = new Program(gl, {
+      vertex: VERTEX,
+      fragment: FRAGMENT,
+      uniforms: {
+        iTime: { value: 0 },
+        iResolution: { value: new Float32Array([1, 1]) },
+        uTimeSpeed: { value: 0 },
+        uColorBalance: { value: 0 },
+        uWarpStrength: { value: 1 },
+        uWarpFrequency: { value: 0 },
+        uWarpSpeed: { value: 0 },
+        uWarpAmplitude: { value: 1 },
+        uBlendAngle: { value: 0 },
+        uBlendSoftness: { value: 0 },
+        uRotationAmount: { value: 0 },
+        uNoiseScale: { value: 1 },
+        uGrainAmount: { value: 0 },
+        uGrainScale: { value: 1 },
+        uGrainAnimated: { value: 0 },
+        uContrast: { value: 1 },
+        uGamma: { value: 1 },
+        uSaturation: { value: 1 },
+        uCenterOffset: { value: new Float32Array([0, 0]) },
+        uZoom: { value: 1 },
+        uColor1: { value: new Float32Array([1, 1, 1]) },
+        uColor2: { value: new Float32Array([1, 1, 1]) },
+        uColor3: { value: new Float32Array([1, 1, 1]) },
+        uGrainOnly: { value: 0 },
+      },
+    });
+    programRef.current = program;
+
+    const mesh = new Mesh(gl, { geometry: new Triangle(gl), program });
+    rendererRef.current = renderer;
+    meshRef.current = mesh;
+
+    // Use `clientWidth/clientHeight` rather than `getBoundingClientRect`
+    // so a CSS transform on the container (e.g. framer-motion's
+    // shared-layout animation) doesn't trick us into sizing the canvas
+    // to the *visually* transformed box. Layout-driven size changes
+    // still come through via ResizeObserver, which observes the
+    // content box and ignores transforms.
+    const setSize = () => {
+      const w = Math.max(1, container.clientWidth);
+      const h = Math.max(1, container.clientHeight);
+      renderer.setSize(w, h);
+      const res = (program.uniforms.iResolution as { value: Float32Array }).value;
+      res[0] = gl.drawingBufferWidth;
+      res[1] = gl.drawingBufferHeight;
+    };
+    // A paused surface still has to repaint when its box changes.
+    const ro = new ResizeObserver(() => {
+      setSize();
+      if (pausedRef.current) renderer.render({ scene: mesh });
+    });
+    ro.observe(container);
+    setSize();
+
+    return () => {
+      ro.disconnect();
+      try {
+        container.removeChild(canvas);
+      } catch {
+        // Canvas may already be detached during fast remounts; ignore.
+      }
+      // Browsers don't reclaim WebGL contexts on canvas detach until GC
+      // runs — and the limit (~16) is hit quickly when many Grainients
+      // mount/unmount via virtualization. Explicitly drop the context so
+      // the slot is freed immediately.
+      const lose = gl.getExtension("WEBGL_lose_context");
+      lose?.loseContext();
+      programRef.current = null;
+      rendererRef.current = null;
+      meshRef.current = null;
+    };
+  }, [fallback, grainOnly]);
+
+  // Update uniforms in place — never recreates the WebGL context.
+  useEffect(() => {
+    if (fallbackRef.current) {
+      const container = containerRef.current;
+      const targets = targetsRef.current;
+      targets.c1 = hexToRgb(color1);
+      targets.c2 = hexToRgb(color2);
+      targets.c3 = hexToRgb(color3);
+      if (container && !grainOnly) applyFallbackGradient(container, targets);
+      return;
+    }
+    const program = programRef.current;
+    if (!program) return;
+    const u = program.uniforms as Record<string, { value: number | Float32Array }>;
+    u.uTimeSpeed!.value = timeSpeed;
+    u.uColorBalance!.value = colorBalance;
+    u.uWarpStrength!.value = warpStrength;
+    u.uWarpFrequency!.value = warpFrequency;
+    u.uWarpSpeed!.value = warpSpeed;
+    u.uWarpAmplitude!.value = warpAmplitude;
+    u.uBlendAngle!.value = blendAngle;
+    u.uBlendSoftness!.value = blendSoftness;
+    u.uRotationAmount!.value = rotationAmount;
+    u.uNoiseScale!.value = noiseScale;
+    u.uGrainAmount!.value = grainAmount;
+    u.uGrainScale!.value = grainScale;
+    u.uGrainAnimated!.value = grainAnimated ? 1 : 0;
+    u.uContrast!.value = contrast;
+    u.uGamma!.value = gamma;
+    u.uSaturation!.value = saturation;
+    u.uZoom!.value = zoom;
+    u.uGrainOnly!.value = grainOnly ? 1 : 0;
+    (u.uCenterOffset!.value as Float32Array).set([centerX, centerY]);
+
+    // Update the *target* colors; the RAF loop eases the live uniforms
+    // toward them. On first pass we also snap the live values so we don't
+    // animate from white on mount.
+    const targets = targetsRef.current;
+    targets.c1 = hexToRgb(color1);
+    targets.c2 = hexToRgb(color2);
+    targets.c3 = hexToRgb(color3);
+    if (!targets.initialized) {
+      (u.uColor1!.value as Float32Array).set(targets.c1);
+      (u.uColor2!.value as Float32Array).set(targets.c2);
+      (u.uColor3!.value as Float32Array).set(targets.c3);
+      targets.initialized = true;
+    }
+
+    // Nothing is looping to pick these up while paused, so repaint here.
+    if (pausedRef.current) renderPausedFrame();
+  }, [
+    timeSpeed,
+    colorBalance,
+    warpStrength,
+    warpFrequency,
+    warpSpeed,
+    warpAmplitude,
+    blendAngle,
+    blendSoftness,
+    rotationAmount,
+    noiseScale,
+    grainAmount,
+    grainScale,
+    grainAnimated,
+    contrast,
+    gamma,
+    saturation,
+    centerX,
+    centerY,
+    zoom,
+    grainOnly,
+    color1,
+    color2,
+    color3,
+    renderPausedFrame,
+  ]);
+
+  // Render loop — start/stop only, and deliberately separate from the init
+  // effect: recreating the WebGL context on every pause would burn through
+  // the browser's ~16-context budget. Declared after the uniform effect so
+  // a paused mount paints real values rather than the initial white.
+  useEffect(() => {
+    if (frozen) {
+      renderPausedFrame();
+      return;
+    }
+
+    const renderer = rendererRef.current;
+    const mesh = meshRef.current;
+    const program = programRef.current;
+    if (!renderer || !mesh || !program) return;
+
+    const targets = targetsRef.current;
+    const c1 = (program.uniforms.uColor1 as { value: Float32Array }).value;
+    const c2 = (program.uniforms.uColor2 as { value: Float32Array }).value;
+    const c3 = (program.uniforms.uColor3 as { value: Float32Array }).value;
+
+    let raf = 0;
+    const t0 = performance.now();
+    let last = t0;
+    const loop = (t: number) => {
+      const dt = Math.min(0.1, (t - last) / 1000);
+      last = t;
+      (program.uniforms.iTime as { value: number }).value = (t - t0) * 0.001;
+
+      // Exponential ease toward target colors. `1 - exp(-k*dt)` is the
+      // frame-rate-independent equivalent of `lerp(curr, target, alpha)`.
+      const k = 4;
+      const ease = 1 - Math.exp(-k * dt);
+      for (let i = 0; i < 3; i++) {
+        c1[i]! += (targets.c1[i]! - c1[i]!) * ease;
+        c2[i]! += (targets.c2[i]! - c2[i]!) * ease;
+        c3[i]! += (targets.c3[i]! - c3[i]!) * ease;
+      }
+
+      renderer.render({ scene: mesh });
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
+    return () => cancelAnimationFrame(raf);
+  }, [frozen, renderPausedFrame]);
+
+  return (
+    <div ref={containerRef} className={cn("relative h-full w-full overflow-hidden", className)} />
+  );
+}

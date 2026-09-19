@@ -85,6 +85,15 @@ function storedChoice(): "on" | "off" | null {
 }
 
 /**
+ * Where the browser sends events. Exported because the root document
+ * preconnects to it: the beacon is otherwise a fresh DNS + TLS handshake
+ * partway through the page's load.
+ */
+export function posthogIngestHost(): string {
+  return env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com";
+}
+
+/**
  * Whether the browser is sending Global Privacy Control. We treat it as an
  * opt-out the visitor has already made elsewhere, which is what the spec
  * asks for; an explicit choice in Settings still wins over it in either
@@ -223,7 +232,7 @@ async function loadAndInit() {
   }
 
   posthog.init(env.VITE_POSTHOG_KEY!, {
-    api_host: env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com",
+    api_host: posthogIngestHost(),
     // Required as soon as `api_host` stops being a posthog.com domain — i.e.
     // the moment `VITE_POSTHOG_HOST` points at the reverse proxy
     // (`workers/posthog-proxy`). Without it the toolbar tries to reach the

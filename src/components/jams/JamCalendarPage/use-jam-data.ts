@@ -17,10 +17,10 @@ import {
 } from "./helpers";
 
 // Backstops, not pagination: the board set is ~500 rows (every jam with
-// a future event) and the calendar window ~4k. Both are ordered so that
-// overflow would shed the least interesting rows first.
+// a future event) and a calendar month window a few hundred. Both are
+// ordered so that overflow would shed the least interesting rows first.
 const BOARD_LIMIT = 2000;
-const CALENDAR_LIMIT = 5000;
+const CALENDAR_LIMIT = 2000;
 
 /** Jam data is scraped on a cadence measured in hours; five minutes of
  * staleness is free. */
@@ -146,21 +146,46 @@ export interface CalendarData {
   isLoading: boolean;
   jams: JamFromList[];
   byDay: Map<string, DayBuckets>;
+  /** Rows in the visible month's window, pre-search — what the toolbar
+   * counts against. Month-scoped since the window is. */
   totalAll: number;
 }
 
-export function calendarJamsQueryOptions() {
+/** `YYYY-MM` in UTC, the key the calendar window is asked for by. */
+export function monthKey(month: Date): string {
+  return `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** The current month in UTC — what the route loader prefetches, because the
+ * calendar opens on today. */
+export function currentMonthKey(now: Date = new Date()): string {
+  return monthKey(now);
+}
+
+export function calendarJamsQueryOptions(month: string) {
   return queryOptions({
-    queryKey: ["list-jams", "calendar", CALENDAR_LIMIT],
-    queryFn: () => client.listJams({ filter: "calendar", limit: CALENDAR_LIMIT }),
+    queryKey: ["list-jams", "calendar", month, CALENDAR_LIMIT],
+    queryFn: () => client.listJams({ filter: "calendar", month, limit: CALENDAR_LIMIT }),
     staleTime: JAM_STALE_MS,
   });
 }
 
-/** The calendar view's wider window (active + trailing 12-month
- * archive), fetched only once the user actually opens the calendar. */
-export function useCalendarJams(search: string, enabled: boolean): CalendarData {
-  const { data, isLoading } = useQuery({ ...calendarJamsQueryOptions(), enabled });
+/**
+ * The visible month's jams, plus the month either side so bars that run
+ * across a boundary are whole. Fetched only once the calendar is actually
+ * open, and re-fetched per month: the unwindowed set was every jam of the
+ * trailing year, 3.5 MB of it dehydrated into the document.
+ *
+ * `keepPreviousData` holds the old month on screen while the next one
+ * loads, so stepping through months doesn't strobe the grid into
+ * skeletons.
+ */
+export function useCalendarJams(monthStart: Date, search: string, enabled: boolean): CalendarData {
+  const { data, isLoading } = useQuery({
+    ...calendarJamsQueryOptions(monthKey(monthStart)),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
 
   const all = useMemo(() => data?.jams ?? [], [data]);
   const jams = useMemo(() => all.filter((j) => jamMatchesSearch(j, search)), [all, search]);

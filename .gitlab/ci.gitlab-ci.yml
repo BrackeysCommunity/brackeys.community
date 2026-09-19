@@ -54,6 +54,39 @@ lint:
     # tag would re-prove the same commit. release-gate carries the checks that
     # are actually release-specific.
 
+# The root preload graph is what every visitor downloads before anything is
+# interactive, and it has grown twice now between the passes that measured
+# it (plan 15, then plan 40 §4). Nothing else in the pipeline builds, so
+# this job is the only place the manifest exists to be checked.
+preload-budget:
+  stage: check
+  image: oven/bun:latest
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - bun install --frozen-lockfile
+  script:
+    - bun run build
+    - bun scripts/measure-preload-graph.ts --check
+  rules:
+    - !reference [.skip-version-bump, rules]
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - src/**/*
+        - scripts/measure-preload-graph.ts
+        - package.json
+        - bun.lock
+        - vite.config.*
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - src/**/*
+        - scripts/measure-preload-graph.ts
+        - package.json
+        - bun.lock
+        - vite.config.*
+    # No tag clause — see the note on `lint` above.
+
 test:
   stage: test
   image: node:22

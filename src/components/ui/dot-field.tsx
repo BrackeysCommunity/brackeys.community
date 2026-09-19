@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, memo } from "react";
 
+import { usePageVisible } from "@/lib/hooks/use-page-visible";
 import { cn, getStyle } from "@/lib/utils";
 
 const TWO_PI = Math.PI * 2;
+
+/** The field draws sub-pixel dots on a soft gradient; a retina backing
+ * store quadruples the canvas (20 MB at 1440x900 @2x) and the GPU work
+ * behind it for nothing anyone can see. */
+const MAX_DPR = 1;
 
 interface Dot {
   ax: number;
@@ -53,6 +59,7 @@ const DotField = memo(
     className,
     ...rest
   }: DotFieldProps) => {
+    const pageVisible = usePageVisible();
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const svgRef = useRef<SVGSVGElement>(null);
     const glowRef = useRef<SVGCircleElement>(null);
@@ -76,6 +83,8 @@ const DotField = memo(
       gradientTo,
     };
     const rebuildRef = useRef<(() => void) | null>(null);
+    const loopRef = useRef<{ start: () => void; stop: () => void } | null>(null);
+    const glowWrittenRef = useRef({ x: Number.NaN, y: Number.NaN, opacity: Number.NaN });
     const glowIdRef = useRef(`dot-field-glow-${Math.random().toString(36).slice(2, 9)}`);
 
     useEffect(() => {
@@ -84,7 +93,7 @@ const DotField = memo(
       if (!canvas) return;
       const ctx = canvas.getContext("2d", { alpha: true });
       if (!ctx) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
       let resizeTimer: ReturnType<typeof setTimeout>;
 
       function resize() {
@@ -153,7 +162,7 @@ const DotField = memo(
         m.prevY = m.y;
       }
 
-      const speedInterval = isStatic ? undefined : setInterval(updateMouseSpeed, 20);
+      let speedInterval: ReturnType<typeof setInterval> | undefined;
 
       let frameCount = 0;
 
@@ -173,10 +182,21 @@ const DotField = memo(
 
         glowOpacity.current += (eng - glowOpacity.current) * 0.08;
 
+        // Rewriting the same three values every frame is two attribute
+        // mutations and a style write per frame, each one invalidating the
+        // SVG, for a circle that has not moved.
         if (glowEl) {
-          glowEl.setAttribute("cx", String(m.x));
-          glowEl.setAttribute("cy", String(m.y));
-          glowEl.style.opacity = String(glowOpacity.current);
+          const g = glowWrittenRef.current;
+          if (g.x !== m.x || g.y !== m.y) {
+            glowEl.setAttribute("cx", String(m.x));
+            glowEl.setAttribute("cy", String(m.y));
+            g.x = m.x;
+            g.y = m.y;
+          }
+          if (Math.abs(g.opacity - glowOpacity.current) > 0.002) {
+            glowEl.style.opacity = String(glowOpacity.current);
+            g.opacity = glowOpacity.current;
+          }
         }
 
         ctx!.clearRect(0, 0, w, h);
@@ -254,11 +274,30 @@ const DotField = memo(
         if (!isStatic) rafRef.current = requestAnimationFrame(tick);
       }
 
+      function startLoop() {
+        if (isStatic || rafRef.current !== null) return;
+        speedInterval ??= setInterval(updateMouseSpeed, 20);
+        rafRef.current = requestAnimationFrame(tick);
+      }
+
+      function stopLoop() {
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+        if (speedInterval !== undefined) {
+          clearInterval(speedInterval);
+          speedInterval = undefined;
+        }
+      }
+
+      loopRef.current = { start: startLoop, stop: stopLoop };
+
       doResize();
       window.addEventListener("resize", resize);
       if (!isStatic) {
         window.addEventListener("mousemove", onMouseMove, { passive: true });
-        rafRef.current = requestAnimationFrame(tick);
+        startLoop();
       }
 
       rebuildRef.current = () => {
@@ -270,8 +309,8 @@ const DotField = memo(
       };
 
       return () => {
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        if (speedInterval) clearInterval(speedInterval);
+        loopRef.current = null;
+        stopLoop();
         clearTimeout(resizeTimer);
         window.removeEventListener("resize", resize);
         window.removeEventListener("mousemove", onMouseMove);
@@ -281,6 +320,14 @@ const DotField = memo(
     useEffect(() => {
       rebuildRef.current?.();
     }, [dotRadius, dotSpacing]);
+
+    // A hidden tab stalls rAF on its own, but a visible-but-occluded window
+    // does not, and the mouse-speed interval keeps ticking either way.
+    useEffect(() => {
+      if (isStatic) return;
+      if (pageVisible) loopRef.current?.start();
+      else loopRef.current?.stop();
+    }, [pageVisible, isStatic]);
 
     return (
       <div className={cn("relative h-full w-full", className)} {...rest}>

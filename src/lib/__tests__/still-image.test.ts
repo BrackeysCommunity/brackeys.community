@@ -19,12 +19,23 @@ describe("stillImageUrl", () => {
     vi.stubEnv("VITE_CF_IMAGES", "1");
   });
 
-  it("swaps a Discord animated avatar to its png still", async () => {
+  // The `.png` twin is Discord's own full-size still, so it goes through
+  // the transformer like any other source once it exists.
+  it("swaps a Discord animated avatar to its png still, transformed", async () => {
+    const { stillImageUrl } = await loadStillImage();
+    const options = "quality=60,format=auto,onerror=redirect";
+    expect(stillImageUrl(DISCORD_GIF)).toBe(
+      `/cdn-cgi/image/${options}/https://cdn.discordapp.com/avatars/123/a_abc.png`,
+    );
+    expect(stillImageUrl(`${DISCORD_GIF}?size=64`)).toBe(
+      `/cdn-cgi/image/${options}/https://cdn.discordapp.com/avatars/123/a_abc.png?size=64`,
+    );
+  });
+
+  it("leaves the Discord twin alone when CF images are off", async () => {
+    vi.stubEnv("VITE_CF_IMAGES", "");
     const { stillImageUrl } = await loadStillImage();
     expect(stillImageUrl(DISCORD_GIF)).toBe("https://cdn.discordapp.com/avatars/123/a_abc.png");
-    expect(stillImageUrl(`${DISCORD_GIF}?size=64`)).toBe(
-      "https://cdn.discordapp.com/avatars/123/a_abc.png?size=64",
-    );
   });
 
   it("freezes an uploaded gif through the transformer", async () => {

@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { Grainient } from "@/components/ui/grainient";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
+import { useLowEndDevice } from "@/lib/hooks/use-low-end-device";
 import { BACKDROP_TRANSFORM } from "@/lib/itch-image";
 import { EASE_OUT } from "@/lib/motion";
 import { hoverPlaySources } from "@/lib/still-image";
@@ -40,6 +41,9 @@ export function JamBannerBackdrop({
   bgColor2,
 }: JamBannerBackdropProps) {
   const reduced = useReducedMotion();
+  // Two full-size shader passes stacked; on a low-memory machine the pair
+  // becomes the plain gradient the fallback path already draws.
+  const lowEnd = useLowEndDevice();
   const art = bannerUrl ? hoverPlaySources(bannerUrl, BACKDROP_TRANSFORM) : null;
 
   return (
@@ -49,7 +53,13 @@ export function JamBannerBackdrop({
         animate={{ opacity: bannerUrl ? 0 : 1 }}
         transition={BANNER_TRANSITION}
       >
-        <Grainient color1={bgColor1} color2={bgColor2} color3={bgColor1} paused={reduced} />
+        <Grainient
+          color1={bgColor1}
+          color2={bgColor2}
+          color3={bgColor1}
+          paused={reduced}
+          fallback={lowEnd}
+        />
       </motion.div>
       <AnimatePresence initial={false}>
         {art && (
@@ -70,7 +80,7 @@ export function JamBannerBackdrop({
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-60 mix-blend-overlay"
       >
-        <Grainient grainOnly grainAmount={0.45} grainScale={3} paused={reduced} />
+        <Grainient grainOnly grainAmount={0.45} grainScale={3} paused={reduced} fallback={lowEnd} />
       </div>
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-background/20" />
     </div>

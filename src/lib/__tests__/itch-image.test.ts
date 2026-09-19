@@ -55,7 +55,6 @@ describe("itch-image (gate on)", () => {
       "blob:https://brackeys.community/1c9e2f0a",
       "data:image/png;base64,iVBORw0KGgo=",
       "/brackeys-logo.svg",
-      "https://cdn.discordapp.com/avatars/123/abc.png",
       `/cdn-cgi/image/width=96,quality=60,format=auto,onerror=redirect/${ITCH_URL}`,
       // http (not https) itch — never emitted by the sync, don't rewrite
       "http://img.itch.zone/foo.png",
@@ -63,6 +62,17 @@ describe("itch-image (gate on)", () => {
     for (const url of untouchables) {
       expect(itchImageUrl(url, { width: 96 })).toBe(url);
     }
+  });
+
+  // Member avatars come off Discord's CDN at 25-40 KB for a 40px circle,
+  // on a third-party connection. The zone's transformation sources have to
+  // list the host; where they don't, the 403 is retried as the plain source.
+  it("rewrites a Discord avatar", async () => {
+    const { itchImageUrl } = await loadItchImage();
+    const avatar = "https://cdn.discordapp.com/avatars/123/abc.png";
+    expect(itchImageUrl(avatar, { width: 128 })).toBe(
+      `/cdn-cgi/image/width=128,quality=60,format=auto,fit=scale-down,onerror=redirect/${avatar}`,
+    );
   });
 
   it("passes through null and undefined", async () => {

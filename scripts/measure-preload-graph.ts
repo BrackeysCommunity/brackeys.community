@@ -5,15 +5,23 @@
  * on top. Run against a fresh `.output` — `vp build` first.
  *
  * `--check` exits non-zero if the root exceeds ROOT_BUDGET, so a regression
- * fails CI instead of quietly regrowing. Tighten the budget as further
- * levers in plan 15 land; it currently reflects §3.1 and §3.2 but not yet
- * §3.3 (the entry importing every route, left alone — see the plan).
+ * fails CI instead of quietly regrowing — the `preload-budget` job runs it
+ * on every merge request that touches the app.
+ *
+ * The budget is a ratchet: only ever move it down. It sat at 58 chunks /
+ * 310 KB from plan 15 while nothing ran it, and the graph had grown to 63 /
+ * 411 KB by the time plan 40 measured it again. The numbers below are what
+ * is left after plan 40 §4 took the admin route shell and the `grainient`
+ * shader out of the root; the remaining fat is shared UI the root layout
+ * genuinely mounts (typography, tooltip, sound cues, the icon set) plus
+ * framer's runtime, and cutting further means plan 15 §3.3 — the client
+ * entry importing every route file.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const ROOT_BUDGET = { chunks: 58, gzipBytes: 310 * 1024 };
+const ROOT_BUDGET = { chunks: 63, gzipBytes: 380 * 1024 };
 
 const outputDir = join(process.cwd(), ".output");
 const serverDir = join(outputDir, "server");

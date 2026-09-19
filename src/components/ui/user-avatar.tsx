@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 /** One transform bucket for every avatar frame: the largest render is
  * 64px, so 128 covers 2× displays, and a single width means a person's
  * avatar is one cached asset across every surface instead of one per
- * `size` prop. Non-transformable sources (Discord, GitHub) pass through. */
+ * `size` prop. Non-transformable sources (GitHub) pass through. */
 const AVATAR_TRANSFORM = { width: 128 };
 
 interface UserAvatarProps {
