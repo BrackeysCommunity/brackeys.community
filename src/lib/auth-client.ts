@@ -3,6 +3,7 @@ import { createAuthClient } from "better-auth/react";
 
 import { openDiscordAuthorize } from "@/lib/discord-app-login";
 import { EVENTS, type SigninSource } from "@/lib/event-taxonomy";
+import { gitlabCallbackPath } from "@/lib/gitlab-instances";
 import { captureEvent } from "@/lib/product-insights";
 
 /**
@@ -121,13 +122,55 @@ const GITHUB_CALLBACK_PATH = "/oauth/github/callback";
  * no email has to match.
  */
 export async function startGitHubLink(): Promise<void> {
-  captureEvent(EVENTS.accountLinkStarted, { provider: "github" });
+  captureEvent(EVENTS.accountLinkStarted, { provider: "github", surface: "profile" });
   const { error } = await authClient.linkSocial({
     provider: "github",
     callbackURL: GITHUB_CALLBACK_PATH,
     errorCallbackURL: GITHUB_CALLBACK_PATH,
   });
   if (error) throw new Error(error.message || "Failed to start GitHub OAuth");
+}
+
+/**
+ * Attach a GitLab instance to the signed-in member. `oauth2.link` rather
+ * than `signIn.oauth2`, for the same reason as GitHub above. Both handoffs
+ * go to the instance's callback route so a cancelled consent screen lands
+ * back in the app.
+ */
+export async function startGitLabLink(providerId: string): Promise<void> {
+  captureEvent(EVENTS.accountLinkStarted, { provider: providerId, surface: "profile" });
+  const callback = gitlabCallbackPath(providerId);
+  const result = await authClient.oauth2.link({
+    providerId,
+    callbackURL: callback,
+    errorCallbackURL: callback,
+  });
+  if (result?.error) throw new Error(result.error.message || "Failed to start GitLab OAuth");
+}
+
+/**
+ * Where the sign-in identity page sends the member back after a link.
+ * Unlike the profile integrations there is no sync step to run on return —
+ * better-auth's `account` row is the whole result — so the return lands on
+ * the page itself, and no `account_link_completed` is emitted for it. The
+ * page also takes the provider's error handoff (`src/routes/settings.account.tsx`).
+ */
+const SETTINGS_ACCOUNT_PATH = "/settings/account";
+
+/**
+ * Attach a provider as a **sign-in identity** from `/settings/account`.
+ * A GitHub link started here and one started from the profile are the same
+ * OAuth exchange with different landings; the `surface` on the start event
+ * is what keeps the funnel from counting this one as drop-off.
+ */
+export async function linkSigninProvider(provider: "discord" | "github"): Promise<void> {
+  captureEvent(EVENTS.accountLinkStarted, { provider, surface: "settings" });
+  const { error } = await authClient.linkSocial({
+    provider,
+    callbackURL: SETTINGS_ACCOUNT_PATH,
+    errorCallbackURL: SETTINGS_ACCOUNT_PATH,
+  });
+  if (error) throw new Error(error.message || "Could not start linking");
 }
 
 export type Session = typeof authClient.$Infer.Session;

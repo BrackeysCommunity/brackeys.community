@@ -46,6 +46,15 @@
  * funnels at or after the sign-in boundary.
  */
 
+/**
+ * Where an `account_link_started` came from. `profile` links complete
+ * through our own sync procedures and pair with `account_link_completed`;
+ * `settings` links are sign-in identities that better-auth finishes on its
+ * own, with nothing of ours in the way to emit a completion. Filter the
+ * funnel to `profile` or the settings starts read as drop-off.
+ */
+export type AccountLinkSurface = "profile" | "settings";
+
 export const EVENTS = {
   // Account lifecycle. Outcomes server-side from better-auth's database
   // hooks; started/out are the client-side halves.
@@ -55,8 +64,11 @@ export const EVENTS = {
   authSignedOut: "auth_signed_out",
   authAccountDeleted: "auth_account_deleted",
 
-  // Account linking (GitHub, itch.io). Started client-side at the CTA,
-  // completed server-side where the link lands.
+  // Account linking (GitHub, GitLab, itch.io). Started client-side at the
+  // CTA, completed server-side where the link lands. `surface` separates the
+  // profile integrations (which complete through our sync procedures) from
+  // `/settings/account`, where a link writes only the better-auth row and
+  // no completion fires — see `AccountLinkSurface`.
   accountLinkStarted: "account_link_started",
   accountLinkCompleted: "account_link_completed",
 

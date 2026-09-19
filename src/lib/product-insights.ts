@@ -396,6 +396,15 @@ export function captureError(error: unknown, properties?: Record<string, unknown
  * the mutation, e.g. `"comments.create"`, plus whatever entity ids the call
  * site has in hand.
  *
+ * `reportExpected` switches that filter off for the flows where a 4xx *is*
+ * the failure signal: the OAuth callback routes, where `syncGitHubLink` and
+ * friends answer `BAD_REQUEST` when the provider handed back no usable
+ * token. Left filtered, a link flow that fails for every member reaches no
+ * dashboard — which is how the GitHub funnel looked healthy for a day.
+ * An oRPC error is tagged with its code and status either way, so the
+ * dashboard can split "provider rejected the token" from a genuine 500
+ * under the same scope.
+ *
  * Most sites don't call this directly — `toastMutationError` in
  * `@/lib/mutation-errors` bundles it with the toast.
  */
@@ -403,7 +412,13 @@ export function reportMutationError(
   error: unknown,
   scope: string,
   properties?: Record<string, unknown>,
+  options?: { reportExpected?: boolean },
 ) {
-  if (error instanceof ORPCError && error.status < 500) return;
-  captureError(error, { scope, ...properties });
+  const orpc = error instanceof ORPCError ? error : null;
+  if (orpc && orpc.status < 500 && !options?.reportExpected) return;
+  captureError(error, {
+    scope,
+    ...(orpc ? { orpc_code: orpc.code, orpc_status: orpc.status } : {}),
+    ...properties,
+  });
 }

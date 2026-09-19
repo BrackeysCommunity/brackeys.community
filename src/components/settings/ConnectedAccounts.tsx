@@ -9,7 +9,7 @@ import { openConfirmModal } from "@/components/ui/confirm";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { authClient } from "@/lib/auth-client";
+import { authClient, linkSigninProvider } from "@/lib/auth-client";
 import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
@@ -61,13 +61,7 @@ export function ConnectedAccounts() {
   });
 
   const { mutate: link, isPending: linking } = useMutation({
-    mutationFn: async (provider: "discord" | "github") => {
-      const { error } = await authClient.linkSocial({
-        provider,
-        callbackURL: "/settings/account",
-      });
-      if (error) throw new Error(error.message ?? "Could not start linking");
-    },
+    mutationFn: linkSigninProvider,
     // No success path to handle — a successful call redirects to the
     // provider and the browser leaves this page.
     onError: toastMutationError("settings.link_account"),

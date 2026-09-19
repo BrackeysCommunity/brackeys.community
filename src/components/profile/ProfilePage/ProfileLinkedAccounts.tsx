@@ -23,14 +23,13 @@ import {
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { authClient, startGitHubLink } from "@/lib/auth-client";
+import { startGitHubLink, startGitLabLink } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/error-message";
-import { EVENTS } from "@/lib/event-taxonomy";
 import { formatDate } from "@/lib/format-date";
-import { gitlabCallbackPath, isGitLabProvider } from "@/lib/gitlab-instances";
+import { isGitLabProvider } from "@/lib/gitlab-instances";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { toastMutationError } from "@/lib/mutation-errors";
-import { captureEvent, reportMutationError } from "@/lib/product-insights";
+import { reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
@@ -279,21 +278,9 @@ function isItchProvider(provider: string | undefined): boolean {
 
 async function linkGitlab(providerId: string): Promise<void> {
   try {
-    captureEvent(EVENTS.accountLinkStarted, { provider: providerId });
-    // `oauth2.link` rather than `signIn.oauth2`: the member is already
-    // signed in, and this attaches the instance to that account.
-    const result = await authClient.oauth2.link({
-      providerId,
-      callbackURL: gitlabCallbackPath(providerId),
-      // Without this, cancelling the consent screen lands on better-auth's
-      // own `/api/auth/error` page — outside the app, with no way back.
-      errorCallbackURL: gitlabCallbackPath(providerId),
-    });
-    if (result?.error) {
-      throw new Error(result.error.message || "Failed to start GitLab OAuth");
-    }
+    await startGitLabLink(providerId);
   } catch (e) {
-    reportMutationError(e, "profile.link_gitlab");
+    reportMutationError(e, "profile.link_gitlab", { provider: providerId });
     toast.error(errorMessage(e, "Failed to link GitLab"));
   }
 }

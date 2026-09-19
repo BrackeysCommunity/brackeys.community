@@ -30,7 +30,12 @@ function GitHubCallbackPage() {
       navigate({ to: "/profile" });
     },
     onError: (err: Error) => {
-      reportMutationError(err, "profile.link_github_callback");
+      reportMutationError(
+        err,
+        "profile.link_github_callback",
+        { provider: "github" },
+        { reportExpected: true },
+      );
       toast.error(err.message || "Failed to link GitHub account");
       navigate({ to: "/profile" });
     },

@@ -34,7 +34,12 @@ function ItchIoCallbackPage() {
       toast.success(describeLinkImport(data));
     },
     onError: (err: Error) => {
-      reportMutationError(err, "profile.link_itchio_callback");
+      reportMutationError(
+        err,
+        "profile.link_itchio_callback",
+        { provider: "itchio" },
+        { reportExpected: true },
+      );
       toast.error(
         err.message || "Linked, but couldn't import your games — try again from PROJECTS",
       );
@@ -58,7 +63,12 @@ function ItchIoCallbackPage() {
       importGames();
     },
     onError: (err: Error) => {
-      reportMutationError(err, "profile.link_itchio_callback");
+      reportMutationError(
+        err,
+        "profile.link_itchio_callback",
+        { provider: "itchio" },
+        { reportExpected: true },
+      );
       toast.error(err.message || "Failed to link itch.io account");
       navigate({ to: "/profile" });
     },

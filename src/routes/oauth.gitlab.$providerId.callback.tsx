@@ -47,7 +47,12 @@ function GitLabCallbackPage() {
       navigate({ to: "/profile" });
     },
     onError: (err: Error) => {
-      reportMutationError(err, "profile.link_gitlab_callback");
+      reportMutationError(
+        err,
+        "profile.link_gitlab_callback",
+        { provider: providerId },
+        { reportExpected: true },
+      );
       toast.error(err.message || "Failed to link GitLab account");
       navigate({ to: "/profile" });
     },
