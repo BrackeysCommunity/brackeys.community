@@ -8,6 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -37,12 +38,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Heading, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
+import { updateActiveUserProfile } from "@/lib/active-user-store";
 import { startGitHubLink } from "@/lib/auth-client";
 import { compensationLabel } from "@/lib/collab-vocabulary";
 import { CURRENCY_OPTIONS, type Currency, normalizeCurrency } from "@/lib/currency";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
 import { useAnimatedUnderline } from "@/lib/hooks/use-animated-underline";
+import { useAutosavedField } from "@/lib/hooks/use-autosaved-field";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
@@ -56,6 +59,7 @@ import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { PAGE_CUES } from "@/lib/sound";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
+import { STUB_REGEX } from "@/lib/url-stub";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_WEBSITE_LINK_TYPE,
@@ -110,10 +114,11 @@ interface SaveContext {
  * Profile edit affordance — a desktop right-side flyout and a mobile
  * bottom sheet share one component. Each step's fields persist
  * directly to the profile via `updateProfile` / `setUrlStub` /
- * skill-list mutations. Text fields debounce ~600ms; switches and
- * selects save instantly. The query key passed in is invalidated on
- * every success so the page reflects the latest values without a
- * manual refetch.
+ * skill-list mutations. Switches and selects save instantly; text
+ * fields save when the member leaves them (`useAutosavedField`), and
+ * the profile URL alone waits for Enter or blur, since the route is
+ * keyed on it. The query key passed in is invalidated on every success
+ * so the page reflects the latest values without a manual refetch.
  */
 export function ProfileEditFlyout({
   open,
@@ -421,33 +426,12 @@ function StepBody({ step, profile, queryKey, save }: { step: EditStep } & StepPr
 
 function IdentityStep({ profile, queryKey, save }: StepProps) {
   const update = useUpdateProfile(queryKey, save);
-  const setStub = useSetUrlStub(queryKey, save);
-  const [tagline, setTagline] = useState(profile.tag ?? "");
-  const [location, setLocation] = useState(profile.location ?? "");
-  const [stub, setStub_] = useState(profile.handle);
-  const [stubError, setStubError] = useState<string | null>(null);
-
-  const debouncedSaveTagline = useDebouncedCallback((value: string) => {
-    update.mutate({ tagline: value });
-  });
-
-  const debouncedSaveLocation = useDebouncedCallback((value: string) => {
-    update.mutate({ location: value.trim() || null });
-  });
-
-  const debouncedSaveStub = useDebouncedCallback((value: string) => {
-    if (!value) return;
-    setStubError(null);
-    setStub.mutate(
-      { stub: value },
-      {
-        onError: (err) => {
-          reportMutationError(err, "profile.save_url_stub");
-          setStubError(errorMessage(err, "Couldn't save"));
-        },
-      },
-    );
-  });
+  const tagline = useAutosavedField(profile.tag ?? "", (value) =>
+    update.mutateAsync({ tagline: value }),
+  );
+  const location = useAutosavedField(profile.location ?? "", (value) =>
+    update.mutateAsync({ location: value.trim() || null }),
+  );
 
   return (
     <StepFrame title="IDENTITY">
@@ -456,12 +440,9 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
       </FieldRow>
       <FieldRow label="TAG" hint="shows under your name in the hero">
         <Input
-          value={tagline}
-          onChange={(e) => {
-            const v = e.target.value;
-            setTagline(v);
-            debouncedSaveTagline(v);
-          }}
+          value={tagline.value}
+          onChange={(e) => tagline.onChange(e.target.value)}
+          onBlur={tagline.onBlur}
           placeholder="dev, designer, etc."
         />
       </FieldRow>
@@ -474,38 +455,127 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
       </FieldRow>
       <FieldRow label="LOCATION" hint="optional, free text — “Lisbon-ish” counts">
         <Input
-          value={location}
-          onChange={(e) => {
-            const v = e.target.value;
-            setLocation(v);
-            debouncedSaveLocation(v);
-          }}
+          value={location.value}
+          onChange={(e) => location.onChange(e.target.value)}
+          onBlur={location.onBlur}
           placeholder="city, country, or vibe"
         />
       </FieldRow>
-      <FieldRow
-        label="PROFILE URL"
-        hint="lowercase letters and numbers · 3–32 chars"
-        error={stubError}
-      >
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
-          <Badge variant="secondary" className="font-mono text-[11px] tracking-widest normal-case">
-            brackeys.gg/@
-          </Badge>
-          <Input
-            value={stub}
-            onChange={(e) => {
-              const v = e.target.value
-                .toLowerCase()
-                .replace(/[^a-z0-9]/g, "")
-                .slice(0, 32);
-              setStub_(v);
-              if (v.length >= 3) debouncedSaveStub(v);
-            }}
-          />
-        </div>
-      </FieldRow>
+      <ProfileUrlField profile={profile} queryKey={queryKey} save={save} />
     </StepFrame>
+  );
+}
+
+/**
+ * The vanity URL — the one field here that commits explicitly, on Enter or
+ * blur. Saving mid-keystroke publishes every prefix as a real claim, and the
+ * route is keyed on the stub, so the first one strands the member on a URL
+ * that no longer resolves.
+ *
+ * Clearing it is a claim too: the profile falls back to the Discord-derived
+ * default, or to its raw id. Both paths write the stub back to
+ * `activeUserStore`, which is where the header's ME link reads from.
+ */
+function ProfileUrlField({ profile, queryKey, save }: StepProps) {
+  const setStub = useSetUrlStub(queryKey, save);
+  const clearStub = useClearUrlStub(queryKey, save);
+  const followStub = useFollowStub();
+  // `handle` falls back to the discord username for display; only a slug
+  // that isn't the raw id is a stub actually held.
+  const claimed = profile.slug === profile.profileId ? "" : profile.slug;
+  const [value, setValue] = useState(claimed);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const savedRef = useRef(claimed);
+
+  const commit = () => {
+    const next = value.trim();
+    const previous = savedRef.current;
+    if (next === previous || setStub.isPending || clearStub.isPending) return;
+    setError(null);
+
+    if (!next) {
+      savedRef.current = "";
+      clearStub.mutate(undefined, {
+        onSuccess: ({ stub, slug }) => {
+          savedRef.current = stub ?? "";
+          setValue(stub ?? "");
+          updateActiveUserProfile({ urlStub: stub });
+          setNote(
+            stub
+              ? `Cleared — you're back on your discord handle, @${stub}.`
+              : "Cleared — your profile answers to its id now.",
+          );
+          followStub(previous, slug);
+        },
+        onError: (err) => {
+          savedRef.current = previous;
+          setError(errorMessage(err, "Couldn't clear"));
+        },
+      });
+      return;
+    }
+
+    if (!STUB_REGEX.test(next)) {
+      setError("3–32 characters, starting and ending with a letter or number.");
+      return;
+    }
+
+    savedRef.current = next;
+    setStub.mutate(
+      { stub: next },
+      {
+        onSuccess: (row) => {
+          savedRef.current = row.stub;
+          setValue(row.stub);
+          setNote(null);
+          updateActiveUserProfile({ urlStub: row.stub });
+          followStub(previous, row.stub);
+        },
+        onError: (err) => {
+          savedRef.current = previous;
+          setError(errorMessage(err, "Couldn't save"));
+        },
+      },
+    );
+  };
+
+  return (
+    <FieldRow
+      label="PROFILE URL"
+      hint="3–32 chars · saves on enter or when you leave the field"
+      error={error}
+    >
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+        <Badge variant="secondary" className="font-mono text-[11px] tracking-widest normal-case">
+          brackeys.gg/@
+        </Badge>
+        <Input
+          value={value}
+          onChange={(e) => {
+            setNote(null);
+            setValue(
+              e.target.value
+                .toLowerCase()
+                .replace(/[^a-z0-9_-]/g, "")
+                .slice(0, 32),
+            );
+          }}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            commit();
+          }}
+          placeholder="leave empty for your discord handle"
+        />
+      </div>
+      {note ? (
+        <Text size="xs" variant="muted" className="tracking-wide">
+          {note}
+        </Text>
+      ) : null}
+    </FieldRow>
   );
 }
 
@@ -675,11 +745,8 @@ function TimezoneField({
 
 function BioSkillsStep({ profile, queryKey, save }: StepProps) {
   const update = useUpdateProfile(queryKey, save);
-  const [bio, setBio] = useState(profile.bio ?? "");
+  const bio = useAutosavedField(profile.bio ?? "", (value) => update.mutateAsync({ bio: value }));
   const [preview, setPreview] = useState(false);
-  const debouncedSaveBio = useDebouncedCallback((value: string) => {
-    update.mutate({ bio: value });
-  });
   return (
     <StepFrame title="BIO & SKILLS">
       <FieldRow
@@ -699,9 +766,9 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
       >
         {preview ? (
           <Well className="min-h-32 p-3">
-            {bio.trim() ? (
+            {bio.value.trim() ? (
               <MarkedText censor={false} className="text-foreground">
-                {bio}
+                {bio.value}
               </MarkedText>
             ) : (
               <Text size="sm" variant="muted" className="italic">
@@ -711,13 +778,10 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
           </Well>
         ) : (
           <Textarea
-            value={bio}
+            value={bio.value}
             rows={6}
-            onChange={(e) => {
-              const v = e.target.value;
-              setBio(v);
-              debouncedSaveBio(v);
-            }}
+            onChange={(e) => bio.onChange(e.target.value)}
+            onBlur={bio.onBlur}
             placeholder="game-adjacent dev who…"
             className="min-h-32"
           />
@@ -1040,7 +1104,9 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   const [rateMax, setRateMax] = useState<string>(
     profile.availability.rateMax != null ? String(profile.availability.rateMax) : "",
   );
-  const [lookingFor, setLookingFor] = useState<string>(profile.availability.lookingFor ?? "");
+  const lookingFor = useAutosavedField(profile.availability.lookingFor ?? "", (value) =>
+    update.mutateAsync({ lookingFor: value.trim() || null }),
+  );
   const [collabPreference, setCollabPreference] = useState<string | null>(
     profile.availability.collabPreference,
   );
@@ -1157,11 +1223,11 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
       </FieldRow>
       <FieldRow label="LOOKING FOR" hint="one line, shown on your directory card">
         <Input
-          value={lookingFor}
+          value={lookingFor.value}
           maxLength={280}
           placeholder="e.g. Small jam teams that need a composer"
-          onChange={(e) => setLookingFor(e.target.value)}
-          onBlur={() => update.mutate({ lookingFor: lookingFor.trim() || null })}
+          onChange={(e) => lookingFor.onChange(e.target.value)}
+          onBlur={lookingFor.onBlur}
         />
       </FieldRow>
     </StepFrame>
@@ -1171,9 +1237,15 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
 function LinksStep({ profile, queryKey, save }: StepProps) {
   const update = useUpdateProfile(queryKey, save);
   const [linking, setLinking] = useState<"github" | "itchio" | null>(null);
-  const [githubUrl, setGithubUrl] = useState(profile.socialUrls.githubUrl ?? "");
-  const [twitterUrl, setTwitterUrl] = useState(profile.socialUrls.twitterUrl ?? "");
-  const [websiteUrl, setWebsiteUrl] = useState(profile.socialUrls.websiteUrl ?? "");
+  const githubUrl = useAutosavedField(profile.socialUrls.githubUrl ?? "", (value) =>
+    update.mutateAsync({ githubUrl: value.trim() || null }),
+  );
+  const twitterUrl = useAutosavedField(profile.socialUrls.twitterUrl ?? "", (value) =>
+    update.mutateAsync({ twitterUrl: value.trim() || null }),
+  );
+  const websiteUrl = useAutosavedField(profile.socialUrls.websiteUrl ?? "", (value) =>
+    update.mutateAsync({ websiteUrl: value.trim() || null }),
+  );
   const [websiteLabel, setWebsiteLabel] = useState<WebsiteLinkType>(
     (profile.socialUrls.websiteLabel as WebsiteLinkType | null) ?? DEFAULT_WEBSITE_LINK_TYPE,
   );
@@ -1231,17 +1303,17 @@ function LinksStep({ profile, queryKey, save }: StepProps) {
       </Text>
       <FieldRow label="GITHUB URL">
         <Input
-          value={githubUrl}
-          onChange={(e) => setGithubUrl(e.target.value)}
-          onBlur={() => update.mutate({ githubUrl: githubUrl.trim() || null })}
+          value={githubUrl.value}
+          onChange={(e) => githubUrl.onChange(e.target.value)}
+          onBlur={githubUrl.onBlur}
           placeholder="https://github.com/you"
         />
       </FieldRow>
       <FieldRow label="TWITTER / X URL">
         <Input
-          value={twitterUrl}
-          onChange={(e) => setTwitterUrl(e.target.value)}
-          onBlur={() => update.mutate({ twitterUrl: twitterUrl.trim() || null })}
+          value={twitterUrl.value}
+          onChange={(e) => twitterUrl.onChange(e.target.value)}
+          onBlur={twitterUrl.onBlur}
           placeholder="https://x.com/you"
         />
       </FieldRow>
@@ -1268,9 +1340,9 @@ function LinksStep({ profile, queryKey, save }: StepProps) {
             </SelectContent>
           </Select>
           <Input
-            value={websiteUrl}
-            onChange={(e) => setWebsiteUrl(e.target.value)}
-            onBlur={() => update.mutate({ websiteUrl: websiteUrl.trim() || null })}
+            value={websiteUrl.value}
+            onChange={(e) => websiteUrl.onChange(e.target.value)}
+            onBlur={websiteUrl.onBlur}
             placeholder="https://yoursite.dev"
           />
         </div>
@@ -1417,6 +1489,20 @@ function useUpdateProfile(queryKey: readonly unknown[] | undefined, save: SaveCo
   });
 }
 
+/**
+ * Follow a stub change in the address bar. The route is keyed on the stub,
+ * so a new claim strands whoever came in by the old one — a profile reached
+ * by raw id keeps routing either way.
+ */
+function useFollowStub() {
+  const navigate = useNavigate();
+  const params = useParams({ strict: false });
+  return (previous: string, next: string) => {
+    if (!previous || params.userId !== previous) return;
+    void navigate({ to: "/profile/$userId", params: { userId: next }, replace: true });
+  };
+}
+
 function useSetUrlStub(queryKey: readonly unknown[] | undefined, save: SaveContext) {
   const qc = useQueryClient();
   return useMutation({
@@ -1428,6 +1514,22 @@ function useSetUrlStub(queryKey: readonly unknown[] | undefined, save: SaveConte
     },
     onError: (err) => {
       reportMutationError(err, "profile.save_url_stub");
+      save.setStatus("error");
+    },
+  });
+}
+
+function useClearUrlStub(queryKey: readonly unknown[] | undefined, save: SaveContext) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => client.clearUrlStub(),
+    onMutate: () => save.setStatus("saving"),
+    onSuccess: () => {
+      save.setStatus("saved");
+      if (queryKey) void qc.invalidateQueries({ queryKey });
+    },
+    onError: (err) => {
+      reportMutationError(err, "profile.clear_url_stub");
       save.setStatus("error");
     },
   });

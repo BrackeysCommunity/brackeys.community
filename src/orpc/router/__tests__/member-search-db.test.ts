@@ -17,7 +17,7 @@ vi.mock("@/lib/auth", async () => {
 });
 
 /**
- * Directory search across every name a member answers to (BC-211).
+ * Directory search across every name a member answers to.
  *
  * The case that motivated this: `discord_username` holds Discord's display
  * name, so a member shown as "DNOS MB É ?'" at `/hjonkwegoos` was findable

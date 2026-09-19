@@ -1302,6 +1302,9 @@ export const setUrlStub = os
         target: profileUrlStubs.profileId,
         set: {
           stub,
+          // A row that started as the Discord default stops being one the
+          // moment it is claimed by hand.
+          source: "user",
           updatedAt: new Date(),
         },
       })
@@ -1309,6 +1312,16 @@ export const setUrlStub = os
 
     return upserted;
   });
+
+/**
+ * Give up a vanity stub. The profile falls back to its Discord-derived
+ * default, or routes by id when that default can't be minted. Returns the
+ * slug the profile now answers to, so the editor can follow it.
+ */
+export const clearUrlStub = os.use(requireAuth).handler(async ({ context }) => {
+  const { stub } = await resetStubToDefault(context.user.id);
+  return { stub, slug: stub ?? context.user.id };
+});
 
 export const listAvailableUsers = os
   .route({ method: "GET" })
@@ -1511,11 +1524,12 @@ export async function applyProfileUpdate(
 }
 
 /**
- * Revert an offensive vanity stub to the Discord-derived default. When the
- * default can't be minted (degenerate username, or someone else holds it),
- * the vanity row is removed instead and the profile routes by id.
+ * Point a profile back at the Discord-derived default. When that default
+ * can't be minted (degenerate username, or someone else holds it), the
+ * vanity row is removed instead and the profile routes by id. Shared by
+ * `clearUrlStub` and staff's reset, which differ only in the audit trail.
  */
-export async function applyProfileStubReset(userId: string, mod: ModOverride) {
+async function resetStubToDefault(userId: string) {
   const [profile] = await db
     .select({ discordUsername: developerProfiles.discordUsername })
     .from(developerProfiles)
@@ -1551,6 +1565,13 @@ export async function applyProfileStubReset(userId: string, mod: ModOverride) {
     await db.delete(profileUrlStubs).where(eq(profileUrlStubs.profileId, userId));
   }
 
+  return { previous: current?.stub ?? null, stub: target };
+}
+
+/** Revert an offensive vanity stub, with the moderation record it needs. */
+export async function applyProfileStubReset(userId: string, mod: ModOverride) {
+  const { previous, stub: target } = await resetStubToDefault(userId);
+
   await recordModerationAction({
     action: "profile_updated",
     actorId: mod.actorId,
@@ -1558,7 +1579,7 @@ export async function applyProfileStubReset(userId: string, mod: ModOverride) {
     targetId: userId,
     subjectUserId: userId,
     reason: mod.reason,
-    metadata: { fields: ["urlStub"], previous: { urlStub: current?.stub ?? null }, to: target },
+    metadata: { fields: ["urlStub"], previous: { urlStub: previous }, to: target },
   });
 
   await bestEffort("profile_moderation.notice", { user_id: userId }, () =>
