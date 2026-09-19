@@ -73,9 +73,7 @@ async function handle({ request }: { request: Request }) {
 
       // Presence and pub/sub are best-effort: with Redis down the stream
       // stays open for heartbeats (the inbox still polls), it just loses
-      // live push until the client reconnects. Both setup legs report — a
-      // failed subscribe means this user gets no realtime notifications for
-      // the rest of the session, which must not stay invisible.
+      // live push until the socket comes back.
       await bestEffort("notifications_stream.register", { user_id: userId }, () =>
         registerConnection(userId, connectionId),
       );
@@ -84,9 +82,22 @@ async function handle({ request }: { request: Request }) {
         // Each payload is a single SSE `data:` event; the client parses it.
         send(`event: notification\ndata: ${message}\n\n`);
       });
-      await bestEffort("notifications_stream.subscribe", { user_id: userId }, () =>
-        subscriber.subscribe(channel),
-      );
+      // Subscribe on every `ready`, not once up front: with the offline
+      // queue off, a subscribe issued while the socket is still connecting
+      // rejects, and ioredis only re-subscribes channels that had already
+      // succeeded. Re-issuing on (re)connect is what lets the session
+      // recover; the client's own error handler reports the outage.
+      const subscribe = () => {
+        if (closed) return;
+        subscriber.subscribe(channel).catch((err: unknown) => {
+          console.warn("[notifications_stream.subscribe] deferred to reconnect", {
+            user_id: userId,
+            err,
+          });
+        });
+      };
+      subscriber.on("ready", subscribe);
+      if (subscriber.status === "ready") subscribe();
 
       // Initial comment so the client immediately knows the stream is open
       // (many EventSource impls don't fire `onopen` until a first byte).

@@ -1,11 +1,11 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { openAsBlob } from "node:fs";
 
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 
 import { collabPosts, developerProfiles, user } from "../db/schema";
+import { ensureSnapshot } from "./db-snapshot";
 
 /**
  * An isolated in-memory Postgres (pglite) with every committed migration
@@ -20,26 +20,26 @@ import { collabPosts, developerProfiles, user } from "../db/schema";
  *   });
  *
  * Each call is a fresh database, so parallel test files never share state.
+ * Every database restores from one migrated snapshot (see `db-snapshot.ts`)
+ * rather than replaying the migrations: files that build a database per
+ * test were timing out in the setup hook under full-suite load on the
+ * replay cost alone.
  */
 export async function createTestDb() {
+  snapshot ??= ensureSnapshot().then((path) => openAsBlob(path));
   // Extensions the migrations `CREATE`: pglite only knows the ones it is
-  // handed at construction.
-  const client = new PGlite({ extensions: { pg_trgm } });
+  // handed at construction, restored data dir included.
+  const client = new PGlite({ loadDataDir: await snapshot, extensions: { pg_trgm } });
+  await client.waitReady;
   // Production Postgres runs in UTC; pglite defaults to the host zone,
   // which skews every `default now()` stamp against JS-side Date math
-  // (the notification dedupe window, the sweep cutoffs).
+  // (the notification dedupe window, the sweep cutoffs). Session-scoped,
+  // so the restored data dir does not carry it.
   await client.exec("SET TIME ZONE 'UTC';");
-  const migrationsDir = join(process.cwd(), "drizzle");
-  const folders = readdirSync(migrationsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-  for (const folder of folders) {
-    const sql = readFileSync(join(migrationsDir, folder, "migration.sql"), "utf8");
-    await client.exec(sql);
-  }
   return drizzle({ client });
 }
+
+let snapshot: Promise<Blob> | undefined;
 
 export type TestDb = Awaited<ReturnType<typeof createTestDb>>;
 

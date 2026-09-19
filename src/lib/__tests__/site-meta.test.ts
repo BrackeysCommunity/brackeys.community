@@ -148,7 +148,14 @@ describe("jsonLd", () => {
 
   it("collapses a single node and keeps an array as a graph", () => {
     expect(JSON.parse(jsonLd({ a: 1 })[0]!.children)).toEqual({ a: 1 });
-    expect(JSON.parse(jsonLd([{ a: 1 }, { b: 2 }])[0]!.children)).toEqual([{ a: 1 }, { b: 2 }]);
+    // One script per node, never an array in one script — a reader that
+    // takes `@context` off the parsed value must find an object.
+    const scripts = jsonLd([{ "@context": "https://schema.org", a: 1 }, { b: 2 }]);
+    expect(scripts.map((script) => JSON.parse(script.children))).toEqual([
+      { "@context": "https://schema.org", a: 1 },
+      { b: 2 },
+    ]);
+    expect(scripts.every((script) => script.type === "application/ld+json")).toBe(true);
     expect(jsonLd([])).toEqual([]);
   });
 });

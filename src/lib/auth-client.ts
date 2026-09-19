@@ -1,6 +1,7 @@
 import { genericOAuthClient, inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
+import { openDiscordAuthorize } from "@/lib/discord-app-login";
 import { EVENTS, type SigninSource } from "@/lib/event-taxonomy";
 import { captureEvent } from "@/lib/product-insights";
 
@@ -24,6 +25,14 @@ export const authClient = createAuthClient({
 });
 
 type SocialSignInOptions = Omit<Parameters<typeof authClient.signIn.social>[0], "provider">;
+
+type SignInWithDiscordOptions = SocialSignInOptions & {
+  /**
+   * `"app"` runs the consent screen in the Discord desktop client (see
+   * `@/lib/discord-app-login`) instead of the browser's discord.com session.
+   */
+  via?: "web" | "app";
+};
 
 /**
  * Discord sign-in that returns to the page it was started from. An explicit
@@ -55,19 +64,25 @@ type SocialSignInOptions = Omit<Parameters<typeof authClient.signIn.social>[0], 
  * in it — it is a join key for two events minutes apart, not an identifier
  * that outlives the flow.
  */
-export function signInWithDiscord(source: SigninSource, options?: SocialSignInOptions) {
+export async function signInWithDiscord(source: SigninSource, options?: SignInWithDiscordOptions) {
+  const { via = "web", ...socialOptions } = options ?? {};
   const signinAttemptId = newSigninAttemptId();
   captureEvent(EVENTS.authSigninStarted, {
     source,
     provider: "discord",
     signin_attempt_id: signinAttemptId,
+    via,
   });
-  return authClient.signIn.social({
+  const result = await authClient.signIn.social({
     provider: "discord",
     callbackURL: window.location.pathname + window.location.search,
     additionalData: { signinAttemptId, signinSource: source },
-    ...options,
+    ...socialOptions,
+    // The app route needs the authorize URL in hand rather than followed.
+    ...(via === "app" ? { disableRedirect: true } : {}),
   });
+  if (via === "app" && result.data?.url) openDiscordAuthorize(result.data.url);
+  return result;
 }
 
 /**

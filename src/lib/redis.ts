@@ -12,6 +12,12 @@ import { captureServerException } from "@/lib/posthog-server";
 const CAPTURE_WINDOW_MS = 5 * 60_000;
 
 /**
+ * Keyed by client *name*, not instance: the SSE route opens a client per
+ * connection, so per-instance state would report every one of them.
+ */
+const lastCaptureAt = new Map<string, number>();
+
+/**
  * Shared constructor for every server-side Redis client. The defaults make
  * commands fail fast while the connection is down: with ioredis's offline
  * queue on, a command issued while disconnected buffers and never settles,
@@ -39,11 +45,10 @@ export async function createRedisClient(
     ...options,
   });
   let lastError = "";
-  let lastCaptureAt = 0;
   client.on("error", (err) => {
     const now = Date.now();
-    if (now - lastCaptureAt >= CAPTURE_WINDOW_MS) {
-      lastCaptureAt = now;
+    if (now - (lastCaptureAt.get(name) ?? 0) >= CAPTURE_WINDOW_MS) {
+      lastCaptureAt.set(name, now);
       captureServerException(err, { scope: `redis.${name}` });
     }
     if (err.message === lastError) return;

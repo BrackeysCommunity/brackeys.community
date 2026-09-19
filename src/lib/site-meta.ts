@@ -173,19 +173,23 @@ export function listingMeta(
   return buildMeta({ ...rest, noindex: filtered });
 }
 
+/**
+ * One `<script type="application/ld+json">` per node. An array in a single
+ * script is valid JSON-LD too, but readers that expect one object per
+ * script (Safari extensions in the wild read `@context` off the parsed
+ * value and throw on an array) only break on the array form, and every
+ * consumer accepts this one.
+ */
 export function jsonLd(data: object | object[]): {
   type: string;
   children: string;
 }[] {
   const nodes = Array.isArray(data) ? data : [data];
-  if (nodes.length === 0) return [];
-  return [
-    {
-      type: "application/ld+json",
-      // `<` is the only character that can break out of a script element.
-      children: JSON.stringify(nodes.length === 1 ? nodes[0] : nodes).replaceAll("<", "\\u003c"),
-    },
-  ];
+  return nodes.map((node) => ({
+    type: "application/ld+json",
+    // `<` is the only character that can break out of a script element.
+    children: JSON.stringify(node).replaceAll("<", "\\u003c"),
+  }));
 }
 
 export function organizationNode() {

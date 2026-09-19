@@ -16,6 +16,7 @@ export default defineConfig({
   test: {
     include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "node",
+    globalSetup: ["./src/test/global-setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["lcov", "text", "cobertura"],
