@@ -70,6 +70,8 @@ const GUILD_ROLE_NAMES: Record<string, string> = {
   "451380371284557824": "Admin",
   "756285704061059213": "Staff",
   "756178968901582859": "Moderator",
+  "439862048185253891": "Guru",
+  "543773411575463941": "BIP",
 };
 
 /** Resolve an array of role IDs to their display names, dropping unknown IDs. */

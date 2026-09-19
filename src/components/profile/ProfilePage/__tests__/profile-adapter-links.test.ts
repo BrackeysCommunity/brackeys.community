@@ -193,12 +193,13 @@ describe("adaptProfile — jam log entry links", () => {
   });
 });
 
-describe("staff badge", () => {
+describe("rank badge", () => {
   it("reads the badge off the cached guild roles", () => {
     const withRoles = (guildRoles: string[] | null) =>
-      adaptProfile(rpcProfile({ profile: { ...rpcProfile().profile, guildRoles } })).staffRole;
+      adaptProfile(rpcProfile({ profile: { ...rpcProfile().profile, guildRoles } })).guildRank;
     expect(withRoles(null)).toBeNull();
-    expect(withRoles(["Moderator"])).toBe("moderator");
+    expect(withRoles(["BIP"])).toBe("bip");
+    expect(withRoles(["Moderator", "Guru"])).toBe("moderator");
     expect(withRoles(["Staff", "Admin"])).toBe("admin");
   });
 });

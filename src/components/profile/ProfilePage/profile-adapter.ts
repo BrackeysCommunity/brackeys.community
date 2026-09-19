@@ -1,6 +1,7 @@
 import { normalizeCurrency } from "@/lib/currency";
 import { formatRate } from "@/lib/format-rate";
 import { gitlabInstance, gitlabOrigin, isSelfHostedGitLab } from "@/lib/gitlab-instances";
+import { guildRankOf } from "@/lib/guild-rank";
 import { projectEntryUrl } from "@/lib/jam-links";
 import {
   ANON_VIEWER,
@@ -9,7 +10,6 @@ import {
   type MemberViewer,
 } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
-import { staffRoleOf } from "@/lib/staff-role";
 import { isWebsiteLinkLabel, websiteLinkLabel, websiteLinkMonogram } from "@/lib/website-link-type";
 import { stampCoversUrl } from "@/lib/website-verification";
 
@@ -327,7 +327,7 @@ export function adaptProfile(
       collabPreference: profile.collabPreference,
     },
     badges,
-    staffRole: staffRoleOf(profile.guildRoles),
+    guildRank: guildRankOf(profile.guildRoles),
     stats: {
       projectsShipped,
       projectsLabel: projectsShipped > 0 ? deriveProjectsLabel(projects) : "—",

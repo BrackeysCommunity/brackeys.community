@@ -8,8 +8,8 @@ import { compensationLabel } from "@/lib/collab-vocabulary";
  * adapt from real data + sample data at the boundary.
  */
 import type { Currency } from "@/lib/currency";
+import type { GuildRank } from "@/lib/guild-rank";
 import { availabilityLabel } from "@/lib/member-vocabulary";
-import type { StaffRole } from "@/lib/staff-role";
 
 export interface ProfileViewModel {
   /** URL stub / handle (no leading @). */
@@ -35,8 +35,8 @@ export interface ProfileViewModel {
 
   availability: ProfileAvailability;
   badges: ProfileBadge[];
-  /** Highest guild staff role they hold — the badge beside the name. */
-  staffRole: StaffRole | null;
+  /** Highest guild rank they hold — the badge beside the name. */
+  guildRank: GuildRank | null;
 
   stats: ProfileStats;
 

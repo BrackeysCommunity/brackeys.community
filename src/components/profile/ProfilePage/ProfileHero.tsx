@@ -13,10 +13,10 @@ import { Heading, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
+import { GUILD_RANK_LABELS, type GuildRank, isStaffRank } from "@/lib/guild-rank";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { play } from "@/lib/sound";
-import { STAFF_ROLE_LABELS, type StaffRole } from "@/lib/staff-role";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -104,7 +104,7 @@ export function ProfileHero({
             >
               {profile.name}
             </Heading>
-            <StaffBadge role={profile.staffRole} />
+            <RankBadge rank={profile.guildRank} />
             <AvailabilityPill availability={profile.availability} />
           </div>
           {profile.tag ? (
@@ -177,13 +177,19 @@ function AvatarTile({ profile, compact }: { profile: ProfileViewModel; compact: 
 }
 
 /** The guild's own rank, beside the name — a mod reads as a mod before
- * anyone reads their skills. */
-function StaffBadge({ role }: { role: StaffRole | null }) {
-  if (!role) return null;
+ * anyone reads their skills. Staff take the primary badge; Guru and BIP
+ * the secondary, so a community rank never passes for a staff one. */
+function RankBadge({ rank }: { rank: GuildRank | null }) {
+  if (!rank) return null;
   return (
-    <Badge variant="default" size="label" className="gap-1.5 uppercase" data-testid="staff-badge">
+    <Badge
+      variant={isStaffRank(rank) ? "default" : "secondary"}
+      size="label"
+      className="gap-1.5 uppercase"
+      data-testid="rank-badge"
+    >
       <HugeiconsIcon icon={Shield02Icon} />
-      {STAFF_ROLE_LABELS[role]}
+      {GUILD_RANK_LABELS[rank]}
     </Badge>
   );
 }
