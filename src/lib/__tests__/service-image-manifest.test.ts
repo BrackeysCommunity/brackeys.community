@@ -84,4 +84,23 @@ describe.each(services)("services/%s image", (name) => {
       .map(([file, from]) => `${relative(ROOT, file)} (imported from ${relative(ROOT, from)})`);
     expect(missing, `add a COPY line to services/${name}/Dockerfile for:`).toEqual([]);
   });
+
+  /**
+   * The other half of the same failure, which the closure above cannot see:
+   * it follows relative specifiers, so an `@/` import is skipped rather than
+   * flagged. `@/` resolves through the app's bundler alias, and the service
+   * runs the file under bun with no bundler — so a *value* import through it
+   * is a crash at import time in the container, with everything green
+   * locally. Type-only imports are erased before that, and cost nothing.
+   */
+  it("reaches the shared files it carries by relative path, not the @/ alias", () => {
+    const offenders = [...sharedClosure(join(dir, "src")).keys()].flatMap((file) => {
+      const text = readFileSync(file, "utf8").replace(TYPE_IMPORT_RE, "");
+      return [...text.matchAll(IMPORT_RE)]
+        .map((match) => match[1]!)
+        .filter((spec) => spec.startsWith("@/"))
+        .map((spec) => `${relative(ROOT, file)} imports "${spec}"`);
+    });
+    expect(offenders, `shared files copied into services/${name} must not use @/:`).toEqual([]);
+  });
 });
