@@ -141,6 +141,7 @@ export function JamEntryCard({
           >
             <UserAvatar
               avatarUrl={member.avatarUrl}
+              guildAvatarUrl={member.guildAvatarUrl}
               username={member.username}
               shape="round"
               size={16}

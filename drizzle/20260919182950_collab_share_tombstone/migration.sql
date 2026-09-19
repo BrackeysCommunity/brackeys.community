@@ -1,0 +1,1 @@
+ALTER TABLE "collab"."collab_post_discord_shares" ALTER COLUMN "message_id" DROP NOT NULL;

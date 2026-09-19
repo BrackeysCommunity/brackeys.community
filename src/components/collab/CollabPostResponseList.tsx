@@ -29,6 +29,7 @@ interface ResponseItem {
   createdAt: string | Date | null;
   responderUsername: string | null;
   responderAvatar: string | null;
+  responderGuildAvatar: string | null;
   /** Only used once accepted — the door to the conversation the match earned. */
   responderDiscordId: string | null;
   /** This applicant's skills against the post's stack. Null when the
@@ -160,6 +161,7 @@ export function CollabPostResponseList({ responses, post }: CollabPostResponseLi
             <div className="flex min-w-0 items-center gap-2">
               <UserAvatar
                 avatarUrl={resp.responderAvatar}
+                guildAvatarUrl={resp.responderGuildAvatar}
                 username={resp.responderUsername}
                 size={24}
               />

@@ -201,12 +201,14 @@ export function adaptProfile(
   const skills: ProfileSkill[] = [
     ...rpc.skills.map<ProfileSkill>((s) => ({
       id: s.id,
+      skillId: s.skillId,
       name: s.name,
       state: "active",
       category: s.category,
     })),
     ...rpc.pendingSkillRequests.map<ProfileSkill>((s) => ({
       id: `request-${s.id}`,
+      skillId: null,
       name: s.name,
       state: "pending",
       category: s.category,

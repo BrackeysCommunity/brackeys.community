@@ -74,7 +74,13 @@ const NEUTRAL_BLOCK_MESSAGE = "You can't reply to this comment.";
 
 type CommentRecord = typeof comments.$inferSelect;
 
-type CommentAuthor = { id: string; name: string; avatarUrl: string | null; urlStub: string | null };
+type CommentAuthor = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  guildAvatarUrl: string | null;
+  urlStub: string | null;
+};
 
 type SerializedComment = {
   id: number;
@@ -109,6 +115,7 @@ async function authorsByIds(userIds: string[]): Promise<Map<string, CommentAutho
         id: p.id,
         name: memberName(p, "Member"),
         avatarUrl: p.avatarUrl,
+        guildAvatarUrl: p.guildAvatarUrl,
         urlStub: p.urlStub,
       },
     ]),

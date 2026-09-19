@@ -282,8 +282,12 @@ export async function handleLifecycleSweep(): Promise<void> {
  * `channel_id` comes off the share row rather than configuration, so a
  * message posted before the feed channel moved is still deleted from the
  * channel it actually lives in. Best-effort per message: one refusal must
- * not strand the rest, and the row is only dropped once the message is
- * gone, so a failure is retried by the next sweep.
+ * not strand the rest, and the message id is only cleared once the message
+ * is gone, so a failure is retried by the next sweep.
+ *
+ * The row itself stays — it is what remembers that this post was announced
+ * once, so an author who reopens it doesn't buy a second announcement
+ * cooldown to say the same thing again.
  */
 async function removeExpiredMirrors(postIds: number[]): Promise<number> {
   if (postIds.length === 0) return 0;
@@ -297,6 +301,9 @@ async function removeExpiredMirrors(postIds: number[]): Promise<number> {
 
   let removed = 0;
   for (const share of shares) {
+    // Already taken down by the web app (a close, a delete) — nothing left
+    // in the channel for this sweep to remove.
+    if (!share.messageId) continue;
     try {
       await deleteDiscordMessage({
         botToken,
@@ -304,7 +311,8 @@ async function removeExpiredMirrors(postIds: number[]): Promise<number> {
         messageId: share.messageId,
       });
       await db
-        .delete(collabPostDiscordShares)
+        .update(collabPostDiscordShares)
+        .set({ messageId: null, updatedAt: new Date() })
         .where(eq(collabPostDiscordShares.postId, share.postId));
       removed++;
     } catch (error) {

@@ -335,6 +335,9 @@ async function countCollabCollaborators(profileId: string): Promise<number> {
   return row?.value ?? 0;
 }
 
+/** The member's skills in the order they put them in — the profile shows
+ *  only the first few, so the order is the claim. `id` breaks a tie among
+ *  rows written before anyone reordered them. */
 function queryUserSkills(userId: string) {
   return db
     .select({
@@ -345,7 +348,8 @@ function queryUserSkills(userId: string) {
     })
     .from(userSkills)
     .innerJoin(skills, eq(userSkills.skillId, skills.id))
-    .where(eq(userSkills.userId, userId));
+    .where(eq(userSkills.userId, userId))
+    .orderBy(asc(userSkills.sortOrder), asc(userSkills.id));
 }
 
 /** The member's craft claims — same `collab_roles` vocabulary the board
@@ -898,9 +902,64 @@ export const addUserSkill = os
   .use(requireAuth)
   .input(z.object({ skillId: z.number() }))
   .handler(async ({ input, context }) => {
-    await db.insert(userSkills).values({ userId: context.user.id, skillId: input.skillId });
+    // A new skill lands at the end, where the member put it. The count is
+    // the next free position because `setMySkills` writes them contiguously.
+    const [{ value: position }] = await db
+      .select({ value: count() })
+      .from(userSkills)
+      .where(eq(userSkills.userId, context.user.id));
+    await db
+      .insert(userSkills)
+      .values({ userId: context.user.id, skillId: input.skillId, sortOrder: position })
+      // Adding a skill twice is a double-press, not an error worth a toast.
+      .onConflictDoNothing();
 
     return queryUserSkills(context.user.id);
+  });
+
+/**
+ * Not a product cap the way `MAX_PROFILE_ROLES` is — skills are a stack,
+ * not a claim, and nothing has ever limited how many a member adds. It
+ * bounds the replace-set's payload, well above any real profile.
+ */
+export const MAX_PROFILE_SKILLS = 100;
+
+/**
+ * Replace-set of the member's skills, in order — the same shape as
+ * `setMyRoles`, and for the same reason: the editor always knows the whole
+ * intended list, and a per-row move mutation would need the client and the
+ * server to agree about positions mid-drag.
+ *
+ * `sortOrder` is the array index, so the stored positions stay contiguous
+ * and `addUserSkill` can append at `count`.
+ */
+export const setMySkills = os
+  .use(requireAuth)
+  .input(z.object({ skillIds: z.array(z.number().int().positive()).max(MAX_PROFILE_SKILLS) }))
+  .handler(async ({ input, context }) => {
+    const userId = context.user.id;
+    const skillIds = [...new Set(input.skillIds)];
+
+    if (skillIds.length > 0) {
+      const found = await db
+        .select({ id: skills.id })
+        .from(skills)
+        .where(inArray(skills.id, skillIds));
+      if (found.length !== skillIds.length) {
+        throw new ORPCError("BAD_REQUEST", { message: "One or more skills do not exist." });
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(userSkills).where(eq(userSkills.userId, userId));
+      if (skillIds.length > 0) {
+        await tx
+          .insert(userSkills)
+          .values(skillIds.map((skillId, index) => ({ userId, skillId, sortOrder: index })));
+      }
+    });
+
+    return queryUserSkills(userId);
   });
 
 export const removeUserSkill = os

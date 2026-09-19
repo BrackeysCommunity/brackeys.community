@@ -334,6 +334,10 @@ export type SkillState = "active" | "pending";
 
 export interface ProfileSkill {
   id: number | string;
+  /** The skill itself, as opposed to `id`'s join row — what an ordered
+   *  whole-set write sends back. Null on a pending request, which has no
+   *  skill yet. */
+  skillId: number | null;
   name: string;
   state: SkillState;
   /** Optional category label sourced from the skills table (e.g.

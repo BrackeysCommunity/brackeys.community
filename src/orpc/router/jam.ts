@@ -511,6 +511,7 @@ export interface JamEntryMember {
   profileId: string;
   username: string | null;
   avatarUrl: string | null;
+  guildAvatarUrl: string | null;
   urlStub: string | null;
 }
 
@@ -596,6 +597,7 @@ async function matchMembersToEntries(
       profileId: row.profileId,
       username: row.username ?? row.discordUsername,
       avatarUrl: row.avatarUrl,
+      guildAvatarUrl: row.guildAvatarUrl,
       urlStub: row.urlStub,
     });
   }
@@ -609,6 +611,7 @@ async function matchMembersToEntries(
       profileId: row.profileId,
       username: row.username ?? row.discordUsername,
       avatarUrl: row.avatarUrl,
+      guildAvatarUrl: row.guildAvatarUrl,
       urlStub: row.urlStub,
     });
   }
@@ -802,6 +805,7 @@ export const getJamCommunity = os
         profileId: row.profileId,
         username: row.username ?? row.discordUsername,
         avatarUrl: row.avatarUrl,
+        guildAvatarUrl: row.guildAvatarUrl,
         urlStub: row.urlStub,
         entryTitle: row.entryTitle ?? row.fallbackTitle,
         entryUrl: row.submissionUrl ?? row.gameUrl,
@@ -865,6 +869,7 @@ async function queryDeclaredMembers(jamId: number) {
         profileId: row.profileId,
         username: row.username ?? row.discordUsername,
         avatarUrl: row.avatarUrl,
+        guildAvatarUrl: row.guildAvatarUrl,
         urlStub: row.urlStub,
       })),
     );

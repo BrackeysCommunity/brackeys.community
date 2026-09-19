@@ -192,7 +192,12 @@ function BlockedMembers() {
     <div className="flex flex-col gap-2">
       {data.map((row) => (
         <Well key={row.userId} className="flex-row items-center gap-3 p-3">
-          <UserAvatar avatarUrl={row.user?.avatarUrl ?? null} username={row.user?.name} size={28} />
+          <UserAvatar
+            avatarUrl={row.user?.avatarUrl ?? null}
+            guildAvatarUrl={row.user?.guildAvatarUrl ?? null}
+            username={row.user?.name}
+            size={28}
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <Text size="xs" className="truncate">
               {row.user?.name ?? "Deleted User"}

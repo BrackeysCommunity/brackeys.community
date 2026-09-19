@@ -3,7 +3,14 @@ import { call } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { collabPostDiscordShares, collabPosts, developerProfiles, user } from "@/db/schema";
+import {
+  collabPostDiscordShares,
+  collabPosts,
+  developerProfiles,
+  moderationActions,
+  notifications,
+  user,
+} from "@/db/schema";
 import { clearFeedRefusal } from "@/lib/collab-discord-feed";
 import {
   closePost,
@@ -62,6 +69,8 @@ let db: TestDb;
 
 beforeEach(async () => {
   ({ db } = (await import("@/db")) as unknown as { db: TestDb });
+  await db.delete(moderationActions);
+  await db.delete(notifications);
   await db.delete(collabPostDiscordShares);
   await db.delete(collabPosts);
   await db.delete(developerProfiles);
@@ -77,6 +86,7 @@ beforeEach(async () => {
 
   await seedUser(db, "author");
   await seedUser(db, "stranger");
+  await seedUser(db, "staff", { guildRoles: ["Staff"] });
 });
 
 describe("shareToDiscord", () => {
@@ -187,25 +197,70 @@ describe("the mirror's lifecycle", () => {
     await call(shareToDiscord, { postId }, asUser("author"));
 
     await call(closePost, { postId }, asUser("author"));
-    // Fire-and-forget, so let its microtasks drain. A feed of openings
-    // should hold openings — a closed post leaves rather than greys.
-    await vi.waitFor(() => expect(calls.map((c) => c.method)).toEqual(["POST", "DELETE"]));
-    await vi.waitFor(async () =>
-      expect(await db.select().from(collabPostDiscordShares)).toHaveLength(0),
-    );
+    // A feed of openings should hold openings — a closed post leaves
+    // rather than greys. The close awaits the takedown, so by the time it
+    // answers the page can no longer offer to update a message that is gone.
+    expect(calls.map((c) => c.method)).toEqual(["POST", "DELETE"]);
+
+    const [row] = await db.select().from(collabPostDiscordShares);
+    expect(row.messageId).toBeNull();
+    // The announcement still happened; the row remembers it so a reopen
+    // doesn't read as a post nobody has ever heard of.
+    expect(row.sharedAt).toBeInstanceOf(Date);
+  });
+
+  it("stops offering to update a message it has taken down", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+    await call(closePost, { postId }, asUser("author"));
+    await call(reopenPost, { postId }, asUser("author"));
+
+    const mine = await call(getPostViewerState, { postId }, asUser("author"));
+    expect(mine.discordShare?.live).toBe(false);
+    expect(mine.discordShare?.messageUrl).toBeNull();
   });
 
   it("re-shares cleanly after a close, rather than editing a message that is gone", async () => {
     const postId = await seedCollabPost(db, "author");
     await call(shareToDiscord, { postId }, asUser("author"));
     await call(closePost, { postId }, asUser("author"));
-    await vi.waitFor(async () =>
-      expect(await db.select().from(collabPostDiscordShares)).toHaveLength(0),
-    );
 
     await call(reopenPost, { postId }, asUser("author"));
     await call(shareToDiscord, { postId }, asUser("author"));
 
+    expect(calls.map((c) => c.method)).toEqual(["POST", "DELETE", "POST"]);
+  });
+
+  it("prices a re-announcement after a reopen as an update, not a second announcement", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+    await call(closePost, { postId }, asUser("author"));
+    await call(reopenPost, { postId }, asUser("author"));
+
+    limiter.length = 0;
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    // The six-hour announcement cooldown buys the guild's attention once.
+    // Closing a post and reopening it a minute later must not cost a
+    // second one, or the author is locked out of their own feed post.
+    expect(limiter).toEqual(["spend:collab-discord-update"]);
+  });
+
+  it("forgets the message even when Discord refuses the delete", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await call(shareToDiscord, { postId }, asUser("author"));
+
+    // A revoked permission, a 429 — whatever Discord answers, our own
+    // bookkeeping must not be left describing a mirror we disowned.
+    nextStatus = 403;
+    await call(closePost, { postId }, asUser("author"));
+
+    const [row] = await db.select().from(collabPostDiscordShares);
+    expect(row.messageId).toBeNull();
+
+    // And the next share posts afresh rather than editing the id we dropped.
+    await call(reopenPost, { postId }, asUser("author"));
+    await call(shareToDiscord, { postId }, asUser("author"));
     expect(calls.map((c) => c.method)).toEqual(["POST", "DELETE", "POST"]);
   });
 
@@ -217,5 +272,57 @@ describe("the mirror's lifecycle", () => {
 
     expect(calls.map((c) => c.method)).toEqual(["POST", "DELETE"]);
     expect(await db.select().from(collabPostDiscordShares)).toHaveLength(0);
+  });
+});
+
+describe("a staff force-send", () => {
+  it("posts someone else's post without spending anyone's cooldown", async () => {
+    const postId = await seedCollabPost(db, "author");
+
+    await call(shareToDiscord, { postId }, asUser("staff"));
+
+    expect(calls.map((c) => c.method)).toEqual(["POST"]);
+    // Staff time, not the author's announcement window — and not the
+    // staffer's either, or the second stuck post of the day is unfixable.
+    expect(limiter).toEqual([]);
+    const [row] = await db.select().from(collabPostDiscordShares);
+    expect(row.sharedById).toBe("staff");
+  });
+
+  it("tells the author, and logs what was done", async () => {
+    const postId = await seedCollabPost(db, "author");
+
+    await call(shareToDiscord, { postId, clearAuthorCooldown: true }, asUser("staff"));
+
+    const inbox = await db.select().from(notifications);
+    expect(inbox.map((n) => [n.userId, n.type])).toEqual([
+      ["author", "collab_post_shared_by_staff"],
+    ]);
+
+    const [logged] = await db.select().from(moderationActions);
+    expect(logged.action).toBe("post_shared_to_discord");
+    expect(logged.actorId).toBe("staff");
+    expect(logged.subjectUserId).toBe("author");
+    expect(logged.metadata).toMatchObject({ cooldownCleared: true });
+  });
+
+  it("stays out of the log when staff share their own post", async () => {
+    const postId = await seedCollabPost(db, "staff");
+
+    await call(shareToDiscord, { postId }, asUser("staff"));
+
+    // Their own button, their own cooldown — a staffer posting their own
+    // opening is not a moderation action.
+    expect(limiter).toEqual(["spend:collab-discord-share"]);
+    expect(await db.select().from(moderationActions)).toHaveLength(0);
+    expect(await db.select().from(notifications)).toHaveLength(0);
+  });
+
+  it("is still closed to everyone else", async () => {
+    const postId = await seedCollabPost(db, "author");
+    await expect(call(shareToDiscord, { postId }, asUser("stranger"))).rejects.toBeInstanceOf(
+      ORPCError,
+    );
+    expect(calls).toHaveLength(0);
   });
 });

@@ -3,8 +3,9 @@ import { useState } from "react";
 
 import { ModerationShell, ReasonField } from "@/components/moderation/ModerationShell";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Confirm } from "@/components/ui/confirm";
-import { Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
 import { errorMessage } from "@/lib/error-message";
 import { reportMutationError } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
@@ -79,6 +80,11 @@ export function CollabPostModerationFlyout({
           key: "status",
           label: "STATUS",
           content: <StatusSection post={post} onChanged={invalidate} />,
+        },
+        {
+          key: "discord",
+          label: "DISCORD",
+          content: <DiscordSection post={post} />,
         },
         {
           key: "delete",
@@ -172,6 +178,76 @@ function StatusSection({ post, onChanged }: { post: CollabPostDetailData; onChan
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+/**
+ * The force-send: put a post in the guild's collab feed on the author's
+ * behalf. Every automatic path can fail in a way nothing retries — a
+ * revoked bot permission, a Discord outage that outlasts the close — and
+ * this is the hand crank for all of them.
+ *
+ * Clearing the author's cooldown is the separate, opt-in half: it hands
+ * back a six-hour window they spent on a mirror that never landed, and
+ * it's the only thing here that changes what *they* can do next.
+ */
+function DiscordSection({ post }: { post: CollabPostDetailData }) {
+  const [clearCooldown, setClearCooldown] = useState(false);
+  const isClosed = post.status !== "recruiting";
+
+  const share = useMutation({
+    mutationFn: () =>
+      client.shareToDiscord({ postId: post.id, clearAuthorCooldown: clearCooldown }),
+    onSuccess: () => {
+      toast.success(
+        clearCooldown
+          ? "Posted to the collab feed — the author's cooldown is clear."
+          : "Posted to the collab feed.",
+      );
+      setClearCooldown(false);
+    },
+    onError: (err) => {
+      reportMutationError(err, "moderation.post_share_discord");
+      toast.error(errorMessage(err));
+    },
+  });
+
+  return (
+    <section className="flex flex-col gap-3">
+      <Text size="xs" variant="muted">
+        {isClosed
+          ? "A closed post can't be announced — reopen it on the STATUS tab first."
+          : "Posts this to the guild's collab feed, or rewrites the message already there. The author is notified either way, and the action lands in the moderation log."}
+      </Text>
+      <label htmlFor="collab-share-clear-cooldown" className="flex items-center gap-2">
+        <Checkbox
+          id="collab-share-clear-cooldown"
+          checked={clearCooldown}
+          disabled={isClosed}
+          onCheckedChange={(checked) => setClearCooldown(!!checked)}
+        />
+        <MicroLabel as="span">ALSO CLEAR THE AUTHOR'S COOLDOWN</MicroLabel>
+      </label>
+      <div>
+        <Confirm
+          variant={clearCooldown ? "destructive" : "default"}
+          title="Post this to the collab feed?"
+          message={
+            clearCooldown
+              ? "The guild sees it now, and the author gets their announcement window back."
+              : "The guild sees it now, under the author's name."
+          }
+          confirmText="POST IT"
+          onConfirm={async () => {
+            await share.mutateAsync();
+          }}
+        >
+          <Button variant="outline" size="sm" disabled={isClosed || share.isPending}>
+            POST TO DISCORD
+          </Button>
+        </Confirm>
+      </div>
     </section>
   );
 }

@@ -1,6 +1,24 @@
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Cancel01Icon,
   CheckmarkCircle02Icon,
+  DragDropHorizontalIcon,
   GithubIcon,
   HourglassIcon,
   ViewIcon,
@@ -857,27 +875,79 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
     },
   });
 
-  const active = profile.skills.filter((s) => s.state === "active");
+  // The order is the claim: the profile's meta line shows the first one or
+  // two and nothing else. Held locally between the drop and the server's
+  // answer so the chips don't snap back for a round trip.
+  const [draggedOrder, setDraggedOrder] = useState<number[] | null>(null);
+  const setSkills = useMutation({
+    mutationFn: (skillIds: number[]) => client.setMySkills({ skillIds }),
+    onMutate: () => save.setStatus("saving"),
+    onSuccess: (skills) => {
+      save.setStatus("saved");
+      setDraggedOrder(null);
+      seedProfile({ skills });
+    },
+    onError: (err) => {
+      reportMutationError(err, "profile.set_skills");
+      setDraggedOrder(null);
+      save.setStatus("error");
+    },
+  });
+
+  const sensors = useSensors(
+    // A few pixels of travel before a drag starts, so the remove button on
+    // a chip stays clickable.
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const saved = profile.skills.filter((s) => s.state === "active");
+  const active = draggedOrder
+    ? [...saved].sort(
+        (a, b) => draggedOrder.indexOf(Number(a.id)) - draggedOrder.indexOf(Number(b.id)),
+      )
+    : saved;
   const pending = profile.skills.filter((s) => s.state === "pending");
-  // Nothing stops the same skill being added twice server-side (no unique
-  // constraint on the join row), so the search has to be the guard —
-  // otherwise picking an already-listed skill again creates a second,
-  // indistinguishable chip.
+  // The unique `(user_id, skill_id)` pair means a duplicate add is a no-op
+  // server-side; filtering the search as well keeps it from looking like
+  // one silently failed.
   const takenNames = new Set([...active, ...pending].map((s) => s.name.toLowerCase()));
 
+  const onDragEnd = ({ active: dragged, over }: DragEndEvent) => {
+    if (!over || dragged.id === over.id) return;
+    const rowIds = active.map((s) => Number(s.id));
+    const from = rowIds.indexOf(Number(dragged.id));
+    const to = rowIds.indexOf(Number(over.id));
+    if (from < 0 || to < 0) return;
+
+    const next = arrayMove(rowIds, from, to);
+    setDraggedOrder(next);
+    const skillIdByRow = new Map(active.map((s) => [Number(s.id), s.skillId]));
+    setSkills.mutate(
+      next.map((rowId) => skillIdByRow.get(rowId)).filter((id): id is number => id != null),
+    );
+  };
+
   return (
-    <FieldRow label="SKILLS" hint="add and remove tags inline">
+    <FieldRow label="SKILLS" hint="drag to reorder, add and remove inline">
       <Well className="gap-3 p-3">
         <div className="flex flex-wrap gap-1.5">
-          {active.map((skill) => (
-            <SkillChip
-              key={skill.id}
-              skill={skill}
-              onRemove={() => {
-                if (typeof skill.id === "number") removeSkill.mutate(skill.id);
-              }}
-            />
-          ))}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <SortableContext
+              items={active.map((s) => Number(s.id))}
+              strategy={horizontalListSortingStrategy}
+            >
+              {active.map((skill) => (
+                <SortableSkillChip
+                  key={skill.id}
+                  skill={skill}
+                  onRemove={() => {
+                    if (typeof skill.id === "number") removeSkill.mutate(skill.id);
+                  }}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
           {pending.map((skill) => (
             <PendingChip
               key={skill.id}
@@ -892,17 +962,60 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
           />
         </div>
         <Text size="xs" variant="muted">
-          Search picks an existing skill from the global list. If your skill isn't there, submit a
-          request — moderators approve it before it goes live.
+          The first couple show on your profile's byline — drag a chip, or focus its handle and use
+          the arrow keys, to choose which. Search picks an existing skill from the global list; if
+          yours isn't there, submit a request — moderators approve it before it goes live.
         </Text>
       </Well>
     </FieldRow>
   );
 }
 
-function SkillChip({ skill, onRemove }: { skill: ProfileSkill; onRemove: () => void }) {
+/** A skill chip with a drag handle. The handle carries the drag listeners
+ *  rather than the whole chip, so the remove button keeps working and the
+ *  keyboard has one predictable place to pick the chip up from. */
+function SortableSkillChip({ skill, onRemove }: { skill: ProfileSkill; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: Number(skill.id),
+  });
+
+  return (
+    <span
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={isDragging ? "relative z-10 opacity-80" : undefined}
+    >
+      <SkillChip
+        skill={skill}
+        onRemove={onRemove}
+        handle={
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`Reorder ${skill.name}`}
+            className="-ml-0.5 inline-flex cursor-grab items-center text-secondary-foreground/50 transition-colors hover:text-secondary-foreground active:cursor-grabbing"
+          >
+            <HugeiconsIcon icon={DragDropHorizontalIcon} size={10} />
+          </button>
+        }
+      />
+    </span>
+  );
+}
+
+function SkillChip({
+  skill,
+  onRemove,
+  handle,
+}: {
+  skill: ProfileSkill;
+  onRemove: () => void;
+  handle?: React.ReactNode;
+}) {
   return (
     <Badge variant="secondary" className="gap-1.5 font-mono text-[11px] tracking-widest uppercase">
+      {handle}
       {skill.name}
       <button
         type="button"

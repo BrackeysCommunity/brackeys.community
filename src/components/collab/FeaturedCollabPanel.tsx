@@ -250,6 +250,7 @@ export function FeaturedCollabPanel({ posts }: { posts: FeaturedPost[] }) {
                       avatar={
                         <UserAvatar
                           avatarUrl={author.avatarUrl}
+                          guildAvatarUrl={author.guildAvatarUrl}
                           username={author.discordUsername}
                           size={40}
                         />

@@ -92,6 +92,8 @@ export function renderNotificationText(input: {
           : `Staff closed your post "${postTitle}"`,
         href,
       };
+    case "collab_post_shared_by_staff":
+      return { headline: `Staff posted "${postTitle}" to the Discord collab feed`, href };
     case "collab_post_expiring":
       return { headline: `"${postTitle}" closes soon — still looking?`, href };
     case "collab_post_expired":
@@ -251,6 +253,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   collab_response_withdrawn: "Collab — an applicant withdrew",
   collab_post_featured: "Collab — your post was featured",
   collab_post_closed_by_staff: "Collab — staff closed your post",
+  collab_post_shared_by_staff: "Collab — staff posted yours to the Discord feed",
   collab_post_expiring: "Collab — your post closes soon",
   collab_post_expired: "Collab — your post expired",
   team_invite_received: "Teams — you were invited to a team",
@@ -289,6 +292,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "collab_response_withdrawn",
   "collab_post_featured",
   "collab_post_closed_by_staff",
+  "collab_post_shared_by_staff",
   "collab_post_expiring",
   "collab_post_expired",
   "team_invite_received",
@@ -339,6 +343,10 @@ export const NOTIFICATION_DEFAULTS: Record<
   collab_response_withdrawn: { inApp: true, email: false, digest: false },
   collab_post_featured: { inApp: true, email: true, digest: false },
   collab_post_closed_by_staff: { inApp: true, email: true, digest: false },
+  // Their post is now in front of the whole guild without them pressing
+  // anything. Usually staff doing them a favour after a failed mirror, but
+  // it is their name on it, so the bell is the least they should get.
+  collab_post_shared_by_staff: { inApp: true, email: false, digest: false },
   // Actionable deadlines: the email is the whole point — a user who
   // hasn't opened the app in six weeks is exactly who the nudge is for.
   collab_post_expiring: { inApp: true, email: true, digest: false },
@@ -410,6 +418,7 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   collab_response_withdrawn: "collab",
   collab_post_featured: "collab",
   collab_post_closed_by_staff: "collab",
+  collab_post_shared_by_staff: "collab",
   collab_post_expiring: "collab",
   collab_post_expired: "collab",
   team_invite_received: "teams",

@@ -69,7 +69,7 @@ import {
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
 import { loadProjectForEditor } from "@/lib/project-editors";
-import { assertRateLimit, refundRateLimit } from "@/lib/rate-limit";
+import { assertRateLimit, clearRateLimit, refundRateLimit } from "@/lib/rate-limit";
 import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resolution";
 import { escapeLike } from "@/lib/sql-like";
 import { stackOverlap } from "@/lib/stack-overlap";
@@ -801,7 +801,11 @@ export const closePost = os
       .where(eq(collabPosts.id, input.postId))
       .returning();
 
-    void bestEffort("collab.discord_mirror_refresh", { post_id: input.postId, on: "close" }, () =>
+    // Awaited, not fired off: `bestEffort` swallows, so this can't fail the
+    // close, and the page refetches the moment the mutation answers — a
+    // mirror still being torn down behind it is what renders a button
+    // offering to update a message that is on its way out.
+    await bestEffort("collab.discord_mirror_refresh", { post_id: input.postId, on: "close" }, () =>
       refreshDiscordMirror(input.postId),
     );
 
@@ -853,7 +857,8 @@ export const reopenPost = os
 
     await touchTeamActivity(post.teamId);
 
-    void bestEffort("collab.discord_mirror_refresh", { post_id: input.postId, on: "reopen" }, () =>
+    // Awaited for the same reason as `closePost` — see there.
+    await bestEffort("collab.discord_mirror_refresh", { post_id: input.postId, on: "reopen" }, () =>
       refreshDiscordMirror(input.postId),
     );
 
@@ -1051,9 +1056,17 @@ async function refreshDiscordMirror(postId: number): Promise<void> {
   const post = await loadFeedPost(postId);
   if (!post) return;
 
+  // Already taken down: nothing in the channel to rewrite, and the row is
+  // only still here to remember that this post was once announced.
+  if (!share.messageId) return;
+
   if (post.status !== "recruiting") {
+    // Our side first. Discord's answer is the best-effort half — a 403 from
+    // a revoked permission or a 429 must not leave the row describing a
+    // message we have already disowned, which is what strands the author
+    // with a button offering to update nothing.
+    await forgetMirrorMessage(postId);
     await deleteCollabFeedMessage(config, share.channelId, share.messageId);
-    await db.delete(collabPostDiscordShares).where(eq(collabPostDiscordShares.postId, postId));
     return;
   }
 
@@ -1066,7 +1079,7 @@ async function refreshDiscordMirror(postId: number): Promise<void> {
   // Someone deleted the message in Discord. Forget it rather than resurrect
   // it — a mirror the author didn't ask for twice isn't ours to restore.
   if (outcome === "gone") {
-    await db.delete(collabPostDiscordShares).where(eq(collabPostDiscordShares.postId, postId));
+    await forgetMirrorMessage(postId);
   } else {
     await db
       .update(collabPostDiscordShares)
@@ -1075,12 +1088,23 @@ async function refreshDiscordMirror(postId: number): Promise<void> {
   }
 }
 
+/**
+ * Drop the message id while keeping the row. The mirror is gone; that this
+ * post was announced once, and when, is what the row is still for.
+ */
+async function forgetMirrorMessage(postId: number): Promise<void> {
+  await db
+    .update(collabPostDiscordShares)
+    .set({ messageId: null, updatedAt: new Date() })
+    .where(eq(collabPostDiscordShares.postId, postId));
+}
+
 /** Takes a post's mirror down. Called before the row itself disappears. */
 async function removeDiscordMirror(postId: number): Promise<void> {
   const config = collabFeedConfig();
   if (!config) return;
   const share = await loadShareRow(postId);
-  if (!share) return;
+  if (!share?.messageId) return;
   await deleteCollabFeedMessage(config, share.channelId, share.messageId);
 }
 
@@ -1109,12 +1133,21 @@ function shareFailure(error: unknown): ORPCError<string, unknown> {
 
 /**
  * Put this post in the guild's collab feed, or update the message already
- * there. Author-only — the mirror carries their name, and the cooldown is
- * theirs to spend.
+ * there. The author's own button — the mirror carries their name, and the
+ * cooldown is theirs to spend — plus a staff force-send, which is the
+ * manual remedy when a mirror fails in a way nothing else recovers from
+ * (a revoked permission, a Discord outage that outlasts the retry). Staff
+ * spend no cooldown of their own and can hand the author's back.
  */
 export const shareToDiscord = os
-  .use(requireGuildMember)
-  .input(z.object({ postId: z.number() }))
+  .use(requireAuthWithPermissions)
+  .input(
+    z.object({
+      postId: z.number(),
+      /** Staff only: drop the author's announcement window so they can press again. */
+      clearAuthorCooldown: z.boolean().optional(),
+    }),
+  )
   .handler(async ({ input, context }) => {
     const config = collabFeedConfig();
     if (!config) {
@@ -1123,11 +1156,20 @@ export const shareToDiscord = os
       });
     }
 
-    const { post } = await loadOwnedPost(
+    const { post, isOwner } = await loadOwnedPost(
       input.postId,
-      { userId: context.user.id },
+      { userId: context.user.id, isStaff: context.isStaff },
       "You can only share your own posts to Discord.",
     );
+    // Staff reach the feed through their guild roles, so the membership bar
+    // only has to be checked on the author's own path — where it has always
+    // been the rule that you can't address a server you haven't joined.
+    const byStaff = !isOwner && context.isStaff;
+    if (!byStaff && !(await userIsGuildMember(context.user.id))) {
+      throw new ORPCError("FORBIDDEN", {
+        message: "You must be a member of the Brackeys Discord server to perform this action.",
+      });
+    }
     if (post.status !== "recruiting") {
       throw new ORPCError("BAD_REQUEST", {
         message: "Only an open post can be shared — reopen it first.",
@@ -1137,9 +1179,23 @@ export const shareToDiscord = os
     const existing = await loadShareRow(input.postId);
     // A first share is an announcement to everyone in the server; a re-share
     // is an edit to a message they already scrolled past. Only the first
-    // kind is worth a long cooldown.
+    // kind is worth a long cooldown — and a post that was announced before
+    // a close is not announcing itself to anyone new when it reopens, so
+    // the surviving row is what spares it a second six-hour wait.
     const bucket = existing ? "collab-discord-update" : "collab-discord-share";
-    if (existing) {
+    // A force-send is staff spending their own time on someone else's post.
+    // Billing it to either party's window would defeat the point: the
+    // author's window is usually what they came to unstick.
+    if (byStaff) {
+      if (input.clearAuthorCooldown) {
+        await bestEffort("collab.discord_share_clear_cooldown", { post_id: input.postId }, () =>
+          Promise.all([
+            clearRateLimit("collab-discord-share", post.authorId),
+            clearRateLimit("collab-discord-update", post.authorId),
+          ]),
+        );
+      }
+    } else if (existing) {
       await assertRateLimit(
         bucket,
         context.user.id,
@@ -1163,7 +1219,9 @@ export const shareToDiscord = os
       if (!feedPost) throw new ORPCError("NOT_FOUND", { message: "Post not found." });
       const payload = buildCollabFeedMessage(feedPost);
 
-      if (existing) {
+      // An edit needs a message still standing in the channel — a
+      // tombstoned row remembers an announcement, not a message.
+      if (existing?.messageId) {
         const outcome = await editCollabFeedMessage(
           config,
           existing.channelId,
@@ -1187,9 +1245,11 @@ export const shareToDiscord = os
       // the author's next press is their first, not their second. The
       // refund stops at the Discord call on purpose: past it the message
       // exists, and a failure writing our own row must not buy a duplicate.
-      await bestEffort("collab.discord_share_refund", { post_id: input.postId, bucket }, () =>
-        refundRateLimit(bucket, context.user.id),
-      );
+      if (!byStaff) {
+        await bestEffort("collab.discord_share_refund", { post_id: input.postId, bucket }, () =>
+          refundRateLimit(bucket, context.user.id),
+        );
+      }
       throw error instanceof ORPCError ? error : shareFailure(error);
     }
 
@@ -1212,13 +1272,39 @@ export const shareToDiscord = os
 
     captureServerEvent(EVENTS.collabPostSharedToDiscord, context.user.id, {
       post_id: input.postId,
-      updated: existing != null,
+      updated: existing?.messageId != null,
+      by_staff: byStaff,
     });
+
+    if (byStaff) {
+      // Their name is on a message they didn't press for. Usually a favour,
+      // but the author hearing it from the feed rather than from us is the
+      // version that reads as something happening to them.
+      await notify({
+        userId: post.authorId,
+        type: "collab_post_shared_by_staff",
+        actorId: context.user.id,
+        entityType: "collab_post",
+        entityId: String(post.id),
+        data: { postId: post.id, postTitle: post.title },
+      });
+      await recordModerationAction({
+        action: "post_shared_to_discord",
+        actorId: context.user.id,
+        targetType: "collab_post",
+        targetId: post.id,
+        subjectUserId: post.authorId,
+        metadata: {
+          title: post.title,
+          cooldownCleared: input.clearAuthorCooldown === true,
+        },
+      });
+    }
 
     return {
       sharedAt: row.sharedAt,
       updatedAt: row.updatedAt,
-      messageUrl: collabFeedMessageUrl(config.guildId, row.channelId, row.messageId),
+      messageUrl: collabFeedMessageUrl(config.guildId, row.channelId, messageId!),
     };
   });
 
@@ -1468,10 +1554,14 @@ export const getPostViewerState = os
     const discordShare = isAuthor
       ? {
           available: feed != null && !collabFeedRefused(),
+          // Ever announced — the row outlives the message, so this survives
+          // a close and the button can say "you've done this before".
           sharedAt: share?.sharedAt ?? null,
           updatedAt: share?.updatedAt ?? null,
+          /** A message is standing in the channel right now, so pressing edits it. */
+          live: share?.messageId != null,
           messageUrl:
-            feed && share
+            feed && share?.messageId
               ? collabFeedMessageUrl(feed.guildId, share.channelId, share.messageId)
               : null,
         }
@@ -2223,6 +2313,7 @@ export const listResponses = os
         createdAt: collabResponses.createdAt,
         responderUsername: developerProfiles.discordUsername,
         responderAvatar: developerProfiles.avatarUrl,
+        responderGuildAvatar: developerProfiles.guildAvatarUrl,
         // Powers the MESSAGE ON DISCORD deep link on accepted rows. Safe
         // here and nowhere near `getPost`: this procedure is owner-or-staff
         // gated, so the id never reaches an anonymous or cacheable response.

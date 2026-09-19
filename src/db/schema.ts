@@ -182,15 +182,27 @@ export const skills = userSchema.table("skills", {
   category: text("category"),
 });
 
-export const userSkills = userSchema.table("user_skills", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => developerProfiles.id, { onDelete: "cascade" }),
-  skillId: integer("skill_id")
-    .notNull()
-    .references(() => skills.id, { onDelete: "cascade" }),
-});
+/**
+ * A member's skills, in the order they chose. `sortOrder` exists because
+ * the profile shows only the first few and there was no order at all —
+ * whatever Postgres handed back, which an unrelated update could reshuffle.
+ * The unique pair is what makes an ordered whole-set write safe: without it
+ * the same skill could sit at two positions.
+ */
+export const userSkills = userSchema.table(
+  "user_skills",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => developerProfiles.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [unique("user_skills_user_skill_key").on(table.userId, table.skillId)],
+);
 
 /**
  * A member's craft ("I am a Composer"), drawn from the same curated
@@ -362,6 +374,7 @@ export type NotificationType =
   | "collab_response_withdrawn"
   | "collab_post_featured"
   | "collab_post_closed_by_staff"
+  | "collab_post_shared_by_staff"
   | "collab_post_expiring"
   | "collab_post_expired"
   | "team_invite_received"
@@ -617,7 +630,14 @@ export const collabPostDiscordShares = collabSchema.table("collab_post_discord_s
     .primaryKey()
     .references(() => collabPosts.id, { onDelete: "cascade" }),
   channelId: text("channel_id").notNull(),
-  messageId: text("message_id").notNull(),
+  /**
+   * Null once the mirror has been taken down — the row outlives the message
+   * it describes. Keeping it is what lets a reopened post re-announce on the
+   * cheap update budget instead of buying a second six-hour cooldown, and it
+   * means a Discord refusal can never strand us describing a message we have
+   * already disowned.
+   */
+  messageId: text("message_id"),
   // Who pressed the button — the author today, recorded rather than assumed
   // so the row still reads correctly if staff ever gain the action.
   sharedById: text("shared_by_id").references(() => user.id, { onDelete: "set null" }),
@@ -1634,6 +1654,7 @@ export type ModerationActionType =
   | "comment_report_dismissed"
   | "post_closed"
   | "post_reopened"
+  | "post_shared_to_discord"
   | "post_deleted"
   | "post_report_dismissed"
   | "post_report_deleted"

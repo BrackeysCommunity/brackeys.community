@@ -67,6 +67,27 @@ export async function refundRateLimit(bucket: string, userId: string): Promise<v
 }
 
 /**
+ * Drop a limiter's window outright, so the next attempt starts fresh.
+ *
+ * Not a refund: `refundRateLimit` hands back one hit for an action that
+ * didn't happen, which is the right arithmetic for a failure and the wrong
+ * one for a reset. This is staff clearing a window on someone's behalf —
+ * the announcement cooldown a member spent on a mirror that never landed —
+ * so it deletes the key rather than counting backwards.
+ *
+ * Best-effort, like the counter itself: no Redis means no window to clear.
+ */
+export async function clearRateLimit(bucket: string, userId: string): Promise<void> {
+  try {
+    const redis = await getRedis();
+    if (!redis) return;
+    await redis.del(rateKey(bucket, userId));
+  } catch {
+    // The window expires on its own; a lost clear costs one wait.
+  }
+}
+
+/**
  * The router-side guard: `checkRateLimit` plus the TOO_MANY_REQUESTS the
  * seven write paths used to hand-roll around it. `message` is the
  * user-facing copy — keep it specific to the action being limited.

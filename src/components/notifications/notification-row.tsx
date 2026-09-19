@@ -166,6 +166,16 @@ export function renderCopy(n: NotificationItem): {
         ),
         href,
       };
+    case "collab_post_shared_by_staff":
+      return {
+        line: (
+          <>
+            Staff posted <em className="font-medium not-italic">{postTitle}</em> to the Discord
+            collab feed
+          </>
+        ),
+        href,
+      };
     case "team_invite_received":
       return {
         line: (

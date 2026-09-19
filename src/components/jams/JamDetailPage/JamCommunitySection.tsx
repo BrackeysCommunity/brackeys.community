@@ -83,6 +83,7 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
               >
                 <UserAvatar
                   avatarUrl={member.avatarUrl}
+                  guildAvatarUrl={member.guildAvatarUrl}
                   username={member.username}
                   shape="round"
                   size={20}
@@ -114,6 +115,7 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
             >
               <UserAvatar
                 avatarUrl={member.avatarUrl}
+                guildAvatarUrl={member.guildAvatarUrl}
                 username={member.username}
                 shape="round"
                 size={36}

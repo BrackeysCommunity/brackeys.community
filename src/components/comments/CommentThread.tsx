@@ -93,7 +93,9 @@ function optimisticComment(
     createdAt: new Date(),
     editedAt: null,
     replyCount: 0,
-    author: { id: user.id, name, avatarUrl, urlStub: null },
+    // `avatarUrl` is already resolved through the in-guild rule above, so the
+    // guild leg stays null rather than applying it a second time.
+    author: { id: user.id, name, avatarUrl, guildAvatarUrl: null, urlStub: null },
     viewer: { isMine: true, canEdit: true, canDelete: true },
   };
 }
@@ -769,7 +771,12 @@ function CommentItem({
         onHover={onTrackHover}
       />
       <div className="flex items-center gap-2">
-        <UserAvatar avatarUrl={comment.author?.avatarUrl ?? null} username={authorName} size={24} />
+        <UserAvatar
+          avatarUrl={comment.author?.avatarUrl ?? null}
+          guildAvatarUrl={comment.author?.guildAvatarUrl ?? null}
+          username={authorName}
+          size={24}
+        />
         {comment.author ? (
           <RouterLink
             to="/profile/$userId"

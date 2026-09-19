@@ -821,7 +821,10 @@ function ShareToDiscordAction({
   const now = useDateNow();
   if (!share?.available || isClosed) return null;
 
-  const shared = share.sharedAt != null;
+  // The message still standing in the channel is what makes this an update.
+  // A post that was announced, closed and reopened has a `sharedAt` and no
+  // message — pressing it posts afresh, so the label has to say so.
+  const live = share.live;
   return (
     <Button
       variant="outline"
@@ -829,14 +832,16 @@ function ShareToDiscordAction({
       onClick={() => mutation.mutate()}
       disabled={mutation.isPending}
       tooltip={
-        shared
+        live
           ? `Shared ${timeAgo(share.sharedAt!, now)} — press again to update the Discord message`
-          : "Post this to the Discord collab feed"
+          : share.sharedAt != null
+            ? "The old message is gone — post this to the Discord collab feed again"
+            : "Post this to the Discord collab feed"
       }
       className="tracking-widest"
     >
       <HugeiconsIcon icon={DiscordIcon} size={12} />
-      {shared ? "UPDATE ON DISCORD" : "SHARE TO DISCORD"}
+      {live ? "UPDATE ON DISCORD" : "SHARE TO DISCORD"}
     </Button>
   );
 }
