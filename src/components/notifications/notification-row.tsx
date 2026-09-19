@@ -12,10 +12,10 @@ import { Link } from "@tanstack/react-router";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { EVENTS, type NotificationSurface } from "@/lib/event-taxonomy";
-import { timeAgo } from "@/lib/format-time";
 import {
   approvedSkillLabel,
   approvedSkillsOf,
@@ -552,7 +552,7 @@ export function NotificationRow({
           {line}
         </p>
         <Text size="xs" variant="muted">
-          {timeAgo(n.createdAt)}
+          {<TimeAgo date={n.createdAt} />}
         </Text>
       </div>
       {/* The category is already legible from the copy at popover width;

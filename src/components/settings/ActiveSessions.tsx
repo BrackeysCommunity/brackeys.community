@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { openConfirmModal } from "@/components/ui/confirm";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { formatDate } from "@/lib/format-date";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { describeUserAgent } from "@/lib/user-agent";
@@ -101,7 +101,7 @@ export function ActiveSessions() {
               <Text size="xs" variant="muted">
                 {/* The IP is the one better-auth recorded at sign-in, not a
                     live one — say "from", not "at". */}
-                Signed in {timeAgo(session.createdAt)}
+                Signed in {<TimeAgo date={session.createdAt} />}
                 {session.ipAddress ? ` from ${session.ipAddress}` : ""} · expires{" "}
                 {formatDate(session.expiresAt)}
               </Text>

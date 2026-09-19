@@ -1,6 +1,26 @@
-import { describe, expect, it } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { buildCollabFeedMessage, type CollabFeedPost } from "@/lib/collab-discord-feed";
+import {
+  buildCollabFeedMessage,
+  clearFeedRefusal,
+  collabFeedEnabled,
+  collabFeedRefused,
+  DiscordFeedError,
+  editCollabFeedMessage,
+  noteFeedRefused,
+  postCollabFeedMessage,
+  type CollabFeedPost,
+} from "@/lib/collab-discord-feed";
+
+/** Status the next Discord write answers with. */
+let nextStatus = 200;
+vi.mock("@/lib/discord", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/discord")>()),
+  discordWriteFetch: async () =>
+    new Response(nextStatus === 200 ? JSON.stringify({ id: "message-1" }) : "{}", {
+      status: nextStatus,
+    }),
+}));
 
 function feedPost(overrides: Partial<CollabFeedPost> = {}): CollabFeedPost {
   return {
@@ -163,5 +183,48 @@ describe("buildCollabFeedMessage", () => {
     const [embed] = buildCollabFeedMessage(feedPost({ status: "party_full" })).embeds;
     expect(embed.color).toBe(0x4b5563);
     expect(embed.fields.find((f) => f.name === "Status")?.value).toBe("No longer recruiting");
+  });
+});
+
+describe("a refused mirror", () => {
+  const config = { channelId: "9001", guildId: "7", botToken: "bot-token" };
+  const payload = buildCollabFeedMessage(feedPost());
+
+  beforeEach(() => {
+    nextStatus = 200;
+    clearFeedRefusal();
+    process.env.DISCORD_COLLAB_CHANNEL_ID = "9001";
+    process.env.DISCORD_GUILD_ID = "7";
+    process.env.DISCORD_BOT_TOKEN = "bot-token";
+  });
+
+  it("hides the feed after a 403 and shows it again once a post lands", async () => {
+    nextStatus = 403;
+    await expect(postCollabFeedMessage(config, payload)).rejects.toBeInstanceOf(DiscordFeedError);
+    expect(collabFeedRefused()).toBe(true);
+    expect(collabFeedEnabled()).toBe(false);
+
+    nextStatus = 200;
+    await postCollabFeedMessage(config, payload);
+    expect(collabFeedRefused()).toBe(false);
+    expect(collabFeedEnabled()).toBe(true);
+  });
+
+  it("clears on a successful edit too", async () => {
+    noteFeedRefused();
+    await editCollabFeedMessage(config, "9001", "message-1", payload);
+    expect(collabFeedRefused()).toBe(false);
+  });
+
+  it("forgets the refusal once the window has passed, so a grant needs no deploy", () => {
+    noteFeedRefused(1_000);
+    expect(collabFeedRefused(1_000 + 14 * 60_000)).toBe(true);
+    expect(collabFeedRefused(1_000 + 16 * 60_000)).toBe(false);
+  });
+
+  it("keeps the feed for failures that aren't about permission", async () => {
+    nextStatus = 500;
+    await expect(postCollabFeedMessage(config, payload)).rejects.toBeInstanceOf(DiscordFeedError);
+    expect(collabFeedRefused()).toBe(false);
   });
 });

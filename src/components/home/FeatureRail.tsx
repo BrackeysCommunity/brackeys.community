@@ -17,24 +17,24 @@ interface FeatureRailProps {
 }
 
 /**
- * The four destinations.
+ * The destination rail.
  *
  * These used to be 280px-tall cards with hover-revealed sparklines sitting
  * directly under the wordmark — they read as the page's main content and
  * pushed the jam below the fold. The current tile is the middle setting:
- * tall enough to give the number real weight, short enough that four of
- * them still read as a rail rather than as the page's content.
+ * tall enough to give the number real weight, short enough that the row of
+ * them still reads as a rail rather than as the page's content.
  *
  * Every stat here is live, and comes from `useHomeDestinations` so the
- * mobile chip row is making the same four claims. The old cards showed
- * `312`, `50+`, `58` and `LV 14`, all hard-coded and all wrong by the time
- * anyone read them.
+ * mobile chip row is making the same claims. The old cards showed `312`,
+ * `50+`, `58` and `LV 14`, all hard-coded and all wrong by the time anyone
+ * read them.
  */
 export function FeatureRail({ liveCount, isLoadingJams }: FeatureRailProps) {
   const destinations = useHomeDestinations(liveCount, isLoadingJams);
 
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {destinations.map((d) => (
         <FeatureTile
           key={d.to}

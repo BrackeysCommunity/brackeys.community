@@ -287,6 +287,9 @@ export interface JamLogEntry {
   url: string | null;
   /** Final placement / total entries — drives the "#4 / 420" tag. */
   rank: number | null;
+  /** Set when `rank` is a category placement rather than an Overall one:
+   * the jam ranked no Overall, so this names what the number is in. */
+  rankCriterion: string | null;
   totalEntries: number | null;
   /** "TOP 1", "TOP 5", "WINNER" — displayed as a small badge when set. */
   pill: string | null;

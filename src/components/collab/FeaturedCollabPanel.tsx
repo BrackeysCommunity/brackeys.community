@@ -12,12 +12,12 @@ import { DotGrid } from "@/components/ui/dot-grid";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { MediaCardImage, MediaCardScrim } from "@/components/ui/media-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { TransformedImage } from "@/components/ui/transformed-image";
 import { Censored, Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { compensationLabelShort, postTypeLabelShort } from "@/lib/collab-vocabulary";
-import { timeAgo } from "@/lib/format-time";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { EASE_OUT } from "@/lib/motion";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -327,7 +327,7 @@ export function FeaturedCollabPanel({ posts }: { posts: FeaturedPost[] }) {
               variant="muted"
               className="shrink-0 tracking-widest whitespace-nowrap tabular-nums"
             >
-              {timeAgo(post.createdAt)}
+              {<TimeAgo date={post.createdAt} />}
             </Text>
           </div>
         </div>

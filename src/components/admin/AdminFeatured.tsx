@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -152,12 +152,12 @@ function PostRow({
               </Badge>
             ) : null}
             <MicroLabel as="span" className="text-muted-foreground">
-              {timeAgo(post.createdAt)}
+              {<TimeAgo date={post.createdAt} />}
             </MicroLabel>
           </div>
           {isFeatured && post.featuredAt ? (
             <Text size="xs" variant="muted">
-              Pinned {timeAgo(post.featuredAt)}
+              Pinned {<TimeAgo date={post.featuredAt} />}
             </Text>
           ) : null}
         </div>

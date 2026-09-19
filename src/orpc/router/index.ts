@@ -102,7 +102,7 @@ import {
   setJamHeroPin,
   setJamWatch,
 } from "./jam";
-import { countMembersByRole, countMembersBySkill, listMembers } from "./member";
+import { countMembersByRole, countMembersBySkill, getMemberStats, listMembers } from "./member";
 import {
   listNotifications,
   countNotifications,
@@ -239,6 +239,7 @@ export default {
   listMembers,
   countMembersBySkill,
   countMembersByRole,
+  getMemberStats,
   syncGitHubLink,
   unlinkGitHub,
   getContributions,

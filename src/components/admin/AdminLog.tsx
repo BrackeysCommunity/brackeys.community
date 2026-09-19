@@ -8,9 +8,9 @@ import { Empty } from "@/components/ui/empty";
 import { FilterMenu } from "@/components/ui/filter-menu";
 import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { timeAgo } from "@/lib/format-time";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client, orpc } from "@/orpc/client";
 
@@ -142,7 +142,7 @@ export function AdminLog() {
                 <Badge size="label" variant="outline">
                   {ACTION_LABEL.get(row.action) ?? row.action}
                 </Badge>
-                <MicroLabel>{timeAgo(row.createdAt)}</MicroLabel>
+                <MicroLabel>{<TimeAgo date={row.createdAt} />}</MicroLabel>
                 {row.targetType ? (
                   <MicroLabel>
                     {row.targetType.toUpperCase()}

@@ -21,6 +21,7 @@ import { GraphPaper } from "@/components/ui/graph-paper";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { PageStack } from "@/components/ui/page-motion";
 import { ReportDialog } from "@/components/ui/report-dialog";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import {
   MarkedText,
@@ -34,7 +35,6 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { isHostOrSubdomainOf } from "@/lib/external-url";
-import { timeAgo } from "@/lib/format-time";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams, jamMonthYear, projectEntryUrl } from "@/lib/jam-links";
@@ -355,7 +355,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                       {r.name}
                     </Badge>
                   ))}
-                  <MicroLabel>{timeAgo(p.createdAt)}</MicroLabel>
+                  <MicroLabel>{<TimeAgo date={p.createdAt} />}</MicroLabel>
                 </Chonk>
               ))}
             </div>

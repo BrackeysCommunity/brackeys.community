@@ -16,8 +16,8 @@ import { Confirm } from "@/components/ui/confirm";
 import { Empty } from "@/components/ui/empty";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -294,7 +294,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                     ) : null}
                     <Text size="xs" variant="muted">
                       {row.entries.length > 1 ? "last reported " : "reported "}
-                      {head.createdAt ? timeAgo(head.createdAt) : "—"}
+                      {head.createdAt ? <TimeAgo date={head.createdAt} /> : "—"}
                       {row.entries.length === 1 && head.reporterName ? (
                         <>
                           {" by "}
@@ -317,7 +317,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                             <AdminPersonLink user={entry.reporter}>
                               {entry.reporterName ?? "Unknown"}
                             </AdminPersonLink>{" "}
-                            · {entry.createdAt ? timeAgo(entry.createdAt) : "—"}
+                            · {entry.createdAt ? <TimeAgo date={entry.createdAt} /> : "—"}
                           </Text>
                         ) : null}
                       </div>

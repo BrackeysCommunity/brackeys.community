@@ -26,6 +26,7 @@ import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { PageStack } from "@/components/ui/page-motion";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Section } from "@/components/ui/section";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { TransformedImage } from "@/components/ui/transformed-image";
 import {
   Heading,
@@ -56,6 +57,7 @@ import {
 import { formatCount } from "@/lib/format-count";
 import { formatRate } from "@/lib/format-rate";
 import { timeAgo } from "@/lib/format-time";
+import useDateNow from "@/lib/hooks/use-date-now";
 import { BACKDROP_TRANSFORM } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
@@ -130,7 +132,9 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
     viewerOverlap,
   } = usePostViewerState(postId, post, currentUserId);
   const isClosed = post.status !== "recruiting";
-  const closesIn = !isClosed && post.expiresAt ? formatCountdown(post.expiresAt) : null;
+  const now = useDateNow();
+  const closesIn =
+    !isClosed && post.expiresAt ? formatCountdown(post.expiresAt, new Date(now)) : null;
   const rateDisplay =
     formatRate(post.compensationType, post.compensationMin, post.compensationMax, {
       currency: post.currency,
@@ -563,7 +567,7 @@ function PostHero({
                   need the detour through it to find the same button. */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <MicroLabel as="div" className="uppercase">
-                  Posted {timeAgo(post.createdAt)}
+                  Posted {<TimeAgo date={post.createdAt} />}
                   {post.author ? ` · by @${post.author.discordUsername ?? "unknown"}` : ""}
                   {post.team ? ` · ${post.team.name}` : ""}
                 </MicroLabel>
@@ -814,6 +818,7 @@ function ShareToDiscordAction({
   isClosed: boolean;
   mutation: ReturnType<typeof useCollabPostActions>["shareToDiscord"];
 }) {
+  const now = useDateNow();
   if (!share?.available || isClosed) return null;
 
   const shared = share.sharedAt != null;
@@ -825,7 +830,7 @@ function ShareToDiscordAction({
       disabled={mutation.isPending}
       tooltip={
         shared
-          ? `Shared ${timeAgo(share.sharedAt!)} — press again to update the Discord message`
+          ? `Shared ${timeAgo(share.sharedAt!, now)} — press again to update the Discord message`
           : "Post this to the Discord collab feed"
       }
       className="tracking-widest"

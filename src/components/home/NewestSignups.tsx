@@ -3,11 +3,11 @@ import { Link as RouterLink } from "@tanstack/react-router";
 
 import { Section, SectionAction } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import { timeAgo } from "@/lib/format-time";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { profileLinkParams } from "@/lib/profile-links";
 import { client } from "@/orpc/client";
@@ -100,7 +100,7 @@ export function NewestSignups() {
                     {/* When they turned up — the one fact a "newest" list is
                         actually sorted by, so the ordering is legible. */}
                     <MicroLabel className="shrink-0 tabular-nums">
-                      {timeAgo(u.createdAt)}
+                      {<TimeAgo date={u.createdAt} />}
                     </MicroLabel>
                   </RouterLink>
                 </li>

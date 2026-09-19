@@ -19,10 +19,10 @@ vi.mock("@hugeicons/react", () => ({
 // rather than failing an assertion, so keep this in sync when icons change.
 vi.mock("@hugeicons/core-free-icons", () => ({
   Calendar03Icon: "calendar",
-  ComputerTerminal01Icon: "terminal",
   Home01Icon: "home",
   UserGroupIcon: "user-group",
   UserIcon: "user",
+  UserSearch01Icon: "user-search",
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -82,12 +82,12 @@ afterEach(() => {
 });
 
 describe("MobileBottomNav", () => {
-  it("renders Home / Jams / Collab / Command / Profile", () => {
+  it("renders Home / Jams / Collab / Members / Profile", () => {
     render(<MobileBottomNav />);
     expect(screen.getByLabelText("Home")).toBeTruthy();
     expect(screen.getByLabelText("Jams")).toBeTruthy();
     expect(screen.getByLabelText("Collab")).toBeTruthy();
-    expect(screen.getByLabelText("Command")).toBeTruthy();
+    expect(screen.getByLabelText("Members")).toBeTruthy();
     expect(screen.getByLabelText("Profile")).toBeTruthy();
   });
 
@@ -104,10 +104,15 @@ describe("MobileBottomNav", () => {
     expect(navigate).toHaveBeenCalledWith({ to: "/collab" });
   });
 
-  it("clicking Command navigates to /command-center", () => {
+  it("clicking Members navigates to /members", () => {
     render(<MobileBottomNav />);
-    fireEvent.click(screen.getByLabelText("Command"));
-    expect(navigate).toHaveBeenCalledWith({ to: "/command-center" });
+    fireEvent.click(screen.getByLabelText("Members"));
+    expect(navigate).toHaveBeenCalledWith({ to: "/members" });
+  });
+
+  it("reflects active pathname on the segmented item (Members)", () => {
+    render(<MobileBottomNav pathnameOverride="/members" />);
+    expect(screen.getByLabelText("Members").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("clicking Profile navigates to /profile", () => {

@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   HeadContent,
+  Outlet,
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
@@ -64,6 +65,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSettingsProvider, useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider, useCommandPalette } from "@/lib/hooks/use-command-palette";
+import { ServerNowContext } from "@/lib/hooks/use-date-now";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
@@ -96,6 +98,9 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
    * `og:url` and the canonical are absent on purpose: a root-level value
    * would point every page at the same URL.
    */
+  loader: () => ({ now: Date.now() }),
+  // The one clock the whole render reads, serialized with the page so the
+  // client hydrates against the same instant — see `useDateNow`.
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -147,6 +152,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { rel: "stylesheet", href: appCss },
     ],
   }),
+  staleTime: Infinity,
+  component: RootComponent,
   shellComponent: RootDocument,
   errorComponent: RouteErrorBoundary,
   pendingComponent: RoutePendingFallback,
@@ -191,6 +198,15 @@ function RouteErrorBoundary({ error, info }: ErrorComponentProps) {
 
 function RoutePendingFallback() {
   return <PageSkeleton />;
+}
+
+function RootComponent() {
+  const { now } = Route.useLoaderData();
+  return (
+    <ServerNowContext value={now}>
+      <Outlet />
+    </ServerNowContext>
+  );
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {

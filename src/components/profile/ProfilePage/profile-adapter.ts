@@ -106,6 +106,9 @@ export interface RpcProfile {
     /** Overall placement scraped off the entry's rate page, once voting
      * has closed. Null for manual rows and un-scored entries. */
     jamOverallRank: number | null;
+    /** The entry's best category when the jam ranks no Overall at all —
+     * a placement, but not a finish. Null whenever an Overall exists. */
+    jamBestCriterion: { criterion: string; rank: number } | null;
     submissionTitle: string | null;
     submissionUrl: string | null;
     result: string | null;
@@ -170,7 +173,11 @@ export function adaptProfile(
     .map(adaptJamLogEntry)
     .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
   const jamLogBest = deriveJamLogBest(jamRows);
-  const rankedFinishes = jamLog.map((e) => e.rank).filter((r) => r != null);
+  // Overall finishes only: a category placement isn't a best rank.
+  const rankedFinishes = jamLog
+    .filter((e) => e.rankCriterion == null)
+    .map((e) => e.rank)
+    .filter((r) => r != null);
   const bestRank = rankedFinishes.length > 0 ? Math.min(...rankedFinishes) : null;
 
   const projects = workRows
@@ -290,7 +297,10 @@ export function adaptProfile(
   const badges: ProfileBadge[] = [];
   // A scraped overall rank of 1 is the reliable signal; the text test still
   // covers manually-entered results ("Winner", "1st").
-  if (jamLog.some((e) => e.rank === 1) || rpc.projects.some((p) => isWinnerText(p.result))) {
+  if (
+    jamLog.some((e) => e.rank === 1 && e.rankCriterion == null) ||
+    rpc.projects.some((p) => isWinnerText(p.result))
+  ) {
     badges.push({ label: "jam winner", variant: "winner" });
   }
   if (profile.availableForWork) {
@@ -413,7 +423,9 @@ function isWinnerText(result: string | null): boolean {
 }
 
 function adaptJamLogEntry(p: RpcProject): JamLogEntry {
-  const rank = jamRank(p);
+  const overall = jamRank(p);
+  const rank = overall ?? p.jamBestCriterion?.rank ?? null;
+  const rankCriterion = overall == null ? (p.jamBestCriterion?.criterion ?? null) : null;
   // Prefer when the jam ran; fall back through the entry's own dates so a
   // manual row without a linked jam still lands on the right date.
   const startedAt = p.jamStartsAt ?? p.participatedAt ?? p.publishedAt ?? p.createdAt;
@@ -429,6 +441,7 @@ function adaptJamLogEntry(p: RpcProject): JamLogEntry {
     startedAt,
     url: projectEntryUrl(p),
     rank,
+    rankCriterion,
     totalEntries: p.jamEntriesCount,
     pill: rank == null && p.result ? p.result.toUpperCase() : null,
   };

@@ -2,9 +2,9 @@ import { Link as RouterLink } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Section, SectionAction } from "@/components/ui/section";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { timeAgo } from "@/lib/format-time";
 
 import type { HomeDashboardData } from "./use-home-dashboard";
 
@@ -70,7 +70,7 @@ export function MyApplications({
                   ) : null}
                 </div>
                 <MicroLabel as="div" className="w-16 shrink-0 text-right tabular-nums">
-                  {timeAgo(application.createdAt)}
+                  {<TimeAgo date={application.createdAt} />}
                 </MicroLabel>
               </RouterLink>
             </li>

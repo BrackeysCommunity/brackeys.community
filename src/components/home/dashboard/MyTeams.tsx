@@ -2,10 +2,10 @@ import { Link as RouterLink } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Section, SectionAction } from "@/components/ui/section";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import { timeAgo } from "@/lib/format-time";
 import { teamLinkParams } from "@/lib/team-links";
 
 import type { HomeDashboardData } from "./use-home-dashboard";
@@ -52,7 +52,7 @@ export function MyTeams({ teams }: { teams: HomeDashboardData["teams"] }) {
                   </Badge>
                 ) : null}
                 <MicroLabel as="div" className="w-16 shrink-0 text-right tabular-nums">
-                  {timeAgo(team.lastActivityAt)}
+                  {<TimeAgo date={team.lastActivityAt} />}
                 </MicroLabel>
               </RouterLink>
             </li>

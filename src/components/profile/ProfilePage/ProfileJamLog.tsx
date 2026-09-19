@@ -172,7 +172,8 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
           dash means "tracked jam, no rank yet" (voting open, or results
           never scraped); a free-text jam can never earn one, so it shows
           nothing rather than a dash that reads as a bug. Typed results on
-          those rows surface as the ⚐ pill beside the title instead. */}
+          those rows surface as the ⚐ pill beside the title instead. A jam
+          that ranks no Overall shows the entry's best category, named. */}
       {entry.rank != null || entry.jamId != null ? (
         <div className="flex flex-col items-end leading-tight">
           <Text bold className="text-2xl tabular-nums">
@@ -181,6 +182,11 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
           {entry.totalEntries ? (
             <Text size="xs" variant="muted" className="tracking-widest tabular-nums">
               /{entry.totalEntries}
+            </Text>
+          ) : null}
+          {entry.rankCriterion ? (
+            <Text size="xs" variant="muted" className="tracking-widest uppercase">
+              {entry.rankCriterion}
             </Text>
           ) : null}
         </div>

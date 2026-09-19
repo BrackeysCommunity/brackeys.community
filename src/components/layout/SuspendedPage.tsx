@@ -3,11 +3,12 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
 import { EVENTS } from "@/lib/event-taxonomy";
-import { timeAgo } from "@/lib/format-time";
+import useDateNow from "@/lib/hooks/use-date-now";
 import { formatCountdown } from "@/lib/jam-countdown";
 import { CONTACT, SITE } from "@/lib/legal-meta";
 import { captureEvent, resetIdentity } from "@/lib/product-insights";
@@ -23,7 +24,8 @@ export function SuspendedPage({
   reason: string | null;
 }) {
   const navigate = useNavigate();
-  const remaining = formatCountdown(until);
+  const now = useDateNow();
+  const remaining = formatCountdown(until, new Date(now));
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 py-10">
@@ -43,7 +45,7 @@ export function SuspendedPage({
       <Well className="gap-4 p-5">
         <div className="flex flex-col gap-1">
           <MicroLabel>SUSPENDED</MicroLabel>
-          <Text size="sm">{bannedAt ? timeAgo(bannedAt) : "—"}</Text>
+          <Text size="sm">{bannedAt ? <TimeAgo date={bannedAt} /> : "—"}</Text>
         </div>
 
         <div className="flex flex-col gap-1">

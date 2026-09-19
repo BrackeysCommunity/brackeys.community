@@ -1,4 +1,5 @@
 import { ContributionCalendar } from "@/components/profile/ContributionCalendar";
+import { GitHubContributionsNote } from "@/components/profile/GitHubContributionsNote";
 import { Well } from "@/components/ui/well";
 
 import { ProfileEmptyState } from "./ProfileEmptyState";
@@ -39,6 +40,7 @@ export function ProfileActivitySection({
           title="No activity yet"
           hint="Link a GitHub account from the LINKED section to see your contribution graph here."
         />
+        <GitHubContributionsNote />
       </section>
     );
   }
@@ -61,6 +63,9 @@ export function ProfileActivitySection({
       <Well className="overflow-hidden">
         <ContributionCalendar userId={profileId} />
       </Well>
+      {/* Owner-only: a visitor can't act on it, and a graph that looks
+          emptier than the member's GitHub is the owner's question. */}
+      {isOwner ? <GitHubContributionsNote /> : null}
     </section>
   );
 }

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { collabPostDiscordShares, collabPosts, developerProfiles, user } from "@/db/schema";
+import { clearFeedRefusal } from "@/lib/collab-discord-feed";
 import {
   closePost,
   deletePost,
@@ -68,6 +69,7 @@ beforeEach(async () => {
   calls.length = 0;
   limiter.length = 0;
   nextStatus = 200;
+  clearFeedRefusal();
 
   process.env.DISCORD_COLLAB_CHANNEL_ID = "9001";
   process.env.DISCORD_GUILD_ID = "7";
@@ -149,6 +151,20 @@ describe("shareToDiscord", () => {
     const postId = await seedCollabPost(db, "author");
     await call(shareToDiscord, { postId }, asUser("author"));
     expect(limiter).toEqual(["spend:collab-discord-share"]);
+  });
+
+  it("takes the button away for a while once Discord says the bot can't post", async () => {
+    const postId = await seedCollabPost(db, "author");
+    nextStatus = 403;
+
+    await expect(call(shareToDiscord, { postId }, asUser("author"))).rejects.toThrow(
+      /can't post in the collab channel/i,
+    );
+
+    // The next read of the page finds no button: a permission the guild
+    // hasn't granted degrades the same way a channel that isn't configured.
+    const mine = await call(getPostViewerState, { postId }, asUser("author"));
+    expect(mine.discordShare?.available).toBe(false);
   });
 
   it("answers the author's own page with the mirror's state, and nobody else's", async () => {

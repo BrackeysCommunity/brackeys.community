@@ -16,8 +16,8 @@ import { Confirm } from "@/components/ui/confirm";
 import { Empty } from "@/components/ui/empty";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { toast } from "@/lib/toast";
@@ -234,7 +234,7 @@ function ProposalRow({
           ) : null}
           <Text size="xs" variant="muted">
             proposed by <AdminPersonLink user={proposal.proposer}>{proposerName}</AdminPersonLink> ·{" "}
-            {proposal.createdAt ? timeAgo(proposal.createdAt) : "—"}
+            {proposal.createdAt ? <TimeAgo date={proposal.createdAt} /> : "—"}
           </Text>
         </div>
 
@@ -293,7 +293,12 @@ function ProposalRow({
                   </AdminPersonLink>
                 </>
               ) : null}
-              {proposal.reviewedAt ? ` · ${timeAgo(proposal.reviewedAt)}` : ""}
+              {proposal.reviewedAt ? (
+                <>
+                  {" · "}
+                  <TimeAgo date={proposal.reviewedAt} />
+                </>
+              ) : null}
               {proposal.reviewNote ? ` — “${proposal.reviewNote}”` : ""}
             </Text>
             {appliedPrevious && Object.keys(appliedPrevious).length > 0 ? (

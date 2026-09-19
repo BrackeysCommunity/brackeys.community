@@ -93,20 +93,20 @@ Reach for these before writing a new helper or a raw utility-class string.
 Duplicates of each of these existed in 3–5 places until they were
 consolidated; new copies undo that.
 
-| Need                                                        | Use                                                                                | Not                                         |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
-| Micro-label voice (`font-mono text-[10px] tracking-widest`) | `MicroLabel` from `@/components/ui/typography`, or `Badge size="label"`            | a raw className string                      |
-| Loading placeholder                                         | `Skeleton` from `@/components/ui/skeleton`                                         | a hand-rolled `animate-pulse` div           |
-| Avatar with initial fallback                                | `UserAvatar` from `@/components/ui/user-avatar` (wraps the `ui/avatar` primitives) | an inline `avatarUrl ? <img> : <div>`       |
-| Compensation / rate strings                                 | `formatRate` from `@/lib/format-rate`                                              | a local `$K` formatter                      |
-| Past relative time ("3h ago")                               | `timeAgo` from `@/lib/format-time`                                                 | `date-fns`                                  |
-| Future countdowns                                           | `formatCountdown` / `formatRelativeMs` from `@/lib/jam-countdown`                  | re-deriving d/h/m                           |
-| Jam permalink, host name, date block                        | `jamUrl` / `hostName` / `jamMonthDay` from `@/lib/jam-links`                       | an inline template or `hosts[0]?.name ?? …` |
-| Jam fallback colors                                         | `@/lib/jam-palette`                                                                | a local random pick                         |
-| `/profile/$userId` links                                    | `profileSlug` / `profileLinkParams` from `@/lib/profile-links`                     | `urlStub ?? id` inline                      |
-| Toasts                                                      | `toast` from `@/lib/toast` (sonner plus the arrival cue)                           | `toast` from `sonner`                       |
-| Interaction sounds                                          | the cue bundles and `play*` helpers in `@/lib/sound`                               | importing `cuelume` directly                |
-| Hover hint on a control                                     | `Button tooltip="…"`, or `SimpleTooltip` from `@/components/ui/tooltip`            | a native `title` attribute                  |
+| Need                                                        | Use                                                                                | Not                                               |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Micro-label voice (`font-mono text-[10px] tracking-widest`) | `MicroLabel` from `@/components/ui/typography`, or `Badge size="label"`            | a raw className string                            |
+| Loading placeholder                                         | `Skeleton` from `@/components/ui/skeleton`                                         | a hand-rolled `animate-pulse` div                 |
+| Avatar with initial fallback                                | `UserAvatar` from `@/components/ui/user-avatar` (wraps the `ui/avatar` primitives) | an inline `avatarUrl ? <img> : <div>`             |
+| Compensation / rate strings                                 | `formatRate` from `@/lib/format-rate`                                              | a local `$K` formatter                            |
+| Past relative time ("3h ago")                               | `TimeAgo` from `@/components/ui/time-ago` in JSX; `timeAgo(date, now)` elsewhere   | `date-fns`, `timeAgo()` with no `now` in a render |
+| Future countdowns                                           | `formatCountdown` / `formatRelativeMs` from `@/lib/jam-countdown`                  | re-deriving d/h/m                                 |
+| Jam permalink, host name, date block                        | `jamUrl` / `hostName` / `jamMonthDay` from `@/lib/jam-links`                       | an inline template or `hosts[0]?.name ?? …`       |
+| Jam fallback colors                                         | `@/lib/jam-palette`                                                                | a local random pick                               |
+| `/profile/$userId` links                                    | `profileSlug` / `profileLinkParams` from `@/lib/profile-links`                     | `urlStub ?? id` inline                            |
+| Toasts                                                      | `toast` from `@/lib/toast` (sonner plus the arrival cue)                           | `toast` from `sonner`                             |
+| Interaction sounds                                          | the cue bundles and `play*` helpers in `@/lib/sound`                               | importing `cuelume` directly                      |
+| Hover hint on a control                                     | `Button tooltip="…"`, or `SimpleTooltip` from `@/components/ui/tooltip`            | a native `title` attribute                        |
 
 **Monospace:** `font-mono` is reserved for the command-center surfaces,
 `Badge size="label"`, and `MicroLabel`. Everything else uses the sans and

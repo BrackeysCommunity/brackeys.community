@@ -9,8 +9,8 @@ import { Confirm } from "@/components/ui/confirm";
 import { Empty } from "@/components/ui/empty";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { client, orpc } from "@/orpc/client";
 
@@ -183,7 +183,7 @@ function FlagRow({
             </Badge>
           ) : null}
           <Text size="xs" variant="muted">
-            {flag.ownerTypeLabel} · flagged {timeAgo(flag.createdAt)}
+            {flag.ownerTypeLabel} · flagged {<TimeAgo date={flag.createdAt} />}
           </Text>
         </div>
 
@@ -249,7 +249,7 @@ function FlagRow({
                 </AdminPersonLink>{" "}
               </>
             ) : null}
-            {flag.resolvedAt ? timeAgo(flag.resolvedAt) : null}
+            {flag.resolvedAt ? <TimeAgo date={flag.resolvedAt} /> : null}
           </Text>
         ) : (
           <div className="flex flex-wrap items-center gap-2">

@@ -3,6 +3,7 @@ import {
   ComputerTerminal01Icon,
   UserGroupIcon,
   UserMultiple02Icon,
+  UserSearch01Icon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -13,8 +14,8 @@ import { client } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
 export interface HomeDestination {
-  /** Route to navigate to. Plain strings — all four are static paths. */
-  to: "/collab" | "/jams" | "/command-center" | "/teams";
+  /** Route to navigate to. Plain strings — all of them are static paths. */
+  to: "/collab" | "/jams" | "/command-center" | "/teams" | "/members";
   icon: IconSvgElement;
   /** The destination, in the rail's voice. */
   title: string;
@@ -25,6 +26,16 @@ export interface HomeDestination {
   chipLabel: string;
   /** Already rendered — `—` while its query is in flight. */
   stat: string;
+}
+
+function useMemberStats() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["member-stats"],
+    queryFn: () => client.getMemberStats({}),
+    staleTime: STALE.listing,
+  });
+
+  return { total: data?.total ?? 0, isLoading };
 }
 
 function useTeamStats() {
@@ -38,8 +49,8 @@ function useTeamStats() {
 }
 
 /**
- * The four destinations the landing page offers, and the live number that
- * makes each worth a tap.
+ * The destinations the landing page offers, and the live number that makes
+ * each worth a tap.
  *
  * One list for both layouts. The desktop rail and the mobile chip row used
  * to name their own tiles and pick their own stats, which is how the phone
@@ -50,6 +61,7 @@ function useTeamStats() {
 export function useHomeDestinations(liveCount: number, isLoadingJams: boolean): HomeDestination[] {
   const { openRoles, isLoading: isLoadingRoles } = useBoardStats();
   const { recruiting, isLoading: isLoadingTeams } = useTeamStats();
+  const { total: memberCount, isLoading: isLoadingMembers } = useMemberStats();
 
   return [
     {
@@ -75,6 +87,14 @@ export function useHomeDestinations(liveCount: number, isLoadingJams: boolean): 
       statLabel: "Bot Protocols",
       chipLabel: "BOT PROTOCOLS",
       stat: String(PROTOCOL_COUNT),
+    },
+    {
+      to: "/members",
+      icon: UserSearch01Icon,
+      title: "MEMBERS",
+      statLabel: "Profiles",
+      chipLabel: "MEMBERS",
+      stat: isLoadingMembers ? "—" : String(memberCount),
     },
     {
       to: "/teams",

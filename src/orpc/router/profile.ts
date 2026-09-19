@@ -111,26 +111,40 @@ async function queryProfileProjects(where: SQL | undefined) {
     .leftJoin(projects, eq(profileProjects.projectId, projects.id))
     .where(where);
 
-  // Overall placement lives in the scraped per-criterion results, keyed on the
-  // itch entry id that imported jam rows carry as `sourceId`. Fetched
-  // separately rather than joined so a jam with several scraped criteria
-  // can't multiply the project rows.
+  // Placement lives in the scraped per-criterion results, keyed on the itch
+  // entry id that imported jam rows carry as `sourceId`. Fetched separately
+  // rather than joined so a jam with several scraped criteria can't multiply
+  // the project rows. Overall is the placement when the jam ranks one; a jam
+  // that only ranks its categories (GMTK since 2025) has no such row, so its
+  // best category stands in — labelled, since "#694" alone would read as a
+  // finish it isn't.
   const entryIds = rows
     .filter((r) => r.project.source === "itchio-jam" && /^\d+$/.test(r.project.sourceId ?? ""))
     .map((r) => Number(r.project.sourceId));
-  const overallRows =
+  const resultRows =
     entryIds.length > 0
       ? await db
-          .select({ entryId: itchJamEntryResults.entryId, rank: itchJamEntryResults.rank })
+          .select({
+            entryId: itchJamEntryResults.entryId,
+            criterion: itchJamEntryResults.criterion,
+            rank: itchJamEntryResults.rank,
+          })
           .from(itchJamEntryResults)
-          .where(
-            and(
-              inArray(itchJamEntryResults.entryId, entryIds),
-              sql`lower(${itchJamEntryResults.criterion}) = 'overall'`,
-            ),
-          )
+          .where(inArray(itchJamEntryResults.entryId, entryIds))
       : [];
-  const rankByEntryId = new Map(overallRows.map((r) => [String(r.entryId), r.rank]));
+  const overallByEntryId = new Map<string, number>();
+  const bestCriterionByEntryId = new Map<string, { criterion: string; rank: number }>();
+  for (const r of resultRows) {
+    const key = String(r.entryId);
+    if (r.criterion.toLowerCase() === "overall") {
+      overallByEntryId.set(key, r.rank);
+      continue;
+    }
+    const best = bestCriterionByEntryId.get(key);
+    if (!best || r.rank < best.rank) {
+      bestCriterionByEntryId.set(key, { criterion: r.criterion, rank: r.rank });
+    }
+  }
 
   // New manual rows stop carrying the free-text jam columns (plan step 6) —
   // the facts live on `project_jam_links` — so rows with a canonical project
@@ -223,7 +237,13 @@ async function queryProfileProjects(where: SQL | undefined) {
         // collide numerically with an unrelated entry id.
         jamOverallRank:
           project.source === "itchio-jam" && project.sourceId
-            ? (rankByEntryId.get(project.sourceId) ?? null)
+            ? (overallByEntryId.get(project.sourceId) ?? null)
+            : null,
+        jamBestCriterion:
+          project.source === "itchio-jam" &&
+          project.sourceId &&
+          !overallByEntryId.has(project.sourceId)
+            ? (bestCriterionByEntryId.get(project.sourceId) ?? null)
             : null,
       };
     },

@@ -3,14 +3,15 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { GitHubContributionsNote } from "@/components/profile/GitHubContributionsNote";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { openConfirmModal } from "@/components/ui/confirm";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient, linkSigninProvider } from "@/lib/auth-client";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
@@ -26,6 +27,9 @@ const PROVIDERS: {
   label: string;
   icon: IconSvgElement;
   hint: string;
+  /** Rendered under the row whether or not the provider is connected —
+   *  a caveat about the connection is worth reading before and after. */
+  note?: React.ReactNode;
   /** Discord carries guild membership, staff roles, and the avatar sync —
    *  unlinking it would leave a signed-in account with no role source, so
    *  it is offered as a connection, never as something to remove. */
@@ -43,6 +47,8 @@ const PROVIDERS: {
     label: "GitHub",
     icon: GithubIcon,
     hint: "A second way in. Link it and either provider signs you into the same account.",
+    // Linking here also stores the token the ACTIVITY graph reads.
+    note: <GitHubContributionsNote />,
     unlinkable: true,
   },
 ];
@@ -126,8 +132,15 @@ export function ConnectedAccounts() {
                 ) : null}
               </div>
               <Text size="xs" variant="muted">
-                {account ? `Connected ${timeAgo(account.createdAt)}` : provider.hint}
+                {account ? (
+                  <>
+                    Connected <TimeAgo date={account.createdAt} />
+                  </>
+                ) : (
+                  provider.hint
+                )}
               </Text>
+              {provider.note}
             </div>
 
             {account ? (

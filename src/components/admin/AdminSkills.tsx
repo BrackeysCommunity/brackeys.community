@@ -28,9 +28,9 @@ import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { timeAgo } from "@/lib/format-time";
 import { useSkillsCatalog } from "@/lib/hooks/use-taxonomy";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
@@ -233,7 +233,7 @@ function RequestRow({
             <AdminPersonLink user={request.requester}>
               {request.requester?.displayName ?? "Unknown"}
             </AdminPersonLink>{" "}
-            · {timeAgo(request.createdAt)}
+            · {<TimeAgo date={request.createdAt} />}
           </Text>
         </div>
 

@@ -295,6 +295,16 @@ export const countMembersByRole = os
     return Object.fromEntries(rows.map((row) => [row.roleId, Number(row.count)]));
   });
 
+/**
+ * The directory's headline count for the home page's members tile. A bare
+ * `count(*)`: the listing lists everyone with a profile, so the number the
+ * tile advertises is the number `/members` opens on.
+ */
+export const getMemberStats = os.route({ method: "GET" }).handler(async () => {
+  const [row] = await db.select({ total: count() }).from(developerProfiles);
+  return { total: row?.total ?? 0 };
+});
+
 export const listMembers = os
   .route({ method: "GET" })
   .input(

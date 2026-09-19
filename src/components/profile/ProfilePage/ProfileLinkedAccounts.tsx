@@ -11,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { GitHubContributionsNote } from "@/components/profile/GitHubContributionsNote";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
@@ -168,6 +169,10 @@ export function ProfileLinkedAccountsSection({
           </ul>
         </Well>
       )}
+      {/* The caveat that makes a linked GitHub worth linking — said here,
+          beside both ways in, rather than after the graph disappoints
+          someone. */}
+      {isOwner ? <GitHubContributionsNote /> : null}
       {isOwner ? (
         <WebsiteVerifyDialog
           open={verifyOpen}

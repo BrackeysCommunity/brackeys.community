@@ -6,11 +6,11 @@ import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
-import { timeAgo } from "@/lib/format-time";
 import {
   analyticsPreference,
   analyticsPreferenceServerSnapshot,
@@ -198,7 +198,7 @@ function BlockedMembers() {
               {row.user?.name ?? "Deleted User"}
             </Text>
             <Text size="xs" variant="muted">
-              Blocked {timeAgo(row.blockedAt)}
+              Blocked {<TimeAgo date={row.blockedAt} />}
             </Text>
           </div>
           <Button

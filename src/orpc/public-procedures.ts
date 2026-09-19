@@ -28,6 +28,7 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "listMembers",
   "countMembersBySkill",
   "countMembersByRole",
+  "getMemberStats",
   "listAvailableUsers",
   "getProfile",
   // The Discord bot's `/member @someone`: the same projection, keyed by the
@@ -126,6 +127,7 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   listMembers: 60,
   countMembersBySkill: 60,
   countMembersByRole: 60,
+  getMemberStats: 60,
   listAvailableUsers: 60,
   getProfile: 30,
   getProfileByDiscordId: 30,

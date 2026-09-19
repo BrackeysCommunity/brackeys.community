@@ -45,6 +45,7 @@ const PUBLIC_PROCEDURES = new Set([
   "listMembers",
   "countMembersBySkill",
   "countMembersByRole",
+  "getMemberStats",
   "listAvailableUsers",
   // Public profile/project/team pages; viewer-specific fields degrade
   // to their anonymous shape via authMiddleware.

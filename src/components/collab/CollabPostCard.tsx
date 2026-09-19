@@ -13,10 +13,10 @@ import {
   MediaCardTile,
   mediaCardClasses,
 } from "@/components/ui/media-card";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { TransformedImage } from "@/components/ui/transformed-image";
 import { Text } from "@/components/ui/typography";
 import { postTypeLabelShort, compensationLabelShort } from "@/lib/collab-vocabulary";
-import { timeAgo } from "@/lib/format-time";
 import { BUTTON_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
@@ -138,7 +138,7 @@ function PostMeta({ post, className }: { post: CollabPostCardPost; className?: s
       variant="muted"
       className={cn("tracking-widest whitespace-nowrap tabular-nums", className)}
     >
-      {timeAgo(post.createdAt)}
+      {<TimeAgo date={post.createdAt} />}
     </Text>
   );
 }

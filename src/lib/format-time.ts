@@ -9,10 +9,15 @@ export const DAY_MS = 86_400_000;
  * vs "3 hours ago"): these render inside collab cards and notification
  * rows where the timestamp is a trailing annotation, not the content. One
  * voice everywhere, so the notification inbox and the collab board agree.
+ *
+ * Inside a component render, use `TimeAgo` from `@/components/ui/time-ago`
+ * (or pass `useDateNow()` as `now`): the default clock differs between the
+ * server and the hydrating client, and a boundary crossed between the two
+ * renders is a hydration mismatch.
  */
-export function timeAgo(date: string | Date | null): string {
+export function timeAgo(date: string | Date | null, now: number = Date.now()): string {
   if (!date) return "";
-  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  const seconds = Math.floor((now - new Date(date).getTime()) / 1000);
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;

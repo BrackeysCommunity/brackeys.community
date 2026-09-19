@@ -17,9 +17,9 @@ import { Empty } from "@/components/ui/empty";
 import { type FilterOption, FilterMenu, FilterToggle, SortMenu } from "@/components/ui/filter-menu";
 import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { PROJECT_TYPES } from "@/db/schema";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { projectLinkParams, projectTypeLabel } from "@/lib/project-links";
 import { toast } from "@/lib/toast";
@@ -302,7 +302,7 @@ function ProjectAdminRow({
               size={20}
             />
             <Text as="span" size="xs" variant="muted">
-              · added {timeAgo(project.createdAt)} · {project.contributorCount}{" "}
+              · added {<TimeAgo date={project.createdAt} />} · {project.contributorCount}{" "}
               {project.contributorCount === 1 ? "credit" : "credits"}
             </Text>
           </div>

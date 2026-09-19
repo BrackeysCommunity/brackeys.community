@@ -1,9 +1,9 @@
 import {
   Calendar03Icon,
-  ComputerTerminal01Icon,
   Home01Icon,
   UserGroupIcon,
   UserIcon,
+  UserSearch01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -105,7 +105,7 @@ const SEG =
   "after:pointer-events-none after:absolute after:-bottom-1 after:right-0 after:h-1 after:w-[14px] after:bg-background dark:after:bg-emboss-surface after:[clip-path:path('M0_0_A14_3_0_0_1_14_3_L14_0_Z')] after:opacity-0 after:transition-opacity after:duration-150 after:ease-out after:content-[''] " +
   "[&:has(+[aria-pressed=true])]:after:opacity-100 [[aria-pressed=true]+&]:before:opacity-100 [&:has(+:active)]:after:opacity-100 [:active+&]:before:opacity-100";
 
-type TabValue = "home" | "jams" | "collab" | "command" | "me";
+type TabValue = "home" | "jams" | "collab" | "members" | "me";
 
 /** Extract the `/profile/<param>` segment, or null on any other
  * route (including the bare `/profile` index, which is always the
@@ -155,8 +155,8 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
 
   const active: TabValue | "none" = pathname.startsWith("/collab")
     ? "collab"
-    : pathname.startsWith("/command-center")
-      ? "command"
+    : pathname.startsWith("/members")
+      ? "members"
       : pathname.startsWith("/profile")
         ? isOwnProfile
           ? "me"
@@ -188,8 +188,8 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
       case "collab":
         navigate({ to: "/collab" });
         return;
-      case "command":
-        navigate({ to: "/command-center" });
+      case "members":
+        navigate({ to: "/members" });
         return;
       case "me":
         // Straight to the stub route when signed in; `/profile` is the
@@ -254,8 +254,11 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         >
           <TabBody icon={UserGroupIcon} label="COLLAB" />
         </SegmentedControl.Item>
-        <SegmentedControl.Item value="command" aria-label="Command" className={SEG}>
-          <TabBody icon={ComputerTerminal01Icon} label="BOTS" />
+        {/* The member directory has no other way in on a phone — the mobile
+            header carries no nav. The command center it replaced still has
+            one, as a home-page tile. */}
+        <SegmentedControl.Item value="members" aria-label="Members" className={SEG}>
+          <TabBody icon={UserSearch01Icon} label="USERS" />
         </SegmentedControl.Item>
         <SegmentedControl.Item value="me" aria-label="Profile" className={cn(SEG, "rounded-r-md")}>
           <TabBody icon={UserIcon} label="ME" avatarUrl={avatarUrl} showDot={hasUnread} />

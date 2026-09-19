@@ -16,8 +16,8 @@ import { Confirm } from "@/components/ui/confirm";
 import { Empty } from "@/components/ui/empty";
 import { SearchField } from "@/components/ui/search-field";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -213,7 +213,7 @@ function TeamAdminRow({
           <div className="flex flex-wrap items-center gap-2">
             <AdminPerson user={team.owner} name={team.owner?.displayName ?? "No owner"} size={20} />
             <Text as="span" size="xs" variant="muted">
-              · created {team.createdAt ? timeAgo(team.createdAt) : "—"}
+              · created {team.createdAt ? <TimeAgo date={team.createdAt} /> : "—"}
             </Text>
           </div>
           {hidden && team.hiddenReason ? (

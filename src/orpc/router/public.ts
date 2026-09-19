@@ -20,7 +20,7 @@ import {
   listJamsByHost,
   listRecentEntries,
 } from "./jam";
-import { countMembersByRole, countMembersBySkill, listMembers } from "./member";
+import { countMembersByRole, countMembersBySkill, getMemberStats, listMembers } from "./member";
 import { getProfile, getProfileByDiscordId, listAvailableUsers, listSkills } from "./profile";
 import { getProject, listProjectsForGames } from "./project";
 import { countTeamsBySkill, getTeam, getTeamStats, listTeams, listUserTeams } from "./team";
@@ -61,6 +61,7 @@ export const publicRouter = {
   listMembers,
   countMembersBySkill,
   countMembersByRole,
+  getMemberStats,
   listAvailableUsers,
   getProfile,
   getProfileByDiscordId,

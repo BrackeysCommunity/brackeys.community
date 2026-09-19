@@ -24,6 +24,7 @@ import { Confirm } from "@/components/ui/confirm";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -32,7 +33,6 @@ import { activeUserStore } from "@/lib/active-user-store";
 import { signInWithDiscord } from "@/lib/auth-client";
 import { authStore } from "@/lib/auth-store";
 import type { SubjectRef } from "@/lib/comment-subjects";
-import { timeAgo } from "@/lib/format-time";
 import { useMemberViewer } from "@/lib/hooks/use-member-identity";
 import { isMultilineSubmitKey } from "@/lib/keyboard";
 import {
@@ -787,7 +787,7 @@ function CommentItem({
           </MicroLabel>
         ) : null}
         <MicroLabel as="span" className="ml-auto shrink-0">
-          {timeAgo(comment.createdAt)}
+          {<TimeAgo date={comment.createdAt} />}
           {comment.editedAt ? " · EDITED" : ""}
         </MicroLabel>
       </div>

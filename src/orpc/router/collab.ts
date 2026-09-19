@@ -29,6 +29,7 @@ import {
   buildCollabFeedMessage,
   collabFeedConfig,
   collabFeedMessageUrl,
+  collabFeedRefused,
   deleteCollabFeedMessage,
   DiscordFeedError,
   editCollabFeedMessage,
@@ -1466,7 +1467,7 @@ export const getPostViewerState = os
     const isAuthor = post != null && post.authorId === context.user.id;
     const discordShare = isAuthor
       ? {
-          available: feed != null,
+          available: feed != null && !collabFeedRefused(),
           sharedAt: share?.sharedAt ?? null,
           updatedAt: share?.updatedAt ?? null,
           messageUrl:

@@ -30,10 +30,10 @@ import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { formatCount } from "@/lib/format-count";
-import { timeAgo } from "@/lib/format-time";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import useDateNow from "@/lib/hooks/use-date-now";
 import { effectiveJamState } from "@/lib/jam-countdown";
@@ -355,7 +355,7 @@ function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
               </div>
               {active.pinnedAt ? (
                 <Text size="xs" variant="muted">
-                  Pinned {timeAgo(active.pinnedAt)}
+                  Pinned {<TimeAgo date={active.pinnedAt} />}
                 </Text>
               ) : null}
             </div>
@@ -431,7 +431,7 @@ function JamRow({
           </div>
           {pinnedAt ? (
             <Text size="xs" variant="muted">
-              Pinned {timeAgo(pinnedAt)}
+              Pinned {<TimeAgo date={pinnedAt} />}
             </Text>
           ) : null}
         </div>

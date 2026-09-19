@@ -140,46 +140,47 @@ describe("adaptProfile — the member's own site", () => {
  * to hand that straight to an anchor — so the game name resolved against
  * brackeys.community instead of itch.io (BC-203).
  */
-describe("adaptProfile — jam log entry links", () => {
-  function jamProject(
-    overrides: Partial<RpcProfile["projects"][number]> = {},
-  ): RpcProfile["projects"][number] {
-    return {
-      id: "p1",
-      type: "jam",
-      subTypes: null,
-      title: "Meltdown",
-      description: null,
-      url: "https://someone.itch.io/meltdown",
-      imageUrl: null,
-      tags: null,
-      pinned: null,
-      sortOrder: null,
-      status: "published",
-      source: "itchio-jam",
-      jamId: 402922,
-      jamName: "GMTK Jam 2026",
-      jamUrl: null,
-      jamSlug: "gmtk-jam-2026",
-      projectSlug: null,
-      canonicalType: null,
-      canonicalLinks: null,
-      canonicalPlatforms: null,
-      canonicalMinPrice: null,
-      missingSince: null,
-      jamStartsAt: new Date("2026-08-01T00:00:00Z"),
-      jamEntriesCount: 7000,
-      jamOverallRank: null,
-      submissionTitle: null,
-      submissionUrl: "/jam/gmtk-jam-2026/rate/4815752",
-      result: null,
-      participatedAt: null,
-      publishedAt: null,
-      createdAt: new Date("2026-08-02T00:00:00Z"),
-      ...overrides,
-    };
-  }
+function jamProject(
+  overrides: Partial<RpcProfile["projects"][number]> = {},
+): RpcProfile["projects"][number] {
+  return {
+    id: "p1",
+    type: "jam",
+    subTypes: null,
+    title: "Meltdown",
+    description: null,
+    url: "https://someone.itch.io/meltdown",
+    imageUrl: null,
+    tags: null,
+    pinned: null,
+    sortOrder: null,
+    status: "published",
+    source: "itchio-jam",
+    jamId: 402922,
+    jamName: "GMTK Jam 2026",
+    jamUrl: null,
+    jamSlug: "gmtk-jam-2026",
+    projectSlug: null,
+    canonicalType: null,
+    canonicalLinks: null,
+    canonicalPlatforms: null,
+    canonicalMinPrice: null,
+    missingSince: null,
+    jamStartsAt: new Date("2026-08-01T00:00:00Z"),
+    jamEntriesCount: 7000,
+    jamOverallRank: null,
+    jamBestCriterion: null,
+    submissionTitle: null,
+    submissionUrl: "/jam/gmtk-jam-2026/rate/4815752",
+    result: null,
+    participatedAt: null,
+    publishedAt: null,
+    createdAt: new Date("2026-08-02T00:00:00Z"),
+    ...overrides,
+  };
+}
 
+describe("adaptProfile — jam log entry links", () => {
   it("links the entry to its itch.io rate page", () => {
     const { jamLog } = adaptProfile(rpcProfile({ projects: [jamProject()] }));
     expect(jamLog[0]?.url).toBe("https://itch.io/jam/gmtk-jam-2026/rate/4815752");
@@ -190,6 +191,41 @@ describe("adaptProfile — jam log entry links", () => {
       rpcProfile({ projects: [jamProject({ submissionUrl: null })] }),
     );
     expect(jamLog[0]?.url).toBe("https://someone.itch.io/meltdown");
+  });
+});
+
+/**
+ * GMTK stopped ranking an Overall in 2025: its results are five categories
+ * and nothing else, so the log showed a dash for every entry in it (the
+ * second half of BC-203). The best category stands in, named — and stays
+ * out of the finishes, which are Overall or nothing.
+ */
+describe("adaptProfile — jam log placement without an Overall", () => {
+  const artwork = { criterion: "Artwork", rank: 694 };
+
+  it("shows the best category and names it", () => {
+    const { jamLog } = adaptProfile(
+      rpcProfile({ projects: [jamProject({ jamBestCriterion: artwork })] }),
+    );
+    expect(jamLog[0]).toMatchObject({ rank: 694, rankCriterion: "Artwork", pill: null });
+  });
+
+  it("prefers the Overall when the jam has one", () => {
+    const { jamLog } = adaptProfile(
+      rpcProfile({ projects: [jamProject({ jamOverallRank: 12, jamBestCriterion: artwork })] }),
+    );
+    expect(jamLog[0]).toMatchObject({ rank: 12, rankCriterion: null });
+  });
+
+  it("keeps a category placement out of the best finish and the winner badge", () => {
+    const { jamLogBest, stats, badges } = adaptProfile(
+      rpcProfile({
+        projects: [jamProject({ jamBestCriterion: { criterion: "Audio", rank: 1 } })],
+      }),
+    );
+    expect(jamLogBest).toBeNull();
+    expect(stats.jamsBestRank).toBeNull();
+    expect(badges.some((b) => b.label === "jam winner")).toBe(false);
   });
 });
 

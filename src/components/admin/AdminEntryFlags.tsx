@@ -8,8 +8,8 @@ import { Confirm } from "@/components/ui/confirm";
 import { Empty } from "@/components/ui/empty";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { client, orpc } from "@/orpc/client";
 
@@ -316,7 +316,7 @@ function FlagHeader({ flag }: { flag: EntryFlag }) {
       ) : null}
       <StatusBadge flag={flag} />
       <Text size="xs" variant="muted">
-        {flag.jamTitle} · flagged {timeAgo(flag.createdAt)}
+        {flag.jamTitle} · flagged {<TimeAgo date={flag.createdAt} />}
       </Text>
     </div>
   );
@@ -429,7 +429,7 @@ function SiblingFlag({
         <a href={flag.rateUrl} target="_blank" rel="noreferrer" className="hover:underline">
           {flag.jamTitle}
         </a>
-        {flag.submittedAt ? <> · submitted {timeAgo(flag.submittedAt)}</> : null}
+        {flag.submittedAt ? <> · submitted {<TimeAgo date={flag.submittedAt} />}</> : null}
       </Text>
       {flag.resolvedAt == null ? (
         <div className="flex items-center gap-2 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
@@ -496,7 +496,7 @@ function ResolvedBy({ flag }: { flag: EntryFlag }) {
           </AdminPersonLink>{" "}
         </>
       ) : null}
-      {timeAgo(flag.resolvedAt)}
+      {<TimeAgo date={flag.resolvedAt} />}
     </Text>
   );
 }
@@ -566,7 +566,7 @@ function CoverCard({
           ) : (
             (authorName ?? "Unknown author")
           )}
-          {submittedAt ? <> · submitted {timeAgo(submittedAt)}</> : null}
+          {submittedAt ? <> · submitted {<TimeAgo date={submittedAt} />}</> : null}
           {detail ? <> · {detail}</> : null}
         </Text>
       </div>

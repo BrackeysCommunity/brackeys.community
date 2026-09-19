@@ -33,11 +33,12 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { BAN_DURATIONS } from "@/lib/ban-state";
-import { timeAgo } from "@/lib/format-time";
+import useDateNow from "@/lib/hooks/use-date-now";
 import { formatCountdown } from "@/lib/jam-countdown";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -146,7 +147,8 @@ function BanRow({
   onUnban?: () => Promise<unknown>;
   unbanPending?: boolean;
 }) {
-  const remaining = formatCountdown(entry.bannedUntil);
+  const now = useDateNow();
+  const remaining = formatCountdown(entry.bannedUntil, new Date(now));
 
   return (
     <AdminRow className="flex-row items-center gap-3" muted={!entry.isActive}>
@@ -168,12 +170,17 @@ function BanRow({
           )}
         </div>
         <Text size="xs" variant="muted">
-          banned {entry.bannedAt ? timeAgo(entry.bannedAt) : "—"}
+          banned {entry.bannedAt ? <TimeAgo date={entry.bannedAt} /> : "—"}
           {entry.bannedBy ? " by " : " by the guild gate"}
           {entry.bannedBy ? (
             <AdminPersonLink user={entry.bannedBy}>{entry.bannedBy.displayName}</AdminPersonLink>
           ) : null}
-          {entry.unbannedAt ? ` · lifted ${timeAgo(entry.unbannedAt)}` : ""}
+          {entry.unbannedAt ? (
+            <>
+              {" · lifted "}
+              <TimeAgo date={entry.unbannedAt} />
+            </>
+          ) : null}
           {entry.banReason ? ` — ${entry.banReason}` : ""}
         </Text>
       </div>
@@ -402,12 +409,17 @@ function TargetCard({ target, onClear }: { target: Candidate; onClear: () => voi
         <MicroLabel ellipsis>{target.handle ?? "NO HANDLE"}</MicroLabel>
         <MicroLabel ellipsis>ID {target.id}</MicroLabel>
         <Text size="xs" variant="muted">
-          member since {target.memberSince ? timeAgo(target.memberSince) : "—"}
-          {target.guildJoinedAt ? ` · in the guild since ${timeAgo(target.guildJoinedAt)}` : ""}
+          member since {target.memberSince ? <TimeAgo date={target.memberSince} /> : "—"}
+          {target.guildJoinedAt ? (
+            <>
+              {" · in the guild since "}
+              <TimeAgo date={target.guildJoinedAt} />
+            </>
+          ) : null}
         </Text>
         {target.wasBanned ? (
           <Text size="xs" variant="danger">
-            Banned before — {target.bannedAt ? timeAgo(target.bannedAt) : "—"}
+            Banned before — {target.bannedAt ? <TimeAgo date={target.bannedAt} /> : "—"}
             {target.banReason ? `: ${target.banReason}` : ""}
           </Text>
         ) : null}

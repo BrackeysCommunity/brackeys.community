@@ -19,7 +19,10 @@ import { teamSlug } from "@/lib/team-links";
  *
  * Unconfigured (no channel id) is a first-class state, not an error: local
  * dev and any deploy whose guild has no such channel simply never show the
- * button.
+ * button. A channel the guild has stopped letting the bot post in is the
+ * same state arrived at from the other side, so a 403 hides the button the
+ * same way for a while (`collabFeedRefused`) instead of inviting every
+ * author to press it and be told no.
  */
 
 /** Discord's own caps, minus the ellipsis we add. */
@@ -56,8 +59,32 @@ export function collabFeedConfig(): CollabFeedConfig | null {
   return { channelId, guildId, botToken };
 }
 
+/**
+ * How long a refused post keeps the button hidden. Long enough that the
+ * channel isn't hammered by authors retrying a permission nobody has fixed
+ * yet, short enough that the grant takes effect without a deploy.
+ */
+const REFUSAL_WINDOW_MS = 15 * 60_000;
+let refusedUntil = 0;
+
+/** Discord answered a write with 403: the bot is missing a permission it
+ * needs in the feed channel. Hides the feed until the window passes. */
+export function noteFeedRefused(now: number = Date.now()): void {
+  refusedUntil = now + REFUSAL_WINDOW_MS;
+}
+
+export function clearFeedRefusal(): void {
+  refusedUntil = 0;
+}
+
+/** Whether the feed is currently hidden behind a refusal. */
+export function collabFeedRefused(now: number = Date.now()): boolean {
+  return refusedUntil > now;
+}
+
+/** Whether the share button should exist at all right now. */
 export function collabFeedEnabled(): boolean {
-  return collabFeedConfig() != null;
+  return collabFeedConfig() != null && !collabFeedRefused();
 }
 
 /** The link a client can open to read the mirrored message, in the app. */
@@ -313,6 +340,7 @@ function authHeaders(config: CollabFeedConfig): Record<string, string> {
 }
 
 async function failure(response: Response, action: string): Promise<DiscordFeedError> {
+  if (response.status === 403) noteFeedRefused();
   const body = await response.text().catch(() => "");
   return new DiscordFeedError(
     `Discord refused to ${action} the collab message: ${response.status} ${body.slice(0, 200)}`,
@@ -330,6 +358,7 @@ export async function postCollabFeedMessage(
     { method: "POST", headers: authHeaders(config), body: payload },
   );
   if (!response.ok) throw await failure(response, "post");
+  clearFeedRefusal();
   const message = (await response.json()) as { id?: string };
   if (!message.id) throw new DiscordFeedError("Discord accepted the message but returned no id");
   return message.id;
@@ -351,7 +380,10 @@ export async function editCollabFeedMessage(
     `https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`,
     { method: "PATCH", headers: authHeaders(config), body: payload },
   );
-  if (response.ok) return "edited";
+  if (response.ok) {
+    clearFeedRefusal();
+    return "edited";
+  }
   if (response.status === 404) return "gone";
   throw await failure(response, "edit");
 }
