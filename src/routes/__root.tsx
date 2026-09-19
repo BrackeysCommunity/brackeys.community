@@ -13,6 +13,12 @@ import { SiteFooter } from "@/components/home/SiteFooter";
 import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
 import { DeployEnvStripe } from "@/components/layout/DeployEnvMarker";
 import { PageSkeleton } from "@/components/layout/PageSkeleton";
+import {
+  AppHeaderFallback,
+  AppHeaderPending,
+  MobileShellFallback,
+  ShellBoundary,
+} from "@/components/layout/ShellBoundary";
 import { siteUrl } from "@/env";
 import {
   DEFAULT_OG_CARD,
@@ -328,14 +334,26 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
       <AuthSessionSync />
       <NotificationStreamMount />
       {isMobile ? (
-        <Suspense>
-          <MobileShell>{children}</MobileShell>
-        </Suspense>
+        <ShellBoundary
+          scope="mobile_shell"
+          fallback={<MobileShellFallback>{children}</MobileShellFallback>}
+        >
+          {/* No pending fallback here, unlike the header's: one that rendered
+              `children` would mount the page outside the shell and remount it
+              the moment the chunk landed, re-running the page's effects. The
+              boundary's fallback can afford to, because that case is
+              terminal. */}
+          <Suspense>
+            <MobileShell>{children}</MobileShell>
+          </Suspense>
+        </ShellBoundary>
       ) : (
         <>
-          <Suspense>
-            <AppHeader />
-          </Suspense>
+          <ShellBoundary scope="app_header" fallback={<AppHeaderFallback />}>
+            <Suspense fallback={<AppHeaderPending />}>
+              <AppHeader />
+            </Suspense>
+          </ShellBoundary>
           <TwoColumnShell>{children}</TwoColumnShell>
         </>
       )}

@@ -15,8 +15,12 @@ export function MotionSection() {
     useAppSettings();
 
   // The slider reads live while dragging; only the committed value is stored,
-  // so a single drag is one write rather than one per pixel.
-  const [draft, setDraft] = useState(() => Math.round(volume * 100));
+  // so a single drag is one write rather than one per pixel. `null` means
+  // "not dragging", which is what keeps the readout following the stored
+  // value — an initializer would latch whatever it read first, and the
+  // stored volume only reaches this tree on the render after hydration.
+  const [draft, setDraft] = useState<number | null>(null);
+  const percent = draft ?? Math.round(volume * 100);
 
   return (
     <>
@@ -59,17 +63,18 @@ export function MotionSection() {
                 aria-label="Volume"
                 className="flex-1"
                 disabled={muted}
-                value={[draft]}
+                value={[percent]}
                 onValueChange={(value) => setDraft(Array.isArray(value) ? value[0] : value)}
                 onValueCommitted={(value) => {
                   const next = Array.isArray(value) ? value[0] : value;
+                  setDraft(null);
                   setVolume(next / 100);
                   // A cue at the level just chosen — the point of the control.
                   play("tick");
                 }}
               />
               <Text size="xs" variant="muted" className="w-8 text-right tabular-nums">
-                {draft}%
+                {percent}%
               </Text>
             </div>
           }

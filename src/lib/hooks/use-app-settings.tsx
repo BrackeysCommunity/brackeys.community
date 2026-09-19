@@ -7,6 +7,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
 import { initSound, setSoundEnabled, setSoundVolume } from "@/lib/sound";
 
 /** The stored motion preference. `system` defers to the OS-level
@@ -139,13 +140,13 @@ function getNativeReduceSnapshot(): boolean {
  * Theme is its own context (`AppThemeProvider`); the settings modal
  * pulls from both. */
 export function AppSettingsProvider({ children }: { children: React.ReactNode }) {
-  // Synchronous initializers rather than hydrate-on-mount: the pre-paint
-  // script in `__root.tsx` already stamped the DOM attribute, and a
-  // motion-on first render would flash animations at reduced-motion users.
-  const [motionPref, setMotionPrefState] = useState<MotionPref>(readMotionPref);
-  const [muted, setMutedState] = useState(() => readBool(MUTED_KEY));
-  const [volume, setVolumeState] = useState(readVolume);
-  const [censorProfanity, setCensorProfanityState] = useState(() => readBoolOn(CENSOR_KEY));
+  // Synchronous initializers: the stored values have to be in hand before
+  // anything is clickable, and the effects below mirror them straight out
+  // to the document and the sound layer.
+  const [storedMotionPref, setMotionPrefState] = useState<MotionPref>(readMotionPref);
+  const [storedMuted, setMutedState] = useState(() => readBool(MUTED_KEY));
+  const [storedVolume, setVolumeState] = useState(readVolume);
+  const [storedCensor, setCensorProfanityState] = useState(() => readBoolOn(CENSOR_KEY));
 
   const nativeReduced = useSyncExternalStore(
     subscribeNativeReduce,
@@ -153,29 +154,49 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
     () => false,
   );
 
-  const reduceMotion = motionPref === "reduced" || (motionPref === "system" && nativeReduced);
+  const storedReduceMotion =
+    storedMotionPref === "reduced" || (storedMotionPref === "system" && nativeReduced);
+
+  // What the tree renders from. The server can't read storage, so a first
+  // client render carrying the stored values disagrees with the SSR payload
+  // for everyone who has ever touched a setting — and React answers a
+  // hydration mismatch by discarding the tree and rebuilding it, which takes
+  // any in-flight local state (a half-typed profile field) with it. The
+  // stored values swap in on the commit straight after. Nothing visible
+  // flashes in that gap: the pre-paint script in `__root.tsx` has already
+  // stamped `data-reduce-motion`, so the CSS-driven motion is off before the
+  // first frame, and audio can't play before a user gesture anyway.
+  const hydrated = useIsHydrated();
+  const motionPref = hydrated ? storedMotionPref : "system";
+  const muted = hydrated ? storedMuted : false;
+  const volume = hydrated ? storedVolume : 1;
+  const censorProfanity = hydrated ? storedCensor : true;
+  const reduceMotion = hydrated ? storedReduceMotion : false;
+
+  // The effects mirror the *stored* values rather than the gated ones —
+  // they only run after the hydration commit either way, so routing them
+  // through the gate would write a default out and immediately correct it.
 
   // Mirror the effective value to the document so CSS rules can disable
   // decorative animation globally (view transitions, scanlines, …). The
   // inline script stamps the same attribute pre-paint; this keeps it live.
   useEffect(() => {
-    document.documentElement.dataset.reduceMotion = reduceMotion ? "true" : "false";
-  }, [reduceMotion]);
+    document.documentElement.dataset.reduceMotion = storedReduceMotion ? "true" : "false";
+  }, [storedReduceMotion]);
 
   // Interaction sounds: one document-wide delegation, then the stored mute
-  // and volume mirrored onto it. Both initialize synchronously from storage,
-  // so a persisted preference lands before anything is clickable.
+  // and volume mirrored onto it.
   useEffect(() => {
     initSound();
   }, []);
 
   useEffect(() => {
-    setSoundEnabled(!muted);
-  }, [muted]);
+    setSoundEnabled(!storedMuted);
+  }, [storedMuted]);
 
   useEffect(() => {
-    setSoundVolume(volume);
-  }, [volume]);
+    setSoundVolume(storedVolume);
+  }, [storedVolume]);
 
   const setMotionPref = useCallback((next: MotionPref) => {
     setMotionPrefState(next);

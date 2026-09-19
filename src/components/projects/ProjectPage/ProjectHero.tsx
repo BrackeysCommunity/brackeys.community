@@ -21,6 +21,7 @@ import { EVENTS } from "@/lib/event-taxonomy";
 import { externalUrlHost } from "@/lib/external-url";
 import { postImageForm } from "@/lib/image-upload";
 import { jamEntryUrl } from "@/lib/jam-links";
+import { jamMonthYear } from "@/lib/jam-links";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/project-links";
 import { toast } from "@/lib/toast";
@@ -116,16 +117,7 @@ export function ProjectHero({
           </Heading>
 
           {project.releasedAt ? (
-            <MicroLabel as="div">
-              SHIPPED{" "}
-              {new Date(project.releasedAt)
-                .toLocaleDateString(undefined, {
-                  month: "short",
-                  year: "numeric",
-                  timeZone: "UTC",
-                })
-                .toUpperCase()}
-            </MicroLabel>
+            <MicroLabel as="div">SHIPPED {jamMonthYear(project.releasedAt)}</MicroLabel>
           ) : null}
 
           {project.description ? (

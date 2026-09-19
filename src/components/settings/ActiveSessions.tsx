@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
+import { formatDate } from "@/lib/format-date";
 import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
@@ -102,7 +103,7 @@ export function ActiveSessions() {
                     live one — say "from", not "at". */}
                 Signed in {timeAgo(session.createdAt)}
                 {session.ipAddress ? ` from ${session.ipAddress}` : ""} · expires{" "}
-                {new Date(session.expiresAt).toLocaleDateString()}
+                {formatDate(session.expiresAt)}
               </Text>
             </div>
 

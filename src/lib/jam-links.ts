@@ -1,3 +1,5 @@
+import { APP_LOCALE } from "./format-date";
+
 /**
  * App-wide jam presentation helpers. These were previously re-written in
  * each feature folder (`JamCalendarPage/helpers.ts`, the home jam
@@ -71,23 +73,30 @@ export function jamMonthDay(date: Date | string | null): { month: string; day: s
   const d = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return { month: "TBA", day: "—" };
   return {
-    month: d.toLocaleString(undefined, { month: "short", timeZone: "UTC" }).toUpperCase(),
+    month: d.toLocaleString(APP_LOCALE, { month: "short", timeZone: "UTC" }).toUpperCase(),
     day: String(d.getUTCDate()),
   };
 }
 
 /**
- * Format a jam date with `timeZone: "UTC"` pinned — the exact hazard the
- * Dates rule warns about (a local month label beside a `getUTCDate()` day
- * renders the wrong month near a boundary), made structural: going through
- * this wrapper means the UTC option can't be forgotten.
+ * Format a jam date with `timeZone: "UTC"` and the app locale both pinned
+ * — the exact hazards the Dates rule and `APP_LOCALE` warn about (a local
+ * month label beside a `getUTCDate()` day renders the wrong month near a
+ * boundary; a runtime-resolved locale renders a different month name on
+ * each side of hydration), made structural: going through this wrapper
+ * means neither can be forgotten.
  */
 export function jamDate(
   date: Date | string,
   options: Intl.DateTimeFormatOptions,
-  locale?: string,
+  locale: string = APP_LOCALE,
 ): string {
   return new Date(date).toLocaleString(locale, { ...options, timeZone: "UTC" });
+}
+
+/** "SEP 2026" — the jam-appearance stamp on project and team rows. */
+export function jamMonthYear(date: Date | string): string {
+  return jamDate(date, { month: "short", year: "numeric" }).toUpperCase();
 }
 
 /** "Feb 14" (or "Feb 14, 2026" with `year`) — milestone rows, table cells. */

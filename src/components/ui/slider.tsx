@@ -3,6 +3,7 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import * as React from "react";
 
+import { APP_LOCALE } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
 type TickConfig = {
@@ -37,7 +38,7 @@ function computeTickPositions(ticks: TickConfig | undefined, min: number, max: n
 
 function formatValue(value: number, options?: Intl.NumberFormatOptions): string {
   if (!options) return String(value);
-  return new Intl.NumberFormat(undefined, options).format(value);
+  return new Intl.NumberFormat(APP_LOCALE, options).format(value);
 }
 
 function Slider({

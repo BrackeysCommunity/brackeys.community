@@ -2,7 +2,7 @@ import { Cancel01Icon, Menu01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AttentionMenu } from "@/components/attention/AttentionMenu";
 import { DeployEnvBadge } from "@/components/layout/DeployEnvMarker";
@@ -14,11 +14,16 @@ import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
 import { useHeaderShift } from "@/lib/hooks/use-header-shift";
 import { useHeaderSlideTransition, useHideOnScrollDown } from "@/lib/hooks/use-hide-on-scroll-down";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { useTopEdgePeek } from "@/lib/hooks/use-top-edge-peek";
 import { HOVER_CUE, NAV_LINK_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 const HEADER_SHIFT = "calc(var(--app-header-height) * -1)";
+
+/** Tailwind's `lg` — the width at which the bar shows its own nav and the
+ * menu button is `lg:hidden`. */
+const DESKTOP_NAV_QUERY = "(min-width: 1024px)";
 
 const springTransition = {
   type: "spring",
@@ -71,7 +76,17 @@ function isActivePath(pathname: string, item: (typeof NAV_ITEMS)[number]) {
 }
 
 export function AppHeader() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The toggle is `lg:hidden`, so a window widened past `lg` with the panel
+  // open takes away the only control that closes it and leaves the overlay
+  // stranded over the page. Derived rather than only reset, so the panel is
+  // never painted at a width that has no button for it.
+  const desktopNav = useMediaQuery(DESKTOP_NAV_QUERY);
+  const mobileMenuOpen = menuOpen && !desktopNav;
+  useEffect(() => {
+    if (desktopNav) setMenuOpen(false);
+  }, [desktopNav]);
+
   const { data: session } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -249,7 +264,7 @@ export function AppHeader() {
               data-testid="mobile-menu-toggle"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               tooltip={mobileMenuOpen ? "Close menu" : "Open menu"}
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={() => setMenuOpen(!mobileMenuOpen)}
             >
               <HugeiconsIcon icon={mobileMenuOpen ? Cancel01Icon : Menu01Icon} size={18} />
             </Button>
@@ -265,7 +280,7 @@ export function AppHeader() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.15 }}
-            className="pointer-events-auto fixed inset-x-0 top-16 z-40 border-b border-muted/30 bg-background/95 backdrop-blur-md"
+            className="pointer-events-auto fixed inset-x-0 top-[var(--app-header-height)] z-40 border-b border-muted/30 bg-background/95 backdrop-blur-md"
           >
             <nav className="flex flex-col gap-1 p-4">
               {NAV_ITEMS.map((item) => {
@@ -279,7 +294,7 @@ export function AppHeader() {
                     aria-current={atRoot ? "page" : active ? "true" : undefined}
                     onClick={(e) => {
                       if (atRoot) e.preventDefault();
-                      setMobileMenuOpen(false);
+                      setMenuOpen(false);
                     }}
                     {...(atRoot ? HOVER_CUE : NAV_LINK_CUES)}
                     className={cn(
@@ -308,7 +323,7 @@ export function AppHeader() {
                       className="text-xs font-bold tracking-widest"
                       onClick={() => {
                         void signInWithDiscord("header_menu", {
-                          fetchOptions: { onSuccess: () => setMobileMenuOpen(false) },
+                          fetchOptions: { onSuccess: () => setMenuOpen(false) },
                         });
                       }}
                     >

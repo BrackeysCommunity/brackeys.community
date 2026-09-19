@@ -43,6 +43,7 @@ COPY services/discord-bot/src ./services/discord-bot/src
 COPY src/lib/service-config.ts ./src/lib/service-config.ts
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 COPY src/lib/event-taxonomy.ts ./src/lib/event-taxonomy.ts
+COPY src/lib/format-date.ts ./src/lib/format-date.ts
 COPY src/lib/jam-countdown.ts ./src/lib/jam-countdown.ts
 COPY src/lib/jam-links.ts ./src/lib/jam-links.ts
 COPY src/lib/format-rate.ts ./src/lib/format-rate.ts

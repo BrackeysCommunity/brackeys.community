@@ -26,6 +26,7 @@ import { Well } from "@/components/ui/well";
 import { authClient, startGitHubLink } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { formatDate } from "@/lib/format-date";
 import { gitlabCallbackPath, isGitLabProvider } from "@/lib/gitlab-instances";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { toastMutationError } from "@/lib/mutation-errors";
@@ -331,9 +332,7 @@ function LinkRow({
           </Text>
           {link.verifiedAt ? (
             // Domain control, never identity — so a word, not a checkmark.
-            <SimpleTooltip
-              content={`Domain control verified on ${new Date(link.verifiedAt).toLocaleDateString()}`}
-            >
+            <SimpleTooltip content={`Domain control verified on ${formatDate(link.verifiedAt)}`}>
               {/* z-10, like the RECONNECT chip: the row's stretched anchor
                   would otherwise sit above this and swallow the hover that
                   reveals the re-check. */}

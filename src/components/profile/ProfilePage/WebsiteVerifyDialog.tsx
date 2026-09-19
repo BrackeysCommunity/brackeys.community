@@ -9,6 +9,7 @@ import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Spinner } from "@/components/ui/spinner";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { formatDate } from "@/lib/format-date";
 import { play } from "@/lib/sound";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -119,7 +120,7 @@ export function WebsiteVerifyDialog({
               </Text>
               {details.verifiedAt ? (
                 <Badge variant="success" size="label">
-                  VERIFIED {new Date(details.verifiedAt).toLocaleDateString()}
+                  VERIFIED {formatDate(details.verifiedAt)}
                 </Badge>
               ) : null}
             </div>

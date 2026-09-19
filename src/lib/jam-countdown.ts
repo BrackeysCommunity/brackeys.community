@@ -1,3 +1,5 @@
+import { APP_LOCALE } from "./format-date";
+
 export function formatCountdown(target: Date | string | null | undefined, now: Date = new Date()) {
   if (!target) return null;
   const t = typeof target === "string" ? new Date(target) : target;
@@ -30,13 +32,13 @@ export function formatJamShortDates(startsAt: Date | string | null, endsAt: Date
   const e = typeof endsAt === "string" ? new Date(endsAt) : endsAt;
   // UTC on both halves: the day numbers below are UTC, so a local month
   // label could name the wrong month for them near a boundary.
-  const month = s.toLocaleString(undefined, { month: "short", timeZone: "UTC" });
+  const month = s.toLocaleString(APP_LOCALE, { month: "short", timeZone: "UTC" });
   // Year matters: a jam running Sep 2026 → Sep 2027 is not a same-month
   // span, and collapsing it would render "Sep 11-21" for a year-long event.
   const sameMonth =
     s.getUTCMonth() === e.getUTCMonth() && s.getUTCFullYear() === e.getUTCFullYear();
   if (sameMonth) return `${month} ${s.getUTCDate()}-${e.getUTCDate()}`;
-  const monthEnd = e.toLocaleString(undefined, { month: "short", timeZone: "UTC" });
+  const monthEnd = e.toLocaleString(APP_LOCALE, { month: "short", timeZone: "UTC" });
   return `${month} ${s.getUTCDate()} – ${monthEnd} ${e.getUTCDate()}`;
 }
 

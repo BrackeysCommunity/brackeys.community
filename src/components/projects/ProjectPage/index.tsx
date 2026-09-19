@@ -12,6 +12,7 @@ import { Well } from "@/components/ui/well";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { formatCount } from "@/lib/format-count";
 import { jamEntryUrl, jamLinkParams } from "@/lib/jam-links";
+import { jamMonthYear } from "@/lib/jam-links";
 import { captureEvent } from "@/lib/product-insights";
 import { teamLinkParams } from "@/lib/team-links";
 import { cn } from "@/lib/utils";
@@ -221,16 +222,7 @@ function JamAppearanceRow({
       )}
 
       {appearance.participatedAt ? (
-        <MicroLabel tabular>
-          {/* Jam dates are UTC everywhere in this app. */}
-          {new Date(appearance.participatedAt)
-            .toLocaleDateString(undefined, {
-              month: "short",
-              year: "numeric",
-              timeZone: "UTC",
-            })
-            .toUpperCase()}
-        </MicroLabel>
+        <MicroLabel tabular>{jamMonthYear(appearance.participatedAt)}</MicroLabel>
       ) : null}
 
       {rankChip ? (

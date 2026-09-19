@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { activeUserStore } from "@/lib/active-user-store";
 import type { ActiveUserProfile } from "@/lib/active-user-store";
@@ -127,6 +127,39 @@ const { AppSettingsProvider } = await import("@/lib/hooks/use-app-settings");
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * jsdom has no `matchMedia`, and the header asks it two things: the
+ * effective motion pref, and whether the viewport has reached `lg`. Every
+ * query answers `false` until a test fires it.
+ */
+function installMatchMedia() {
+  const listeners = new Map<string, Set<(e: { matches: boolean }) => void>>();
+  const matching = new Set<string>();
+
+  window.matchMedia = ((query: string) => ({
+    matches: matching.has(query),
+    media: query,
+    addEventListener: (_: string, cb: (e: { matches: boolean }) => void) => {
+      const set = listeners.get(query) ?? new Set();
+      set.add(cb);
+      listeners.set(query, set);
+    },
+    removeEventListener: (_: string, cb: (e: { matches: boolean }) => void) => {
+      listeners.get(query)?.delete(cb);
+    },
+  })) as unknown as typeof window.matchMedia;
+
+  return {
+    set(query: string, matches: boolean) {
+      if (matches) matching.add(query);
+      else matching.delete(query);
+      for (const cb of listeners.get(query) ?? []) cb({ matches });
+    },
+  };
+}
+
+let media = installMatchMedia();
+
 // The header's auto-hide reads the effective motion pref, so it needs the
 // same provider the root document mounts around the whole shell.
 function renderHeader() {
@@ -162,6 +195,10 @@ function clickSuppressesNavigation(element: Element) {
 function resetStore() {
   activeUserStore.setState(() => ({ profile: null, isPending: false }));
 }
+
+beforeEach(() => {
+  media = installMatchMedia();
+});
 
 afterEach(() => {
   sessionData = null;
@@ -261,5 +298,31 @@ describe("AppHeader section links from detail pages", () => {
     fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
 
     expect(clickSuppressesNavigation(screen.getByTestId(`mobile-${slug}-link`))).toBe(false);
+  });
+});
+
+// BC-206. The toggle that opens this panel is `lg:hidden`, so widening the
+// window past `lg` with it open used to take away the only way to close it
+// and leave the panel sitting over the page next to the desktop nav.
+describe("AppHeader mobile menu across the lg boundary", () => {
+  const LG = "(min-width: 1024px)";
+
+  it("closes when the viewport reaches lg", () => {
+    renderHeader();
+    fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
+    expect(screen.getByTestId("mobile-members-link")).toBeTruthy();
+
+    act(() => media.set(LG, true));
+
+    expect(screen.queryByTestId("mobile-members-link")).toBeNull();
+  });
+
+  it("stays closed on the way back down", () => {
+    renderHeader();
+    fireEvent.click(screen.getByTestId("mobile-menu-toggle"));
+    act(() => media.set(LG, true));
+    act(() => media.set(LG, false));
+
+    expect(screen.queryByTestId("mobile-members-link")).toBeNull();
   });
 });
