@@ -1,0 +1,68 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: brackeys_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: .env.local
+        required: false # So that it won't crash if launched with no .env.local
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/brackeys
+      - REDIS_URL=redis://redis:6379
+      - BETTER_AUTH_URL=http://localhost:3000
+      - BETTER_AUTH_SECRET=dev-secret-key-not-for-prod
+      - SERVER_URL=http://localhost:3000
+      - VITE_SITE_ORIGIN=http://localhost:3000
+      - VITE_OAUTH_PROXY_ORIGIN=http://localhost:3000
+      - DISABLE_EMAIL=1
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: sh -c "touch .env.local && bun run db:migrate && bun run dev -- --host 0.0.0.0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: brackeys_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: brackeys
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d brackeys"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: brackeys_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
