@@ -328,6 +328,7 @@ export const searchMembers = os
           id: developerProfiles.id,
           username: developerProfiles.discordUsername,
           guildNickname: developerProfiles.guildNickname,
+          discordHandle: developerProfiles.discordHandle,
           avatarUrl: developerProfiles.avatarUrl,
           guildJoinedAt: developerProfiles.guildJoinedAt,
           memberSince: user.createdAt,
@@ -352,7 +353,10 @@ export const searchMembers = os
       results: rows.map(({ guildNickname, ...row }) => ({
         ...row,
         displayName: memberName({ guildNickname, discordUsername: row.username }, "Member"),
-        handle: row.username,
+        // `username` is the Discord *display* name, so it used to repeat
+        // `displayName` here and told two same-nicknamed members apart not
+        // at all — on the one screen where that matters most.
+        handle: row.discordHandle ?? row.urlStub ?? null,
         isBanned: isActiveBan(row),
         wasBanned: row.bannedAt != null,
       })),

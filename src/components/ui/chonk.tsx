@@ -15,8 +15,10 @@ const chonkVariants = cva(
           "bg-primary/10 text-foreground [--emboss-shadow:color-mix(in_srgb,var(--primary)_55%,black)] hover:bg-primary/15",
         // Neutral surface — inherits the theme's default --emboss-shadow, and
         // shifts to primary on hover so the lift reads as an "activated" tile.
+        // The hover color rides the non-inheriting `-self` token: a card's
+        // badges keep their own emboss instead of lighting up with the tile.
         surface:
-          "bg-card/95 text-foreground backdrop-blur-md hover:border-primary hover:bg-card hover:[--emboss-shadow:var(--primary)]",
+          "bg-card/95 text-foreground backdrop-blur-md hover:border-primary hover:bg-card hover:[--emboss-shadow-self:var(--primary)]",
         // Solid primary — action chonk
         primary:
           "bg-primary text-primary-foreground [--emboss-shadow:color-mix(in_srgb,var(--primary)_50%,black)] hover:bg-primary/90",

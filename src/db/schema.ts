@@ -113,7 +113,13 @@ export const developerProfiles = userSchema.table(
   {
     id: text("id").primaryKey(),
     discordId: text("discord_id").unique(),
+    /** Discord's *display* name (better-auth's `user.name`), not the @handle.
+     *  The column predates the two becoming distinct; `discordHandle` is the
+     *  handle. Anything matching "what members call themselves" wants both. */
     discordUsername: text("discord_username"),
+    /** The @handle (`member.user.username`). Written by guild sync, so it is
+     *  null until a member's first sign-in after this column existed. */
+    discordHandle: text("discord_handle"),
     avatarUrl: text("avatar_url"),
     guildNickname: text("guild_nickname"),
     /** The server-specific avatar, when they set one. Null means "same as

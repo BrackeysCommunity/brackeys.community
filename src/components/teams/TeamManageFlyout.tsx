@@ -458,10 +458,19 @@ function RosterSection({ team, onChanged }: { team: RpcTeam; onChanged: () => vo
                 .filter((r) => !memberIds.has(r.id))
                 .map((r) => (
                   <Well key={r.id} variant="ghost" className="flex-row items-center gap-3 p-2">
-                    <UserAvatar avatarUrl={r.avatarUrl} username={r.username} size={24} />
-                    <Text as="span" size="sm" ellipsis className="min-w-0 flex-1">
-                      {r.username ?? "Unknown"}
-                    </Text>
+                    <UserAvatar avatarUrl={r.avatarUrl} username={r.displayName} size={24} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <Text as="span" size="sm" ellipsis>
+                        {r.displayName}
+                      </Text>
+                      {/* Two members can share a nickname; the handle is what
+                          says which one this invite reaches. */}
+                      {r.handle ? (
+                        <MicroLabel as="span" ellipsis>
+                          @{r.handle}
+                        </MicroLabel>
+                      ) : null}
+                    </span>
                     {invitedIds.has(r.id) ? (
                       <MicroLabel>INVITED</MicroLabel>
                     ) : (

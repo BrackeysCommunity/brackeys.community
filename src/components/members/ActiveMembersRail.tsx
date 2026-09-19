@@ -41,10 +41,10 @@ export function ActiveMembersRail() {
     >
       {isLoading
         ? Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-42 w-64 shrink-0" />
+            <Skeleton key={i} className="h-48 w-72 shrink-0" />
           ))
         : ranked.map((member, index) => (
-            <div key={member.id} className="w-64 shrink-0">
+            <div key={member.id} className="w-72 shrink-0">
               <MemberDirectoryCard member={member} rank={index + 1} />
             </div>
           ))}

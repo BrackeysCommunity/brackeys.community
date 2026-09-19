@@ -99,6 +99,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
       id: userId,
       discordId,
       discordUsername: userRecord.name,
+      discordHandle: latestDiscordUsername,
       avatarUrl,
       guildNickname,
       guildAvatarUrl: guildAvatarUrl ?? null,
@@ -112,6 +113,9 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
       set: {
         discordId: discordId ?? undefined,
         discordUsername: userRecord.name,
+        // `?? undefined` for the same reason the guild fields use it: a
+        // failed Discord fetch must not blank a handle we already hold.
+        discordHandle: latestDiscordUsername ?? undefined,
         avatarUrl,
         guildNickname: guildNickname ?? undefined,
         guildAvatarUrl,

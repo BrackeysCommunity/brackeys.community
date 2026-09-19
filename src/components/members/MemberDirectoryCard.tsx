@@ -17,6 +17,15 @@ type MembersPage = Awaited<ReturnType<typeof client.listMembers>>;
 export type DirectoryMember = MembersPage["members"][number];
 
 /**
+ * How many chips the roles and the stack share between them. The server
+ * sends up to three roles and six skills, and ten chips on a rail tile is
+ * four rows of them with the name and the counts squeezed around the
+ * outside — the tile stops being a summary and becomes a skill dump.
+ * Roles are served first; whatever the stack can't fit joins the `+N`.
+ */
+const CARD_CHIPS = 5;
+
+/**
  * A member as a directory tile: identity, what they say they do, the
  * stack they work in, and the two numbers that say whether the profile
  * is worth opening — what they've shipped and how many crews they're on.
@@ -47,6 +56,8 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
   // available" post would have said, and is the more useful sentence
   // when someone has written both — but only while they're open to work.
   const blurb = (member.availableForWork ? member.lookingFor : null) ?? member.tagline;
+  const skills = member.skills.slice(0, Math.max(0, CARD_CHIPS - member.roles.length));
+  const overflow = member.hiddenSkillCount + (member.skills.length - skills.length);
 
   return (
     <Chonk
@@ -73,7 +84,7 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
             </span>
           ) : null}
         </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center gap-2">
             <Text
               as="span"
@@ -90,19 +101,29 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
               </Badge>
             ) : null}
           </span>
-          <span className="flex items-center gap-2">
-            {member.urlStub ? <MicroLabel>/{member.urlStub}</MicroLabel> : null}
-            {commitment ? (
-              <Badge variant="outline" size="label" className="uppercase">
-                {commitment}
-              </Badge>
-            ) : null}
-            {tz ? (
-              <Badge variant="outline" size="label" className="text-muted-foreground">
-                {tz}
-              </Badge>
-            ) : null}
-          </span>
+          {/* Handle and offset are identity, not claims: quiet muted text
+              rather than chips. As badges they were unshrinkable and ran
+              off the side of a rail tile, and they crowded the name row
+              with two more bordered boxes. */}
+          {member.urlStub || tz ? (
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              {member.urlStub ? (
+                <MicroLabel as="span" ellipsis className="min-w-0">
+                  /{member.urlStub}
+                </MicroLabel>
+              ) : null}
+              {member.urlStub && tz ? (
+                <MicroLabel as="span" className="shrink-0 opacity-50">
+                  ·
+                </MicroLabel>
+              ) : null}
+              {tz ? (
+                <MicroLabel as="span" className="shrink-0">
+                  {tz}
+                </MicroLabel>
+              ) : null}
+            </span>
+          ) : null}
         </span>
       </span>
 
@@ -112,7 +133,7 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
         </Text>
       ) : null}
 
-      {member.roles.length > 0 || member.skills.length > 0 ? (
+      {member.roles.length > 0 || skills.length > 0 ? (
         <span className="flex flex-wrap gap-1">
           {/* Roles lead: "Composer" is the claim, the stack is the detail. */}
           {member.roles.map((role) => (
@@ -120,14 +141,14 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
               {role.name}
             </Badge>
           ))}
-          {member.skills.map((skill) => (
+          {skills.map((skill) => (
             <Badge key={skill.id} variant="outline" size="label" className="uppercase">
               {skill.name}
             </Badge>
           ))}
-          {member.hiddenSkillCount > 0 ? (
+          {overflow > 0 ? (
             <Badge variant="outline" size="label" className="text-muted-foreground">
-              +{member.hiddenSkillCount}
+              +{overflow}
             </Badge>
           ) : null}
         </span>
@@ -135,7 +156,11 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
 
       {/* The three counts the activity ranking is built from, so a place
           on the rail is legible from the tile rather than a black box.
-          Ships lead and always show; the other two only when non-zero. */}
+          Ships lead and always show; the other two only when non-zero.
+          Capacity sits here beside the rate rather than under the name:
+          both are hire terms, both disappear together when the member
+          closes, and the pair wraps to its own line on a narrow tile
+          instead of shouldering the counts off the edge. */}
       <span className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-1">
         <Text as="span" size="xs" variant="muted" className="tracking-widest tabular-nums">
           {member.shipCount} SHIPPED
@@ -146,10 +171,19 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
             ? ` · ${member.postCount} ${member.postCount === 1 ? "POST" : "POSTS"}`
             : ""}
         </Text>
-        {rate ? (
-          <Badge variant="outline" size="label" className="ml-auto border-primary/50 text-primary">
-            {rate}
-          </Badge>
+        {commitment || rate ? (
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+            {commitment ? (
+              <Badge variant="outline" size="label" className="uppercase">
+                {commitment}
+              </Badge>
+            ) : null}
+            {rate ? (
+              <Badge variant="outline" size="label" className="border-primary/50 text-primary">
+                {rate}
+              </Badge>
+            ) : null}
+          </span>
         ) : null}
       </span>
     </Chonk>

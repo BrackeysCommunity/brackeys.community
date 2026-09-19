@@ -1496,9 +1496,9 @@ export const listMyInvites = os
  * directory — a team can invite, and a project can credit, any member of the
  * community rather than just the ones advertising availability.
  *
- * Matches **both** names a profile can carry, because searching for the name you
- * can see is the only thing anyone tries: `memberName` shows the nickname ahead
- * of the handle, so a nickname-only match was invisible to a username search.
+ * Matches every name a profile carries — nickname, display name, @handle and
+ * vanity stub — because searching for the name you can see is the only thing
+ * anyone tries, and the name you can see differs by surface.
  */
 export const searchProfiles = os
   .use(requireAuth)
@@ -1508,19 +1508,26 @@ export const searchProfiles = os
     const rows = await db
       .select({
         id: developerProfiles.id,
-        username: developerProfiles.discordUsername,
+        discordUsername: developerProfiles.discordUsername,
+        discordHandle: developerProfiles.discordHandle,
         guildNickname: developerProfiles.guildNickname,
         avatarUrl: developerProfiles.avatarUrl,
+        urlStub: profileUrlStubs.stub,
       })
       .from(developerProfiles)
+      .leftJoin(profileUrlStubs, profileStubJoin)
       .where(profileNameSearch(pattern))
       .limit(8);
 
-    return rows.map(({ guildNickname, ...row }) => ({
+    return rows.map(({ guildNickname, discordUsername, discordHandle, ...row }) => ({
       ...row,
-      // The name the rest of the app shows. `username` stays for the invite
-      // picker, which renders the handle deliberately.
-      displayName: memberName({ guildNickname, discordUsername: row.username }, "Unknown"),
+      displayName: memberName({ guildNickname, discordUsername }, "Unknown"),
+      // What tells two identically-nicknamed members apart. The stub backs
+      // the handle up for anyone who has not signed in since
+      // `discordHandle` existed; null when neither is known, because
+      // echoing the display name here would read as a handle and
+      // disambiguate nothing.
+      handle: discordHandle ?? row.urlStub ?? null,
     }));
   });
 

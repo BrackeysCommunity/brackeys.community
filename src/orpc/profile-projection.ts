@@ -1,4 +1,4 @@
-import { eq, ilike, or } from "drizzle-orm";
+import { eq, ilike, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 import { developerProfiles, profileUrlStubs } from "@/db/schema";
@@ -38,10 +38,23 @@ export const profileStubJoin = eq(profileUrlStubs.profileId, developerProfiles.i
  * so searching a member's display name found nothing). `pattern` is a
  * ready `ILIKE` pattern (see `likeContains`); surfaces `or(...)` their own
  * extra columns (tagline, skills) around this.
+ *
+ * Both Discord names count, because `discordUsername` is the display name
+ * and `discordHandle` is the @handle. The vanity stub counts too: it is
+ * the only identity a member reads off their own profile URL, and for
+ * anyone who has not signed in since `discordHandle` existed it is the
+ * sole surviving copy of their handle. Matched via `exists` rather than a
+ * join, since no caller joins `profile_url_stubs` in its filtered query.
  */
 export function profileNameSearch(pattern: string): SQL {
   return or(
     ilike(developerProfiles.guildNickname, pattern),
     ilike(developerProfiles.discordUsername, pattern),
+    ilike(developerProfiles.discordHandle, pattern),
+    sql`exists (
+      select 1 from ${profileUrlStubs}
+      where ${profileUrlStubs.profileId} = ${developerProfiles.id}
+        and ${profileUrlStubs.stub} ilike ${pattern}
+    )`,
   )!;
 }

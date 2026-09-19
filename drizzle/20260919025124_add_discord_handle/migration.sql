@@ -1,0 +1,1 @@
+ALTER TABLE "user"."developer_profiles" ADD COLUMN "discord_handle" text;

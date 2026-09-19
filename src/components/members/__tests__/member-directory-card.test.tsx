@@ -63,3 +63,36 @@ describe("MemberDirectoryCard hire terms", () => {
     expect(screen.getByText("Builds tools")).toBeTruthy();
   });
 });
+
+describe("MemberDirectoryCard chip budget", () => {
+  const named = (names: string[]) => names.map((name, i) => ({ id: i + 1, name }));
+
+  it("gives the stack what the roles leave and folds the rest into the count", () => {
+    render(
+      <MemberDirectoryCard
+        member={member({
+          roles: named(["Composer", "Sound Designer"]),
+          skills: named(["FMOD", "Unity", "C#", "Wwise", "Reaper", "Blender"]),
+          hiddenSkillCount: 2,
+        })}
+      />,
+    );
+
+    // Two roles plus three skills fills the budget; the three skills that
+    // miss out and the two the server already dropped share the "+N".
+    expect(screen.getByText("C#")).toBeTruthy();
+    expect(screen.queryByText("Wwise")).toBeNull();
+    expect(screen.getByText("+5")).toBeTruthy();
+  });
+
+  it("shows the whole stack when it already fits", () => {
+    render(
+      <MemberDirectoryCard
+        member={member({ roles: named(["Composer"]), skills: named(["FMOD", "Unity"]) })}
+      />,
+    );
+
+    expect(screen.getByText("Unity")).toBeTruthy();
+    expect(screen.queryByText(/^\+\d+$/)).toBeNull();
+  });
+});

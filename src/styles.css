@@ -294,6 +294,22 @@
 }
 
 /*
+ * @property --emboss-shadow-self
+ *
+ * An emboss color for one element that does not cascade. `--emboss-shadow` is
+ * a theme token and therefore inherited, so a surface that recolors it on
+ * hover recolors every descendant reading it too — a hovered card lit up each
+ * outline badge inside it, because `outline` is the one badge variant with no
+ * emboss color of its own. Registered `inherits: false` with the universal
+ * syntax: a child sees the guaranteed-invalid initial value and falls back to
+ * the theme token, so only the element that set it changes.
+ */
+@property --emboss-shadow-self {
+  syntax: "*";
+  inherits: false;
+}
+
+/*
  * @property --app-header-shift
  *
  * How far a sticky surface should move up to reclaim the band the app header
@@ -439,13 +455,13 @@
     box-shadow:
       var(--tw-ring-offset-shadow, 0 0 #0000),
       var(--tw-ring-shadow, 0 0 #0000),
-      0 var(--chonk-y) 0 0 var(--emboss-shadow);
+      0 var(--chonk-y) 0 0 var(--emboss-shadow-self, var(--emboss-shadow));
     transform: translateY(calc(-1 * var(--chonk-y)));
     transition: --chonk-y 75ms ease-out;
-    border-color: var(--emboss-shadow);
+    border-color: var(--emboss-shadow-self, var(--emboss-shadow));
   }
   .chonk-emboss:focus-visible {
-    border-color: var(--emboss-shadow);
+    border-color: var(--emboss-shadow-self, var(--emboss-shadow));
   }
   /* Only apply the hover lift on devices with a precise pointer (mouse /
      trackpad). Touch devices can satisfy `(hover: hover)` and leave the
