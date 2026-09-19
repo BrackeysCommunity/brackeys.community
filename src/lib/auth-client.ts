@@ -83,4 +83,36 @@ function newSigninAttemptId(): string {
   }
 }
 
+/**
+ * Where GitHub OAuth comes back to — the route that syncs the link into
+ * `linked_accounts`. Also the error handoff, so a cancelled consent screen
+ * lands in the app rather than better-auth's own `/api/auth/error` page.
+ */
+const GITHUB_CALLBACK_PATH = "/oauth/github/callback";
+
+/**
+ * Attach GitHub to the **signed-in** member.
+ *
+ * `linkSocial`, never `signIn.social`: the sign-in route has no session to
+ * work from, so better-auth resolves the account by GitHub email alone
+ * (`findOAuthUser` in `oauth2/link-account`). A member whose GitHub address
+ * differs from their Discord one therefore looks like a brand new signup,
+ * and `disableSignUp` refuses it — the member gets bounced to
+ * `/auth/error?error=signup_disabled` before ever reaching the callback.
+ * `accountLinking.allowDifferentEmails` can't rescue it, because that check
+ * only runs once a user has already been found by email.
+ *
+ * The link route carries the session, so the member is known up front and
+ * no email has to match.
+ */
+export async function startGitHubLink(): Promise<void> {
+  captureEvent(EVENTS.accountLinkStarted, { provider: "github" });
+  const { error } = await authClient.linkSocial({
+    provider: "github",
+    callbackURL: GITHUB_CALLBACK_PATH,
+    errorCallbackURL: GITHUB_CALLBACK_PATH,
+  });
+  if (error) throw new Error(error.message || "Failed to start GitHub OAuth");
+}
+
 export type Session = typeof authClient.$Infer.Session;

@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -80,26 +80,60 @@ export const syncGitHubLink = os
     };
   });
 
+/**
+ * Drop GitHub from both places it lives.
+ *
+ * The two rows arrive by different doors: the profile integration writes
+ * `linked_accounts` (sealed token, contribution graph) through the OAuth
+ * callback, while `/settings/account` links GitHub purely as a *sign-in
+ * identity* and only ever creates better-auth's `account` row. Either one
+ * alone counts as linked — insisting on the profile row refused the
+ * Settings case and left its sealed token sitting in the database after
+ * the member had withdrawn consent.
+ */
 export const unlinkGitHub = os
   .use(requireAuth)
   .input(z.object({}))
   .handler(async ({ context }) => {
     const userId = context.user.id;
 
-    const [deleted] = await db
+    const [githubAccounts, otherAccounts] = await Promise.all([
+      db
+        .select({ id: account.id })
+        .from(account)
+        .where(and(eq(account.userId, userId), eq(account.providerId, "github"))),
+      db
+        .select({ id: account.id })
+        .from(account)
+        .where(and(eq(account.userId, userId), ne(account.providerId, "github"))),
+    ]);
+
+    // better-auth's own `unlinkAccount` refuses to remove the last
+    // credential, and it is the right refusal — removing GitHub here goes
+    // around better-auth, so the guard has to be restated or an account
+    // whose only door is GitHub would be locked out for good.
+    if (githubAccounts.length > 0 && otherAccounts.length === 0) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "GitHub is the only way to sign in to this account. Link another provider first.",
+      });
+    }
+
+    const unlinked = await db
       .delete(linkedAccounts)
       .where(and(eq(linkedAccounts.profileId, userId), eq(linkedAccounts.provider, "github")))
       .returning();
 
-    if (!deleted) {
+    if (githubAccounts.length > 0) {
+      await db
+        .delete(account)
+        .where(and(eq(account.userId, userId), eq(account.providerId, "github")));
+    }
+
+    if (unlinked.length === 0 && githubAccounts.length === 0) {
       throw new ORPCError("NOT_FOUND", {
         message: "No GitHub account linked.",
       });
     }
-
-    await db
-      .delete(account)
-      .where(and(eq(account.userId, userId), eq(account.providerId, "github")));
 
     return { success: true };
   });

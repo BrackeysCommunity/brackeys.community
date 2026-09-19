@@ -37,7 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Heading, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
-import { authClient } from "@/lib/auth-client";
+import { startGitHubLink } from "@/lib/auth-client";
 import { compensationLabel } from "@/lib/collab-vocabulary";
 import { CURRENCY_OPTIONS, type Currency, normalizeCurrency } from "@/lib/currency";
 import { errorMessage } from "@/lib/error-message";
@@ -1193,7 +1193,7 @@ function LinksStep({ profile, queryKey, save }: StepProps) {
             setLinking("github");
             save.setStatus("saving");
             try {
-              await linkGithub();
+              await startGitHubLink();
               save.setStatus("saved");
             } catch (err) {
               reportMutationError(err, "profile.link_github");
@@ -1325,25 +1325,6 @@ function ProviderConnectButton({
       </Button>
     </Well>
   );
-}
-
-// ── OAuth helpers ──────────────────────────────────────────────────
-
-async function linkGithub(): Promise<void> {
-  const result = await authClient.signIn.social({
-    provider: "github",
-    callbackURL: "/oauth/github/callback",
-  });
-  if (
-    result &&
-    typeof result === "object" &&
-    "error" in result &&
-    (result as { error: unknown }).error
-  ) {
-    const err = (result as { error: string | { message?: string } }).error;
-    const message = typeof err === "string" ? err : err.message || "Failed to start GitHub OAuth";
-    throw new Error(message);
-  }
 }
 
 // ── Reusable form chrome ───────────────────────────────────────────

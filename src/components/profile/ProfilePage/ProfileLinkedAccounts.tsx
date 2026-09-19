@@ -23,7 +23,7 @@ import {
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { authClient } from "@/lib/auth-client";
+import { authClient, startGitHubLink } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { gitlabCallbackPath, isGitLabProvider } from "@/lib/gitlab-instances";
@@ -265,24 +265,7 @@ function AddProviderMenu({
 
 async function linkGithub(): Promise<void> {
   try {
-    captureEvent(EVENTS.accountLinkStarted, { provider: "github" });
-    const result = await authClient.signIn.social({
-      provider: "github",
-      callbackURL: "/oauth/github/callback",
-      // Same handoff as GitLab's: a cancelled consent screen comes back
-      // into the app rather than better-auth's error page.
-      errorCallbackURL: "/oauth/github/callback",
-    });
-    if (
-      result &&
-      typeof result === "object" &&
-      "error" in result &&
-      (result as { error: unknown }).error
-    ) {
-      const err = (result as { error: string | { message?: string } }).error;
-      const message = typeof err === "string" ? err : err.message || "Failed to start GitHub OAuth";
-      throw new Error(message);
-    }
+    await startGitHubLink();
   } catch (e) {
     reportMutationError(e, "profile.link_github");
     toast.error(errorMessage(e, "Failed to link GitHub"));

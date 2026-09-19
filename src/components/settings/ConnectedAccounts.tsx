@@ -13,6 +13,7 @@ import { authClient } from "@/lib/auth-client";
 import { timeAgo } from "@/lib/format-time";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
+import { client } from "@/orpc/client";
 
 /**
  * The OAuth identities that can *sign you in*, which is a different list
@@ -74,6 +75,15 @@ export function ConnectedAccounts() {
 
   const { mutate: unlink, isPending: unlinking } = useMutation({
     mutationFn: async ({ providerId, accountId }: { providerId: string; accountId: string }) => {
+      // GitHub goes through our own procedure rather than better-auth's.
+      // `unlinkAccount` drops the `account` row alone, which would remove
+      // the sign-in identity while leaving the profile integration's
+      // sealed token behind — a token the member has just withdrawn
+      // consent for. `unlinkGitHub` clears both.
+      if (providerId === "github") {
+        await client.unlinkGitHub({});
+        return;
+      }
       const { error } = await authClient.unlinkAccount({ providerId, accountId });
       if (error) throw new Error(error.message ?? "Could not disconnect");
     },
