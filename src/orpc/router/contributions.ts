@@ -11,6 +11,7 @@ import {
   type ContributionSource,
 } from "@/lib/contributions";
 import { fetchContributionCalendar } from "@/lib/github";
+import { freshGitHubToken } from "@/lib/github-token";
 import { fetchGitLabCalendar } from "@/lib/gitlab";
 import { gitlabInstance, isSelfHostedGitLab } from "@/lib/gitlab-instances";
 import { openToken } from "@/lib/token-crypto";
@@ -25,21 +26,37 @@ import { openToken } from "@/lib/token-crypto";
  * fatal: the graph is a texture, and half of it beats none of it.
  */
 
-async function githubDays(link: {
-  accessToken: string | null;
-  providerUsername: string | null;
-}): Promise<ContributionDayMap | null> {
-  if (!link.accessToken || !link.providerUsername) return null;
-  // A sealed token with no key to open it is a config error, not a reason
-  // to 500 the profile page: the graph is just absent.
-  let token: string;
+/**
+ * The sealed copy in `linked_accounts`, for a row better-auth can't
+ * refresh from. A sealed token with no key to open it is a config error,
+ * not a reason to 500 the profile page: the graph is just absent.
+ */
+function openStoredToken(stored: string | null): string | null {
+  if (!stored) return null;
   try {
-    token = openToken(link.accessToken);
+    return openToken(stored);
   } catch (err) {
     console.error("[contributions] cannot open stored token:", err);
     return null;
   }
-  const calendar = await fetchContributionCalendar(token, link.providerUsername).catch(() => null);
+}
+
+async function githubDays(
+  profileId: string,
+  link: { accessToken: string | null; providerUsername: string | null },
+): Promise<ContributionDayMap | null> {
+  if (!link.providerUsername) return null;
+  // Refreshed first, stored copy second: GitHub user tokens expire in
+  // eight hours, so the one sealed at link time is only ever a fallback.
+  const token = (await freshGitHubToken(profileId)) ?? openStoredToken(link.accessToken);
+  if (!token) return null;
+  const calendar = await fetchContributionCalendar(token, link.providerUsername).catch((err) => {
+    // Swallowed so one dark forge can't take the whole graph down — but
+    // logged, because silence here is what made an expired token look
+    // like a member who simply stopped committing.
+    console.error(`[contributions] github calendar failed for ${link.providerUsername}:`, err);
+    return null;
+  });
   return calendar ? weeksToDayMap(calendar.weeks) : null;
 }
 
@@ -62,7 +79,7 @@ export const getContributions = os
     for (const link of links) {
       if (link.provider === "github") {
         fetches.push(
-          githubDays(link).then((days) =>
+          githubDays(input.userId, link).then((days) =>
             days ? { source: { key: "github", label: "GITHUB" }, days } : null,
           ),
         );

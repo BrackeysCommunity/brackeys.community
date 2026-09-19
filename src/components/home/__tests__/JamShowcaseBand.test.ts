@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { splitByEntries } from "@/components/home/JamShowcaseBand";
 import {
   SHOWCASE_MAX_JAMS,
   SHOWCASE_MAX_LENGTH_DAYS,
   selectShowcaseJams,
-  splitByEntries,
-} from "@/components/home/JamShowcaseBand";
+} from "@/components/home/showcase-jams";
 import type { JamFromList } from "@/components/jams/JamCalendarPage/helpers";
 
 const DAY_MS = 86_400_000;

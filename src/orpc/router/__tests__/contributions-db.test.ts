@@ -19,11 +19,14 @@ vi.mock("@/lib/gitlab", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/gitlab")>()),
   fetchGitLabCalendar: vi.fn(),
 }));
+vi.mock("@/lib/github-token", () => ({ freshGitHubToken: vi.fn() }));
 
 const { fetchContributionCalendar } = await import("@/lib/github");
 const { fetchGitLabCalendar } = await import("@/lib/gitlab");
+const { freshGitHubToken } = await import("@/lib/github-token");
 const githubMock = vi.mocked(fetchContributionCalendar);
 const gitlabMock = vi.mocked(fetchGitLabCalendar);
+const tokenMock = vi.mocked(freshGitHubToken);
 
 /**
  * The graph is anonymous and edge-cached, so what matters here is which
@@ -41,6 +44,8 @@ beforeEach(async () => {
   await db.delete(user);
   githubMock.mockReset();
   gitlabMock.mockReset();
+  tokenMock.mockReset();
+  tokenMock.mockResolvedValue("fresh-token");
 });
 
 async function link(profileId: string, provider: string, username: string) {
@@ -111,6 +116,49 @@ describe("getContributions", () => {
 
     expect(calendar.totalContributions).toBe(7);
     expect(calendar.sources.map((s) => s.key)).toEqual(["gitlab-brackeys"]);
+  });
+
+  /**
+   * GitHub user tokens expire in eight hours, so the sealed copy taken at
+   * link time is stale for most of a graph's life — the refreshed one has
+   * to win, or every member's ACTIVITY goes dark the same day they link.
+   */
+  it("reads GitHub with a refreshed token, not the copy sealed at link time", async () => {
+    await seedUser(db, "u1");
+    await link("u1", "github", "yasa");
+    githubMock.mockResolvedValue(githubCalendar(today, 4));
+
+    await call(getContributions, { userId: "u1" }, asUser(null));
+
+    expect(tokenMock).toHaveBeenCalledWith("u1");
+    expect(githubMock).toHaveBeenCalledWith("fresh-token", "yasa");
+  });
+
+  it("falls back to the sealed copy when there is nothing to refresh from", async () => {
+    await seedUser(db, "u1");
+    await link("u1", "github", "yasa");
+    tokenMock.mockResolvedValue(null);
+    githubMock.mockResolvedValue(githubCalendar(today, 4));
+
+    const calendar = (await call(getContributions, { userId: "u1" }, asUser(null)))!;
+
+    expect(githubMock).toHaveBeenCalledWith("token", "yasa");
+    expect(calendar.totalContributions).toBe(4);
+  });
+
+  it("answers nothing when neither token source has anything to offer", async () => {
+    await seedUser(db, "u1");
+    await db.insert(linkedAccounts).values({
+      profileId: "u1",
+      provider: "github",
+      providerUserId: "github-1",
+      providerUsername: "yasa",
+      accessToken: null,
+    });
+    tokenMock.mockResolvedValue(null);
+
+    expect(await call(getContributions, { userId: "u1" }, asUser(null))).toBeNull();
+    expect(githubMock).not.toHaveBeenCalled();
   });
 
   it("ignores a linked account no forge in the registry owns", async () => {

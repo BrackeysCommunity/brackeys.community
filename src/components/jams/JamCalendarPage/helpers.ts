@@ -71,6 +71,18 @@ export function jamShelf(jam: JamFromList, now: Date): ShelfKind | "archive" {
   return "archive";
 }
 
+/** How many jams sit on each board shelf. Drives the jam board's hero
+ * stat tiles and the home page's "tracking N live and M upcoming" line,
+ * so it counts the whole board set, not a filtered view of it. */
+export function countShelves(jams: JamFromList[], now: Date): Record<ShelfKind, number> {
+  const counts: Record<ShelfKind, number> = { live: 0, upcoming: 0, voting: 0, ongoing: 0 };
+  for (const jam of jams) {
+    const shelf = jamShelf(jam, now);
+    if (shelf !== "archive") counts[shelf] += 1;
+  }
+  return counts;
+}
+
 /** The participation metric that matters for a jam's phase: joined until
  * submissions start landing, entries from then on (archive rows have
  * entries but were never scraped for joined). */

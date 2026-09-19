@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
 import { useHomeDashboard } from "@/components/home/dashboard/use-home-dashboard";
-import { selectShowcaseJams } from "@/components/home/JamShowcaseBand";
 import { entryJamIdsFor, useRecentEntries } from "@/components/home/use-recent-entries";
 import { useHomeJams } from "@/components/jams/JamCalendarPage/use-jam-data";
 import useDateNow from "@/lib/hooks/use-date-now";
@@ -24,15 +23,10 @@ export function useHomeContent() {
   const now = useDateNow();
   const nowDate = useMemo(() => new Date(now), [now]);
 
-  const { isLoading, featured, upcoming, heroSlides, liveCount, upcomingCount } = useHomeJams(now);
+  const { isLoading, heroSlides, showcaseJams, liveCount, upcomingCount } = useHomeJams();
   const dashboard = useHomeDashboard();
 
   const heroJamIds = useMemo(() => heroSlides.map((slide) => slide.jam.jamId), [heroSlides]);
-
-  const showcaseJams = useMemo(
-    () => selectShowcaseJams(featured, upcoming, heroJamIds),
-    [featured, upcoming, heroJamIds],
-  );
 
   // One request for every cover the page shows, hero rotation included —
   // the band deliberately excludes the rotation's jams, so it can't cover

@@ -6,7 +6,6 @@ import {
   count,
   desc,
   eq,
-  getColumns,
   gt,
   ilike,
   inArray,
@@ -18,6 +17,10 @@ import {
 } from "drizzle-orm";
 import * as z from "zod";
 
+import { heroJamSlides, type HeroJam } from "@/components/home/hero-jam";
+import { selectShowcaseJams } from "@/components/home/showcase-jams";
+import { buildBoard } from "@/components/jams/JamCalendarPage/board/build-board";
+import { countShelves } from "@/components/jams/JamCalendarPage/helpers";
 import { db } from "@/db";
 import {
   collabPosts,
@@ -58,109 +61,166 @@ const lastEventAt = sql`GREATEST(
 )`;
 
 /**
- * Listing rows leave out `contentHtml` — the full scraped itch page body,
- * which averages ~4 KB per jam and made the calendar's 5k-row payload
- * ~22 MB (83% of it descriptions nothing on the board or calendar ever
- * renders). Detail surfaces fetch it per jam via `getJam`.
+ * What a listing row carries: what the board cards, the calendar bars, the
+ * archive table and the home band actually render, and nothing else.
+ *
+ * The payload is dehydrated into the HTML document of every page that
+ * prefetches a listing, ahead of the content, so each column costs parse
+ * time before first paint on `/`, `/jams` and `/jams/calendar`. Measured
+ * over the 561-row board set: `contentHtml` (the scraped page body) was 83%
+ * of it and went first; the five bookkeeping timestamps below were another
+ * 26% of what remained — `scrapedAt`/`createdAt`/`updatedAt` have never had
+ * a reader outside the feed and sitemap, which select them directly;
+ * `missingSince` is `NULL` on every row a listing can return, because every
+ * listing filters on it; and `heroPinnedAt` is read through
+ * `listJamHeroPins`, never off a row.
+ *
+ * Detail surfaces fetch the rest per jam via `getJam`.
  */
-const { contentHtml: _contentHtml, ...jamListColumns } = getColumns(itchJams);
+const jamListColumns = {
+  jamId: itchJams.jamId,
+  slug: itchJams.slug,
+  title: itchJams.title,
+  bannerUrl: itchJams.bannerUrl,
+  themeColor: itchJams.themeColor,
+  hashtag: itchJams.hashtag,
+  hosts: itchJams.hosts,
+  status: itchJams.status,
+  startsAt: itchJams.startsAt,
+  endsAt: itchJams.endsAt,
+  votingEndsAt: itchJams.votingEndsAt,
+  joinedCount: itchJams.joinedCount,
+  entriesCount: itchJams.entriesCount,
+  ratingsCount: itchJams.ratingsCount,
+};
+
+const jamListInput = z.object({
+  filter: z.enum(["live", "upcoming", "active", "board", "calendar", "all"]).default("active"),
+  sortBy: z.enum(["soonest", "popularity"]).default("soonest"),
+  limit: z.number().min(1).max(5000).default(20),
+});
+
+type JamListInput = z.infer<typeof jamListInput>;
+
+/** One listing row, as the board, calendar, archive and home band see it. */
+export type JamListRow = Awaited<ReturnType<typeof queryJamListing>>["jams"][number];
+
+/**
+ * The board working set `homeJams` tiers over — every jam with a future
+ * event, ~560 rows. A backstop, not pagination: it matches the limit
+ * `/jams` asks for, so both read the same set.
+ */
+const HOME_BOARD_LIMIT = 2000;
+
+/**
+ * The landing page's jam half, already tiered. Annotated rather than
+ * inferred: the ranking helpers below are typed off the *client's* view of
+ * `listJams`, so leaving `homeJams`' own output to inference would ask
+ * TypeScript to resolve the client type while it is still building it.
+ */
+interface HomeJamsPayload {
+  heroSlides: HeroJam[];
+  showcaseJams: JamListRow[];
+  liveCount: number;
+  upcomingCount: number;
+}
 
 /**
  * Filtering uses date comparisons rather than the `status` column because the
  * scraper's status snapshot lags reality (and itch's own status field is
  * occasionally stale).
+ *
+ * The body is a plain function rather than the handler itself so `homeJams`
+ * can run the same board query in-process instead of going back out through
+ * the client.
  */
+async function queryJamListing(input: JamListInput) {
+  const now = new Date();
+
+  const isLive = and(
+    lte(itchJams.startsAt, now),
+    or(gt(itchJams.endsAt, now), isNull(itchJams.endsAt)),
+  );
+  const isUpcoming = gt(itchJams.startsAt, now);
+
+  // Jams stamped missing_since 404 on itch (deleted, or awaiting manual
+  // verification) — never surface them in listings.
+  const notMissing = isNull(itchJams.missingSince);
+
+  // Any event still in the future — live, upcoming, or in its voting
+  // window. This is the discovery board's working set (~500 rows), a
+  // fraction of the calendar window's.
+  const isOnBoard = sql`${lastEventAt} >= ${now}`;
+
+  // Everything still active (any event in the future) plus a trailing
+  // archive window — keeps the calendar payload bounded no matter how
+  // large the scraped table grows.
+  const archiveCutoff = new Date(now);
+  archiveCutoff.setUTCMonth(archiveCutoff.getUTCMonth() - CALENDAR_ARCHIVE_MONTHS);
+  const isOnCalendar = sql`${lastEventAt} >= ${archiveCutoff}`;
+
+  const where = (() => {
+    switch (input.filter) {
+      case "live":
+        return and(notMissing, isLive);
+      case "upcoming":
+        return and(notMissing, isUpcoming);
+      case "active":
+        return and(notMissing, or(isLive, isUpcoming));
+      case "board":
+        return and(notMissing, isOnBoard);
+      case "calendar":
+        return and(notMissing, isOnCalendar);
+      case "all":
+        return notMissing;
+    }
+  })();
+
+  // For "soonest" we sort by upcoming-first (asc startsAt) which naturally
+  // surfaces live jams (already started) ahead of true upcoming. For
+  // "popularity" we order by joinedCount desc (most-joined first), with
+  // entriesCount as a tiebreaker for jams that haven't been scraped for
+  // joined-count yet. "calendar" ignores sortBy: the client re-sorts by
+  // event date, so we return newest-last-event first — if the set ever
+  // outgrows the limit, truncation drops the oldest archive instead of
+  // upcoming jams.
+  const orderBy =
+    input.filter === "calendar"
+      ? [desc(lastEventAt), asc(itchJams.startsAt)]
+      : input.filter === "board"
+        ? // Board shelves re-rank client-side; joined-first keeps the
+          // payload's head useful if the limit ever truncates.
+          [desc(sql`COALESCE(${itchJams.joinedCount}, 0)`), asc(itchJams.startsAt)]
+        : input.sortBy === "popularity"
+          ? [
+              desc(sql`COALESCE(${itchJams.joinedCount}, 0)`),
+              desc(sql`COALESCE(${itchJams.entriesCount}, 0)`),
+              asc(itchJams.endsAt),
+            ]
+          : [asc(itchJams.startsAt), desc(itchJams.scrapedAt)];
+
+  const jams = await db
+    .select(jamListColumns)
+    .from(itchJams)
+    .where(where)
+    .orderBy(...orderBy)
+    .limit(input.limit);
+
+  // The jams page's hero advertises how many jams we track overall,
+  // which the windowed payload no longer reveals — count it separately.
+  let trackedTotal: number | undefined;
+  if (input.filter === "calendar" || input.filter === "board") {
+    const [row] = await db.select({ count: count() }).from(itchJams).where(notMissing);
+    trackedTotal = row?.count ?? jams.length;
+  }
+
+  return { jams, trackedTotal };
+}
+
 export const listJams = os
   .route({ method: "GET" })
-  .input(
-    z.object({
-      filter: z.enum(["live", "upcoming", "active", "board", "calendar", "all"]).default("active"),
-      sortBy: z.enum(["soonest", "popularity"]).default("soonest"),
-      limit: z.number().min(1).max(5000).default(20),
-    }),
-  )
-  .handler(async ({ input }) => {
-    const now = new Date();
-
-    const isLive = and(
-      lte(itchJams.startsAt, now),
-      or(gt(itchJams.endsAt, now), isNull(itchJams.endsAt)),
-    );
-    const isUpcoming = gt(itchJams.startsAt, now);
-
-    // Jams stamped missing_since 404 on itch (deleted, or awaiting manual
-    // verification) — never surface them in listings.
-    const notMissing = isNull(itchJams.missingSince);
-
-    // Any event still in the future — live, upcoming, or in its voting
-    // window. This is the discovery board's working set (~500 rows), a
-    // fraction of the calendar window's.
-    const isOnBoard = sql`${lastEventAt} >= ${now}`;
-
-    // Everything still active (any event in the future) plus a trailing
-    // archive window — keeps the calendar payload bounded no matter how
-    // large the scraped table grows.
-    const archiveCutoff = new Date(now);
-    archiveCutoff.setUTCMonth(archiveCutoff.getUTCMonth() - CALENDAR_ARCHIVE_MONTHS);
-    const isOnCalendar = sql`${lastEventAt} >= ${archiveCutoff}`;
-
-    const where = (() => {
-      switch (input.filter) {
-        case "live":
-          return and(notMissing, isLive);
-        case "upcoming":
-          return and(notMissing, isUpcoming);
-        case "active":
-          return and(notMissing, or(isLive, isUpcoming));
-        case "board":
-          return and(notMissing, isOnBoard);
-        case "calendar":
-          return and(notMissing, isOnCalendar);
-        case "all":
-          return notMissing;
-      }
-    })();
-
-    // For "soonest" we sort by upcoming-first (asc startsAt) which naturally
-    // surfaces live jams (already started) ahead of true upcoming. For
-    // "popularity" we order by joinedCount desc (most-joined first), with
-    // entriesCount as a tiebreaker for jams that haven't been scraped for
-    // joined-count yet. "calendar" ignores sortBy: the client re-sorts by
-    // event date, so we return newest-last-event first — if the set ever
-    // outgrows the limit, truncation drops the oldest archive instead of
-    // upcoming jams.
-    const orderBy =
-      input.filter === "calendar"
-        ? [desc(lastEventAt), asc(itchJams.startsAt)]
-        : input.filter === "board"
-          ? // Board shelves re-rank client-side; joined-first keeps the
-            // payload's head useful if the limit ever truncates.
-            [desc(sql`COALESCE(${itchJams.joinedCount}, 0)`), asc(itchJams.startsAt)]
-          : input.sortBy === "popularity"
-            ? [
-                desc(sql`COALESCE(${itchJams.joinedCount}, 0)`),
-                desc(sql`COALESCE(${itchJams.entriesCount}, 0)`),
-                asc(itchJams.endsAt),
-              ]
-            : [asc(itchJams.startsAt), desc(itchJams.scrapedAt)];
-
-    const jams = await db
-      .select(jamListColumns)
-      .from(itchJams)
-      .where(where)
-      .orderBy(...orderBy)
-      .limit(input.limit);
-
-    // The jams page's hero advertises how many jams we track overall,
-    // which the windowed payload no longer reveals — count it separately.
-    let trackedTotal: number | undefined;
-    if (input.filter === "calendar" || input.filter === "board") {
-      const [row] = await db.select({ count: count() }).from(itchJams).where(notMissing);
-      trackedTotal = row?.count ?? jams.length;
-    }
-
-    return { jams, trackedTotal };
-  });
+  .input(jamListInput)
+  .handler(({ input }) => queryJamListing(input));
 
 /**
  * Server-paginated archive browser: every jam whose last event is in the
@@ -953,15 +1013,56 @@ const HERO_PIN_MAX = 20;
  * edge TTL — see `PUBLIC_EDGE_TTL`. Expired pins are returned too: the
  * admin panel is the only place they can be seen and cleared.
  */
-export const listJamHeroPins = os.route({ method: "GET" }).handler(async () => {
-  const pins = await db
+export const listJamHeroPins = os.route({ method: "GET" }).handler(async () => ({
+  pins: await queryHeroPins(),
+}));
+
+function queryHeroPins() {
+  return db
     .select(heroPinFields)
     .from(itchJams)
     .where(and(isNotNull(itchJams.heroPinnedAt), isNull(itchJams.missingSince)))
     .orderBy(desc(itchJams.heroPinnedAt))
     .limit(HERO_PIN_MAX);
+}
 
-  return { pins };
+/**
+ * Everything the landing page's jam half renders: the hero rotation, the
+ * showcase band, and the two counts in the section blurb.
+ *
+ * `/` used to read the board listing itself — all ~560 rows with a future
+ * event, dehydrated into the home document ahead of its content, to render
+ * at most sixteen jams and two numbers from them. The tiering it ran over
+ * those rows is pure and time-only, so it runs here instead and the wire
+ * carries the answer rather than the input. The board listing stays as it
+ * is for `/jams`, which genuinely shows all of it.
+ *
+ * `now` is therefore the server's, fixed for the response's edge lifetime,
+ * where it used to tick with the page's clock. A jam crossing a shelf
+ * boundary shows up on the next revalidation instead of on the next minute
+ * tick — which is also how its `status` and counts already behaved.
+ *
+ * Pins are baked in rather than joined client-side, so this carries
+ * `listJamHeroPins`' short TTL instead of the scraped tier's.
+ */
+export const homeJams = os.route({ method: "GET" }).handler(async (): Promise<HomeJamsPayload> => {
+  const now = new Date();
+  const [{ jams }, pins] = await Promise.all([
+    queryJamListing({ filter: "board", sortBy: "soonest", limit: HOME_BOARD_LIMIT }),
+    queryHeroPins(),
+  ]);
+
+  const { featured, shelves } = buildBoard(jams, now, "soonest");
+  const counts = countShelves(jams, now);
+  const heroSlides = heroJamSlides(featured, jams, pins, now);
+  const heroJamIds = heroSlides.map((slide) => slide.jam.jamId);
+
+  return {
+    heroSlides,
+    showcaseJams: selectShowcaseJams(featured, shelves.upcoming.ranked, heroJamIds),
+    liveCount: counts.live,
+    upcomingCount: counts.upcoming,
+  };
 });
 
 /** Offer a jam to the home hero, or withdraw it. Staff, not admin — same

@@ -112,10 +112,10 @@ export function onDiscordAppSignin(onSignin: () => void): () => void {
 }
 
 /**
- * Hand the authorize URL to the desktop client. A browser navigating to an
- * unregistered scheme does nothing observable, and the "Open Discord?"
- * prompt some browsers show holds focus long enough that any timed fallback
- * races the person — so the web route is offered, never assumed.
+ * Hand the authorize URL to the desktop client. Nothing tells a page whether
+ * a scheme has a handler, so the handoff is offered and never assumed: the
+ * web route stays one press away for as long as the app route has not
+ * visibly landed.
  */
 export function openDiscordAuthorize(webUrl: string): void {
   const appUrl = toDiscordAppAuthorizeUrl(webUrl);
@@ -123,24 +123,52 @@ export function openDiscordAuthorize(webUrl: string): void {
     window.location.assign(webUrl);
     return;
   }
+  const useBrowser = {
+    label: "Use browser",
+    onClick: () => {
+      rememberSigninRoute("web");
+      window.location.assign(webUrl);
+    },
+  };
+  const waiting = { duration: Infinity, action: useBrowser } as const;
   const id = toast("Continue in the Discord app", {
     description: "Nothing happened? Use the browser instead.",
-    duration: Infinity,
-    action: {
-      label: "Use browser",
-      onClick: () => {
-        rememberSigninRoute("web");
-        window.location.assign(webUrl);
-      },
-    },
+    ...waiting,
   });
-  window.addEventListener(
-    "blur",
-    () => toast("Handed off to the Discord app", { id, duration: Infinity, action: undefined }),
-    { once: true },
-  );
+
+  /**
+   * Focus is the only signal a page gets here, and it is a weak one: a
+   * desktop with no `discord://` handler takes focus with an error dialog
+   * exactly as the client would, and hands it back when the dialog is
+   * dismissed. So focus only changes the wording — the fallback survives
+   * every transition, and a completed sign-in is the one thing that
+   * retires it.
+   */
+  let signedIn = false;
+  const away = () => {
+    if (signedIn) return;
+    toast("Handed off to the Discord app", {
+      id,
+      description: "Still waiting? Use the browser instead.",
+      ...waiting,
+    });
+  };
+  const back = () => {
+    if (signedIn) return;
+    toast("Continue in the Discord app", {
+      id,
+      description: "Nothing happened? Use the browser instead.",
+      ...waiting,
+    });
+  };
+  window.addEventListener("blur", away);
+  window.addEventListener("focus", back);
+
   const stop = onDiscordAppSignin(() => {
+    signedIn = true;
     stop();
+    window.removeEventListener("blur", away);
+    window.removeEventListener("focus", back);
     toast.success("Signed in", { id, duration: 4000, description: undefined, action: undefined });
   });
   window.location.assign(appUrl);

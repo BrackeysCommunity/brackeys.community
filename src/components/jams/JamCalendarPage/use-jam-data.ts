@@ -8,9 +8,9 @@ import { STALE } from "@/orpc/public-procedures";
 import { buildBoard } from "./board/build-board";
 import {
   bucketJamsByDay,
+  countShelves,
   type DayBuckets,
   jamMatchesSearch,
-  jamShelf,
   type JamFromList,
   type JamHeroPin,
   type ShelfKind,
@@ -27,12 +27,14 @@ const CALENDAR_LIMIT = 5000;
 export const JAM_STALE_MS = STALE.jam;
 
 /**
- * The board fetch, shared verbatim by `useBoardJams`, `useHomeJams` and
- * the `/` and `/jams` loaders. All of them must land on the *same* query
- * key so the home page and the jam board read one cache entry — routing
- * between them should never refetch, and a loader prefetch that missed
- * the key would silently double the work instead of saving any. They used
- * to repeat the config inline, which left nothing enforcing that.
+ * The board fetch, shared verbatim by `useBoardJams`, the admin hero panel
+ * and the `/jams` loader. All of them must land on the *same* query key so
+ * they read one cache entry — a loader prefetch that missed the key would
+ * silently double the work instead of saving any. They used to repeat the
+ * config inline, which left nothing enforcing that.
+ *
+ * `/` no longer reads it: the landing page asks `homeJams` for the sixteen
+ * jams it shows rather than tiering all ~560 in the browser.
  */
 export function boardJamsQueryOptions() {
   return queryOptions({
@@ -67,15 +69,6 @@ export interface BoardData {
   totalTracked: number;
 }
 
-function countShelves(jams: JamFromList[], now: Date): Record<ShelfKind, number> {
-  const counts: Record<ShelfKind, number> = { live: 0, upcoming: 0, voting: 0, ongoing: 0 };
-  for (const jam of jams) {
-    const shelf = jamShelf(jam, now);
-    if (shelf !== "archive") counts[shelf] += 1;
-  }
-  return counts;
-}
-
 /** The discovery board's working set: every jam with a future event. */
 export function useBoardJams(now: Date, search: string): BoardData {
   const { data, isLoading } = useBoardQuery();
@@ -96,62 +89,57 @@ export function useBoardJams(now: Date, search: string): BoardData {
 
 export interface HomeJamsData {
   isLoading: boolean;
-  /** The board's featured tier — signal-ranked live + upcoming, Brackeys
-   * jams force-included. Drives the home carousel. */
-  featured: JamFromList[];
-  /** The board's ranked upcoming shelf (signal ≥ threshold, featured and
-   * perpetual pseudo-jams excluded), soonest first. */
-  upcoming: JamFromList[];
-  /** The jams the hero rotates through, priority first — resolved here so
-   * the `/` loader can prefetch the band around the same answer. */
+  /** The hero rotation, priority first. */
   heroSlides: HeroJam[];
-  /** The front of `heroSlides` — the jam surfaces without a rotation show. */
-  hero: HeroJam | null;
+  /** The showcase band's jams — the featured tier topped up from the
+   * ranked upcoming shelf, minus whatever the hero is already promoting. */
+  showcaseJams: JamFromList[];
   liveCount: number;
   upcomingCount: number;
 }
 
 /**
- * The home page's § JAMS section. Shares the board query (same key) so
- * the landing section promotes exactly what the jam board's featured
- * rail and upcoming shelf show, instead of a raw soonest-first list
- * that surfaces zero-signal jams.
+ * The landing page's jam half. Its own procedure rather than the board
+ * listing: `/` renders at most sixteen jams and two counts, and reading
+ * the board for them put all ~560 rows in the home document ahead of its
+ * content. The tiering runs on the server now — see `homeJams` in
+ * `@/orpc/router/jam`.
  */
-export function useHomeJams(now: number): HomeJamsData {
-  const { data, isLoading } = useBoardQuery();
-  const { data: pinData } = useQuery(heroPinsQueryOptions());
-
-  const all = useMemo(() => data?.jams ?? [], [data]);
-  const pins = useMemo(() => pinData?.pins ?? [], [pinData]);
-  return useMemo(
-    () => ({ isLoading, ...homeJamsFrom(all, now, pins) }),
-    [all, now, pins, isLoading],
-  );
+export function homeJamsQueryOptions() {
+  return queryOptions({
+    queryKey: ["home-jams"],
+    queryFn: () => client.homeJams(),
+    // The payload carries a staff hero pin, whose author reloads `/`
+    // seconds after setting it — the pin tier, not the scrape tier.
+    staleTime: STALE.listing,
+  });
 }
 
-/**
- * The § JAMS tiers, derived from a board payload. Split out of the hook so
- * `/`'s loader can work out which jams the band will show — and therefore
- * whose entries to prefetch — off the same reasoning the page will use,
- * rather than a second copy of it.
- */
-export function homeJamsFrom(
-  all: JamFromList[],
-  now: number,
-  pins: JamHeroPin[] = [],
-): Omit<HomeJamsData, "isLoading"> {
-  const nowDate = new Date(now);
-  const { featured, shelves } = buildBoard(all, nowDate, "soonest");
-  const counts = countShelves(all, nowDate);
-  const heroSlides = heroJamSlides(featured, all, pins, nowDate);
+export function useHomeJams(): HomeJamsData {
+  const { data, isLoading } = useQuery(homeJamsQueryOptions());
   return {
-    featured,
-    upcoming: shelves.upcoming.ranked,
-    heroSlides,
-    hero: heroSlides[0] ?? null,
-    liveCount: counts.live,
-    upcomingCount: counts.upcoming,
+    isLoading,
+    heroSlides: data?.heroSlides ?? EMPTY_SLIDES,
+    showcaseJams: data?.showcaseJams ?? EMPTY_JAMS,
+    liveCount: data?.liveCount ?? 0,
+    upcomingCount: data?.upcomingCount ?? 0,
   };
+}
+
+/** Stable empties, so the memos downstream of them don't re-run per render. */
+const EMPTY_SLIDES: HeroJam[] = [];
+const EMPTY_JAMS: JamFromList[] = [];
+
+/**
+ * The hero rotation derived from a board payload, the way `homeJams` does
+ * it server-side. The admin curation panel is the one caller left: it
+ * needs the rotation *and* the board rows behind it, to show what is
+ * queued and what aged out, so it reads both and re-derives rather than
+ * asking `/`'s procedure for an answer it can't inspect.
+ */
+export function heroSlidesFrom(all: JamFromList[], now: Date, pins: JamHeroPin[] = []): HeroJam[] {
+  const { featured } = buildBoard(all, now, "soonest");
+  return heroJamSlides(featured, all, pins, now);
 }
 
 export interface CalendarData {

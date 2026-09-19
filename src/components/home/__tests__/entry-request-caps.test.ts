@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { HERO_SLIDE_MAX } from "@/components/home/hero-jam";
-import { SHOWCASE_MAX_JAMS } from "@/components/home/JamShowcaseBand";
+import { SHOWCASE_MAX_JAMS } from "@/components/home/showcase-jams";
 import { entryJamIdsFor } from "@/components/home/use-recent-entries";
 import { RECENT_ENTRIES_MAX_JAMS } from "@/orpc/router/jam";
 

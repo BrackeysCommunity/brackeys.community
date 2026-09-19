@@ -23,7 +23,7 @@ import {
 import {
   boardJamsQueryOptions,
   heroPinsQueryOptions,
-  homeJamsFrom,
+  heroSlidesFrom,
 } from "@/components/jams/JamCalendarPage/use-jam-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,8 +62,9 @@ export function AdminHeroJam() {
   const jams = useMemo(() => board.data?.jams ?? [], [board.data]);
   const pins = useMemo(() => pinsQuery.data?.pins ?? [], [pinsQuery.data]);
 
-  // The same call the home page makes, so this reads what `/` actually shows.
-  const heroSlides = useMemo(() => homeJamsFrom(jams, now, pins).heroSlides, [jams, now, pins]);
+  // The same rules `homeJams` applies server-side, so this reads what `/`
+  // actually shows.
+  const heroSlides = useMemo(() => heroSlidesFrom(jams, nowDate, pins), [jams, nowDate, pins]);
 
   const byId = useMemo(() => new Map(jams.map((jam) => [jam.jamId, jam])), [jams]);
   const pinnedIds = useMemo(() => new Set(pins.map((p) => p.jamId)), [pins]);
