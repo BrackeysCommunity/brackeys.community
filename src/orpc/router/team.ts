@@ -47,6 +47,7 @@ import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { canOverride, type ModOverride, type ModPowerAction } from "@/lib/moderation-policy";
 import { notify } from "@/lib/notifications";
+import { isUniqueViolation } from "@/lib/pg-errors";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
@@ -77,11 +78,6 @@ import {
   profileNameSearch,
   profileStubJoin,
 } from "@/orpc/profile-projection";
-
-/** Postgres `unique_violation`. */
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
-}
 
 // Same shape the profile stub enforces, so the two handle namespaces
 // follow one grammar.

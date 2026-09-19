@@ -58,6 +58,7 @@ import { jamSlug } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
+import { isUniqueViolation } from "@/lib/pg-errors";
 import { bestEffort, captureServerEvent, captureServerException } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import { profileSlug } from "@/lib/profile-links";
@@ -2008,11 +2009,6 @@ export const featurePost = os
 // ── Responses ────────────────────────────────────────────────────────────────
 
 const ALREADY_RESPONDED = "You've already applied to this post.";
-
-/** Postgres `unique_violation`. */
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && err.code === "23505";
-}
 
 export const respondToPost = os
   .use(requireGuildMember)

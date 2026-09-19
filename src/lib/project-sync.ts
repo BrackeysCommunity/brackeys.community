@@ -34,6 +34,7 @@ import { normalizeItchProfileUrl } from "./itch-urls";
 // under bun with no bundler, so nothing here may depend on the app's alias
 // resolving. Same reason `src/db/schema.ts` has no `@/` imports of its own.
 import { memberName } from "./member-name";
+import { isUniqueViolation } from "./pg-errors";
 import {
   RESERVED_PROJECT_SLUGS,
   platformsFromTraits,
@@ -86,16 +87,6 @@ export async function findFreeProjectSlug(
   // Every candidate collided — fall back to something that effectively
   // cannot, rather than failing the insert.
   return `${base}-${crypto.randomUUID().slice(0, 8)}`;
-}
-
-/** Postgres unique-violation. */
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "23505"
-  );
 }
 
 export interface ProjectSeed {

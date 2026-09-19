@@ -30,6 +30,7 @@ COPY src/lib/itch-pacer.ts ./src/lib/itch-pacer.ts
 COPY src/lib/itch-http.ts ./src/lib/itch-http.ts
 COPY src/lib/media-scan-queue.ts ./src/lib/media-scan-queue.ts
 COPY src/lib/project-sync.ts ./src/lib/project-sync.ts
+COPY src/lib/pg-errors.ts ./src/lib/pg-errors.ts
 COPY src/lib/project-taxonomy.ts ./src/lib/project-taxonomy.ts
 COPY src/lib/itch-urls.ts ./src/lib/itch-urls.ts
 COPY src/lib/member-name.ts ./src/lib/member-name.ts
