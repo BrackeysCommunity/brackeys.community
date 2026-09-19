@@ -1,0 +1,64 @@
+name: Bug Report
+description: Have/found an issue with the app? Make a report.
+title: "[BUG] <title>"
+labels: ["Bug"]
+body:
+- type: checkboxes
+  attributes:
+    label: Is there an existing issue for this?
+    description: Please search to see if an issue already exists for the bug you encountered.
+    options:
+    - label: I have searched the existing issues and confirmed a similar one does not exist
+      required: true
+- type: textarea
+  attributes:
+    label: Describe the bug
+    description: A clear and concise description of what the bug is.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Expected Behavior
+    description: A clear and concise description of what you expected to happen.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Steps To Reproduce
+    description: Steps to reproduce the behavior.
+    placeholder: |
+      1. In this browser...
+      2. Clicked here...
+      3. See error...
+  validations:
+    required: false
+- type: input
+  attributes:
+    label: Browser
+    description: Input the browser you are running.
+    placeholder: "Example: Firefox 156, Chrome 153, Safari 27..."
+  validations:
+    required: true
+- type: markdown
+  attributes:
+    value: "If you don't know what browser you are running go to https://www.whatsmybrowser.org/ to check."
+- type: input
+  attributes:
+    label: OS
+    description: Describe the OS you are on.
+    placeholder: "Example: Windows 11, Fedora Linux 47, macOS 26 Tahoe"
+  validations:
+    required: true
+- type: upload
+  attributes:
+    label: Screenshots/Screen Recordings
+    description: If you have a screenshot or video of the bug upload it here.
+  validations:
+    required: false
+    accept: ".png,.jpg,.jpeg,.gif,.svg,.webp,.mp4,.mov,.webm"
+- type: textarea
+  attributes:
+    label: Anything else?
+    description: Add any other context about the problem here.
+  validations:
+    required: false
