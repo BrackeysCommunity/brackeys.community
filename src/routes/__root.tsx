@@ -12,6 +12,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { SiteFooter } from "@/components/home/SiteFooter";
 import { AuthSessionSync } from "@/components/layout/AuthSessionSync";
 import { DeployEnvStripe } from "@/components/layout/DeployEnvMarker";
+import { DiscordAppReturn } from "@/components/layout/DiscordAppReturn";
 import { PageSkeleton } from "@/components/layout/PageSkeleton";
 import {
   AppHeaderFallback,
@@ -332,6 +333,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <AuthSessionSync />
+      <DiscordAppReturn />
       <NotificationStreamMount />
       {isMobile ? (
         <ShellBoundary

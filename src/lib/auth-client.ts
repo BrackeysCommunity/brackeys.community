@@ -1,7 +1,12 @@
 import { genericOAuthClient, inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
-import { openDiscordAuthorize } from "@/lib/discord-app-login";
+import {
+  openDiscordAuthorize,
+  rememberedSigninRoute,
+  type SigninRoute,
+  withDiscordAppReturn,
+} from "@/lib/discord-app-login";
 import { EVENTS, type SigninSource } from "@/lib/event-taxonomy";
 import { gitlabCallbackPath } from "@/lib/gitlab-instances";
 import { captureEvent } from "@/lib/product-insights";
@@ -30,9 +35,12 @@ type SocialSignInOptions = Omit<Parameters<typeof authClient.signIn.social>[0], 
 type SignInWithDiscordOptions = SocialSignInOptions & {
   /**
    * `"app"` runs the consent screen in the Discord desktop client (see
-   * `@/lib/discord-app-login`) instead of the browser's discord.com session.
+   * `@/lib/discord-app-login`) so the account is the one the app is signed
+   * into, not whatever discord.com session the browser holds. `"web"` is the
+   * plain browser flow. Unset, the browser's remembered route wins, and a
+   * browser with no history starts on the app.
    */
-  via?: "web" | "app";
+  via?: SigninRoute;
 };
 
 /**
@@ -66,7 +74,8 @@ type SignInWithDiscordOptions = SocialSignInOptions & {
  * that outlives the flow.
  */
 export async function signInWithDiscord(source: SigninSource, options?: SignInWithDiscordOptions) {
-  const { via = "web", ...socialOptions } = options ?? {};
+  const { via: viaOption, ...socialOptions } = options ?? {};
+  const via = viaOption ?? rememberedSigninRoute() ?? "app";
   const signinAttemptId = newSigninAttemptId();
   captureEvent(EVENTS.authSigninStarted, {
     source,
@@ -74,9 +83,10 @@ export async function signInWithDiscord(source: SigninSource, options?: SignInWi
     signin_attempt_id: signinAttemptId,
     via,
   });
+  const callbackURL = window.location.pathname + window.location.search;
   const result = await authClient.signIn.social({
     provider: "discord",
-    callbackURL: window.location.pathname + window.location.search,
+    callbackURL: via === "app" ? withDiscordAppReturn(callbackURL) : callbackURL,
     additionalData: { signinAttemptId, signinSource: source },
     ...socialOptions,
     // The app route needs the authorize URL in hand rather than followed.

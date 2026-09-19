@@ -80,19 +80,10 @@ export function CommandPalette() {
           {/* Quick Actions */}
           <CommandGroup heading="ACTIONS">
             {!session?.user && (
-              <>
-                <CommandItem onSelect={() => run(() => signInWithDiscord("command_palette"))}>
-                  <HugeiconsIcon icon={Login01Icon} className="text-primary" />
-                  <span>Login</span>
-                </CommandItem>
-                <CommandItem
-                  value="login discord app desktop"
-                  onSelect={() => run(() => signInWithDiscord("command_palette", { via: "app" }))}
-                >
-                  <HugeiconsIcon icon={Login01Icon} className="text-primary" />
-                  <span>Login with Discord app</span>
-                </CommandItem>
-              </>
+              <CommandItem onSelect={() => run(() => signInWithDiscord("command_palette"))}>
+                <HugeiconsIcon icon={Login01Icon} className="text-primary" />
+                <span>Login</span>
+              </CommandItem>
             )}
             {/* Staff only, and a shortcut like the user-menu entry — the route
                 loader and every procedure behind it re-check server-side. */}
