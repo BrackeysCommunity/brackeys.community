@@ -27,34 +27,26 @@ body:
     label: Steps To Reproduce
     description: Steps to reproduce the behavior.
     placeholder: |
-      1. In this environment...
-      1. With this config...
-      1. Run '...'
-      1. See error...
+      1. In this browser...
+      2. Clicked here...
+      3. See error...
   validations:
     required: false
-- type: dropdown
-  attributes:
-    label: Browser
-    description: Select the browser you are running.
-    options:
-        - Chrome
-        - Firefox
-        - Safari
-        - Other
-  validations:
-    required: true
 - type: input
   attributes:
-    label: Other Browser
-    description: If you are using a browser not listed name it here.
+    label: Browser
+    description: Input the browser you are running.
+    placeholder: "Example: Firefox 156, Chrome 153, Safari 27..."
   validations:
-    required: false
+    required: true
+- type: markdown
+  attributes:
+    value: "If you don't know what browser you are running go to https://www.whatsmybrowser.org/ to check."
 - type: input
   attributes:
     label: OS
     description: Describe the OS you are on.
-    placeholder: "Example: Windows 11, Fedora Linux 47, ...Mac or whatever..."
+    placeholder: "Example: Windows 11, Fedora Linux 47, macOS 26 Tahoe"
   validations:
     required: true
 - type: upload
