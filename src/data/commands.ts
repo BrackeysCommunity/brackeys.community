@@ -82,7 +82,7 @@ export const pencilCommands: BotCommand[] = [
   },
 ];
 
-export const marcoMacros: Macro[] = [
+const marcoMacroEntries: Macro[] = [
   {
     name: "productive",
     aliases: ["deadchat"],
@@ -390,6 +390,20 @@ export const marcoMacros: Macro[] = [
     description: "@silent <@265536255696175104> needs to watch Doctor Who",
   },
 ];
+
+/**
+ * Alphabetical, the way `/listmacros` reads in Discord — the registry above
+ * is kept in the order macros were added, which is nobody's lookup order.
+ * Names that don't start with a letter or digit (the spoon) sort last.
+ */
+export const marcoMacros: Macro[] = [...marcoMacroEntries].sort(compareMacroNames);
+
+function compareMacroNames(a: Macro, b: Macro): number {
+  const aWord = /^[a-z0-9]/i.test(a.name);
+  const bWord = /^[a-z0-9]/i.test(b.name);
+  if (aWord !== bWord) return aWord ? -1 : 1;
+  return a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+}
 
 export const allBotCommands: BotCommand[] = [...hammerCommands, ...pencilCommands];
 

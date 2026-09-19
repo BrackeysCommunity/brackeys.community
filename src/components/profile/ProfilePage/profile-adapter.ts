@@ -9,6 +9,7 @@ import {
   type MemberViewer,
 } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
+import { staffRoleOf } from "@/lib/staff-role";
 import { isWebsiteLinkLabel, websiteLinkLabel, websiteLinkMonogram } from "@/lib/website-link-type";
 import { stampCoversUrl } from "@/lib/website-verification";
 
@@ -38,6 +39,8 @@ export interface RpcProfile {
     discordId: string | null;
     discordUsername: string | null;
     guildNickname: string | null;
+    /** Resolved guild role names as of their last Discord sync. */
+    guildRoles?: string[] | null;
     avatarUrl: string | null;
     guildAvatarUrl: string | null;
     bio: string | null;
@@ -324,6 +327,7 @@ export function adaptProfile(
       collabPreference: profile.collabPreference,
     },
     badges,
+    staffRole: staffRoleOf(profile.guildRoles),
     stats: {
       projectsShipped,
       projectsLabel: projectsShipped > 0 ? deriveProjectsLabel(projects) : "—",

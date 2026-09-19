@@ -29,7 +29,6 @@ import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { captureEvent, resetIdentity } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
-import { truncateMiddle } from "@/lib/utils";
 
 interface UserMenuProps {
   user: {
@@ -82,13 +81,14 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
         />
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
+      <DropdownMenuContent align="end" sideOffset={8} className="max-w-[280px] min-w-[180px]">
         {/* The name row is a group label, not an item — it takes no focus
               and no hover. base-ui requires it to sit inside a Group, which
-              it then labels. */}
+              it then labels. A guild nickname runs to 32 characters, so it
+              wraps against the menu's cap rather than losing its middle. */}
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="mb-1.5 border-b border-muted/40 text-xs text-foreground">
-            {truncateMiddle(ownName ?? "USER", 18)}
+          <DropdownMenuLabel className="mb-1.5 border-b border-muted/40 text-xs break-words text-foreground">
+            {ownName ?? "USER"}
           </DropdownMenuLabel>
           {/* The other half of the board's two doors: posting a gig is a
               wizard, but making yourself hireable was four clicks deep in

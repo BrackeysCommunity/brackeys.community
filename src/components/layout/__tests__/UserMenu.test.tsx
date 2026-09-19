@@ -223,6 +223,28 @@ describe("UserMenu profile links", () => {
   });
 });
 
+describe("UserMenu name row", () => {
+  it("shows a long guild nickname in full", () => {
+    const nickname = "Kwisp the Keeper of the Wilds One";
+    setActiveProfile({
+      discordUsername: "testuser",
+      discordId: "123",
+      avatarUrl: null,
+      guildNickname: nickname,
+      guildAvatarUrl: null,
+      inGuild: true,
+      urlStub: null,
+      availableForWork: false,
+      isStaff: false,
+      isAdmin: false,
+    });
+
+    renderMenu();
+
+    expect(screen.getByText(nickname)).toBeTruthy();
+  });
+});
+
 describe("UserMenu admin link", () => {
   const base = {
     discordUsername: "testuser",

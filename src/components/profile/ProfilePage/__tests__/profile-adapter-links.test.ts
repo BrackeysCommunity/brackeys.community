@@ -192,3 +192,13 @@ describe("adaptProfile — jam log entry links", () => {
     expect(jamLog[0]?.url).toBe("https://someone.itch.io/meltdown");
   });
 });
+
+describe("staff badge", () => {
+  it("reads the badge off the cached guild roles", () => {
+    const withRoles = (guildRoles: string[] | null) =>
+      adaptProfile(rpcProfile({ profile: { ...rpcProfile().profile, guildRoles } })).staffRole;
+    expect(withRoles(null)).toBeNull();
+    expect(withRoles(["Moderator"])).toBe("moderator");
+    expect(withRoles(["Staff", "Admin"])).toBe("admin");
+  });
+});

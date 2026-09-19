@@ -1,4 +1,4 @@
-import { Edit02Icon, Link01Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
+import { Edit02Icon, Link01Icon, Shield02Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
@@ -16,6 +16,7 @@ import { authStore } from "@/lib/auth-store";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { play } from "@/lib/sound";
+import { STAFF_ROLE_LABELS, type StaffRole } from "@/lib/staff-role";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -97,12 +98,13 @@ export function ProfileHero({
             <Heading
               as="h1"
               className={cn(
-                "leading-none tracking-tight text-foreground",
+                "min-w-0 leading-none tracking-tight break-words text-foreground",
                 compact ? "text-3xl" : "text-4xl",
               )}
             >
               {profile.name}
             </Heading>
+            <StaffBadge role={profile.staffRole} />
             <AvailabilityPill availability={profile.availability} />
           </div>
           {profile.tag ? (
@@ -171,6 +173,18 @@ function AvatarTile({ profile, compact }: { profile: ProfileViewModel; compact: 
         </GradientBanner>
       )}
     </div>
+  );
+}
+
+/** The guild's own rank, beside the name — a mod reads as a mod before
+ * anyone reads their skills. */
+function StaffBadge({ role }: { role: StaffRole | null }) {
+  if (!role) return null;
+  return (
+    <Badge variant="default" size="label" className="gap-1.5 uppercase" data-testid="staff-badge">
+      <HugeiconsIcon icon={Shield02Icon} />
+      {STAFF_ROLE_LABELS[role]}
+    </Badge>
   );
 }
 

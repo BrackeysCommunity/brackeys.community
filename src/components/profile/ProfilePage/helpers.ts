@@ -9,6 +9,7 @@ import { compensationLabel } from "@/lib/collab-vocabulary";
  */
 import type { Currency } from "@/lib/currency";
 import { availabilityLabel } from "@/lib/member-vocabulary";
+import type { StaffRole } from "@/lib/staff-role";
 
 export interface ProfileViewModel {
   /** URL stub / handle (no leading @). */
@@ -34,6 +35,8 @@ export interface ProfileViewModel {
 
   availability: ProfileAvailability;
   badges: ProfileBadge[];
+  /** Highest guild staff role they hold — the badge beside the name. */
+  staffRole: StaffRole | null;
 
   stats: ProfileStats;
 
