@@ -1,3 +1,11 @@
+# Local development image, used only by compose.yaml. It runs the Vite dev
+# server against a bind-mounted checkout and is not a production build.
+#
+# It is named Dockerfile.local on purpose: Railway builds a file named Dockerfile at the
+# repo root instead of its own builder, and this one would put the dev server
+# on the live domain. Production is built by Railpack from `vp build` and
+# started with the `start` script.
+
 FROM oven/bun:1
 
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
