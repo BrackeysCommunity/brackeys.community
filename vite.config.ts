@@ -355,7 +355,9 @@ const config = defineConfig({
   plugins: [
     wasm(),
     devtools(),
-    tanstackStart(),
+    tanstackStart({
+      router: { routeFileIgnorePattern: "__tests__" },
+    }),
     // https://tanstack.com/start/latest/docs/framework/react/guide/hosting
     nitro({
       // fixes SSR issues with Vite 8:

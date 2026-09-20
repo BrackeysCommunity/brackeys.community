@@ -8,6 +8,7 @@ export type ActiveUserProfile = {
   avatarUrl: string | null;
   guildNickname: string | null;
   guildAvatarUrl: string | null;
+  guildRoles: string[] | null;
   urlStub: string | null;
   /** Whether the viewer is in the Discord guild — the switch between a
       member's guild face and global face everywhere (`useMemberViewer`). */
@@ -43,6 +44,7 @@ export async function fetchActiveUserProfile() {
             avatarUrl: data.profile.avatarUrl,
             guildNickname: data.profile.guildNickname,
             guildAvatarUrl: data.profile.guildAvatarUrl,
+            guildRoles: data.profile.guildRoles,
             urlStub: data.urlStub,
             inGuild: data.inGuild,
             availableForWork: data.profile.availableForWork ?? false,

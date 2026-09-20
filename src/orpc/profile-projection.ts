@@ -14,6 +14,9 @@ export const profileIdentityColumns = {
   guildNickname: developerProfiles.guildNickname,
   avatarUrl: developerProfiles.avatarUrl,
   guildAvatarUrl: developerProfiles.guildAvatarUrl,
+  // Feeds the rank badge (`guildRankOf`) beside the name; already public
+  // through `getProfile`, so nothing new leaks by riding every byline.
+  guildRoles: developerProfiles.guildRoles,
   urlStub: profileUrlStubs.stub,
 };
 

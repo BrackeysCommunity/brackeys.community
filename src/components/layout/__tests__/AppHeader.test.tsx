@@ -218,6 +218,7 @@ describe("AppHeader navigation", () => {
       avatarUrl: null,
       guildNickname: null,
       guildAvatarUrl: null,
+      guildRoles: null,
       inGuild: true,
       urlStub: "joshe",
       availableForWork: false,

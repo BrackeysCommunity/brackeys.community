@@ -79,6 +79,7 @@ type CommentAuthor = {
   name: string;
   avatarUrl: string | null;
   guildAvatarUrl: string | null;
+  guildRoles: string[] | null;
   urlStub: string | null;
 };
 
@@ -116,6 +117,7 @@ async function authorsByIds(userIds: string[]): Promise<Map<string, CommentAutho
         name: memberName(p, "Member"),
         avatarUrl: p.avatarUrl,
         guildAvatarUrl: p.guildAvatarUrl,
+        guildRoles: p.guildRoles,
         urlStub: p.urlStub,
       },
     ]),

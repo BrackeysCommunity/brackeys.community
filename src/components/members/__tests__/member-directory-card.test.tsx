@@ -96,3 +96,17 @@ describe("MemberDirectoryCard chip budget", () => {
     expect(screen.queryByText(/^\+\d+$/)).toBeNull();
   });
 });
+
+describe("MemberDirectoryCard guild rank", () => {
+  it("names the highest guild rank beside the name", () => {
+    render(<MemberDirectoryCard member={member({ guildRoles: ["Guru", "Moderator"] })} />);
+
+    expect(screen.getByTestId("rank-badge").textContent).toBe("Moderator");
+  });
+
+  it("shows nothing for a member with no rank", () => {
+    render(<MemberDirectoryCard member={member({ guildRoles: ["Member"] })} />);
+
+    expect(screen.queryByTestId("rank-badge")).toBeNull();
+  });
+});

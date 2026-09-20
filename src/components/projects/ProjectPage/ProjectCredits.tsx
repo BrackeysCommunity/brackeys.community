@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Confirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
+import { RankBadge } from "@/components/ui/rank-badge";
 import { Section } from "@/components/ui/section";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
@@ -181,9 +182,12 @@ function ContributorCard({
         size={36}
       />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
-          <Censored>{contributor.displayName}</Censored>
-        </Text>
+        <span className="flex min-w-0 items-center gap-2">
+          <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
+            <Censored>{contributor.displayName}</Censored>
+          </Text>
+          <RankBadge roles={contributor.guildRoles} />
+        </span>
         <Text as="span" size="xs" variant="muted" ellipsis>
           <Censored>{contributor.role ?? "Contributor"}</Censored>
         </Text>

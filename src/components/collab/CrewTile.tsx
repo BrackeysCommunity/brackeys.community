@@ -11,12 +11,15 @@ export function CrewTile({
   title,
   caption,
   avatar,
+  badge,
   link,
 }: {
   label: string;
   title: string;
   caption?: string | null;
   avatar: React.ReactNode;
+  /** Sits beside the title — the poster's rank badge. */
+  badge?: React.ReactNode;
   link: React.ReactElement;
 }) {
   return (
@@ -30,9 +33,12 @@ export function CrewTile({
       {avatar}
       <span className="flex min-w-0 flex-col gap-0.5">
         <MicroLabel as="span">{label}</MicroLabel>
-        <Text as="span" size="sm" bold ellipsis className="tracking-wider">
-          {title}
-        </Text>
+        <span className="flex min-w-0 items-center gap-2">
+          <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
+            {title}
+          </Text>
+          {badge}
+        </span>
         {caption ? (
           <Text as="span" size="xs" variant="muted" ellipsis className="max-w-56">
             <Censored>{caption}</Censored>

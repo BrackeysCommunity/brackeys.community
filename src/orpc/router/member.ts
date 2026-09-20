@@ -341,6 +341,7 @@ export const listMembers = os
           guildNickname: developerProfiles.guildNickname,
           avatarUrl: developerProfiles.avatarUrl,
           guildAvatarUrl: developerProfiles.guildAvatarUrl,
+          guildRoles: developerProfiles.guildRoles,
           tagline: developerProfiles.tagline,
           lookingFor: developerProfiles.lookingFor,
           availableForWork: developerProfiles.availableForWork,

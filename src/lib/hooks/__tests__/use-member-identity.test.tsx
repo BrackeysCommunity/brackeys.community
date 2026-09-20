@@ -23,6 +23,7 @@ const viewerProfile = (inGuild: boolean): ActiveUserProfile => ({
   avatarUrl: null,
   guildNickname: null,
   guildAvatarUrl: null,
+  guildRoles: null,
   urlStub: null,
   inGuild,
   availableForWork: false,

@@ -59,7 +59,14 @@ describe("deriveChildPlacement", () => {
 
 // ── Serialization contract ───────────────────────────────────────────────────
 
-const AUTHOR = { id: "u1", name: "Mika", avatarUrl: null, guildAvatarUrl: null, urlStub: "mika" };
+const AUTHOR = {
+  id: "u1",
+  name: "Mika",
+  avatarUrl: null,
+  guildAvatarUrl: null,
+  guildRoles: null,
+  urlStub: "mika",
+};
 
 function row(overrides: Record<string, unknown> = {}) {
   return {

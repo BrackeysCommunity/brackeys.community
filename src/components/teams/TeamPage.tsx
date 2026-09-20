@@ -20,6 +20,7 @@ import { ExternalLink } from "@/components/ui/external-link";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { PageStack } from "@/components/ui/page-motion";
+import { RankBadge } from "@/components/ui/rank-badge";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -101,6 +102,7 @@ export interface TeamMember {
   guildNickname: string | null;
   avatarUrl: string | null;
   guildAvatarUrl: string | null;
+  guildRoles: string[] | null;
   tagline: string | null;
   urlStub: string | null;
 }
@@ -266,6 +268,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                     <Text as="span" size="sm" bold ellipsis className="min-w-0 tracking-wider">
                       {identity.name(m, "Unknown")}
                     </Text>
+                    <RankBadge roles={m.guildRoles} />
                     {m.role === "owner" ? (
                       <Badge variant="outline" size="label">
                         OWNER

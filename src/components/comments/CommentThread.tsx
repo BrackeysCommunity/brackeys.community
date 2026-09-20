@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { RankBadge } from "@/components/ui/rank-badge";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -85,7 +86,7 @@ type ThreadData = InfiniteData<ThreadResponse>;
  */
 function optimisticComment(
   user: { id: string; name?: string | null; image?: string | null },
-  self: MemberIdentityFields | null,
+  self: (MemberIdentityFields & { guildRoles?: string[] | null }) | null,
   viewer: MemberViewer,
   parent: CommentRow | undefined,
   content: string,
@@ -108,7 +109,14 @@ function optimisticComment(
     replyCount: 0,
     // `avatarUrl` is already resolved through the in-guild rule above, so the
     // guild leg stays null rather than applying it a second time.
-    author: { id: user.id, name, avatarUrl, guildAvatarUrl: null, urlStub: null },
+    author: {
+      id: user.id,
+      name,
+      avatarUrl,
+      guildAvatarUrl: null,
+      guildRoles: self?.guildRoles ?? null,
+      urlStub: null,
+    },
     viewer: { isMine: true, canEdit: true, canDelete: true },
   };
 }
@@ -857,6 +865,7 @@ function CommentItem({
         ) : (
           <MicroLabel as="span">{authorName}</MicroLabel>
         )}
+        <RankBadge roles={comment.author?.guildRoles} />
         {flattenedParentName ? (
           <MicroLabel as="span" className="text-primary/70">
             → @{flattenedParentName}

@@ -1,4 +1,4 @@
-import { Edit02Icon, Link01Icon, Shield02Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
+import { Edit02Icon, Link01Icon, UserBlock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { DiscordMessageButton } from "@/components/ui/discord-message-button";
+import { RankBadge } from "@/components/ui/rank-badge";
 import { Switch } from "@/components/ui/switch";
 import { TransformedImage } from "@/components/ui/transformed-image";
 import { Heading, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
-import { GUILD_RANK_LABELS, type GuildRank, isStaffRank } from "@/lib/guild-rank";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { play } from "@/lib/sound";
@@ -173,24 +173,6 @@ function AvatarTile({ profile, compact }: { profile: ProfileViewModel; compact: 
         </GradientBanner>
       )}
     </div>
-  );
-}
-
-/** The guild's own rank, beside the name — a mod reads as a mod before
- * anyone reads their skills. Staff take the primary badge; Guru and BIP
- * the secondary, so a community rank never passes for a staff one. */
-function RankBadge({ rank }: { rank: GuildRank | null }) {
-  if (!rank) return null;
-  return (
-    <Badge
-      variant={isStaffRank(rank) ? "default" : "secondary"}
-      size="label"
-      className="gap-1.5 uppercase"
-      data-testid="rank-badge"
-    >
-      <HugeiconsIcon icon={Shield02Icon} />
-      {GUILD_RANK_LABELS[rank]}
-    </Badge>
   );
 }
 

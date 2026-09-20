@@ -33,6 +33,7 @@ const mockProfileRow = {
 
 const mockProfile = {
   ...mockProfileRow,
+  guildRoles: ["Admin"] as string[] | null,
   urlStub: null as string | null,
   inGuild: true,
   availableForWork: false,
@@ -121,6 +122,7 @@ describe("fetchActiveUserProfile", () => {
         "discordUsername",
         "guildAvatarUrl",
         "guildNickname",
+        "guildRoles",
         "inGuild",
         "urlStub",
         "availableForWork",
@@ -193,6 +195,7 @@ describe("fetchActiveUserProfile", () => {
       avatarUrl: null,
       guildNickname: null,
       guildAvatarUrl: null,
+      guildRoles: ["Admin"],
       urlStub: null,
       inGuild: true,
       availableForWork: false,

@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
+import { RankBadge } from "@/components/ui/rank-badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -95,6 +96,7 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
             >
               {name}
             </Text>
+            <RankBadge roles={member.guildRoles} />
             {member.availableForWork ? (
               <Badge variant="success" size="label">
                 OPEN
