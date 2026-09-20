@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
@@ -11,6 +11,7 @@ import { authStore } from "@/lib/auth-store";
 import { censorText } from "@/lib/profanity";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
+import { teamSlug } from "@/lib/team-links";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
@@ -23,17 +24,38 @@ import { STALE } from "@/orpc/public-procedures";
  * content and meta in the document, and a real 404 for an unmatched handle.
  */
 export const Route = createFileRoute("/teams/$teamId")({
-  loader: async ({ context: { queryClient }, params }) => {
+  loader: async ({ context: { queryClient }, params, location }) => {
+    /**
+     * The slug is the canonical URL; an id link hops there so shares and
+     * crawlers converge on one address. Notifications deliberately link by
+     * id — a slug frozen into a row dies the moment the team is renamed —
+     * so this hop carries every one of them.
+     */
+    const canonicalize = (team: { id: string; slug: string | null }) => {
+      const canonical = teamSlug(team);
+      if (params.teamId === canonical) return;
+      throw redirect({
+        to: "/teams/$teamId",
+        params: { teamId: canonical },
+        hash: location.hash || undefined,
+        statusCode: 301,
+      });
+    };
+
     const data = await queryClient.ensureQueryData(
       orpc.getTeam.queryOptions({ input: { teamId: params.teamId } }),
     );
-    if (data) return data;
+    if (data) {
+      canonicalize(data);
+      return data;
+    }
     // A hidden team 404s publicly but stays reachable for its members and
     // staff; anonymous callers throw UNAUTHORIZED here and land on the 404.
     const insider = await queryClient
       .ensureQueryData(orpc.getTeamForInsider.queryOptions({ input: { teamId: params.teamId } }))
       .catch(() => null);
     if (!insider) throw notFound();
+    canonicalize(insider);
     return insider;
   },
   head: ({ loaderData }) => {

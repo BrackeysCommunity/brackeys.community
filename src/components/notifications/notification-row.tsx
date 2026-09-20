@@ -21,6 +21,7 @@ import {
   approvedSkillsOf,
   NOTIFICATION_CATEGORY,
   type NotificationCategory,
+  stableHref,
 } from "@/lib/notification-copy";
 import { invalidateNotifications } from "@/lib/notification-queries";
 import { captureEvent } from "@/lib/product-insights";
@@ -82,12 +83,10 @@ export function renderCopy(n: NotificationItem): {
   const postId = n.data.postId as number | undefined;
   const href = postId ? `/collab/${postId}` : null;
   const teamName = (n.data.teamName as string | undefined) ?? "a team";
-  const teamSlug = n.data.teamSlug as string | undefined;
-  const teamHref = teamSlug ? `/teams/${teamSlug}` : null;
+  const teamHref = stableHref("teams", n.data.teamId, n.data.teamSlug);
   const teamEm = <em className="font-medium not-italic">{teamName}</em>;
   const projectTitle = (n.data.projectTitle as string | undefined) ?? "a project";
-  const projectSlug = n.data.projectSlug as string | undefined;
-  const projectHref = projectSlug ? `/projects/${projectSlug}` : null;
+  const projectHref = stableHref("projects", n.data.projectId, n.data.projectSlug);
   const projectEm = <em className="font-medium not-italic">{projectTitle}</em>;
   const jamTitle = (n.data.jamTitle as string | undefined) ?? "a jam";
   const jamHref = (n.data.jamUrl as string | undefined) ?? null;
@@ -478,6 +477,12 @@ export function renderCopy(n: NotificationItem): {
   }
 }
 
+/** `["/profile/abc", "comment-12"]` — the fragment without its `#`. */
+function splitHash(href: string): [string, string | undefined] {
+  const at = href.indexOf("#");
+  return at === -1 ? [href, undefined] : [href.slice(0, at), href.slice(at + 1) || undefined];
+}
+
 export interface NotificationRowProps {
   notification: NotificationItem;
   /** Called after navigation begins, e.g. to close a popover. */
@@ -579,8 +584,12 @@ export function NotificationRow({
     </div>
   );
 
-  const linked = href ? (
-    <Link to={href} onClick={handleClick} className="block">
+  // The router reads `to` as a pathname and nothing else, so a comment
+  // deep-link handed over whole would land `#comment-12` inside the route
+  // param. Split it and let `hash` carry the fragment.
+  const [path, hash] = href ? splitHash(href) : [];
+  const linked = path ? (
+    <Link to={path} hash={hash} onClick={handleClick} className="block">
       {Body}
     </Link>
   ) : (

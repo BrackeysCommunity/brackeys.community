@@ -392,6 +392,39 @@ export const listReplies = os
     };
   });
 
+/**
+ * Where a `#comment-<id>` deep link sits in a thread, so the reader can be
+ * taken to it. The client knows the subject it is rendering but not which
+ * page of roots — or which reply chain — holds the comment, and paging
+ * blindly until one turns up would walk a whole thread for a fragment
+ * that belongs to some other page entirely.
+ *
+ * Answers `null` rather than throwing: a stale or foreign fragment is an
+ * ordinary outcome here, and the caller's only response either way is to
+ * skip the focus and render the thread normally.
+ */
+export const getCommentLocation = os
+  .use(authMiddleware)
+  .input(z.object({ subject: subjectRefSchema, commentId: z.number().int().positive() }))
+  .handler(async ({ input, context }) => {
+    const viewerId = context.user?.id ?? null;
+    const subject = await loadSubject(input.subject);
+    if (!subject?.exists) return { rootId: null };
+    if (!canViewSubject(subject, viewerId, await viewerIsStaff(viewerId))) {
+      return { rootId: null };
+    }
+    const thread = await findThread(input.subject);
+    if (!thread) return { rootId: null };
+
+    const [comment] = await db
+      .select({ id: comments.id, rootId: comments.rootId })
+      .from(comments)
+      .where(and(eq(comments.id, input.commentId), eq(comments.threadId, thread.id)))
+      .limit(1);
+    // A top-level comment is its own chain, so it stands in as the root.
+    return { rootId: comment ? (comment.rootId ?? comment.id) : null };
+  });
+
 // ── Writes ───────────────────────────────────────────────────────────────────
 
 export const createComment = os

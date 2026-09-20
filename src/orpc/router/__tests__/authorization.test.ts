@@ -41,6 +41,7 @@ const PUBLIC_PROCEDURES = new Set([
   // anonymously, and "we picked this jam" is not a secret.
   "listJamHeroPins",
   "homeJams",
+  "countTrackedJams",
   // Public community directory (explicit product decision — see
   // docs/plans/01-admin-surface-hardening.md §"Confirm-intent").
   "listMembers",
@@ -74,6 +75,9 @@ const PUBLIC_PROCEDURES = new Set([
   // Comment threads render for signed-out visitors.
   "listComments",
   "listReplies",
+  // Resolves a `#comment-<id>` deep link to its chain, behind the same
+  // subject visibility check the thread reads use.
+  "getCommentLocation",
   // GitHub contribution calendar on public profiles.
   "getContributions",
   // Answers {isStaff:false,isAdmin:false} to anonymous callers; gates the

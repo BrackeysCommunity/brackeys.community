@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
@@ -25,7 +25,7 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/projects/$projectSlug")({
   validateSearch: searchSchema,
-  loader: async ({ params }) => {
+  loader: async ({ params, location }) => {
     // Two reads: the anonymous page, and where the viewer stands with it.
     // The public one is edge-cacheable and serves published rows only; the
     // private one carries `viewerCanEdit` and, for an editor of an
@@ -41,6 +41,20 @@ export const Route = createFileRoute("/projects/$projectSlug")({
     // Null covers both "no such project" and "unpublished, and you're not one
     // of its editors" — the page shouldn't distinguish those to a stranger.
     if (!detail) throw notFound();
+
+    // The slug is the canonical URL; the id resolves too, and hops here so
+    // shares and crawlers converge on one address. Notifications link by
+    // id on purpose — renaming a project changes its slug, and a slug
+    // frozen into a notification row dies with it.
+    if (params.projectSlug !== detail.project.slug) {
+      throw redirect({
+        to: "/projects/$projectSlug",
+        params: { projectSlug: detail.project.slug },
+        search: location.search,
+        hash: location.hash || undefined,
+        statusCode: 301,
+      });
+    }
 
     return {
       ...detail,

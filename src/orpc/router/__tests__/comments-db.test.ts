@@ -2,9 +2,16 @@ import { call } from "@orpc/server";
 import { and, count, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { comments, notifications, threads, threadSubscriptions, userBlocks } from "@/db/schema";
+import {
+  comments,
+  notifications,
+  profileUrlStubs,
+  threads,
+  threadSubscriptions,
+  userBlocks,
+} from "@/db/schema";
 import { loadSubject, resolveThread } from "@/lib/comment-subjects";
-import { createComment, listComments } from "@/orpc/router/comments";
+import { createComment, listComments, getCommentLocation } from "@/orpc/router/comments";
 import { seedCollabPost, seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
@@ -228,5 +235,59 @@ describe("notification fan-out", () => {
     await fanOutSettled(1);
     const [row] = await db.select().from(notifications);
     expect(row).toMatchObject({ userId: "owner", type: "comment_received" });
+  });
+});
+
+describe("wall deep links", () => {
+  it("links a wall notification by profile id, so a renamed handle keeps it alive", async () => {
+    await seedUser(db, "owner");
+    await seedUser(db, "writer");
+    await db.insert(profileUrlStubs).values({ profileId: "owner", stub: "sashimikitty" });
+    const subject = { type: "profile", id: "owner" } as const;
+
+    const note = await call(createComment, { subject, content: "nice wall" }, asUser("writer"));
+    await fanOutSettled(1);
+
+    const [row] = await db.select().from(notifications);
+    expect(row!.data.subjectUrl).toBe(`/profile/owner#comment-${note.id}`);
+
+    // The whole point: the stub the notification was written under is gone,
+    // and the link still resolves.
+    await db.update(profileUrlStubs).set({ stub: "sushiman" });
+    const [unchanged] = await db.select().from(notifications);
+    expect(unchanged!.data.subjectUrl).toBe(`/profile/owner#comment-${note.id}`);
+  });
+
+  it("locates a deep-linked reply by its chain, and disowns a foreign one", async () => {
+    await seedUser(db, "owner");
+    await seedUser(db, "writer");
+    const subject = { type: "profile", id: "owner" } as const;
+    const postId = await seedCollabPost(db, "owner");
+
+    const root = await call(createComment, { subject, content: "root" }, asUser("writer"));
+    const reply = await call(
+      createComment,
+      { subject, parentId: root.id, content: "reply" },
+      asUser("owner"),
+    );
+    const elsewhere = await call(
+      createComment,
+      { subject: { type: "collab_post", id: postId }, content: "other thread" },
+      asUser("writer"),
+    );
+
+    // A root stands in as its own chain; a reply names the root to page to.
+    expect(await call(getCommentLocation, { subject, commentId: root.id }, asUser(null))).toEqual({
+      rootId: root.id,
+    });
+    expect(await call(getCommentLocation, { subject, commentId: reply.id }, asUser(null))).toEqual({
+      rootId: root.id,
+    });
+    // A fragment from another thread must not send this one paging for it.
+    expect(
+      await call(getCommentLocation, { subject, commentId: elsewhere.id }, asUser(null)),
+    ).toEqual({
+      rootId: null,
+    });
   });
 });

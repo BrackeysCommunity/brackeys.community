@@ -25,6 +25,8 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "listJamHeroPins",
   // The landing page's jam half, tiered server-side.
   "homeJams",
+  // One integer for the jams masthead, so no view fetches a listing for it.
+  "countTrackedJams",
   // Community directory. `getProfile` is the anonymous view; the owner's
   // own extras come from the private `getMyProfile`.
   "listMembers",
@@ -128,6 +130,8 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   listJamHeroPins: 30,
   // Carries a pin, so it inherits the pin tier rather than the scrape tier.
   homeJams: 30,
+  // Moves only when the scraper adds a jam.
+  countTrackedJams: 300,
   listMembers: 60,
   countMembersBySkill: 60,
   countMembersByRole: 60,

@@ -54,6 +54,49 @@ describe("team_member_added_by_staff", () => {
   });
 });
 
+describe("links that outlive a rename", () => {
+  // A row is written once and read for as long as it sits in the inbox.
+  // Renaming a team or a project changes its slug, so a notification that
+  // linked by the slug it was written under pointed at nothing.
+  it("links a team by its id, not the slug the row was written under", () => {
+    const { href } = renderNotificationText({
+      type: "team_invite_received",
+      actorUsername: "ada",
+      data: { teamId: "t-abc", teamSlug: "the-old-name", teamName: "Alpha" },
+    });
+    expect(href).toBe("/teams/t-abc");
+  });
+
+  it("links a project by its id, not the slug the row was written under", () => {
+    const { href } = renderNotificationText({
+      type: "project_unpublished_by_staff",
+      actorUsername: null,
+      data: { projectId: "p-xyz", projectSlug: "the-old-name", projectTitle: "Orbit" },
+    });
+    expect(href).toBe("/projects/p-xyz");
+  });
+
+  // Nothing writes a row without the id today, but the slug is still a
+  // usable handle and beats dropping the link entirely.
+  it("falls back to the slug when a row carries no id", () => {
+    const { href } = renderNotificationText({
+      type: "team_invite_received",
+      actorUsername: "ada",
+      data: { teamSlug: "alpha", teamName: "Alpha" },
+    });
+    expect(href).toBe("/teams/alpha");
+  });
+
+  it("drops the link when a row carries neither", () => {
+    const { href } = renderNotificationText({
+      type: "team_invite_received",
+      actorUsername: "ada",
+      data: { teamName: "Alpha" },
+    });
+    expect(href).toBeNull();
+  });
+});
+
 describe("moderation notification copy", () => {
   it("names both sides when staff renamed the skill", () => {
     const { headline } = renderNotificationText({

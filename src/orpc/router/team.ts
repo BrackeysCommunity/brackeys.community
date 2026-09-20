@@ -2853,9 +2853,9 @@ export const resolveTeamReport = os
       entityType: "team",
       entityId: report.teamId ?? report.id,
       subjectTitle: team?.name ?? report.teamName,
-      // No link to a page the reporter can no longer see.
-      subjectUrl:
-        input.action === "dismiss" && team && !team.hiddenAt ? `/teams/${team.slug}` : null,
+      // No link to a page the reporter can no longer see. By id, not slug:
+      // this string is frozen into the row, and a rename would strand it.
+      subjectUrl: input.action === "dismiss" && team && !team.hiddenAt ? `/teams/${team.id}` : null,
     });
 
     return { success: true };

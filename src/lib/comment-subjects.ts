@@ -5,7 +5,6 @@ import {
   collabPosts,
   collabResponses,
   developerProfiles,
-  profileUrlStubs,
   threads,
   threadSubscriptions,
 } from "@/db/schema";
@@ -148,18 +147,19 @@ const handlers: Record<SubjectRef["type"], SubjectHandler> = {
       // Anonymized skeletons (moderation-pinned deletions) are not
       // commentable subjects.
       if (!profile || profile.discordUsername === "[deleted]") return null;
-      const [stub] = await db
-        .select({ stub: profileUrlStubs.stub })
-        .from(profileUrlStubs)
-        .where(eq(profileUrlStubs.profileId, profile.id))
-        .limit(1);
       const name = memberName(profile, "a member");
       return {
         exists: true,
         ownerId: profile.id,
         commentingEnabled: profile.profileNotesEnabled,
         title: `${name}'s wall`,
-        url: `/profile/${stub?.stub ?? profile.id}`,
+        // The raw id, never the vanity stub. This URL is snapshotted into
+        // notification rows and emails that outlive any handle change, and
+        // a stub only ever points at its current owner — there is no
+        // history table to resolve a retired one. The profile route 301s
+        // an id to whatever stub is current, so the address bar still
+        // lands on the pretty form.
+        url: `/profile/${profile.id}`,
         maxCommentLength: 500,
         participantIds: null,
       };

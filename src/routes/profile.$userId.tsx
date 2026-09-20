@@ -22,7 +22,7 @@ import { STALE } from "@/orpc/public-procedures";
  * unmatched handle into a real 404 rather than a 200 shell.
  */
 export const Route = createFileRoute("/profile/$userId")({
-  loader: async ({ context: { queryClient }, params }) => {
+  loader: async ({ context: { queryClient }, params, location }) => {
     const data = await queryClient.ensureQueryData(
       orpc.getProfile.queryOptions({ input: { userId: params.userId } }),
     );
@@ -34,6 +34,10 @@ export const Route = createFileRoute("/profile/$userId")({
       throw redirect({
         to: "/profile/$userId",
         params: { userId: canonical },
+        // Notifications deep-link by id (`/profile/<id>#comment-12`), so
+        // this hop is on the path of every wall-note link. A client-side
+        // redirect builds its own location and would drop the fragment.
+        hash: location.hash || undefined,
         statusCode: 301,
       });
     }

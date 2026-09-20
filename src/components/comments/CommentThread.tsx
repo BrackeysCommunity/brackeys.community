@@ -13,11 +13,12 @@ import {
   type InfiniteData,
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Link as RouterLink } from "@tanstack/react-router";
+import { Link as RouterLink, useLocation } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
@@ -57,6 +58,18 @@ const MAX_VISUAL_DEPTH = 3;
 const CHAIN_PREVIEW = 3;
 
 const PAGE_SIZE = 20;
+
+/**
+ * The comment a `#comment-<id>` deep link names — what a wall-note or
+ * reply notification points at. The router scrolls to a hash once, when
+ * the route settles; comments load after that, so reaching the row is
+ * this file's job from here on.
+ */
+function useFocusedCommentId(): number | null {
+  const hash = useLocation({ select: (l) => l.hash });
+  const match = /^comment-(\d+)$/.exec(hash);
+  return match ? Number(match[1]) : null;
+}
 
 export function commentThreadQueryKey(subject: SubjectRef) {
   return ["listComments", subject.type, subject.id] as const;
@@ -185,6 +198,27 @@ export function CommentThread({
     return { roots, chains, byId };
   }, [data]);
 
+  const focusId = useFocusedCommentId();
+  // Which chain owns the deep-linked comment. Without it the paging below
+  // has nothing to aim at, and a fragment left over from another thread
+  // would walk this one to its end looking for a row that isn't here.
+  const { data: focusLocation } = useQuery({
+    queryKey: ["getCommentLocation", subject, focusId],
+    queryFn: () => client.getCommentLocation({ subject, commentId: focusId! }),
+    enabled: focusId != null,
+    staleTime: Infinity,
+  });
+  const focusRootId = focusLocation?.rootId ?? null;
+
+  // Roots page newest-first, so the target's chain is still unfetched
+  // exactly while its id sits below the oldest root loaded.
+  const oldestRootId = roots.length > 0 ? roots[roots.length - 1]!.id : null;
+  const focusChainPending =
+    focusRootId != null && oldestRootId != null && focusRootId < oldestRootId;
+  useEffect(() => {
+    if (focusChainPending && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [focusChainPending, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   const subscription = useMutation({
     mutationFn: (nextMuted: boolean) => client.setThreadSubscription({ subject, muted: nextMuted }),
     onSuccess: invalidate,
@@ -270,6 +304,7 @@ export function CommentThread({
               commentingEnabled={commentingEnabled}
               viewerId={viewerId}
               onChange={invalidate}
+              focusId={focusRootId === root.id ? focusId : null}
             />
           ))}
         </Well>
@@ -445,6 +480,7 @@ function CommentChain({
   commentingEnabled,
   viewerId,
   onChange,
+  focusId,
 }: {
   root: CommentRow;
   chain: CommentRow[];
@@ -455,6 +491,8 @@ function CommentChain({
   commentingEnabled: boolean;
   viewerId: string | null;
   onChange: () => void;
+  /** The deep-linked comment, when this is the chain that holds it. */
+  focusId?: number | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [extraReplies, setExtraReplies] = useState<CommentRow[]>([]);
@@ -547,6 +585,20 @@ function CommentChain({
     }
   };
 
+  // A deep-linked reply can sit past the preview cap, or past the reply
+  // cap the page query itself stopped at. Lifting the cap — and fetching
+  // the rest when the row isn't here — is what puts the anchor in the
+  // document for `CommentItem` to scroll to.
+  const focusMissing =
+    focusId != null && focusId !== root.id && !known.some((c) => c.id === focusId);
+  useEffect(() => {
+    if (focusId == null || focusId === root.id) return;
+    setExpanded(true);
+    // `loadRest` is rebuilt every render, so the flags it reads stand in
+    // for it in the dep list.
+    if (focusMissing && canFetchMore && !loadingMore) void loadRest();
+  }, [focusId, root.id, focusMissing, canFetchMore, loadingMore]);
+
   return (
     <div className="flex flex-col">
       <CommentItem
@@ -560,6 +612,7 @@ function CommentChain({
         onChange={onChange}
         collapsedDescendants={rootCollapsed ? countDescendants(root.id) : 0}
         onToggleCollapse={toggleCollapsed}
+        focused={focusId === root.id}
       />
       {!rootCollapsed &&
         visible.map((reply) => (
@@ -578,6 +631,7 @@ function CommentChain({
             onToggleCollapse={toggleCollapsed}
             trackHighlightId={hoveredLineId}
             onTrackHover={setHoveredLineId}
+            focused={focusId === reply.id}
           />
         ))}
       {!rootCollapsed && (hiddenCount > 0 || canFetchMore) ? (
@@ -689,6 +743,7 @@ function CommentItem({
   onToggleCollapse,
   trackHighlightId,
   onTrackHover,
+  focused = false,
 }: {
   comment: CommentRow;
   byId: Map<number, CommentRow>;
@@ -706,7 +761,15 @@ function CommentItem({
   /** Ancestor whose track line is hovered anywhere in the chain. */
   trackHighlightId?: number | null;
   onTrackHover?: (id: number | null) => void;
+  /** This is the comment a `#comment-<id>` link asked for. */
+  focused?: boolean;
 }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!focused) return;
+    rowRef.current?.scrollIntoView({ block: "center" });
+  }, [focused]);
+
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
@@ -760,7 +823,13 @@ function CommentItem({
   return (
     <div
       id={`comment-${comment.id}`}
-      className="relative flex flex-col gap-2 px-4 py-3"
+      ref={rowRef}
+      className={cn(
+        "relative flex flex-col gap-2 px-4 py-3",
+        // Stays lit rather than fading out: the reader came here from a
+        // notification, and the mark is what says which note it meant.
+        focused && "bg-primary/10 ring-1 ring-primary/40 ring-inset",
+      )}
       style={{ paddingLeft: `${indent}px` }}
     >
       <TrackLines

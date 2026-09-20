@@ -44,8 +44,23 @@ export function boardJamsQueryOptions() {
   });
 }
 
-function useBoardQuery() {
-  return useQuery(boardJamsQueryOptions());
+function useBoardQuery(enabled: boolean) {
+  return useQuery({ ...boardJamsQueryOptions(), enabled });
+}
+
+/**
+ * The masthead's "Tracking N jams" figure. Its own one-integer query
+ * because all three views print it: reading it off the board listing meant
+ * the calendar and the archive fetched ~560 rows for a number, and showed
+ * `0` until they arrived — which on a phone rewrapped the sentence and
+ * pushed the page down.
+ */
+export function trackedJamsQueryOptions() {
+  return queryOptions({
+    queryKey: ["tracked-jams-count"],
+    queryFn: () => client.countTrackedJams(),
+    staleTime: JAM_STALE_MS,
+  });
 }
 
 /** Staff hero picks. Its own query rather than a board field: the board sits
@@ -69,9 +84,14 @@ export interface BoardData {
   totalTracked: number;
 }
 
-/** The discovery board's working set: every jam with a future event. */
-export function useBoardJams(now: Date, search: string): BoardData {
-  const { data, isLoading } = useBoardQuery();
+/**
+ * The discovery board's working set: every jam with a future event.
+ *
+ * `enabled` because only the board view renders these rows — the calendar
+ * and archive used to pull the whole listing behind their own.
+ */
+export function useBoardJams(now: Date, search: string, enabled: boolean): BoardData {
+  const { data, isLoading } = useBoardQuery(enabled);
 
   const all = useMemo(() => data?.jams ?? [], [data]);
   const jams = useMemo(() => all.filter((j) => jamMatchesSearch(j, search)), [all, search]);
@@ -85,6 +105,12 @@ export function useBoardJams(now: Date, search: string): BoardData {
     totalAll: all.length,
     totalTracked: data?.trackedTotal ?? all.length,
   };
+}
+
+/** The masthead figure, or `null` until it lands. */
+export function useTrackedJamCount(): number | null {
+  const { data } = useQuery(trackedJamsQueryOptions());
+  return data?.total ?? null;
 }
 
 export interface HomeJamsData {

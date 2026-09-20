@@ -37,6 +37,20 @@ export function approvedSkillLabel({ skillName, requestedName }: ApprovedSkill):
   return skillName === requestedName ? skillName : `${requestedName} (as ${skillName})`;
 }
 
+/**
+ * Where a notification points, given both handles its row snapshotted.
+ *
+ * A row is written once and read for as long as it sits in the inbox, so
+ * anything mutable baked into it goes stale: renaming a team or a project
+ * used to break every notice already pointing at it. Every row carries the
+ * id alongside the slug, and the id is the one that survives — the route
+ * resolves either, and canonicalizes an id back to the current slug.
+ */
+export function stableHref(base: string, id: unknown, slug: unknown): string | null {
+  const handle = (typeof id === "string" && id) || (typeof slug === "string" && slug) || null;
+  return handle ? `/${base}/${handle}` : null;
+}
+
 export function renderNotificationText(input: {
   type: NotificationType;
   actorUsername: string | null;
@@ -47,11 +61,9 @@ export function renderNotificationText(input: {
   const postId = input.data.postId as number | undefined;
   const href = postId ? `/collab/${postId}` : null;
   const teamName = (input.data.teamName as string | undefined) ?? "a team";
-  const teamSlug = input.data.teamSlug as string | undefined;
-  const teamHref = teamSlug ? `/teams/${teamSlug}` : null;
+  const teamHref = stableHref("teams", input.data.teamId, input.data.teamSlug);
   const projectTitle = (input.data.projectTitle as string | undefined) ?? "a project";
-  const projectSlug = input.data.projectSlug as string | undefined;
-  const projectHref = projectSlug ? `/projects/${projectSlug}` : null;
+  const projectHref = stableHref("projects", input.data.projectId, input.data.projectSlug);
   // Comment notifications are self-contained: the subject snapshot is
   // stored on the row at write time so no social-table joins happen here.
   const subjectTitle = (input.data.subjectTitle as string | undefined) ?? "a thread";

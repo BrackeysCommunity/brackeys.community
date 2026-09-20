@@ -13,19 +13,27 @@ const captureEvent = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   // jsdom can't navigate, so the stub swallows the default action and
-  // leaves only the handler under test.
+  // leaves only the handler under test. `to` and `hash` are recombined the
+  // way the real router builds an href — the router treats `to` as a
+  // pathname alone, which is the whole reason the row splits them.
   Link: ({
     to,
+    hash,
     children,
     onClick,
     ...rest
   }: {
     to: string;
+    hash?: string;
     children?: React.ReactNode;
     onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   }) => (
     <a
-      href={to}
+      href={hash ? `${to}#${hash}` : to}
+      // Surfaced separately so a test can see what the row handed the
+      // router, not just the href the two happen to recombine into.
+      data-to={to}
+      data-hash={hash ?? ""}
       onClick={(e) => {
         e.preventDefault();
         onClick?.(e);
@@ -135,6 +143,32 @@ describe("NotificationRow", () => {
       "notification_clicked",
       expect.objectContaining({ surface: "inbox", was_unread: false }),
     );
+  });
+
+  // A comment deep link handed over whole would land `#comment-94` inside
+  // the `$userId` route param, and the profile route would 404 on it.
+  it("carries a comment fragment as a hash, not as part of the path", () => {
+    renderRow(
+      makeItem({
+        type: "comment_received",
+        data: { subjectTitle: "nova's wall", subjectUrl: "/profile/u-nova#comment-94" },
+      }),
+    );
+    const link = screen.getByRole("link");
+    expect(link.getAttribute("data-to")).toBe("/profile/u-nova");
+    expect(link.getAttribute("data-hash")).toBe("comment-94");
+  });
+
+  // The row builds its own hrefs rather than sharing the text renderer's,
+  // so the rename-proofing has to be asserted on both.
+  it("links a team by its id, not the slug the row was written under", () => {
+    renderRow(
+      makeItem({
+        type: "team_invite_received",
+        data: { teamId: "t-abc", teamSlug: "the-old-name", teamName: "Alpha" },
+      }),
+    );
+    expect(screen.getByRole("link").getAttribute("data-to")).toBe("/teams/t-abc");
   });
 
   it("reports nothing when a row has nowhere to go", () => {

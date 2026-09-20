@@ -257,6 +257,24 @@ export const listJams = os
   .handler(({ input }) => queryJamListing(input));
 
 /**
+ * How many jams the site tracks, as one integer.
+ *
+ * The jams masthead prints it on all three views, and it used to come off
+ * whichever listing that view had fetched — so the calendar and archive
+ * pulled the whole board client-side for one number, and rendered
+ * "Tracking 0 jams" until it landed. On a phone that sentence then rewrapped
+ * to a second line and pushed the page down: the calendar's entire 0.026 of
+ * layout shift.
+ */
+export const countTrackedJams = os.route({ method: "GET" }).handler(async () => {
+  const [row] = await db
+    .select({ total: count() })
+    .from(itchJams)
+    .where(isNull(itchJams.missingSince));
+  return { total: row?.total ?? 0 };
+});
+
+/**
  * Server-paginated archive browser: every jam whose last event is in the
  * past. The archive is ~19k rows and growing, so unlike the board it is
  * never shipped wholesale — the table view pages through it with

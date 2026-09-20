@@ -16,6 +16,7 @@ import {
   useArchiveJams,
   useBoardJams,
   useCalendarJams,
+  useTrackedJamCount,
 } from "./use-jam-data";
 
 /** Each view is its own URL; the board is the section root because it's
@@ -74,7 +75,11 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
   // fire a query per character against a 19k-row table.
   const debouncedSearch = useDebouncedValue(search, 300);
 
-  const board = useBoardJams(now, search);
+  const board = useBoardJams(now, search, view === "board");
+  // Prefetched by the section's layout route, so the masthead's sentence is
+  // its final length in the server-rendered document — it used to arrive
+  // with the board listing, one reflow after paint.
+  const trackedJams = useTrackedJamCount();
   const calendar = useCalendarJams(monthStart, search, view === "calendar");
   const archive = useArchiveJams({ ...archiveState, search: debouncedSearch }, view === "archive");
 
@@ -121,7 +126,7 @@ export function JamsPageProvider({ children }: { children: ReactNode }) {
     board,
     calendar,
     archive,
-    totalTracked: board.totalTracked,
+    totalTracked: trackedJams ?? board.totalTracked,
     view,
     search,
     boardSort,
