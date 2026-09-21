@@ -15,21 +15,26 @@ afterEach(() => {
  * The `ADMIN_DISCORD_IDS` break-glass. Read from env at call time (not
  * module load) so a deploy-time variable takes effect, and unioned with the
  * synced guild roles rather than replacing them.
+ *
+ * The list grants two names: "Admin", which the gates read, and "Dev",
+ * which nothing reads but `guildRankOf` — the two travel together, so an
+ * id added during an outage gets the chip as well as the access.
  */
 describe("applyRoleOverrides", () => {
-  it("grants Admin to a listed id holding no guild roles", () => {
+  it("grants Admin and Dev to a listed id holding no guild roles", () => {
     process.env.ADMIN_DISCORD_IDS = ID;
-    expect(applyRoleOverrides(ID, [])).toEqual(["Admin"]);
+    expect(applyRoleOverrides(ID, [])).toEqual(["Admin", "Dev"]);
   });
 
   it("keeps existing roles alongside the grant", () => {
     process.env.ADMIN_DISCORD_IDS = ID;
-    expect(applyRoleOverrides(ID, ["Moderator"])).toEqual(["Moderator", "Admin"]);
+    expect(applyRoleOverrides(ID, ["Moderator"])).toEqual(["Moderator", "Admin", "Dev"]);
   });
 
-  it("does not duplicate an Admin the guild already granted", () => {
+  it("does not duplicate a name the guild already granted", () => {
     process.env.ADMIN_DISCORD_IDS = ID;
-    expect(applyRoleOverrides(ID, ["Admin"])).toEqual(["Admin"]);
+    expect(applyRoleOverrides(ID, ["Admin"])).toEqual(["Admin", "Dev"]);
+    expect(applyRoleOverrides(ID, ["Admin", "Dev"])).toEqual(["Admin", "Dev"]);
   });
 
   it("leaves unlisted users untouched", () => {
@@ -40,8 +45,8 @@ describe("applyRoleOverrides", () => {
 
   it("parses a comma-separated list, tolerating whitespace and blanks", () => {
     process.env.ADMIN_DISCORD_IDS = ` ${OTHER} , ,${ID} `;
-    expect(applyRoleOverrides(ID, [])).toEqual(["Admin"]);
-    expect(applyRoleOverrides(OTHER, [])).toEqual(["Admin"]);
+    expect(applyRoleOverrides(ID, [])).toEqual(["Admin", "Dev"]);
+    expect(applyRoleOverrides(OTHER, [])).toEqual(["Admin", "Dev"]);
   });
 
   it("grants nothing when the variable is unset or empty", () => {

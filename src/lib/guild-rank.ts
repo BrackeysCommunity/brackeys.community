@@ -8,9 +8,13 @@
  * never reads this, and `isStaffMember` / `isAdmin` in `lib/discord`
  * remain the gates.
  */
-export type GuildRank = "admin" | "moderator" | "staff" | "guru" | "bip";
+export type GuildRank = "dev" | "admin" | "moderator" | "staff" | "guru" | "bip";
 
 const RANKS: readonly { name: string; rank: GuildRank }[] = [
+  // Not a guild role — `applyRoleOverrides` grants it off the same env
+  // list as the Admin break-glass. Top of the ladder so it wins over the
+  // real roles that holder also carries.
+  { name: "Dev", rank: "dev" },
   { name: "Admin", rank: "admin" },
   { name: "Moderator", rank: "moderator" },
   { name: "Staff", rank: "staff" },
@@ -34,6 +38,8 @@ export function guildRankOf(guildRoles: readonly string[] | null | undefined): G
  * `cdn.discordapp.com/role-icons/{role_id}/{icon_hash}.png`.
  */
 export const GUILD_RANK_ICONS: Partial<Record<GuildRank, string>> = {
+  // The guild's Brackeys Team mark; the rank has no role of its own.
+  dev: "/role-icons/dev.png",
   admin: "/role-icons/admin.png",
   moderator: "/role-icons/moderator.png",
   guru: "/role-icons/guru.png",
@@ -41,6 +47,7 @@ export const GUILD_RANK_ICONS: Partial<Record<GuildRank, string>> = {
 };
 
 export const GUILD_RANK_LABELS: Record<GuildRank, string> = {
+  dev: "Dev",
   admin: "Admin",
   // "Mod" is what the role is actually called in the guild; the `moderator`
   // key stays, since that's the name `resolveRoleNames` maps the id to.
@@ -52,5 +59,5 @@ export const GUILD_RANK_LABELS: Record<GuildRank, string> = {
 
 /** Staff ranks carry the primary badge; community ranks the quieter one. */
 export function isStaffRank(rank: GuildRank): boolean {
-  return rank === "admin" || rank === "moderator" || rank === "staff";
+  return rank === "dev" || rank === "admin" || rank === "moderator" || rank === "staff";
 }

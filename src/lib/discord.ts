@@ -84,7 +84,7 @@ export function resolveRoleNames(roleIds: string[]): string[] {
 // site out of its own admin surface. Comma-separated in ADMIN_DISCORD_IDS
 // (env, not source, so the IDs aren't public in the repo). Applied when
 // authorizing, in `lib/staff-roles.ts` — never written to the cache.
-function adminUserOverrides(): Set<string> {
+export function adminUserOverrides(): Set<string> {
   return new Set(
     (process.env.ADMIN_DISCORD_IDS ?? "")
       .split(",")
@@ -93,13 +93,23 @@ function adminUserOverrides(): Set<string> {
   );
 }
 
+/**
+ * Role names the same override list grants. "Admin" is the break-glass and
+ * is what `isStaffMember` / `isAdmin` read. "Dev" is cosmetic — no gate
+ * matches it, it exists only so `guildRankOf` can put a Dev chip on the
+ * people who run this place. Both ride one list, so adding an id during an
+ * outage hands out the chip as well as the access.
+ */
+const OVERRIDE_ROLE_NAMES = ["Admin", "Dev"] as const;
+
 /** Union a member's resolved role names with any per-user override grants. */
 export function applyRoleOverrides(
   discordUserId: string | null | undefined,
   roleNames: string[],
 ): string[] {
   if (!discordUserId || !adminUserOverrides().has(discordUserId)) return roleNames;
-  return roleNames.includes("Admin") ? roleNames : [...roleNames, "Admin"];
+  const missing = OVERRIDE_ROLE_NAMES.filter((name) => !roleNames.includes(name));
+  return missing.length === 0 ? roleNames : [...roleNames, ...missing];
 }
 
 /** Check if guild roles contain a specific role name. */

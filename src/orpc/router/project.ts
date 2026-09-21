@@ -41,7 +41,7 @@ import {
 import { ensureProjectForScrapedGame } from "@/lib/projects";
 import { isProjectImageKey } from "@/lib/stored-image-keys";
 import { requireAuth, requireAuthWithPermissions } from "@/orpc/middleware/auth";
-import { profileStubJoin } from "@/orpc/profile-projection";
+import { bylineGuildRoles, profileStubJoin } from "@/orpc/profile-projection";
 
 /**
  * A project's canonical page, in one round trip.
@@ -84,7 +84,7 @@ async function buildProjectDetail(project: typeof projects.$inferSelect) {
         sortOrder: projectContributors.sortOrder,
         avatarUrl: developerProfiles.avatarUrl,
         guildAvatarUrl: developerProfiles.guildAvatarUrl,
-        guildRoles: developerProfiles.guildRoles,
+        guildRoles: bylineGuildRoles(),
         username: developerProfiles.guildNickname,
         discordUsername: developerProfiles.discordUsername,
         urlStub: profileUrlStubs.stub,
@@ -794,7 +794,7 @@ async function readContributor(contributorId: number) {
       sortOrder: projectContributors.sortOrder,
       avatarUrl: developerProfiles.avatarUrl,
       guildAvatarUrl: developerProfiles.guildAvatarUrl,
-      guildRoles: developerProfiles.guildRoles,
+      guildRoles: bylineGuildRoles(),
       urlStub: profileUrlStubs.stub,
     })
     .from(projectContributors)

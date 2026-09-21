@@ -2,6 +2,41 @@ import { eq, ilike, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 import { developerProfiles, profileUrlStubs } from "@/db/schema";
+import { adminUserOverrides } from "@/lib/discord";
+
+/**
+ * `developer_profiles.guildRoles` with the override names folded in, for
+ * any byline that renders a rank chip.
+ *
+ * The column itself is a faithful mirror of Discord and stays that way —
+ * `lib/staff-roles` explains why the override is never written to it. But
+ * a chip read straight off the mirror shows an override holder whatever
+ * guild role they happen to carry, so the same union `applyRoleOverrides`
+ * does in TypeScript is done here in SQL, where a byline query has the
+ * discord id in hand but no row objects to post-process.
+ *
+ * The id list is read when the projection is built — import time for the
+ * shared columns below — so a change to `ADMIN_DISCORD_IDS` lands on the
+ * next boot, which is how Railway applies a variable change anyway. An
+ * empty list short circuits back to the plain column.
+ */
+export function bylineGuildRoles(): SQL<string[] | null> | typeof developerProfiles.guildRoles {
+  const ids = [...adminUserOverrides()];
+  if (ids.length === 0) return developerProfiles.guildRoles;
+  // Each id bound on its own rather than one array parameter, so nothing
+  // depends on how the driver serialises a JS array into `text[]`. The
+  // `coalesce` matters: in Postgres `null || array` is null, which would
+  // blank the chip for an override holder who has never synced a role.
+  const list = sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `,
+  );
+  return sql<string[] | null>`case
+      when ${developerProfiles.discordId} in (${list})
+      then coalesce(${developerProfiles.guildRoles}, '{}'::text[]) || '{Admin,Dev}'::text[]
+      else ${developerProfiles.guildRoles}
+    end`;
+}
 
 /**
  * The profile-identity projection a byline needs, in one place instead of a
@@ -16,7 +51,7 @@ export const profileIdentityColumns = {
   guildAvatarUrl: developerProfiles.guildAvatarUrl,
   // Feeds the rank badge (`guildRankOf`) beside the name; already public
   // through `getProfile`, so nothing new leaks by riding every byline.
-  guildRoles: developerProfiles.guildRoles,
+  guildRoles: bylineGuildRoles(),
   urlStub: profileUrlStubs.stub,
 };
 

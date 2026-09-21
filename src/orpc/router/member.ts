@@ -31,7 +31,7 @@ import { MEMBER_AVAILABILITY } from "@/lib/member-vocabulary";
 import { PUBLIC_PLACEMENT } from "@/lib/project-visibility";
 import { escapeLike } from "@/lib/sql-like";
 import { timezonesWithinOffset } from "@/lib/timezones";
-import { profileNameSearch } from "@/orpc/profile-projection";
+import { bylineGuildRoles, profileNameSearch } from "@/orpc/profile-projection";
 
 /**
  * The member directory behind `/members`. Distinct from
@@ -341,7 +341,7 @@ export const listMembers = os
           guildNickname: developerProfiles.guildNickname,
           avatarUrl: developerProfiles.avatarUrl,
           guildAvatarUrl: developerProfiles.guildAvatarUrl,
-          guildRoles: developerProfiles.guildRoles,
+          guildRoles: bylineGuildRoles(),
           tagline: developerProfiles.tagline,
           lookingFor: developerProfiles.lookingFor,
           availableForWork: developerProfiles.availableForWork,
