@@ -1,6 +1,8 @@
 import { useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { RankBadge } from "@/components/ui/rank-badge";
+import type { GuildRank } from "@/lib/guild-rank";
 import { useHoverPlay } from "@/lib/hooks/use-hover-play";
 import { useMemberViewer } from "@/lib/hooks/use-member-identity";
 import { untransformedImageUrl } from "@/lib/itch-image";
@@ -30,6 +32,10 @@ interface UserAvatarProps {
   shape?: "square" | "round";
   /** Let an animated avatar loop unprompted. Off everywhere by default. */
   autoplay?: boolean;
+  /** Their guild roles, which put the rank chip over the bottom edge. */
+  guildRoles?: readonly string[] | null;
+  /** The same chip where the surface has already resolved the rank. */
+  rank?: GuildRank | null;
   className?: string;
 }
 
@@ -45,6 +51,8 @@ export function UserAvatar({
   size = 32,
   shape = "square",
   autoplay = false,
+  guildRoles,
+  rank,
   className,
 }: UserAvatarProps) {
   const square = shape === "square";
@@ -104,6 +112,15 @@ export function UserAvatar({
       >
         {initial}
       </AvatarFallback>
+      {/* Straddles the bottom edge rather than sitting under the frame: the
+          rank is an attribute of the face, and a chip in the flow would
+          widen every column that holds an avatar. */}
+      <RankBadge
+        rank={rank}
+        roles={guildRoles}
+        collapsible
+        className="absolute -bottom-1.5 left-1/2 z-10 -translate-x-1/2 ring-2 ring-card"
+      />
     </Avatar>
   );
 }

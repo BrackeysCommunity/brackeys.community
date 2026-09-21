@@ -98,10 +98,12 @@ describe("MemberDirectoryCard chip budget", () => {
 });
 
 describe("MemberDirectoryCard guild rank", () => {
-  it("names the highest guild rank beside the name", () => {
+  it("names the highest guild rank on the avatar", () => {
     render(<MemberDirectoryCard member={member({ guildRoles: ["Guru", "Moderator"] })} />);
 
-    expect(screen.getByTestId("rank-badge").textContent).toBe("Moderator");
+    // The chip says "Mod", the name the guild gives the role; "Moderator"
+    // is the internal role name authorization matches on.
+    expect(screen.getByTestId("rank-badge").textContent).toBe("Mod");
   });
 
   it("shows nothing for a member with no rank", () => {

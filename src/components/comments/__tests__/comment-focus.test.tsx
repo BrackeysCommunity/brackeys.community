@@ -43,6 +43,11 @@ vi.mock("@/orpc/client", () => ({
 vi.mock("@/lib/product-insights", () => ({
   captureEvent: vi.fn(),
   reportMutationError: vi.fn(),
+  // The rank badge beside each author reads a feature flag, which reaches
+  // the PostHog client through this module's store. No client ever loads
+  // under test, so the flag serves its default.
+  getPostHogClientSnapshot: () => null,
+  subscribePostHogClient: () => () => {},
 }));
 
 const { CommentThread } = await import("@/components/comments/CommentThread");

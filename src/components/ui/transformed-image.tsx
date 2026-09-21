@@ -15,7 +15,13 @@ interface TransformedImageProps extends Omit<ComponentProps<"img">, "src" | "src
  * degrades to a slower image, not to no image. The caller's `onError`
  * fires only once the plain source has failed too.
  */
-export function TransformedImage({ src, transform, onError, ...props }: TransformedImageProps) {
+export function TransformedImage({
+  src,
+  transform,
+  onError,
+  ref,
+  ...props
+}: TransformedImageProps) {
   const [failed, setFailed] = useState<string | null>(null);
   const transformed = itchImageUrl(src, transform);
   const rendered = failed === transformed ? src : transformed;
@@ -23,6 +29,18 @@ export function TransformedImage({ src, transform, onError, ...props }: Transfor
   return (
     <img
       {...props}
+      ref={(node) => {
+        // On a server-rendered page the browser requests this src while
+        // parsing the markup, so a refused transform fires `error` long
+        // before React attaches the handler below and the retry never
+        // runs. A finished-but-broken image reports `complete` with no
+        // intrinsic width, which is the same failure read off the element.
+        if (node && rendered !== src && node.complete && node.naturalWidth === 0) {
+          setFailed(rendered);
+        }
+        if (typeof ref === "function") return ref(node);
+        if (ref) ref.current = node;
+      }}
       src={rendered}
       onError={(event) => {
         if (rendered !== src) {

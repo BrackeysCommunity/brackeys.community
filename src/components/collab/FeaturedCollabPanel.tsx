@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { DotGrid } from "@/components/ui/dot-grid";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { MediaCardImage, MediaCardScrim } from "@/components/ui/media-card";
-import { RankBadge } from "@/components/ui/rank-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { TransformedImage } from "@/components/ui/transformed-image";
@@ -248,12 +247,12 @@ export function FeaturedCollabPanel({ posts }: { posts: FeaturedPost[] }) {
                       label="POSTED BY"
                       title={`@${author.discordUsername ?? "unknown"}`}
                       caption={author.tagline}
-                      badge={<RankBadge roles={author.guildRoles} />}
                       avatar={
                         <UserAvatar
                           avatarUrl={author.avatarUrl}
                           guildAvatarUrl={author.guildAvatarUrl}
                           username={author.discordUsername}
+                          guildRoles={author.guildRoles}
                           size={40}
                         />
                       }

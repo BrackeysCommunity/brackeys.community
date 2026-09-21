@@ -15,6 +15,13 @@ export const FEATURE_FLAGS = {
   "arcade-enabled": false,
   /** En Prison specifically, so it can soft-launch behind `arcade-enabled`. */
   "arcade-en-prison": false,
+  /**
+   * Paint rank icons in the guild's own gradient instead of the
+   * theme-matched one. Off by default: the server's art is a single baked
+   * yellow→magenta→violet sweep, which reads the same on a staff pill and a
+   * community one and goes muddy against the non-default themes.
+   */
+  "server-role-icon-og-color": false,
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

@@ -12,16 +12,16 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "chonk-emboss bg-primary text-primary-foreground [--emboss-shadow:color-mix(in_srgb,var(--primary)_50%,black)]",
+          "bg-primary text-primary-foreground [--emboss-shadow:color-mix(in_srgb,var(--primary)_50%,black)]",
         secondary:
-          "chonk-emboss bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)]",
+          "bg-secondary text-secondary-foreground [--emboss-shadow:color-mix(in_srgb,var(--secondary)_50%,black)]",
         destructive:
-          "chonk-emboss bg-destructive text-destructive-foreground [--emboss-shadow:color-mix(in_srgb,var(--destructive)_45%,black)] focus-visible:ring-destructive/30",
+          "bg-destructive text-destructive-foreground [--emboss-shadow:color-mix(in_srgb,var(--destructive)_45%,black)] focus-visible:ring-destructive/30",
         warning:
-          "chonk-emboss bg-warning text-warning-foreground [--emboss-shadow:color-mix(in_srgb,var(--warning)_45%,black)] focus-visible:ring-warning/30",
+          "bg-warning text-warning-foreground [--emboss-shadow:color-mix(in_srgb,var(--warning)_45%,black)] focus-visible:ring-warning/30",
         success:
-          "chonk-emboss bg-success text-success-foreground [--emboss-shadow:color-mix(in_srgb,var(--success)_45%,black)] focus-visible:ring-success/30",
-        outline: "chonk-emboss border-border text-foreground",
+          "bg-success text-success-foreground [--emboss-shadow:color-mix(in_srgb,var(--success)_45%,black)] focus-visible:ring-success/30",
+        outline: "border-border text-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
@@ -56,10 +56,22 @@ const notchEmbossColor: Record<string, string | undefined> = {
 type BadgeProps = useRender.ComponentProps<"span"> &
   VariantProps<typeof badgeVariants> & {
     notchOpts?: NotchOpts | true;
+    /** Drop the raised pad and sit flush, keeping the variant's colors. */
+    flat?: boolean;
   };
 
-function Badge({ className, variant = "default", size, notchOpts, render, ...props }: BadgeProps) {
-  const hasEmboss = variant !== "ghost" && variant !== "link";
+function Badge({
+  className,
+  variant = "default",
+  size,
+  notchOpts,
+  flat,
+  render,
+  ...props
+}: BadgeProps) {
+  // `ghost` and `link` carry no fill to raise in the first place.
+  const embossable = variant !== "ghost" && variant !== "link";
+  const hasEmboss = embossable && !flat;
 
   const badge = useRender({
     defaultTagName: "span",
@@ -67,7 +79,8 @@ function Badge({ className, variant = "default", size, notchOpts, render, ...pro
       {
         className: cn(
           badgeVariants({ variant, size }),
-          hasEmboss && staticEmbossOverride,
+          hasEmboss && "chonk-emboss",
+          embossable && staticEmbossOverride,
           notchOpts && "!translate-y-0 !transform-none !border-0 !shadow-none",
           className,
         ),

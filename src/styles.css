@@ -12,6 +12,42 @@
   --font-display: var(--font-display);
   --font-mono: var(--font-mono);
 
+  /* The house `EASE_OUT` in `lib/motion` is deliberately overshoot-free.
+     This is its counterpart for the few places that want a real spring.
+     A cubic-bezier can only overshoot once, so a bounce big enough to see
+     is also a bounce that snaps; this is a sampled damped spring
+     (zeta 0.6) instead, which crosses the target three times and visibly
+     loses energy. Read it with a longer duration than an ease — the decay
+     is the point, and rushing it is what reads as aggressive.
+     A browser without `linear()` falls back to the default ease. */
+  --ease-spring: linear(
+    0,
+    0.133,
+    0.405,
+    0.682,
+    0.895,
+    1.026,
+    1.085,
+    1.094,
+    1.076,
+    1.049,
+    1.024,
+    1.006,
+    0.995,
+    0.991,
+    0.991,
+    0.993,
+    0.996,
+    0.998,
+    1,
+    1.001,
+    1.001,
+    1.001,
+    1.001,
+    1,
+    1
+  );
+
   /* Brackeys brand colors (from brackeys.community) */
   --color-brackeys-yellow: #ffa949;
   --color-brackeys-yellow-muted: color-mix(in srgb, #ffa949 60%, transparent);
@@ -446,6 +482,26 @@
      content box, so no text ever sits under the falloff. */
   .content-pane:has([data-content-pane="6xl"]) {
     --content-pane-width: 72rem;
+  }
+
+  /* The guild's role icons ship as one baked yellow→magenta→violet
+     gradient, which goes muddy against a dozen user-selectable themes and
+     reads identically on a staff pill and a community one. So the PNG is
+     used as a mask and the sweep is rebuilt from theme tokens: the same
+     warm→magenta→cool arc, every stop anchored to currentColor so the
+     glyph keeps whatever contrast its pill already guarantees.
+     `--rank-icon` names the art. */
+  .rank-icon {
+    mask-image: var(--rank-icon);
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--warning) 50%, currentColor),
+      color-mix(in oklch, var(--destructive) 40%, currentColor) 45%,
+      color-mix(in oklch, var(--info) 50%, currentColor)
+    );
   }
 
   .chonk-emboss {

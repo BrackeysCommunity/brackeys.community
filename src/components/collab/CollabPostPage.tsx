@@ -24,7 +24,6 @@ import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { GraphPaper } from "@/components/ui/graph-paper";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { PageStack } from "@/components/ui/page-motion";
-import { RankBadge } from "@/components/ui/rank-badge";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Section } from "@/components/ui/section";
 import { TimeAgo } from "@/components/ui/time-ago";
@@ -338,12 +337,12 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                   label="POSTED BY"
                   title={`@${post.author.discordUsername ?? "unknown"}`}
                   caption={post.author.tagline}
-                  badge={<RankBadge roles={post.author.guildRoles} />}
                   avatar={
                     <UserAvatar
                       avatarUrl={post.author.avatarUrl}
                       guildAvatarUrl={post.author.guildAvatarUrl}
                       username={post.author.discordUsername}
+                      guildRoles={post.author.guildRoles}
                       size={40}
                     />
                   }

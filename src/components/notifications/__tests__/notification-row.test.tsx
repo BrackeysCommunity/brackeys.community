@@ -56,6 +56,10 @@ vi.mock("@/orpc/client", () => ({
 
 vi.mock("@/lib/product-insights", () => ({
   captureEvent: (...args: unknown[]) => captureEvent(...args),
+  // `UserAvatar`'s rank chip reads a feature flag through this module's
+  // store. No client loads under test, so the flag serves its default.
+  getPostHogClientSnapshot: () => null,
+  subscribePostHogClient: () => () => {},
 }));
 
 const { NotificationRow } = await import("@/components/notifications/notification-row");
