@@ -15,10 +15,24 @@ describe("UserAvatar", () => {
     render(<UserAvatar avatarUrl={null} username="yasahiro" guildRoles={["Admin"]} size={36} />);
     const chip = screen.getByTestId("rank-badge");
     expect(chip.textContent).toBe("Admin");
-    // Absolutely placed on the frame, so no column widens to hold it.
-    expect(chip.className).toContain("absolute");
-    expect(chip.className).toContain("-bottom-1.5");
     expect(chip.closest("[data-slot='avatar']")).not.toBeNull();
+    // Absolutely placed on the frame, so no column widens to hold it.
+    // The placement is the strip's, not the chip's — the chip moves.
+    const strip = chip.parentElement!;
+    expect(strip.className).toContain("absolute");
+    expect(strip.className).toContain("-bottom-2.5");
+    expect(strip.className).toContain("-translate-x-1/2");
+  });
+
+  it("holds the hover target still while the chip travels", () => {
+    render(<UserAvatar avatarUrl={null} username="yasahiro" guildRoles={["Admin"]} size={36} />);
+    const strip = screen.getByTestId("rank-badge").parentElement!;
+    // `pb-1` matches the chip's `translate-y-1` rise, so the strip spans
+    // both positions and a pointer in the bottom few px can't be left
+    // behind — which would unhover, drop the chip back, and flicker.
+    expect(strip.className).toContain("pb-1");
+    // Nothing may opt the strip out of hit-testing, or it stops working.
+    expect(strip.className.split(/\s+/)).not.toContain("pointer-events-none");
   });
 
   it("rests as a circle on the icon and grows the name on hover", () => {
@@ -45,8 +59,9 @@ describe("UserAvatar", () => {
     // Spring on the way open, a plain quick ease on the way back.
     expect(chip.className).toContain("group-hover/avatar:duration-400");
     expect(chip.className).toContain("duration-150");
-    // The centering offset has to survive alongside the rise.
-    expect(chip.className).toContain("-translate-x-1/2");
+    // Centering lives on the strip, so the rise is the chip's only
+    // transform and the two can't fight over the `translate` property.
+    expect(chip.className).not.toContain("-translate-x-1/2");
   });
 
   it("takes the pointer, so the grown chip keeps the group hovered", () => {

@@ -12,10 +12,18 @@ async function loadTransformedImage() {
   return (await import("@/components/ui/transformed-image")).TransformedImage;
 }
 
-/** What the DOM reports for an image whose request has already failed. */
-function markBroken(img: HTMLImageElement) {
-  Object.defineProperty(img, "complete", { configurable: true, value: true });
-  Object.defineProperty(img, "naturalWidth", { configurable: true, value: 0 });
+/**
+ * Make every image report what the DOM reports for a request that already
+ * failed: finished, with no intrinsic width. Patching the two getters the
+ * component actually reads keeps this independent of *how* React sets
+ * `src` — it may assign the property rather than call `setAttribute`, and
+ * a spy on one of those two paths passes or fails depending on which it
+ * picks.
+ */
+function markEveryImageBroken() {
+  const proto = window.HTMLImageElement.prototype;
+  vi.spyOn(proto, "complete", "get").mockReturnValue(true);
+  vi.spyOn(proto, "naturalWidth", "get").mockReturnValue(0);
 }
 
 beforeEach(() => {
@@ -25,6 +33,9 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllEnvs();
+  // The broken-image getters are patched on the shared prototype, so they
+  // have to come off even when an assertion threw first.
+  vi.restoreAllMocks();
 });
 
 describe("TransformedImage", () => {
@@ -44,19 +55,11 @@ describe("TransformedImage", () => {
   it("falls back for a transform that failed before the handler was attached", async () => {
     const TransformedImage = await loadTransformedImage();
     // The server-rendered case: the browser requested and was refused the
-    // transform during parse, so no `error` event is left to receive.
-    const proto = window.HTMLImageElement.prototype;
-    const spy = vi.spyOn(proto, "setAttribute").mockImplementation(function (
-      this: HTMLImageElement,
-      name: string,
-      value: string,
-    ) {
-      Object.getPrototypeOf(proto).setAttribute.call(this, name, value);
-      if (name === "src" && value === TRANSFORMED) markBroken(this);
-    });
+    // transform during parse, so no `error` event is left to receive and
+    // the component has to read the failure off the element instead.
+    markEveryImageBroken();
 
     const { container } = render(<TransformedImage src={SRC} transform={{ width: 224 }} />);
-    spy.mockRestore();
     expect(container.querySelector("img")?.getAttribute("src")).toBe(SRC);
   });
 

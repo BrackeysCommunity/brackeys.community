@@ -114,13 +114,16 @@ export function UserAvatar({
       </AvatarFallback>
       {/* Straddles the bottom edge rather than sitting under the frame: the
           rank is an attribute of the face, and a chip in the flow would
-          widen every column that holds an avatar. */}
-      <RankBadge
-        rank={rank}
-        roles={guildRoles}
-        collapsible
-        className="absolute -bottom-1.5 left-1/2 z-10 -translate-x-1/2 ring-2 ring-card"
-      />
+          widen every column that holds an avatar.
+
+          The chip rises on hover, so it can't be its own hover target —
+          a pointer in its bottom few px would raise it clear of the
+          cursor, lose the hover, drop it back under the cursor and
+          flicker. This strip holds still and its padding spans the
+          travel, so the pointer stays inside it either way. */}
+      <span className="absolute -bottom-2.5 left-1/2 z-10 -translate-x-1/2 pb-1">
+        <RankBadge rank={rank} roles={guildRoles} collapsible className="ring-2 ring-card" />
+      </span>
     </Avatar>
   );
 }
