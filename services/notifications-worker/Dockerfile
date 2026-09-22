@@ -2,12 +2,15 @@
 # In Railway, leave "Root Directory" unset and set "Dockerfile Path" to
 # services/notifications-worker/Dockerfile.
 
-FROM oven/bun:1.3-slim AS deps
+FROM oven/bun:1.4-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS deps
 WORKDIR /app
-COPY services/notifications-worker/package.json ./services/notifications-worker/package.json
-RUN cd services/notifications-worker && bun install
+# The lockfile ships with the manifest so the image resolves the same
+# tree the repo pins; without it the build picks whatever the registry
+# serves that day, which the base image pin does nothing to constrain.
+COPY services/notifications-worker/package.json services/notifications-worker/bun.lock ./services/notifications-worker/
+RUN cd services/notifications-worker && bun install --frozen-lockfile
 
-FROM oven/bun:1.3-slim AS runtime
+FROM oven/bun:1.4-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 

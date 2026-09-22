@@ -6,6 +6,16 @@
     {
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
+    },
+    {
+      "matchDatasources": ["docker"],
+      "pinDigests": true
+    },
+    {
+      "description": "A digest pin only protects the build while it stays current; without this the base images silently fall behind the tag they name.",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest"],
+      "automerge": true
     }
   ]
 }
