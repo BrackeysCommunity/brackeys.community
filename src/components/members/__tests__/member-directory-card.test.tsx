@@ -171,10 +171,10 @@ describe("the booster name glow on a directory tile", () => {
     expect(nameEl().style.color).toBe("rgb(79, 157, 217)");
   });
 
-  it("leaves a community rank alone", () => {
+  it("leaves a Guru's name alone", () => {
     render(
       <MemberDirectoryCard
-        member={member({ nameGlowColors: ["#4f9dd9"], isBooster: false, guildRoles: ["BIP"] })}
+        member={member({ nameGlowColors: ["#4f9dd9"], isBooster: false, guildRoles: ["Guru"] })}
       />,
     );
     expect(nameEl().style.color).toBe("");
@@ -204,13 +204,10 @@ describe("the booster name glow on a directory tile", () => {
     expect(nameEl().style.color).toBe("");
   });
 
-  // A near-black pick must not render as near-black, or it vanishes on the
-  // dark themes the site ships by default.
-  it("clamps an unreadable pick instead of honouring it literally", () => {
+  it("paints a near-black pick as picked", () => {
     render(
       <MemberDirectoryCard member={member({ nameGlowColors: ["#000000"], isBooster: true })} />,
     );
-    expect(nameEl().style.color).not.toBe("rgb(0, 0, 0)");
-    expect(nameEl().style.color).not.toBe("");
+    expect(nameEl().style.color).toBe("rgb(0, 0, 0)");
   });
 });

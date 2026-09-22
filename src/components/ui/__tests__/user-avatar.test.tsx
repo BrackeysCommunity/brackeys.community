@@ -46,7 +46,7 @@ describe("UserAvatar", () => {
     // The name is collapsed, not removed, so it still reaches a reader.
     expect(chip.textContent).toBe("Admin");
     expect(chip.querySelector("span:last-child")?.className).toContain(
-      "group-hover/avatar:max-w-20",
+      "group-hover/avatar:max-w-24",
     );
   });
 

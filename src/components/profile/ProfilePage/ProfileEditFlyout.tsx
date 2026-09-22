@@ -18,9 +18,11 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Cancel01Icon,
   CheckmarkCircle02Icon,
+  Copy01Icon,
   DragDropHorizontalIcon,
   GithubIcon,
   HourglassIcon,
+  ClipboardIcon,
   ViewIcon,
   ViewOffSlashIcon,
 } from "@hugeicons/core-free-icons";
@@ -58,6 +60,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Heading, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
+import { siteOrigin } from "@/env";
 import { updateActiveUserProfile } from "@/lib/active-user-store";
 import { startGitHubLink } from "@/lib/auth-client";
 import { compensationLabel } from "@/lib/collab-vocabulary";
@@ -76,6 +79,8 @@ import { startItchOAuth } from "@/lib/itchio-oauth";
 import { AVAILABILITY_OPTIONS } from "@/lib/member-vocabulary";
 import { stepBody, stepBodyTransition } from "@/lib/motion";
 import {
+  decodeNameGlow,
+  encodeNameGlow,
   MAX_GLOW_STOPS,
   NAME_GLOW_MOTION_LABELS,
   NAME_GLOW_MOTIONS,
@@ -530,21 +535,77 @@ function NameGlowField({ profile, queryKey, save }: StepProps) {
     field.onBlur();
   };
 
+  const setMotion = (next: NameGlowMotion) => {
+    setMotionDraft(next);
+    update.mutate({ nameGlowMotion: next });
+  };
+
+  const copyConfig = async () => {
+    try {
+      await navigator.clipboard.writeText(encodeNameGlow(stops, motion));
+      toast.success("Glow copied");
+    } catch {
+      toast.error("Couldn't reach the clipboard");
+    }
+  };
+
+  const pasteConfig = async () => {
+    let text: string;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      toast.error("Couldn't read the clipboard");
+      return;
+    }
+    const config = decodeNameGlow(text);
+    if (!config) {
+      toast.error("That isn't a glow", {
+        description: "Expected something like glow:rotate:7f5af0,1f0fbd",
+      });
+      return;
+    }
+    commit(config.stops);
+    if (config.motion && config.motion !== motion) setMotion(config.motion);
+    toast.success("Glow applied");
+  };
+
   return (
     <FieldRow
       label="NAME GLOW"
-      hint="booster & staff perk — up to three colours, evenly spaced"
+      hint="boosters, BIPs & staff · up to three colours"
       action={
-        stops.length > 0 ? (
+        <div className="flex items-center gap-0.5">
+          {stops.length > 0 ? (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Copy glow"
+              tooltip="Copy this glow as one line"
+              onClick={copyConfig}
+            >
+              <HugeiconsIcon icon={Copy01Icon} size={14} />
+            </Button>
+          ) : null}
           <Button
-            size="sm"
+            size="icon-sm"
             variant="ghost"
-            onClick={() => commit([])}
-            tooltip="Back to the default name colour"
+            aria-label="Paste glow"
+            tooltip="Paste a copied glow"
+            onClick={pasteConfig}
           >
-            CLEAR
+            <HugeiconsIcon icon={ClipboardIcon} size={14} />
           </Button>
-        ) : null
+          {stops.length > 0 ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => commit([])}
+              tooltip="Back to the default name colour"
+            >
+              CLEAR
+            </Button>
+          ) : null}
+        </div>
       }
     >
       <div className="flex flex-col gap-3">
@@ -583,11 +644,7 @@ function NameGlowField({ profile, queryKey, save }: StepProps) {
         {stops.length > 1 ? (
           <SegmentedControl
             value={motion}
-            onChange={(next) => {
-              const chosen = normalizeGlowMotion(next);
-              setMotionDraft(chosen);
-              update.mutate({ nameGlowMotion: chosen });
-            }}
+            onChange={(next) => setMotion(normalizeGlowMotion(next))}
             aria-label="Name glow motion"
             className="w-full"
           >
@@ -620,6 +677,7 @@ function splitStops(value: string): string[] {
  * `activeUserStore`, which is where the header's ME link reads from.
  */
 function ProfileUrlField({ profile, queryKey, save }: StepProps) {
+  const siteHost = new URL(siteOrigin()).host;
   const setStub = useSetUrlStub(queryKey, save);
   const clearStub = useClearUrlStub(queryKey, save);
   const followStub = useFollowStub();
@@ -691,7 +749,7 @@ function ProfileUrlField({ profile, queryKey, save }: StepProps) {
     >
       <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
         <Badge variant="secondary" className="font-mono text-[11px] tracking-widest normal-case">
-          brackeys.gg/@
+          {siteHost}/profile/
         </Badge>
         <Input
           value={value}
@@ -1665,13 +1723,19 @@ function FieldRow({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <Label className="text-[11px] tracking-widest text-muted-foreground uppercase">
+      <div className="flex items-center justify-between gap-3">
+        {/* The label holds its line; the hint is what gives way, so a long
+            one wraps on the right instead of breaking "NAME GLOW" in two. */}
+        <Label className="shrink-0 text-[11px] tracking-widest whitespace-nowrap text-muted-foreground uppercase">
           {label}
         </Label>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center justify-end gap-2">
           {hint ? (
-            <Text size="xs" variant="muted" className="text-right tracking-wide">
+            <Text
+              size="xs"
+              variant="muted"
+              className="min-w-0 text-right tracking-wide text-balance"
+            >
               {hint}
             </Text>
           ) : null}

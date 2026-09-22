@@ -8,12 +8,13 @@
  * never reads this, and `isStaffMember` / `isAdmin` in `lib/discord`
  * remain the gates.
  */
-export type GuildRank = "dev" | "admin" | "moderator" | "staff" | "guru" | "bip";
+export type GuildRank = "brackeys" | "dev" | "admin" | "moderator" | "staff" | "guru" | "bip";
 
 const RANKS: readonly { name: string; rank: GuildRank }[] = [
+  { name: "Brackeys Team", rank: "brackeys" },
   // Not a guild role — `applyRoleOverrides` grants it off the same env
-  // list as the Admin break-glass. Top of the ladder so it wins over the
-  // real roles that holder also carries.
+  // list as the Admin break-glass. Above every staff role so it wins over
+  // the real roles that holder also carries.
   { name: "Dev", rank: "dev" },
   { name: "Admin", rank: "admin" },
   { name: "Moderator", rank: "moderator" },
@@ -38,8 +39,9 @@ export function guildRankOf(guildRoles: readonly string[] | null | undefined): G
  * `cdn.discordapp.com/role-icons/{role_id}/{icon_hash}.png`.
  */
 export const GUILD_RANK_ICONS: Partial<Record<GuildRank, string>> = {
-  // The guild's Brackeys Team mark; the rank has no role of its own.
-  dev: "/role-icons/dev.png",
+  brackeys: "/role-icons/brackeys-team.png",
+  // Dev has no role of its own, so it borrows the Brackeys Team mark.
+  dev: "/role-icons/brackeys-team.png",
   admin: "/role-icons/admin.png",
   moderator: "/role-icons/moderator.png",
   guru: "/role-icons/guru.png",
@@ -47,6 +49,7 @@ export const GUILD_RANK_ICONS: Partial<Record<GuildRank, string>> = {
 };
 
 export const GUILD_RANK_LABELS: Record<GuildRank, string> = {
+  brackeys: "Brackeys Team",
   dev: "Dev",
   admin: "Admin",
   // "Mod" is what the role is actually called in the guild; the `moderator`
@@ -59,5 +62,11 @@ export const GUILD_RANK_LABELS: Record<GuildRank, string> = {
 
 /** Staff ranks carry the primary badge; community ranks the quieter one. */
 export function isStaffRank(rank: GuildRank): boolean {
-  return rank === "dev" || rank === "admin" || rank === "moderator" || rank === "staff";
+  return (
+    rank === "brackeys" ||
+    rank === "dev" ||
+    rank === "admin" ||
+    rank === "moderator" ||
+    rank === "staff"
+  );
 }

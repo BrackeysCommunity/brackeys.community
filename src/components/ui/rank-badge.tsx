@@ -113,7 +113,7 @@ export function RankBadge({
         // `min-w-0` is what lets a flex item go under its min-content; the
         // cap only has to clear the longest rank, and `transition` names
         // `translate` because that is the property Tailwind animates.
-        <span className="max-w-0 min-w-0 -translate-x-1 overflow-hidden opacity-0 transition-[max-width,opacity,translate] duration-150 ease-out group-hover/avatar:max-w-20 group-hover/avatar:translate-x-0 group-hover/avatar:opacity-100 group-hover/avatar:duration-400 group-hover/avatar:ease-spring motion-reduce:transition-none">
+        <span className="max-w-0 min-w-0 -translate-x-1 overflow-hidden opacity-0 transition-[max-width,opacity,translate] duration-150 ease-out group-hover/avatar:max-w-24 group-hover/avatar:translate-x-0 group-hover/avatar:opacity-100 group-hover/avatar:duration-400 group-hover/avatar:ease-spring motion-reduce:transition-none">
           {label}
         </span>
       ) : (

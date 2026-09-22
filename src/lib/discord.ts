@@ -67,6 +67,7 @@ export function discordGuildAvatarUrl(
 // Hardcoded role ID → display name map.
 // Update these when guild roles change.
 const GUILD_ROLE_NAMES: Record<string, string> = {
+  "491536338525356042": "Brackeys Team",
   "451380371284557824": "Admin",
   "756285704061059213": "Staff",
   "756178968901582859": "Moderator",

@@ -2,34 +2,17 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   canUseNameGlow,
-  clampGlowColor,
+  decodeNameGlow,
+  encodeNameGlow,
   DEFAULT_NAME_GLOW_MOTION,
   NAME_GLOW_MOTIONS,
   normalizeGlowMotion,
   MAX_GLOW_STOPS,
   nameGlowProps,
   normalizeGlowColors,
-  GLOW_MAX_LIGHTNESS,
-  GLOW_MIN_LIGHTNESS,
   normalizeGlowColor,
   resolveNameGlow,
 } from "@/lib/name-glow";
-
-function lightnessOf(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-  return (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
-}
-
-function hueOf(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-  const max = Math.max(r, g, b);
-  const delta = max - Math.min(r, g, b);
-  if (delta === 0) return 0;
-  const h =
-    (max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4) *
-    60;
-  return h < 0 ? h + 360 : h;
-}
 
 describe("accepting a picked color", () => {
   it("takes a six-digit hex and lowercases it", () => {
@@ -37,53 +20,50 @@ describe("accepting a picked color", () => {
     expect(normalizeGlowColor("  #aabbcc  ")).toBe("#aabbcc");
   });
 
+  it("takes an oklch colour sRGB can't hold, in the picker's own notation", () => {
+    expect(normalizeGlowColor("oklch(70% 0.4 150)")).toBe("oklch(70% 0.4 150)");
+    expect(normalizeGlowColor("OKLCH( 62.84% 0.25768 29.234 )")).toBe("oklch(62.8% 0.258 29.2)");
+    expect(normalizeGlowColor("oklch(50% 0.1 360)")).toBe("oklch(50% 0.1 0)");
+  });
+
   // safeThemeColor tolerates these for scraped jam colors; a value heading
   // for an inline style off a free-text picker gets the strict reading.
-  it("rejects the shorthand, alpha and functional forms", () => {
-    for (const bad of ["#abc", "#aabbccdd", "rgb(1,2,3)", "red", "aabbcc", "", null, undefined]) {
+  it("rejects the shorthand, alpha and other functional forms", () => {
+    for (const bad of [
+      "#abc",
+      "#aabbccdd",
+      "rgb(1,2,3)",
+      "red",
+      "aabbcc",
+      "oklch(0.7 0.4 150)",
+      "oklch(70% 0.4 150 / 50%)",
+      "oklch(170% 0.1 10)",
+      "oklch(70% 0.4 150); color: red",
+      "",
+      null,
+      undefined,
+    ]) {
       expect(normalizeGlowColor(bad)).toBeNull();
     }
   });
 });
 
-describe("keeping a glow legible on every theme", () => {
-  it("leaves a color that already sits in the band exactly as picked", () => {
-    // #4f9dd9 — a mid blue, comfortably inside the range.
-    expect(clampGlowColor("#4f9dd9")).toBe("#4f9dd9");
+describe("painting what was picked", () => {
+  it("leaves near-black, near-white and wide-gamut picks alone", () => {
+    const stops = ["#000000", "#ffffff", "oklch(70% 0.4 150)"];
+    expect(resolveNameGlow({ nameGlowColors: stops, isBooster: true })).toEqual(stops);
   });
 
-  it("lifts near-black picks to the floor", () => {
-    const clamped = clampGlowColor("#000000");
-    expect(clamped).not.toBeNull();
-    expect(lightnessOf(clamped!)).toBeCloseTo(GLOW_MIN_LIGHTNESS, 2);
-  });
-
-  it("drops near-white picks to the ceiling", () => {
-    const clamped = clampGlowColor("#ffffff");
-    expect(clamped).not.toBeNull();
-    expect(lightnessOf(clamped!)).toBeCloseTo(GLOW_MAX_LIGHTNESS, 2);
-  });
-
-  it("keeps the hue the member actually chose", () => {
-    // A very dark red still has to come back red, not a neutral grey.
-    const clamped = clampGlowColor("#1a0000");
-    expect(clamped).not.toBeNull();
-    expect(hueOf(clamped!)).toBeCloseTo(0, 0);
-    expect(lightnessOf(clamped!)).toBeCloseTo(GLOW_MIN_LIGHTNESS, 2);
-  });
-
-  it("holds every clamped result inside the band", () => {
-    for (const hex of ["#000000", "#ffffff", "#010203", "#fefefe", "#7f00ff", "#00ff00"]) {
-      const clamped = clampGlowColor(hex)!;
-      const l = lightnessOf(clamped);
-      expect(l).toBeGreaterThanOrEqual(GLOW_MIN_LIGHTNESS - 0.01);
-      expect(l).toBeLessThanOrEqual(GLOW_MAX_LIGHTNESS + 0.01);
-    }
+  it("casts an oklch stop's halo without a hex alpha suffix", () => {
+    const { style } = nameGlowProps(["oklch(70% 0.4 150)"]);
+    expect(style?.textShadow).toBe(
+      "0 0 0.5em color-mix(in oklab, oklch(70% 0.4 150) 35%, transparent)",
+    );
   });
 });
 
 describe("who actually gets a glow", () => {
-  it("gives a boosting member their clamped color", () => {
+  it("gives a boosting member their color", () => {
     expect(resolveNameGlow({ nameGlowColors: ["#000000"], isBooster: true })).not.toBeNull();
   });
 
@@ -108,10 +88,13 @@ describe("staff entitlement", () => {
     ).not.toBeNull();
   });
 
-  // Guru and BIP are community ranks, not staff — the chip tells them apart
-  // and so does this.
-  it.each(["Guru", "BIP"])("does not extend it to the %s community rank", (role) => {
-    expect(canUseNameGlow({ isBooster: false, guildRoles: [role] })).toBe(false);
+  it("does not extend it to the Guru community rank", () => {
+    expect(canUseNameGlow({ isBooster: false, guildRoles: ["Guru"] })).toBe(false);
+  });
+
+  it("lets a BIP wear one, even when Guru outranks it", () => {
+    expect(canUseNameGlow({ isBooster: false, guildRoles: ["BIP"] })).toBe(true);
+    expect(canUseNameGlow({ isBooster: false, guildRoles: ["Guru", "BIP"] })).toBe(true);
   });
 
   it("still lets a booster with no rank wear one", () => {
@@ -242,5 +225,40 @@ describe("the glow the colours cast", () => {
     expect(nameGlowProps(["#111111", "#222222"], null).style?.animationName).toBe(
       "name-glow-rotate",
     );
+  });
+});
+
+describe("sharing a glow as one line", () => {
+  it("writes hex without the hash and oklch as-is", () => {
+    expect(encodeNameGlow(["#e3a7a7", "#150b5e", "oklch(70% 0.4 150)"], "sweep-left")).toBe(
+      "glow:sweep-left:e3a7a7,150b5e,oklch(70% 0.4 150)",
+    );
+  });
+
+  it("reads back what it writes", () => {
+    const stops = ["#e3a7a7", "#150b5e", "oklch(70% 0.4 150)"];
+    expect(decodeNameGlow(encodeNameGlow(stops, "radial"))).toEqual({ stops, motion: "radial" });
+  });
+
+  it("forgives what a paste does to it", () => {
+    expect(decodeNameGlow("  GLOW: Rotate : #E3A7A7 , 150b5e \n")).toEqual({
+      stops: ["#e3a7a7", "#150b5e"],
+      motion: "rotate",
+    });
+    expect(decodeNameGlow("e3a7a7,150b5e")).toEqual({
+      stops: ["#e3a7a7", "#150b5e"],
+      motion: null,
+    });
+  });
+
+  it.each([
+    "",
+    "glow:spin:e3a7a7",
+    "glow:rotate:e3a7a7,nope",
+    "glow:rotate:e3a7a7,150b5e,1f0fbd,000000",
+    "glow:rotate:e3a7a7:extra",
+    "rgb(1, 2, 3)",
+  ])("refuses %j whole", (raw) => {
+    expect(decodeNameGlow(raw)).toBeNull();
   });
 });

@@ -7,32 +7,40 @@ import { guildRankOf, isStaffRank } from "@/lib/guild-rank";
  * as a rotating gradient. Stops are equidistant by construction — the member
  * picks colours, never positions — so only the list is stored.
  *
- * Boosters pick freely, so a pick is stored exactly as given and clamped here
- * at render. A free picker will otherwise produce names that vanish into one
- * theme or another, and the site ships fifteen of them plus light and dark.
- * The clamp is on lightness only: hue and saturation are the whole point of
- * letting someone choose, and lightness is the axis that decides whether the
- * name survives a near-white or near-black surface. Because nothing is
- * normalized on write, moving the band re-renders every existing pick with no
- * backfill.
+ * Colours are painted exactly as picked. Nothing is pulled towards legibility:
+ * a name that vanishes into a theme is the member's call to make.
+ *
+ * A stop is `#rrggbb`, or `oklch(L% C H)` for a colour sRGB can't hold — a
+ * wide-gamut screen shows those in full, and the browser maps them to the
+ * nearest colour anywhere else.
  */
 
 const HEX_RGB = /^#([0-9a-f]{6})$/i;
+const OKLCH = /^oklch\(\s*(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*\)$/i;
 
 /** Enough for a gradient with a middle, few enough to stay a name. */
 export const MAX_GLOW_STOPS = 3;
 
-/** Below this a glow disappears into dark themes, above it into light ones. */
-export const GLOW_MIN_LIGHTNESS = 0.45;
-export const GLOW_MAX_LIGHTNESS = 0.72;
-
-/** Strict `#rrggbb`, lowercased. Anything else — including the shorthand and
- *  alpha forms `safeThemeColor` tolerates — is rejected: this value reaches an
- *  inline style, and the clamp below needs six digits to do arithmetic on. */
+/**
+ * One stop in its stored form: lowercase `#rrggbb`, or `oklch(L% C H)` with
+ * L at one decimal, C at three and H at one — the notation the picker writes.
+ * Anything else, including the shorthand and alpha hex forms `safeThemeColor`
+ * tolerates, is rejected: this value reaches an inline style, so only these
+ * two exact shapes get through.
+ */
 export function normalizeGlowColor(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const match = HEX_RGB.exec(raw.trim());
-  return match ? `#${match[1].toLowerCase()}` : null;
+  const trimmed = raw.trim();
+
+  const hex = HEX_RGB.exec(trimmed);
+  if (hex) return `#${hex[1].toLowerCase()}`;
+
+  const oklch = OKLCH.exec(trimmed);
+  if (!oklch) return null;
+  const [l, c, h] = oklch.slice(1).map(Number);
+  if (l > 100) return null;
+  const fixed = (v: number, places: number) => Number(v.toFixed(places));
+  return `oklch(${fixed(l, 1)}% ${fixed(c, 3)} ${fixed(h % 360, 1)})`;
 }
 
 /**
@@ -45,70 +53,8 @@ export function normalizeGlowColors(raw: readonly string[] | null | undefined): 
   const stops = raw
     .slice(0, MAX_GLOW_STOPS)
     .map(normalizeGlowColor)
-    .filter((hex): hex is string => hex != null);
+    .filter((stop): stop is string => stop != null);
   return stops.length > 0 ? stops : null;
-}
-
-/** Hue in degrees, saturation and lightness as 0–1. */
-export type Hsl = { h: number; s: number; l: number };
-
-export function hexToHsl(hex: string): Hsl {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  const delta = max - min;
-  if (delta === 0) return { h: 0, s: 0, l };
-
-  const s = delta / (1 - Math.abs(2 * l - 1));
-  let h: number;
-  if (max === r) h = ((g - b) / delta) % 6;
-  else if (max === g) h = (b - r) / delta + 2;
-  else h = (r - g) / delta + 4;
-  h *= 60;
-  return { h: h < 0 ? h + 360 : h, s, l };
-}
-
-export function hslToHex({ h, s, l }: Hsl): string {
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = l - c / 2;
-  const [r, g, b] =
-    h < 60
-      ? [c, x, 0]
-      : h < 120
-        ? [x, c, 0]
-        : h < 180
-          ? [0, c, x]
-          : h < 240
-            ? [0, x, c]
-            : h < 300
-              ? [x, 0, c]
-              : [c, 0, x];
-  const channel = (v: number) =>
-    Math.round((v + m) * 255)
-      .toString(16)
-      .padStart(2, "0");
-  return `#${channel(r)}${channel(g)}${channel(b)}`;
-}
-
-/**
- * One colour as it should actually be painted: the member's hue and
- * saturation, with lightness pulled into the legible band. Null for anything
- * that isn't a `#rrggbb` string.
- */
-export function clampGlowColor(raw: string | null | undefined): string | null {
-  const hex = normalizeGlowColor(raw);
-  if (!hex) return null;
-
-  const hsl = hexToHsl(hex);
-  const l = Math.min(GLOW_MAX_LIGHTNESS, Math.max(GLOW_MIN_LIGHTNESS, hsl.l));
-  // Round-tripping an in-band colour through the conversions would drift it by
-  // a digit for no reason, so an untouched lightness keeps the exact pick.
-  return l === hsl.l ? hex : hslToHex({ ...hsl, l });
 }
 
 export type NameGlowEntitlement = {
@@ -124,9 +70,10 @@ export type NameGlowFields = NameGlowEntitlement & {
 };
 
 /**
- * Who may wear a glow: anyone boosting the guild, and anyone holding a staff
- * rank. `isStaffRank` is the house definition — dev, admin, moderator, staff —
- * so the community ranks (Guru, BIP) are deliberately outside it.
+ * Who may wear a glow: anyone boosting the guild, anyone holding a staff
+ * rank (`isStaffRank` — Brackeys Team, dev, admin, mod, staff), and BIPs.
+ * Guru stays outside it. BIP is matched on the role list rather than the
+ * resolved rank, since a BIP who is also a Guru resolves to the higher rank.
  *
  * Staff eligibility is read off the same role names the chip uses rather than
  * an authorization call: this decides whether a name is tinted, and nothing
@@ -135,19 +82,18 @@ export type NameGlowFields = NameGlowEntitlement & {
 export function canUseNameGlow(fields: NameGlowEntitlement): boolean {
   if (fields.isBooster) return true;
   const rank = guildRankOf(fields.guildRoles);
-  return rank != null && isStaffRank(rank);
+  if (rank != null && isStaffRank(rank)) return true;
+  return fields.guildRoles?.includes("BIP") ?? false;
 }
 
 /**
- * The stops a profile should render, clamped, or null. Entitlement is
+ * The stops a profile should render, or null. Entitlement is
  * re-checked here rather than cleared on write: someone who stops boosting or
  * steps down keeps their colours, so they come back if they return.
  */
 export function resolveNameGlow(fields: NameGlowFields): string[] | null {
   if (!canUseNameGlow(fields)) return null;
-  const stops = normalizeGlowColors(fields.nameGlowColors);
-  if (!stops) return null;
-  return stops.map((hex) => clampGlowColor(hex)).filter((hex): hex is string => hex != null);
+  return normalizeGlowColors(fields.nameGlowColors);
 }
 
 /**
@@ -174,6 +120,45 @@ export function normalizeGlowMotion(raw: string | null | undefined): NameGlowMot
   return NAME_GLOW_MOTIONS.includes(raw as NameGlowMotion)
     ? (raw as NameGlowMotion)
     : DEFAULT_NAME_GLOW_MOTION;
+}
+
+/**
+ * A whole glow as one pasteable line: `glow:rotate:7f5af0,150b5e,1f0fbd`.
+ * Hex stops drop their `#` — it's the only thing they can be once decoded —
+ * and `oklch(…)` stops stay as written, so the line still reads as colours to
+ * a person and survives a trip through Discord.
+ */
+export function encodeNameGlow(stops: readonly string[], motion: NameGlowMotion): string {
+  return `glow:${motion}:${stops.map((stop) => stop.replace(/^#/, "")).join(",")}`;
+}
+
+/**
+ * The inverse of `encodeNameGlow`, forgiving of what a paste does to it:
+ * the `glow:` prefix and the motion are optional, `#` is allowed, and
+ * whitespace around the separators is ignored. Anything it can't read in
+ * full is null — a config applies whole or not at all.
+ */
+export function decodeNameGlow(
+  raw: string,
+): { stops: string[]; motion: NameGlowMotion | null } | null {
+  const parts = raw
+    .trim()
+    .replace(/^glow\s*:/i, "")
+    .split(":")
+    .map((part) => part.trim());
+  if (parts.length > 2) return null;
+
+  const [motionPart, stopsPart] = parts.length === 2 ? parts : [null, parts[0]];
+  const motion = motionPart ? (motionPart.toLowerCase() as NameGlowMotion) : null;
+  if (motion && !NAME_GLOW_MOTIONS.includes(motion)) return null;
+
+  const raws = stopsPart.split(",").map((stop) => stop.trim());
+  if (raws.length === 0 || raws.length > MAX_GLOW_STOPS) return null;
+  const stops = raws.map((stop) =>
+    normalizeGlowColor(/^[0-9a-f]{6}$/i.test(stop) ? `#${stop}` : stop),
+  );
+  if (stops.some((stop) => stop == null)) return null;
+  return { stops: stops as string[], motion };
 }
 
 export const NAME_GLOW_MOTION_LABELS: Record<NameGlowMotion, string> = {
@@ -262,15 +247,23 @@ export function nameGlowProps(
       // shape of the letters the gradient is actually showing through.
       filter: stops
         .slice(0, 2)
-        .map((stop, index) => `drop-shadow(0 0 ${index === 0 ? "0.3em" : "0.6em"} ${stop}59)`)
+        .map(
+          (stop, index) => `drop-shadow(0 0 ${index === 0 ? "0.3em" : "0.6em"} ${haloTint(stop)})`,
+        )
         .join(" "),
       ...motionStyle(normalizeGlowMotion(motion)),
     } as React.CSSProperties,
   };
 }
 
-/** The lit-from-within cast a single colour gets. `59` is 35% alpha: enough
- *  to read as a glow on a dark surface without smearing the letterforms. */
+/** The lit-from-within cast a single colour gets. */
 function halo(stop: string): string {
-  return `0 0 0.5em ${stop}59`;
+  return `0 0 0.5em ${haloTint(stop)}`;
+}
+
+/** A stop at 35% — enough to read as a glow on a dark surface without
+ *  smearing the letterforms. `color-mix` rather than a hex alpha suffix so
+ *  an `oklch()` stop keeps its gamut. */
+function haloTint(stop: string): string {
+  return `color-mix(in oklab, ${stop} 35%, transparent)`;
 }

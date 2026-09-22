@@ -17,6 +17,9 @@ type TickConfig = {
 type SliderProps = SliderPrimitive.Root.Props & {
   ticks?: TickConfig;
   formatOptions?: Intl.NumberFormatOptions;
+  /** A bubble over the thumb while it is dragged, naming the value under the
+   *  pointer — the finger or cursor covers whatever else would say it. */
+  valueLabel?: (value: number, index: number) => React.ReactNode;
 };
 
 function computeTickPositions(ticks: TickConfig | undefined, min: number, max: number): number[] {
@@ -50,6 +53,7 @@ function Slider({
   max = 100,
   ticks,
   formatOptions,
+  valueLabel,
   ...props
 }: SliderProps) {
   const _values = React.useMemo(
@@ -91,8 +95,18 @@ function Slider({
               data-slot="slider-thumb"
               key={index}
               {...SLIDER_CUES}
-              className="chonk-emboss relative block size-3.5 shrink-0 rounded border border-ring bg-white transition-all select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] after:absolute after:-inset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
-            />
+              className="group/thumb chonk-emboss relative block size-3.5 shrink-0 rounded border border-ring bg-white transition-all select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] after:absolute after:-inset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
+            >
+              {valueLabel && _values[index] != null ? (
+                <span
+                  data-slot="slider-value-label"
+                  aria-hidden
+                  className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 translate-y-1 rounded bg-foreground px-1.5 py-0.5 text-[11px] leading-none font-medium whitespace-nowrap text-background tabular-nums opacity-0 shadow-[0_2px_0_0_color-mix(in_srgb,var(--foreground)_50%,black)] transition-[opacity,translate] duration-100 group-data-dragging/thumb:translate-y-0 group-data-dragging/thumb:opacity-100 motion-reduce:transition-none"
+                >
+                  {valueLabel(_values[index], index)}
+                </span>
+              ) : null}
+            </SliderPrimitive.Thumb>
           ))}
         </SliderPrimitive.Control>
       </SliderPrimitive.Root>
