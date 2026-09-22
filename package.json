@@ -115,6 +115,7 @@
     "obscenity": "^0.4.6",
     "ogl": "^1.0.11",
     "overlayscrollbars-react": "^0.5.6",
+    "party-js": "^2.2.0",
     "pg": "^8.16.3",
     "pixi.js": "^8.17.1",
     "posthog-js": "^1.417.2",

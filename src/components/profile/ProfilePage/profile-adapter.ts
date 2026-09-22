@@ -9,6 +9,7 @@ import {
   memberDisplayName,
   type MemberViewer,
 } from "@/lib/member-name";
+import { canUseNameGlow, resolveNameGlow } from "@/lib/name-glow";
 import { profileSlug } from "@/lib/profile-links";
 import { isWebsiteLinkLabel, websiteLinkLabel, websiteLinkMonogram } from "@/lib/website-link-type";
 import { stampCoversUrl } from "@/lib/website-verification";
@@ -41,6 +42,10 @@ export interface RpcProfile {
     guildNickname: string | null;
     /** Resolved guild role names as of their last Discord sync. */
     guildRoles?: string[] | null;
+    /** The booster name glow as picked; clamped for legibility at render. */
+    nameGlowColors: string[] | null;
+    nameGlowMotion: string | null;
+    isBooster: boolean;
     avatarUrl: string | null;
     guildAvatarUrl: string | null;
     bio: string | null;
@@ -340,6 +345,17 @@ export function adaptProfile(
     },
     badges,
     guildRank: guildRankOf(profile.guildRoles),
+    nameGlow: resolveNameGlow({
+      nameGlowColors: profile.nameGlowColors,
+      isBooster: profile.isBooster,
+      guildRoles: profile.guildRoles,
+    }),
+    nameGlowColors: profile.nameGlowColors,
+    nameGlowMotion: profile.nameGlowMotion,
+    canUseNameGlow: canUseNameGlow({
+      isBooster: profile.isBooster,
+      guildRoles: profile.guildRoles,
+    }),
     stats: {
       projectsShipped,
       projectsLabel: projectsShipped > 0 ? deriveProjectsLabel(projects) : "—",

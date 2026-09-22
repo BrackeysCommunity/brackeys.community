@@ -68,6 +68,7 @@
         "obscenity": "^0.4.6",
         "ogl": "^1.0.11",
         "overlayscrollbars-react": "^0.5.6",
+        "party-js": "^2.2.0",
         "pg": "^8.16.3",
         "pixi.js": "^8.17.1",
         "posthog-js": "^1.417.2",
@@ -1932,6 +1933,8 @@
     "parse5-parser-stream": ["parse5-parser-stream@7.1.2", "", { "dependencies": { "parse5": "^7.0.0" } }, "sha512-JyeQc9iwFLn5TbvvqACIF/VXG6abODeB3Fwmv/TGdLk2LfbWkaySGY72at4+Ty7EkPZj854u4CrICqNk2qIbow=="],
 
     "parseley": ["parseley@0.12.1", "", { "dependencies": { "leac": "^0.6.0", "peberminta": "^0.9.0" } }, "sha512-e6qHKe3a9HWr0oMRVDTRhKce+bRO8VGQR3NyVwcjwrbhMmFCX9KszEV35+rn4AdilFAq9VPxP/Fe1wC9Qjd2lw=="],
+
+    "party-js": ["party-js@2.2.0", "", {}, "sha512-50hGuALCpvDTrQLPQ1fgUgxKIWAH28ShVkmeK/3zhO0YJyCqkhrZhQEkWPxDYLvbFJ7YAXyROmFEu35gKpZLtQ=="],
 
     "path-exists": ["path-exists@4.0.0", "", {}, "sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w=="],
 

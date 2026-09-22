@@ -13,6 +13,9 @@ function rpcProfile(overrides: Partial<RpcProfile> = {}): RpcProfile {
   return {
     profile: {
       id: "u1",
+      nameGlowColors: null,
+      nameGlowMotion: null,
+      isBooster: false,
       discordId: "d1",
       discordUsername: "yasahiro",
       guildNickname: null,

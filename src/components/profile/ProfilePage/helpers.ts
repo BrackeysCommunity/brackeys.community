@@ -37,6 +37,14 @@ export interface ProfileViewModel {
   badges: ProfileBadge[];
   /** Highest guild rank they hold — the badge beside the name. */
   guildRank: GuildRank | null;
+  /** The booster name treatment, already resolved — null for everyone else. */
+  nameGlow: string[] | null;
+  /** The raw picks, for the editor: the swatches show what they chose, while
+   *  `nameGlow` above is what the site actually paints. */
+  nameGlowColors: string[] | null;
+  nameGlowMotion: string | null;
+  /** Boosters and staff — see `canUseNameGlow`. */
+  canUseNameGlow: boolean;
 
   stats: ProfileStats;
 

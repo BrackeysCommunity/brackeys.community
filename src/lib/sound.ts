@@ -106,6 +106,16 @@ export const HOVER_CUE = {
   "data-sound-hover": HOVER_SOUND,
 } as const;
 
+/** A slider thumb: the press/release pair a control that acts in place
+ * earns, and no pull-away — sliding off a thumb mid-drag is the gesture
+ * working, not the member leaving. */
+export const SLIDER_CUES = {
+  "data-sound-hover": HOVER_SOUND,
+  "data-cuelume-press": "",
+  "data-cuelume-release": "",
+  "data-sound-pull-away": "",
+} as const;
+
 /** Nav links: a tick on hover, and on click the same `toggle` the settings
  * rows use. No press/release — that pair belongs to a control that acts in
  * place, not to a link already tearing the page down. */

@@ -65,6 +65,9 @@ const AUTHOR = {
   avatarUrl: null,
   guildAvatarUrl: null,
   guildRoles: null,
+  nameGlowColors: null,
+  nameGlowMotion: null,
+  isBooster: false,
   urlStub: "mika",
 };
 

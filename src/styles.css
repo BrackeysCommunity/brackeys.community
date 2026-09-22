@@ -835,6 +835,58 @@
   display: none;
 }
 
+/* ── Booster name glow ────────────────────────────────────────────────
+   The stops and the clip live inline (see `nameGlowProps`) so they beat the
+   Tailwind colour utility each name surface already carries. Only the sweep
+   is here, because keyframes and `@property` can't be expressed inline.
+
+   Animating the angle needs `@property`: an untyped custom property is a
+   string, and a string can't be interpolated, so the gradient would jump
+   from 0 to 360 instead of turning. Where `@property` is unsupported the
+   name still renders — it just holds a static angle. */
+@property --name-glow-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* Timing only. Which keyframes run, and in which direction, rides inline
+   from `nameGlowProps` — so adding a motion never touches this file. */
+.name-glow {
+  animation-duration: 6s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes name-glow-rotate {
+  to {
+    --name-glow-angle: 360deg;
+  }
+}
+
+@keyframes name-glow-sweep {
+  to {
+    background-position: 200% center;
+  }
+}
+
+@keyframes name-glow-sweep-y {
+  to {
+    background-position: center 200%;
+  }
+}
+
+/* Breathes rather than loops: it runs `alternate`, so it eases back out
+   instead of snapping from full size to nothing. */
+@keyframes name-glow-radial {
+  from {
+    background-size: 120% 120%;
+  }
+  to {
+    background-size: 320% 320%;
+  }
+}
+
 /* ── Reduced motion ───────────────────────────────────────────────────
    Primary rules key off `data-reduce-motion`, which the pre-paint script
    in `routes/__root.tsx` stamps from the stored pref coalesced with the
@@ -852,7 +904,8 @@ html[data-reduce-motion="true"]::view-transition-group(*) {
 }
 html[data-reduce-motion="true"] .animate-scanlines,
 html[data-reduce-motion="true"] .animate-logo-sweep,
-html[data-reduce-motion="true"] .animate-terminal-blink {
+html[data-reduce-motion="true"] .animate-terminal-blink,
+html[data-reduce-motion="true"] .name-glow {
   animation: none !important;
 }
 /* The header cuts rather than slides here, so its riders have to cut with it. */
@@ -867,7 +920,8 @@ html[data-reduce-motion="true"] .header-follow-inset {
   html:not([data-reduce-motion="false"])::view-transition-group(*),
   html:not([data-reduce-motion="false"]) .animate-scanlines,
   html:not([data-reduce-motion="false"]) .animate-logo-sweep,
-  html:not([data-reduce-motion="false"]) .animate-terminal-blink {
+  html:not([data-reduce-motion="false"]) .animate-terminal-blink,
+  html:not([data-reduce-motion="false"]) .name-glow {
     animation: none !important;
   }
   html:not([data-reduce-motion="false"]) .header-follow,

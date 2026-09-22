@@ -52,6 +52,12 @@ export const profileIdentityColumns = {
   // Feeds the rank badge (`guildRankOf`) beside the name; already public
   // through `getProfile`, so nothing new leaks by riding every byline.
   guildRoles: bylineGuildRoles(),
+  // The booster name glow, beside the rank chip it sits with. Projected as a
+  // boolean rather than the boost timestamp: a name treatment only needs to
+  // know whether they boost, and the exact date is nobody's business.
+  nameGlowColors: developerProfiles.nameGlowColors,
+  nameGlowMotion: developerProfiles.nameGlowMotion,
+  isBooster: sql<boolean>`${developerProfiles.discordBoosterSince} is not null`,
   urlStub: profileUrlStubs.stub,
 };
 

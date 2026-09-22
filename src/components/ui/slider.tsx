@@ -4,6 +4,7 @@ import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import * as React from "react";
 
 import { APP_LOCALE } from "@/lib/format-date";
+import { SLIDER_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 type TickConfig = {
@@ -89,6 +90,7 @@ function Slider({
             <SliderPrimitive.Thumb
               data-slot="slider-thumb"
               key={index}
+              {...SLIDER_CUES}
               className="chonk-emboss relative block size-3.5 shrink-0 rounded border border-ring bg-white transition-all select-none [--chonk-lift-hover:2px] [--chonk-lift:1px] after:absolute after:-inset-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
             />
           ))}

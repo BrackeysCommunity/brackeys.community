@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!--
+    The tab strip follows the OS, not the site's theme picker, so the mark
+    adapts here rather than through `media` on the <link>: that attribute is
+    ignored by enough browsers that a second, differently-tinted <link> ends
+    up chosen on its own merits, and a white mark lands on white chrome.
+
+    Geometry is the same as brackeys-logo.svg, which can't carry this because
+    it is also a CSS mask (a mask reads alpha, and a <style> block that flips
+    fill would be dead weight there) and the schema.org logo.
+  -->
+  <style>
+    rect { fill: #101828 }
+    @media (prefers-color-scheme: dark) { rect { fill: #ffffff } }
+  </style>
+  <g transform="translate(128,128) rotate(-45)">
+    <!-- left -->
+    <rect x="-80" y="-80" width="45" height="160"/>
+    <rect x="-80" y="-80" width="75" height="40"/>
+    <rect x="-80" y="40" width="75" height="40"/>
+
+    <!-- right -->
+    <rect x="35" y="-80" width="45" height="160"/>
+    <rect x="5" y="-80" width="75" height="40"/>
+    <rect x="5" y="40" width="75" height="40"/>
+  </g>
+</svg>

@@ -7,8 +7,10 @@ import { Censored } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatRate } from "@/lib/format-rate";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
+import { nameGlowProps, resolveNameGlow } from "@/lib/name-glow";
 import { profileLinkParams } from "@/lib/profile-links";
 import { timezoneOffsetLabel } from "@/lib/timezones";
+import { cn } from "@/lib/utils";
 import type { client } from "@/orpc/client";
 
 import { availabilityLabel } from "./members-filters";
@@ -42,6 +44,11 @@ const CARD_CHIPS = 5;
 export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember; rank?: number }) {
   const identity = useMemberIdentity();
   const name = identity.name(member, "Unknown");
+  const glow = resolveNameGlow({
+    nameGlowColors: member.nameGlowColors,
+    isBooster: member.isBooster,
+    guildRoles: member.guildRoles,
+  });
   // Hire terms, not profile facts: closed, they are not on offer.
   const rate = member.availableForWork
     ? formatRate(member.rateType, member.rateMin, member.rateMax, {
@@ -92,7 +99,11 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
               bold
               size="sm"
               ellipsis
-              className="min-w-0 flex-1 tracking-wider text-foreground uppercase"
+              className={cn(
+                "min-w-0 flex-1 tracking-wider text-foreground uppercase",
+                nameGlowProps(glow, member.nameGlowMotion).className,
+              )}
+              style={nameGlowProps(glow, member.nameGlowMotion).style}
             >
               {name}
             </Text>

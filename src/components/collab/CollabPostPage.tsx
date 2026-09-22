@@ -62,6 +62,7 @@ import { BACKDROP_TRANSFORM } from "@/lib/itch-image";
 import { formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
 import { fadeLeft, fadeUp } from "@/lib/motion";
+import { nameGlowProps, resolveNameGlow } from "@/lib/name-glow";
 import { profileLinkParams } from "@/lib/profile-links";
 import { projectLinkParams, projectTypeLabel } from "@/lib/project-links";
 import { teamLinkParams } from "@/lib/team-links";
@@ -131,6 +132,13 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
     discordShare,
     viewerOverlap,
   } = usePostViewerState(postId, post, currentUserId);
+  const authorGlow = post.author
+    ? resolveNameGlow({
+        nameGlowColors: post.author.nameGlowColors,
+        isBooster: post.author.isBooster,
+        guildRoles: post.author.guildRoles,
+      })
+    : null;
   const isClosed = post.status !== "recruiting";
   const now = useDateNow();
   const closesIn =
@@ -336,6 +344,8 @@ export function CollabPostPage({ initialPost }: { initialPost: CollabPostDetailD
                 <CrewTile
                   label="POSTED BY"
                   title={`@${post.author.discordUsername ?? "unknown"}`}
+                  titleClassName={nameGlowProps(authorGlow, post.author.nameGlowMotion).className}
+                  titleStyle={nameGlowProps(authorGlow, post.author.nameGlowMotion).style}
                   caption={post.author.tagline}
                   avatar={
                     <UserAvatar

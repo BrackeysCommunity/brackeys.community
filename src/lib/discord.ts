@@ -145,6 +145,8 @@ const DEFAULT_BACKOFF_SECONDS = 30;
 const MAX_BACKOFF_SECONDS = 900;
 const MEMBER_CACHE_TTL_SECONDS = 600;
 const NON_MEMBER_CACHE_TTL_SECONDS = 120;
+const BOOSTING_CACHE_TTL_SECONDS = 600;
+const NOT_BOOSTING_CACHE_TTL_SECONDS = 300;
 // Asymmetric: the negative must not pin an un-ban for half an hour.
 const GUILD_BAN_CACHE_TTL_SECONDS = 1800;
 const NOT_GUILD_BANNED_CACHE_TTL_SECONDS = 300;
@@ -380,6 +382,81 @@ export async function isGuildMember(discordUserId: string): Promise<boolean> {
     return false;
   }
   return false;
+}
+
+function boostCacheKey(discordUserId: string): string {
+  return `discord:guild-boost:${discordUserId}`;
+}
+
+/** `undefined` is a cache miss; `null` is a cached "not boosting". */
+async function readCachedBoost(discordUserId: string): Promise<Date | null | undefined> {
+  try {
+    const redis = await getRedis();
+    const cached = await redis.get(boostCacheKey(discordUserId));
+    if (cached === null) return undefined;
+    return cached === "0" ? null : new Date(cached);
+  } catch {
+    return undefined;
+  }
+}
+
+async function writeCachedBoost(discordUserId: string, since: Date | null): Promise<void> {
+  try {
+    const redis = await getRedis();
+    await redis.set(
+      boostCacheKey(discordUserId),
+      since ? since.toISOString() : "0",
+      "EX",
+      since ? BOOSTING_CACHE_TTL_SECONDS : NOT_BOOSTING_CACHE_TTL_SECONDS,
+    );
+  } catch {
+    // Cache is an optimization — answers must not depend on Redis.
+  }
+}
+
+/**
+ * When this member's current server boost began, or null if they aren't
+ * boosting. **Undefined means Discord didn't say** — rate limited, down, or
+ * an error — and the caller must leave whatever it already stored alone
+ * rather than read the silence as "stopped boosting".
+ *
+ * This needs the bot token even though guild sync already holds a member
+ * payload: the OAuth `users/@me/guilds/{id}/member` endpoint does not carry
+ * `premium_since`, so boosting is invisible on that route. Verified against
+ * a member Discord reports as boosting — the bot endpoint returns the date,
+ * the OAuth one omits the field entirely.
+ */
+export async function fetchBoostingSince(discordUserId: string): Promise<Date | null | undefined> {
+  const cached = await readCachedBoost(discordUserId);
+  if (cached !== undefined) return cached;
+
+  const guildId = process.env.DISCORD_GUILD_ID!;
+  const botToken = process.env.DISCORD_BOT_TOKEN!;
+  if (!guildId || !botToken) return undefined;
+
+  let response: Response;
+  try {
+    response = await discordFetch(
+      `https://discord.com/api/v10/guilds/${guildId}/members/${discordUserId}`,
+      { headers: { Authorization: `Bot ${botToken}` } },
+    );
+  } catch {
+    return undefined;
+  }
+
+  if (response.ok) {
+    const member = (await response.json()) as { premium_since?: string | null };
+    const since = member.premium_since ? new Date(member.premium_since) : null;
+    await writeCachedBoost(discordUserId, since);
+    return since;
+  }
+  // 404 is a member the guild doesn't have, which is a definitive "not
+  // boosting". Anything else (429, 5xx) says nothing worth caching.
+  if (response.status === 404) {
+    await writeCachedBoost(discordUserId, null);
+    return null;
+  }
+  return undefined;
 }
 
 function banCacheKey(discordUserId: string): string {

@@ -17,6 +17,7 @@ import {
   type ContributionSource,
 } from "@/lib/contributions";
 import { formatCount } from "@/lib/format-count";
+import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
@@ -136,8 +137,13 @@ function useSnakeGame(cols: number, initialFood: Set<string>) {
     }
   }, []);
 
+  // Clearing the board is the win, and it's derived rather than stored:
+  // `score > 0` is what keeps a profile with no contributions — an empty
+  // board from the first frame — from winning before a single move.
+  const won = started && !gameOver && score > 0 && food.size === 0;
+
   useEffect(() => {
-    if (!started || gameOver) return;
+    if (!started || gameOver || won) return;
     const interval = setInterval(() => {
       if (queuedDir.current) {
         setDir(queuedDir.current);
@@ -172,7 +178,7 @@ function useSnakeGame(cols: number, initialFood: Set<string>) {
       });
     }, TICK_MS);
     return () => clearInterval(interval);
-  }, [started, gameOver, cols, food]);
+  }, [started, gameOver, won, cols, food]);
 
   const snakeSet = useMemo(() => {
     const s = new Map<string, "head" | "body">();
@@ -191,12 +197,12 @@ function useSnakeGame(cols: number, initialFood: Set<string>) {
     setStarted(false);
   };
 
-  return { snake, snakeSet, food, score, gameOver, started, handleKey, restart };
+  return { snake, snakeSet, food, score, gameOver, won, started, handleKey, restart };
 }
 
 // ── Unified Calendar / Snake Grid ───────────────────────────────────────────
 
-function CalendarGrid({
+export function CalendarGrid({
   weeks,
   totalContributions,
   maxCount,
@@ -247,6 +253,27 @@ function CalendarGrid({
   }, [weeks, cols]);
 
   const game = useSnakeGame(cols, initialFood);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
+
+  // party.js is pulled in only once someone actually clears a board, so the
+  // profile route doesn't carry a particle engine for a game most visitors
+  // never start. It reads the DOM on first use, hence the dynamic import.
+  useEffect(() => {
+    if (!playing || !game.won || reducedMotion) return;
+    let cancelled = false;
+    void (async () => {
+      // `.default` rather than a named import: the package re-exports its
+      // templates through `__exportStar`, which the CJS interop can't see.
+      const party = (await import("party-js")).default;
+      const board = boardRef.current;
+      if (cancelled || !board) return;
+      party.confetti(board, { count: party.variation.range(40, 60) });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [playing, game.won, reducedMotion]);
 
   useEffect(() => {
     if (!playing) return;
@@ -268,7 +295,7 @@ function CalendarGrid({
   const labelLeader = (content: React.ReactNode) => (showDayLabels ? <>{content}</> : null);
 
   return (
-    <div className="relative w-full min-w-0 space-y-1.5">
+    <div ref={boardRef} className="relative w-full min-w-0 space-y-1.5">
       {hideHeader ? null : (
         <div className="flex items-baseline justify-between">
           <span
@@ -393,6 +420,23 @@ function CalendarGrid({
           <span className="animate-pulse font-mono text-[10px] tracking-wider text-foreground/60 drop-shadow-md">
             Arrow keys to start
           </span>
+        </div>
+      )}
+      {playing && game.won && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 rounded-sm bg-background/70 backdrop-blur-[2px]">
+          <span className="font-mono text-[10px] font-bold tracking-widest text-success uppercase">
+            Board Cleared
+          </span>
+          <span className="font-mono text-[10px] text-muted-foreground/50">
+            Every contribution eaten — {game.score}
+          </span>
+          <button
+            type="button"
+            onClick={game.restart}
+            className="mt-0.5 font-mono text-[9px] tracking-wider text-primary/60 uppercase transition-colors hover:text-primary"
+          >
+            Play again
+          </button>
         </div>
       )}
       {playing && game.gameOver && (

@@ -128,6 +128,21 @@ export const developerProfiles = userSchema.table(
     guildAvatarUrl: text("guild_avatar_url"),
     guildJoinedAt: timestamp("guild_joined_at"),
     guildRoles: text("guild_roles").array(),
+    /** When the member's current server boost began; null when they aren't
+     *  boosting. Discord reports boosting on the member payload rather than
+     *  as a role, so this can't be read off `guildRoles`. Refreshed by guild
+     *  sync, which means it lags a lapsed boost until their next sign-in. */
+    discordBoosterSince: timestamp("discord_booster_since"),
+    /** A booster's chosen name glow: one to three `#rrggbb` stops, swept as a
+     *  rotating gradient. Stops are equidistant by construction, so only the
+     *  colours are stored, in order. Stored as picked and clamped at render —
+     *  see `@/lib/name-glow` — so moving the legibility band later doesn't
+     *  need a backfill. Null means the default name treatment. */
+    nameGlowColors: text("name_glow_colors").array(),
+    /** How that gradient moves — one of `NAME_GLOW_MOTIONS` in
+     *  `@/lib/name-glow`. Null reads as the default sweep, so a member who
+     *  picked colours before motion was a choice keeps what they had. */
+    nameGlowMotion: text("name_glow_motion"),
     bio: text("bio"),
     tagline: text("tagline"),
     githubUrl: text("github_url"),

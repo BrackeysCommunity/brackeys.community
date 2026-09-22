@@ -31,6 +31,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { GlowStopPicker } from "@/components/profile/ProfilePage/GlowStopPicker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
   SelectContent,
@@ -73,6 +75,15 @@ import { useRolesCatalog } from "@/lib/hooks/use-taxonomy";
 import { startItchOAuth } from "@/lib/itchio-oauth";
 import { AVAILABILITY_OPTIONS } from "@/lib/member-vocabulary";
 import { stepBody, stepBodyTransition } from "@/lib/motion";
+import {
+  MAX_GLOW_STOPS,
+  NAME_GLOW_MOTION_LABELS,
+  NAME_GLOW_MOTIONS,
+  type NameGlowMotion,
+  nameGlowProps,
+  normalizeGlowMotion,
+  resolveNameGlow,
+} from "@/lib/name-glow";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { PAGE_CUES } from "@/lib/sound";
 import { allTimezones, browserTimezone, timezoneOffsetLabel } from "@/lib/timezones";
@@ -106,6 +117,9 @@ interface StepDef {
   title: string;
   hint: string;
 }
+
+/** What the swatch opens on before a booster has chosen anything. */
+const DEFAULT_GLOW_SWATCH = "#7f5af0";
 
 const STEPS: StepDef[] = [
   { step: 1, title: "IDENTITY", hint: "name, roles, timezone, profile URL" },
@@ -479,9 +493,120 @@ function IdentityStep({ profile, queryKey, save }: StepProps) {
           placeholder="city, country, or vibe"
         />
       </FieldRow>
+      {profile.canUseNameGlow ? (
+        <NameGlowField profile={profile} queryKey={queryKey} save={save} />
+      ) : null}
       <ProfileUrlField profile={profile} queryKey={queryKey} save={save} />
     </StepFrame>
   );
+}
+
+/** The name glow: up to three stops, and how they move. Only mounted for
+ *  members entitled to one — the server refuses the write for anyone else, so
+ *  showing the control to them would be a lie. */
+function NameGlowField({ profile, queryKey, save }: StepProps) {
+  const update = useUpdateProfile(queryKey, save);
+  // Serialised through the shared autosave field rather than saved per change:
+  // a slider drag is one decision, and a write per frame is a request storm.
+  const field = useAutosavedField((profile.nameGlowColors ?? []).join(","), (value) => {
+    const next = splitStops(value);
+    return update.mutateAsync({ nameGlowColors: next.length > 0 ? next : null });
+  });
+  const stops = splitStops(field.value);
+  // Held locally so the strip and the preview move on the press. Reading the
+  // motion back off `profile` means waiting for the write *and* the query
+  // that follows it, which is a visible lag on what should feel like a
+  // toggle. The draft stands once set — it is what the member chose.
+  const [motionDraft, setMotionDraft] = useState<NameGlowMotion | null>(null);
+  const motion = motionDraft ?? normalizeGlowMotion(profile.nameGlowMotion);
+  // The field only mounts for an entitled member, so the preview asserts
+  // entitlement rather than re-deriving it from roles it doesn't hold.
+  const glow = nameGlowProps(resolveNameGlow({ nameGlowColors: stops, isBooster: true }), motion);
+
+  /** Adding, removing and clearing are single presses, so they skip the
+   *  debounce the sliders need. */
+  const commit = (next: string[]) => {
+    field.onChange(next.join(","));
+    field.onBlur();
+  };
+
+  return (
+    <FieldRow
+      label="NAME GLOW"
+      hint="booster & staff perk — up to three colours, evenly spaced"
+      action={
+        stops.length > 0 ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => commit([])}
+            tooltip="Back to the default name colour"
+          >
+            CLEAR
+          </Button>
+        ) : null
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {stops.map((stop, index) => (
+            <GlowStopPicker
+              key={index}
+              index={index}
+              value={stop}
+              onChange={(hex) =>
+                field.onChange(stops.map((c, n) => (n === index ? hex : c)).join(","))
+              }
+              onCommit={field.onBlur}
+              onRemove={() => commit(stops.filter((_, n) => n !== index))}
+            />
+          ))}
+          {stops.length < MAX_GLOW_STOPS ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 tracking-widest"
+              onClick={() => commit([...stops, DEFAULT_GLOW_SWATCH])}
+            >
+              {stops.length === 0 ? "+ COLOUR" : "+ STOP"}
+            </Button>
+          ) : null}
+          <span
+            className={cn("ml-auto truncate text-lg font-semibold tracking-tight", glow.className)}
+            style={glow.style}
+          >
+            {profile.name}
+          </span>
+        </div>
+
+        {/* A single stop is a flat colour, so there is nothing to move yet. */}
+        {stops.length > 1 ? (
+          <SegmentedControl
+            value={motion}
+            onChange={(next) => {
+              const chosen = normalizeGlowMotion(next);
+              setMotionDraft(chosen);
+              update.mutate({ nameGlowMotion: chosen });
+            }}
+            aria-label="Name glow motion"
+            className="w-full"
+          >
+            {NAME_GLOW_MOTIONS.map((option) => (
+              <SegmentedControl.Item key={option} value={option} className="tracking-widest">
+                {NAME_GLOW_MOTION_LABELS[option]}
+              </SegmentedControl.Item>
+            ))}
+          </SegmentedControl>
+        ) : null}
+      </div>
+    </FieldRow>
+  );
+}
+
+/** The stop list as the autosave field carries it — one string, so the shared
+ *  hook's "did this actually change" check stays a string comparison. */
+function splitStops(value: string): string[] {
+  return value ? value.split(",").filter(Boolean) : [];
 }
 
 /**

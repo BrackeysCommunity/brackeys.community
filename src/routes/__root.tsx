@@ -133,21 +133,11 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       // preload scanner to start one.
       { rel: "preconnect", href: posthogIngestHost() },
       { rel: "preconnect", href: DISCORD_CDN_ORIGIN, crossOrigin: "anonymous" },
-      // Support for `media` on `rel="icon"` is patchy; without this entry a
-      // browser that ignores it picks whichever SVG it saw last, or nothing.
+      // One icon per format, and the SVG does its own light/dark switching
+      // internally. Splitting that across two `media`-scoped links instead
+      // leaves whichever browser ignores `media` free to pick the wrong one.
       { rel: "icon", href: "/favicon.ico", sizes: "any" },
-      {
-        rel: "icon",
-        type: "image/svg+xml",
-        href: "/brackeys-logo.svg",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        rel: "icon",
-        type: "image/svg+xml",
-        href: "/brackeys-logo-inverted.svg",
-        media: "(prefers-color-scheme: dark)",
-      },
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
       { rel: "manifest", href: "/manifest.json" },
       {

@@ -80,6 +80,9 @@ type CommentAuthor = {
   avatarUrl: string | null;
   guildAvatarUrl: string | null;
   guildRoles: string[] | null;
+  nameGlowColors: string[] | null;
+  nameGlowMotion: string | null;
+  isBooster: boolean;
   urlStub: string | null;
 };
 
@@ -118,6 +121,9 @@ async function authorsByIds(userIds: string[]): Promise<Map<string, CommentAutho
         avatarUrl: p.avatarUrl,
         guildAvatarUrl: p.guildAvatarUrl,
         guildRoles: p.guildRoles,
+        nameGlowColors: p.nameGlowColors,
+        nameGlowMotion: p.nameGlowMotion,
+        isBooster: p.isBooster,
         urlStub: p.urlStub,
       },
     ]),

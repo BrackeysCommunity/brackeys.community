@@ -50,6 +50,7 @@ import {
 import { jamUrl } from "@/lib/jam-links";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { type ModOverride } from "@/lib/moderation-policy";
+import { MAX_GLOW_STOPS, NAME_GLOW_MOTIONS, normalizeGlowColor } from "@/lib/name-glow";
 import { notify } from "@/lib/notifications";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
@@ -519,7 +520,11 @@ async function buildPublicProfile(profile: typeof developerProfiles.$inferSelect
   // leaves here: `website_verification_token` is what proves domain control,
   // and anyone holding it could place it on a host they own and claim
   // someone else's site. The owner reads it through `getWebsiteVerification`.
-  const { websiteVerificationToken: _token, ...publicProfile } = profile;
+  // `discordBoosterSince` comes out for a milder reason: the page only needs
+  // to know whether they boost, so it ships as a boolean rather than handing
+  // every visitor the date someone started paying Discord.
+  const { websiteVerificationToken: _token, discordBoosterSince, ...rest } = profile;
+  const publicProfile = { ...rest, isBooster: discordBoosterSince != null };
 
   const [
     skillList,
@@ -735,6 +740,30 @@ async function websiteStampPatch(
   return { websiteVerifiedAt: null, websiteVerifiedHost: null };
 }
 
+/**
+ * Who may set a name glow: boosters and staff.
+ *
+ * Boosting is read off the profile rather than the session — `guildRoles`
+ * never carries it, since Discord reports boosting on the member payload, so
+ * the stamp guild sync writes is the only record the site has. Roles go
+ * through `resolveUserRoles` so the `ADMIN_DISCORD_IDS` break-glass counts
+ * here the same way it does everywhere else.
+ */
+async function assertGlowEligible(userId: string): Promise<void> {
+  const [profile] = await db
+    .select({ boosterSince: developerProfiles.discordBoosterSince })
+    .from(developerProfiles)
+    .where(eq(developerProfiles.id, userId))
+    .limit(1);
+  if (profile?.boosterSince) return;
+
+  if (isStaffMember(await resolveUserRoles(userId))) return;
+
+  throw new ORPCError("FORBIDDEN", {
+    message: "Name glows are for server boosters and staff.",
+  });
+}
+
 export const updateProfile = os
   .use(requireAuth)
   .input(
@@ -758,6 +787,20 @@ export const updateProfile = os
         // The people lane is the availability listing, so what an "I'm
         // available" post would have said lives on the profile instead.
         lookingFor: z.string().max(280).optional().nullable(),
+        // Stored as picked; the legibility clamp happens at render. Null
+        // clears it, which stays open to everyone so a lapsed booster can
+        // take their glow off without having to boost again first.
+        nameGlowColors: z
+          .array(
+            z.string().refine((value) => normalizeGlowColor(value) != null, {
+              message: "Expected a colour like #7f5af0.",
+            }),
+          )
+          .min(1)
+          .max(MAX_GLOW_STOPS)
+          .optional()
+          .nullable(),
+        nameGlowMotion: z.enum(NAME_GLOW_MOTIONS).optional().nullable(),
         collabPreference: collabPreferenceSchema.optional().nullable(),
         profileNotesEnabled: z.boolean().optional(),
         // IANA name, validated below — a zod enum over ~430 zone names would
@@ -796,6 +839,12 @@ export const updateProfile = os
     );
 
     await assertRatePairOrdered(userId, input);
+    // The update below spreads `input` wholesale, so the perk has to be
+    // gated here or the column is writable by anyone who can reach the
+    // endpoint — passing zod says the colour is well-formed, not earned.
+    if (input.nameGlowColors != null || input.nameGlowMotion != null) {
+      await assertGlowEligible(userId);
+    }
 
     const stampPatch = await websiteStampPatch(userId, input.websiteUrl);
 

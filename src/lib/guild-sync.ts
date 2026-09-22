@@ -7,6 +7,7 @@ import { openBetterAuthToken } from "@/lib/better-auth-tokens";
 import {
   discordAvatarUrl,
   discordGuildAvatarUrl,
+  fetchBoostingSince,
   fetchDiscordUser,
   fetchGuildMember,
   isDiscordAvatarUrl,
@@ -38,6 +39,10 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
   // clear a guild avatar we already stored, but a successful one with no
   // avatar on it means they removed theirs, and that has to land as null.
   let guildAvatarUrl: string | null | undefined;
+  // Same three-state reason as the avatar above: `fetchBoostingSince` answers
+  // null for a member who has stopped boosting — which must clear the stamp —
+  // and undefined when Discord didn't say, which must leave it alone.
+  let discordBoosterSince: Date | null | undefined;
   let latestDiscordAvatarUrl: string | null = null;
   let latestDiscordUsername: string | null = null;
 
@@ -68,6 +73,11 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
       } catch {
         // User not in guild (or rate limited) — continue without guild data
       }
+      // Its own call on purpose: boosting is absent from the OAuth member
+      // payload above, so the bot token is the only route to it. Cached in
+      // Redis by `fetchBoostingSince`, and sync runs on session create, so
+      // this is nowhere near Discord's rate limits.
+      discordBoosterSince = await fetchBoostingSince(discordId);
       if (!latestDiscordAvatarUrl) {
         const discordUser = await fetchDiscordUser(discordToken);
         latestDiscordAvatarUrl = discordAvatarUrl(discordUser);
@@ -105,6 +115,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
       guildAvatarUrl: guildAvatarUrl ?? null,
       guildJoinedAt,
       guildRoles,
+      discordBoosterSince: discordBoosterSince ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -121,6 +132,7 @@ export async function syncDiscordProfile(userId: string): Promise<{ guildRolesSy
         guildAvatarUrl,
         guildJoinedAt: guildJoinedAt ?? undefined,
         guildRoles: guildRoles ?? undefined,
+        discordBoosterSince,
         updatedAt: new Date(),
       },
     });

@@ -112,3 +112,105 @@ describe("MemberDirectoryCard guild rank", () => {
     expect(screen.queryByTestId("rank-badge")).toBeNull();
   });
 });
+
+describe("the booster name glow on a directory tile", () => {
+  function nameEl() {
+    return screen.getByText("yasahiro");
+  }
+
+  it("paints a single-stop glow as a flat colour", () => {
+    render(
+      <MemberDirectoryCard member={member({ nameGlowColors: ["#4f9dd9"], isBooster: true })} />,
+    );
+    expect(nameEl().style.color).toBe("rgb(79, 157, 217)");
+  });
+
+  // Two or more stops become the rotating gradient, which paints through
+  // background-clip — so the text itself goes transparent.
+  it("paints multiple stops as a gradient", () => {
+    render(
+      <MemberDirectoryCard
+        member={member({ nameGlowColors: ["#4f9dd9", "#d94f9d"], isBooster: true })}
+      />,
+    );
+    const el = nameEl();
+    expect(el.className).toContain("name-glow");
+    expect(el.style.color).toBe("transparent");
+    expect(el.style.backgroundImage).toContain("--name-glow-stops");
+  });
+
+  // The gradient wraps back to its first colour so the sweep has no seam
+  // when the angle comes round.
+  // The byline carries the motion alongside the colours; before it did, every
+  // surface but the edit preview silently fell back to the default sweep.
+  it("honours the member's chosen motion", () => {
+    render(
+      <MemberDirectoryCard
+        member={member({
+          nameGlowColors: ["#4f9dd9", "#d94f9d"],
+          nameGlowMotion: "still",
+          isBooster: true,
+        })}
+      />,
+    );
+    expect(nameEl().style.animationName).toBe("");
+  });
+
+  // Staff earn it by rank, so a directory tile has to honour the roles it
+  // already carries for the chip.
+  it("paints a moderator's glow without a boost", () => {
+    render(
+      <MemberDirectoryCard
+        member={member({
+          nameGlowColors: ["#4f9dd9"],
+          isBooster: false,
+          guildRoles: ["Moderator"],
+        })}
+      />,
+    );
+    expect(nameEl().style.color).toBe("rgb(79, 157, 217)");
+  });
+
+  it("leaves a community rank alone", () => {
+    render(
+      <MemberDirectoryCard
+        member={member({ nameGlowColors: ["#4f9dd9"], isBooster: false, guildRoles: ["BIP"] })}
+      />,
+    );
+    expect(nameEl().style.color).toBe("");
+  });
+
+  it("repeats the first stop so the sweep has no seam", () => {
+    render(
+      <MemberDirectoryCard
+        member={member({ nameGlowColors: ["#4f9dd9", "#d94f9d"], isBooster: true })}
+      />,
+    );
+    const stops = nameEl().style.getPropertyValue("--name-glow-stops");
+    expect(stops.split(",").map((s) => s.trim())).toEqual(["#4f9dd9", "#d94f9d", "#4f9dd9"]);
+  });
+
+  // The perk is re-checked at render, so a lapsed boost drops the treatment
+  // without anyone having to clear the stored colours.
+  it("leaves a lapsed booster's name alone", () => {
+    render(
+      <MemberDirectoryCard member={member({ nameGlowColors: ["#4f9dd9"], isBooster: false })} />,
+    );
+    expect(nameEl().style.color).toBe("");
+  });
+
+  it("leaves a booster who picked nothing alone", () => {
+    render(<MemberDirectoryCard member={member({ nameGlowColors: null, isBooster: true })} />);
+    expect(nameEl().style.color).toBe("");
+  });
+
+  // A near-black pick must not render as near-black, or it vanishes on the
+  // dark themes the site ships by default.
+  it("clamps an unreadable pick instead of honouring it literally", () => {
+    render(
+      <MemberDirectoryCard member={member({ nameGlowColors: ["#000000"], isBooster: true })} />,
+    );
+    expect(nameEl().style.color).not.toBe("rgb(0, 0, 0)");
+    expect(nameEl().style.color).not.toBe("");
+  });
+});

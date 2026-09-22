@@ -44,6 +44,7 @@ import {
   type MemberViewer,
 } from "@/lib/member-name";
 import { toastMutationError } from "@/lib/mutation-errors";
+import { nameGlowProps, resolveNameGlow } from "@/lib/name-glow";
 import { reportMutationError } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
 import { toast } from "@/lib/toast";
@@ -86,7 +87,14 @@ type ThreadData = InfiniteData<ThreadResponse>;
  */
 function optimisticComment(
   user: { id: string; name?: string | null; image?: string | null },
-  self: (MemberIdentityFields & { guildRoles?: string[] | null }) | null,
+  self:
+    | (MemberIdentityFields & {
+        guildRoles?: string[] | null;
+        nameGlowColors?: string[] | null;
+        nameGlowMotion?: string | null;
+        isBooster?: boolean;
+      })
+    | null,
   viewer: MemberViewer,
   parent: CommentRow | undefined,
   content: string,
@@ -115,6 +123,11 @@ function optimisticComment(
       avatarUrl,
       guildAvatarUrl: null,
       guildRoles: self?.guildRoles ?? null,
+      // Unset until the server row lands, so a booster's own pending comment
+      // simply doesn't glow yet rather than guessing a colour.
+      nameGlowColors: self?.nameGlowColors ?? null,
+      nameGlowMotion: self?.nameGlowMotion ?? null,
+      isBooster: self?.isBooster ?? false,
       urlStub: null,
     },
     viewer: { isMine: true, canEdit: true, canDelete: true },
@@ -827,6 +840,13 @@ function CommentItem({
   }
 
   const authorName = comment.author?.name ?? "Deleted User";
+  const authorGlow = comment.author
+    ? resolveNameGlow({
+        nameGlowColors: comment.author.nameGlowColors,
+        isBooster: comment.author.isBooster,
+        guildRoles: comment.author.guildRoles,
+      })
+    : null;
 
   return (
     <div
@@ -858,7 +878,11 @@ function CommentItem({
           <RouterLink
             to="/profile/$userId"
             params={profileLinkParams({ id: comment.author.id, urlStub: comment.author.urlStub })}
-            className="font-mono text-[10px] tracking-widest uppercase transition-colors hover:text-primary"
+            className={cn(
+              "font-mono text-[10px] tracking-widest uppercase transition-colors hover:text-primary",
+              nameGlowProps(authorGlow, comment.author.nameGlowMotion).className,
+            )}
+            style={nameGlowProps(authorGlow, comment.author.nameGlowMotion).style}
           >
             {authorName}
           </RouterLink>

@@ -3,7 +3,6 @@ import { createAuthClient } from "better-auth/react";
 
 import {
   openDiscordAuthorize,
-  rememberedSigninRoute,
   type SigninRoute,
   withDiscordAppReturn,
 } from "@/lib/discord-app-login";
@@ -38,7 +37,9 @@ type SignInWithDiscordOptions = SocialSignInOptions & {
    * `@/lib/discord-app-login`) so the account is the one the app is signed
    * into, not whatever discord.com session the browser holds. `"web"` is the
    * plain browser flow. Unset, the browser's remembered route wins, and a
-   * browser with no history starts on the app.
+   * browser with no history starts on the web flow — the handoff to the
+   * desktop client is a prompt most people do not need, and a browser that
+   * completes it once is remembered from then on.
    */
   via?: SigninRoute;
 };
@@ -75,7 +76,8 @@ type SignInWithDiscordOptions = SocialSignInOptions & {
  */
 export async function signInWithDiscord(source: SigninSource, options?: SignInWithDiscordOptions) {
   const { via: viaOption, ...socialOptions } = options ?? {};
-  const via = viaOption ?? rememberedSigninRoute() ?? "app";
+  // const via = viaOption ?? rememberedSigninRoute() ?? "web";
+  const via = viaOption ?? "web";
   const signinAttemptId = newSigninAttemptId();
   captureEvent(EVENTS.authSigninStarted, {
     source,

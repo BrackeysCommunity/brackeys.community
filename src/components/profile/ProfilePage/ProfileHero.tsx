@@ -16,6 +16,7 @@ import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
 import { toastMutationError } from "@/lib/mutation-errors";
+import { nameGlowProps } from "@/lib/name-glow";
 import { play } from "@/lib/sound";
 import { timezoneOffsetLabel } from "@/lib/timezones";
 import { toast } from "@/lib/toast";
@@ -100,7 +101,9 @@ export function ProfileHero({
               className={cn(
                 "min-w-0 leading-none tracking-tight break-words text-foreground",
                 compact ? "text-3xl" : "text-4xl",
+                nameGlowProps(profile.nameGlow, profile.nameGlowMotion).className,
               )}
+              style={nameGlowProps(profile.nameGlow, profile.nameGlowMotion).style}
             >
               {profile.name}
             </Heading>
