@@ -412,6 +412,9 @@ export type NotificationType =
   | "comment_received"
   | "comment_reply"
   | "comment_removed_by_staff"
+  | "forum_post_hidden_by_staff"
+  | "forum_post_unhidden_by_staff"
+  | "forum_post_deleted_by_staff"
   | "report_resolved"
   | "skill_request_approved"
   | "skill_request_rejected"
@@ -431,7 +434,8 @@ export type NotificationEntityType =
   | "stored_image"
   | "comment"
   | "skill_request"
-  | "jam";
+  | "jam"
+  | "forum_post";
 
 export const notifications = userSchema.table(
   "notifications",
@@ -2009,7 +2013,15 @@ export type ModerationActionType =
   | "entry_flag_dismissed"
   | "image_flag_confirmed"
   | "image_flag_dismissed"
-  | "image_rescan_requested";
+  | "image_rescan_requested"
+  | "forum_post_hidden"
+  | "forum_post_unhidden"
+  | "forum_post_pinned"
+  | "forum_post_unpinned"
+  | "forum_post_moved"
+  | "forum_post_retagged"
+  | "forum_post_deleted"
+  | "forum_post_report_dismissed";
 
 export type ModerationTargetType =
   | "comment"
@@ -2026,7 +2038,9 @@ export type ModerationTargetType =
   | "project"
   | "moderation_proposal"
   | "jam_entry"
-  | "stored_image";
+  | "stored_image"
+  | "forum_post"
+  | "forum_post_report";
 
 export const moderationActions = socialSchema.table(
   "moderation_actions",

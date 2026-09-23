@@ -196,6 +196,22 @@ export function renderNotificationText(input: {
           : `A moderator edited your profile`,
         href: "/profile",
       };
+    case "forum_post_hidden_by_staff":
+      return {
+        headline: moderationReason
+          ? `Your post "${subjectTitle}" is hidden pending review — ${moderationReason}`
+          : `Your post "${subjectTitle}" is hidden pending review`,
+        href: subjectHref,
+      };
+    case "forum_post_unhidden_by_staff":
+      return { headline: `Your post "${subjectTitle}" is visible again`, href: subjectHref };
+    case "forum_post_deleted_by_staff":
+      return {
+        headline: moderationReason
+          ? `Staff removed your post "${subjectTitle}" — ${moderationReason}`
+          : `Staff removed your post "${subjectTitle}"`,
+        href: subjectHref,
+      };
     case "comment_received":
       return { headline: `${actor} commented on "${subjectTitle}"`, href: subjectHref };
     case "comment_reply":
@@ -287,6 +303,9 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   comment_received: "Comments — new comment in a thread you follow",
   comment_reply: "Comments — someone replied to your comment",
   comment_removed_by_staff: "Moderation — your comment was removed",
+  forum_post_hidden_by_staff: "Moderation — your forum post was hidden pending review",
+  forum_post_unhidden_by_staff: "Moderation — your forum post is visible again",
+  forum_post_deleted_by_staff: "Moderation — your forum post was removed",
   report_resolved: "Moderation — a report you filed was reviewed",
   skill_request_approved: "Moderation — your skill request was approved",
   skill_request_rejected: "Moderation — your skill request wasn't approved",
@@ -326,6 +345,9 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "comment_received",
   "comment_reply",
   "comment_removed_by_staff",
+  "forum_post_hidden_by_staff",
+  "forum_post_unhidden_by_staff",
+  "forum_post_deleted_by_staff",
   "report_resolved",
   "skill_request_approved",
   "skill_request_rejected",
@@ -395,6 +417,10 @@ export const NOTIFICATION_DEFAULTS: Record<
   // sit unread for weeks, and "my comment vanished" is exactly the silence
   // that reads as the site being broken — or as staff being arbitrary.
   comment_removed_by_staff: { inApp: true, email: true, digest: false },
+  // The same silence-reads-as-broken reasoning, for a whole post.
+  forum_post_hidden_by_staff: { inApp: true, email: true, digest: false },
+  forum_post_unhidden_by_staff: { inApp: true, email: false, digest: false },
+  forum_post_deleted_by_staff: { inApp: true, email: true, digest: false },
   // Closing the loop on someone else's behaviour, not the reporter's own
   // account — worth a bell, never an inbox.
   report_resolved: { inApp: true, email: false, digest: false },
@@ -452,6 +478,9 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   comment_received: "comments",
   comment_reply: "comments",
   comment_removed_by_staff: "moderation",
+  forum_post_hidden_by_staff: "moderation",
+  forum_post_unhidden_by_staff: "moderation",
+  forum_post_deleted_by_staff: "moderation",
   report_resolved: "moderation",
   skill_request_approved: "moderation",
   skill_request_rejected: "moderation",

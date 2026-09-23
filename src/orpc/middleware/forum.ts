@@ -52,3 +52,14 @@ export const forumWrite = os.middleware(async ({ context, next }) => {
 
   return next({ context: { session, user: session.user } });
 });
+
+/**
+ * The flag half alone, for chaining after a middleware that already put a
+ * user on the context — `requireStaff` on the moderation procedures.
+ */
+export const forumEnabledForUser = os
+  .$context<{ user: { id: string } }>()
+  .middleware(async ({ context, next }) => {
+    await assertForumEnabled(context.user.id);
+    return next();
+  });

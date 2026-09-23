@@ -57,7 +57,7 @@ export function AdminRecentComments() {
     <AdminSection
       title="Recent comments"
       count={comments.isPending ? undefined : total}
-      hint="Newest first, across collab posts and profile walls."
+      hint="Newest first, across collab posts, forum posts and profile walls."
       actions={
         <SegmentedControl
           size="sm"
@@ -180,6 +180,16 @@ function CommentContext({ comment }: { comment: RecentComment }) {
       >
         in a private application thread on “{comment.subjectResponsePostTitle ?? "a collab post"}” →
       </Link>
+    );
+  }
+  if (comment.subjectType === "forum_post" && comment.subjectForumPostId != null) {
+    return (
+      <a
+        href={`/forum/${comment.subjectForumPostId}#comment-${comment.id}`}
+        className="w-fit text-xs text-muted-foreground hover:text-primary hover:underline"
+      >
+        on a forum post →
+      </a>
     );
   }
   if (comment.subjectType === "profile" && comment.subjectProfileUserId != null) {

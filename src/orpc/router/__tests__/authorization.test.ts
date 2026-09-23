@@ -95,6 +95,14 @@ const PUBLIC_PROCEDURES = new Set([
 
 /** Procedures that must refuse even a plain authenticated non-staff user. */
 const STAFF_PROCEDURES = new Set([
+  // Forum moderation (plan 42 slice 6).
+  "setForumPostHidden",
+  "setForumPostPinned",
+  "staffUpdateForumPost",
+  "staffDeleteForumPost",
+  "listForumReports",
+  "resolveForumReport",
+  "listRecentForumPosts",
   "banUser",
   "unbanUser",
   "listBans",

@@ -18,6 +18,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
@@ -25,6 +26,7 @@ import { client, orpc } from "@/orpc/client";
 type CommentReport = Awaited<ReturnType<typeof client.listCommentReports>>[number];
 type PostReport = Awaited<ReturnType<typeof client.listReports>>[number];
 type TeamReport = Awaited<ReturnType<typeof client.listTeamReports>>[number];
+type ForumReport = Awaited<ReturnType<typeof client.listForumReports>>[number];
 
 /** One report, flattened to what the stacked reason list renders. */
 type ReportEntry = {
@@ -46,7 +48,7 @@ type ReportEntry = {
  */
 type QueueGroup = {
   key: string;
-  kind: "comment" | "post" | "team";
+  kind: "comment" | "post" | "team" | "forum_post";
   /** Newest first; the head is what the action buttons act on. */
   entries: ReportEntry[];
   createdAt: Date | null;
@@ -54,6 +56,7 @@ type QueueGroup = {
   comment: CommentReport | null;
   post: PostReport | null;
   team: TeamReport | null;
+  forumPost: ForumReport | null;
 };
 
 /**
@@ -72,11 +75,18 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
   );
   const postReports = useQuery(orpc.listReports.queryOptions({ input: { includeResolved } }));
   const teamReports = useQuery(orpc.listTeamReports.queryOptions({ input: { includeResolved } }));
+  // The forum answers NOT_FOUND while its flag is off, so it isn't asked.
+  const forumOn = useFlag("forum-enabled");
+  const forumReports = useQuery({
+    ...orpc.listForumReports.queryOptions({ input: { includeResolved } }),
+    enabled: forumOn,
+  });
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: orpc.listCommentReports.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listReports.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listTeamReports.key() });
+    void queryClient.invalidateQueries({ queryKey: orpc.listForumReports.key() });
   };
 
   const resolveComment = useMutation({
@@ -99,6 +109,15 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
       client.resolveTeamReport(input),
     onSuccess: invalidate,
     onError: toastMutationError("admin.report_resolve_team"),
+  });
+  const resolveForum = useMutation({
+    mutationFn: (input: {
+      reportId: number;
+      action: "dismiss" | "hide_post" | "delete_post";
+      reason?: string;
+    }) => client.resolveForumReport(input),
+    onSuccess: invalidate,
+    onError: toastMutationError("admin.report_resolve_forum"),
   });
   // Takes the whole group, like `reopen`: junk is junk however many times it
   // was filed, and leaving the siblings behind would put the row straight back.
@@ -155,6 +174,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           comment: r,
           post: null,
           team: null,
+          forumPost: null,
         }),
         {
           id: r.id,
@@ -177,6 +197,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           comment: null,
           post: r,
           team: null,
+          forumPost: null,
         }),
         {
           id: r.id,
@@ -203,6 +224,31 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           comment: null,
           post: null,
           team: r,
+          forumPost: null,
+        }),
+        {
+          id: r.id,
+          reason: r.reason,
+          createdAt: r.createdAt,
+          reporterName: r.reporter?.displayName ?? null,
+          reporter: r.reporter,
+        },
+      );
+    }
+
+    for (const r of (forumOn ? (forumReports.data ?? []) : []).filter(inScope)) {
+      push(
+        `f-${r.postId}`,
+        () => ({
+          key: `f-${r.postId}`,
+          kind: "forum_post",
+          entries: [],
+          createdAt: r.createdAt,
+          resolvedAt: r.resolvedAt,
+          comment: null,
+          post: null,
+          team: null,
+          forumPost: r,
         }),
         {
           id: r.id,
@@ -223,13 +269,25 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
     return [...groups.values()].sort(
       (a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0),
     );
-  }, [commentReports.data, postReports.data, teamReports.data, includeResolved]);
+  }, [
+    commentReports.data,
+    postReports.data,
+    teamReports.data,
+    forumReports.data,
+    forumOn,
+    includeResolved,
+  ]);
 
-  const loading = commentReports.isPending || postReports.isPending || teamReports.isPending;
+  const loading =
+    commentReports.isPending ||
+    postReports.isPending ||
+    teamReports.isPending ||
+    (forumOn && forumReports.isPending);
   const busy =
     resolveComment.isPending ||
     resolvePost.isPending ||
     resolveTeam.isPending ||
+    resolveForum.isPending ||
     deletePostReports.isPending ||
     reopen.isPending;
 
@@ -275,7 +333,13 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge size="label" variant={row.kind === "comment" ? "secondary" : "default"}>
-                      {row.kind === "comment" ? "COMMENT" : row.kind === "team" ? "TEAM" : "POST"}
+                      {row.kind === "comment"
+                        ? "COMMENT"
+                        : row.kind === "team"
+                          ? "TEAM"
+                          : row.kind === "forum_post"
+                            ? "FORUM"
+                            : "POST"}
                     </Badge>
                     {row.kind === "team" && row.team?.teamId == null ? (
                       <Badge size="label" variant="destructive">
@@ -328,6 +392,8 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                     <CommentTarget report={row.comment} />
                   ) : row.kind === "team" && row.team ? (
                     <TeamTarget report={row.team} />
+                  ) : row.kind === "forum_post" && row.forumPost ? (
+                    <ForumTarget report={row.forumPost} />
                   ) : row.post ? (
                     <PostTarget report={row.post} />
                   ) : null}
@@ -345,7 +411,9 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                             ? "The report goes back in the open queue for another look. A comment that was already removed stays removed."
                             : row.kind === "team"
                               ? "The report goes back in the open queue for another look. A team that was already hidden stays hidden."
-                              : "The report goes back in the open queue for another look. A post that was already closed stays closed."
+                              : row.kind === "forum_post"
+                                ? "The report goes back in the open queue for another look. A post that was already hidden or removed stays that way."
+                                : "The report goes back in the open queue for another look. A post that was already closed stays closed."
                         }
                         confirmText="Reopen"
                         onConfirm={async () => {
@@ -409,6 +477,22 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                             </Button>
                           </Confirm>
                         </>
+                      ) : row.kind === "forum_post" && row.forumPost ? (
+                        <ForumActions
+                          report={row.forumPost}
+                          reportCount={row.entries.length}
+                          reason={reasons[head.id] ?? ""}
+                          onReason={(next) => setReasons((prev) => ({ ...prev, [head.id]: next }))}
+                          busy={busy}
+                          onResolve={async (action) => {
+                            const reason = reasons[head.id]?.trim();
+                            await resolveForum.mutateAsync({
+                              reportId: head.id,
+                              action,
+                              ...(reason ? { reason } : {}),
+                            });
+                          }}
+                        />
                       ) : row.kind === "team" ? (
                         <>
                           <Confirm
@@ -575,6 +659,16 @@ function ReportTargetLink({ report }: { report: CommentReport }) {
       </Link>
     );
   }
+  if (report.subjectType === "forum_post" && report.subjectForumPostId != null) {
+    return (
+      <a
+        href={`/forum/${report.subjectForumPostId}#comment-${report.commentId}`}
+        className="text-xs text-primary hover:underline"
+      >
+        View in place →
+      </a>
+    );
+  }
   if (report.subjectType === "profile" && report.subjectProfileUserId != null) {
     return (
       <Link
@@ -653,6 +747,114 @@ function PostTarget({ report }: { report: PostReport }) {
           {report.postTitle}
         </Link>
       </div>
+    </div>
+  );
+}
+
+function ForumTarget({ report }: { report: ForumReport }) {
+  return (
+    <div className="flex items-start gap-2 border-l-2 border-muted pl-3">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <AdminPerson
+          user={report.postAuthor}
+          name={report.postAuthor?.displayName ?? "Deleted user"}
+          size={24}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge size="label" variant="outline">
+            {report.postKind.toUpperCase()}
+          </Badge>
+          {report.postHiddenAt ? (
+            <Badge size="label" variant="destructive">
+              HIDDEN
+            </Badge>
+          ) : null}
+          {report.postDeletedAt ? (
+            <Badge size="label" variant="destructive">
+              REMOVED
+            </Badge>
+          ) : null}
+        </div>
+        <a href={`/forum/${report.postId}`} className="text-sm text-primary hover:underline">
+          {report.postTitle}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function ForumActions({
+  report,
+  reportCount,
+  reason,
+  onReason,
+  busy,
+  onResolve,
+}: {
+  report: ForumReport;
+  reportCount: number;
+  reason: string;
+  onReason: (next: string) => void;
+  busy: boolean;
+  onResolve: (action: "dismiss" | "hide_post" | "delete_post") => Promise<void>;
+}) {
+  const resolves =
+    reportCount > 1
+      ? `This resolves all ${reportCount} reports on it.`
+      : "This resolves the report.";
+  const reasonField = (
+    <ReasonField id={`report-reason-${report.id}`} value={reason} onChange={onReason} />
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Confirm
+        title="Dismiss this report?"
+        message="The post stays up and the report is marked resolved."
+        confirmText="Dismiss report"
+        onConfirm={() => onResolve("dismiss")}
+      >
+        <Button variant="outline" size="xs" disabled={busy}>
+          Dismiss
+        </Button>
+      </Confirm>
+      {report.postDeletedAt == null && report.postHiddenAt == null ? (
+        <Confirm
+          title="Hide this post?"
+          message={
+            <>
+              The post disappears from the forum for everyone but staff and its authors, who are
+              told why. {resolves}
+              {reasonField}
+            </>
+          }
+          confirmText="Hide post"
+          variant="destructive"
+          onConfirm={() => onResolve("hide_post")}
+        >
+          <Button variant="destructive" size="xs" disabled={busy}>
+            Hide post
+          </Button>
+        </Confirm>
+      ) : null}
+      {report.postDeletedAt == null ? (
+        <Confirm
+          title="Remove this post?"
+          message={
+            <>
+              The post becomes a tombstone and its images are deleted; the comment thread stays
+              readable. Its author is notified. {resolves}
+              {reasonField}
+            </>
+          }
+          confirmText="Remove post"
+          variant="destructive"
+          onConfirm={() => onResolve("delete_post")}
+        >
+          <Button variant="ghost" size="xs" disabled={busy}>
+            Remove post
+          </Button>
+        </Confirm>
+      ) : null}
     </div>
   );
 }

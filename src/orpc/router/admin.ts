@@ -23,6 +23,7 @@ import {
   collabPostReports,
   collabPostRoles,
   collabPosts,
+  forumPostReports,
   forumPosts,
   collabRoles,
   commentReports,
@@ -838,45 +839,56 @@ export const reopenReport = os
   .input(
     z.object({
       reportId: z.number().int().positive(),
-      kind: z.enum(["post", "comment", "team"]),
+      kind: z.enum(["post", "comment", "team", "forum_post"]),
       reason: z.string().trim().max(500).optional(),
     }),
   )
   .handler(async ({ input, context }) => {
     const [report] =
-      input.kind === "post"
+      input.kind === "forum_post"
         ? await db
             .select({
-              id: collabPostReports.id,
-              subjectId: sql<string | null>`${collabPostReports.postId}::text`,
-              reporterId: collabPostReports.reporterId,
-              resolvedAt: collabPostReports.resolvedAt,
+              id: forumPostReports.id,
+              subjectId: sql<string | null>`${forumPostReports.postId}::text`,
+              reporterId: forumPostReports.reporterId,
+              resolvedAt: forumPostReports.resolvedAt,
             })
-            .from(collabPostReports)
-            .where(eq(collabPostReports.id, input.reportId))
+            .from(forumPostReports)
+            .where(eq(forumPostReports.id, input.reportId))
             .limit(1)
-        : input.kind === "comment"
+        : input.kind === "post"
           ? await db
               .select({
-                id: commentReports.id,
-                subjectId: sql<string | null>`${commentReports.commentId}::text`,
-                reporterId: commentReports.reporterId,
-                resolvedAt: commentReports.resolvedAt,
+                id: collabPostReports.id,
+                subjectId: sql<string | null>`${collabPostReports.postId}::text`,
+                reporterId: collabPostReports.reporterId,
+                resolvedAt: collabPostReports.resolvedAt,
               })
-              .from(commentReports)
-              .where(eq(commentReports.id, input.reportId))
+              .from(collabPostReports)
+              .where(eq(collabPostReports.id, input.reportId))
               .limit(1)
-          : await db
-              .select({
-                id: teamReports.id,
-                // Null when the team was deleted out from under the report.
-                subjectId: teamReports.teamId,
-                reporterId: teamReports.reporterId,
-                resolvedAt: teamReports.resolvedAt,
-              })
-              .from(teamReports)
-              .where(eq(teamReports.id, input.reportId))
-              .limit(1);
+          : input.kind === "comment"
+            ? await db
+                .select({
+                  id: commentReports.id,
+                  subjectId: sql<string | null>`${commentReports.commentId}::text`,
+                  reporterId: commentReports.reporterId,
+                  resolvedAt: commentReports.resolvedAt,
+                })
+                .from(commentReports)
+                .where(eq(commentReports.id, input.reportId))
+                .limit(1)
+            : await db
+                .select({
+                  id: teamReports.id,
+                  // Null when the team was deleted out from under the report.
+                  subjectId: teamReports.teamId,
+                  reporterId: teamReports.reporterId,
+                  resolvedAt: teamReports.resolvedAt,
+                })
+                .from(teamReports)
+                .where(eq(teamReports.id, input.reportId))
+                .limit(1);
 
     if (!report) throw new ORPCError("NOT_FOUND", { message: "Report not found." });
     if (!report.resolvedAt) {
@@ -890,44 +902,57 @@ export const reopenReport = os
     const [newer] =
       report.subjectId == null
         ? [undefined]
-        : input.kind === "post"
+        : input.kind === "forum_post"
           ? await db
-              .select({ id: collabPostReports.id })
-              .from(collabPostReports)
+              .select({ id: forumPostReports.id })
+              .from(forumPostReports)
               .where(
                 and(
-                  eq(collabPostReports.postId, Number(report.subjectId)),
-                  eq(collabPostReports.reporterId, report.reporterId),
-                  isNull(collabPostReports.resolvedAt),
-                  ne(collabPostReports.id, report.id),
+                  eq(forumPostReports.postId, Number(report.subjectId)),
+                  eq(forumPostReports.reporterId, report.reporterId),
+                  isNull(forumPostReports.resolvedAt),
+                  ne(forumPostReports.id, report.id),
                 ),
               )
               .limit(1)
-          : input.kind === "comment"
+          : input.kind === "post"
             ? await db
-                .select({ id: commentReports.id })
-                .from(commentReports)
+                .select({ id: collabPostReports.id })
+                .from(collabPostReports)
                 .where(
                   and(
-                    eq(commentReports.commentId, Number(report.subjectId)),
-                    eq(commentReports.reporterId, report.reporterId),
-                    isNull(commentReports.resolvedAt),
-                    ne(commentReports.id, report.id),
+                    eq(collabPostReports.postId, Number(report.subjectId)),
+                    eq(collabPostReports.reporterId, report.reporterId),
+                    isNull(collabPostReports.resolvedAt),
+                    ne(collabPostReports.id, report.id),
                   ),
                 )
                 .limit(1)
-            : await db
-                .select({ id: teamReports.id })
-                .from(teamReports)
-                .where(
-                  and(
-                    eq(teamReports.teamId, report.subjectId),
-                    eq(teamReports.reporterId, report.reporterId),
-                    isNull(teamReports.resolvedAt),
-                    ne(teamReports.id, report.id),
-                  ),
-                )
-                .limit(1);
+            : input.kind === "comment"
+              ? await db
+                  .select({ id: commentReports.id })
+                  .from(commentReports)
+                  .where(
+                    and(
+                      eq(commentReports.commentId, Number(report.subjectId)),
+                      eq(commentReports.reporterId, report.reporterId),
+                      isNull(commentReports.resolvedAt),
+                      ne(commentReports.id, report.id),
+                    ),
+                  )
+                  .limit(1)
+              : await db
+                  .select({ id: teamReports.id })
+                  .from(teamReports)
+                  .where(
+                    and(
+                      eq(teamReports.teamId, report.subjectId),
+                      eq(teamReports.reporterId, report.reporterId),
+                      isNull(teamReports.resolvedAt),
+                      ne(teamReports.id, report.id),
+                    ),
+                  )
+                  .limit(1);
 
     if (newer) {
       return {
@@ -938,7 +963,9 @@ export const reopenReport = os
     }
 
     const cleared = { resolvedAt: null, resolvedById: null };
-    if (input.kind === "post") {
+    if (input.kind === "forum_post") {
+      await db.update(forumPostReports).set(cleared).where(eq(forumPostReports.id, report.id));
+    } else if (input.kind === "post") {
       await db.update(collabPostReports).set(cleared).where(eq(collabPostReports.id, report.id));
     } else if (input.kind === "comment") {
       await db.update(commentReports).set(cleared).where(eq(commentReports.id, report.id));
@@ -950,11 +977,13 @@ export const reopenReport = os
       action: "report_reopened",
       actorId: context.user.id,
       targetType:
-        input.kind === "post"
-          ? "post_report"
-          : input.kind === "comment"
-            ? "comment_report"
-            : "team_report",
+        input.kind === "forum_post"
+          ? "forum_post_report"
+          : input.kind === "post"
+            ? "post_report"
+            : input.kind === "comment"
+              ? "comment_report"
+              : "team_report",
       targetId: report.id,
       subjectUserId: report.reporterId,
       reason: input.reason,

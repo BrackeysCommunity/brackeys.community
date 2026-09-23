@@ -49,9 +49,14 @@ import {
   FORUM_MAX_TAGS,
   FORUM_POST_KINDS,
   forumPostSlug,
+  forumPostTitle,
   normalizeTagSlug,
 } from "@/lib/forum-posts";
 import { markdownToPlainText } from "@/lib/markdown-text";
+import { memberName } from "@/lib/member-name";
+import { recordModerationAction } from "@/lib/moderation-audit";
+import type { ModOverride } from "@/lib/moderation-policy";
+import { notify } from "@/lib/notifications";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
@@ -60,11 +65,13 @@ import {
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resolution";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { isForumPostImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
-import { forumRead, forumWrite } from "@/orpc/middleware/forum";
+import { requireStaff } from "@/orpc/middleware/auth";
+import { forumEnabledForUser, forumRead, forumWrite } from "@/orpc/middleware/forum";
 import { profileIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
 
 /** Unpublished drafts one member may hold at once. */
@@ -908,6 +915,8 @@ export const createForumPost = os
     return { id: post.id, slug: post.slug, status: post.status };
   });
 
+type ForumPostRow = typeof forumPosts.$inferSelect;
+
 async function loadEditablePost(postId: number, userId: string) {
   const [post] = await db.select().from(forumPosts).where(eq(forumPosts.id, postId)).limit(1);
   if (!post || post.deletedAt) throw new ORPCError("NOT_FOUND", { message: "Post not found." });
@@ -1000,24 +1009,29 @@ export const deleteForumPost = os
     if (!rights.canDelete) {
       throw new ORPCError("FORBIDDEN", { message: "You can't delete this post." });
     }
-    const images = await db
-      .delete(forumPostImages)
-      .where(eq(forumPostImages.postId, post.id))
-      .returning({ imageKey: forumPostImages.imageKey });
-    await db
-      .update(forumPosts)
-      .set({
-        deletedAt: new Date(),
-        pinnedAt: null,
-        pinnedScope: null,
-        coverImageKey: null,
-        coverImageUrl: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(forumPosts.id, post.id));
-    await purgeForumImages(post.id, [...images.map((i) => i.imageKey), post.coverImageKey]);
+    await softDeleteForumPost(post);
     return { success: true };
   });
+
+/** Tombstone a post: unpinned, images gone, thread and tag links kept. */
+async function softDeleteForumPost(post: ForumPostRow): Promise<void> {
+  const images = await db
+    .delete(forumPostImages)
+    .where(eq(forumPostImages.postId, post.id))
+    .returning({ imageKey: forumPostImages.imageKey });
+  await db
+    .update(forumPosts)
+    .set({
+      deletedAt: new Date(),
+      pinnedAt: null,
+      pinnedScope: null,
+      coverImageKey: null,
+      coverImageUrl: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(forumPosts.id, post.id));
+  await purgeForumImages(post.id, [...images.map((i) => i.imageKey), post.coverImageKey]);
+}
 
 /** Best-effort object cleanup, only for keys in the post's own namespace. */
 async function purgeForumImages(postId: number, keys: (string | null)[]): Promise<void> {
@@ -1243,4 +1257,424 @@ export const reportForumPost = os
       .insert(forumPostReports)
       .values({ postId: input.postId, reporterId: userId, reason: input.reason });
     return { success: true };
+  });
+
+// ── Moderation ───────────────────────────────────────────────────────────────
+
+const forumStaff = os.use(requireStaff).use(forumEnabledForUser);
+
+async function loadPostForStaff(postId: number): Promise<ForumPostRow> {
+  const [post] = await db.select().from(forumPosts).where(eq(forumPosts.id, postId)).limit(1);
+  if (!post) throw new ORPCError("NOT_FOUND", { message: "Post not found." });
+  return post;
+}
+
+function postSnapshot(post: ForumPostRow) {
+  return {
+    subjectTitle: forumPostTitle(post),
+    subjectUrl: `/forum/${post.id}`,
+  };
+}
+
+async function notifyForumAuthor(
+  post: ForumPostRow,
+  type:
+    | "forum_post_hidden_by_staff"
+    | "forum_post_unhidden_by_staff"
+    | "forum_post_deleted_by_staff",
+  mod: ModOverride,
+): Promise<void> {
+  if (!post.authorId || post.authorId === mod.actorId) return;
+  const authorId = post.authorId;
+  await bestEffort("forum.moderation_notice", { post_id: post.id, type }, () =>
+    notify({
+      userId: authorId,
+      type,
+      actorId: mod.actorId,
+      entityType: "forum_post",
+      entityId: String(post.id),
+      data: { ...postSnapshot(post), ...(mod.reason ? { reason: mod.reason } : {}) },
+    }),
+  );
+}
+
+async function applyForumPostHidden(
+  post: ForumPostRow,
+  hidden: boolean,
+  mod: ModOverride,
+  extraMetadata: Record<string, unknown> = {},
+): Promise<{ changed: boolean }> {
+  const [updated] = await db
+    .update(forumPosts)
+    .set(
+      hidden
+        ? {
+            hiddenAt: new Date(),
+            hiddenById: mod.actorId,
+            hiddenReason: mod.reason,
+            pinnedAt: null,
+            pinnedScope: null,
+          }
+        : { hiddenAt: null, hiddenById: null, hiddenReason: null },
+    )
+    .where(
+      and(
+        eq(forumPosts.id, post.id),
+        hidden ? isNull(forumPosts.hiddenAt) : sql`${forumPosts.hiddenAt} IS NOT NULL`,
+      ),
+    )
+    .returning({ id: forumPosts.id });
+  if (!updated) return { changed: false };
+
+  await recordModerationAction({
+    action: hidden ? "forum_post_hidden" : "forum_post_unhidden",
+    actorId: mod.actorId,
+    targetType: "forum_post",
+    targetId: post.id,
+    subjectUserId: post.authorId,
+    reason: mod.reason,
+    metadata: { title: forumPostTitle(post), ...extraMetadata },
+  });
+  await notifyForumAuthor(
+    post,
+    hidden ? "forum_post_hidden_by_staff" : "forum_post_unhidden_by_staff",
+    mod,
+  );
+  return { changed: true };
+}
+
+async function applyForumPostDeleted(
+  post: ForumPostRow,
+  mod: ModOverride,
+  extraMetadata: Record<string, unknown> = {},
+): Promise<void> {
+  if (post.deletedAt) return;
+  await softDeleteForumPost(post);
+  await recordModerationAction({
+    action: "forum_post_deleted",
+    actorId: mod.actorId,
+    targetType: "forum_post",
+    targetId: post.id,
+    subjectUserId: post.authorId,
+    reason: mod.reason,
+    metadata: { title: forumPostTitle(post), kind: post.kind, ...extraMetadata },
+  });
+  await notifyForumAuthor(post, "forum_post_deleted_by_staff", mod);
+}
+
+const staffReason = z.string().trim().max(500).optional();
+
+/** Hide or unhide. Hiding needs a reason — it is the author's explanation. */
+export const setForumPostHidden = forumStaff
+  .input(
+    z.object({ postId: z.number().int().positive(), hidden: z.boolean(), reason: staffReason }),
+  )
+  .handler(async ({ input, context }) => {
+    if (input.hidden && !input.reason) {
+      throw new ORPCError("BAD_REQUEST", { message: "A reason is required to hide a post." });
+    }
+    const post = await loadPostForStaff(input.postId);
+    return applyForumPostHidden(post, input.hidden, {
+      actorId: context.user.id,
+      reason: input.reason ?? null,
+    });
+  });
+
+/** Pin to the whole feed, to the post's category board, or unpin (`null`). */
+export const setForumPostPinned = forumStaff
+  .input(
+    z.object({
+      postId: z.number().int().positive(),
+      scope: z.enum(["global", "category"]).nullable(),
+      reason: staffReason,
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const post = await loadPostForStaff(input.postId);
+    if (input.scope && (post.status !== "published" || post.deletedAt || post.hiddenAt)) {
+      throw new ORPCError("BAD_REQUEST", { message: "Only a live post can be pinned." });
+    }
+    if (post.pinnedScope === input.scope) return { changed: false };
+
+    await db
+      .update(forumPosts)
+      .set({ pinnedAt: input.scope ? new Date() : null, pinnedScope: input.scope })
+      .where(eq(forumPosts.id, post.id));
+    await recordModerationAction({
+      action: input.scope ? "forum_post_pinned" : "forum_post_unpinned",
+      actorId: context.user.id,
+      targetType: "forum_post",
+      targetId: post.id,
+      subjectUserId: post.authorId,
+      reason: input.reason,
+      metadata: { title: forumPostTitle(post), scope: input.scope, previous: post.pinnedScope },
+    });
+    return { changed: true };
+  });
+
+/**
+ * Move to another category and/or replace the tags. Not an author edit:
+ * `editedAt` stays put, and each half logs separately with before/after.
+ */
+export const staffUpdateForumPost = forumStaff
+  .input(
+    z.object({
+      postId: z.number().int().positive(),
+      category: z.string().max(64).optional(),
+      tags: z.array(z.string().max(40)).max(FORUM_MAX_TAGS).optional(),
+      reason: staffReason,
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const post = await loadPostForStaff(input.postId);
+    const mod = { actorId: context.user.id, reason: input.reason ?? null };
+
+    if (input.category) {
+      const categoryId = await resolveCategory(input.category, context.user.id);
+      if (categoryId !== post.categoryId) {
+        const [from] = await db
+          .select({ slug: forumCategories.slug })
+          .from(forumCategories)
+          .where(eq(forumCategories.id, post.categoryId));
+        await db
+          .update(forumPosts)
+          .set({
+            categoryId,
+            pinnedAt: post.pinnedScope === "category" ? null : post.pinnedAt,
+            pinnedScope: post.pinnedScope === "category" ? null : post.pinnedScope,
+          })
+          .where(eq(forumPosts.id, post.id));
+        await recordModerationAction({
+          action: "forum_post_moved",
+          actorId: mod.actorId,
+          targetType: "forum_post",
+          targetId: post.id,
+          subjectUserId: post.authorId,
+          reason: mod.reason,
+          metadata: { title: forumPostTitle(post), from: from?.slug, to: input.category },
+        });
+      }
+    }
+
+    if (input.tags) {
+      const before = (await tagsByPost([post.id])).get(post.id) ?? [];
+      const tagIds = await resolveTags(input.tags, context.user.id);
+      await db.transaction((tx) => writeTags(tx, post.id, tagIds));
+      const after = (await tagsByPost([post.id])).get(post.id) ?? [];
+      if (before.join() !== after.join()) {
+        await recordModerationAction({
+          action: "forum_post_retagged",
+          actorId: mod.actorId,
+          targetType: "forum_post",
+          targetId: post.id,
+          subjectUserId: post.authorId,
+          reason: mod.reason,
+          metadata: { title: forumPostTitle(post), before, after },
+        });
+      }
+    }
+    return { success: true };
+  });
+
+export const staffDeleteForumPost = forumStaff
+  .input(z.object({ postId: z.number().int().positive(), reason: staffReason }))
+  .handler(async ({ input, context }) => {
+    const post = await loadPostForStaff(input.postId);
+    await applyForumPostDeleted(post, { actorId: context.user.id, reason: input.reason ?? null });
+    return { success: true };
+  });
+
+async function profilesById(ids: (string | null)[]) {
+  const wanted = [...new Set(ids.filter((id): id is string => id != null))];
+  if (wanted.length === 0)
+    return new Map<string, { id: string; displayName: string; avatarUrl: string | null }>();
+  const rows = await db
+    .select({
+      id: developerProfiles.id,
+      discordUsername: developerProfiles.discordUsername,
+      guildNickname: developerProfiles.guildNickname,
+      avatarUrl: developerProfiles.avatarUrl,
+    })
+    .from(developerProfiles)
+    .where(inArray(developerProfiles.id, wanted));
+  return new Map(
+    rows.map((p) => [
+      p.id,
+      { id: p.id, displayName: memberName(p, "Member"), avatarUrl: p.avatarUrl },
+    ]),
+  );
+}
+
+/** The forum half of the admin report queue, shaped like `listReports`. */
+export const listForumReports = forumStaff
+  .input(z.object({ includeResolved: z.boolean().default(false) }))
+  .handler(async ({ input }) => {
+    const rows = await db
+      .select({
+        id: forumPostReports.id,
+        postId: forumPostReports.postId,
+        reporterId: forumPostReports.reporterId,
+        reason: forumPostReports.reason,
+        createdAt: forumPostReports.createdAt,
+        resolvedAt: forumPostReports.resolvedAt,
+        postKind: forumPosts.kind,
+        postTitle: forumPosts.title,
+        postExcerpt: forumPosts.excerpt,
+        postAuthorId: forumPosts.authorId,
+        postHiddenAt: forumPosts.hiddenAt,
+        postDeletedAt: forumPosts.deletedAt,
+      })
+      .from(forumPostReports)
+      .innerJoin(forumPosts, eq(forumPostReports.postId, forumPosts.id))
+      .where(input.includeResolved ? undefined : isNull(forumPostReports.resolvedAt))
+      .orderBy(
+        sql`${forumPostReports.resolvedAt} ASC NULLS FIRST`,
+        desc(forumPostReports.createdAt),
+      );
+
+    const people = await profilesById(rows.flatMap((r) => [r.reporterId, r.postAuthorId]));
+    return rows.map(({ postTitle, postExcerpt, ...r }) => ({
+      ...r,
+      postTitle: forumPostTitle({ title: postTitle, excerpt: postExcerpt }),
+      reporter: people.get(r.reporterId) ?? null,
+      postAuthor: r.postAuthorId ? (people.get(r.postAuthorId) ?? null) : null,
+    }));
+  });
+
+/**
+ * Dismiss, hide or delete — resolving every open report on the post, and
+ * telling each reporter the outcome, the same way the other queues do.
+ */
+export const resolveForumReport = forumStaff
+  .input(
+    z.object({
+      reportId: z.number().int().positive(),
+      action: z.enum(["dismiss", "hide_post", "delete_post"]),
+      reason: staffReason,
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [report] = await db
+      .select()
+      .from(forumPostReports)
+      .where(eq(forumPostReports.id, input.reportId))
+      .limit(1);
+    if (!report) throw new ORPCError("NOT_FOUND", { message: "Report not found." });
+    if (report.resolvedAt) return { success: true };
+
+    const post = await loadPostForStaff(report.postId);
+    const mod = { actorId: context.user.id, reason: input.reason ?? null };
+    const viaReport = { reportId: report.id, reportReason: report.reason };
+    if (input.action === "hide_post") {
+      await applyForumPostHidden(post, true, mod, viaReport);
+    } else if (input.action === "delete_post") {
+      await applyForumPostDeleted(post, mod, viaReport);
+    }
+
+    const resolved = await resolveReportsForSubject({
+      kind: "forum_post",
+      subjectId: post.id,
+      actorId: context.user.id,
+    });
+
+    if (input.action === "dismiss") {
+      await recordModerationAction({
+        action: "forum_post_report_dismissed",
+        actorId: context.user.id,
+        targetType: "forum_post_report",
+        targetId: report.id,
+        subjectUserId: report.reporterId,
+        reason: input.reason,
+        metadata: {
+          postId: post.id,
+          reportReason: report.reason,
+          ...(resolved.length > 1
+            ? { alsoResolved: resolved.filter((r) => r.id !== report.id).map((r) => r.id) }
+            : {}),
+        },
+      });
+    }
+    for (const sibling of resolved) {
+      if (sibling.id === report.id) continue;
+      await recordModerationAction({
+        action:
+          input.action === "hide_post"
+            ? "forum_post_hidden"
+            : input.action === "delete_post"
+              ? "forum_post_deleted"
+              : "forum_post_report_dismissed",
+        actorId: context.user.id,
+        targetType: "forum_post_report",
+        targetId: sibling.id,
+        subjectUserId: sibling.reporterId,
+        reason: input.reason,
+        metadata: { postId: post.id, resolvedVia: report.id },
+      });
+    }
+
+    await notifyReporters({
+      reports: resolved,
+      actorId: context.user.id,
+      outcome: input.action === "dismiss" ? "no_action" : "actioned",
+      entityType: "forum_post",
+      entityId: post.id,
+      ...postSnapshot(post),
+    });
+    return { success: true };
+  });
+
+/**
+ * The newest posts whatever their state — hidden, deleted and drafts
+ * included — for the `/admin` sibling of recent comments.
+ */
+export const listRecentForumPosts = forumStaff
+  .input(
+    z.object({
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(50).default(15),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const [totalRow] = await db.select({ value: count() }).from(forumPosts);
+    const total = totalRow?.value ?? 0;
+    const rows = await db
+      .select({
+        id: forumPosts.id,
+        kind: forumPosts.kind,
+        title: forumPosts.title,
+        slug: forumPosts.slug,
+        excerpt: forumPosts.excerpt,
+        status: forumPosts.status,
+        authorId: forumPosts.authorId,
+        teamName: teams.name,
+        category: forumCategories.name,
+        categorySlug: forumCategories.slug,
+        createdAt: forumPosts.createdAt,
+        publishedAt: forumPosts.publishedAt,
+        hiddenAt: forumPosts.hiddenAt,
+        hiddenReason: forumPosts.hiddenReason,
+        deletedAt: forumPosts.deletedAt,
+        pinnedScope: forumPosts.pinnedScope,
+        likeCount: forumPosts.likeCount,
+        commentCount: sql<number>`coalesce(${threads.commentCount}, 0)`,
+        lockedAt: threads.lockedAt,
+      })
+      .from(forumPosts)
+      .innerJoin(forumCategories, eq(forumPosts.categoryId, forumCategories.id))
+      .leftJoin(teams, eq(forumPosts.teamId, teams.id))
+      .leftJoin(threads, eq(threads.forumPostId, forumPosts.id))
+      .orderBy(desc(forumPosts.id))
+      .limit(input.pageSize)
+      .offset((input.page - 1) * input.pageSize);
+
+    const people = await profilesById(rows.map((r) => r.authorId));
+    return {
+      posts: rows.map((r) => ({
+        ...r,
+        displayTitle: forumPostTitle(r),
+        author: r.authorId ? (people.get(r.authorId) ?? null) : null,
+      })),
+      total,
+      pageCount: Math.max(1, Math.ceil(total / input.pageSize)),
+    };
   });

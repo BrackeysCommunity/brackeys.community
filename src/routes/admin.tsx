@@ -6,6 +6,7 @@ import {
   EyeIcon,
   Flag02Icon,
   Image01Icon,
+  MessageMultiple01Icon,
   ScrollIcon,
   StarIcon,
   UserBlock01Icon,
@@ -19,6 +20,7 @@ import { z } from "zod";
 
 import { AdminBans } from "@/components/admin/AdminBans";
 import { AdminEntryFlags } from "@/components/admin/AdminEntryFlags";
+import { AdminForumPosts } from "@/components/admin/AdminForumPosts";
 import { AdminImageFlags } from "@/components/admin/AdminImageFlags";
 import { AdminLog } from "@/components/admin/AdminLog";
 import { AdminProjects } from "@/components/admin/AdminProjects";
@@ -35,6 +37,7 @@ import { SPOTLIGHT_PANES, TAXONOMY_PANES } from "@/components/admin/panes";
 import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { EASE_OUT } from "@/lib/motion";
 import { pageTitle } from "@/lib/site-meta";
 import { TOGGLE_CUE } from "@/lib/sound";
@@ -47,6 +50,7 @@ const SECTIONS = [
   "image-flags",
   "proposals",
   "comments",
+  "forum",
   "teams",
   "projects",
   "spotlight",
@@ -90,6 +94,7 @@ const SECTION_META: Record<View, { label: string; hint: string; icon: IconSvgEle
   "image-flags": { label: "Upload flags", hint: "Flagged member uploads", icon: Image01Icon },
   proposals: { label: "Proposals", hint: "Mod edits awaiting an admin", icon: CheckListIcon },
   comments: { label: "Comments", hint: "Newest across the site", icon: BubbleChatIcon },
+  forum: { label: "Forum", hint: "Newest posts, hide, pin", icon: MessageMultiple01Icon },
   teams: { label: "Teams", hint: "Directory, hide, delete", icon: UserGroupIcon },
   projects: { label: "Projects", hint: "Directory, orphans, unpublish", icon: CubeIcon },
   spotlight: { label: "Spotlight", hint: "Board featured, home hero", icon: StarIcon },
@@ -136,6 +141,11 @@ function useQueueCounts(): Partial<Record<View, number>> {
   const teamReports = useQuery(
     orpc.listTeamReports.queryOptions({ input: { includeResolved: false } }),
   );
+  const forumOn = useFlag("forum-enabled");
+  const forumReports = useQuery({
+    ...orpc.listForumReports.queryOptions({ input: { includeResolved: false } }),
+    enabled: forumOn,
+  });
   const skillRequests = useQuery(
     orpc.listSkillRequests.queryOptions({ input: { status: "pending", page: 1, pageSize: 10 } }),
   );
@@ -158,7 +168,8 @@ function useQueueCounts(): Partial<Record<View, number>> {
   const open =
     (commentReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) +
     (postReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) +
-    (teamReports.data?.filter((r) => r.resolvedAt == null).length ?? 0);
+    (teamReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) +
+    (forumOn ? (forumReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) : 0);
 
   return {
     reports: open,
@@ -207,6 +218,7 @@ function AdminRoute() {
 }
 
 function AdminNav({ section, counts }: { section: View; counts: Partial<Record<View, number>> }) {
+  const forumOn = useFlag("forum-enabled");
   return (
     <nav
       aria-label="Admin sections"
@@ -215,7 +227,7 @@ function AdminNav({ section, counts }: { section: View; counts: Partial<Record<V
       // pane beside it keeps its scroll position either way.
       className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b border-muted/30 px-1 lg:sticky lg:top-4 lg:mx-0 lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:overflow-x-visible lg:overflow-y-auto lg:border-r lg:border-b-0 lg:px-0 lg:pr-2"
     >
-      {SECTIONS.map((id) => {
+      {SECTIONS.filter((id) => id !== "forum" || forumOn).map((id) => {
         const meta = SECTION_META[id];
         // Every row links to /admin, so the router calls them all active —
         // the search param is what distinguishes them.
@@ -299,6 +311,7 @@ function AdminPane({
       {section === "image-flags" && <AdminImageFlags />}
       {section === "proposals" && <AdminProposals isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}
+      {section === "forum" && <AdminForumPosts />}
       {section === "teams" && <AdminTeams isAdmin={isAdmin} />}
       {section === "projects" && <AdminProjects isAdmin={isAdmin} />}
       {section === "spotlight" && (

@@ -1,11 +1,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { collabPostReports, commentReports, teamReports } from "@/db/schema";
+import { collabPostReports, commentReports, forumPostReports, teamReports } from "@/db/schema";
 import { notify } from "@/lib/notifications";
 import { bestEffort } from "@/lib/posthog-server";
 
-export type ReportKind = "post" | "comment" | "team";
+export type ReportKind = "post" | "comment" | "team" | "forum_post";
 
 /** What the reporter is told: staff acted on the thing, or left it up. */
 export type ReportOutcome = "actioned" | "no_action";
@@ -27,7 +27,7 @@ export type ResolvedReport = { id: number; reporterId: string };
  */
 export async function resolveReportsForSubject(params: {
   kind: ReportKind;
-  /** `collab_posts.id`, `comments.id`, or `teams.id`. */
+  /** `collab_posts.id`, `comments.id`, `teams.id`, or `forum.posts.id`. */
   subjectId: number | string;
   actorId: string;
 }): Promise<ResolvedReport[]> {
@@ -44,6 +44,19 @@ export async function resolveReportsForSubject(params: {
         ),
       )
       .returning({ id: collabPostReports.id, reporterId: collabPostReports.reporterId });
+  }
+
+  if (params.kind === "forum_post") {
+    return db
+      .update(forumPostReports)
+      .set(set)
+      .where(
+        and(
+          eq(forumPostReports.postId, Number(params.subjectId)),
+          isNull(forumPostReports.resolvedAt),
+        ),
+      )
+      .returning({ id: forumPostReports.id, reporterId: forumPostReports.reporterId });
   }
 
   if (params.kind === "team") {
@@ -82,7 +95,7 @@ export async function notifyReporters(params: {
   reports: ResolvedReport[];
   actorId: string;
   outcome: ReportOutcome;
-  entityType: "collab_post" | "comment" | "team";
+  entityType: "collab_post" | "comment" | "team" | "forum_post";
   entityId: number | string;
   subjectTitle: string;
   subjectUrl: string | null;

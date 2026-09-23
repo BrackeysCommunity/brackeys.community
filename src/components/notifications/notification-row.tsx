@@ -405,6 +405,29 @@ export function renderCopy(n: NotificationItem): {
         href: (n.data.subjectUrl as string | undefined) ?? null,
       };
     }
+    case "forum_post_hidden_by_staff":
+    case "forum_post_unhidden_by_staff":
+    case "forum_post_deleted_by_staff": {
+      const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "your post";
+      const reason = n.data.reason as string | undefined;
+      const title = <em className="font-medium not-italic">{subjectTitle}</em>;
+      return {
+        line:
+          n.type === "forum_post_unhidden_by_staff" ? (
+            <>Your post {title} is visible again</>
+          ) : (
+            <>
+              {n.type === "forum_post_hidden_by_staff" ? (
+                <>Your post {title} is hidden pending review</>
+              ) : (
+                <>Staff removed your post {title}</>
+              )}
+              {reason ? <> — {reason}</> : null}
+            </>
+          ),
+        href: (n.data.subjectUrl as string | undefined) ?? null,
+      };
+    }
     case "report_resolved": {
       const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "something you flagged";
       // Says the outcome, never what happened to the other account.

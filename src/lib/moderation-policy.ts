@@ -1,5 +1,5 @@
 /**
- * The single gate for staff powers over teams and profiles (plan 23).
+ * The single gate for staff powers over teams, profiles and forum posts.
  *
  * `"direct"` — staff execute immediately. `"propose"` — staff file a
  * proposal an admin executes; admins may also act directly. `"admin"` —
@@ -31,6 +31,12 @@ export const MOD_POWERS = {
   project_delete: "admin",
   profile_update: "propose",
   profile_stub_reset: "propose",
+  // Forum posts: every staff power is direct. Hide, pin, move and retag are
+  // reversible; delete is a tombstone that keeps the thread and the log.
+  forum_post_hide: "direct",
+  forum_post_pin: "direct",
+  forum_post_move: "direct",
+  forum_post_delete: "direct",
 } as const;
 
 export type ModPowerAction = keyof typeof MOD_POWERS;

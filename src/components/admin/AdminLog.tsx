@@ -67,6 +67,14 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "image_flag_confirmed", label: "Upload flags confirmed" },
   { value: "image_flag_dismissed", label: "Upload flags dismissed" },
   { value: "image_rescan_requested", label: "Upload rescans requested" },
+  { value: "forum_post_hidden", label: "Forum posts hidden" },
+  { value: "forum_post_unhidden", label: "Forum posts unhidden" },
+  { value: "forum_post_pinned", label: "Forum posts pinned" },
+  { value: "forum_post_unpinned", label: "Forum posts unpinned" },
+  { value: "forum_post_moved", label: "Forum posts moved" },
+  { value: "forum_post_retagged", label: "Forum posts retagged" },
+  { value: "forum_post_deleted", label: "Forum posts removed" },
+  { value: "forum_post_report_dismissed", label: "Forum reports dismissed" },
 ];
 
 const ACTION_LABEL = new Map(ACTIONS.map((a) => [a.value, a.label]));

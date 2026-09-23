@@ -867,6 +867,7 @@ export const listCommentReports = os
         subjectType: threads.subjectType,
         subjectCollabPostId: threads.collabPostId,
         subjectProfileUserId: threads.profileUserId,
+        subjectForumPostId: threads.forumPostId,
       })
       .from(commentReports)
       .innerJoin(comments, eq(commentReports.commentId, comments.id))
@@ -918,6 +919,7 @@ export const listRecentComments = os
           subjectType: threads.subjectType,
           subjectCollabPostId: threads.collabPostId,
           subjectProfileUserId: threads.profileUserId,
+          subjectForumPostId: threads.forumPostId,
           postTitle: collabPosts.title,
           // A private response thread has neither of the FKs above, so
           // without these it renders as text with no context — the one
