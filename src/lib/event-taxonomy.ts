@@ -98,6 +98,11 @@ export const EVENTS = {
   teamInviteAnswered: "team_invite_answered",
   teamLeft: "team_left",
 
+  // Forum. Server-side outcomes; `forum_post_viewed` is the page's own.
+  forumPostCreated: "forum_post_created",
+  forumPostViewed: "forum_post_viewed",
+  forumReactionAdded: "forum_reaction_added",
+
   // Jams.
   jamViewed: "jam_viewed",
   // The top of the jam funnel: someone narrowed one of the three listing

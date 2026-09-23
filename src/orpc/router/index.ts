@@ -85,6 +85,18 @@ import {
   listBlockedUsers,
 } from "./comments";
 import { getContributions } from "./contributions";
+import {
+  createForumPost,
+  deleteForumPost,
+  getForumPost,
+  listForumCategories,
+  listForumPosts,
+  reportForumPost,
+  searchForumTags,
+  setForumBookmark,
+  setForumReaction,
+  updateForumPost,
+} from "./forum";
 import { syncGitHubLink, unlinkGitHub } from "./github";
 import { listGitLabInstances, syncGitLabLink, unlinkGitLab } from "./gitlab";
 import { linkItchIo, unlinkItchIo, getLinkedAccounts, importItchIoGames } from "./itchio";
@@ -384,4 +396,14 @@ export default {
   removeTeamProject,
   getWebsiteVerification,
   verifyWebsite,
+  listForumCategories,
+  listForumPosts,
+  getForumPost,
+  searchForumTags,
+  createForumPost,
+  updateForumPost,
+  deleteForumPost,
+  setForumReaction,
+  setForumBookmark,
+  reportForumPost,
 };

@@ -8,6 +8,7 @@ import {
   requireGuildMember,
   requireStaff,
 } from "@/orpc/middleware/auth";
+import { forumRead, forumWrite } from "@/orpc/middleware/forum";
 import router from "@/orpc/router";
 
 /**
@@ -78,6 +79,11 @@ const PUBLIC_PROCEDURES = new Set([
   // Resolves a `#comment-<id>` deep link to its chain, behind the same
   // subject visibility check the thread reads use.
   "getCommentLocation",
+  // The forum reads for signed-out visitors (behind `forum-enabled`).
+  "listForumCategories",
+  "listForumPosts",
+  "getForumPost",
+  "searchForumTags",
   // GitHub contribution calendar on public profiles.
   "getContributions",
   // Answers {isStaff:false,isAdmin:false} to anonymous callers; gates the
@@ -149,6 +155,7 @@ const AUTH_REQUIRING = new Set<unknown>([
   requireAuthWithPermissions,
   requireStaff,
   requireAdmin,
+  forumWrite,
 ]);
 
 const STAFF_REQUIRING = new Set<unknown>([requireStaff, requireAdmin]);
@@ -207,7 +214,7 @@ describe("authorization lockdown", () => {
   it("anonymous-tolerant middleware only appears on public procedures", () => {
     for (const [name, procedure] of procedures) {
       if (PUBLIC_PROCEDURES.has(name)) continue;
-      const soft = middlewaresOf(procedure).includes(authMiddleware);
+      const soft = middlewaresOf(procedure).some((m) => m === authMiddleware || m === forumRead);
       expect(
         soft,
         `"${name}" uses authMiddleware (anonymous-tolerant) but is not on the public allowlist`,
