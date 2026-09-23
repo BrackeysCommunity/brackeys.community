@@ -5,10 +5,14 @@ import {
   collabPosts,
   collabResponses,
   developerProfiles,
+  forumPosts,
+  teams,
   threads,
   threadSubscriptions,
 } from "@/db/schema";
+import { forumPostTitle } from "@/lib/forum-posts";
 import { memberName } from "@/lib/member-name";
+import { ANONYMOUS_FLAG_DISTINCT_ID, isServerFlagEnabled } from "@/lib/posthog-server";
 
 /**
  * The subject registry: every subject-specific behavior of the comment
@@ -20,13 +24,21 @@ import { memberName } from "@/lib/member-name";
 export type SubjectRef =
   | { type: "collab_post"; id: number }
   | { type: "profile"; id: string }
-  | { type: "collab_response"; id: number };
+  | { type: "collab_response"; id: number }
+  | { type: "forum_post"; id: number };
 
 export type SubjectContext = {
   exists: boolean;
-  /** Auto-subscribed at thread creation; may moderate the thread. */
-  ownerId: string;
+  /** Auto-subscribed at thread creation; may moderate the thread. Null
+   *  when the owner's account is gone (a forum post outlives its author). */
+  ownerId: string | null;
   commentingEnabled: boolean;
+  /**
+   * Set when the thread stays readable but takes no new comments — a
+   * deleted or hidden forum post. Unlike `commentingEnabled: false`, which
+   * hides the thread from everyone but the owner.
+   */
+  closedReason?: string;
   /** Notification copy: "commented on <title>". */
   title: string;
   /** Deep-link base; the router appends `#comment-<id>`. */
@@ -65,7 +77,8 @@ type ThreadInsert = typeof threads.$inferInsert;
 export type ThreadRow = typeof threads.$inferSelect;
 
 type SubjectHandler = {
-  load(id: SubjectRef["id"]): Promise<SubjectContext | null>;
+  /** `viewerId` is who is asking, for subjects gated per viewer. */
+  load(id: SubjectRef["id"], viewerId: string | null): Promise<SubjectContext | null>;
   /** Values for the threads insert; used by resolveThread's upsert. */
   threadInsert(id: SubjectRef["id"]): ThreadInsert;
 };
@@ -132,6 +145,49 @@ const handlers: Record<SubjectRef["type"], SubjectHandler> = {
       return { subjectType: "collab_response", collabResponseId: id as number };
     },
   },
+  forum_post: {
+    async load(id, viewerId) {
+      // A forum thread is as dark as the forum: absent while the flag is off.
+      if (!(await isServerFlagEnabled("forum-enabled", viewerId ?? ANONYMOUS_FLAG_DISTINCT_ID))) {
+        return null;
+      }
+      const [post] = await db
+        .select({
+          id: forumPosts.id,
+          authorId: forumPosts.authorId,
+          title: forumPosts.title,
+          excerpt: forumPosts.excerpt,
+          status: forumPosts.status,
+          deletedAt: forumPosts.deletedAt,
+          hiddenAt: forumPosts.hiddenAt,
+          teamHiddenAt: teams.hiddenAt,
+        })
+        .from(forumPosts)
+        .leftJoin(teams, eq(forumPosts.teamId, teams.id))
+        .where(eq(forumPosts.id, id as number))
+        .limit(1);
+      if (!post || post.status !== "published") return null;
+      return {
+        exists: true,
+        ownerId: post.authorId,
+        commentingEnabled: true,
+        closedReason: post.deletedAt
+          ? "This post was deleted."
+          : post.hiddenAt || post.teamHiddenAt
+            ? "This post is hidden."
+            : undefined,
+        title: forumPostTitle(post),
+        // The bare id: the post route redirects it to the current slug, and
+        // this URL is snapshotted into notifications that outlive a retitle.
+        url: `/forum/${post.id}`,
+        maxCommentLength: 2000,
+        participantIds: null,
+      };
+    },
+    threadInsert(id) {
+      return { subjectType: "forum_post", forumPostId: id as number };
+    },
+  },
   profile: {
     async load(id) {
       const [profile] = await db
@@ -170,8 +226,11 @@ const handlers: Record<SubjectRef["type"], SubjectHandler> = {
   },
 };
 
-export function loadSubject(ref: SubjectRef): Promise<SubjectContext | null> {
-  return handlers[ref.type].load(ref.id);
+export function loadSubject(
+  ref: SubjectRef,
+  viewerId: string | null,
+): Promise<SubjectContext | null> {
+  return handlers[ref.type].load(ref.id, viewerId);
 }
 
 /** Read-only lookup — never creates. Null when nobody has commented yet. */
@@ -182,7 +241,9 @@ export async function findThread(ref: SubjectRef): Promise<ThreadRow | null> {
       ? eq(threads.collabPostId, insert.collabPostId!)
       : insert.subjectType === "profile"
         ? eq(threads.profileUserId, insert.profileUserId!)
-        : eq(threads.collabResponseId, insert.collabResponseId!);
+        : insert.subjectType === "forum_post"
+          ? eq(threads.forumPostId, insert.forumPostId!)
+          : eq(threads.collabResponseId, insert.collabResponseId!);
   const [row] = await db.select().from(threads).where(condition).limit(1);
   return row ?? null;
 }
@@ -201,7 +262,7 @@ export async function resolveThread(ref: SubjectRef, subject: SubjectContext): P
   const existing = await findThread(ref);
   if (existing) return existing;
 
-  const subscriberIds = subject.participantIds ?? [subject.ownerId];
+  const subscriberIds = subject.participantIds ?? (subject.ownerId ? [subject.ownerId] : []);
 
   const created = await db.transaction(async (tx) => {
     const [row] = await tx
@@ -209,7 +270,7 @@ export async function resolveThread(ref: SubjectRef, subject: SubjectContext): P
       .values(handlers[ref.type].threadInsert(ref.id))
       .onConflictDoNothing()
       .returning();
-    if (row) {
+    if (row && subscriberIds.length > 0) {
       await tx
         .insert(threadSubscriptions)
         .values(subscriberIds.map((userId) => ({ threadId: row.id, userId })))
@@ -232,6 +293,9 @@ export function subjectRefOfThread(thread: ThreadRow): SubjectRef {
   }
   if (thread.subjectType === "collab_response") {
     return { type: "collab_response", id: thread.collabResponseId! };
+  }
+  if (thread.subjectType === "forum_post") {
+    return { type: "forum_post", id: thread.forumPostId! };
   }
   return { type: "profile", id: thread.profileUserId! };
 }

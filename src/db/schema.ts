@@ -30,6 +30,7 @@ export const itchSchema = pgSchema("itch");
 export const projectSchema = pgSchema("project");
 export const socialSchema = pgSchema("social");
 export const mediaSchema = pgSchema("media");
+export const forumSchema = pgSchema("forum");
 export const profileProjectTypeEnum = userSchema.enum("profile_project_type", [
   "jam",
   "game",
@@ -1421,6 +1422,7 @@ export const threadSubjectType = socialSchema.enum("thread_subject_type", [
   "collab_post",
   "profile",
   "collab_response",
+  "forum_post",
 ]);
 
 /**
@@ -1454,6 +1456,9 @@ export const threads = socialSchema.table(
     collabResponseId: integer("collab_response_id").references(() => collabResponses.id, {
       onDelete: "cascade",
     }),
+    forumPostId: integer("forum_post_id").references((): AnyPgColumn => forumPosts.id, {
+      onDelete: "cascade",
+    }),
     lockedAt: timestamp("locked_at"),
     lockedById: text("locked_by_id").references(() => user.id, { onDelete: "set null" }),
     commentCount: integer("comment_count").notNull().default(0),
@@ -1463,7 +1468,7 @@ export const threads = socialSchema.table(
   (t) => [
     check(
       "threads_one_subject",
-      sql`num_nonnulls(${t.collabPostId}, ${t.profileUserId}, ${t.collabResponseId}) = 1`,
+      sql`num_nonnulls(${t.collabPostId}, ${t.profileUserId}, ${t.collabResponseId}, ${t.forumPostId}) = 1`,
     ),
     // The `::text` casts are load-bearing, not noise. Comparing the column
     // against a bare literal makes Postgres resolve that literal as an enum
@@ -1472,14 +1477,15 @@ export const threads = socialSchema.table(
     // they can be used"). Drizzle's migrator runs every pending migration
     // inside one transaction, so the migration that adds a subject type can
     // never also write a constraint mentioning it — unless the comparison is
-    // string-to-string, which is what these casts make it. Cast all three so
+    // string-to-string, which is what these casts make it. Cast every one so
     // the next subject type is a plain schema edit rather than a deploy
     // failure someone has to rediscover.
     check(
       "threads_subject_type_matches",
       sql`(${t.subjectType}::text = 'collab_post') = (${t.collabPostId} IS NOT NULL)
       AND (${t.subjectType}::text = 'profile') = (${t.profileUserId} IS NOT NULL)
-      AND (${t.subjectType}::text = 'collab_response') = (${t.collabResponseId} IS NOT NULL)`,
+      AND (${t.subjectType}::text = 'collab_response') = (${t.collabResponseId} IS NOT NULL)
+      AND (${t.subjectType}::text = 'forum_post') = (${t.forumPostId} IS NOT NULL)`,
     ),
     // Partial unique indexes make lazy get-or-create race-safe.
     uniqueIndex("threads_collab_post_uq")
@@ -1491,6 +1497,9 @@ export const threads = socialSchema.table(
     uniqueIndex("threads_collab_response_uq")
       .on(t.collabResponseId)
       .where(sql`${t.collabResponseId} IS NOT NULL`),
+    uniqueIndex("threads_forum_post_uq")
+      .on(t.forumPostId)
+      .where(sql`${t.forumPostId} IS NOT NULL`),
   ],
 );
 
@@ -1584,6 +1593,297 @@ export const commentReports = socialSchema.table("comment_reports", {
   commentId: bigint("comment_id", { mode: "number" })
     .notNull()
     .references(() => comments.id, { onDelete: "cascade" }),
+  reporterId: text("reporter_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
+});
+
+// ── Forum (forum schema) ─────────────────────────────────────────────────────
+
+/**
+ * The shape of a post. `post` is short with an optional title, `devlog` is
+ * long-form and may be posted as a team, `question` can be marked solved.
+ */
+export type ForumPostKind = "post" | "devlog" | "question";
+export type ForumPostStatus = "draft" | "published";
+export type ForumPinScope = "global" | "category";
+export type ForumCategoryPostingPolicy = "anyone" | "staff";
+export type ForumTagStatus = "active" | "banned";
+export type ForumFollowTarget = "team" | "user" | "tag" | "category" | "series";
+
+/**
+ * Staff-curated, exactly one per post. Seeded in the migration so every
+ * environment shares ids and slugs; archived rather than deleted, which is
+ * why posts reference it with RESTRICT.
+ */
+export const forumCategories = forumSchema.table(
+  "categories",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    description: text("description"),
+    color: text("color"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    postingPolicy: text("posting_policy")
+      .$type<ForumCategoryPostingPolicy>()
+      .notNull()
+      .default("anyone"),
+    archivedAt: timestamp("archived_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [check("forum_categories_posting_policy", sql`${t.postingPolicy} IN ('anyone', 'staff')`)],
+);
+
+/** An ordered set of devlogs owned by a team or by one member, never both. */
+export const forumSeries = forumSchema.table(
+  "series",
+  {
+    id: serial("id").primaryKey(),
+    teamId: text("team_id").references(() => teams.id, { onDelete: "cascade" }),
+    ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("forum_series_one_owner", sql`num_nonnulls(${t.teamId}, ${t.ownerUserId}) = 1`),
+    uniqueIndex("forum_series_team_slug_uq")
+      .on(t.teamId, t.slug)
+      .where(sql`${t.teamId} IS NOT NULL`),
+    uniqueIndex("forum_series_owner_slug_uq")
+      .on(t.ownerUserId, t.slug)
+      .where(sql`${t.ownerUserId} IS NOT NULL`),
+  ],
+);
+
+export const forumPosts = forumSchema.table(
+  "posts",
+  {
+    id: serial("id").primaryKey(),
+    kind: text("kind").$type<ForumPostKind>().notNull(),
+    categoryId: integer("category_id")
+      .notNull()
+      .references(() => forumCategories.id, { onDelete: "restrict" }),
+    // Set null like `social.comments.authorId`: a deleted account leaves
+    // its posts (and the threads under them) readable as "deleted user".
+    authorId: text("author_id").references(() => user.id, { onDelete: "set null" }),
+    // Posted as a team; devlogs only. A deleted team degrades the devlog
+    // back to its solo author.
+    teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
+    title: text("title"),
+    // Derived from the title; not unique, since the URL is `<id>-<slug>`.
+    slug: text("slug"),
+    body: text("body").notNull(),
+    // Plain-text lead derived from `body`, for cards and meta descriptions.
+    excerpt: text("excerpt"),
+    coverImageKey: text("cover_image_key"),
+    coverImageUrl: text("cover_image_url"),
+    seriesId: integer("series_id").references(() => forumSeries.id, { onDelete: "set null" }),
+    seriesIndex: integer("series_index"),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
+    jamId: integer("jam_id").references(() => itchJams.jamId, { onDelete: "set null" }),
+    collabPostId: integer("collab_post_id").references(() => collabPosts.id, {
+      onDelete: "set null",
+    }),
+    status: text("status").$type<ForumPostStatus>().notNull().default("published"),
+    publishedAt: timestamp("published_at"),
+    editedAt: timestamp("edited_at"),
+    // Tombstone: the thread under a deleted post stays readable.
+    deletedAt: timestamp("deleted_at"),
+    pinnedAt: timestamp("pinned_at"),
+    pinnedScope: text("pinned_scope").$type<ForumPinScope>(),
+    // Staff hide, the same shape as `teams`.
+    hiddenAt: timestamp("hidden_at"),
+    hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
+    hiddenReason: text("hidden_reason"),
+    solvedCommentId: bigint("solved_comment_id", { mode: "number" }).references(
+      (): AnyPgColumn => comments.id,
+      { onDelete: "set null" },
+    ),
+    // Kept in the like's own transaction. Comment counts are not copied —
+    // they come from `social.threads.commentCount`.
+    likeCount: integer("like_count").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("forum_posts_kind", sql`${t.kind} IN ('post', 'devlog', 'question')`),
+    check("forum_posts_status", sql`${t.status} IN ('draft', 'published')`),
+    check(
+      "forum_posts_pinned_scope",
+      sql`${t.pinnedScope} IS NULL OR ${t.pinnedScope} IN ('global', 'category')`,
+    ),
+    check("forum_posts_title_required", sql`${t.kind} = 'post' OR ${t.title} IS NOT NULL`),
+    check("forum_posts_team_devlog_only", sql`${t.teamId} IS NULL OR ${t.kind} = 'devlog'`),
+    check(
+      "forum_posts_solved_question_only",
+      sql`${t.solvedCommentId} IS NULL OR ${t.kind} = 'question'`,
+    ),
+    check(
+      "forum_posts_published_at",
+      sql`${t.status} <> 'published' OR ${t.publishedAt} IS NOT NULL`,
+    ),
+    uniqueIndex("forum_posts_series_index_uq")
+      .on(t.seriesId, t.seriesIndex)
+      .where(sql`${t.seriesId} IS NOT NULL AND ${t.deletedAt} IS NULL`),
+    // The feed's index: only what a reader can see.
+    index("forum_posts_feed_idx")
+      .on(t.publishedAt.desc(), t.id.desc())
+      .where(sql`${t.status} = 'published' AND ${t.hiddenAt} IS NULL AND ${t.deletedAt} IS NULL`),
+    index("forum_posts_category_idx").on(t.categoryId, t.publishedAt.desc()),
+    index("forum_posts_team_idx").on(t.teamId, t.publishedAt.desc()),
+    index("forum_posts_author_idx").on(t.authorId, t.createdAt.desc()),
+    index("forum_posts_title_trgm_idx").using("gin", t.title.op("gin_trgm_ops")),
+  ],
+);
+
+/** Co-author bylines on team devlogs. */
+export const forumPostAuthors = forumSchema.table(
+  "post_authors",
+  {
+    postId: integer("post_id")
+      .notNull()
+      .references(() => forumPosts.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.postId, t.userId] })],
+);
+
+export const forumPostImages = forumSchema.table(
+  "post_images",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => forumPosts.id, { onDelete: "cascade" }),
+    imageKey: text("image_key").notNull(),
+    url: text("url").notNull(),
+    alt: text("alt"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("forum_post_images_post_idx").on(t.postId, t.sortOrder)],
+);
+
+export const forumTags = forumSchema.table(
+  "tags",
+  {
+    id: serial("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    // Recomputed in the transaction that changes a post's tags. Hidden and
+    // deleted posts still count: it is a popularity signal, not moderation.
+    usageCount: integer("usage_count").notNull().default(0),
+    status: text("status").$type<ForumTagStatus>().notNull().default("active"),
+    // The router refuses to merge into a tag that is itself merged, so
+    // chains never form.
+    mergedIntoId: integer("merged_into_id").references((): AnyPgColumn => forumTags.id, {
+      onDelete: "set null",
+    }),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("forum_tags_slug_format", sql`${t.slug} ~ '^[a-z0-9-]{2,32}$'`),
+    check("forum_tags_status", sql`${t.status} IN ('active', 'banned')`),
+    check(
+      "forum_tags_not_self_merged",
+      sql`${t.mergedIntoId} IS NULL OR ${t.mergedIntoId} <> ${t.id}`,
+    ),
+    index("forum_tags_usage_idx").on(t.usageCount.desc()),
+  ],
+);
+
+export const forumPostTags = forumSchema.table(
+  "post_tags",
+  {
+    postId: integer("post_id")
+      .notNull()
+      .references(() => forumPosts.id, { onDelete: "cascade" }),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => forumTags.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.postId, t.tagId] }),
+    index("forum_post_tags_tag_idx").on(t.tagId, t.postId),
+  ],
+);
+
+/** Likes. A `kind` column joins the key if more reactions ever arrive. */
+export const forumReactions = forumSchema.table(
+  "reactions",
+  {
+    postId: integer("post_id")
+      .notNull()
+      .references(() => forumPosts.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.postId, t.userId] }),
+    index("forum_reactions_user_idx").on(t.userId, t.createdAt.desc()),
+  ],
+);
+
+export const forumBookmarks = forumSchema.table(
+  "bookmarks",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => forumPosts.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.postId] }),
+    index("forum_bookmarks_user_idx").on(t.userId, t.createdAt.desc()),
+  ],
+);
+
+/**
+ * Polymorphic, so `targetId` is text with no FK (team ids are uuid text, the
+ * rest are ints). Deleting or merging a target rewrites its follows in the
+ * same transaction.
+ */
+export const forumFollows = forumSchema.table(
+  "follows",
+  {
+    followerId: text("follower_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetType: text("target_type").$type<ForumFollowTarget>().notNull(),
+    targetId: text("target_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.followerId, t.targetType, t.targetId] }),
+    check(
+      "forum_follows_target_type",
+      sql`${t.targetType} IN ('team', 'user', 'tag', 'category', 'series')`,
+    ),
+    index("forum_follows_target_idx").on(t.targetType, t.targetId),
+  ],
+);
+
+export const forumPostReports = forumSchema.table("post_reports", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id")
+    .notNull()
+    .references(() => forumPosts.id, { onDelete: "cascade" }),
   reporterId: text("reporter_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),

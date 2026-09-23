@@ -22,6 +22,12 @@ export const FEATURE_FLAGS = {
    * community one and goes muddy against the non-default themes.
    */
   "server-role-icon-og-color": false,
+  /**
+   * The whole forum: nav entries, `/forum/*` routes, the team Devlog and
+   * profile Posts tabs, and — enforced server-side by `requireForumEnabled`
+   * — every `forum.*` procedure and feed. Delete once the forum launches.
+   */
+  "forum-enabled": false,
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

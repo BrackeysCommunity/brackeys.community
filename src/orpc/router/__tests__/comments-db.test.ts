@@ -72,7 +72,7 @@ describe("thread creation race", () => {
     await seedUser(db, "owner");
     const postId = await seedCollabPost(db, "owner");
     const ref = { type: "collab_post", id: postId } as const;
-    const subject = (await loadSubject(ref))!;
+    const subject = (await loadSubject(ref, null))!;
 
     const [a, b] = await Promise.all([resolveThread(ref, subject), resolveThread(ref, subject)]);
     expect(a.id).toBe(b.id);
@@ -91,7 +91,7 @@ describe("thread creation race", () => {
     await seedUser(db, "owner");
     const postId = await seedCollabPost(db, "owner");
     const ref = { type: "collab_post", id: postId } as const;
-    const subject = (await loadSubject(ref))!;
+    const subject = (await loadSubject(ref, null))!;
 
     const [existing] = await db
       .insert(threads)

@@ -54,6 +54,7 @@ const subjectRefSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("collab_post"), id: z.number().int().positive() }),
   z.object({ type: z.literal("profile"), id: z.string().min(1) }),
   z.object({ type: z.literal("collab_response"), id: z.number().int().positive() }),
+  z.object({ type: z.literal("forum_post"), id: z.number().int().positive() }),
 ]) satisfies z.ZodType<SubjectRef>;
 
 /**
@@ -162,7 +163,7 @@ export function serializeComments(
     blocked: Set<string>;
     viewerId: string | null;
     isStaff: boolean;
-    subjectOwnerId: string;
+    subjectOwnerId: string | null;
     truncatedRoots?: Set<number>;
   },
 ): SerializedComment[] {
@@ -191,7 +192,11 @@ export function serializeComments(
       viewer: {
         isMine,
         canEdit: isMine && !tombstoned,
-        canDelete: !tombstoned && (isMine || opts.isStaff || opts.viewerId === opts.subjectOwnerId),
+        canDelete:
+          !tombstoned &&
+          (isMine ||
+            opts.isStaff ||
+            (opts.subjectOwnerId != null && opts.viewerId === opts.subjectOwnerId)),
       },
     };
   });
@@ -202,8 +207,11 @@ async function viewerIsStaff(viewerId: string | null): Promise<boolean> {
   return isStaffMember(await resolveUserRoles(viewerId));
 }
 
-async function loadSubjectOrThrow(ref: SubjectRef): Promise<SubjectContext> {
-  const ctx = await loadSubject(ref);
+async function loadSubjectOrThrow(
+  ref: SubjectRef,
+  viewerId: string | null,
+): Promise<SubjectContext> {
+  const ctx = await loadSubject(ref, viewerId);
   if (!ctx?.exists) {
     throw new ORPCError("NOT_FOUND", { message: "This page can't be commented on." });
   }
@@ -223,7 +231,7 @@ export const listComments = os
   )
   .handler(async ({ input, context }) => {
     const viewerId = context.user?.id ?? null;
-    const subject = await loadSubject(input.subject);
+    const subject = await loadSubject(input.subject, viewerId);
     if (!subject?.exists) {
       throw new ORPCError("NOT_FOUND", { message: SUBJECT_NOT_FOUND });
     }
@@ -240,7 +248,7 @@ export const listComments = os
     // A disabled surface (a wall whose owner turned notes off) stays
     // readable to the owner only — visitors get the same shape as an
     // empty thread rather than the archive.
-    if (!subject.commentingEnabled && viewerId !== subject.ownerId) {
+    if (!subject.commentingEnabled && (viewerId == null || viewerId !== subject.ownerId)) {
       return {
         thread: null,
         commentCount: 0,
@@ -256,7 +264,7 @@ export const listComments = os
       return {
         thread: null,
         commentCount: 0,
-        commentingEnabled: subject.commentingEnabled,
+        commentingEnabled: subject.commentingEnabled && !subject.closedReason,
         viewerIsStaff: isStaff,
         comments: [] as SerializedComment[],
         nextCursor: null as number | null,
@@ -333,7 +341,7 @@ export const listComments = os
         muted: subscription?.muted ?? false,
       },
       commentCount: thread.commentCount,
-      commentingEnabled: subject.commentingEnabled,
+      commentingEnabled: subject.commentingEnabled && !subject.closedReason,
       viewerIsStaff: isStaff,
       comments: serializeComments(allRows, {
         authors,
@@ -364,7 +372,7 @@ export const listReplies = os
     }
     const [thread] = await db.select().from(threads).where(eq(threads.id, root.threadId)).limit(1);
     if (!thread) throw new ORPCError("NOT_FOUND", { message: "Thread not found." });
-    const subject = await loadSubjectOrThrow(subjectRefOfThread(thread));
+    const subject = await loadSubjectOrThrow(subjectRefOfThread(thread), context.user?.id ?? null);
     // Reached by comment id rather than by subject, so it needs its own
     // gate — a leaked root id must not open a private thread's replies.
     if (!canViewSubject(subject, viewerId, await viewerIsStaff(viewerId))) {
@@ -416,7 +424,7 @@ export const getCommentLocation = os
   .input(z.object({ subject: subjectRefSchema, commentId: z.number().int().positive() }))
   .handler(async ({ input, context }) => {
     const viewerId = context.user?.id ?? null;
-    const subject = await loadSubject(input.subject);
+    const subject = await loadSubject(input.subject, viewerId);
     if (!subject?.exists) return { rootId: null };
     if (!canViewSubject(subject, viewerId, await viewerIsStaff(viewerId))) {
       return { rootId: null };
@@ -445,7 +453,7 @@ export const createComment = os
     }),
   )
   .handler(async ({ input, context }) => {
-    const subject = await loadSubjectOrThrow(input.subject);
+    const subject = await loadSubjectOrThrow(input.subject, context.user.id);
     // Before the enabled check: an outsider must not learn the difference
     // between a private thread that exists and one that is switched off.
     if (!canWriteSubject(subject, context.user.id)) {
@@ -453,6 +461,9 @@ export const createComment = os
     }
     if (!subject.commentingEnabled) {
       throw new ORPCError("FORBIDDEN", { message: "Comments are turned off here." });
+    }
+    if (subject.closedReason) {
+      throw new ORPCError("FORBIDDEN", { message: subject.closedReason });
     }
     if (input.content.length > subject.maxCommentLength) {
       throw new ORPCError("BAD_REQUEST", {
@@ -625,7 +636,7 @@ export const editComment = os
     if (thread?.lockedAt) {
       throw new ORPCError("FORBIDDEN", { message: "This thread is locked." });
     }
-    const subject = thread ? await loadSubject(subjectRefOfThread(thread)) : null;
+    const subject = thread ? await loadSubject(subjectRefOfThread(thread), context.user.id) : null;
     if (subject && input.content.length > subject.maxCommentLength) {
       throw new ORPCError("BAD_REQUEST", {
         message: `Keep it under ${subject.maxCommentLength} characters.`,
@@ -665,8 +676,10 @@ export const deleteComment = os
         .from(threads)
         .where(eq(threads.id, comment.threadId))
         .limit(1);
-      const subject = thread ? await loadSubject(subjectRefOfThread(thread)) : null;
-      allowed = subject?.ownerId === context.user.id;
+      const subject = thread
+        ? await loadSubject(subjectRefOfThread(thread), context.user.id)
+        : null;
+      allowed = subject != null && subject.ownerId === context.user.id;
     }
     if (!allowed) {
       throw new ORPCError("FORBIDDEN", { message: "You can't remove this comment." });
@@ -732,7 +745,7 @@ async function notifyCommentRemoved(params: {
       .from(threads)
       .where(eq(threads.id, comment.threadId))
       .limit(1);
-    const subject = thread ? await loadSubject(subjectRefOfThread(thread)) : null;
+    const subject = thread ? await loadSubject(subjectRefOfThread(thread), removedById) : null;
 
     await notify({
       userId: authorId,
@@ -796,7 +809,7 @@ export const setThreadSubscription = os
   .use(requireAuth)
   .input(z.object({ subject: subjectRefSchema, muted: z.boolean() }))
   .handler(async ({ input, context }) => {
-    const subject = await loadSubjectOrThrow(input.subject);
+    const subject = await loadSubjectOrThrow(input.subject, context.user.id);
     // Subscribing creates the thread, so an outsider could otherwise
     // materialize (and get notified about) a conversation they can't read.
     if (!canWriteSubject(subject, context.user.id)) {
@@ -820,7 +833,7 @@ export const lockThread = os
   .use(requireStaff)
   .input(z.object({ subject: subjectRefSchema, locked: z.boolean() }))
   .handler(async ({ input, context }) => {
-    const subject = await loadSubjectOrThrow(input.subject);
+    const subject = await loadSubjectOrThrow(input.subject, context.user.id);
     const thread = await resolveThread(input.subject, subject);
     await db
       .update(threads)
@@ -1060,7 +1073,7 @@ async function notifyReportersOfComment(params: {
     const [thread] = comment
       ? await db.select().from(threads).where(eq(threads.id, comment.threadId)).limit(1)
       : [];
-    const subject = thread ? await loadSubject(subjectRefOfThread(thread)) : null;
+    const subject = thread ? await loadSubject(subjectRefOfThread(thread), params.actorId) : null;
 
     await notifyReporters({
       reports: params.reports,

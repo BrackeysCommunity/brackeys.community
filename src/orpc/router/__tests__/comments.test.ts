@@ -220,6 +220,7 @@ describe("comment subject registry", () => {
       collabPostId: null,
       profileUserId: null,
       collabResponseId: null,
+      forumPostId: null,
     };
     expect(subjectRefOfThread({ ...base, subjectType: "collab_post", collabPostId: 42 })).toEqual({
       type: "collab_post",

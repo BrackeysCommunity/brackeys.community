@@ -32,7 +32,7 @@ function isBanned(session: SessionResult | null): boolean {
   return session != null && isActiveBan(session.user);
 }
 
-const BANNED_MESSAGE = "Your account has been suspended.";
+export const BANNED_MESSAGE = "Your account has been suspended.";
 
 /**
  * A banned user's session resolves as anonymous for public reads and is
@@ -94,14 +94,15 @@ export async function userIsGuildMember(userId: string): Promise<boolean> {
   return profile?.discordId ? await isGuildMember(profile.discordId) : false;
 }
 
+export const NOT_GUILD_MEMBER_MESSAGE =
+  "You must be a member of the Brackeys Discord server to perform this action.";
+
 /** Requires auth + verifies the user is a member of the Brackeys Discord server. */
 export const requireGuildMember = os.middleware(async ({ context, next }) => {
   const session = await authedSession(context);
 
   if (!(await userIsGuildMember(session.user.id))) {
-    throw new ORPCError("FORBIDDEN", {
-      message: "You must be a member of the Brackeys Discord server to perform this action.",
-    });
+    throw new ORPCError("FORBIDDEN", { message: NOT_GUILD_MEMBER_MESSAGE });
   }
 
   return next({

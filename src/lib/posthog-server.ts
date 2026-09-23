@@ -1,6 +1,7 @@
 import { PostHog } from "posthog-node";
 
 import type { AnalyticsEvent } from "@/lib/event-taxonomy";
+import { FEATURE_FLAGS, type FeatureFlagKey } from "@/lib/flags";
 
 /**
  * Server-side PostHog — lifecycle events and unhandled error reporting.
@@ -195,6 +196,48 @@ export function withErrorReporting<TArgs extends { request: Request }, TResult>(
       throw error;
     }
   };
+}
+
+/** Distinct id for signed-out flag checks, so they get one shared answer. */
+export const ANONYMOUS_FLAG_DISTINCT_ID = "anonymous";
+
+const FLAG_TTL_MS = 30_000;
+const FLAG_TIMEOUT_MS = 1500;
+const flagCache = new Map<string, { value: boolean; expiresAt: number }>();
+
+/**
+ * Server-side flag check, for gates that must hold when the browser blocks
+ * PostHog. Without a personal API key posthog-node evaluates remotely, so
+ * answers are cached briefly per flag and distinct id; no key, a timeout, or
+ * an unknown flag all fall back to the `FEATURE_FLAGS` default.
+ */
+export async function isServerFlagEnabled(
+  flag: FeatureFlagKey,
+  distinctId: string,
+): Promise<boolean> {
+  const fallback = FEATURE_FLAGS[flag];
+  const posthog = getClient();
+  if (!posthog) return fallback;
+
+  const key = `${flag}:${distinctId}`;
+  const cached = flagCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  let value: boolean = fallback;
+  try {
+    const flags = await Promise.race([
+      posthog.evaluateFlags(distinctId, { flagKeys: [flag] }),
+      new Promise<undefined>((resolve) => setTimeout(resolve, FLAG_TIMEOUT_MS)),
+    ]);
+    const answer = flags?.getFlag(flag);
+    if (answer !== undefined) value = answer !== false;
+  } catch (error) {
+    captureServerException(error, { scope: "flags.evaluate", flag });
+  }
+
+  if (flagCache.size > 5000) flagCache.clear();
+  flagCache.set(key, { value, expiresAt: Date.now() + FLAG_TTL_MS });
+  return value;
 }
 
 /**
