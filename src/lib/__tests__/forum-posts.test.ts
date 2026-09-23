@@ -4,6 +4,7 @@ import {
   forumPostParam,
   forumPostSlug,
   forumPostTitle,
+  forumReadMinutes,
   normalizeTagSlug,
   parseForumPostParam,
 } from "@/lib/forum-posts";
@@ -40,5 +41,12 @@ describe("normalizeTagSlug", () => {
     expect(normalizeTagSlug("Godot")).toBe("godot");
     expect(normalizeTagSlug("é")).toBeNull();
     expect(normalizeTagSlug("#")).toBeNull();
+  });
+});
+
+describe("forumReadMinutes", () => {
+  it("rounds to whole minutes and never says zero", () => {
+    expect(forumReadMinutes("")).toBe(1);
+    expect(forumReadMinutes("word ".repeat(1100))).toBe(5);
   });
 });

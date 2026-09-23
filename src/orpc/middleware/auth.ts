@@ -11,6 +11,7 @@ import {
   isAdmin as checkIsAdmin,
   isGuildMember,
 } from "@/lib/discord";
+import { NOT_GUILD_MEMBER_MESSAGE } from "@/lib/guild-gate";
 import { refreshGuildRolesThrottled } from "@/lib/guild-sync";
 import { resolveUserRoles } from "@/lib/staff-roles";
 
@@ -84,18 +85,20 @@ export const requireAuth = os.middleware(async ({ context, next }) => {
  * rather than refusing the call outright (the gated contact block on
  * `getPostViewerState`).
  */
-export async function userIsGuildMember(userId: string): Promise<boolean> {
+export async function userIsGuildMember(
+  userId: string,
+  options?: { fresh?: boolean },
+): Promise<boolean> {
   const [profile] = await db
     .select({ discordId: developerProfiles.discordId })
     .from(developerProfiles)
     .where(eq(developerProfiles.id, userId))
     .limit(1);
 
-  return profile?.discordId ? await isGuildMember(profile.discordId) : false;
+  return profile?.discordId ? await isGuildMember(profile.discordId, options) : false;
 }
 
-export const NOT_GUILD_MEMBER_MESSAGE =
-  "You must be a member of the Brackeys Discord server to perform this action.";
+export { NOT_GUILD_MEMBER_MESSAGE };
 
 /** Requires auth + verifies the user is a member of the Brackeys Discord server. */
 export const requireGuildMember = os.middleware(async ({ context, next }) => {

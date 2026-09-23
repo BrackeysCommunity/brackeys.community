@@ -102,6 +102,14 @@ export const EVENTS = {
   forumPostCreated: "forum_post_created",
   forumPostViewed: "forum_post_viewed",
   forumReactionAdded: "forum_reaction_added",
+  // A non-member hit a forum write and got the Join Discord modal;
+  // `resolved` is the re-check passing afterwards.
+  forumGuildGateShown: "forum_guild_gate_shown",
+  forumGuildGateResolved: "forum_guild_gate_resolved",
+
+  // Any invite to the server, from any surface. `method: "web"` is the
+  // fallback toast's button, for someone without the desktop app.
+  discordInviteOpened: "discord_invite_opened",
 
   // Jams.
   jamViewed: "jam_viewed",
@@ -206,7 +214,11 @@ export type SigninSource =
   | "profile_builder"
   | "profile_wall"
   | "teams_discovery"
-  | "members_discovery";
+  | "members_discovery"
+  | "forum";
+
+/** Where a `discord_invite_opened` came from. */
+export type DiscordInviteSource = "footer" | "command_palette" | "terms" | "privacy" | "forum_gate";
 
 /** Where a `search_performed` fired from. */
 export type SearchSurface = "members" | "teams" | "collab" | "jams" | "command_palette";

@@ -1,5 +1,6 @@
 import {
   Calendar03Icon,
+  Comment01Icon,
   Home01Icon,
   UserGroupIcon,
   UserIcon,
@@ -14,6 +15,7 @@ import { useEffect, useState } from "react";
 import { useAttention } from "@/components/attention/use-attention";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { authClient } from "@/lib/auth-client";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { useMyProfileParams } from "@/lib/hooks/use-my-profile-params";
 import { stillImageUrl } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
@@ -105,7 +107,7 @@ const SEG =
   "after:pointer-events-none after:absolute after:-bottom-1 after:right-0 after:h-1 after:w-[14px] after:bg-background dark:after:bg-emboss-surface after:[clip-path:path('M0_0_A14_3_0_0_1_14_3_L14_0_Z')] after:opacity-0 after:transition-opacity after:duration-150 after:ease-out after:content-[''] " +
   "[&:has(+[aria-pressed=true])]:after:opacity-100 [[aria-pressed=true]+&]:before:opacity-100 [&:has(+:active)]:after:opacity-100 [:active+&]:before:opacity-100";
 
-type TabValue = "home" | "jams" | "collab" | "members" | "me";
+type TabValue = "home" | "jams" | "forum" | "collab" | "members" | "me";
 
 /** Extract the `/profile/<param>` segment, or null on any other
  * route (including the bare `/profile` index, which is always the
@@ -121,6 +123,9 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
   const avatarUrl = session?.user?.image ?? null;
+  // Five slots: with the forum on, FORUM takes MEMBERS' place — the
+  // directory stays reachable through search and ME.
+  const forumOn = useFlag("forum-enabled");
   const myProfileParams = useMyProfileParams(session?.user?.id);
 
   const unread = useQuery({
@@ -155,15 +160,17 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
 
   const active: TabValue | "none" = pathname.startsWith("/collab")
     ? "collab"
-    : pathname.startsWith("/members")
-      ? "members"
-      : pathname.startsWith("/profile")
-        ? isOwnProfile
-          ? "me"
-          : "none"
-        : pathname.startsWith("/jams")
-          ? "jams"
-          : "home";
+    : forumOn && pathname.startsWith("/forum")
+      ? "forum"
+      : pathname.startsWith("/members")
+        ? "members"
+        : pathname.startsWith("/profile")
+          ? isOwnProfile
+            ? "me"
+            : "none"
+          : pathname.startsWith("/jams")
+            ? "jams"
+            : "home";
 
   // The chonk press animation only lines up if the tapped key stays down the
   // moment the finger lifts (`:active` and `aria-pressed` share the same
@@ -184,6 +191,9 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         return;
       case "jams":
         navigate({ to: "/jams" });
+        return;
+      case "forum":
+        navigate({ to: "/forum" });
         return;
       case "collab":
         navigate({ to: "/collab" });
@@ -246,6 +256,11 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         <SegmentedControl.Item value="jams" aria-label="Jams" className={SEG}>
           <TabBody icon={Calendar03Icon} label="JAMS" />
         </SegmentedControl.Item>
+        {forumOn ? (
+          <SegmentedControl.Item value="forum" aria-label="Forum" className={SEG}>
+            <TabBody icon={Comment01Icon} label="FORUM" />
+          </SegmentedControl.Item>
+        ) : null}
         <SegmentedControl.Item
           value="collab"
           priority="primary"
@@ -254,12 +269,13 @@ export function MobileBottomNav({ pathnameOverride, inline = false }: MobileBott
         >
           <TabBody icon={UserGroupIcon} label="COLLAB" />
         </SegmentedControl.Item>
-        {/* The member directory has no other way in on a phone — the mobile
-            header carries no nav. The command center it replaced still has
-            one, as a home-page tile. */}
-        <SegmentedControl.Item value="members" aria-label="Members" className={SEG}>
-          <TabBody icon={UserSearch01Icon} label="USERS" />
-        </SegmentedControl.Item>
+        {/* Without the forum, the member directory has no other way in on a
+            phone — the mobile header carries no nav. */}
+        {forumOn ? null : (
+          <SegmentedControl.Item value="members" aria-label="Members" className={SEG}>
+            <TabBody icon={UserSearch01Icon} label="USERS" />
+          </SegmentedControl.Item>
+        )}
         <SegmentedControl.Item value="me" aria-label="Profile" className={cn(SEG, "rounded-r-md")}>
           <TabBody icon={UserIcon} label="ME" avatarUrl={avatarUrl} showDot={hasUnread} />
         </SegmentedControl.Item>

@@ -1,7 +1,14 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { forumCategories, forumPosts, teams, threads, threadSubscriptions } from "@/db/schema";
+import {
+  forumCategories,
+  forumPosts,
+  forumTags,
+  teams,
+  threads,
+  threadSubscriptions,
+} from "@/db/schema";
 import { loadSubject, resolveThread } from "@/lib/comment-subjects";
 import { seedUser, type TestDb } from "@/test/db";
 
@@ -58,7 +65,6 @@ describe("forum migration", () => {
     const rows = await db.select().from(forumCategories);
     expect(rows.map((r) => r.slug).sort()).toEqual([
       "announcements",
-      "devlogs",
       "feedback",
       "help",
       "jam-talk",
@@ -66,6 +72,19 @@ describe("forum migration", () => {
       "show-and-tell",
     ]);
     expect(rows.find((r) => r.slug === "announcements")!.postingPolicy).toBe("staff");
+  });
+
+  it("reserves the tags that restate a post kind", async () => {
+    const rows = await db
+      .select({ slug: forumTags.slug, status: forumTags.status })
+      .from(forumTags)
+      .where(inArray(forumTags.slug, ["devlog", "devlogs"]));
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { slug: "devlog", status: "banned" },
+        { slug: "devlogs", status: "banned" },
+      ]),
+    );
   });
 
   it("requires a title on everything but a post, and a devlog for team posts", async () => {

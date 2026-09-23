@@ -54,6 +54,24 @@ export const forumWrite = os.middleware(async ({ context, next }) => {
 });
 
 /**
+ * Signed in and not banned, no guild bar: reporting stays open to anyone
+ * who can read the post, so a non-member can still flag abuse.
+ */
+export const forumSignedIn = os.middleware(async ({ context, next }) => {
+  const session = await readSession(context);
+  await assertForumEnabled(session?.user.id ?? null);
+
+  if (!session) {
+    throw new ORPCError("UNAUTHORIZED", { message: "Authentication required." });
+  }
+  if (isActiveBan(session.user)) {
+    throw new ORPCError("FORBIDDEN", { message: BANNED_MESSAGE });
+  }
+
+  return next({ context: { session, user: session.user } });
+});
+
+/**
  * The flag half alone, for chaining after a middleware that already put a
  * user on the context — `requireStaff` on the moderation procedures.
  */

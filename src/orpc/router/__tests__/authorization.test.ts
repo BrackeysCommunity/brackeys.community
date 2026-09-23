@@ -8,7 +8,7 @@ import {
   requireGuildMember,
   requireStaff,
 } from "@/orpc/middleware/auth";
-import { forumRead, forumWrite } from "@/orpc/middleware/forum";
+import { forumRead, forumSignedIn, forumWrite } from "@/orpc/middleware/forum";
 import router from "@/orpc/router";
 
 /**
@@ -164,6 +164,7 @@ const AUTH_REQUIRING = new Set<unknown>([
   requireStaff,
   requireAdmin,
   forumWrite,
+  forumSignedIn,
 ]);
 
 const STAFF_REQUIRING = new Set<unknown>([requireStaff, requireAdmin]);

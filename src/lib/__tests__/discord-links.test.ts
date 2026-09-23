@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { discordMessageLink, discordUserLink } from "@/lib/discord-links";
+import { discordInviteLink, discordMessageLink, discordUserLink } from "@/lib/discord-links";
 
 describe("discord app links", () => {
   it("routes a profile through the app, not the web client", () => {
@@ -11,8 +11,16 @@ describe("discord app links", () => {
     expect(discordMessageLink("7", "9001", "42")).toBe("discord://-/channels/7/9001/42");
   });
 
+  it("opens the server invite in the app", () => {
+    expect(discordInviteLink()).toBe("discord://-/invite/brackeys");
+  });
+
   it("never emits an https discord.com URL — that is the whole point", () => {
-    for (const link of [discordUserLink("1"), discordMessageLink("1", "2", "3")]) {
+    for (const link of [
+      discordUserLink("1"),
+      discordMessageLink("1", "2", "3"),
+      discordInviteLink(),
+    ]) {
       expect(link.startsWith("discord://")).toBe(true);
       expect(link).not.toContain("discord.com");
     }

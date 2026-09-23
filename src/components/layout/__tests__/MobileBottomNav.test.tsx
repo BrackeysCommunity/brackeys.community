@@ -19,6 +19,7 @@ vi.mock("@hugeicons/react", () => ({
 // rather than failing an assertion, so keep this in sync when icons change.
 vi.mock("@hugeicons/core-free-icons", () => ({
   Calendar03Icon: "calendar",
+  Comment01Icon: "comment",
   Home01Icon: "home",
   UserGroupIcon: "user-group",
   UserIcon: "user",
@@ -63,6 +64,9 @@ vi.mock("@/orpc/client", () => ({
   },
 }));
 
+let __forumOn = false;
+vi.mock("@/lib/hooks/use-flag", () => ({ useFlag: () => __forumOn }));
+
 let __pathname = "/";
 let __sessionUserId: string | null = null;
 // Ownership is decided by comparing the session against the *resolved*
@@ -79,6 +83,7 @@ afterEach(() => {
   __pathname = "/";
   __sessionUserId = null;
   __viewedProfile = undefined;
+  __forumOn = false;
 });
 
 describe("MobileBottomNav", () => {
@@ -147,6 +152,15 @@ describe("MobileBottomNav", () => {
     __viewedProfile = { profile: { id: "user-1" } };
     render(<MobileBottomNav pathnameOverride="/profile/some-stub" />);
     expect(screen.getByLabelText("Profile").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("puts FORUM in MEMBERS' slot while the forum is on", () => {
+    __forumOn = true;
+    render(<MobileBottomNav pathnameOverride="/forum/12-hello" />);
+    expect(screen.queryByLabelText("Members")).toBeNull();
+    expect(screen.getByLabelText("Forum").getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByLabelText("Home"));
+    expect(navigate).toHaveBeenCalledWith({ to: "/" });
   });
 
   it("does not select ME when viewing someone else's profile", () => {

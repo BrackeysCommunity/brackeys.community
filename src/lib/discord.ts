@@ -351,10 +351,19 @@ function writeCachedMembership(discordUserId: string, isMember: boolean): Promis
  * Check if a Discord user is a member of the guild using the bot token,
  * answering from the Redis cache when possible. Fails closed (returns
  * false) when rate limited or when Discord errors.
+ *
+ * `fresh` skips the cache read — the cache keeps a definite "no", so
+ * someone who just joined would otherwise stay out until it expired. The
+ * answer is still written back.
  */
-export async function isGuildMember(discordUserId: string): Promise<boolean> {
-  const cached = await readCachedMembership(discordUserId);
-  if (cached !== null) return cached;
+export async function isGuildMember(
+  discordUserId: string,
+  { fresh = false }: { fresh?: boolean } = {},
+): Promise<boolean> {
+  if (!fresh) {
+    const cached = await readCachedMembership(discordUserId);
+    if (cached !== null) return cached;
+  }
 
   const guildId = process.env.DISCORD_GUILD_ID!;
   const botToken = process.env.DISCORD_BOT_TOKEN!;

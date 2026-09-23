@@ -1,3 +1,4 @@
+import { DiscordInviteLink } from "@/components/ui/discord-invite-link";
 import { CONTACT, OPERATOR, SITE } from "@/lib/legal-meta";
 
 import { LegalDocument, type LegalSection } from "./LegalDocument";
@@ -186,9 +187,9 @@ const SECTIONS: LegalSection[] = [
         <p>
           The rules of the Brackeys Discord server apply on the Service in full and are incorporated
           into these Terms by reference. They are published in the{" "}
-          <a href={SITE.discord} target="_blank" rel="noopener noreferrer" className={A}>
+          <DiscordInviteLink source="terms" className={A}>
             Discord server
-          </a>{" "}
+          </DiscordInviteLink>{" "}
           and may be updated there from time to time. Where a rule and these Terms address the same
           conduct, the stricter of the two applies.
         </p>
@@ -706,9 +707,9 @@ const SECTIONS: LegalSection[] = [
         </ul>
         <p>
           For anything that is not a formal notice, the{" "}
-          <a href={SITE.discord} target="_blank" rel="noopener noreferrer" className={A}>
+          <DiscordInviteLink source="terms" className={A}>
             Brackeys Discord server
-          </a>{" "}
+          </DiscordInviteLink>{" "}
           is the faster route and a moderator will usually answer the same day.
         </p>
       </>

@@ -1,6 +1,9 @@
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  forumCategories,
+  forumPosts,
   itchJamEntries,
   itchJams,
   profileProjects,
@@ -19,6 +22,12 @@ const db: TestDb = await (async () => {
 })();
 
 vi.mock("@/db", () => ({ db }));
+
+let forumEnabled = false;
+vi.mock("@/lib/posthog-server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
+  isServerFlagEnabled: async () => forumEnabled,
+}));
 
 let sitemap: typeof import("@/lib/sitemap");
 
@@ -126,6 +135,43 @@ describe("sitemap sections", () => {
     });
 
     expect(await sitemap.renderSitemapSection("projects", 0)).toContain("/projects/drive-by<");
+  });
+});
+
+describe("forum section", () => {
+  it("lists live posts under their slugged URL, only while the flag is on", async () => {
+    await seedUser(db, "forum-author");
+    const [category] = await db
+      .select({ id: forumCategories.id })
+      .from(forumCategories)
+      .where(eq(forumCategories.slug, "help"));
+    const insert = (values: Partial<typeof forumPosts.$inferInsert>) =>
+      db
+        .insert(forumPosts)
+        .values({
+          kind: "question",
+          categoryId: category!.id,
+          authorId: "forum-author",
+          title: "t",
+          body: "b",
+          status: "published",
+          publishedAt: new Date(),
+          ...values,
+        })
+        .returning({ id: forumPosts.id });
+    const [live] = await insert({ slug: "how-do-i" });
+    const [hidden] = await insert({ slug: "hidden-one", hiddenAt: new Date() });
+    const [draft] = await insert({ slug: "draft-one", status: "draft", publishedAt: null });
+
+    expect(await sitemap.renderSitemapSection("forum", 0)).not.toContain("/forum/");
+
+    forumEnabled = true;
+    const xml = await sitemap.renderSitemapSection("forum", 0);
+    forumEnabled = false;
+
+    expect(xml).toContain(`/forum/${live!.id}-how-do-i<`);
+    expect(xml).not.toContain(`/forum/${hidden!.id}-`);
+    expect(xml).not.toContain(`/forum/${draft!.id}-`);
   });
 });
 

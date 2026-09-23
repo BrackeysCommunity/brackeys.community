@@ -108,6 +108,10 @@ async function resolveCard(target: string) {
       return data.teamCard(id);
     case "board":
       return data.boardCard(id);
+    case "forum": {
+      const postId = Number(id);
+      return Number.isInteger(postId) && postId > 0 ? data.forumCard(postId) : null;
+    }
     default:
       return null;
   }

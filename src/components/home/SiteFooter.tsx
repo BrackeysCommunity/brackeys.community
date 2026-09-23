@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 import { BrackeysMark } from "@/components/ui/brackeys-mark";
+import { DiscordInviteLink } from "@/components/ui/discord-invite-link";
 import { MicroLabel } from "@/components/ui/typography";
 
 /**
@@ -11,6 +12,8 @@ interface FooterLink {
   label: string;
   to?: string;
   href?: string;
+  /** The server invite, which opens the app rather than a web page. */
+  invite?: true;
 }
 
 interface FooterColumn {
@@ -22,7 +25,7 @@ const COLUMNS: FooterColumn[] = [
   {
     label: "COMMUNITY",
     links: [
-      { label: "Discord server", href: "https://discord.gg/brackeys" },
+      { label: "Discord server", invite: true },
       { label: "Member directory", to: "/members" },
       { label: "Teams", to: "/teams" },
       { label: "Collab board", to: "/collab" },
@@ -79,6 +82,13 @@ function FooterLinkItem({
       <Link to={link.to} className={className}>
         {link.label}
       </Link>
+    );
+  }
+  if (link.invite) {
+    return (
+      <DiscordInviteLink source="footer" className={className}>
+        {link.label}
+      </DiscordInviteLink>
     );
   }
   return (

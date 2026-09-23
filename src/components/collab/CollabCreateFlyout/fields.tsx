@@ -483,6 +483,8 @@ interface ImageUploaderProps {
   label?: string;
   /** Optional line under the picker, for saying where the art comes from. */
   note?: string;
+  /** How many images the post holds, saved and pending together. */
+  max?: number;
 }
 
 export function ImageUploader({
@@ -493,11 +495,12 @@ export function ImageUploader({
   onRemoveExisting,
   label = "PROJECT IMAGES",
   note,
+  max = 5,
 }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const total = existing.length + images.length;
-  const full = total >= 5;
+  const full = total >= max;
 
   const handleFile = (file: File) => {
     if (full) return;
@@ -518,7 +521,7 @@ export function ImageUploader({
   };
 
   return (
-    <FieldRow label={label} hint={`${total}/5`} error={error || null}>
+    <FieldRow label={label} hint={`${total}/${max}`} error={error || null}>
       {total > 0 ? (
         <div className="flex flex-wrap gap-2">
           {existing.map((img) => (
@@ -569,7 +572,7 @@ export function ImageUploader({
       <AddImageCard
         onClick={() => inputRef.current?.click()}
         disabled={full}
-        label={full ? "MAX 5 IMAGES" : "ADD IMAGE"}
+        label={full ? `MAX ${max} IMAGES` : "ADD IMAGE"}
       />
       {note ? (
         <Text size="xs" variant="muted" className="tracking-wide">

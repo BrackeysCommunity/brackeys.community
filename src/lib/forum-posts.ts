@@ -18,11 +18,22 @@ export const FORUM_LIMITS: Record<ForumPostKind, { title: number; body: number; 
 
 export const FORUM_MAX_TAGS = 5;
 
-/** The category a kind lands in unless the author picks another. */
+/**
+ * The category a kind lands in unless the author picks another. "Devlog"
+ * is only a kind — there is no Devlogs category and no #devlog tag, so a
+ * devlog is filed by what it's about like any other post.
+ */
 export const FORUM_DEFAULT_CATEGORY: Record<ForumPostKind, string> = {
   post: "show-and-tell",
   question: "help",
-  devlog: "devlogs",
+  devlog: "show-and-tell",
+};
+
+/** Tags that restate a post kind. Banned in the database; named here so the
+ *  composer and the router can say why. */
+export const FORUM_RESERVED_TAGS: Record<string, string> = {
+  devlog: "Devlogs are a post kind — pick DEVLOG instead of tagging it.",
+  devlogs: "Devlogs are a post kind — pick DEVLOG instead of tagging it.",
 };
 
 const SLUG_MAX_LENGTH = 60;
@@ -79,4 +90,23 @@ export function normalizeTagSlug(input: string): string | null {
     .slice(0, 32)
     .replace(/-+$/, "");
   return TAG_SLUG.test(slug) ? slug : null;
+}
+
+/** Route params for `to="/forum/$postId"`. */
+export function forumPostLinkParams(post: { id: number; slug?: string | null }) {
+  return { postId: forumPostParam(post) };
+}
+
+export const FORUM_KIND_LABEL: Record<ForumPostKind, string> = {
+  post: "Post",
+  devlog: "Devlog",
+  question: "Question",
+};
+
+const WORDS_PER_MINUTE = 220;
+
+/** Whole minutes, at least one — the post page's READ stat. */
+export function forumReadMinutes(body: string): number {
+  const words = body.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
 }

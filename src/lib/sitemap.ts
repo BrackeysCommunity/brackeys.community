@@ -10,12 +10,15 @@ import { db } from "@/db";
 import {
   collabPosts,
   developerProfiles,
+  forumPosts,
   itchJams,
   profileUrlStubs,
   projects,
   teams,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
+import { forumPostParam } from "@/lib/forum-posts";
+import { ANONYMOUS_FLAG_DISTINCT_ID, isServerFlagEnabled } from "@/lib/posthog-server";
 import { profileSlug } from "@/lib/profile-links";
 import { profileStubJoin } from "@/orpc/profile-projection";
 
@@ -29,6 +32,7 @@ export const SITEMAP_SECTIONS = [
   "profiles",
   "teams",
   "collab",
+  "forum",
 ] as const;
 
 export type SitemapSection = (typeof SITEMAP_SECTIONS)[number];
@@ -80,7 +84,36 @@ function sectionCountQuery(section: SitemapSection) {
       return db.select({ count }).from(teams);
     case "collab":
       return db.select({ count }).from(collabPosts).where(livePostFilter());
+    case "forum":
+      return forumCrawlable().then((open) =>
+        open
+          ? db
+              .select({ count })
+              .from(forumPosts)
+              .leftJoin(teams, eq(forumPosts.teamId, teams.id))
+              .where(liveForumPostFilter())
+          : [{ count: 0 }],
+      );
   }
+}
+
+/**
+ * Crawlers are signed out, so the forum is in the sitemap only while the
+ * flag is on for anonymous visitors — otherwise every URL here would 404.
+ * The section stays in the index either way and answers empty.
+ */
+function forumCrawlable(): Promise<boolean> {
+  return isServerFlagEnabled("forum-enabled", ANONYMOUS_FLAG_DISTINCT_ID);
+}
+
+/** Published, not deleted or hidden, not under a hidden team. Needs `teams` joined. */
+function liveForumPostFilter() {
+  return and(
+    eq(forumPosts.status, "published"),
+    isNull(forumPosts.deletedAt),
+    isNull(forumPosts.hiddenAt),
+    isNull(teams.hiddenAt),
+  );
 }
 
 /** Every post renders, but an expired one is a closed door. */
@@ -203,6 +236,25 @@ async function sectionUrls(section: SitemapSection, page: number): Promise<Sitem
         lastmod: row.updatedAt,
         changefreq: "weekly",
       }));
+    }
+    case "forum": {
+      if (!(await forumCrawlable())) return [];
+      const rows = await db
+        .select({ id: forumPosts.id, slug: forumPosts.slug, updatedAt: forumPosts.updatedAt })
+        .from(forumPosts)
+        .leftJoin(teams, eq(forumPosts.teamId, teams.id))
+        .where(liveForumPostFilter())
+        .orderBy(asc(forumPosts.id))
+        .limit(SITEMAP_PAGE_SIZE)
+        .offset(offset);
+      return [
+        ...(page === 0 ? [{ path: "/forum", changefreq: "hourly" as const, priority: 0.8 }] : []),
+        ...rows.map((row) => ({
+          path: `/forum/${forumPostParam(row)}`,
+          lastmod: row.updatedAt,
+          changefreq: "weekly" as const,
+        })),
+      ];
     }
   }
 }

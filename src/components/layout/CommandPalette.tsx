@@ -25,6 +25,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { openDiscordInvite } from "@/components/ui/discord-invite-link";
 import { allBotCommands, hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
@@ -96,13 +97,7 @@ export function CommandPalette() {
                 <span>Admin</span>
               </CommandItem>
             )}
-            <CommandItem
-              onSelect={() =>
-                run(() =>
-                  window.open("https://discord.gg/brackeys", "_blank", "noopener,noreferrer"),
-                )
-              }
-            >
+            <CommandItem onSelect={() => run(() => openDiscordInvite("command_palette"))}>
               <HugeiconsIcon icon={Share01Icon} className="text-cyan-400" />
               <span>Join Discord</span>
             </CommandItem>

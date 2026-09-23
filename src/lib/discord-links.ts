@@ -13,8 +13,10 @@
  * link resolving — the handle on the clipboard, the message already visible
  * in the channel — and none of them is the only route to the thing.
  *
- * Invites are deliberately absent. `discord.gg/brackeys` stays `https`:
- * it is aimed at people who do not have the server, and often not the app.
+ * Invites go through `discord://` too. Someone without the app gets
+ * nothing from the link, so every invite click also raises a toast whose
+ * button opens `SITE.discord` (the `https` invite) in a new tab — see
+ * `openDiscordInvite` in `@/components/ui/discord-invite-link`.
  */
 
 /** Someone's profile popout, by Discord user id. */
@@ -25,4 +27,9 @@ export function discordUserLink(discordUserId: string): string {
 /** One message in one channel — jumps to it in place. */
 export function discordMessageLink(guildId: string, channelId: string, messageId: string): string {
   return `discord://-/channels/${guildId}/${channelId}/${messageId}`;
+}
+
+/** The Brackeys server invite, in the app. */
+export function discordInviteLink(): string {
+  return "discord://-/invite/brackeys";
 }

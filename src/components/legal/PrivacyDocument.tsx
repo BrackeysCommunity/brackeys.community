@@ -1,3 +1,4 @@
+import { DiscordInviteLink } from "@/components/ui/discord-invite-link";
 import { CONTACT, OPERATOR, SITE } from "@/lib/legal-meta";
 
 import { LegalDocument, type LegalSection } from "./LegalDocument";
@@ -524,9 +525,9 @@ const SECTIONS: LegalSection[] = [
         </p>
         <p>
           For anything informal, ask in the{" "}
-          <a href={SITE.discord} target="_blank" rel="noopener noreferrer" className={A}>
+          <DiscordInviteLink source="privacy" className={A}>
             Brackeys Discord server
-          </a>
+          </DiscordInviteLink>
           . Formal requests should be made in writing to the addresses above so that we have a
           record of them.
         </p>

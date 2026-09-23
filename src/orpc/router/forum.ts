@@ -48,6 +48,7 @@ import {
   FORUM_LIMITS,
   FORUM_MAX_TAGS,
   FORUM_POST_KINDS,
+  FORUM_RESERVED_TAGS,
   forumPostSlug,
   forumPostTitle,
   normalizeTagSlug,
@@ -71,7 +72,7 @@ import { isForumPostImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { requireStaff } from "@/orpc/middleware/auth";
-import { forumEnabledForUser, forumRead, forumWrite } from "@/orpc/middleware/forum";
+import { forumEnabledForUser, forumRead, forumSignedIn, forumWrite } from "@/orpc/middleware/forum";
 import { profileIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
 
 /** Unpublished drafts one member may hold at once. */
@@ -729,6 +730,8 @@ async function resolveTags(raw: string[], userId: string): Promise<number[]> {
   }
   const wanted = slugs as string[];
   if (wanted.length === 0) return [];
+  const reserved = wanted.find((slug) => FORUM_RESERVED_TAGS[slug]);
+  if (reserved) throw new ORPCError("BAD_REQUEST", { message: FORUM_RESERVED_TAGS[reserved] });
   for (const slug of wanted) checkProfanity(slug, `#${slug}`);
 
   const existing = await db.select().from(forumTags).where(inArray(forumTags.slug, wanted));
@@ -1224,7 +1227,7 @@ export const setForumBookmark = os
   });
 
 export const reportForumPost = os
-  .use(forumWrite)
+  .use(forumSignedIn)
   .input(
     z.object({
       postId: z.number().int().positive(),

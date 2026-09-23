@@ -25,6 +25,7 @@ export const OG_ACCENTS = {
   collab: "#d2356b",
   profile: "#5865f2",
   team: "#d2356b",
+  forum: "#5865f2",
 } as const;
 
 /** The fill values above don't read as type at 16px on near-black. */
@@ -35,6 +36,7 @@ export const OG_ACCENT_TEXT = {
   collab: "#f892b2",
   profile: "#b3b9fc",
   team: "#f892b2",
+  forum: "#b3b9fc",
 } as const;
 
 export type OgKind = keyof typeof OG_ACCENTS;

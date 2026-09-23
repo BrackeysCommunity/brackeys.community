@@ -661,12 +661,14 @@ function ReportTargetLink({ report }: { report: CommentReport }) {
   }
   if (report.subjectType === "forum_post" && report.subjectForumPostId != null) {
     return (
-      <a
-        href={`/forum/${report.subjectForumPostId}#comment-${report.commentId}`}
+      <Link
+        to="/forum/$postId"
+        params={{ postId: String(report.subjectForumPostId) }}
+        hash={`comment-${report.commentId}`}
         className="text-xs text-primary hover:underline"
       >
         View in place →
-      </a>
+      </Link>
     );
   }
   if (report.subjectType === "profile" && report.subjectProfileUserId != null) {
@@ -775,9 +777,13 @@ function ForumTarget({ report }: { report: ForumReport }) {
             </Badge>
           ) : null}
         </div>
-        <a href={`/forum/${report.postId}`} className="text-sm text-primary hover:underline">
+        <Link
+          to="/forum/$postId"
+          params={{ postId: String(report.postId) }}
+          className="text-sm text-primary hover:underline"
+        >
           {report.postTitle}
-        </a>
+        </Link>
       </div>
     </div>
   );

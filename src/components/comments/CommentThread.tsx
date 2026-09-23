@@ -18,7 +18,7 @@ import {
 } from "@tanstack/react-query";
 import { Link as RouterLink, useLocation } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
@@ -72,6 +72,18 @@ function useFocusedCommentId(): number | null {
   const match = /^comment-(\d+)$/.exec(hash);
   return match ? Number(match[1]) : null;
 }
+
+/**
+ * A host's own bar in front of posting — the forum's guild gate. `guard`
+ * decides whether a submit goes ahead; `onServerRefusal` claims the
+ * server's refusal (true) or leaves it to the usual toast (false).
+ */
+export type CommentGate = {
+  guard: (run: () => void) => void;
+  onServerRefusal: (error: unknown, retry: () => void) => boolean;
+};
+
+const CommentGateContext = createContext<CommentGate | null>(null);
 
 export function commentThreadQueryKey(subject: SubjectRef) {
   return ["listComments", subject.type, subject.id] as const;
@@ -167,6 +179,7 @@ export function CommentThread({
   renderEmpty,
   signInPrompt,
   shell,
+  gate,
 }: {
   subject: SubjectRef;
   maxLength: number;
@@ -180,6 +193,7 @@ export function CommentThread({
    *  the composer would be, instead of nothing. */
   signInPrompt?: string;
   shell?: (content: React.ReactNode, count: number) => React.ReactElement | null;
+  gate?: CommentGate;
 }) {
   const { session } = useStore(authStore);
   const viewerId = session?.user?.id ?? null;
@@ -345,7 +359,12 @@ export function CommentThread({
     </div>
   );
 
-  return shell ? shell(content, commentCount) : content;
+  const gated = gate ? (
+    <CommentGateContext.Provider value={gate}>{content}</CommentGateContext.Provider>
+  ) : (
+    content
+  );
+  return shell ? shell(gated, commentCount) : gated;
 }
 
 /**
@@ -420,6 +439,7 @@ function Composer({
   const { session } = useStore(authStore);
   const self = useStore(activeUserStore, (s) => s.profile);
   const viewer = useMemberViewer();
+  const gate = useContext(CommentGateContext);
 
   const post = useMutation({
     mutationFn: (body: string) =>
@@ -441,10 +461,11 @@ function Composer({
       onCancel?.();
       return { previous, draft };
     },
-    onError: (err: Error, _body, ctx) => {
-      reportMutationError(err, "comments.create");
+    onError: (err: Error, body, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous);
       if (ctx) setContent(ctx.draft);
+      if (gate?.onServerRefusal(err, () => post.mutate(body))) return;
+      reportMutationError(err, "comments.create");
       toast.error(err.message);
     },
     onSuccess: () => onPosted(),
@@ -453,7 +474,10 @@ function Composer({
   const remaining = maxLength - content.length;
   const canPost = Boolean(content.trim()) && !post.isPending;
   const submit = () => {
-    if (canPost) post.mutate(content.trim());
+    if (!canPost) return;
+    const body = content.trim();
+    if (gate) gate.guard(() => post.mutate(body));
+    else post.mutate(body);
   };
 
   return (

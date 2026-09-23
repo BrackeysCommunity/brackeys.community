@@ -10,6 +10,7 @@ import {
   getForumPost,
   listForumPosts,
   removeForumPostImage,
+  reportForumPost,
   searchForumTags,
   setForumPostCover,
   setForumReaction,
@@ -107,6 +108,20 @@ describe("access", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("lets a signed-in non-member report, but not like", async () => {
+    const { id } = await post();
+    nonMembers.add("discord-bob");
+    await expect(
+      call(setForumReaction, { postId: id, liked: true }, asUser("bob")),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      call(reportForumPost, { postId: id, reason: "spam" }, asUser("bob")),
+    ).resolves.toEqual({ success: true });
+    await expect(
+      call(reportForumPost, { postId: id, reason: "spam" }, asUser(null)),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   it("keeps Announcements to staff", async () => {
     await expect(
       call(
@@ -145,6 +160,8 @@ describe("posting", () => {
     );
     const page = await call(getForumPost, { postId: created.id }, asUser(null));
     expect(page!.team?.name).toBe("Crew");
+    // A kind, not a category: devlogs file under Show & Tell by default.
+    expect(page!.category.slug).toBe("show-and-tell");
 
     await expect(
       call(
@@ -154,6 +171,16 @@ describe("posting", () => {
       ),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(post("x", { teamId })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("refuses a tag that restates the post kind", async () => {
+    await expect(
+      call(
+        createForumPost,
+        { kind: "devlog", title: "Entry 2", body: "More.", tags: ["#Devlog"] },
+        asUser("alice"),
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("post kind") });
   });
 
   it("rejects a profane title or tag", async () => {

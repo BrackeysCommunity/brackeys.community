@@ -1,4 +1,5 @@
 /** What each kind of page puts on its card. Every card degrades rather than fails. */
+import { FORUM_KIND_LABEL, forumPostTitle } from "@/lib/forum-posts";
 import { itchOriginalUrl } from "@/lib/itch-image";
 import { jamDateLong } from "@/lib/jam-links";
 import { safeThemeColor } from "@/lib/jam-palette";
@@ -216,6 +217,31 @@ export async function collabCard(postId: number): Promise<OgCardInput | null> {
       coverSource(post.images[0]?.url ?? post.project?.imageUrl ?? post.jam?.bannerUrl),
       "panel",
     ),
+  };
+}
+
+/**
+ * A forum post as the crawler sees it: signed out, so a dark forum, a
+ * hidden post or a deleted one all fall through to the 404 card.
+ */
+export async function forumCard(postId: number): Promise<OgCardInput | null> {
+  const post = await client.getForumPost({ postId }).catch(() => null);
+  if (!post || post.visibility !== "visible" || post.status !== "published") return null;
+
+  const who = ogName(
+    post.team?.name ?? (post.author ? memberDisplayName(post.author, ANON_VIEWER) : null),
+  );
+  const stats: OgStat[] = [{ value: post.category.name, label: "Category" }];
+  if (who) stats.push({ value: who, label: post.team ? "Team" : "Posted by" });
+  if (post.likeCount > 0) stats.push({ value: NUM.format(post.likeCount), label: "Likes" });
+
+  return {
+    kind: "forum",
+    eyebrow: FORUM_KIND_LABEL[post.kind],
+    title: censorText(forumPostTitle(post)) ?? "Forum post",
+    subtitle: post.title ? (censorText(post.excerpt) ?? null) : null,
+    stats,
+    art: await fetchArt(post.coverUrl ?? post.images[0]?.url, "panel"),
   };
 }
 

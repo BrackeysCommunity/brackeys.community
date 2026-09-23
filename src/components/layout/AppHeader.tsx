@@ -12,6 +12,7 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { useHeaderShift } from "@/lib/hooks/use-header-shift";
 import { useHeaderSlideTransition, useHideOnScrollDown } from "@/lib/hooks/use-hide-on-scroll-down";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
@@ -60,7 +61,16 @@ function MagneticLink({
   );
 }
 
-const NAV_ITEMS = [
+type NavItem = {
+  to: "/forum" | "/collab" | "/jams" | "/teams" | "/members";
+  label: string;
+  slug: string;
+};
+
+/** Leads the bar while `forum-enabled` is on for the viewer. */
+const FORUM_NAV_ITEM: NavItem = { to: "/forum", label: "FORUM", slug: "forum" };
+
+const NAV_ITEMS: NavItem[] = [
   { to: "/collab", label: "COLLAB", slug: "collab" },
   { to: "/jams", label: "JAMS", slug: "jams" },
   { to: "/teams", label: "TEAMS", slug: "teams" },
@@ -68,10 +78,10 @@ const NAV_ITEMS = [
   // the user menu, so the bar spends the slot on a destination that isn't
   // reachable anywhere else.
   { to: "/members", label: "MEMBERS", slug: "members" },
-] as const;
+];
 
 /** A section stays lit on its detail pages — `/jams/foo` is still JAMS. */
-function isActivePath(pathname: string, item: (typeof NAV_ITEMS)[number]) {
+function isActivePath(pathname: string, item: NavItem) {
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
@@ -89,9 +99,12 @@ export function AppHeader() {
 
   const { data: session } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const forumOn = useFlag("forum-enabled");
+  const navItems = forumOn ? [FORUM_NAV_ITEM, ...NAV_ITEMS] : NAV_ITEMS;
 
   const PAGE_TITLES: Record<string, string> = {
     "/command-center": "COMMANDS",
+    ...(forumOn ? { "/forum": "FORUM" } : {}),
     "/collab": "COLLAB",
     "/jams": "JAMS",
     "/teams": "TEAMS",
@@ -100,13 +113,15 @@ export function AppHeader() {
   };
   const mobileTitle =
     PAGE_TITLES[pathname] ??
-    (pathname.startsWith("/collab/")
-      ? "COLLAB"
-      : pathname.startsWith("/jams/")
-        ? "JAMS"
-        : pathname.startsWith("/teams/")
-          ? "TEAMS"
-          : null);
+    (forumOn && pathname.startsWith("/forum/")
+      ? "FORUM"
+      : pathname.startsWith("/collab/")
+        ? "COLLAB"
+        : pathname.startsWith("/jams/")
+          ? "JAMS"
+          : pathname.startsWith("/teams/")
+            ? "TEAMS"
+            : null);
 
   // Auto-hide on scroll-down / reveal on scroll-up. Held open while the mobile
   // menu is expanded — sliding the trigger away under an open overlay strands
@@ -181,7 +196,7 @@ export function AppHeader() {
           {/* Desktop nav */}
           <div className="pointer-events-auto hidden items-center gap-6 lg:flex">
             <nav className="flex items-center gap-6 text-sm font-bold tracking-widest">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const active = isActivePath(pathname, item);
                 const atRoot = pathname === item.to;
                 return (
@@ -278,7 +293,7 @@ export function AppHeader() {
             className="pointer-events-auto fixed inset-x-0 top-[var(--app-header-height)] z-40 border-b border-muted/30 bg-background/95 backdrop-blur-md"
           >
             <nav className="flex flex-col gap-1 p-4">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const active = isActivePath(pathname, item);
                 const atRoot = pathname === item.to;
                 return (

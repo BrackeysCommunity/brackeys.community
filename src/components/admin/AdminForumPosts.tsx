@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import {
@@ -127,12 +128,13 @@ export function AdminForumPosts() {
                     </Text>
                   </div>
                   <PostBadges post={post} />
-                  <a
-                    href={`/forum/${post.id}`}
+                  <Link
+                    to="/forum/$postId"
+                    params={{ postId: String(post.id) }}
                     className="w-fit text-sm font-medium text-primary hover:underline"
                   >
                     {post.displayTitle}
-                  </a>
+                  </Link>
                   {post.hiddenReason ? (
                     <Text size="xs" variant="muted">
                       Hidden: {post.hiddenReason}

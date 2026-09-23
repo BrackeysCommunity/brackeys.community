@@ -940,6 +940,23 @@ export const syncDiscordData = os
     return upserted;
   });
 
+/**
+ * "I've joined, check again": asks Discord directly instead of the cached
+ * answer, which would keep saying no to someone who joined a minute ago.
+ */
+export const refreshGuildMembership = os
+  .use(requireAuth)
+  .input(z.object({}))
+  .handler(async ({ context }) => {
+    await assertRateLimit(
+      "guild-recheck",
+      context.user.id,
+      20,
+      "That's a lot of checks — give it a minute.",
+    );
+    return { inGuild: await userIsGuildMember(context.user.id, { fresh: true }) };
+  });
+
 export const listSkills = os
   .route({ method: "GET" })
   .input(z.object({ search: z.string().optional() }))

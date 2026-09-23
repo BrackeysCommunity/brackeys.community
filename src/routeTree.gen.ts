@@ -21,6 +21,7 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MembersRouteImport } from './routes/members'
 import { Route as JamsRouteImport } from './routes/jams'
 import { Route as GameRouteImport } from './routes/game'
+import { Route as ForumRouteImport } from './routes/forum'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
 import { Route as CollabRouteImport } from './routes/collab'
@@ -33,6 +34,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as JamsIndexRouteImport } from './routes/jams.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
+import { Route as ForumIndexRouteImport } from './routes/forum.index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
 import { Route as ArcadeIndexRouteImport } from './routes/arcade.index'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
@@ -50,6 +52,7 @@ import { Route as JamsCalendarRouteImport } from './routes/jams.calendar'
 import { Route as JamsArchiveRouteImport } from './routes/jams.archive'
 import { Route as ImagesSplatRouteImport } from './routes/images.$'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
+import { Route as ForumPostIdRouteImport } from './routes/forum.$postId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
 import { Route as AuthErrorRouteImport } from './routes/auth.error'
@@ -59,6 +62,8 @@ import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as ProjectsGameGameIdRouteImport } from './routes/projects.game.$gameId'
 import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
 import { Route as OauthGithubCallbackRouteImport } from './routes/oauth.github.callback'
+import { Route as ForumTagsTagRouteImport } from './routes/forum.tags.$tag'
+import { Route as ForumCCategorySlugRouteImport } from './routes/forum.c.$categorySlug'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiNotificationsUnsubRouteImport } from './routes/api.notifications.unsub'
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
@@ -126,6 +131,11 @@ const GameRoute = GameRouteImport.update({
   path: '/game',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForumRoute = ForumRouteImport.update({
+  id: '/forum',
+  path: '/forum',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
   id: '/feed.xml',
   path: '/feed.xml',
@@ -185,6 +195,11 @@ const GameIndexRoute = GameIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => GameRoute,
+} as any)
+const ForumIndexRoute = ForumIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ForumRoute,
 } as any)
 const CollabIndexRoute = CollabIndexRouteImport.update({
   id: '/',
@@ -271,6 +286,11 @@ const GameRoomIdRoute = GameRoomIdRouteImport.update({
   path: '/$roomId',
   getParentRoute: () => GameRoute,
 } as any)
+const ForumPostIdRoute = ForumPostIdRouteImport.update({
+  id: '/$postId',
+  path: '/$postId',
+  getParentRoute: () => ForumRoute,
+} as any)
 const CollabNewRoute = CollabNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -316,6 +336,16 @@ const OauthGithubCallbackRoute = OauthGithubCallbackRouteImport.update({
   path: '/oauth/github/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForumTagsTagRoute = ForumTagsTagRouteImport.update({
+  id: '/tags/$tag',
+  path: '/tags/$tag',
+  getParentRoute: () => ForumRoute,
+} as any)
+const ForumCCategorySlugRoute = ForumCCategorySlugRouteImport.update({
+  id: '/c/$categorySlug',
+  path: '/c/$categorySlug',
+  getParentRoute: () => ForumRoute,
+} as any)
 const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
   id: '/api/rpc/$',
   path: '/api/rpc/$',
@@ -356,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/forum': typeof ForumRouteWithChildren
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRouteWithChildren
   '/members': typeof MembersRoute
@@ -374,6 +405,7 @@ export interface FileRoutesByFullPath {
   '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
+  '/forum/$postId': typeof ForumPostIdRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
@@ -391,6 +423,7 @@ export interface FileRoutesByFullPath {
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/arcade/': typeof ArcadeIndexRoute
   '/collab/': typeof CollabIndexRoute
+  '/forum/': typeof ForumIndexRoute
   '/game/': typeof GameIndexRoute
   '/jams/': typeof JamsIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -400,6 +433,8 @@ export interface FileRoutesByFullPath {
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/forum/c/$categorySlug': typeof ForumCCategorySlugRoute
+  '/forum/tags/$tag': typeof ForumTagsTagRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
@@ -425,6 +460,7 @@ export interface FileRoutesByTo {
   '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
+  '/forum/$postId': typeof ForumPostIdRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
@@ -442,6 +478,7 @@ export interface FileRoutesByTo {
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/arcade': typeof ArcadeIndexRoute
   '/collab': typeof CollabIndexRoute
+  '/forum': typeof ForumIndexRoute
   '/game': typeof GameIndexRoute
   '/jams': typeof JamsIndexRoute
   '/profile': typeof ProfileIndexRoute
@@ -451,6 +488,8 @@ export interface FileRoutesByTo {
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/forum/c/$categorySlug': typeof ForumCCategorySlugRoute
+  '/forum/tags/$tag': typeof ForumTagsTagRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
@@ -466,6 +505,7 @@ export interface FileRoutesById {
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/forum': typeof ForumRouteWithChildren
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRouteWithChildren
   '/members': typeof MembersRoute
@@ -484,6 +524,7 @@ export interface FileRoutesById {
   '/auth/error': typeof AuthErrorRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
+  '/forum/$postId': typeof ForumPostIdRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
@@ -501,6 +542,7 @@ export interface FileRoutesById {
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/arcade/': typeof ArcadeIndexRoute
   '/collab/': typeof CollabIndexRoute
+  '/forum/': typeof ForumIndexRoute
   '/game/': typeof GameIndexRoute
   '/jams/': typeof JamsIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -510,6 +552,8 @@ export interface FileRoutesById {
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/forum/c/$categorySlug': typeof ForumCCategorySlugRoute
+  '/forum/tags/$tag': typeof ForumTagsTagRoute
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
@@ -526,6 +570,7 @@ export interface FileRouteTypes {
     | '/collab'
     | '/command-center'
     | '/feed.xml'
+    | '/forum'
     | '/game'
     | '/jams'
     | '/members'
@@ -544,6 +589,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/collab/$postId'
     | '/collab/new'
+    | '/forum/$postId'
     | '/game/$roomId'
     | '/images/$'
     | '/jams/archive'
@@ -561,6 +607,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId'
     | '/arcade/'
     | '/collab/'
+    | '/forum/'
     | '/game/'
     | '/jams/'
     | '/profile/'
@@ -570,6 +617,8 @@ export interface FileRouteTypes {
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
     | '/api/rpc/$'
+    | '/forum/c/$categorySlug'
+    | '/forum/tags/$tag'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
@@ -595,6 +644,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/collab/$postId'
     | '/collab/new'
+    | '/forum/$postId'
     | '/game/$roomId'
     | '/images/$'
     | '/jams/archive'
@@ -612,6 +662,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId'
     | '/arcade'
     | '/collab'
+    | '/forum'
     | '/game'
     | '/jams'
     | '/profile'
@@ -621,6 +672,8 @@ export interface FileRouteTypes {
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
     | '/api/rpc/$'
+    | '/forum/c/$categorySlug'
+    | '/forum/tags/$tag'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
@@ -635,6 +688,7 @@ export interface FileRouteTypes {
     | '/collab'
     | '/command-center'
     | '/feed.xml'
+    | '/forum'
     | '/game'
     | '/jams'
     | '/members'
@@ -653,6 +707,7 @@ export interface FileRouteTypes {
     | '/auth/error'
     | '/collab/$postId'
     | '/collab/new'
+    | '/forum/$postId'
     | '/game/$roomId'
     | '/images/$'
     | '/jams/archive'
@@ -670,6 +725,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId'
     | '/arcade/'
     | '/collab/'
+    | '/forum/'
     | '/game/'
     | '/jams/'
     | '/profile/'
@@ -679,6 +735,8 @@ export interface FileRouteTypes {
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
     | '/api/rpc/$'
+    | '/forum/c/$categorySlug'
+    | '/forum/tags/$tag'
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
@@ -694,6 +752,7 @@ export interface RootRouteChildren {
   CollabRoute: typeof CollabRouteWithChildren
   CommandCenterRoute: typeof CommandCenterRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
+  ForumRoute: typeof ForumRouteWithChildren
   GameRoute: typeof GameRouteWithChildren
   JamsRoute: typeof JamsRouteWithChildren
   MembersRoute: typeof MembersRoute
@@ -811,6 +870,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forum': {
+      id: '/forum'
+      path: '/forum'
+      fullPath: '/forum'
+      preLoaderRoute: typeof ForumRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/feed.xml': {
       id: '/feed.xml'
       path: '/feed.xml'
@@ -894,6 +960,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/game/'
       preLoaderRoute: typeof GameIndexRouteImport
       parentRoute: typeof GameRoute
+    }
+    '/forum/': {
+      id: '/forum/'
+      path: '/'
+      fullPath: '/forum/'
+      preLoaderRoute: typeof ForumIndexRouteImport
+      parentRoute: typeof ForumRoute
     }
     '/collab/': {
       id: '/collab/'
@@ -1014,6 +1087,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameRoomIdRouteImport
       parentRoute: typeof GameRoute
     }
+    '/forum/$postId': {
+      id: '/forum/$postId'
+      path: '/$postId'
+      fullPath: '/forum/$postId'
+      preLoaderRoute: typeof ForumPostIdRouteImport
+      parentRoute: typeof ForumRoute
+    }
     '/collab/new': {
       id: '/collab/new'
       path: '/new'
@@ -1076,6 +1156,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/oauth/github/callback'
       preLoaderRoute: typeof OauthGithubCallbackRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/forum/tags/$tag': {
+      id: '/forum/tags/$tag'
+      path: '/tags/$tag'
+      fullPath: '/forum/tags/$tag'
+      preLoaderRoute: typeof ForumTagsTagRouteImport
+      parentRoute: typeof ForumRoute
+    }
+    '/forum/c/$categorySlug': {
+      id: '/forum/c/$categorySlug'
+      path: '/c/$categorySlug'
+      fullPath: '/forum/c/$categorySlug'
+      preLoaderRoute: typeof ForumCCategorySlugRouteImport
+      parentRoute: typeof ForumRoute
     }
     '/api/rpc/$': {
       id: '/api/rpc/$'
@@ -1149,6 +1243,22 @@ const CollabRouteChildren: CollabRouteChildren = {
 
 const CollabRouteWithChildren =
   CollabRoute._addFileChildren(CollabRouteChildren)
+
+interface ForumRouteChildren {
+  ForumPostIdRoute: typeof ForumPostIdRoute
+  ForumIndexRoute: typeof ForumIndexRoute
+  ForumCCategorySlugRoute: typeof ForumCCategorySlugRoute
+  ForumTagsTagRoute: typeof ForumTagsTagRoute
+}
+
+const ForumRouteChildren: ForumRouteChildren = {
+  ForumPostIdRoute: ForumPostIdRoute,
+  ForumIndexRoute: ForumIndexRoute,
+  ForumCCategorySlugRoute: ForumCCategorySlugRoute,
+  ForumTagsTagRoute: ForumTagsTagRoute,
+}
+
+const ForumRouteWithChildren = ForumRoute._addFileChildren(ForumRouteChildren)
 
 interface GameRouteChildren {
   GameRoomIdRoute: typeof GameRoomIdRoute
@@ -1231,6 +1341,7 @@ const rootRouteChildren: RootRouteChildren = {
   CollabRoute: CollabRouteWithChildren,
   CommandCenterRoute: CommandCenterRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
+  ForumRoute: ForumRouteWithChildren,
   GameRoute: GameRouteWithChildren,
   JamsRoute: JamsRouteWithChildren,
   MembersRoute: MembersRoute,

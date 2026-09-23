@@ -21,6 +21,7 @@ describe("event taxonomy", () => {
       "account",
       "collab",
       "comment",
+      "discord",
       "forum",
       "team",
       "jam",

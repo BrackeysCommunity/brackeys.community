@@ -6,7 +6,10 @@
  * explicit and derived jam records, legacy vs. post-step-6 placements,
  * unpublished / restricted / unanchored rows, the editor-rights matrix
  * (yours, a stranger's, a team's, nobody's), and — Part 8 — collab posts
- * linked to canonical projects.
+ * linked to canonical projects — and the forum: every kind, team devlogs
+ * with co-authors, pins, a solved question, hidden / deleted / draft /
+ * reported / locked posts, tags, likes, saves and comment threads, all from
+ * the same members.
  *
  * Everything it writes is prefixed so it can be removed in one pass:
  *   project.projects.id            seedproj-*   (credits/claims/jam links cascade)
@@ -16,6 +19,8 @@
  *   user.developer_profiles.id     seedprojprof-*
  *   auth.user.id                   seedprojprof-* (same ids — see below)
  *   collab.collab_posts            no text id to prefix — see below
+ *   forum.posts                    body ends with `_Seeded forum post._`
+ *   forum.tags                     created_by a seed member, removed once unused
  *
  * The synthetic members exist in BOTH `developer_profiles` and auth `user`
  * (same id, the pairing real accounts have): `collab_posts.author_id`,
@@ -76,6 +81,14 @@ import {
   collabRoles,
   comments,
   developerProfiles,
+  forumBookmarks,
+  forumCategories,
+  forumPostAuthors,
+  forumPostReports,
+  forumPosts,
+  forumPostTags,
+  forumReactions,
+  forumTags,
   itchJamEntries,
   itchJams,
   linkedAccounts,
@@ -92,6 +105,8 @@ import {
   threadSubscriptions,
   user,
 } from "@/db/schema";
+import { forumPostSlug } from "@/lib/forum-posts";
+import { markdownToPlainText } from "@/lib/markdown-text";
 
 const CLEAN_ONLY = process.argv.includes("--clean");
 const DAY = 24 * 60 * 60 * 1000;
@@ -104,6 +119,20 @@ faker.seed(1337);
 
 /** The marker every seeded post's description opens with (see guarantee 3). */
 const POST_MARKER = "Seeded test post.";
+
+/**
+ * The paragraph every seeded forum post's body ends with. Forum ids are
+ * serial and the real account authors some of them, so this is the only
+ * thing the clean pass matches on.
+ */
+const FORUM_MARKER = "_Seeded forum post._";
+
+/** `usage_count` for every tag, the way the router recounts touched ones. */
+async function recountForumTags() {
+  await db.update(forumTags).set({
+    usageCount: sql`(SELECT count(*)::int FROM ${forumPostTags} WHERE ${forumPostTags.tagId} = ${forumTags.id})`,
+  });
+}
 
 // The ids we're about to remove, read before anything is deleted: the
 // collab-post pass needs them, and `ON DELETE SET NULL` on both link columns
@@ -180,6 +209,28 @@ if (previousProjectIds.length > 0 || previousTeamIds.length > 0) {
     .where(and(like(collabPosts.description, `${POST_MARKER}%`), or(...linkedToSeed)))
     .returning({ id: collabPosts.id });
   if (removedPosts.length > 0) console.log(`cleaned ${removedPosts.length} seeded collab posts`);
+}
+
+// Forum posts before their authors: `author_id` is ON DELETE SET NULL, and
+// the marker is the only handle anyway (serial ids, and the real account
+// authors some). Reactions, bookmarks, tags links, images, reports, co-author
+// rows and the comment thread all cascade from the post.
+const removedForumPosts = await db
+  .delete(forumPosts)
+  .where(like(forumPosts.body, `%${FORUM_MARKER}`))
+  .returning({ id: forumPosts.id });
+// Tags the seed minted and nothing real adopted since; the rest are recounted.
+await db
+  .delete(forumTags)
+  .where(
+    and(
+      like(forumTags.createdById, "seedprojprof-%"),
+      sql`NOT EXISTS (SELECT 1 FROM ${forumPostTags} WHERE ${forumPostTags.tagId} = ${forumTags.id})`,
+    ),
+  );
+await recountForumTags();
+if (removedForumPosts.length > 0) {
+  console.log(`cleaned ${removedForumPosts.length} seeded forum posts`);
 }
 
 // Placements next (their project_id would be nulled by the project delete
@@ -1311,26 +1362,29 @@ type SeedComment = {
   replies?: SeedComment[];
 };
 
-async function seedThread(
-  postKey: string,
-  roots: SeedComment[],
-  opts: { lockedDaysAgo?: number } = {},
-) {
-  const post = insertedPosts.get(postKey);
-  if (!post) return;
+type ThreadSubject =
+  | { subjectType: "collab_post"; collabPostId: number }
+  | { subjectType: "forum_post"; forumPostId: number };
 
+/** Writes one thread and its comments; returns the root comment ids in order. */
+async function seedThreadOn(
+  subject: ThreadSubject,
+  ownerId: string,
+  roots: SeedComment[],
+  opts: { lockedDaysAgo?: number; lockedById?: string } = {},
+): Promise<number[]> {
   const [thread] = await db
     .insert(threads)
     .values({
-      subjectType: "collab_post",
-      collabPostId: post.id,
+      ...subject,
       ...(opts.lockedDaysAgo != null
-        ? { lockedAt: ago(opts.lockedDaysAgo), lockedById: post.authorId }
+        ? { lockedAt: ago(opts.lockedDaysAgo), lockedById: opts.lockedById ?? ownerId }
         : {}),
     })
     .returning({ id: threads.id });
 
-  const subscribers = new Set<string>([post.authorId]);
+  const subscribers = new Set<string>([ownerId]);
+  const rootIds: number[] = [];
   let total = 0;
   let lastAt: Date | null = null;
 
@@ -1357,6 +1411,7 @@ async function seedThread(
       })
       .returning({ id: comments.id, rootId: comments.rootId, depth: comments.depth });
     total += 1;
+    if (!parent) rootIds.push(row.id);
     subscribers.add(node.author);
     if (!lastAt || createdAt > lastAt) lastAt = createdAt;
     for (const reply of node.replies ?? []) await insertNode(reply, row);
@@ -1371,6 +1426,22 @@ async function seedThread(
     .insert(threadSubscriptions)
     .values([...subscribers].map((userId) => ({ threadId: thread.id, userId })))
     .onConflictDoNothing();
+  return rootIds;
+}
+
+async function seedThread(
+  postKey: string,
+  roots: SeedComment[],
+  opts: { lockedDaysAgo?: number } = {},
+) {
+  const post = insertedPosts.get(postKey);
+  if (!post) return;
+  await seedThreadOn(
+    { subjectType: "collab_post", collabPostId: post.id },
+    post.authorId,
+    roots,
+    opts,
+  );
 }
 
 // The kitchen-sink thread: nesting, an edited reply, a tombstone, and
@@ -1938,6 +2009,536 @@ if (coverProject) {
   }
 }
 
+// ── Forum ────────────────────────────────────────────────────────────────────
+//
+// Rows as the forum router writes them: slug and excerpt derived from the
+// title and body, `likeCount` equal to the reaction rows, tag usage
+// recounted at the end, soft deletes and staff hides in their columns, and
+// the comment thread on the shared `social.threads`. Curated rows first —
+// one per behaviour — then volume so the feed pages and Top has a spread.
+// Seeding writes directly, so it works while `forum-enabled` is off.
+
+const forumCategoryIds = new Map(
+  (
+    await db.select({ id: forumCategories.id, slug: forumCategories.slug }).from(forumCategories)
+  ).map((c) => [c.slug, c.id] as const),
+);
+const forumCategory = (slug: string) => {
+  const id = forumCategoryIds.get(slug);
+  if (id == null) throw new Error(`forum category "${slug}" missing — run the forum migration`);
+  return id;
+};
+
+const FORUM_TAGS = [
+  "godot",
+  "unity",
+  "pixelart",
+  "shaders",
+  "procgen",
+  "audio",
+  "gamefeel",
+  "ui",
+  "jam-2026-2",
+  "lighting",
+  "tilemaps",
+  "postmortem",
+  "playtest",
+  "2d",
+  "3d",
+  "steam",
+  "marketing",
+  "rust",
+  "physics",
+];
+// Real tags with the same slug are kept as they are; only the missing ones
+// are minted, credited to a seed member so the clean pass can find them.
+await db
+  .insert(forumTags)
+  .values(
+    FORUM_TAGS.map((slug, i) => ({
+      slug,
+      name: slug,
+      createdById: allProfileIds[i % allProfileIds.length],
+      createdAt: ago(60),
+    })),
+  )
+  .onConflictDoNothing();
+const forumTagIds = new Map(
+  (
+    await db
+      .select({ id: forumTags.id, slug: forumTags.slug })
+      .from(forumTags)
+      .where(inArray(forumTags.slug, FORUM_TAGS))
+  ).map((t) => [t.slug, t.id] as const),
+);
+
+const [forumCover] = await db
+  .select({ imageUrl: projects.imageUrl })
+  .from(projects)
+  .where(and(like(projects.id, "seedproj-%"), isNotNull(projects.imageUrl)))
+  .limit(1);
+
+type SeedForumPost = {
+  kind: "post" | "devlog" | "question";
+  category: string;
+  author: string;
+  team?: string;
+  title?: string;
+  body: string;
+  tags?: string[];
+  /** Days ago it was published (or started, for a draft). */
+  at: number;
+  edited?: number;
+  draft?: boolean;
+  coverUrl?: string | null;
+  projectId?: string;
+  collabKey?: string;
+  coAuthors?: string[];
+  pinned?: "global" | "category";
+  hidden?: { reason: string; at: number };
+  deleted?: number;
+  likes?: string[];
+  saves?: string[];
+  reports?: { by: string; reason: string }[];
+  comments?: SeedComment[];
+  locked?: number;
+  /** Index of the root comment marked as the answer. */
+  solvedBy?: number;
+};
+
+async function seedForumPost(p: SeedForumPost): Promise<number> {
+  const likes = [...new Set(p.likes ?? [])].filter((id) => id !== p.author);
+  const [row] = await db
+    .insert(forumPosts)
+    .values({
+      kind: p.kind,
+      categoryId: forumCategory(p.category),
+      authorId: p.author,
+      teamId: p.team ?? null,
+      title: p.title ?? null,
+      slug: forumPostSlug(p.title) || null,
+      body: `${p.body}\n\n${FORUM_MARKER}`,
+      excerpt: markdownToPlainText(p.body, 200) ?? null,
+      coverImageUrl: p.coverUrl ?? null,
+      projectId: p.projectId ?? null,
+      collabPostId: p.collabKey ? (insertedPosts.get(p.collabKey)?.id ?? null) : null,
+      status: p.draft ? "draft" : "published",
+      publishedAt: p.draft ? null : ago(p.at),
+      editedAt: p.edited != null ? ago(p.edited) : null,
+      deletedAt: p.deleted != null ? ago(p.deleted) : null,
+      pinnedAt: p.pinned ? ago(p.at) : null,
+      pinnedScope: p.pinned ?? null,
+      ...(p.hidden
+        ? { hiddenAt: ago(p.hidden.at), hiddenById: owner.id, hiddenReason: p.hidden.reason }
+        : {}),
+      likeCount: likes.length,
+      createdAt: ago(p.at),
+      updatedAt: ago(p.edited ?? p.at),
+    })
+    .returning({ id: forumPosts.id });
+  const postId = row.id;
+
+  const tagIds = (p.tags ?? [])
+    .map((slug) => forumTagIds.get(slug))
+    .filter((id): id is number => id != null);
+  if (tagIds.length > 0) {
+    await db.insert(forumPostTags).values(tagIds.map((tagId) => ({ postId, tagId })));
+  }
+  if (p.coAuthors?.length) {
+    await db
+      .insert(forumPostAuthors)
+      .values(p.coAuthors.map((userId, i) => ({ postId, userId, sortOrder: i + 1 })));
+  }
+  if (likes.length > 0) {
+    await db.insert(forumReactions).values(
+      likes.map((userId, i) => ({
+        postId,
+        userId,
+        createdAt: ago(Math.max(p.at - 0.05 * (i + 1), 0)),
+      })),
+    );
+  }
+  if (p.saves?.length) {
+    await db.insert(forumBookmarks).values(p.saves.map((userId) => ({ userId, postId })));
+  }
+  if (p.reports?.length) {
+    await db
+      .insert(forumPostReports)
+      .values(p.reports.map((r) => ({ postId, reporterId: r.by, reason: r.reason })));
+  }
+  if (p.comments?.length) {
+    const roots = await seedThreadOn(
+      { subjectType: "forum_post", forumPostId: postId },
+      p.author,
+      p.comments,
+      { lockedDaysAgo: p.locked, lockedById: owner.id },
+    );
+    const solution = p.solvedBy != null ? roots[p.solvedBy] : undefined;
+    if (solution != null) {
+      await db
+        .update(forumPosts)
+        .set({ solvedCommentId: solution })
+        .where(eq(forumPosts.id, postId));
+    }
+  }
+  return postId;
+}
+
+const [bulkA, bulkB, bulkC, bulkD, bulkE] = bulkProfiles.map((b) => b.id);
+const everyone = [owner.id, ...allProfileIds];
+
+// Pinned to the whole forum, in the staff-only category.
+await seedForumPost({
+  kind: "devlog",
+  category: "announcements",
+  author: owner.id,
+  title: "Welcome to the forum",
+  body: [
+    "The forum is where the things worth keeping go: **devlogs**, **questions** and the small wins you'd otherwise lose in Discord scrollback.",
+    "",
+    "- Post a quick update, write a devlog (as yourself or your team), or ask a question.",
+    "- Tag it so people can find it later — `#godot`, `#pixelart`, `#jam-2026-2`.",
+    "- Posting, commenting and reacting are for members of the Brackeys Discord. Reading is open.",
+  ].join("\n"),
+  at: 9,
+  pinned: "global",
+  likes: everyone.slice(1, 10),
+  comments: [
+    {
+      author: prof("noor"),
+      content: "Finally a place for devlogs that isn't a pinned thread 🙌",
+      at: 8.5,
+    },
+  ],
+});
+
+// The kitchen sink: your team's devlog, co-authored, cover, project and
+// collab links, pinned on its board, a busy thread.
+await seedForumPost({
+  kind: "devlog",
+  category: "show-and-tell",
+  author: owner.id,
+  team: "seedprojteam-halfmoon",
+  coAuthors: [prof("marlow"), prof("kit")],
+  title: "Signal Decay devlog #3: the lighthouse finally casts shadows",
+  body: [
+    "For two entries we got away with baked lighting. Every lamp was a sprite with a glow painted on. It looked fine in screenshots and terrible the moment anything moved.",
+    "",
+    "## What we tried first",
+    "",
+    "An occluder on every tile. It worked, and it cost us 11 ms a frame on the Steam Deck.",
+    "",
+    "```gdscript",
+    "func _bake_occluders(map: TileMapLayer) -> void:",
+    "    for rect in _merge_solid_runs(map):",
+    "        _spawn_occluder(rect)",
+    "```",
+    "",
+    "## What shipped",
+    "",
+    "Merging solid runs into rectangles first took it down to **0.8 ms**. One-way platforms get their own layer and skip the merge.",
+    "",
+    "Next time: the fog pass, and why it nearly ate the whole budget again.",
+  ].join("\n"),
+  tags: ["godot", "lighting", "2d"],
+  coverUrl: forumCover?.imageUrl ?? null,
+  projectId: "seedproj-signal",
+  collabKey: "signal-artist",
+  pinned: "category",
+  at: 1.2,
+  edited: 1.0,
+  likes: [prof("petra"), prof("noor"), bulkA, bulkB, bulkC, bulkD],
+  saves: [prof("petra")],
+  comments: [
+    {
+      author: prof("petra"),
+      content:
+        "Merging solid runs before spawning occluders is such a good trick. Did you hit issues with one-way platforms?",
+      at: 1.1,
+      replies: [
+        {
+          author: prof("marlow"),
+          content: "Yes! They get their own layer and skip the merge. Writing that up next entry.",
+          at: 1.05,
+        },
+      ],
+    },
+    {
+      author: prof("noor"),
+      content: "The before/after sold it. What's the frame cost on web?",
+      at: 0.9,
+      replies: [{ author: owner.id, content: "About 2 ms — WebGL is the slow one.", at: 0.8 }],
+    },
+    { author: bulkC, content: "Bookmarking this for our jam game.", at: 0.5 },
+  ],
+});
+
+// Your team, someone else's post: editable and deletable through the team.
+await seedForumPost({
+  kind: "devlog",
+  category: "show-and-tell",
+  author: prof("marlow"),
+  team: "seedprojteam-halfmoon",
+  title: "Half Moon Bay: the sprite pass, in numbers",
+  body: "212 sprites redrawn at 16×16, four palettes, one very tired artist. The table of what changed is below.\n\n| Area | Before | After |\n| --- | --- | --- |\n| Interiors | 32px | 16px |\n| Palettes | 9 | 4 |",
+  tags: ["pixelart"],
+  projectId: "seedproj-signal",
+  at: 4,
+  likes: [owner.id, prof("kit"), bulkA],
+});
+
+// A stranger team's devlog — read-only for you; you liked and saved it.
+await seedForumPost({
+  kind: "devlog",
+  category: "show-and-tell",
+  author: prof("petra"),
+  team: "seedprojteam-driftline",
+  coAuthors: [prof("noor")],
+  title: "Driftline devlog: autotiles without the pain",
+  body: "Autotiling rules for the winter set, and the three edge cases that ate a week. **TL;DR**: bitmask the corners, not the edges.",
+  tags: ["tilemaps", "godot", "pixelart"],
+  projectId: "seedproj-bramble",
+  collabKey: "driftline-autotiles",
+  at: 3,
+  edited: 2.5,
+  likes: [owner.id, prof("marlow"), bulkB, bulkE],
+  saves: [owner.id],
+  comments: [
+    {
+      author: owner.id,
+      content: "Does the winter set need animated water tiles too?",
+      at: 2.8,
+      replies: [
+        { author: prof("petra"), content: "Yes — 4 frames, same cadence as autumn.", at: 2.7 },
+      ],
+    },
+  ],
+});
+
+// Solo devlog, no cover, older.
+await seedForumPost({
+  kind: "devlog",
+  category: "show-and-tell",
+  author: prof("marlow"),
+  title: "Palette limits as a design tool",
+  body: "Four colours per sprite sounds like a restriction. It's actually the fastest way to make a scene read.",
+  tags: ["pixelart", "2d"],
+  at: 12,
+  likes: [prof("kit"), prof("noor"), bulkD],
+});
+
+// Your draft: only you see it, at its URL.
+await seedForumPost({
+  kind: "devlog",
+  category: "show-and-tell",
+  author: owner.id,
+  team: "seedprojteam-halfmoon",
+  title: "Signal Decay devlog #4: fog (draft)",
+  body: "Work in progress — the fog pass writeup.",
+  tags: ["shaders"],
+  at: 0.2,
+  draft: true,
+});
+
+// A solved question: the first answer is the accepted one.
+await seedForumPost({
+  kind: "question",
+  category: "help",
+  author: prof("noor"),
+  title: "Tilemap collider jitters when the player moves fast — Unity 6",
+  body: "Player is a `Rigidbody2D` with continuous collision, tilemap has a `CompositeCollider2D`. At high speed the player vibrates against walls. What am I missing?",
+  tags: ["unity", "2d", "physics"],
+  at: 2,
+  likes: [prof("petra"), bulkA],
+  comments: [
+    {
+      author: prof("petra"),
+      content:
+        "Set the composite's geometry type to **Polygons**, not Outlines — outlines have no inside, so fast bodies tunnel and get pushed back out.",
+      at: 1.8,
+      replies: [{ author: prof("noor"), content: "That was it. Thank you!", at: 1.7 }],
+    },
+    { author: prof("kit"), content: "Also check interpolation is on for the rigidbody.", at: 1.6 },
+  ],
+  solvedBy: 0,
+});
+
+// Your open question with a few answers.
+await seedForumPost({
+  kind: "question",
+  category: "jam-talk",
+  author: owner.id,
+  title: "How small is too small for a 7-day jam?",
+  body: "We keep over-scoping. What's the smallest idea you've shipped that still felt like a game?",
+  tags: ["jam-2026-2", "postmortem"],
+  at: 0.4,
+  likes: [prof("kit"), bulkC],
+  comments: [
+    {
+      author: prof("kit"),
+      content: "One mechanic, one level, three minutes. Polish that.",
+      at: 0.35,
+    },
+    {
+      author: bulkB,
+      content: "Our best one was a single room. Players still asked for more.",
+      at: 0.3,
+      replies: [{ author: owner.id, content: "That's the dream outcome honestly.", at: 0.25 }],
+    },
+  ],
+});
+
+// Unanswered.
+await seedForumPost({
+  kind: "question",
+  category: "help",
+  author: bulkC,
+  title: "Best way to do screen shake in Godot 4?",
+  body: "Camera offset with noise, or shake the whole viewport?",
+  tags: ["godot", "gamefeel"],
+  at: 0.1,
+});
+
+// Short posts: body inline, no title.
+await seedForumPost({
+  kind: "post",
+  category: "show-and-tell",
+  author: prof("kit"),
+  body: "Finally got the main theme loop seamless — four bars in, no click. Turns out the export was adding a fade 🙃",
+  tags: ["audio"],
+  at: 0.2,
+  likes: [owner.id, prof("marlow"), prof("noor"), bulkA, bulkB, bulkC, bulkE],
+  comments: [
+    { author: prof("marlow"), content: "The number of times that fade has got me.", at: 0.15 },
+  ],
+});
+await seedForumPost({
+  kind: "post",
+  category: "feedback",
+  author: prof("petra"),
+  body: "Playtest build of Bramble is up for anyone in Driftline's channel. Looking for:\n\n- where you got stuck\n- anything that felt *unfair*\n- whether the map screen made sense",
+  tags: ["playtest"],
+  at: 0.7,
+  likes: [prof("noor")],
+});
+await seedForumPost({
+  kind: "post",
+  category: "off-topic",
+  author: owner.id,
+  body: "What's everyone playing this week? I'm three hours into a roguelike I swore I wouldn't start.",
+  at: 5,
+  locked: 4.5,
+  likes: [prof("kit"), bulkD, bulkE],
+  comments: [
+    {
+      author: prof("noor"),
+      content: "Replaying an old metroidvania for research. Definitely research.",
+      at: 4.9,
+    },
+    { author: bulkE, content: "Nothing, jam week 😵", at: 4.8 },
+    { author: owner.id, content: "Locking this one — new thread next week.", at: 4.5 },
+  ],
+});
+
+// Moderation shapes: hidden, deleted (thread kept), reported.
+await seedForumPost({
+  kind: "post",
+  category: "show-and-tell",
+  author: bulkA,
+  body: "Check out my new asset pack, link in bio, 50% off today only!!!",
+  at: 1.5,
+  hidden: { reason: "Self-promotion — asset packs go in #marketplace.", at: 1.4 },
+});
+await seedForumPost({
+  kind: "question",
+  category: "help",
+  author: bulkB,
+  title: "Anyone know why my build is 2 GB?",
+  body: "Empty project, 2 GB export. Help.",
+  tags: ["unity"],
+  at: 3,
+  deleted: 2.5,
+  comments: [
+    {
+      author: prof("petra"),
+      content: "Check the Resources folder — everything in there ships.",
+      at: 2.9,
+    },
+    { author: bulkB, content: "Found it, thanks — deleting this.", at: 2.6 },
+  ],
+});
+await seedForumPost({
+  kind: "post",
+  category: "off-topic",
+  author: bulkD,
+  body: "DM me for cheap Steam keys 🔑🔑🔑",
+  at: 0.3,
+  reports: [
+    { by: prof("noor"), reason: "Looks like key reselling / scam." },
+    { by: prof("marlow"), reason: "Spam." },
+  ],
+});
+
+// Volume: enough for a second feed page and a spread for Top's windows.
+const FORUM_BULK_CATEGORIES = ["show-and-tell", "help", "jam-talk", "feedback", "off-topic"];
+for (let i = 0; i < 32; i++) {
+  const kind = (["post", "question", "devlog", "post"] as const)[i % 4];
+  const author = everyone[(i * 5 + 2) % everyone.length];
+  const category =
+    kind === "devlog"
+      ? i % 8 < 4
+        ? "show-and-tell"
+        : "jam-talk"
+      : kind === "question"
+        ? i % 3 === 0
+          ? "jam-talk"
+          : "help"
+        : FORUM_BULK_CATEGORIES[i % 5];
+  const likeCount = (i * 7) % 11;
+  const tags = faker.helpers.arrayElements(FORUM_TAGS, i % 4);
+  await seedForumPost({
+    kind,
+    category,
+    author,
+    title:
+      kind === "post"
+        ? undefined
+        : kind === "question"
+          ? `${faker.hacker.verb()} ${faker.hacker.noun()} in ${faker.helpers.arrayElement(["Godot", "Unity", "Bevy", "GameMaker"])}?`
+          : `Devlog: ${fakeTitle()}`,
+    body:
+      kind === "devlog"
+        ? faker.lorem.paragraphs(3, "\n\n")
+        : faker.lorem.sentences(kind === "post" ? 2 : 3),
+    tags,
+    at: 0.5 + ((i * 13) % 45) + (i % 5) / 10,
+    likes: Array.from({ length: likeCount }, (_, j) => everyone[(i + j * 3 + 1) % everyone.length]),
+    saves: i % 6 === 0 ? [owner.id] : undefined,
+    comments:
+      i % 3 === 0
+        ? [
+            {
+              author: everyone[(i + 4) % everyone.length],
+              content: faker.lorem.sentence(),
+              at: 0.3 + ((i * 13) % 45) / 2,
+              replies:
+                i % 6 === 0
+                  ? [
+                      {
+                        author: author,
+                        content: faker.lorem.sentence(),
+                        at: 0.2 + ((i * 13) % 45) / 2,
+                      },
+                    ]
+                  : [],
+            },
+          ]
+        : undefined,
+  });
+}
+
+await recountForumTags();
+
 // ── Report ───────────────────────────────────────────────────────────────────
 
 const [totals] = await db
@@ -1954,6 +2555,9 @@ const [totals] = await db
     responses: sql<number>`(SELECT count(*)::int FROM ${collabResponses} r JOIN ${collabPosts} cp ON cp.id = r.post_id WHERE cp.description LIKE ${POST_MARKER + "%"})`,
     threads: sql<number>`(SELECT count(*)::int FROM ${threads} th JOIN ${collabPosts} cp ON cp.id = th.collab_post_id WHERE cp.description LIKE ${POST_MARKER + "%"})`,
     comments: sql<number>`(SELECT count(*)::int FROM ${comments} c JOIN ${threads} th ON th.id = c.thread_id JOIN ${collabPosts} cp ON cp.id = th.collab_post_id WHERE cp.description LIKE ${POST_MARKER + "%"})`,
+    forumPosts: sql<number>`(SELECT count(*)::int FROM ${forumPosts} WHERE body LIKE ${"%" + FORUM_MARKER})`,
+    forumComments: sql<number>`(SELECT count(*)::int FROM ${comments} c JOIN ${threads} th ON th.id = c.thread_id JOIN ${forumPosts} fp ON fp.id = th.forum_post_id WHERE fp.body LIKE ${"%" + FORUM_MARKER})`,
+    forumLikes: sql<number>`(SELECT count(*)::int FROM ${forumReactions} r JOIN ${forumPosts} fp ON fp.id = r.post_id WHERE fp.body LIKE ${"%" + FORUM_MARKER})`,
   })
   .from(sql`(SELECT 1) AS one`);
 
@@ -2002,5 +2606,20 @@ social layer (responses + comments; seed members are real auth users now):
   "Writer for Signal Decay…"     LOCKED thread + accepted/declined response history
   board volume                   15 bulk posts by rotating authors; every 2nd has responses,
                                  every 3rd a small comment thread
+
+forum (needs forum-enabled on for you to see it):
+  /forum                         global pin "Welcome to the forum" first; 40+ posts so the feed
+                                 pages; LATEST vs TOP (day/week/month/all) differ
+  "Signal Decay devlog #3…"      your Half Moon Bay devlog: co-authors, cover, project + collab
+                                 links in the sidebar, pinned on /forum/c/show-and-tell, busy thread
+  "Half Moon Bay: the sprite…"   marlow's team devlog — EDIT/DELETE for you as team owner
+  "Driftline devlog…"            a stranger team's devlog: read-only, already liked + saved
+  "Signal Decay devlog #4…"      your DRAFT — reachable at its URL, absent from feeds
+  "Tilemap collider jitters…"    SOLVED question
+  "How small is too small…"      your open question; "Best way to do screen shake…" has 0 answers
+  off-topic "What's everyone…"   LOCKED thread
+  /admin → forum                 a hidden post (asset-pack spam), a deleted question with its
+                                 thread kept, and a post with two open reports (Steam keys)
+  /forum/tags/godot              tag page; tag counts in the right rail are real
 `);
 process.exit(0);

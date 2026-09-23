@@ -184,12 +184,14 @@ function CommentContext({ comment }: { comment: RecentComment }) {
   }
   if (comment.subjectType === "forum_post" && comment.subjectForumPostId != null) {
     return (
-      <a
-        href={`/forum/${comment.subjectForumPostId}#comment-${comment.id}`}
+      <Link
+        to="/forum/$postId"
+        params={{ postId: String(comment.subjectForumPostId) }}
+        hash={`comment-${comment.id}`}
         className="w-fit text-xs text-muted-foreground hover:text-primary hover:underline"
       >
         on a forum post →
-      </a>
+      </Link>
     );
   }
   if (comment.subjectType === "profile" && comment.subjectProfileUserId != null) {
