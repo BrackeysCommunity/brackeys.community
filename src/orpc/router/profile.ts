@@ -687,6 +687,7 @@ const collabPreferenceSchema = z.enum(["paid", "hobby", "either"]);
 /** Nobody on this board bills more than this, and the cap is what keeps
  *  the display's million tier from being reachable by leaning on a key. */
 export const MAX_RATE = 1_000_000;
+export const MAX_PROFILE_BIO = 5000;
 const rateAmountSchema = z.number().int().min(0).max(MAX_RATE).optional().nullable();
 
 /**
@@ -774,7 +775,7 @@ export const updateProfile = os
   .input(
     z
       .object({
-        bio: z.string().optional(),
+        bio: z.string().max(MAX_PROFILE_BIO).optional(),
         tagline: z.string().optional(),
         githubUrl: socialUrlSchema,
         twitterUrl: socialUrlSchema,
@@ -1573,7 +1574,7 @@ export const listAvailableUsers = os
  * admin procedure and the proposal executor.
  */
 export const profileModerationPatchSchema = z.object({
-  bio: z.string().optional().nullable(),
+  bio: z.string().max(MAX_PROFILE_BIO).optional().nullable(),
   tagline: z.string().optional().nullable(),
   lookingFor: z.string().max(280).optional().nullable(),
   location: z.string().trim().max(100).optional().nullable(),

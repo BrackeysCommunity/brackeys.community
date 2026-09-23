@@ -187,6 +187,7 @@ function ContentSection({
           label="BIO"
           className="sm:col-span-2"
           value={values.bio}
+          maxLength={5000}
           onChange={(bio) => setValues((v) => ({ ...v, bio }))}
         />
         <Field label="LOOKING FOR" className="sm:col-span-2">

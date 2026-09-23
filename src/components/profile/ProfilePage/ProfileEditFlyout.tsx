@@ -33,6 +33,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { CharCount } from "@/components/collab/CollabCreateFlyout/fields";
 import { GlowStopPicker } from "@/components/profile/ProfilePage/GlowStopPicker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ import {
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
@@ -954,15 +956,18 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
         label="BIO"
         hint={preview ? "preview · markdown rendered" : "markdown supported · keep it human"}
         action={
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => setPreview((p) => !p)}
-            className="tracking-widest"
-          >
-            <HugeiconsIcon icon={preview ? ViewOffSlashIcon : ViewIcon} size={12} />
-            {preview ? "EDIT" : "PREVIEW"}
-          </Button>
+          <>
+            <CharCount current={bio.value.length} max={MAX_PROFILE_BIO} />
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setPreview((p) => !p)}
+              className="tracking-widest"
+            >
+              <HugeiconsIcon icon={preview ? ViewOffSlashIcon : ViewIcon} size={12} />
+              {preview ? "EDIT" : "PREVIEW"}
+            </Button>
+          </>
         }
       >
         {preview ? (
@@ -981,6 +986,7 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
           <Textarea
             value={bio.value}
             rows={6}
+            maxLength={MAX_PROFILE_BIO}
             onChange={(e) => bio.onChange(e.target.value)}
             onBlur={bio.onBlur}
             placeholder="game-adjacent dev who…"
@@ -1332,6 +1338,8 @@ const COLLAB_PREFERENCE_OPTIONS: { value: "paid" | "hobby" | "either"; label: st
 
 /** Mirrors `MAX_RATE` in the profile router. */
 const MAX_RATE = 1_000_000;
+/** Mirrors `MAX_PROFILE_BIO` in the profile router. */
+const MAX_PROFILE_BIO = 5000;
 
 /** Select for an optional field: the menu carries an explicit way back to unset. */
 function OptionalSelect<T extends string>({
@@ -1394,12 +1402,8 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   // warning we saw).
   const [commitment, setCommitment] = useState<string | null>(profile.availability.commitment);
   const [rateType, setRateType] = useState<string | null>(profile.availability.rateType);
-  const [rateMin, setRateMin] = useState<string>(
-    profile.availability.rateMin != null ? String(profile.availability.rateMin) : "",
-  );
-  const [rateMax, setRateMax] = useState<string>(
-    profile.availability.rateMax != null ? String(profile.availability.rateMax) : "",
-  );
+  const [rateMin, setRateMin] = useState<number | null>(profile.availability.rateMin);
+  const [rateMax, setRateMax] = useState<number | null>(profile.availability.rateMax);
   const lookingFor = useAutosavedField(profile.availability.lookingFor ?? "", (value) =>
     update.mutateAsync({ lookingFor: value.trim() || null }),
   );
@@ -1414,9 +1418,7 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
   // Both bounds go in one save. Undebounced, typing `10000000` was eight
   // POSTs, eight profile refetches and eight persisted half-numbers; sending
   // the pair together is also the only way the server sees it as a pair.
-  const debouncedSaveRate = useDebouncedCallback((minText: string, maxText: string) => {
-    const min = minText ? Number(minText) : null;
-    const max = maxText ? Number(maxText) : null;
+  const debouncedSaveRate = useDebouncedCallback((min: number | null, max: number | null) => {
     const problem = rateProblem(min, max);
     setRateError(problem);
     if (problem) return;
@@ -1479,27 +1481,25 @@ function AvailabilityStep({ profile, queryKey, save }: StepProps) {
               ))}
             </SelectContent>
           </Select>
-          <Input
-            type="number"
+          <NumberInput
             min={0}
             max={MAX_RATE}
             placeholder="min"
+            aria-label="Minimum rate"
             value={rateMin}
-            onChange={(e) => {
-              const v = e.target.value;
+            onValueChange={(v) => {
               setRateMin(v);
               debouncedSaveRate(v, rateMax);
             }}
           />
           <Text variant="muted">–</Text>
-          <Input
-            type="number"
+          <NumberInput
             min={0}
             max={MAX_RATE}
             placeholder="max"
+            aria-label="Maximum rate"
             value={rateMax}
-            onChange={(e) => {
-              const v = e.target.value;
+            onValueChange={(v) => {
               setRateMax(v);
               debouncedSaveRate(rateMin, v);
             }}

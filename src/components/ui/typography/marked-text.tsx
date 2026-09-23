@@ -181,7 +181,7 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
         ref={ref as never}
         data-slot="marked-text"
         className={cn(
-          "text-sm/relaxed text-foreground",
+          "text-sm/relaxed wrap-anywhere text-foreground",
           // Heading scale shared with `Prose`, so a `##` reads the same on a
           // post, a bio and a legal page. Preflight otherwise resets every
           // heading to body size, which is what "the markdown is minimal"

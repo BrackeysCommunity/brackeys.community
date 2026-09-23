@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Select,
   SelectContent,
@@ -276,25 +277,27 @@ export function CompensationField({
             </SelectContent>
           </Select>
         )}
-        <Input
-          type="number"
-          min={0}
-          max={unitMax}
-          placeholder="min"
-          className="w-24"
-          value={min ?? ""}
-          onChange={(e) => onMinChange(e.target.value === "" ? undefined : Number(e.target.value))}
-        />
+        <div className="w-28">
+          <NumberInput
+            min={0}
+            max={unitMax}
+            placeholder="min"
+            aria-label="Minimum"
+            value={min ?? null}
+            onValueChange={(v) => onMinChange(v ?? undefined)}
+          />
+        </div>
         <Text variant="muted">–</Text>
-        <Input
-          type="number"
-          min={0}
-          max={unitMax}
-          placeholder="max"
-          className="w-24"
-          value={max ?? ""}
-          onChange={(e) => onMaxChange(e.target.value === "" ? undefined : Number(e.target.value))}
-        />
+        <div className="w-28">
+          <NumberInput
+            min={0}
+            max={unitMax}
+            placeholder="max"
+            aria-label="Maximum"
+            value={max ?? null}
+            onValueChange={(v) => onMaxChange(v ?? undefined)}
+          />
+        </div>
         {isShare ? (
           <Text variant="muted" size="sm">
             % of revenue
