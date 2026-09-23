@@ -52,14 +52,17 @@ import {
   normalizeTagSlug,
 } from "@/lib/forum-posts";
 import { markdownToPlainText } from "@/lib/markdown-text";
-import { captureServerEvent } from "@/lib/posthog-server";
+import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
+  removeProfileProjectImageFromStorage,
   resolveTeamAvatarUrl,
 } from "@/lib/profile-project-image-storage";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { resolveUserRoles } from "@/lib/staff-roles";
+import { isForumPostImageKey } from "@/lib/stored-image-keys";
+import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { forumRead, forumWrite } from "@/orpc/middleware/forum";
 import { profileIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
@@ -426,7 +429,7 @@ function safeJson(text: string): unknown {
 
 /** Who may edit and delete a post: its author, its co-authors, and — for a
  *  team devlog — the team's owner. Staff powers are separate. */
-async function postRights(
+export async function forumPostRights(
   post: { id: number; authorId: string | null; teamId: string | null },
   viewerId: string,
 ): Promise<{ canEdit: boolean; canDelete: boolean }> {
@@ -482,7 +485,9 @@ export const getForumPost = os
 
     const [isStaff, rights] = await Promise.all([
       viewerIsStaff(viewerId),
-      viewerId ? postRights(post, viewerId) : Promise.resolve({ canEdit: false, canDelete: false }),
+      viewerId
+        ? forumPostRights(post, viewerId)
+        : Promise.resolve({ canEdit: false, canDelete: false }),
     ]);
 
     if (post.status === "draft" && !rights.canEdit) return null;
@@ -906,7 +911,7 @@ export const createForumPost = os
 async function loadEditablePost(postId: number, userId: string) {
   const [post] = await db.select().from(forumPosts).where(eq(forumPosts.id, postId)).limit(1);
   if (!post || post.deletedAt) throw new ORPCError("NOT_FOUND", { message: "Post not found." });
-  const rights = await postRights(post, userId);
+  const rights = await forumPostRights(post, userId);
   return { post, rights };
 }
 
@@ -995,11 +1000,140 @@ export const deleteForumPost = os
     if (!rights.canDelete) {
       throw new ORPCError("FORBIDDEN", { message: "You can't delete this post." });
     }
+    const images = await db
+      .delete(forumPostImages)
+      .where(eq(forumPostImages.postId, post.id))
+      .returning({ imageKey: forumPostImages.imageKey });
     await db
       .update(forumPosts)
-      .set({ deletedAt: new Date(), pinnedAt: null, pinnedScope: null, updatedAt: new Date() })
+      .set({
+        deletedAt: new Date(),
+        pinnedAt: null,
+        pinnedScope: null,
+        coverImageKey: null,
+        coverImageUrl: null,
+        updatedAt: new Date(),
+      })
       .where(eq(forumPosts.id, post.id));
+    await purgeForumImages(post.id, [...images.map((i) => i.imageKey), post.coverImageKey]);
     return { success: true };
+  });
+
+/** Best-effort object cleanup, only for keys in the post's own namespace. */
+async function purgeForumImages(postId: number, keys: (string | null)[]): Promise<void> {
+  for (const key of keys) {
+    if (!key || !isForumPostImageKey(postId, key)) continue;
+    await bestEffort("storage.image_cleanup", { key, on: "forum_post_image" }, () =>
+      removeProfileProjectImageFromStorage(key),
+    );
+  }
+}
+
+async function loadImageEditablePost(postId: number, userId: string) {
+  const { post, rights } = await loadEditablePost(postId, userId);
+  if (!rights.canEdit) {
+    throw new ORPCError("FORBIDDEN", { message: "Only the post's authors can change images." });
+  }
+  if (post.hiddenAt) {
+    throw new ORPCError("FORBIDDEN", { message: "A hidden post can't be edited." });
+  }
+  return post;
+}
+
+function assertOwnKey(postId: number, imageKey: string): void {
+  if (!isForumPostImageKey(postId, imageKey)) {
+    throw new ORPCError("BAD_REQUEST", { message: "That image doesn't belong to this post." });
+  }
+}
+
+/** Attach an image minted by `/api/forum/image`, up to the kind's cap. */
+export const addForumPostImage = os
+  .use(forumWrite)
+  .input(
+    z.object({
+      postId: z.number().int().positive(),
+      imageKey: z.string().max(300),
+      url: uploadedImageUrlSchema,
+      alt: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const post = await loadImageEditablePost(input.postId, context.user.id);
+    assertOwnKey(post.id, input.imageKey);
+
+    const [existing] = await db
+      .select({
+        value: count(),
+        last: sql<number>`coalesce(max(${forumPostImages.sortOrder}), -1)`,
+      })
+      .from(forumPostImages)
+      .where(eq(forumPostImages.postId, post.id));
+    const cap = FORUM_LIMITS[post.kind].images;
+    if ((existing?.value ?? 0) >= cap) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `A ${post.kind} holds ${cap} images at most.`,
+      });
+    }
+
+    const [image] = await db
+      .insert(forumPostImages)
+      .values({
+        postId: post.id,
+        imageKey: input.imageKey,
+        url: input.url,
+        alt: input.alt || null,
+        sortOrder: Number(existing?.last ?? -1) + 1,
+      })
+      .returning({ id: forumPostImages.id, url: forumPostImages.url, alt: forumPostImages.alt });
+    return image!;
+  });
+
+export const removeForumPostImage = os
+  .use(forumWrite)
+  .input(z.object({ imageId: z.number().int().positive() }))
+  .handler(async ({ input, context }) => {
+    const [image] = await db
+      .select()
+      .from(forumPostImages)
+      .where(eq(forumPostImages.id, input.imageId))
+      .limit(1);
+    if (!image) throw new ORPCError("NOT_FOUND", { message: "Image not found." });
+    await loadImageEditablePost(image.postId, context.user.id);
+
+    await db.delete(forumPostImages).where(eq(forumPostImages.id, image.id));
+    await purgeForumImages(image.postId, [image.imageKey]);
+    return { success: true };
+  });
+
+/** A devlog's cover; `null` clears it. The replaced object is swept. */
+export const setForumPostCover = os
+  .use(forumWrite)
+  .input(
+    z.object({
+      postId: z.number().int().positive(),
+      imageKey: z.string().max(300).nullable(),
+      url: uploadedImageUrlSchema.nullable(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const post = await loadImageEditablePost(input.postId, context.user.id);
+    if (post.kind !== "devlog") {
+      throw new ORPCError("BAD_REQUEST", { message: "Only devlogs have a cover." });
+    }
+    if (input.imageKey) assertOwnKey(post.id, input.imageKey);
+
+    await db
+      .update(forumPosts)
+      .set({
+        coverImageKey: input.imageKey,
+        coverImageUrl: input.imageKey ? input.url : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(forumPosts.id, post.id));
+    if (post.coverImageKey && post.coverImageKey !== input.imageKey) {
+      await purgeForumImages(post.id, [post.coverImageKey]);
+    }
+    return { coverUrl: input.imageKey ? input.url : null };
   });
 
 /** A published, live post someone may react to, save or report. */

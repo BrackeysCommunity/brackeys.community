@@ -4,11 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { forumPosts, forumTags, teamMembers, teams, threads, user, userBlocks } from "@/db/schema";
 import {
+  addForumPostImage,
   createForumPost,
   deleteForumPost,
   getForumPost,
   listForumPosts,
+  removeForumPostImage,
   searchForumTags,
+  setForumPostCover,
   setForumReaction,
   updateForumPost,
 } from "@/orpc/router/forum";
@@ -31,6 +34,13 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
 vi.mock("@/lib/guild-sync", () => ({
   refreshGuildRolesThrottled: async () => {},
 }));
+const removedObjects: string[] = [];
+vi.mock("@/lib/profile-project-image-storage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/profile-project-image-storage")>()),
+  removeProfileProjectImageFromStorage: async (key: string) => {
+    removedObjects.push(key);
+  },
+}));
 let forumEnabled = true;
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
@@ -44,6 +54,7 @@ beforeEach(async () => {
   const { developerProfiles } = await import("@/db/schema");
   forumEnabled = true;
   nonMembers.clear();
+  removedObjects.length = 0;
   await db.delete(threads);
   await db.delete(forumPosts);
   await db.delete(forumTags);
@@ -328,5 +339,89 @@ describe("post page", () => {
     await expect(
       call(updateForumPost, { postId: created.id, body: "mine" }, asUser("bob")),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("images", () => {
+  const key = (postId: number, name: string) => `forum-post-images/${postId}/${name}`;
+  const attach = (postId: number, name: string, as = "alice") =>
+    call(
+      addForumPostImage,
+      { postId, imageKey: key(postId, name), url: `/images/${key(postId, name)}` },
+      asUser(as),
+    );
+
+  it("attaches up to the kind's cap, in order, from the post's own namespace", async () => {
+    const created = await post();
+    for (const name of ["a.png", "b.png", "c.png", "d.png"]) await attach(created.id, name);
+    await expect(attach(created.id, "e.png")).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      call(
+        addForumPostImage,
+        { postId: created.id, imageKey: "forum-post-images/999/x.png", url: "/images/x" },
+        asUser("alice"),
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(attach(created.id, "f.png", "bob")).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const { posts } = await call(listForumPosts, {}, asUser(null));
+    expect(posts[0]!.images.map((i) => i.url)).toEqual(
+      ["a.png", "b.png", "c.png", "d.png"].map((n) => `/images/${key(created.id, n)}`),
+    );
+  });
+
+  it("removes an image and sweeps its object", async () => {
+    const created = await post();
+    const image = await attach(created.id, "a.png");
+    await call(removeForumPostImage, { imageId: image.id }, asUser("alice"));
+    expect(removedObjects).toEqual([key(created.id, "a.png")]);
+  });
+
+  it("sets a devlog cover, sweeping the one it replaces", async () => {
+    const devlog = await call(
+      createForumPost,
+      { kind: "devlog", title: "Entry", body: "x" },
+      asUser("alice"),
+    );
+    const cover = (name: string) =>
+      call(
+        setForumPostCover,
+        {
+          postId: devlog.id,
+          imageKey: key(devlog.id, name),
+          url: `/images/${key(devlog.id, name)}`,
+        },
+        asUser("alice"),
+      );
+    await cover("one.png");
+    await cover("two.png");
+    expect(removedObjects).toEqual([key(devlog.id, "one.png")]);
+    const page = await call(getForumPost, { postId: devlog.id }, asUser(null));
+    expect(page!.coverUrl).toBe(`/images/${key(devlog.id, "two.png")}`);
+
+    const short = await post();
+    await expect(
+      call(
+        setForumPostCover,
+        { postId: short.id, imageKey: key(short.id, "c.png"), url: "/images/c" },
+        asUser("alice"),
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("purges a deleted post's images and cover", async () => {
+    const devlog = await call(
+      createForumPost,
+      { kind: "devlog", title: "Entry", body: "x" },
+      asUser("alice"),
+    );
+    await attach(devlog.id, "g.png");
+    await call(
+      setForumPostCover,
+      { postId: devlog.id, imageKey: key(devlog.id, "c.png"), url: "/images/c" },
+      asUser("alice"),
+    );
+    await call(deleteForumPost, { postId: devlog.id }, asUser("alice"));
+    expect(removedObjects.sort()).toEqual([key(devlog.id, "c.png"), key(devlog.id, "g.png")]);
   });
 });

@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import {
   collabPostImages,
   developerProfiles,
+  forumCategories,
+  forumPostImages,
+  forumPosts,
   imageScans,
   projects,
   teams,
@@ -174,6 +177,45 @@ describe("restoreImage", () => {
       alt: "alt",
       sortOrder: 2,
     });
+  });
+});
+
+describe("forum images", () => {
+  async function seedForumPost(coverImageKey: string | null) {
+    const [category] = await db.select({ id: forumCategories.id }).from(forumCategories).limit(1);
+    const [post] = await db
+      .insert(forumPosts)
+      .values({
+        kind: "devlog",
+        categoryId: category!.id,
+        authorId: "owner",
+        title: "Entry",
+        body: "x",
+        publishedAt: new Date(),
+        coverImageKey,
+        coverImageUrl: coverImageKey ? `/images/${coverImageKey}` : null,
+      })
+      .returning({ id: forumPosts.id });
+    return post!.id;
+  }
+
+  it("detaches a cover and a gallery image, and restores both", async () => {
+    const postId = await seedForumPost(KEY);
+    await db.insert(forumPostImages).values({ postId, imageKey: KEY, url: "/x", sortOrder: 1 });
+    const store = fakeStore();
+    store.objects.add(KEY);
+
+    const refs = await quarantineImage(db, store, KEY);
+    expect(refs?.forumPostCovers).toEqual([{ postId, url: `/images/${KEY}` }]);
+    expect(refs?.forumPostImages).toHaveLength(1);
+    const [detached] = await db.select().from(forumPosts).where(eq(forumPosts.id, postId));
+    expect(detached!.coverImageKey).toBeNull();
+    expect(await db.select().from(forumPostImages)).toHaveLength(0);
+
+    await restoreImage(db, store, KEY);
+    const [restored] = await db.select().from(forumPosts).where(eq(forumPosts.id, postId));
+    expect(restored!.coverImageKey).toBe(KEY);
+    expect(await db.select().from(forumPostImages)).toHaveLength(1);
   });
 });
 

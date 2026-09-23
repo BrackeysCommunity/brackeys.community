@@ -3,6 +3,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import {
   collabPosts,
   type EntryFlagKind,
+  forumPosts,
   imageFlags,
   type ImageOwnerType,
   imageScans,
@@ -214,6 +215,18 @@ async function describeOwner(
       return post
         ? { label: `"${post.title}"`, url: `/collab/${ownerId}` }
         : { label: "a collab post", url: null };
+    }
+    case "forum_post_image": {
+      const [post] = await db
+        .select({ title: forumPosts.title })
+        .from(forumPosts)
+        .where(eq(forumPosts.id, Number(ownerId)))
+        .limit(1);
+      if (!post) return { label: "a forum post", url: null };
+      return {
+        label: post.title ? `"${post.title}"` : "your forum post",
+        url: `/forum/${ownerId}`,
+      };
     }
     case "project_cover": {
       const [project] = await db

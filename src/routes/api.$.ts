@@ -8,12 +8,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { collabPosts, projects, teamMembers, teams } from "@/db/schema";
+import { collabPosts, forumPosts, projects, teamMembers, teams } from "@/db/schema";
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
 import { auth } from "@/lib/auth";
 import { isActiveBan } from "@/lib/ban-state";
 import { isStaffMember } from "@/lib/discord";
-import { bestEffort, captureServerException, withErrorReporting } from "@/lib/posthog-server";
+import {
+  bestEffort,
+  captureServerException,
+  isServerFlagEnabled,
+  withErrorReporting,
+} from "@/lib/posthog-server";
 import {
   ProfileProjectImageUploadError,
   removeProfileProjectImageFromStorage,
@@ -25,6 +30,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import {
   buildCollabPostImageObjectKey,
+  buildForumPostImageObjectKey,
   buildProjectImageObjectKey,
   buildTeamAvatarObjectKey,
   buildTeamBannerObjectKey,
@@ -32,7 +38,9 @@ import {
   isProjectImageKey,
 } from "@/lib/stored-image-keys";
 import { reportProcedureErrors } from "@/orpc/error-reporting";
+import { userIsGuildMember } from "@/orpc/middleware/auth";
 import router from "@/orpc/router";
+import { forumPostRights } from "@/orpc/router/forum";
 
 /**
  * One shared bucket for every image-upload surface (profile covers, team
@@ -185,6 +193,9 @@ async function handle({ request }: { request: Request }) {
   }
   if (pathname === "/api/collab/post-image") {
     return handleCollabPostImageUpload(request);
+  }
+  if (pathname === "/api/forum/image") {
+    return handleForumImageUpload(request);
   }
   if (isReferenceDocsPath(pathname) && !(await canViewReferenceDocs(request))) {
     return new Response("Not Found", { status: 404 });
@@ -400,6 +411,63 @@ const handleCollabPostImageUpload = withImageUpload(
       objectKey: buildCollabPostImageObjectKey(postId, image.name),
     });
 
+    return Response.json(uploaded, { status: 201 });
+  },
+);
+
+/**
+ * A forum post's gallery image or devlog cover. Post-scoped keys
+ * (`forum-post-images/<postId>/…`), minted here and attached through
+ * `addForumPostImage` / `setForumPostCover`. The same bar as every forum
+ * write — the flag, guild membership — plus the post's editor rights.
+ */
+const handleForumImageUpload = withImageUpload(
+  "forum_post_image",
+  "Failed to upload forum image.",
+  async ({ session, formData, image }) => {
+    const userId = session.user.id;
+    if (!(await isServerFlagEnabled("forum-enabled", userId))) {
+      return new Response("Not Found", { status: 404 });
+    }
+    if (!(await userIsGuildMember(userId))) {
+      return Response.json(
+        { message: "Join the Brackeys Discord to post images." },
+        { status: 403 },
+      );
+    }
+
+    const postIdField = formData.get("postId");
+    const postId = typeof postIdField === "string" ? Number(postIdField) : NaN;
+    if (!Number.isInteger(postId)) {
+      return Response.json({ message: 'Expected a numeric "postId" form field.' }, { status: 400 });
+    }
+
+    const [post] = await db
+      .select({
+        id: forumPosts.id,
+        authorId: forumPosts.authorId,
+        teamId: forumPosts.teamId,
+        deletedAt: forumPosts.deletedAt,
+        hiddenAt: forumPosts.hiddenAt,
+      })
+      .from(forumPosts)
+      .where(eq(forumPosts.id, postId))
+      .limit(1);
+    if (!post || post.deletedAt) {
+      return Response.json({ message: "Post not found." }, { status: 404 });
+    }
+    if (!(await forumPostRights(post, userId)).canEdit) {
+      return Response.json({ message: "Only the post's authors can add images." }, { status: 403 });
+    }
+    if (post.hiddenAt) {
+      return Response.json({ message: "This post is under review." }, { status: 403 });
+    }
+
+    const uploaded = await uploadImageToStorage({
+      file: image,
+      uploaderId: userId,
+      objectKey: buildForumPostImageObjectKey(postId, image.name),
+    });
     return Response.json(uploaded, { status: 201 });
   },
 );

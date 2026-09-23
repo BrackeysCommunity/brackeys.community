@@ -68,6 +68,21 @@ export function isCollabPostImageKey(postId: number, key: string) {
 }
 
 /**
+ * Forum post images and devlog covers are **post-scoped**, like collab post
+ * images: they outlive the uploader's account along with the post, and the
+ * write check is the post's editor rights in the upload handler.
+ */
+export const FORUM_POST_IMAGE_PREFIX = "forum-post-images";
+
+export function buildForumPostImageObjectKey(postId: number, filename: string) {
+  return `${FORUM_POST_IMAGE_PREFIX}/${postId}/${nanoid()}-${sanitizeImageFilename(filename)}`;
+}
+
+export function isForumPostImageKey(postId: number, key: string) {
+  return key.startsWith(`${FORUM_POST_IMAGE_PREFIX}/${postId}/`);
+}
+
+/**
  * Team showcase (team_projects) covers are **team-scoped**: any member can
  * add showcase rows, so the write check is membership, and the objects can
  * be swept when the row or the team goes away. Imported placements that
@@ -91,6 +106,7 @@ const SERVABLE_IMAGE_KEY_PREFIXES = [
   `${PROJECT_IMAGE_PREFIX}/`,
   `${COLLAB_POST_IMAGE_PREFIX}/`,
   `${TEAM_PROJECT_IMAGE_PREFIX}/`,
+  `${FORUM_POST_IMAGE_PREFIX}/`,
 ] as const;
 
 /**
@@ -159,7 +175,8 @@ export type StoredImageOwnerType =
   | "collab_post_image"
   | "project_cover"
   | "profile_project_image"
-  | "team_project_image";
+  | "team_project_image"
+  | "forum_post_image";
 
 const OWNER_TYPE_BY_PREFIX: Record<string, StoredImageOwnerType> = {
   [PROFILE_PROJECT_IMAGE_PREFIX]: "profile_project_image",
@@ -168,6 +185,7 @@ const OWNER_TYPE_BY_PREFIX: Record<string, StoredImageOwnerType> = {
   [PROJECT_IMAGE_PREFIX]: "project_cover",
   [COLLAB_POST_IMAGE_PREFIX]: "collab_post_image",
   [TEAM_PROJECT_IMAGE_PREFIX]: "team_project_image",
+  [FORUM_POST_IMAGE_PREFIX]: "forum_post_image",
 };
 
 /**

@@ -2118,7 +2118,8 @@ export type ImageOwnerType =
   | "collab_post_image"
   | "project_cover"
   | "profile_project_image"
-  | "team_project_image";
+  | "team_project_image"
+  | "forum_post_image";
 
 /**
  * `pending` — row minted at upload, not yet scanned. `scanned` — fingerprinted

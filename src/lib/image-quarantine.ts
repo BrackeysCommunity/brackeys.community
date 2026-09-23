@@ -17,6 +17,8 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import {
   collabPostImages,
+  forumPostImages,
+  forumPosts,
   imageScans,
   profileProjects,
   projects,
@@ -53,6 +55,14 @@ export type DetachedRefs = {
     alt: string | null;
     sortOrder: number | null;
   }>;
+  forumPostImages: Array<{
+    id: number;
+    postId: number;
+    url: string;
+    alt: string | null;
+    sortOrder: number;
+  }>;
+  forumPostCovers: Array<{ postId: number; url: string | null }>;
   projects: string[];
   profileProjects: string[];
   teamProjects: string[];
@@ -61,6 +71,8 @@ export type DetachedRefs = {
 const EMPTY_REFS: DetachedRefs = {
   teams: [],
   collabPostImages: [],
+  forumPostImages: [],
+  forumPostCovers: [],
   projects: [],
   profileProjects: [],
   teamProjects: [],
@@ -76,6 +88,14 @@ function mergeRefs(a: DetachedRefs, b: DetachedRefs): DetachedRefs {
       ...a.collabPostImages,
       ...b.collabPostImages.filter((r) => !a.collabPostImages.some((x) => x.id === r.id)),
     ],
+    forumPostImages: [
+      ...a.forumPostImages,
+      ...b.forumPostImages.filter((r) => !a.forumPostImages.some((x) => x.id === r.id)),
+    ],
+    forumPostCovers: [
+      ...a.forumPostCovers,
+      ...b.forumPostCovers.filter((r) => !a.forumPostCovers.some((x) => x.postId === r.postId)),
+    ],
     projects: [...new Set([...a.projects, ...b.projects])],
     profileProjects: [...new Set([...a.profileProjects, ...b.profileProjects])],
     teamProjects: [...new Set([...a.teamProjects, ...b.teamProjects])],
@@ -88,6 +108,8 @@ function refsFrom(value: unknown): DetachedRefs {
   return {
     teams: Array.isArray(v.teams) ? v.teams : [],
     collabPostImages: Array.isArray(v.collabPostImages) ? v.collabPostImages : [],
+    forumPostImages: Array.isArray(v.forumPostImages) ? v.forumPostImages : [],
+    forumPostCovers: Array.isArray(v.forumPostCovers) ? v.forumPostCovers : [],
     projects: Array.isArray(v.projects) ? v.projects : [],
     profileProjects: Array.isArray(v.profileProjects) ? v.profileProjects : [],
     teamProjects: Array.isArray(v.teamProjects) ? v.teamProjects : [],
@@ -96,12 +118,12 @@ function refsFrom(value: unknown): DetachedRefs {
 
 /**
  * Nulls every reference to the key and returns what was cleared. Searches by
- * key across all six places rather than trusting the scan row's owner: a
+ * key across every place rather than trusting the scan row's owner: a
  * user-scoped key can be shared by a profile placement and an imported
  * showcase row, and a legacy post image can live in an uploader's namespace.
  */
 export async function detachImageKey(db: DbHandle, objectKey: string): Promise<DetachedRefs> {
-  const refs: DetachedRefs = { ...EMPTY_REFS, teams: [], collabPostImages: [] };
+  const refs: DetachedRefs = { ...EMPTY_REFS };
 
   // Read before write: RETURNING would hand back the nulled url.
   const avatarTeams: Array<{ id: string; url: string | null }> = await db
@@ -135,6 +157,27 @@ export async function detachImageKey(db: DbHandle, objectKey: string): Promise<D
       alt: collabPostImages.alt,
       sortOrder: collabPostImages.sortOrder,
     });
+
+  refs.forumPostImages = await db
+    .delete(forumPostImages)
+    .where(eq(forumPostImages.imageKey, objectKey))
+    .returning({
+      id: forumPostImages.id,
+      postId: forumPostImages.postId,
+      url: forumPostImages.url,
+      alt: forumPostImages.alt,
+      sortOrder: forumPostImages.sortOrder,
+    });
+
+  const coveredPosts: Array<{ postId: number; url: string | null }> = await db
+    .select({ postId: forumPosts.id, url: forumPosts.coverImageUrl })
+    .from(forumPosts)
+    .where(eq(forumPosts.coverImageKey, objectKey));
+  await db
+    .update(forumPosts)
+    .set({ coverImageKey: null, coverImageUrl: null })
+    .where(eq(forumPosts.coverImageKey, objectKey));
+  refs.forumPostCovers = coveredPosts;
 
   const cleared = async (table: typeof projects | typeof profileProjects | typeof teamProjects) => {
     const rows: Array<{ id: string }> = await db
@@ -187,6 +230,19 @@ export async function reattachImageKey(
       // restore failure worth surfacing, and a row already back is fine.
       .onConflictDoNothing()
       .catch(() => {});
+  }
+  for (const image of refs.forumPostImages) {
+    await db
+      .insert(forumPostImages)
+      .values({ ...image, imageKey: objectKey })
+      .onConflictDoNothing()
+      .catch(() => {});
+  }
+  for (const cover of refs.forumPostCovers) {
+    await db
+      .update(forumPosts)
+      .set({ coverImageKey: objectKey, coverImageUrl: cover.url })
+      .where(and(eq(forumPosts.id, cover.postId), isNull(forumPosts.coverImageKey)));
   }
   const fill = async (
     table: typeof projects | typeof profileProjects | typeof teamProjects,

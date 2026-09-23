@@ -23,6 +23,7 @@ import {
   collabPostReports,
   collabPostRoles,
   collabPosts,
+  forumPosts,
   collabRoles,
   commentReports,
   developerProfiles,
@@ -58,6 +59,7 @@ import {
   isStaffMember as checkIsStaff,
   purgeGuildBanCache,
 } from "@/lib/discord";
+import { forumPostTitle } from "@/lib/forum-posts";
 import { purgeImage, restoreImage } from "@/lib/image-quarantine";
 import { enqueueImageRescan } from "@/lib/media-scan";
 import { memberName } from "@/lib/member-name";
@@ -1932,6 +1934,7 @@ const IMAGE_OWNER_TYPES = [
   "project_cover",
   "profile_project_image",
   "team_project_image",
+  "forum_post_image",
 ] as const satisfies readonly ImageOwnerType[];
 
 type ImageOwnerRef = { label: string; href: string | null };
@@ -1953,8 +1956,11 @@ async function imageOwnerRefs(
     .filter((id) => Number.isInteger(id));
   const projectIds = idsOf("project_cover");
   const profileIds = idsOf("profile_project_image");
+  const forumPostIds = idsOf("forum_post_image")
+    .map(Number)
+    .filter((id) => Number.isInteger(id));
 
-  const [teamRows, postRows, projectRows, profiles] = await Promise.all([
+  const [teamRows, postRows, projectRows, profiles, forumRows] = await Promise.all([
     teamIds.length > 0
       ? db
           .select({ id: teams.id, name: teams.name, slug: teams.slug })
@@ -1974,9 +1980,18 @@ async function imageOwnerRefs(
           .where(inArray(projects.id, projectIds))
       : Promise.resolve([]),
     profilesByIds(profileIds),
+    forumPostIds.length > 0
+      ? db
+          .select({ id: forumPosts.id, title: forumPosts.title, excerpt: forumPosts.excerpt })
+          .from(forumPosts)
+          .where(inArray(forumPosts.id, forumPostIds))
+      : Promise.resolve([]),
   ]);
 
   const refs = new Map<string, ImageOwnerRef>();
+  for (const p of forumRows) {
+    refs.set(`forum:${p.id}`, { label: forumPostTitle(p), href: `/forum/${p.id}` });
+  }
   for (const t of teamRows) refs.set(`team:${t.id}`, { label: t.name, href: `/teams/${t.slug}` });
   for (const p of postRows) {
     refs.set(`post:${p.id}`, { label: p.title, href: `/collab/${p.id}` });
@@ -2005,6 +2020,8 @@ function imageOwnerKey(row: { ownerType: ImageOwnerType; ownerId: string }): str
       return `project:${row.ownerId}`;
     case "profile_project_image":
       return `profile:${row.ownerId}`;
+    case "forum_post_image":
+      return `forum:${row.ownerId}`;
   }
 }
 
@@ -2015,6 +2032,7 @@ const IMAGE_OWNER_TYPE_LABEL: Record<ImageOwnerType, string> = {
   project_cover: "Project cover",
   profile_project_image: "Profile project image",
   team_project_image: "Team showcase image",
+  forum_post_image: "Forum image",
 };
 
 /** The staff-only route that serves a key whether it is live or quarantined. */

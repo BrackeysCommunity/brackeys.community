@@ -86,14 +86,17 @@ import {
 } from "./comments";
 import { getContributions } from "./contributions";
 import {
+  addForumPostImage,
   createForumPost,
   deleteForumPost,
   getForumPost,
   listForumCategories,
   listForumPosts,
+  removeForumPostImage,
   reportForumPost,
   searchForumTags,
   setForumBookmark,
+  setForumPostCover,
   setForumReaction,
   updateForumPost,
 } from "./forum";
@@ -406,4 +409,7 @@ export default {
   setForumReaction,
   setForumBookmark,
   reportForumPost,
+  addForumPostImage,
+  removeForumPostImage,
+  setForumPostCover,
 };
