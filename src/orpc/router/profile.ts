@@ -73,7 +73,8 @@ import { MANUAL_PROJECT_TYPES } from "@/lib/project-taxonomy";
 import { PUBLIC_PLACEMENT } from "@/lib/project-visibility";
 import { creditPlacementOwner, ensureProjectContributors, insertProject } from "@/lib/projects";
 import { assertRateLimit } from "@/lib/rate-limit";
-import { escapeLike, likeContains } from "@/lib/sql-like";
+import { fuzzyMatch, fuzzyRank } from "@/lib/sql-fuzzy";
+import { likeContains } from "@/lib/sql-like";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { isOwnedProfileProjectImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
@@ -961,11 +962,13 @@ export const listSkills = os
   .route({ method: "GET" })
   .input(z.object({ search: z.string().optional() }))
   .handler(async ({ input }) => {
-    if (input.search) {
+    const term = input.search?.trim();
+    if (term) {
       return db
         .select()
         .from(skills)
-        .where(ilike(skills.name, `%${escapeLike(input.search)}%`));
+        .where(fuzzyMatch(skills.name, term, { fold: true }))
+        .orderBy(desc(fuzzyRank([skills.name], term, { fold: true })), asc(skills.name));
     }
     return db.select().from(skills);
   });

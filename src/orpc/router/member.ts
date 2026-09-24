@@ -29,6 +29,7 @@ import {
 } from "@/db/schema";
 import { MEMBER_AVAILABILITY } from "@/lib/member-vocabulary";
 import { PUBLIC_PLACEMENT } from "@/lib/project-visibility";
+import { fuzzyMatch } from "@/lib/sql-fuzzy";
 import { escapeLike } from "@/lib/sql-like";
 import { timezonesWithinOffset } from "@/lib/timezones";
 import { bylineGuildRoles, profileNameSearch } from "@/orpc/profile-projection";
@@ -190,12 +191,13 @@ function buildMemberFilter(input: MemberFilterInput) {
         ilike(developerProfiles.tagline, pattern),
         ilike(developerProfiles.lookingFor, pattern),
         // Typing "godot" finds the Godot people without opening the
-        // stack picker — the search reaches skill names too.
+        // stack picker — the search reaches skill names too, as fuzzily as
+        // the picker does.
         sql`exists (
           select 1 from ${userSkills}
           join ${skills} on ${skills.id} = ${userSkills.skillId}
           where ${userSkills.userId} = ${developerProfiles.id}
-            and ${skills.name} ilike ${pattern}
+            and ${fuzzyMatch(skills.name, input.search, { fold: true })}
         )`,
       )!,
     );

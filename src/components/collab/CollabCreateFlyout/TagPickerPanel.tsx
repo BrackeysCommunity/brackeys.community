@@ -13,6 +13,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { usePortalContainer } from "@/components/ui/portal-container";
 import { Text } from "@/components/ui/typography";
+import { fuzzyFilter } from "@/lib/fuzzy-search";
 import { isSubmitKey } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 
@@ -136,7 +137,7 @@ export function TagPickerPanel({
   // answer without a mouse: the first match by default, or whatever the
   // arrow keys moved it to.
   const [activeIndex, setActiveIndex] = useState(0);
-  const query = search.trim().toLowerCase();
+  const query = search.trim();
 
   const listId = useId();
   const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
@@ -147,7 +148,8 @@ export function TagPickerPanel({
   const atCap = max !== undefined && selectedIds.length >= max;
 
   const groups = useMemo(() => {
-    const matches = query ? options.filter((o) => o.name.toLowerCase().includes(query)) : options;
+    // Best match first, so its category leads and Enter picks it.
+    const matches = fuzzyFilter(options, query);
     const map = new Map<string, TagOption[]>();
     for (const option of matches) {
       const key = option.category ?? "Other";

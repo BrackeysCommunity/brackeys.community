@@ -69,6 +69,7 @@ import { compensationLabel } from "@/lib/collab-vocabulary";
 import { CURRENCY_OPTIONS, type Currency, normalizeCurrency } from "@/lib/currency";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS, FLOWS, flowStep } from "@/lib/event-taxonomy";
+import { foldText } from "@/lib/fuzzy-search";
 import { useAnimatedUnderline } from "@/lib/hooks/use-animated-underline";
 import { useAutosavedField } from "@/lib/hooks/use-autosaved-field";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
@@ -1100,7 +1101,7 @@ function SkillsField({ profile, queryKey, save }: StepProps) {
   // The unique `(user_id, skill_id)` pair means a duplicate add is a no-op
   // server-side; filtering the search as well keeps it from looking like
   // one silently failed.
-  const takenNames = new Set([...active, ...pending].map((s) => s.name.toLowerCase()));
+  const takenNames = new Set([...active, ...pending].map((s) => foldText(s.name)));
 
   const onDragEnd = ({ active: dragged, over }: DragEndEvent) => {
     if (!over || dragged.id === over.id) return;
@@ -1265,8 +1266,8 @@ function SkillSearch({
   });
 
   const trimmed = search.trim();
-  const hasExact = results?.some((s) => s.name.toLowerCase() === trimmed.toLowerCase());
-  const addableResults = (results ?? []).filter((s) => !takenNames.has(s.name.toLowerCase()));
+  const hasExact = results?.some((s) => foldText(s.name) === foldText(trimmed));
+  const addableResults = (results ?? []).filter((s) => !takenNames.has(foldText(s.name)));
 
   return (
     <div ref={containerRef} className="relative">

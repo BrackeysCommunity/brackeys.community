@@ -41,6 +41,7 @@ const WRITE_VERBS = [
   "link",
   "lock",
   "mark",
+  "merge",
   "propose",
   // `refreshGuildMembership` re-asks Discord and rewrites the cached answer.
   "refresh",

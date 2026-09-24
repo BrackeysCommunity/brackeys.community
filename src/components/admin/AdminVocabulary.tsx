@@ -1,7 +1,7 @@
 import { Add01Icon, Cancel01Icon, PencilEdit01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { type ReactElement, useMemo, useRef, useState } from "react";
 
 import { AdminSection, CategoryCombobox, Field } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { Section } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { foldText } from "@/lib/fuzzy-search";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -109,6 +110,19 @@ export function VocabularyManager({
     },
     onError,
   });
+  const merge = useMutation({
+    mutationFn: (input: { sourceId: number; targetId: number }) => client.mergeSkill(input),
+    onSuccess: ({ target, members }) => {
+      setEditingId(null);
+      toast.success(
+        members > 0
+          ? `Merged into “${target.name}”. ${USAGE.skills(members)} notified.`
+          : `Merged into “${target.name}”.`,
+      );
+      invalidate();
+    },
+    onError,
+  });
   const remove = useMutation({
     mutationFn: (id: number) =>
       kind === "roles"
@@ -142,7 +156,7 @@ export function VocabularyManager({
 
   const trimmed = name.trim();
   const clash = useMemo(
-    () => items.find((i) => i.name.toLowerCase() === trimmed.toLowerCase()) ?? null,
+    () => items.find((i) => foldText(i.name) === foldText(trimmed)) ?? null,
     [items, trimmed],
   );
   const canAdd = trimmed.length > 0 && !clash && !add.isPending;
@@ -240,9 +254,14 @@ export function VocabularyManager({
                       kind={kind}
                       categories={categories}
                       siblings={items}
-                      busy={rename.isPending}
+                      busy={rename.isPending || merge.isPending}
                       onCancel={() => setEditingId(null)}
                       onSave={(next) => rename.mutateAsync({ id: item.id, ...next })}
+                      onMerge={
+                        kind === "skills" && isAdmin
+                          ? (targetId) => merge.mutateAsync({ sourceId: item.id, targetId })
+                          : undefined
+                      }
                     />
                   ) : (
                     <div
@@ -306,6 +325,9 @@ export function VocabularyManager({
  * Inline rename. Both vocabularies are referenced by id, so a correction
  * propagates to every post and profile carrying the entry — which is why
  * this is worth having over delete-and-re-add.
+ *
+ * A rename onto a name that's already taken is really a duplicate, so when
+ * `onMerge` is available the clash offers to merge into that entry instead.
  */
 function EditRow({
   item,
@@ -315,6 +337,7 @@ function EditRow({
   busy,
   onCancel,
   onSave,
+  onMerge,
 }: {
   item: VocabItem;
   kind: Kind;
@@ -323,15 +346,14 @@ function EditRow({
   busy: boolean;
   onCancel: () => void;
   onSave: (next: { name: string; category: string | null }) => Promise<unknown>;
+  onMerge?: (targetId: number) => Promise<unknown>;
 }) {
   const [name, setName] = useState(item.name);
   const [category, setCategory] = useState(item.category ?? "");
 
   const trimmed = name.trim();
   const clash = useMemo(
-    () =>
-      siblings.find((s) => s.id !== item.id && s.name.toLowerCase() === trimmed.toLowerCase()) ??
-      null,
+    () => siblings.find((s) => s.id !== item.id && foldText(s.name) === foldText(trimmed)) ?? null,
     [siblings, item.id, trimmed],
   );
   const nextCategory = category.trim();
@@ -351,7 +373,9 @@ function EditRow({
 
   const confirmMessage = renamed
     ? item.usageCount > 0
-      ? `Everything already using it follows the new name — ${USAGE[kind](item.usageCount)}.`
+      ? `Everything already using it follows the new name — ${USAGE[kind](item.usageCount)}${
+          kind === "skills" ? ", who each get a notice saying so" : ""
+        }.`
       : "Nothing is using it yet, so this only changes the catalogue."
     : // A category is only ever a grouping in the picker; nothing that
       // already carries the entry changes at all.
@@ -399,6 +423,13 @@ function EditRow({
           <Button variant="ghost" size="xs" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
+          {clash && onMerge ? (
+            <MergeConfirm item={item} target={clash} onMerge={onMerge}>
+              <Button variant="outline" size="xs" disabled={busy} className="ml-auto">
+                Merge into “{clash.name}”
+              </Button>
+            </MergeConfirm>
+          ) : null}
         </div>
       </div>
       {clash ? (
@@ -407,5 +438,36 @@ function EditRow({
         </Text>
       ) : null}
     </Well>
+  );
+}
+
+/** The confirm step for a merge — says who moves and that they're told. */
+function MergeConfirm({
+  item,
+  target,
+  onMerge,
+  children,
+}: {
+  item: VocabItem;
+  target: VocabItem;
+  onMerge: (targetId: number) => Promise<unknown>;
+  children: ReactElement;
+}) {
+  return (
+    <Confirm
+      title={`Merge “${item.name}” into “${target.name}”?`}
+      message={
+        item.usageCount > 0
+          ? `The ${USAGE.skills(item.usageCount)} with “${item.name}” get “${target.name}” instead, and a notice saying so. Collab posts tagged with it move too. “${item.name}” is then removed.`
+          : `Nothing is using “${item.name}”, so it's removed and nobody is notified.`
+      }
+      confirmText="Merge"
+      variant="destructive"
+      onConfirm={async () => {
+        await onMerge(target.id);
+      }}
+    >
+      {children}
+    </Confirm>
   );
 }

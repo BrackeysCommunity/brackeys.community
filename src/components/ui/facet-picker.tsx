@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { fuzzyFilter } from "@/lib/fuzzy-search";
 import { cn } from "@/lib/utils";
 
 /** One entry in a controlled vocabulary the board can be filtered by. */
@@ -77,7 +78,7 @@ export function FacetPicker({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [showEmpties, setShowEmpties] = useState(false);
-  const query = search.trim().toLowerCase();
+  const query = search.trim();
 
   const countOf = (id: number) => counts?.[id] ?? 0;
   const toggle = (id: number) =>
@@ -88,11 +89,15 @@ export function FacetPicker({
   // "no matches" when the entry exists is a lie.
   const { groups, hiddenCount } = useMemo(() => {
     const countOf = (id: number) => counts?.[id] ?? 0;
-    const visible = options.filter((option) => {
-      if (query) return option.name.toLowerCase().includes(query);
-      if (selectedIds.includes(option.id)) return true;
-      return showEmpties || !counts || countOf(option.id) > 0;
-    });
+    const visible = query
+      ? fuzzyFilter(options, query)
+      : options.filter(
+          (option) =>
+            selectedIds.includes(option.id) || showEmpties || !counts || countOf(option.id) > 0,
+        );
+    // Under a search, rank is match quality — best match first, both
+    // within a category and across them — rather than board weight.
+    const rank = new Map(visible.map((option, i) => [option.id, i]));
 
     const byCategory = new Map<string, FacetOption[]>();
     for (const option of visible) {
@@ -109,11 +114,14 @@ export function FacetPicker({
     const entries = [...byCategory.entries()]
       .map(([category, items]) => ({
         category,
-        items: [...items].sort(
-          (a, b) => countOf(b.id) - countOf(a.id) || a.name.localeCompare(b.name),
-        ),
+        items: query
+          ? items
+          : [...items].sort(
+              (a, b) => countOf(b.id) - countOf(a.id) || a.name.localeCompare(b.name),
+            ),
       }))
       .sort((a, b) => {
+        if (query) return rank.get(a.items[0].id)! - rank.get(b.items[0].id)!;
         if (a.category === UNCATEGORISED) return 1;
         if (b.category === UNCATEGORISED) return -1;
         return weight(b.items) - weight(a.items) || a.category.localeCompare(b.category);

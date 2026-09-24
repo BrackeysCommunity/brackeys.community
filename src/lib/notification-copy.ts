@@ -256,6 +256,11 @@ export function renderNotificationText(input: {
           : `Your "${requestedName ?? "skill"}" request wasn't approved`,
         href: "/profile",
       };
+    case "skill_renamed":
+      return {
+        headline: `Your "${input.data.fromName as string}" skill is now listed as "${input.data.toName as string}"`,
+        href: "/profile",
+      };
     case "jam_starting":
       return { headline: `${jamTitle} starts soon`, href: jamHref };
     case "jam_voting_open":
@@ -309,6 +314,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   report_resolved: "Moderation — a report you filed was reviewed",
   skill_request_approved: "Moderation — your skill request was approved",
   skill_request_rejected: "Moderation — your skill request wasn't approved",
+  skill_renamed: "Moderation — a skill on your profile was renamed",
   jam_starting: "Jams — a jam you're watching starts soon",
   jam_voting_open: "Jams — voting opened on a jam you're watching",
   jam_results_posted: "Jams — results are up for a jam you're watching",
@@ -351,6 +357,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "report_resolved",
   "skill_request_approved",
   "skill_request_rejected",
+  "skill_renamed",
   "jam_starting",
   "jam_voting_open",
   "jam_results_posted",
@@ -427,6 +434,8 @@ export const NOTIFICATION_DEFAULTS: Record<
   // Outcomes the user gets on their next visit anyway; in-app is enough.
   skill_request_approved: { inApp: true, email: false, digest: false },
   skill_request_rejected: { inApp: true, email: false, digest: false },
+  // Nothing to act on — the skill is still there under its catalogue name.
+  skill_renamed: { inApp: true, email: false, digest: false },
   // The deadline you asked to be reminded about — email is why people watch
   // a jam rather than bookmarking it.
   jam_starting: { inApp: true, email: true, digest: false },
@@ -484,6 +493,7 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   report_resolved: "moderation",
   skill_request_approved: "moderation",
   skill_request_rejected: "moderation",
+  skill_renamed: "moderation",
   jam_starting: "jams",
   jam_voting_open: "jams",
   jam_results_posted: "jams",

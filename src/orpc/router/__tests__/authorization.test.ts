@@ -113,6 +113,7 @@ const STAFF_PROCEDURES = new Set([
   "createSkill",
   "updateSkill",
   "deleteSkill",
+  "mergeSkill",
   "featurePost",
   "setJamHeroPin",
   "addCollabRole",

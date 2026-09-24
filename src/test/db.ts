@@ -2,6 +2,7 @@ import { openAsBlob } from "node:fs";
 
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
+import { unaccent } from "@electric-sql/pglite/contrib/unaccent";
 import { drizzle } from "drizzle-orm/pglite";
 
 import { collabPosts, developerProfiles, user } from "../db/schema";
@@ -29,7 +30,7 @@ export async function createTestDb() {
   snapshot ??= ensureSnapshot().then((path) => openAsBlob(path));
   // Extensions the migrations `CREATE`: pglite only knows the ones it is
   // handed at construction, restored data dir included.
-  const client = new PGlite({ loadDataDir: await snapshot, extensions: { pg_trgm } });
+  const client = new PGlite({ loadDataDir: await snapshot, extensions: { pg_trgm, unaccent } });
   await client.waitReady;
   // Production Postgres runs in UTC; pglite defaults to the host zone,
   // which skews every `default now()` stamp against JS-side Date math

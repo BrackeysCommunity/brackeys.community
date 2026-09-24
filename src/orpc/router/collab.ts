@@ -71,6 +71,7 @@ import {
 import { loadProjectForEditor } from "@/lib/project-editors";
 import { assertRateLimit, clearRateLimit, refundRateLimit } from "@/lib/rate-limit";
 import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resolution";
+import { fuzzyMatch, fuzzyRank, unaccented } from "@/lib/sql-fuzzy";
 import { escapeLike } from "@/lib/sql-like";
 import { stackOverlap } from "@/lib/stack-overlap";
 import { isCollabPostImageKey } from "@/lib/stored-image-keys";
@@ -2714,11 +2715,13 @@ export const listCollabRoles = os
   .route({ method: "GET" })
   .input(z.object({ search: z.string().optional() }))
   .handler(async ({ input }) => {
-    if (input.search) {
+    const term = input.search?.trim();
+    if (term) {
       return db
         .select()
         .from(collabRoles)
-        .where(ilike(collabRoles.name, `%${escapeLike(input.search)}%`));
+        .where(fuzzyMatch(collabRoles.name, term, { fold: true }))
+        .orderBy(desc(fuzzyRank([collabRoles.name], term, { fold: true })), asc(collabRoles.name));
     }
     return db.select().from(collabRoles);
   });
@@ -2734,13 +2737,13 @@ const roleCategorySchema = z
 /**
  * Names are unique case-sensitively in the DB, which isn't what "already in
  * the vocabulary" means to a moderator — an exact `ilike` (no wildcards,
- * hence the escape) is.
+ * hence the escape) over accent-folded names is.
  */
 async function assertRoleNameFree(name: string, exceptId?: number): Promise<void> {
   const [match] = await db
     .select({ id: collabRoles.id, name: collabRoles.name })
     .from(collabRoles)
-    .where(ilike(collabRoles.name, escapeLike(name)))
+    .where(ilike(unaccented(collabRoles.name), unaccented(escapeLike(name))))
     .limit(1);
   if (match && match.id !== exceptId) {
     throw new ORPCError("CONFLICT", { message: `“${match.name}” already exists.` });

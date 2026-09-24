@@ -105,6 +105,7 @@
     "drizzle-orm": "1.0.0-rc.4",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.34.0",
+    "fuse.js": "7.5.0",
     "ioredis": "^5.10.1",
     "lucide-react": "^0.561.0",
     "marked": "^18.0.0",

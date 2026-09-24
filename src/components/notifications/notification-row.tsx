@@ -495,6 +495,16 @@ export function renderCopy(n: NotificationItem): {
         href: "/profile",
       };
     }
+    case "skill_renamed":
+      return {
+        line: (
+          <>
+            Your <em className="font-medium not-italic">{n.data.fromName as string}</em> skill is
+            now listed as <em className="font-medium not-italic">{n.data.toName as string}</em>
+          </>
+        ),
+        href: "/profile",
+      };
     default:
       return { line: <>You have a new notification</>, href };
   }

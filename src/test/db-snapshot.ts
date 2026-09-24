@@ -12,6 +12,7 @@ import { join } from "node:path";
 
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
+import { unaccent } from "@electric-sql/pglite/contrib/unaccent";
 
 /**
  * The migrated pglite data dir as a tarball on disk, keyed by the content
@@ -40,7 +41,7 @@ export async function ensureSnapshot(): Promise<string> {
 
   // Extensions the migrations `CREATE`: pglite only knows the ones it is
   // handed at construction.
-  const client = new PGlite({ extensions: { pg_trgm } });
+  const client = new PGlite({ extensions: { pg_trgm, unaccent } });
   await client.exec("SET TIME ZONE 'UTC';");
   for (const { sql } of files) await client.exec(sql);
   const blob = await client.dumpDataDir("none");

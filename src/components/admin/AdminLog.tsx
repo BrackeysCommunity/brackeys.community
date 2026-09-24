@@ -40,6 +40,7 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "vocabulary_created", label: "Vocabulary created" },
   { value: "vocabulary_renamed", label: "Vocabulary renamed" },
   { value: "vocabulary_deleted", label: "Vocabulary deleted" },
+  { value: "vocabulary_merged", label: "Vocabulary merged" },
   { value: "team_updated", label: "Teams edited" },
   { value: "team_slug_updated", label: "Team handles changed" },
   { value: "team_image_cleared", label: "Team images cleared" },

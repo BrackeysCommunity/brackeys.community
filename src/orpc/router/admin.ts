@@ -21,6 +21,7 @@ import * as z from "zod";
 import { db } from "@/db";
 import {
   collabPostReports,
+  collabPostSkills,
   collabPostRoles,
   collabPosts,
   forumPostReports,
@@ -74,7 +75,7 @@ import {
   removeProfileProjectImageFromStorage,
   storedImageStore,
 } from "@/lib/profile-project-image-storage";
-import { fuzzyMatch, fuzzyRank } from "@/lib/sql-fuzzy";
+import { fuzzyMatch, fuzzyRank, unaccented } from "@/lib/sql-fuzzy";
 import { escapeLike, likeContains } from "@/lib/sql-like";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { authMiddleware, readSession, requireAdmin, requireStaff } from "@/orpc/middleware/auth";
@@ -456,14 +457,15 @@ const vocabCategorySchema = z
 
 /**
  * The catalogue name is unique but case-sensitively so — an exact `ilike`
- * (no wildcards, hence the escape) is what "already exists" actually means
- * to a moderator looking at "c#" next to "C#".
+ * (no wildcards, hence the escape) over accent-folded names is what
+ * "already exists" actually means to a moderator looking at "c#" next to
+ * "C#", or "LOVE" next to "LÖVE".
  */
 async function findSkillByName(name: string) {
   const [match] = await db
     .select({ id: skills.id, name: skills.name, category: skills.category })
     .from(skills)
-    .where(ilike(skills.name, escapeLike(name)))
+    .where(ilike(unaccented(skills.name), unaccented(escapeLike(name))))
     .limit(1);
   return match ?? null;
 }
@@ -736,6 +738,19 @@ export const listVocabulary = os.use(requireStaff).handler(async () => {
   return { roles, skills: skillRows };
 });
 
+/**
+ * Tells members a skill on their profile now goes by another name — after
+ * a rename or a merge. Best-effort per member: the change has landed either
+ * way. No actorId, same as the skill-request notices.
+ */
+async function notifySkillRenamed(userIds: string[], fromName: string, toName: string) {
+  for (const userId of userIds) {
+    await bestEffort("admin.skill_renamed_notice", { user_id: userId }, () =>
+      notify({ userId, type: "skill_renamed", data: { fromName, toName } }),
+    );
+  }
+}
+
 async function assertSkillNameFree(name: string, exceptId?: number): Promise<void> {
   const match = await findSkillByName(name);
   if (match && match.id !== exceptId) {
@@ -804,7 +819,128 @@ export const updateSkill = os
         toCategory: updated.category,
       },
     });
+
+    if (before && before.name !== updated.name) {
+      const holders = await db
+        .select({ userId: userSkills.userId })
+        .from(userSkills)
+        .where(eq(userSkills.skillId, updated.id));
+      await notifySkillRenamed(
+        holders.map((h) => h.userId),
+        before.name,
+        updated.name,
+      );
+    }
     return updated;
+  });
+
+/**
+ * Folds one skill into another: everyone and every collab post carrying
+ * `sourceId` carries `targetId` instead, then the source is deleted. The
+ * fix for a duplicate a rename can't reach ("love2d" → "LÖVE" collides
+ * with the LÖVE that already exists). Admin-only, like delete — the
+ * source entry is gone afterwards.
+ *
+ * Members who had the source are told what it's called now; anyone who
+ * already had both just loses the duplicate, which needs no notice.
+ */
+export const mergeSkill = os
+  .use(requireAdmin)
+  .input(
+    z.object({
+      sourceId: z.number().int().positive(),
+      targetId: z.number().int().positive(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    if (input.sourceId === input.targetId) {
+      throw new ORPCError("BAD_REQUEST", { message: "Pick a different skill to merge into." });
+    }
+    const rows = await db
+      .select({ id: skills.id, name: skills.name, category: skills.category })
+      .from(skills)
+      .where(inArray(skills.id, [input.sourceId, input.targetId]));
+    const source = rows.find((r) => r.id === input.sourceId);
+    const target = rows.find((r) => r.id === input.targetId);
+    if (!source || !target) throw new ORPCError("NOT_FOUND", { message: "Skill not found." });
+
+    const { movedUserIds, postCount } = await db.transaction(async (tx) => {
+      // Holders of both keep the target row; dropping theirs first is what
+      // lets the re-point below clear the (user, skill) unique.
+      const holders = await tx
+        .select({ userId: userSkills.userId })
+        .from(userSkills)
+        .where(eq(userSkills.skillId, target.id));
+      const both = holders.map((r) => r.userId);
+      if (both.length > 0) {
+        await tx
+          .delete(userSkills)
+          .where(and(eq(userSkills.skillId, source.id), inArray(userSkills.userId, both)));
+      }
+      const moved = await tx
+        .update(userSkills)
+        .set({ skillId: target.id })
+        .where(eq(userSkills.skillId, source.id))
+        .returning({ userId: userSkills.userId });
+
+      // A dropped row leaves a gap in that member's order, and new skills
+      // are appended at `count()` — close it so the next add can't collide.
+      if (both.length > 0) {
+        await tx.execute(sql`
+          update ${userSkills} set sort_order = r.pos
+          from (
+            select id, row_number() over (partition by user_id order by sort_order, id) - 1 as pos
+            from ${userSkills}
+            where user_id in (${sql.join(
+              both.map((id) => sql`${id}`),
+              sql`, `,
+            )})
+          ) r
+          where ${userSkills.id} = r.id`);
+      }
+
+      const tagged = await tx
+        .select({ postId: collabPostSkills.postId })
+        .from(collabPostSkills)
+        .where(eq(collabPostSkills.skillId, target.id));
+      if (tagged.length > 0) {
+        await tx.delete(collabPostSkills).where(
+          and(
+            eq(collabPostSkills.skillId, source.id),
+            inArray(
+              collabPostSkills.postId,
+              tagged.map((r) => r.postId),
+            ),
+          ),
+        );
+      }
+      const posts = await tx
+        .update(collabPostSkills)
+        .set({ skillId: target.id })
+        .where(eq(collabPostSkills.skillId, source.id))
+        .returning({ id: collabPostSkills.id });
+
+      await tx.delete(skills).where(eq(skills.id, source.id));
+      return { movedUserIds: moved.map((r) => r.userId), postCount: posts.length };
+    });
+
+    await recordModerationAction({
+      action: "vocabulary_merged",
+      actorId: context.user.id,
+      targetType: "skill",
+      targetId: target.id,
+      metadata: {
+        from: source.name,
+        to: target.name,
+        fromId: source.id,
+        members: movedUserIds.length,
+        posts: postCount,
+      },
+    });
+
+    await notifySkillRenamed(movedUserIds, source.name, target.name);
+
+    return { target, members: movedUserIds.length, posts: postCount };
   });
 
 export const deleteSkill = os
