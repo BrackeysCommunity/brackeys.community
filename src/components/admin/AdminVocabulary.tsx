@@ -1,6 +1,7 @@
 import { Add01Icon, Cancel01Icon, PencilEdit01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { type ReactElement, useMemo, useRef, useState } from "react";
 
 import { AdminSection, CategoryCombobox, Field } from "@/components/admin/AdminUI";
@@ -271,9 +272,7 @@ export function VocabularyManager({
                       <Text size="sm" className="font-medium">
                         {item.name}
                       </Text>
-                      <Badge size="label" variant="ghost" className="text-muted-foreground">
-                        {item.usageCount}
-                      </Badge>
+                      <UsageBadge kind={kind} item={item} />
                       <Button
                         variant="ghost"
                         size="icon-xs"
@@ -318,6 +317,29 @@ export function VocabularyManager({
         </div>
       )}
     </AdminSection>
+  );
+}
+
+/** Skill counts open the member directory filtered to that skill. */
+function UsageBadge({ kind, item }: { kind: Kind; item: VocabItem }) {
+  if (kind !== "skills" || item.usageCount === 0) {
+    return (
+      <Badge size="label" variant="ghost" className="text-muted-foreground">
+        {item.usageCount}
+      </Badge>
+    );
+  }
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      className="w-auto min-w-6 px-1.5 text-muted-foreground tabular-nums"
+      tooltip={`See the ${USAGE.skills(item.usageCount)} with ${item.name}`}
+      nativeButton={false}
+      render={<Link to="/members" search={{ skills: [item.id] }} />}
+    >
+      {item.usageCount}
+    </Button>
   );
 }
 
