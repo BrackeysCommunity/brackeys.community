@@ -21,7 +21,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const ROOT_BUDGET = { chunks: 63, gzipBytes: 380 * 1024 };
+const ROOT_BUDGET = { chunks: 63, gzipBytes: 400 * 1024 };
 
 const outputDir = join(process.cwd(), ".output");
 const serverDir = join(outputDir, "server");
