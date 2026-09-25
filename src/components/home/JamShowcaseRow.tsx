@@ -23,6 +23,7 @@ import { Well } from "@/components/ui/well";
 import { formatCount } from "@/lib/format-count";
 import { durationDays, formatCountdown } from "@/lib/jam-countdown";
 import { hostName, jamLinkParams, jamMonthDay } from "@/lib/jam-links";
+import { jamInk } from "@/lib/jam-palette";
 import { cn } from "@/lib/utils";
 
 /** Shelf → chip. Voting reads as a distinct phase from live, and the
@@ -61,6 +62,7 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
   // color, palette pick only as a fallback. Deriving it locally is how the
   // home band ended up giving a jam a different colorway than /jams did.
   const jamColor = useJamColor(jam);
+  const ink = jamInk(jamColor);
   const badge = SHELF_BADGE[jamShelf(jam, now)];
   const milestone = nextMilestone(jam, now);
   const counted = milestone ? formatCountdown(milestone.date, now) : null;
@@ -100,11 +102,15 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
             />
           ) : (
             <>
-              <DotGrid className="absolute inset-0" />
+              <DotGrid className="absolute inset-0" color={ink} />
               <Text
                 bold
                 density="dense"
-                className="absolute inset-0 flex items-center justify-center text-3xl tracking-tighter text-foreground/40"
+                className={cn(
+                  "absolute inset-0 flex items-center justify-center text-3xl tracking-tighter",
+                  !ink && "text-foreground/40",
+                )}
+                style={ink ? { color: ink } : undefined}
               >
                 {shortName(jam.title)}
               </Text>
@@ -179,6 +185,7 @@ export function JamShowcaseRow({ jam, entries, now }: JamShowcaseRowProps) {
  */
 export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
   const jamColor = useJamColor(jam);
+  const ink = jamInk(jamColor);
   const badge = SHELF_BADGE[jamShelf(jam, now)];
   const milestone = nextMilestone(jam, now);
   const counted = milestone ? formatCountdown(milestone.date, now) : null;
@@ -221,11 +228,15 @@ export function JamShowcaseCard({ jam, now }: { jam: JamFromList; now: Date }) {
           />
         ) : (
           <>
-            <DotGrid className="absolute inset-0" />
+            <DotGrid className="absolute inset-0" color={ink} />
             <Text
               bold
               density="dense"
-              className="absolute inset-0 flex items-center justify-center text-xl tracking-tighter text-foreground/40"
+              className={cn(
+                "absolute inset-0 flex items-center justify-center text-xl tracking-tighter",
+                !ink && "text-foreground/40",
+              )}
+              style={ink ? { color: ink } : undefined}
             >
               {shortName(jam.title)}
             </Text>

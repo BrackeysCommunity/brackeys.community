@@ -51,3 +51,31 @@ export function safeThemeColor(raw: string | null | undefined): string | null {
     /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*[\d.]+\s*)?\)$/.test(raw);
   return ok ? raw : null;
 }
+
+function parseRgb(color: string): [number, number, number] | null {
+  const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i)?.[1];
+  if (hex) {
+    const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+    return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16)) as [number, number, number];
+  }
+  const rgb = color.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : null;
+}
+
+/**
+ * Ink for dots and lettering drawn directly on a jam color: the same hue
+ * pushed toward whichever of black or white contrasts more, so the stand-in
+ * art reads as a tint of the jam rather than a theme gray that vanishes on
+ * light colors. Null when the color can't be parsed (e.g. a CSS variable).
+ */
+export function jamInk(color: string): string | null {
+  const rgb = parseRgb(color);
+  if (!rgb) return null;
+  const [r, g, b] = rgb.map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const toward = luminance > 0.179 ? "black" : "white";
+  return `color-mix(in oklab, ${color} 45%, ${toward})`;
+}

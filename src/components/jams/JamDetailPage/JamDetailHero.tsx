@@ -7,7 +7,7 @@ import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { BACKDROP_TRANSFORM, itchImageSrcSet } from "@/lib/itch-image";
 import { durationDays, formatCountdown, formatJamShortDates } from "@/lib/jam-countdown";
 import { hostName, jamUrl } from "@/lib/jam-links";
-import { safeThemeColor } from "@/lib/jam-palette";
+import { jamInk, safeThemeColor } from "@/lib/jam-palette";
 import { hoverPlaySources } from "@/lib/still-image";
 import { cn } from "@/lib/utils";
 
@@ -99,7 +99,7 @@ export function JamDetailHero({
             className="absolute inset-0"
             style={{ background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})` }}
           >
-            <DotGrid />
+            <DotGrid color={jamInk(color)} />
           </div>
         )}
         {/* Eases the art into the body so a light banner doesn't butt

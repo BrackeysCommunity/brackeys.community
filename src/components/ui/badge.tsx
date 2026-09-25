@@ -79,7 +79,7 @@ function Badge({
       {
         className: cn(
           badgeVariants({ variant, size }),
-          hasEmboss && "chonk-emboss",
+          // hasEmboss && "chonk-emboss",
           embossable && staticEmbossOverride,
           notchOpts && "!translate-y-0 !transform-none !border-0 !shadow-none",
           className,

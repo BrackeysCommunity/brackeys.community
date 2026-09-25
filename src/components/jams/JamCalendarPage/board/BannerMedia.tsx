@@ -3,10 +3,11 @@ import { useState } from "react";
 import { DotGrid } from "@/components/ui/dot-grid";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
 import { BOARD_BANNER_TRANSFORM } from "@/lib/itch-image";
+import { jamInk } from "@/lib/jam-palette";
 import { cn } from "@/lib/utils";
 
 import type { JamFromList } from "../helpers";
-import { useJamGradient } from "./use-jam-color";
+import { useJamColor, useJamGradient } from "./use-jam-color";
 
 /**
  * Banner slot shared by every board surface (list-row thumb, shelf
@@ -33,6 +34,7 @@ export function JamBanner({
   fit?: "cover" | "contain";
 }) {
   const gradient = useJamGradient(jam);
+  const ink = jamInk(useJamColor(jam));
   const [imageOk, setImageOk] = useState(true);
 
   const objectFit = fit === "contain" ? "object-contain" : "object-cover";
@@ -53,7 +55,7 @@ export function JamBanner({
       className="absolute inset-0"
       style={{ background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})` }}
     >
-      <DotGrid />
+      <DotGrid color={ink} />
     </div>
   );
 }

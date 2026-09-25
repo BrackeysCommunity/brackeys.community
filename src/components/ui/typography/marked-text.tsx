@@ -126,11 +126,7 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       return <del>{renderTokens(t.tokens as AnyToken[], censor)}</del>;
     case "codespan": {
       const code = t as Tokens.Codespan;
-      return (
-        <InlineCode className="translate-y-px">
-          {censor.nodes(decodeEntities(code.text))}
-        </InlineCode>
-      );
+      return <InlineCode>{censor.nodes(decodeEntities(code.text))}</InlineCode>;
     }
     case "link": {
       const link = t as Tokens.Link;

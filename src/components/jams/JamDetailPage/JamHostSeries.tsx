@@ -8,7 +8,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { formatCount } from "@/lib/format-count";
 import { formatJamShortDates } from "@/lib/jam-countdown";
 import { jamLinkParams } from "@/lib/jam-links";
-import { safeThemeColor } from "@/lib/jam-palette";
+import { jamInk, safeThemeColor } from "@/lib/jam-palette";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
@@ -59,7 +59,7 @@ export function JamHostSeries({ hostName, jamId }: { hostName: string; jamId: nu
                     className="h-full w-full object-contain"
                   />
                 ) : (
-                  <DotGrid />
+                  <DotGrid color={jamInk(color)} />
                 )}
               </div>
               <Text
