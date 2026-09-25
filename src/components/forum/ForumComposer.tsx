@@ -17,8 +17,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
@@ -418,15 +426,32 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
             ))}
           </SegmentedControl>
           {kind === "devlog" && postableTeams.length > 0 ? (
-            <SelectField
-              label="Posting as"
-              value={draft.teamId ?? "me"}
-              onChange={(value) => update({ teamId: value === "me" ? null : value })}
-              options={[
-                { value: "me", label: "Me" },
-                ...postableTeams.map((team) => ({ value: team.id, label: team.name })),
-              ]}
-            />
+            <div className="flex items-center gap-2">
+              <Label
+                htmlFor="forum-posting-as"
+                className="text-[11px] tracking-widest text-muted-foreground uppercase"
+              >
+                Posting as
+              </Label>
+              <Select
+                value={draft.teamId ?? "me"}
+                onValueChange={(value) => update({ teamId: value === "me" ? null : value })}
+              >
+                <SelectTrigger id="forum-posting-as">
+                  <SelectValue>
+                    {postableTeams.find((team) => team.id === draft.teamId)?.name ?? "Me"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="me">Me</SelectItem>
+                  {postableTeams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
         </div>
       ) : null}
