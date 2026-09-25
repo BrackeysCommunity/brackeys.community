@@ -1,0 +1,69 @@
+/* Flat Black — monochrome black with khaki wireframe edges
+   ─────────────────────────────────────────────────────────────────────
+   Surfaces:  #181a1b (bg)   #1c1e1f (lifted)  #121314 (sunken)
+              #26282a (selection)
+   Content:   #ececea (fg)   #a8a197 (dim)     #746d62 (wire)
+   Accents:   #ececea (signal) #d4c9a8 (khaki)
+              #f87171 (red)  #4ade80 (green)   #fbbf24 (amber)
+   ──────────────────────────────────────────────────────────────────── */
+
+[data-theme="flat-black"].dark {
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  --background: #181a1b;
+  --foreground: #ececea;
+  --card: #1c1e1f;
+  --card-foreground: #ececea;
+  --popover: #1c1e1f;
+  --popover-foreground: #ececea;
+
+  /* ── Brand / emphasis ──────────────────────────────────────────── */
+  --primary: #ececea;
+  --primary-foreground: #181a1b;
+  --secondary: var(--accent);
+  --secondary-foreground: var(--accent-foreground);
+  --accent: #ececea;
+  --accent-foreground: #181a1b;
+
+  /* ── Muted / subdued ───────────────────────────────────────────── */
+  --muted: #26282a;
+  --muted-foreground: #a8a197;
+
+  /* ── Semantic states ───────────────────────────────────────────── */
+  --destructive: #f87171;
+  --destructive-foreground: #181a1b;
+  --success: #4ade80;
+  --success-foreground: #181a1b;
+  --warning: #fbbf24;
+  --warning-foreground: #181a1b;
+  --info: #d4c9a8;
+  --info-foreground: #181a1b;
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  --border: #746d62;
+  --input: #746d62;
+  --ring: #d4c9a8;
+
+  /* ── Charts ────────────────────────────────────────────────────── */
+  --chart-1: #ececea;
+  --chart-2: #d4c9a8;
+  --chart-3: #a8a197;
+  --chart-4: #746d62;
+  --chart-5: #4a463f;
+
+  /* ── Sidebar ───────────────────────────────────────────────────── */
+  --sidebar: #151718;
+  --sidebar-foreground: #ececea;
+  --sidebar-primary: #ececea;
+  --sidebar-primary-foreground: #181a1b;
+  --sidebar-accent: #ececea;
+  --sidebar-accent-foreground: #181a1b;
+  --sidebar-border: #746d62;
+  --sidebar-ring: #d4c9a8;
+
+  /* ── Depth (emboss / deboss) ───────────────────────────────────── */
+  --emboss-surface: #202223;
+  --emboss-shadow: #0a0b0b;
+  --deboss-surface: #121314;
+  --deboss-shadow: #0a0b0b;
+  --deboss-highlight: rgba(236, 236, 234, 0.05);
+}

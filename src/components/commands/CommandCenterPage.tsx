@@ -21,7 +21,7 @@ import { Well } from "@/components/ui/well";
 import { hammerCommands, marcoMacros, pencilCommands, PROTOCOL_COUNT } from "@/data/commands";
 import type { BotId } from "@/data/commands";
 import { activeUserStore } from "@/lib/active-user-store";
-import { buildCopyText } from "@/lib/command-copy";
+import { buildCopyText, macroMarkdown } from "@/lib/command-copy";
 import { useLaneRelease } from "@/lib/hooks/use-lane-release";
 import { fadeIn, fadeUp } from "@/lib/motion";
 
@@ -55,18 +55,12 @@ function buildEntries(username?: string): CommandRowData[] {
     };
   });
 
-  // Marco macro descriptions use Discord-flavored conventions: `• ` bullets and
-  // `<url>` autolinks. Convert bullets to markdown list syntax and ensure a
-  // blank line precedes the list so marked parses it as a real <ul>.
-  const normalizeMarkdown = (src: string) =>
-    src.replace(/^• /gm, "- ").replace(/([^\n])\n(- )/g, "$1\n\n$2");
-
   const macros: CommandRowData[] = marcoMacros.map((m) => ({
     id: `macro:${m.name}`,
     label: `[]${m.name}`,
     bot: "marco" as const,
     description: m.description.split("\n")[0].slice(0, 200),
-    body: normalizeMarkdown(m.description),
+    body: macroMarkdown(m.description),
     aliases: m.aliases,
     copyText: `/macro name:${m.name}`,
     altCopyText: `[]${m.name}`,

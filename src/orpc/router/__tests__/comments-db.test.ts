@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   comments,
+  moderationActions,
   notifications,
   profileUrlStubs,
   threads,
@@ -11,7 +12,13 @@ import {
   userBlocks,
 } from "@/db/schema";
 import { loadSubject, resolveThread } from "@/lib/comment-subjects";
-import { createComment, listComments, getCommentLocation } from "@/orpc/router/comments";
+import {
+  createComment,
+  deleteComment,
+  getCommentLocation,
+  listComments,
+  restoreComment,
+} from "@/orpc/router/comments";
 import { seedCollabPost, seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
@@ -30,6 +37,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
 vi.mock("@/lib/guild-sync", () => ({
   refreshGuildRolesThrottled: async () => {},
 }));
+vi.mock("@/lib/staff-roles", async (importOriginal) => importOriginal());
 vi.mock("@/lib/queue", () => ({
   getNotificationsQueue: async () => ({ add: async () => ({}) }),
 }));
@@ -60,6 +68,7 @@ beforeEach(async () => {
   // cascades through posts, threads, comments and subscriptions.
   const { collabPosts, developerProfiles, user } = await import("@/db/schema");
   await db.delete(notifications);
+  await db.delete(moderationActions);
   await db.delete(userBlocks);
   await db.delete(collabPosts);
   await db.delete(threads);
@@ -289,5 +298,39 @@ describe("wall deep links", () => {
     ).toEqual({
       rootId: null,
     });
+  });
+});
+
+describe("restoring a removed comment", () => {
+  it("brings back the original text and logs the restore beside the removal", async () => {
+    await seedUser(db, "owner");
+    await seedUser(db, "writer");
+    await seedUser(db, "staff", { guildRoles: ["Staff"] });
+    const subject = { type: "profile", id: "owner" } as const;
+
+    const note = await call(createComment, { subject, content: "hi wall" }, asUser("writer"));
+    await call(deleteComment, { commentId: note.id }, asUser("owner"));
+    await call(restoreComment, { commentId: note.id }, asUser("staff"));
+
+    const [row] = await db.select().from(comments).where(eq(comments.id, note.id));
+    expect(row).toMatchObject({ deletedAt: null, deletedById: null, content: "hi wall" });
+
+    const log = await db.select({ action: moderationActions.action }).from(moderationActions);
+    expect(log.map((entry) => entry.action).sort()).toEqual([
+      "comment_removed",
+      "comment_restored",
+    ]);
+  });
+
+  it("refuses the subject owner, who can remove but not restore", async () => {
+    await seedUser(db, "owner");
+    await seedUser(db, "writer");
+    const subject = { type: "profile", id: "owner" } as const;
+
+    const note = await call(createComment, { subject, content: "hi wall" }, asUser("writer"));
+    await call(deleteComment, { commentId: note.id }, asUser("owner"));
+    await expect(
+      call(restoreComment, { commentId: note.id }, asUser("owner")),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

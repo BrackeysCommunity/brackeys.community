@@ -85,6 +85,8 @@ const PUBLIC_PROCEDURES = new Set([
   "getForumPost",
   "searchForumTags",
   "searchForumPosts",
+  // The palette's site search; forum hits follow the caller's flag.
+  "searchAll",
   "listForumSeries",
   "getForumSeries",
   // GitHub contribution calendar on public profiles.
@@ -133,6 +135,7 @@ const STAFF_PROCEDURES = new Set([
   "lockThread",
   "listCommentReports",
   "listRecentComments",
+  "restoreComment",
   "resolveCommentReport",
   // Staff-only because it carries ban state; `searchProfiles` is the open one.
   "searchMembers",

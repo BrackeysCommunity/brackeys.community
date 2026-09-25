@@ -4,6 +4,8 @@ import { safeThemeColor } from "@/lib/jam-palette";
 
 import type { JamFromList } from "../helpers";
 
+type JamColorSource = Pick<JamFromList, "jamId" | "themeColor">;
+
 /**
  * The jam's display color: the real itch theme color (the host-chosen
  * page background, scraped from the jam page) when we have it,
@@ -12,14 +14,14 @@ import type { JamFromList } from "../helpers";
  * fallback) draws from this one hook so a jam keeps a single colorway
  * everywhere it appears.
  */
-export function useJamColor(jam: JamFromList): string {
+export function useJamColor(jam: JamColorSource): string {
   const palette = useThemeChartColors();
   return safeThemeColor(jam.themeColor) ?? jamPaletteColors(palette, jam.jamId)[0];
 }
 
 /** Two-stop gradient pair for imageless banner fallbacks — the theme
  * color shading toward black, or the deterministic palette pair. */
-export function useJamGradient(jam: JamFromList): readonly [string, string] {
+export function useJamGradient(jam: JamColorSource): readonly [string, string] {
   const palette = useThemeChartColors();
   const theme = safeThemeColor(jam.themeColor);
   if (theme) return [theme, `color-mix(in srgb, ${theme} 55%, black)`] as const;

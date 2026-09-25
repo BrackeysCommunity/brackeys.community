@@ -867,6 +867,49 @@ export const lockThread = os
     return { success: true };
   });
 
+/**
+ * Undo a tombstone. The content was never cleared, so this only lifts the
+ * marker; the removal's log row stays, and this one sits beside it.
+ */
+export const restoreComment = os
+  .use(requireStaff)
+  .input(
+    z.object({
+      commentId: z.number().int().positive(),
+      reason: z.string().trim().max(500).optional(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const [comment] = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.id, input.commentId))
+      .limit(1);
+    if (!comment) throw new ORPCError("NOT_FOUND", { message: "Comment not found." });
+    if (!comment.deletedAt) return { success: true };
+
+    await db
+      .update(comments)
+      .set({ deletedAt: null, deletedById: null })
+      .where(eq(comments.id, comment.id));
+
+    await recordModerationAction({
+      action: "comment_restored",
+      actorId: context.user.id,
+      targetType: "comment",
+      targetId: comment.id,
+      subjectUserId: comment.authorId,
+      reason: input.reason,
+      metadata: {
+        threadId: comment.threadId,
+        preview: comment.content.slice(0, 280),
+        removedById: comment.deletedById,
+        removedAt: comment.deletedAt.toISOString(),
+      },
+    });
+    return { success: true };
+  });
+
 export const listCommentReports = os
   .use(requireStaff)
   .input(z.object({ includeResolved: z.boolean().default(false) }))

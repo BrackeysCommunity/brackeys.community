@@ -26,6 +26,7 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "user_banned", label: "Bans" },
   { value: "user_unbanned", label: "Unbans" },
   { value: "comment_removed", label: "Comments removed" },
+  { value: "comment_restored", label: "Comments restored" },
   { value: "post_closed", label: "Posts closed" },
   { value: "post_reopened", label: "Posts reopened" },
   { value: "post_deleted", label: "Posts deleted" },

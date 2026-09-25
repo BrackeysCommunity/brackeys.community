@@ -1,20 +1,7 @@
-import {
-  Comment01Icon,
-  ComputerTerminal01Icon,
-  LegalHammerIcon,
-  Login01Icon,
-  PaintBrush04Icon,
-  PencilIcon,
-  Robot01Icon,
-  Settings02Icon,
-  Share01Icon,
-  Shield02Icon,
-} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useStore } from "@tanstack/react-store";
-import { useEffect, useRef, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
   Command,
@@ -24,261 +11,338 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
-import { openDiscordInvite } from "@/components/ui/discord-invite-link";
-import { allBotCommands, hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
-import { activeUserStore } from "@/lib/active-user-store";
-import { authClient, signInWithDiscord } from "@/lib/auth-client";
-import { forumPostParam, forumPostTitle } from "@/lib/forum-posts";
-import { useAppTheme } from "@/lib/hooks/use-app-theme";
+import { Rail } from "@/components/ui/rail";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EVENTS } from "@/lib/event-taxonomy";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useFlag } from "@/lib/hooks/use-flag";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
+import { captureEvent } from "@/lib/product-insights";
+import type { RankedHit, SearchKind } from "@/lib/search-hits";
+import { hitLinkOptions } from "@/lib/search-links";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
+
+import { CommandPreview } from "./command-palette/CommandPreview";
+import { hitArtUrl, isMediaHit } from "./command-palette/SearchArt";
+import {
+  KIND_HEADING,
+  SearchHitFeature,
+  SearchHitRow,
+  SearchHitTile,
+} from "./command-palette/SearchHitRow";
+import { SearchPreview } from "./command-palette/SearchPreview";
+import {
+  filterCommands,
+  usePaletteCommands,
+  type PaletteCommand,
+  type PaletteDetail,
+} from "./command-palette/use-palette-commands";
+
+/** Below this, a query is still a command filter, not a site search. */
+const MIN_SEARCH_LENGTH = 2;
+
+const NO_HITS: RankedHit[] = [];
+
+interface Row {
+  value: string;
+  kind: SearchKind | "command" | "tag";
+  hit?: RankedHit;
+  /** For a local row, its label and what the preview pane says about it. */
+  local?: { label: string; detail: PaletteDetail };
+  content: ReactNode;
+  perform: () => void;
+}
+
+interface Section {
+  heading: string;
+  /** A rail of art tiles, for a kind that has any art in this answer. */
+  rail?: boolean;
+  rows: Row[];
+}
+
+/** How long a highlight must rest before the preview and preload follow it. */
+const PREVIEW_DELAY_MS = 120;
 
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
   const [query, setQuery] = useState("");
-  const listRef = useRef<HTMLDivElement>(null);
-  // cmdk filters synchronously on render, so counting rendered items after
-  // the query commits is the result count — it has no count API of its own.
-  const [resultCount, setResultCount] = useState<number | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    setResultCount(listRef.current?.querySelectorAll("[cmdk-item]").length ?? 0);
-  }, [query, open]);
-  useSearchPerformed({
-    surface: "command_palette",
-    query: open ? query : undefined,
-    filterKinds: [],
-    resultCount,
-  });
+  const [selected, setSelected] = useState("");
   const navigate = useNavigate();
-  const { themeId, setTheme, sections } = useAppTheme();
-  const { data: session } = authClient.useSession();
-  const isStaff = useStore(activeUserStore, (s) => s.profile?.isStaff ?? false);
+  const router = useRouter();
   const forumOn = useFlag("forum-enabled");
-  const forumQuery = useDebouncedValue(query.trim(), 250);
-  const forumSearchable = open && forumOn && forumQuery.length >= 2;
-  const { data: forumPosts } = useQuery({
-    ...orpc.searchForumPosts.queryOptions({ input: { query: forumQuery, limit: 5 } }),
-    enabled: forumSearchable,
+  const { actions, rest } = usePaletteCommands(forumOn);
+
+  // The dialog paints first and the list follows a frame later, so the
+  // first ⌘K shows the palette at once instead of after every row renders.
+  const [listReady, setListReady] = useState(false);
+  useEffect(() => {
+    if (!open || listReady) return;
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setListReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [open, listReady]);
+
+  const trimmed = query.trim();
+  const debounced = useDebouncedValue(trimmed, 150);
+  const searchable = open && listReady && debounced.length >= MIN_SEARCH_LENGTH;
+  const search = useQuery({
+    ...orpc.searchAll.queryOptions({ input: { q: debounced } }),
+    enabled: searchable,
+    placeholderData: keepPreviousData,
     staleTime: STALE.listing,
   });
   const { data: forumTags } = useQuery({
-    ...orpc.searchForumTags.queryOptions({ input: { query: forumQuery, limit: 4 } }),
-    enabled: forumSearchable,
+    ...orpc.searchForumTags.queryOptions({ input: { query: debounced, limit: 4 } }),
+    enabled: searchable && forumOn,
+    placeholderData: keepPreviousData,
     staleTime: STALE.listing,
   });
 
-  const run = (action: () => void) => {
-    setOpen(false);
-    action();
-  };
+  const showHits = trimmed.length >= MIN_SEARCH_LENGTH;
+  const hits = (showHits ? search.data?.hits : undefined) ?? NO_HITS;
+  const settled =
+    !showHits || (debounced === trimmed && search.isSuccess && !search.isPlaceholderData);
+
+  const tags = showHits && forumOn ? forumTags : undefined;
+  // Built once per answer, not per highlight: moving through the list must
+  // not re-render every row.
+  const sections = useMemo(() => {
+    const hitRow = (hit: RankedHit, content: ReactNode): Row => ({
+      value: `hit:${hit.kind}:${hit.id}`,
+      kind: hit.kind,
+      hit,
+      content,
+      perform: () => void navigate(hitLinkOptions(hit)),
+    });
+    const commandRow = (command: PaletteCommand): Row => ({
+      value: `cmd:${command.id}`,
+      kind: "command",
+      content: (
+        <>
+          <HugeiconsIcon icon={command.icon} className={command.iconClassName} />
+          <span>{command.label}</span>
+          {command.shortcut ? <CommandShortcut>{command.shortcut}</CommandShortcut> : null}
+        </>
+      ),
+      local: { label: command.label, detail: command.detail },
+      perform: command.perform,
+    });
+
+    // Top hit, then the actions (few, and what a short query usually means),
+    // then each kind in the order of its best hit, then everything local.
+    const built: Section[] = [];
+    const [top, ...others] = hits;
+    if (top) {
+      built.push({
+        heading: "TOP HIT",
+        rows: [hitRow(top, <SearchHitFeature hit={top} query={trimmed} />)],
+      });
+    }
+    const matchedActions = filterCommands(actions, trimmed);
+    if (matchedActions.commands.length > 0) {
+      built.push({ heading: actions.heading, rows: matchedActions.commands.map(commandRow) });
+    }
+    const byKind = new Map<SearchKind, RankedHit[]>();
+    for (const hit of others) byKind.set(hit.kind, [...(byKind.get(hit.kind) ?? []), hit]);
+    for (const [kind, kindHits] of byKind) {
+      const media = kindHits.filter(isMediaHit);
+      const rail = media.length === kindHits.length && media.some((hit) => hitArtUrl(hit));
+      built.push({
+        heading: KIND_HEADING[kind],
+        rail,
+        rows: rail
+          ? media.map((hit) => hitRow(hit, <SearchHitTile hit={hit} query={trimmed} />))
+          : kindHits.map((hit) => hitRow(hit, <SearchHitRow hit={hit} query={trimmed} />)),
+      });
+    }
+    if (tags?.length) {
+      built.push({
+        heading: "FORUM TAGS",
+        rows: tags.map((tag) => ({
+          value: `tag:${tag.slug}`,
+          kind: "tag",
+          local: {
+            label: `#${tag.slug}`,
+            detail: {
+              type: "tag",
+              slug: tag.slug,
+              name: tag.name,
+              usageCount: tag.usageCount,
+            },
+          },
+          content: (
+            <>
+              <span className="text-muted-foreground">#</span>
+              <span>{tag.slug}</span>
+              <CommandShortcut>{tag.usageCount}</CommandShortcut>
+            </>
+          ),
+          perform: () => void navigate({ to: "/forum/tags/$tag", params: { tag: tag.slug } }),
+        })),
+      });
+    }
+    for (const group of rest) {
+      const matched = filterCommands(group, trimmed);
+      if (matched.commands.length > 0) {
+        built.push({ heading: group.heading, rows: matched.commands.map(commandRow) });
+      }
+    }
+    return built;
+  }, [hits, trimmed, tags, actions, rest, navigate]);
+
+  const rows = useMemo(() => sections.flatMap((section) => section.rows), [sections]);
+  const firstValue = rows[0]?.value ?? "";
+  // A late server answer can put a top hit above the row cmdk selected;
+  // Enter should take the top hit.
+  const [firstSeen, setFirstSeen] = useState(firstValue);
+  if (firstValue !== firstSeen) {
+    setFirstSeen(firstValue);
+    setSelected(firstValue);
+  }
+  // The highlight itself is instant; the preview pane and the route
+  // preload wait for it to rest, so sweeping the pointer down a list
+  // doesn't swap the pane (and load its art) once per row.
+  const previewValue = useDebouncedValue(selected, PREVIEW_DELAY_MS);
+  const previewRow = rows.find((row) => row.value === previewValue);
+  const previewHit = previewRow?.hit;
+  useEffect(() => {
+    if (previewHit) router.preloadRoute(hitLinkOptions(previewHit)).catch(() => {});
+  }, [previewHit, router]);
+
+  useSearchPerformed({
+    surface: "command_palette",
+    query: open ? trimmed : undefined,
+    filterKinds: [],
+    resultCount: settled ? rows.length : null,
+    properties: {
+      engine: showHits ? (search.data?.engine ?? null) : "local",
+      kinds: [...new Set(hits.map((hit) => hit.kind))],
+    },
+  });
+
+  const choose = useCallback(
+    (row: Row) => {
+      captureEvent(EVENTS.searchResultSelected, {
+        surface: "command_palette",
+        kind: row.kind,
+        position: rows.indexOf(row) + 1,
+        query_length: trimmed.length,
+      });
+      setOpen(false);
+      row.perform();
+    },
+    [rows, trimmed, setOpen],
+  );
+
+  const list = useMemo(
+    () => <PaletteSections sections={sections} onChoose={choose} />,
+    [sections, choose],
+  );
+
+  const pending = showHits && search.isPending;
 
   return (
     <CommandDialog
       open={open}
       onOpenChange={setOpen}
       title="Command Palette"
-      description="Search commands, bots, and macros"
+      description="Search the site, commands, bots, and macros"
+      className="top-[10vh] max-md:inset-0 max-md:top-0 max-md:h-dvh max-md:max-w-none max-md:translate-x-0 max-md:rounded-none md:max-w-4xl"
     >
-      <Command className="font-mono">
+      <Command
+        className="font-mono max-md:h-dvh"
+        shouldFilter={false}
+        value={selected}
+        onValueChange={setSelected}
+      >
         <CommandInput
-          placeholder="Search commands, bots, macros..."
+          size="lg"
+          placeholder="Search jams, members, teams, posts, commands..."
           value={query}
           onValueChange={setQuery}
         />
-        <CommandList ref={listRef}>
-          <CommandEmpty>
-            <span className="font-mono text-xs text-destructive">{"// PROTOCOL NOT FOUND"}</span>
-          </CommandEmpty>
-
-          {/* Quick Actions */}
-          <CommandGroup heading="ACTIONS">
-            {!session?.user && (
-              <CommandItem onSelect={() => run(() => signInWithDiscord("command_palette"))}>
-                <HugeiconsIcon icon={Login01Icon} className="text-primary" />
-                <span>Login</span>
-              </CommandItem>
+        <div className="flex min-h-0 flex-1">
+          <CommandList className="max-h-none min-w-0 flex-1 max-md:h-full md:max-h-[min(36rem,72vh)]">
+            {pending || !listReady ? null : (
+              <CommandEmpty>
+                <span className="font-mono text-xs text-destructive">
+                  {"// PROTOCOL NOT FOUND"}
+                </span>
+              </CommandEmpty>
             )}
-            {/* Staff only, and a shortcut like the user-menu entry — the route
-                loader and every procedure behind it re-check server-side. */}
-            {isStaff && (
-              <CommandItem
-                value="admin staff moderation"
-                onSelect={() => run(() => navigate({ to: "/admin" }))}
-              >
-                <HugeiconsIcon icon={Shield02Icon} className="text-primary" />
-                <span>Admin</span>
-              </CommandItem>
-            )}
-            <CommandItem onSelect={() => run(() => openDiscordInvite("command_palette"))}>
-              <HugeiconsIcon icon={Share01Icon} className="text-cyan-400" />
-              <span>Join Discord</span>
-            </CommandItem>
-            <CommandItem
-              value="settings preferences theme motion notifications privacy blocked account devices sessions"
-              onSelect={() => run(() => navigate({ to: "/settings/appearance" }))}
-            >
-              <HugeiconsIcon icon={Settings02Icon} className="text-muted-foreground" />
-              <span>Open Settings</span>
-            </CommandItem>
-            <CommandItem onSelect={() => run(() => navigate({ to: "/command-center" }))}>
-              <HugeiconsIcon icon={ComputerTerminal01Icon} className="text-muted-foreground" />
-              <span>Open Command Center</span>
-              <CommandShortcut>
-                {allBotCommands.length + marcoMacros.length} protocols
-              </CommandShortcut>
-            </CommandItem>
-          </CommandGroup>
+            {pending || !listReady ? <SkeletonGroup /> : null}
+            {listReady ? list : null}
+          </CommandList>
+          <aside className="hidden w-72 shrink-0 overflow-x-hidden overflow-y-auto border-l md:block">
+            {previewHit ? (
+              <SearchPreview hit={previewHit} />
+            ) : previewRow?.local ? (
+              <CommandPreview label={previewRow.local.label} detail={previewRow.local.detail} />
+            ) : null}
+          </aside>
+        </div>
 
-          {forumOn ? (
-            <CommandGroup heading="FORUM">
-              <CommandItem
-                value="forum devlogs questions posts"
-                onSelect={() => run(() => navigate({ to: "/forum" }))}
-              >
-                <HugeiconsIcon icon={Comment01Icon} className="text-primary" />
-                <span>Open Forum</span>
-              </CommandItem>
-              {/* Server matches, so each carries the query in its value —
-                  cmdk's own filter must not throw away what the server found. */}
-              {forumSearchable
-                ? (forumPosts?.posts ?? []).map((post) => (
-                    <CommandItem
-                      key={post.id}
-                      value={`forum post ${forumQuery} ${post.id} ${post.title ?? ""}`}
-                      onSelect={() =>
-                        run(() =>
-                          navigate({
-                            to: "/forum/$postId",
-                            params: { postId: forumPostParam(post) },
-                          }),
-                        )
-                      }
-                    >
-                      <HugeiconsIcon icon={Comment01Icon} className="text-muted-foreground" />
-                      <span className="truncate">{forumPostTitle(post)}</span>
-                      <CommandShortcut>{post.kind}</CommandShortcut>
-                    </CommandItem>
-                  ))
-                : null}
-              {forumSearchable
-                ? (forumTags ?? []).map((tag) => (
-                    <CommandItem
-                      key={tag.slug}
-                      value={`forum tag ${forumQuery} ${tag.slug}`}
-                      onSelect={() =>
-                        run(() => navigate({ to: "/forum/tags/$tag", params: { tag: tag.slug } }))
-                      }
-                    >
-                      <span className="text-muted-foreground">#</span>
-                      <span>{tag.slug}</span>
-                      <CommandShortcut>{tag.usageCount}</CommandShortcut>
-                    </CommandItem>
-                  ))
-                : null}
-            </CommandGroup>
-          ) : null}
-
-          <CommandSeparator />
-
-          {/* Theme Switcher — the mode rides along in `value` so typing
-              "light" filters down to the light themes. */}
-          {sections.map((section) => (
-            <CommandGroup key={section.mode} heading={`THEMES · ${section.label.toUpperCase()}`}>
-              {section.themes.map((t) => (
-                <CommandItem
-                  key={t.id}
-                  value={`theme ${section.mode} ${t.name} ${t.description}`}
-                  onSelect={() => run(() => setTheme(t.id))}
-                >
-                  <HugeiconsIcon
-                    icon={PaintBrush04Icon}
-                    className={t.id === themeId ? "text-primary" : "text-muted-foreground"}
-                  />
-                  <span>{t.name}</span>
-                  {t.id === themeId && <CommandShortcut>active</CommandShortcut>}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          ))}
-
-          <CommandSeparator />
-
-          {/* Hammer Bot Commands */}
-          <CommandGroup heading="HAMMER BOT">
-            {hammerCommands.map((cmd) => (
-              <CommandItem
-                key={cmd.id}
-                value={`hammer ${cmd.cmd} ${cmd.description}`}
-                onSelect={() => run(() => navigate({ to: "/command-center" }))}
-              >
-                <HugeiconsIcon icon={LegalHammerIcon} className="text-muted-foreground" />
-                <span>{cmd.cmd}</span>
-                {cmd.options && (
-                  <CommandShortcut>
-                    {cmd.options.map((o) => `${o.name}:`).join(" ")}
-                  </CommandShortcut>
-                )}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-
-          <CommandSeparator />
-
-          {/* Pencil Bot Commands */}
-          <CommandGroup heading="PENCIL BOT">
-            {pencilCommands.map((cmd) => (
-              <CommandItem
-                key={cmd.id}
-                value={`pencil ${cmd.cmd} ${cmd.description}`}
-                onSelect={() => run(() => navigate({ to: "/command-center" }))}
-              >
-                <HugeiconsIcon icon={PencilIcon} className="text-muted-foreground" />
-                <span>{cmd.cmd}</span>
-                {cmd.options && (
-                  <CommandShortcut>
-                    {cmd.options.map((o) => `${o.name}:`).join(" ")}
-                  </CommandShortcut>
-                )}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-
-          <CommandSeparator />
-
-          {/* Marco Macros */}
-          <CommandGroup heading="MARCO MACROS">
-            {marcoMacros.map((macro) => (
-              <CommandItem
-                key={macro.name}
-                value={`macro ${macro.name} ${macro.aliases.join(" ")}`}
-                onSelect={() => run(() => navigate({ to: "/command-center" }))}
-              >
-                <HugeiconsIcon icon={Robot01Icon} className="text-muted-foreground" />
-                <span>[]{macro.name}</span>
-                {macro.aliases.length > 0 && (
-                  <CommandShortcut>{macro.aliases.slice(0, 2).join(", ")}</CommandShortcut>
-                )}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
-
-        {/* Footer hint */}
         <div className="flex items-center gap-3 border-t border-muted/40 px-3 py-2 font-mono text-[10px] text-muted-foreground/60">
           <span>↑↓ navigate</span>
           <span>↵ select</span>
           <span>esc close</span>
-          <span className="ml-auto">ctrl+k to toggle</span>
+          <span className="ml-auto max-md:hidden">ctrl+k to toggle</span>
         </div>
       </Command>
     </CommandDialog>
+  );
+}
+
+const PaletteSections = memo(function PaletteSections({
+  sections,
+  onChoose,
+}: {
+  sections: Section[];
+  onChoose: (row: Row) => void;
+}) {
+  return sections.map((section) =>
+    section.rail ? (
+      <CommandGroup key={section.heading} className="px-2 pt-1">
+        <Rail title={section.heading} variant="label" bleed={false}>
+          {section.rows.map((row) => (
+            <CommandItem
+              key={row.value}
+              value={row.value}
+              onSelect={() => onChoose(row)}
+              className="w-36 shrink-0 flex-col items-stretch gap-1.5 p-1.5 [&>svg:last-child]:hidden"
+            >
+              {row.content}
+            </CommandItem>
+          ))}
+        </Rail>
+      </CommandGroup>
+    ) : (
+      <CommandGroup key={section.heading} heading={section.heading}>
+        {section.rows.map((row) => (
+          <CommandItem key={row.value} value={row.value} onSelect={() => onChoose(row)}>
+            {row.content}
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    ),
+  );
+});
+
+function SkeletonGroup() {
+  return (
+    <div className="flex flex-col gap-2 px-2 py-2" aria-hidden>
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-5 w-3/4" />
+      <Skeleton className="h-5 w-1/2" />
+    </div>
   );
 }

@@ -131,6 +131,9 @@ export const EVENTS = {
 
   // Search, one event across every listing surface — see SearchSurface.
   searchPerformed: "search_performed",
+  // Which result a search led to. Click-through by position is how
+  // ranking changes are judged.
+  searchResultSelected: "search_result_selected",
 
   // Notification preferences — email opt-out is the channel-churn canary.
   notificationPrefChanged: "notification_pref_changed",

@@ -24,6 +24,8 @@ export function useSearchPerformed(opts: {
   /** Which filter groups are active, e.g. `["skills", "availability"]`. */
   filterKinds: string[];
   resultCount: number | null;
+  /** Surface-specific properties, e.g. the palette's `engine` and `kinds`. */
+  properties?: Record<string, unknown>;
 }) {
   useNarrowedListing({ event: EVENTS.searchPerformed, ...opts });
 }
@@ -61,8 +63,13 @@ function useNarrowedListing(opts: {
   query: string | undefined;
   filterKinds: string[];
   resultCount: number | null;
+  properties?: Record<string, unknown>;
 }) {
   const { event, surface, query, resultCount } = opts;
+  const properties = useRef(opts.properties);
+  useEffect(() => {
+    properties.current = opts.properties;
+  });
   const filterKey = opts.filterKinds.join(",");
   const lastFired = useRef<string | null>(null);
 
@@ -76,6 +83,7 @@ function useNarrowedListing(opts: {
     const timer = setTimeout(() => {
       lastFired.current = key;
       captureEvent(event, {
+        ...properties.current,
         surface,
         has_query: trimmed.length > 0,
         filter_kinds: filterKinds,

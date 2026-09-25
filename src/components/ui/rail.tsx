@@ -59,6 +59,7 @@ export function Rail({
   blurb,
   variant = "display",
   label,
+  bleed = true,
   className,
   children,
 }: {
@@ -70,6 +71,9 @@ export function Rail({
   /** What the arrows say they scroll ("featured jams"). Defaults to the
    * title, which is usually already the answer. */
   label?: string;
+  /** Run to the viewport edges. Off inside a bounded surface (a dialog),
+   * where the page gutters it mirrors don't exist. */
+  bleed?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -149,7 +153,7 @@ export function Rail({
         ref={setEl}
         className={cn(
           "flex cursor-grab gap-3 overflow-x-auto overscroll-x-contain",
-          RAIL_GUTTERS,
+          bleed ? RAIL_GUTTERS : "[--rail-fade:1.5rem]",
           RAIL_PADDING,
           RAIL_SCROLLBAR,
           // The descendant selector outranks each tile's own

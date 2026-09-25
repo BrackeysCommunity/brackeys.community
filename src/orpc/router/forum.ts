@@ -779,10 +779,20 @@ export const searchForumTags = os
   });
 
 /**
- * Full-text search over titles and bodies, best match first. The title's
- * trigram index backs it up for the partial word someone is still typing,
- * which a stemmed `tsquery` can't match.
+ * Full-text match over titles and bodies, and its rank. The title's trigram
+ * index backs it up for the partial word someone is still typing, which a
+ * stemmed `tsquery` can't match. `searchAll` shares it.
  */
+export function forumTextSearch(query: string): { match: SQL; rank: SQL<number> } {
+  const tsquery = sql`websearch_to_tsquery('english', ${query})`;
+  const titleMatch = ilike(forumPosts.title, `%${query.replace(/[%_\\]/g, "\\$&")}%`);
+  return {
+    match: or(sql`${forumPosts.searchVector} @@ ${tsquery}`, titleMatch)!,
+    rank: sql<number>`ts_rank(${forumPosts.searchVector}, ${tsquery}) + CASE WHEN ${titleMatch} THEN 0.5 ELSE 0 END`,
+  };
+}
+
+/** Full-text search over titles and bodies, best match first. */
 export const searchForumPosts = os
   .use(forumRead)
   .input(
@@ -799,21 +809,14 @@ export const searchForumPosts = os
     if (!Number.isSafeInteger(offset) || offset < 0) {
       throw new ORPCError("BAD_REQUEST", { message: "Bad cursor." });
     }
-    const tsquery = sql`websearch_to_tsquery('english', ${input.query})`;
-    const titleMatch = ilike(forumPosts.title, `%${input.query.replace(/[%_\\]/g, "\\$&")}%`);
+    const search = forumTextSearch(input.query);
     const where = listableWhere(viewerId);
-    where.push(or(sql`${forumPosts.searchVector} @@ ${tsquery}`, titleMatch)!);
+    where.push(search.match);
     if (input.kind) where.push(eq(forumPosts.kind, input.kind));
 
     let rows = await cardQuery()
       .where(and(...where))
-      .orderBy(
-        desc(
-          sql`ts_rank(${forumPosts.searchVector}, ${tsquery}) + CASE WHEN ${titleMatch} THEN 0.5 ELSE 0 END`,
-        ),
-        desc(forumPosts.publishedAt),
-        desc(forumPosts.id),
-      )
+      .orderBy(desc(search.rank), desc(forumPosts.publishedAt), desc(forumPosts.id))
       .limit(input.limit + 1)
       .offset(offset);
     let nextCursor: string | null = null;

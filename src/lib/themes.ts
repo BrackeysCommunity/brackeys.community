@@ -81,6 +81,12 @@ export const themes: Theme[] = [
     mode: "dark",
   },
   {
+    id: "flat-black",
+    name: "Flat Black",
+    description: "Monochrome black with khaki wire edges",
+    mode: "dark",
+  },
+  {
     id: "catppuccin-latte",
     name: "Catppuccin Latte",
     description: "Soothing pastels in broad daylight",

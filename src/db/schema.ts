@@ -21,6 +21,14 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+/**
+ * A trigram index over the accent-folded column, which is what
+ * `fuzzyMatch(…, { fold: true })` in `lib/sql-fuzzy.ts` compares against.
+ */
+function foldedTrgm(column: AnyPgColumn) {
+  return sql`public.f_unaccent(${column}) gin_trgm_ops`;
+}
+
 // ── Schemas ─────────────────────────────────────────────────────────────────
 
 export const authSchema = pgSchema("auth");
@@ -190,7 +198,22 @@ export const developerProfiles = userSchema.table(
   },
   // The directory's timezone facet filters on it — indexed up front
   // because `listMembers` is already the heaviest query in the codebase.
-  (table) => [index("developer_profiles_timezone_idx").on(table.timezone)],
+  (table) => [
+    index("developer_profiles_timezone_idx").on(table.timezone),
+    // Accent-folded trigram indexes for `searchAll`'s name match.
+    index("developer_profiles_guild_nickname_trgm_idx").using(
+      "gin",
+      foldedTrgm(table.guildNickname),
+    ),
+    index("developer_profiles_discord_username_trgm_idx").using(
+      "gin",
+      foldedTrgm(table.discordUsername),
+    ),
+    index("developer_profiles_discord_handle_trgm_idx").using(
+      "gin",
+      foldedTrgm(table.discordHandle),
+    ),
+  ],
 );
 
 export const skills = userSchema.table("skills", {
@@ -258,20 +281,24 @@ export const skillRequests = userSchema.table("skill_requests", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const profileUrlStubs = userSchema.table("profile_url_stubs", {
-  id: serial("id").primaryKey(),
-  profileId: text("profile_id")
-    .notNull()
-    .unique()
-    .references(() => developerProfiles.id, { onDelete: "cascade" }),
-  stub: text("stub").notNull().unique(),
-  // "user" when the member claimed the stub themselves, "discord" when it
-  // was defaulted from their Discord username at first sign-in. Recorded
-  // but not acted on today: nothing automatic ever rewrites a stub.
-  source: text("source").notNull().default("user"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const profileUrlStubs = userSchema.table(
+  "profile_url_stubs",
+  {
+    id: serial("id").primaryKey(),
+    profileId: text("profile_id")
+      .notNull()
+      .unique()
+      .references(() => developerProfiles.id, { onDelete: "cascade" }),
+    stub: text("stub").notNull().unique(),
+    // "user" when the member claimed the stub themselves, "discord" when it
+    // was defaulted from their Discord username at first sign-in. Recorded
+    // but not acted on today: nothing automatic ever rewrites a stub.
+    source: text("source").notNull().default("user"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [index("profile_url_stubs_stub_trgm_idx").using("gin", foldedTrgm(table.stub))],
+);
 
 export const profileProjects = userSchema.table(
   "profile_projects",
@@ -504,67 +531,71 @@ export const userNotificationSettings = userSchema.table("user_notification_sett
 
 // ── Collaboration tables (collab schema) ─────────────────────────────────────
 
-export const collabPosts = collabSchema.table("collab_posts", {
-  id: serial("id").primaryKey(),
-  authorId: text("author_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  // Kept as text (not a pg enum) so the deferred playtest/mentor types
-  // return as pure additions. v1 writes only 'paid' | 'hobby'.
-  type: text("type").notNull(),
-  // Optional link to the jam this post is recruiting for. Same hybrid-FK
-  // spirit as `profile_projects.jam_id` — cross-schema into itch.jams.
-  jamId: integer("jam_id").references(() => itchJams.jamId, { onDelete: "set null" }),
-  // The named team behind the post. NULL + isIndividual=false is the
-  // legacy "an unnamed team" state every pre-teams row is in — a deleted
-  // team degrades its posts back to that state rather than deleting them.
-  teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
-  // The canonical project this post recruits for. Optional on purpose —
-  // team is structural (the accept → invite loop needs one), a project is
-  // not; plenty of posts are pre-project. Never minted at post time: a
-  // post is not an anchor, so "something new" stays free text in
-  // `projectName`, and a deleted project degrades the post back to it —
-  // the same degrade-don't-delete pattern as `teamId`.
-  projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  projectName: text("project_name"),
-  // `compensation` is the legacy display string. New posts write the
-  // numbers below and render through `formatRate`; the column stays only
-  // so pre-v1 rows keep rendering.
-  compensation: text("compensation"),
-  compensationType: text("compensation_type"),
-  compensationMin: integer("compensation_min"),
-  compensationMax: integer("compensation_max"),
-  /** ISO 4217, display only — see `developerProfiles.currency`. */
-  currency: text("currency").notNull().default("USD"),
-  // Legacy: no longer written or rendered. A linked team already shows
-  // its member count and a project its credits, so the wizard stopped
-  // asking. Kept so pre-existing rows survive.
-  teamSize: text("team_size"),
-  projectLength: text("project_length"),
-  platforms: text("platforms").array(),
-  // Legacy: free text the wizard never had an input for and no surface
-  // ever rendered. Kept so pre-existing rows survive.
-  experience: text("experience"),
-  experienceLevel: text("experience_level"),
-  portfolioUrl: text("portfolio_url"),
-  contactMethod: text("contact_method"),
-  contactType: text("contact_type"),
-  isIndividual: boolean("is_individual").default(false),
-  // 'recruiting' | 'party_full' | 'expired' (text, pure additions).
-  status: text("status").notNull().default("recruiting"),
-  featuredAt: timestamp("featured_at"),
-  // Lifecycle: when the sweep auto-closes a still-recruiting post.
-  // Jam-linked posts default to the jam's end + 3 days, others +45d;
-  // reopen/extend push it out. NULL only on pre-v2 closed rows.
-  expiresAt: timestamp("expires_at"),
-  // Stamp for the "closes in 3 days — still looking?" nudge, so the
-  // sweep stays idempotent across re-runs.
-  expiryNotifiedAt: timestamp("expiry_notified_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const collabPosts = collabSchema.table(
+  "collab_posts",
+  {
+    id: serial("id").primaryKey(),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Kept as text (not a pg enum) so the deferred playtest/mentor types
+    // return as pure additions. v1 writes only 'paid' | 'hobby'.
+    type: text("type").notNull(),
+    // Optional link to the jam this post is recruiting for. Same hybrid-FK
+    // spirit as `profile_projects.jam_id` — cross-schema into itch.jams.
+    jamId: integer("jam_id").references(() => itchJams.jamId, { onDelete: "set null" }),
+    // The named team behind the post. NULL + isIndividual=false is the
+    // legacy "an unnamed team" state every pre-teams row is in — a deleted
+    // team degrades its posts back to that state rather than deleting them.
+    teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
+    // The canonical project this post recruits for. Optional on purpose —
+    // team is structural (the accept → invite loop needs one), a project is
+    // not; plenty of posts are pre-project. Never minted at post time: a
+    // post is not an anchor, so "something new" stays free text in
+    // `projectName`, and a deleted project degrades the post back to it —
+    // the same degrade-don't-delete pattern as `teamId`.
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    projectName: text("project_name"),
+    // `compensation` is the legacy display string. New posts write the
+    // numbers below and render through `formatRate`; the column stays only
+    // so pre-v1 rows keep rendering.
+    compensation: text("compensation"),
+    compensationType: text("compensation_type"),
+    compensationMin: integer("compensation_min"),
+    compensationMax: integer("compensation_max"),
+    /** ISO 4217, display only — see `developerProfiles.currency`. */
+    currency: text("currency").notNull().default("USD"),
+    // Legacy: no longer written or rendered. A linked team already shows
+    // its member count and a project its credits, so the wizard stopped
+    // asking. Kept so pre-existing rows survive.
+    teamSize: text("team_size"),
+    projectLength: text("project_length"),
+    platforms: text("platforms").array(),
+    // Legacy: free text the wizard never had an input for and no surface
+    // ever rendered. Kept so pre-existing rows survive.
+    experience: text("experience"),
+    experienceLevel: text("experience_level"),
+    portfolioUrl: text("portfolio_url"),
+    contactMethod: text("contact_method"),
+    contactType: text("contact_type"),
+    isIndividual: boolean("is_individual").default(false),
+    // 'recruiting' | 'party_full' | 'expired' (text, pure additions).
+    status: text("status").notNull().default("recruiting"),
+    featuredAt: timestamp("featured_at"),
+    // Lifecycle: when the sweep auto-closes a still-recruiting post.
+    // Jam-linked posts default to the jam's end + 3 days, others +45d;
+    // reopen/extend push it out. NULL only on pre-v2 closed rows.
+    expiresAt: timestamp("expires_at"),
+    // Stamp for the "closes in 3 days — still looking?" nudge, so the
+    // sweep stays idempotent across re-runs.
+    expiryNotifiedAt: timestamp("expiry_notified_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [index("collab_posts_title_trgm_idx").using("gin", table.title.op("gin_trgm_ops"))],
+);
 
 export const collabRoles = collabSchema.table("collab_roles", {
   id: serial("id").primaryKey(),
@@ -696,48 +727,52 @@ export const collabPostReports = collabSchema.table("collab_post_reports", {
  * time — there is deliberately no team_skills table to drift from the
  * roster it describes.
  */
-export const teams = teamSchema.table("teams", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  // URL handle, baked in from birth (unlike profiles, which retrofitted
-  // stubs via a side table). Generated from the name at creation,
-  // owner-editable via setTeamSlug.
-  slug: text("slug").notNull().unique(),
-  name: text("name").notNull(),
-  tagline: text("tagline"),
-  bio: text("bio"),
-  avatarUrl: text("avatar_url"),
-  avatarKey: text("avatar_key"),
-  bannerUrl: text("banner_url"),
-  bannerKey: text("banner_key"),
-  websiteUrl: text("website_url"),
-  itchUrl: text("itch_url"),
-  // Team-level parallel of developerProfiles.availableForWork — "we're
-  // recruiting" persists between posts.
-  recruiting: boolean("recruiting").notNull().default(false),
-  // 'active' | 'archived'. Archived pages stay up read-only; the team
-  // stops being pickable in the wizard. Text, not a pg enum, so future
-  // states are pure additions.
-  status: text("status").notNull().default("active"),
-  // Staff hide — deliberately orthogonal to status, so unhiding restores
-  // whichever state the team was in without remembering it anywhere.
-  // Null hiddenAt = visible.
-  hiddenAt: timestamp("hidden_at"),
-  hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
-  // Required when hiding; it is the owner-facing explanation.
-  hiddenReason: text("hidden_reason"),
-  // Bumped by touchTeamActivity on post/member/project/settings events;
-  // the lifecycle sweep reads it to find quiet never-shipped teams.
-  lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
-  // Stamp for the auto-archive warning; activity since clears it.
-  archiveWarnedAt: timestamp("archive_warned_at"),
-  createdBy: text("created_by")
-    .notNull()
-    .references(() => user.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const teams = teamSchema.table(
+  "teams",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    // URL handle, baked in from birth (unlike profiles, which retrofitted
+    // stubs via a side table). Generated from the name at creation,
+    // owner-editable via setTeamSlug.
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    tagline: text("tagline"),
+    bio: text("bio"),
+    avatarUrl: text("avatar_url"),
+    avatarKey: text("avatar_key"),
+    bannerUrl: text("banner_url"),
+    bannerKey: text("banner_key"),
+    websiteUrl: text("website_url"),
+    itchUrl: text("itch_url"),
+    // Team-level parallel of developerProfiles.availableForWork — "we're
+    // recruiting" persists between posts.
+    recruiting: boolean("recruiting").notNull().default(false),
+    // 'active' | 'archived'. Archived pages stay up read-only; the team
+    // stops being pickable in the wizard. Text, not a pg enum, so future
+    // states are pure additions.
+    status: text("status").notNull().default("active"),
+    // Staff hide — deliberately orthogonal to status, so unhiding restores
+    // whichever state the team was in without remembering it anywhere.
+    // Null hiddenAt = visible.
+    hiddenAt: timestamp("hidden_at"),
+    hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
+    // Required when hiding; it is the owner-facing explanation.
+    hiddenReason: text("hidden_reason"),
+    // Bumped by touchTeamActivity on post/member/project/settings events;
+    // the lifecycle sweep reads it to find quiet never-shipped teams.
+    lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+    // Stamp for the auto-archive warning; activity since clears it.
+    archiveWarnedAt: timestamp("archive_warned_at"),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [index("teams_name_trgm_idx").using("gin", foldedTrgm(table.name))],
+);
 
 export const teamMembers = teamSchema.table(
   "team_members",
@@ -884,40 +919,47 @@ export type ItchJamHost = { name: string; url: string };
 export type ItchJamContributor = { name: string; url: string };
 export type ItchJamStatus = "upcoming" | "running" | "voting" | "over";
 
-export const itchJams = itchSchema.table("jams", {
-  jamId: integer("jam_id").primaryKey(),
-  slug: text("slug").notNull().unique(),
-  title: text("title").notNull(),
-  bannerUrl: text("banner_url"),
-  // Host-chosen page background color scraped from the jam page's theme CSS
-  // (`body{background-color: …}`). Validated to a strict hex/rgb() form at
-  // scrape time; null when the host kept itch's default theme.
-  themeColor: text("theme_color"),
-  hashtag: text("hashtag"),
-  hosts: jsonb("hosts")
-    .$type<ItchJamHost[]>()
-    .notNull()
-    .default(sql`'[]'::jsonb`),
-  status: text("status").$type<ItchJamStatus>().notNull(),
-  startsAt: timestamp("starts_at", { withTimezone: true }),
-  endsAt: timestamp("ends_at", { withTimezone: true }),
-  votingEndsAt: timestamp("voting_ends_at", { withTimezone: true }),
-  joinedCount: integer("joined_count"),
-  entriesCount: integer("entries_count"),
-  ratingsCount: integer("ratings_count"),
-  contentHtml: text("content_html"),
-  // Set when the jam page 404s (deleted on itch, or its slug was reused by a
-  // new jam). Rows are never deleted — the scraper retries for a grace window,
-  // then leaves the row for manual verification. Cleared on successful scrape.
-  missingSince: timestamp("missing_since", { withTimezone: true }),
-  // The one staff-written column on an otherwise scraped table: a home-hero
-  // pin, newest wins, self-expiring once the jam is no longer live/upcoming.
-  // The scraper's upsert lists its columns explicitly and must skip this one.
-  heroPinnedAt: timestamp("hero_pinned_at", { withTimezone: true }),
-  scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const itchJams = itchSchema.table(
+  "jams",
+  {
+    jamId: integer("jam_id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    title: text("title").notNull(),
+    bannerUrl: text("banner_url"),
+    // Host-chosen page background color scraped from the jam page's theme CSS
+    // (`body{background-color: …}`). Validated to a strict hex/rgb() form at
+    // scrape time; null when the host kept itch's default theme.
+    themeColor: text("theme_color"),
+    hashtag: text("hashtag"),
+    hosts: jsonb("hosts")
+      .$type<ItchJamHost[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    status: text("status").$type<ItchJamStatus>().notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    votingEndsAt: timestamp("voting_ends_at", { withTimezone: true }),
+    joinedCount: integer("joined_count"),
+    entriesCount: integer("entries_count"),
+    ratingsCount: integer("ratings_count"),
+    contentHtml: text("content_html"),
+    // Set when the jam page 404s (deleted on itch, or its slug was reused by a
+    // new jam). Rows are never deleted — the scraper retries for a grace window,
+    // then leaves the row for manual verification. Cleared on successful scrape.
+    missingSince: timestamp("missing_since", { withTimezone: true }),
+    // The one staff-written column on an otherwise scraped table: a home-hero
+    // pin, newest wins, self-expiring once the jam is no longer live/upcoming.
+    // The scraper's upsert lists its columns explicitly and must skip this one.
+    heroPinnedAt: timestamp("hero_pinned_at", { withTimezone: true }),
+    scrapedAt: timestamp("scraped_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("jams_title_trgm_idx").using("gin", foldedTrgm(table.title)),
+    index("jams_hashtag_trgm_idx").using("gin", table.hashtag.op("gin_trgm_ops")),
+  ],
+);
 
 export const itchJamEntries = itchSchema.table(
   "jam_entries",
@@ -965,6 +1007,9 @@ export const itchJamEntries = itchSchema.table(
     // Author id is how a scraped entry is matched to a linked itch account
     // (the "Brackeys member" badge on the entries grid).
     index("jam_entries_author_id_idx").on(table.authorId),
+    // `searchAll`'s entry match. Not folded: an expression index over the
+    // largest table costs more than accents are worth on game titles.
+    index("jam_entries_game_title_trgm_idx").using("gin", table.gameTitle.op("gin_trgm_ops")),
   ],
 );
 
@@ -2006,6 +2051,7 @@ export const entryFlags = socialSchema.table(
  */
 export type ModerationActionType =
   | "comment_removed"
+  | "comment_restored"
   | "comment_report_dismissed"
   | "post_closed"
   | "post_reopened"

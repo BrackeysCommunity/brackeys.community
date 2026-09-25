@@ -1,3 +1,5 @@
+import { Search01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "framer-motion";
 
 import { HomeDashboard } from "@/components/home/dashboard/HomeDashboard";
@@ -9,8 +11,10 @@ import { RecentForumPosts } from "@/components/home/RecentForumPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
 import { useHomeContent } from "@/components/home/use-home-content";
 import { useHomeDestinations } from "@/components/home/use-home-destinations";
+import { Button } from "@/components/ui/button";
 import { PageStack } from "@/components/ui/page-motion";
 import { Section, SectionAction } from "@/components/ui/section";
+import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { fadeUp } from "@/lib/motion";
 
 /**
@@ -41,6 +45,7 @@ export function MobileHome() {
   // meant the chip row and the rail agreed on nothing — not the tiles, not
   // the stats, not where a tap ended up.
   const destinations = useHomeDestinations(liveCount, isLoading);
+  const { setOpen: openPalette } = useCommandPalette();
   const navTiles: ShortcutTile[] = destinations.map((d) => ({
     label: d.chipLabel,
     stat: d.stat,
@@ -66,6 +71,17 @@ export function MobileHome() {
         ) : null}
 
         <ShortcutTiles tiles={navTiles} />
+
+        {/* A phone has no ⌘K; this is the palette's way in. */}
+        <Button
+          variant="outline"
+          size="lg"
+          className="justify-start text-muted-foreground"
+          onClick={() => openPalette(true)}
+        >
+          <HugeiconsIcon icon={Search01Icon} data-icon="inline-start" />
+          Search jams, members, teams…
+        </Button>
       </motion.div>
 
       {showDashboard ? (

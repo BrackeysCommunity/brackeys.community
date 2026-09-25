@@ -19,3 +19,13 @@ export function buildCopyText(command: BotCommand, username?: string): string {
     .join(" ");
   return opts ? `${command.cmd} ${opts}` : command.cmd;
 }
+
+/**
+ * A Marco macro's description as markdown. Macros use Discord's
+ * conventions — `• ` bullets and `<url>` autolinks — so the bullets become
+ * list items, with the blank line before them that marked needs to parse a
+ * real list.
+ */
+export function macroMarkdown(description: string): string {
+  return description.replace(/^• /gm, "- ").replace(/([^\n])\n(- )/g, "$1\n\n$2");
+}

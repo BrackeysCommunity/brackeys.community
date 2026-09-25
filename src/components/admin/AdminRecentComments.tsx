@@ -50,6 +50,15 @@ export function AdminRecentComments() {
     onError: toastMutationError("admin.comment_remove"),
   });
 
+  const restoreComment = useMutation({
+    mutationFn: (input: { commentId: number; reason?: string }) => client.restoreComment(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: orpc.listRecentComments.key() });
+      void queryClient.invalidateQueries({ queryKey: orpc.listComments.key() });
+    },
+    onError: toastMutationError("admin.comment_restore"),
+  });
+
   const items = comments.data?.items ?? [];
   const total = comments.data?.total ?? 0;
 
@@ -117,7 +126,36 @@ export function AdminRecentComments() {
                   <CommentContext comment={comment} />
                 </div>
 
-                {comment.deletedAt == null && (
+                {comment.deletedAt != null ? (
+                  <Confirm
+                    title="Restore this comment?"
+                    message={
+                      <>
+                        It shows again in its thread with its original text. Any removal notice the
+                        author already got stays in their inbox.
+                        <ReasonField
+                          id={`restore-reason-${comment.id}`}
+                          value={reasons[comment.id] ?? ""}
+                          onChange={(next) =>
+                            setReasons((prev) => ({ ...prev, [comment.id]: next }))
+                          }
+                        />
+                      </>
+                    }
+                    confirmText="Restore comment"
+                    onConfirm={async () => {
+                      const reason = reasons[comment.id]?.trim();
+                      await restoreComment.mutateAsync({
+                        commentId: comment.id,
+                        ...(reason ? { reason } : {}),
+                      });
+                    }}
+                  >
+                    <Button variant="outline" size="xs" disabled={restoreComment.isPending}>
+                      Restore
+                    </Button>
+                  </Confirm>
+                ) : (
                   <Confirm
                     title="Remove this comment?"
                     message={

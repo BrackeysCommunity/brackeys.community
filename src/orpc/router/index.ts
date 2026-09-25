@@ -80,6 +80,7 @@ import {
   lockThread,
   listCommentReports,
   listRecentComments,
+  restoreComment,
   resolveCommentReport,
   blockUser,
   unblockUser,
@@ -197,6 +198,7 @@ import {
   updateProjectContributor,
   updateProjectDetails,
 } from "./project";
+import { searchAll } from "./search";
 import {
   createTeam,
   updateTeam,
@@ -389,6 +391,7 @@ export default {
   lockThread,
   listCommentReports,
   listRecentComments,
+  restoreComment,
   resolveCommentReport,
   blockUser,
   unblockUser,
@@ -449,6 +452,7 @@ export default {
   resolveForumReport,
   listRecentForumPosts,
   searchForumPosts,
+  searchAll,
   markForumSolution,
   listMyForumDrafts,
   getForumDiscordFeed,

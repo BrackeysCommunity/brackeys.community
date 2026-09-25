@@ -216,6 +216,7 @@
 @import "./styles/themes/everforest.css";
 @import "./styles/themes/gruvbox-dark.css";
 @import "./styles/themes/monokai.css";
+@import "./styles/themes/flat-black.css";
 
 /* Light */
 @import "./styles/themes/catppuccin-latte.css";

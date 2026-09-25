@@ -65,21 +65,36 @@ function CommandDialog({
 
 function CommandInput({
   className,
+  size = "default",
   ...props
-}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+}: Omit<React.ComponentProps<typeof CommandPrimitive.Input>, "size"> & {
+  /** `lg` is the palette's search bar; `default` fits inside a picker. */
+  size?: "default" | "lg";
+}) {
+  const lg = size === "lg";
   return (
-    <div data-slot="command-input-wrapper" className="border-b p-1">
-      <InputGroup className="h-8 border-none border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2!">
+    <div data-slot="command-input-wrapper" className={cn("border-b", lg ? "p-2" : "p-1")}>
+      <InputGroup
+        className={cn(
+          "border-none border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2!",
+          lg ? "h-12 *:data-[slot=input-group-addon]:pl-3!" : "h-8",
+        )}
+      >
         <CommandPrimitive.Input
           data-slot="command-input"
           className={cn(
-            "w-full text-xs outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            "w-full outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            lg ? "text-sm" : "text-xs",
             className,
           )}
           {...props}
         />
         <InputGroupAddon>
-          <HugeiconsIcon icon={SearchIcon} strokeWidth={2} className="size-4 shrink-0 opacity-50" />
+          <HugeiconsIcon
+            icon={SearchIcon}
+            strokeWidth={2}
+            className={cn("shrink-0 opacity-50", lg ? "size-5" : "size-4")}
+          />
         </InputGroupAddon>
       </InputGroup>
     </div>
