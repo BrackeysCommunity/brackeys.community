@@ -59,3 +59,9 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText("")).toBeUndefined();
   });
 });
+
+describe("guild emojis in plain text", () => {
+  it("reads as the emoji's name", () => {
+    expect(markdownToPlainText("ship it <a:party:998877665544332211>")).toBe("ship it :party:");
+  });
+});

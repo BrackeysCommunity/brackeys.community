@@ -48,6 +48,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
+import { ProseEditor } from "@/components/ui/prose-editor";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
@@ -58,7 +59,6 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Heading, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
@@ -984,11 +984,11 @@ function BioSkillsStep({ profile, queryKey, save }: StepProps) {
             )}
           </Well>
         ) : (
-          <Textarea
+          <ProseEditor
             value={bio.value}
             rows={6}
             maxLength={MAX_PROFILE_BIO}
-            onChange={(e) => bio.onChange(e.target.value)}
+            onValueChange={bio.onChange}
             onBlur={bio.onBlur}
             placeholder="game-adjacent dev who…"
             className="min-h-32"

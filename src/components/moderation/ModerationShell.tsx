@@ -4,8 +4,8 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ProseEditor } from "@/components/ui/prose-editor";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
-import { Textarea } from "@/components/ui/textarea";
 import { MarkedText, MicroLabel, Text } from "@/components/ui/typography";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { Well } from "@/components/ui/well";
@@ -166,12 +166,7 @@ export function MarkdownField({
           )}
         </Well>
       ) : (
-        <Textarea
-          value={value}
-          rows={rows}
-          maxLength={maxLength}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <ProseEditor value={value} rows={rows} maxLength={maxLength} onValueChange={onChange} />
       )}
     </Field>
   );

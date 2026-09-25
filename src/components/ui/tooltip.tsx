@@ -92,7 +92,7 @@ function TooltipContent({
             // No static nudge here: the enter/exit keyframes overwrite
             // `transform` outright, so one would pop on and off at each end
             // of the animation. Distance from the trigger is `sideOffset`.
-            "z-50 w-fit origin-(--transform-origin) rounded px-3 py-1.5 text-xs filter-[drop-shadow(0_2px_0_var(--tooltip-shadow))]",
+            "z-50 w-fit origin-(--transform-origin) rounded-lg px-3 py-1.5 text-xs filter-[drop-shadow(0_2px_0_var(--tooltip-shadow))]",
             variantStyles[variant],
             className,
           )}

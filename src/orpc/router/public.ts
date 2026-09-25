@@ -9,6 +9,7 @@ import {
   listPosts,
 } from "./collab";
 import { getContributions } from "./contributions";
+import { listGuildEmojis } from "./emoji";
 import {
   archiveJams,
   getJam,
@@ -23,6 +24,7 @@ import {
   listRecentEntries,
 } from "./jam";
 import { countMembersByRole, countMembersBySkill, getMemberStats, listMembers } from "./member";
+import { resolveMentions } from "./mentions";
 import { getProfile, getProfileByDiscordId, listAvailableUsers, listSkills } from "./profile";
 import { getProject, listProjectsForGames } from "./project";
 import { countTeamsBySkill, getTeam, getTeamStats, listTeams, listUserTeams } from "./team";
@@ -86,6 +88,8 @@ export const publicRouter = {
   countPostsForJam,
   getBoardStats,
   getContributions,
+  listGuildEmojis,
+  resolveMentions,
 };
 
 export default publicRouter;

@@ -27,6 +27,7 @@ import {
   type SubjectRef,
 } from "@/lib/comment-subjects";
 import { isStaffMember } from "@/lib/discord";
+import { emojiTokensToNames } from "@/lib/discord-emoji";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { extractMentions } from "@/lib/forum-mentions";
 import { notifyMentions } from "@/lib/forum-notify";
@@ -558,7 +559,7 @@ export const createComment = os
         subjectTitle: subject.title,
         subjectUrl,
         commentId: created.id,
-        preview: input.content.slice(0, 140),
+        preview: emojiTokensToNames(input.content).slice(0, 140),
       };
 
       const writerBlocks = await db
@@ -778,7 +779,7 @@ async function notifyCommentRemoved(params: {
         subjectTitle: subject?.title ?? "a thread",
         subjectUrl: subject?.url ?? null,
         commentId: comment.id,
-        preview: comment.content.slice(0, 140),
+        preview: emojiTokensToNames(comment.content).slice(0, 140),
         ...(reason ? { reason } : {}),
       },
     });

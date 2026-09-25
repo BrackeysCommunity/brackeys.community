@@ -1,5 +1,6 @@
 import type IORedis from "ioredis";
 
+import type { GuildEmoji } from "@/lib/discord-emoji";
 import { createRedisClient } from "@/lib/redis";
 
 declare global {
@@ -512,4 +513,61 @@ export async function isGuildBanned(discordUserId: string): Promise<boolean> {
 export async function purgeGuildBanCache(discordUserId: string): Promise<void> {
   const redis = await getRedis();
   await redis.del(banCacheKey(discordUserId));
+}
+
+const GUILD_EMOJIS_KEY = "discord:guild-emojis";
+const GUILD_EMOJIS_TTL_SECONDS = 600;
+
+interface DiscordApiEmoji {
+  id: string | null;
+  name: string | null;
+  animated?: boolean;
+  available?: boolean;
+  roles?: string[];
+}
+
+/**
+ * The guild's custom emojis that any member can use. Role-locked and
+ * unavailable (lost boost tier) ones are left out. Fails soft to an empty
+ * list, and only a successful answer is cached.
+ */
+export async function getGuildEmojis(): Promise<GuildEmoji[]> {
+  try {
+    const redis = await getRedis();
+    const cached = await redis.get(GUILD_EMOJIS_KEY);
+    if (cached) return JSON.parse(cached) as GuildEmoji[];
+  } catch {
+    // Fall through to Discord.
+  }
+
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!guildId || !botToken) return [];
+
+  let response: Response;
+  try {
+    response = await discordFetch(`https://discord.com/api/v10/guilds/${guildId}/emojis`, {
+      headers: { Authorization: `Bot ${botToken}` },
+    });
+  } catch {
+    return [];
+  }
+  if (!response.ok) return [];
+
+  const raw = (await response.json()) as DiscordApiEmoji[];
+  const emojis = raw
+    .filter(
+      (e): e is DiscordApiEmoji & { id: string; name: string } =>
+        e.id != null && e.name != null && e.available !== false && !e.roles?.length,
+    )
+    .map((e) => ({ id: e.id, name: e.name, animated: e.animated === true }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  try {
+    const redis = await getRedis();
+    await redis.set(GUILD_EMOJIS_KEY, JSON.stringify(emojis), "EX", GUILD_EMOJIS_TTL_SECONDS);
+  } catch {
+    // Best-effort cache.
+  }
+  return emojis;
 }

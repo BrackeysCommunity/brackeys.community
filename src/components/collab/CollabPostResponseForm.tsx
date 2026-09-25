@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { ProseEditor } from "@/components/ui/prose-editor";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
-import { Censored } from "@/components/ui/typography";
+import { EmojiText } from "@/components/ui/typography";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { captureEvent, reportMutationError } from "@/lib/product-insights";
 import { client, orpc } from "@/orpc/client";
@@ -121,12 +121,7 @@ export function ViewerResponseCard({
 
       {editing ? (
         <>
-          <Textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={4}
-            maxLength={2000}
-          />
+          <ProseEditor value={message} onValueChange={setMessage} rows={4} maxLength={2000} />
           <Input
             value={portfolioUrl}
             onChange={(e) => setPortfolioUrl(e.target.value)}
@@ -136,7 +131,7 @@ export function ViewerResponseCard({
       ) : (
         <>
           <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-            <Censored>{response.message}</Censored>
+            <EmojiText>{response.message}</EmojiText>
           </Text>
           {response.portfolioUrl ? (
             <TextLink
@@ -294,9 +289,9 @@ export function CollabPostResponseForm({ postId }: CollabPostResponseFormProps) 
 
   return (
     <div className="flex flex-col gap-2">
-      <Textarea
+      <ProseEditor
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onValueChange={setMessage}
         placeholder="Write your application message…"
         rows={4}
         maxLength={2000}

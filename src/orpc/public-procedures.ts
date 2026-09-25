@@ -62,6 +62,10 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "getBoardStats",
   // GitHub contribution calendar — a live GraphQL call per request today.
   "getContributions",
+  // The guild's custom emojis, identical for every caller.
+  "listGuildEmojis",
+  // Display names behind `@handle` mentions.
+  "resolveMentions",
 ] as const;
 
 export type PublicProcedureName = (typeof PUBLIC_PROCEDURE_NAMES)[number];
@@ -167,6 +171,11 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
 
   // A live GitHub GraphQL call per miss; the calendar moves once a day.
   getContributions: 900,
+
+  // Redis already holds it for 10 minutes; a new emoji can wait that long.
+  listGuildEmojis: 600,
+  // A renamed member shows their new name within a minute.
+  resolveMentions: 60,
 };
 
 /**

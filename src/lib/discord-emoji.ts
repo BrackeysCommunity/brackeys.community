@@ -1,0 +1,50 @@
+/**
+ * Guild custom emojis in member-written text. Bodies store Discord's own
+ * token, `<:name:id>` or `<a:name:id>`, so the Discord mirrors post them
+ * untouched and a renamed emoji keeps rendering. Pure and client-safe.
+ */
+
+export interface GuildEmoji {
+  id: string;
+  name: string;
+  animated: boolean;
+}
+
+export const EMOJI_TOKEN_PATTERN = /<(a?):(\w{2,32}):(\d{17,20})>/g;
+
+export function emojiToken(emoji: GuildEmoji): string {
+  return `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`;
+}
+
+export function emojiUrl(emoji: Pick<GuildEmoji, "id" | "animated">, size = 48): string {
+  return `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? "gif" : "webp"}?size=${size}`;
+}
+
+/** `<:name:id>` → `:name:` outside code, for plain-text surfaces and the editor. */
+export function emojiTokensToNames(text: string): string {
+  return outsideCode(text, (part) =>
+    part.replace(EMOJI_TOKEN_PATTERN, (_, _a, name: string) => `:${name}:`),
+  );
+}
+
+/** Case-insensitive; prefix matches rank before substring matches. */
+export function filterEmojis(emojis: GuildEmoji[], query: string, limit = 8): GuildEmoji[] {
+  const q = query.toLowerCase();
+  const prefix: GuildEmoji[] = [];
+  const inner: GuildEmoji[] = [];
+  for (const emoji of emojis) {
+    const name = emoji.name.toLowerCase();
+    if (name.startsWith(q)) prefix.push(emoji);
+    else if (name.includes(q)) inner.push(emoji);
+  }
+  return [...prefix, ...inner].slice(0, limit);
+}
+
+const CODE_PATTERN = /(```[\s\S]*?```|`[^`\n]*`)/;
+
+function outsideCode(text: string, transform: (part: string) => string): string {
+  return text
+    .split(CODE_PATTERN)
+    .map((part, i) => (i % 2 === 1 ? part : transform(part)))
+    .join("");
+}

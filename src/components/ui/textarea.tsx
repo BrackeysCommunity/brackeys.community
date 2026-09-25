@@ -3,6 +3,10 @@ import * as React from "react";
 import { type NotchOpts, buildNotchPath, resolveNotchOpts } from "@/lib/notch";
 import { cn } from "@/lib/utils";
 
+/** The field look, shared with `ProseEditor`. */
+export const TEXTAREA_CLASS =
+  "chonk-deboss flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:outline-hidden disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 md:text-xs dark:bg-deboss-surface dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40";
+
 function Textarea({
   className,
   notchOpts,
@@ -12,7 +16,7 @@ function Textarea({
     <textarea
       data-slot="textarea"
       className={cn(
-        "chonk-deboss flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:outline-hidden disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 md:text-xs dark:bg-deboss-surface dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        TEXTAREA_CLASS,
         notchOpts &&
           "border-0! bg-background shadow-[inset_0_4px_0_0_var(--deboss-shadow)] dark:bg-[#38394C] dark:hover:bg-[#40415A]",
         className,

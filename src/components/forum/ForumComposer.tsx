@@ -451,8 +451,8 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
         maxLength={limits.body}
         rows={kind === "post" ? 3 : 8}
         markdown
+        mentions
       />
-      <MentionSuggestions body={draft.body} onPick={(body) => update({ body })} />
 
       <div className="grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
         <SelectField
@@ -813,53 +813,6 @@ function DevlogFields({
           Share to <span className="font-medium">#devlogs</span> on Discord when it&apos;s published
         </label>
       ) : null}
-    </div>
-  );
-}
-
-const TRAILING_MENTION = /(^|\s)@([a-z0-9_-]{2,31})$/i;
-
-/**
- * Members matching the `@name` being typed at the end of the body. Picking
- * one writes their handle — the profile stub, the only name a mention
- * resolves — so a nickname never turns into a mention of somebody else.
- */
-function MentionSuggestions({ body, onPick }: { body: string; onPick: (body: string) => void }) {
-  const match = TRAILING_MENTION.exec(body);
-  const typed = useDebouncedValue(match?.[2] ?? "", 200);
-  const { data } = useQuery({
-    ...orpc.searchProfiles.queryOptions({ input: { search: typed } }),
-    enabled: typed.length >= 2,
-    staleTime: STALE.listing,
-  });
-  const people = (data ?? []).filter((p) => p.urlStub);
-  if (!match || people.length === 0) return null;
-  return (
-    <div className="-mt-2 flex flex-wrap items-center gap-1.5">
-      <MicroLabel as="span" className="uppercase">
-        Mention
-      </MicroLabel>
-      {people.slice(0, 6).map((person) => (
-        <Badge
-          key={person.id}
-          variant="outline"
-          size="label"
-          className="pointer-events-auto h-6 cursor-pointer gap-1.5 hover:border-primary/60"
-          render={
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() =>
-                onPick(`${body.slice(0, body.length - match[2]!.length - 1)}@${person.urlStub} `)
-              }
-            />
-          }
-        >
-          <UserAvatar avatarUrl={person.avatarUrl} username={person.displayName} size={14} />
-          {person.displayName}
-          <span className="text-muted-foreground">@{person.urlStub}</span>
-        </Badge>
-      ))}
     </div>
   );
 }

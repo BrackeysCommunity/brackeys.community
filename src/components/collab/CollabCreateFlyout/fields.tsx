@@ -8,6 +8,7 @@ import { Chonk } from "@/components/ui/chonk";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
+import { ProseEditor } from "@/components/ui/prose-editor";
 import {
   Select,
   SelectContent,
@@ -356,8 +357,11 @@ export function TextField({
 
 interface TextAreaFieldProps extends TextFieldProps {
   rows?: number;
-  /** Renders as markdown on the live post: adds the EDIT/PREVIEW toggle. */
+  /** Renders as markdown on the live post: adds the EDIT/PREVIEW toggle
+   * and the `:` emoji picker. */
   markdown?: boolean;
+  /** With `markdown`, also offer `@handle` completions. */
+  mentions?: boolean;
 }
 
 export function TextAreaField({
@@ -371,8 +375,16 @@ export function TextAreaField({
   rows = 5,
   error,
   markdown = false,
+  mentions = false,
 }: TextAreaFieldProps) {
   const [preview, setPreview] = useState(false);
+  const shared = { value, onBlur, placeholder, maxLength, rows, className: "min-h-32 resize-none" };
+  // Emojis and mentions only render where the text goes through markdown.
+  const input = markdown ? (
+    <ProseEditor {...shared} onValueChange={onChange} mentions={mentions} />
+  ) : (
+    <Textarea {...shared} onChange={(e) => onChange(e.target.value)} />
+  );
   return (
     <FieldRow
       label={label}
@@ -407,15 +419,7 @@ export function TextAreaField({
           )}
         </Well>
       ) : (
-        <Textarea
-          value={value}
-          onBlur={onBlur}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          rows={rows}
-          className="min-h-32 resize-none"
-        />
+        input
       )}
     </FieldRow>
   );

@@ -89,6 +89,10 @@ const PUBLIC_PROCEDURES = new Set([
   "getForumSeries",
   // GitHub contribution calendar on public profiles.
   "getContributions",
+  // The guild's custom emojis, for the `:` picker and rendering.
+  "listGuildEmojis",
+  // Display names behind `@handle` mentions.
+  "resolveMentions",
   // Answers {isStaff:false,isAdmin:false} to anonymous callers; gates the
   // /admin route's UX only.
   "getStaffStatus",

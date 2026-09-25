@@ -22,6 +22,8 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+vi.mock("@/lib/mention-names", () => ({ useMentionName: () => ({ data: undefined }) }));
+
 afterEach(cleanup);
 
 const renderMarkdown = (source: string, mentions: boolean) =>

@@ -1,5 +1,6 @@
 import { marked, type Tokens } from "marked";
 
+import { emojiTokensToNames } from "@/lib/discord-emoji";
 import { clipPlainText, htmlToParagraphs } from "@/lib/html-text";
 
 type AnyToken = Tokens.Generic;
@@ -64,7 +65,9 @@ function inlineText(tokens: AnyToken[]): string {
       switch (token.type) {
         case "text":
         case "escape":
-          return token.tokens ? inlineText(token.tokens as AnyToken[]) : decode(token.text);
+          return token.tokens
+            ? inlineText(token.tokens as AnyToken[])
+            : emojiTokensToNames(decode(token.text));
         case "codespan":
           return decode((token as Tokens.Codespan).text);
         case "image":

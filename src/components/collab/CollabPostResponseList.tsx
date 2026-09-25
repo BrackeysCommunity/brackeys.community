@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DiscordMessageButton } from "@/components/ui/discord-message-button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/typography";
-import { Censored } from "@/components/ui/typography";
+import { EmojiText } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
@@ -181,7 +181,7 @@ export function CollabPostResponseList({ responses, post }: CollabPostResponseLi
           </div>
           <StackOverlapLine overlap={resp.stackOverlap} />
           <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-            <Censored>{resp.message}</Censored>
+            <EmojiText>{resp.message}</EmojiText>
           </Text>
           {resp.portfolioUrl ? (
             <a

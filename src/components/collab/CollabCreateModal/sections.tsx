@@ -223,6 +223,7 @@ export function PitchSection({
           <TextAreaField
             label="DESCRIPTION *"
             hint="markdown supported"
+            markdown
             value={field.state.value}
             onChange={field.handleChange}
             onBlur={field.handleBlur}

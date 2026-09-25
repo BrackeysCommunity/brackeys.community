@@ -86,6 +86,7 @@ import {
   listBlockedUsers,
 } from "./comments";
 import { getContributions } from "./contributions";
+import { listGuildEmojis } from "./emoji";
 import {
   addForumPostImage,
   createForumPost,
@@ -143,6 +144,7 @@ import {
   setJamWatch,
 } from "./jam";
 import { countMembersByRole, countMembersBySkill, getMemberStats, listMembers } from "./member";
+import { resolveMentions } from "./mentions";
 import {
   listNotifications,
   countNotifications,
@@ -233,6 +235,8 @@ import {
 import { getWebsiteVerification, verifyWebsite } from "./website";
 
 export default {
+  listGuildEmojis,
+  resolveMentions,
   listJams,
   archiveJams,
   listRecentEntries,

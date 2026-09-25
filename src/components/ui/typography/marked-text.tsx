@@ -3,6 +3,7 @@ import { type ComponentProps, Fragment, type ReactNode, forwardRef, useMemo } fr
 
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useCensorNodes } from "@/components/ui/typography/censored";
+import { JUMBO_EMOJI_CLASS, isEmojiOnly, withEmojis } from "@/components/ui/typography/emoji";
 import { InlineCode } from "@/components/ui/typography/inline-code";
 import { withMentionLinks } from "@/components/ui/typography/mentions";
 import { useCensorFn } from "@/lib/hooks/use-censored";
@@ -136,7 +137,10 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       return (
         <SimpleTooltip content={link.title}>
           <a href={link.href} rel="noreferrer noopener" target="_blank">
-            {renderTokens(link.tokens as AnyToken[], { ...censor, prose: censor.nodes })}
+            {renderTokens(link.tokens as AnyToken[], {
+              ...censor,
+              prose: (text) => withEmojis(text, censor.nodes),
+            })}
           </a>
         </SimpleTooltip>
       );
@@ -177,10 +181,8 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
       const base = censor
         ? { nodes, plain }
         : { nodes: (text: string): ReactNode => text, plain: (text: string) => text };
-      return {
-        ...base,
-        prose: mentions ? (text) => withMentionLinks(text, base.nodes) : base.nodes,
-      };
+      const rest = mentions ? (text: string) => withMentionLinks(text, base.nodes) : base.nodes;
+      return { ...base, prose: (text) => withEmojis(text, rest) };
     }, [censor, mentions, nodes, plain]);
 
     const rendered = useMemo(() => {
@@ -225,6 +227,7 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
           "[&_th]:border [&_th]:border-border [&_th]:bg-card [&_th]:p-2 [&_th]:text-left [&_th]:font-semibold",
           "[&_td]:border [&_td]:border-border [&_td]:p-2 [&_td]:align-top",
           inline && "[&_p]:mb-0 [&_p]:inline",
+          isEmojiOnly(children) && JUMBO_EMOJI_CLASS,
           className,
         )}
         {...props}

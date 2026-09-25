@@ -25,7 +25,7 @@ import { Confirm } from "@/components/ui/confirm";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { Section } from "@/components/ui/section";
 import { TimeAgo } from "@/components/ui/time-ago";
-import { MentionText, MicroLabel, Text } from "@/components/ui/typography";
+import { EmojiText, MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
@@ -345,7 +345,7 @@ export function SolutionBlock({
         </MicroLabel>
       </div>
       <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-        <MentionText>{solution.content}</MentionText>
+        <EmojiText mentions>{solution.content}</EmojiText>
       </Text>
     </Well>
   );
@@ -378,7 +378,7 @@ export function useForumCommentExtras(post: ForumPostDetail): CommentRowExtras {
   });
 
   return {
-    renderContent: (content) => <MentionText>{content}</MentionText>,
+    mentions: true,
     badges: (comment: CommentRow) =>
       comment.id === solvedId ? (
         <Badge variant="success" size="label">

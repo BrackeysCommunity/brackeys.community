@@ -23,13 +23,13 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
+import { ProseEditor } from "@/components/ui/prose-editor";
 import { RankBadge } from "@/components/ui/rank-badge";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { Censored } from "@/components/ui/typography";
+import { EmojiText } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { activeUserStore } from "@/lib/active-user-store";
@@ -93,8 +93,8 @@ const CommentGateContext = createContext<CommentGate | null>(null);
 export type CommentRowExtras = {
   badges?: (comment: CommentRow) => React.ReactNode;
   actions?: (comment: CommentRow) => React.ReactNode;
-  /** Renders a comment's text; plain censored text by default. */
-  renderContent?: (content: string) => React.ReactNode;
+  /** Link `@handle` mentions in the text and offer them while writing. */
+  mentions?: boolean;
 };
 
 const CommentExtrasContext = createContext<CommentRowExtras>({});
@@ -462,6 +462,7 @@ function Composer({
   const self = useStore(activeUserStore, (s) => s.profile);
   const viewer = useMemberViewer();
   const gate = useContext(CommentGateContext);
+  const { mentions } = useContext(CommentExtrasContext);
 
   const post = useMutation({
     mutationFn: (body: string) =>
@@ -504,9 +505,10 @@ function Composer({
 
   return (
     <div className="flex flex-col gap-2">
-      <Textarea
+      <ProseEditor
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onValueChange={setContent}
+        mentions={mentions}
         onKeyDown={(e) => {
           if (!isMultilineSubmitKey(e)) return;
           e.preventDefault();
@@ -956,9 +958,10 @@ function CommentItem({
 
       {editing ? (
         <div className="flex flex-col gap-2">
-          <Textarea
+          <ProseEditor
             value={editDraft}
-            onChange={(e) => setEditDraft(e.target.value)}
+            onValueChange={setEditDraft}
+            mentions={extras.mentions}
             onKeyDown={(e) => {
               if (!isMultilineSubmitKey(e)) return;
               e.preventDefault();
@@ -993,11 +996,7 @@ function CommentItem({
         </Text>
       ) : (
         <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-          {extras.renderContent && comment.content ? (
-            extras.renderContent(comment.content)
-          ) : (
-            <Censored>{comment.content}</Censored>
-          )}
+          <EmojiText mentions={extras.mentions}>{comment.content}</EmojiText>
         </Text>
       )}
 
