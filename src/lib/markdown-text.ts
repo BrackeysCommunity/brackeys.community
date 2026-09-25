@@ -12,13 +12,19 @@ type AnyToken = Tokens.Generic;
  * link targets and code fences go; the words stay. Raw HTML is reduced
  * through `htmlToParagraphs` rather than dropped, for rows written before
  * the field was markdown.
+ *
+ * Guild emojis read as `:name:`; `keepEmojiTokens` leaves the `<:name:id>`
+ * tokens in, for text headed to Discord, which draws them itself.
  */
-export function markdownToParagraphs(markdown: string | null | undefined): string[] {
+export function markdownToParagraphs(
+  markdown: string | null | undefined,
+  { keepEmojiTokens = false } = {},
+): string[] {
   if (!markdown) return [];
   const out: string[] = [];
   for (const token of marked.lexer(markdown) as AnyToken[]) {
     const text = blockText(token);
-    if (text) out.push(text);
+    if (text) out.push(keepEmojiTokens ? text : emojiTokensToNames(text));
   }
   return out;
 }
@@ -26,8 +32,9 @@ export function markdownToParagraphs(markdown: string | null | undefined): strin
 export function markdownToPlainText(
   markdown: string | null | undefined,
   maxLength = 200,
+  options: { keepEmojiTokens?: boolean } = {},
 ): string | undefined {
-  return clipPlainText(markdownToParagraphs(markdown).join(" "), maxLength);
+  return clipPlainText(markdownToParagraphs(markdown, options).join(" "), maxLength);
 }
 
 function blockText(token: AnyToken): string | null {
@@ -65,9 +72,7 @@ function inlineText(tokens: AnyToken[]): string {
       switch (token.type) {
         case "text":
         case "escape":
-          return token.tokens
-            ? inlineText(token.tokens as AnyToken[])
-            : emojiTokensToNames(decode(token.text));
+          return token.tokens ? inlineText(token.tokens as AnyToken[]) : decode(token.text);
         case "codespan":
           return decode((token as Tokens.Codespan).text);
         case "image":

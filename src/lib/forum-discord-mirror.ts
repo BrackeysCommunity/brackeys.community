@@ -22,6 +22,7 @@ import {
   type DevlogFeedPost,
 } from "@/lib/forum-discord-feed";
 import { forumPostParam } from "@/lib/forum-posts";
+import { markdownToPlainText } from "@/lib/markdown-text";
 import { memberName } from "@/lib/member-name";
 import { profileSlug } from "@/lib/profile-links";
 import {
@@ -55,6 +56,7 @@ async function loadDevlogFeedPost(postId: number): Promise<DevlogFeedPost | null
       title: forumPosts.title,
       slug: forumPosts.slug,
       excerpt: forumPosts.excerpt,
+      body: forumPosts.body,
       status: forumPosts.status,
       deletedAt: forumPosts.deletedAt,
       hiddenAt: forumPosts.hiddenAt,
@@ -104,7 +106,9 @@ async function loadDevlogFeedPost(postId: number): Promise<DevlogFeedPost | null
     id: post.id,
     title: post.title,
     slugPath: `/forum/${forumPostParam(post)}`,
-    excerpt: post.excerpt,
+    // From the body rather than the stored excerpt, which spells guild
+    // emojis out as `:name:`; Discord draws the tokens itself.
+    excerpt: markdownToPlainText(post.body, 480, { keepEmojiTokens: true }) ?? post.excerpt,
     coverUrl: (await getProfileProjectImageUrl(post.coverImageKey)) ?? post.coverImageUrl,
     publishedAt: post.publishedAt,
     tags: tags.map((t) => t.slug),

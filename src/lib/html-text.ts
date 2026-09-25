@@ -1,3 +1,5 @@
+import { trimPartialEmojiToken } from "@/lib/discord-emoji";
+
 /** Elements whose *contents* are not prose and must not survive the
  * text reduction — a regex tag-strip would otherwise turn a script body
  * into visible copy. */
@@ -70,5 +72,5 @@ export function clipPlainText(text: string, maxLength: number): string | undefin
   // Only break on a space if one falls reasonably close to the limit —
   // otherwise a long unbroken token would gut the description.
   const body = lastSpace > maxLength * 0.6 ? clipped.slice(0, lastSpace) : clipped;
-  return `${body.trimEnd()}…`;
+  return `${trimPartialEmojiToken(body).trimEnd()}…`;
 }

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { ProjectPage } from "@/components/projects/ProjectPage";
 import { siteUrl } from "@/env";
+import { emojiTokensToNames } from "@/lib/discord-emoji";
 import { projectTypeLabel } from "@/lib/project-links";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { client } from "@/orpc/client";
@@ -80,7 +81,7 @@ export const Route = createFileRoute("/projects/$projectSlug")({
       .map((contributor) => contributor.displayName)
       .join(", ");
     const description =
-      project.description ??
+      (project.description ? emojiTokensToNames(project.description) : null) ??
       (credits ? `A ${kind} by ${credits}.` : `A ${kind} on Brackeys Community.`);
     const path = `/projects/${project.slug}`;
 

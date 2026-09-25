@@ -4,7 +4,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Chonk } from "@/components/ui/chonk";
-import { Link as TextLink, Text } from "@/components/ui/typography";
+import { EmojiText, Link as TextLink, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { jamLinkParams, jamMonthDay } from "@/lib/jam-links";
 import { cn } from "@/lib/utils";
@@ -164,7 +164,7 @@ function JamLogRow({ entry }: { entry: JamLogEntry }) {
               )
             ) : null}
             {entry.jamName && entry.shortNote ? " · " : null}
-            {entry.shortNote}
+            <EmojiText>{entry.shortNote}</EmojiText>
           </Text>
         ) : null}
       </div>

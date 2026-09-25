@@ -14,7 +14,7 @@ import { ExternalLink } from "@/components/ui/external-link";
 import { MediaCardImage } from "@/components/ui/media-card";
 import { Spinner } from "@/components/ui/spinner";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
-import { Censored } from "@/components/ui/typography";
+import { EmojiText } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { errorMessage } from "@/lib/error-message";
 import { EVENTS } from "@/lib/event-taxonomy";
@@ -122,7 +122,7 @@ export function ProjectHero({
 
           {project.description ? (
             <Text size="md" variant="muted" className="max-w-prose">
-              <Censored>{project.description}</Censored>
+              <EmojiText>{project.description}</EmojiText>
             </Text>
           ) : null}
 

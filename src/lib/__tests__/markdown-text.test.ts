@@ -64,4 +64,19 @@ describe("guild emojis in plain text", () => {
   it("reads as the emoji's name", () => {
     expect(markdownToPlainText("ship it <a:party:998877665544332211>")).toBe("ship it :party:");
   });
+
+  it("keeps the tokens for Discord when asked", () => {
+    expect(
+      markdownToPlainText("**ship** it <a:party:998877665544332211>", 200, {
+        keepEmojiTokens: true,
+      }),
+    ).toBe("ship it <a:party:998877665544332211>");
+  });
+
+  it("never clips inside a token", () => {
+    const text = `${"word ".repeat(8)}<:fire:123456789012345678>`;
+    expect(markdownToPlainText(text, 50, { keepEmojiTokens: true })).toBe(
+      `${"word ".repeat(8).trim()}…`,
+    );
+  });
 });

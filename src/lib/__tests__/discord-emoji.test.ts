@@ -1,7 +1,12 @@
 import { marked } from "marked";
 import { describe, expect, it } from "vite-plus/test";
 
-import { emojiToken, emojiTokensToNames, filterEmojis } from "@/lib/discord-emoji";
+import {
+  emojiToken,
+  emojiTokensToNames,
+  filterEmojis,
+  trimPartialEmojiToken,
+} from "@/lib/discord-emoji";
 
 const fire = { id: "123456789012345678", name: "fire", animated: false };
 const party = { id: "998877665544332211", name: "party", animated: true };
@@ -44,5 +49,20 @@ describe("filterEmojis", () => {
 
   it("caps the list", () => {
     expect(filterEmojis(list, "f", 1)).toHaveLength(1);
+  });
+});
+
+describe("trimPartialEmojiToken", () => {
+  it("drops a token cut in half", () => {
+    expect(trimPartialEmojiToken("nice <:fi")).toBe("nice ");
+    expect(trimPartialEmojiToken("nice <a:party:99887")).toBe("nice ");
+    expect(trimPartialEmojiToken("nice <")).toBe("nice ");
+  });
+
+  it("keeps whole tokens and ordinary text", () => {
+    expect(trimPartialEmojiToken("nice <:fire:123456789012345678>")).toBe(
+      "nice <:fire:123456789012345678>",
+    );
+    expect(trimPartialEmojiToken("a <b")).toBe("a <b");
   });
 });

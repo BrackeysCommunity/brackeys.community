@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProseEditor } from "@/components/ui/prose-editor";
 import {
   Sheet,
   SheetContent,
@@ -20,7 +21,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
@@ -261,11 +261,11 @@ export function AddProjectDialog({
       ) : null}
 
       <FieldRow label="DESCRIPTION" hint="optional · short">
-        <Textarea
+        <ProseEditor
           value={description}
           rows={3}
           maxLength={400}
-          onChange={(e) => setDescription(e.target.value)}
+          onValueChange={setDescription}
           placeholder="What is it?"
         />
       </FieldRow>

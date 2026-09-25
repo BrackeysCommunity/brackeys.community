@@ -31,7 +31,7 @@ import {
   Link as TextLink,
   Text,
 } from "@/components/ui/typography";
-import { Censored } from "@/components/ui/typography";
+import { Censored, EmojiText } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
@@ -742,7 +742,7 @@ function ShowcaseCard({ project }: { project: TeamProject }) {
         </span>
         {project.description ? (
           <Text as="span" size="xs" variant="muted" className="line-clamp-2">
-            <Censored>{project.description}</Censored>
+            <EmojiText>{project.description}</EmojiText>
           </Text>
         ) : null}
         {project.jamName ? (

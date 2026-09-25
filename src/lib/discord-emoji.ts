@@ -27,7 +27,7 @@ export function emojiTokensToNames(text: string): string {
   );
 }
 
-/** Case-insensitive; prefix matches rank before substring matches. */
+/** Case-insensitive: exact, then prefix (shortest first), then substring matches. */
 export function filterEmojis(emojis: GuildEmoji[], query: string, limit = 8): GuildEmoji[] {
   const q = query.toLowerCase();
   const prefix: GuildEmoji[] = [];
@@ -37,7 +37,8 @@ export function filterEmojis(emojis: GuildEmoji[], query: string, limit = 8): Gu
     if (name.startsWith(q)) prefix.push(emoji);
     else if (name.includes(q)) inner.push(emoji);
   }
-  return [...prefix, ...inner].slice(0, limit);
+  const rank = (e: GuildEmoji) => (e.name.toLowerCase() === q ? -1 : e.name.length);
+  return [...prefix.sort((a, b) => rank(a) - rank(b)), ...inner].slice(0, limit);
 }
 
 const CODE_PATTERN = /(```[\s\S]*?```|`[^`\n]*`)/;
@@ -47,4 +48,15 @@ function outsideCode(text: string, transform: (part: string) => string): string 
     .split(CODE_PATTERN)
     .map((part, i) => (i % 2 === 1 ? part : transform(part)))
     .join("");
+}
+
+const PARTIAL_TOKEN = /<(?:a?:\w*(?::\d*)?|a)?$/;
+
+/**
+ * Drops an emoji token cut in half at the end of `text`, for any clip
+ * that feeds Discord: a dangling `<:fi` renders as raw text there.
+ */
+export function trimPartialEmojiToken(text: string): string {
+  const match = PARTIAL_TOKEN.exec(text);
+  return match ? text.slice(0, match.index) : text;
 }

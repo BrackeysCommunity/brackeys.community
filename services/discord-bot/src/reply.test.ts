@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { clampEmbed, httpUrl } from "./reply.ts";
+import { clampEmbed, httpUrl, truncate } from "./reply.ts";
 
 describe("httpUrl", () => {
   test("keeps absolute http(s), drops everything else", () => {
@@ -32,5 +32,11 @@ describe("clampEmbed url backstop", () => {
     expect(out.author).toEqual({ name: "A", url: undefined, iconUrl: undefined });
     // The rest of the embed survives — a bad image costs the image, not the reply.
     expect(out.title).toBe("T");
+  });
+});
+
+describe("truncate", () => {
+  test("never leaves half a guild emoji token", () => {
+    expect(truncate("so good <:fire:123456789012345678> yes", 15)).toBe("so good…");
   });
 });

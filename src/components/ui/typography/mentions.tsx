@@ -15,9 +15,42 @@ import { cn } from "@/lib/utils";
 export const MENTION_BADGE_CLASS =
   "inline rounded-[4px] bg-primary/20 px-0.5 font-medium text-primary transition-colors";
 
-/** `@Display Name`, linking to the profile; the handle until the name loads. */
+const DOT_CLASS = "inline-block size-1 animate-pulse rounded-full bg-current align-middle";
+const DOT_DELAYS = ["0ms", "150ms", "300ms"];
+
+/** `@` and three pulsing dots, the chip's content while its name loads. */
+function MentionLoading() {
+  return (
+    <span role="status" aria-label="Loading mention">
+      @
+      <span className="inline-flex gap-0.5 px-0.5">
+        {DOT_DELAYS.map((delay) => (
+          <span key={delay} className={DOT_CLASS} style={{ animationDelay: delay }} />
+        ))}
+      </span>
+    </span>
+  );
+}
+
+/** The same loading content, for the editor's plain-DOM chips. */
+export function mentionLoadingDom(): HTMLElement {
+  const wrap = document.createElement("span");
+  wrap.append("@");
+  const dots = document.createElement("span");
+  dots.className = "inline-flex gap-0.5 px-0.5";
+  for (const delay of DOT_DELAYS) {
+    const dot = document.createElement("span");
+    dot.className = DOT_CLASS;
+    dot.style.animationDelay = delay;
+    dots.append(dot);
+  }
+  wrap.append(dots);
+  return wrap;
+}
+
+/** `@Display Name`, linking to the profile; the bare handle when nobody owns it. */
 function MentionBadge({ handle }: { handle: string }) {
-  const { data } = useMentionName(handle);
+  const { data, isPending } = useMentionName(handle);
   return (
     <SimpleTooltip
       delay={250}
@@ -44,7 +77,7 @@ function MentionBadge({ handle }: { handle: string }) {
           "text-primary! no-underline! hover:bg-primary hover:text-primary-foreground!",
         )}
       >
-        @{data?.displayName ?? handle}
+        {isPending ? <MentionLoading /> : `@${data?.displayName ?? handle}`}
       </Link>
     </SimpleTooltip>
   );

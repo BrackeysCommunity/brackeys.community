@@ -9,7 +9,7 @@ export interface TriggerMatch {
 
 // Both need a boundary before the trigger, so `12:30`, `http://` and
 // `me@mail.com` never open a picker.
-const EMOJI_TRIGGER = /(^|[\s([{])(:)(\w{2,32})$/;
+const EMOJI_TRIGGER = /(^|[\s([{])(:)([\w+-]{2,32})$/;
 const MENTION_TRIGGER = /(^|[^\w@/.])(@)([a-z0-9_-]{2,31})$/i;
 
 /** The `:name` or `@handle` being typed at `caret`, if any. */

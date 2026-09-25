@@ -1,13 +1,18 @@
 import { Fragment, type ReactNode, useState } from "react";
 
+import { TransformedImage } from "@/components/ui/transformed-image";
 import { useCensorNodes } from "@/components/ui/typography/censored";
 import { withMentionLinks } from "@/components/ui/typography/mentions";
 import { EMOJI_TOKEN_PATTERN, type GuildEmoji, emojiUrl } from "@/lib/discord-emoji";
+import type { ItchImageOpts } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 /** Inline at text size; the `!`s beat prose image rules like `MarkedText`'s. */
 export const GUILD_EMOJI_CLASS =
   "my-0! inline-block h-[1.375em]! w-auto max-w-none! rounded-none! object-contain align-[-0.3em]";
+
+/** Small flat art: a low quality setting smears the edges. */
+export const GUILD_EMOJI_TRANSFORM: ItchImageOpts = { quality: 90 };
 
 /**
  * One guild emoji, sized to the surrounding text. An emoji deleted from
@@ -16,16 +21,19 @@ export const GUILD_EMOJI_CLASS =
 export function GuildEmojiImage({ emoji, className }: { emoji: GuildEmoji; className?: string }) {
   const [broken, setBroken] = useState(false);
   if (broken) return <>:{emoji.name}:</>;
+  const src = emojiUrl(emoji);
   return (
-    <img
+    <TransformedImage
       data-slot="guild-emoji"
-      src={emojiUrl(emoji)}
+      src={src}
+      transform={GUILD_EMOJI_TRANSFORM}
       alt={`:${emoji.name}:`}
       decoding="async"
       draggable={false}
       // A server-rendered image can fail before hydration attaches onError.
+      // Only the plain source failing counts; a refused transform is retried.
       ref={(node) => {
-        if (node?.complete && node.naturalWidth === 0) setBroken(true);
+        if (node?.src === src && node.complete && node.naturalWidth === 0) setBroken(true);
       }}
       onError={() => setBroken(true)}
       className={cn(GUILD_EMOJI_CLASS, className)}

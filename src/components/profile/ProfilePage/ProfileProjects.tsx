@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { TransformedImage } from "@/components/ui/transformed-image";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { Censored } from "@/components/ui/typography";
+import { EmojiText } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { projectEntryUrl } from "@/lib/jam-links";
 import { toastMutationError } from "@/lib/mutation-errors";
@@ -400,7 +400,7 @@ function ProjectCard({
             {project.jamName ? (
               <span className="font-medium text-foreground/80">Entry note: </span>
             ) : null}
-            <Censored>{project.shortDescription}</Censored>
+            <EmojiText>{project.shortDescription}</EmojiText>
           </Text>
         </div>
       ) : null}

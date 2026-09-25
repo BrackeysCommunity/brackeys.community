@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProseEditor } from "@/components/ui/prose-editor";
 import {
   Sheet,
   SheetContent,
@@ -15,7 +16,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { toastMutationError } from "@/lib/mutation-errors";
@@ -200,11 +200,11 @@ export function ProjectDetailsEditor({
           ) : null}
 
           <Field label="DESCRIPTION" hint="optional">
-            <Textarea
+            <ProseEditor
               value={description}
               rows={4}
               maxLength={2000}
-              onChange={(e) => setDescription(e.target.value)}
+              onValueChange={setDescription}
               placeholder="What is it?"
             />
           </Field>

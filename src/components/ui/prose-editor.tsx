@@ -11,12 +11,17 @@ import * as React from "react";
 
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import { TEXTAREA_CLASS } from "@/components/ui/textarea";
-import { GUILD_EMOJI_CLASS, GuildEmojiImage } from "@/components/ui/typography/emoji";
-import { MENTION_BADGE_CLASS } from "@/components/ui/typography/mentions";
+import {
+  GUILD_EMOJI_CLASS,
+  GUILD_EMOJI_TRANSFORM,
+  GuildEmojiImage,
+} from "@/components/ui/typography/emoji";
+import { MENTION_BADGE_CLASS, mentionLoadingDom } from "@/components/ui/typography/mentions";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { type GuildEmoji, emojiUrl, filterEmojis } from "@/lib/discord-emoji";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
-import { useGuildEmojis } from "@/lib/hooks/use-guild-emojis";
+import { useGuildEmojis, useUnicodeEmojis } from "@/lib/hooks/use-guild-emojis";
+import { itchImageUrl } from "@/lib/itch-image";
 import { loadMentionName } from "@/lib/mention-names";
 import {
   type ActiveTrigger,
@@ -27,13 +32,17 @@ import {
   proseSliceFromText,
   serializeProse,
 } from "@/lib/prose-doc";
+import { filterUnicodeEmojis, unicodeEmojiFor } from "@/lib/unicode-emoji";
 import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
 type Suggestion =
   | { kind: "emoji"; key: string; emoji: GuildEmoji }
+  | { kind: "unicode"; key: string; emoji: string; shortcode: string }
   | { kind: "mention"; key: string; handle: string; name: string; avatarUrl: string | null };
+
+const MAX_SUGGESTIONS = 8;
 
 type ProseEditorProps = {
   value: string;
@@ -51,18 +60,22 @@ type ProseEditorProps = {
   onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
 };
 
-function insertAtom(view: EditorView, trigger: ActiveTrigger, node: Node) {
+/** Replaces the typed trigger with an atom or plain text, then a space. */
+function insertAtom(view: EditorView, trigger: ActiveTrigger, node: Node | string) {
   const after = view.state.doc.resolve(trigger.to).nodeAfter;
   const spaced = after?.isText === true && /^\s/.test(after.text ?? "");
-  const tr = view.state.tr.replaceWith(trigger.from, trigger.to, node);
-  const end = trigger.from + node.nodeSize;
+  const tr =
+    typeof node === "string"
+      ? view.state.tr.insertText(node, trigger.from, trigger.to)
+      : view.state.tr.replaceWith(trigger.from, trigger.to, node);
+  const end = trigger.from + (typeof node === "string" ? node.length : node.nodeSize);
   if (!spaced) tr.insertText(" ", end);
   tr.setSelection(TextSelection.create(tr.doc, end + 1));
   view.dispatch(tr);
   view.focus();
 }
 
-/** Mentions parsed from stored text only know their handle; fetch the names. */
+/** Mentions parsed from stored text only know their handle; fetch the names, falling back to the handle. */
 function labelMentions(view: EditorView) {
   const handles = new Set<string>();
   view.state.doc.descendants((node) => {
@@ -70,11 +83,11 @@ function labelMentions(view: EditorView) {
   });
   for (const handle of handles) {
     void loadMentionName(handle).then((found) => {
-      if (!found || view.isDestroyed) return;
+      if (view.isDestroyed) return;
       const tr = view.state.tr;
       view.state.doc.descendants((node, pos) => {
         if (node.type.name === "mention" && node.attrs.handle === handle && !node.attrs.label) {
-          tr.setNodeMarkup(pos, undefined, { ...node.attrs, label: found.displayName });
+          tr.setNodeMarkup(pos, undefined, { ...node.attrs, label: found?.displayName ?? handle });
         }
       });
       if (tr.docChanged) view.dispatch(tr.setMeta("addToHistory", false));
@@ -84,7 +97,8 @@ function labelMentions(view: EditorView) {
 
 /**
  * A plain-text field for member-written prose, with guild emojis and
- * `@mentions` as inline chips. Typing `:` and two letters offers emojis,
+ * `@mentions` as inline chips. Typing `:` and two letters offers the
+ * guild's emojis, then standard ones (inserted as the character itself),
  * `@` offers members (with `mentions`), and a typed-out `:name:` becomes
  * its emoji. The value is the markdown source the app stores:
  * `<:name:id>` for emojis and `@handle` for mentions.
@@ -112,6 +126,7 @@ export function ProseEditor({
   const [highlight, setHighlight] = React.useState({ key: "", index: 0 });
 
   const { data: emojis = [] } = useGuildEmojis();
+  const { data: unicodeEmojis = [] } = useUnicodeEmojis();
   const open = trigger && trigger.from !== dismissedAt ? trigger : null;
   const live = open && (open.kind === "emoji" || mentions) ? open : null;
   const mentionQuery = useDebouncedValue(live?.kind === "mention" ? live.query : "", 200);
@@ -124,11 +139,18 @@ export function ProseEditor({
   const suggestions = React.useMemo<Suggestion[]>(() => {
     if (!live) return [];
     if (live.kind === "emoji") {
-      return filterEmojis(emojis, live.query).map((emoji) => ({
+      // The guild's own emojis first, standard ones fill the rest.
+      const guild: Suggestion[] = filterEmojis(emojis, live.query).map((emoji) => ({
         kind: "emoji",
         key: emoji.id,
         emoji,
       }));
+      const standard: Suggestion[] = filterUnicodeEmojis(
+        unicodeEmojis,
+        live.query,
+        MAX_SUGGESTIONS - guild.length,
+      ).map((match) => ({ kind: "unicode", key: match.emoji, ...match }));
+      return [...guild, ...standard];
     }
     return (people ?? [])
       .filter((p) => p.urlStub)
@@ -140,7 +162,7 @@ export function ProseEditor({
         name: p.displayName,
         avatarUrl: p.avatarUrl,
       }));
-  }, [live, emojis, people]);
+  }, [live, emojis, unicodeEmojis, people]);
 
   const triggerKey = live ? `${live.kind}:${live.from}:${live.query}` : "";
   const active = highlight.key === triggerKey ? highlight.index : 0;
@@ -151,14 +173,34 @@ export function ProseEditor({
     const node =
       s.kind === "emoji"
         ? proseSchema.nodes.emoji.create(s.emoji)
-        : proseSchema.nodes.mention.create({ handle: s.handle.toLowerCase(), label: s.name });
+        : s.kind === "unicode"
+          ? s.emoji
+          : proseSchema.nodes.mention.create({ handle: s.handle.toLowerCase(), label: s.name });
     insertAtom(view, live, node);
   };
 
   // The editor lives outside React; these refs let its handlers read the
   // current render without rebuilding the view.
-  const latest = React.useRef({ suggestions, active, live, triggerKey, pick, emojis, mentions });
-  latest.current = { suggestions, active, live, triggerKey, pick, emojis, mentions };
+  const latest = React.useRef({
+    suggestions,
+    active,
+    live,
+    triggerKey,
+    pick,
+    emojis,
+    unicodeEmojis,
+    mentions,
+  });
+  latest.current = {
+    suggestions,
+    active,
+    live,
+    triggerKey,
+    pick,
+    emojis,
+    unicodeEmojis,
+    mentions,
+  };
   const callbacks = React.useRef({ onValueChange, onBlur, disabled, maxLength });
   callbacks.current = { onValueChange, onBlur, disabled, maxLength };
 
@@ -168,15 +210,17 @@ export function ProseEditor({
       inputRules({
         rules: [
           // A finished `:name:` for a known emoji turns into the emoji.
-          new InputRule(/(^|[\s([{]):(\w{2,32}):$/, (state, match, start, end) => {
+          new InputRule(/(^|[\s([{]):([\w+-]{2,32}):$/, (state, match, start, end) => {
             const before = state.doc
               .resolve(start)
               .parent.textBetween(0, state.doc.resolve(start).parentOffset);
             if ((before.split("`").length - 1) % 2 === 1) return null;
-            const emoji = latest.current.emojis.find((e) => e.name === match[2]);
-            if (!emoji) return null;
             const from = start + match[1]!.length;
-            return state.tr.replaceWith(from, end, proseSchema.nodes.emoji.create(emoji));
+            const emoji = latest.current.emojis.find((e) => e.name === match[2]);
+            if (emoji)
+              return state.tr.replaceWith(from, end, proseSchema.nodes.emoji.create(emoji));
+            const standard = unicodeEmojiFor(latest.current.unicodeEmojis, match[2]!);
+            return standard ? state.tr.insertText(standard, from, end) : null;
           }),
         ],
       }),
@@ -216,10 +260,14 @@ export function ProseEditor({
       nodeViews: {
         emoji: (node) => {
           const img = document.createElement("img");
-          img.src = emojiUrl({
+          const src = emojiUrl({
             id: node.attrs.id as string,
             animated: node.attrs.animated as boolean,
           });
+          img.src = itchImageUrl(src, GUILD_EMOJI_TRANSFORM);
+          img.onerror = () => {
+            if (img.src !== src) img.src = src;
+          };
           img.alt = `:${node.attrs.name as string}:`;
           img.draggable = false;
           img.className = GUILD_EMOJI_CLASS;
@@ -228,7 +276,9 @@ export function ProseEditor({
         mention: (node) => {
           const chip = document.createElement("span");
           chip.className = cn(MENTION_BADGE_CLASS, "pointer-events-none");
-          chip.textContent = `@${(node.attrs.label as string | null) ?? (node.attrs.handle as string)}`;
+          const label = node.attrs.label as string | null;
+          if (label) chip.textContent = `@${label}`;
+          else chip.append(mentionLoadingDom());
           return { dom: chip };
         },
       },
@@ -397,6 +447,11 @@ export function ProseEditor({
                   <>
                     <GuildEmojiImage emoji={s.emoji} className="h-5! align-middle" />
                     <span className="truncate">:{s.emoji.name}:</span>
+                  </>
+                ) : s.kind === "unicode" ? (
+                  <>
+                    <span className="w-5 text-center text-base leading-none">{s.emoji}</span>
+                    <span className="truncate">:{s.shortcode}:</span>
                   </>
                 ) : (
                   <>

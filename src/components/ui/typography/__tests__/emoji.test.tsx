@@ -59,3 +59,33 @@ describe("guild emojis", () => {
     expect(container.querySelector("a")?.textContent).toBe("@someone");
   });
 });
+
+describe("guild emojis through the image transform", () => {
+  const SRC = "https://cdn.discordapp.com/emojis/123456789012345678.webp?size=48";
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function renderEmoji() {
+    vi.stubEnv("VITE_CF_IMAGES", "1");
+    vi.resetModules();
+    const { GuildEmojiImage } = await import("@/components/ui/typography/emoji");
+    return render(
+      <GuildEmojiImage emoji={{ id: "123456789012345678", name: "fire", animated: false }} />,
+    );
+  }
+
+  it("serves the emoji from our edge", async () => {
+    const { container } = await renderEmoji();
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      `/cdn-cgi/image/quality=90,format=auto,onerror=redirect/${SRC}`,
+    );
+  });
+
+  it("retries the Discord source before falling back to the name", async () => {
+    const { container } = await renderEmoji();
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(SRC);
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.textContent).toBe(":fire:");
+  });
+});

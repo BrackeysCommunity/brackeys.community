@@ -54,6 +54,7 @@ COPY src/lib/currency.ts ./src/lib/currency.ts
 COPY src/lib/collab-vocabulary.ts ./src/lib/collab-vocabulary.ts
 COPY src/lib/profile-links.ts ./src/lib/profile-links.ts
 COPY src/lib/team-links.ts ./src/lib/team-links.ts
+COPY src/lib/discord-emoji.ts ./src/lib/discord-emoji.ts
 
 # The copied root files under /app/src import bare specifiers (posthog-node),
 # which resolve up from /app — not from the service dir.

@@ -1,6 +1,7 @@
 import { siteUrl } from "@/env";
 import { discordWriteFetch } from "@/lib/discord";
 import { ACCENT_CLOSED, ACCENT_RECRUITING } from "@/lib/discord-embed";
+import { trimPartialEmojiToken } from "@/lib/discord-emoji";
 import { discordMessageLink } from "@/lib/discord-links";
 import { deleteDiscordMessage } from "@/lib/discord-message-delete";
 import { collabRateLine } from "@/lib/format-rate";
@@ -119,7 +120,8 @@ export function absoluteImageUrl(value: string | null | undefined): string | nul
 
 export function truncate(value: string, max: number): string {
   const trimmed = value.trim();
-  return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max - 1).trimEnd()}…`;
+  if (trimmed.length <= max) return trimmed;
+  return `${trimPartialEmojiToken(trimmed.slice(0, max - 1)).trimEnd()}…`;
 }
 
 /** Everything the embed renders. Assembled by the router from the post row. */

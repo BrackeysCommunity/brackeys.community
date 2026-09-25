@@ -1,4 +1,5 @@
 /** What each kind of page puts on its card. Every card degrades rather than fails. */
+import { emojiTokensToNames } from "@/lib/discord-emoji";
 import { FORUM_KIND_LABEL, forumPostTitle } from "@/lib/forum-posts";
 import { itchOriginalUrl } from "@/lib/itch-image";
 import { jamDateLong } from "@/lib/jam-links";
@@ -180,7 +181,9 @@ export async function projectCard(slug: string): Promise<OgCardInput | null> {
     kind: "project",
     eyebrow: project.type ?? "Project",
     title: project.title,
-    subtitle: censorText(project.description) ?? (credits ? `By ${credits}` : null),
+    subtitle:
+      censorText(emojiTokensToNames(project.description ?? "")) ||
+      (credits ? `By ${credits}` : null),
     stats,
     art: await fetchArt(coverSource(project.imageUrl), "panel"),
   };

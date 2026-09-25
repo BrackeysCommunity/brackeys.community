@@ -1,3 +1,5 @@
+import { trimPartialEmojiToken } from "../../../src/lib/discord-emoji.ts";
+
 /**
  * What a command answers with, as plain data. Commands build one of these
  * and never see a discord.js interaction; `discord/adapter.ts` is the only
@@ -68,13 +70,13 @@ export function embedLength(embed: Embed): number {
 }
 
 /** Cut to `max` characters with a single ellipsis, never splitting a
- *  surrogate pair. */
+ *  surrogate pair or a guild emoji token. */
 export function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
   let cut = Math.max(0, max - 1);
   const code = text.charCodeAt(cut - 1);
   if (code >= 0xd800 && code <= 0xdbff) cut -= 1;
-  return `${text.slice(0, cut).trimEnd()}…`;
+  return `${trimPartialEmojiToken(text.slice(0, cut)).trimEnd()}…`;
 }
 
 /** One-line prose: newlines collapse so a scraped blurb stays a row. */
