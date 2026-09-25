@@ -82,7 +82,7 @@ export function UserAvatar({
           alt=""
           loading="lazy"
           decoding="async"
-          className="rounded-full"
+          className="rounded-[inherit]"
           onLoadingStatusChange={(status) => {
             if (status === "error" && stillSrc === still && plainStill !== still) {
               setFailedStill(still);
@@ -95,11 +95,11 @@ export function UserAvatar({
           src={animated}
           alt=""
           aria-hidden
-          className="absolute inset-0 size-full rounded-full object-cover"
+          className="absolute inset-0 size-full rounded-[inherit] object-cover"
         />
       ) : null}
       <AvatarFallback
-        className={"rounded-full bg-muted font-bold text-muted-foreground"}
+        className="rounded-[inherit] bg-muted font-bold text-muted-foreground"
         // Proportional to the frame, rather than a text-size class per call site.
         style={{ fontSize: Math.max(10, Math.round(size * 0.4)) }}
       >
