@@ -79,7 +79,7 @@ describe("who actually gets a glow", () => {
   });
 });
 
-describe("staff entitlement", () => {
+describe("rank entitlement", () => {
   // Staff earn the glow through rank, so they never have to boost for it.
   it.each(["Dev", "Admin", "Moderator", "Staff"])("lets %s wear one unboosted", (role) => {
     expect(canUseNameGlow({ isBooster: false, guildRoles: [role] })).toBe(true);
@@ -88,13 +88,12 @@ describe("staff entitlement", () => {
     ).not.toBeNull();
   });
 
-  it("does not extend it to the Guru community rank", () => {
-    expect(canUseNameGlow({ isBooster: false, guildRoles: ["Guru"] })).toBe(false);
+  it.each(["Guru", "BIP"])("lets the %s community rank wear one unboosted", (role) => {
+    expect(canUseNameGlow({ isBooster: false, guildRoles: [role] })).toBe(true);
   });
 
-  it("lets a BIP wear one, even when Guru outranks it", () => {
-    expect(canUseNameGlow({ isBooster: false, guildRoles: ["BIP"] })).toBe(true);
-    expect(canUseNameGlow({ isBooster: false, guildRoles: ["Guru", "BIP"] })).toBe(true);
+  it("withholds it from roles that aren't a rank", () => {
+    expect(canUseNameGlow({ isBooster: false, guildRoles: ["Member"] })).toBe(false);
   });
 
   it("still lets a booster with no rank wear one", () => {
@@ -105,7 +104,7 @@ describe("staff entitlement", () => {
   // render or a former moderator keeps their glow.
   it("drops the glow when the rank goes away", () => {
     expect(
-      resolveNameGlow({ nameGlowColors: ["#4f9dd9"], isBooster: false, guildRoles: ["Guru"] }),
+      resolveNameGlow({ nameGlowColors: ["#4f9dd9"], isBooster: false, guildRoles: ["Member"] }),
     ).toBeNull();
   });
 });

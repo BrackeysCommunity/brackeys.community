@@ -171,10 +171,19 @@ describe("the booster name glow on a directory tile", () => {
     expect(nameEl().style.color).toBe("rgb(79, 157, 217)");
   });
 
-  it("leaves a Guru's name alone", () => {
+  it("paints a Guru's name without a boost", () => {
     render(
       <MemberDirectoryCard
         member={member({ nameGlowColors: ["#4f9dd9"], isBooster: false, guildRoles: ["Guru"] })}
+      />,
+    );
+    expect(nameEl().style.color).toBe("rgb(79, 157, 217)");
+  });
+
+  it("leaves an unranked, unboosted name alone", () => {
+    render(
+      <MemberDirectoryCard
+        member={member({ nameGlowColors: ["#4f9dd9"], isBooster: false, guildRoles: [] })}
       />,
     );
     expect(nameEl().style.color).toBe("");

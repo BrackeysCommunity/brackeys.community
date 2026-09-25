@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { guildRankOf, isStaffRank } from "@/lib/guild-rank";
+import { guildRankOf } from "@/lib/guild-rank";
 
 /**
  * A booster's chosen name glow: one to three colours, swept across the name
@@ -70,20 +70,15 @@ export type NameGlowFields = NameGlowEntitlement & {
 };
 
 /**
- * Who may wear a glow: anyone boosting the guild, anyone holding a staff
- * rank (`isStaffRank` — Brackeys Team, dev, admin, mod, staff), and BIPs.
- * Guru stays outside it. BIP is matched on the role list rather than the
- * resolved rank, since a BIP who is also a Guru resolves to the higher rank.
+ * Who may wear a glow: anyone boosting the guild, or holding any guild rank
+ * — staff (Brackeys Team, dev, admin, mod, staff), Guru, or BIP.
  *
- * Staff eligibility is read off the same role names the chip uses rather than
- * an authorization call: this decides whether a name is tinted, and nothing
- * more, so it must never become a gate anything else trusts.
+ * Read off the same role names the chip uses rather than an authorization
+ * call: this decides whether a name is tinted, and nothing more, so it must
+ * never become a gate anything else trusts.
  */
 export function canUseNameGlow(fields: NameGlowEntitlement): boolean {
-  if (fields.isBooster) return true;
-  const rank = guildRankOf(fields.guildRoles);
-  if (rank != null && isStaffRank(rank)) return true;
-  return fields.guildRoles?.includes("BIP") ?? false;
+  return fields.isBooster || guildRankOf(fields.guildRoles) != null;
 }
 
 /**

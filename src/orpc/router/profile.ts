@@ -767,7 +767,7 @@ async function assertGlowEligible(userId: string): Promise<void> {
   if (canUseNameGlow({ isBooster: false, guildRoles: await resolveUserRoles(userId) })) return;
 
   throw new ORPCError("FORBIDDEN", {
-    message: "Name glows are for server boosters, BIPs, and staff.",
+    message: "Name glows are for server boosters, staff, Gurus, and BIPs.",
   });
 }
 

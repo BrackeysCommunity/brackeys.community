@@ -575,7 +575,7 @@ function NameGlowField({ profile, queryKey, save }: StepProps) {
   return (
     <FieldRow
       label="NAME GLOW"
-      hint="boosters, BIPs & staff · up to three colours"
+      hint="boosters & ranked members · up to three colours"
       action={
         <div className="flex items-center gap-0.5">
           {stops.length > 0 ? (

@@ -43,7 +43,7 @@ export interface ProfileViewModel {
    *  `nameGlow` above is what the site actually paints. */
   nameGlowColors: string[] | null;
   nameGlowMotion: string | null;
-  /** Boosters, BIPs, and staff — see `canUseNameGlow`. */
+  /** Boosters and anyone holding a guild rank — see `canUseNameGlow`. */
   canUseNameGlow: boolean;
 
   stats: ProfileStats;
