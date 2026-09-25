@@ -160,8 +160,28 @@ function CommandSeparator({
 function CommandItem({
   className,
   children,
+  variant = "row",
   ...props
-}: React.ComponentProps<typeof CommandPrimitive.Item>) {
+}: React.ComponentProps<typeof CommandPrimitive.Item> & {
+  /** `bare` drops the row geometry, the accent fill and the check mark, for
+   * an item whose child draws its own selected state (a card). */
+  variant?: "row" | "bare";
+}) {
+  if (variant === "bare") {
+    return (
+      <CommandPrimitive.Item
+        data-slot="command-item"
+        {...HOVER_CUE}
+        className={cn(
+          "group/command-item relative flex cursor-default outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </CommandPrimitive.Item>
+    );
+  }
   return (
     <CommandPrimitive.Item
       data-slot="command-item"

@@ -63,7 +63,9 @@ export function OptionCard({
   active: boolean;
   title: string;
   description?: string;
-  onClick: () => void;
+  /** Omit when a parent owns the interaction (a palette row): the card then
+   * renders as a plain span, so there's no button nested in the control. */
+  onClick?: () => void;
   className?: string;
   /** Rendered above the title — the theme cards' live preview. */
   children?: React.ReactNode;
@@ -72,7 +74,8 @@ export function OptionCard({
     <Button
       variant="outline"
       onClick={onClick}
-      aria-pressed={active}
+      aria-pressed={onClick ? active : undefined}
+      {...(onClick ? {} : { render: <span />, nativeButton: false, tabIndex: -1 })}
       className={cn(
         "h-auto w-full flex-col items-stretch justify-start gap-2 p-3 text-left whitespace-normal",
         active && OPTION_ACTIVE,

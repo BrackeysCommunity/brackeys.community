@@ -95,6 +95,14 @@ function CommandPreviewBody({ label, detail }: { label: string; detail: PaletteD
           <Example text={`/macro name:${detail.macro.name}`} alt={`[]${detail.macro.name}`} />
         </>
       );
+    case "recent-search":
+      return (
+        <>
+          <MicroLabel>RECENT SEARCH</MicroLabel>
+          <p className="text-sm font-bold">{detail.query}</p>
+          <p className="text-muted-foreground">Run this search again.</p>
+        </>
+      );
     case "tag":
       return (
         <>

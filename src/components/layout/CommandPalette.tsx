@@ -1,8 +1,11 @@
+import { Clock01Icon, Notification03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { OptionCard } from "@/components/settings/SettingsUI";
+import { ThemePreview } from "@/components/settings/ThemePreview";
 import {
   Command,
   CommandDialog,
@@ -20,8 +23,9 @@ import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useFlag } from "@/lib/hooks/use-flag";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
+import { rememberOpened, rememberSearch } from "@/lib/palette-recents";
 import { captureEvent } from "@/lib/product-insights";
-import type { RankedHit, SearchKind } from "@/lib/search-hits";
+import type { RankedHit, SearchHit, SearchKind } from "@/lib/search-hits";
 import { hitLinkOptions } from "@/lib/search-links";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
@@ -41,6 +45,7 @@ import {
   type PaletteCommand,
   type PaletteDetail,
 } from "./command-palette/use-palette-commands";
+import { usePaletteHome } from "./command-palette/use-palette-home";
 
 /** Below this, a query is still a command filter, not a site search. */
 const MIN_SEARCH_LENGTH = 2;
@@ -49,18 +54,20 @@ const NO_HITS: RankedHit[] = [];
 
 interface Row {
   value: string;
-  kind: SearchKind | "command" | "tag";
-  hit?: RankedHit;
+  kind: SearchKind | "command" | "tag" | "recent-search" | "notifications";
+  hit?: SearchHit;
   /** For a local row, its label and what the preview pane says about it. */
   local?: { label: string; detail: PaletteDetail };
   content: ReactNode;
+  keepOpen?: boolean;
   perform: () => void;
 }
 
 interface Section {
   heading: string;
-  /** A rail of art tiles, for a kind that has any art in this answer. */
-  rail?: boolean;
+  /** A rail of art tiles, for a kind that has any art in this answer;
+   * `cards`, a two-column grid of theme cards. */
+  layout?: "rows" | "rail" | "cards";
   rows: Row[];
 }
 
@@ -113,10 +120,11 @@ export function CommandPalette() {
     !showHits || (debounced === trimmed && search.isSuccess && !search.isPlaceholderData);
 
   const tags = showHits && forumOn ? forumTags : undefined;
+  const home = usePaletteHome(open && listReady && !trimmed, forumOn);
   // Built once per answer, not per highlight: moving through the list must
   // not re-render every row.
   const sections = useMemo(() => {
-    const hitRow = (hit: RankedHit, content: ReactNode): Row => ({
+    const hitRow = (hit: SearchHit, content: ReactNode): Row => ({
       value: `hit:${hit.kind}:${hit.id}`,
       kind: hit.kind,
       hit,
@@ -126,20 +134,97 @@ export function CommandPalette() {
     const commandRow = (command: PaletteCommand): Row => ({
       value: `cmd:${command.id}`,
       kind: "command",
-      content: (
-        <>
-          <HugeiconsIcon icon={command.icon} className={command.iconClassName} />
-          <span>{command.label}</span>
-          {command.shortcut ? <CommandShortcut>{command.shortcut}</CommandShortcut> : null}
-        </>
-      ),
+      content:
+        command.detail.type === "theme" ? (
+          <OptionCard
+            active={command.detail.active}
+            title={command.detail.theme.name}
+            description={command.detail.theme.description}
+            className="font-sans group-data-[selected=true]/command-item:bg-muted group-data-[selected=true]/command-item:[--emboss-shadow:var(--primary)]"
+          >
+            <ThemePreview theme={command.detail.theme} />
+          </OptionCard>
+        ) : (
+          <>
+            <HugeiconsIcon icon={command.icon} className={command.iconClassName} />
+            <span>{command.label}</span>
+            {command.shortcut ? <CommandShortcut>{command.shortcut}</CommandShortcut> : null}
+          </>
+        ),
       local: { label: command.label, detail: command.detail },
+      keepOpen: command.keepOpen,
       perform: command.perform,
     });
+    const hitRows = (list: SearchHit[]) =>
+      list.map((hit) => hitRow(hit, <SearchHitRow hit={hit} query="" />));
+
+    const built: Section[] = [];
+
+    // Before anything is typed: what's live, what you're due, and where
+    // you were.
+    if (!trimmed) {
+      if (home.live.length > 0) {
+        built.push({
+          heading: "LIVE NOW",
+          layout: "rail",
+          rows: home.live.map((hit) => hitRow(hit, <SearchHitTile hit={hit} query="" />)),
+        });
+      }
+      if (home.deadlines.length > 0) {
+        built.push({ heading: "YOUR DEADLINES", rows: hitRows(home.deadlines) });
+      }
+      if (home.unread > 0) {
+        const label = `${home.unread} unread ${home.unread === 1 ? "notification" : "notifications"}`;
+        built.push({
+          heading: "INBOX",
+          rows: [
+            {
+              value: "home:notifications",
+              kind: "notifications",
+              local: {
+                label,
+                detail: { type: "action", description: "Open your inbox." },
+              },
+              content: (
+                <>
+                  <HugeiconsIcon icon={Notification03Icon} className="text-primary" />
+                  <span>{label}</span>
+                </>
+              ),
+              perform: () => void navigate({ to: "/notifications" }),
+            },
+          ],
+        });
+      }
+      const recent: Row[] = [
+        ...home.recentlyOpened.map((hit) => ({
+          ...hitRow(hit, <SearchHitRow hit={hit} query="" />),
+          value: `recent:${hit.kind}:${hit.id}`,
+        })),
+        ...home.recentSearches.map(
+          (q): Row => ({
+            value: `recent-search:${q}`,
+            kind: "recent-search",
+            local: { label: q, detail: { type: "recent-search", query: q } },
+            content: (
+              <>
+                <HugeiconsIcon icon={Clock01Icon} className="text-muted-foreground" />
+                <span className="truncate">{q}</span>
+              </>
+            ),
+            keepOpen: true,
+            perform: () => setQuery(q),
+          }),
+        ),
+      ];
+      if (recent.length > 0) built.push({ heading: "RECENT", rows: recent });
+      if (home.forum.length > 0) {
+        built.push({ heading: "LATEST IN THE FORUM", rows: hitRows(home.forum) });
+      }
+    }
 
     // Top hit, then the actions (few, and what a short query usually means),
     // then each kind in the order of its best hit, then everything local.
-    const built: Section[] = [];
     const [top, ...others] = hits;
     if (top) {
       built.push({
@@ -158,7 +243,7 @@ export function CommandPalette() {
       const rail = media.length === kindHits.length && media.some((hit) => hitArtUrl(hit));
       built.push({
         heading: KIND_HEADING[kind],
-        rail,
+        layout: rail ? "rail" : "rows",
         rows: rail
           ? media.map((hit) => hitRow(hit, <SearchHitTile hit={hit} query={trimmed} />))
           : kindHits.map((hit) => hitRow(hit, <SearchHitRow hit={hit} query={trimmed} />)),
@@ -193,11 +278,15 @@ export function CommandPalette() {
     for (const group of rest) {
       const matched = filterCommands(group, trimmed);
       if (matched.commands.length > 0) {
-        built.push({ heading: group.heading, rows: matched.commands.map(commandRow) });
+        built.push({
+          heading: group.heading,
+          layout: group.layout,
+          rows: matched.commands.map(commandRow),
+        });
       }
     }
     return built;
-  }, [hits, trimmed, tags, actions, rest, navigate]);
+  }, [hits, trimmed, tags, home, actions, rest, navigate]);
 
   const rows = useMemo(() => sections.flatMap((section) => section.rows), [sections]);
   const firstValue = rows[0]?.value ?? "";
@@ -237,7 +326,11 @@ export function CommandPalette() {
         position: rows.indexOf(row) + 1,
         query_length: trimmed.length,
       });
-      setOpen(false);
+      if (row.hit) {
+        rememberOpened(row.hit);
+        rememberSearch(trimmed);
+      }
+      if (!row.keepOpen) setOpen(false);
       row.perform();
     },
     [rows, trimmed, setOpen],
@@ -310,7 +403,7 @@ const PaletteSections = memo(function PaletteSections({
   onChoose: (row: Row) => void;
 }) {
   return sections.map((section) =>
-    section.rail ? (
+    section.layout === "rail" ? (
       <CommandGroup key={section.heading} className="px-2 pt-1">
         <Rail title={section.heading} variant="label" bleed={false}>
           {section.rows.map((row) => (
@@ -324,6 +417,23 @@ const PaletteSections = memo(function PaletteSections({
             </CommandItem>
           ))}
         </Rail>
+      </CommandGroup>
+    ) : section.layout === "cards" ? (
+      <CommandGroup
+        key={section.heading}
+        heading={section.heading}
+        className="**:[[cmdk-group-items]]:grid **:[[cmdk-group-items]]:grid-cols-2 **:[[cmdk-group-items]]:gap-2 **:[[cmdk-group-items]]:px-1"
+      >
+        {section.rows.map((row) => (
+          <CommandItem
+            key={row.value}
+            value={row.value}
+            onSelect={() => onChoose(row)}
+            variant="bare"
+          >
+            {row.content}
+          </CommandItem>
+        ))}
       </CommandGroup>
     ) : (
       <CommandGroup key={section.heading} heading={section.heading}>

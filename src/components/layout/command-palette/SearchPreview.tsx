@@ -3,32 +3,15 @@ import { MicroLabel } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { APP_LOCALE } from "@/lib/format-date";
 import { FORUM_KIND_LABEL } from "@/lib/forum-posts";
-import { formatCountdown } from "@/lib/jam-countdown";
 import { jamDateRange } from "@/lib/jam-links";
-import type { RankedHit, SearchHit } from "@/lib/search-hits";
+import type { SearchHit } from "@/lib/search-hits";
 
+import { jamNextBoundary } from "./jam-boundary";
 import { SearchArt } from "./SearchArt";
 import { KIND_HEADING } from "./SearchHitRow";
 
-type JamHit = Extract<SearchHit, { kind: "jam" }>;
-
-/** The next boundary a jam is counting down to, in words. */
-function jamCountdown(jam: JamHit): string | null {
-  const next =
-    jam.phase === "upcoming"
-      ? { label: "Starts in", at: jam.startsAt }
-      : jam.phase === "running"
-        ? { label: "Submissions close in", at: jam.endsAt }
-        : jam.phase === "voting"
-          ? { label: "Voting ends in", at: jam.votingEndsAt }
-          : null;
-  const countdown = next ? formatCountdown(next.at) : null;
-  if (next && countdown && !countdown.past) return `${next.label} ${countdown.text}`;
-  return jamDateRange(jam.startsAt, jam.endsAt);
-}
-
 /** The highlighted hit, larger — beside the list from `md` up. */
-export function SearchPreview({ hit }: { hit: RankedHit }) {
+export function SearchPreview({ hit }: { hit: SearchHit }) {
   return (
     <div className="flex min-w-0 flex-col gap-2 p-3">
       <MicroLabel>{KIND_HEADING[hit.kind]}</MicroLabel>
@@ -37,7 +20,7 @@ export function SearchPreview({ hit }: { hit: RankedHit }) {
   );
 }
 
-function PreviewBody({ hit }: { hit: RankedHit }) {
+function PreviewBody({ hit }: { hit: SearchHit }) {
   switch (hit.kind) {
     case "jam":
       return (
@@ -49,7 +32,9 @@ function PreviewBody({ hit }: { hit: RankedHit }) {
               {hit.phase.toUpperCase()}
             </Badge>
           ) : null}
-          <p className="text-muted-foreground">{jamCountdown(hit)}</p>
+          <p className="text-muted-foreground">
+            {jamNextBoundary(hit)?.long ?? jamDateRange(hit.startsAt, hit.endsAt)}
+          </p>
           {hit.entriesCount ? (
             <p className="text-muted-foreground">
               {hit.entriesCount.toLocaleString(APP_LOCALE)} entries

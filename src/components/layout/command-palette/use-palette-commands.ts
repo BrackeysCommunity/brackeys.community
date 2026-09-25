@@ -37,7 +37,8 @@ export type PaletteDetail =
   | { type: "theme"; theme: Theme; mode: string; active: boolean }
   | { type: "bot"; command: BotCommand }
   | { type: "macro"; macro: Macro }
-  | { type: "tag"; slug: string; name: string; usageCount: number };
+  | { type: "tag"; slug: string; name: string; usageCount: number }
+  | { type: "recent-search"; query: string };
 
 export interface PaletteCommand {
   id: string;
@@ -47,12 +48,16 @@ export interface PaletteCommand {
   icon: Icon;
   iconClassName?: string;
   shortcut?: string;
+  /** Leave the palette open after running, so the next one can be tried. */
+  keepOpen?: boolean;
   detail: PaletteDetail;
   perform: () => void;
 }
 
 export interface PaletteCommandGroup {
   heading: string;
+  /** `cards` lays the group out as a two-column grid of theme cards. */
+  layout?: "cards";
   commands: PaletteCommand[];
 }
 
@@ -165,6 +170,7 @@ export function usePaletteCommands(forumOn: boolean): {
 
     const themes = sections.map((section) => ({
       heading: `THEMES · ${section.label.toUpperCase()}`,
+      layout: "cards" as const,
       commands: section.themes.map((t) => ({
         id: `theme-${t.id}`,
         label: t.name,
@@ -174,6 +180,7 @@ export function usePaletteCommands(forumOn: boolean): {
         iconClassName: t.id === themeId ? "text-primary" : "text-muted-foreground",
         shortcut: t.id === themeId ? "active" : undefined,
         detail: { type: "theme" as const, theme: t, mode: section.label, active: t.id === themeId },
+        keepOpen: true,
         perform: () => setTheme(t.id),
       })),
     }));
@@ -221,7 +228,7 @@ export function filterCommands(group: PaletteCommandGroup, query: string): Palet
     name: `${command.label} ${command.keywords ?? ""}`,
   }));
   return {
-    heading: group.heading,
+    ...group,
     commands: fuzzyFilter(indexed, query).map((entry) => entry.command),
   };
 }

@@ -359,6 +359,17 @@ const searchProjects: KindSearch = async (q, limit) => {
   return { kind: "project", hits };
 };
 
+/** Results per kind. Jams and projects get more room: they're what people search for most. */
+const PER_KIND: Record<SearchKind, number> = {
+  jam: 7,
+  entry: 5,
+  member: 5,
+  team: 5,
+  collab: 5,
+  forum: 5,
+  project: 7,
+};
+
 const SEARCHERS: Record<SearchKind, KindSearch> = {
   jam: searchJams,
   entry: searchEntries,
@@ -378,7 +389,8 @@ export const searchAll = os
   .input(
     z.object({
       q: z.string().trim().min(1).max(100),
-      perKind: z.number().int().min(1).max(10).default(5),
+      /** Overrides `PER_KIND` for every kind. */
+      perKind: z.number().int().min(1).max(10).optional(),
       kinds: z.array(z.enum(SEARCH_KINDS)).max(SEARCH_KINDS.length).optional(),
     }),
   )
@@ -387,7 +399,7 @@ export const searchAll = os
     const viewerId = session && !isActiveBan(session.user) ? session.user.id : null;
     const kinds = input.kinds?.length ? [...new Set(input.kinds)] : SEARCH_KINDS;
     const results = await Promise.all(
-      kinds.map((kind) => SEARCHERS[kind](input.q, input.perKind, viewerId)),
+      kinds.map((kind) => SEARCHERS[kind](input.q, input.perKind ?? PER_KIND[kind], viewerId)),
     );
     return { hits: fuseResults(results), engine: "postgres" as const };
   });

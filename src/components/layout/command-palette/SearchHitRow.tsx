@@ -12,8 +12,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { CommandShortcut } from "@/components/ui/command";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { FORUM_KIND_LABEL } from "@/lib/forum-posts";
-import { highlightRanges, hitLabel, type RankedHit, type SearchKind } from "@/lib/search-hits";
+import { highlightRanges, hitLabel, type SearchHit, type SearchKind } from "@/lib/search-hits";
 
+import { jamNextBoundary } from "./jam-boundary";
 import { isMediaHit, SearchArt, type MediaHit } from "./SearchArt";
 
 export const KIND_HEADING: Record<SearchKind, string> = {
@@ -37,10 +38,10 @@ const KIND_ICON: Record<SearchKind, typeof UserIcon> = {
 };
 
 /** The right-hand hint on a hit's row: what distinguishes it from a namesake. */
-function hitHint(hit: RankedHit): string | null {
+function hitHint(hit: SearchHit): string | null {
   switch (hit.kind) {
     case "jam":
-      return hit.phase === "archive" ? null : hit.phase;
+      return jamNextBoundary(hit)?.short ?? null;
     case "entry":
       return hit.jamTitle;
     case "member":
@@ -76,7 +77,7 @@ export function Highlighted({ text, query }: { text: string; query: string }) {
 }
 
 /** The icon slot of a row: a person's or team's face, else the kind's glyph. */
-function HitGlyph({ hit }: { hit: RankedHit }) {
+function HitGlyph({ hit }: { hit: SearchHit }) {
   if (hit.kind === "member" || hit.kind === "team") {
     return <UserAvatar avatarUrl={hit.avatarUrl} username={hit.name} size={20} />;
   }
@@ -84,7 +85,7 @@ function HitGlyph({ hit }: { hit: RankedHit }) {
 }
 
 /** A hit's row contents, inside a `CommandItem`. */
-export function SearchHitRow({ hit, query }: { hit: RankedHit; query: string }) {
+export function SearchHitRow({ hit, query }: { hit: SearchHit; query: string }) {
   const hint = hitHint(hit);
   return (
     <>
@@ -98,7 +99,7 @@ export function SearchHitRow({ hit, query }: { hit: RankedHit; query: string }) 
 }
 
 /** The top hit, larger: its art (or face) beside the title and hint. */
-export function SearchHitFeature({ hit, query }: { hit: RankedHit; query: string }) {
+export function SearchHitFeature({ hit, query }: { hit: SearchHit; query: string }) {
   const hint = hitHint(hit);
   return (
     <>
@@ -122,7 +123,7 @@ export function SearchHitFeature({ hit, query }: { hit: RankedHit; query: string
 }
 
 /** A media hit as a rail tile: art on top, title and hint under it. */
-export function SearchHitTile({ hit, query }: { hit: MediaHit & RankedHit; query: string }) {
+export function SearchHitTile({ hit, query }: { hit: MediaHit; query: string }) {
   const hint = hitHint(hit);
   return (
     <>
