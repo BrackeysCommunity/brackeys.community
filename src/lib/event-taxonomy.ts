@@ -102,6 +102,8 @@ export const EVENTS = {
   forumPostCreated: "forum_post_created",
   forumPostViewed: "forum_post_viewed",
   forumReactionAdded: "forum_reaction_added",
+  forumFollowAdded: "forum_follow_added",
+  forumAnswerAccepted: "forum_answer_accepted",
   // A non-member hit a forum write and got the Join Discord modal;
   // `resolved` is the re-check passing afterwards.
   forumGuildGateShown: "forum_guild_gate_shown",
@@ -221,7 +223,7 @@ export type SigninSource =
 export type DiscordInviteSource = "footer" | "command_palette" | "terms" | "privacy" | "forum_gate";
 
 /** Where a `search_performed` fired from. */
-export type SearchSurface = "members" | "teams" | "collab" | "jams" | "command_palette";
+export type SearchSurface = "members" | "teams" | "collab" | "jams" | "forum" | "command_palette";
 
 /**
  * Which jam listing a `jam_list_filtered` came from. Deliberately not the

@@ -27,7 +27,10 @@ export type GuildGateAction =
   | "save"
   | "upload"
   | "edit"
-  | "delete";
+  | "delete"
+  | "follow"
+  | "solve"
+  | "share";
 
 type Blocked = { action: GuildGateAction; run: () => void };
 

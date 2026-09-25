@@ -6,6 +6,7 @@ import {
   boolean,
   bytea,
   check,
+  customType,
   index,
   integer,
   jsonb,
@@ -415,6 +416,10 @@ export type NotificationType =
   | "forum_post_hidden_by_staff"
   | "forum_post_unhidden_by_staff"
   | "forum_post_deleted_by_staff"
+  | "forum_devlog_published"
+  | "forum_answer_accepted"
+  | "forum_post_liked"
+  | "forum_mention"
   | "report_resolved"
   | "skill_request_approved"
   | "skill_request_rejected"
@@ -1667,6 +1672,13 @@ export const forumSeries = forumSchema.table(
   ],
 );
 
+/** Postgres full-text vector; only ever written by a generated column. */
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
+
 export const forumPosts = forumSchema.table(
   "posts",
   {
@@ -1714,6 +1726,11 @@ export const forumPosts = forumSchema.table(
     // Kept in the like's own transaction. Comment counts are not copied —
     // they come from `social.threads.commentCount`.
     likeCount: integer("like_count").notNull().default(0),
+    // Title weighs more than body. English stemming, so "shaders" finds
+    // "shader"; the title trigram index still catches partial words.
+    searchVector: tsvector("search_vector").generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', body), 'B')`,
+    ),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -1745,6 +1762,7 @@ export const forumPosts = forumSchema.table(
     index("forum_posts_team_idx").on(t.teamId, t.publishedAt.desc()),
     index("forum_posts_author_idx").on(t.authorId, t.createdAt.desc()),
     index("forum_posts_title_trgm_idx").using("gin", t.title.op("gin_trgm_ops")),
+    index("forum_posts_search_idx").using("gin", t.searchVector),
   ],
 );
 
@@ -1883,6 +1901,23 @@ export const forumFollows = forumSchema.table(
     index("forum_follows_target_idx").on(t.targetType, t.targetId),
   ],
 );
+
+/**
+ * A devlog mirrored into the Discord `#devlogs` channel, one message per
+ * post — `collab_post_discord_shares`' shape and reasons: `channelId`
+ * travels with the message because the channel is an environment variable,
+ * and `messageId` goes null when the mirror is taken down.
+ */
+export const forumPostDiscordShares = forumSchema.table("post_discord_shares", {
+  postId: integer("post_id")
+    .primaryKey()
+    .references(() => forumPosts.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  messageId: text("message_id"),
+  sharedById: text("shared_by_id").references(() => user.id, { onDelete: "set null" }),
+  sharedAt: timestamp("shared_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
 
 export const forumPostReports = forumSchema.table("post_reports", {
   id: serial("id").primaryKey(),

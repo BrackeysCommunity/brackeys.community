@@ -27,9 +27,6 @@ interface UserAvatarProps {
   /** Edge length in px. Sizes are per-surface here (6/8/9/…) rather than a
    * fixed scale, because these sit inline with text of varying size. */
   size?: number;
-  /** `square` is the house frame used on collab and notification rows;
-   * `round` is for chrome that reads as a profile chip. */
-  shape?: "square" | "round";
   /** Let an animated avatar loop unprompted. Off everywhere by default. */
   autoplay?: boolean;
   /** Their guild roles, which put the rank chip over the bottom edge. */
@@ -49,14 +46,11 @@ export function UserAvatar({
   guildAvatarUrl,
   username,
   size = 32,
-  shape = "square",
   autoplay = false,
   guildRoles,
   rank,
   className,
 }: UserAvatarProps) {
-  const square = shape === "square";
-  const rounding = square ? "rounded-none" : "rounded-full";
   const initial = (username?.trim()[0] ?? "?").toUpperCase();
   const viewer = useMemberViewer();
   const avatarUrl = memberAvatarUrl({ avatarUrl: globalAvatarUrl, guildAvatarUrl }, viewer);
@@ -77,9 +71,8 @@ export function UserAvatar({
 
   return (
     <Avatar
-      // The primitive draws its own hairline frame via `after:` — no second
-      // border here, and the shape has to be passed through to it.
-      className={cn("shrink-0", rounding, square && "after:rounded-none", className)}
+      // The primitive draws its own hairline frame via `after:` — no second border here.
+      className={cn("shrink-0 rounded-full", className)}
       style={{ width: size, height: size }}
       {...handlers}
     >
@@ -89,7 +82,7 @@ export function UserAvatar({
           alt=""
           loading="lazy"
           decoding="async"
-          className={rounding}
+          className="rounded-full"
           onLoadingStatusChange={(status) => {
             if (status === "error" && stillSrc === still && plainStill !== still) {
               setFailedStill(still);
@@ -102,11 +95,11 @@ export function UserAvatar({
           src={animated}
           alt=""
           aria-hidden
-          className={cn("absolute inset-0 size-full object-cover", rounding)}
+          className="absolute inset-0 size-full rounded-full object-cover"
         />
       ) : null}
       <AvatarFallback
-        className={cn("bg-muted font-bold text-muted-foreground", rounding)}
+        className={"rounded-full bg-muted font-bold text-muted-foreground"}
         // Proportional to the frame, rather than a text-size class per call site.
         style={{ fontSize: Math.max(10, Math.round(size * 0.4)) }}
       >

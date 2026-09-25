@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -6,7 +7,13 @@ import { Switch } from "@/components/ui/switch";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import type { NotificationType } from "@/db/schema";
-import { NOTIFICATION_TYPE_LABEL, NOTIFICATION_TYPES } from "@/lib/notification-copy";
+import { useFlag } from "@/lib/hooks/use-flag";
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_LABEL,
+  NOTIFICATION_TYPE_LABEL,
+  TYPES_BY_CATEGORY,
+} from "@/lib/notification-copy";
 import { reportMutationError } from "@/lib/product-insights";
 import { cn } from "@/lib/utils";
 import { client, orpc } from "@/orpc/client";
@@ -47,6 +54,7 @@ export function NotificationPreferences() {
   const preferencesQuery = orpc.getPreferences.queryOptions({ input: {} });
   const queryKey = preferencesQuery.queryKey;
   const { data, isLoading } = useQuery(preferencesQuery);
+  const forumOn = useFlag("forum-enabled");
 
   const { mutate: update } = useMutation({
     mutationFn: (vars: UpdateVars) => client.updatePreference(vars),
@@ -148,33 +156,44 @@ export function NotificationPreferences() {
             </MicroLabel>
           ))}
         </div>
-        {NOTIFICATION_TYPES.map((type) => {
-          const pref = byType.get(type);
-          if (!pref) return null;
-          return (
-            <div key={type} className={cn(MATRIX_GRID, "items-center py-3")}>
-              <Text size="xs">{NOTIFICATION_TYPE_LABEL[type]}</Text>
-              {CHANNEL_LABELS.map((c) => {
-                const overridden = emailsOff && EMAIL_CHANNELS.has(c.key);
+        {NOTIFICATION_CATEGORIES.filter((category) => category !== "forum" || forumOn).map(
+          (category) => (
+            <Fragment key={category}>
+              <div className="bg-muted/10 px-4 py-2">
+                <MicroLabel as="span" bold className="uppercase">
+                  {NOTIFICATION_CATEGORY_LABEL[category]}
+                </MicroLabel>
+              </div>
+              {TYPES_BY_CATEGORY[category].map((type) => {
+                const pref = byType.get(type);
+                if (!pref) return null;
                 return (
-                  <div
-                    key={c.key}
-                    className={cn("flex justify-center", overridden && "opacity-40")}
-                  >
-                    <Checkbox
-                      checked={pref[c.key]}
-                      disabled={overridden}
-                      onCheckedChange={(checked) =>
-                        update({ type, [c.key]: !!checked } satisfies UpdateVars)
-                      }
-                      aria-label={`${c.label} for ${type}`}
-                    />
+                  <div key={type} className={cn(MATRIX_GRID, "items-center py-3")}>
+                    <Text size="xs">{NOTIFICATION_TYPE_LABEL[type]}</Text>
+                    {CHANNEL_LABELS.map((c) => {
+                      const overridden = emailsOff && EMAIL_CHANNELS.has(c.key);
+                      return (
+                        <div
+                          key={c.key}
+                          className={cn("flex justify-center", overridden && "opacity-40")}
+                        >
+                          <Checkbox
+                            checked={pref[c.key]}
+                            disabled={overridden}
+                            onCheckedChange={(checked) =>
+                              update({ type, [c.key]: !!checked } satisfies UpdateVars)
+                            }
+                            aria-label={`${c.label} for ${type}`}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
-            </div>
-          );
-        })}
+            </Fragment>
+          ),
+        )}
       </Well>
     </div>
   );

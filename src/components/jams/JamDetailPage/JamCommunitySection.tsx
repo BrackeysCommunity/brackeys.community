@@ -85,7 +85,6 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
                   avatarUrl={member.avatarUrl}
                   guildAvatarUrl={member.guildAvatarUrl}
                   username={member.username}
-                  shape="round"
                   size={20}
                 />
                 <Text as="span" size="xs" bold className="tracking-wider">
@@ -117,7 +116,6 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
                 avatarUrl={member.avatarUrl}
                 guildAvatarUrl={member.guildAvatarUrl}
                 username={member.username}
-                shape="round"
                 size={36}
               />
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">

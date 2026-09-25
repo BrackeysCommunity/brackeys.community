@@ -84,6 +84,9 @@ const PUBLIC_PROCEDURES = new Set([
   "listForumPosts",
   "getForumPost",
   "searchForumTags",
+  "searchForumPosts",
+  "listForumSeries",
+  "getForumSeries",
   // GitHub contribution calendar on public profiles.
   "getContributions",
   // Answers {isStaff:false,isAdmin:false} to anonymous callers; gates the

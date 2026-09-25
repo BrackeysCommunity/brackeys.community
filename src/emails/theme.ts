@@ -32,6 +32,7 @@ export const CATEGORY_ACCENT_TEXT: Record<NotificationCategory, string> = {
   teams: OG_ACCENT_TEXT.team,
   jams: OG_ACCENT_TEXT.jam,
   comments: OG_ACCENT_TEXT.project,
+  forum: OG_ACCENT_TEXT.forum,
   moderation: OG_ACCENT_TEXT.jam,
 };
 

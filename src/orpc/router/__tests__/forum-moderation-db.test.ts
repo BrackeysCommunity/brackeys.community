@@ -67,6 +67,8 @@ beforeEach(async () => {
   await db.delete(user);
   await seedUser(db, "alice");
   await seedUser(db, "bob");
+  // Past slow mode: a fresh account can't publish its first post.
+  await db.update(user).set({ createdAt: new Date(Date.now() - 7 * 86_400_000) });
   await seedUser(db, "mod", { guildRoles: ["Moderator"] });
 });
 

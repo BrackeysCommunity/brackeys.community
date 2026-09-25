@@ -51,6 +51,11 @@ export function stableHref(base: string, id: unknown, slug: unknown): string | n
   return handle ? `/${base}/${handle}` : null;
 }
 
+/** How many likes a folded `forum_post_liked` row counts; old rows are one. */
+export function forumLikersOf(data: Record<string, unknown>): number {
+  return typeof data.likers === "number" && data.likers > 0 ? data.likers : 1;
+}
+
 export function renderNotificationText(input: {
   type: NotificationType;
   actorUsername: string | null;
@@ -212,6 +217,30 @@ export function renderNotificationText(input: {
           : `Staff removed your post "${subjectTitle}"`,
         href: subjectHref,
       };
+    case "forum_devlog_published":
+      return {
+        headline: input.data.teamName
+          ? `${input.data.teamName as string} published a devlog: "${subjectTitle}"`
+          : `${actor} published a devlog: "${subjectTitle}"`,
+        href: subjectHref,
+      };
+    case "forum_answer_accepted":
+      return {
+        headline: `${actor} marked your answer on "${subjectTitle}" as the solution`,
+        href: subjectHref,
+      };
+    case "forum_post_liked": {
+      const likers = forumLikersOf(input.data);
+      return {
+        headline:
+          likers > 1
+            ? `${likers} people liked "${subjectTitle}"`
+            : `${actor} liked "${subjectTitle}"`,
+        href: subjectHref,
+      };
+    }
+    case "forum_mention":
+      return { headline: `${actor} mentioned you in "${subjectTitle}"`, href: subjectHref };
     case "comment_received":
       return { headline: `${actor} commented on "${subjectTitle}"`, href: subjectHref };
     case "comment_reply":
@@ -311,6 +340,10 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   forum_post_hidden_by_staff: "Moderation — your forum post was hidden pending review",
   forum_post_unhidden_by_staff: "Moderation — your forum post is visible again",
   forum_post_deleted_by_staff: "Moderation — your forum post was removed",
+  forum_devlog_published: "Forum — someone you follow published a devlog",
+  forum_answer_accepted: "Forum — your answer was marked as the solution",
+  forum_post_liked: "Forum — people liked your post",
+  forum_mention: "Forum — someone mentioned you",
   report_resolved: "Moderation — a report you filed was reviewed",
   skill_request_approved: "Moderation — your skill request was approved",
   skill_request_rejected: "Moderation — your skill request wasn't approved",
@@ -354,6 +387,10 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "forum_post_hidden_by_staff",
   "forum_post_unhidden_by_staff",
   "forum_post_deleted_by_staff",
+  "forum_devlog_published",
+  "forum_answer_accepted",
+  "forum_post_liked",
+  "forum_mention",
   "report_resolved",
   "skill_request_approved",
   "skill_request_rejected",
@@ -428,6 +465,14 @@ export const NOTIFICATION_DEFAULTS: Record<
   forum_post_hidden_by_staff: { inApp: true, email: true, digest: false },
   forum_post_unhidden_by_staff: { inApp: true, email: false, digest: false },
   forum_post_deleted_by_staff: { inApp: true, email: true, digest: false },
+  // Fan-out scales with followers, so it waits for the digest rather than
+  // mailing everyone the moment a devlog goes out.
+  forum_devlog_published: { inApp: true, email: false, digest: true },
+  forum_answer_accepted: { inApp: true, email: false, digest: false },
+  // Never a ping per like: no bell, no email — one folded line per post in
+  // the weekly digest. Anyone who wants the bell turns it on.
+  forum_post_liked: { inApp: false, email: false, digest: true },
+  forum_mention: { inApp: true, email: false, digest: true },
   // Closing the loop on someone else's behaviour, not the reporter's own
   // account — worth a bell, never an inbox.
   report_resolved: { inApp: true, email: false, digest: false },
@@ -456,7 +501,13 @@ export const NOTIFICATION_DEFAULTS: Record<
  * future per-category preference grouping. Adding a type without a row
  * here is a compile error, which is the point.
  */
-export type NotificationCategory = "collab" | "teams" | "comments" | "moderation" | "jams";
+export type NotificationCategory =
+  | "collab"
+  | "teams"
+  | "comments"
+  | "forum"
+  | "moderation"
+  | "jams";
 
 export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategory> = {
   collab_response_received: "collab",
@@ -490,6 +541,10 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   forum_post_hidden_by_staff: "moderation",
   forum_post_unhidden_by_staff: "moderation",
   forum_post_deleted_by_staff: "moderation",
+  forum_devlog_published: "forum",
+  forum_answer_accepted: "forum",
+  forum_post_liked: "forum",
+  forum_mention: "forum",
   report_resolved: "moderation",
   skill_request_approved: "moderation",
   skill_request_rejected: "moderation",
@@ -506,6 +561,7 @@ export const NOTIFICATION_CATEGORIES: readonly NotificationCategory[] = [
   "teams",
   "jams",
   "comments",
+  "forum",
   "moderation",
 ];
 
@@ -515,6 +571,7 @@ export const NOTIFICATION_CATEGORY_LABEL: Record<NotificationCategory, string> =
   teams: "Teams",
   jams: "Jams",
   comments: "Comments",
+  forum: "Forum",
   moderation: "Moderation",
 };
 
@@ -531,6 +588,7 @@ export const TYPES_BY_CATEGORY: Record<NotificationCategory, NotificationType[]>
       teams: [],
       jams: [],
       comments: [],
+      forum: [],
       moderation: [],
     } as Record<NotificationCategory, NotificationType[]>,
   );
@@ -542,4 +600,13 @@ export const TYPES_BY_CATEGORY: Record<NotificationCategory, NotificationType[]>
  */
 export const DIGEST_DEFAULT_ON: readonly NotificationType[] = NOTIFICATION_TYPES.filter(
   (type) => NOTIFICATION_DEFAULTS[type].digest,
+);
+
+/**
+ * Types that stay out of the bell unless the user turns them on. The inbox
+ * resolves a missing preference row in SQL, so it needs the list; derived
+ * like `DIGEST_DEFAULT_ON` so it can't drift from the defaults.
+ */
+export const IN_APP_DEFAULT_OFF: readonly NotificationType[] = NOTIFICATION_TYPES.filter(
+  (type) => !NOTIFICATION_DEFAULTS[type].inApp,
 );

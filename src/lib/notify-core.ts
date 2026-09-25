@@ -45,10 +45,14 @@ export type NotifyParams = {
    * For the case where eleven decisions in one sitting should read as one
    * line, not eleven. Unlike `dedupeWithin`, the entity is ignored — the
    * rows being folded are about different entities by design.
+   *
+   * `by: "entity"` folds the other way: every actor's notice about one
+   * entity into one row — a week of likes on a post read as one line.
    */
   coalesceWithin?: {
     ms: number;
     merge: (existing: Record<string, unknown>) => Record<string, unknown>;
+    by?: "actor" | "entity";
   };
 };
 
@@ -134,7 +138,11 @@ export async function recordNotification(
       eq(notifications.type, params.type),
       gte(notifications.createdAt, cutoff),
     ];
-    if (params.actorId) conditions.push(eq(notifications.actorId, params.actorId));
+    if (params.coalesceWithin.by === "entity") {
+      if (params.entityId) conditions.push(eq(notifications.entityId, params.entityId));
+    } else if (params.actorId) {
+      conditions.push(eq(notifications.actorId, params.actorId));
+    }
 
     const [existing] = await db
       .select({ id: notifications.id, data: notifications.data })
@@ -148,6 +156,11 @@ export async function recordNotification(
         .update(notifications)
         .set({
           data: params.coalesceWithin.merge(existing.data ?? {}),
+          // The latest actor fronts a folded row, so its avatar and "@name
+          // and N others" stay current.
+          ...(params.coalesceWithin.by === "entity" && params.actorId
+            ? { actorId: params.actorId }
+            : {}),
           createdAt: new Date(),
           readAt: null,
         })

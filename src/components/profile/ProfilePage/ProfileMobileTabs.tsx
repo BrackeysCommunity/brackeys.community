@@ -1,4 +1,10 @@
-import { ChampionIcon, HashtagIcon, Note01Icon, Shield02Icon } from "@hugeicons/core-free-icons";
+import {
+  ChampionIcon,
+  Comment01Icon,
+  HashtagIcon,
+  Note01Icon,
+  Shield02Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { motion } from "framer-motion";
 
@@ -6,7 +12,7 @@ import { useAnimatedUnderline } from "@/lib/hooks/use-animated-underline";
 import { PAGE_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
-export type ProfileMobileTab = "overview" | "projects" | "jams" | "skills";
+export type ProfileMobileTab = "overview" | "projects" | "jams" | "skills" | "posts";
 
 interface ProfileMobileTabsProps {
   active: ProfileMobileTab;
@@ -15,6 +21,8 @@ interface ProfileMobileTabsProps {
    * this to pin the tab bar below the app header; passing `false`
    * (e.g. for tests) renders it inline. */
   sticky?: boolean;
+  /** The forum's POSTS tab, while the forum is on for the viewer. */
+  showPosts?: boolean;
 }
 
 interface TabDef {
@@ -28,9 +36,8 @@ const TABS: TabDef[] = [
   { id: "projects", icon: Note01Icon as IconSvgElement, label: "PROJECTS" },
   { id: "jams", icon: ChampionIcon as IconSvgElement, label: "JAMS" },
   { id: "skills", icon: HashtagIcon as IconSvgElement, label: "SKILLS" },
+  { id: "posts", icon: Comment01Icon as IconSvgElement, label: "POSTS" },
 ];
-
-const TAB_IDS = TABS.map((t) => t.id);
 
 /**
  * Mobile sub-navigation. Bleeds out of the page's content padding to
@@ -39,10 +46,16 @@ const TAB_IDS = TABS.map((t) => t.id);
  * column. The active underline grows-and-shrinks via
  * `useAnimatedUnderline`.
  */
-export function ProfileMobileTabs({ active, onChange, sticky = true }: ProfileMobileTabsProps) {
+export function ProfileMobileTabs({
+  active,
+  onChange,
+  sticky = true,
+  showPosts = false,
+}: ProfileMobileTabsProps) {
+  const tabs = showPosts ? TABS : TABS.filter((t) => t.id !== "posts");
   const { containerRef, registerTab, motionStyle } = useAnimatedUnderline({
     active,
-    tabIds: TAB_IDS,
+    tabIds: tabs.map((t) => t.id),
   });
 
   return (
@@ -58,9 +71,9 @@ export function ProfileMobileTabs({ active, onChange, sticky = true }: ProfileMo
         ref={containerRef}
         role="tablist"
         aria-label="Profile section"
-        className="relative grid grid-cols-4"
+        className={cn("relative grid", showPosts ? "grid-cols-5" : "grid-cols-4")}
       >
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <TabButton
             key={tab.id}
             ref={registerTab(tab.id)}

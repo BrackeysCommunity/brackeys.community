@@ -2,17 +2,20 @@ import {
   type InfiniteData,
   type QueryClient,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-store";
 
 import type { ForumPostKind } from "@/db/schema";
+import { authStore } from "@/lib/auth-store";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { client, orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
 import { useGuildGate } from "./guild-gate";
 
-export type ForumSort = "latest" | "top";
+export type ForumSort = "latest" | "top" | "hot" | "following";
 export type ForumWindow = "day" | "week" | "month" | "all";
 
 export type ForumFeedFilters = {
@@ -29,6 +32,8 @@ export type ForumFeedPage = Awaited<ReturnType<typeof client.listForumPosts>>;
 export type ForumCard = ForumFeedPage["posts"][number];
 export type ForumPostDetail = NonNullable<Awaited<ReturnType<typeof client.getForumPost>>>;
 export type ForumCategory = Awaited<ReturnType<typeof client.listForumCategories>>[number];
+export type ForumFollowTarget = "team" | "user" | "tag" | "category" | "series";
+export type ForumFollows = Awaited<ReturnType<typeof client.listMyForumFollows>>;
 
 const PAGE_SIZE = 20;
 
@@ -50,6 +55,22 @@ export function forumFeedQueryOptions(filters: ForumFeedFilters) {
 
 export function forumCategoriesQueryOptions() {
   return { ...orpc.listForumCategories.queryOptions(), staleTime: STALE.taxonomy };
+}
+
+export function forumSeriesQueryOptions(seriesId: number) {
+  return { ...orpc.getForumSeries.queryOptions({ input: { seriesId } }), staleTime: STALE.viewer };
+}
+
+export function forumSearchQueryOptions(query: string, kind?: ForumPostKind) {
+  return {
+    ...orpc.searchForumPosts.infiniteOptions({
+      input: (cursor: string | undefined) => ({ query, kind, cursor, limit: PAGE_SIZE }),
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (last: Awaited<ReturnType<typeof client.searchForumPosts>>) =>
+        last.nextCursor ?? undefined,
+    }),
+    staleTime: STALE.listing,
+  };
 }
 
 export function forumPostQueryOptions(postId: number) {
@@ -152,5 +173,68 @@ export function useForumReactions(post: {
   return {
     toggleLike: () => guard("like", () => like.mutate(!post.viewer.liked)),
     toggleSave: () => guard("save", () => save.mutate(!post.viewer.saved)),
+  };
+}
+
+/** Everything the viewer follows; empty and idle while signed out. */
+export function useForumFollows() {
+  const { session } = useStore(authStore);
+  return useQuery({
+    ...orpc.listMyForumFollows.queryOptions(),
+    enabled: Boolean(session?.user),
+    staleTime: STALE.viewer,
+  });
+}
+
+function isFollowing(
+  follows: ForumFollows | undefined,
+  type: ForumFollowTarget,
+  target: string,
+): boolean {
+  if (!follows) return false;
+  switch (type) {
+    case "team":
+      return follows.teams.some((t) => t.id === target);
+    case "user":
+      return follows.users.some((u) => u.id === target);
+    case "tag":
+      return follows.tags.includes(target);
+    case "category":
+      return follows.categories.some((c) => c.slug === target);
+    case "series":
+      return follows.series.some((s) => String(s.id) === target);
+  }
+}
+
+/**
+ * One Follow button's state and toggle. Targets are named the way their
+ * pages name them — tags and categories by slug, the rest by id.
+ */
+export function useForumFollow(type: ForumFollowTarget, target: string) {
+  const queryClient = useQueryClient();
+  const { guard, onServerRefusal } = useGuildGate();
+  const { data } = useForumFollows();
+  const following = isFollowing(data, type, target);
+
+  const mutation = useMutation({
+    mutationFn: (next: boolean) =>
+      client.setForumFollow({ targetType: type, target, following: next }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: orpc.listMyForumFollows.key() });
+      void queryClient.invalidateQueries({
+        queryKey: orpc.listForumPosts.key({ input: { sort: "following" } }),
+      });
+    },
+    onError: (error, next) => {
+      if (onServerRefusal(error, "follow", () => mutation.mutate(next))) return;
+      toastMutationError("forum.follow")(error);
+    },
+  });
+
+  const pendingValue = mutation.isPending ? mutation.variables : undefined;
+  return {
+    following: pendingValue ?? following,
+    pending: mutation.isPending,
+    toggle: () => guard("follow", () => mutation.mutate(!following)),
   };
 }

@@ -19,6 +19,13 @@ export const FORUM_LIMITS: Record<ForumPostKind, { title: number; body: number; 
 export const FORUM_MAX_TAGS = 5;
 
 /**
+ * The For you ranking: `(likes + 2·comments + 1) / (ageHours + 2)^gravity`
+ * over the last `windowDays`, times `followBoost` for anything the viewer
+ * follows. Kept together so a tuning pass has one place to look.
+ */
+export const FORUM_HOT = { windowDays: 14, gravity: 1.5, followBoost: 2 } as const;
+
+/**
  * The category a kind lands in unless the author picks another. "Devlog"
  * is only a kind — there is no Devlogs category and no #devlog tag, so a
  * devlog is filed by what it's about like any other post.

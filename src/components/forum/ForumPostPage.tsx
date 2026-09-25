@@ -42,6 +42,7 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
+import { FollowButton } from "./FollowButton";
 import {
   type ForumPostDetail,
   forumPostQueryOptions,
@@ -50,6 +51,13 @@ import {
 } from "./forum-queries";
 import { ForumEditDialog } from "./ForumComposer";
 import { CategoryBadge, TagBadges } from "./ForumPostCard";
+import {
+  DiscordShareButton,
+  SeriesNav,
+  SeriesPanel,
+  SolutionBlock,
+  useForumCommentExtras,
+} from "./ForumPostExtras";
 import { ForumStaffMenu } from "./ForumStaffMenu";
 import { useGuildGate } from "./guild-gate";
 
@@ -124,9 +132,14 @@ function PostHero({ post }: { post: ForumPostDetail }) {
             <Badge size="label" className="uppercase">
               {FORUM_KIND_LABEL[post.kind]}
             </Badge>
-            {post.seriesIndex != null ? (
-              <Badge variant="outline" size="label" className="uppercase">
-                Entry {post.seriesIndex}
+            {post.series && post.seriesIndex != null ? (
+              <Badge
+                variant="outline"
+                size="label"
+                className="pointer-events-auto uppercase"
+                render={<a href="#series" aria-label="Jump to the series" />}
+              >
+                {post.series.title} · Entry {post.seriesIndex} of {post.series.total}
               </Badge>
             ) : null}
             {post.solved ? (
@@ -150,12 +163,7 @@ function PostHero({ post }: { post: ForumPostDetail }) {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               {post.team ? (
-                <UserAvatar
-                  avatarUrl={post.team.avatarUrl}
-                  username={post.team.name}
-                  size={40}
-                  shape="square"
-                />
+                <UserAvatar avatarUrl={post.team.avatarUrl} username={post.team.name} size={40} />
               ) : (
                 <UserAvatar
                   avatarUrl={post.author?.avatarUrl}
@@ -201,6 +209,18 @@ function PostHero({ post }: { post: ForumPostDetail }) {
                     ) : (
                       authorName
                     )}
+                    {post.coAuthors.map((coAuthor, i) => (
+                      <span key={coAuthor.id}>
+                        {i === post.coAuthors.length - 1 ? " and " : ", "}
+                        <Link
+                          to="/profile/$userId"
+                          params={profileLinkParams(coAuthor)}
+                          className="text-foreground hover:text-primary"
+                        >
+                          {name(coAuthor, "unknown")}
+                        </Link>
+                      </span>
+                    ))}
                   </Text>
                 ) : null}
               </div>
@@ -336,6 +356,7 @@ function ActionBar({ post, onEdit }: { post: ForumPostDetail; onEdit: () => void
             EDIT
           </Button>
         ) : null}
+        <DiscordShareButton post={post} />
         {post.viewer.canDelete ? (
           <Confirm
             variant="destructive"
@@ -397,14 +418,7 @@ function PostSidebar({ post }: { post: ForumPostDetail }) {
         key="team"
         label={post.kind === "devlog" ? "DEVLOG BY" : "TEAM"}
         title={post.team.name}
-        avatar={
-          <UserAvatar
-            avatarUrl={post.team.avatarUrl}
-            username={post.team.name}
-            size={40}
-            shape="square"
-          />
-        }
+        avatar={<UserAvatar avatarUrl={post.team.avatarUrl} username={post.team.name} size={40} />}
         link={
           <Link
             to="/teams/$teamId"
@@ -493,6 +507,19 @@ function PostSidebar({ post }: { post: ForumPostDetail }) {
   return (
     <Section id="behind" title="BEHIND THE POST" size="sm">
       <div className="flex flex-col gap-2">{tiles}</div>
+      <div className="flex flex-wrap gap-2 pt-1">
+        {post.team ? (
+          <FollowButton type="team" target={post.team.id} label="FOLLOW TEAM" size="xs" />
+        ) : null}
+        {post.author ? (
+          <FollowButton
+            type="user"
+            target={post.author.id}
+            label={post.team ? "FOLLOW AUTHOR" : "FOLLOW"}
+            size="xs"
+          />
+        ) : null}
+      </div>
     </Section>
   );
 }
@@ -515,6 +542,7 @@ export function ForumPostPage({ initialPost }: { initialPost: ForumPostDetail })
     captureEvent(EVENTS.forumPostViewed, { post_id: initialPost.id, kind: initialPost.kind });
   }, [initialPost.id, initialPost.kind]);
 
+  const commentExtras = useForumCommentExtras(post);
   const commentGate: CommentGate = {
     guard: (run) => guard("comment", run),
     onServerRefusal: (error, retry) => onServerRefusal(error, "comment", retry),
@@ -528,7 +556,9 @@ export function ForumPostPage({ initialPost }: { initialPost: ForumPostDetail })
         <VisibilityNotice post={post} />
 
         {post.body ? (
-          <MarkedText className="max-w-prose text-base text-foreground/90">{post.body}</MarkedText>
+          <MarkedText mentions className="max-w-prose text-base text-foreground/90">
+            {post.body}
+          </MarkedText>
         ) : null}
 
         {post.images.length > 0 ? (
@@ -556,6 +586,8 @@ export function ForumPostPage({ initialPost }: { initialPost: ForumPostDetail })
 
         <TagBadges tags={post.tags} />
         <ActionBar post={post} onEdit={() => setEditOpen(true)} />
+        {post.series ? <SeriesNav series={post.series} /> : null}
+        {post.solution ? <SolutionBlock solution={post.solution} /> : null}
 
         <CommentThread
           subject={{ type: "forum_post", id: post.id }}
@@ -571,6 +603,7 @@ export function ForumPostPage({ initialPost }: { initialPost: ForumPostDetail })
           }
           signInPrompt="Sign in with Discord to join the discussion."
           gate={commentGate}
+          extras={commentExtras}
           shell={(content, count) => (
             <Section
               id="comments"
@@ -586,6 +619,7 @@ export function ForumPostPage({ initialPost }: { initialPost: ForumPostDetail })
 
       <aside className="flex flex-col gap-6 lg:sticky lg:top-4 lg:self-start">
         <PostSidebar post={post} />
+        {post.series ? <SeriesPanel seriesId={post.series.id} currentPostId={post.id} /> : null}
       </aside>
 
       {post.viewer.canEdit ? (

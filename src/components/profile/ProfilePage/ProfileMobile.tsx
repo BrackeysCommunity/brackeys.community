@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 
 import { PageStack } from "@/components/ui/page-motion";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { fadeUp } from "@/lib/motion";
 
 import { ProfileAbout } from "./ProfileAbout";
@@ -12,6 +13,7 @@ import { ProfileHero } from "./ProfileHero";
 import { ProfileJamLogSection } from "./ProfileJamLog";
 import { ProfileLinkedAccountsSection } from "./ProfileLinkedAccounts";
 import { ProfileMobileTabs, type ProfileMobileTab } from "./ProfileMobileTabs";
+import { ProfilePostsSection } from "./ProfilePosts";
 import { ProfileProjectsSection } from "./ProfileProjects";
 import { ProfileSkillsSection } from "./ProfileSkills";
 import { ProfileStandingSection } from "./ProfileStanding";
@@ -28,6 +30,7 @@ import type { ProfileLayoutProps } from "./shared-types";
  */
 export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileLayoutProps) {
   const [tab, setTab] = useState<ProfileMobileTab>("overview");
+  const forumOn = useFlag("forum-enabled");
 
   return (
     // The tab strip is sticky, so it stays untagged — it still fades in
@@ -43,7 +46,7 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
         />
       </motion.div>
 
-      <ProfileMobileTabs active={tab} onChange={setTab} />
+      <ProfileMobileTabs active={tab} onChange={setTab} showPosts={forumOn} />
 
       <motion.div variants={fadeUp} className="flex flex-col gap-6 pt-5">
         {tab === "overview" ? (
@@ -102,6 +105,10 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
             />
             <ProfileCreditsSection index="03" credits={profile.credits} />
           </>
+        ) : null}
+
+        {tab === "posts" ? (
+          <ProfilePostsSection index="01" profileId={profile.profileId} isOwner={isOwner} />
         ) : null}
 
         {tab === "jams" ? (

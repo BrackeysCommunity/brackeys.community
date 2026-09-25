@@ -5,6 +5,7 @@ import { FeaturedJamPanel, FeaturedJamPanelSkeleton } from "@/components/home/Fe
 import { JamShowcaseBand } from "@/components/home/JamShowcaseBand";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
+import { RecentForumPosts } from "@/components/home/RecentForumPosts";
 import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTiles";
 import { useHomeContent } from "@/components/home/use-home-content";
 import { useHomeDestinations } from "@/components/home/use-home-destinations";
@@ -93,6 +94,8 @@ export function MobileHome() {
       <motion.div variants={fadeUp}>
         <RecentCollabPosts />
       </motion.div>
+
+      <RecentForumPosts />
 
       {showDashboard ? null : (
         <motion.div variants={fadeUp}>

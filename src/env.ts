@@ -40,6 +40,8 @@ export const env = createEnv({
     // channel means no mirror — see that module's header.
     DISCORD_COLLAB_CHANNEL_ID: z.string().min(1).optional(),
     DISCORD_COLLAB_SHARE_COOLDOWN_SECONDS: z.string().optional(),
+    // The forum's `#devlogs` mirror — `src/lib/forum-discord-feed.ts`.
+    DISCORD_DEVLOGS_CHANNEL_ID: z.string().min(1).optional(),
   },
 
   /**

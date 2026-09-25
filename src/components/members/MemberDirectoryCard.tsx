@@ -80,7 +80,6 @@ export function MemberDirectoryCard({ member, rank }: { member: DirectoryMember;
             guildAvatarUrl={member.guildAvatarUrl}
             username={name}
             guildRoles={member.guildRoles}
-            shape="round"
             size={44}
           />
           {rank != null ? (

@@ -8,8 +8,8 @@
  * (yours, a stranger's, a team's, nobody's), and — Part 8 — collab posts
  * linked to canonical projects — and the forum: every kind, team devlogs
  * with co-authors, pins, a solved question, hidden / deleted / draft /
- * reported / locked posts, tags, likes, saves and comment threads, all from
- * the same members.
+ * reported / locked posts, tags, likes, saves and comment threads, series,
+ * follows, @mentions and the forum notifications, all from the same members.
  *
  * Everything it writes is prefixed so it can be removed in one pass:
  *   project.projects.id            seedproj-*   (credits/claims/jam links cascade)
@@ -21,6 +21,10 @@
  *   collab.collab_posts            no text id to prefix — see below
  *   forum.posts                    body ends with `_Seeded forum post._`
  *   forum.tags                     created_by a seed member, removed once unused
+ *   forum.series                   owned by a seed team or member (cascades)
+ *   forum.follows                  by a seed member (cascades), or yours of a seed target
+ *   user.notifications             forum ones pointing at a seeded forum post
+ *   user.profile_url_stubs         seed-<key> for the curated members (cascades)
  *
  * The synthetic members exist in BOTH `developer_profiles` and auth `user`
  * (same id, the pairing real accounts have): `collab_posts.author_id`,
@@ -83,16 +87,20 @@ import {
   developerProfiles,
   forumBookmarks,
   forumCategories,
+  forumFollows,
   forumPostAuthors,
   forumPostReports,
   forumPosts,
   forumPostTags,
   forumReactions,
+  forumSeries,
   forumTags,
   itchJamEntries,
   itchJams,
   linkedAccounts,
+  notifications,
   profileProjects,
+  profileUrlStubs,
   projectContributors,
   projectJamLinks,
   projectTeams,
@@ -215,6 +223,51 @@ if (previousProjectIds.length > 0 || previousTeamIds.length > 0) {
 // the marker is the only handle anyway (serial ids, and the real account
 // authors some). Reactions, bookmarks, tags links, images, reports, co-author
 // rows and the comment thread all cascade from the post.
+const seedForumPostIds = (
+  await db
+    .select({ id: forumPosts.id })
+    .from(forumPosts)
+    .where(like(forumPosts.body, `%${FORUM_MARKER}`))
+).map((p) => String(p.id));
+if (seedForumPostIds.length > 0) {
+  await db
+    .delete(notifications)
+    .where(
+      and(
+        eq(notifications.entityType, "forum_post"),
+        inArray(notifications.entityId, seedForumPostIds),
+      ),
+    );
+}
+// Your follows of seed teams, members and series; the seed members' own
+// follows go with their accounts, and the series with their teams/owners.
+const seedSeriesIds = (
+  await db
+    .select({ id: forumSeries.id })
+    .from(forumSeries)
+    .where(
+      or(
+        like(forumSeries.teamId, "seedprojteam-%"),
+        like(forumSeries.ownerUserId, "seedprojprof-%"),
+      ),
+    )
+).map((row) => String(row.id));
+await db
+  .delete(forumFollows)
+  .where(
+    or(
+      and(eq(forumFollows.targetType, "team"), like(forumFollows.targetId, "seedprojteam-%")),
+      and(eq(forumFollows.targetType, "user"), like(forumFollows.targetId, "seedprojprof-%")),
+      ...(seedSeriesIds.length > 0
+        ? [
+            and(
+              eq(forumFollows.targetType, "series"),
+              inArray(forumFollows.targetId, seedSeriesIds),
+            ),
+          ]
+        : []),
+    ),
+  );
 const removedForumPosts = await db
   .delete(forumPosts)
   .where(like(forumPosts.body, `%${FORUM_MARKER}`))
@@ -369,6 +422,12 @@ await db.insert(user).values(
     updatedAt: ago(400),
   })),
 );
+
+// Handles, so forum `@mentions` of these members resolve. Prefixed so they
+// can never take a real member's stub; they cascade with the profile.
+await db
+  .insert(profileUrlStubs)
+  .values(people.map((p) => ({ profileId: prof(p.key), stub: `seed-${p.key}` })));
 
 // ── Teams ────────────────────────────────────────────────────────────────────
 
@@ -2104,6 +2163,8 @@ type SeedForumPost = {
   locked?: number;
   /** Index of the root comment marked as the answer. */
   solvedBy?: number;
+  /** Series and entry number; a draft carries the series with no number. */
+  series?: { id: number; index: number | null };
 };
 
 async function seedForumPost(p: SeedForumPost): Promise<number> {
@@ -2122,6 +2183,8 @@ async function seedForumPost(p: SeedForumPost): Promise<number> {
       coverImageUrl: p.coverUrl ?? null,
       projectId: p.projectId ?? null,
       collabPostId: p.collabKey ? (insertedPosts.get(p.collabKey)?.id ?? null) : null,
+      seriesId: p.series?.id ?? null,
+      seriesIndex: p.series?.index ?? null,
       status: p.draft ? "draft" : "published",
       publishedAt: p.draft ? null : ago(p.at),
       editedAt: p.edited != null ? ago(p.edited) : null,
@@ -2187,6 +2250,37 @@ async function seedForumPost(p: SeedForumPost): Promise<number> {
 const [bulkA, bulkB, bulkC, bulkD, bulkE] = bulkProfiles.map((b) => b.id);
 const everyone = [owner.id, ...allProfileIds];
 
+// Series: one for each team (Half Moon Bay's is yours to manage, Driftline's
+// read-only) and one solo series of marlow's that you follow.
+const [halfMoonSeries, driftlineSeries, marlowSeries] = await db
+  .insert(forumSeries)
+  .values([
+    {
+      teamId: "seedprojteam-halfmoon",
+      title: "Signal Decay devlog",
+      slug: "signal-decay-devlog",
+      description: "Building a lighthouse game one frequency at a time.",
+    },
+    {
+      teamId: "seedprojteam-driftline",
+      title: "The winter set",
+      slug: "the-winter-set",
+      description: "Tiles, snow and everything that melts.",
+    },
+    {
+      ownerUserId: prof("marlow"),
+      title: "Pixel notes",
+      slug: "pixel-notes",
+      description: null,
+    },
+  ])
+  .returning({ id: forumSeries.id });
+const [ownerStub] = await db
+  .select({ stub: profileUrlStubs.stub })
+  .from(profileUrlStubs)
+  .where(eq(profileUrlStubs.profileId, owner.id))
+  .limit(1);
+
 // Pinned to the whole forum, in the staff-only category.
 await seedForumPost({
   kind: "devlog",
@@ -2245,6 +2339,7 @@ await seedForumPost({
   projectId: "seedproj-signal",
   collabKey: "signal-artist",
   pinned: "category",
+  series: { id: halfMoonSeries.id, index: 2 },
   at: 1.2,
   edited: 1.0,
   likes: [prof("petra"), prof("noor"), bulkA, bulkB, bulkC, bulkD],
@@ -2295,10 +2390,11 @@ await seedForumPost({
   team: "seedprojteam-driftline",
   coAuthors: [prof("noor")],
   title: "Driftline devlog: autotiles without the pain",
-  body: "Autotiling rules for the winter set, and the three edge cases that ate a week. **TL;DR**: bitmask the corners, not the edges.",
+  body: "Autotiling rules for the winter set, and the three edge cases that ate a week. **TL;DR**: bitmask the corners, not the edges. Palette help from @seed-marlow, as ever.",
   tags: ["tilemaps", "godot", "pixelart"],
   projectId: "seedproj-bramble",
   collabKey: "driftline-autotiles",
+  series: { id: driftlineSeries.id, index: 1 },
   at: 3,
   edited: 2.5,
   likes: [owner.id, prof("marlow"), bulkB, bulkE],
@@ -2323,6 +2419,7 @@ await seedForumPost({
   title: "Palette limits as a design tool",
   body: "Four colours per sprite sounds like a restriction. It's actually the fastest way to make a scene read.",
   tags: ["pixelart", "2d"],
+  series: { id: marlowSeries.id, index: 1 },
   at: 12,
   likes: [prof("kit"), prof("noor"), bulkD],
 });
@@ -2336,6 +2433,7 @@ await seedForumPost({
   title: "Signal Decay devlog #4: fog (draft)",
   body: "Work in progress — the fog pass writeup.",
   tags: ["shaders"],
+  series: { id: halfMoonSeries.id, index: null },
   at: 0.2,
   draft: true,
 });
@@ -2404,7 +2502,7 @@ await seedForumPost({
   kind: "post",
   category: "show-and-tell",
   author: prof("kit"),
-  body: "Finally got the main theme loop seamless — four bars in, no click. Turns out the export was adding a fade 🙃",
+  body: "Finally got the main theme loop seamless — four bars in, no click. Turns out the export was adding a fade 🙃 Thanks @seed-noor for spotting it.",
   tags: ["audio"],
   at: 0.2,
   likes: [owner.id, prof("marlow"), prof("noor"), bulkA, bulkB, bulkC, bulkE],
@@ -2438,6 +2536,72 @@ await seedForumPost({
     { author: bulkE, content: "Nothing, jam week 😵", at: 4.8 },
     { author: owner.id, content: "Locking this one — new thread next week.", at: 4.5 },
   ],
+});
+
+// Series entries around the curated devlogs above.
+await seedForumPost({
+  kind: "devlog",
+  category: "show-and-tell",
+  author: prof("kit"),
+  team: "seedprojteam-halfmoon",
+  coAuthors: [owner.id],
+  title: "Signal Decay devlog #2: tide tables",
+  body: "The sea rises on a schedule now. Here's the table that drives it, and why the lighthouse keeper can't outrun it.",
+  tags: ["godot", "procgen"],
+  series: { id: halfMoonSeries.id, index: 1 },
+  at: 6,
+  likes: [prof("marlow"), bulkB],
+});
+const snowDevlog = await seedForumPost({
+  kind: "devlog",
+  category: "show-and-tell",
+  author: prof("noor"),
+  team: "seedprojteam-driftline",
+  title: "Driftline devlog: snow that sticks",
+  body: "Snow now accumulates on ledges and melts under lamps. Two render targets and a lot of patience.",
+  tags: ["shaders", "2d"],
+  series: { id: driftlineSeries.id, index: 2 },
+  at: 0.6,
+  likes: [prof("petra"), bulkA],
+});
+await seedForumPost({
+  kind: "devlog",
+  category: "show-and-tell",
+  author: prof("marlow"),
+  title: "Pixel notes #2: dithering without the noise",
+  body: "Ordered dithering, a 4×4 Bayer matrix, and when to stop.",
+  tags: ["pixelart"],
+  series: { id: marlowSeries.id, index: 2 },
+  at: 7,
+  likes: [prof("kit")],
+});
+
+// Your answer, accepted — the answer_accepted notification below points at it.
+const occluderQuestion = await seedForumPost({
+  kind: "question",
+  category: "help",
+  author: prof("noor"),
+  title: "Godot 4: occluders from a TileMapLayer without killing the frame rate?",
+  body: "One occluder per tile works but costs a fortune. Is there a better way?",
+  tags: ["godot", "lighting"],
+  at: 0.9,
+  likes: [prof("petra")],
+  comments: [
+    {
+      author: owner.id,
+      content:
+        "Merge solid runs into rectangles first, then one occluder per rectangle — we went from 11 ms to under 1.",
+      at: 0.85,
+      replies: [
+        {
+          author: prof("noor"),
+          content: ownerStub ? `That did it, thanks @${ownerStub.stub}!` : "That did it, thanks!",
+          at: 0.8,
+        },
+      ],
+    },
+  ],
+  solvedBy: 0,
 });
 
 // Moderation shapes: hidden, deleted (thread kept), reported.
@@ -2539,6 +2703,99 @@ for (let i = 0; i < 32; i++) {
 
 await recountForumTags();
 
+// Follows: yours drive the Following tab; the members' drive the devlog
+// notification fan-out and the counts on their buttons.
+const categoryId = (slug: string) => String(forumCategory(slug));
+const tagId = (slug: string) => String(forumTagIds.get(slug));
+await db.insert(forumFollows).values([
+  { followerId: owner.id, targetType: "team", targetId: "seedprojteam-driftline" },
+  { followerId: owner.id, targetType: "user", targetId: prof("petra") },
+  { followerId: owner.id, targetType: "series", targetId: String(marlowSeries.id) },
+  { followerId: prof("noor"), targetType: "team", targetId: "seedprojteam-halfmoon" },
+  { followerId: prof("noor"), targetType: "series", targetId: String(halfMoonSeries.id) },
+  { followerId: prof("petra"), targetType: "user", targetId: owner.id },
+  { followerId: prof("kit"), targetType: "category", targetId: categoryId("help") },
+  { followerId: prof("kit"), targetType: "tag", targetId: tagId("godot") },
+  { followerId: bulkA, targetType: "tag", targetId: tagId("pixelart") },
+  { followerId: bulkB, targetType: "team", targetId: "seedprojteam-halfmoon" },
+]);
+
+// One of each forum notification for you, as the router writes them. Likes
+// are digest-only, so that row stays out of the bell unless you turn it on.
+const [signalDevlog] = await db
+  .select({ id: forumPosts.id, title: forumPosts.title })
+  .from(forumPosts)
+  .where(
+    and(
+      like(forumPosts.body, `%${FORUM_MARKER}`),
+      eq(forumPosts.title, "Signal Decay devlog #3: the lighthouse finally casts shadows"),
+    ),
+  );
+const [acceptedAnswer] = await db
+  .select({ solvedCommentId: forumPosts.solvedCommentId })
+  .from(forumPosts)
+  .where(eq(forumPosts.id, occluderQuestion));
+await db.insert(notifications).values([
+  {
+    userId: owner.id,
+    type: "forum_devlog_published",
+    actorId: prof("noor"),
+    entityType: "forum_post",
+    entityId: String(snowDevlog),
+    data: {
+      subjectTitle: "Driftline devlog: snow that sticks",
+      subjectUrl: `/forum/${snowDevlog}`,
+      teamName: "Driftline",
+    },
+    createdAt: ago(0.6),
+  },
+  {
+    userId: owner.id,
+    type: "forum_answer_accepted",
+    actorId: prof("noor"),
+    entityType: "forum_post",
+    entityId: String(occluderQuestion),
+    data: {
+      subjectTitle: "Godot 4: occluders from a TileMapLayer without killing the frame rate?",
+      subjectUrl: `/forum/${occluderQuestion}#comment-${acceptedAnswer?.solvedCommentId}`,
+    },
+    createdAt: ago(0.8),
+  },
+  ...(signalDevlog
+    ? [
+        {
+          userId: owner.id,
+          type: "forum_post_liked" as const,
+          actorId: bulkD,
+          entityType: "forum_post" as const,
+          entityId: String(signalDevlog.id),
+          data: {
+            subjectTitle: signalDevlog.title,
+            subjectUrl: `/forum/${signalDevlog.id}`,
+            likers: 6,
+          },
+          createdAt: ago(0.9),
+        },
+      ]
+    : []),
+  ...(ownerStub
+    ? [
+        {
+          userId: owner.id,
+          type: "forum_mention" as const,
+          actorId: prof("noor"),
+          entityType: "forum_post" as const,
+          entityId: String(occluderQuestion),
+          data: {
+            subjectTitle: "Godot 4: occluders from a TileMapLayer without killing the frame rate?",
+            subjectUrl: `/forum/${occluderQuestion}`,
+          },
+          createdAt: ago(0.8),
+        },
+      ]
+    : []),
+]);
+
 // ── Report ───────────────────────────────────────────────────────────────────
 
 const [totals] = await db
@@ -2558,6 +2815,8 @@ const [totals] = await db
     forumPosts: sql<number>`(SELECT count(*)::int FROM ${forumPosts} WHERE body LIKE ${"%" + FORUM_MARKER})`,
     forumComments: sql<number>`(SELECT count(*)::int FROM ${comments} c JOIN ${threads} th ON th.id = c.thread_id JOIN ${forumPosts} fp ON fp.id = th.forum_post_id WHERE fp.body LIKE ${"%" + FORUM_MARKER})`,
     forumLikes: sql<number>`(SELECT count(*)::int FROM ${forumReactions} r JOIN ${forumPosts} fp ON fp.id = r.post_id WHERE fp.body LIKE ${"%" + FORUM_MARKER})`,
+    forumSeries: sql<number>`(SELECT count(*)::int FROM ${forumSeries} WHERE team_id LIKE 'seedprojteam-%' OR owner_user_id LIKE 'seedprojprof-%')`,
+    forumFollows: sql<number>`(SELECT count(*)::int FROM ${forumFollows} WHERE follower_id LIKE 'seedprojprof-%' OR target_id LIKE 'seedproj%')`,
   })
   .from(sql`(SELECT 1) AS one`);
 
@@ -2621,5 +2880,19 @@ forum (needs forum-enabled on for you to see it):
   /admin → forum                 a hidden post (asset-pack spam), a deleted question with its
                                  thread kept, and a post with two open reports (Steam keys)
   /forum/tags/godot              tag page; tag counts in the right rail are real
+  "Signal Decay devlog #3…"      "Signal Decay devlog · Entry 2 of 2", prev → #2 (co-authored by
+                                 you), SERIES panel with MANAGE (the #4 draft joins on publish)
+  "Driftline devlog: autotiles…" entry 1 of "The winter set"; next → "snow that sticks"; the
+                                 body's @seed-marlow links to marlow's profile
+  "Palette limits…"              marlow's solo series "Pixel notes", which you follow
+  "Godot 4: occluders…"          noor's question, SOLVED by YOUR answer (pinned under it)
+  FOLLOWING tab                  Driftline, petrabyte and Pixel notes: their posts, nothing else
+  FOR YOU tab                    recent + liked first; followed authors boosted
+  /forum?view=pulse              short posts only, dense rows
+  /teams/half-moon-bay           DEVLOG section: entries, the series chip, WRITE DEVLOG, Atom link
+  /profile/seed-petra            POSTS section + FOLLOW; your profile's POSTS lists yours
+  /notifications?filter=forum    devlog published (Driftline), answer accepted, and a mention if
+                                 you have a handle; the likes row shows only in the weekly digest
+  the home page                  FROM THE FORUM rail
 `);
 process.exit(0);

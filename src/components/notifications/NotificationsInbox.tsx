@@ -41,6 +41,10 @@ const EMPTY_COPY: Record<InboxFilter, { title: string; hint: string }> = {
   teams: { title: "Nothing from your teams.", hint: "Invites and roster changes show up here." },
   jams: { title: "Nothing from your jams.", hint: "Watch a jam to hear about its deadlines." },
   comments: { title: "No replies yet.", hint: "Comments on threads you follow show up here." },
+  forum: {
+    title: "Quiet on the forum.",
+    hint: "Devlogs you follow, accepted answers and mentions land here.",
+  },
   moderation: { title: "Nothing from staff.", hint: "Decisions on your reports and requests." },
 };
 

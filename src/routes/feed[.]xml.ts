@@ -8,6 +8,7 @@ import { formatCount } from "@/lib/format-count";
 import { hostName } from "@/lib/jam-links";
 import { withErrorReporting } from "@/lib/posthog-server";
 import { SITE_NAME } from "@/lib/site-meta";
+import { escapeXml } from "@/lib/xml";
 
 /**
  * `/feed.xml` — upcoming and running jams as Atom, never the archive.
@@ -19,15 +20,6 @@ const FEED_LIMIT = 60;
 
 /** Jams that already ended by this much are past, not upcoming. */
 const RECENTLY_ENDED_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-
-function escapeXml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
-}
 
 async function handle() {
   const horizon = new Date(Date.now() - RECENTLY_ENDED_GRACE_MS);

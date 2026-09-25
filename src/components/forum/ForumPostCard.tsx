@@ -7,7 +7,7 @@ import {
   Tick01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,12 +76,7 @@ function Byline({ post, showCategory }: { post: ForumCard; showCategory: boolean
   return (
     <div className="flex items-center gap-2.5">
       {post.team ? (
-        <UserAvatar
-          avatarUrl={post.team.avatarUrl}
-          username={post.team.name}
-          size={36}
-          shape="square"
-        />
+        <UserAvatar avatarUrl={post.team.avatarUrl} username={post.team.name} size={36} />
       ) : (
         <UserAvatar
           avatarUrl={post.author?.avatarUrl}
@@ -247,7 +242,9 @@ function ShortPostCard({ post, showCategory }: { post: ForumCard; showCategory: 
       <Byline post={post} showCategory={showCategory} />
       <PinnedMark post={post} />
       {post.body ? (
-        <MarkedText className="text-base text-foreground/90">{post.body}</MarkedText>
+        <MarkedText mentions className="text-base text-foreground/90">
+          {post.body}
+        </MarkedText>
       ) : null}
       {images.length > 0 ? (
         <div className={cn("grid gap-2", images.length > 1 && "grid-cols-2")}>
@@ -329,14 +326,31 @@ export function ForumPostCard({
   /** Off on a category board, where every card would repeat its name. */
   showCategory?: boolean;
 }) {
+  const navigate = useNavigate();
+  const params = forumPostLinkParams(post);
+
+  // The whole card opens the post. Links and buttons inside it keep their own
+  // target, and a drag-to-select over the body doesn't count as a click.
+  function openPost(event: React.MouseEvent<HTMLElement>) {
+    if (event.defaultPrevented || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("a, button, input, textarea, [role=button]")) return;
+    if (window.getSelection()?.toString()) return;
+    if (event.metaKey || event.ctrlKey) {
+      window.open(`/forum/${params.postId}`, "_blank", "noopener");
+      return;
+    }
+    void navigate({ to: "/forum/$postId", params });
+  }
+
   return (
     <Chonk
       variant="surface"
       size="lg"
       render={<article />}
       isMagnetic={false}
+      onClick={openPost}
       className={cn(
-        "flex-col gap-3 p-4 sm:p-5",
+        "cursor-pointer flex-col gap-3 p-4 sm:p-5",
         post.pinnedAt && "border-warning/40",
         post.kind === "question" && "gap-2",
       )}
@@ -349,5 +363,92 @@ export function ForumPostCard({
         <ShortPostCard post={post} showCategory={showCategory} />
       )}
     </Chonk>
+  );
+}
+
+/**
+ * One short post in Pulse: a line of chat-like density — who, when, what —
+ * with the like and the thread one click away.
+ */
+export function PulseRow({ post }: { post: ForumCard }) {
+  const { name } = useMemberIdentity();
+  const { toggleLike } = useForumReactions(post);
+  const authorName = post.author ? name(post.author, "unknown") : "deleted user";
+  const images = post.images.slice(0, 4);
+  return (
+    <article className="flex gap-3 px-4 py-3">
+      <UserAvatar
+        avatarUrl={post.author?.avatarUrl}
+        guildAvatarUrl={post.author?.guildAvatarUrl}
+        username={authorName}
+        guildRoles={post.author?.guildRoles}
+        size={32}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <Text as="span" size="sm" bold>
+            {authorName}
+          </Text>
+          <MicroLabel as="span" className="uppercase">
+            {post.publishedAt ? (
+              <Link
+                to="/forum/$postId"
+                params={forumPostLinkParams(post)}
+                className="hover:text-foreground"
+              >
+                <TimeAgo date={post.publishedAt} />
+              </Link>
+            ) : null}
+            {` · ${post.category.name}`}
+          </MicroLabel>
+        </div>
+        {post.body ? (
+          <MarkedText mentions className="text-sm text-foreground/90">
+            {post.body}
+          </MarkedText>
+        ) : null}
+        {images.length > 0 ? (
+          <div className="flex gap-1.5">
+            {images.map((image) => (
+              <TransformedImage
+                key={image.id}
+                src={image.url}
+                transform={{ width: 240, quality: 70 }}
+                alt={image.alt ?? ""}
+                loading="lazy"
+                decoding="async"
+                className="size-20 border border-muted/40 bg-muted/20 object-cover"
+              />
+            ))}
+          </div>
+        ) : null}
+        <div className="-ml-2 flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={toggleLike}
+            aria-pressed={post.viewer.liked}
+            aria-label={post.viewer.liked ? "Unlike" : "Like"}
+            className={cn(post.viewer.liked && "text-brackeys-fuscia")}
+          >
+            <HugeiconsIcon
+              icon={FavouriteIcon}
+              className={cn(post.viewer.liked && "fill-current")}
+            />
+            <span className="tabular-nums">{formatCount(post.likeCount)}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            nativeButton={false}
+            render={<Link to="/forum/$postId" params={forumPostLinkParams(post)} hash="comments" />}
+            aria-label={`${post.commentCount} comments`}
+          >
+            <HugeiconsIcon icon={Comment01Icon} />
+            <span className="tabular-nums">{formatCount(post.commentCount)}</span>
+          </Button>
+        </div>
+      </div>
+    </article>
   );
 }

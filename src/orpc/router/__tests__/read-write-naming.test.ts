@@ -48,6 +48,8 @@ const WRITE_VERBS = [
   "reject",
   "remove",
   "reopen",
+  // `reorderForumSeries` renumbers a series' entries.
+  "reorder",
   "report",
   "request",
   "resolve",

@@ -178,7 +178,6 @@ function ContributorCard({
         guildAvatarUrl={contributor.guildAvatarUrl}
         username={contributor.displayName}
         guildRoles={contributor.guildRoles}
-        shape="round"
         size={36}
       />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -345,7 +344,7 @@ function AddCreditForm({
             disabled={creditSelf.isPending}
             onClick={() => creditSelf.mutate()}
           >
-            <UserAvatar avatarUrl={self.image} username={self.name} shape="round" size={16} />
+            <UserAvatar avatarUrl={self.image} username={self.name} size={16} />
             CREDIT MYSELF
           </Button>
           <Text size="xs" variant="muted">
@@ -411,7 +410,6 @@ function AddCreditForm({
                 <UserAvatar
                   avatarUrl={candidate.avatarUrl}
                   username={candidate.displayName}
-                  shape="round"
                   size={16}
                 />
                 {candidate.displayName}

@@ -6,5 +6,6 @@ export { Quote, type QuoteProps, type QuoteSource } from "./quote";
 export { Prose, type ProseProps } from "./prose";
 export { MarkedText, type MarkedTextProps } from "./marked-text";
 export { Censored, CensoredMark, useCensorNodes } from "./censored";
+export { MentionText } from "./mentions";
 export { RichHtml } from "./rich-html";
 export { Link, type LinkProps } from "./link";

@@ -84,7 +84,7 @@ export function TeamDirectoryCard({
       )}
     >
       <span className="flex items-start gap-3">
-        <UserAvatar avatarUrl={team.avatarUrl} username={team.name} shape="round" size={44} />
+        <UserAvatar avatarUrl={team.avatarUrl} username={team.name} size={44} />
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex items-center gap-2">
             <Text
@@ -173,7 +173,6 @@ export function AvatarStack({
           avatarUrl={member.avatarUrl}
           guildAvatarUrl={member.guildAvatarUrl}
           username={identity.name(member, "Member")}
-          shape="round"
           size={size}
           className="ring-2 ring-card"
         />

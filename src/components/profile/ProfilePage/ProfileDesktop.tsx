@@ -10,6 +10,7 @@ import { ProfileCreditsSection } from "./ProfileCredits";
 import { ProfileHero } from "./ProfileHero";
 import { ProfileJamLogSection } from "./ProfileJamLog";
 import { ProfileLinkedAccountsSection } from "./ProfileLinkedAccounts";
+import { ProfilePostsSection } from "./ProfilePosts";
 import { ProfileProjectsSection } from "./ProfileProjects";
 import { ProfileSkillsSection } from "./ProfileSkills";
 import { ProfileStandingSection } from "./ProfileStanding";
@@ -66,6 +67,7 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             profileName={profile.handle}
           />
           <ProfileCreditsSection index="04" credits={profile.credits} />
+          <ProfilePostsSection index="05" profileId={profile.profileId} isOwner={isOwner} />
         </motion.div>
 
         <motion.div variants={fadeLeft} className="flex flex-col gap-6">
@@ -105,7 +107,7 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
 
       <motion.div variants={fadeUp}>
         <ProfileWallSection
-          index="05"
+          index="06"
           profileId={profile.profileId}
           profileName={profile.handle}
           isOwner={isOwner}

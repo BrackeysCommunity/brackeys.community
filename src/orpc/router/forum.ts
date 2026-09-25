@@ -21,15 +21,18 @@ import * as z from "zod";
 import { db } from "@/db";
 import {
   collabPosts,
+  comments,
   developerProfiles,
   forumBookmarks,
   forumCategories,
+  forumFollows,
   forumPostAuthors,
   forumPostImages,
   forumPostReports,
   forumPosts,
   forumPostTags,
   forumReactions,
+  forumSeries,
   forumTags,
   itchJams,
   profileUrlStubs,
@@ -41,10 +44,23 @@ import {
   userBlocks,
   type ForumPostKind,
 } from "@/db/schema";
+import { DiscordFeedError } from "@/lib/collab-discord-feed";
+import { subscribeToThread } from "@/lib/comment-subjects";
 import { isStaffMember } from "@/lib/discord";
+import { DiscordBackoffError } from "@/lib/discord";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { devlogFeedEnabled } from "@/lib/forum-discord-feed";
+import {
+  devlogShareState,
+  refreshDevlogMirror,
+  shareDevlogToDiscord,
+} from "@/lib/forum-discord-mirror";
+import { announceForumPost } from "@/lib/forum-live";
+import { addedMentions, extractMentions } from "@/lib/forum-mentions";
+import { notifyDevlogFollowers, notifyMentions, notifyPostLiked } from "@/lib/forum-notify";
 import {
   FORUM_DEFAULT_CATEGORY,
+  FORUM_HOT,
   FORUM_LIMITS,
   FORUM_MAX_TAGS,
   FORUM_POST_KINDS,
@@ -53,12 +69,18 @@ import {
   forumPostTitle,
   normalizeTagSlug,
 } from "@/lib/forum-posts";
+import {
+  assertSeriesMatchesPost,
+  compactSeriesOf,
+  loadSeries,
+  nextSeriesIndex,
+} from "@/lib/forum-series";
 import { markdownToPlainText } from "@/lib/markdown-text";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import type { ModOverride } from "@/lib/moderation-policy";
 import { notify } from "@/lib/notifications";
-import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
+import { bestEffort, captureServerEvent, captureServerException } from "@/lib/posthog-server";
 import { checkProfanity } from "@/lib/profanity";
 import {
   getProfileProjectImageUrl,
@@ -77,6 +99,8 @@ import { profileIdentityColumns, profileStubJoin } from "@/orpc/profile-projecti
 
 /** Unpublished drafts one member may hold at once. */
 const MAX_DRAFTS = 20;
+/** Bylines on a team devlog besides its author. */
+const MAX_CO_AUTHORS = 5;
 const FEED_PAGE_MAX = 50;
 /** Images a feed card carries; the post page gets them all. */
 const CARD_IMAGES = 4;
@@ -101,7 +125,7 @@ const authorBanned = sql`(${user.bannedAt} IS NOT NULL AND ${user.unbannedAt} IS
  * not under a hidden team, not by a banned author, and not across a block
  * with the viewer in either direction. Needs `teams` and `user` joined.
  */
-function listableWhere(viewerId: string | null): SQL[] {
+export function listableWhere(viewerId: string | null): SQL[] {
   const where: SQL[] = [
     eq(forumPosts.status, "published"),
     isNull(forumPosts.deletedAt),
@@ -117,6 +141,35 @@ function listableWhere(viewerId: string | null): SQL[] {
     )`);
   }
   return where;
+}
+
+/**
+ * Whether the viewer follows this post's author, team, category, series or
+ * any of its tags. Needs `forumPosts` in the query.
+ */
+function followedBy(viewerId: string): SQL {
+  return sql`EXISTS (
+    SELECT 1 FROM ${forumFollows} f
+    WHERE f.follower_id = ${viewerId}
+      AND (
+        (f.target_type = 'user' AND f.target_id = ${forumPosts.authorId})
+        OR (f.target_type = 'team' AND f.target_id = ${forumPosts.teamId})
+        OR (f.target_type = 'category' AND f.target_id = ${forumPosts.categoryId}::text)
+        OR (f.target_type = 'series' AND f.target_id = ${forumPosts.seriesId}::text)
+        OR (f.target_type = 'tag' AND EXISTS (
+          SELECT 1 FROM ${forumPostTags} pt
+          WHERE pt.post_id = ${forumPosts.id} AND pt.tag_id::text = f.target_id
+        ))
+      )
+  )`;
+}
+
+/** The For you score; see `FORUM_HOT`. */
+function hotScore(viewerId: string | null): SQL {
+  const base = sql`(${forumPosts.likeCount} + 2 * coalesce(${threads.commentCount}, 0) + 1)
+    / power(extract(epoch from (now() - ${forumPosts.publishedAt})) / 3600 + 2, ${FORUM_HOT.gravity})`;
+  if (!viewerId) return base;
+  return sql`${base} * (CASE WHEN ${followedBy(viewerId)} THEN ${FORUM_HOT.followBoost} ELSE 1 END)`;
 }
 
 // ── Card shaping ─────────────────────────────────────────────────────────────
@@ -309,8 +362,9 @@ const latestCursorSchema = z.object({ publishedAt: z.coerce.date(), id: z.number
 /**
  * The feed. `latest` pages by keyset on `(publishedAt, id)` — the feed is
  * append-heavy, so offsets would skip and repeat rows as posts land.
- * `top` ranks by `likes + 2·comments` inside a window and pages by offset,
- * since a score has no stable keyset.
+ * `following` is `latest` narrowed to what the viewer follows. `top` ranks
+ * by `likes + 2·comments` inside a window and `hot` (For you) by
+ * `FORUM_HOT`; both page by offset, since a score has no stable keyset.
  *
  * Pins come back separately on the first page and are left out of the
  * stream: global pins on the main feed, category pins on a category board.
@@ -319,24 +373,29 @@ export const listForumPosts = os
   .use(forumRead)
   .input(
     z.object({
-      sort: z.enum(["latest", "top"]).default("latest"),
+      sort: z.enum(["latest", "top", "hot", "following"]).default("latest"),
       window: z.enum(["day", "week", "month", "all"]).default("week"),
       kind: kindSchema.optional(),
       category: z.string().max(64).optional(),
       tag: z.string().max(32).optional(),
       teamId: z.string().max(64).optional(),
       authorId: z.string().max(64).optional(),
+      /** Questions still waiting on an accepted answer. */
+      unsolved: z.boolean().optional(),
       cursor: z.string().max(200).optional(),
       limit: z.number().int().min(1).max(FEED_PAGE_MAX).default(20),
     }),
   )
   .handler(async ({ input, context }) => {
     const viewerId = context.user?.id ?? null;
+    if (input.sort === "following" && !viewerId) return { pinned: [], posts: [], nextCursor: null };
     const where = listableWhere(viewerId);
+    if (input.sort === "following") where.push(followedBy(viewerId!));
     if (input.kind) where.push(eq(forumPosts.kind, input.kind));
     if (input.category) where.push(eq(forumCategories.slug, input.category));
     if (input.teamId) where.push(eq(forumPosts.teamId, input.teamId));
     if (input.authorId) where.push(eq(forumPosts.authorId, input.authorId));
+    if (input.unsolved) where.push(isNull(forumPosts.solvedCommentId));
     if (input.tag) {
       where.push(
         inArray(
@@ -352,7 +411,10 @@ export const listForumPosts = os
 
     // Pins only frame the two browsing views, never a tag, team or author list.
     const pinScope =
-      input.sort === "latest" && !input.tag && !input.teamId && !input.authorId
+      (input.sort === "latest" || input.sort === "hot") &&
+      !input.tag &&
+      !input.teamId &&
+      !input.authorId
         ? input.category
           ? ("category" as const)
           : ("global" as const)
@@ -375,7 +437,7 @@ export const listForumPosts = os
 
     let rows: CardRow[];
     let nextCursor: string | null = null;
-    if (input.sort === "latest") {
+    if (input.sort === "latest" || input.sort === "following") {
       if (input.cursor) {
         const parsed = latestCursorSchema.safeParse(safeJson(input.cursor));
         if (!parsed.success) throw new ORPCError("BAD_REQUEST", { message: "Bad cursor." });
@@ -397,8 +459,13 @@ export const listForumPosts = os
         nextCursor = JSON.stringify({ publishedAt: last.publishedAt, id: last.id });
       }
     } else {
-      if (input.window !== "all") {
-        const days = TOP_WINDOWS[input.window];
+      const days =
+        input.sort === "hot"
+          ? FORUM_HOT.windowDays
+          : input.window === "all"
+            ? null
+            : TOP_WINDOWS[input.window];
+      if (days != null) {
         where.push(gte(forumPosts.publishedAt, new Date(Date.now() - days * 86_400_000)));
       }
       const offset = input.cursor ? Number(input.cursor) : 0;
@@ -408,7 +475,11 @@ export const listForumPosts = os
       rows = await cardQuery()
         .where(and(...where))
         .orderBy(
-          desc(sql`${forumPosts.likeCount} + 2 * coalesce(${threads.commentCount}, 0)`),
+          desc(
+            input.sort === "hot"
+              ? hotScore(viewerId)
+              : sql`${forumPosts.likeCount} + 2 * coalesce(${threads.commentCount}, 0)`,
+          ),
           desc(forumPosts.publishedAt),
           desc(forumPosts.id),
         )
@@ -508,10 +579,18 @@ export const getForumPost = os
     const showContent =
       visibility === "visible" || isStaff || (visibility === "hidden" && rights.canEdit);
 
-    const [[card], images, links] = await Promise.all([
+    const [[card], images, links, coAuthors, series, solution, discordShare] = await Promise.all([
       serializeCards([row], viewerId),
       showContent ? imagesByPost([post.id], FORUM_LIMITS.devlog.images) : Promise.resolve(null),
       showContent ? loadLinks(post) : Promise.resolve(null),
+      loadCoAuthors(post.id),
+      post.seriesId ? seriesContext(post.seriesId, post.id, viewerId) : Promise.resolve(null),
+      post.solvedCommentId && showContent
+        ? loadSolution(post.solvedCommentId, viewerId)
+        : Promise.resolve(null),
+      post.kind === "devlog" && rights.canEdit && post.status === "published"
+        ? devlogShareState(post.id)
+        : Promise.resolve(null),
     ]);
 
     return {
@@ -526,14 +605,103 @@ export const getForumPost = os
       visibility,
       hiddenReason: isStaff || rights.canEdit ? post.hiddenReason : null,
       links: links ?? { project: null, jam: null, collabPost: null },
+      coAuthors,
+      series,
+      solution,
       viewer: {
         ...card!.viewer,
         canEdit: rights.canEdit && !post.deletedAt,
         canDelete: rights.canDelete && !post.deletedAt,
+        canMarkSolution:
+          post.kind === "question" &&
+          !post.deletedAt &&
+          visibility === "visible" &&
+          (isStaff || (viewerId != null && post.authorId === viewerId)),
         isStaff,
+        discordShare,
       },
     };
   });
+
+/**
+ * The accepted answer, pinned under a question. Gone when the comment was
+ * removed, or when its author is someone the viewer blocked.
+ */
+async function loadSolution(commentId: number, viewerId: string | null) {
+  const [row] = await db
+    .select({
+      id: comments.id,
+      content: comments.content,
+      createdAt: comments.createdAt,
+      deletedAt: comments.deletedAt,
+      authorId: comments.authorId,
+      author: { ...profileIdentityColumns },
+    })
+    .from(comments)
+    .leftJoin(developerProfiles, eq(comments.authorId, developerProfiles.id))
+    .leftJoin(profileUrlStubs, profileStubJoin)
+    .where(eq(comments.id, commentId))
+    .limit(1);
+  if (!row || row.deletedAt) return null;
+  if (viewerId && row.authorId) {
+    const [block] = await db
+      .select({ id: userBlocks.blockerId })
+      .from(userBlocks)
+      .where(
+        or(
+          and(eq(userBlocks.blockerId, viewerId), eq(userBlocks.blockedId, row.authorId)),
+          and(eq(userBlocks.blockerId, row.authorId), eq(userBlocks.blockedId, viewerId)),
+        ),
+      )
+      .limit(1);
+    if (block) return null;
+  }
+  return {
+    id: row.id,
+    content: row.content,
+    createdAt: row.createdAt,
+    author: row.authorId ? { id: row.authorId, ...row.author } : null,
+  };
+}
+
+async function loadCoAuthors(postId: number) {
+  const rows = await db
+    .select({ id: forumPostAuthors.userId, ...profileIdentityColumns })
+    .from(forumPostAuthors)
+    .innerJoin(developerProfiles, eq(forumPostAuthors.userId, developerProfiles.id))
+    .leftJoin(profileUrlStubs, profileStubJoin)
+    .where(eq(forumPostAuthors.postId, postId))
+    .orderBy(asc(forumPostAuthors.sortOrder));
+  return rows;
+}
+
+/**
+ * Where a post sits in its series: the label's "N of M" and the prev/next
+ * links, counted over entries this viewer can see.
+ */
+async function seriesContext(seriesId: number, postId: number, viewerId: string | null) {
+  const [series] = await db
+    .select({ id: forumSeries.id, title: forumSeries.title, slug: forumSeries.slug })
+    .from(forumSeries)
+    .where(eq(forumSeries.id, seriesId))
+    .limit(1);
+  if (!series) return null;
+  const entries = await db
+    .select({ id: forumPosts.id, title: forumPosts.title, slug: forumPosts.slug })
+    .from(forumPosts)
+    .innerJoin(forumCategories, eq(forumPosts.categoryId, forumCategories.id))
+    .leftJoin(teams, eq(forumPosts.teamId, teams.id))
+    .leftJoin(user, eq(forumPosts.authorId, user.id))
+    .where(and(eq(forumPosts.seriesId, seriesId), ...listableWhere(viewerId)))
+    .orderBy(asc(forumPosts.seriesIndex), asc(forumPosts.id));
+  const at = entries.findIndex((e) => e.id === postId);
+  return {
+    ...series,
+    total: entries.length,
+    prev: at > 0 ? entries[at - 1]! : null,
+    next: at >= 0 && at < entries.length - 1 ? entries[at + 1]! : null,
+  };
+}
 
 async function loadLinks(post: {
   projectId: string | null;
@@ -610,6 +778,88 @@ export const searchForumTags = os
       .limit(input.limit);
   });
 
+/**
+ * Full-text search over titles and bodies, best match first. The title's
+ * trigram index backs it up for the partial word someone is still typing,
+ * which a stemmed `tsquery` can't match.
+ */
+export const searchForumPosts = os
+  .use(forumRead)
+  .input(
+    z.object({
+      query: z.string().trim().min(2).max(100),
+      kind: kindSchema.optional(),
+      cursor: z.string().max(10).optional(),
+      limit: z.number().int().min(1).max(FEED_PAGE_MAX).default(20),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const viewerId = context.user?.id ?? null;
+    const offset = input.cursor ? Number(input.cursor) : 0;
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new ORPCError("BAD_REQUEST", { message: "Bad cursor." });
+    }
+    const tsquery = sql`websearch_to_tsquery('english', ${input.query})`;
+    const titleMatch = ilike(forumPosts.title, `%${input.query.replace(/[%_\\]/g, "\\$&")}%`);
+    const where = listableWhere(viewerId);
+    where.push(or(sql`${forumPosts.searchVector} @@ ${tsquery}`, titleMatch)!);
+    if (input.kind) where.push(eq(forumPosts.kind, input.kind));
+
+    let rows = await cardQuery()
+      .where(and(...where))
+      .orderBy(
+        desc(
+          sql`ts_rank(${forumPosts.searchVector}, ${tsquery}) + CASE WHEN ${titleMatch} THEN 0.5 ELSE 0 END`,
+        ),
+        desc(forumPosts.publishedAt),
+        desc(forumPosts.id),
+      )
+      .limit(input.limit + 1)
+      .offset(offset);
+    let nextCursor: string | null = null;
+    if (rows.length > input.limit) {
+      rows = rows.slice(0, input.limit);
+      nextCursor = String(offset + input.limit);
+    }
+    return { posts: await serializeCards(rows, viewerId), nextCursor };
+  });
+
+/**
+ * The viewer's unpublished devlogs — theirs and ones they co-author —
+ * newest edit first, for the composer's "My drafts".
+ */
+export const listMyForumDrafts = os.use(forumSignedIn).handler(async ({ context }) => {
+  const userId = context.user.id;
+  return db
+    .select({
+      id: forumPosts.id,
+      title: forumPosts.title,
+      slug: forumPosts.slug,
+      teamName: teams.name,
+      updatedAt: forumPosts.updatedAt,
+    })
+    .from(forumPosts)
+    .leftJoin(teams, eq(forumPosts.teamId, teams.id))
+    .where(
+      and(
+        eq(forumPosts.status, "draft"),
+        isNull(forumPosts.deletedAt),
+        or(
+          eq(forumPosts.authorId, userId),
+          inArray(
+            forumPosts.id,
+            db
+              .select({ id: forumPostAuthors.postId })
+              .from(forumPostAuthors)
+              .where(eq(forumPostAuthors.userId, userId)),
+          ),
+        ),
+      ),
+    )
+    .orderBy(desc(forumPosts.updatedAt))
+    .limit(MAX_DRAFTS);
+});
+
 // ── Writes ───────────────────────────────────────────────────────────────────
 
 const linkFields = {
@@ -623,6 +873,9 @@ const contentFields = {
   body: z.string().trim().min(1).max(FORUM_LIMITS.devlog.body),
   category: z.string().max(64).optional(),
   tags: z.array(z.string().max(40)).max(FORUM_MAX_TAGS).default([]),
+  // Devlogs only. Left out on an edit, each keeps what the post has.
+  seriesId: z.number().int().positive().nullish(),
+  coAuthorIds: z.array(z.string().max(64)).max(MAX_CO_AUTHORS).optional(),
   ...linkFields,
 };
 
@@ -714,6 +967,54 @@ async function assertLinksExist(input: {
   if (jam.length === 0) throw new ORPCError("BAD_REQUEST", { message: "Unknown jam." });
   if (collabPost.length === 0) {
     throw new ORPCError("BAD_REQUEST", { message: "Unknown collab post." });
+  }
+}
+
+/** A series the devlog may join: one owned by whoever it's posted as. */
+async function resolveSeries(
+  seriesId: number | null | undefined,
+  kind: ForumPostKind,
+  post: { teamId: string | null; authorId: string | null },
+): Promise<number | null> {
+  if (seriesId == null) return null;
+  if (kind !== "devlog") {
+    throw new ORPCError("BAD_REQUEST", { message: "Only devlogs belong to a series." });
+  }
+  const series = await loadSeries(seriesId);
+  assertSeriesMatchesPost(series, post);
+  return series.id;
+}
+
+/**
+ * Co-authors on a team devlog: members of that team, the author aside.
+ * A solo devlog has no one to share the byline with.
+ */
+async function resolveCoAuthors(
+  ids: string[] | undefined,
+  post: { teamId: string | null; authorId: string | null },
+): Promise<string[] | undefined> {
+  if (ids === undefined) return undefined;
+  const wanted = [...new Set(ids)].filter((id) => id !== post.authorId);
+  if (wanted.length === 0) return [];
+  if (!post.teamId) {
+    throw new ORPCError("BAD_REQUEST", { message: "Only team devlogs have co-authors." });
+  }
+  const members = await db
+    .select({ userId: teamMembers.userId })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.teamId, post.teamId), inArray(teamMembers.userId, wanted)));
+  if (members.length !== wanted.length) {
+    throw new ORPCError("BAD_REQUEST", { message: "Co-authors have to be on the team." });
+  }
+  return wanted;
+}
+
+async function writeCoAuthors(tx: Tx, postId: number, userIds: string[]): Promise<void> {
+  await tx.delete(forumPostAuthors).where(eq(forumPostAuthors.postId, postId));
+  if (userIds.length > 0) {
+    await tx
+      .insert(forumPostAuthors)
+      .values(userIds.map((userId, sortOrder) => ({ postId, userId, sortOrder })));
   }
 }
 
@@ -813,7 +1114,37 @@ async function writeTags(tx: Tx, postId: number, tagIds: number[]): Promise<void
   }
 }
 
+/** How old an account must be before its first post goes out (D8). */
+const SLOW_MODE_MS = 24 * 3_600_000;
+
+/**
+ * Slow mode: a brand-new account waits a day before its first public
+ * post — the cheapest brake on sign-up-and-spam. Anyone who has already
+ * published, and staff, skip it; comments aren't gated.
+ */
+async function assertPastSlowMode(userId: string): Promise<void> {
+  const [account] = await db
+    .select({ createdAt: user.createdAt })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  if (!account) return;
+  const opensAt = account.createdAt.getTime() + SLOW_MODE_MS;
+  if (opensAt <= Date.now()) return;
+  const [published] = await db
+    .select({ id: forumPosts.id })
+    .from(forumPosts)
+    .where(and(eq(forumPosts.authorId, userId), eq(forumPosts.status, "published")))
+    .limit(1);
+  if (published || (await viewerIsStaff(userId))) return;
+  const hours = Math.ceil((opensAt - Date.now()) / 3_600_000);
+  throw new ORPCError("FORBIDDEN", {
+    message: `New accounts can post after their first day — ${hours === 1 ? "about an hour" : `${hours} hours`} to go. Comments are open now.`,
+  });
+}
+
 async function assertPublishAllowed(userId: string, teamId: string | null): Promise<void> {
+  await assertPastSlowMode(userId);
   await assertRateLimit("forum-post", userId, 10, "You're posting a lot — try again in a bit.");
   if (teamId) {
     await assertRateLimit(
@@ -834,6 +1165,8 @@ export const createForumPost = os
       ...contentFields,
       teamId: z.string().max(64).nullish(),
       draft: z.boolean().default(false),
+      // "Share to #devlogs": devlogs only, and only once it's public.
+      shareToDiscord: z.boolean().default(false),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -853,6 +1186,9 @@ export const createForumPost = os
     );
     if (teamId) await assertCanPostAsTeam(teamId, userId);
     await assertLinksExist(input);
+    const owner = { teamId, authorId: userId };
+    const seriesId = await resolveSeries(input.seriesId, input.kind, owner);
+    const coAuthors = (await resolveCoAuthors(input.coAuthorIds, owner)) ?? [];
 
     if (input.draft) {
       const [drafts] = await db
@@ -892,6 +1228,8 @@ export const createForumPost = os
           projectId: input.projectId ?? null,
           jamId: input.jamId ?? null,
           collabPostId: input.collabPostId ?? null,
+          seriesId,
+          seriesIndex: seriesId && !input.draft ? await nextSeriesIndex(tx, seriesId) : null,
           status: input.draft ? "draft" : "published",
           publishedAt: input.draft ? null : now,
           createdAt: now,
@@ -900,6 +1238,7 @@ export const createForumPost = os
         .returning();
       if (!row) throw new Error("forum post insert returned no row");
       await writeTags(tx, row.id, tagIds);
+      await writeCoAuthors(tx, row.id, coAuthors);
       return row;
     });
 
@@ -913,12 +1252,51 @@ export const createForumPost = os
         category: input.category ?? FORUM_DEFAULT_CATEGORY[input.kind],
         tag_count: tagIds.length,
       });
+      void bestEffort("forum.announce", { post_id: post.id }, () =>
+        announcePublished(post, extractMentions(post.body), [userId, ...coAuthors]),
+      );
+      if (input.shareToDiscord && post.kind === "devlog") {
+        void bestEffort("forum.discord_share", { post_id: post.id }, () =>
+          shareDevlogToDiscord(post.id, userId),
+        );
+      }
     }
 
     return { id: post.id, slug: post.slug, status: post.status };
   });
 
 type ForumPostRow = typeof forumPosts.$inferSelect;
+
+/**
+ * What going public sets off, after the response: followers hear about a
+ * devlog, and anyone newly `@`-mentioned hears they were named.
+ */
+async function announcePublished(
+  post: ForumPostRow,
+  mentions: string[],
+  writers: string[],
+): Promise<void> {
+  const [category] = await db
+    .select({ slug: forumCategories.slug })
+    .from(forumCategories)
+    .where(eq(forumCategories.id, post.categoryId));
+  await announceForumPost({
+    id: post.id,
+    kind: post.kind,
+    category: category?.slug ?? "",
+    authorId: post.authorId,
+  });
+  if (post.kind === "devlog") await notifyDevlogFollowers(post);
+  if (post.authorId && mentions.length > 0) {
+    await notifyMentions({
+      handles: mentions,
+      actorId: post.authorId,
+      post,
+      url: `/forum/${post.id}`,
+      exclude: writers,
+    });
+  }
+}
 
 async function loadEditablePost(postId: number, userId: string) {
   const [post] = await db.select().from(forumPosts).where(eq(forumPosts.id, postId)).limit(1);
@@ -939,6 +1317,7 @@ export const updateForumPost = os
       postId: z.number().int().positive(),
       ...contentFields,
       publish: z.boolean().default(false),
+      shareToDiscord: z.boolean().default(false),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -956,8 +1335,17 @@ export const updateForumPost = os
       ? await resolveCategory(input.category, userId)
       : post.categoryId;
     await assertLinksExist(input);
+    const seriesId =
+      input.seriesId === undefined
+        ? post.seriesId
+        : await resolveSeries(input.seriesId, post.kind, post);
+    const coAuthors = await resolveCoAuthors(input.coAuthorIds, post);
 
     const publishing = post.status === "draft" && input.publish;
+    const willBePublished = post.status === "published" || publishing;
+    // A new series, or a draft going out into one, takes the next number.
+    const needsIndex =
+      seriesId != null && willBePublished && (seriesId !== post.seriesId || publishing);
     if (publishing) {
       if (post.teamId) await assertCanPostAsTeam(post.teamId, userId);
       await assertPublishAllowed(userId, post.teamId);
@@ -978,13 +1366,19 @@ export const updateForumPost = os
           projectId: input.projectId ?? null,
           jamId: input.jamId ?? null,
           collabPostId: input.collabPostId ?? null,
+          seriesId,
+          ...(seriesId == null ? { seriesIndex: null } : {}),
+          ...(needsIndex ? { seriesIndex: await nextSeriesIndex(tx, seriesId) } : {}),
           ...(publishing ? { status: "published" as const, publishedAt: now } : {}),
           ...(post.status === "published" ? { editedAt: now } : {}),
           updatedAt: now,
         })
         .where(eq(forumPosts.id, post.id));
       await writeTags(tx, post.id, tagIds);
+      if (coAuthors) await writeCoAuthors(tx, post.id, coAuthors);
     });
+    if (post.seriesId !== seriesId) await compactSeriesOf([post.seriesId]);
+    if (coAuthors) await subscribeToThread({ type: "forum_post", id: post.id }, coAuthors);
 
     if (publishing) {
       await touchTeamActivity(post.teamId);
@@ -995,6 +1389,36 @@ export const updateForumPost = os
         category: input.category,
         tag_count: tagIds.length,
       });
+    }
+    if (willBePublished && post.kind === "devlog") {
+      void bestEffort("forum.discord_share", { post_id: post.id }, async () => {
+        if (publishing && input.shareToDiscord) await shareDevlogToDiscord(post.id, userId);
+        else await refreshDevlogMirror(post.id);
+      });
+    }
+    if (willBePublished) {
+      // A draft's mentions were never sent, so going out counts them all.
+      const mentions = publishing
+        ? extractMentions(input.body)
+        : addedMentions(post.body, input.body);
+      const published = {
+        ...post,
+        title,
+        seriesId,
+        categoryId,
+        excerpt: markdownToPlainText(input.body, 200) ?? null,
+      };
+      void bestEffort("forum.announce", { post_id: post.id }, () =>
+        publishing
+          ? announcePublished(published, mentions, [userId])
+          : notifyMentions({
+              handles: mentions,
+              actorId: userId,
+              post: published,
+              url: `/forum/${post.id}`,
+              exclude: [userId],
+            }),
+      );
     }
 
     return { id: post.id, slug: forumPostSlug(title) || null };
@@ -1034,6 +1458,10 @@ async function softDeleteForumPost(post: ForumPostRow): Promise<void> {
     })
     .where(eq(forumPosts.id, post.id));
   await purgeForumImages(post.id, [...images.map((i) => i.imageKey), post.coverImageKey]);
+  await compactSeriesOf([post.seriesId]);
+  await bestEffort("forum.discord_unshare", { post_id: post.id }, () =>
+    refreshDevlogMirror(post.id),
+  );
 }
 
 /** Best-effort object cleanup, only for keys in the post's own namespace. */
@@ -1150,13 +1578,23 @@ export const setForumPostCover = os
     if (post.coverImageKey && post.coverImageKey !== input.imageKey) {
       await purgeForumImages(post.id, [post.coverImageKey]);
     }
+    // The cover lands after the publish, so a mirror posted at publish time
+    // picks it up here.
+    void bestEffort("forum.discord_share", { post_id: post.id }, () =>
+      refreshDevlogMirror(post.id),
+    );
     return { coverUrl: input.imageKey ? input.url : null };
   });
 
 /** A published, live post someone may react to, save or report. */
 async function loadInteractablePost(postId: number, viewerId: string) {
   const [row] = await db
-    .select({ id: forumPosts.id, authorId: forumPosts.authorId })
+    .select({
+      id: forumPosts.id,
+      authorId: forumPosts.authorId,
+      title: forumPosts.title,
+      excerpt: forumPosts.excerpt,
+    })
     .from(forumPosts)
     .innerJoin(forumCategories, eq(forumPosts.categoryId, forumCategories.id))
     .leftJoin(teams, eq(forumPosts.teamId, teams.id))
@@ -1176,7 +1614,7 @@ export const setForumReaction = os
   .input(z.object({ postId: z.number().int().positive(), liked: z.boolean() }))
   .handler(async ({ input, context }) => {
     const userId = context.user.id;
-    await loadInteractablePost(input.postId, userId);
+    const post = await loadInteractablePost(input.postId, userId);
     if (input.liked) {
       await assertRateLimit("forum-like", userId, 120, "Easy there — try again in a bit.");
     }
@@ -1203,6 +1641,7 @@ export const setForumReaction = os
 
     if (likeCount.added) {
       captureServerEvent(EVENTS.forumReactionAdded, userId, { post_id: input.postId });
+      void notifyPostLiked(post, userId);
     }
     return { liked: input.liked, likeCount: likeCount.count };
   });
@@ -1260,6 +1699,140 @@ export const reportForumPost = os
       .insert(forumPostReports)
       .values({ postId: input.postId, reporterId: userId, reason: input.reason });
     return { success: true };
+  });
+
+/** Whether this deploy mirrors devlogs, for the composer's checkbox. */
+export const getForumDiscordFeed = os.use(forumSignedIn).handler(async () => ({
+  available: devlogFeedEnabled(),
+}));
+
+/**
+ * Share a live devlog to `#devlogs` after the fact, or re-render the
+ * message already there. Its editors only; a refusal is reported, since
+ * pressing the button is asking for exactly this.
+ */
+export const shareForumPostToDiscord = os
+  .use(forumWrite)
+  .input(z.object({ postId: z.number().int().positive() }))
+  .handler(async ({ input, context }) => {
+    const userId = context.user.id;
+    const { post, rights } = await loadEditablePost(input.postId, userId);
+    if (!rights.canEdit) {
+      throw new ORPCError("FORBIDDEN", { message: "Only its authors can share this devlog." });
+    }
+    if (post.kind !== "devlog" || post.status !== "published" || post.hiddenAt) {
+      throw new ORPCError("BAD_REQUEST", { message: "Only a live devlog can be shared." });
+    }
+    await assertRateLimit(
+      "forum-discord-share",
+      userId,
+      10,
+      "That's a lot of sharing — try again in a bit.",
+    );
+    try {
+      const shared = await shareDevlogToDiscord(post.id, userId);
+      if (!shared) {
+        throw new ORPCError("SERVICE_UNAVAILABLE", {
+          message: "Sharing to Discord isn't available right now.",
+        });
+      }
+      return shared;
+    } catch (error) {
+      if (error instanceof ORPCError) throw error;
+      console.warn("[forum.discord_share] Discord refused the mirror", error);
+      captureServerException(error, { scope: "forum.discord_share" });
+      throw new ORPCError("SERVICE_UNAVAILABLE", {
+        message:
+          error instanceof DiscordBackoffError
+            ? "Discord is rate limiting us right now. Try again in a few minutes."
+            : error instanceof DiscordFeedError && error.status === 403
+              ? "The bot can't post in #devlogs. Staff have been told."
+              : "Discord didn't take the message. Try again in a minute.",
+      });
+    }
+  });
+
+/**
+ * Accept an answer, or clear it (`commentId: null`). The asker or staff
+ * only, and only a live top-level comment in this question's own thread —
+ * a reply is part of a conversation, not an answer.
+ */
+export const markForumSolution = os
+  .use(forumWrite)
+  .input(
+    z.object({
+      postId: z.number().int().positive(),
+      commentId: z.number().int().positive().nullable(),
+    }),
+  )
+  .handler(async ({ input, context }) => {
+    const userId = context.user.id;
+    const [post] = await db
+      .select()
+      .from(forumPosts)
+      .where(eq(forumPosts.id, input.postId))
+      .limit(1);
+    if (!post || post.deletedAt || post.status !== "published") {
+      throw new ORPCError("NOT_FOUND", { message: "Post not found." });
+    }
+    if (post.kind !== "question") {
+      throw new ORPCError("BAD_REQUEST", { message: "Only questions have a solution." });
+    }
+    if (post.authorId !== userId && !(await viewerIsStaff(userId))) {
+      throw new ORPCError("FORBIDDEN", { message: "Only the asker can pick the answer." });
+    }
+    if (post.hiddenAt) {
+      throw new ORPCError("FORBIDDEN", { message: "A hidden post can't be changed." });
+    }
+
+    let answerAuthorId: string | null = null;
+    if (input.commentId != null) {
+      const [answer] = await db
+        .select({
+          id: comments.id,
+          parentId: comments.parentId,
+          deletedAt: comments.deletedAt,
+          authorId: comments.authorId,
+        })
+        .from(comments)
+        .innerJoin(threads, eq(comments.threadId, threads.id))
+        .where(and(eq(comments.id, input.commentId), eq(threads.forumPostId, post.id)))
+        .limit(1);
+      if (!answer || answer.deletedAt) {
+        throw new ORPCError("NOT_FOUND", { message: "That answer isn't on this question." });
+      }
+      if (answer.parentId != null) {
+        throw new ORPCError("BAD_REQUEST", { message: "Pick a top-level answer, not a reply." });
+      }
+      answerAuthorId = answer.authorId;
+    }
+    if (post.solvedCommentId === input.commentId) return { solvedCommentId: input.commentId };
+
+    await db
+      .update(forumPosts)
+      .set({ solvedCommentId: input.commentId, updatedAt: new Date() })
+      .where(eq(forumPosts.id, post.id));
+
+    if (input.commentId != null) {
+      captureServerEvent(EVENTS.forumAnswerAccepted, userId, { post_id: post.id });
+      if (answerAuthorId && answerAuthorId !== userId) {
+        const recipient = answerAuthorId;
+        await bestEffort("forum.answer_accepted", { post_id: post.id }, () =>
+          notify({
+            userId: recipient,
+            type: "forum_answer_accepted",
+            actorId: userId,
+            entityType: "forum_post",
+            entityId: String(post.id),
+            data: {
+              ...postSnapshot(post),
+              subjectUrl: `/forum/${post.id}#comment-${input.commentId}`,
+            },
+          }),
+        );
+      }
+    }
+    return { solvedCommentId: input.commentId };
   });
 
 // ── Moderation ───────────────────────────────────────────────────────────────
@@ -1328,6 +1901,11 @@ async function applyForumPostHidden(
     )
     .returning({ id: forumPosts.id });
   if (!updated) return { changed: false };
+  if (hidden) {
+    await bestEffort("forum.discord_unshare", { post_id: post.id }, () =>
+      refreshDevlogMirror(post.id),
+    );
+  }
 
   await recordModerationAction({
     action: hidden ? "forum_post_hidden" : "forum_post_unhidden",

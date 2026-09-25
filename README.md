@@ -153,6 +153,9 @@ The app runs on `http://localhost:3000`.
   post into. Unset means the feature does not exist — the button never renders. The bot
   needs View Channel / Send Messages / Embed Links there and nothing more; it only ever
   edits or deletes the messages it wrote itself.
+- `DISCORD_DEVLOGS_CHANNEL_ID`: the `#devlogs` channel a forum devlog is mirrored into when its
+  author ticks "Share to #devlogs". Unset means no checkbox and no button. Same permissions
+  as the collab channel.
 - `VITE_ITCHIO_CLIENT_ID`: itch.io linking flow
 - `VITE_STRAPI_URL`: Strapi-backed uploads / demo content
 - `MINIO_ENDPOINT`: MinIO server URL, for example `https://your-minio-host.up.railway.app`

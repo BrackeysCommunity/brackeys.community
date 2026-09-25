@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 
 import { CollabFunnelExplainer } from "@/components/collab/CollabFunnelExplainer";
+import { TeamDevlog } from "@/components/forum/TeamDevlog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
@@ -35,6 +36,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";
 import { isHostOrSubdomainOf } from "@/lib/external-url";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { itchImageUrl } from "@/lib/itch-image";
 import { jamLinkParams, jamMonthYear, projectEntryUrl } from "@/lib/jam-links";
@@ -148,6 +150,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
   const [moderateOpen, setModerateOpen] = useState(false);
 
   const isMember = team.viewerRole !== null;
+  const forumOn = useFlag("forum-enabled");
   const isStaffOutsider = team.isStaffViewer && !isMember;
   const isArchived = team.status === "archived";
   const isHidden = team.hiddenAt != null;
@@ -260,7 +263,6 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                   guildAvatarUrl={m.guildAvatarUrl}
                   username={identity.name(m, "Unknown")}
                   guildRoles={m.guildRoles}
-                  shape="round"
                   size={36}
                 />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -361,6 +363,14 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
                 </Chonk>
               ))}
             </div>
+          </Section>
+        </motion.div>
+      ) : null}
+
+      {forumOn ? (
+        <motion.div variants={fadeUp}>
+          <Section title="DEVLOG">
+            <TeamDevlog team={team} isMember={isMember} />
           </Section>
         </motion.div>
       ) : null}
@@ -550,7 +560,6 @@ function TeamMasthead({
             <UserAvatar
               avatarUrl={team.avatarUrl}
               username={team.name}
-              shape="round"
               size={64}
               className="ring-2 ring-card"
             />

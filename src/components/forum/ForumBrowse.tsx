@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
+import { FollowButton } from "./FollowButton";
 import {
   type ForumCard,
   forumCategoriesQueryOptions,
@@ -30,20 +31,22 @@ import {
 } from "./forum-queries";
 import { feedFilters, type ForumFeedSearch } from "./forum-search";
 import { ForumComposeLauncher } from "./ForumComposer";
-import { ActiveFilterChips, FeedControls, ForumFeed } from "./ForumFeed";
+import { ActiveFilterChips, FeedControls, ForumFeed, ForumSearchResults } from "./ForumFeed";
 import { CategorySwatch, TagBadges } from "./ForumPostCard";
-import { CategoryStrip, ForumShell } from "./ForumShell";
+import { CategoryStrip, ForumSearchBox, ForumShell } from "./ForumShell";
 
 function PageHeader({
   eyebrow,
   title,
   blurb,
   swatch,
+  action,
 }: {
   eyebrow: string;
   title: string;
   blurb?: string | null;
   swatch?: string | null;
+  action?: React.ReactNode;
 }) {
   return (
     <Well
@@ -52,7 +55,10 @@ function PageHeader({
     >
       <GraphPaper fade="bottom-left" />
       <div className="relative flex flex-col gap-2 p-5">
-        <MicroLabel className="uppercase">{eyebrow}</MicroLabel>
+        <div className="flex items-start justify-between gap-3">
+          <MicroLabel className="uppercase">{eyebrow}</MicroLabel>
+          {action}
+        </div>
         <Heading as="h1" className="flex items-center gap-3 text-2xl md:text-3xl">
           {swatch !== undefined ? <CategorySwatch color={swatch} className="size-3" /> : null}
           {title}
@@ -77,19 +83,52 @@ function useTeamName(teamId: string | undefined) {
   return data?.find((team) => team.id === teamId)?.name ?? null;
 }
 
-/** `/forum` — layout A. */
+/** `/forum` — layout A, Pulse, or search results. */
 export function ForumHomePage({ search }: { search: ForumFeedSearch }) {
   const teamName = useTeamName(search.team);
+  const pulse = search.view === "pulse";
+  const query = search.q?.trim();
+
+  if (query && query.length >= 2) {
+    return (
+      <ForumShell>
+        <PageHeader eyebrow="Search" title={`“${query}”`} />
+        <ForumSearchResults query={query} kind={search.kind} />
+      </ForumShell>
+    );
+  }
+
   return (
     <ForumShell>
       <Heading as="h1" className="sr-only">
-        Forum
+        {pulse ? "Pulse" : "Forum"}
       </Heading>
       <ForumComposeLauncher />
+      <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex-1">
+          <ForumSearchBox />
+        </div>
+        <Badge
+          variant={pulse ? "secondary" : "outline"}
+          size="label"
+          className="pointer-events-auto h-8 px-2.5 uppercase"
+          render={<Link to="/forum" search={pulse ? {} : { view: "pulse" }} />}
+        >
+          Pulse
+        </Badge>
+      </div>
       <CategoryStrip />
-      <FeedControls search={search} />
+      {pulse ? (
+        <PageHeader
+          eyebrow="Pulse"
+          title="What people are up to"
+          blurb="Short posts as they land — progress, clips, small wins."
+        />
+      ) : (
+        <FeedControls search={search} personal />
+      )}
       <ActiveFilterChips search={search} teamName={teamName} />
-      <ForumFeed filters={feedFilters(search)} />
+      <ForumFeed filters={feedFilters(search)} compact={pulse} />
     </ForumShell>
   );
 }
@@ -98,7 +137,11 @@ export function ForumHomePage({ search }: { search: ForumFeedSearch }) {
 export function ForumTagPage({ tag, search }: { tag: string; search: ForumFeedSearch }) {
   return (
     <ForumShell>
-      <PageHeader eyebrow="Tag" title={`#${tag}`} />
+      <PageHeader
+        eyebrow="Tag"
+        title={`#${tag}`}
+        action={<FollowButton type="tag" target={tag} />}
+      />
       <FeedControls search={search} />
       <ForumFeed
         filters={feedFilters(search, { tag })}
@@ -162,7 +205,6 @@ function ThreadRow({ post }: { post: ForumCard }) {
           guildAvatarUrl={post.team ? null : post.author?.guildAvatarUrl}
           username={who}
           size={26}
-          shape={post.team ? "square" : "round"}
         />
       </span>
       <Text as="span" size="sm" bold align="right" className="tabular-nums">
@@ -257,6 +299,7 @@ export function ForumCategoryPage({
           title={category.name}
           blurb={category.description}
           swatch={category.color}
+          action={<FollowButton type="category" target={category.slug} />}
         />
       ) : (
         <Skeleton className="h-28" />

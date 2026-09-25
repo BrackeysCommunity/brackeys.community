@@ -20,6 +20,7 @@ import { Link as RouterLink, useLocation } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import { RankBadge } from "@/components/ui/rank-badge";
@@ -52,7 +53,7 @@ import { cn } from "@/lib/utils";
 import { client } from "@/orpc/client";
 
 type ThreadResponse = Awaited<ReturnType<typeof client.listComments>>;
-type CommentRow = ThreadResponse["comments"][number];
+export type CommentRow = ThreadResponse["comments"][number];
 
 /** Indentation stops here; deeper replies flatten with an @-mention chip. */
 const MAX_VISUAL_DEPTH = 3;
@@ -84,6 +85,19 @@ export type CommentGate = {
 };
 
 const CommentGateContext = createContext<CommentGate | null>(null);
+
+/**
+ * What a host adds to each row — the forum's accepted-answer mark and its
+ * "Mark as solution" action, and `@mention` links in the text.
+ */
+export type CommentRowExtras = {
+  badges?: (comment: CommentRow) => React.ReactNode;
+  actions?: (comment: CommentRow) => React.ReactNode;
+  /** Renders a comment's text; plain censored text by default. */
+  renderContent?: (content: string) => React.ReactNode;
+};
+
+const CommentExtrasContext = createContext<CommentRowExtras>({});
 
 export function commentThreadQueryKey(subject: SubjectRef) {
   return ["listComments", subject.type, subject.id] as const;
@@ -142,6 +156,7 @@ function optimisticComment(
       isBooster: self?.isBooster ?? false,
       urlStub: null,
     },
+    byAuthor: false,
     viewer: { isMine: true, canEdit: true, canDelete: true },
   };
 }
@@ -180,6 +195,7 @@ export function CommentThread({
   signInPrompt,
   shell,
   gate,
+  extras,
 }: {
   subject: SubjectRef;
   maxLength: number;
@@ -194,6 +210,7 @@ export function CommentThread({
   signInPrompt?: string;
   shell?: (content: React.ReactNode, count: number) => React.ReactElement | null;
   gate?: CommentGate;
+  extras?: CommentRowExtras;
 }) {
   const { session } = useStore(authStore);
   const viewerId = session?.user?.id ?? null;
@@ -359,10 +376,15 @@ export function CommentThread({
     </div>
   );
 
-  const gated = gate ? (
-    <CommentGateContext.Provider value={gate}>{content}</CommentGateContext.Provider>
+  const withExtras = extras ? (
+    <CommentExtrasContext.Provider value={extras}>{content}</CommentExtrasContext.Provider>
   ) : (
     content
+  );
+  const gated = gate ? (
+    <CommentGateContext.Provider value={gate}>{withExtras}</CommentGateContext.Provider>
+  ) : (
+    withExtras
   );
   return shell ? shell(gated, commentCount) : gated;
 }
@@ -810,6 +832,7 @@ function CommentItem({
   focused?: boolean;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
+  const extras = useContext(CommentExtrasContext);
   useEffect(() => {
     if (!focused) return;
     rowRef.current?.scrollIntoView({ block: "center" });
@@ -914,6 +937,12 @@ function CommentItem({
           <MicroLabel as="span">{authorName}</MicroLabel>
         )}
         <RankBadge roles={comment.author?.guildRoles} />
+        {comment.byAuthor ? (
+          <Badge variant="secondary" size="label">
+            AUTHOR
+          </Badge>
+        ) : null}
+        {extras.badges?.(comment)}
         {flattenedParentName ? (
           <MicroLabel as="span" className="text-primary/70">
             → @{flattenedParentName}
@@ -964,7 +993,11 @@ function CommentItem({
         </Text>
       ) : (
         <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-          <Censored>{comment.content}</Censored>
+          {extras.renderContent && comment.content ? (
+            extras.renderContent(comment.content)
+          ) : (
+            <Censored>{comment.content}</Censored>
+          )}
         </Text>
       )}
 
@@ -1007,6 +1040,7 @@ function CommentItem({
               <CommentAction icon={Flag02Icon} label="REPORT" />
             </ReportDialog>
           ) : null}
+          {extras.actions?.(comment)}
         </div>
       ) : null}
 
@@ -1035,7 +1069,7 @@ function CommentItem({
   );
 }
 
-function CommentAction({
+export function CommentAction({
   icon,
   label,
   className,

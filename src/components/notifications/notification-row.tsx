@@ -1,6 +1,7 @@
 import {
   BubbleChatIcon,
   Calendar03Icon,
+  Comment01Icon,
   Megaphone01Icon,
   Notification03Icon,
   Shield02Icon,
@@ -19,6 +20,7 @@ import { EVENTS, type NotificationSurface } from "@/lib/event-taxonomy";
 import {
   approvedSkillLabel,
   approvedSkillsOf,
+  forumLikersOf,
   NOTIFICATION_CATEGORY,
   type NotificationCategory,
   stableHref,
@@ -54,6 +56,7 @@ export const CATEGORY_ICON: Record<NotificationCategory, IconSvgElement> = {
   teams: UserGroupIcon,
   jams: Calendar03Icon,
   comments: BubbleChatIcon,
+  forum: Comment01Icon,
   moderation: Shield02Icon,
 };
 
@@ -423,6 +426,45 @@ export function renderCopy(n: NotificationItem): {
                 <>Staff removed your post {title}</>
               )}
               {reason ? <> — {reason}</> : null}
+            </>
+          ),
+        href: (n.data.subjectUrl as string | undefined) ?? null,
+      };
+    }
+    case "forum_devlog_published":
+    case "forum_answer_accepted":
+    case "forum_post_liked":
+    case "forum_mention": {
+      const title = (
+        <em className="font-medium not-italic">
+          {(n.data.subjectTitle as string | undefined) ?? "a post"}
+        </em>
+      );
+      const likers = forumLikersOf(n.data);
+      const teamName = n.data.teamName as string | undefined;
+      return {
+        line:
+          n.type === "forum_devlog_published" ? (
+            <>
+              {teamName ?? actor} published a devlog: {title}
+            </>
+          ) : n.type === "forum_answer_accepted" ? (
+            <>
+              {actor} marked your answer on {title} as the solution
+            </>
+          ) : n.type === "forum_post_liked" ? (
+            likers > 1 ? (
+              <>
+                {likers} people liked {title}
+              </>
+            ) : (
+              <>
+                {actor} liked {title}
+              </>
+            )
+          ) : (
+            <>
+              {actor} mentioned you in {title}
             </>
           ),
         href: (n.data.subjectUrl as string | undefined) ?? null,

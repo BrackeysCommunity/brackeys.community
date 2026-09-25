@@ -9,6 +9,7 @@ import {
   isNull,
   lt,
   lte,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -25,6 +26,7 @@ import {
 import { EVENTS } from "@/lib/event-taxonomy";
 import { memberAvatarUrl, memberDisplayName } from "@/lib/member-name";
 import {
+  IN_APP_DEFAULT_OFF,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY,
   NOTIFICATION_DEFAULTS,
@@ -47,18 +49,21 @@ const notificationTypeSchema = z.enum(
  * Join + condition pair enforcing the inApp preference at read time. Rows
  * whose (user, type) preference resolves to inApp=false stay in the table —
  * the worker still needs them for email/digest — but never surface in the
- * inbox or the bell count. Resolution for a missing row leans on the
- * documented invariant that every NOTIFICATION_DEFAULTS entry has
- * inApp: true ("In-app is always on" by default), so absent-row means
- * visible.
+ * inbox or the bell count. A missing row falls back to the type's default,
+ * which is on for everything but `IN_APP_DEFAULT_OFF`.
  */
 const inAppPreferenceJoin = and(
   eq(notificationPreferences.userId, notifications.userId),
   eq(notificationPreferences.type, notifications.type),
 );
 const inAppVisible: SQL = or(
-  isNull(notificationPreferences.inApp),
   eq(notificationPreferences.inApp, true),
+  IN_APP_DEFAULT_OFF.length > 0
+    ? and(
+        isNull(notificationPreferences.inApp),
+        notInArray(notifications.type, [...IN_APP_DEFAULT_OFF]),
+      )
+    : isNull(notificationPreferences.inApp),
 )!;
 
 const categorySchema = z.enum(

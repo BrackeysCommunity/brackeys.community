@@ -28,6 +28,8 @@ import {
 } from "@/lib/comment-subjects";
 import { isStaffMember } from "@/lib/discord";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { extractMentions } from "@/lib/forum-mentions";
+import { notifyMentions } from "@/lib/forum-notify";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
@@ -102,6 +104,8 @@ type SerializedComment = {
   replyCount: number;
   hasMoreReplies?: boolean;
   author: CommentAuthor | null;
+  /** Written by someone behind the subject — see `SubjectContext.authorIds`. */
+  byAuthor: boolean;
   viewer: { isMine: boolean; canEdit: boolean; canDelete: boolean };
 };
 
@@ -164,9 +168,11 @@ export function serializeComments(
     viewerId: string | null;
     isStaff: boolean;
     subjectOwnerId: string | null;
+    subjectAuthorIds?: string[];
     truncatedRoots?: Set<number>;
   },
 ): SerializedComment[] {
+  const subjectAuthors = new Set(opts.subjectAuthorIds);
   return rows.map((row) => {
     const isMine = opts.viewerId != null && row.authorId === opts.viewerId;
     const tombstoned = row.deletedAt != null;
@@ -189,6 +195,7 @@ export function serializeComments(
       replyCount: row.replyCount,
       ...(opts.truncatedRoots?.has(row.id) ? { hasMoreReplies: true } : {}),
       author: row.authorId == null || hidden ? null : (opts.authors.get(row.authorId) ?? null),
+      byAuthor: !hidden && row.authorId != null && subjectAuthors.has(row.authorId),
       viewer: {
         isMine,
         canEdit: isMine && !tombstoned,
@@ -349,6 +356,7 @@ export const listComments = os
         viewerId,
         isStaff,
         subjectOwnerId: subject.ownerId,
+        subjectAuthorIds: subject.authorIds,
         truncatedRoots,
       }),
       nextCursor,
@@ -403,6 +411,7 @@ export const listReplies = os
         viewerId,
         isStaff,
         subjectOwnerId: subject.ownerId,
+        subjectAuthorIds: subject.authorIds,
       }),
       nextCursor,
     };
@@ -591,6 +600,17 @@ export const createComment = os
           entityId: String(thread.id),
           dedupeWithin: { ms: 15 * 60_000 },
           data: notificationData,
+        });
+      }
+
+      // Mentions are a forum feature while the forum is behind its flag.
+      if (input.subject.type === "forum_post") {
+        await notifyMentions({
+          handles: extractMentions(input.content),
+          actorId: writerId,
+          post: { id: input.subject.id, title: subject.title, excerpt: null },
+          url: subjectUrl,
+          exclude: [...notified],
         });
       }
     });

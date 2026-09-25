@@ -4,6 +4,7 @@ import { type ComponentProps, Fragment, type ReactNode, forwardRef, useMemo } fr
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useCensorNodes } from "@/components/ui/typography/censored";
 import { InlineCode } from "@/components/ui/typography/inline-code";
+import { withMentionLinks } from "@/components/ui/typography/mentions";
 import { useCensorFn } from "@/lib/hooks/use-censored";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,8 @@ type MarkedTextProps = Omit<ComponentProps<"div">, "ref" | "children"> & {
    * preview of their own draft — censoring what someone is in the middle
    * of writing is worse than refusing it outright. */
   censor?: boolean;
+  /** Link `@handle` mentions to their profiles — the forum's bodies. */
+  mentions?: boolean;
 };
 
 type AnyToken = Tokens.Generic;
@@ -24,7 +27,12 @@ type AnyToken = Tokens.Generic;
 /** Applied to every text leaf on the way out. Identity when the viewer
  * has the censor off, which is the common case for the app's own copy.
  * `nodes` marks censored runs for the hover; `plain` is for attributes. */
-type Censor = { nodes: (text: string) => ReactNode; plain: (text: string) => string };
+type Censor = {
+  nodes: (text: string) => ReactNode;
+  plain: (text: string) => string;
+  /** Prose text leaves only — never code or a link's own text. */
+  prose: (text: string) => ReactNode;
+};
 
 function decodeEntities(s: string): string {
   return s
@@ -107,7 +115,7 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
     case "text": {
       const text = t as Tokens.Text;
       if (text.tokens) return <>{renderTokens(text.tokens as AnyToken[], censor)}</>;
-      return censor.nodes(decodeEntities(text.text));
+      return censor.prose(decodeEntities(text.text));
     }
     case "strong":
       return <strong>{renderTokens(t.tokens as AnyToken[], censor)}</strong>;
@@ -128,7 +136,7 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       return (
         <SimpleTooltip content={link.title}>
           <a href={link.href} rel="noreferrer noopener" target="_blank">
-            {renderTokens(link.tokens as AnyToken[], censor)}
+            {renderTokens(link.tokens as AnyToken[], { ...censor, prose: censor.nodes })}
           </a>
         </SimpleTooltip>
       );
@@ -159,13 +167,21 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
 }
 
 const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
-  ({ as: Tag = "div", children, inline, censor = true, className, ...props }, ref) => {
+  (
+    { as: Tag = "div", children, inline, censor = true, mentions = false, className, ...props },
+    ref,
+  ) => {
     const plain = useCensorFn();
     const nodes = useCensorNodes();
-    const apply = useMemo<Censor>(
-      () => (censor ? { nodes, plain } : { nodes: (text) => text, plain: (text) => text }),
-      [censor, nodes, plain],
-    );
+    const apply = useMemo<Censor>(() => {
+      const base = censor
+        ? { nodes, plain }
+        : { nodes: (text: string): ReactNode => text, plain: (text: string) => text };
+      return {
+        ...base,
+        prose: mentions ? (text) => withMentionLinks(text, base.nodes) : base.nodes,
+      };
+    }, [censor, mentions, nodes, plain]);
 
     const rendered = useMemo(() => {
       if (inline) {

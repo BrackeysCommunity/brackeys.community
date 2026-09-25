@@ -12,6 +12,9 @@ export type ForumDraft = {
   tags: string[];
   category: string | null;
   teamId: string | null;
+  seriesId: number | null;
+  coAuthorIds: string[];
+  shareToDiscord: boolean;
 };
 
 const STORAGE_KEY = "brackeys:forum-composer-draft:v1";
@@ -23,6 +26,9 @@ export const EMPTY_DRAFT: ForumDraft = {
   tags: [],
   category: null,
   teamId: null,
+  seriesId: null,
+  coAuthorIds: [],
+  shareToDiscord: false,
 };
 
 export function isDraftEmpty(draft: ForumDraft): boolean {
@@ -39,6 +45,9 @@ export function readForumDraft(): ForumDraft | null {
       ...EMPTY_DRAFT,
       ...stored,
       tags: Array.isArray(stored.tags) ? stored.tags.filter((t) => typeof t === "string") : [],
+      coAuthorIds: Array.isArray(stored.coAuthorIds)
+        ? stored.coAuthorIds.filter((t) => typeof t === "string")
+        : [],
     };
     return isDraftEmpty(draft) ? null : draft;
   } catch {

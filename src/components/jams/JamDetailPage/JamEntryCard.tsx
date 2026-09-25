@@ -143,7 +143,6 @@ export function JamEntryCard({
               avatarUrl={member.avatarUrl}
               guildAvatarUrl={member.guildAvatarUrl}
               username={member.username}
-              shape="round"
               size={16}
             />
             <Badge variant="default" size="label">

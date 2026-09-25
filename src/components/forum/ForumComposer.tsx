@@ -1,4 +1,4 @@
-import { Add01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Add01Icon, Cancel01Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -15,6 +15,7 @@ import {
 import { BOTTOM_NAV_HEIGHT } from "@/components/layout/MobileShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -246,6 +247,9 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
         tags: editing.tags,
         category: editing.category.slug,
         teamId: editing.team?.id ?? null,
+        seriesId: editing.series?.id ?? null,
+        coAuthorIds: editing.coAuthors.map((a) => a.id),
+        shareToDiscord: false,
       };
     }
     const saved = readForumDraft();
@@ -304,13 +308,23 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
     clearForumDraft();
   };
 
+  const isDevlog = kind === "devlog";
+  const postingTeamId = editing ? (editing.team?.id ?? null) : isDevlog ? draft.teamId : null;
+  const editingDraft = editing?.status === "draft";
+
   const submit = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ asDraft }: { asDraft: boolean }) => {
       const content = {
         title: kind === "post" ? null : title,
         body,
         category,
         tags: draft.tags,
+        ...(isDevlog
+          ? {
+              seriesId: draft.seriesId,
+              coAuthorIds: postingTeamId ? draft.coAuthorIds : [],
+            }
+          : {}),
       };
       if (editing) {
         await client.updateForumPost({
@@ -319,6 +333,8 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
           projectId: editing.links.project?.id ?? null,
           jamId: editing.links.jam?.jamId ?? null,
           collabPostId: editing.links.collabPost?.id ?? null,
+          publish: editingDraft && !asDraft,
+          shareToDiscord: editingDraft && !asDraft && draft.shareToDiscord,
         });
         for (const imageId of removedImageIds) {
           await client.removeForumPostImage({ imageId });
@@ -332,12 +348,14 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
       const created = await client.createForumPost({
         kind,
         ...content,
-        teamId: kind === "devlog" ? draft.teamId : null,
+        teamId: postingTeamId,
+        draft: asDraft,
+        shareToDiscord: isDevlog && !asDraft && draft.shareToDiscord,
       });
       const failed = await attachUploads(created.id, images, kind === "devlog" ? cover : null);
       return { id: created.id, slug: created.slug, failed };
     },
-    onSuccess: ({ id, slug, failed }) => {
+    onSuccess: ({ id, slug, failed }, { asDraft }) => {
       // Only now, with the uploads settled, does the post reach the feeds —
       // a short post never shows up without the images it was sent with.
       invalidateForum(queryClient, id);
@@ -349,7 +367,16 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
           { description: "Edit the post to try them again." },
         );
       } else {
-        toast.success(editing ? "Saved." : `${FORUM_KIND_LABEL[kind]} published.`);
+        toast.success(
+          asDraft
+            ? "Draft saved — find it under My drafts."
+            : editing && !editingDraft
+              ? "Saved."
+              : `${FORUM_KIND_LABEL[kind]} published.`,
+        );
+      }
+      if (asDraft || editingDraft) {
+        void queryClient.invalidateQueries({ queryKey: orpc.listMyForumDrafts.key() });
       }
       if (editing) {
         onDone?.();
@@ -361,16 +388,16 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
         void navigate({ to: "/forum/$postId", params: forumPostLinkParams({ id, slug }) });
       }
     },
-    onError: (error) => {
-      if (onServerRefusal(error, editing ? "edit" : "post", () => submit.mutate())) return;
+    onError: (error, variables) => {
+      if (onServerRefusal(error, editing ? "edit" : "post", () => submit.mutate(variables))) return;
       reportMutationError(error, editing ? "forum.update" : "forum.create");
       toast.error(errorMessage(error, "Couldn't publish that — try again."));
     },
   });
 
-  const onSubmit = () => {
+  const onSubmit = (asDraft = false) => {
     if (problem || submit.isPending) return;
-    guard(editing ? "edit" : "post", () => submit.mutate());
+    guard(editing ? "edit" : "post", () => submit.mutate({ asDraft }));
   };
 
   return (
@@ -425,6 +452,7 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
         rows={kind === "post" ? 3 : 8}
         markdown
       />
+      <MentionSuggestions body={draft.body} onPick={(body) => update({ body })} />
 
       <div className="grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
         <SelectField
@@ -435,6 +463,15 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
         />
         <TagInput tags={draft.tags} onChange={(tags) => update({ tags })} />
       </div>
+
+      {isDevlog ? (
+        <DevlogFields
+          draft={draft}
+          teamId={postingTeamId}
+          onChange={update}
+          showShare={!editing || editingDraft}
+        />
+      ) : null}
 
       <div className={cn("grid gap-4", kind === "devlog" && "sm:grid-cols-2")}>
         {kind === "devlog" ? (
@@ -481,17 +518,29 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
               CANCEL
             </Button>
           ) : null}
+          {isDevlog && (!editing || editingDraft) ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSubmit(true)}
+              disabled={Boolean(problem) || submit.isPending}
+              className="tracking-widest"
+            >
+              <HugeiconsIcon icon={FloppyDiskIcon} />
+              SAVE DRAFT
+            </Button>
+          ) : null}
           <Button
             size="sm"
-            onClick={onSubmit}
+            onClick={() => onSubmit(false)}
             disabled={Boolean(problem) || submit.isPending}
             className="tracking-widest"
           >
             {submit.isPending
-              ? editing
+              ? editing && !editingDraft
                 ? "SAVING…"
                 : "PUBLISHING…"
-              : editing
+              : editing && !editingDraft
                 ? "SAVE CHANGES"
                 : `PUBLISH ${FORUM_KIND_LABEL[kind].toUpperCase()}`}
           </Button>
@@ -603,5 +652,214 @@ export function ForumEditDialog({
         {open ? <ForumComposerForm editing={post} onDone={onClose} onCancel={onClose} /> : null}
       </div>
     </ResponsiveModal>
+  );
+}
+
+const NEW_SERIES = "__new";
+
+/**
+ * The devlog-only fields: which series it continues (or a new one, made
+ * inline), who wrote it with you when it's posted as a team, and whether it
+ * goes to `#devlogs` when it's published.
+ */
+function DevlogFields({
+  draft,
+  teamId,
+  onChange,
+  showShare,
+}: {
+  draft: ForumDraft;
+  teamId: string | null;
+  onChange: (patch: Partial<ForumDraft>) => void;
+  showShare: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const { guard, onServerRefusal } = useGuildGate();
+  const viewerId = useStore(authStore, (s) => s.session?.user?.id ?? null);
+  const owner = teamId ? { teamId } : viewerId ? { userId: viewerId } : null;
+  const { data: seriesList } = useQuery({
+    ...orpc.listForumSeries.queryOptions({ input: owner ?? { userId: "" } }),
+    enabled: owner != null,
+    staleTime: STALE.viewer,
+  });
+  const { data: team } = useQuery({
+    ...orpc.getTeam.queryOptions({ input: { teamId: teamId ?? "" } }),
+    enabled: teamId != null,
+    staleTime: STALE.listing,
+  });
+  const { data: feed } = useQuery({
+    ...orpc.getForumDiscordFeed.queryOptions(),
+    enabled: showShare && viewerId != null,
+    staleTime: STALE.listing,
+  });
+  const [creating, setCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+
+  const create = useMutation({
+    mutationFn: () => client.createForumSeries({ title: newTitle.trim(), teamId }),
+    onSuccess: (series) => {
+      void queryClient.invalidateQueries({ queryKey: orpc.listForumSeries.key() });
+      onChange({ seriesId: series.id });
+      setCreating(false);
+      setNewTitle("");
+    },
+    onError: (error) => {
+      if (onServerRefusal(error, "post", () => create.mutate())) return;
+      toast.error(errorMessage(error, "Couldn't start that series."));
+    },
+  });
+
+  const crew = (team?.members ?? []).filter((m) => m.userId !== viewerId);
+  const seriesValue = creating
+    ? NEW_SERIES
+    : draft.seriesId != null
+      ? String(draft.seriesId)
+      : "none";
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-dashed border-muted/40 p-3">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <SelectField
+          label="Series"
+          value={seriesValue}
+          onChange={(value) => {
+            if (value === NEW_SERIES) {
+              setCreating(true);
+              return;
+            }
+            setCreating(false);
+            onChange({ seriesId: value === "none" ? null : Number(value) });
+          }}
+          options={[
+            { value: "none", label: "Not part of a series" },
+            ...(seriesList ?? []).map((series) => ({
+              value: String(series.id),
+              label: `${series.title} (${series.entryCount})`,
+            })),
+            { value: NEW_SERIES, label: "+ Start a new series…" },
+          ]}
+        />
+        {creating ? (
+          <div className="flex items-center gap-2">
+            <Input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Road to demo"
+              aria-label="New series title"
+              maxLength={80}
+              className="h-8 w-48"
+            />
+            <Button
+              size="sm"
+              onClick={() => guard("post", () => create.mutate())}
+              disabled={!newTitle.trim() || create.isPending}
+              className="tracking-widest"
+            >
+              CREATE
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      {teamId && crew.length > 0 ? (
+        <FieldRow label="Co-authors" hint="Teammates who wrote this with you">
+          <div className="flex flex-wrap gap-1.5">
+            {crew.map((member) => {
+              const on = draft.coAuthorIds.includes(member.userId);
+              return (
+                <Badge
+                  key={member.userId}
+                  variant={on ? "secondary" : "outline"}
+                  size="label"
+                  className="pointer-events-auto h-7 cursor-pointer gap-1.5 px-2 uppercase"
+                  render={
+                    <button
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        onChange({
+                          coAuthorIds: on
+                            ? draft.coAuthorIds.filter((id) => id !== member.userId)
+                            : [...draft.coAuthorIds, member.userId],
+                        })
+                      }
+                    />
+                  }
+                >
+                  <UserAvatar
+                    avatarUrl={member.avatarUrl}
+                    guildAvatarUrl={member.guildAvatarUrl}
+                    username={member.discordUsername}
+                    size={16}
+                  />
+                  {member.guildNickname ?? member.discordUsername}
+                </Badge>
+              );
+            })}
+          </div>
+        </FieldRow>
+      ) : null}
+
+      {showShare && feed?.available ? (
+        <label
+          htmlFor="forum-share-devlogs"
+          className="flex cursor-pointer items-center gap-2 text-sm"
+        >
+          <Checkbox
+            id="forum-share-devlogs"
+            checked={draft.shareToDiscord}
+            onCheckedChange={(checked) => onChange({ shareToDiscord: checked === true })}
+          />
+          Share to <span className="font-medium">#devlogs</span> on Discord when it&apos;s published
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+const TRAILING_MENTION = /(^|\s)@([a-z0-9_-]{2,31})$/i;
+
+/**
+ * Members matching the `@name` being typed at the end of the body. Picking
+ * one writes their handle — the profile stub, the only name a mention
+ * resolves — so a nickname never turns into a mention of somebody else.
+ */
+function MentionSuggestions({ body, onPick }: { body: string; onPick: (body: string) => void }) {
+  const match = TRAILING_MENTION.exec(body);
+  const typed = useDebouncedValue(match?.[2] ?? "", 200);
+  const { data } = useQuery({
+    ...orpc.searchProfiles.queryOptions({ input: { search: typed } }),
+    enabled: typed.length >= 2,
+    staleTime: STALE.listing,
+  });
+  const people = (data ?? []).filter((p) => p.urlStub);
+  if (!match || people.length === 0) return null;
+  return (
+    <div className="-mt-2 flex flex-wrap items-center gap-1.5">
+      <MicroLabel as="span" className="uppercase">
+        Mention
+      </MicroLabel>
+      {people.slice(0, 6).map((person) => (
+        <Badge
+          key={person.id}
+          variant="outline"
+          size="label"
+          className="pointer-events-auto h-6 cursor-pointer gap-1.5 hover:border-primary/60"
+          render={
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() =>
+                onPick(`${body.slice(0, body.length - match[2]!.length - 1)}@${person.urlStub} `)
+              }
+            />
+          }
+        >
+          <UserAvatar avatarUrl={person.avatarUrl} username={person.displayName} size={14} />
+          {person.displayName}
+          <span className="text-muted-foreground">@{person.urlStub}</span>
+        </Badge>
+      ))}
+    </div>
   );
 }

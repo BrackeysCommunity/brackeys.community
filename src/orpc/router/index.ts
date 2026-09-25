@@ -98,6 +98,7 @@ import {
   removeForumPostImage,
   reportForumPost,
   resolveForumReport,
+  searchForumPosts,
   searchForumTags,
   setForumBookmark,
   setForumPostCover,
@@ -107,7 +108,20 @@ import {
   staffDeleteForumPost,
   staffUpdateForumPost,
   updateForumPost,
+  markForumSolution,
+  listMyForumDrafts,
+  getForumDiscordFeed,
+  shareForumPostToDiscord,
 } from "./forum";
+import { listMyForumFollows, setForumFollow } from "./forum-follows";
+import {
+  createForumSeries,
+  deleteForumSeries,
+  getForumSeries,
+  listForumSeries,
+  reorderForumSeries,
+  updateForumSeries,
+} from "./forum-series";
 import { syncGitHubLink, unlinkGitHub } from "./github";
 import { listGitLabInstances, syncGitLabLink, unlinkGitLab } from "./gitlab";
 import { linkItchIo, unlinkItchIo, getLinkedAccounts, importItchIoGames } from "./itchio";
@@ -430,4 +444,17 @@ export default {
   listForumReports,
   resolveForumReport,
   listRecentForumPosts,
+  searchForumPosts,
+  markForumSolution,
+  listMyForumDrafts,
+  getForumDiscordFeed,
+  shareForumPostToDiscord,
+  listForumSeries,
+  getForumSeries,
+  createForumSeries,
+  updateForumSeries,
+  deleteForumSeries,
+  reorderForumSeries,
+  setForumFollow,
+  listMyForumFollows,
 };

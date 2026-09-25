@@ -7,6 +7,7 @@ import { HeroSplit } from "@/components/home/HeroSplit";
 import { JamShowcaseBand } from "@/components/home/JamShowcaseBand";
 import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
+import { RecentForumPosts } from "@/components/home/RecentForumPosts";
 import { useHomeContent } from "@/components/home/use-home-content";
 import { PageStack } from "@/components/ui/page-motion";
 import { Section, SectionAction } from "@/components/ui/section";
@@ -93,6 +94,8 @@ export function HomePage() {
       <motion.div variants={fadeUp}>
         <RecentCollabPosts />
       </motion.div>
+
+      <RecentForumPosts />
 
       {/* Community band: the two quietest sections share a row so neither
           gets a full-width slot it can't fill. The columns stretch (the

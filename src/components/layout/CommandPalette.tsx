@@ -1,4 +1,5 @@
 import {
+  Comment01Icon,
   ComputerTerminal01Icon,
   LegalHammerIcon,
   Login01Icon,
@@ -10,6 +11,7 @@ import {
   Shield02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useRef, useState } from "react";
@@ -29,9 +31,14 @@ import { openDiscordInvite } from "@/components/ui/discord-invite-link";
 import { allBotCommands, hammerCommands, marcoMacros, pencilCommands } from "@/data/commands";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
+import { forumPostParam, forumPostTitle } from "@/lib/forum-posts";
 import { useAppTheme } from "@/lib/hooks/use-app-theme";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
+import { orpc } from "@/orpc/client";
+import { STALE } from "@/orpc/public-procedures";
 
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
@@ -54,6 +61,19 @@ export function CommandPalette() {
   const { themeId, setTheme, sections } = useAppTheme();
   const { data: session } = authClient.useSession();
   const isStaff = useStore(activeUserStore, (s) => s.profile?.isStaff ?? false);
+  const forumOn = useFlag("forum-enabled");
+  const forumQuery = useDebouncedValue(query.trim(), 250);
+  const forumSearchable = open && forumOn && forumQuery.length >= 2;
+  const { data: forumPosts } = useQuery({
+    ...orpc.searchForumPosts.queryOptions({ input: { query: forumQuery, limit: 5 } }),
+    enabled: forumSearchable,
+    staleTime: STALE.listing,
+  });
+  const { data: forumTags } = useQuery({
+    ...orpc.searchForumTags.queryOptions({ input: { query: forumQuery, limit: 4 } }),
+    enabled: forumSearchable,
+    staleTime: STALE.listing,
+  });
 
   const run = (action: () => void) => {
     setOpen(false);
@@ -116,6 +136,55 @@ export function CommandPalette() {
               </CommandShortcut>
             </CommandItem>
           </CommandGroup>
+
+          {forumOn ? (
+            <CommandGroup heading="FORUM">
+              <CommandItem
+                value="forum devlogs questions posts"
+                onSelect={() => run(() => navigate({ to: "/forum" }))}
+              >
+                <HugeiconsIcon icon={Comment01Icon} className="text-primary" />
+                <span>Open Forum</span>
+              </CommandItem>
+              {/* Server matches, so each carries the query in its value —
+                  cmdk's own filter must not throw away what the server found. */}
+              {forumSearchable
+                ? (forumPosts?.posts ?? []).map((post) => (
+                    <CommandItem
+                      key={post.id}
+                      value={`forum post ${forumQuery} ${post.id} ${post.title ?? ""}`}
+                      onSelect={() =>
+                        run(() =>
+                          navigate({
+                            to: "/forum/$postId",
+                            params: { postId: forumPostParam(post) },
+                          }),
+                        )
+                      }
+                    >
+                      <HugeiconsIcon icon={Comment01Icon} className="text-muted-foreground" />
+                      <span className="truncate">{forumPostTitle(post)}</span>
+                      <CommandShortcut>{post.kind}</CommandShortcut>
+                    </CommandItem>
+                  ))
+                : null}
+              {forumSearchable
+                ? (forumTags ?? []).map((tag) => (
+                    <CommandItem
+                      key={tag.slug}
+                      value={`forum tag ${forumQuery} ${tag.slug}`}
+                      onSelect={() =>
+                        run(() => navigate({ to: "/forum/tags/$tag", params: { tag: tag.slug } }))
+                      }
+                    >
+                      <span className="text-muted-foreground">#</span>
+                      <span>{tag.slug}</span>
+                      <CommandShortcut>{tag.usageCount}</CommandShortcut>
+                    </CommandItem>
+                  ))
+                : null}
+            </CommandGroup>
+          ) : null}
 
           <CommandSeparator />
 

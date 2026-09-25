@@ -5,7 +5,9 @@ import {
   collabPosts,
   collabResponses,
   developerProfiles,
+  forumPostAuthors,
   forumPosts,
+  teamMembers,
   teams,
   threads,
   threadSubscriptions,
@@ -52,6 +54,14 @@ export type SubjectContext = {
    * public in the table and private in the handler.
    */
   participantIds: string[] | null;
+  /**
+   * Who is subscribed when the thread is created, on a public subject whose
+   * owner isn't the only one who wants the replies — a devlog's co-authors.
+   * Defaults to the owner.
+   */
+  subscriberIds?: string[];
+  /** Whose comments carry the "Author" mark: the people behind the subject. */
+  authorIds?: string[];
 };
 
 /** Read access. Staff see private threads; the report queue is useless
@@ -155,6 +165,7 @@ const handlers: Record<SubjectRef["type"], SubjectHandler> = {
         .select({
           id: forumPosts.id,
           authorId: forumPosts.authorId,
+          teamId: forumPosts.teamId,
           title: forumPosts.title,
           excerpt: forumPosts.excerpt,
           status: forumPosts.status,
@@ -167,9 +178,26 @@ const handlers: Record<SubjectRef["type"], SubjectHandler> = {
         .where(eq(forumPosts.id, id as number))
         .limit(1);
       if (!post || post.status !== "published") return null;
+      const coAuthors = (
+        await db
+          .select({ userId: forumPostAuthors.userId })
+          .from(forumPostAuthors)
+          .where(eq(forumPostAuthors.postId, post.id))
+      ).map((r) => r.userId);
+      const crew = post.teamId
+        ? (
+            await db
+              .select({ userId: teamMembers.userId })
+              .from(teamMembers)
+              .where(eq(teamMembers.teamId, post.teamId))
+          ).map((r) => r.userId)
+        : [];
+      const writers = [...new Set([post.authorId, ...coAuthors].filter((id) => id != null))];
       return {
         exists: true,
         ownerId: post.authorId,
+        subscriberIds: writers,
+        authorIds: [...new Set([...writers, ...crew])],
         commentingEnabled: true,
         closedReason: post.deletedAt
           ? "This post was deleted."
@@ -262,7 +290,8 @@ export async function resolveThread(ref: SubjectRef, subject: SubjectContext): P
   const existing = await findThread(ref);
   if (existing) return existing;
 
-  const subscriberIds = subject.participantIds ?? (subject.ownerId ? [subject.ownerId] : []);
+  const subscriberIds =
+    subject.participantIds ?? subject.subscriberIds ?? (subject.ownerId ? [subject.ownerId] : []);
 
   const created = await db.transaction(async (tx) => {
     const [row] = await tx
@@ -298,4 +327,19 @@ export function subjectRefOfThread(thread: ThreadRow): SubjectRef {
     return { type: "forum_post", id: thread.forumPostId! };
   }
   return { type: "profile", id: thread.profileUserId! };
+}
+
+/**
+ * Subscribe people to a subject's thread after the fact — a co-author added
+ * to a devlog whose discussion already started. A thread that doesn't exist
+ * yet picks them up when it is created.
+ */
+export async function subscribeToThread(ref: SubjectRef, userIds: string[]): Promise<void> {
+  if (userIds.length === 0) return;
+  const thread = await findThread(ref);
+  if (!thread) return;
+  await db
+    .insert(threadSubscriptions)
+    .values(userIds.map((userId) => ({ threadId: thread.id, userId })))
+    .onConflictDoNothing();
 }

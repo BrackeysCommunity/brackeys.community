@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { EASE_OUT } from "@/lib/motion";
 import { NOTIFICATION_CATEGORY_LABEL } from "@/lib/notification-copy";
 import { captureEvent } from "@/lib/product-insights";
@@ -30,7 +31,7 @@ import { orpc } from "@/orpc/client";
 const searchSchema = z.object({
   view: z.enum(["inbox", "preferences"]).default("inbox"),
   filter: z
-    .enum(["all", "unread", "collab", "teams", "jams", "comments", "moderation"])
+    .enum(["all", "unread", "collab", "teams", "jams", "comments", "forum", "moderation"])
     .default("all"),
 });
 
@@ -41,6 +42,7 @@ const FILTERS: readonly InboxFilter[] = [
   "teams",
   "jams",
   "comments",
+  "forum",
   "moderation",
 ];
 
@@ -66,6 +68,11 @@ const FILTER_META: Record<InboxFilter, { label: string; hint: string; icon: Icon
     label: NOTIFICATION_CATEGORY_LABEL.comments,
     hint: "Threads you follow",
     icon: CATEGORY_ICON.comments,
+  },
+  forum: {
+    label: NOTIFICATION_CATEGORY_LABEL.forum,
+    hint: "Devlogs, answers and mentions",
+    icon: CATEGORY_ICON.forum,
   },
   moderation: {
     label: NOTIFICATION_CATEGORY_LABEL.moderation,
@@ -137,12 +144,13 @@ function InboxNav({
   unread: number | undefined;
   byCategory: Partial<Record<InboxFilter, { unread: number }>> | undefined;
 }) {
+  const forumOn = useFlag("forum-enabled");
   return (
     <nav
       aria-label="Inbox filters"
       className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b border-muted/30 px-1 lg:sticky lg:top-4 lg:mx-0 lg:flex-col lg:overflow-visible lg:border-r lg:border-b-0 lg:px-0 lg:pr-2"
     >
-      {FILTERS.map((id) => {
+      {FILTERS.filter((id) => id !== "forum" || forumOn).map((id) => {
         const meta = FILTER_META[id];
         // Every row links to /notifications, so the router calls them all
         // active — the search param is what distinguishes them.
@@ -155,7 +163,7 @@ function InboxNav({
           <Link
             key={id}
             to="/notifications"
-            search={(prev) => ({ ...prev, filter: id })}
+            search={{ filter: id }}
             replace
             // Switching filters only changes the list — it animates itself,
             // and the hero and rail hold still.

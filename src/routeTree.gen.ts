@@ -52,6 +52,7 @@ import { Route as JamsCalendarRouteImport } from './routes/jams.calendar'
 import { Route as JamsArchiveRouteImport } from './routes/jams.archive'
 import { Route as ImagesSplatRouteImport } from './routes/images.$'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
+import { Route as ForumFeedDotxmlRouteImport } from './routes/forum_.feed[.]xml'
 import { Route as ForumPostIdRouteImport } from './routes/forum.$postId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
@@ -59,6 +60,7 @@ import { Route as AuthErrorRouteImport } from './routes/auth.error'
 import { Route as ArcadeEnPrisonRouteImport } from './routes/arcade.en-prison'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
+import { Route as TeamsTeamIdDevlogDotxmlRouteImport } from './routes/teams_.$teamId.devlog[.]xml'
 import { Route as ProjectsGameGameIdRouteImport } from './routes/projects.game.$gameId'
 import { Route as OauthItchioCallbackRouteImport } from './routes/oauth.itchio.callback'
 import { Route as OauthGithubCallbackRouteImport } from './routes/oauth.github.callback'
@@ -67,6 +69,7 @@ import { Route as ForumCCategorySlugRouteImport } from './routes/forum.c.$catego
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiNotificationsUnsubRouteImport } from './routes/api.notifications.unsub'
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
+import { Route as ApiForumStreamRouteImport } from './routes/api.forum.stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as OauthGitlabProviderIdCallbackRouteImport } from './routes/oauth.gitlab.$providerId.callback'
 import { Route as ApiPublicRpcSplatRouteImport } from './routes/api.public.rpc.$'
@@ -286,6 +289,11 @@ const GameRoomIdRoute = GameRoomIdRouteImport.update({
   path: '/$roomId',
   getParentRoute: () => GameRoute,
 } as any)
+const ForumFeedDotxmlRoute = ForumFeedDotxmlRouteImport.update({
+  id: '/forum_/feed.xml',
+  path: '/forum/feed.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ForumPostIdRoute = ForumPostIdRouteImport.update({
   id: '/$postId',
   path: '/$postId',
@@ -319,6 +327,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamsTeamIdDevlogDotxmlRoute = TeamsTeamIdDevlogDotxmlRouteImport.update({
+  id: '/teams_/$teamId/devlog.xml',
+  path: '/teams/$teamId/devlog.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectsGameGameIdRoute = ProjectsGameGameIdRouteImport.update({
@@ -359,6 +372,11 @@ const ApiNotificationsUnsubRoute = ApiNotificationsUnsubRouteImport.update({
 const ApiNotificationsStreamRoute = ApiNotificationsStreamRouteImport.update({
   id: '/api/notifications/stream',
   path: '/api/notifications/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiForumStreamRoute = ApiForumStreamRouteImport.update({
+  id: '/api/forum/stream',
+  path: '/api/forum/stream',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -406,6 +424,7 @@ export interface FileRoutesByFullPath {
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
+  '/forum/feed.xml': typeof ForumFeedDotxmlRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
@@ -430,6 +449,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof SettingsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/forum/stream': typeof ApiForumStreamRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -438,6 +458,7 @@ export interface FileRoutesByFullPath {
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
+  '/teams/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
 }
@@ -461,6 +482,7 @@ export interface FileRoutesByTo {
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
+  '/forum/feed.xml': typeof ForumFeedDotxmlRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
@@ -485,6 +507,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/teams': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/forum/stream': typeof ApiForumStreamRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -493,6 +516,7 @@ export interface FileRoutesByTo {
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
+  '/teams/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
 }
@@ -525,6 +549,7 @@ export interface FileRoutesById {
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
+  '/forum_/feed.xml': typeof ForumFeedDotxmlRoute
   '/game/$roomId': typeof GameRoomIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
@@ -549,6 +574,7 @@ export interface FileRoutesById {
   '/settings/': typeof SettingsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/forum/stream': typeof ApiForumStreamRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -557,6 +583,7 @@ export interface FileRoutesById {
   '/oauth/github/callback': typeof OauthGithubCallbackRoute
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
+  '/teams_/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
 }
@@ -590,6 +617,7 @@ export interface FileRouteTypes {
     | '/collab/$postId'
     | '/collab/new'
     | '/forum/$postId'
+    | '/forum/feed.xml'
     | '/game/$roomId'
     | '/images/$'
     | '/jams/archive'
@@ -614,6 +642,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/teams/'
     | '/api/auth/$'
+    | '/api/forum/stream'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
     | '/api/rpc/$'
@@ -622,6 +651,7 @@ export interface FileRouteTypes {
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
+    | '/teams/$teamId/devlog.xml'
     | '/api/public/rpc/$'
     | '/oauth/gitlab/$providerId/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -645,6 +675,7 @@ export interface FileRouteTypes {
     | '/collab/$postId'
     | '/collab/new'
     | '/forum/$postId'
+    | '/forum/feed.xml'
     | '/game/$roomId'
     | '/images/$'
     | '/jams/archive'
@@ -669,6 +700,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/teams'
     | '/api/auth/$'
+    | '/api/forum/stream'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
     | '/api/rpc/$'
@@ -677,6 +709,7 @@ export interface FileRouteTypes {
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
+    | '/teams/$teamId/devlog.xml'
     | '/api/public/rpc/$'
     | '/oauth/gitlab/$providerId/callback'
   id:
@@ -708,6 +741,7 @@ export interface FileRouteTypes {
     | '/collab/$postId'
     | '/collab/new'
     | '/forum/$postId'
+    | '/forum_/feed.xml'
     | '/game/$roomId'
     | '/images/$'
     | '/jams/archive'
@@ -732,6 +766,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/teams/'
     | '/api/auth/$'
+    | '/api/forum/stream'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
     | '/api/rpc/$'
@@ -740,6 +775,7 @@ export interface FileRouteTypes {
     | '/oauth/github/callback'
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
+    | '/teams_/$teamId/devlog.xml'
     | '/api/public/rpc/$'
     | '/oauth/gitlab/$providerId/callback'
   fileRoutesById: FileRoutesById
@@ -768,18 +804,21 @@ export interface RootRouteChildren {
   ApiSplatRoute: typeof ApiSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   AuthErrorRoute: typeof AuthErrorRoute
+  ForumFeedDotxmlRoute: typeof ForumFeedDotxmlRoute
   ImagesSplatRoute: typeof ImagesSplatRoute
   JamsJamSlugRoute: typeof JamsJamSlugRoute
   OgSplatRoute: typeof OgSplatRoute
   ProjectsProjectSlugRoute: typeof ProjectsProjectSlugRoute
   StaffImageSplatRoute: typeof StaffImageSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiForumStreamRoute: typeof ApiForumStreamRoute
   ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
   ApiNotificationsUnsubRoute: typeof ApiNotificationsUnsubRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
   OauthGithubCallbackRoute: typeof OauthGithubCallbackRoute
   OauthItchioCallbackRoute: typeof OauthItchioCallbackRoute
   ProjectsGameGameIdRoute: typeof ProjectsGameGameIdRoute
+  TeamsTeamIdDevlogDotxmlRoute: typeof TeamsTeamIdDevlogDotxmlRoute
   ApiPublicRpcSplatRoute: typeof ApiPublicRpcSplatRoute
   OauthGitlabProviderIdCallbackRoute: typeof OauthGitlabProviderIdCallbackRoute
 }
@@ -1087,6 +1126,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameRoomIdRouteImport
       parentRoute: typeof GameRoute
     }
+    '/forum_/feed.xml': {
+      id: '/forum_/feed.xml'
+      path: '/forum/feed.xml'
+      fullPath: '/forum/feed.xml'
+      preLoaderRoute: typeof ForumFeedDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forum/$postId': {
       id: '/forum/$postId'
       path: '/$postId'
@@ -1134,6 +1180,13 @@ declare module '@tanstack/react-router' {
       path: '/api/$'
       fullPath: '/api/$'
       preLoaderRoute: typeof ApiSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teams_/$teamId/devlog.xml': {
+      id: '/teams_/$teamId/devlog.xml'
+      path: '/teams/$teamId/devlog.xml'
+      fullPath: '/teams/$teamId/devlog.xml'
+      preLoaderRoute: typeof TeamsTeamIdDevlogDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/projects/game/$gameId': {
@@ -1190,6 +1243,13 @@ declare module '@tanstack/react-router' {
       path: '/api/notifications/stream'
       fullPath: '/api/notifications/stream'
       preLoaderRoute: typeof ApiNotificationsStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/forum/stream': {
+      id: '/api/forum/stream'
+      path: '/api/forum/stream'
+      fullPath: '/api/forum/stream'
+      preLoaderRoute: typeof ApiForumStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -1357,18 +1417,21 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSplatRoute: ApiSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
   AuthErrorRoute: AuthErrorRoute,
+  ForumFeedDotxmlRoute: ForumFeedDotxmlRoute,
   ImagesSplatRoute: ImagesSplatRoute,
   JamsJamSlugRoute: JamsJamSlugRoute,
   OgSplatRoute: OgSplatRoute,
   ProjectsProjectSlugRoute: ProjectsProjectSlugRoute,
   StaffImageSplatRoute: StaffImageSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiForumStreamRoute: ApiForumStreamRoute,
   ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,
   ApiNotificationsUnsubRoute: ApiNotificationsUnsubRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
   OauthGithubCallbackRoute: OauthGithubCallbackRoute,
   OauthItchioCallbackRoute: OauthItchioCallbackRoute,
   ProjectsGameGameIdRoute: ProjectsGameGameIdRoute,
+  TeamsTeamIdDevlogDotxmlRoute: TeamsTeamIdDevlogDotxmlRoute,
   ApiPublicRpcSplatRoute: ApiPublicRpcSplatRoute,
   OauthGitlabProviderIdCallbackRoute: OauthGitlabProviderIdCallbackRoute,
 }

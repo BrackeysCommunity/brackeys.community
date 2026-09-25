@@ -107,7 +107,7 @@ export function collabFeedMessageUrl(
  * still won't parse as http(s) is dropped rather than sent: a missing
  * thumbnail costs a little, a rejected message costs the whole share.
  */
-function absoluteImageUrl(value: string | null | undefined): string | null {
+export function absoluteImageUrl(value: string | null | undefined): string | null {
   if (!value) return null;
   try {
     const url = new URL(siteUrl(value));
@@ -117,7 +117,7 @@ function absoluteImageUrl(value: string | null | undefined): string | null {
   }
 }
 
-function truncate(value: string, max: number): string {
+export function truncate(value: string, max: number): string {
   const trimmed = value.trim();
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max - 1).trimEnd()}…`;
 }
@@ -183,6 +183,7 @@ export interface DiscordMessagePayload {
       fields: DiscordEmbedField[];
       author?: { name: string; url?: string; icon_url?: string };
       thumbnail?: { url: string };
+      image?: { url: string };
       footer: { text: string };
       timestamp?: string;
     },

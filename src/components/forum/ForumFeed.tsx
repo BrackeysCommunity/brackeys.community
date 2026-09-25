@@ -1,10 +1,11 @@
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { ArrowUp02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
   Select,
@@ -18,10 +19,18 @@ import { Spinner } from "@/components/ui/spinner";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { useInfiniteScrollSentinel } from "@/lib/hooks/use-infinite-scroll-sentinel";
+import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 
-import { type ForumFeedFilters, type ForumWindow, forumFeedQueryOptions } from "./forum-queries";
+import {
+  type ForumFeedFilters,
+  type ForumSort,
+  type ForumWindow,
+  forumFeedQueryOptions,
+  forumSearchQueryOptions,
+} from "./forum-queries";
 import type { ForumFeedSearch } from "./forum-search";
-import { ForumPostCard } from "./ForumPostCard";
+import { ForumPostCard, PulseRow } from "./ForumPostCard";
+import { useForumLiveCount } from "./use-forum-live";
 
 const KIND_FILTERS = [
   { value: "all", label: "ALL" },
@@ -29,6 +38,13 @@ const KIND_FILTERS = [
   { value: "post", label: "POSTS" },
   { value: "question", label: "QUESTIONS" },
 ] as const;
+
+const SORT_TABS: { value: ForumSort; label: string }[] = [
+  { value: "hot", label: "FOR YOU" },
+  { value: "following", label: "FOLLOWING" },
+  { value: "latest", label: "LATEST" },
+  { value: "top", label: "TOP" },
+];
 
 const WINDOW_LABEL: Record<ForumWindow, string> = {
   day: "Today",
@@ -49,13 +65,16 @@ export function useFeedSearchUpdate() {
     });
 }
 
-/** Kind and sort: the filter row above every feed. */
+/** Kind and sort: the filter row above every feed. The personal tabs —
+ *  For you and Following — belong to the main feed only. */
 export function FeedControls({
   search,
   hideKind = false,
+  personal = false,
 }: {
   search: ForumFeedSearch;
   hideKind?: boolean;
+  personal?: boolean;
 }) {
   const update = useFeedSearchUpdate();
   const sort = search.sort ?? "latest";
@@ -108,18 +127,20 @@ export function FeedControls({
           value={sort}
           onChange={(value) =>
             update({
-              sort: value === "top" ? "top" : undefined,
+              sort: value === "latest" ? undefined : (value as ForumSort),
               window: undefined,
             })
           }
           aria-label="Sort"
+          className="no-scrollbar max-w-full overflow-x-auto"
         >
-          <SegmentedControl.Item value="latest" className="tracking-widest">
-            LATEST
-          </SegmentedControl.Item>
-          <SegmentedControl.Item value="top" className="tracking-widest">
-            TOP
-          </SegmentedControl.Item>
+          {SORT_TABS.filter(
+            (tab) => personal || (tab.value !== "hot" && tab.value !== "following"),
+          ).map((tab) => (
+            <SegmentedControl.Item key={tab.value} value={tab.value} className="tracking-widest">
+              {tab.label}
+            </SegmentedControl.Item>
+          ))}
         </SegmentedControl>
       </div>
     </div>
@@ -138,6 +159,7 @@ export function ActiveFilterChips({
   const chips = [
     search.tag ? { label: `#${search.tag}`, clear: { tag: undefined } } : null,
     search.team ? { label: teamName ?? "One team", clear: { team: undefined } } : null,
+    search.author ? { label: "One member", clear: { author: undefined } } : null,
   ].filter((chip) => chip !== null);
   if (chips.length === 0) return null;
 
@@ -193,13 +215,17 @@ function FeedSkeleton() {
 export function ForumFeed({
   filters,
   showCategory = true,
+  compact = false,
   empty,
 }: {
   filters: ForumFeedFilters;
   showCategory?: boolean;
+  /** Pulse: short posts as a dense stream rather than cards. */
+  compact?: boolean;
   empty?: React.ReactNode;
 }) {
   const query = useInfiniteQuery(forumFeedQueryOptions(filters));
+  const live = useForumLiveCount(filters);
   const { pinned, posts } = useMemo(() => {
     const pages = query.data?.pages ?? [];
     return {
@@ -227,24 +253,100 @@ export function ForumFeed({
   }
   if (pinned.length === 0 && posts.length === 0) {
     return (
-      empty ?? (
-        <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
-          <MicroLabel>NOTHING HERE YET</MicroLabel>
-          <Text size="xs" variant="muted">
-            Be the first to post.
-          </Text>
-        </Well>
-      )
+      <>
+        <NewPostsPill count={live.count} onShow={live.showNew} />
+        {empty ?? (
+          <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
+            <MicroLabel>
+              {filters.sort === "following" ? "NOTHING FROM WHAT YOU FOLLOW" : "NOTHING HERE YET"}
+            </MicroLabel>
+            <Text size="xs" variant="muted">
+              {filters.sort === "following"
+                ? "Follow teams, members, tags or categories and their posts land here."
+                : "Be the first to post."}
+            </Text>
+          </Well>
+        )}
+      </>
     );
   }
 
+  const all = [...pinned, ...posts];
   return (
     <div className="flex flex-col gap-4">
-      {[...pinned, ...posts].map((post) => (
-        <ForumPostCard key={post.id} post={post} showCategory={showCategory} />
-      ))}
+      <NewPostsPill count={live.count} onShow={live.showNew} />
+      {compact ? (
+        <Well className="gap-0 divide-y divide-dashed divide-muted/40 p-0 backdrop-blur-none">
+          {all.map((post) => (
+            <PulseRow key={post.id} post={post} />
+          ))}
+        </Well>
+      ) : (
+        all.map((post) => <ForumPostCard key={post.id} post={post} showCategory={showCategory} />)
+      )}
       <div ref={sentinelRef} aria-hidden />
       {query.isFetchingNextPage ? (
+        <div className="flex justify-center py-4">
+          <Spinner />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** "N new posts": sticks to the top of the stream until pressed. */
+function NewPostsPill({ count, onShow }: { count: number; onShow: () => void }) {
+  if (count === 0) return null;
+  return (
+    <div className="pointer-events-none sticky top-3 z-20 flex justify-center">
+      <Button size="sm" onClick={onShow} className="pointer-events-auto tracking-widest shadow-lg">
+        <HugeiconsIcon icon={ArrowUp02Icon} />
+        {count === 1 ? "1 NEW POST" : `${count} NEW POSTS`}
+      </Button>
+    </div>
+  );
+}
+
+/** `?q=` on the forum: matching posts, best match first. */
+export function ForumSearchResults({
+  query,
+  kind,
+}: {
+  query: string;
+  kind?: ForumFeedFilters["kind"];
+}) {
+  const results = useInfiniteQuery(forumSearchQueryOptions(query, kind));
+  const posts = useMemo(() => (results.data?.pages ?? []).flatMap((p) => p.posts), [results.data]);
+  const sentinelRef = useInfiniteScrollSentinel({
+    hasNextPage: Boolean(results.hasNextPage),
+    isFetching: results.isFetchingNextPage,
+    fetchNext: results.fetchNextPage,
+  });
+  useSearchPerformed({
+    surface: "forum",
+    query,
+    filterKinds: kind ? ["kind"] : [],
+    resultCount: results.isSuccess ? posts.length : null,
+  });
+
+  if (results.isLoading) return <FeedSkeleton />;
+  if (posts.length === 0) {
+    return (
+      <Well variant="ghost" className="items-center gap-1 p-8 backdrop-blur-none">
+        <MicroLabel>NO POSTS MATCH</MicroLabel>
+        <Text size="xs" variant="muted">
+          Try fewer words, or a tag.
+        </Text>
+      </Well>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      {posts.map((post) => (
+        <ForumPostCard key={post.id} post={post} />
+      ))}
+      <div ref={sentinelRef} aria-hidden />
+      {results.isFetchingNextPage ? (
         <div className="flex justify-center py-4">
           <Spinner />
         </div>
