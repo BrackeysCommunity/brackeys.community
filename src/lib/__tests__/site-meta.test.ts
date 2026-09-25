@@ -38,7 +38,7 @@ describe("socialImage", () => {
 
   it("falls back to the site card, dimensions and all", () => {
     const image = socialImage(null);
-    expect(image.url).toBe(`${ORIGIN}/og/default.png`);
+    expect(image.url).toBe(`${ORIGIN}/og/default.png?v=2`);
     expect(image.width).toBe(1200);
     expect(image.height).toBe(630);
     expect(image.type).toBe("image/png");
@@ -93,12 +93,12 @@ describe("buildMeta", () => {
 
 describe("ogCardPath", () => {
   it("keys a card on the same handle the canonical URL uses", () => {
-    expect(ogCardPath("jam", "brackeys-13")).toBe("/og/jam/brackeys-13.png");
-    expect(ogCardPath("collab", 42)).toBe("/og/collab/42.png");
+    expect(ogCardPath("jam", "brackeys-13")).toBe("/og/jam/brackeys-13.png?v=2");
+    expect(ogCardPath("collab", 42)).toBe("/og/collab/42.png?v=2");
   });
 
   it("escapes a handle that would otherwise change the path", () => {
-    expect(ogCardPath("profile", "a/b")).toBe("/og/profile/a%2Fb.png");
+    expect(ogCardPath("profile", "a/b")).toBe("/og/profile/a%2Fb.png?v=2");
   });
 
   it("wins over a raw image, and carries its own dimensions", () => {
@@ -108,7 +108,7 @@ describe("ogCardPath", () => {
       card: ogCardPath("jam", "x"),
       image: "https://img.itch.zone/aW1n/300x240/x.png",
     });
-    expect(tag(head.meta, "og:image")).toBe(`${ORIGIN}/og/jam/x.png`);
+    expect(tag(head.meta, "og:image")).toBe(`${ORIGIN}/og/jam/x.png?v=2`);
     expect(tag(head.meta, "og:image:width")).toBe("1200");
     expect(tag(head.meta, "og:image:type")).toBe("image/png");
   });

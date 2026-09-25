@@ -19,13 +19,23 @@ export const OG_IMAGE_HEIGHT = 630;
 /** Served from `public/`, so `/og/$`'s failure redirect can't loop back into itself. */
 export const DEFAULT_OG_IMAGE = "/og/brackeys-card.png";
 
-export const DEFAULT_OG_CARD = "/og/default.png";
+/**
+ * Bump when the card design changes. Discord and Cloudflare both cache a
+ * card by its URL — Discord's image proxy for far longer than our day-long
+ * edge TTL — so a new design only reaches a shared link under a new URL.
+ * `/og/$` reads the path alone and ignores the query.
+ */
+export const OG_CARD_VERSION = 2;
+
+const OG_VERSION_QUERY = `?v=${OG_CARD_VERSION}`;
+
+export const DEFAULT_OG_CARD = `/og/default.png${OG_VERSION_QUERY}`;
 
 /** The generated 404 card, for every "not found" head branch. */
-export const NOT_FOUND_OG_CARD = "/og/notfound.png";
+export const NOT_FOUND_OG_CARD = `/og/notfound.png${OG_VERSION_QUERY}`;
 
 export function ogCardPath(kind: OgCardKind, id: string | number): string {
-  return `/og/${kind}/${encodeURIComponent(String(id))}.png`;
+  return `/og/${kind}/${encodeURIComponent(String(id))}.png${OG_VERSION_QUERY}`;
 }
 
 export type OgCardKind =
