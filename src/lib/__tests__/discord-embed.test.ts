@@ -70,6 +70,13 @@ describe("builders", () => {
     expect(linkButton("", "https://x.test", { emoji: { name: "🎮" } })).not.toBeNull();
   });
 
+  it("keeps at most three buttons, in order", () => {
+    const row = actionRow(
+      ["a", "b", "c", "d", "e"].map((label) => linkButton(label, `https://x.test/${label}`)),
+    );
+    expect(row?.components.map((button) => button.label)).toEqual(["a", "b", "c"]);
+  });
+
   it("returns no row when every button was dropped", () => {
     expect(actionRow([null, linkButton("Open", "not a url")])).toBeNull();
   });

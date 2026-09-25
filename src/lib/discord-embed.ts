@@ -209,8 +209,13 @@ export function linkButton(
   };
 }
 
+/** House limit, below Discord's five: past three a preview reads as a menu. */
+export const MAX_EMBED_BUTTONS = 3;
+
 export function actionRow(buttons: (LinkButton | null)[]): ActionRow | null {
-  const present = buttons.filter((button): button is LinkButton => button != null).slice(0, 5);
+  const present = buttons
+    .filter((button): button is LinkButton => button != null)
+    .slice(0, MAX_EMBED_BUTTONS);
   return present.length > 0 ? { type: 1, components: present } : null;
 }
 

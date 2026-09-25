@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { ogCard } from "@/lib/og/card";
+import { ogCard, renderCardNode } from "@/lib/og/card";
 import { notFoundCard, siteCard } from "@/lib/og/data";
 import { renderOgPng } from "@/lib/og/render";
 
@@ -12,7 +12,7 @@ import { renderOgPng } from "@/lib/og/render";
  */
 describe("the committed fallback card", () => {
   it("renders, and is written out when OG_DUMP asks for it", async () => {
-    const png = await renderOgPng(ogCard(siteCard()));
+    const png = await renderOgPng(renderCardNode(siteCard()));
 
     expect([...png.slice(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
     const view = new DataView(png.buffer, png.byteOffset, png.byteLength);

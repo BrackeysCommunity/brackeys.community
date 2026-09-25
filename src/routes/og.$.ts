@@ -14,7 +14,7 @@ async function handle({ request }: { request: Request }) {
 
   try {
     const { renderOgPng } = await import("@/lib/og/render");
-    const { ogCard } = await import("@/lib/og/card");
+    const { ogCard, renderCardNode } = await import("@/lib/og/card");
     const input = await resolveCard(target);
     if (!input) {
       // Unknown kind or id still gets a card body — the 404 status keeps
@@ -32,7 +32,7 @@ async function handle({ request }: { request: Request }) {
       });
     }
 
-    const png = await renderOgPng(ogCard(input));
+    const png = await renderOgPng(renderCardNode(input));
     return pngResponse(png, { headers: { "cache-control": "public, max-age=0, s-maxage=86400" } });
   } catch (error) {
     // Name rather than `instanceof`: importing the class would pull the
@@ -79,7 +79,7 @@ function pngResponse(
 
 async function resolveCard(target: string) {
   const data = await import("@/lib/og/data");
-  if (target === "default.png") return data.siteCard();
+  if (target === "default.png") return data.homeCard();
   if (target === "notfound.png") return data.notFoundCard();
 
   const match = /^([a-z]+)\/(.+)\.png$/.exec(target);
@@ -108,6 +108,8 @@ async function resolveCard(target: string) {
       return data.teamCard(id);
     case "board":
       return data.boardCard(id);
+    case "category":
+      return data.forumCategoryCard(id);
     case "forum": {
       const postId = Number(id);
       return Number.isInteger(postId) && postId > 0 ? data.forumCard(postId) : null;

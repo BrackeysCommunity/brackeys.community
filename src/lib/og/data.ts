@@ -6,7 +6,14 @@ import { jamDateLong } from "@/lib/jam-links";
 import { safeThemeColor } from "@/lib/jam-palette";
 import { markdownToPlainText } from "@/lib/markdown-text";
 import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
-import { type OgArt, type OgCardInput, type OgKind, type OgStat } from "@/lib/og/card";
+import {
+  type OgArt,
+  type OgCardInput,
+  type OgHomeInput,
+  type OgHomePillar,
+  type OgKind,
+  type OgStat,
+} from "@/lib/og/card";
 import { ogName } from "@/lib/og/glyphs";
 import { censorText } from "@/lib/profanity";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
@@ -83,13 +90,55 @@ function coverSource(url: string | null | undefined): string | null {
 
 export const OG_KINDS: OgKind[] = ["jam", "project", "collab", "profile", "team"];
 
-export function siteCard(): OgCardInput {
+const STATIC_PILLARS: OgHomePillar[] = [
+  { kind: "jam", value: null, label: "Every jam" },
+  { kind: "profile", value: null, label: "The people" },
+  { kind: "collab", value: null, label: "Open roles" },
+];
+
+/** The data-free home card — also what `public/og/brackeys-card.png` is cut from. */
+export function siteCard(): OgHomeInput {
+  return { layout: "home", pillars: STATIC_PILLARS, art: [] };
+}
+
+/** `siteCard` with the live board in it: counts on the pillars, featured banners in the fan. */
+export async function homeCard(): Promise<OgHomeInput> {
+  const [home, members, board] = await Promise.all([
+    client.homeJams().catch(() => null),
+    client.listMembers({ limit: 1 }).catch(() => null),
+    client.getBoardStats().catch(() => null),
+  ]);
+
+  const live = home?.liveCount ?? 0;
+  const pillars: OgHomePillar[] = [
+    live > 0 ? { kind: "jam", value: NUM.format(live), label: "Live jams" } : STATIC_PILLARS[0]!,
+    members && members.total > 0
+      ? { kind: "profile", value: NUM.format(members.total), label: "Members" }
+      : STATIC_PILLARS[1]!,
+    board && board.open.all > 0
+      ? { kind: "collab", value: NUM.format(board.open.all), label: "Open roles" }
+      : STATIC_PILLARS[2]!,
+  ];
+
+  const seen = new Set<number>();
+  const featured = [
+    ...(home?.heroSlides.map((slide) => slide.jam) ?? []),
+    ...(home?.showcaseJams ?? []),
+  ]
+    .filter((jam) => jam.bannerUrl && !seen.has(jam.jamId) && seen.add(jam.jamId))
+    .slice(0, 5);
+  const banners = await Promise.all(
+    featured.map(async (jam) => {
+      const art = await fetchArt(coverSource(jam.bannerUrl), "letterbox");
+      const backdrop = safeThemeColor(jam.themeColor);
+      return art && backdrop ? { ...art, backdrop } : art;
+    }),
+  );
+
   return {
-    kind: "site",
-    eyebrow: "Community",
-    title: "Every game jam worth entering",
-    subtitle:
-      "The jams, the people making games in them, and the teams looking for someone like you.",
+    layout: "home",
+    pillars,
+    art: banners.filter((art): art is OgArt => art != null).slice(0, 3),
   };
 }
 
@@ -379,9 +428,49 @@ export async function boardCard(id: string): Promise<OgCardInput | null> {
         stats,
       };
     }
+    case "forum": {
+      const categories = await client.listForumCategories().catch(() => []);
+      return {
+        kind: "forum",
+        eyebrow: "Forum",
+        title: "What the community is building",
+        subtitle: "Devlogs, questions and show-and-tell — the things worth keeping between jams.",
+        stats: categories
+          .slice(0, 3)
+          .map((category) => ({ value: category.name, label: "" }))
+          .filter((stat) => stat.value),
+      };
+    }
+    case "terms":
+      return {
+        kind: "site",
+        eyebrow: "Terms of service",
+        title: "The rules of the room",
+        subtitle: "Who may use the site, what you may post, and what we may moderate.",
+      };
+    case "privacy":
+      return {
+        kind: "site",
+        eyebrow: "Privacy policy",
+        title: "What we keep, and why",
+        subtitle: "What we collect, who can see it, how long it stays, and how to remove it.",
+      };
     default:
       return null;
   }
+}
+
+/** A forum category board, as the signed-out crawler sees it. */
+export async function forumCategoryCard(slug: string): Promise<OgCardInput | null> {
+  const categories = await client.listForumCategories().catch(() => null);
+  const category = categories?.find((candidate) => candidate.slug === slug);
+  if (!category) return null;
+  return {
+    kind: "forum",
+    eyebrow: "Forum",
+    title: category.name,
+    subtitle: category.description ?? null,
+  };
 }
 
 export async function teamCard(handle: string): Promise<OgCardInput | null> {

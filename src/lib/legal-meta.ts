@@ -23,6 +23,8 @@ export const SITE = {
   name: "Brackeys Community",
   domain: "brackeys.community",
   url: "https://brackeys.community",
+  /** Redirects to `domain`; what social cards print, since it's the one people type. */
+  shortDomain: "brackeys.dev",
   discord: "https://discord.gg/brackeys",
 } as const;
 

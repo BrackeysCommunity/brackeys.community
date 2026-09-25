@@ -4,8 +4,13 @@ import { componentEmbed } from "@/lib/discord-embed";
 import {
   collabLinkPreview,
   type CollabPreviewSource,
+  homeLinkPreview,
   jamLinkPreview,
   type JamPreviewSource,
+  profileLinkPreview,
+  type ProfilePreviewSource,
+  teamLinkPreview,
+  type TeamPreviewSource,
 } from "@/lib/discord-link-preview";
 
 const ORIGIN = "https://brackeys.community";
@@ -161,5 +166,121 @@ describe("collabLinkPreview", () => {
       })),
     });
     expect(componentEmbed(collabLinkPreview(busy, AUTHOR))).toHaveLength(1);
+  });
+});
+
+function buttonsOf(root: ReturnType<typeof homeLinkPreview>) {
+  const row = root!.components.find((component) => component.type === 1);
+  return row?.type === 1 ? row.components.map(({ label, url }) => ({ label, url })) : [];
+}
+
+function galleryOf(root: ReturnType<typeof homeLinkPreview>) {
+  const gallery = root!.components.find((component) => component.type === 12);
+  return gallery?.type === 12 ? gallery.items.map((item) => item.media.url) : [];
+}
+
+describe("homeLinkPreview", () => {
+  it("shows the home card and a button for each main board", () => {
+    const root = homeLinkPreview();
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/default.png`]);
+    expect(buttonsOf(root).map((button) => button.url)).toEqual([
+      `${ORIGIN}/jams`,
+      `${ORIGIN}/collab`,
+      `${ORIGIN}/members`,
+    ]);
+    expect(componentEmbed(root)).toHaveLength(1);
+  });
+});
+
+function member(overrides: Partial<ProfilePreviewSource> = {}): ProfilePreviewSource {
+  return {
+    id: "usr_9",
+    urlStub: "mellobacon",
+    availableForWork: true,
+    ...overrides,
+  };
+}
+
+describe("profileLinkPreview", () => {
+  const extras = { name: "mellobacon", skills: ["Godot", "FMOD", "Aseprite"] };
+
+  it("leads with the linked name, work status and stack", () => {
+    const [heading] = profileLinkPreview(member(), extras)!.components;
+    expect(heading).toEqual({
+      type: 10,
+      content: `## [mellobacon](${ORIGIN}/profile/mellobacon)\n**Open to work** · Works in Godot, FMOD, Aseprite`,
+    });
+  });
+
+  it("shows their card, and GitHub only when the account is linked", () => {
+    const root = profileLinkPreview(member(), extras);
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/profile/mellobacon.png`]);
+    expect(buttonsOf(root).map((button) => button.label)).toEqual(["View profile", "All members"]);
+
+    const linked = profileLinkPreview(member(), { ...extras, githubUsername: "mellobacon" });
+    expect(buttonsOf(linked)).toEqual([
+      { label: "View profile", url: `${ORIGIN}/profile/mellobacon` },
+      { label: "GitHub", url: "https://github.com/mellobacon" },
+      { label: "All members", url: `${ORIGIN}/members` },
+    ]);
+  });
+
+  it("never turns a username into anything but a github.com profile", () => {
+    const root = profileLinkPreview(member(), {
+      ...extras,
+      githubUsername: "evil.example/../phish",
+    });
+    expect(buttonsOf(root).map((button) => button.label)).not.toContain("GitHub");
+  });
+
+  it("falls back to the id when no handle is claimed", () => {
+    const root = profileLinkPreview(member({ urlStub: null, availableForWork: false }), {
+      name: "A Brackeys member",
+      skills: [],
+    });
+    expect(root!.components[0]).toEqual({
+      type: 10,
+      content: `## [A Brackeys member](${ORIGIN}/profile/usr_9)`,
+    });
+    expect(root!.accent_color).toBe(0x5865f2);
+  });
+});
+
+function crew(overrides: Partial<TeamPreviewSource> = {}): TeamPreviewSource {
+  return {
+    id: "team_1",
+    slug: "salty-sweet",
+    name: "Salty Sweet",
+    recruiting: true,
+    ...overrides,
+  };
+}
+
+describe("teamLinkPreview", () => {
+  it("says it's recruiting and points at the open roles", () => {
+    const root = teamLinkPreview(crew(), { skills: ["Unity"] });
+    expect(root!.components[0]).toEqual({
+      type: 10,
+      content: `## [Salty Sweet](${ORIGIN}/teams/salty-sweet)\n**Recruiting** · Works in Unity`,
+    });
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/team/salty-sweet.png`]);
+    expect(buttonsOf(root).map((button) => button.label)).toEqual([
+      "View team and open roles",
+      "All teams",
+    ]);
+    expect(root!.accent_color).toBe(0x5865f2);
+  });
+
+  it("goes quiet when it isn't", () => {
+    const root = teamLinkPreview(crew({ recruiting: false }), { skills: [] });
+    expect(buttonsOf(root)[0]?.label).toBe("View team");
+    expect(root!.accent_color).toBe(0xd2356b);
+  });
+
+  it("stays inside the payload budget with a long name and a long stack", () => {
+    const root = teamLinkPreview(crew({ name: "Ｘ".repeat(100) }), {
+      skills: Array.from({ length: 20 }, (_, i) => `Skill number ${i}`),
+    });
+    expect(componentEmbed(root)).toHaveLength(1);
   });
 });

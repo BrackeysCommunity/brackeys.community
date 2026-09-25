@@ -8,6 +8,8 @@ import { ProfilePageSkeleton } from "@/components/profile/ProfilePage/ProfilePag
 import { useProfileOwnerOverlay } from "@/components/profile/use-profile-owner-overlay";
 import { siteUrl } from "@/env";
 import { authClient } from "@/lib/auth-client";
+import { componentEmbed } from "@/lib/discord-embed";
+import { profileLinkPreview } from "@/lib/discord-link-preview";
 import { useMemberViewer } from "@/lib/hooks/use-member-identity";
 import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import { censorText } from "@/lib/profanity";
@@ -92,27 +94,41 @@ export const Route = createFileRoute("/profile/$userId")({
         imageAlt: `${name} on Brackeys Community`,
         type: "profile",
       }),
-      scripts: jsonLd([
-        {
-          "@context": "https://schema.org",
-          "@type": "Person",
-          name,
-          url: siteUrl(path),
-          ...(avatar ? { image: avatar } : {}),
-          ...(tagline ? { description: tagline } : {}),
-          ...(craft ? { jobTitle: craft } : {}),
-          ...(profile.location ? { homeLocation: profile.location } : {}),
-          ...(skills.length > 0 ? { knowsAbout: skills.map((skill) => skill.name) } : {}),
-          ...(sameAs.length > 0 ? { sameAs } : {}),
-        },
-        {
-          "@context": "https://schema.org",
-          ...breadcrumbNode([
-            { name: "Members", path: "/members" },
-            { name: name, path },
-          ]),
-        },
-      ]),
+      scripts: [
+        ...jsonLd([
+          {
+            "@context": "https://schema.org",
+            "@type": "Person",
+            name,
+            url: siteUrl(path),
+            ...(avatar ? { image: avatar } : {}),
+            ...(tagline ? { description: tagline } : {}),
+            ...(craft ? { jobTitle: craft } : {}),
+            ...(profile.location ? { homeLocation: profile.location } : {}),
+            ...(skills.length > 0 ? { knowsAbout: skills.map((skill) => skill.name) } : {}),
+            ...(sameAs.length > 0 ? { sameAs } : {}),
+          },
+          {
+            "@context": "https://schema.org",
+            ...breadcrumbNode([
+              { name: "Members", path: "/members" },
+              { name: name, path },
+            ]),
+          },
+        ]),
+        ...componentEmbed(
+          profileLinkPreview(
+            { ...profile, urlStub: loaderData.urlStub },
+            {
+              name,
+              skills: skills.map((skill) => skill.name),
+              githubUsername: loaderData.linkedAccounts.find(
+                (account) => account.provider === "github",
+              )?.providerUsername,
+            },
+          ),
+        ),
+      ],
     };
   },
   component: ProfileById,

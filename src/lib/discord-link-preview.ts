@@ -33,8 +33,10 @@ import { collabRateLine, type CollabRateSource } from "@/lib/format-rate";
 import { itchImageUrl, itchOriginalUrl } from "@/lib/itch-image";
 import { jamSlug, jamUrl } from "@/lib/jam-links";
 import { safeThemeColor } from "@/lib/jam-palette";
+import { SITE } from "@/lib/legal-meta";
+import { OG_ACCENTS } from "@/lib/og/palette";
 import { profileSlug } from "@/lib/profile-links";
-import { ogCardPath } from "@/lib/site-meta";
+import { DEFAULT_OG_CARD, ogCardPath, SITE_NAME } from "@/lib/site-meta";
 import { teamSlug } from "@/lib/team-links";
 
 /**
@@ -198,5 +200,131 @@ export function collabLinkPreview(
       ]),
     ],
     { accent: isClosed ? ACCENT_CLOSED : ACCENT_RECRUITING },
+  );
+}
+
+const PROFILE_ACCENT = accentColor(OG_ACCENTS.profile);
+const TEAM_ACCENT = accentColor(OG_ACCENTS.team);
+
+/**
+ * The landing page's preview — the link we hand out most. The card carries
+ * the pitch, the live counts and the featured jams, so the text stays one
+ * line and the buttons do the rest: one per corner of the site.
+ */
+export function homeLinkPreview(): Container | null {
+  return container(
+    [
+      textDisplay(
+        [
+          `## ${mdLink(SITE_NAME, siteUrl("/"))}`,
+          "Every game jam worth entering, the people making games in them, and the teams looking for someone like you.",
+        ].join("\n"),
+      ),
+      mediaGallery([{ url: siteUrl(DEFAULT_OG_CARD), description: SITE_NAME }]),
+      separator(),
+      actionRow([
+        linkButton("Browse jams", siteUrl("/jams")),
+        linkButton("Collab board", siteUrl("/collab")),
+        linkButton("Find members", siteUrl("/members")),
+      ]),
+      textDisplay(subtext(SITE.shortDomain)),
+    ],
+    { accent: BRAND_ACCENT },
+  );
+}
+
+export interface ProfilePreviewSource {
+  id: string;
+  urlStub: string | null;
+  availableForWork: boolean | null;
+}
+
+/**
+ * Buttons carry our trust, so they only ever point at our own pages or at
+ * accounts a member proved through OAuth — never at a URL somebody typed
+ * into a profile field, which would make us the delivery for a phishing link.
+ */
+function githubProfileUrl(username: string | null | undefined): string | null {
+  const handle = username?.trim();
+  return handle && /^[a-z\d](?:[a-z\d-]{0,38})$/i.test(handle)
+    ? `https://github.com/${handle}`
+    : null;
+}
+
+/**
+ * A member's preview. `profileCard` already prints the name, roles,
+ * tagline, avatar and counts, so the text adds what it can't: whether
+ * they're open to work, the tools they work in, and a verified GitHub.
+ *
+ * `name` comes from the caller for the same reason `collabLinkPreview`'s
+ * author name does — display names are viewer-dependent.
+ */
+export function profileLinkPreview(
+  profile: ProfilePreviewSource,
+  {
+    name,
+    skills,
+    githubUsername,
+  }: { name: string; skills: string[]; githubUsername?: string | null },
+): Container | null {
+  const slug = profileSlug(profile);
+  const url = siteUrl(`/profile/${slug}`);
+  const status = profile.availableForWork ? "**Open to work**" : null;
+  const stack = skills.length > 0 ? `Works in ${mdEscape(skills.slice(0, 5).join(", "))}` : null;
+
+  return container(
+    [
+      textDisplay(
+        [`## ${mdLink(name, url)}`, [status, stack].filter(Boolean).join(" · ")]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+      mediaGallery([{ url: cardImage("profile", slug), description: name }]),
+      separator(),
+      actionRow([
+        linkButton("View profile", url),
+        linkButton("GitHub", githubProfileUrl(githubUsername)),
+        linkButton("All members", siteUrl("/members")),
+      ]),
+    ],
+    { accent: profile.availableForWork ? ACCENT_RECRUITING : PROFILE_ACCENT },
+  );
+}
+
+export interface TeamPreviewSource {
+  id: string;
+  slug: string | null;
+  name: string;
+  recruiting: boolean;
+}
+
+/**
+ * A team's preview. The card prints the name, tagline, banner and counts;
+ * the text adds whether they're recruiting and their stack.
+ */
+export function teamLinkPreview(
+  team: TeamPreviewSource,
+  { skills }: { skills: string[] },
+): Container | null {
+  const slug = teamSlug(team);
+  const url = siteUrl(`/teams/${slug}`);
+  const status = team.recruiting ? "**Recruiting**" : null;
+  const stack = skills.length > 0 ? `Works in ${mdEscape(skills.slice(0, 5).join(", "))}` : null;
+
+  return container(
+    [
+      textDisplay(
+        [`## ${mdLink(team.name, url)}`, [status, stack].filter(Boolean).join(" · ")]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+      mediaGallery([{ url: cardImage("team", slug), description: team.name }]),
+      separator(),
+      actionRow([
+        linkButton(team.recruiting ? "View team and open roles" : "View team", url),
+        linkButton("All teams", siteUrl("/teams")),
+      ]),
+    ],
+    { accent: team.recruiting ? ACCENT_RECRUITING : TEAM_ACCENT },
   );
 }

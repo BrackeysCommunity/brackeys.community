@@ -8,6 +8,8 @@ import { TeamPageSkeleton } from "@/components/teams/TeamPageSkeleton";
 import { useTeamViewerState } from "@/components/teams/use-team-viewer-state";
 import { siteUrl } from "@/env";
 import { authStore } from "@/lib/auth-store";
+import { componentEmbed } from "@/lib/discord-embed";
+import { teamLinkPreview } from "@/lib/discord-link-preview";
 import { censorText } from "@/lib/profanity";
 import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
@@ -105,25 +107,32 @@ export const Route = createFileRoute("/teams/$teamId")({
         // Insider view of a hidden team — crawlers 404, but belt and braces.
         ...(team.hiddenAt ? { noindexNofollow: true, canonical: false } : {}),
       }),
-      scripts: jsonLd([
-        {
-          "@context": "https://schema.org",
-          "@type": "Organization",
-          name: team.name,
-          url: siteUrl(path),
-          ...(logo ? { logo } : {}),
-          ...(tagline ? { description: tagline } : {}),
-          ...(sameAs.length > 0 ? { sameAs } : {}),
-          numberOfEmployees: memberCount,
-        },
-        {
-          "@context": "https://schema.org",
-          ...breadcrumbNode([
-            { name: "Teams", path: "/teams" },
-            { name: team.name, path },
-          ]),
-        },
-      ]),
+      scripts: [
+        ...jsonLd([
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: team.name,
+            url: siteUrl(path),
+            ...(logo ? { logo } : {}),
+            ...(tagline ? { description: tagline } : {}),
+            ...(sameAs.length > 0 ? { sameAs } : {}),
+            numberOfEmployees: memberCount,
+          },
+          {
+            "@context": "https://schema.org",
+            ...breadcrumbNode([
+              { name: "Teams", path: "/teams" },
+              { name: team.name, path },
+            ]),
+          },
+        ]),
+        ...(team.hiddenAt
+          ? []
+          : componentEmbed(
+              teamLinkPreview(team, { skills: team.skills.map((skill) => skill.name) }),
+            )),
+      ],
     };
   },
   component: TeamById,

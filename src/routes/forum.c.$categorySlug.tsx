@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { forumCategoriesQueryOptions } from "@/components/forum/forum-queries";
 import { forumFeedSearchSchema } from "@/components/forum/forum-search";
 import { ForumCategoryPage } from "@/components/forum/ForumBrowse";
-import { listingMeta } from "@/lib/site-meta";
+import { listingMeta, ogCardPath } from "@/lib/site-meta";
 
 export const Route = createFileRoute("/forum/c/$categorySlug")({
   validateSearch: forumFeedSearchSchema,
@@ -20,6 +20,9 @@ export const Route = createFileRoute("/forum/c/$categorySlug")({
       title: loaderData?.category ? `${loaderData.category.name} · Forum` : "Forum",
       description: loaderData?.category?.description ?? undefined,
       path: `/forum/c/${params.categorySlug}`,
+      card: loaderData?.category
+        ? ogCardPath("category", params.categorySlug)
+        : ogCardPath("board", "forum"),
       search: match.search,
     }),
   component: CategoryRoute,

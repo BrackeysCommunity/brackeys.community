@@ -1,3 +1,5 @@
+import { SITE } from "@/lib/legal-meta";
+
 import { ogText } from "./glyphs";
 import { BG, DIM, FG, MUTED, OG_ACCENT_TEXT, OG_ACCENTS, type OgKind } from "./palette";
 
@@ -349,7 +351,7 @@ export function ogCard(input: OgCardInput): OgNode {
         "div",
         { alignItems: "center" },
         img(MARK_DATA_URI, 27, 27, { marginRight: 13 }),
-        h("div", { fontSize: 22, fontWeight: 700, color: FG }, "brackeys.community"),
+        h("div", { fontSize: 22, fontWeight: 700, color: FG }, SITE.shortDomain),
       ),
     ),
   );
@@ -372,17 +374,19 @@ function statLine(stats: OgStat[]): OgNode {
         "div",
         { alignItems: "baseline" },
         h("div", { fontSize: 21, fontWeight: 700, color: FG }, ogText(stat.value)),
-        h(
-          "div",
-          {
-            fontFamily: "JetBrains Mono",
-            fontSize: 14,
-            letterSpacing: "0.2em",
-            color: DIM,
-            marginLeft: 9,
-          },
-          ogText(stat.label).toUpperCase(),
-        ),
+        stat.label
+          ? h(
+              "div",
+              {
+                fontFamily: "JetBrains Mono",
+                fontSize: 14,
+                letterSpacing: "0.2em",
+                color: DIM,
+                marginLeft: 9,
+              },
+              ogText(stat.label).toUpperCase(),
+            )
+          : null,
       ),
     );
   });
@@ -451,4 +455,229 @@ function discArt(art: OgArt, accent: string): OgNode {
     },
     img(art.dataUri, size, size, { objectFit: "cover" }),
   );
+}
+
+export interface OgHomePillar {
+  kind: OgKind;
+  /** A live figure — "42". Null on the static card, which shows the label alone. */
+  value: string | null;
+  label: string;
+}
+
+export interface OgHomeInput {
+  layout: "home";
+  pillars: OgHomePillar[];
+  /** Featured jam banners, front first. Fewer than three are filled with branded tiles. */
+  art: OgArt[];
+}
+
+export function isHomeCard(input: OgCardInput | OgHomeInput): input is OgHomeInput {
+  return "layout" in input && input.layout === "home";
+}
+
+/** Three light sources instead of the board cards' one, in the spine's colours. */
+const HOME_BACKGROUND_DATA_URI = dataUri(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_WIDTH}" height="${OG_HEIGHT}">` +
+    `<defs>` +
+    `<radialGradient id="warm" cx="0.04" cy="-0.08" r="0.75">${glowStops(OG_ACCENTS.jam)}</radialGradient>` +
+    `<radialGradient id="cool" cx="0.92" cy="1.05" r="0.7">${glowStops(OG_ACCENTS.project)}</radialGradient>` +
+    `<radialGradient id="rose" cx="0.78" cy="0.2" r="0.45">` +
+    `<stop offset="0" stop-color="${OG_ACCENTS.collab}" stop-opacity="0.16"/>` +
+    `<stop offset="1" stop-color="${OG_ACCENTS.collab}" stop-opacity="0"/>` +
+    `</radialGradient>` +
+    `</defs>` +
+    `<rect width="${OG_WIDTH}" height="${OG_HEIGHT}" fill="${BG}"/>` +
+    `<rect width="${OG_WIDTH}" height="${OG_HEIGHT}" fill="url(#warm)"/>` +
+    `<rect width="${OG_WIDTH}" height="${OG_HEIGHT}" fill="url(#cool)"/>` +
+    `<rect width="${OG_WIDTH}" height="${OG_HEIGHT}" fill="url(#rose)"/>` +
+    `</svg>`,
+);
+
+/** The latin subset has no U+2192. */
+const ARROW_DATA_URI = dataUri(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${OG_ACCENT_TEXT.jam}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 5l7 7-7 7"/></svg>`,
+);
+
+const TILE_W = 400;
+const TILE_H = 225;
+
+/** Back to front. The front tile carries the first banner. */
+const FAN = [
+  { left: 770, top: 58, rotate: 8, accent: OG_ACCENTS.collab },
+  { left: 712, top: 176, rotate: -5, accent: OG_ACCENTS.project },
+  { left: 752, top: 318, rotate: 2, accent: OG_ACCENTS.jam },
+] as const;
+
+function placeholderTile(accent: string): OgNode {
+  return h(
+    "div",
+    {
+      width: TILE_W,
+      height: TILE_H,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#14151d",
+      backgroundImage: `linear-gradient(135deg, ${accent}55 0%, #14151d 85%)`,
+    },
+    h("div", { opacity: 0.35 }, img(MARK_DATA_URI, 88, 88)),
+  );
+}
+
+function bannerTile(art: OgArt): OgNode {
+  return h(
+    "div",
+    { width: TILE_W, height: TILE_H, backgroundColor: art.backdrop ?? "#17171d" },
+    img(art.dataUri, TILE_W, TILE_H, {
+      objectFit: art.shape === "letterbox" ? "contain" : "cover",
+    }),
+  );
+}
+
+function fanTile(slot: (typeof FAN)[number], art: OgArt | undefined): OgNode {
+  return h(
+    "div",
+    {
+      position: "absolute",
+      left: slot.left,
+      top: slot.top,
+      width: TILE_W,
+      height: TILE_H,
+      borderRadius: 18,
+      overflow: "hidden",
+      border: `2px solid ${slot.accent}88`,
+      boxShadow: "0 28px 60px rgba(0,0,0,0.6)",
+      transform: `rotate(${slot.rotate}deg)`,
+    },
+    art ? bannerTile(art) : placeholderTile(slot.accent),
+  );
+}
+
+function pillar(item: OgHomePillar): OgNode {
+  return h(
+    "div",
+    { alignItems: "center", marginRight: 34 },
+    h("div", {
+      width: 10,
+      height: 10,
+      borderRadius: 3,
+      backgroundColor: OG_ACCENTS[item.kind],
+      marginRight: 12,
+    }),
+    item.value
+      ? h("div", { fontSize: 26, fontWeight: 700, color: FG, marginRight: 10 }, ogText(item.value))
+      : null,
+    h(
+      "div",
+      {
+        fontFamily: "JetBrains Mono",
+        fontSize: 14,
+        fontWeight: 500,
+        letterSpacing: "0.2em",
+        color: item.value ? DIM : MUTED,
+      },
+      ogText(item.label).toUpperCase(),
+    ),
+  );
+}
+
+/** The landing page's card: brand-first, with the live board fanned out beside it. */
+export function ogHomeCard(input: OgHomeInput): OgNode {
+  // The front tile is drawn last, so the first banner lands on top.
+  const art = [...input.art.slice(0, FAN.length)];
+  const tiles = FAN.map((slot, index) => fanTile(slot, art[FAN.length - 1 - index]));
+
+  return h(
+    "div",
+    {
+      width: OG_WIDTH,
+      height: OG_HEIGHT,
+      backgroundColor: BG,
+      fontFamily: "Rubik",
+      position: "relative",
+    },
+    h(
+      "div",
+      { position: "absolute", top: 0, left: 0 },
+      img(HOME_BACKGROUND_DATA_URI, OG_WIDTH, OG_HEIGHT),
+    ),
+    h(
+      "div",
+      { position: "absolute", top: 0, left: 0 },
+      img(DOT_FIELD_DATA_URI, OG_WIDTH, OG_HEIGHT),
+    ),
+    ...tiles,
+    h("div", {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: SPINE_WIDTH,
+      height: OG_HEIGHT,
+      backgroundImage: `linear-gradient(180deg, ${SPINE[0]} 0%, ${SPINE[1]} 52%, ${SPINE[2]} 100%)`,
+    }),
+
+    h(
+      "div",
+      {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        flexDirection: "column",
+        justifyContent: "space-between",
+        width: 680,
+        height: OG_HEIGHT,
+        padding: `58px 0 56px ${PAD_X}px`,
+      },
+      h(
+        "div",
+        { alignItems: "center" },
+        img(MARK_DATA_URI, 34, 34, { marginRight: 14 }),
+        h("div", { fontSize: 26, fontWeight: 700, color: FG }, "Brackeys Community"),
+      ),
+
+      h(
+        "div",
+        { flexDirection: "column" },
+        h(
+          "div",
+          {
+            flexDirection: "column",
+            fontSize: 74,
+            fontWeight: 700,
+            lineHeight: 1.02,
+            letterSpacing: "-0.028em",
+            color: FG,
+          },
+          h("div", {}, "Every game jam"),
+          h("div", { color: OG_ACCENT_TEXT.jam }, "worth entering."),
+        ),
+        h(
+          "div",
+          { fontSize: 24, lineHeight: 1.45, color: MUTED, marginTop: 26, maxWidth: 540 },
+          "The jams, the people making games in them, and the teams looking for someone like you.",
+        ),
+      ),
+
+      h("div", { alignItems: "center" }, ...input.pillars.slice(0, 3).map(pillar)),
+    ),
+
+    h(
+      "div",
+      {
+        position: "absolute",
+        right: 48,
+        bottom: 44,
+        alignItems: "center",
+        padding: "10px 20px",
+        borderRadius: 999,
+        backgroundColor: "rgba(11,12,18,0.82)",
+        border: "1px solid rgba(255,255,255,0.16)",
+      },
+      h("div", { fontSize: 22, fontWeight: 700, color: FG }, SITE.shortDomain),
+      img(ARROW_DATA_URI, 20, 20, { marginLeft: 12 }),
+    ),
+  );
+}
+
+export function renderCardNode(input: OgCardInput | OgHomeInput): OgNode {
+  return isHomeCard(input) ? ogHomeCard(input) : ogCard(input);
 }
