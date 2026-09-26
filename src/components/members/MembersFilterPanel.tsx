@@ -9,12 +9,15 @@ import {
   CLEARED_MEMBER_FILTERS,
   countActiveMemberFilters,
   DEFAULT_SORT,
+  effectiveSortDir,
   type MemberAvailability,
   type MembersSearch,
-  type MembersSort,
   RATE_OPTIONS,
   type SetMembersSearch,
   SORT_OPTIONS,
+  type SortDirection,
+  sortDirPatch,
+  sortPatch,
   TZ_OPTIONS,
 } from "./members-filters";
 import { MembersRolePicker } from "./MembersRolePicker";
@@ -44,6 +47,8 @@ export function MembersFilterPanel({
   onDone,
 }: MembersFilterPanelProps) {
   const availability = search.availability ?? [];
+  const sort = search.sort ?? DEFAULT_SORT;
+  const sortOption = SORT_OPTIONS.find((o) => o.value === sort) ?? SORT_OPTIONS[0]!;
 
   const toggleAvailability = (value: MemberAvailability) => {
     const next = availability.includes(value)
@@ -126,16 +131,31 @@ export function MembersFilterPanel({
       </FilterGroup>
 
       <FilterGroup label="SORT BY">
+        <div className="flex flex-wrap gap-1.5">
+          {SORT_OPTIONS.map((option) => (
+            <FilterChip
+              key={option.value}
+              pressed={sort === option.value}
+              onPressedChange={() => setSearch(sortPatch(option.value))}
+            >
+              {option.short}
+            </FilterChip>
+          ))}
+        </div>
+      </FilterGroup>
+
+      <FilterGroup label="ORDER">
         <SegmentedControl
-          value={search.sort ?? DEFAULT_SORT}
-          onChange={(v) => setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as MembersSort) })}
+          value={effectiveSortDir(search)}
+          onChange={(v) => setSearch(sortDirPatch(sort, v as SortDirection))}
           size="sm"
         >
-          {SORT_OPTIONS.map((option) => (
-            <SegmentedControl.Item key={option.value} value={option.value}>
-              {option.short}
-            </SegmentedControl.Item>
-          ))}
+          <SegmentedControl.Item value="desc">
+            {sortOption.dirLabels.desc.toUpperCase()}
+          </SegmentedControl.Item>
+          <SegmentedControl.Item value="asc">
+            {sortOption.dirLabels.asc.toUpperCase()}
+          </SegmentedControl.Item>
         </SegmentedControl>
       </FilterGroup>
 

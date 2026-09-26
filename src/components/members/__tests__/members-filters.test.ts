@@ -3,7 +3,10 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   CLEARED_MEMBER_FILTERS,
   countActiveMemberFilters,
+  effectiveSortDir,
   memberFacetInput,
+  sortDirPatch,
+  sortPatch,
 } from "@/components/members/members-filters";
 
 describe("member facet input", () => {
@@ -35,5 +38,24 @@ describe("member facet input", () => {
 
   it("clears matchAll with the stack it modifies", () => {
     expect(CLEARED_MEMBER_FILTERS).toMatchObject({ skills: undefined, matchAll: undefined });
+  });
+});
+
+describe("member sort", () => {
+  it("resets the direction when the sort key changes", () => {
+    expect(sortPatch("rate")).toEqual({ sort: "rate", dir: undefined });
+    expect(sortPatch("active")).toEqual({ sort: undefined, dir: undefined });
+  });
+
+  it("keeps a direction in the URL only when it departs from the key's default", () => {
+    expect(sortDirPatch("rate", "asc")).toEqual({ dir: undefined });
+    expect(sortDirPatch("rate", "desc")).toEqual({ dir: "desc" });
+    expect(sortDirPatch("newest", "asc")).toEqual({ dir: "asc" });
+  });
+
+  it("falls back to each key's natural direction", () => {
+    expect(effectiveSortDir({})).toBe("desc");
+    expect(effectiveSortDir({ sort: "rate" })).toBe("asc");
+    expect(effectiveSortDir({ sort: "commitment", dir: "asc" })).toBe("asc");
   });
 });

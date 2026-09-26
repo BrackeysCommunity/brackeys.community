@@ -21,3 +21,22 @@ export const AVAILABILITY_OPTIONS: { value: MemberAvailability; label: string }[
 export function availabilityLabel(value: string | null | undefined): string | null {
   return AVAILABILITY_OPTIONS.find((o) => o.value === value)?.label ?? null;
 }
+
+/**
+ * Directory sort keys, each with the direction it reads best in. The URL
+ * only carries a direction when it departs from its key's default, so the
+ * plain `?sort=rate` link keeps meaning "cheapest first".
+ */
+export const MEMBER_SORTS = ["active", "shipped", "newest", "rate", "commitment"] as const;
+export type MemberSort = (typeof MEMBER_SORTS)[number];
+
+export const SORT_DIRECTIONS = ["asc", "desc"] as const;
+export type SortDirection = (typeof SORT_DIRECTIONS)[number];
+
+export const MEMBER_SORT_DEFAULT_DIR: Record<MemberSort, SortDirection> = {
+  active: "desc",
+  shipped: "desc",
+  newest: "desc",
+  rate: "asc",
+  commitment: "desc",
+};

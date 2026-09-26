@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -124,6 +127,13 @@ interface SortMenuProps {
   align?: "start" | "center" | "end";
   className?: string;
   contentClassName?: string;
+  /** A second radio group for the order, when the key and direction are
+   *  chosen separately rather than as one preset. */
+  direction?: {
+    options: FilterOption[];
+    value: string;
+    onChange: (value: string) => void;
+  };
 }
 
 /**
@@ -139,8 +149,21 @@ export function SortMenu({
   align = "end",
   className,
   contentClassName,
+  direction,
 }: SortMenuProps) {
-  const label = options.find((o) => o.value === value)?.label ?? "";
+  const keyLabel = options.find((o) => o.value === value)?.label ?? "";
+  const dirLabel = direction?.options.find((o) => o.value === direction.value)?.label;
+  const label = dirLabel ? `${keyLabel} · ${dirLabel}` : keyLabel;
+
+  const keyGroup = (
+    <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as string)}>
+      {options.map((option) => (
+        <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick={!direction}>
+          {option.label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
 
   return (
     <DropdownMenu>
@@ -158,13 +181,30 @@ export function SortMenu({
         <HugeiconsIcon icon={SortByDown02Icon} size={size === "lg" ? 18 : 14} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className={cn("w-auto min-w-48 p-1", contentClassName)}>
-        <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as string)}>
-          {options.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+        {direction ? (
+          <>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+              {keyGroup}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Order</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={direction.value}
+                onValueChange={(v) => direction.onChange(v as string)}
+              >
+                {direction.options.map((option) => (
+                  <DropdownMenuRadioItem key={option.value} value={option.value} closeOnClick>
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
+          </>
+        ) : (
+          keyGroup
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

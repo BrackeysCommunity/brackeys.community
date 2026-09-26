@@ -12,7 +12,7 @@ import { ShortcutTiles, type ShortcutTile } from "@/components/home/ShortcutTile
 import { useHomeContent } from "@/components/home/use-home-content";
 import { useHomeDestinations } from "@/components/home/use-home-destinations";
 import { Button } from "@/components/ui/button";
-import { PageStack } from "@/components/ui/page-motion";
+import { LateSection, PageStack } from "@/components/ui/page-motion";
 import { Section, SectionAction } from "@/components/ui/section";
 import { useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { fadeUp } from "@/lib/motion";
@@ -85,9 +85,9 @@ export function MobileHome() {
       </motion.div>
 
       {showDashboard ? (
-        <motion.div variants={fadeUp}>
+        <LateSection>
           <HomeDashboard data={dashboard} />
-        </motion.div>
+        </LateSection>
       ) : null}
 
       <motion.div variants={fadeUp}>

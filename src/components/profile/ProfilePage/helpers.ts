@@ -327,6 +327,8 @@ export interface JamLogBest {
   subtitle: string;
   /** Place number — drives the chunky "#1" headline. */
   rank: number;
+  /** The entry's page; the callout is a link to it when set. */
+  url: string | null;
 }
 
 /**

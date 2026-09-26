@@ -74,7 +74,17 @@ function BestFinishCallout({ best }: { best: JamLogBest }) {
     <Chonk
       variant="surface"
       size="lg"
-      className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-3"
+      render={
+        best.url ? <a href={best.url} target="_blank" rel="noopener noreferrer" /> : undefined
+      }
+      className={cn(
+        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-3",
+        "[--emboss-shadow-self:color-mix(in_srgb,var(--warning)_55%,black)]",
+        // Without an entry to open it's a trophy plaque, not a tile: no lift,
+        // press, or primary hover that promises a click.
+        !best.url &&
+          "[--chonk-lift-hover:3px]! hover:border-[color-mix(in_srgb,var(--warning)_55%,black)] hover:bg-card/95 hover:[--emboss-shadow-self:color-mix(in_srgb,var(--warning)_55%,black)] active:[--chonk-y:var(--chonk-lift)]!",
+      )}
     >
       {/* Auto-width column + a step down past two digits: a fixed 5rem
           column let a large rank run under the title. */}

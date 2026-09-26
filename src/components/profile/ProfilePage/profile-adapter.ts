@@ -495,6 +495,7 @@ function deriveJamLogBest(jamRows: RpcProject[]): JamLogBest | null {
     title: row.submissionTitle ?? row.title,
     subtitle,
     rank,
+    url: projectEntryUrl(row),
   };
 }
 

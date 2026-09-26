@@ -27,7 +27,12 @@ import {
   userRoles,
   userSkills,
 } from "@/db/schema";
-import { MEMBER_AVAILABILITY } from "@/lib/member-vocabulary";
+import {
+  MEMBER_AVAILABILITY,
+  MEMBER_SORT_DEFAULT_DIR,
+  MEMBER_SORTS,
+  SORT_DIRECTIONS,
+} from "@/lib/member-vocabulary";
 import { PUBLIC_PLACEMENT } from "@/lib/project-visibility";
 import { fuzzyMatch } from "@/lib/sql-fuzzy";
 import { escapeLike } from "@/lib/sql-like";
@@ -58,6 +63,7 @@ const CARD_SKILLS = 6;
  * the sort, and Postgres will only resolve an output name it can see.
  */
 const SCORE_ALIAS = "activity_score";
+const SHIPS_ALIAS = "ship_count";
 
 // Interpolated rather than parameterized: it's a module constant, and an
 // untyped `$1 * interval '1 day'` leaves Postgres guessing the parameter's
@@ -142,7 +148,9 @@ function selectable<T>(expr: SQL<T>): SQL<T> {
 const HOURLY_RATE = sql`case when ${developerProfiles.rateType} = 'hourly'
   then ${developerProfiles.rateMin} end`;
 
-export const MEMBER_SORTS = ["active", "newest", "rate"] as const;
+/** Commitment as a rank, so "full-time first" is a plain numeric sort. */
+const COMMITMENT_RANK = sql`case ${developerProfiles.availability}
+  when 'full_time' then 3 when 'part_time' then 2 when 'limited' then 1 end`;
 
 const memberFacetSchema = {
   search: z.string().trim().max(100).optional(),
@@ -313,6 +321,8 @@ export const listMembers = os
     z.object({
       ...memberFacetSchema,
       sort: z.enum(MEMBER_SORTS).default("active"),
+      /** Omitted means the sort's own natural direction. */
+      dir: z.enum(SORT_DIRECTIONS).optional(),
       limit: z.number().min(1).max(50).default(24),
       offset: z.number().min(0).default(0),
     }),
@@ -320,20 +330,28 @@ export const listMembers = os
   .handler(async ({ input }) => {
     const where = buildMemberFilter(input);
 
-    // Ordered on the select-list alias so Postgres evaluates the score's
-    // subqueries once per row rather than again for the sort. `id` is the
-    // final tiebreak: without it a page boundary can drop or repeat a
-    // member across two fetches of an otherwise tied ordering.
+    // Aggregates are ordered on their select-list alias so Postgres
+    // evaluates the subqueries once per row rather than again for the sort.
+    // Unset rates and commitments sink in either direction — they aren't the
+    // low end of the scale. `id` is the final tiebreak: without it a page
+    // boundary can drop or repeat a member across two fetches of an
+    // otherwise tied ordering.
+    const dir = sql.raw(input.dir ?? MEMBER_SORT_DEFAULT_DIR[input.sort]);
+    const byScore = sql.raw(`"${SCORE_ALIAS}" desc`);
     const orderBy =
       input.sort === "newest"
-        ? [desc(developerProfiles.createdAt), asc(developerProfiles.id)]
+        ? [sql`${developerProfiles.createdAt} ${dir}`, asc(developerProfiles.id)]
         : input.sort === "rate"
-          ? [sql`${HOURLY_RATE} asc nulls last`, asc(developerProfiles.id)]
-          : [
-              sql.raw(`"${SCORE_ALIAS}" desc`),
-              desc(developerProfiles.updatedAt),
-              asc(developerProfiles.id),
-            ];
+          ? [sql`${HOURLY_RATE} ${dir} nulls last`, asc(developerProfiles.id)]
+          : input.sort === "commitment"
+            ? [sql`${COMMITMENT_RANK} ${dir} nulls last`, byScore, asc(developerProfiles.id)]
+            : input.sort === "shipped"
+              ? [sql`${sql.raw(`"${SHIPS_ALIAS}"`)} ${dir}`, byScore, asc(developerProfiles.id)]
+              : [
+                  sql`${sql.raw(`"${SCORE_ALIAS}"`)} ${dir}`,
+                  desc(developerProfiles.updatedAt),
+                  asc(developerProfiles.id),
+                ];
 
     const [rows, [totals]] = await Promise.all([
       db
@@ -359,7 +377,7 @@ export const listMembers = os
           timezone: developerProfiles.timezone,
           location: developerProfiles.location,
           createdAt: developerProfiles.createdAt,
-          shipCount: selectable(shipsTotal),
+          shipCount: selectable(shipsTotal).as(SHIPS_ALIAS),
           teamCount: selectable(teamsTotal),
           postCount: selectable(postsTotal),
           activityScore: selectable(activityScore).as(SCORE_ALIAS),

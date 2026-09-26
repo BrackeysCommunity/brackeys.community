@@ -11,10 +11,13 @@ import type { HeroJam } from "@/components/home/hero-jam";
 import {
   BANNER_TRANSITION,
   type Density,
+  CAROUSEL_SLIDE_VARIANTS,
   JamBannerArt,
   JamBannerBackdrop,
+  JamCarouselArrows,
   JamCarouselDots,
   JamStateBadge,
+  useCarouselSlide,
 } from "@/components/home/jam-banner";
 import { useHeroJamEntries } from "@/components/home/use-hero-jam-entries";
 import type { RecentEntry } from "@/components/home/use-recent-entries";
@@ -222,9 +225,9 @@ export function FeaturedJamPanel({
   now,
   density = "comfortable",
 }: FeaturedJamPanelProps) {
-  const [slide, setSlide] = useState(0);
-  // Modulo at read time: a pin change can shrink the deck under a live index.
-  const hero = heroes[slide % heroes.length]!;
+  const carousel = useCarouselSlide(heroes.length);
+  const { slide, next } = carousel;
+  const hero = heroes[slide]!;
   const { jam } = hero;
   const entries = entriesByJamId.get(jam.jamId) ?? [];
 
@@ -262,9 +265,9 @@ export function FeaturedJamPanel({
   const rotating = heroes.length > 1 && !reduced && !hovered && !showEntries && !floating;
   useEffect(() => {
     if (!rotating) return;
-    const timer = setTimeout(() => setSlide((slide + 1) % heroes.length), SLIDE_MS);
+    const timer = setTimeout(next, SLIDE_MS);
     return () => clearTimeout(timer);
-  }, [rotating, slide, heroes.length]);
+  }, [rotating, slide, next]);
 
   useEffect(() => {
     if (!open) return;
@@ -347,12 +350,18 @@ export function FeaturedJamPanel({
               bgColor2={bgColor2}
             />
             {/* popLayout: `wait` would leave the backdrop bare between slides. */}
-            <AnimatePresence initial={false} mode="popLayout">
+            <AnimatePresence
+              initial={false}
+              mode="popLayout"
+              custom={reduced ? 0 : carousel.direction}
+            >
               <motion.div
-                key={jam.jamId}
-                initial={reduced ? { opacity: 0 } : { opacity: 0, x: 32 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={reduced ? { opacity: 0 } : { opacity: 0, x: -32 }}
+                key={`${carousel.key}:${jam.jamId}`}
+                custom={reduced ? 0 : carousel.direction}
+                variants={CAROUSEL_SLIDE_VARIANTS}
+                initial="enter"
+                animate="center"
+                exit="exit"
                 transition={reduced ? INSTANT : BANNER_TRANSITION}
                 className="absolute inset-0"
               >
@@ -365,13 +374,20 @@ export function FeaturedJamPanel({
               <JamStateBadge state={state} />
             </div>
             {heroes.length > 1 && (
-              <JamCarouselDots
-                slides={heroes.map((h) => h.jam)}
-                active={slide % heroes.length}
-                onSelect={setSlide}
-                countdown={{ durationMs: SLIDE_MS, running: rotating }}
-                className={`absolute z-20 ${isCompact ? "bottom-3 left-3" : "bottom-4 left-4"}`}
-              />
+              <>
+                <JamCarouselDots
+                  slides={heroes.map((h) => h.jam)}
+                  active={slide}
+                  onSelect={carousel.go}
+                  countdown={{ durationMs: SLIDE_MS, running: rotating }}
+                  className={`absolute z-20 ${isCompact ? "bottom-3 left-3" : "bottom-4 left-4"}`}
+                />
+                <JamCarouselArrows
+                  onPrev={carousel.prev}
+                  onNext={carousel.next}
+                  className={`absolute z-20 ${isCompact ? "right-3 bottom-3" : "right-4 bottom-4"}`}
+                />
+              </>
             )}
           </motion.div>
 

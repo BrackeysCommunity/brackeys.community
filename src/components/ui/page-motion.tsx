@@ -2,7 +2,7 @@ import { motion, type HTMLMotionProps } from "framer-motion";
 
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
-import { pageContainer } from "@/lib/motion";
+import { fadeUp, pageContainer } from "@/lib/motion";
 
 /**
  * The page-level stagger container. Wrap a page's top-level element and
@@ -32,6 +32,30 @@ export function PageStack({ children, ...props }: HTMLMotionProps<"div">) {
   return (
     <motion.div
       variants={pageContainer}
+      initial={reduced || !hydrated ? false : "hidden"}
+      animate="visible"
+      {...props}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/**
+ * A `PageStack` section that can mount after the page has settled — behind
+ * the session, a flag, or a query. A plain `variants={fadeUp}` child only
+ * inherits `hidden`/`visible` from the stack, so one that arrives late can be
+ * left at `opacity: 0` (still clickable) when the stack's entrance never
+ * reaches it. This one owns its entrance instead, and keeps the stack's
+ * hydration and reduced-motion exemptions.
+ */
+export function LateSection({ children, ...props }: HTMLMotionProps<"div">) {
+  const reduced = useReducedMotion();
+  const hydrated = useIsHydrated();
+
+  return (
+    <motion.div
+      variants={fadeUp}
       initial={reduced || !hydrated ? false : "hidden"}
       animate="visible"
       {...props}

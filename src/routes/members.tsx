@@ -6,6 +6,7 @@ import {
   membersListingIsShareable,
   membersListQueryOptions,
 } from "@/components/members/use-members-listing";
+import { MEMBER_SORTS, SORT_DIRECTIONS } from "@/lib/member-vocabulary";
 import { prefetchInLoader } from "@/lib/route-prefetch";
 import { listingMeta, ogCardPath } from "@/lib/site-meta";
 
@@ -21,6 +22,7 @@ import { listingMeta, ogCardPath } from "@/lib/site-meta";
 //                     viewer-relative; the offset comes from the browser
 //   `?sort=…`         listing order; `active` is the default and stays out
 //                     of the URL
+//   `?dir=asc|desc`   only when it departs from the sort's natural direction
 const facetId = z.coerce.number().int().positive();
 const availability = z.enum(["full_time", "part_time", "limited"]);
 
@@ -38,7 +40,8 @@ const searchSchema = z.object({
   open: z.boolean().optional(),
   rate: z.coerce.number().int().positive().optional(),
   tz: z.coerce.number().int().min(1).max(12).optional(),
-  sort: z.enum(["active", "newest", "rate"]).optional(),
+  sort: z.enum(MEMBER_SORTS).optional(),
+  dir: z.enum(SORT_DIRECTIONS).optional(),
 });
 
 export const Route = createFileRoute("/members")({

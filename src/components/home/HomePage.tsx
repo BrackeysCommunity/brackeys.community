@@ -9,7 +9,7 @@ import { NewestSignups } from "@/components/home/NewestSignups";
 import { RecentCollabPosts } from "@/components/home/RecentCollabPosts";
 import { RecentForumPosts } from "@/components/home/RecentForumPosts";
 import { useHomeContent } from "@/components/home/use-home-content";
-import { PageStack } from "@/components/ui/page-motion";
+import { LateSection, PageStack } from "@/components/ui/page-motion";
 import { Section, SectionAction } from "@/components/ui/section";
 import { fadeUp } from "@/lib/motion";
 
@@ -69,9 +69,9 @@ export function HomePage() {
       </motion.div>
 
       {showDashboard ? (
-        <motion.div variants={fadeUp}>
+        <LateSection>
           <HomeDashboard data={dashboard} />
-        </motion.div>
+        </LateSection>
       ) : null}
 
       <motion.div variants={fadeUp}>

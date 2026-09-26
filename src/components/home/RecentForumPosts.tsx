@@ -1,14 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { motion } from "framer-motion";
 import { useMemo } from "react";
 
 import { ForumPostCard } from "@/components/forum/ForumPostCard";
+import { LateSection } from "@/components/ui/page-motion";
 import { Section, SectionAction } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authStore } from "@/lib/auth-store";
 import { useFlag } from "@/lib/hooks/use-flag";
-import { fadeUp } from "@/lib/motion";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
 
@@ -45,9 +44,9 @@ export function RecentForumPosts() {
   if (!forumOn) return null;
   if (!hot.isLoading && posts.length === 0) return null;
 
-  // Its own staggered child, so a dark forum leaves no empty slot behind.
+  // Its own page section, so a dark forum leaves no empty slot behind.
   return (
-    <motion.div variants={fadeUp}>
+    <LateSection>
       <Section
         id="forum"
         title="FROM THE FORUM"
@@ -68,6 +67,6 @@ export function RecentForumPosts() {
           </div>
         )}
       </Section>
-    </motion.div>
+    </LateSection>
   );
 }

@@ -7,7 +7,11 @@ import { DEFAULT_SORT, memberFacetInput, type MembersSearch } from "./members-fi
 export const MEMBERS_PAGE_SIZE = 24;
 
 export function membersListQueryOptions(search: MembersSearch) {
-  const listInput = { ...memberFacetInput(search), sort: search.sort ?? DEFAULT_SORT };
+  const listInput = {
+    ...memberFacetInput(search),
+    sort: search.sort ?? DEFAULT_SORT,
+    dir: search.dir,
+  };
   return offsetInfiniteQueryOptions({
     queryKey: ["listMembers", listInput],
     pageSize: MEMBERS_PAGE_SIZE,

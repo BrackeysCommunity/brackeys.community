@@ -9,12 +9,17 @@
  * shareable.
  */
 
-import type { MemberAvailability } from "@/lib/member-vocabulary";
+import {
+  MEMBER_SORT_DEFAULT_DIR,
+  type MemberAvailability,
+  type MemberSort,
+  type SortDirection,
+} from "@/lib/member-vocabulary";
 
 export { AVAILABILITY_OPTIONS, availabilityLabel } from "@/lib/member-vocabulary";
-export type { MemberAvailability };
+export type { MemberAvailability, SortDirection };
 
-export type MembersSort = "active" | "newest" | "rate";
+export type MembersSort = MemberSort;
 
 export interface MembersSearch {
   q?: string;
@@ -36,22 +41,71 @@ export interface MembersSearch {
    *  so the same link means the same thing to whoever opens it. */
   tz?: number;
   sort?: MembersSort;
+  /** Only present when it departs from the sort's natural direction. */
+  dir?: SortDirection;
 }
 
 /** Merges a partial change into the URL search. */
 export type SetMembersSearch = (next: Partial<MembersSearch>) => void;
 
 /**
- * Sort presets. `short` is the drawer's segmented label, where three
- * options share one row and the menu's full phrasing doesn't fit.
+ * Sort keys. `short` is the drawer's chip label; `dirLabels` name the two
+ * directions in the key's own terms, since "ascending commitment" makes
+ * the reader do the mapping.
  */
-export const SORT_OPTIONS: { value: MembersSort; label: string; short: string }[] = [
-  { value: "active", label: "Most active", short: "ACTIVE" },
-  { value: "newest", label: "Newest members", short: "NEWEST" },
-  { value: "rate", label: "Lowest rate", short: "RATE" },
+export const SORT_OPTIONS: {
+  value: MembersSort;
+  label: string;
+  short: string;
+  dirLabels: Record<SortDirection, string>;
+}[] = [
+  {
+    value: "active",
+    label: "Activity",
+    short: "ACTIVITY",
+    dirLabels: { desc: "Most active first", asc: "Least active first" },
+  },
+  {
+    value: "shipped",
+    label: "Shipped projects",
+    short: "SHIPPED",
+    dirLabels: { desc: "Most shipped first", asc: "Fewest shipped first" },
+  },
+  {
+    value: "newest",
+    label: "Join date",
+    short: "JOINED",
+    dirLabels: { desc: "Newest first", asc: "Oldest first" },
+  },
+  {
+    value: "rate",
+    label: "Hourly rate",
+    short: "RATE",
+    dirLabels: { asc: "Lowest first", desc: "Highest first" },
+  },
+  {
+    value: "commitment",
+    label: "Commitment",
+    short: "COMMITMENT",
+    dirLabels: { desc: "Full-time first", asc: "Limited first" },
+  },
 ];
 
 export const DEFAULT_SORT: MembersSort = "active";
+
+/** The URL patch for picking a sort key: its natural direction comes with it. */
+export function sortPatch(sort: MembersSort): Partial<MembersSearch> {
+  return { sort: sort === DEFAULT_SORT ? undefined : sort, dir: undefined };
+}
+
+/** The URL patch for a direction, dropped when it matches the key's default. */
+export function sortDirPatch(sort: MembersSort, dir: SortDirection): Partial<MembersSearch> {
+  return { dir: dir === MEMBER_SORT_DEFAULT_DIR[sort] ? undefined : dir };
+}
+
+export function effectiveSortDir(search: MembersSearch): SortDirection {
+  return search.dir ?? MEMBER_SORT_DEFAULT_DIR[search.sort ?? DEFAULT_SORT];
+}
 
 /**
  * Rate is a ceiling, not a range: the question people actually bring to

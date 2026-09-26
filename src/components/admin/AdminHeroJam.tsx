@@ -10,9 +10,12 @@ import { heroPinApplies } from "@/components/home/hero-jam";
 import {
   BANNER_TRANSITION,
   JamBannerArt,
+  CAROUSEL_SLIDE_VARIANTS,
   JamBannerBackdrop,
+  JamCarouselArrows,
   JamCarouselDots,
   JamStateBadge,
+  useCarouselSlide,
 } from "@/components/home/jam-banner";
 import { useJamGradient } from "@/components/jams/JamCalendarPage/board/use-jam-color";
 import {
@@ -256,10 +259,9 @@ const CROSSFADE = { duration: 0.2, ease: EASE_OUT };
 function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
   const reduced = useReducedMotion();
   const [paused, setPaused] = useState(false);
-  const [index, setIndex] = useState(0);
-
-  // Modulo at read time: unpinning can shrink the deck under a live index.
-  const active = slides[index % slides.length]!;
+  const carousel = useCarouselSlide(slides.length);
+  const { slide: index, next } = carousel;
+  const active = slides[index]!;
   const jam = active.jam;
 
   // One timeout per slide rather than an interval: a manual dot click then
@@ -267,9 +269,9 @@ function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
   const rotating = !reduced && !paused && slides.length > 1;
   useEffect(() => {
     if (!rotating) return;
-    const timer = setTimeout(() => setIndex((index + 1) % slides.length), SLIDE_MS);
+    const timer = setTimeout(next, SLIDE_MS);
     return () => clearTimeout(timer);
-  }, [rotating, index, slides.length]);
+  }, [rotating, index, next]);
 
   const [bgColor1, bgColor2] = useJamGradient(jam);
   const state = effectiveJamState(jam.startsAt, jam.endsAt, now, jam.votingEndsAt);
@@ -292,12 +294,14 @@ function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
           bgColor2={bgColor2}
         />
         {/* popLayout: `wait` would leave the backdrop bare between slides. */}
-        <AnimatePresence initial={false} mode="popLayout">
+        <AnimatePresence initial={false} mode="popLayout" custom={reduced ? 0 : carousel.direction}>
           <motion.div
-            key={jam.jamId}
-            initial={reduced ? { opacity: 0 } : { opacity: 0, x: 32 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, x: -32 }}
+            key={`${carousel.key}:${jam.jamId}`}
+            custom={reduced ? 0 : carousel.direction}
+            variants={CAROUSEL_SLIDE_VARIANTS}
+            initial="enter"
+            animate="center"
+            exit="exit"
             transition={BANNER_TRANSITION}
             className="absolute inset-0"
           >
@@ -310,13 +314,20 @@ function HeroCarousel({ slides, now }: { slides: HeroSlide[]; now: Date }) {
         </div>
 
         {slides.length > 1 && (
-          <JamCarouselDots
-            slides={slides.map((slide) => slide.jam)}
-            active={index % slides.length}
-            onSelect={setIndex}
-            countdown={{ durationMs: SLIDE_MS, running: rotating }}
-            className="absolute bottom-3 left-3 z-20"
-          />
+          <>
+            <JamCarouselDots
+              slides={slides.map((slide) => slide.jam)}
+              active={index}
+              onSelect={carousel.go}
+              countdown={{ durationMs: SLIDE_MS, running: rotating }}
+              className="absolute bottom-3 left-3 z-20"
+            />
+            <JamCarouselArrows
+              onPrev={carousel.prev}
+              onNext={carousel.next}
+              className="absolute right-3 bottom-3 z-20"
+            />
+          </>
         )}
       </div>
 

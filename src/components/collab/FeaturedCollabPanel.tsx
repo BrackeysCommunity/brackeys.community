@@ -5,7 +5,12 @@ import { Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
-import { JamCarouselDots } from "@/components/home/jam-banner";
+import {
+  CAROUSEL_SLIDE_VARIANTS,
+  JamCarouselArrows,
+  JamCarouselDots,
+  useCarouselSlide,
+} from "@/components/home/jam-banner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DotGrid } from "@/components/ui/dot-grid";
@@ -112,13 +117,13 @@ function ChipRow({
  * paused while the pointer is over it and under reduced motion.
  */
 export function FeaturedCollabPanel({ posts }: { posts: FeaturedPost[] }) {
-  const [slide, setSlide] = useState(0);
+  const carousel = useCarouselSlide(posts.length);
+  const { slide, next } = carousel;
   const [hovered, setHovered] = useState(false);
   const reduced = useReducedMotion();
   const crossfade = reduced ? INSTANT : CROSSFADE;
 
-  // Modulo at read time: an unpin can shrink the deck under a live index.
-  const post = posts[slide % posts.length]!;
+  const post = posts[slide]!;
 
   const { data: detail } = useQuery({
     ...orpc.getPost.queryOptions({ input: { postId: post.id } }),
@@ -135,9 +140,9 @@ export function FeaturedCollabPanel({ posts }: { posts: FeaturedPost[] }) {
   const rotating = posts.length > 1 && !reduced && !hovered;
   useEffect(() => {
     if (!rotating) return;
-    const timer = setTimeout(() => setSlide((slide + 1) % posts.length), SLIDE_MS);
+    const timer = setTimeout(next, SLIDE_MS);
     return () => clearTimeout(timer);
-  }, [rotating, slide, posts.length]);
+  }, [rotating, slide, next]);
 
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
@@ -146,12 +151,18 @@ export function FeaturedCollabPanel({ posts }: { posts: FeaturedPost[] }) {
           className="relative shrink-0 overflow-hidden bg-muted/20"
           style={{ height: BANNER_HEIGHT }}
         >
-          <AnimatePresence initial={false} mode="popLayout">
+          <AnimatePresence
+            initial={false}
+            mode="popLayout"
+            custom={reduced ? 0 : carousel.direction}
+          >
             <motion.div
-              key={post.id}
-              initial={reduced ? { opacity: 0 } : { opacity: 0, x: 32 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={reduced ? { opacity: 0 } : { opacity: 0, x: -32 }}
+              key={`${carousel.key}:${post.id}`}
+              custom={reduced ? 0 : carousel.direction}
+              variants={CAROUSEL_SLIDE_VARIANTS}
+              initial="enter"
+              animate="center"
+              exit="exit"
               transition={reduced ? INSTANT : { duration: 0.3, ease: EASE_OUT }}
               className="absolute inset-0"
             >
@@ -166,13 +177,20 @@ export function FeaturedCollabPanel({ posts }: { posts: FeaturedPost[] }) {
             </Badge>
           </div>
           {posts.length > 1 && (
-            <JamCarouselDots
-              slides={posts.map((p) => ({ jamId: p.id, title: p.title }))}
-              active={slide % posts.length}
-              onSelect={setSlide}
-              countdown={{ durationMs: SLIDE_MS, running: rotating }}
-              className="absolute bottom-3 left-3 z-20"
-            />
+            <>
+              <JamCarouselDots
+                slides={posts.map((p) => ({ jamId: p.id, title: p.title }))}
+                active={slide}
+                onSelect={carousel.go}
+                countdown={{ durationMs: SLIDE_MS, running: rotating }}
+                className="absolute bottom-3 left-3 z-20"
+              />
+              <JamCarouselArrows
+                onPrev={carousel.prev}
+                onNext={carousel.next}
+                className="absolute right-3 bottom-3 z-20"
+              />
+            </>
           )}
         </div>
 

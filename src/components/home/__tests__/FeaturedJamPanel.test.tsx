@@ -61,13 +61,24 @@ vi.mock("@hugeicons/react", () => ({
 
 // Mirrors the component's icon imports; keep in sync when icons change.
 vi.mock("@hugeicons/core-free-icons", () => ({
+  ArrowLeft01Icon: "arrow-left-01",
   ArrowLeft02Icon: "arrow-left",
+  ArrowRight01Icon: "arrow-right-01",
   FlashIcon: "flash",
   GridViewIcon: "grid",
 }));
 
-vi.mock("@/components/home/jam-banner", () => ({
+vi.mock("@/components/home/jam-banner", async () => ({
+  ...(await vi.importActual<typeof import("@/components/home/jam-banner/JamCarouselDots")>(
+    "@/components/home/jam-banner/JamCarouselDots",
+  )),
   BANNER_TRANSITION: { duration: 0 },
+  JamCarouselArrows: ({ onPrev, onNext }: { onPrev: () => void; onNext: () => void }) => (
+    <div>
+      <button type="button" aria-label="Previous slide" onClick={onPrev} />
+      <button type="button" aria-label="Next slide" onClick={onNext} />
+    </div>
+  ),
   JamBannerArt: () => <div data-testid="banner-art" />,
   JamBannerBackdrop: () => <div data-testid="banner-backdrop" />,
   JamStateBadge: ({ state }: { state: string }) => <span data-testid={`state-${state}`} />,
@@ -333,6 +344,7 @@ describe("hero rotation", () => {
   it("shows no rotation controls for a single jam", () => {
     render(<FeaturedJamPanel heroes={[hero]} entriesByJamId={byJam(entries)} now={NOW} />);
     expect(screen.queryByRole("button", { name: /^Show / })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next slide" })).toBeNull();
   });
 
   it("switches jams from the dots", () => {
@@ -342,6 +354,14 @@ describe("hero rotation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show GMTK Game Jam" }));
     expect(screen.getByRole("heading", { name: "GMTK Game Jam" })).toBeTruthy();
     expect(screen.getByText("100")).toBeTruthy();
+  });
+
+  it("steps both ways from the arrows, wrapping at the ends", () => {
+    render(<FeaturedJamPanel heroes={[hero, hero2]} entriesByJamId={byJam(entries)} now={NOW} />);
+    fireEvent.click(screen.getByRole("button", { name: "Previous slide" }));
+    expect(screen.getByRole("heading", { name: "GMTK Game Jam" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next slide" }));
+    expect(screen.getByRole("heading", { name: "Brackeys Game Jam 2026.2" })).toBeTruthy();
   });
 
   it("advances on its own clock", () => {

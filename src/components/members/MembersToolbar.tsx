@@ -22,12 +22,16 @@ import { SearchField } from "@/components/ui/search-field";
 import {
   AVAILABILITY_OPTIONS,
   DEFAULT_SORT,
+  effectiveSortDir,
   type MemberAvailability,
   type MembersSearch,
   type MembersSort,
   RATE_OPTIONS,
   type SetMembersSearch,
   SORT_OPTIONS,
+  type SortDirection,
+  sortDirPatch,
+  sortPatch,
   TZ_OPTIONS,
 } from "./members-filters";
 import { MembersRolePicker } from "./MembersRolePicker";
@@ -72,13 +76,7 @@ export function MembersToolbar({
     <Toolbar
       search={searchInput}
       onOpenFilters={onOpenFilters}
-      controls={
-        <SortMenu
-          options={SORT_OPTIONS}
-          value={search.sort ?? DEFAULT_SORT}
-          onChange={(v) => setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as MembersSort) })}
-        />
-      }
+      controls={<MembersSortMenu search={search} setSearch={setSearch} />}
     >
       <FilterToggle
         label="OPEN TO WORK"
@@ -114,13 +112,38 @@ export function MembersFloatingControls({
 }) {
   return (
     <ToolbarFloatingControls onOpenFilters={onOpenFilters}>
-      <SortMenu
-        size="lg"
-        options={SORT_OPTIONS}
-        value={search.sort ?? DEFAULT_SORT}
-        onChange={(v) => setSearch({ sort: v === DEFAULT_SORT ? undefined : (v as MembersSort) })}
-      />
+      <MembersSortMenu size="lg" search={search} setSearch={setSearch} />
     </ToolbarFloatingControls>
+  );
+}
+
+/** Sort key and direction, chosen separately; the direction reads in the key's own terms. */
+function MembersSortMenu({
+  search,
+  setSearch,
+  size,
+}: {
+  search: MembersSearch;
+  setSearch: SetMembersSearch;
+  size?: "sm" | "lg";
+}) {
+  const sort = search.sort ?? DEFAULT_SORT;
+  const option = SORT_OPTIONS.find((o) => o.value === sort) ?? SORT_OPTIONS[0]!;
+  return (
+    <SortMenu
+      size={size}
+      options={SORT_OPTIONS}
+      value={sort}
+      onChange={(v) => setSearch(sortPatch(v as MembersSort))}
+      direction={{
+        options: [
+          { value: "desc", label: option.dirLabels.desc },
+          { value: "asc", label: option.dirLabels.asc },
+        ],
+        value: effectiveSortDir(search),
+        onChange: (v) => setSearch(sortDirPatch(sort, v as SortDirection)),
+      }}
+    />
   );
 }
 
