@@ -208,7 +208,23 @@ function titleSize(title: string): number {
   return 44;
 }
 
-export function ogCard(input: OgCardInput): OgNode {
+export interface OgRenderOptions {
+  /** Off for Discord component embeds, whose accent bar already sits there. */
+  spine?: boolean;
+}
+
+function spineNode(): OgNode {
+  return h("div", {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: SPINE_WIDTH,
+    height: OG_HEIGHT,
+    backgroundImage: `linear-gradient(180deg, ${SPINE[0]} 0%, ${SPINE[1]} 52%, ${SPINE[2]} 100%)`,
+  });
+}
+
+export function ogCard(input: OgCardInput, options: OgRenderOptions = {}): OgNode {
   const accent = OG_ACCENTS[input.kind];
   const accentText = OG_ACCENT_TEXT[input.kind];
   const bleeding = input.art?.shape === "panel";
@@ -259,14 +275,7 @@ export function ogCard(input: OgCardInput): OgNode {
 
     // The spine: the one element identical on every card, and the reason a
     // Brackeys link is identifiable before any of the words are read.
-    h("div", {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      width: SPINE_WIDTH,
-      height: OG_HEIGHT,
-      backgroundImage: `linear-gradient(180deg, ${SPINE[0]} 0%, ${SPINE[1]} 52%, ${SPINE[2]} 100%)`,
-    }),
+    options.spine === false ? null : spineNode(),
 
     h(
       "div",
@@ -581,7 +590,7 @@ function pillar(item: OgHomePillar): OgNode {
 }
 
 /** The landing page's card: brand-first, with the live board fanned out beside it. */
-export function ogHomeCard(input: OgHomeInput): OgNode {
+export function ogHomeCard(input: OgHomeInput, options: OgRenderOptions = {}): OgNode {
   // The front tile is drawn last, so the first banner lands on top.
   const art = [...input.art.slice(0, FAN.length)];
   const tiles = FAN.map((slot, index) => fanTile(slot, art[FAN.length - 1 - index]));
@@ -606,14 +615,7 @@ export function ogHomeCard(input: OgHomeInput): OgNode {
       img(DOT_FIELD_DATA_URI, OG_WIDTH, OG_HEIGHT),
     ),
     ...tiles,
-    h("div", {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      width: SPINE_WIDTH,
-      height: OG_HEIGHT,
-      backgroundImage: `linear-gradient(180deg, ${SPINE[0]} 0%, ${SPINE[1]} 52%, ${SPINE[2]} 100%)`,
-    }),
+    options.spine === false ? null : spineNode(),
 
     h(
       "div",
@@ -678,6 +680,9 @@ export function ogHomeCard(input: OgHomeInput): OgNode {
   );
 }
 
-export function renderCardNode(input: OgCardInput | OgHomeInput): OgNode {
-  return isHomeCard(input) ? ogHomeCard(input) : ogCard(input);
+export function renderCardNode(
+  input: OgCardInput | OgHomeInput,
+  options: OgRenderOptions = {},
+): OgNode {
+  return isHomeCard(input) ? ogHomeCard(input, options) : ogCard(input, options);
 }

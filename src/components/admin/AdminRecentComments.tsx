@@ -8,6 +8,7 @@ import {
   AdminRow,
   AdminSection,
   ReasonField,
+  RESTORE_REASON_HINT,
 } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,7 @@ export function AdminRecentComments() {
                         author already got stays in their inbox.
                         <ReasonField
                           id={`restore-reason-${comment.id}`}
+                          hint={RESTORE_REASON_HINT}
                           value={reasons[comment.id] ?? ""}
                           onChange={(next) =>
                             setReasons((prev) => ({ ...prev, [comment.id]: next }))

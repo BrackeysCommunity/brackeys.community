@@ -98,6 +98,8 @@ type SerializedComment = {
   /** Null when tombstoned, redacted, or hidden — never shipped. */
   content: string | null;
   tombstone: "author" | "moderator" | null;
+  /** The tombstoned text, only for a viewer who can restore it. */
+  removedContent?: string;
   /** Author is blocked by the viewer; UI collapses the row. */
   hidden: boolean;
   createdAt: Date;
@@ -107,7 +109,7 @@ type SerializedComment = {
   author: CommentAuthor | null;
   /** Written by someone behind the subject — see `SubjectContext.authorIds`. */
   byAuthor: boolean;
-  viewer: { isMine: boolean; canEdit: boolean; canDelete: boolean };
+  viewer: { isMine: boolean; canEdit: boolean; canDelete: boolean; canRestore: boolean };
 };
 
 async function authorsByIds(userIds: string[]): Promise<Map<string, CommentAuthor>> {
@@ -183,6 +185,7 @@ export function serializeComments(
         ? ("author" as const)
         : ("moderator" as const)
       : null;
+    const canRestore = tombstone === "moderator" && opts.isStaff;
     return {
       id: row.id,
       parentId: row.parentId,
@@ -190,6 +193,7 @@ export function serializeComments(
       depth: row.depth,
       content: tombstoned || hidden ? null : row.content,
       tombstone,
+      ...(canRestore ? { removedContent: row.content } : {}),
       hidden,
       createdAt: row.createdAt,
       editedAt: row.editedAt,
@@ -205,6 +209,8 @@ export function serializeComments(
           (isMine ||
             opts.isStaff ||
             (opts.subjectOwnerId != null && opts.viewerId === opts.subjectOwnerId)),
+        // An author's own removal is their call; staff only undo their own kind.
+        canRestore,
       },
     };
   });

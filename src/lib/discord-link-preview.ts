@@ -14,11 +14,8 @@
 
 import { siteUrl } from "@/env";
 import {
-  ACCENT_CLOSED,
-  ACCENT_RECRUITING,
-  accentColor,
+  ACCENT_BLURPLE,
   actionRow,
-  BRAND_ACCENT,
   container,
   type Container,
   linkButton,
@@ -32,17 +29,16 @@ import {
 import { collabRateLine, type CollabRateSource } from "@/lib/format-rate";
 import { itchImageUrl, itchOriginalUrl } from "@/lib/itch-image";
 import { jamSlug, jamUrl } from "@/lib/jam-links";
-import { safeThemeColor } from "@/lib/jam-palette";
 import { SITE } from "@/lib/legal-meta";
-import { OG_ACCENTS } from "@/lib/og/palette";
 import { profileSlug } from "@/lib/profile-links";
-import { DEFAULT_OG_CARD, ogCardPath, SITE_NAME } from "@/lib/site-meta";
+import { DEFAULT_OG_EMBED_CARD, ogCardPath, SITE_NAME } from "@/lib/site-meta";
 import { teamSlug } from "@/lib/team-links";
 
 /**
  * The page's own generated social card (`src/lib/og/`), as a gallery item.
  *
- * This is the same 1200×630 PNG the `og:image` tag points at, which is why
+ * This is the same 1200×630 PNG the `og:image` tag points at (minus the
+ * spine, which would sit beside the container's accent bar), which is why
  * it is the safe piece of art to lean on: it is ours, it is edge-cached for
  * a day, and a render failure redirects to the committed static card rather
  * than 404ing — so Discord's ten-second budget never ends with a hole where
@@ -51,7 +47,7 @@ import { teamSlug } from "@/lib/team-links";
  * trim their text against.
  */
 function cardImage(kind: Parameters<typeof ogCardPath>[0], id: string | number): string {
-  return siteUrl(ogCardPath(kind, id));
+  return siteUrl(ogCardPath(kind, id, { embed: true }));
 }
 
 /**
@@ -83,7 +79,6 @@ function galleryImage(url: string | null | undefined): string | null {
 export interface JamPreviewSource {
   slug: string;
   title: string;
-  themeColor: string | null;
 }
 
 /**
@@ -118,7 +113,7 @@ export function jamLinkPreview(
         linkButton("View on itch.io", jamUrl(jam.slug)),
       ]),
     ],
-    { accent: accentColor(safeThemeColor(jam.themeColor)) ?? BRAND_ACCENT },
+    { accent: ACCENT_BLURPLE },
   );
 }
 
@@ -199,12 +194,9 @@ export function collabLinkPreview(
         linkButton("All open posts", siteUrl("/collab")),
       ]),
     ],
-    { accent: isClosed ? ACCENT_CLOSED : ACCENT_RECRUITING },
+    { accent: ACCENT_BLURPLE },
   );
 }
-
-const PROFILE_ACCENT = accentColor(OG_ACCENTS.profile);
-const TEAM_ACCENT = accentColor(OG_ACCENTS.team);
 
 /**
  * The landing page's preview — the link we hand out most. The card carries
@@ -220,7 +212,7 @@ export function homeLinkPreview(): Container | null {
           "Every game jam worth entering, the people making games in them, and the teams looking for someone like you.",
         ].join("\n"),
       ),
-      mediaGallery([{ url: siteUrl(DEFAULT_OG_CARD), description: SITE_NAME }]),
+      mediaGallery([{ url: siteUrl(DEFAULT_OG_EMBED_CARD), description: SITE_NAME }]),
       separator(),
       actionRow([
         linkButton("Browse jams", siteUrl("/jams")),
@@ -229,7 +221,7 @@ export function homeLinkPreview(): Container | null {
       ]),
       textDisplay(subtext(SITE.shortDomain)),
     ],
-    { accent: BRAND_ACCENT },
+    { accent: ACCENT_BLURPLE },
   );
 }
 
@@ -287,7 +279,7 @@ export function profileLinkPreview(
         linkButton("All members", siteUrl("/members")),
       ]),
     ],
-    { accent: profile.availableForWork ? ACCENT_RECRUITING : PROFILE_ACCENT },
+    { accent: ACCENT_BLURPLE },
   );
 }
 
@@ -325,6 +317,6 @@ export function teamLinkPreview(
         linkButton("All teams", siteUrl("/teams")),
       ]),
     ],
-    { accent: team.recruiting ? ACCENT_RECRUITING : TEAM_ACCENT },
+    { accent: ACCENT_BLURPLE },
   );
 }

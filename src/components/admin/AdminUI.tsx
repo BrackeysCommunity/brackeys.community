@@ -319,6 +319,9 @@ export function CategoryCombobox({
   );
 }
 
+/** Restores notify nobody; the reason only reaches the moderation log. */
+export const RESTORE_REASON_HINT = "STAFF ONLY — KEPT IN THE MODERATION LOG";
+
 /**
  * The "why" behind a moderation action, collected inside the confirm
  * dialog itself — the moment staff decide is the only moment they'll write
@@ -334,6 +337,7 @@ export function ReasonField({
   id,
   required = false,
   placeholder = "e.g. Off-topic self-promotion",
+  hint,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -341,6 +345,8 @@ export function ReasonField({
   /** Set wherever the action's endpoint rejects a blank reason. */
   required?: boolean;
   placeholder?: string;
+  /** Replaces the "shown to them" note, for actions that don't notify. */
+  hint?: string;
 }) {
   return (
     <span className="mt-3 flex flex-col gap-1">
@@ -357,7 +363,7 @@ export function ReasonField({
         aria-required={required || undefined}
       />
       <MicroLabel as="span">
-        {required ? "SHOWN TO THEM" : "SHOWN TO THEM — BLANK SENDS THE GENERIC NOTICE"}
+        {hint ?? (required ? "SHOWN TO THEM" : "SHOWN TO THEM — BLANK SENDS THE GENERIC NOTICE")}
       </MicroLabel>
     </span>
   );

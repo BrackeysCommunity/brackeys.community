@@ -95,6 +95,7 @@ describe("ogCardPath", () => {
   it("keys a card on the same handle the canonical URL uses", () => {
     expect(ogCardPath("jam", "brackeys-13")).toBe("/og/jam/brackeys-13.png?v=2");
     expect(ogCardPath("collab", 42)).toBe("/og/collab/42.png?v=2");
+    expect(ogCardPath("collab", 42, { embed: true })).toBe("/og/collab/42.png?v=2&embed");
   });
 
   it("escapes a handle that would otherwise change the path", () => {

@@ -26,7 +26,6 @@ function jam(overrides: Partial<JamPreviewSource> = {}): JamPreviewSource {
   return {
     slug: "brackeys-game-jam-2026-1",
     title: "Brackeys Game Jam 2026.1",
-    themeColor: "#222034",
     ...overrides,
   };
 }
@@ -65,17 +64,14 @@ describe("jamLinkPreview", () => {
     const gallery = jamLinkPreview(jam())!.components.find((component) => component.type === 12);
     expect(gallery?.type === 12 ? gallery.items : []).toEqual([
       {
-        media: { url: `${ORIGIN}/og/jam/brackeys-game-jam-2026-1.png?v=2` },
+        media: { url: `${ORIGIN}/og/jam/brackeys-game-jam-2026-1.png?v=2&embed` },
         description: "Brackeys Game Jam 2026.1",
       },
     ]);
   });
 
-  it("takes its accent from the jam's own theme color", () => {
-    expect(jamLinkPreview(jam())?.accent_color).toBe(0x222034);
-    expect(jamLinkPreview(jam({ themeColor: null }))?.accent_color).toBe(0xffa949);
-    // Scraped junk falls back rather than poisoning the payload.
-    expect(jamLinkPreview(jam({ themeColor: "url(evil)" }))?.accent_color).toBe(0xffa949);
+  it("uses the blurple accent", () => {
+    expect(jamLinkPreview(jam())?.accent_color).toBe(0x5865f2);
   });
 
   it("carries the host blurb, the one thing the card leaves out", () => {
@@ -125,13 +121,12 @@ describe("collabLinkPreview", () => {
       "Tileset",
     ]);
     expect(gallery?.type === 12 ? gallery.items[0]!.media.url : "").toBe(
-      `${ORIGIN}/og/collab/412.png?v=2`,
+      `${ORIGIN}/og/collab/412.png?v=2&embed`,
     );
   });
 
-  it("goes grey and stops saying apply once the post closes", () => {
+  it("stops saying apply once the post closes", () => {
     const closed = collabLinkPreview(post({ status: "expired" }), AUTHOR)!;
-    expect(closed.accent_color).toBe(0x4b5563);
     expect(JSON.stringify(closed)).toContain("No longer recruiting");
     const row = closed.components.at(-1);
     expect(row?.type === 1 ? row.components[0]?.label : "").toBe("View the post");
@@ -182,7 +177,8 @@ function galleryOf(root: ReturnType<typeof homeLinkPreview>) {
 describe("homeLinkPreview", () => {
   it("shows the home card and a button for each main board", () => {
     const root = homeLinkPreview();
-    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/default.png?v=2`]);
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/default.png?v=2&embed`]);
+    expect(root!.accent_color).toBe(0x5865f2);
     expect(buttonsOf(root).map((button) => button.url)).toEqual([
       `${ORIGIN}/jams`,
       `${ORIGIN}/collab`,
@@ -214,7 +210,7 @@ describe("profileLinkPreview", () => {
 
   it("shows their card, and GitHub only when the account is linked", () => {
     const root = profileLinkPreview(member(), extras);
-    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/profile/mellobacon.png?v=2`]);
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/profile/mellobacon.png?v=2&embed`]);
     expect(buttonsOf(root).map((button) => button.label)).toEqual(["View profile", "All members"]);
 
     const linked = profileLinkPreview(member(), { ...extras, githubUsername: "mellobacon" });
@@ -263,7 +259,7 @@ describe("teamLinkPreview", () => {
       type: 10,
       content: `## [Salty Sweet](${ORIGIN}/teams/salty-sweet)\n**Recruiting** · Works in Unity`,
     });
-    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/team/salty-sweet.png?v=2`]);
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/team/salty-sweet.png?v=2&embed`]);
     expect(buttonsOf(root).map((button) => button.label)).toEqual([
       "View team and open roles",
       "All teams",
@@ -274,7 +270,6 @@ describe("teamLinkPreview", () => {
   it("goes quiet when it isn't", () => {
     const root = teamLinkPreview(crew({ recruiting: false }), { skills: [] });
     expect(buttonsOf(root)[0]?.label).toBe("View team");
-    expect(root!.accent_color).toBe(0xd2356b);
   });
 
   it("stays inside the payload budget with a long name and a long stack", () => {

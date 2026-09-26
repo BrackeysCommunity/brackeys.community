@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { arcadeAccessQueryOptions } from "@/arcade/access";
 import { EnPrisonGame } from "@/arcade/en-prison/ui/EnPrisonGame";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { useFlagBlocks } from "@/lib/hooks/use-flag";
@@ -9,21 +10,21 @@ export const Route = createFileRoute("/arcade/en-prison")({
   // producing, and keeping it out of SSR is what keeps its chunk off every
   // other page's critical path.
   ssr: false,
+  loader: async ({ context: { queryClient } }) => {
+    const access = await queryClient.ensureQueryData(arcadeAccessQueryOptions());
+    if (!access.enPrison) throw notFound();
+  },
   component: EnPrison,
 });
 
 function EnPrison() {
-  // `useFlagBlocks`, not `useFlag`: a visitor whose browser blocks PostHog
-  // still gets the game. Only a flag someone deliberately switched off
-  // closes the door. Both are read before either is judged — `||` would
-  // short-circuit the second hook out of the render.
+  // The loader is the gate; these cover a flag switched off mid-visit.
+  // Both are read before either is judged — `||` would short-circuit the
+  // second hook out of the render.
   const arcadeOff = useFlagBlocks("arcade-enabled");
   const gameOff = useFlagBlocks("arcade-en-prison");
-  // Rendered, not thrown. `notFound()` raised during a component's render
-  // lands in the error boundary rather than the not-found one, so throwing
-  // here produced "Something went wrong!" instead of a 404. A flag is read
-  // on the client and could never have changed the response status anyway,
-  // so the page is the whole of what a 404 can mean here.
+  // Rendered, not thrown: `notFound()` raised during render lands in the
+  // error boundary, not the not-found one.
   if (arcadeOff || gameOff) return <NotFoundPage />;
   return <EnPrisonGame />;
 }

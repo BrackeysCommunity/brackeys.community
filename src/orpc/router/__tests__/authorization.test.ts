@@ -89,6 +89,8 @@ const PUBLIC_PROCEDURES = new Set([
   "searchAll",
   "listForumSeries",
   "getForumSeries",
+  // Whether the arcade flags are on for the caller; gates `/arcade/*`.
+  "getArcadeAccess",
   // GitHub contribution calendar on public profiles.
   "getContributions",
   // The guild's custom emojis, for the `:` picker and rendering.

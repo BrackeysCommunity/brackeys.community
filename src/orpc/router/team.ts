@@ -388,6 +388,7 @@ export async function applyTeamUpdate(team: TeamRow, patch: TeamUpdatePatch, mod
       metadata: {
         fields: touched,
         previous: Object.fromEntries(touched.map((key) => [key, team[key]])),
+        next: Object.fromEntries(touched.map((key) => [key, updated?.[key] ?? null])),
       },
     });
     await notifyTeamOwner(team, "team_updated_by_staff", mod);

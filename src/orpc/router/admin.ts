@@ -16,6 +16,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import * as z from "zod";
 
 import { db } from "@/db";
@@ -24,6 +25,8 @@ import {
   collabPostSkills,
   collabPostRoles,
   collabPosts,
+  collabResponses,
+  comments,
   forumPostReports,
   forumPosts,
   collabRoles,
@@ -49,10 +52,12 @@ import {
   teamProjects,
   teamReports,
   teams,
+  threads,
   user,
   userSkills,
   type ImageOwnerType,
   type ModerationActionType,
+  type ModerationTargetType,
   type ModerationProposalTargetType,
 } from "@/db/schema";
 import { isActiveBan } from "@/lib/ban-state";
@@ -394,6 +399,189 @@ export const getBanStatus = os.handler(async ({ context }) => {
 
 /** `action` is a free string, not an enum, so a new action type is filterable
  * the day it ships; unknown values match nothing. */
+/** Metadata keys that hold a member id, resolved so the row can name them. */
+const LOG_PERSON_KEYS = [
+  "removedById",
+  "reporterId",
+  "removedUserId",
+  "addedUserId",
+  "inviteeId",
+] as const;
+
+type LogRow = typeof moderationActions.$inferSelect;
+
+function metaId(value: unknown): number | null {
+  const n = typeof value === "string" ? Number(value) : value;
+  return typeof n === "number" && Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function metaString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function logPersonIds(row: LogRow): string[] {
+  const meta = row.metadata;
+  const ids = LOG_PERSON_KEYS.map((key) => metaString(meta[key]));
+  if (row.action === "team_ownership_transferred") {
+    ids.push(metaString(meta.from), metaString(meta.to));
+  }
+  if (row.targetType === "moderation_proposal" && meta.targetType === "profile") {
+    ids.push(metaString(meta.targetId));
+  }
+  return ids.filter((id) => id != null);
+}
+
+const responsePostsForLog = alias(collabPosts, "log_response_posts");
+
+/**
+ * What a page of log rows points at, looked up live: the comment's text and
+ * where it sits, post titles, current team slugs, the proposal behind a
+ * ruling. Metadata snapshots stay the fallback for anything since deleted.
+ */
+async function moderationLogRefs(rows: LogRow[]) {
+  const commentIds = new Set<number>();
+  const collabPostIds = new Set<number>();
+  const forumPostIds = new Set<number>();
+  const teamIds = new Set<string>();
+  const proposalIds = new Set<number>();
+
+  for (const row of rows) {
+    const meta = row.metadata;
+    const target = metaId(row.targetId);
+    const postId = metaId(meta.postId);
+    switch (row.targetType) {
+      case "comment":
+        if (target) commentIds.add(target);
+        break;
+      case "collab_post":
+        if (target) collabPostIds.add(target);
+        break;
+      case "post_report":
+        if (postId) collabPostIds.add(postId);
+        break;
+      case "forum_post":
+        if (target) forumPostIds.add(target);
+        break;
+      case "forum_post_report":
+        if (postId) forumPostIds.add(postId);
+        break;
+      case "team":
+        if (row.targetId) teamIds.add(row.targetId);
+        break;
+      case "moderation_proposal":
+        if (target) proposalIds.add(target);
+        break;
+    }
+    const commentId = metaId(meta.commentId);
+    if (commentId) commentIds.add(commentId);
+    const teamId = metaString(meta.teamId);
+    if (teamId) teamIds.add(teamId);
+    if (row.action === "report_reopened") {
+      const subjectId = meta.subjectId;
+      if (meta.kind === "comment" && metaId(subjectId)) commentIds.add(metaId(subjectId)!);
+      if (meta.kind === "post" && metaId(subjectId)) collabPostIds.add(metaId(subjectId)!);
+      if (meta.kind === "forum_post" && metaId(subjectId)) forumPostIds.add(metaId(subjectId)!);
+      if (meta.kind === "team" && metaString(subjectId)) teamIds.add(metaString(subjectId)!);
+    }
+  }
+
+  const [commentRows, collabRows, forumRows, teamRows, proposalRows] = await Promise.all([
+    commentIds.size === 0
+      ? []
+      : db
+          .select({
+            id: comments.id,
+            content: comments.content,
+            authorId: comments.authorId,
+            deletedAt: comments.deletedAt,
+            subjectType: threads.subjectType,
+            collabPostId: threads.collabPostId,
+            forumPostId: threads.forumPostId,
+            profileUserId: threads.profileUserId,
+            responsePostId: responsePostsForLog.id,
+            collabTitle: sql<
+              string | null
+            >`coalesce(${collabPosts.title}, ${responsePostsForLog.title})`,
+            forumTitle: forumPosts.title,
+            forumExcerpt: forumPosts.excerpt,
+          })
+          .from(comments)
+          .innerJoin(threads, eq(comments.threadId, threads.id))
+          .leftJoin(collabPosts, eq(threads.collabPostId, collabPosts.id))
+          .leftJoin(forumPosts, eq(threads.forumPostId, forumPosts.id))
+          .leftJoin(collabResponses, eq(threads.collabResponseId, collabResponses.id))
+          .leftJoin(responsePostsForLog, eq(collabResponses.postId, responsePostsForLog.id))
+          .where(inArray(comments.id, [...commentIds])),
+    collabPostIds.size === 0
+      ? []
+      : db
+          .select({ id: collabPosts.id, title: collabPosts.title })
+          .from(collabPosts)
+          .where(inArray(collabPosts.id, [...collabPostIds])),
+    forumPostIds.size === 0
+      ? []
+      : db
+          .select({ id: forumPosts.id, title: forumPosts.title, excerpt: forumPosts.excerpt })
+          .from(forumPosts)
+          .where(inArray(forumPosts.id, [...forumPostIds])),
+    teamIds.size === 0
+      ? []
+      : db
+          .select({ id: teams.id, name: teams.name, slug: teams.slug })
+          .from(teams)
+          .where(inArray(teams.id, [...teamIds])),
+    proposalIds.size === 0
+      ? []
+      : db
+          .select({
+            id: moderationProposals.id,
+            action: moderationProposals.action,
+            targetType: moderationProposals.targetType,
+            targetId: moderationProposals.targetId,
+            payload: moderationProposals.payload,
+            snapshot: moderationProposals.snapshot,
+            appliedPrevious: moderationProposals.appliedPrevious,
+          })
+          .from(moderationProposals)
+          .where(inArray(moderationProposals.id, [...proposalIds])),
+  ]);
+
+  const proposalTeamIds = proposalRows
+    .filter((p) => p.targetType === "team" && !teamIds.has(p.targetId))
+    .map((p) => p.targetId);
+  const proposalTeams =
+    proposalTeamIds.length === 0
+      ? []
+      : await db
+          .select({ id: teams.id, name: teams.name, slug: teams.slug })
+          .from(teams)
+          .where(inArray(teams.id, proposalTeamIds));
+
+  return {
+    comments: Object.fromEntries(
+      commentRows.map(({ collabTitle, forumTitle, forumExcerpt, ...c }) => [
+        c.id,
+        {
+          ...c,
+          postTitle:
+            c.forumPostId != null
+              ? forumPostTitle({ title: forumTitle, excerpt: forumExcerpt })
+              : collabTitle,
+        },
+      ]),
+    ),
+    collabPosts: Object.fromEntries(collabRows.map((p) => [p.id, p.title])),
+    forumPosts: Object.fromEntries(forumRows.map((p) => [p.id, forumPostTitle(p)])),
+    teams: Object.fromEntries([...teamRows, ...proposalTeams].map((t) => [t.id, t])),
+    proposals: Object.fromEntries(proposalRows.map((p) => [p.id, p])),
+    extraPersonIds: [
+      ...rows.flatMap(logPersonIds),
+      ...commentRows.flatMap((c) => [c.authorId, c.profileUserId]),
+      ...proposalRows.filter((p) => p.targetType === "profile").map((p) => p.targetId),
+    ].filter((id) => id != null),
+  };
+}
+
 export const listModerationActions = os
   .use(requireStaff)
   .input(
@@ -403,6 +591,9 @@ export const listModerationActions = os
       actorId: z.string().min(1).optional(),
       subjectUserId: z.string().min(1).optional(),
       action: z.string().min(1).max(64).optional(),
+      /** Pairs with `targetId`: the full history of one thing. */
+      targetType: z.string().min(1).max(64).optional(),
+      targetId: z.string().min(1).max(512).optional(),
     }),
   )
   .handler(async ({ input }) => {
@@ -410,6 +601,10 @@ export const listModerationActions = os
       input.actorId ? eq(moderationActions.actorId, input.actorId) : undefined,
       input.subjectUserId ? eq(moderationActions.subjectUserId, input.subjectUserId) : undefined,
       input.action ? eq(moderationActions.action, input.action as ModerationActionType) : undefined,
+      input.targetType
+        ? eq(moderationActions.targetType, input.targetType as ModerationTargetType)
+        : undefined,
+      input.targetId ? eq(moderationActions.targetId, input.targetId) : undefined,
     ].filter((f) => f != null);
     const where = filters.length > 0 ? and(...filters) : undefined;
 
@@ -424,12 +619,16 @@ export const listModerationActions = os
         .offset((input.page - 1) * input.pageSize),
     ]);
 
-    const profiles = await profilesByIds(
-      rows.flatMap((r) => [
+    const { extraPersonIds, ...refs } = await moderationLogRefs(rows);
+    const profiles = await profilesByIds([
+      ...rows.flatMap((r) => [
         ...(r.actorId ? [r.actorId] : []),
         ...(r.subjectUserId ? [r.subjectUserId] : []),
       ]),
-    );
+      ...extraPersonIds,
+      ...(input.actorId ? [input.actorId] : []),
+      ...(input.subjectUserId ? [input.subjectUserId] : []),
+    ]);
 
     const total = totals?.total ?? 0;
     return {
@@ -442,6 +641,7 @@ export const listModerationActions = os
         actor: row.actorId ? (profiles.get(row.actorId) ?? null) : null,
         subject: row.subjectUserId ? (profiles.get(row.subjectUserId) ?? null) : null,
       })),
+      refs: { ...refs, people: Object.fromEntries(profiles) },
     };
   });
 

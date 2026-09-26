@@ -9,8 +9,9 @@ import { DEFAULT_OG_IMAGE } from "@/lib/site-meta";
  * that errors makes the page itself look broken in the unfurl.
  */
 async function handle({ request }: { request: Request }) {
-  const { pathname } = new URL(request.url);
+  const { pathname, searchParams } = new URL(request.url);
   const target = pathname.slice("/og/".length);
+  const options = { spine: !searchParams.has("embed") };
 
   try {
     const { renderOgPng } = await import("@/lib/og/render");
@@ -22,7 +23,7 @@ async function handle({ request }: { request: Request }) {
       // TTL (`cdn-cache-control` outranks the `/og/**` route rule) since
       // the id may start existing.
       const { notFoundCard } = await import("@/lib/og/data");
-      const png = await renderOgPng(ogCard(notFoundCard()));
+      const png = await renderOgPng(ogCard(notFoundCard(), options));
       return pngResponse(png, {
         status: 404,
         headers: {
@@ -32,7 +33,7 @@ async function handle({ request }: { request: Request }) {
       });
     }
 
-    const png = await renderOgPng(renderCardNode(input));
+    const png = await renderOgPng(renderCardNode(input, options));
     return pngResponse(png, { headers: { "cache-control": "public, max-age=0, s-maxage=86400" } });
   } catch (error) {
     // Name rather than `instanceof`: importing the class would pull the

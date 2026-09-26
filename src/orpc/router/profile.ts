@@ -1666,6 +1666,7 @@ export async function applyProfileUpdate(
     metadata: {
       fields: touched,
       previous: Object.fromEntries(touched.map((key) => [key, before[key]])),
+      next: Object.fromEntries(touched.map((key) => [key, updated?.[key] ?? null])),
     },
   });
 

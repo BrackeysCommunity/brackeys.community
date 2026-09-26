@@ -85,7 +85,7 @@ function page(comments: Comment[], nextCursor: number | null = null) {
         guildRoles: null,
         urlStub: null,
       },
-      viewer: { isMine: false, canEdit: false, canDelete: false },
+      viewer: { isMine: false, canEdit: false, canDelete: false, canRestore: false },
     })),
     nextCursor,
   };

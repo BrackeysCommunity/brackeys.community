@@ -238,6 +238,34 @@ describe("the moderation log is readable", () => {
     expect(bySubject.total).toBe(0);
   });
 
+  it("filters to one item's history and resolves the members its metadata names", async () => {
+    await db.insert(moderationActions).values([
+      {
+        action: "team_ownership_transferred",
+        actorId: "admin",
+        targetType: "team",
+        targetId: "team-1",
+        subjectUserId: "member",
+        metadata: { teamName: "Gone Team", from: "member", to: "staff" },
+      },
+      { action: "team_hidden", actorId: "admin", targetType: "team", targetId: "team-2" },
+    ]);
+
+    const history = await call(
+      listModerationActions,
+      { targetType: "team", targetId: "team-1" },
+      asUser("staff"),
+    );
+    expect(history.total).toBe(1);
+    expect(history.refs.people.staff?.displayName).toBeTruthy();
+    expect(history.refs.people.member?.displayName).toBe("Loud Member");
+    // The team row is gone; the metadata snapshot is all that's left to name it.
+    expect(history.refs.teams["team-1"]).toBeUndefined();
+
+    const byActor = await call(listModerationActions, { actorId: "admin" }, asUser("staff"));
+    expect(byActor.total).toBe(2);
+  });
+
   it("is staff-only", async () => {
     await expect(call(listModerationActions, {}, asUser("member"))).rejects.toThrow(/staff/i);
   });

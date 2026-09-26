@@ -159,6 +159,20 @@ describe("serializeComments render contract", () => {
     expect(out.viewer.canDelete).toBe(false);
   });
 
+  it("offers restore to staff on moderator removals only", () => {
+    const removed = row({ deletedAt: new Date(), deletedById: "staff-1" });
+    const selfRemoved = row({ deletedAt: new Date(), deletedById: "u1" });
+    const staff = { viewerId: "v1", isStaff: true };
+    expect(serializeOne(removed, staff).viewer.canRestore).toBe(true);
+    expect(serializeOne(removed, staff).removedContent).toBe("hello");
+    expect(serializeOne(removed, staff).content).toBeNull();
+    expect(serializeOne(removed, { viewerId: "owner" }).removedContent).toBeUndefined();
+    expect(serializeOne(selfRemoved, staff).removedContent).toBeUndefined();
+    expect(serializeOne(removed, { viewerId: "owner" }).viewer.canRestore).toBe(false);
+    expect(serializeOne(selfRemoved, staff).viewer.canRestore).toBe(false);
+    expect(serializeOne(row(), staff).viewer.canRestore).toBe(false);
+  });
+
   it("flags truncated chains with hasMoreReplies", () => {
     const out = serializeOne(row(), { truncatedRoots: new Set([1]) });
     expect(out.hasMoreReplies).toBe(true);

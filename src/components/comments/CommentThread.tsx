@@ -7,6 +7,7 @@ import {
   PencilEdit01Icon,
   Sent02Icon,
   SquareLock01Icon,
+  Undo02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -20,6 +21,7 @@ import { Link as RouterLink, useLocation } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { ReasonField, RESTORE_REASON_HINT } from "@/components/admin/AdminUI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
@@ -157,7 +159,7 @@ function optimisticComment(
       urlStub: null,
     },
     byAuthor: false,
-    viewer: { isMine: true, canEdit: true, canDelete: true },
+    viewer: { isMine: true, canEdit: true, canDelete: true, canRestore: false },
   };
 }
 
@@ -858,6 +860,19 @@ function CommentItem({
     onError: toastMutationError("comments.delete"),
   });
 
+  const [restoreReason, setRestoreReason] = useState("");
+  const restore = useMutation({
+    mutationFn: () => {
+      const reason = restoreReason.trim();
+      return client.restoreComment({ commentId: comment.id, ...(reason ? { reason } : {}) });
+    },
+    onSuccess: () => {
+      setRestoreReason("");
+      onChange();
+    },
+    onError: toastMutationError("comments.restore"),
+  });
+
   const report = useMutation({
     mutationFn: (reason: string) => client.reportComment({ commentId: comment.id, reason }),
     onSuccess: () => toast.success("Report sent — staff will take a look."),
@@ -999,6 +1014,35 @@ function CommentItem({
           <EmojiText mentions={extras.mentions}>{comment.content}</EmojiText>
         </Text>
       )}
+
+      {comment.viewer.canRestore ? (
+        <div className="-ml-1.5 flex items-center gap-1">
+          <Confirm
+            title="Restore this comment?"
+            message={
+              <>
+                It shows again in this thread with its original text:
+                <span className="block max-h-48 overflow-y-auto rounded-md border bg-muted/40 px-3 py-2 whitespace-pre-wrap text-foreground/90">
+                  <EmojiText mentions={extras.mentions}>{comment.removedContent ?? ""}</EmojiText>
+                </span>
+                <ReasonField
+                  id={`restore-reason-${comment.id}`}
+                  hint={RESTORE_REASON_HINT}
+                  placeholder="e.g. Removed by mistake"
+                  value={restoreReason}
+                  onChange={setRestoreReason}
+                />
+              </>
+            }
+            confirmText="RESTORE"
+            onConfirm={async () => {
+              await restore.mutateAsync();
+            }}
+          >
+            <CommentAction icon={Undo02Icon} label="RESTORE" disabled={restore.isPending} />
+          </Confirm>
+        </div>
+      ) : null}
 
       {viewerId && !editing && !comment.tombstone ? (
         <div className="-ml-1.5 flex items-center gap-1">

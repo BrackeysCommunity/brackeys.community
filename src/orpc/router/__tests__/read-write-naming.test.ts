@@ -53,6 +53,8 @@ const WRITE_VERBS = [
   "report",
   "request",
   "resolve",
+  // `restoreComment` brings back a staff-removed comment.
+  "restore",
   "respond",
   "revoke",
   "set",

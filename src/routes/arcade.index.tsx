@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi, Link } from "@tanstack/react-router";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { useFlagBlocks } from "@/lib/hooks/use-flag";
+
+const arcadeRoute = getRouteApi("/arcade");
 
 export const Route = createFileRoute("/arcade/")({
   component: ArcadeLanding,
@@ -10,7 +12,9 @@ export const Route = createFileRoute("/arcade/")({
 
 function ArcadeLanding() {
   const arcadeOff = useFlagBlocks("arcade-enabled");
-  const enPrisonOff = useFlagBlocks("arcade-en-prison");
+  const enPrisonBlocked = useFlagBlocks("arcade-en-prison");
+  const { enPrison } = arcadeRoute.useLoaderData();
+  const enPrisonOff = enPrisonBlocked || !enPrison;
   // Rendered, not thrown — see the note in `arcade.en-prison.tsx`.
   if (arcadeOff) return <NotFoundPage />;
 

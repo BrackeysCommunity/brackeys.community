@@ -29,6 +29,7 @@ import {
   resolveImageFlags,
   requestImageRescan,
 } from "./admin";
+import { getArcadeAccess } from "./arcade";
 import {
   createPost,
   updatePost,
@@ -465,4 +466,5 @@ export default {
   reorderForumSeries,
   setForumFollow,
   listMyForumFollows,
+  getArcadeAccess,
 };

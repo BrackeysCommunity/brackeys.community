@@ -103,9 +103,8 @@ const MAX_PAYLOAD_BYTES = 3000;
 /** A Media Gallery takes 1-10 items. */
 export const MAX_GALLERY_ITEMS = 10;
 
-/** `--color-brackeys-yellow`, the accent bar for anything with no color of
- *  its own. */
-export const BRAND_ACCENT = 0xffa949;
+/** Discord blurple, the accent bar on every link preview. */
+export const ACCENT_BLURPLE = 0x5865f2;
 
 /**
  * Collab post accents — Brackeys purple while a post recruits, muted grey

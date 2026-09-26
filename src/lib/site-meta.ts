@@ -23,7 +23,7 @@ export const DEFAULT_OG_IMAGE = "/og/brackeys-card.png";
  * Bump when the card design changes. Discord and Cloudflare both cache a
  * card by its URL — Discord's image proxy for far longer than our day-long
  * edge TTL — so a new design only reaches a shared link under a new URL.
- * `/og/$` reads the path alone and ignores the query.
+ * `/og/$` reads the path for the card and ignores `v`.
  */
 export const OG_CARD_VERSION = 2;
 
@@ -31,11 +31,23 @@ const OG_VERSION_QUERY = `?v=${OG_CARD_VERSION}`;
 
 export const DEFAULT_OG_CARD = `/og/default.png${OG_VERSION_QUERY}`;
 
+/**
+ * `&embed` renders a card without its left spine, for Discord component
+ * embeds: the container draws its own accent bar, and two stripes clash.
+ */
+const OG_EMBED_QUERY = "&embed";
+
+export const DEFAULT_OG_EMBED_CARD = `${DEFAULT_OG_CARD}${OG_EMBED_QUERY}`;
+
 /** The generated 404 card, for every "not found" head branch. */
 export const NOT_FOUND_OG_CARD = `/og/notfound.png${OG_VERSION_QUERY}`;
 
-export function ogCardPath(kind: OgCardKind, id: string | number): string {
-  return `/og/${kind}/${encodeURIComponent(String(id))}.png${OG_VERSION_QUERY}`;
+export function ogCardPath(
+  kind: OgCardKind,
+  id: string | number,
+  { embed = false }: { embed?: boolean } = {},
+): string {
+  return `/og/${kind}/${encodeURIComponent(String(id))}.png${OG_VERSION_QUERY}${embed ? OG_EMBED_QUERY : ""}`;
 }
 
 export type OgCardKind =
