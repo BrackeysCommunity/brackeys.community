@@ -108,7 +108,7 @@ async function loadDevlogFeedPost(postId: number): Promise<DevlogFeedPost | null
     slugPath: `/forum/${forumPostParam(post)}`,
     // From the body rather than the stored excerpt, which spells guild
     // emojis out as `:name:`; Discord draws the tokens itself.
-    excerpt: markdownToPlainText(post.body, 480, { keepEmojiTokens: true }) ?? post.excerpt,
+    excerpt: markdownToPlainText(post.body, 480, { keepDiscordTokens: true }) ?? post.excerpt,
     coverUrl: (await getProfileProjectImageUrl(post.coverImageKey)) ?? post.coverImageUrl,
     publishedAt: post.publishedAt,
     tags: tags.map((t) => t.slug),

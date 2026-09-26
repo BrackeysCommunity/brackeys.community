@@ -64,6 +64,8 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "getContributions",
   // The guild's custom emojis, identical for every caller.
   "listGuildEmojis",
+  // The guild's public channels, identical for every caller.
+  "listGuildChannels",
   // Display names behind `@handle` mentions.
   "resolveMentions",
 ] as const;
@@ -174,6 +176,7 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
 
   // Redis already holds it for 10 minutes; a new emoji can wait that long.
   listGuildEmojis: 600,
+  listGuildChannels: 600,
   // A renamed member shows their new name within a minute.
   resolveMentions: 60,
 };

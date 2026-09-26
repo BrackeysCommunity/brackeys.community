@@ -95,6 +95,8 @@ const PUBLIC_PROCEDURES = new Set([
   "getContributions",
   // The guild's custom emojis, for the `:` picker and rendering.
   "listGuildEmojis",
+  // The guild's public channels, for `<#id>` chips.
+  "listGuildChannels",
   // Display names behind `@handle` mentions.
   "resolveMentions",
   // Answers {isStaff:false,isAdmin:false} to anonymous callers; gates the

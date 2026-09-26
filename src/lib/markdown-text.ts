@@ -1,5 +1,6 @@
 import { marked, type Tokens } from "marked";
 
+import { channelTokensToNames } from "@/lib/discord-channels";
 import { emojiTokensToNames } from "@/lib/discord-emoji";
 import { clipPlainText, htmlToParagraphs } from "@/lib/html-text";
 
@@ -13,18 +14,19 @@ type AnyToken = Tokens.Generic;
  * through `htmlToParagraphs` rather than dropped, for rows written before
  * the field was markdown.
  *
- * Guild emojis read as `:name:`; `keepEmojiTokens` leaves the `<:name:id>`
- * tokens in, for text headed to Discord, which draws them itself.
+ * Guild emojis read as `:name:` and channels as `#channel`;
+ * `keepDiscordTokens` leaves the `<:name:id>` and `<#id>` tokens in, for
+ * text headed to Discord, which draws them itself.
  */
 export function markdownToParagraphs(
   markdown: string | null | undefined,
-  { keepEmojiTokens = false } = {},
+  { keepDiscordTokens = false } = {},
 ): string[] {
   if (!markdown) return [];
   const out: string[] = [];
   for (const token of marked.lexer(markdown) as AnyToken[]) {
     const text = blockText(token);
-    if (text) out.push(keepEmojiTokens ? text : emojiTokensToNames(text));
+    if (text) out.push(keepDiscordTokens ? text : channelTokensToNames(emojiTokensToNames(text)));
   }
   return out;
 }
@@ -32,7 +34,7 @@ export function markdownToParagraphs(
 export function markdownToPlainText(
   markdown: string | null | undefined,
   maxLength = 200,
-  options: { keepEmojiTokens?: boolean } = {},
+  options: { keepDiscordTokens?: boolean } = {},
 ): string | undefined {
   return clipPlainText(markdownToParagraphs(markdown, options).join(" "), maxLength);
 }

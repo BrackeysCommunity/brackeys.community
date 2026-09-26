@@ -2,6 +2,7 @@ import { Fragment, type ReactNode, useState } from "react";
 
 import { TransformedImage } from "@/components/ui/transformed-image";
 import { useCensorNodes } from "@/components/ui/typography/censored";
+import { withChannelLinks } from "@/components/ui/typography/channels";
 import { withMentionLinks } from "@/components/ui/typography/mentions";
 import { EMOJI_TOKEN_PATTERN, type GuildEmoji, emojiUrl } from "@/lib/discord-emoji";
 import type { ItchImageOpts } from "@/lib/itch-image";
@@ -68,7 +69,7 @@ export function isEmojiOnly(text: string): boolean {
 
 export const JUMBO_EMOJI_CLASS = "[&_[data-slot=guild-emoji]]:h-12!";
 
-/** Plain member text with emojis drawn, optionally mentions linked, and the rest censored. */
+/** Plain member text with emojis drawn, channels named, optionally mentions linked, and the rest censored. */
 export function EmojiText({
   children,
   mentions,
@@ -79,6 +80,6 @@ export function EmojiText({
   const censor = useCensorNodes();
   if (!children) return null;
   const rest = mentions ? (text: string) => withMentionLinks(text, censor) : censor;
-  const content = withEmojis(children, rest);
+  const content = withEmojis(children, (part) => withChannelLinks(part, rest));
   return isEmojiOnly(children) ? <span className={JUMBO_EMOJI_CLASS}>{content}</span> : content;
 }

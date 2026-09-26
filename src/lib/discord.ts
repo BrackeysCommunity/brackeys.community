@@ -1,5 +1,6 @@
 import type IORedis from "ioredis";
 
+import { type DiscordApiChannel, type GuildChannels, publicChannels } from "@/lib/discord-channels";
 import type { GuildEmoji } from "@/lib/discord-emoji";
 import { createRedisClient } from "@/lib/redis";
 
@@ -570,4 +571,57 @@ export async function getGuildEmojis(): Promise<GuildEmoji[]> {
     // Best-effort cache.
   }
   return emojis;
+}
+
+const GUILD_CHANNELS_KEY = "discord:guild-channels";
+const GUILD_CHANNELS_TTL_SECONDS = 600;
+
+/**
+ * The guild's channels that `@everyone` can view, for rendering `<#id>`
+ * tokens. Fails soft to an empty list, and only a successful answer is
+ * cached.
+ */
+export async function getGuildChannels(): Promise<GuildChannels> {
+  const guildId = process.env.DISCORD_GUILD_ID ?? "";
+  try {
+    const redis = await getRedis();
+    const cached = await redis.get(GUILD_CHANNELS_KEY);
+    if (cached) return JSON.parse(cached) as GuildChannels;
+  } catch {
+    // Fall through to Discord.
+  }
+
+  const empty: GuildChannels = { guildId, channels: [] };
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!guildId || !botToken) return empty;
+
+  const init = { headers: { Authorization: `Bot ${botToken}` } };
+  let channelsResponse: Response;
+  let rolesResponse: Response;
+  try {
+    [channelsResponse, rolesResponse] = await Promise.all([
+      discordFetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, init),
+      discordFetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, init),
+    ]);
+  } catch {
+    return empty;
+  }
+  if (!channelsResponse.ok || !rolesResponse.ok) return empty;
+
+  const roles = (await rolesResponse.json()) as { id: string; permissions: string }[];
+  const everyone = roles.find((role) => role.id === guildId);
+  if (!everyone) return empty;
+  const raw = (await channelsResponse.json()) as DiscordApiChannel[];
+  const result: GuildChannels = {
+    guildId,
+    channels: publicChannels(guildId, everyone.permissions, raw),
+  };
+
+  try {
+    const redis = await getRedis();
+    await redis.set(GUILD_CHANNELS_KEY, JSON.stringify(result), "EX", GUILD_CHANNELS_TTL_SECONDS);
+  } catch {
+    // Best-effort cache.
+  }
+  return result;
 }

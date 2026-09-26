@@ -68,14 +68,30 @@ describe("guild emojis in plain text", () => {
   it("keeps the tokens for Discord when asked", () => {
     expect(
       markdownToPlainText("**ship** it <a:party:998877665544332211>", 200, {
-        keepEmojiTokens: true,
+        keepDiscordTokens: true,
       }),
     ).toBe("ship it <a:party:998877665544332211>");
   });
 
   it("never clips inside a token", () => {
     const text = `${"word ".repeat(8)}<:fire:123456789012345678>`;
-    expect(markdownToPlainText(text, 50, { keepEmojiTokens: true })).toBe(
+    expect(markdownToPlainText(text, 50, { keepDiscordTokens: true })).toBe(
+      `${"word ".repeat(8).trim()}…`,
+    );
+  });
+});
+
+describe("channel mentions in plain text", () => {
+  it("reads as a generic #channel", () => {
+    expect(markdownToPlainText("ask in <#552209553886806046>")).toBe("ask in #channel");
+  });
+
+  it("keeps the token for Discord and never clips inside one", () => {
+    expect(markdownToPlainText("see <#552209553886806046>", 200, { keepDiscordTokens: true })).toBe(
+      "see <#552209553886806046>",
+    );
+    const text = `${"word ".repeat(8)}<#552209553886806046>`;
+    expect(markdownToPlainText(text, 50, { keepDiscordTokens: true })).toBe(
       `${"word ".repeat(8).trim()}…`,
     );
   });

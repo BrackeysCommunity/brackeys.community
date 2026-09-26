@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InlineCode, MarkedText, MicroLabel, Text } from "@/components/ui/typography";
+import { ChannelText } from "@/components/ui/typography/channels";
 import type { BotId } from "@/data/commands";
 import { HOVER_CUE, play, playReveal } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -67,7 +68,7 @@ export function CommandRow({ entry, className }: { entry: CommandRowData; classN
           ellipsis
           className={cn("min-w-0 flex-1 transition-opacity duration-200", expanded && "opacity-0")}
         >
-          {entry.description}
+          <ChannelText>{entry.description}</ChannelText>
         </Text>
         <motion.span
           animate={{ scaleY: expanded ? -1 : 1 }}

@@ -18,11 +18,11 @@ export const MENTION_BADGE_CLASS =
 const DOT_CLASS = "inline-block size-1 animate-pulse rounded-full bg-current align-middle";
 const DOT_DELAYS = ["0ms", "150ms", "300ms"];
 
-/** `@` and three pulsing dots, the chip's content while its name loads. */
-function MentionLoading() {
+/** The sigil and three pulsing dots, a chip's content while its name loads. */
+export function MentionLoading({ sigil = "@" }: { sigil?: string }) {
   return (
     <span role="status" aria-label="Loading mention">
-      @
+      {sigil}
       <span className="inline-flex gap-0.5 px-0.5">
         {DOT_DELAYS.map((delay) => (
           <span key={delay} className={DOT_CLASS} style={{ animationDelay: delay }} />

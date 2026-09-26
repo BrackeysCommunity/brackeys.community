@@ -30,6 +30,7 @@ import {
   requestImageRescan,
 } from "./admin";
 import { getArcadeAccess } from "./arcade";
+import { listGuildChannels } from "./channels";
 import {
   createPost,
   updatePost,
@@ -239,6 +240,7 @@ import { getWebsiteVerification, verifyWebsite } from "./website";
 
 export default {
   listGuildEmojis,
+  listGuildChannels,
   resolveMentions,
   listJams,
   archiveJams,

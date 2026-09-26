@@ -50,11 +50,12 @@ function outsideCode(text: string, transform: (part: string) => string): string 
     .join("");
 }
 
-const PARTIAL_TOKEN = /<(?:a?:\w*(?::\d*)?|a)?$/;
+const PARTIAL_TOKEN = /<(?:a?:\w*(?::\d*)?|a|#\d*)?$/;
 
 /**
- * Drops an emoji token cut in half at the end of `text`, for any clip
- * that feeds Discord: a dangling `<:fi` renders as raw text there.
+ * Drops an emoji or channel token cut in half at the end of `text`, for
+ * any clip that feeds Discord: a dangling `<:fi` or `<#5522` renders as
+ * raw text there.
  */
 export function trimPartialEmojiToken(text: string): string {
   const match = PARTIAL_TOKEN.exec(text);

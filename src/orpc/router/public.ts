@@ -1,3 +1,4 @@
+import { listGuildChannels } from "./channels";
 import {
   countPostsByRole,
   countPostsBySkill,
@@ -89,6 +90,7 @@ export const publicRouter = {
   getBoardStats,
   getContributions,
   listGuildEmojis,
+  listGuildChannels,
   resolveMentions,
 };
 

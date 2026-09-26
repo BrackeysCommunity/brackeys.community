@@ -29,6 +29,11 @@ export function discordMessageLink(guildId: string, channelId: string, messageId
   return `discord://-/channels/${guildId}/${channelId}/${messageId}`;
 }
 
+/** A channel in the guild. */
+export function discordChannelLink(guildId: string, channelId: string): string {
+  return `discord://-/channels/${guildId}/${channelId}`;
+}
+
 /** The Brackeys server invite, in the app. */
 export function discordInviteLink(): string {
   return "discord://-/invite/brackeys";
