@@ -20,6 +20,7 @@ describe("prose document", () => {
       "plain",
       `so hot ${FIRE} right\n\nnow <a:party:998877665544332211>`,
       "thanks @someone!",
+      "ask in <#552209553886806046> please",
       "```\ncode <:fire:123456789012345678>\n```\nafter",
     ]) {
       expect(roundTrip(value, true)).toBe(value);
@@ -33,6 +34,15 @@ describe("prose document", () => {
       if (node.isInline) types.push(node.type.name);
     });
     expect(types).toEqual(["text", "emoji", "text", "mention", "text"]);
+  });
+
+  it("makes channels atoms even without mentions", () => {
+    const doc = parseProse("see <#552209553886806046> and `<#552209553886806046>`");
+    const types: string[] = [];
+    doc.descendants((node) => {
+      if (node.isInline) types.push(node.type.name);
+    });
+    expect(types).toEqual(["text", "channel", "text"]);
   });
 
   it("leaves @handles as text without mentions", () => {

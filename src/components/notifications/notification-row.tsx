@@ -394,6 +394,17 @@ export function renderCopy(n: NotificationItem): {
         href: (n.data.subjectUrl as string | undefined) ?? null,
       };
     }
+    case "comment_mention": {
+      const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "a thread";
+      return {
+        line: (
+          <>
+            {actor} mentioned you on <em className="font-medium not-italic">{subjectTitle}</em>
+          </>
+        ),
+        href: (n.data.subjectUrl as string | undefined) ?? null,
+      };
+    }
     case "comment_removed_by_staff": {
       const subjectTitle = (n.data.subjectTitle as string | undefined) ?? "a thread";
       const reason = n.data.reason as string | undefined;

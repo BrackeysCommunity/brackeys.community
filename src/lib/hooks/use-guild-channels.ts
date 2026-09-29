@@ -10,3 +10,20 @@ export function useGuildChannels() {
     staleTime: STALE.taxonomy,
   });
 }
+
+/** One channel the list doesn't have, usually an archived thread. */
+export function useGuildChannelLookup(id: string, enabled: boolean) {
+  return useQuery({
+    ...orpc.resolveGuildChannel.queryOptions({ input: { id } }),
+    enabled,
+    staleTime: STALE.taxonomy,
+  });
+}
+
+/** The guild's roles, for `<@&id>` chips. */
+export function useGuildRoles() {
+  return useQuery({
+    ...orpc.listGuildRoles.queryOptions(),
+    staleTime: STALE.taxonomy,
+  });
+}

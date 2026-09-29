@@ -11,6 +11,10 @@ describe("extractMentions", () => {
     ]);
   });
 
+  it("ignores Discord <@id> mentions", () => {
+    expect(extractMentions("thanks <@200000000000000001>")).toEqual([]);
+  });
+
   it("ignores emails, paths, code and too-short handles", () => {
     expect(
       extractMentions("mail me@example.com, see /u/@dave, `@erin` ```\n@frank\n``` and @g"),

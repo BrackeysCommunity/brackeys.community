@@ -1,4 +1,4 @@
-import { listGuildChannels } from "./channels";
+import { listGuildChannels, listGuildRoles, resolveGuildChannel } from "./channels";
 import {
   countPostsByRole,
   countPostsBySkill,
@@ -25,7 +25,7 @@ import {
   listRecentEntries,
 } from "./jam";
 import { countMembersByRole, countMembersBySkill, getMemberStats, listMembers } from "./member";
-import { resolveMentions } from "./mentions";
+import { resolveDiscordUsers, resolveMentions } from "./mentions";
 import { getProfile, getProfileByDiscordId, listAvailableUsers, listSkills } from "./profile";
 import { getProject, listProjectsForGames } from "./project";
 import { countTeamsBySkill, getTeam, getTeamStats, listTeams, listUserTeams } from "./team";
@@ -91,7 +91,10 @@ export const publicRouter = {
   getContributions,
   listGuildEmojis,
   listGuildChannels,
+  resolveGuildChannel,
+  listGuildRoles,
   resolveMentions,
+  resolveDiscordUsers,
 };
 
 export default publicRouter;

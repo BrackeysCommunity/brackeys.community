@@ -18,8 +18,10 @@ import {
 } from "@/components/ui/typography/emoji";
 import { MENTION_BADGE_CLASS, mentionLoadingDom } from "@/components/ui/typography/mentions";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { type GuildEmoji, emojiUrl, filterEmojis } from "@/lib/discord-emoji";
+import type { GuildChannel } from "@/lib/discord-channels";
+import { type GuildEmoji, emojiUrl, filterByName } from "@/lib/discord-emoji";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useGuildChannels } from "@/lib/hooks/use-guild-channels";
 import { useGuildEmojis, useUnicodeEmojis } from "@/lib/hooks/use-guild-emojis";
 import { itchImageUrl } from "@/lib/itch-image";
 import { loadMentionName } from "@/lib/mention-names";
@@ -40,7 +42,8 @@ import { STALE } from "@/orpc/public-procedures";
 type Suggestion =
   | { kind: "emoji"; key: string; emoji: GuildEmoji }
   | { kind: "unicode"; key: string; emoji: string; shortcode: string }
-  | { kind: "mention"; key: string; handle: string; name: string; avatarUrl: string | null };
+  | { kind: "mention"; key: string; handle: string; name: string; avatarUrl: string | null }
+  | { kind: "channel"; key: string; channel: GuildChannel };
 
 const MAX_SUGGESTIONS = 8;
 
@@ -95,13 +98,28 @@ function labelMentions(view: EditorView) {
   }
 }
 
+/** Channels parsed from stored text only know their id; name them once the list is in. */
+function labelChannels(view: EditorView, channels: GuildChannel[]) {
+  const names = new Map(channels.map((c) => [c.id, c.name]));
+  const tr = view.state.tr;
+  view.state.doc.descendants((node, pos) => {
+    if (node.type.name !== "channel" || node.attrs.label) return;
+    tr.setNodeMarkup(pos, undefined, {
+      ...node.attrs,
+      label: names.get(node.attrs.id as string) ?? "unknown",
+    });
+  });
+  if (tr.docChanged) view.dispatch(tr.setMeta("addToHistory", false));
+}
+
 /**
- * A plain-text field for member-written prose, with guild emojis and
- * `@mentions` as inline chips. Typing `:` and two letters offers the
- * guild's emojis, then standard ones (inserted as the character itself),
- * `@` offers members (with `mentions`), and a typed-out `:name:` becomes
- * its emoji. The value is the markdown source the app stores:
- * `<:name:id>` for emojis and `@handle` for mentions.
+ * A plain-text field for member-written prose, with guild emojis,
+ * `@mentions` and `#channels` as inline chips. Typing `:` and two letters
+ * offers the guild's emojis, then standard ones (inserted as the character
+ * itself), `@` offers members (with `mentions`), `#` offers the server's
+ * public channels, and a typed-out `:name:` becomes its emoji. The value
+ * is the markdown source the app stores: `<:name:id>` for emojis,
+ * `@handle` for mentions and `<#id>` for channels.
  */
 export function ProseEditor({
   value,
@@ -127,8 +145,13 @@ export function ProseEditor({
 
   const { data: emojis = [] } = useGuildEmojis();
   const { data: unicodeEmojis = [] } = useUnicodeEmojis();
+  const { data: guildChannels } = useGuildChannels();
+  const pickable = React.useMemo(
+    () => guildChannels?.channels.filter((c) => c.kind === "text") ?? [],
+    [guildChannels],
+  );
   const open = trigger && trigger.from !== dismissedAt ? trigger : null;
-  const live = open && (open.kind === "emoji" || mentions) ? open : null;
+  const live = open && (open.kind !== "mention" || mentions) ? open : null;
   const mentionQuery = useDebouncedValue(live?.kind === "mention" ? live.query : "", 200);
   const { data: people } = useQuery({
     ...orpc.searchProfiles.queryOptions({ input: { search: mentionQuery } }),
@@ -140,7 +163,7 @@ export function ProseEditor({
     if (!live) return [];
     if (live.kind === "emoji") {
       // The guild's own emojis first, standard ones fill the rest.
-      const guild: Suggestion[] = filterEmojis(emojis, live.query).map((emoji) => ({
+      const guild: Suggestion[] = filterByName(emojis, live.query).map((emoji) => ({
         kind: "emoji",
         key: emoji.id,
         emoji,
@@ -152,6 +175,13 @@ export function ProseEditor({
       ).map((match) => ({ kind: "unicode", key: match.emoji, ...match }));
       return [...guild, ...standard];
     }
+    if (live.kind === "channel") {
+      return filterByName(pickable, live.query, MAX_SUGGESTIONS).map((channel) => ({
+        kind: "channel",
+        key: channel.id,
+        channel,
+      }));
+    }
     return (people ?? [])
       .filter((p) => p.urlStub)
       .slice(0, 6)
@@ -162,7 +192,7 @@ export function ProseEditor({
         name: p.displayName,
         avatarUrl: p.avatarUrl,
       }));
-  }, [live, emojis, unicodeEmojis, people]);
+  }, [live, emojis, unicodeEmojis, pickable, people]);
 
   const triggerKey = live ? `${live.kind}:${live.from}:${live.query}` : "";
   const active = highlight.key === triggerKey ? highlight.index : 0;
@@ -175,7 +205,9 @@ export function ProseEditor({
         ? proseSchema.nodes.emoji.create(s.emoji)
         : s.kind === "unicode"
           ? s.emoji
-          : proseSchema.nodes.mention.create({ handle: s.handle.toLowerCase(), label: s.name });
+          : s.kind === "channel"
+            ? proseSchema.nodes.channel.create({ id: s.channel.id, label: s.channel.name })
+            : proseSchema.nodes.mention.create({ handle: s.handle.toLowerCase(), label: s.name });
     insertAtom(view, live, node);
   };
 
@@ -201,6 +233,8 @@ export function ProseEditor({
     unicodeEmojis,
     mentions,
   };
+  const queryChannels = React.useRef(guildChannels);
+  queryChannels.current = guildChannels;
   const callbacks = React.useRef({ onValueChange, onBlur, disabled, maxLength });
   callbacks.current = { onValueChange, onBlur, disabled, maxLength };
 
@@ -281,6 +315,14 @@ export function ProseEditor({
           else chip.append(mentionLoadingDom());
           return { dom: chip };
         },
+        channel: (node) => {
+          const chip = document.createElement("span");
+          chip.className = cn(MENTION_BADGE_CLASS, "pointer-events-none");
+          const label = node.attrs.label as string | null;
+          if (label) chip.textContent = `#${label}`;
+          else chip.append(mentionLoadingDom("#"));
+          return { dom: chip };
+        },
       },
       handleKeyDown: (_view, event) => {
         const { suggestions, active, live, triggerKey, pick } = latest.current;
@@ -314,6 +356,8 @@ export function ProseEditor({
             .scrollIntoView(),
         );
         labelMentions(view);
+        const loaded = queryChannels.current;
+        if (loaded) labelChannels(view, loaded.channels);
         return true;
       },
       clipboardTextSerializer: (slice) => serializeProse(slice.content),
@@ -356,7 +400,13 @@ export function ProseEditor({
     lastValue.current = value;
     view.updateState(EditorState.create({ doc: parseProse(value, { mentions }), plugins }));
     labelMentions(view);
-  }, [value, mentions, plugins]);
+    if (guildChannels) labelChannels(view, guildChannels.channels);
+  }, [value, mentions, plugins, guildChannels]);
+
+  React.useEffect(() => {
+    const view = viewRef.current;
+    if (view && guildChannels) labelChannels(view, guildChannels.channels);
+  }, [guildChannels]);
 
   React.useEffect(() => {
     viewRef.current?.setProps({ editable: () => !disabled });
@@ -364,6 +414,11 @@ export function ProseEditor({
 
   const anchor = React.useMemo(
     () => ({
+      // Lets the positioner find the editor's scroll containers, so the list
+      // follows the caret when the page scrolls instead of staying put.
+      get contextElement() {
+        return viewRef.current?.dom;
+      },
       getBoundingClientRect: () => {
         const view = viewRef.current;
         if (!view || !live) return new DOMRect();
@@ -426,7 +481,7 @@ export function ProseEditor({
           align="start"
           initialFocus={false}
           finalFocus={false}
-          className="w-60 gap-0 p-1"
+          className="w-60 gap-0 p-1 in-data-anchor-hidden:invisible"
         >
           <div id={listId} role="listbox" className="flex flex-col">
             {suggestions.map((s, i) => (
@@ -452,6 +507,11 @@ export function ProseEditor({
                   <>
                     <span className="w-5 text-center text-base leading-none">{s.emoji}</span>
                     <span className="truncate">:{s.shortcode}:</span>
+                  </>
+                ) : s.kind === "channel" ? (
+                  <>
+                    <span className="w-5 text-center text-base leading-none opacity-60">#</span>
+                    <span className="truncate">{s.channel.name}</span>
                   </>
                 ) : (
                   <>

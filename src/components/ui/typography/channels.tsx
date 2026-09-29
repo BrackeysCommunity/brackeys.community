@@ -1,18 +1,22 @@
 import { Fragment, type ReactNode } from "react";
 
+import { withDiscordMentions } from "@/components/ui/typography/discord-mentions";
 import { MENTION_BADGE_CLASS, MentionLoading } from "@/components/ui/typography/mentions";
 import { CHANNEL_TOKEN_PATTERN } from "@/lib/discord-channels";
 import { discordChannelLink } from "@/lib/discord-links";
-import { useGuildChannels } from "@/lib/hooks/use-guild-channels";
+import { useGuildChannelLookup, useGuildChannels } from "@/lib/hooks/use-guild-channels";
 import { cn } from "@/lib/utils";
 
 /**
  * `#channel-name`, opening the channel in the Discord app unless `link` is
- * off (inside a button). A deleted, staff-only or thread id has no name to
- * show and reads `#unknown`.
+ * off (inside a button). An id the list doesn't have is looked up on its
+ * own (archived threads); a deleted or staff-only one reads `#unknown`.
  */
 function ChannelBadge({ channelId, link }: { channelId: string; link: boolean }) {
-  const { data, isPending } = useGuildChannels();
+  const { data, isPending: listPending } = useGuildChannels();
+  const listed = data?.channels.find((c) => c.id === channelId);
+  const lookup = useGuildChannelLookup(channelId, !!data && !listed);
+  const isPending = listPending || (!listed && lookup.isPending && lookup.fetchStatus !== "idle");
   if (isPending) {
     return (
       <span className={MENTION_BADGE_CLASS}>
@@ -20,7 +24,7 @@ function ChannelBadge({ channelId, link }: { channelId: string; link: boolean })
       </span>
     );
   }
-  const channel = data?.channels.find((c) => c.id === channelId);
+  const channel = listed ?? lookup.data;
   if (!channel || !data) return <span className={MENTION_BADGE_CLASS}>#unknown</span>;
   if (!link) return <span className={MENTION_BADGE_CLASS}>#{channel.name}</span>;
   return (
@@ -55,7 +59,16 @@ export function withChannelLinks(
   return parts.map((part, i) => <Fragment key={i}>{part}</Fragment>);
 }
 
-/** Plain text with `<#id>` tokens named but not linked, for one-line summaries. */
-export function ChannelText({ children }: { children: string }) {
-  return <>{withChannelLinks(children, (text) => text, { link: false })}</>;
+/** Channel, user and role tokens, in that order; everything else goes through `rest`. */
+export function withDiscordTokens(
+  text: string,
+  rest: (text: string) => ReactNode,
+  options: { link?: boolean } = {},
+): ReactNode {
+  return withChannelLinks(text, (part) => withDiscordMentions(part, rest, options), options);
+}
+
+/** Plain text with Discord tokens named but not linked, for one-line summaries. */
+export function DiscordTokenText({ children }: { children: string }) {
+  return <>{withDiscordTokens(children, (text) => text, { link: false })}</>;
 }

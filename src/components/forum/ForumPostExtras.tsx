@@ -378,7 +378,6 @@ export function useForumCommentExtras(post: ForumPostDetail): CommentRowExtras {
   });
 
   return {
-    mentions: true,
     badges: (comment: CommentRow) =>
       comment.id === solvedId ? (
         <Badge variant="success" size="label">

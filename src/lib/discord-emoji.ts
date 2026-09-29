@@ -28,16 +28,20 @@ export function emojiTokensToNames(text: string): string {
 }
 
 /** Case-insensitive: exact, then prefix (shortest first), then substring matches. */
-export function filterEmojis(emojis: GuildEmoji[], query: string, limit = 8): GuildEmoji[] {
+export function filterByName<T extends { name: string }>(
+  items: T[],
+  query: string,
+  limit = 8,
+): T[] {
   const q = query.toLowerCase();
-  const prefix: GuildEmoji[] = [];
-  const inner: GuildEmoji[] = [];
-  for (const emoji of emojis) {
-    const name = emoji.name.toLowerCase();
-    if (name.startsWith(q)) prefix.push(emoji);
-    else if (name.includes(q)) inner.push(emoji);
+  const prefix: T[] = [];
+  const inner: T[] = [];
+  for (const item of items) {
+    const name = item.name.toLowerCase();
+    if (name.startsWith(q)) prefix.push(item);
+    else if (name.includes(q)) inner.push(item);
   }
-  const rank = (e: GuildEmoji) => (e.name.toLowerCase() === q ? -1 : e.name.length);
+  const rank = (e: T) => (e.name.toLowerCase() === q ? -1 : e.name.length);
   return [...prefix.sort((a, b) => rank(a) - rank(b)), ...inner].slice(0, limit);
 }
 
@@ -50,12 +54,12 @@ function outsideCode(text: string, transform: (part: string) => string): string 
     .join("");
 }
 
-const PARTIAL_TOKEN = /<(?:a?:\w*(?::\d*)?|a|#\d*)?$/;
+const PARTIAL_TOKEN = /<(?:a?:\w*(?::\d*)?|a|#\d*|@[!&]?\d*)?$/;
 
 /**
- * Drops an emoji or channel token cut in half at the end of `text`, for
- * any clip that feeds Discord: a dangling `<:fi` or `<#5522` renders as
- * raw text there.
+ * Drops an emoji, channel or mention token cut in half at the end of
+ * `text`, for any clip that feeds Discord: a dangling `<:fi` or `<#5522`
+ * renders as raw text there.
  */
 export function trimPartialEmojiToken(text: string): string {
   const match = PARTIAL_TOKEN.exec(text);

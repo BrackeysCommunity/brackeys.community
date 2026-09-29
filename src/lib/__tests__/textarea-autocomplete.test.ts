@@ -30,6 +30,13 @@ describe("findTrigger", () => {
     expect(at("me@mail")).toBeNull();
   });
 
+  it("offers channels after a boundary, but not for headings or anchors", () => {
+    expect(at("ask in #h")).toEqual({ kind: "channel", query: "h", start: 7 });
+    expect(at("#chan")).toEqual({ kind: "channel", query: "chan", start: 0 });
+    expect(at("# Title")).toBeNull();
+    expect(at("page#anchor")).toBeNull();
+  });
+
   it("stays quiet inside inline code", () => {
     expect(at("run `:fi")).toBeNull();
     expect(at("`x` :fi")).toEqual({ kind: "emoji", query: "fi", start: 4 });

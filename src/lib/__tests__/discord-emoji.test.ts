@@ -4,7 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   emojiToken,
   emojiTokensToNames,
-  filterEmojis,
+  filterByName,
   trimPartialEmojiToken,
 } from "@/lib/discord-emoji";
 
@@ -36,7 +36,7 @@ describe("emoji tokens", () => {
   });
 });
 
-describe("filterEmojis", () => {
+describe("filterByName", () => {
   const list = [
     { id: "1", name: "campfire", animated: false },
     { id: "2", name: "fire", animated: false },
@@ -44,11 +44,11 @@ describe("filterEmojis", () => {
   ];
 
   it("ranks prefix matches first, case-insensitively", () => {
-    expect(filterEmojis(list, "fire").map((e) => e.name)).toEqual(["fire", "Firefox", "campfire"]);
+    expect(filterByName(list, "fire").map((e) => e.name)).toEqual(["fire", "Firefox", "campfire"]);
   });
 
   it("caps the list", () => {
-    expect(filterEmojis(list, "f", 1)).toHaveLength(1);
+    expect(filterByName(list, "f", 1)).toHaveLength(1);
   });
 });
 

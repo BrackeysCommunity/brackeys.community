@@ -97,8 +97,11 @@ const PUBLIC_PROCEDURES = new Set([
   "listGuildEmojis",
   // The guild's public channels, for `<#id>` chips.
   "listGuildChannels",
+  "resolveGuildChannel",
+  "listGuildRoles",
   // Display names behind `@handle` mentions.
   "resolveMentions",
+  "resolveDiscordUsers",
   // Answers {isStaff:false,isAdmin:false} to anonymous callers; gates the
   // /admin route's UX only.
   "getStaffStatus",

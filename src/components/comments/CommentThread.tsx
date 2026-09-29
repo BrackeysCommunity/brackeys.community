@@ -90,13 +90,11 @@ const CommentGateContext = createContext<CommentGate | null>(null);
 
 /**
  * What a host adds to each row — the forum's accepted-answer mark and its
- * "Mark as solution" action, and `@mention` links in the text.
+ * "Mark as solution" action.
  */
 export type CommentRowExtras = {
   badges?: (comment: CommentRow) => React.ReactNode;
   actions?: (comment: CommentRow) => React.ReactNode;
-  /** Link `@handle` mentions in the text and offer them while writing. */
-  mentions?: boolean;
 };
 
 const CommentExtrasContext = createContext<CommentRowExtras>({});
@@ -464,7 +462,6 @@ function Composer({
   const self = useStore(activeUserStore, (s) => s.profile);
   const viewer = useMemberViewer();
   const gate = useContext(CommentGateContext);
-  const { mentions } = useContext(CommentExtrasContext);
 
   const post = useMutation({
     mutationFn: (body: string) =>
@@ -510,7 +507,7 @@ function Composer({
       <ProseEditor
         value={content}
         onValueChange={setContent}
-        mentions={mentions}
+        mentions
         onKeyDown={(e) => {
           if (!isMultilineSubmitKey(e)) return;
           e.preventDefault();
@@ -976,7 +973,7 @@ function CommentItem({
           <ProseEditor
             value={editDraft}
             onValueChange={setEditDraft}
-            mentions={extras.mentions}
+            mentions
             onKeyDown={(e) => {
               if (!isMultilineSubmitKey(e)) return;
               e.preventDefault();
@@ -1011,7 +1008,7 @@ function CommentItem({
         </Text>
       ) : (
         <Text size="sm" className="whitespace-pre-wrap text-foreground/90">
-          <EmojiText mentions={extras.mentions}>{comment.content}</EmojiText>
+          <EmojiText mentions>{comment.content}</EmojiText>
         </Text>
       )}
 
@@ -1023,7 +1020,7 @@ function CommentItem({
               <>
                 It shows again in this thread with its original text:
                 <span className="block max-h-48 overflow-y-auto rounded-md border bg-muted/40 px-3 py-2 whitespace-pre-wrap text-foreground/90">
-                  <EmojiText mentions={extras.mentions}>{comment.removedContent ?? ""}</EmojiText>
+                  <EmojiText mentions>{comment.removedContent ?? ""}</EmojiText>
                 </span>
                 <ReasonField
                   id={`restore-reason-${comment.id}`}

@@ -122,6 +122,27 @@ export async function notifyPostLiked(
  * People named with `@handle` who should hear about it: real, not the
  * writer, not across a block with them. `handles` are profile url stubs.
  */
+async function mentionRecipients(
+  handles: string[],
+  actorId: string,
+  exclude: string[] = [],
+): Promise<string[]> {
+  if (handles.length === 0) return [];
+  const rows = await db
+    .select({ id: profileUrlStubs.profileId })
+    .from(profileUrlStubs)
+    .where(
+      inArray(
+        profileUrlStubs.stub,
+        handles.map((h) => h.toLowerCase()),
+      ),
+    );
+  const blocked = await blockedWith(actorId);
+  const skip = new Set([actorId, ...exclude, ...blocked]);
+  return [...new Set(rows.map((r) => r.id))].filter((id) => !skip.has(id));
+}
+
+/** `@handle` mentions in a forum post or a comment on one. */
 export async function notifyMentions(opts: {
   handles: string[];
   actorId: string;
@@ -130,19 +151,7 @@ export async function notifyMentions(opts: {
   url: string;
   exclude?: string[];
 }): Promise<void> {
-  if (opts.handles.length === 0) return;
-  const rows = await db
-    .select({ id: profileUrlStubs.profileId })
-    .from(profileUrlStubs)
-    .where(
-      inArray(
-        profileUrlStubs.stub,
-        opts.handles.map((h) => h.toLowerCase()),
-      ),
-    );
-  const blocked = await blockedWith(opts.actorId);
-  const skip = new Set([opts.actorId, ...(opts.exclude ?? []), ...blocked]);
-  const recipients = [...new Set(rows.map((r) => r.id))].filter((id) => !skip.has(id));
+  const recipients = await mentionRecipients(opts.handles, opts.actorId, opts.exclude);
   for (const userId of recipients) {
     await bestEffort("forum.mention", { post_id: opts.post.id }, () =>
       notify({
@@ -152,6 +161,30 @@ export async function notifyMentions(opts: {
         entityType: "forum_post",
         entityId: String(opts.post.id),
         data: { subjectTitle: forumPostTitle(opts.post), subjectUrl: opts.url },
+        dedupeWithin: { ms: 15 * 60_000 },
+      }),
+    );
+  }
+}
+
+/** `@handle` mentions in a comment anywhere but the forum (profile walls, collab posts). */
+export async function notifyCommentMentions(opts: {
+  handles: string[];
+  actorId: string;
+  threadId: number;
+  data: { subjectTitle: string; subjectUrl: string } & Record<string, unknown>;
+  exclude?: string[];
+}): Promise<void> {
+  const recipients = await mentionRecipients(opts.handles, opts.actorId, opts.exclude);
+  for (const userId of recipients) {
+    await bestEffort("comments.mention", { thread_id: opts.threadId }, () =>
+      notify({
+        userId,
+        type: "comment_mention",
+        actorId: opts.actorId,
+        entityType: "thread",
+        entityId: String(opts.threadId),
+        data: opts.data,
         dedupeWithin: { ms: 15 * 60_000 },
       }),
     );

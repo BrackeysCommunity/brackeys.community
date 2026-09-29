@@ -1,4 +1,4 @@
-export type TriggerKind = "emoji" | "mention";
+export type TriggerKind = "emoji" | "mention" | "channel";
 
 export interface TriggerMatch {
   kind: TriggerKind;
@@ -7,12 +7,14 @@ export interface TriggerMatch {
   start: number;
 }
 
-// Both need a boundary before the trigger, so `12:30`, `http://` and
-// `me@mail.com` never open a picker.
+// All need a boundary before the trigger, so `12:30`, `http://`,
+// `me@mail.com` and `page#anchor` never open a picker. A channel needs a
+// letter right after `#`, so a `# heading` doesn't either.
 const EMOJI_TRIGGER = /(^|[\s([{])(:)([\w+-]{2,32})$/;
 const MENTION_TRIGGER = /(^|[^\w@/.])(@)([a-z0-9_-]{2,31})$/i;
+const CHANNEL_TRIGGER = /(^|[\s([{])(#)([\w-]{1,32})$/;
 
-/** The `:name` or `@handle` being typed at `caret`, if any. */
+/** The `:name`, `@handle` or `#channel` being typed at `caret`, if any. */
 export function findTrigger(text: string, caret: number): TriggerMatch | null {
   const before = text.slice(0, caret);
   const line = before.slice(before.lastIndexOf("\n") + 1);
@@ -22,6 +24,7 @@ export function findTrigger(text: string, caret: number): TriggerMatch | null {
   for (const [kind, pattern] of [
     ["emoji", EMOJI_TRIGGER],
     ["mention", MENTION_TRIGGER],
+    ["channel", CHANNEL_TRIGGER],
   ] as const) {
     const match = pattern.exec(before);
     if (match) {

@@ -7,8 +7,8 @@
 
 const HANDLE = "[a-z0-9][a-z0-9_-]{1,30}[a-z0-9]";
 
-/** An `@handle` not glued to a word, an email address or a path before it. */
-export const MENTION_PATTERN = new RegExp(`(^|[^\\w@/.])@(${HANDLE})(?![\\w-])`, "gi");
+/** An `@handle` not glued to a word, an email address, a path or a Discord `<@id>` before it. */
+export const MENTION_PATTERN = new RegExp(`(^|[^\\w@/.<])@(${HANDLE})(?![\\w-])`, "gi");
 
 /** Mentions one post or comment can notify. */
 export const MAX_MENTIONS = 10;

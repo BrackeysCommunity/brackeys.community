@@ -2,6 +2,7 @@ import { marked, type Tokens } from "marked";
 
 import { channelTokensToNames } from "@/lib/discord-channels";
 import { emojiTokensToNames } from "@/lib/discord-emoji";
+import { discordMentionsToNames } from "@/lib/discord-mentions";
 import { clipPlainText, htmlToParagraphs } from "@/lib/html-text";
 
 type AnyToken = Tokens.Generic;
@@ -14,9 +15,9 @@ type AnyToken = Tokens.Generic;
  * through `htmlToParagraphs` rather than dropped, for rows written before
  * the field was markdown.
  *
- * Guild emojis read as `:name:` and channels as `#channel`;
- * `keepDiscordTokens` leaves the `<:name:id>` and `<#id>` tokens in, for
- * text headed to Discord, which draws them itself.
+ * Guild emojis read as `:name:`, channels as `#channel`, and Discord user
+ * and role mentions as `@user` / `@role`; `keepDiscordTokens` leaves the
+ * tokens in, for text headed to Discord, which draws them itself.
  */
 export function markdownToParagraphs(
   markdown: string | null | undefined,
@@ -26,7 +27,12 @@ export function markdownToParagraphs(
   const out: string[] = [];
   for (const token of marked.lexer(markdown) as AnyToken[]) {
     const text = blockText(token);
-    if (text) out.push(keepDiscordTokens ? text : channelTokensToNames(emojiTokensToNames(text)));
+    if (text)
+      out.push(
+        keepDiscordTokens
+          ? text
+          : discordMentionsToNames(channelTokensToNames(emojiTokensToNames(text))),
+      );
   }
   return out;
 }

@@ -15,6 +15,7 @@ import { loadSubject, resolveThread } from "@/lib/comment-subjects";
 import {
   createComment,
   deleteComment,
+  editComment,
   getCommentLocation,
   listComments,
   restoreComment,
@@ -244,6 +245,53 @@ describe("notification fan-out", () => {
     await fanOutSettled(1);
     const [row] = await db.select().from(notifications);
     expect(row).toMatchObject({ userId: "owner", type: "comment_received" });
+  });
+});
+
+describe("mentions outside the forum", () => {
+  it("notifies an @handle on a collab comment once, as a mention", async () => {
+    await seedUser(db, "owner");
+    await seedUser(db, "writer");
+    await seedUser(db, "carol");
+    await db.insert(profileUrlStubs).values({ profileId: "carol", stub: "carol" });
+    const postId = await seedCollabPost(db, "owner");
+    const subject = { type: "collab_post", id: postId } as const;
+
+    await call(createComment, { subject, content: "cc @carol and @owner" }, asUser("writer"));
+    // The owner hears it as a comment on their post, carol as a mention.
+    await fanOutSettled(2);
+    const rows = await db.select().from(notifications);
+    expect(rows.map((r) => `${r.userId}:${r.type}`).sort()).toEqual([
+      "carol:comment_mention",
+      "owner:comment_received",
+    ]);
+  });
+
+  it("notifies only the mentions an edit adds", async () => {
+    await seedUser(db, "owner");
+    await seedUser(db, "writer");
+    await seedUser(db, "carol");
+    await seedUser(db, "dave");
+    await db.insert(profileUrlStubs).values([
+      { profileId: "carol", stub: "carol" },
+      { profileId: "dave", stub: "dave" },
+    ]);
+    const postId = await seedCollabPost(db, "owner");
+    const subject = { type: "collab_post", id: postId } as const;
+
+    const note = await call(createComment, { subject, content: "cc @carol" }, asUser("writer"));
+    await fanOutSettled(2);
+    await call(
+      editComment,
+      { commentId: note.id, content: "cc @carol and @dave" },
+      asUser("writer"),
+    );
+    await fanOutSettled(3);
+    const mentions = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.type, "comment_mention"));
+    expect(mentions.map((r) => r.userId).sort()).toEqual(["carol", "dave"]);
   });
 });
 

@@ -29,8 +29,8 @@ import {
 import { isStaffMember } from "@/lib/discord";
 import { emojiTokensToNames } from "@/lib/discord-emoji";
 import { EVENTS } from "@/lib/event-taxonomy";
-import { extractMentions } from "@/lib/forum-mentions";
-import { notifyMentions } from "@/lib/forum-notify";
+import { addedMentions, extractMentions } from "@/lib/forum-mentions";
+import { notifyCommentMentions, notifyMentions } from "@/lib/forum-notify";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
@@ -610,16 +610,14 @@ export const createComment = os
         });
       }
 
-      // Mentions are a forum feature while the forum is behind its flag.
-      if (input.subject.type === "forum_post") {
-        await notifyMentions({
-          handles: extractMentions(input.content),
-          actorId: writerId,
-          post: { id: input.subject.id, title: subject.title, excerpt: null },
-          url: subjectUrl,
-          exclude: [...notified],
-        });
-      }
+      await notifyCommentHandles({
+        ref: input.subject,
+        threadId: thread.id,
+        handles: extractMentions(input.content),
+        actorId: writerId,
+        data: notificationData,
+        exclude: [...notified],
+      });
     });
 
     captureServerEvent(EVENTS.commentPosted, context.user.id, {
@@ -630,6 +628,28 @@ export const createComment = os
 
     return { id: created.id, rootId: created.rootId, depth: created.depth };
   });
+
+/** `@handle` mentions in a comment: forum ones as forum mentions, the rest as comment mentions. */
+async function notifyCommentHandles(opts: {
+  ref: SubjectRef;
+  threadId: number;
+  handles: string[];
+  actorId: string;
+  data: { subjectTitle: string; subjectUrl: string } & Record<string, unknown>;
+  exclude: string[];
+}): Promise<void> {
+  if (opts.ref.type === "forum_post") {
+    await notifyMentions({
+      handles: opts.handles,
+      actorId: opts.actorId,
+      post: { id: opts.ref.id, title: opts.data.subjectTitle, excerpt: null },
+      url: opts.data.subjectUrl,
+      exclude: opts.exclude,
+    });
+    return;
+  }
+  await notifyCommentMentions(opts);
+}
 
 export const editComment = os
   // Same guild bar as createComment: editing publishes new public text.
@@ -674,6 +694,28 @@ export const editComment = os
       .update(comments)
       .set({ content: input.content, editedAt: new Date() })
       .where(eq(comments.id, comment.id));
+
+    const handles = addedMentions(comment.content, input.content);
+    if (thread && subject && handles.length > 0) {
+      const ref = subjectRefOfThread(thread);
+      const writerId = context.user.id;
+      void bestEffort("comments.edit_mentions", { comment_id: comment.id }, () =>
+        notifyCommentHandles({
+          ref,
+          threadId: thread.id,
+          handles,
+          actorId: writerId,
+          data: {
+            subjectType: ref.type,
+            subjectTitle: subject.title,
+            subjectUrl: `${subject.url}#comment-${comment.id}`,
+            commentId: comment.id,
+            preview: emojiTokensToNames(input.content).slice(0, 140),
+          },
+          exclude: [writerId],
+        }),
+      );
+    }
     return { success: true };
   });
 

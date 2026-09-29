@@ -30,7 +30,7 @@ import {
   requestImageRescan,
 } from "./admin";
 import { getArcadeAccess } from "./arcade";
-import { listGuildChannels } from "./channels";
+import { listGuildChannels, listGuildRoles, resolveGuildChannel } from "./channels";
 import {
   createPost,
   updatePost,
@@ -147,7 +147,7 @@ import {
   setJamWatch,
 } from "./jam";
 import { countMembersByRole, countMembersBySkill, getMemberStats, listMembers } from "./member";
-import { resolveMentions } from "./mentions";
+import { resolveDiscordUsers, resolveMentions } from "./mentions";
 import {
   listNotifications,
   countNotifications,
@@ -241,7 +241,10 @@ import { getWebsiteVerification, verifyWebsite } from "./website";
 export default {
   listGuildEmojis,
   listGuildChannels,
+  resolveGuildChannel,
+  listGuildRoles,
   resolveMentions,
+  resolveDiscordUsers,
   listJams,
   archiveJams,
   listRecentEntries,

@@ -439,6 +439,7 @@ export type NotificationType =
   | "profile_updated_by_staff"
   | "comment_received"
   | "comment_reply"
+  | "comment_mention"
   | "comment_removed_by_staff"
   | "forum_post_hidden_by_staff"
   | "forum_post_unhidden_by_staff"

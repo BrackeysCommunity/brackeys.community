@@ -1,7 +1,14 @@
 import type IORedis from "ioredis";
 
-import { type DiscordApiChannel, type GuildChannels, publicChannels } from "@/lib/discord-channels";
+import {
+  type DiscordApiChannel,
+  type GuildChannel,
+  type GuildChannels,
+  publicChannels,
+  publicThread,
+} from "@/lib/discord-channels";
 import type { GuildEmoji } from "@/lib/discord-emoji";
+import type { DiscordUserName, GuildRole } from "@/lib/discord-mentions";
 import { createRedisClient } from "@/lib/redis";
 
 declare global {
@@ -573,55 +580,212 @@ export async function getGuildEmojis(): Promise<GuildEmoji[]> {
   return emojis;
 }
 
-const GUILD_CHANNELS_KEY = "discord:guild-channels";
-const GUILD_CHANNELS_TTL_SECONDS = 600;
+const GUILD_ROLES_KEY = "discord:guild-roles";
+const GUILD_CHANNELS_KEY = "discord:guild-channels:v2";
+const GUILD_DIRECTORY_TTL_SECONDS = 600;
 
-/**
- * The guild's channels that `@everyone` can view, for rendering `<#id>`
- * tokens. Fails soft to an empty list, and only a successful answer is
- * cached.
- */
-export async function getGuildChannels(): Promise<GuildChannels> {
-  const guildId = process.env.DISCORD_GUILD_ID ?? "";
+async function readCachedJson<T>(key: string): Promise<T | undefined> {
   try {
     const redis = await getRedis();
-    const cached = await redis.get(GUILD_CHANNELS_KEY);
-    if (cached) return JSON.parse(cached) as GuildChannels;
+    const cached = await redis.get(key);
+    if (cached) return JSON.parse(cached) as T;
   } catch {
     // Fall through to Discord.
   }
+  return undefined;
+}
 
-  const empty: GuildChannels = { guildId, channels: [] };
-  const botToken = process.env.DISCORD_BOT_TOKEN;
-  if (!guildId || !botToken) return empty;
-
-  const init = { headers: { Authorization: `Bot ${botToken}` } };
-  let channelsResponse: Response;
-  let rolesResponse: Response;
-  try {
-    [channelsResponse, rolesResponse] = await Promise.all([
-      discordFetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, init),
-      discordFetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, init),
-    ]);
-  } catch {
-    return empty;
-  }
-  if (!channelsResponse.ok || !rolesResponse.ok) return empty;
-
-  const roles = (await rolesResponse.json()) as { id: string; permissions: string }[];
-  const everyone = roles.find((role) => role.id === guildId);
-  if (!everyone) return empty;
-  const raw = (await channelsResponse.json()) as DiscordApiChannel[];
-  const result: GuildChannels = {
-    guildId,
-    channels: publicChannels(guildId, everyone.permissions, raw),
-  };
-
+async function writeCachedJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
   try {
     const redis = await getRedis();
-    await redis.set(GUILD_CHANNELS_KEY, JSON.stringify(result), "EX", GUILD_CHANNELS_TTL_SECONDS);
+    await redis.set(key, JSON.stringify(value), "EX", ttlSeconds);
   } catch {
     // Best-effort cache.
   }
+}
+
+/** A bot-token read of the guild; null on any failure. */
+async function botRead<T>(path: string): Promise<T | null> {
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!botToken) return null;
+  try {
+    const response = await discordFetch(`https://discord.com/api/v10${path}`, {
+      headers: { Authorization: `Bot ${botToken}` },
+    });
+    return response.ok ? ((await response.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The guild's roles, `@everyone` included (its id is the guild's), with
+ * their permissions for working out channel visibility. Fails soft to an
+ * empty list, and only a successful answer is cached.
+ */
+async function getGuildRolesRaw(): Promise<DiscordApiRole[]> {
+  const cached = await readCachedJson<DiscordApiRole[]>(GUILD_ROLES_KEY);
+  if (cached) return cached;
+  const guildId = process.env.DISCORD_GUILD_ID;
+  if (!guildId) return [];
+  const raw = await botRead<DiscordApiRole[]>(`/guilds/${guildId}/roles`);
+  if (!raw) return [];
+  const roles = raw.map(({ id, name, color, permissions }) => ({ id, name, color, permissions }));
+  await writeCachedJson(GUILD_ROLES_KEY, roles, GUILD_DIRECTORY_TTL_SECONDS);
+  return roles;
+}
+
+interface DiscordApiRole {
+  id: string;
+  name: string;
+  color: number;
+  permissions: string;
+}
+
+/** The guild's roles for rendering `<@&id>` tokens; `@everyone` reads as itself. */
+export async function getGuildRoles(): Promise<GuildRole[]> {
+  const guildId = process.env.DISCORD_GUILD_ID;
+  return (await getGuildRolesRaw()).map(({ id, name, color }) => ({
+    id,
+    name: id === guildId ? "everyone" : name,
+    color,
+  }));
+}
+
+/**
+ * The guild's channels that `@everyone` can view, plus the active public
+ * threads under them, for rendering `<#id>` tokens. Archived threads come
+ * from `lookupGuildChannel`. Fails soft to an empty list, and only a
+ * successful answer is cached.
+ */
+export async function getGuildChannels(): Promise<GuildChannels> {
+  const guildId = process.env.DISCORD_GUILD_ID ?? "";
+  const cached = await readCachedJson<GuildChannels>(GUILD_CHANNELS_KEY);
+  if (cached) return cached;
+
+  const empty: GuildChannels = { guildId, channels: [] };
+  if (!guildId) return empty;
+  const [raw, active, roles] = await Promise.all([
+    botRead<DiscordApiChannel[]>(`/guilds/${guildId}/channels`),
+    botRead<{ threads: DiscordApiChannel[] }>(`/guilds/${guildId}/threads/active`),
+    getGuildRolesRaw(),
+  ]);
+  const everyone = roles.find((role) => role.id === guildId);
+  if (!raw || !everyone) return empty;
+
+  const channels = publicChannels(guildId, everyone.permissions, raw);
+  const visible = new Set(channels.map((c) => c.id));
+  const threads = (active?.threads ?? [])
+    .map((thread) => publicThread(thread, visible))
+    .filter((thread) => thread !== null);
+  const result: GuildChannels = { guildId, channels: [...channels, ...threads] };
+  await writeCachedJson(GUILD_CHANNELS_KEY, result, GUILD_DIRECTORY_TTL_SECONDS);
   return result;
+}
+
+// ── Per-id lookups ─────────────────────────────────────────────────
+//
+// Archived threads and members without a profile aren't in any list, so
+// they are fetched one id at a time. Anyone can ask for any id, so every
+// answer is cached (misses too) and the Discord calls share a global
+// per-minute budget: past it an id reads as unknown for now, uncached,
+// rather than spending the rate limit sign-in depends on.
+
+const LOOKUP_BUDGET_PER_MINUTE = 30;
+const LOOKUP_FOUND_TTL_SECONDS = 86_400;
+const LOOKUP_MISSING_TTL_SECONDS = 3_600;
+
+async function takeLookupBudget(): Promise<boolean> {
+  try {
+    const redis = await getRedis();
+    const key = `discord:lookup-budget:${Math.floor(Date.now() / 60_000)}`;
+    const used = await redis.incr(key);
+    if (used === 1) await redis.expire(key, 120);
+    return used <= LOOKUP_BUDGET_PER_MINUTE;
+  } catch {
+    return false;
+  }
+}
+
+/** `undefined` is a cache miss; `null` a cached "not found". */
+async function cachedLookup<T>(key: string, fetchValue: () => Promise<T | null | undefined>) {
+  try {
+    const redis = await getRedis();
+    const cached = await redis.get(key);
+    if (cached !== null) return JSON.parse(cached) as T | null;
+  } catch {
+    return null;
+  }
+  if (!(await takeLookupBudget())) return null;
+  // `undefined` from the fetch means Discord didn't answer; don't cache it.
+  const value = await fetchValue();
+  if (value === undefined) return null;
+  await writeCachedJson(
+    key,
+    value,
+    value === null ? LOOKUP_MISSING_TTL_SECONDS : LOOKUP_FOUND_TTL_SECONDS,
+  );
+  return value;
+}
+
+/** A public thread that isn't in the active list, usually an archived one. */
+export async function lookupGuildChannel(channelId: string): Promise<GuildChannel | null> {
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!guildId || !botToken) return null;
+  const listed = await getGuildChannels();
+  const known = listed.channels.find((c) => c.id === channelId);
+  if (known) return known;
+  if (listed.channels.length === 0) return null;
+  const visible = new Set(listed.channels.map((c) => c.id));
+
+  return cachedLookup<GuildChannel>(`discord:channel-lookup:${channelId}`, async () => {
+    let response: Response;
+    try {
+      response = await discordFetch(`https://discord.com/api/v10/channels/${channelId}`, {
+        headers: { Authorization: `Bot ${botToken}` },
+      });
+    } catch {
+      return undefined;
+    }
+    if (response.status === 403 || response.status === 404) return null;
+    if (!response.ok) return undefined;
+    const channel = (await response.json()) as DiscordApiChannel;
+    if (channel.guild_id !== guildId) return null;
+    return publicThread(channel, visible);
+  });
+}
+
+/** A guild member's name and avatar by Discord id, for members with no profile. */
+export async function lookupGuildMemberName(
+  discordUserId: string,
+): Promise<Omit<DiscordUserName, "handle"> | null> {
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!guildId || !botToken) return null;
+
+  return cachedLookup(`discord:member-name:${discordUserId}`, async () => {
+    let response: Response;
+    try {
+      response = await discordFetch(
+        `https://discord.com/api/v10/guilds/${guildId}/members/${discordUserId}`,
+        { headers: { Authorization: `Bot ${botToken}` } },
+      );
+    } catch {
+      return undefined;
+    }
+    if (response.status === 404) return null;
+    if (!response.ok) return undefined;
+    const member = (await response.json()) as DiscordGuildMember & {
+      user?: DiscordApiUser & { global_name?: string | null };
+    };
+    if (!member.user) return null;
+    return {
+      discordId: discordUserId,
+      displayName: member.nick ?? member.user.global_name ?? member.user.username,
+      avatarUrl:
+        discordGuildAvatarUrl(discordUserId, member.avatar, guildId) ??
+        discordAvatarUrl(member.user),
+    };
+  });
 }

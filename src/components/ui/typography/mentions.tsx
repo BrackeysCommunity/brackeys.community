@@ -33,9 +33,9 @@ export function MentionLoading({ sigil = "@" }: { sigil?: string }) {
 }
 
 /** The same loading content, for the editor's plain-DOM chips. */
-export function mentionLoadingDom(): HTMLElement {
+export function mentionLoadingDom(sigil = "@"): HTMLElement {
   const wrap = document.createElement("span");
-  wrap.append("@");
+  wrap.append(sigil);
   const dots = document.createElement("span");
   dots.className = "inline-flex gap-0.5 px-0.5";
   for (const delay of DOT_DELAYS) {
@@ -48,38 +48,69 @@ export function mentionLoadingDom(): HTMLElement {
   return wrap;
 }
 
-/** `@Display Name`, linking to the profile; the bare handle when nobody owns it. */
-function MentionBadge({ handle }: { handle: string }) {
-  const { data, isPending } = useMentionName(handle);
+/** `@name` with the avatar-card tooltip; a profile link when there's a handle. */
+export function MentionChip({
+  handle,
+  name,
+  avatarUrl,
+  isPending,
+  known = true,
+}: {
+  handle: string | null;
+  name: string;
+  avatarUrl: string | null;
+  isPending: boolean;
+  /** Off when nobody was found, so the tooltip doesn't restate the fallback. */
+  known?: boolean;
+}) {
+  const content = isPending ? <MentionLoading /> : `@${name}`;
   return (
     <SimpleTooltip
       delay={250}
       content={
-        data ? (
+        known && !isPending ? (
           <span className="flex items-center gap-2">
-            <UserAvatar avatarUrl={data.avatarUrl} username={data.displayName} size={24} />
+            <UserAvatar avatarUrl={avatarUrl} username={name} size={24} />
             <span className="flex flex-col gap-0.5 leading-none">
-              <span className="font-medium">{data.displayName}</span>
-              <span className="opacity-70">@{data.handle}</span>
+              <span className="font-medium">{name}</span>
+              {handle ? <span className="opacity-70">@{handle}</span> : null}
             </span>
           </span>
         ) : (
-          `@${handle}`
+          `@${name}`
         )
       }
     >
-      <Link
-        to="/profile/$userId"
-        params={{ userId: handle.toLowerCase() }}
-        className={cn(
-          MENTION_BADGE_CLASS,
-          // beats `MarkedText`'s link color and underline
-          "text-primary! no-underline! hover:bg-primary hover:text-primary-foreground!",
-        )}
-      >
-        {isPending ? <MentionLoading /> : `@${data?.displayName ?? handle}`}
-      </Link>
+      {handle ? (
+        <Link
+          to="/profile/$userId"
+          params={{ userId: handle.toLowerCase() }}
+          className={cn(
+            MENTION_BADGE_CLASS,
+            // beats `MarkedText`'s link color and underline
+            "text-primary! no-underline! hover:bg-primary hover:text-primary-foreground!",
+          )}
+        >
+          {content}
+        </Link>
+      ) : (
+        <span className={MENTION_BADGE_CLASS}>{content}</span>
+      )}
     </SimpleTooltip>
+  );
+}
+
+/** `@Display Name`, linking to the profile; the bare handle when nobody owns it. */
+function MentionBadge({ handle }: { handle: string }) {
+  const { data, isPending } = useMentionName(handle);
+  return (
+    <MentionChip
+      handle={handle}
+      name={data?.displayName ?? handle}
+      avatarUrl={data?.avatarUrl ?? null}
+      isPending={isPending}
+      known={!!data}
+    />
   );
 }
 

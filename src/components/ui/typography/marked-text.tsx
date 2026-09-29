@@ -3,7 +3,7 @@ import { type ComponentProps, Fragment, type ReactNode, forwardRef, useMemo } fr
 
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useCensorNodes } from "@/components/ui/typography/censored";
-import { withChannelLinks } from "@/components/ui/typography/channels";
+import { withDiscordTokens } from "@/components/ui/typography/channels";
 import { JUMBO_EMOJI_CLASS, isEmojiOnly, withEmojis } from "@/components/ui/typography/emoji";
 import { InlineCode } from "@/components/ui/typography/inline-code";
 import { withMentionLinks } from "@/components/ui/typography/mentions";
@@ -181,7 +181,7 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
       const rest = mentions ? (text: string) => withMentionLinks(text, base.nodes) : base.nodes;
       return {
         ...base,
-        prose: (text) => withEmojis(text, (part) => withChannelLinks(part, rest)),
+        prose: (text) => withEmojis(text, (part) => withDiscordTokens(part, rest)),
       };
     }, [censor, mentions, nodes, plain]);
 

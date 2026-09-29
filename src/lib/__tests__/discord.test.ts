@@ -6,9 +6,11 @@ import {
   discordGuildAvatarUrl,
   fetchDiscordUser,
   fetchGuildMember,
+  getGuildChannels,
   isDiscordAvatarUrl,
   isGuildBanned,
   isGuildMember,
+  lookupGuildMemberName,
   purgeGuildBanCache,
   purgeGuildMemberCache,
 } from "@/lib/discord";
@@ -32,6 +34,13 @@ const fakeRedis = vi.hoisted(() => {
       if (this.failing) throw new Error("redis down");
       store.delete(key);
     },
+    async incr(key: string): Promise<number> {
+      if (this.failing) throw new Error("redis down");
+      const next = Number(store.get(key) ?? 0) + 1;
+      store.set(key, String(next));
+      return next;
+    },
+    async expire(): Promise<void> {},
   };
 });
 
@@ -46,6 +55,8 @@ vi.mock("ioredis", () => ({
     get = fakeRedis.get.bind(fakeRedis);
     set = fakeRedis.set.bind(fakeRedis);
     del = fakeRedis.del.bind(fakeRedis);
+    incr = fakeRedis.incr.bind(fakeRedis);
+    expire = fakeRedis.expire.bind(fakeRedis);
   },
 }));
 
@@ -308,5 +319,89 @@ describe("discordGuildAvatarUrl", () => {
   it("is null without a hash or a guild — the global avatar is the fallback, never a broken image", () => {
     expect(discordGuildAvatarUrl("42", null, "guild1")).toBeNull();
     expect(discordGuildAvatarUrl("42", "abc", "")).toBeNull();
+  });
+});
+
+describe("getGuildChannels", () => {
+  const VIEW = String(1 << 10);
+  const routes: Record<string, unknown> = {
+    "/guilds/guild-1/roles": [{ id: "guild-1", name: "@everyone", color: 0, permissions: VIEW }],
+    "/guilds/guild-1/channels": [
+      { id: "c1", name: "general", type: 0 },
+      {
+        id: "c2",
+        name: "staff",
+        type: 0,
+        permission_overwrites: [{ id: "guild-1", type: 0, allow: "0", deny: VIEW }],
+      },
+    ],
+    "/guilds/guild-1/threads/active": {
+      threads: [
+        { id: "t1", name: "help-me", type: 11, parent_id: "c1" },
+        { id: "t2", name: "staff-chat", type: 11, parent_id: "c2" },
+      ],
+    },
+  };
+
+  it("lists public channels and the active threads under them", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const body = routes[url.replace("https://discord.com/api/v10", "")];
+        return new Response(JSON.stringify(body), { status: body ? 200 : 404 });
+      }),
+    );
+    expect(await getGuildChannels()).toEqual({
+      guildId: "guild-1",
+      channels: [
+        { id: "c1", name: "general", kind: "text" },
+        { id: "t1", name: "help-me", kind: "thread" },
+      ],
+    });
+  });
+});
+
+describe("lookupGuildMemberName", () => {
+  it("caches a miss so the same id doesn't call Discord again", async () => {
+    const fetchMock = mockFetchResponse(404);
+    expect(await lookupGuildMemberName("300000000000000003")).toBeNull();
+    expect(await lookupGuildMemberName("300000000000000003")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops calling Discord once the minute's budget is spent", async () => {
+    const minute = Math.floor(Date.now() / 60_000);
+    fakeRedis.store.set(`discord:lookup-budget:${minute}`, "30");
+    fakeRedis.store.set(`discord:lookup-budget:${minute + 1}`, "30");
+    const fetchMock = mockFetchResponse(200);
+    expect(await lookupGuildMemberName("300000000000000004")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fakeRedis.store.has("discord:member-name:300000000000000004")).toBe(false);
+  });
+
+  it("prefers the guild nickname", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              nick: "Nick",
+              avatar: null,
+              user: {
+                id: "300000000000000005",
+                username: "handle",
+                global_name: "Global",
+                avatar: null,
+              },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    expect(await lookupGuildMemberName("300000000000000005")).toMatchObject({
+      discordId: "300000000000000005",
+      displayName: "Nick",
+    });
   });
 });

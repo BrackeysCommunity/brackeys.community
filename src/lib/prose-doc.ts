@@ -1,15 +1,16 @@
 import { type Fragment, type Node, Schema, Slice } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
 
+import { CHANNEL_TOKEN_PATTERN } from "@/lib/discord-channels";
 import { EMOJI_TOKEN_PATTERN, emojiToken, emojiUrl } from "@/lib/discord-emoji";
 import { MENTION_PATTERN } from "@/lib/forum-mentions";
 import { type TriggerMatch, findTrigger } from "@/lib/textarea-autocomplete";
 
 /**
- * The editor's document: lines of text with two kinds of atom, a guild
- * emoji and an `@handle` mention. It round-trips to the plain markdown
- * source the rest of the app stores: one paragraph per line, emojis as
- * `<:name:id>`, mentions as `@handle`.
+ * The editor's document: lines of text with three kinds of atom, a guild
+ * emoji, an `@handle` mention and a channel. It round-trips to the plain
+ * markdown source the rest of the app stores: one paragraph per line,
+ * emojis as `<:name:id>`, mentions as `@handle`, channels as `<#id>`.
  */
 export const proseSchema = new Schema({
   nodes: {
@@ -67,6 +68,24 @@ export const proseSchema = new Schema({
         `@${(node.attrs.label as string | null) ?? (node.attrs.handle as string)}`,
       ],
     },
+    channel: {
+      group: "inline",
+      inline: true,
+      atom: true,
+      attrs: { id: {}, label: { default: null } },
+      leafText: (node) => `#${(node.attrs.label as string | null) ?? "channel"}`,
+      parseDOM: [
+        {
+          tag: "span[data-channel]",
+          getAttrs: (dom) => ({ id: dom.getAttribute("data-channel") }),
+        },
+      ],
+      toDOM: (node) => [
+        "span",
+        { "data-channel": node.attrs.id as string },
+        `#${(node.attrs.label as string | null) ?? "channel"}`,
+      ],
+    },
   },
 });
 
@@ -81,6 +100,13 @@ function inlinePieces(text: string, mentions: boolean): Piece[] {
       index: m.index,
       length: m[0].length,
       node: proseSchema.nodes.emoji.create({ animated: m[1] === "a", name: m[2], id: m[3] }),
+    });
+  }
+  for (const m of text.matchAll(CHANNEL_TOKEN_PATTERN)) {
+    atoms.push({
+      index: m.index,
+      length: m[0].length,
+      node: proseSchema.nodes.channel.create({ id: m[1] }),
     });
   }
   if (mentions) {
@@ -140,6 +166,7 @@ function inlineSource(node: Node): string {
     });
   }
   if (node.type.name === "mention") return `@${node.attrs.handle as string}`;
+  if (node.type.name === "channel") return `<#${node.attrs.id as string}>`;
   return "";
 }
 

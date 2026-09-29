@@ -2,7 +2,7 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { ChannelText } from "@/components/ui/typography/channels";
+import { DiscordTokenText } from "@/components/ui/typography/channels";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 
@@ -15,11 +15,54 @@ const channels = vi.hoisted(() => ({
     isPending: boolean;
   },
 }));
-vi.mock("@/lib/hooks/use-guild-channels", () => ({ useGuildChannels: () => channels.current }));
+const lookup = vi.hoisted(() => ({
+  current: { data: null, isPending: false, fetchStatus: "idle" } as {
+    data: { id: string; name: string } | null;
+    isPending: boolean;
+    fetchStatus: string;
+  },
+}));
+const roles = [
+  { id: "900000000000000001", name: "Staff", color: 0xe91e63 },
+  { id: "900000000000000002", name: "Plain", color: 0 },
+];
+vi.mock("@/lib/hooks/use-guild-channels", () => ({
+  useGuildChannels: () => channels.current,
+  useGuildChannelLookup: () => lookup.current,
+  useGuildRoles: () => ({ data: roles }),
+}));
+
+const users = vi.hoisted(
+  () =>
+    new Map<
+      string,
+      { discordId: string; handle: string | null; displayName: string; avatarUrl: null }
+    >(),
+);
+vi.mock("@/lib/mention-names", () => ({
+  useMentionName: () => ({ data: undefined, isPending: false }),
+  useDiscordUserName: (id: string) => ({ data: users.get(id) ?? null, isPending: false }),
+}));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    params,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    params?: { userId: string };
+  }) => (
+    <a {...props} href={`/profile/${params?.userId ?? ""}`}>
+      {children}
+    </a>
+  ),
+}));
 
 afterEach(() => {
   cleanup();
   channels.current = { data: undefined, isPending: false };
+  lookup.current = { data: null, isPending: false, fetchStatus: "idle" };
+  users.clear();
 });
 
 const loaded = () => {
@@ -73,10 +116,56 @@ describe("channel mentions", () => {
     ).not.toBeNull();
   });
 
-  it("names without linking in ChannelText", () => {
+  it("names without linking in DiscordTokenText", () => {
     loaded();
-    const { container } = render(<ChannelText>{`<#${CHANNEL_LIST}> gif`}</ChannelText>);
+    const { container } = render(<DiscordTokenText>{`<#${CHANNEL_LIST}> gif`}</DiscordTokenText>);
     expect(container.textContent).toBe("#channel_list gif");
     expect(container.querySelector("a")).toBeNull();
+  });
+
+  it("names an archived thread from its own lookup", () => {
+    loaded();
+    lookup.current = {
+      data: { id: "111111111111111111", name: "old-thread" },
+      isPending: false,
+      fetchStatus: "idle",
+    };
+    expect(renderMarkdown("see <#111111111111111111>").container.textContent).toBe(
+      "see #old-thread",
+    );
+  });
+});
+
+describe("Discord user and role mentions", () => {
+  it("links a member with a profile and names one without", () => {
+    users.set("200000000000000001", {
+      discordId: "200000000000000001",
+      handle: "alice",
+      displayName: "Alice",
+      avatarUrl: null,
+    });
+    users.set("200000000000000002", {
+      discordId: "200000000000000002",
+      handle: null,
+      displayName: "Bob",
+      avatarUrl: null,
+    });
+    const { container } = renderMarkdown(
+      "ping <@200000000000000001> and <@!200000000000000002> or <@300000000000000003>",
+    );
+    expect(container.textContent).toBe("ping @Alice and @Bob or @unknown-user");
+    expect([...container.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual([
+      "/profile/alice",
+    ]);
+  });
+
+  it("draws roles in their color", () => {
+    const { container } = renderMarkdown("<@&900000000000000001> <@&900000000000000002>");
+    const chips = [...container.querySelectorAll("span")].filter((s) =>
+      s.textContent?.startsWith("@"),
+    );
+    expect(chips.map((c) => c.textContent)).toEqual(["@Staff", "@Plain"]);
+    expect(chips[0]!.style.color).not.toBe("");
+    expect(chips[1]!.style.color).toBe("");
   });
 });

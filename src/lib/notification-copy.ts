@@ -243,6 +243,8 @@ export function renderNotificationText(input: {
       return { headline: `${actor} mentioned you in "${subjectTitle}"`, href: subjectHref };
     case "comment_received":
       return { headline: `${actor} commented on "${subjectTitle}"`, href: subjectHref };
+    case "comment_mention":
+      return { headline: `${actor} mentioned you on "${subjectTitle}"`, href: subjectHref };
     case "comment_reply":
       return {
         headline: `${actor} replied to your comment on "${subjectTitle}"`,
@@ -336,6 +338,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   profile_updated_by_staff: "Moderation — staff edited your profile",
   comment_received: "Comments — new comment in a thread you follow",
   comment_reply: "Comments — someone replied to your comment",
+  comment_mention: "Comments — someone mentioned you",
   comment_removed_by_staff: "Moderation — your comment was removed",
   forum_post_hidden_by_staff: "Moderation — your forum post was hidden pending review",
   forum_post_unhidden_by_staff: "Moderation — your forum post is visible again",
@@ -383,6 +386,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "profile_updated_by_staff",
   "comment_received",
   "comment_reply",
+  "comment_mention",
   "comment_removed_by_staff",
   "forum_post_hidden_by_staff",
   "forum_post_unhidden_by_staff",
@@ -457,6 +461,7 @@ export const NOTIFICATION_DEFAULTS: Record<
   // email by default — users opt email up, not down.
   comment_received: { inApp: true, email: false, digest: true },
   comment_reply: { inApp: true, email: false, digest: true },
+  comment_mention: { inApp: true, email: false, digest: true },
   // Something was taken down without the author present. In-app alone can
   // sit unread for weeks, and "my comment vanished" is exactly the silence
   // that reads as the site being broken — or as staff being arbitrary.
@@ -537,6 +542,7 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   profile_updated_by_staff: "moderation",
   comment_received: "comments",
   comment_reply: "comments",
+  comment_mention: "comments",
   comment_removed_by_staff: "moderation",
   forum_post_hidden_by_staff: "moderation",
   forum_post_unhidden_by_staff: "moderation",
