@@ -356,6 +356,7 @@ export class CanvasDocView {
    * each write. Over the frame's budget it keeps the plain curve.
    */
   liveDrawing = (
+    id: string,
     source: string,
     target: string,
     start: EdgeEnd,
@@ -371,7 +372,16 @@ export class CanvasDocView {
       const anchor = sideAnchor(card, live.side);
       return { ...card, x: card.x + live.x - anchor.x, y: card.y + live.y - anchor.y };
     };
-    const drawing = this.router.draw(at(from, start), at(to, end), start.side, end.side);
+    let drawing = this.router.draw(at(from, start), at(to, end), start.side, end.side);
+    if (drawing.routed) {
+      // Padded, so routes whose bounds only touch along a shared line still count.
+      const b = drawing.bounds;
+      const bounds = { x: b.x - 1, y: b.y - 1, w: b.w + 2, h: b.h + 2 };
+      const others = [...this.drawings].filter(
+        ([other, d]) => other !== id && d.routed && overlaps(d.bounds, bounds),
+      );
+      drawing = separateOverlaps([...others, [id, drawing]]).get(id) ?? drawing;
+    }
     this.liveFrame.spent += performance.now() - now;
     return drawing;
   };

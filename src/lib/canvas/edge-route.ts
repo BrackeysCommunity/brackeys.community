@@ -683,8 +683,8 @@ interface Stretch {
 /**
  * Routes are found one at a time, so two can land on the same line and
  * read as one. This spreads every stretch two or more routes share apart,
- * each to the side its line turns toward, within the clearance it kept.
- * End segments stay put, so lines still meet their cards where they did.
+ * each to the side its line turns toward, within the clearance it kept,
+ * and fans out lines that meet a card at the same point along its side.
  * Pure over the whole set: the editor and the snapshot view pass the same
  * routes and get the same lines. Returns only the drawings it moved.
  */
@@ -692,6 +692,7 @@ export function separateOverlaps(
   drawings: Iterable<[string, EdgeDrawing]>,
 ): Map<string, EdgeDrawing> {
   const groups = new Map<string, Stretch[]>();
+  const meeting = new Map<string, Stretch[]>();
   const routes = new Map<string, EdgeDrawing>();
   for (const [id, drawing] of drawings) {
     const route = drawing.route;
@@ -719,9 +720,39 @@ export function separateOverlaps(
       if (group) group.push(stretch);
       else groups.set(key, [stretch]);
     }
+    // Lines meeting a card at the same point fan out along its side.
+    if (p.length >= 3) {
+      for (const [k, anchor, after] of [
+        [0, p[0]!, p[2]!],
+        [p.length - 2, p.at(-1)!, p.at(-3)!],
+      ] as const) {
+        const [ax, ay] = p[k]!;
+        const [, by] = p[k + 1]!;
+        const axis = ay === by ? 0 : 1;
+        const at = axis === 0 ? ay : ax;
+        const stub: Stretch = {
+          id,
+          k,
+          axis,
+          at,
+          lo: 0,
+          hi: 0,
+          bias: Math.sign((axis === 0 ? after[1] : after[0]) - at),
+          clearance: route.clearance,
+        };
+        const key = `${anchor[0]},${anchor[1]}`;
+        const group = meeting.get(key);
+        if (group) group.push(stub);
+        else meeting.set(key, [stub]);
+      }
+    }
   }
 
   const shifts = new Map<string, Map<number, [0 | 1, number]>>();
+  for (const group of meeting.values()) {
+    if (new Set(group.map((s) => s.id)).size > 1) spread(group, shifts);
+  }
+
   for (const group of groups.values()) {
     if (group.length < 2) continue;
     group.sort((a, b) => a.lo - b.lo || a.hi - b.hi || cmp(a.id, b.id) || a.k - b.k);
@@ -749,11 +780,16 @@ export function separateOverlaps(
       points[k]![c] += offset;
       points[k + 1]![c] += offset;
     }
+    const [sx, sy] = points[0]!;
+    const [ex, ey] = points.at(-1)!;
     moved.set(id, {
       ...drawing,
       d: roundedPath(points),
       label: midpointAlong(points),
+      start: { ...drawing.start, x: sx, y: sy },
+      end: { ...drawing.end, x: ex, y: ey },
       bounds: boundsOf(points),
+      route: { ...drawing.route!, points },
     });
   }
   return moved;

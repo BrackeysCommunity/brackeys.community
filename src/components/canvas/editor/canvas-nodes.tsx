@@ -50,7 +50,13 @@ export interface CanvasEditorContextValue {
    */
   labelLayer: HTMLElement | null;
   /** A connection routed from where its cards are on screen, for ends mid-drag. */
-  liveDrawing: (source: string, target: string, start: EdgeEnd, end: EdgeEnd) => EdgeDrawing | null;
+  liveDrawing: (
+    id: string,
+    source: string,
+    target: string,
+    start: EdgeEnd,
+    end: EdgeEnd,
+  ) => EdgeDrawing | null;
 }
 
 export const CanvasEditorContext = createContext<CanvasEditorContextValue | null>(null);
@@ -243,7 +249,7 @@ const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEdge>) {
       ? curvedEdge(start, end)
       : sameEnd(drawing.anchors[0], start) && sameEnd(drawing.anchors[1], end)
         ? drawing
-        : (liveDrawing(props.source, props.target, start, end) ?? curvedEdge(start, end));
+        : (liveDrawing(props.id, props.source, props.target, start, end) ?? curvedEdge(start, end));
   const label = props.data?.label;
 
   return (

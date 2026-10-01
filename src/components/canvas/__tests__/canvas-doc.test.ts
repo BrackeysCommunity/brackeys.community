@@ -126,6 +126,7 @@ describe("CanvasDocView routing", () => {
     const view = new CanvasDocView(blocked());
     // `a` dragged 300 down, ahead of the doc: the blocker is no longer between.
     const live = view.liveDrawing(
+      "e",
       "a",
       "b",
       { x: 100, y: 325, side: "right" },
@@ -134,6 +135,7 @@ describe("CanvasDocView routing", () => {
     expect(live).toMatchObject({ routed: false, start: { x: 100, y: 325 } });
     // Back level with `b`, where its own stale copy in the index can't block it.
     const level = view.liveDrawing(
+      "e",
       "a",
       "b",
       { x: 120, y: 25, side: "right" },

@@ -207,12 +207,22 @@ describe("separateOverlaps", () => {
 
     const lines = shown(drawings);
     expect(sharedStretches(lines)).toEqual([]);
+    const onEdge = ([x, y]: [number, number], c: Box) =>
+      ((x === c.x || x === c.x + c.w) && y >= c.y && y <= c.y + c.h) ||
+      ((y === c.y || y === c.y + c.h) && x >= c.x && x <= c.x + c.w);
+    const ends: Record<string, [Box, Box]> = {
+      "top-green": [top, green],
+      "left-green": [left, green],
+      "green-top": [green, top],
+    };
     for (const [id, points] of lines) {
-      // Ends stay on their cards; no line is pushed into one.
-      expect(points[0]).toEqual(raw.get(id)![0]);
-      expect(points.at(-1)).toEqual(raw.get(id)!.at(-1));
+      // Ends stay on their cards' borders; no line is pushed into a card.
+      expect(onEdge(points[0]!, ends[id]![0])).toBe(true);
+      expect(onEdge(points.at(-1)!, ends[id]![1])).toBe(true);
       for (const other of cards) expect(crosses(points, other)).toBe(false);
     }
+    // The two lines into the green card arrive side by side, not at one point.
+    expect(lines.get("top-green")!.at(-1)).not.toEqual(lines.get("left-green")!.at(-1));
   });
 
   it("gives the same lines whatever order the routes come in", () => {
