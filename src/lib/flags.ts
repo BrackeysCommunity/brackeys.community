@@ -36,3 +36,5 @@ export const FEATURE_FLAGS = {
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
+
+export type FeatureFlagValues = Record<FeatureFlagKey, boolean>;

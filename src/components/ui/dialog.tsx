@@ -6,6 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { usePortalContainer } from "@/components/ui/portal-container";
 import { DISMISS_CUES, playDismiss } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
@@ -55,8 +56,9 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
 }) {
+  const portalContainer = usePortalContainer();
   return (
-    <DialogPortal>
+    <DialogPortal container={portalContainer ?? undefined}>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"

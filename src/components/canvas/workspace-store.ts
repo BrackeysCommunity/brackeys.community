@@ -38,6 +38,11 @@ export function setCreatingCanvas(creating: boolean) {
   workspaceStore.setState((s) => ({ ...s, creating }));
 }
 
+/** A canvas was created and opened: nothing left for the panel to show. */
+export function finishNewCanvas() {
+  workspaceStore.setState((s) => ({ ...s, open: false, creating: false }));
+}
+
 export function closeWorkspace() {
   workspaceStore.setState((s) => ({ ...s, open: false }));
 }

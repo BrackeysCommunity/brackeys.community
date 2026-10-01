@@ -21,6 +21,7 @@ import {
 import { NewCanvasDialog } from "./NewCanvasDialog";
 import {
   closeWorkspace,
+  finishNewCanvas,
   setCreatingCanvas,
   setWorkspaceScope,
   workspaceStore,
@@ -51,6 +52,16 @@ export function WorkspacePanel() {
     { value: "personal", label: "Personal" },
     ...teams.map((t) => ({ value: t.teamId, label: t.name })),
   ];
+
+  // From ⌘K the panel is closed and the dialog stands alone.
+  const newCanvas = creating ? (
+    <NewCanvasDialog
+      open
+      onClose={() => setCreatingCanvas(false)}
+      onCreated={finishNewCanvas}
+      scope={toCanvasScope(current)}
+    />
+  ) : null;
 
   return (
     <>
@@ -135,18 +146,12 @@ export function WorkspacePanel() {
               New canvas
             </Button>
           </div>
+          {/* Inside the drawer so it portals into the drawer's focus trap, and
+              cancelling lands back on the panel. */}
+          {newCanvas}
         </DrawerContent>
       </Drawer>
-      {creating ? (
-        <NewCanvasDialog
-          open
-          onClose={() => {
-            setCreatingCanvas(false);
-            closeWorkspace();
-          }}
-          scope={toCanvasScope(current)}
-        />
-      ) : null}
+      {open ? null : newCanvas}
     </>
   );
 }

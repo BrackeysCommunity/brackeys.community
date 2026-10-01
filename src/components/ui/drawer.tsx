@@ -54,6 +54,7 @@ function DrawerOverlay({
 function DrawerContent({
   className,
   children,
+  onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
   // Popups opened from inside the drawer portal into this element
@@ -72,8 +73,17 @@ function DrawerContent({
           // beats any `max-w` a caller sets, so a fixed-rem panel stops
           // reading as a sliver on an ultrawide.
           "data-[vaul-drawer-direction=left]:lg:min-w-[min(28vw,60rem)] data-[vaul-drawer-direction=right]:lg:min-w-[min(28vw,60rem)]",
+          // vaul's `will-change: transform` makes the drawer the containing
+          // block for fixed descendants, which would pin a portaled dialog
+          // to the drawer instead of the viewport.
+          "will-change-auto!",
           className,
         )}
+        // Escape inside a portaled popup closes that popup, not the drawer.
+        onEscapeKeyDown={(e) => {
+          onEscapeKeyDown?.(e);
+          if (popupContainer?.contains(e.target as Node)) e.preventDefault();
+        }}
         {...props}
       >
         <div className="mx-auto mt-4 hidden h-1 w-[100px] shrink-0 rounded-none bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />

@@ -3,7 +3,9 @@ import {
   createRootRouteWithContext,
   HeadContent,
   Outlet,
+  rootRouteId,
   Scripts,
+  useMatch,
   useRouterState,
 } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
@@ -66,6 +68,7 @@ import { AppSettingsProvider, useReducedMotion } from "@/lib/hooks/use-app-setti
 import { AppThemeProvider } from "@/lib/hooks/use-app-theme";
 import { CommandPaletteProvider, useCommandPalette } from "@/lib/hooks/use-command-palette";
 import { ServerNowContext } from "@/lib/hooks/use-date-now";
+import { ServerFlagsContext } from "@/lib/hooks/use-flag";
 import { useLowEndDevice } from "@/lib/hooks/use-low-end-device";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
@@ -74,6 +77,7 @@ import { DISCORD_CDN_ORIGIN } from "@/lib/itch-image";
 import { captureError, posthogIngestHost } from "@/lib/product-insights";
 import { useTakeoverShell } from "@/lib/route-shell";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
+import { client } from "@/orpc/client";
 
 import fontsCss from "../fonts.css?url";
 import appCss from "../styles.css?url";
@@ -101,9 +105,14 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
    * `og:url` and the canonical are absent on purpose: a root-level value
    * would point every page at the same URL.
    */
-  loader: () => ({ now: Date.now() }),
-  // The one clock the whole render reads, serialized with the page so the
-  // client hydrates against the same instant — see `useDateNow`.
+  // `now` is the one clock the whole render reads, serialized with the page
+  // so the client hydrates against the same instant — see `useDateNow`.
+  // `flags` backs `ServerFlagsContext`; null on failure, which leaves
+  // `useFlag` on the static defaults.
+  loader: async () => ({
+    now: Date.now(),
+    flags: await client.getFeatureFlags().catch(() => null),
+  }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -283,8 +292,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <TooltipProvider>
                   <CommandPaletteProvider>
                     <PageLayoutProvider>
-                      <CommandPaletteMount />
-                      <ResponsiveShell>{children}</ResponsiveShell>
+                      <ServerFlagsProvider>
+                        <CommandPaletteMount />
+                        <ResponsiveShell>{children}</ResponsiveShell>
+                      </ServerFlagsProvider>
                     </PageLayoutProvider>
                   </CommandPaletteProvider>
                 </TooltipProvider>
@@ -299,6 +310,19 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </body>
     </html>
   );
+}
+
+/**
+ * In the shell rather than `RootComponent`: the header, mobile nav and
+ * command palette read flags, and none of them render inside `<Outlet>`.
+ */
+function ServerFlagsProvider({ children }: { children: React.ReactNode }) {
+  const flags = useMatch({
+    from: rootRouteId,
+    shouldThrow: false,
+    select: (match) => match.loaderData?.flags,
+  });
+  return <ServerFlagsContext value={flags ?? null}>{children}</ServerFlagsContext>;
 }
 
 /** App-level framer defaults. `"always"` (not `"user"`) because the

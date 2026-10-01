@@ -1,11 +1,18 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { createContext, use, useEffect, useState, useSyncExternalStore } from "react";
 
-import { FEATURE_FLAGS, type FeatureFlagKey } from "@/lib/flags";
+import { FEATURE_FLAGS, type FeatureFlagKey, type FeatureFlagValues } from "@/lib/flags";
 import {
   getPostHogClientSnapshot,
   type PostHogClient,
   subscribePostHogClient,
 } from "@/lib/product-insights";
+
+/**
+ * The viewer's flags as evaluated on the server during SSR (see the root
+ * loader). The fallback between PostHog's own answer and the static default,
+ * so a browser that never loads PostHog still sees what is switched on.
+ */
+export const ServerFlagsContext = createContext<FeatureFlagValues | null>(null);
 
 /**
  * Not `@posthog/react`'s hooks: that package imports `posthog-js` at module
@@ -28,14 +35,13 @@ function usePostHogClient() {
  * ```
  *
  * Always a `boolean`, never a loading state — until PostHog answers (or
- * forever, when no key is configured, or before the client has even loaded)
- * the flag reads as its declared default in `@/lib/flags`, and the
- * component re-renders if the real value differs. So a flag defaulting to
- * `false` renders the old path first: gate on it, don't build a layout that
- * depends on the first render being correct.
+ * forever, when the browser blocks it or opts out) the flag reads as the
+ * server's answer from `ServerFlagsContext`, then its declared default in
+ * `@/lib/flags`, and the component re-renders if PostHog's value differs.
  */
 export function useFlag(flag: FeatureFlagKey): boolean {
   const client = usePostHogClient();
+  const serverFlags = use(ServerFlagsContext);
   const [enabled, setEnabled] = useState(() => client?.isFeatureEnabled(flag));
 
   // `onFeatureFlags` fires synchronously on subscribe when flags are already
@@ -46,7 +52,7 @@ export function useFlag(flag: FeatureFlagKey): boolean {
     return client.onFeatureFlags(() => setEnabled(client.isFeatureEnabled(flag)));
   }, [client, flag]);
 
-  return enabled ?? FEATURE_FLAGS[flag];
+  return enabled ?? serverFlags?.[flag] ?? FEATURE_FLAGS[flag];
 }
 
 /**

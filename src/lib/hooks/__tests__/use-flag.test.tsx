@@ -1,4 +1,5 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -29,7 +30,7 @@ vi.mock("@/lib/product-insights", () => {
 });
 
 const posthogMock = await import("@/lib/product-insights");
-const { useFlag } = await import("@/lib/hooks/use-flag");
+const { ServerFlagsContext, useFlag } = await import("@/lib/hooks/use-flag");
 
 function setClient(client: unknown) {
   (posthogMock as unknown as { __setClient: (c: unknown) => void }).__setClient(client);
@@ -95,5 +96,28 @@ describe("useFlag", () => {
 
     const { result } = renderHook(() => useFlag("flag-smoke-test"));
     expect(result.current).toBe(FEATURE_FLAGS["flag-smoke-test"]);
+  });
+
+  describe("with a server answer", () => {
+    const serverFlags = { ...FEATURE_FLAGS, "flag-smoke-test": true };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ServerFlagsContext value={serverFlags}>{children}</ServerFlagsContext>
+    );
+
+    it("serves it when PostHog never loads", () => {
+      const { result } = renderHook(() => useFlag("flag-smoke-test"), { wrapper });
+      expect(result.current).toBe(true);
+    });
+
+    it("serves it until PostHog answers, then defers to PostHog", () => {
+      const fake = fakeClient();
+      setClient(fake.client);
+
+      const { result } = renderHook(() => useFlag("flag-smoke-test"), { wrapper });
+      expect(result.current).toBe(true);
+
+      act(() => fake.resolve({ "flag-smoke-test": false }));
+      expect(result.current).toBe(false);
+    });
   });
 });

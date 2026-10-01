@@ -107,6 +107,7 @@ import {
 } from "./comments";
 import { getContributions } from "./contributions";
 import { listGuildEmojis } from "./emoji";
+import { getFeatureFlags } from "./flags";
 import {
   addForumPostImage,
   createForumPost,
@@ -493,6 +494,7 @@ export default {
   setForumFollow,
   listMyForumFollows,
   getArcadeAccess,
+  getFeatureFlags,
   listCanvasScopes,
   listCanvases,
   listRecentCanvases,

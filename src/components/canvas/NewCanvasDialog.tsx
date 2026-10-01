@@ -20,11 +20,14 @@ import {
 export function NewCanvasDialog({
   open,
   onClose,
+  onCreated = onClose,
   scope: fixedScope,
   folder: initialFolder = "",
 }: {
   open: boolean;
   onClose: () => void;
+  /** Defaults to `onClose`. */
+  onCreated?: () => void;
   scope?: CanvasScope;
   folder?: string;
 }) {
@@ -65,7 +68,7 @@ export function NewCanvasDialog({
           </Button>
           <Button
             disabled={!checked.ok || create.isPending}
-            onClick={() => create.mutate({ scope, path }, { onSuccess: () => onClose() })}
+            onClick={() => create.mutate({ scope, path }, { onSuccess: () => onCreated() })}
           >
             Create
           </Button>
@@ -76,7 +79,7 @@ export function NewCanvasDialog({
         className="flex flex-col gap-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (checked.ok) create.mutate({ scope, path }, { onSuccess: () => onClose() });
+          if (checked.ok) create.mutate({ scope, path }, { onSuccess: () => onCreated() });
         }}
       >
         <div className="flex flex-col gap-1.5">
