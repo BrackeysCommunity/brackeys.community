@@ -25,6 +25,7 @@ import { Route as ForumRouteImport } from './routes/forum'
 import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as CommandCenterRouteImport } from './routes/command-center'
 import { Route as CollabRouteImport } from './routes/collab'
+import { Route as CanvasesRouteImport } from './routes/canvases'
 import { Route as ArcadeRouteImport } from './routes/arcade'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
@@ -36,6 +37,7 @@ import { Route as JamsIndexRouteImport } from './routes/jams.index'
 import { Route as GameIndexRouteImport } from './routes/game/index'
 import { Route as ForumIndexRouteImport } from './routes/forum.index'
 import { Route as CollabIndexRouteImport } from './routes/collab.index'
+import { Route as CanvasesIndexRouteImport } from './routes/canvases.index'
 import { Route as ArcadeIndexRouteImport } from './routes/arcade.index'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as StaffImageSplatRouteImport } from './routes/staff-image.$'
@@ -56,9 +58,11 @@ import { Route as ForumFeedDotxmlRouteImport } from './routes/forum_.feed[.]xml'
 import { Route as ForumPostIdRouteImport } from './routes/forum.$postId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
 import { Route as CollabPostIdRouteImport } from './routes/collab.$postId'
+import { Route as CanvasesCanvasIdRouteImport } from './routes/canvases.$canvasId'
 import { Route as AuthErrorRouteImport } from './routes/auth.error'
 import { Route as ArcadeEnPrisonRouteImport } from './routes/arcade.en-prison'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
+import { Route as ApiCanvasSaveRouteImport } from './routes/api.canvas-save'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as TeamsTeamIdDevlogDotxmlRouteImport } from './routes/teams_.$teamId.devlog[.]xml'
 import { Route as ProjectsGameGameIdRouteImport } from './routes/projects.game.$gameId'
@@ -154,6 +158,11 @@ const CollabRoute = CollabRouteImport.update({
   path: '/collab',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CanvasesRoute = CanvasesRouteImport.update({
+  id: '/canvases',
+  path: '/canvases',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ArcadeRoute = ArcadeRouteImport.update({
   id: '/arcade',
   path: '/arcade',
@@ -208,6 +217,11 @@ const CollabIndexRoute = CollabIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => CollabRoute,
+} as any)
+const CanvasesIndexRoute = CanvasesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CanvasesRoute,
 } as any)
 const ArcadeIndexRoute = ArcadeIndexRouteImport.update({
   id: '/',
@@ -309,6 +323,11 @@ const CollabPostIdRoute = CollabPostIdRouteImport.update({
   path: '/$postId',
   getParentRoute: () => CollabRoute,
 } as any)
+const CanvasesCanvasIdRoute = CanvasesCanvasIdRouteImport.update({
+  id: '/$canvasId',
+  path: '/$canvasId',
+  getParentRoute: () => CanvasesRoute,
+} as any)
 const AuthErrorRoute = AuthErrorRouteImport.update({
   id: '/auth/error',
   path: '/auth/error',
@@ -322,6 +341,11 @@ const ArcadeEnPrisonRoute = ArcadeEnPrisonRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCanvasSaveRoute = ApiCanvasSaveRouteImport.update({
+  id: '/api/canvas-save',
+  path: '/api/canvas-save',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
@@ -401,6 +425,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRoute
   '/arcade': typeof ArcadeRouteWithChildren
+  '/canvases': typeof CanvasesRouteWithChildren
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/feed.xml': typeof FeedDotxmlRoute
@@ -418,9 +443,11 @@ export interface FileRoutesByFullPath {
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/canvas-save': typeof ApiCanvasSaveRoute
   '/api/health': typeof ApiHealthRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/auth/error': typeof AuthErrorRoute
+  '/canvases/$canvasId': typeof CanvasesCanvasIdRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
@@ -441,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/arcade/': typeof ArcadeIndexRoute
+  '/canvases/': typeof CanvasesIndexRoute
   '/collab/': typeof CollabIndexRoute
   '/forum/': typeof ForumIndexRoute
   '/game/': typeof GameIndexRoute
@@ -476,9 +504,11 @@ export interface FileRoutesByTo {
   '/suspended': typeof SuspendedRoute
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/canvas-save': typeof ApiCanvasSaveRoute
   '/api/health': typeof ApiHealthRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/auth/error': typeof AuthErrorRoute
+  '/canvases/$canvasId': typeof CanvasesCanvasIdRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
@@ -499,6 +529,7 @@ export interface FileRoutesByTo {
   '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/arcade': typeof ArcadeIndexRoute
+  '/canvases': typeof CanvasesIndexRoute
   '/collab': typeof CollabIndexRoute
   '/forum': typeof ForumIndexRoute
   '/game': typeof GameIndexRoute
@@ -526,6 +557,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRoute
   '/arcade': typeof ArcadeRouteWithChildren
+  '/canvases': typeof CanvasesRouteWithChildren
   '/collab': typeof CollabRouteWithChildren
   '/command-center': typeof CommandCenterRoute
   '/feed.xml': typeof FeedDotxmlRoute
@@ -543,9 +575,11 @@ export interface FileRoutesById {
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/canvas-save': typeof ApiCanvasSaveRoute
   '/api/health': typeof ApiHealthRoute
   '/arcade/en-prison': typeof ArcadeEnPrisonRoute
   '/auth/error': typeof AuthErrorRoute
+  '/canvases/$canvasId': typeof CanvasesCanvasIdRoute
   '/collab/$postId': typeof CollabPostIdRoute
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
@@ -566,6 +600,7 @@ export interface FileRoutesById {
   '/staff-image/$': typeof StaffImageSplatRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/arcade/': typeof ArcadeIndexRoute
+  '/canvases/': typeof CanvasesIndexRoute
   '/collab/': typeof CollabIndexRoute
   '/forum/': typeof ForumIndexRoute
   '/game/': typeof GameIndexRoute
@@ -594,6 +629,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/arcade'
+    | '/canvases'
     | '/collab'
     | '/command-center'
     | '/feed.xml'
@@ -611,9 +647,11 @@ export interface FileRouteTypes {
     | '/teams'
     | '/terms'
     | '/api/$'
+    | '/api/canvas-save'
     | '/api/health'
     | '/arcade/en-prison'
     | '/auth/error'
+    | '/canvases/$canvasId'
     | '/collab/$postId'
     | '/collab/new'
     | '/forum/$postId'
@@ -634,6 +672,7 @@ export interface FileRouteTypes {
     | '/staff-image/$'
     | '/teams/$teamId'
     | '/arcade/'
+    | '/canvases/'
     | '/collab/'
     | '/forum/'
     | '/game/'
@@ -669,9 +708,11 @@ export interface FileRouteTypes {
     | '/suspended'
     | '/terms'
     | '/api/$'
+    | '/api/canvas-save'
     | '/api/health'
     | '/arcade/en-prison'
     | '/auth/error'
+    | '/canvases/$canvasId'
     | '/collab/$postId'
     | '/collab/new'
     | '/forum/$postId'
@@ -692,6 +733,7 @@ export interface FileRouteTypes {
     | '/staff-image/$'
     | '/teams/$teamId'
     | '/arcade'
+    | '/canvases'
     | '/collab'
     | '/forum'
     | '/game'
@@ -718,6 +760,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/arcade'
+    | '/canvases'
     | '/collab'
     | '/command-center'
     | '/feed.xml'
@@ -735,9 +778,11 @@ export interface FileRouteTypes {
     | '/teams'
     | '/terms'
     | '/api/$'
+    | '/api/canvas-save'
     | '/api/health'
     | '/arcade/en-prison'
     | '/auth/error'
+    | '/canvases/$canvasId'
     | '/collab/$postId'
     | '/collab/new'
     | '/forum/$postId'
@@ -758,6 +803,7 @@ export interface FileRouteTypes {
     | '/staff-image/$'
     | '/teams/$teamId'
     | '/arcade/'
+    | '/canvases/'
     | '/collab/'
     | '/forum/'
     | '/game/'
@@ -785,6 +831,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRoute
   ArcadeRoute: typeof ArcadeRouteWithChildren
+  CanvasesRoute: typeof CanvasesRouteWithChildren
   CollabRoute: typeof CollabRouteWithChildren
   CommandCenterRoute: typeof CommandCenterRoute
   FeedDotxmlRoute: typeof FeedDotxmlRoute
@@ -802,6 +849,7 @@ export interface RootRouteChildren {
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  ApiCanvasSaveRoute: typeof ApiCanvasSaveRoute
   ApiHealthRoute: typeof ApiHealthRoute
   AuthErrorRoute: typeof AuthErrorRoute
   ForumFeedDotxmlRoute: typeof ForumFeedDotxmlRoute
@@ -937,6 +985,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollabRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/canvases': {
+      id: '/canvases'
+      path: '/canvases'
+      fullPath: '/canvases'
+      preLoaderRoute: typeof CanvasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/arcade': {
       id: '/arcade'
       path: '/arcade'
@@ -1013,6 +1068,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/collab/'
       preLoaderRoute: typeof CollabIndexRouteImport
       parentRoute: typeof CollabRoute
+    }
+    '/canvases/': {
+      id: '/canvases/'
+      path: '/'
+      fullPath: '/canvases/'
+      preLoaderRoute: typeof CanvasesIndexRouteImport
+      parentRoute: typeof CanvasesRoute
     }
     '/arcade/': {
       id: '/arcade/'
@@ -1154,6 +1216,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollabPostIdRouteImport
       parentRoute: typeof CollabRoute
     }
+    '/canvases/$canvasId': {
+      id: '/canvases/$canvasId'
+      path: '/$canvasId'
+      fullPath: '/canvases/$canvasId'
+      preLoaderRoute: typeof CanvasesCanvasIdRouteImport
+      parentRoute: typeof CanvasesRoute
+    }
     '/auth/error': {
       id: '/auth/error'
       path: '/auth/error'
@@ -1173,6 +1242,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/canvas-save': {
+      id: '/api/canvas-save'
+      path: '/api/canvas-save'
+      fullPath: '/api/canvas-save'
+      preLoaderRoute: typeof ApiCanvasSaveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/$': {
@@ -1289,6 +1365,20 @@ const ArcadeRouteChildren: ArcadeRouteChildren = {
 const ArcadeRouteWithChildren =
   ArcadeRoute._addFileChildren(ArcadeRouteChildren)
 
+interface CanvasesRouteChildren {
+  CanvasesCanvasIdRoute: typeof CanvasesCanvasIdRoute
+  CanvasesIndexRoute: typeof CanvasesIndexRoute
+}
+
+const CanvasesRouteChildren: CanvasesRouteChildren = {
+  CanvasesCanvasIdRoute: CanvasesCanvasIdRoute,
+  CanvasesIndexRoute: CanvasesIndexRoute,
+}
+
+const CanvasesRouteWithChildren = CanvasesRoute._addFileChildren(
+  CanvasesRouteChildren,
+)
+
 interface CollabRouteChildren {
   CollabPostIdRoute: typeof CollabPostIdRoute
   CollabNewRoute: typeof CollabNewRoute
@@ -1398,6 +1488,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AdminRoute: AdminRoute,
   ArcadeRoute: ArcadeRouteWithChildren,
+  CanvasesRoute: CanvasesRouteWithChildren,
   CollabRoute: CollabRouteWithChildren,
   CommandCenterRoute: CommandCenterRoute,
   FeedDotxmlRoute: FeedDotxmlRoute,
@@ -1415,6 +1506,7 @@ const rootRouteChildren: RootRouteChildren = {
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   ApiSplatRoute: ApiSplatRoute,
+  ApiCanvasSaveRoute: ApiCanvasSaveRoute,
   ApiHealthRoute: ApiHealthRoute,
   AuthErrorRoute: AuthErrorRoute,
   ForumFeedDotxmlRoute: ForumFeedDotxmlRoute,

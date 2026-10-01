@@ -1,4 +1,4 @@
-import { marked, type Tokens } from "marked";
+import { Marked, marked, type Tokens } from "marked";
 import { type ComponentProps, Fragment, type ReactNode, forwardRef, useMemo } from "react";
 
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -7,6 +7,7 @@ import { withDiscordTokens } from "@/components/ui/typography/channels";
 import { JUMBO_EMOJI_CLASS, isEmojiOnly, withEmojis } from "@/components/ui/typography/emoji";
 import { InlineCode } from "@/components/ui/typography/inline-code";
 import { withMentionLinks } from "@/components/ui/typography/mentions";
+import { parseWikilink, type Wikilink } from "@/lib/canvas/wikilinks";
 import { useCensorFn } from "@/lib/hooks/use-censored";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,25 @@ type MarkedTextProps = Omit<ComponentProps<"div">, "ref" | "children"> & {
   censor?: boolean;
   /** Link `@handle` mentions to their profiles — the forum's bodies. */
   mentions?: boolean;
+  /** Parse Obsidian `[[wikilinks]]` and render each through this. Code
+   * spans and blocks keep them as written. */
+  wikilink?: (link: Wikilink) => ReactNode;
 };
+
+/** A separate instance, so only callers that pass `wikilink` lex `[[…]]`. */
+const wikiMarked = new Marked({
+  extensions: [
+    {
+      name: "wikilink",
+      level: "inline",
+      start: (src) => src.match(/!?\[\[/)?.index,
+      tokenizer(src) {
+        const parsed = parseWikilink(src);
+        return parsed ? { type: "wikilink", raw: parsed.raw, link: parsed.link } : undefined;
+      },
+    },
+  ],
+});
 
 type AnyToken = Tokens.Generic;
 
@@ -34,6 +53,7 @@ type Censor = {
   plain: (text: string) => string;
   /** Prose text leaves only — never code or a link's own text. */
   prose: (text: string) => ReactNode;
+  wikilink?: (link: Wikilink) => ReactNode;
 };
 
 function decodeEntities(s: string): string {
@@ -160,6 +180,8 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
     }
     case "escape":
       return censor.nodes((t as Tokens.Escape).text);
+    case "wikilink":
+      return censor.wikilink?.((t as AnyToken & { link: Wikilink }).link) ?? censor.nodes(t.raw);
     // `html` stays dropped on purpose: this renderer's whole safety story
     // is that it never emits markup the author wrote.
     default:
@@ -169,7 +191,16 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
 
 const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
   (
-    { as: Tag = "div", children, inline, censor = true, mentions = false, className, ...props },
+    {
+      as: Tag = "div",
+      children,
+      inline,
+      censor = true,
+      mentions = false,
+      wikilink,
+      className,
+      ...props
+    },
     ref,
   ) => {
     const plain = useCensorFn();
@@ -182,15 +213,16 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
       return {
         ...base,
         prose: (text) => withEmojis(text, (part) => withDiscordTokens(part, rest)),
+        wikilink,
       };
-    }, [censor, mentions, nodes, plain]);
+    }, [censor, mentions, nodes, plain, wikilink]);
 
     const rendered = useMemo(() => {
-      if (inline) {
-        const tokens = marked.Lexer.lexInline(children) as AnyToken[];
-        return renderTokens(tokens, apply);
-      }
-      const tokens = marked.lexer(children) as AnyToken[];
+      const lexer = apply.wikilink ? wikiMarked : marked;
+      const options = apply.wikilink ? wikiMarked.defaults : undefined;
+      const tokens = (
+        inline ? lexer.Lexer.lexInline(children, options) : lexer.lexer(children)
+      ) as AnyToken[];
       return renderTokens(tokens, apply);
     }, [children, inline, apply]);
 

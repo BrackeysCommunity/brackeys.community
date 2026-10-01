@@ -12,6 +12,9 @@ import { collabPosts, forumPosts, projects, teamMembers, teams } from "@/db/sche
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
 import { auth } from "@/lib/auth";
 import { isActiveBan } from "@/lib/ban-state";
+import { insertCanvasAttachment } from "@/lib/canvas-persistence";
+import { atLeast } from "@/lib/canvas/access";
+import { CANVAS_IMAGE_UPLOADS_PER_DAY } from "@/lib/canvas/limits";
 import { isStaffMember } from "@/lib/discord";
 import {
   bestEffort,
@@ -29,6 +32,7 @@ import { loadProjectForEditor } from "@/lib/project-editors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import {
+  buildCanvasImageObjectKey,
   buildCollabPostImageObjectKey,
   buildForumPostImageObjectKey,
   buildProjectImageObjectKey,
@@ -40,6 +44,7 @@ import {
 import { reportProcedureErrors } from "@/orpc/error-reporting";
 import { userIsGuildMember } from "@/orpc/middleware/auth";
 import router from "@/orpc/router";
+import { canvasScopeAccess } from "@/orpc/router/canvas";
 import { forumPostRights } from "@/orpc/router/forum";
 
 /**
@@ -89,6 +94,7 @@ function withImageUpload(
   name: string,
   fallbackMessage: string,
   handler: (args: ImageUploadArgs) => Promise<Response>,
+  allowed: (userId: string) => Promise<boolean> = imageUploadAllowed,
 ) {
   return async (request: Request): Promise<Response> => {
     if (request.method !== "POST") {
@@ -102,7 +108,7 @@ function withImageUpload(
     if (!session) {
       return Response.json({ message: "Authentication required." }, { status: 401 });
     }
-    if (!(await imageUploadAllowed(session.user.id))) {
+    if (!(await allowed(session.user.id))) {
       return UPLOAD_LIMIT_RESPONSE();
     }
 
@@ -196,6 +202,9 @@ async function handle({ request }: { request: Request }) {
   }
   if (pathname === "/api/forum/image") {
     return handleForumImageUpload(request);
+  }
+  if (pathname === "/api/canvas/image") {
+    return handleCanvasImageUpload(request);
   }
   if (isReferenceDocsPath(pathname) && !(await canViewReferenceDocs(request))) {
     return new Response("Not Found", { status: 404 });
@@ -470,6 +479,52 @@ const handleForumImageUpload = withImageUpload(
     });
     return Response.json(uploaded, { status: 201 });
   },
+);
+
+/**
+ * An image for a canvas: uploaded, scanned like every other upload, and
+ * recorded as an attachment in the scope (`scope` = `personal` or `team`
+ * with `teamId`) under `attachments/`. Its own daily budget, so one vault's
+ * worth of images doesn't use up a member's avatar uploads.
+ */
+const handleCanvasImageUpload = withImageUpload(
+  "canvas_attachment",
+  "Failed to upload canvas image.",
+  async ({ session, formData, image }) => {
+    const userId = session.user.id;
+    if (!(await isServerFlagEnabled("canvases-enabled", userId))) {
+      return new Response("Not Found", { status: 404 });
+    }
+    const teamId = formData.get("scope") === "team" ? formData.get("teamId") : null;
+    if (teamId !== null && typeof teamId !== "string") {
+      return Response.json({ message: 'Expected a "teamId" form field.' }, { status: 400 });
+    }
+    const scope = teamId ? { kind: "team" as const, teamId } : { kind: "personal" as const };
+    const access = await canvasScopeAccess(scope, userId);
+    if (!access) return Response.json({ message: "Not found." }, { status: 404 });
+    if (!atLeast(access, "write")) {
+      return Response.json({ message: "You can't add images here." }, { status: 403 });
+    }
+
+    const attachmentId = crypto.randomUUID();
+    const bytes = new Uint8Array(await image.arrayBuffer());
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    const uploaded = await uploadImageToStorage({
+      file: image,
+      uploaderId: userId,
+      objectKey: buildCanvasImageObjectKey(attachmentId, image.name),
+    });
+    const attachment = await insertCanvasAttachment({
+      id: attachmentId,
+      scope: { ownerId: userId, teamId },
+      wanted: `attachments/${image.name || "image"}`,
+      imageKey: uploaded.key,
+      sha256: Buffer.from(digest).toString("hex"),
+      byteSize: bytes.length,
+    });
+    return Response.json({ ...attachment, url: uploaded.url }, { status: 201 });
+  },
+  (userId) => checkRateLimit("canvas-image", userId, CANVAS_IMAGE_UPLOADS_PER_DAY, 86400),
 );
 
 /** Reports an unhandled throw before it becomes an opaque 500. */

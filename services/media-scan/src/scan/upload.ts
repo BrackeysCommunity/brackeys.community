@@ -240,6 +240,8 @@ async function describeOwner(
     }
     case "profile_project_image":
       return { label: "your profile", url: "/profile" };
+    case "canvas_attachment":
+      return { label: "a canvas", url: "/canvases" };
   }
 }
 

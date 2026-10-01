@@ -1,6 +1,7 @@
 import { ArrowDown01Icon, LinkSquare01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+import { JamPlanButton } from "@/components/canvas/JamPlanButton";
 import { JamFindTeamButton, JamTeamPostsLink } from "@/components/jams/JamTeamCta";
 import { JamWatchToggle } from "@/components/jams/JamWatchToggle";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,8 @@ export function JamCtaRail({
         ) : null}
 
         <JamFindTeamButton jam={jam} />
+
+        {joinable ? <JamPlanButton jamId={jam.jamId} /> : null}
 
         {/* Archived jams point at the results board below instead of off-site
             — the placements are the reason to be on this page. */}

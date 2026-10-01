@@ -1,0 +1,13 @@
+{
+	"nodes":[
+		{"id":"a1b2c3d4e5f60001","type":"group","x":-400,"y":-300,"width":800,"height":600,"label":"Art","background":"attachments/bg.png","backgroundStyle":"cover"},
+		{"id":"a1b2c3d4e5f60002","type":"group","x":500,"y":-300,"width":400,"height":400,"background":"attachments/tile.png","backgroundStyle":"repeat","color":"#ff8800"},
+		{"id":"a1b2c3d4e5f60003","type":"file","file":"Notes/Design.md","subpath":"#^block-1","x":-360,"y":-240,"width":400,"height":300},
+		{"id":"a1b2c3d4e5f60004","type":"text","text":"","x":100,"y":100,"width":250,"height":60},
+		{"id":"a1b2c3d4e5f60005","type":"text","text":"both ends","x":520,"y":-260,"width":250,"height":60,"color":"5"}
+	],
+	"edges":[
+		{"id":"b1b2c3d4e5f60001","fromNode":"a1b2c3d4e5f60003","fromSide":"bottom","fromEnd":"none","toNode":"a1b2c3d4e5f60004","toSide":"top","toEnd":"arrow"},
+		{"id":"b1b2c3d4e5f60002","fromNode":"a1b2c3d4e5f60004","toNode":"a1b2c3d4e5f60005"}
+	]
+}

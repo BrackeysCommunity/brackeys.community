@@ -30,10 +30,16 @@
  *   safe precisely because a canonical row never references a user-scoped
  *   key (it carries a provider CDN URL, or its own project-scoped upload).
  */
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { comments, developerProfiles, profileProjects } from "@/db/schema";
+import {
+  canvasDocVersions,
+  canvases,
+  comments,
+  developerProfiles,
+  profileProjects,
+} from "@/db/schema";
 import { purgeGuildMemberCache } from "@/lib/discord";
 import { removeProfileProjectImageFromStorage } from "@/lib/profile-project-image-storage";
 
@@ -65,6 +71,23 @@ export async function cleanupUserData(userId: string): Promise<void> {
     .update(comments)
     .set({ content: "", deletedAt: sql`COALESCE(${comments.deletedAt}, now())` })
     .where(eq(comments.authorId, userId));
+
+  // Personal canvases go with their owner (docs and memberships cascade);
+  // team canvases stay with the team, their `owner_id` nulled by the FK.
+  // Versions are keyed polymorphically, so they're removed by hand.
+  const personalCanvases = db
+    .select({ id: canvases.id })
+    .from(canvases)
+    .where(and(eq(canvases.ownerId, userId), isNull(canvases.teamId)));
+  await db
+    .delete(canvasDocVersions)
+    .where(
+      and(
+        eq(canvasDocVersions.docKind, "canvas"),
+        inArray(canvasDocVersions.docId, personalCanvases),
+      ),
+    );
+  await db.delete(canvases).where(and(eq(canvases.ownerId, userId), isNull(canvases.teamId)));
 
   await db.delete(developerProfiles).where(eq(developerProfiles.id, userId));
 

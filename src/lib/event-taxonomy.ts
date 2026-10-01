@@ -109,6 +109,10 @@ export const EVENTS = {
   forumGuildGateShown: "forum_guild_gate_shown",
   forumGuildGateResolved: "forum_guild_gate_resolved",
 
+  // Canvases. `source` says how it started: blank, an Obsidian file, a
+  // duplicate.
+  canvasCreated: "canvas_created",
+
   // Any invite to the server, from any surface. `method: "web"` is the
   // fallback toast's button, for someone without the desktop app.
   discordInviteOpened: "discord_invite_opened",
@@ -219,6 +223,7 @@ export type SigninSource =
   | "profile_builder"
   | "profile_wall"
   | "teams_discovery"
+  | "canvases"
   | "members_discovery"
   | "forum";
 

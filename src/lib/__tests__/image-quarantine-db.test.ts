@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
+  canvasAttachments,
   collabPostImages,
   developerProfiles,
   forumCategories,
@@ -216,6 +217,39 @@ describe("forum images", () => {
     const [restored] = await db.select().from(forumPosts).where(eq(forumPosts.id, postId));
     expect(restored!.coverImageKey).toBe(KEY);
     expect(await db.select().from(forumPostImages)).toHaveLength(1);
+  });
+});
+
+describe("canvas images", () => {
+  it("stamps the attachment quarantined, keeping its key, and clears the stamp on restore", async () => {
+    const key = "canvas-images/att-1/abc-boss.png";
+    await db.insert(imageScans).values({
+      objectKey: key,
+      ownerType: "canvas_attachment",
+      ownerId: "att-1",
+      uploaderId: "owner",
+      status: "scanned",
+    });
+    await db.insert(canvasAttachments).values({
+      id: "att-1",
+      ownerId: "owner",
+      path: "attachments/boss.png",
+      imageKey: key,
+      sha256: "x",
+      byteSize: 1,
+    });
+    const store = fakeStore();
+    store.objects.add(key);
+
+    const refs = await quarantineImage(db, store, key);
+    expect(refs?.canvasAttachments).toEqual(["att-1"]);
+    const [held] = await db.select().from(canvasAttachments);
+    expect(held!.quarantinedAt).not.toBeNull();
+    expect(held!.imageKey).toBe(key);
+
+    await restoreImage(db, store, key);
+    const [back] = await db.select().from(canvasAttachments);
+    expect(back!.quarantinedAt).toBeNull();
   });
 });
 

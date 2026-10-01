@@ -40,6 +40,7 @@ export const projectSchema = pgSchema("project");
 export const socialSchema = pgSchema("social");
 export const mediaSchema = pgSchema("media");
 export const forumSchema = pgSchema("forum");
+export const canvasSchema = pgSchema("canvas");
 export const profileProjectTypeEnum = userSchema.enum("profile_project_type", [
   "jam",
   "game",
@@ -2217,7 +2218,8 @@ export type ImageOwnerType =
   | "project_cover"
   | "profile_project_image"
   | "team_project_image"
-  | "forum_post_image";
+  | "forum_post_image"
+  | "canvas_attachment";
 
 /**
  * `pending` — row minted at upload, not yet scanned. `scanned` — fingerprinted
@@ -2303,5 +2305,190 @@ export const imageFlags = socialSchema.table(
       .where(sql`${t.status} = 'open'`),
     index("image_flags_owner_idx").on(t.ownerType, t.ownerId),
     index("image_flags_status_idx").on(t.status, t.createdAt.desc()),
+  ],
+);
+
+// ── Canvases (canvas schema) ────────────────────────────────────────────────
+
+/**
+ * A scope is one member's personal space (`team_id` null, keyed by
+ * `owner_id`) or one team. Every canvas, note and attachment in a scope has a
+ * vault-style `path`, and `path_key` is what uniqueness compares: lowercased
+ * after NFC, so case-insensitive file systems and macOS's NFD filenames can't
+ * hold two files the site thinks are different. The extension decides the
+ * kind, so keys never collide across the canvas, note and attachment tables.
+ * Deleted rows release their path; a restore into a taken path is renamed.
+ */
+function pathKeyColumn() {
+  return text("path_key")
+    .notNull()
+    .generatedAlwaysAs(sql`lower(normalize(path, NFC))`);
+}
+
+export const canvases = canvasSchema.table(
+  "canvases",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    // The creator. Nullable so a team canvas outlives its creator's account;
+    // account deletion removes personal canvases itself.
+    ownerId: text("owner_id").references(() => user.id, { onDelete: "set null" }),
+    // Null = personal.
+    teamId: text("team_id").references(() => teams.id, { onDelete: "cascade" }),
+    // Vault path ending `.canvas`; the title shown is its basename.
+    path: text("path").notNull(),
+    pathKey: pathKeyColumn(),
+    // 'private' | 'team' | 'unlisted' | 'public'. Text so new states are
+    // additions only.
+    visibility: text("visibility").notNull().default("private"),
+    // JSON Canvas 1.0 derived from the Yjs state on every store — never
+    // client-supplied. Readers, SSR, OG and search read this, not the doc.
+    snapshot: jsonb("snapshot")
+      .$type<{ nodes: unknown[]; edges: unknown[] }>()
+      .notNull()
+      .default({ nodes: [], edges: [] }),
+    nodeCount: integer("node_count").notNull().default(0),
+    byteSize: integer("byte_size").notNull().default(0),
+    lastEditedById: text("last_edited_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    lastEditedAt: timestamp("last_edited_at"),
+    hiddenAt: timestamp("hidden_at"),
+    hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
+    hiddenReason: text("hidden_reason"),
+    // Soft delete: restorable for 30 days, then swept.
+    deletedAt: timestamp("deleted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("canvases_visibility", sql`${t.visibility} IN ('private', 'team', 'unlisted', 'public')`),
+    uniqueIndex("canvases_team_path_uq")
+      .on(t.teamId, t.pathKey)
+      .where(sql`${t.teamId} IS NOT NULL AND ${t.deletedAt} IS NULL`),
+    uniqueIndex("canvases_personal_path_uq")
+      .on(t.ownerId, t.pathKey)
+      .where(sql`${t.teamId} IS NULL AND ${t.deletedAt} IS NULL`),
+    index("canvases_owner_idx").on(t.ownerId, t.deletedAt),
+    index("canvases_team_idx").on(t.teamId, t.deletedAt),
+    index("canvases_public_idx")
+      .on(t.updatedAt.desc())
+      .where(sql`${t.visibility} = 'public' AND ${t.hiddenAt} IS NULL AND ${t.deletedAt} IS NULL`),
+  ],
+);
+
+/**
+ * The Yjs state, apart from `canvases` so list and metadata reads never load
+ * the binary and a store's row lock never blocks a rename. Every write
+ * merges into what's stored, never replaces it.
+ */
+export const canvasDocs = canvasSchema.table("canvas_docs", {
+  canvasId: text("canvas_id")
+    .primaryKey()
+    .references(() => canvases.id, { onDelete: "cascade" }),
+  state: bytea("state").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/** People invited to a personal canvas. Team canvases use the roster. */
+export const canvasMembers = canvasSchema.table(
+  "canvas_members",
+  {
+    canvasId: text("canvas_id")
+      .notNull()
+      .references(() => canvases.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // 'editor' | 'viewer'
+    role: text("role").notNull().default("viewer"),
+    invitedById: text("invited_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("canvas_members_canvas_user_uq").on(t.canvasId, t.userId),
+    check("canvas_members_role", sql`${t.role} IN ('editor', 'viewer')`),
+    index("canvas_members_user_idx").on(t.userId),
+  ],
+);
+
+/**
+ * An image in a scope. Cards and note embeds reference the attachment id,
+ * never a raw storage key, so the path gives it a place in a vault and
+ * cleanup can count references.
+ */
+export const canvasAttachments = canvasSchema.table(
+  "attachments",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    ownerId: text("owner_id").references(() => user.id, { onDelete: "set null" }),
+    teamId: text("team_id").references(() => teams.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    pathKey: pathKeyColumn(),
+    imageKey: text("image_key").notNull(),
+    sha256: text("sha256").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    quarantinedAt: timestamp("quarantined_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (t) => [
+    uniqueIndex("attachments_team_path_uq")
+      .on(t.teamId, t.pathKey)
+      .where(sql`${t.teamId} IS NOT NULL AND ${t.deletedAt} IS NULL`),
+    uniqueIndex("attachments_personal_path_uq")
+      .on(t.ownerId, t.pathKey)
+      .where(sql`${t.teamId} IS NULL AND ${t.deletedAt} IS NULL`),
+    index("attachments_image_key_idx").on(t.imageKey),
+  ],
+);
+
+/**
+ * Restorable versions of a canvas or note, kept 30 days (the newest one of
+ * each document is always kept). Polymorphic over `doc_kind`, so there's no
+ * FK; hard-deleting a document deletes its versions in the same sweep.
+ */
+export const canvasDocVersions = canvasSchema.table(
+  "doc_versions",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    // 'canvas' | 'note'
+    docKind: text("doc_kind").notNull(),
+    docId: text("doc_id").notNull(),
+    takenAt: timestamp("taken_at").defaultNow().notNull(),
+    // 'hourly' | 'pre-restore' | 'pre-link' | 'pre-import' | 'staff'
+    reason: text("reason").notNull(),
+    state: bytea("state").notNull(),
+    byteSize: integer("byte_size").notNull(),
+  },
+  (t) => [
+    check("doc_versions_kind", sql`${t.docKind} IN ('canvas', 'note')`),
+    check(
+      "doc_versions_reason",
+      sql`${t.reason} IN ('hourly', 'pre-restore', 'pre-link', 'pre-import', 'staff')`,
+    ),
+    index("doc_versions_doc_idx").on(t.docKind, t.docId, t.takenAt.desc()),
+    index("doc_versions_taken_idx").on(t.takenAt),
+  ],
+);
+
+/** One row per member and document, bumped on open: the workspace's "Recent". */
+export const canvasOpens = canvasSchema.table(
+  "opens",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // 'canvas' | 'note'
+    docKind: text("doc_kind").notNull(),
+    docId: text("doc_id").notNull(),
+    openedAt: timestamp("opened_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.docKind, t.docId] }),
+    index("opens_user_recent_idx").on(t.userId, t.openedAt.desc()),
   ],
 );

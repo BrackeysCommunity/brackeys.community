@@ -83,6 +83,18 @@ export function isForumPostImageKey(postId: number, key: string) {
 }
 
 /**
+ * Canvas images are **attachment-scoped**: the second segment is the
+ * `canvas.attachments` row minted with the upload, so a scan resolves
+ * straight to the row it quarantines, and the object outlives its uploader
+ * with the scope that holds it.
+ */
+export const CANVAS_IMAGE_PREFIX = "canvas-images";
+
+export function buildCanvasImageObjectKey(attachmentId: string, filename: string) {
+  return `${CANVAS_IMAGE_PREFIX}/${attachmentId}/${nanoid()}-${sanitizeImageFilename(filename)}`;
+}
+
+/**
  * Team showcase (team_projects) covers are **team-scoped**: any member can
  * add showcase rows, so the write check is membership, and the objects can
  * be swept when the row or the team goes away. Imported placements that
@@ -107,6 +119,7 @@ const SERVABLE_IMAGE_KEY_PREFIXES = [
   `${COLLAB_POST_IMAGE_PREFIX}/`,
   `${TEAM_PROJECT_IMAGE_PREFIX}/`,
   `${FORUM_POST_IMAGE_PREFIX}/`,
+  `${CANVAS_IMAGE_PREFIX}/`,
 ] as const;
 
 /**
@@ -176,7 +189,8 @@ export type StoredImageOwnerType =
   | "project_cover"
   | "profile_project_image"
   | "team_project_image"
-  | "forum_post_image";
+  | "forum_post_image"
+  | "canvas_attachment";
 
 const OWNER_TYPE_BY_PREFIX: Record<string, StoredImageOwnerType> = {
   [PROFILE_PROJECT_IMAGE_PREFIX]: "profile_project_image",
@@ -186,6 +200,7 @@ const OWNER_TYPE_BY_PREFIX: Record<string, StoredImageOwnerType> = {
   [COLLAB_POST_IMAGE_PREFIX]: "collab_post_image",
   [TEAM_PROJECT_IMAGE_PREFIX]: "team_project_image",
   [FORUM_POST_IMAGE_PREFIX]: "forum_post_image",
+  [CANVAS_IMAGE_PREFIX]: "canvas_attachment",
 };
 
 /**

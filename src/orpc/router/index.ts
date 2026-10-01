@@ -30,6 +30,23 @@ import {
   requestImageRescan,
 } from "./admin";
 import { getArcadeAccess } from "./arcade";
+import {
+  listCanvasScopes,
+  listCanvases,
+  listRecentCanvases,
+  getCanvas,
+  createCanvas,
+  saveCanvas,
+  moveCanvas,
+  deleteCanvas,
+  restoreCanvas,
+  listCanvasVersions,
+  getCanvasVersion,
+  restoreCanvasVersion,
+  listCanvasAttachments,
+  getCanvasEntities,
+  openJamPlanCanvas,
+} from "./canvas";
 import { listGuildChannels, listGuildRoles, resolveGuildChannel } from "./channels";
 import {
   createPost,
@@ -472,4 +489,19 @@ export default {
   setForumFollow,
   listMyForumFollows,
   getArcadeAccess,
+  listCanvasScopes,
+  listCanvases,
+  listRecentCanvases,
+  getCanvas,
+  createCanvas,
+  saveCanvas,
+  moveCanvas,
+  deleteCanvas,
+  restoreCanvas,
+  listCanvasVersions,
+  getCanvasVersion,
+  restoreCanvasVersion,
+  listCanvasAttachments,
+  getCanvasEntities,
+  openJamPlanCanvas,
 };

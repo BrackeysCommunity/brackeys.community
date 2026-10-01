@@ -23,6 +23,14 @@ import { gzipSync } from "node:zlib";
 
 const ROOT_BUDGET = { chunks: 63, gzipBytes: 400 * 1024 };
 
+/**
+ * Chunks that must never be preloaded by any route: they load on demand,
+ * behind a user action or a permission. The canvas editor (React Flow,
+ * Yjs, CodeMirror) is a dynamic import behind edit access, so a reader of a
+ * canvas, and every other page, never downloads it.
+ */
+const NEVER_PRELOADED = [/\/CanvasEditor-[^/]*\.js$/];
+
 const outputDir = join(process.cwd(), ".output");
 const serverDir = join(outputDir, "server");
 const publicDir = join(outputDir, "public");
@@ -98,6 +106,16 @@ async function main() {
   }
 
   if (!check) return;
+
+  const leaks = Object.entries(manifest.routes).flatMap(([routeId, route]) =>
+    (route.preloads ?? [])
+      .filter((asset) => NEVER_PRELOADED.some((pattern) => pattern.test(asset)))
+      .map((asset) => `${routeId}: ${asset}`),
+  );
+  if (leaks.length) {
+    console.error(`\nOn-demand chunks preloaded by a route:\n  ${leaks.join("\n  ")}`);
+    process.exit(1);
+  }
 
   const root = rows.find((r) => r.routeId === "__root__");
   if (!root) throw new Error("No __root__ entry in manifest.");

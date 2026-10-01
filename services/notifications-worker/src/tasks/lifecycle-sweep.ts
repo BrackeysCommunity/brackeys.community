@@ -8,6 +8,7 @@ import {
   teamProjects,
   teams,
 } from "../../../../src/db/schema.ts";
+import { sweepCanvases } from "../../../../src/lib/canvas-sweep.ts";
 import {
   ARCHIVE_WARNING_DAYS,
   DAY_MS,
@@ -254,6 +255,9 @@ export async function handleLifecycleSweep(): Promise<void> {
   // ── 8. Domain proofs: re-run the stamps that are a month old ──────────────
   const websiteProofs = await sweepWebsiteVerifications(db, now);
 
+  // ── 9. Canvases: purge the long-deleted, prune old versions ─────────────
+  const canvasRetention = await sweepCanvases(db, now);
+
   console.log("[lifecycle_sweep] done", {
     repaired: repaired.length,
     nudged,
@@ -267,6 +271,7 @@ export async function handleLifecycleSweep(): Promise<void> {
     orphansCollected,
     websiteProofsChecked: websiteProofs.checked,
     websiteProofsCleared: websiteProofs.cleared,
+    ...canvasRetention,
   });
 }
 

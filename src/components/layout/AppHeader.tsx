@@ -1,8 +1,8 @@
-import { Cancel01Icon, Menu01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, DashboardSquare02Icon, Menu01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { AttentionMenu } from "@/components/attention/AttentionMenu";
 import { DeployEnvBadge } from "@/components/layout/DeployEnvMarker";
@@ -21,6 +21,15 @@ import { HOVER_CUE, NAV_LINK_CUES } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 const HEADER_SHIFT = "calc(var(--app-header-height) * -1)";
+
+/** Imported on click, so the store stays out of the root preload graph. */
+function openWorkspace() {
+  void import("@/components/canvas/workspace-store").then((m) => m.openWorkspace());
+}
+
+const WorkspacePanel = lazy(() =>
+  import("@/components/canvas/WorkspacePanel").then((m) => ({ default: m.WorkspacePanel })),
+);
 
 /** Tailwind's `lg` — the width at which the bar shows its own nav and the
  * menu button is `lg:hidden`. */
@@ -100,6 +109,7 @@ export function AppHeader() {
   const { data: session } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const forumOn = useFlag("forum-enabled");
+  const canvasesOn = useFlag("canvases-enabled");
   const navItems = forumOn ? [FORUM_NAV_ITEM, ...NAV_ITEMS] : NAV_ITEMS;
 
   const PAGE_TITLES: Record<string, string> = {
@@ -243,6 +253,17 @@ export function AppHeader() {
                   {/* Before the bell: an outstanding decision outranks an unread
                     event, and this one renders only when there is one. */}
                   <AttentionMenu />
+                  {canvasesOn ? (
+                    <Button
+                      variant="outline"
+                      size="icon-lg"
+                      aria-label="Open workspace"
+                      tooltip="Workspace"
+                      onClick={() => openWorkspace()}
+                    >
+                      <HugeiconsIcon icon={DashboardSquare02Icon} size={16} />
+                    </Button>
+                  ) : null}
                   <NotificationBell />
                   <UserMenu user={session.user} compact />
                 </>
@@ -319,6 +340,18 @@ export function AppHeader() {
                   </Link>
                 );
               })}
+              {canvasesOn && session?.user ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    openWorkspace();
+                  }}
+                  className="border-l-2 border-transparent px-4 py-3 text-left text-sm font-bold tracking-widest text-foreground transition-colors hover:bg-primary/5 hover:text-primary"
+                >
+                  OPEN WORKSPACE
+                </button>
+              ) : null}
               <div className="mt-2 flex items-center justify-end gap-2 border-t border-muted/20 px-4 pt-3">
                 {session?.user ? (
                   // The full user menu already carries a settings row; the
@@ -346,6 +379,11 @@ export function AppHeader() {
           </motion.div>
         )}
       </AnimatePresence>
+      {canvasesOn && session?.user ? (
+        <Suspense fallback={null}>
+          <WorkspacePanel />
+        </Suspense>
+      ) : null}
     </>
   );
 }

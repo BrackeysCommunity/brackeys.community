@@ -1,0 +1,9 @@
+{
+	"nodes":[
+		{"id":"c1c2c3c4c5c60001","type":"link","url":"https://brackeys.community/jams/brackeys-14","x":0,"y":0,"width":320,"height":200,"brackeys":{"type":"entity","entity":{"kind":"jam","id":"jam-123"}}},
+		{"id":"c1c2c3c4c5c60002","type":"file","file":"attachments/boss.webp","x":400,"y":0,"width":400,"height":300,"brackeys":{"type":"image","attachmentId":"8d7c4a2e-0000-4000-8000-000000000001"}},
+		{"id":"c1c2c3c4c5c60003","type":"text","text":"Plan","x":0,"y":300,"width":250,"height":60}
+	],
+	"edges":[],
+	"brackeys":{"id":"canvas-uuid-1","schemaVersion":1}
+}

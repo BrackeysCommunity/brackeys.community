@@ -49,6 +49,8 @@ COPY src/lib/collab-lifecycle.ts ./src/lib/collab-lifecycle.ts
 COPY src/lib/jam-watch.ts ./src/lib/jam-watch.ts
 COPY src/lib/jam-watch-sweep.ts ./src/lib/jam-watch-sweep.ts
 COPY src/lib/notification-retention.ts ./src/lib/notification-retention.ts
+COPY src/lib/canvas-sweep.ts ./src/lib/canvas-sweep.ts
+COPY src/lib/canvas/limits.ts ./src/lib/canvas/limits.ts
 COPY src/lib/project-orphan-sweep.ts ./src/lib/project-orphan-sweep.ts
 COPY src/lib/website-verification.ts ./src/lib/website-verification.ts
 COPY src/lib/website-verification-check.ts ./src/lib/website-verification-check.ts

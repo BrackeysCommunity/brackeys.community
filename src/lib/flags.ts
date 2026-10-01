@@ -28,6 +28,11 @@ export const FEATURE_FLAGS = {
    * — every `forum.*` procedure and feed. Delete once the forum launches.
    */
   "forum-enabled": false,
+  /**
+   * Canvases: every entry point, the `/canvases` routes and — enforced
+   * server-side by the canvas middleware — every `canvas.*` procedure.
+   */
+  "canvases-enabled": false,
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

@@ -92,3 +92,33 @@ describe("MarkedText censoring", () => {
     expect(container.textContent).toContain("shit");
   });
 });
+
+describe("MarkedText wikilinks", () => {
+  const renderLinks = (source: string) =>
+    render(
+      <AppSettingsProvider>
+        <MarkedText wikilink={(link) => <mark data-target={link.target}>{link.alias}</mark>}>
+          {source}
+        </MarkedText>
+      </AppSettingsProvider>,
+    );
+
+  it("hands each link to the renderer, underscores and all", () => {
+    const { container } = renderLinks("see [[level_one_draft|draft]] and **[[Boss]]**");
+    const marks = [...container.querySelectorAll("mark")];
+    expect(marks.map((m) => m.dataset.target)).toEqual(["level_one_draft", "Boss"]);
+    expect(marks[1]!.closest("strong")).not.toBeNull();
+    expect(container.querySelector("em")).toBeNull();
+  });
+
+  it("leaves links in code as written", () => {
+    const { container } = renderLinks("`[[Boss]]`\n\n```\n[[Boss]]\n```");
+    expect(container.querySelector("mark")).toBeNull();
+    expect(container.textContent).toContain("[[Boss]]");
+  });
+
+  it("stays plain text for callers that don't ask for links", () => {
+    const { container } = renderMarkdown("[[Boss]]");
+    expect(container.textContent).toBe("[[Boss]]");
+  });
+});

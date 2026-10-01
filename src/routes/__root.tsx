@@ -72,6 +72,7 @@ import { useNotificationStream } from "@/lib/hooks/use-notification-stream";
 import { PageLayoutProvider, useCurrentSidebar, useMobileMode } from "@/lib/hooks/use-page-layout";
 import { DISCORD_CDN_ORIGIN } from "@/lib/itch-image";
 import { captureError, posthogIngestHost } from "@/lib/product-insights";
+import { useTakeoverShell } from "@/lib/route-shell";
 import { DEFAULT_THEME_ID } from "@/lib/themes";
 
 import fontsCss from "../fonts.css?url";
@@ -310,9 +311,12 @@ function AppMotionConfig({ children }: { children: React.ReactNode }) {
 
 function BackgroundDotField() {
   const reduced = useReducedMotion();
+  // A takeover page paints its own full-window background over the field.
+  const takeover = useTakeoverShell();
   // The field repaints a viewport-sized canvas every frame on every route;
   // a machine that cannot spare that gets the still grid.
   const lowEnd = useLowEndDevice();
+  if (takeover) return null;
   return (
     <ThemedDotField
       dotRadius={1}
@@ -347,13 +351,16 @@ function NotificationStreamMount() {
 
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
+  const takeover = useTakeoverShell();
 
   return (
     <>
       <AuthSessionSync />
       <DiscordAppReturn />
       <NotificationStreamMount />
-      {isMobile ? (
+      {takeover ? (
+        <TakeoverShell>{children}</TakeoverShell>
+      ) : isMobile ? (
         <ShellBoundary
           scope="mobile_shell"
           fallback={<MobileShellFallback>{children}</MobileShellFallback>}
@@ -378,6 +385,19 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
         </>
       )}
     </>
+  );
+}
+
+/**
+ * The page is the whole window (canvases, notes): no header, footer,
+ * content pane or mobile shell, and no scroller. The page draws its own
+ * chrome, including the way back to the rest of the site.
+ */
+function TakeoverShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main id="main-content" className="fixed inset-0 overflow-hidden [view-transition-name:page]">
+      {children}
+    </main>
   );
 }
 

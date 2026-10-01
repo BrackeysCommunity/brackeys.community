@@ -16,6 +16,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import {
+  canvasAttachments,
   collabPostImages,
   forumPostImages,
   forumPosts,
@@ -66,6 +67,8 @@ export type DetachedRefs = {
   projects: string[];
   profileProjects: string[];
   teamProjects: string[];
+  /** Attachment ids stamped quarantined; the key stays, the object moves. */
+  canvasAttachments: string[];
 };
 
 const EMPTY_REFS: DetachedRefs = {
@@ -76,6 +79,7 @@ const EMPTY_REFS: DetachedRefs = {
   projects: [],
   profileProjects: [],
   teamProjects: [],
+  canvasAttachments: [],
 };
 
 function mergeRefs(a: DetachedRefs, b: DetachedRefs): DetachedRefs {
@@ -99,6 +103,7 @@ function mergeRefs(a: DetachedRefs, b: DetachedRefs): DetachedRefs {
     projects: [...new Set([...a.projects, ...b.projects])],
     profileProjects: [...new Set([...a.profileProjects, ...b.profileProjects])],
     teamProjects: [...new Set([...a.teamProjects, ...b.teamProjects])],
+    canvasAttachments: [...new Set([...a.canvasAttachments, ...b.canvasAttachments])],
   };
 }
 
@@ -113,6 +118,7 @@ function refsFrom(value: unknown): DetachedRefs {
     projects: Array.isArray(v.projects) ? v.projects : [],
     profileProjects: Array.isArray(v.profileProjects) ? v.profileProjects : [],
     teamProjects: Array.isArray(v.teamProjects) ? v.teamProjects : [],
+    canvasAttachments: Array.isArray(v.canvasAttachments) ? v.canvasAttachments : [],
   };
 }
 
@@ -191,6 +197,13 @@ export async function detachImageKey(db: DbHandle, objectKey: string): Promise<D
   refs.profileProjects = await cleared(profileProjects);
   refs.teamProjects = await cleared(teamProjects);
 
+  const attachments: Array<{ id: string }> = await db
+    .update(canvasAttachments)
+    .set({ quarantinedAt: new Date() })
+    .where(and(eq(canvasAttachments.imageKey, objectKey), isNull(canvasAttachments.quarantinedAt)))
+    .returning({ id: canvasAttachments.id });
+  refs.canvasAttachments = attachments.map((a) => a.id);
+
   return refs;
 }
 
@@ -258,6 +271,12 @@ export async function reattachImageKey(
   await fill(projects, refs.projects);
   await fill(profileProjects, refs.profileProjects);
   await fill(teamProjects, refs.teamProjects);
+  for (const id of refs.canvasAttachments) {
+    await db
+      .update(canvasAttachments)
+      .set({ quarantinedAt: null })
+      .where(eq(canvasAttachments.id, id));
+  }
 }
 
 type ScanRow = { status: string; detached: unknown };

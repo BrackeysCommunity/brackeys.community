@@ -1,6 +1,8 @@
 import {
   Comment01Icon,
   ComputerTerminal01Icon,
+  DashboardSquare02Icon,
+  DashboardSquareAddIcon,
   LegalHammerIcon,
   Login01Icon,
   PaintBrush04Icon,
@@ -14,6 +16,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useMemo } from "react";
 
+import { openWorkspace, startNewCanvas } from "@/components/canvas/workspace-store";
 import { openDiscordInvite } from "@/components/ui/discord-invite-link";
 import {
   allBotCommands,
@@ -66,7 +69,10 @@ export interface PaletteCommandGroup {
  * they answer on the first keystroke, while site search waits for the
  * server.
  */
-export function usePaletteCommands(forumOn: boolean): {
+export function usePaletteCommands(
+  forumOn: boolean,
+  canvasesOn: boolean,
+): {
   actions: PaletteCommandGroup;
   rest: PaletteCommandGroup[];
 } {
@@ -150,6 +156,34 @@ export function usePaletteCommands(forumOn: boolean): {
         },
         perform: toCommandCenter,
       },
+      ...(signedIn && canvasesOn
+        ? [
+            {
+              id: "new-canvas",
+              label: "New canvas…",
+              keywords: "create canvas board whiteboard obsidian personal team",
+              icon: DashboardSquareAddIcon,
+              iconClassName: "text-primary",
+              detail: {
+                type: "action" as const,
+                description: "Start a canvas in your personal space or one of your teams.",
+              },
+              perform: startNewCanvas,
+            },
+            {
+              id: "workspace",
+              label: "Open workspace",
+              keywords: "canvases recent obsidian",
+              icon: DashboardSquare02Icon,
+              iconClassName: "text-muted-foreground",
+              detail: {
+                type: "action" as const,
+                description: "Your recent canvases, across your personal space and your teams.",
+              },
+              perform: () => openWorkspace(),
+            },
+          ]
+        : []),
       ...(forumOn
         ? [
             {
@@ -218,7 +252,7 @@ export function usePaletteCommands(forumOn: boolean): {
         },
       ],
     };
-  }, [navigate, signedIn, isStaff, forumOn, themeId, setTheme, sections]);
+  }, [navigate, signedIn, isStaff, forumOn, canvasesOn, themeId, setTheme, sections]);
 }
 
 /** The commands in `group` that match `query`, best first; all of them for an empty query. */

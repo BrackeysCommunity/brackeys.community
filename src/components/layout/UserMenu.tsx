@@ -1,5 +1,6 @@
 import {
   BriefcaseDollarIcon,
+  DashboardSquare02Icon,
   Logout03Icon,
   Settings02Icon,
   Share01Icon,
@@ -26,6 +27,7 @@ import { activeUserStore } from "@/lib/active-user-store";
 import { authClient } from "@/lib/auth-client";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { useAvailabilityToggle } from "@/lib/hooks/use-availability-toggle";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { captureEvent, resetIdentity } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -47,6 +49,7 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
   const activeProfile = useStore(activeUserStore, (s) => s.profile);
   const profileParams = profileLinkParams({ id: user.id, urlStub: activeProfile?.urlStub });
   const availability = useAvailabilityToggle();
+  const canvasesOn = useFlag("canvases-enabled");
   // Your own chrome shows the face everyone else in your position sees —
   // the nickname if you are in the guild, the handle if not. `user.name` is
   // better-auth's copy of the handle and knows nothing about the guild.
@@ -110,6 +113,12 @@ export function UserMenu({ user, compact = false }: UserMenuProps) {
             <HugeiconsIcon icon={UserIcon} size={14} />
             My profile
           </DropdownMenuItem>
+          {canvasesOn ? (
+            <DropdownMenuItem render={<Link to="/canvases" search={{ scope: "personal" }} />}>
+              <HugeiconsIcon icon={DashboardSquare02Icon} size={14} />
+              My canvases
+            </DropdownMenuItem>
+          ) : null}
           {!compact && (
             <>
               <DropdownMenuItem

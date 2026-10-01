@@ -8,6 +8,7 @@ import {
   requireGuildMember,
   requireStaff,
 } from "@/orpc/middleware/auth";
+import { canvasRead, canvasSignedIn } from "@/orpc/middleware/canvas";
 import { forumRead, forumSignedIn, forumWrite } from "@/orpc/middleware/forum";
 import router from "@/orpc/router";
 
@@ -89,6 +90,12 @@ const PUBLIC_PROCEDURES = new Set([
   "searchAll",
   "listForumSeries",
   "getForumSeries",
+  // Unlisted and public canvases render for signed-out visitors (behind
+  // `canvases-enabled`); private ones answer NOT_FOUND.
+  "getCanvas",
+  // A readable canvas's image and live cards, behind the same access check.
+  "listCanvasAttachments",
+  "getCanvasEntities",
   // Whether the arcade flags are on for the caller; gates `/arcade/*`.
   "getArcadeAccess",
   // GitHub contribution calendar on public profiles.
@@ -183,6 +190,7 @@ const AUTH_REQUIRING = new Set<unknown>([
   requireAdmin,
   forumWrite,
   forumSignedIn,
+  canvasSignedIn,
 ]);
 
 const STAFF_REQUIRING = new Set<unknown>([requireStaff, requireAdmin]);
@@ -241,7 +249,9 @@ describe("authorization lockdown", () => {
   it("anonymous-tolerant middleware only appears on public procedures", () => {
     for (const [name, procedure] of procedures) {
       if (PUBLIC_PROCEDURES.has(name)) continue;
-      const soft = middlewaresOf(procedure).some((m) => m === authMiddleware || m === forumRead);
+      const soft = middlewaresOf(procedure).some(
+        (m) => m === authMiddleware || m === forumRead || m === canvasRead,
+      );
       expect(
         soft,
         `"${name}" uses authMiddleware (anonymous-tolerant) but is not on the public allowlist`,

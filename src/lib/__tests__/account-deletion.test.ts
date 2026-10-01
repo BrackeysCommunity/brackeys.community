@@ -55,7 +55,10 @@ vi.mock("@/db", () => {
 });
 
 vi.mock("drizzle-orm", () => ({
+  and: (...args: unknown[]) => ({ _: "and", args }),
   eq: (...args: unknown[]) => ({ _: "eq", args }),
+  inArray: (...args: unknown[]) => ({ _: "inArray", args }),
+  isNull: (...args: unknown[]) => ({ _: "isNull", args }),
   sql: (strings: TemplateStringsArray, ...args: unknown[]) => ({ _: "sql", strings, args }),
 }));
 
@@ -63,6 +66,8 @@ vi.mock("@/db/schema", () => {
   const table = (name: string, columns: string[]) =>
     Object.fromEntries([["__name", name], ...columns.map((c) => [c, `${name}.${c}`])]);
   return {
+    canvases: table("canvases", ["id", "ownerId", "teamId"]),
+    canvasDocVersions: table("doc_versions", ["docKind", "docId"]),
     comments: table("comments", ["authorId", "content", "deletedAt"]),
     developerProfiles: table("developer_profiles", ["id", "discordId"]),
     linkedAccounts: table("linked_accounts", ["profileId"]),
@@ -113,6 +118,17 @@ describe("cleanupUserData comment redaction", () => {
         deletedAt: expect.objectContaining({ _: "sql" }),
       }),
     );
+  });
+
+  it("deletes personal canvases and their versions before the profile row", async () => {
+    mocks.selectQueue.push([{ discordId: null }], []);
+    await cleanupUserData("u1");
+
+    const versionsIdx = mocks.calls.indexOf("delete:doc_versions");
+    const canvasIdx = mocks.calls.indexOf("delete:canvases");
+    expect(versionsIdx).toBeGreaterThanOrEqual(0);
+    expect(versionsIdx).toBeLessThan(canvasIdx);
+    expect(canvasIdx).toBeLessThan(mocks.calls.indexOf("delete:developer_profiles"));
   });
 
   it("does nothing when the user has no profile row", async () => {

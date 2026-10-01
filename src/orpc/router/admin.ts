@@ -21,6 +21,7 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import {
+  canvasAttachments,
   collabPostReports,
   collabPostSkills,
   collabPostRoles,
@@ -2300,6 +2301,7 @@ const IMAGE_OWNER_TYPES = [
   "profile_project_image",
   "team_project_image",
   "forum_post_image",
+  "canvas_attachment",
 ] as const satisfies readonly ImageOwnerType[];
 
 type ImageOwnerRef = { label: string; href: string | null };
@@ -2324,8 +2326,9 @@ async function imageOwnerRefs(
   const forumPostIds = idsOf("forum_post_image")
     .map(Number)
     .filter((id) => Number.isInteger(id));
+  const attachmentIds = idsOf("canvas_attachment");
 
-  const [teamRows, postRows, projectRows, profiles, forumRows] = await Promise.all([
+  const [teamRows, postRows, projectRows, profiles, forumRows, attachmentRows] = await Promise.all([
     teamIds.length > 0
       ? db
           .select({ id: teams.id, name: teams.name, slug: teams.slug })
@@ -2351,11 +2354,20 @@ async function imageOwnerRefs(
           .from(forumPosts)
           .where(inArray(forumPosts.id, forumPostIds))
       : Promise.resolve([]),
+    attachmentIds.length > 0
+      ? db
+          .select({ id: canvasAttachments.id, path: canvasAttachments.path })
+          .from(canvasAttachments)
+          .where(inArray(canvasAttachments.id, attachmentIds))
+      : Promise.resolve([]),
   ]);
 
   const refs = new Map<string, ImageOwnerRef>();
   for (const p of forumRows) {
     refs.set(`forum:${p.id}`, { label: forumPostTitle(p), href: `/forum/${p.id}` });
+  }
+  for (const a of attachmentRows) {
+    refs.set(`attachment:${a.id}`, { label: `Canvas image ${a.path}`, href: null });
   }
   for (const t of teamRows) refs.set(`team:${t.id}`, { label: t.name, href: `/teams/${t.slug}` });
   for (const p of postRows) {
@@ -2387,6 +2399,8 @@ function imageOwnerKey(row: { ownerType: ImageOwnerType; ownerId: string }): str
       return `profile:${row.ownerId}`;
     case "forum_post_image":
       return `forum:${row.ownerId}`;
+    case "canvas_attachment":
+      return `attachment:${row.ownerId}`;
   }
 }
 
@@ -2398,6 +2412,7 @@ const IMAGE_OWNER_TYPE_LABEL: Record<ImageOwnerType, string> = {
   profile_project_image: "Profile project image",
   team_project_image: "Team showcase image",
   forum_post_image: "Forum image",
+  canvas_attachment: "Canvas image",
 };
 
 /** The staff-only route that serves a key whether it is live or quarantined. */

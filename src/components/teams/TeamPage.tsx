@@ -11,6 +11,7 @@ import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
+import { TeamCanvasesActions, TeamCanvasesSection } from "@/components/canvas/TeamCanvasesSection";
 import { CollabFunnelExplainer } from "@/components/collab/CollabFunnelExplainer";
 import { TeamDevlog } from "@/components/forum/TeamDevlog";
 import { Badge } from "@/components/ui/badge";
@@ -153,6 +154,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
   const forumOn = useFlag("forum-enabled");
   const isStaffOutsider = team.isStaffViewer && !isMember;
   const isArchived = team.status === "archived";
+  const canvasesOn = useFlag("canvases-enabled");
   const isHidden = team.hiddenAt != null;
   const jamLog = team.projects.filter((p) => p.jamId != null || p.jamName);
   const showcase = team.projects;
@@ -285,6 +287,17 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
           </div>
         </Section>
       </motion.div>
+
+      {canvasesOn && isMember ? (
+        <motion.div variants={fadeUp}>
+          <Section
+            title="CANVASES & NOTES"
+            action={<TeamCanvasesActions teamId={team.id} canCreate={!isArchived && !isHidden} />}
+          >
+            <TeamCanvasesSection teamId={team.id} />
+          </Section>
+        </motion.div>
+      ) : null}
 
       {/* Stack — derived from the roster's skills. */}
       {team.skills.length > 0 ? (

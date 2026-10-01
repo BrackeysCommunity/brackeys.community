@@ -42,6 +42,10 @@ const WRITE_VERBS = [
   "lock",
   "mark",
   "merge",
+  // `openJamPlanCanvas` creates the plan canvas the first time.
+  "open",
+  // `moveCanvas` renames or moves a canvas to a new path.
+  "move",
   "propose",
   // `refreshGuildMembership` re-asks Discord and rewrites the cached answer.
   "refresh",
@@ -57,6 +61,8 @@ const WRITE_VERBS = [
   "restore",
   "respond",
   "revoke",
+  // `saveCanvas` merges the editor's update into the stored state.
+  "save",
   "set",
   // `shareToDiscord` writes the mirror row and posts (or edits) the message.
   "share",

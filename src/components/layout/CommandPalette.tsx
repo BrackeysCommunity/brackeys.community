@@ -81,7 +81,8 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const router = useRouter();
   const forumOn = useFlag("forum-enabled");
-  const { actions, rest } = usePaletteCommands(forumOn);
+  const canvasesOn = useFlag("canvases-enabled");
+  const { actions, rest } = usePaletteCommands(forumOn, canvasesOn);
 
   // The dialog paints first and the list follows a frame later, so the
   // first ⌘K shows the palette at once instead of after every row renders.
