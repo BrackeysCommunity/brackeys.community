@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 
-function renderMarkdown(source: string, props: { censor?: boolean } = {}) {
+function renderMarkdown(source: string, props: { censor?: boolean; embeds?: boolean } = {}) {
   return render(
     <AppSettingsProvider>
       <MarkedText {...props}>{source}</MarkedText>
@@ -120,5 +120,45 @@ describe("MarkedText wikilinks", () => {
   it("stays plain text for callers that don't ask for links", () => {
     const { container } = renderMarkdown("[[Boss]]");
     expect(container.textContent).toBe("[[Boss]]");
+  });
+});
+
+describe("MarkedText embeds", () => {
+  const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+
+  it("frames a bare video link on its own line", () => {
+    const { container } = renderMarkdown(`Progress!\n\n${YT}`, { embeds: true });
+    expect(container.querySelector("iframe")?.getAttribute("src")).toBe(
+      "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+    );
+    expect(screen.getByText("Progress!")).toBeTruthy();
+  });
+
+  it("lifts the link out of a paragraph with a caption line above it", () => {
+    const { container } = renderMarkdown(`Caves, take two:\n${YT}`, { embeds: true });
+    expect(container.querySelector("iframe")).not.toBeNull();
+    expect(screen.getByText("Caves, take two:")).toBeTruthy();
+  });
+
+  it("leaves links inside prose, named links, and other callers alone", () => {
+    for (const source of [`watch ${YT} now`, `[the trailer](${YT})`]) {
+      const { container } = renderMarkdown(source, { embeds: true });
+      expect(container.querySelector("iframe")).toBeNull();
+      cleanup();
+    }
+    const { container } = renderMarkdown(YT);
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector("a")?.getAttribute("href")).toBe(YT);
+  });
+
+  it("plays a direct video file, linked or as a markdown image", () => {
+    const { container } = renderMarkdown(
+      "https://cdn.example.com/clip.mp4\n\n![](https://cdn.example.com/b.webm)",
+      { embeds: true },
+    );
+    expect([...container.querySelectorAll("video")].map((v) => v.getAttribute("src"))).toEqual([
+      "https://cdn.example.com/clip.mp4",
+      "https://cdn.example.com/b.webm",
+    ]);
   });
 });

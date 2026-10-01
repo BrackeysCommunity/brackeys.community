@@ -86,6 +86,8 @@ const PUBLIC_PROCEDURES = new Set([
   "getForumPost",
   "searchForumTags",
   "searchForumPosts",
+  "searchForumPeople",
+  "getForumFilterLabels",
   // The palette's site search; forum hits follow the caller's flag.
   "searchAll",
   "listForumSeries",

@@ -8,6 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,11 +16,13 @@ import { Chonk } from "@/components/ui/chonk";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { TransformedImage } from "@/components/ui/transformed-image";
 import { Censored, Heading, MarkedText, MicroLabel, Text } from "@/components/ui/typography";
+import { MediaEmbedView } from "@/components/ui/typography/media-embed";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatCount } from "@/lib/format-count";
 import { forumPostLinkParams } from "@/lib/forum-posts";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { safeThemeColor } from "@/lib/jam-palette";
+import { splitAtFirstMedia } from "@/lib/media-embeds";
 import { cn } from "@/lib/utils";
 
 import { type ForumCard, useForumReactions } from "./forum-queries";
@@ -235,34 +238,54 @@ function DevlogCard({ post, showCategory }: { post: ForumCard; showCategory: boo
   );
 }
 
+/**
+ * A short post as the feed shows it: the body in order up to its first
+ * piece of media, then that one piece — an attached image when there is
+ * one, else the first embed — and a count of what the post page holds past
+ * it.
+ */
 function ShortPostCard({ post, showCategory }: { post: ForumCard; showCategory: boolean }) {
-  const images = post.images.slice(0, 4);
+  const split = useMemo(() => splitAtFirstMedia(post.body ?? ""), [post.body]);
+  const [image] = post.images;
+  const embed = image ? null : split.first;
+  // A line introducing the embed ("take two:") points at nothing once an
+  // attached image takes its place.
+  const text = embed || !split.first ? split.before : split.before.replace(/:\s*$/, "");
+  const shown = image || embed ? 1 : 0;
+  const moreMedia = post.images.length + split.mediaCount - shown;
+  const more = moreMedia > 0 ? `+${moreMedia} more` : split.moreText ? "Read more" : null;
+
   return (
     <>
       <Byline post={post} showCategory={showCategory} />
       <PinnedMark post={post} />
-      {post.body ? (
-        <MarkedText mentions className="text-base text-foreground/90">
-          {post.body}
+      {text ? (
+        <MarkedText mentions className="line-clamp-3 text-base text-foreground/90">
+          {text}
         </MarkedText>
       ) : null}
-      {images.length > 0 ? (
-        <div className={cn("grid gap-2", images.length > 1 && "grid-cols-2")}>
-          {images.map((image) => (
-            <TransformedImage
-              key={image.id}
-              src={image.url}
-              transform={{ width: images.length > 1 ? 480 : 960, quality: 75 }}
-              alt={image.alt ?? ""}
-              loading="lazy"
-              decoding="async"
-              className={cn(
-                "w-full border border-muted/40 bg-muted/20 object-cover",
-                images.length > 1 ? "aspect-square sm:aspect-video" : "max-h-96",
-              )}
-            />
-          ))}
-        </div>
+      {image ? (
+        <TransformedImage
+          src={image.url}
+          transform={{ width: 960, quality: 75 }}
+          alt={image.alt ?? ""}
+          loading="lazy"
+          decoding="async"
+          className="max-h-96 w-full border border-muted/40 bg-muted/20 object-cover"
+        />
+      ) : embed ? (
+        <MediaEmbedView embed={embed.embed} href={embed.href} className="my-0" />
+      ) : null}
+      {more ? (
+        <MicroLabel as="span" className="self-start uppercase">
+          <Link
+            to="/forum/$postId"
+            params={forumPostLinkParams(post)}
+            className="hover:text-foreground"
+          >
+            {more}
+          </Link>
+        </MicroLabel>
       ) : null}
       <ActionRow post={post} trailing={<TagBadges tags={post.tags} />} />
     </>
@@ -333,7 +356,8 @@ export function ForumPostCard({
   // target, and a drag-to-select over the body doesn't count as a click.
   function openPost(event: React.MouseEvent<HTMLElement>) {
     if (event.defaultPrevented || event.button !== 0) return;
-    if ((event.target as HTMLElement).closest("a, button, input, textarea, [role=button]")) return;
+    if ((event.target as HTMLElement).closest("a, button, input, textarea, video, [role=button]"))
+      return;
     if (window.getSelection()?.toString()) return;
     if (event.metaKey || event.ctrlKey) {
       window.open(`/forum/${params.postId}`, "_blank", "noopener");

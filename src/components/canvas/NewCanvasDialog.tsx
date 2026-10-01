@@ -85,6 +85,7 @@ export function NewCanvasDialog({
           </label>
           <Input
             id={`${id}-name`}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             value={name}
             placeholder="Untitled"

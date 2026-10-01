@@ -3,11 +3,20 @@ import { generateKeyBetween } from "fractional-indexing";
 import * as Y from "yjs";
 
 import {
+  type Box,
+  type EdgeDrawing,
+  type EdgeEnd,
+  EdgeRouter,
+  nearestSides,
+  overlaps,
+  separateOverlaps,
+  sideAnchor,
+} from "@/lib/canvas/edge-route";
+import {
   canvasEdges,
   canvasNodes,
   ENTITY_KINDS,
   type EntityRef,
-  nearestSides,
   newCanvasId,
   orderedNodeIds,
   yNodeFrom,
@@ -99,7 +108,24 @@ function flowNode(
   };
 }
 
-export type CanvasFlowEdge = Edge<{ label?: string; color?: string }>;
+export type CanvasFlowEdge = Edge<{
+  label?: string;
+  color?: string;
+  /**
+   * Its route around cards, from the doc's geometry; absent, it draws the
+   * plain curve. While an end is mid-drag the edge routes from the screen.
+   */
+  drawing?: EdgeDrawing;
+}>;
+
+/** What routing may add to a rebuild; mid-drag that's once per doc write. */
+const ROUTE_REBUILD_MS = 4;
+/** The rest runs in slices this long, so a big canvas never blocks a frame. */
+const ROUTE_SLICE_MS = 8;
+/** What live routing for dragged cards' connections may take per frame. */
+const LIVE_ROUTE_MS = 6;
+/** What routing may take synchronously when a canvas opens, so routes paint with it. */
+const ROUTE_OPEN_MS = 40;
 
 function flowEdge(
   id: string,
@@ -136,7 +162,7 @@ function flowEdge(
     markerEnd: (str(edge.get("toEnd")) ?? "arrow") === "arrow" ? arrow : undefined,
     markerStart: str(edge.get("fromEnd")) === "arrow" ? arrow : undefined,
     style: { stroke, strokeWidth: EDGE_WIDTH, strokeLinecap: "round" },
-    data: { label: str(edge.get("label")), color },
+    data: { label: str(edge.get("label")), color, drawing: previous?.data?.drawing },
   };
 }
 
@@ -155,6 +181,13 @@ export class CanvasDocView {
   private frame: number | null = null;
   private listeners = new Set<() => void>();
   private observing = false;
+  private unrouted = new Set<string>();
+  private routeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Every edge's latest drawing, routed or not: where each line runs, for spotting cards moved into it. */
+  private drawings = new Map<string, EdgeDrawing>();
+  private router = new EdgeRouter([]);
+  private cards = new Map<string, CanvasCard>();
+  private liveFrame = { start: 0, spent: 0 };
 
   constructor(readonly doc: Y.Doc) {
     this.connect();
@@ -181,6 +214,8 @@ export class CanvasDocView {
     canvasEdges(this.doc).unobserveDeep(this.onEdges);
     if (this.frame != null) cancelAnimationFrame(this.frame);
     this.frame = null;
+    if (this.routeTimer != null) clearTimeout(this.routeTimer);
+    this.routeTimer = null;
   }
 
   subscribe = (listener: () => void) => {
@@ -256,10 +291,17 @@ export class CanvasDocView {
       rebuilt.add(id);
     });
     for (const id of previous.keys()) if (!nodesMap.has(id)) rebuilt.add(id);
+    const cards = new Map(nodes.map((n) => [n.id, n.data.card]));
+    // Where cards were and are now: any line through either may need a new route.
+    const moved: Box[] = [];
+    for (const id of this.all ? [] : rebuilt) {
+      for (const card of [previous.get(id)?.data.card, cards.get(id)]) {
+        if (card && card.type !== "group") moved.push(card);
+      }
+    }
 
     // An edge is redrawn only when it or a card at either end changed, so
     // moving one card doesn't hand React Flow a new object for every edge.
-    const cards = new Map(nodes.map((n) => [n.id, n.data.card]));
     const previousEdges = new Map(this.edges.map((e) => [e.id, e]));
     const edges: CanvasFlowEdge[] = [];
     canvasEdges(this.doc).forEach((edge, id) => {
@@ -272,19 +314,109 @@ export class CanvasDocView {
         !rebuilt.has(prior.source) &&
         !rebuilt.has(prior.target)
       ) {
+        const bounds = this.drawings.get(id)?.bounds;
+        if (bounds && moved.some((box) => overlaps(box, bounds))) this.unrouted.add(id);
         edges.push(prior);
         return;
       }
       const built = flowEdge(id, edge, cards, prior);
-      if (built) edges.push(built);
+      if (built) {
+        edges.push(built);
+        this.unrouted.add(id);
+      }
     });
+    if (this.drawings.size > edges.length) {
+      const live = new Set(edges.map((e) => e.id));
+      for (const id of this.drawings.keys()) if (!live.has(id)) this.drawings.delete(id);
+    }
+    const opening = this.all;
     this.dirty.clear();
     this.dirtyEdges.clear();
     this.all = false;
 
     this.nodes = nodes;
     this.edges = edges;
+    this.cards = cards;
+    this.router = new EdgeRouter(cards.values());
+    this.route(opening ? ROUTE_OPEN_MS : ROUTE_REBUILD_MS, false);
     this.emit();
+  }
+
+  private scheduleRoutes() {
+    if (this.routeTimer != null || this.unrouted.size === 0 || !this.observing) return;
+    this.routeTimer = setTimeout(() => {
+      this.routeTimer = null;
+      this.route(ROUTE_SLICE_MS, true);
+    }, 0);
+  }
+
+  /**
+   * A connection drawn where its cards are on screen rather than in the
+   * doc: React Flow moves a dragged card every frame but the doc only on
+   * each write. Over the frame's budget it keeps the plain curve.
+   */
+  liveDrawing = (
+    source: string,
+    target: string,
+    start: EdgeEnd,
+    end: EdgeEnd,
+  ): EdgeDrawing | null => {
+    const from = this.cards.get(source);
+    const to = this.cards.get(target);
+    if (!from || !to) return null;
+    const now = performance.now();
+    if (now - this.liveFrame.start > 16) this.liveFrame = { start: now, spent: 0 };
+    if (this.liveFrame.spent > LIVE_ROUTE_MS) return null;
+    const at = (card: CanvasCard, live: EdgeEnd) => {
+      const anchor = sideAnchor(card, live.side);
+      return { ...card, x: card.x + live.x - anchor.x, y: card.y + live.y - anchor.y };
+    };
+    const drawing = this.router.draw(at(from, start), at(to, end), start.side, end.side);
+    this.liveFrame.spent += performance.now() - now;
+    return drawing;
+  };
+
+  /**
+   * Draws the edges waiting for a route, for up to `budget` ms; the rest
+   * wait for the next slice. An edge gets a new object only when it gains,
+   * loses or changes a route, so routing a canvas of plain curves re-renders nothing.
+   */
+  private route(budget: number, emit: boolean) {
+    const deadline = performance.now() + budget;
+    const { router, cards } = this;
+    const byId = new Map(this.edges.map((e) => [e.id, e]));
+    let changed = false;
+    for (const id of this.unrouted) {
+      if (performance.now() > deadline) break;
+      this.unrouted.delete(id);
+      const edge = byId.get(id);
+      const from = edge && cards.get(edge.source);
+      const to = edge && cards.get(edge.target);
+      if (!edge || !from || !to) continue;
+      const drawing = router.draw(from, to, edge.sourceHandle, edge.targetHandle);
+      const before = this.drawings.get(id);
+      this.drawings.set(id, drawing);
+      if ((drawing.routed || before?.routed) && drawing.d !== before?.d) changed = true;
+    }
+    if (changed && this.showRoutes() && emit) this.emit();
+    this.scheduleRoutes();
+  }
+
+  /** Hands each edge its route, with shared stretches spread apart; true if any changed. */
+  private showRoutes(): boolean {
+    const routed = [...this.drawings].filter(([, drawing]) => drawing.routed);
+    const separated = separateOverlaps(routed);
+    let edges = this.edges;
+    this.edges.forEach((edge, i) => {
+      const own = this.drawings.get(edge.id);
+      const drawing = separated.get(edge.id) ?? (own?.routed ? own : undefined);
+      if (drawing?.d === edge.data?.drawing?.d) return;
+      if (edges === this.edges) edges = [...edges];
+      edges[i] = { ...edge, data: { ...edge.data, drawing } };
+    });
+    if (edges === this.edges) return false;
+    this.edges = edges;
+    return true;
   }
 }
 

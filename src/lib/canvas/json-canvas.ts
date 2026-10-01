@@ -30,30 +30,6 @@ const JSON_CANVAS_NODE_TYPES = ["text", "file", "link", "group"] as const;
 const CANVAS_SIDES = ["top", "right", "bottom", "left"] as const;
 export type CanvasSide = (typeof CANVAS_SIDES)[number];
 
-export function isCanvasSide(value: unknown): value is CanvasSide {
-  return (CANVAS_SIDES as readonly unknown[]).includes(value);
-}
-
-/**
- * The sides an edge leaves and enters by when the file doesn't say: the
- * pair facing each other along the longer axis between the card centres.
- * The editor and the read-only view both draw with this.
- */
-export function nearestSides(
-  from: { x: number; y: number; w: number; h: number },
-  to: { x: number; y: number; w: number; h: number },
-): [CanvasSide, CanvasSide] {
-  const dx = to.x + to.w / 2 - (from.x + from.w / 2);
-  const dy = to.y + to.h / 2 - (from.y + from.h / 2);
-  return Math.abs(dx) > Math.abs(dy)
-    ? dx > 0
-      ? ["right", "left"]
-      : ["left", "right"]
-    : dy > 0
-      ? ["bottom", "top"]
-      : ["top", "bottom"];
-}
-
 const CANVAS_ENDS = ["none", "arrow"] as const;
 type CanvasEnd = (typeof CANVAS_ENDS)[number];
 

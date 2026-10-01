@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 // @vitest-environment jsdom
 import * as Y from "yjs";
 
-import { applyJsonCanvas, canvasEdges, canvasNodes } from "@/lib/canvas/json-canvas";
+import {
+  applyJsonCanvas,
+  canvasEdges,
+  canvasNodes,
+  docToJsonCanvas,
+} from "@/lib/canvas/json-canvas";
 
 import {
   addCard,
@@ -87,6 +92,80 @@ describe("CanvasDocView", () => {
     const view = new CanvasDocView(doc);
     expect(view.edges[0]).toMatchObject({ sourceHandle: "right", targetHandle: "left" });
     expect(canvasEdges(doc).get("e")!.has("fromSide")).toBe(false);
+  });
+});
+
+describe("CanvasDocView routing", () => {
+  const blocked = () =>
+    docWith(
+      [card("a", 0), card("b", 600), { ...card("c", 300), y: -50, height: 150 }],
+      [{ id: "e", fromNode: "a", toNode: "b" }],
+    );
+
+  beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+  afterEach(() => vi.useRealTimers());
+
+  it("routes around a card in the way as the canvas opens", () => {
+    const view = new CanvasDocView(blocked());
+    expect(view.edges[0]!.data!.drawing!.routed).toBe(true);
+  });
+
+  it("re-routes on each write, including lines that don't touch the card that moved", () => {
+    const doc = blocked();
+    const view = new CanvasDocView(doc);
+    setCardFields(doc, new Map([["c", { y: 400 }]]));
+    flushFrame();
+    expect(view.edges[0]!.data!.drawing).toBeUndefined();
+
+    setCardFields(doc, new Map([["c", { y: -50 }]]));
+    flushFrame();
+    expect(view.edges[0]!.data!.drawing!.routed).toBe(true);
+  });
+
+  it("routes a dragged card's connections from where it is on screen", () => {
+    const view = new CanvasDocView(blocked());
+    // `a` dragged 300 down, ahead of the doc: the blocker is no longer between.
+    const live = view.liveDrawing(
+      "a",
+      "b",
+      { x: 100, y: 325, side: "right" },
+      { x: 600, y: 25, side: "left" },
+    );
+    expect(live).toMatchObject({ routed: false, start: { x: 100, y: 325 } });
+    // Back level with `b`, where its own stale copy in the index can't block it.
+    const level = view.liveDrawing(
+      "a",
+      "b",
+      { x: 120, y: 25, side: "right" },
+      { x: 600, y: 25, side: "left" },
+    );
+    expect(level).toMatchObject({ routed: true, start: { x: 120, y: 25 } });
+  });
+
+  it("leaves plain curves' edge objects alone", () => {
+    const doc = docWith([card("a", 0), card("b", 600)], [{ id: "e", fromNode: "a", toNode: "b" }]);
+    const view = new CanvasDocView(doc);
+    const before = view.edges[0];
+    expect(before!.data!.drawing).toBeUndefined();
+    setCardFields(doc, new Map([["b", { y: 10 }]]));
+    flushFrame();
+    vi.runAllTimers();
+    expect(view.edges[0]!.data!.drawing).toBeUndefined();
+  });
+
+  it("never writes a route to the doc", () => {
+    const doc = blocked();
+    const before = JSON.stringify(docToJsonCanvas(doc));
+    const view = new CanvasDocView(doc);
+    setCardFields(doc, new Map([["a", { x: 10 }]]));
+    flushFrame();
+    vi.runAllTimers();
+    setCardFields(doc, new Map([["a", { x: 0 }]]));
+    flushFrame();
+    vi.runAllTimers();
+    expect(view.edges[0]!.data!.drawing!.routed).toBe(true);
+    expect(JSON.stringify(docToJsonCanvas(doc))).toBe(before);
+    expect(canvasEdges(doc).get("e")!.toJSON()).toEqual({ from: "a", to: "b" });
   });
 });
 

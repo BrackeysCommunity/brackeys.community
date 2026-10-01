@@ -79,6 +79,7 @@ function ReportDialog({
           {message && <AlertDialogDescription>{message}</AlertDialogDescription>}
         </AlertDialogHeader>
         <Textarea
+          // oxlint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           value={reason}
           onChange={(e) => setReason(e.target.value)}

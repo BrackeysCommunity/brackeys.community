@@ -18,7 +18,9 @@ import {
   createForumPost,
   getForumPost,
   listMyForumDrafts,
+  listForumPosts,
   markForumSolution,
+  searchForumPeople,
   searchForumPosts,
   setForumReaction,
   updateForumPost,
@@ -284,6 +286,72 @@ describe("search", () => {
 
     const partial = await call(searchForumPosts, { query: "Godo" }, asUser(null));
     expect(partial.posts.map((p) => p.id)).toEqual([inTitle.id]);
+  });
+});
+
+describe("search by person or team", () => {
+  async function crewDevlog() {
+    const [team] = await db
+      .insert(teams)
+      .values({ slug: "lava-crew", name: "Lava Crew", createdBy: "alice" })
+      .returning({ id: teams.id });
+    await db.insert(teamMembers).values([
+      { teamId: team!.id, userId: "alice", role: "owner" },
+      { teamId: team!.id, userId: "bob", role: "member" },
+    ]);
+    const post = await call(
+      createForumPost,
+      {
+        kind: "devlog",
+        title: "Shader day",
+        body: "water shaders",
+        teamId: team!.id,
+        coAuthorIds: ["bob"],
+      },
+      asUser("alice"),
+    );
+    return { teamId: team!.id, postId: post.id };
+  }
+
+  it("narrows text search to an author, counting co-author bylines", async () => {
+    const { postId } = await crewDevlog();
+    const carols = await call(
+      createForumPost,
+      { kind: "post", body: "my shader broke" },
+      asUser("carol"),
+    );
+
+    const byBob = await call(searchForumPosts, { query: "shader", authorId: "bob" }, asUser(null));
+    expect(byBob.posts.map((p) => p.id)).toEqual([postId]);
+    const byCarol = await call(
+      searchForumPosts,
+      { query: "shader", authorId: "carol" },
+      asUser(null),
+    );
+    expect(byCarol.posts.map((p) => p.id)).toEqual([carols.id]);
+
+    const feed = await call(listForumPosts, { authorId: "bob" }, asUser(null));
+    expect(feed.posts.map((p) => p.id)).toEqual([postId]);
+  });
+
+  it("narrows text search to a team", async () => {
+    const { teamId, postId } = await crewDevlog();
+    await call(createForumPost, { kind: "post", body: "shader question" }, asUser("carol"));
+    const hits = await call(searchForumPosts, { query: "shader", teamId }, asUser(null));
+    expect(hits.posts.map((p) => p.id)).toEqual([postId]);
+  });
+
+  it("offers members and teams by name, only those with posts", async () => {
+    const { teamId } = await crewDevlog();
+    const people = await call(searchForumPeople, { query: "@alic" }, asUser(null));
+    expect(people.members.map((m) => m.id)).toEqual(["alice"]);
+
+    // dave has a profile but nothing posted.
+    const nobody = await call(searchForumPeople, { query: "dave" }, asUser(null));
+    expect(nobody.members).toEqual([]);
+
+    const crews = await call(searchForumPeople, { query: "lava" }, asUser(null));
+    expect(crews.teams.map((t) => t.id)).toEqual([teamId]);
   });
 });
 

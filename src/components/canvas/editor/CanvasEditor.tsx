@@ -795,6 +795,7 @@ function EditorInner({
       editingId,
       setEditingId,
       labelLayer,
+      liveDrawing: view.liveDrawing,
       labelEditId,
       setLabelEditId,
       onResizeStart: () => {
@@ -824,7 +825,7 @@ function EditorInner({
         else setCardFields(doc, new Map([[id, { label: label || undefined }]]));
       },
     }),
-    [attachments, detail, doc, editingId, labelEditId, labelLayer],
+    [attachments, detail, doc, editingId, labelEditId, labelLayer, view],
   );
 
   const commands = useCanvasCommands({

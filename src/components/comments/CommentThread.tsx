@@ -516,6 +516,7 @@ function Composer({
         placeholder={placeholder}
         rows={parent ? 2 : 3}
         maxLength={maxLength}
+        // oxlint-disable-next-line jsx-a11y/no-autofocus
         autoFocus={autoFocus}
       />
       <div className="flex items-center justify-between gap-2">
@@ -981,6 +982,7 @@ function CommentItem({
             }}
             rows={3}
             maxLength={maxLength}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
           />
           <div className="flex items-center justify-end gap-2">
@@ -1090,6 +1092,7 @@ function CommentItem({
           maxLength={maxLength}
           placeholder={`Reply to ${authorName}…`}
           parent={comment}
+          // oxlint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           onPosted={onChange}
           onCancel={() => setReplying(false)}

@@ -6,9 +6,11 @@ import { useCensorNodes } from "@/components/ui/typography/censored";
 import { withDiscordTokens } from "@/components/ui/typography/channels";
 import { JUMBO_EMOJI_CLASS, isEmojiOnly, withEmojis } from "@/components/ui/typography/emoji";
 import { InlineCode } from "@/components/ui/typography/inline-code";
+import { MediaEmbedView } from "@/components/ui/typography/media-embed";
 import { withMentionLinks } from "@/components/ui/typography/mentions";
 import { parseWikilink, type Wikilink } from "@/lib/canvas/wikilinks";
 import { useCensorFn } from "@/lib/hooks/use-censored";
+import { mediaEmbedFor } from "@/lib/media-embeds";
 import { cn } from "@/lib/utils";
 
 type MarkedTextElement = "p" | "span" | "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
@@ -23,6 +25,9 @@ type MarkedTextProps = Omit<ComponentProps<"div">, "ref" | "children"> & {
   censor?: boolean;
   /** Link `@handle` mentions to their profiles — the forum's bodies. */
   mentions?: boolean;
+  /** Show a link that sits alone on its line as the video, clip or image
+   * it points at (see `mediaEmbedFor`). */
+  embeds?: boolean;
   /** Parse Obsidian `[[wikilinks]]` and render each through this. Code
    * spans and blocks keep them as written. */
   wikilink?: (link: Wikilink) => ReactNode;
@@ -54,7 +59,65 @@ type Censor = {
   /** Prose text leaves only — never code or a link's own text. */
   prose: (text: string) => ReactNode;
   wikilink?: (link: Wikilink) => ReactNode;
+  embeds?: boolean;
 };
+
+/** A line that is nothing but one bare URL, as an embed. A link with its
+ * own text (`[the trailer](…)`) stays a link: the author chose words. */
+function lineEmbed(line: AnyToken[]): ReactNode {
+  const parts = line.filter((t) => !(t.type === "text" && !t.raw.trim()));
+  const link = parts.length === 1 ? (parts[0] as Tokens.Link) : null;
+  if (!link || link.type !== "link" || link.raw.startsWith("[")) return null;
+  const embed = mediaEmbedFor(link.href);
+  return embed ? <MediaEmbedView embed={embed} href={link.href} /> : null;
+}
+
+/** A paragraph's inline tokens, split at its line breaks. */
+function splitLines(tokens: AnyToken[]): AnyToken[][] {
+  const lines: AnyToken[][] = [[]];
+  for (const t of tokens) {
+    if (t.type === "br") {
+      lines.push([]);
+    } else if (t.type === "text" && !t.tokens && t.text.includes("\n")) {
+      t.text.split("\n").forEach((piece: string, i: number) => {
+        if (i > 0) lines.push([]);
+        if (piece) lines.at(-1)!.push({ type: "text", raw: piece, text: piece });
+      });
+    } else {
+      lines.at(-1)!.push(t);
+    }
+  }
+  return lines;
+}
+
+/**
+ * A paragraph with its bare-URL lines lifted out as embeds, so a caption
+ * written directly above a link still gets its player. Null when no line
+ * embeds, leaving the paragraph to render as written.
+ */
+function paragraphWithEmbeds(paragraph: AnyToken, censor: Censor): ReactNode {
+  const lines = splitLines((paragraph.tokens as AnyToken[] | undefined) ?? []);
+  const embeds = lines.map(lineEmbed);
+  if (!embeds.some(Boolean)) return null;
+
+  const out: ReactNode[] = [];
+  let prose: AnyToken[] = [];
+  const flush = () => {
+    if (prose.length > 0) out.push(<p key={out.length}>{renderTokens(prose, censor)}</p>);
+    prose = [];
+  };
+  lines.forEach((line, i) => {
+    if (embeds[i]) {
+      flush();
+      out.push(<Fragment key={out.length}>{embeds[i]}</Fragment>);
+    } else {
+      if (prose.length > 0) prose.push({ type: "text", raw: "\n", text: "\n" });
+      prose.push(...line);
+    }
+  });
+  flush();
+  return out;
+}
 
 function decodeEntities(s: string): string {
   return s
@@ -86,7 +149,11 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
     case "space":
       return null;
     case "paragraph":
-      return <p>{renderTokens(t.tokens as AnyToken[], censor)}</p>;
+      return (
+        (censor.embeds && paragraphWithEmbeds(t, censor)) || (
+          <p>{renderTokens(t.tokens as AnyToken[], censor)}</p>
+        )
+      );
     case "heading": {
       const depth = Math.min(6, Math.max(1, (t as Tokens.Heading).depth)) as 1 | 2 | 3 | 4 | 5 | 6;
       const Tag = `h${depth}` as const;
@@ -164,6 +231,8 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
     }
     case "image": {
       const image = t as Tokens.Image;
+      const media = censor.embeds ? mediaEmbedFor(image.href) : null;
+      if (media?.kind === "video") return <MediaEmbedView embed={media} href={image.href} />;
       // Alt text is the author's own words, so it goes through the censor
       // like any other leaf. The `src` never does — mangling a URL breaks
       // the image instead of cleaning it.
@@ -197,6 +266,7 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
       inline,
       censor = true,
       mentions = false,
+      embeds = false,
       wikilink,
       className,
       ...props
@@ -214,8 +284,9 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
         ...base,
         prose: (text) => withEmojis(text, (part) => withDiscordTokens(part, rest)),
         wikilink,
+        embeds: embeds && !inline,
       };
-    }, [censor, mentions, nodes, plain, wikilink]);
+    }, [censor, mentions, embeds, inline, nodes, plain, wikilink]);
 
     const rendered = useMemo(() => {
       const lexer = apply.wikilink ? wikiMarked : marked;

@@ -47,6 +47,7 @@ function LinkField({ onAdd }: { onAdd: (url: string) => void }) {
       }}
     >
       <Input
+        // oxlint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
         type="url"
         placeholder="https://"

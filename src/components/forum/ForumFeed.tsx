@@ -1,7 +1,7 @@
 import { ArrowUp02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -17,15 +17,22 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
+import type { ForumPostKind } from "@/db/schema";
+import { formatCount } from "@/lib/format-count";
 import { useInfiniteScrollSentinel } from "@/lib/hooks/use-infinite-scroll-sentinel";
+import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { useSearchPerformed } from "@/lib/hooks/use-search-performed";
 
 import {
   type ForumFeedFilters,
+  type ForumSearchFilters,
   type ForumSort,
   type ForumWindow,
   forumFeedQueryOptions,
+  forumFilterLabelsQueryOptions,
+  forumPeopleQueryOptions,
   forumSearchQueryOptions,
 } from "./forum-queries";
 import type { ForumFeedSearch } from "./forum-search";
@@ -147,19 +154,20 @@ export function FeedControls({
   );
 }
 
-/** The narrowing a rail link or tag chip put on the feed, each removable. */
-export function ActiveFilterChips({
-  search,
-  teamName,
-}: {
-  search: ForumFeedSearch;
-  teamName?: string | null;
-}) {
+/** The narrowing a rail link, tag chip or search match put on the feed, each removable. */
+export function ActiveFilterChips({ search }: { search: ForumFeedSearch }) {
   const update = useFeedSearchUpdate();
+  const { name } = useMemberIdentity();
+  const { data: labels } = useQuery(forumFilterLabelsQueryOptions(search.author, search.team));
   const chips = [
     search.tag ? { label: `#${search.tag}`, clear: { tag: undefined } } : null,
-    search.team ? { label: teamName ?? "One team", clear: { team: undefined } } : null,
-    search.author ? { label: "One member", clear: { author: undefined } } : null,
+    search.team ? { label: labels?.team?.name ?? "One team", clear: { team: undefined } } : null,
+    search.author
+      ? {
+          label: labels?.author ? `By ${name(labels.author, "one member")}` : "One member",
+          clear: { author: undefined },
+        }
+      : null,
   ].filter((chip) => chip !== null);
   if (chips.length === 0) return null;
 
@@ -186,6 +194,60 @@ export function ActiveFilterChips({
           <HugeiconsIcon icon={Cancel01Icon} />
         </Badge>
       ))}
+    </div>
+  );
+}
+
+const MATCH_PILL =
+  "flex items-center gap-2 rounded-full border border-muted/40 py-1 pr-3 pl-1 text-sm transition-colors hover:bg-muted/15";
+
+/**
+ * Members and teams whose name matches the search, each opening the feed
+ * narrowed to their posts — how a name typed into the box finds the person.
+ */
+export function ForumPeopleMatches({ query, kind }: { query: string; kind?: ForumPostKind }) {
+  const { data } = useQuery(forumPeopleQueryOptions(query));
+  const { name } = useMemberIdentity();
+  if (!data || (data.members.length === 0 && data.teams.length === 0)) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <MicroLabel as="span" className="uppercase">
+        People & teams
+      </MicroLabel>
+      <div className="flex flex-wrap gap-2">
+        {data.members.map((member) => {
+          const memberName = name(member, "Member");
+          return (
+            <Link
+              key={member.id}
+              to="/forum"
+              search={{ author: member.id, kind }}
+              className={MATCH_PILL}
+            >
+              <UserAvatar
+                avatarUrl={member.avatarUrl}
+                guildAvatarUrl={member.guildAvatarUrl}
+                username={memberName}
+                size={22}
+              />
+              <span className="truncate">{memberName}</span>
+              <Text as="span" size="xs" variant="muted">
+                {formatCount(member.postCount)}
+              </Text>
+            </Link>
+          );
+        })}
+        {data.teams.map((team) => (
+          <Link key={team.id} to="/forum" search={{ team: team.id, kind }} className={MATCH_PILL}>
+            <UserAvatar avatarUrl={team.avatarUrl} username={team.name} size={22} />
+            <span className="truncate">{team.name}</span>
+            <Text as="span" size="xs" variant="muted">
+              {formatCount(team.postCount)}
+            </Text>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
@@ -310,12 +372,12 @@ function NewPostsPill({ count, onShow }: { count: number; onShow: () => void }) 
 /** `?q=` on the forum: matching posts, best match first. */
 export function ForumSearchResults({
   query,
-  kind,
+  filters,
 }: {
   query: string;
-  kind?: ForumFeedFilters["kind"];
+  filters: ForumSearchFilters;
 }) {
-  const results = useInfiniteQuery(forumSearchQueryOptions(query, kind));
+  const results = useInfiniteQuery(forumSearchQueryOptions(query, filters));
   const posts = useMemo(() => (results.data?.pages ?? []).flatMap((p) => p.posts), [results.data]);
   const sentinelRef = useInfiniteScrollSentinel({
     hasNextPage: Boolean(results.hasNextPage),
@@ -325,7 +387,9 @@ export function ForumSearchResults({
   useSearchPerformed({
     surface: "forum",
     query,
-    filterKinds: kind ? ["kind"] : [],
+    filterKinds: Object.entries(filters)
+      .filter(([, value]) => value)
+      .map(([key]) => key),
     resultCount: results.isSuccess ? posts.length : null,
   });
 

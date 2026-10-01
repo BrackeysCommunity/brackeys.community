@@ -129,6 +129,7 @@ function MoveDialog({ canvas, onClose }: { canvas: CanvasDetail; onClose: () => 
           </label>
           <Input
             id={`${id}-folder`}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             value={folder}
             placeholder="Like Jam 42/Art"

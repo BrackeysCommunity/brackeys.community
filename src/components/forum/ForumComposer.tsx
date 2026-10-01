@@ -70,8 +70,9 @@ import { useGuildGate } from "./guild-gate";
 const KINDS: ForumPostKind[] = ["post", "devlog", "question"];
 
 const BODY_PLACEHOLDER: Record<ForumPostKind, string> = {
-  post: "Share progress, a clip, a small win…",
-  devlog: "What did you build, break and learn? Markdown works.",
+  post: "Share progress, a clip, a small win… Paste a YouTube or video link on its own line to embed it.",
+  devlog:
+    "What did you build, break and learn? Markdown works — paste a YouTube, Twitch, Vimeo, Streamable or image link on its own line to embed it.",
   question: "What are you stuck on? Engine, version, what you've tried…",
 };
 
@@ -477,6 +478,7 @@ export function ForumComposerForm({ editing, defaultCategory, onDone, onCancel }
         rows={kind === "post" ? 3 : 8}
         markdown
         mentions
+        embeds
       />
 
       <div className="grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">

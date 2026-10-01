@@ -84,20 +84,34 @@ function sameView(current: ForumFeedSearch, view: ForumFeedSearch): boolean {
   );
 }
 
-/** Posts, devlogs and questions by what they say — `?q=` on `/forum`. */
+/**
+ * Posts, devlogs and questions by what they say — `?q=` on `/forum`. A
+ * search keeps the author, team, tag and kind the feed is already narrowed
+ * to, so "search within this person's posts" is the box on their feed.
+ */
 export function ForumSearchBox() {
   const navigate = useNavigate();
-  const current = useRouterState({
-    select: (s) => (s.location.search as ForumFeedSearch).q ?? "",
-  });
-  const [text, setText] = useState(current);
+  const current = useRouterState({ select: (s) => s.location.search as ForumFeedSearch });
+  const [text, setText] = useState(current.q ?? "");
+  const [shownQ, setShownQ] = useState(current.q);
+  if (shownQ !== current.q) {
+    setShownQ(current.q);
+    setText(current.q ?? "");
+  }
+  const scope = {
+    kind: current.kind,
+    tag: current.tag,
+    team: current.team,
+    author: current.author,
+  };
+  const scoped = Boolean(current.team || current.author);
   return (
     <form
       role="search"
       onSubmit={(e) => {
         e.preventDefault();
         const q = text.trim();
-        void navigate({ to: "/forum", search: q.length >= 2 ? { q } : {} });
+        void navigate({ to: "/forum", search: { ...scope, q: q.length >= 2 ? q : undefined } });
       }}
       className="relative"
     >
@@ -110,7 +124,7 @@ export function ForumSearchBox() {
         type="search"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Search the forum"
+        placeholder={scoped ? "Search these posts" : "Search posts, people, teams"}
         aria-label="Search the forum"
         maxLength={100}
         className="h-8 pl-8"
@@ -197,7 +211,7 @@ function ForumRail() {
   const visibleTeams = (teams ?? []).filter((team) => !team.hidden);
 
   return (
-    <aside className="hidden flex-col gap-6 lg:sticky lg:top-4 lg:flex lg:self-start">
+    <aside className="no-scrollbar hidden flex-col gap-6 lg:sticky lg:top-4 lg:flex lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-2">
       <ForumSearchBox />
       <RailGroup label="Feed">
         {FEED_VIEWS.map((view) => {
@@ -445,7 +459,7 @@ export function ForumShell({ children }: { children: React.ReactNode }) {
     <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 py-6 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_18rem]">
       <ForumRail />
       <main className="flex min-w-0 flex-col gap-4">{children}</main>
-      <aside className="hidden flex-col gap-5 xl:sticky xl:top-4 xl:flex xl:self-start">
+      <aside className="no-scrollbar hidden flex-col gap-5 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100dvh-2rem)] xl:self-start xl:overflow-y-auto xl:pb-2">
         <TrendingTags />
         <UnansweredQuestions />
         <RecentDevlogs />

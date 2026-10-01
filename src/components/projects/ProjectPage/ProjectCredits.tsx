@@ -357,6 +357,7 @@ function AddCreditForm({
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <MicroLabel>NAME</MicroLabel>
           <Input
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             value={displayName}
             placeholder="Who worked on this?"

@@ -416,6 +416,7 @@ function EditRow({
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={100}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             aria-invalid={clash != null}
           />

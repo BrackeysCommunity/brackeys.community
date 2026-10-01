@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import {
-  type CanvasSide,
-  isCanvasSide,
-  type JsonCanvas,
-  nearestSides,
-} from "@/lib/canvas/json-canvas";
+  curvedEdge,
+  type EdgeDrawing,
+  EdgeRouter,
+  separateOverlaps,
+} from "@/lib/canvas/edge-route";
+import type { JsonCanvas } from "@/lib/canvas/json-canvas";
 import { cn } from "@/lib/utils";
 
 import {
@@ -26,41 +27,6 @@ import {
 } from "./canvas-cards";
 import type { CanvasAttachmentMap } from "./canvas-queries";
 import { canvasOutline, cardAriaLabel, flattenOutline } from "./outline";
-
-const SIDE_POINT: Record<CanvasSide, (c: CanvasCard) => [number, number]> = {
-  top: (c) => [c.x + c.w / 2, c.y],
-  right: (c) => [c.x + c.w, c.y + c.h / 2],
-  bottom: (c) => [c.x + c.w / 2, c.y + c.h],
-  left: (c) => [c.x, c.y + c.h / 2],
-};
-
-const NORMAL: Record<CanvasSide, [number, number]> = {
-  top: [0, -1],
-  right: [1, 0],
-  bottom: [0, 1],
-  left: [-1, 0],
-};
-
-function anchor(
-  card: CanvasCard,
-  side: string | undefined,
-  fallback: CanvasSide,
-): [number, number, CanvasSide] {
-  const resolved = isCanvasSide(side) ? side : fallback;
-  const [x, y] = SIDE_POINT[resolved](card);
-  return [x, y, resolved];
-}
-
-/** A curve that leaves and arrives square to each card's side, as the editor draws it. */
-function edgePath(
-  [x1, y1, s1]: [number, number, CanvasSide],
-  [x2, y2, s2]: [number, number, CanvasSide],
-): string {
-  const reach = Math.max(40, Math.hypot(x2 - x1, y2 - y1) * 0.3);
-  const [ax, ay] = NORMAL[s1];
-  const [bx, by] = NORMAL[s2];
-  return `M${x1},${y1} C${x1 + ax * reach},${y1 + ay * reach} ${x2 + bx * reach},${y2 + by * reach} ${x2},${y2}`;
-}
 
 interface View {
   x: number;
@@ -83,6 +49,84 @@ function fitView(cards: CanvasCard[], width: number, height: number): View {
     x: width / 2 - ((minX + maxX) / 2) * zoom,
     y: height / 2 - ((minY + maxY) / 2) * zoom,
   };
+}
+
+/** Routing may hold up the first paint this long; the rest follows in slices. */
+const ROUTE_OPEN_MS = 40;
+const ROUTE_SLICE_MS = 8;
+
+interface RoutePlan {
+  router: EdgeRouter;
+  edges: { id: string; from: CanvasCard; to: CanvasCard; fromSide?: string; toSide?: string }[];
+  drawings: Map<string, EdgeDrawing>;
+  next: number;
+}
+
+/** Draws edges in order until the deadline; returns where it stopped. */
+function routeSome(plan: RoutePlan, into: Map<string, EdgeDrawing>, from: number, budget: number) {
+  const deadline = performance.now() + budget;
+  let i = from;
+  for (; i < plan.edges.length && performance.now() < deadline; i++) {
+    const edge = plan.edges[i]!;
+    into.set(edge.id, plan.router.draw(edge.from, edge.to, edge.fromSide, edge.toSide));
+  }
+  return i;
+}
+
+/**
+ * Every edge's drawing. Routing a big, crowded canvas can take a while, so
+ * edges not routed yet draw their plain curve until a later slice gets to them.
+ */
+function useEdgeDrawings(
+  cards: CanvasCard[],
+  byId: Map<string, CanvasCard>,
+  edges: JsonCanvas["edges"],
+): (edge: JsonCanvas["edges"][number]) => EdgeDrawing | null {
+  const plan = useMemo<RoutePlan>(() => {
+    const router = new EdgeRouter(cards);
+    const list: RoutePlan["edges"] = [];
+    for (const edge of edges) {
+      const from = byId.get(edge.fromNode);
+      const to = byId.get(edge.toNode);
+      if (from && to)
+        list.push({ id: edge.id, from, to, fromSide: edge.fromSide, toSide: edge.toSide });
+    }
+    const drawings = new Map<string, EdgeDrawing>();
+    const plan = { router, edges: list, drawings, next: 0 };
+    plan.next = routeSome(plan, drawings, 0, ROUTE_OPEN_MS);
+    return plan;
+  }, [cards, byId, edges]);
+
+  const [progress, setProgress] = useState({ plan, drawings: plan.drawings });
+  const drawings = progress.plan === plan ? progress.drawings : plan.drawings;
+
+  useEffect(() => {
+    if (plan.next >= plan.edges.length) return;
+    let next = plan.next;
+    let current = plan.drawings;
+    let timer: ReturnType<typeof setTimeout>;
+    const slice = () => {
+      current = new Map(current);
+      next = routeSome(plan, current, next, ROUTE_SLICE_MS);
+      setProgress({ plan, drawings: current });
+      if (next < plan.edges.length) timer = setTimeout(slice, 0);
+    };
+    timer = setTimeout(slice, 0);
+    return () => clearTimeout(timer);
+  }, [plan]);
+
+  const separated = useMemo(() => separateOverlaps(drawings), [drawings]);
+
+  return useCallback(
+    (edge) => {
+      const drawing = separated.get(edge.id) ?? drawings.get(edge.id);
+      if (drawing) return drawing;
+      const from = byId.get(edge.fromNode);
+      const to = byId.get(edge.toNode);
+      return from && to ? plan.router.curve(from, to, edge.fromSide, edge.toSide) : null;
+    },
+    [separated, drawings, byId, plan],
+  );
 }
 
 /** What the page's chrome can ask of a snapshot view. */
@@ -120,6 +164,7 @@ export function CanvasSnapshotView({
 }) {
   const cards = useMemo(() => snapshotCards(snapshot), [snapshot]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
+  const drawingOf = useEdgeDrawings(cards, byId, snapshot.edges);
   const host = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>(() => fitView(cards, 1200, 700));
   const drag = useRef<{ x: number; y: number } | null>(null);
@@ -246,19 +291,18 @@ export function CanvasSnapshotView({
               </marker>
             </defs>
             {snapshot.edges.map((edge) => {
-              const from = byId.get(edge.fromNode);
-              const to = byId.get(edge.toNode);
-              if (!from || !to) return null;
-              const [autoFrom, autoTo] = nearestSides(from, to);
-              const start = anchor(from, edge.fromSide, autoFrom);
-              const end = anchor(to, edge.toSide, autoTo);
-              const [x1, y1] = start;
-              const [x2, y2] = end;
+              const drawing = drawingOf(edge);
+              if (!drawing) return null;
+              // Too small to see a detour; the plain curve is what Obsidian draws.
+              const { d, label } =
+                drawing.routed && detail === "blocks"
+                  ? curvedEdge(drawing.start, drawing.end)
+                  : drawing;
               const stroke = cardColor(edge.color) ?? "var(--muted-foreground)";
               return (
                 <g key={edge.id}>
                   <path
-                    d={edgePath(start, end)}
+                    d={d}
                     fill="none"
                     stroke={stroke}
                     strokeWidth={EDGE_WIDTH}
@@ -270,8 +314,8 @@ export function CanvasSnapshotView({
                   />
                   {edge.label && (detail === "mid" || detail === "near") ? (
                     <text
-                      x={(x1 + x2) / 2}
-                      y={(y1 + y2) / 2 - 6}
+                      x={label[0]}
+                      y={label[1] - 6}
                       textAnchor="middle"
                       className="fill-foreground text-xs"
                     >

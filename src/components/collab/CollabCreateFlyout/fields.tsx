@@ -362,6 +362,8 @@ interface TextAreaFieldProps extends TextFieldProps {
   markdown?: boolean;
   /** With `markdown`, also offer `@handle` completions. */
   mentions?: boolean;
+  /** With `markdown`, preview lone media links as embeds, as the post will. */
+  embeds?: boolean;
 }
 
 export function TextAreaField({
@@ -376,6 +378,7 @@ export function TextAreaField({
   error,
   markdown = false,
   mentions = false,
+  embeds = false,
 }: TextAreaFieldProps) {
   const [preview, setPreview] = useState(false);
   const shared = { value, onBlur, placeholder, maxLength, rows, className: "min-h-32 resize-none" };
@@ -411,7 +414,9 @@ export function TextAreaField({
       {markdown && preview ? (
         <Well className="min-h-32 p-3">
           {value.trim() ? (
-            <MarkedText censor={false}>{value}</MarkedText>
+            <MarkedText censor={false} embeds={embeds}>
+              {value}
+            </MarkedText>
           ) : (
             <Text size="sm" variant="muted" className="italic">
               Nothing to preview yet.

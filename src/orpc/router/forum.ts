@@ -89,6 +89,7 @@ import {
 } from "@/lib/profile-project-image-storage";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { notifyReporters, resolveReportsForSubject } from "@/lib/report-resolution";
+import { fuzzyMatch, fuzzyRank } from "@/lib/sql-fuzzy";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import { isForumPostImageKey } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
@@ -162,6 +163,28 @@ function followedBy(viewerId: string): SQL {
         ))
       )
   )`;
+}
+
+/** Posts by this member, as author or as a co-author byline. */
+function authoredBy(userId: string): SQL {
+  return or(
+    eq(forumPosts.authorId, userId),
+    sql`EXISTS (
+      SELECT 1 FROM ${forumPostAuthors} pa
+      WHERE pa.post_id = ${forumPosts.id} AND pa.user_id = ${userId}
+    )`,
+  )!;
+}
+
+function taggedWith(slug: string): SQL {
+  return inArray(
+    forumPosts.id,
+    db
+      .select({ id: forumPostTags.postId })
+      .from(forumPostTags)
+      .innerJoin(forumTags, eq(forumPostTags.tagId, forumTags.id))
+      .where(eq(forumTags.slug, slug)),
+  );
 }
 
 /** The For you score; see `FORUM_HOT`. */
@@ -394,20 +417,9 @@ export const listForumPosts = os
     if (input.kind) where.push(eq(forumPosts.kind, input.kind));
     if (input.category) where.push(eq(forumCategories.slug, input.category));
     if (input.teamId) where.push(eq(forumPosts.teamId, input.teamId));
-    if (input.authorId) where.push(eq(forumPosts.authorId, input.authorId));
+    if (input.authorId) where.push(authoredBy(input.authorId));
     if (input.unsolved) where.push(isNull(forumPosts.solvedCommentId));
-    if (input.tag) {
-      where.push(
-        inArray(
-          forumPosts.id,
-          db
-            .select({ id: forumPostTags.postId })
-            .from(forumPostTags)
-            .innerJoin(forumTags, eq(forumPostTags.tagId, forumTags.id))
-            .where(eq(forumTags.slug, input.tag)),
-        ),
-      );
-    }
+    if (input.tag) where.push(taggedWith(input.tag));
 
     // Pins only frame the two browsing views, never a tag, team or author list.
     const pinScope =
@@ -792,13 +804,19 @@ export function forumTextSearch(query: string): { match: SQL; rank: SQL<number> 
   };
 }
 
-/** Full-text search over titles and bodies, best match first. */
+/**
+ * Full-text search over titles and bodies, best match first, narrowed by
+ * the same author, team and tag filters as the feed.
+ */
 export const searchForumPosts = os
   .use(forumRead)
   .input(
     z.object({
       query: z.string().trim().min(2).max(100),
       kind: kindSchema.optional(),
+      tag: z.string().max(32).optional(),
+      teamId: z.string().max(64).optional(),
+      authorId: z.string().max(64).optional(),
       cursor: z.string().max(10).optional(),
       limit: z.number().int().min(1).max(FEED_PAGE_MAX).default(20),
     }),
@@ -813,6 +831,9 @@ export const searchForumPosts = os
     const where = listableWhere(viewerId);
     where.push(search.match);
     if (input.kind) where.push(eq(forumPosts.kind, input.kind));
+    if (input.teamId) where.push(eq(forumPosts.teamId, input.teamId));
+    if (input.authorId) where.push(authoredBy(input.authorId));
+    if (input.tag) where.push(taggedWith(input.tag));
 
     let rows = await cardQuery()
       .where(and(...where))
@@ -825,6 +846,114 @@ export const searchForumPosts = os
       nextCursor = String(offset + input.limit);
     }
     return { posts: await serializeCards(rows, viewerId), nextCursor };
+  });
+
+const PEOPLE_MATCH_LIMIT = 4;
+
+/**
+ * Members and teams whose name matches a forum search, so a name typed into
+ * the box can become an author or team filter. Only those with a post the
+ * viewer could see are offered — a match with nothing to show is a dead end.
+ */
+export const searchForumPeople = os
+  .use(forumRead)
+  .input(z.object({ query: z.string().trim().min(2).max(100) }))
+  .handler(async ({ input, context }) => {
+    const viewerId = context.user?.id ?? null;
+    const handle = input.query.replace(/^@/, "");
+    const postCount = count(forumPosts.id);
+
+    const memberRank = fuzzyRank(
+      [
+        developerProfiles.guildNickname,
+        developerProfiles.discordUsername,
+        developerProfiles.discordHandle,
+      ],
+      handle,
+      { fold: true },
+    );
+    const stubRank = fuzzyRank([profileUrlStubs.stub], handle, { fold: true });
+    const members = db
+      .select({ id: developerProfiles.id, ...profileIdentityColumns, postCount })
+      .from(forumPosts)
+      .innerJoin(user, eq(forumPosts.authorId, user.id))
+      .innerJoin(developerProfiles, eq(developerProfiles.id, user.id))
+      .leftJoin(profileUrlStubs, profileStubJoin)
+      .leftJoin(teams, eq(forumPosts.teamId, teams.id))
+      .where(
+        and(
+          ...listableWhere(viewerId),
+          or(
+            fuzzyMatch(developerProfiles.guildNickname, handle, { fold: true }),
+            fuzzyMatch(developerProfiles.discordUsername, handle, { fold: true }),
+            fuzzyMatch(developerProfiles.discordHandle, handle, { fold: true }),
+            fuzzyMatch(profileUrlStubs.stub, handle, { fold: true }),
+          ),
+        ),
+      )
+      .groupBy(developerProfiles.id, profileUrlStubs.stub)
+      .orderBy(desc(sql`greatest(${memberRank}, coalesce(${stubRank}, 0))`), desc(postCount))
+      .limit(PEOPLE_MATCH_LIMIT);
+
+    const teamRows = db
+      .select({
+        id: teams.id,
+        slug: teams.slug,
+        name: teams.name,
+        avatarUrl: teams.avatarUrl,
+        avatarKey: teams.avatarKey,
+        postCount,
+      })
+      .from(forumPosts)
+      .innerJoin(teams, eq(forumPosts.teamId, teams.id))
+      .leftJoin(user, eq(forumPosts.authorId, user.id))
+      .where(and(...listableWhere(viewerId), fuzzyMatch(teams.name, input.query, { fold: true })))
+      .groupBy(teams.id)
+      .orderBy(desc(fuzzyRank([teams.name], input.query, { fold: true })), desc(postCount))
+      .limit(PEOPLE_MATCH_LIMIT);
+
+    const [memberHits, teamHits] = await Promise.all([members, teamRows]);
+    return {
+      members: memberHits,
+      teams: await Promise.all(
+        teamHits.map(async ({ avatarKey, avatarUrl, ...team }) => ({
+          ...team,
+          avatarUrl: await resolveTeamAvatarUrl({ avatarKey, avatarUrl }),
+        })),
+      ),
+    };
+  });
+
+/** Names for the author and team a feed is filtered to, for its chips. */
+export const getForumFilterLabels = os
+  .use(forumRead)
+  .input(
+    z.object({
+      authorId: z.string().max(64).optional(),
+      teamId: z.string().max(64).optional(),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const [author, team] = await Promise.all([
+      input.authorId
+        ? db
+            .select({ id: developerProfiles.id, ...profileIdentityColumns })
+            .from(developerProfiles)
+            .leftJoin(profileUrlStubs, profileStubJoin)
+            .where(eq(developerProfiles.id, input.authorId))
+            .limit(1)
+            .then((rows) => rows[0] ?? null)
+        : null,
+      input.teamId
+        ? db
+            .select({ id: teams.id, slug: teams.slug, name: teams.name })
+            .from(teams)
+            .where(and(eq(teams.id, input.teamId), isNull(teams.hiddenAt)))
+            .limit(1)
+            .then((rows) => rows[0] ?? null)
+        : null,
+    ]);
+    return { author, team };
   });
 
 /**

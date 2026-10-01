@@ -556,7 +556,7 @@ export function ForumPostPage({ initialPost }: { initialPost: ForumPostDetail })
         <VisibilityNotice post={post} />
 
         {post.body ? (
-          <MarkedText mentions className="max-w-prose text-base text-foreground/90">
+          <MarkedText mentions embeds className="max-w-prose text-base text-foreground/90">
             {post.body}
           </MarkedText>
         ) : null}
@@ -617,7 +617,7 @@ export function ForumPostPage({ initialPost }: { initialPost: ForumPostDetail })
         />
       </main>
 
-      <aside className="flex flex-col gap-6 lg:sticky lg:top-4 lg:self-start">
+      <aside className="no-scrollbar flex flex-col gap-6 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-2">
         <PostSidebar post={post} />
         {post.series ? <SeriesPanel seriesId={post.series.id} currentPostId={post.id} /> : null}
       </aside>

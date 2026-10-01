@@ -64,6 +64,7 @@ export function EntityPicker({
     >
       <div className="flex flex-col gap-3 p-4">
         <Input
+          // oxlint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           placeholder="Search jams, teams, members, posts…"
           value={query}

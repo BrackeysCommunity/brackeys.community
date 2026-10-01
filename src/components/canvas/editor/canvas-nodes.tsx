@@ -1,7 +1,6 @@
 import {
   BaseEdge,
   type EdgeProps,
-  getBezierPath,
   Handle,
   NodeResizer,
   type NodeProps,
@@ -10,6 +9,8 @@ import {
 import { createContext, memo, use, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { curvedEdge, type EdgeDrawing, type EdgeEnd } from "@/lib/canvas/edge-route";
+import type { CanvasSide } from "@/lib/canvas/json-canvas";
 import { cn } from "@/lib/utils";
 
 import {
@@ -48,6 +49,8 @@ export interface CanvasEditorContextValue {
    * zoomed-out canvas has a thousand edges on screen.
    */
   labelLayer: HTMLElement | null;
+  /** A connection routed from where its cards are on screen, for ends mid-drag. */
+  liveDrawing: (source: string, target: string, start: EdgeEnd, end: EdgeEnd) => EdgeDrawing | null;
 }
 
 export const CanvasEditorContext = createContext<CanvasEditorContextValue | null>(null);
@@ -64,6 +67,9 @@ const HANDLES = [
   ["bottom", Position.Bottom],
   ["left", Position.Left],
 ] as const;
+
+/** Handles are 12px (`size-3`) and centred on the border, so React Flow's edge ends sit this far out. */
+const HANDLE_OVERHANG = 6;
 
 /** One handle per side, each both a source and a target, named as JSON Canvas names sides. */
 function SideHandles({ visible }: { visible: boolean }) {
@@ -161,6 +167,7 @@ function InlineLabel({
   const [draft, setDraft] = useState(value);
   return (
     <input
+      // oxlint-disable-next-line jsx-a11y/no-autofocus
       autoFocus
       value={draft}
       placeholder={placeholder}
@@ -220,9 +227,23 @@ const GroupNode = memo(function GroupNode({ id, data, selected }: NodeProps<Canv
 });
 
 const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEdge>) {
-  const { readOnly, onLabelChange, labelLayer, labelEditId, setLabelEditId } = useEditor();
+  const { detail, readOnly, onLabelChange, labelLayer, labelEditId, setLabelEditId, liveDrawing } =
+    useEditor();
   const editing = labelEditId === props.id;
-  const [path, labelX, labelY] = getBezierPath(props);
+  const start = cardEnd(props.sourceX, props.sourceY, props.sourcePosition);
+  const end = cardEnd(props.targetX, props.targetY, props.targetPosition);
+  // A route holds while both ends sit where the doc says; a card mid-drag
+  // is ahead of the doc, so its routed connections route from the screen.
+  const drawing = props.data?.drawing;
+  const {
+    d: path,
+    label: [labelX, labelY],
+  } =
+    !drawing || detail === "blocks"
+      ? curvedEdge(start, end)
+      : sameEnd(drawing.anchors[0], start) && sameEnd(drawing.anchors[1], end)
+        ? drawing
+        : (liveDrawing(props.source, props.target, start, end) ?? curvedEdge(start, end));
   const label = props.data?.label;
 
   return (
@@ -271,6 +292,24 @@ const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEdge>) {
     </>
   );
 });
+
+const OUTWARD: Record<CanvasSide, [number, number]> = {
+  top: [0, -1],
+  right: [1, 0],
+  bottom: [0, 1],
+  left: [-1, 0],
+};
+
+/** Where an edge meets its card: React Flow's handle point, brought back to the border. */
+function cardEnd(x: number, y: number, position: Position): EdgeEnd {
+  const side = position as CanvasSide;
+  const [nx, ny] = OUTWARD[side];
+  return { x: x - nx * HANDLE_OVERHANG, y: y - ny * HANDLE_OVERHANG, side };
+}
+
+function sameEnd(a: EdgeEnd, b: EdgeEnd): boolean {
+  return a.side === b.side && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
+}
 
 export const NODE_TYPES = {
   text: CardNode,

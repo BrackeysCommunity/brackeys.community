@@ -151,6 +151,7 @@ function Confirm({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>{cancelText}</AlertDialogCancel>
           <AlertDialogAction
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
             autoFocus={!confirmDisabled}
             variant={variant === "destructive" ? "destructive" : "default"}
             onClick={(e) => {

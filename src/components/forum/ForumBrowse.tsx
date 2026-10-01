@@ -15,13 +15,10 @@ import { Censored, Heading, MicroLabel, Text } from "@/components/ui/typography"
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { activeUserStore } from "@/lib/active-user-store";
-import { authStore } from "@/lib/auth-store";
 import { FORUM_KIND_LABEL, forumPostLinkParams, forumPostTitle } from "@/lib/forum-posts";
 import { useInfiniteScrollSentinel } from "@/lib/hooks/use-infinite-scroll-sentinel";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { cn } from "@/lib/utils";
-import { orpc } from "@/orpc/client";
-import { STALE } from "@/orpc/public-procedures";
 
 import { FollowButton } from "./FollowButton";
 import {
@@ -31,7 +28,13 @@ import {
 } from "./forum-queries";
 import { feedFilters, type ForumFeedSearch } from "./forum-search";
 import { ForumComposeLauncher } from "./ForumComposer";
-import { ActiveFilterChips, FeedControls, ForumFeed, ForumSearchResults } from "./ForumFeed";
+import {
+  ActiveFilterChips,
+  FeedControls,
+  ForumFeed,
+  ForumPeopleMatches,
+  ForumSearchResults,
+} from "./ForumFeed";
 import { CategorySwatch, TagBadges } from "./ForumPostCard";
 import { CategoryStrip, ForumSearchBox, ForumShell } from "./ForumShell";
 
@@ -73,19 +76,8 @@ function PageHeader({
   );
 }
 
-function useTeamName(teamId: string | undefined) {
-  const { session } = useStore(authStore);
-  const { data } = useQuery({
-    ...orpc.listMyTeams.queryOptions({ input: {} }),
-    enabled: Boolean(session?.user && teamId),
-    staleTime: STALE.listing,
-  });
-  return data?.find((team) => team.id === teamId)?.name ?? null;
-}
-
 /** `/forum` — layout A, Pulse, or search results. */
 export function ForumHomePage({ search }: { search: ForumFeedSearch }) {
-  const teamName = useTeamName(search.team);
   const pulse = search.view === "pulse";
   const query = search.q?.trim();
 
@@ -93,7 +85,22 @@ export function ForumHomePage({ search }: { search: ForumFeedSearch }) {
     return (
       <ForumShell>
         <PageHeader eyebrow="Search" title={`“${query}”`} />
-        <ForumSearchResults query={query} kind={search.kind} />
+        <div className="lg:hidden">
+          <ForumSearchBox />
+        </div>
+        <ActiveFilterChips search={search} />
+        {search.author || search.team ? null : (
+          <ForumPeopleMatches query={query} kind={search.kind} />
+        )}
+        <ForumSearchResults
+          query={query}
+          filters={{
+            kind: search.kind,
+            tag: search.tag,
+            teamId: search.team,
+            authorId: search.author,
+          }}
+        />
       </ForumShell>
     );
   }
@@ -127,7 +134,7 @@ export function ForumHomePage({ search }: { search: ForumFeedSearch }) {
       ) : (
         <FeedControls search={search} personal />
       )}
-      <ActiveFilterChips search={search} teamName={teamName} />
+      <ActiveFilterChips search={search} />
       <ForumFeed filters={feedFilters(search)} compact={pulse} />
     </ForumShell>
   );

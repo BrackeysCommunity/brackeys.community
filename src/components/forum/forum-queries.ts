@@ -61,15 +61,32 @@ export function forumSeriesQueryOptions(seriesId: number) {
   return { ...orpc.getForumSeries.queryOptions({ input: { seriesId } }), staleTime: STALE.viewer };
 }
 
-export function forumSearchQueryOptions(query: string, kind?: ForumPostKind) {
+export type ForumSearchFilters = Pick<ForumFeedFilters, "kind" | "tag" | "teamId" | "authorId">;
+
+export function forumSearchQueryOptions(query: string, filters: ForumSearchFilters = {}) {
   return {
     ...orpc.searchForumPosts.infiniteOptions({
-      input: (cursor: string | undefined) => ({ query, kind, cursor, limit: PAGE_SIZE }),
+      input: (cursor: string | undefined) => ({ query, ...filters, cursor, limit: PAGE_SIZE }),
       initialPageParam: undefined as string | undefined,
       getNextPageParam: (last: Awaited<ReturnType<typeof client.searchForumPosts>>) =>
         last.nextCursor ?? undefined,
     }),
     staleTime: STALE.listing,
+  };
+}
+
+export function forumPeopleQueryOptions(query: string) {
+  return {
+    ...orpc.searchForumPeople.queryOptions({ input: { query } }),
+    staleTime: STALE.listing,
+  };
+}
+
+export function forumFilterLabelsQueryOptions(authorId?: string, teamId?: string) {
+  return {
+    ...orpc.getForumFilterLabels.queryOptions({ input: { authorId, teamId } }),
+    enabled: Boolean(authorId || teamId),
+    staleTime: STALE.taxonomy,
   };
 }
 

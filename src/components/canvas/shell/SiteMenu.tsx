@@ -1,12 +1,17 @@
 import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
+  Calendar03Icon,
+  Comment01Icon,
   DashboardSquare02Icon,
   Files01Icon,
   Home01Icon,
   Login01Icon,
   Notification03Icon,
+  UserGroupIcon,
   UserIcon,
+  UserMultiple02Icon,
+  UserSearch01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -36,10 +41,10 @@ import { openWorkspace } from "../workspace-store";
 import { WorkspacePanel } from "../WorkspacePanel";
 
 const SECTIONS = [
-  { to: "/collab", label: "Collab" },
-  { to: "/jams", label: "Jams" },
-  { to: "/teams", label: "Teams" },
-  { to: "/members", label: "Members" },
+  { to: "/jams", label: "Jams", icon: Calendar03Icon },
+  { to: "/collab", label: "Collab", icon: UserGroupIcon },
+  { to: "/teams", label: "Teams", icon: UserMultiple02Icon },
+  { to: "/members", label: "Members", icon: UserSearch01Icon },
 ] as const;
 
 /**
@@ -103,10 +108,14 @@ export function SiteMenu({ scope, scopeName }: { scope: CanvasScope; scopeName: 
               Home
             </DropdownMenuItem>
             {forumOn ? (
-              <DropdownMenuItem render={<Link to="/forum" />}>Forum</DropdownMenuItem>
+              <DropdownMenuItem render={<Link to="/forum" />}>
+                <HugeiconsIcon icon={Comment01Icon} size={14} />
+                Forum
+              </DropdownMenuItem>
             ) : null}
             {SECTIONS.map((section) => (
               <DropdownMenuItem key={section.to} render={<Link to={section.to} />}>
+                <HugeiconsIcon icon={section.icon} size={14} />
                 {section.label}
               </DropdownMenuItem>
             ))}

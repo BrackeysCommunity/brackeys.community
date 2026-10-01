@@ -11,9 +11,10 @@ function badge() {
 }
 
 describe("Badge", () => {
-  it("keeps the raised pad by default", () => {
+  it("renders flat by default — the raised pad is for buttons", () => {
     render(<Badge>RANK</Badge>);
-    expect(badge().className).toContain("chonk-emboss");
+    expect(badge().className).not.toContain("chonk-emboss");
+    expect(badge().className).toContain("bg-primary");
   });
 
   it("drops the pad but keeps the fill when flat", () => {
