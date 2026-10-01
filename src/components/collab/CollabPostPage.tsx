@@ -28,14 +28,9 @@ import { ReportDialog } from "@/components/ui/report-dialog";
 import { Section } from "@/components/ui/section";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { TransformedImage } from "@/components/ui/transformed-image";
-import {
-  Heading,
-  Link as TextLink,
-  MarkedText,
-  MicroLabel,
-  Text,
-} from "@/components/ui/typography";
+import { Heading, Link as TextLink, MicroLabel, Text } from "@/components/ui/typography";
 import { Censored } from "@/components/ui/typography";
+import { MarkedText } from "@/components/ui/typography/marked-text";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { signInWithDiscord } from "@/lib/auth-client";

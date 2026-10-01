@@ -56,6 +56,7 @@ import { DiscordBackoffError } from "@/lib/discord";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { optionalExternalUrlSchema } from "@/lib/external-url";
 import { jamSlug } from "@/lib/jam-links";
+import { markdownToPlainText } from "@/lib/markdown-text";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
@@ -1467,6 +1468,9 @@ export const getPost = os
       images: presignedImages,
       responseCount: responseCount?.count ?? 0,
       author,
+      // Reduced here so the route's `head` doesn't pull the markdown lexer
+      // into every page's preload graph.
+      metaDescription: markdownToPlainText(post.description, 180) ?? null,
     };
   });
 

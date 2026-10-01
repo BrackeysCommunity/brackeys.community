@@ -1,8 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { forumFeedSearchSchema } from "@/components/forum/forum-search";
 import { ForumTagPage } from "@/components/forum/ForumBrowse";
 import { listingMeta, ogCardPath } from "@/lib/site-meta";
+
+const routeApi = getRouteApi("/forum/tags/$tag");
 
 export const Route = createFileRoute("/forum/tags/$tag")({
   validateSearch: forumFeedSearchSchema,
@@ -18,7 +20,7 @@ export const Route = createFileRoute("/forum/tags/$tag")({
 });
 
 function TagRoute() {
-  const { tag } = Route.useParams();
-  const search = Route.useSearch();
+  const { tag } = routeApi.useParams();
+  const search = routeApi.useSearch();
   return <ForumTagPage tag={tag} search={search} />;
 }

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { MarkedText, Text } from "@/components/ui/typography";
+import { Text } from "@/components/ui/typography";
+import { MarkedText } from "@/components/ui/typography/marked-text";
 
 const meta: Meta<typeof MarkedText> = {
   title: "Typography/MarkedText",
@@ -261,7 +262,7 @@ The component supports:
 ## Code Example
 
 \`\`\`
-import { MarkedText } from "@/components/ui/typography";
+import { MarkedText } from "@/components/ui/typography/marked-text";
 
 function App() {
   return <MarkedText>{"# Hello World"}</MarkedText>;

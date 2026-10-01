@@ -25,14 +25,9 @@ import { PageStack } from "@/components/ui/page-motion";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import {
-  MarkedText,
-  MicroLabel,
-  Heading,
-  Link as TextLink,
-  Text,
-} from "@/components/ui/typography";
+import { MicroLabel, Heading, Link as TextLink, Text } from "@/components/ui/typography";
 import { Censored, EmojiText } from "@/components/ui/typography";
+import { MarkedText } from "@/components/ui/typography/marked-text";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authStore } from "@/lib/auth-store";

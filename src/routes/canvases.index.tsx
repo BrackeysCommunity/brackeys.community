@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { CanvasesBrowsePage } from "@/components/canvas/CanvasesBrowsePage";
@@ -10,6 +10,8 @@ const searchSchema = z.object({
   view: z.enum(["canvases", "deleted"]).default("canvases"),
 });
 
+const routeApi = getRouteApi("/canvases/");
+
 export const Route = createFileRoute("/canvases/")({
   validateSearch: searchSchema,
   component: CanvasesIndex,
@@ -19,8 +21,8 @@ export const Route = createFileRoute("/canvases/")({
 });
 
 function CanvasesIndex() {
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
+  const search = routeApi.useSearch();
+  const navigate = routeApi.useNavigate();
   return (
     <CanvasesBrowsePage
       scopeParam={search.scope}

@@ -1,9 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { forumCategoriesQueryOptions } from "@/components/forum/forum-queries";
 import { forumFeedSearchSchema } from "@/components/forum/forum-search";
 import { ForumCategoryPage } from "@/components/forum/ForumBrowse";
 import { listingMeta, ogCardPath } from "@/lib/site-meta";
+
+const routeApi = getRouteApi("/forum/c/$categorySlug");
 
 export const Route = createFileRoute("/forum/c/$categorySlug")({
   validateSearch: forumFeedSearchSchema,
@@ -29,7 +31,7 @@ export const Route = createFileRoute("/forum/c/$categorySlug")({
 });
 
 function CategoryRoute() {
-  const { categorySlug } = Route.useParams();
-  const search = Route.useSearch();
+  const { categorySlug } = routeApi.useParams();
+  const search = routeApi.useSearch();
   return <ForumCategoryPage categorySlug={categorySlug} search={search} />;
 }

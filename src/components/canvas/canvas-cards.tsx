@@ -21,7 +21,8 @@ import {
 } from "react";
 
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { MarkedText, MicroLabel, Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
+import { MarkedText } from "@/components/ui/typography/marked-text";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { createBatchLoader } from "@/lib/batch-loader";
 import type { EntityKind, EntityRef, JsonCanvasNode } from "@/lib/canvas/json-canvas";

@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/client";
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect, getRouteApi } from "@tanstack/react-router";
 
 import { forumPostQueryOptions, type ForumPostDetail } from "@/components/forum/forum-queries";
 import { ForumPostPage } from "@/components/forum/ForumPostPage";
@@ -63,6 +63,8 @@ function postNode(post: ForumPostDetail, path: string, headline: string) {
  * hops to the canonical slugged URL, so shares and crawlers converge on one
  * address and a renamed post's old links still land.
  */
+const routeApi = getRouteApi("/forum/$postId");
+
 export const Route = createFileRoute("/forum/$postId")({
   loader: async ({ context: { queryClient }, params, location }) => {
     const postId = parseForumPostParam(params.postId);
@@ -143,7 +145,7 @@ export const Route = createFileRoute("/forum/$postId")({
 });
 
 function ForumPostRoute() {
-  const post = Route.useLoaderData();
+  const post = routeApi.useLoaderData();
   return <ForumPostPage key={post.id} initialPost={post} />;
 }
 

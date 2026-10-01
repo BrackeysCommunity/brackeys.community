@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/client";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, getRouteApi } from "@tanstack/react-router";
 
 import { canvasQueryOptions } from "@/components/canvas/canvas-queries";
 import { CanvasPage } from "@/components/canvas/CanvasPage";
@@ -10,6 +10,8 @@ import { pageTitle } from "@/lib/site-meta";
  * One canvas. The loader's read is the gate: a canvas the viewer can't
  * see, or a dark flag, is this page's 404.
  */
+const routeApi = getRouteApi("/canvases/$canvasId");
+
 export const Route = createFileRoute("/canvases/$canvasId")({
   staticData: { shell: "takeover" },
   loader: async ({ context: { queryClient }, params }): Promise<{ title: string }> => {
@@ -33,6 +35,6 @@ export const Route = createFileRoute("/canvases/$canvasId")({
 });
 
 function CanvasRoute() {
-  const { canvasId } = Route.useParams();
+  const { canvasId } = routeApi.useParams();
   return <CanvasPage canvasId={canvasId} />;
 }

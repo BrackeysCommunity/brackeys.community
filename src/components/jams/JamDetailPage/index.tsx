@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
 
 import { Section } from "@/components/ui/section";
-import { MicroLabel, RichHtml, Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
+import { RichHtml } from "@/components/ui/typography/rich-html";
 import { Well } from "@/components/ui/well";
 import { EVENTS } from "@/lib/event-taxonomy";
 import useDateNow from "@/lib/hooks/use-date-now";

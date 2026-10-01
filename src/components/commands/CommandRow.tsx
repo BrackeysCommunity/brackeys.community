@@ -5,8 +5,9 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { InlineCode, MarkedText, MicroLabel, Text } from "@/components/ui/typography";
+import { InlineCode, MicroLabel, Text } from "@/components/ui/typography";
 import { DiscordTokenText } from "@/components/ui/typography/channels";
+import { MarkedText } from "@/components/ui/typography/marked-text";
 import type { BotId } from "@/data/commands";
 import { HOVER_CUE, play, playReveal } from "@/lib/sound";
 import { cn } from "@/lib/utils";

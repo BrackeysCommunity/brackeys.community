@@ -16,12 +16,20 @@
  * genuinely mounts (typography, tooltip, sound cues, the icon set) plus
  * framer's runtime, and cutting further means plan 15 §3.3 — the client
  * entry importing every route file.
+ *
+ * The chunk count was raised once, to 68, because the forum and canvas
+ * routes need small query/search modules in their shells (loaders,
+ * `validateSearch`), and each one shared with a lazy chunk becomes its
+ * own chunk. Keep route components on `getRouteApi` rather
+ * than `Route.use*`, or the shell itself turns into one more shared chunk,
+ * and keep heavy renderers (`MarkedText`, `RichHtml`) out of the
+ * typography barrel, or the root carries `marked` and `dompurify`.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const ROOT_BUDGET = { chunks: 63, gzipBytes: 400 * 1024 };
+const ROOT_BUDGET = { chunks: 68, gzipBytes: 400 * 1024 };
 
 /**
  * Chunks that must never be preloaded by any route: they load on demand,

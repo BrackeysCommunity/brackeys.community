@@ -16,9 +16,14 @@ import { defineConfig } from "vite-plus";
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
-    alias: {
-      "@": fileURLToPath(new URL("../src", import.meta.url)),
-    },
+    // Ordered: the exact client match has to win over the `@` prefix.
+    alias: [
+      {
+        find: /^@\/orpc\/client$/,
+        replacement: fileURLToPath(new URL("./orpc-client.ts", import.meta.url)),
+      },
+      { find: "@", replacement: fileURLToPath(new URL("../src", import.meta.url)) },
+    ],
   },
   plugins: [wasm(), viteReact(), tailwindcss()],
 });

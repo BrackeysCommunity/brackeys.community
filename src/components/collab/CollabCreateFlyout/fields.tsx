@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TransformedImage } from "@/components/ui/transformed-image";
-import { MarkedText, MicroLabel, Text } from "@/components/ui/typography";
+import { MicroLabel, Text } from "@/components/ui/typography";
+import { MarkedText } from "@/components/ui/typography/marked-text";
 import { Well } from "@/components/ui/well";
 import type { CollabCompensationType, UploadedImage } from "@/lib/collab-store";
 import { CURRENCY_OPTIONS, type Currency } from "@/lib/currency";

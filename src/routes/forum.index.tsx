@@ -1,8 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { forumFeedSearchSchema } from "@/components/forum/forum-search";
 import { ForumHomePage } from "@/components/forum/ForumBrowse";
 import { listingMeta, ogCardPath } from "@/lib/site-meta";
+
+const routeApi = getRouteApi("/forum/");
 
 export const Route = createFileRoute("/forum/")({
   validateSearch: forumFeedSearchSchema,
@@ -19,6 +21,6 @@ export const Route = createFileRoute("/forum/")({
 });
 
 function ForumIndex() {
-  const search = Route.useSearch();
+  const search = routeApi.useSearch();
   return <ForumHomePage search={search} />;
 }

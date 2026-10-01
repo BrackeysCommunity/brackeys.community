@@ -2,7 +2,8 @@ import { useStore } from "@tanstack/react-store";
 
 import { ThemePreview } from "@/components/settings/ThemePreview";
 import { Badge } from "@/components/ui/badge";
-import { InlineCode, MarkedText, MicroLabel } from "@/components/ui/typography";
+import { InlineCode, MicroLabel } from "@/components/ui/typography";
+import { MarkedText } from "@/components/ui/typography/marked-text";
 import { activeUserStore } from "@/lib/active-user-store";
 import { buildCopyText, macroMarkdown } from "@/lib/command-copy";
 

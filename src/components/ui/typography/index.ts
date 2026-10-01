@@ -4,8 +4,6 @@ export { Heading, headingVariants, type HeadingProps, type HeadingLevel } from "
 export { InlineCode, inlineCodeVariants, type InlineCodeProps } from "./inline-code";
 export { Quote, type QuoteProps, type QuoteSource } from "./quote";
 export { Prose, type ProseProps } from "./prose";
-export { MarkedText, type MarkedTextProps } from "./marked-text";
 export { Censored, CensoredMark, useCensorNodes } from "./censored";
 export { EmojiText, GuildEmojiImage } from "./emoji";
-export { RichHtml } from "./rich-html";
 export { Link, type LinkProps } from "./link";
