@@ -19,7 +19,6 @@ const SITE_HOST = /(?<!git\.)\bbrackeys\.(community|dev)\b/i;
 const ALLOWED: Record<string, string> = {
   "src/lib/legal-meta.ts": "the single source of truth",
   "src/lib/site-meta.ts": "FEED_ID_ORIGIN: Atom ids are permanent and must not follow the domain",
-  "src/lib/auth.ts": "oAuthProxy's staging default; moves with the staging host",
 };
 
 function sourceFiles(dir: string): string[] {

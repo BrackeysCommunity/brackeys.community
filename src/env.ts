@@ -64,8 +64,9 @@ export const env = createEnv({
     // capture is a no-op, and `useFlag` falls back to the defaults declared
     // in `src/lib/flags.ts`.
     VITE_POSTHOG_KEY: z.string().min(1).optional(),
-    // Ingestion host. EU cloud is `https://eu.i.posthog.com`; point it at the
-    // reverse proxy once one exists and set `ui_host` alongside it.
+    // Browser ingestion host: the managed reverse proxy where one is set up,
+    // else EU cloud (`https://eu.i.posthog.com`). Server-side captures ignore
+    // it and read `POSTHOG_HOST`.
     VITE_POSTHOG_HOST: z.url().optional(),
     // Read through `siteOrigin()` below, never directly.
     VITE_SITE_ORIGIN: z.url().optional(),

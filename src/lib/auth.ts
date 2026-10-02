@@ -165,7 +165,7 @@ export const auth = betterAuth({
   plugins: [
     tanstackStartCookies(),
     oAuthProxy({
-      productionURL: env.VITE_OAUTH_PROXY_ORIGIN ?? "https://staging.brackeys.dev",
+      productionURL: env.VITE_OAUTH_PROXY_ORIGIN ?? "https://staging.jams.team",
     }),
     // One provider per GitLab instance; an instance with no credentials in
     // the environment produces no config and no menu entry.

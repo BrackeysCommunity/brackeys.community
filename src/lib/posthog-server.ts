@@ -17,7 +17,11 @@ import { FEATURE_FLAGS, type FeatureFlagKey, type FeatureFlagValues } from "@/li
  * deployment behaves exactly as it did before PostHog existed.
  */
 
-const HOST = process.env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com";
+/**
+ * Server captures go straight to PostHog. `VITE_POSTHOG_HOST` is the
+ * browser's ad-blocker proxy, which a server has no need for.
+ */
+const HOST = process.env.POSTHOG_HOST ?? "https://eu.i.posthog.com";
 
 /**
  * Common properties on every server capture, mirroring the browser's

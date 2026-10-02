@@ -31,11 +31,11 @@ import { PostHog } from "posthog-node";
  * Reads `POSTHOG_KEY` first so a service's own variables can be named
  * without a `VITE_` prefix it has no use for, and falls back to
  * `VITE_POSTHOG_KEY` so a Railway shared variable can cover the web app and
- * the services under one name. Same for the host.
+ * the services under one name. The host never falls back to
+ * `VITE_POSTHOG_HOST`, which is the browser's ad-blocker proxy.
  */
 const KEY = process.env.POSTHOG_KEY ?? process.env.VITE_POSTHOG_KEY;
-const HOST =
-  process.env.POSTHOG_HOST ?? process.env.VITE_POSTHOG_HOST ?? "https://eu.i.posthog.com";
+const HOST = process.env.POSTHOG_HOST ?? "https://eu.i.posthog.com";
 
 /**
  * Common properties on every capture, matching `@/lib/posthog-server`'s pair

@@ -30,7 +30,7 @@ Non-2xx responses don't get rule headers; Nitro's error handler emits
 `no-cache` on JSON errors and Cloudflare doesn't cache error statuses by
 default.
 
-## Cloudflare (zones: brackeys.community, brackeys.dev)
+## Cloudflare (zones: jams.team, plus brackeys.community and brackeys.dev for redirects)
 
 Recommended dashboard state — origin headers do the real work; these settings
 just make the edge honor them:
@@ -54,7 +54,7 @@ just make the edge honor them:
    "Override origin" on HTML) — documents are session-personalized. If
    anonymous-HTML edge caching is ever wanted, it needs a rule that bypasses
    on the better-auth session cookie.
-6. Image Transformations are already enabled on brackeys.community
+6. Image Transformations are enabled on jams.team and brackeys.community
    (`/cdn-cgi/image/…` — see `src/lib/itch-image.ts`); transformed variants
    are cached at the edge by Cloudflare automatically.
 
@@ -77,7 +77,7 @@ Against an environment, also watch `cf-cache-status` (`HIT`/`MISS` = edge
 cached, `DYNAMIC` = passed through):
 
 ```bash
-curl -sI https://staging.brackeys.dev/assets/<hashed>.js | grep -iE 'cache-control|cf-cache-status'
+curl -sI https://staging.jams.team/assets/<hashed>.js | grep -iE 'cache-control|cf-cache-status'
 ```
 
 ## Uploaded images (`/images/<key>`)
