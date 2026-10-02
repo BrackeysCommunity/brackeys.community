@@ -19,20 +19,31 @@ export const OPERATOR = {
   legalName: "Brackeys Community",
 } as const;
 
+const DOMAIN = "brackeys.community";
+
+/**
+ * The site's own identity. Every hard-coded mention of the production
+ * domain or name reads from here, so a domain move is an edit to this file.
+ * Service images copy it, so it must stay import-free.
+ */
 export const SITE = {
   name: "Brackeys Community",
-  domain: "brackeys.community",
-  url: "https://brackeys.community",
-  /** Redirects to `domain`; what social cards print, since it's the one people type. */
-  shortDomain: "brackeys.dev",
+  /** The wordmark beside the mark, the email sender name, the manifest `short_name`. */
+  shortName: "Brackeys",
+  /** The header and footer wordmark: `lead` plain, `accent` in the brand gradient. */
+  wordmark: { lead: "Brackeys", accent: "Community" },
+  domain: DOMAIN,
+  url: `https://${DOMAIN}`,
   discord: "https://discord.gg/brackeys",
 } as const;
 
 export const CONTACT = {
-  privacy: "privacy@brackeys.community",
-  legal: "legal@brackeys.community",
+  privacy: `privacy@${DOMAIN}`,
+  legal: `legal@${DOMAIN}`,
   /** Reports, appeals, and copyright notices. */
-  abuse: "abuse@brackeys.community",
+  abuse: `abuse@${DOMAIN}`,
+  /** Sender address only; nothing reads mail sent to it. */
+  noreply: `noreply@${DOMAIN}`,
 } as const;
 
 /** The date the current version takes effect, as published. */

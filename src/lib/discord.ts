@@ -13,7 +13,7 @@ import { createRedisClient } from "@/lib/redis";
 
 declare global {
   // eslint-disable-next-line no-var
-  var __brackeysDiscordRedis: IORedis | undefined;
+  var __appDiscordRedis: IORedis | undefined;
 }
 
 export interface DiscordApiUser {
@@ -182,9 +182,9 @@ export class DiscordBackoffError extends Error {
 }
 
 async function getRedis(): Promise<IORedis> {
-  if (globalThis.__brackeysDiscordRedis) return globalThis.__brackeysDiscordRedis;
-  globalThis.__brackeysDiscordRedis = await createRedisClient("discord");
-  return globalThis.__brackeysDiscordRedis;
+  if (globalThis.__appDiscordRedis) return globalThis.__appDiscordRedis;
+  globalThis.__appDiscordRedis = await createRedisClient("discord");
+  return globalThis.__appDiscordRedis;
 }
 
 async function getBackoffUntil(): Promise<number | null> {

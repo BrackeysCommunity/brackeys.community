@@ -22,16 +22,16 @@ export type ForumLiveEvent = {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __brackeysForumLivePublisher: IORedis | undefined;
+  var __appForumLivePublisher: IORedis | undefined;
   // eslint-disable-next-line no-var
-  var __brackeysForumLiveSubscriber: Promise<IORedis> | undefined;
+  var __appForumLiveSubscriber: Promise<IORedis> | undefined;
   // eslint-disable-next-line no-var
-  var __brackeysForumLiveListeners: Set<(event: ForumLiveEvent) => void> | undefined;
+  var __appForumLiveListeners: Set<(event: ForumLiveEvent) => void> | undefined;
 }
 
 async function publisher(): Promise<IORedis> {
-  globalThis.__brackeysForumLivePublisher ??= await createRedisClient("forum-live");
-  return globalThis.__brackeysForumLivePublisher;
+  globalThis.__appForumLivePublisher ??= await createRedisClient("forum-live");
+  return globalThis.__appForumLivePublisher;
 }
 
 /** Best-effort: with Redis down the pill just doesn't light up. */
@@ -43,12 +43,12 @@ export async function announceForumPost(event: ForumLiveEvent): Promise<void> {
 }
 
 function listeners(): Set<(event: ForumLiveEvent) => void> {
-  globalThis.__brackeysForumLiveListeners ??= new Set();
-  return globalThis.__brackeysForumLiveListeners;
+  globalThis.__appForumLiveListeners ??= new Set();
+  return globalThis.__appForumLiveListeners;
 }
 
 async function ensureSubscriber(): Promise<void> {
-  globalThis.__brackeysForumLiveSubscriber ??= createRedisClient("forum-live-subscriber").then(
+  globalThis.__appForumLiveSubscriber ??= createRedisClient("forum-live-subscriber").then(
     (client) => {
       client.on("message", (_channel, message) => {
         let event: ForumLiveEvent;
@@ -67,7 +67,7 @@ async function ensureSubscriber(): Promise<void> {
       return client;
     },
   );
-  await globalThis.__brackeysForumLiveSubscriber;
+  await globalThis.__appForumLiveSubscriber;
 }
 
 /** Listen for new posts on this instance; returns the unsubscribe. */

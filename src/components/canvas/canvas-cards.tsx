@@ -102,7 +102,7 @@ export function cardFromJson(node: JsonCanvasNode): CanvasCard | null {
 /** JSON Canvas's six presets as theme tokens, so they follow light and dark. */
 const PRESET_COLORS: Record<string, string> = {
   "1": "var(--destructive)",
-  "2": "var(--color-brackeys-yellow)",
+  "2": "var(--color-brand-yellow)",
   "3": "var(--warning)",
   "4": "var(--success)",
   "5": "var(--info)",

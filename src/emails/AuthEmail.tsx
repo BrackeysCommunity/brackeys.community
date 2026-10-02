@@ -1,6 +1,7 @@
 import { Button, Heading, Section, Text } from "@react-email/components";
 
 import { withUtm } from "../lib/email-utm";
+import { SITE } from "../lib/legal-meta";
 import { OG_ACCENTS } from "../lib/og/palette";
 import { EmailLayout } from "./EmailLayout";
 import { ACCENT, buttonStyle, headingStyle, footerStyle, MUTED, textStyle } from "./theme";
@@ -89,7 +90,7 @@ export function AuthEmail({ variant, recipientName, url, appUrl }: AuthEmailProp
 AuthEmail.PreviewProps = {
   variant: "verify" as const,
   recipientName: "Joshe",
-  url: "https://brackeys.community/auth/verify?token=abc",
+  url: `${SITE.url}/auth/verify?token=abc`,
 } satisfies AuthEmailProps;
 
 export default AuthEmail;

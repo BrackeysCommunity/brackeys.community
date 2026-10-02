@@ -17,6 +17,11 @@
 # A hand-pushed `vX.Y.Z` works identically — release-gate holds either way.
 
 .release:
+  variables:
+    # The production origin the release is checked against. A project CI/CD
+    # variable of the same name overrides this, which is how a domain move
+    # flips it without a commit.
+    PROD_URL: https://brackeys.community
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
@@ -188,7 +193,7 @@ deploy-prod:
           - discord-bot
   environment:
     name: production/$SERVICE
-    url: https://brackeys.community
+    url: $PROD_URL
     deployment_tier: production
   variables:
     # Pencil and Librarian each deploy with a bare `RAILWAY_TOKEN` CI/CD
@@ -243,13 +248,13 @@ smoke-prod:
     # The health route reports the same string the footer renders, so this
     # asserts the origin is serving *this* release rather than merely serving.
     - |
-      BODY=$(curl -fsS --max-time 30 https://brackeys.community/api/health)
+      BODY=$(curl -fsS --max-time 30 "$PROD_URL/api/health")
       echo "$BODY"
       echo "$BODY" | grep -q "\"${CI_COMMIT_TAG#v}+" || {
         echo "✗ /api/health does not report ${CI_COMMIT_TAG#v}"
         exit 1
       }
-    - curl -fsS -o /dev/null --max-time 30 https://brackeys.community/
+    - curl -fsS -o /dev/null --max-time 30 "$PROD_URL/"
 
 publish-release:
   extends: .release

@@ -145,7 +145,7 @@ export const Overview: Story = {
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <Prose>
             <p>
-              Check out the <a href="https://brackeys.community">Brackeys Community</a> for more
+              Check out the <a href="https://example.com">Brackeys Community</a> for more
               information. You can also visit the{" "}
               <a href="https://discord.gg/brackeys">Discord server</a> to chat with other members.
             </p>
@@ -305,8 +305,8 @@ export const Overview: Story = {
             </pre>
             <p>
               Then import the components you need. See the{" "}
-              <a href="https://brackeys.community/docs">documentation</a> for a full list of
-              available components.
+              <a href="https://example.com/docs">documentation</a> for a full list of available
+              components.
             </p>
 
             <hr />
@@ -314,7 +314,7 @@ export const Overview: Story = {
             <h2>Further Reading</h2>
             <ul>
               <li>
-                <a href="https://brackeys.community">Brackeys Community</a>
+                <a href="https://example.com">Brackeys Community</a>
               </li>
               <li>Component API Reference</li>
               <li>Theming Guide</li>

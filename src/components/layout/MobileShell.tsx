@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 
 import { DeployEnvBadge } from "@/components/layout/DeployEnvMarker";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
-import { BrackeysMark } from "@/components/ui/brackeys-mark";
+import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { Button } from "@/components/ui/button";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { useHeaderShift } from "@/lib/hooks/use-header-shift";
@@ -48,13 +48,8 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       >
         <div className="flex min-w-0 items-center gap-2">
           <Link to="/" className="flex items-center gap-1.5">
-            <BrackeysMark className="h-7 w-7" />
-            <span className="font-display text-base leading-none font-bold text-foreground">
-              Brackeys
-              <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
-                Community
-              </span>
-            </span>
+            <BrandMark className="h-7 w-7" />
+            <Wordmark className="font-display text-base leading-none" />
           </Link>
           <DeployEnvBadge />
         </div>

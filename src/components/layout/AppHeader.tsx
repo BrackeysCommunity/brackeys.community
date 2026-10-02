@@ -9,6 +9,7 @@ import { DeployEnvBadge } from "@/components/layout/DeployEnvMarker";
 import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { BRAND_MASK_STYLE, Wordmark } from "@/components/ui/brand-mark";
 import { Button } from "@/components/ui/button";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
 import { HEADER_MAGNET_STRENGTH, useMagnetic } from "@/lib/hooks/use-cursor";
@@ -171,33 +172,16 @@ export function AppHeader() {
                     framer loop writing `background-position` inline — the old
                     shape repainted, and wrote style, on every frame of every
                     route. */}
-                <div
-                  className="relative h-7 w-7 overflow-hidden"
-                  style={{
-                    maskImage: "url(/brackeys-logo.svg)",
-                    maskSize: "contain",
-                    maskRepeat: "no-repeat",
-                    maskPosition: "center",
-                    WebkitMaskImage: "url(/brackeys-logo.svg)",
-                    WebkitMaskSize: "contain",
-                    WebkitMaskRepeat: "no-repeat",
-                    WebkitMaskPosition: "center",
-                  }}
-                >
+                <div className="relative h-7 w-7 overflow-hidden" style={BRAND_MASK_STYLE}>
                   <div
                     className="animate-logo-sweep absolute inset-x-0 top-0 h-[500%]"
                     style={{
                       backgroundImage:
-                        "linear-gradient(to bottom, var(--color-brackeys-yellow), var(--color-brackeys-fuscia), var(--color-brackeys-purple), var(--color-brackeys-fuscia), var(--color-brackeys-yellow))",
+                        "linear-gradient(to bottom, var(--color-brand-yellow), var(--color-brand-fuchsia), var(--color-brand-purple), var(--color-brand-fuchsia), var(--color-brand-yellow))",
                     }}
                   />
                 </div>
-                <span className="leading-wide hidden font-sans text-xl font-bold text-foreground sm:inline">
-                  Brackeys
-                  <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
-                    Community
-                  </span>
-                </span>
+                <Wordmark className="leading-wide hidden font-sans text-xl sm:inline" />
               </Link>
             </MagneticLink>
             <DeployEnvBadge />

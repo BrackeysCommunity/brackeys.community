@@ -9,9 +9,9 @@ type Queues = { notifications: Queue; mediaScan: Queue };
 
 declare global {
   // eslint-disable-next-line no-var
-  var __brackeysRedis: IORedis | undefined;
+  var __appRedis: IORedis | undefined;
   // eslint-disable-next-line no-var
-  var __brackeysQueues: Queues | undefined;
+  var __appQueues: Queues | undefined;
 }
 
 // Dynamic imports keep bullmq + ioredis out of the SSR static graph, so the
@@ -19,26 +19,26 @@ declare global {
 // the tracer emits: bullmq is force-externalised and its traced copy is only
 // loadable because `inlineRuntimeClosure` in vite.config.ts replaces it.
 async function getRedis(): Promise<IORedis> {
-  if (globalThis.__brackeysRedis) return globalThis.__brackeysRedis;
-  globalThis.__brackeysRedis = await createRedisClient("queue", {
+  if (globalThis.__appRedis) return globalThis.__appRedis;
+  globalThis.__appRedis = await createRedisClient("queue", {
     // bullmq requirement: blocking commands must be allowed to retry indefinitely.
     maxRetriesPerRequest: null,
   });
-  return globalThis.__brackeysRedis;
+  return globalThis.__appRedis;
 }
 
 // The `email` queue is produced and consumed entirely inside
 // services/notifications-worker; the app only ever enqueues notification
 // side-effects and upload scans.
 async function getQueues(): Promise<Queues> {
-  if (globalThis.__brackeysQueues) return globalThis.__brackeysQueues;
+  if (globalThis.__appQueues) return globalThis.__appQueues;
   const connection = await getRedis();
   const { Queue: QueueCtor } = await import("bullmq");
-  globalThis.__brackeysQueues = {
+  globalThis.__appQueues = {
     notifications: new QueueCtor(NOTIFICATIONS_QUEUE, { connection }),
     mediaScan: new QueueCtor(MEDIA_SCAN_QUEUE, { connection }),
   };
-  return globalThis.__brackeysQueues;
+  return globalThis.__appQueues;
 }
 
 export async function getNotificationsQueue(): Promise<Queue> {

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Component, type ReactNode } from "react";
 
-import { BrackeysMark } from "@/components/ui/brackeys-mark";
+import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { captureError } from "@/lib/product-insights";
 import { cn } from "@/lib/utils";
 
@@ -25,13 +25,8 @@ function ShellHeaderBar({ withNav = false }: { withNav?: boolean }) {
     <header className="fixed top-0 right-0 left-0 z-50 flex h-[var(--app-header-height)] items-center border-b border-b-emboss-shadow bg-background px-4 shadow-sm sm:px-6 lg:px-10">
       <div className="mx-auto flex w-full max-w-[84rem] items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <BrackeysMark className="h-7 w-7" />
-          <span className="leading-wide hidden font-sans text-xl font-bold text-foreground sm:inline">
-            Brackeys
-            <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
-              Community
-            </span>
-          </span>
+          <BrandMark className="h-7 w-7" />
+          <Wordmark className="leading-wide hidden font-sans text-xl sm:inline" />
         </Link>
         {withNav && (
           <nav className="hidden items-center gap-6 text-sm font-bold tracking-widest lg:flex">

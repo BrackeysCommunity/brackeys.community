@@ -5,14 +5,14 @@ import { createRedisClient } from "@/lib/redis";
 
 declare global {
   // eslint-disable-next-line no-var
-  var __brackeysRateLimitRedis: IORedis | undefined;
+  var __appRateLimitRedis: IORedis | undefined;
 }
 
 async function getRedis(): Promise<IORedis | null> {
-  if (globalThis.__brackeysRateLimitRedis) return globalThis.__brackeysRateLimitRedis;
+  if (globalThis.__appRateLimitRedis) return globalThis.__appRateLimitRedis;
   if (!process.env.REDIS_URL) return null;
-  globalThis.__brackeysRateLimitRedis = await createRedisClient("rate-limit");
-  return globalThis.__brackeysRateLimitRedis;
+  globalThis.__appRateLimitRedis = await createRedisClient("rate-limit");
+  return globalThis.__appRateLimitRedis;
 }
 
 function rateKey(bucket: string, userId: string): string {

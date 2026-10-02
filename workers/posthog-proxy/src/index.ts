@@ -2,7 +2,7 @@
  * First-party reverse proxy for PostHog ingestion.
  *
  * Ad blockers match on `*.i.posthog.com`, which costs roughly 10–30% of
- * events. Cloudflare already fronts brackeys.community, so routing ingestion
+ * events. Cloudflare already fronts the site, so routing ingestion
  * through a path on our own origin makes the requests first-party and
  * indistinguishable from the rest of the app's traffic.
  *

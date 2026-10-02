@@ -318,7 +318,7 @@ function ActionBar({ post, onEdit }: { post: ForumPostDetail; onEdit: () => void
               size="sm"
               onClick={toggleLike}
               aria-pressed={post.viewer.liked}
-              className={cn(post.viewer.liked && "text-brackeys-fuscia")}
+              className={cn(post.viewer.liked && "text-brand-fuchsia")}
             >
               <HugeiconsIcon
                 icon={FavouriteIcon}

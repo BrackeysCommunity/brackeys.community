@@ -54,7 +54,7 @@ export const env = createEnv({
     VITE_APP_TITLE: z.string().min(1).optional(),
     // Any non-empty value routes itch-hosted images through Cloudflare Image
     // Transformations (src/lib/itch-image.ts). Set only on deploys served
-    // through the brackeys.community zone with transformations enabled;
+    // through the production Cloudflare zone with transformations enabled;
     // locally /cdn-cgi/ doesn't exist and images hotlink itch directly.
     VITE_CF_IMAGES: z.string().min(1).optional(),
     VITE_ITCHIO_CLIENT_ID: z.string().min(1).optional(),

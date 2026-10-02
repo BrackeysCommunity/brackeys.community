@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { BrackeysMark } from "@/components/ui/brackeys-mark";
+import { BrandMark, Wordmark } from "@/components/ui/brand-mark";
 import { DiscordInviteLink } from "@/components/ui/discord-invite-link";
 import { MicroLabel } from "@/components/ui/typography";
 
@@ -108,13 +108,8 @@ export function SiteFooter() {
       <div className="mx-auto grid w-full max-w-7xl gap-10 md:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))]">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <BrackeysMark className="h-5 w-5" />
-            <span className="font-display text-sm font-bold text-foreground">
-              Brackeys
-              <span className="bg-linear-to-r from-[var(--color-brackeys-yellow)] via-[var(--color-brackeys-fuscia)] to-[var(--color-brackeys-purple)] bg-clip-text text-transparent">
-                Community
-              </span>
-            </span>
+            <BrandMark className="h-5 w-5" />
+            <Wordmark className="font-display text-sm" />
           </div>
           <p className="max-w-xs font-sans text-xs text-muted-foreground">
             A Discord server for indie game devs. Built, maintained, and moderated by the Brackeys

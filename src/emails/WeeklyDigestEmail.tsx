@@ -3,6 +3,7 @@ import { Button, Column, Hr, Link, Row, Section, Text } from "@react-email/compo
 import type { NotificationType } from "../db/schema";
 import { withUtm } from "../lib/email-utm";
 import { timeAgo } from "../lib/format-time";
+import { SITE } from "../lib/legal-meta";
 import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORY,
@@ -142,10 +143,10 @@ export function WeeklyDigestEmail({
 }
 
 WeeklyDigestEmail.PreviewProps = {
-  appUrl: "https://brackeys.community",
+  appUrl: SITE.url,
   recipientName: "Joshe",
   since: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  unsubscribeUrl: "https://brackeys.community/api/notifications/unsub?token=preview",
+  unsubscribeUrl: `${SITE.url}/api/notifications/unsub?token=preview`,
   items: [
     {
       type: "collab_response_received" as const,

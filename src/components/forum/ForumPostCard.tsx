@@ -140,7 +140,7 @@ function ActionRow({ post, trailing }: { post: ForumCard; trailing?: React.React
           onClick={toggleLike}
           aria-pressed={post.viewer.liked}
           aria-label={post.viewer.liked ? "Unlike" : "Like"}
-          className={cn(post.viewer.liked && "text-brackeys-fuscia")}
+          className={cn(post.viewer.liked && "text-brand-fuchsia")}
         >
           <HugeiconsIcon icon={FavouriteIcon} className={cn(post.viewer.liked && "fill-current")} />
           <span className="tabular-nums">{formatCount(post.likeCount)}</span>
@@ -454,7 +454,7 @@ export function PulseRow({ post }: { post: ForumCard }) {
             onClick={toggleLike}
             aria-pressed={post.viewer.liked}
             aria-label={post.viewer.liked ? "Unlike" : "Like"}
-            className={cn(post.viewer.liked && "text-brackeys-fuscia")}
+            className={cn(post.viewer.liked && "text-brand-fuchsia")}
           >
             <HugeiconsIcon
               icon={FavouriteIcon}

@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
 import type { Resend as ResendClient } from "resend";
 
+import { CONTACT, SITE } from "./legal-meta";
+
 type SendEmailArgs = {
   to: string | string[];
   subject: string;
@@ -19,7 +21,7 @@ type SendEmailArgs = {
 
 type SendEmailResult = { id: string } | null;
 
-const DEFAULT_FROM = "Brackeys <noreply@brackeys.community>";
+const DEFAULT_FROM = `${SITE.shortName} <${CONTACT.noreply}>`;
 
 let resendClient: ResendClient | null = null;
 

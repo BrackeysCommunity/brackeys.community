@@ -195,7 +195,7 @@ async function syncDefaultUrlStub(userId: string, discordUsername: string): Prom
 
 declare global {
   // eslint-disable-next-line no-var
-  var __brackeysGuildSyncRedis: IORedis | undefined;
+  var __appGuildSyncRedis: IORedis | undefined;
 }
 
 const REFRESH_TTL_SECONDS = 3600;
@@ -205,9 +205,9 @@ const REFRESH_TTL_SECONDS = 3600;
 const LOCK_TTL_SECONDS = 300;
 
 async function getRedis(): Promise<IORedis> {
-  if (globalThis.__brackeysGuildSyncRedis) return globalThis.__brackeysGuildSyncRedis;
-  globalThis.__brackeysGuildSyncRedis = await createRedisClient("guild-sync");
-  return globalThis.__brackeysGuildSyncRedis;
+  if (globalThis.__appGuildSyncRedis) return globalThis.__appGuildSyncRedis;
+  globalThis.__appGuildSyncRedis = await createRedisClient("guild-sync");
+  return globalThis.__appGuildSyncRedis;
 }
 
 /**

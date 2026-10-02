@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { SITE } from "../../../src/lib/legal-meta.ts";
 import { parseServiceConfig } from "../../../src/lib/service-config.ts";
 
 const schema = z.object({
@@ -39,7 +40,7 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
-  USER_AGENT: z.string().default("brackeys-itchio-scraper/0.1 (+https://brackeys.community)"),
+  USER_AGENT: z.string().default(`brackeys-itchio-scraper/0.1 (+${SITE.url})`),
 
   // ── Tiers ──────────────────────────────────────────────────────────────────
   // The crawler is one resident process running every tier from a priority

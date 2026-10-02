@@ -36,7 +36,7 @@ interface GlitchTransitionProps {
   style?: React.CSSProperties;
 }
 
-const STYLE_ID = "brackeys-glitch-transition-styles";
+const STYLE_ID = "glitch-transition-styles";
 
 const GLITCH_CSS = `
 @keyframes bk-gt-jitter {

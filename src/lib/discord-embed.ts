@@ -4,7 +4,7 @@
  *
  * Display-only. Link buttons are the only interactive part, nothing sends
  * an interaction, and none of this goes through the bot: any member pasting
- * a brackeys.community link gets the layout, in any server.
+ * a link to the site gets the layout, in any server.
  *
  * The Open Graph tags `site-meta.ts` builds stay exactly as they are — they
  * are what Discord falls back to whenever this payload is absent, malformed

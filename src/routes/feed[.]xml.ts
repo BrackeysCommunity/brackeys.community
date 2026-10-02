@@ -3,11 +3,11 @@ import { and, asc, gte, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { itchJams } from "@/db/schema";
-import { siteOrigin, siteUrl } from "@/env";
+import { siteUrl } from "@/env";
 import { formatCount } from "@/lib/format-count";
 import { hostName } from "@/lib/jam-links";
 import { withErrorReporting } from "@/lib/posthog-server";
-import { SITE_NAME } from "@/lib/site-meta";
+import { feedId, SITE_NAME } from "@/lib/site-meta";
 import { escapeXml } from "@/lib/xml";
 
 /**
@@ -76,7 +76,7 @@ async function handle() {
 
     return [
       "  <entry>",
-      `    <id>${escapeXml(`${siteOrigin()}/jams/${row.slug}`)}</id>`,
+      `    <id>${escapeXml(feedId(`/jams/${row.slug}`))}</id>`,
       `    <title>${escapeXml(row.title)}</title>`,
       `    <link rel="alternate" type="text/html" href="${escapeXml(url)}"/>`,
       `    <updated>${row.updatedAt.toISOString()}</updated>`,
@@ -92,7 +92,7 @@ async function handle() {
     `<feed xmlns="http://www.w3.org/2005/Atom">`,
     `  <title>${escapeXml(`${SITE_NAME} — jams`)}</title>`,
     `  <subtitle>Game jams opening soon and running now.</subtitle>`,
-    `  <id>${escapeXml(self)}</id>`,
+    `  <id>${escapeXml(feedId("/feed.xml"))}</id>`,
     `  <link rel="self" type="application/atom+xml" href="${escapeXml(self)}"/>`,
     `  <link rel="alternate" type="text/html" href="${escapeXml(siteUrl("/jams"))}"/>`,
     // RFC 4287 requires an author on the feed or on every entry; some

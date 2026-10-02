@@ -54,7 +54,7 @@ describe("itch-image (gate on)", () => {
       "https://minio.example.com/profile-projects/abc.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=deadbeef",
       "blob:https://brackeys.community/1c9e2f0a",
       "data:image/png;base64,iVBORw0KGgo=",
-      "/brackeys-logo.svg",
+      "/logo.svg",
       `/cdn-cgi/image/width=96,quality=60,format=auto,onerror=redirect/${ITCH_URL}`,
       // http (not https) itch — never emitted by the sync, don't rewrite
       "http://img.itch.zone/foo.png",

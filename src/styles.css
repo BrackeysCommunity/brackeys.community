@@ -48,11 +48,11 @@
     1
   );
 
-  /* Brackeys brand colors (from brackeys.community) */
-  --color-brackeys-yellow: #ffa949;
-  --color-brackeys-yellow-muted: color-mix(in srgb, #ffa949 60%, transparent);
-  --color-brackeys-fuscia: #d2356b;
-  --color-brackeys-purple: #5865f2;
+  /* Brand colors */
+  --color-brand-yellow: #ffa949;
+  --color-brand-yellow-muted: color-mix(in srgb, #ffa949 60%, transparent);
+  --color-brand-fuchsia: #d2356b;
+  --color-brand-purple: #5865f2;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

@@ -125,11 +125,11 @@ export const Overview: Story = {
         </p>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <MarkedText>
-            {"This is a [link to Brackeys](https://brackeys.community) in markdown."}
+            {"This is a [link to Brackeys](https://example.com) in markdown."}
           </MarkedText>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
             {`<MarkedText>
-  {"This is a [link](https://brackeys.community) in markdown."}
+  {"This is a [link](https://example.com) in markdown."}
 </MarkedText>`}
           </pre>
         </div>
@@ -254,7 +254,7 @@ This is a **full markdown document** rendered by the \`MarkedText\` component.
 The component supports:
 
 - **Bold** and *italic* text
-- [Links](https://brackeys.community) with proper styling
+- [Links](https://example.com) with proper styling
 - Inline \`code\` and code blocks
 - Lists (ordered and unordered)
 - Blockquotes

@@ -28,6 +28,7 @@ COPY services/itchio-scraper/src ./services/itchio-scraper/src
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/db/service-client.ts ./src/db/service-client.ts
 COPY src/lib/service-config.ts ./src/lib/service-config.ts
+COPY src/lib/legal-meta.ts ./src/lib/legal-meta.ts
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 COPY src/lib/itch-pacer.ts ./src/lib/itch-pacer.ts
 COPY src/lib/itch-http.ts ./src/lib/itch-http.ts

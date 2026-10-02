@@ -8,7 +8,19 @@ import {
 } from "@/lib/itch-image";
 import { SITE } from "@/lib/legal-meta";
 
-export const SITE_NAME = "Brackeys Community";
+export const SITE_NAME = SITE.name;
+
+/**
+ * Atom `<id>`s are permanent, opaque identifiers: a reader that sees a new
+ * id shows the entry again as unread. They are minted against this fixed
+ * origin rather than `siteOrigin()`, so they survive any domain move.
+ * Never change it.
+ */
+const FEED_ID_ORIGIN = "https://brackeys.community";
+
+export function feedId(path: string): string {
+  return `${FEED_ID_ORIGIN}${path}`;
+}
 
 export const SITE_DESCRIPTION =
   "The Brackeys community hub: every game jam worth entering, the people making games in them, and the teams looking for someone like you.";
@@ -237,7 +249,7 @@ export function organizationNode() {
     "@id": `${siteOrigin()}/#organization`,
     name: SITE_NAME,
     url: siteOrigin(),
-    logo: siteUrl("/brackeys-logo.svg"),
+    logo: siteUrl("/logo.svg"),
     sameAs: [SITE.discord],
   };
 }

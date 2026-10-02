@@ -1,5 +1,5 @@
 /**
- * What a brackeys.community link turns into when someone pastes it into
+ * What a link to the site turns into when someone pastes it into
  * Discord.
  *
  * One layout per page kind, built out of `discord-embed`'s components and
@@ -219,7 +219,7 @@ export function homeLinkPreview(): Container | null {
         linkButton("Collab board", siteUrl("/collab")),
         linkButton("Find members", siteUrl("/members")),
       ]),
-      textDisplay(subtext(SITE.shortDomain)),
+      textDisplay(subtext(SITE.domain)),
     ],
     { accent: ACCENT_BLURPLE },
   );

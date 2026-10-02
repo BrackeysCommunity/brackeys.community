@@ -28,6 +28,7 @@ COPY services/notifications-worker/src ./services/notifications-worker/src
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/db/service-client.ts ./src/db/service-client.ts
 COPY src/lib/service-config.ts ./src/lib/service-config.ts
+COPY src/lib/legal-meta.ts ./src/lib/legal-meta.ts
 COPY src/lib/bull-redis.ts ./src/lib/bull-redis.ts
 COPY src/lib/notify-core.ts ./src/lib/notify-core.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts

@@ -360,7 +360,7 @@ export function ogCard(input: OgCardInput, options: OgRenderOptions = {}): OgNod
         "div",
         { alignItems: "center" },
         img(MARK_DATA_URI, 27, 27, { marginRight: 13 }),
-        h("div", { fontSize: 22, fontWeight: 700, color: FG }, SITE.shortDomain),
+        h("div", { fontSize: 22, fontWeight: 700, color: FG }, SITE.domain),
       ),
     ),
   );
@@ -633,7 +633,7 @@ export function ogHomeCard(input: OgHomeInput, options: OgRenderOptions = {}): O
         "div",
         { alignItems: "center" },
         img(MARK_DATA_URI, 34, 34, { marginRight: 14 }),
-        h("div", { fontSize: 26, fontWeight: 700, color: FG }, "Brackeys Community"),
+        h("div", { fontSize: 26, fontWeight: 700, color: FG }, SITE.name),
       ),
 
       h(
@@ -674,7 +674,7 @@ export function ogHomeCard(input: OgHomeInput, options: OgRenderOptions = {}): O
         backgroundColor: "rgba(11,12,18,0.82)",
         border: "1px solid rgba(255,255,255,0.16)",
       },
-      h("div", { fontSize: 22, fontWeight: 700, color: FG }, SITE.shortDomain),
+      h("div", { fontSize: 22, fontWeight: 700, color: FG }, SITE.domain),
       img(ARROW_DATA_URI, 20, 20, { marginLeft: 12 }),
     ),
   );

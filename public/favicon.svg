@@ -5,7 +5,7 @@
     ignored by enough browsers that a second, differently-tinted <link> ends
     up chosen on its own merits, and a white mark lands on white chrome.
 
-    Geometry is the same as brackeys-logo.svg, which can't carry this because
+    Geometry is the same as logo.svg, which can't carry this because
     it is also a CSS mask (a mask reads alpha, and a <style> block that flips
     fill would be dead weight there) and the schema.org logo.
   -->

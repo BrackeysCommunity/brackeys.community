@@ -74,7 +74,7 @@ function mockFetchResponse(status: number, headers: Record<string, string> = {})
 beforeEach(() => {
   fakeRedis.store.clear();
   fakeRedis.failing = false;
-  globalThis.__brackeysDiscordRedis = undefined;
+  globalThis.__appDiscordRedis = undefined;
   process.env.REDIS_URL = "redis://test";
   process.env.DISCORD_GUILD_ID = "guild-1";
   process.env.DISCORD_BOT_TOKEN = "bot-token";
@@ -152,7 +152,7 @@ describe("isGuildBanned", () => {
   it("fails open on 429, 403 and 5xx", async () => {
     for (const status of [429, 403, 500]) {
       fakeRedis.store.clear();
-      globalThis.__brackeysDiscordRedis = undefined;
+      globalThis.__appDiscordRedis = undefined;
       mockFetchResponse(status);
       await expect(isGuildBanned("user-1")).resolves.toBe(false);
       expect(fakeRedis.store.has(BAN_KEY)).toBe(false);

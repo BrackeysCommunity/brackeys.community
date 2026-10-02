@@ -19,7 +19,7 @@ import { Link } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 
 import { Badge } from "@/components/ui/badge";
-import { BrackeysMark } from "@/components/ui/brackeys-mark";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -81,7 +81,7 @@ export function SiteMenu({ scope, scopeName }: { scope: CanvasScope; scopeName: 
             />
           }
         >
-          <BrackeysMark className="size-5" />
+          <BrandMark className="size-5" />
           <HugeiconsIcon icon={ArrowDown01Icon} size={12} className="text-muted-foreground" />
           {unreadCount > 0 ? (
             <span aria-hidden className="absolute top-1 left-5 size-2 rounded-full bg-primary" />

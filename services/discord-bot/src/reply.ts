@@ -104,8 +104,8 @@ export function httpUrl(url: string | null | undefined): string | undefined {
 }
 
 /**
- * The site as a member knows it — `brackeys.community` in prod,
- * `staging.brackeys.dev` on staging. Every user-facing mention of the site
+ * The site as a member knows it: the production domain in prod, the
+ * staging host on staging. Every user-facing mention of the site
  * derives from `APP_URL` through this, so the copy cannot name a domain the
  * bot is not actually talking to.
  */

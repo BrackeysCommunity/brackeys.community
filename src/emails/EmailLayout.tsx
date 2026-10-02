@@ -13,6 +13,7 @@ import {
 } from "@react-email/components";
 import type { ReactNode } from "react";
 
+import { SITE } from "../lib/legal-meta";
 import {
   BG,
   CARD_BG,
@@ -34,7 +35,7 @@ export interface EmailLayoutProps {
   footer?: ReactNode;
 }
 
-const DEFAULT_APP_URL = "https://brackeys.community";
+const DEFAULT_APP_URL = SITE.url;
 
 /**
  * The one shell every email renders into: dark table wrapper (Outlook's

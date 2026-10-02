@@ -2,11 +2,13 @@
  * Shared itch.io API client, used by the app (router, library sync) and by
  * the itchio-scraper crawler's library tier — which imports this file relatively
  * and is copied into its Docker image, so it must stay dependency-free: no
- * `@/` aliases, no env access, nothing outside this module.
+ * `@/` aliases, no env access, nothing outside this module but the import-free `./legal-meta`.
  */
 
+import { SITE } from "./legal-meta";
+
 const ITCHIO_API_BASE = "https://api.itch.io";
-const DEFAULT_USER_AGENT = "brackeys-web/1.0 (+https://brackeys.community)";
+const DEFAULT_USER_AGENT = `brackeys-web/1.0 (+${SITE.url})`;
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 export interface ItchIoUser {

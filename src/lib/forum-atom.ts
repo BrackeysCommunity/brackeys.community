@@ -2,12 +2,12 @@ import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { developerProfiles, forumPosts, teams, user } from "@/db/schema";
-import { siteOrigin, siteUrl } from "@/env";
+import { siteUrl } from "@/env";
 import { forumPostParam, forumPostTitle } from "@/lib/forum-posts";
 import { memberName } from "@/lib/member-name";
 import { ANONYMOUS_FLAG_DISTINCT_ID, isServerFlagEnabled } from "@/lib/posthog-server";
 import { censorText } from "@/lib/profanity";
-import { SITE_NAME } from "@/lib/site-meta";
+import { feedId, SITE_NAME } from "@/lib/site-meta";
 import { escapeXml } from "@/lib/xml";
 
 /**
@@ -82,7 +82,7 @@ export async function forumAtomResponse(opts: {
     const summary = censorText(row.excerpt);
     return [
       "  <entry>",
-      `    <id>${escapeXml(`${siteOrigin()}/forum/${row.id}`)}</id>`,
+      `    <id>${escapeXml(feedId(`/forum/${row.id}`))}</id>`,
       `    <title>${escapeXml(censorText(forumPostTitle(row)))}</title>`,
       `    <link rel="alternate" type="text/html" href="${escapeXml(url)}"/>`,
       row.publishedAt ? `    <published>${row.publishedAt.toISOString()}</published>` : "",
@@ -100,7 +100,7 @@ export async function forumAtomResponse(opts: {
     `<feed xmlns="http://www.w3.org/2005/Atom">`,
     `  <title>${escapeXml(opts.title)}</title>`,
     `  <subtitle>${escapeXml(opts.subtitle)}</subtitle>`,
-    `  <id>${escapeXml(self)}</id>`,
+    `  <id>${escapeXml(feedId(opts.selfPath))}</id>`,
     `  <link rel="self" type="application/atom+xml" href="${escapeXml(self)}"/>`,
     `  <link rel="alternate" type="text/html" href="${escapeXml(siteUrl(opts.alternatePath))}"/>`,
     `  <author><name>${escapeXml(SITE_NAME)}</name></author>`,

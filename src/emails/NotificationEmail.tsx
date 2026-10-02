@@ -2,6 +2,7 @@ import { Button, Column, Img, Link, Row, Section, Text } from "@react-email/comp
 
 import type { NotificationType } from "../db/schema";
 import { withUtm } from "../lib/email-utm";
+import { SITE } from "../lib/legal-meta";
 import {
   NOTIFICATION_CATEGORY,
   NOTIFICATION_CATEGORY_LABEL,
@@ -120,7 +121,7 @@ export function NotificationEmail({
 }
 
 NotificationEmail.PreviewProps = {
-  appUrl: "https://brackeys.community",
+  appUrl: SITE.url,
   recipientName: "Joshe",
   notification: {
     type: "collab_response_received" as const,
@@ -129,9 +130,8 @@ NotificationEmail.PreviewProps = {
     createdAt: new Date().toISOString(),
   },
   actorAvatarUrl: "https://cdn.discordapp.com/embed/avatars/3.png",
-  unsubscribeUrl:
-    "https://brackeys.community/api/notifications/unsub?token=preview&type=collab_response_received",
-  unsubscribeAllUrl: "https://brackeys.community/api/notifications/unsub?token=preview",
+  unsubscribeUrl: `${SITE.url}/api/notifications/unsub?token=preview&type=collab_response_received`,
+  unsubscribeAllUrl: `${SITE.url}/api/notifications/unsub?token=preview`,
 } satisfies NotificationEmailProps;
 
 function categoryStyle(category: keyof typeof CATEGORY_ACCENT_TEXT) {

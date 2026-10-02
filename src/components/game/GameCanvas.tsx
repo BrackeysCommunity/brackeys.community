@@ -79,7 +79,7 @@ function GameHUD({ store, roomId }: { store: Store<GameStoreState>; roomId: stri
 
   return (
     <div className="pointer-events-none fixed top-4 left-4 z-50 space-y-1 font-mono text-xs">
-      <div className="tracking-widest text-brackeys-yellow/80 uppercase">Room: {roomId}</div>
+      <div className="tracking-widest text-brand-yellow/80 uppercase">Room: {roomId}</div>
       <div className="text-muted-foreground/60">
         {phase === "running" ? `${Math.round(fps)} FPS` : phase}
       </div>

@@ -17,15 +17,15 @@ import { createRedisClient } from "@/lib/redis";
 
 declare global {
   // eslint-disable-next-line no-var
-  var __brackeysPresenceRedis: IORedis | undefined;
+  var __appPresenceRedis: IORedis | undefined;
 }
 
 const TTL_SECONDS = 60;
 
 async function getRedis(): Promise<IORedis> {
-  if (globalThis.__brackeysPresenceRedis) return globalThis.__brackeysPresenceRedis;
-  globalThis.__brackeysPresenceRedis = await createRedisClient("presence");
-  return globalThis.__brackeysPresenceRedis;
+  if (globalThis.__appPresenceRedis) return globalThis.__appPresenceRedis;
+  globalThis.__appPresenceRedis = await createRedisClient("presence");
+  return globalThis.__appPresenceRedis;
 }
 
 function key(userId: string): string {
