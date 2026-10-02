@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { buildMeta, jsonLd, listingMeta, ogCardPath, socialImage } from "@/lib/site-meta";
 
-const ORIGIN = "https://brackeys.community";
+const ORIGIN = "https://jams.team";
 
 vi.mock("@/env", () => ({
   env: { VITE_CF_IMAGES: "1" },

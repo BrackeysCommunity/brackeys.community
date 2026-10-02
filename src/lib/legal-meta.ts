@@ -19,7 +19,10 @@ export const OPERATOR = {
   legalName: "Brackeys Community",
 } as const;
 
-const DOMAIN = "brackeys.community";
+const DOMAIN = "jams.team";
+
+/** Mail stays on the old domain until jams.team has MX, SPF, DKIM and DMARC. */
+const MAIL_DOMAIN = "brackeys.community";
 
 /**
  * The site's own identity. Every hard-coded mention of the production
@@ -38,12 +41,12 @@ export const SITE = {
 } as const;
 
 export const CONTACT = {
-  privacy: `privacy@${DOMAIN}`,
-  legal: `legal@${DOMAIN}`,
+  privacy: `privacy@${MAIL_DOMAIN}`,
+  legal: `legal@${MAIL_DOMAIN}`,
   /** Reports, appeals, and copyright notices. */
-  abuse: `abuse@${DOMAIN}`,
+  abuse: `abuse@${MAIL_DOMAIN}`,
   /** Sender address only; nothing reads mail sent to it. */
-  noreply: `noreply@${DOMAIN}`,
+  noreply: `noreply@${MAIL_DOMAIN}`,
 } as const;
 
 /** The date the current version takes effect, as published. */
