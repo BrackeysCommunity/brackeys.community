@@ -53,7 +53,7 @@ export function JamsHero({ totalJams, view, onViewChange }: JamsHeroProps) {
             Find a jam to enter
           </Heading>
           <Text size="sm" variant="muted">
-            Tracking {formatCount(totalJams)} jams across itch.io. {VIEW_BLURB[view]}
+            Search {formatCount(totalJams)} game jams across itch.io. {VIEW_BLURB[view]}
           </Text>
         </div>
         <SegmentedControl

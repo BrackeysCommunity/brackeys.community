@@ -36,9 +36,9 @@ export const Route = createFileRoute("/teams/")({
     prefetchInLoader(queryClient.prefetchInfiniteQuery(teamsListQueryOptions(deps))),
   head: ({ match }) =>
     listingMeta({
-      title: "Teams",
+      title: "Game dev team finder: find a crew",
       description:
-        "Find a crew to build with — the teams in the Brackeys community, what they have shipped, the stack they work in, and who is recruiting.",
+        "Find a game jam crew or a game dev team to join — what each team has shipped, the stack they work in, and who is recruiting right now.",
       path: "/teams",
       card: ogCardPath("board", "teams"),
       search: match.search,

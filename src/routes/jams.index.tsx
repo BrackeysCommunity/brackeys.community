@@ -14,9 +14,9 @@ export const Route = createFileRoute("/jams/")({
     prefetchInLoader(queryClient.prefetchQuery(boardJamsQueryOptions())),
   head: () =>
     buildMeta({
-      title: "Game jams",
+      title: "Game jam search: live and upcoming jams",
       description:
-        "Every game jam worth entering, on one board — what is live, what opens next, what is in voting, and how many people are in.",
+        "Search every game jam on itch.io in one place — what is live, what opens next, what is in voting, and how many people are in. Find a jam, then find a team.",
       path: "/jams",
       card: ogCardPath("board", "jams"),
     }),

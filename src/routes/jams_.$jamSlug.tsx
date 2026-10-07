@@ -90,7 +90,7 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
 
     return {
       ...buildMeta({
-        title: jam.title,
+        title: jamPageTitle(jam.title),
         description,
         path,
         card: ogCardPath("jam", jam.slug),
@@ -109,6 +109,7 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
             ...(jam.endsAt ? { endDate: new Date(jam.endsAt).toISOString() } : {}),
             eventStatus: "https://schema.org/EventScheduled",
             eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+            isAccessibleForFree: true,
             location: {
               "@type": "VirtualLocation",
               url: `https://itch.io/jam/${jam.slug}`,
@@ -163,6 +164,15 @@ export const Route = createFileRoute("/jams_/$jamSlug")({
   pendingComponent: JamDetailSkeleton,
   notFoundComponent: JamNotFound,
 });
+
+/**
+ * Leads with the jam's own name for searches on it, and says what the page
+ * is so it isn't read as a copy of the itch page.
+ */
+function jamPageTitle(title: string): string {
+  const kind = /\bjam\b/i.test(title) ? "" : " game jam";
+  return `${title}${kind}: dates, entries & teams`;
+}
 
 interface JamDescriptionSource {
   title: string;

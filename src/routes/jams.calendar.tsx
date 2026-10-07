@@ -16,7 +16,7 @@ export const Route = createFileRoute("/jams/calendar")({
     prefetchInLoader(queryClient.prefetchQuery(calendarJamsQueryOptions(currentMonthKey()))),
   head: () =>
     buildMeta({
-      title: "Jam calendar",
+      title: "Game jam calendar",
       description:
         "Every game jam on one month grid — what is running now, what opens next, and when submissions and voting close.",
       path: "/jams/calendar",

@@ -15,9 +15,9 @@ export const Route = createFileRoute("/jams/archive")({
     prefetchInLoader(queryClient.prefetchQuery(archiveJamsQueryOptions(DEFAULT_ARCHIVE_STATE))),
   head: () =>
     buildMeta({
-      title: "Jam archive",
+      title: "Game jam archive: search past jams",
       description:
-        "Every game jam we track that has already run — searchable and sortable by entries, ratings, duration and date. Around 19,000 of them.",
+        "Search every past game jam we track — sortable by entries, ratings, duration and date. Around 19,000 of them.",
       path: "/jams/archive",
       card: ogCardPath("board", "archive"),
     }),

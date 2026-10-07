@@ -356,8 +356,8 @@ function CollabHero({ authenticated, onCreate }: { authenticated: boolean; onCre
             Find people to build with
           </Heading>
           <Text size="sm" variant="muted">
-            Open roles from teams and solo devs — paid work and hobby projects. Post what you need
-            filled, or answer someone who's already building.
+            A team finder for game jams and game projects — open roles from teams and solo devs,
+            paid and hobby. Post what you need filled, or answer someone who's already building.
           </Text>
         </div>
         <div className="flex flex-wrap items-center gap-2">

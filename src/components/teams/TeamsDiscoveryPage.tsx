@@ -272,8 +272,8 @@ function TeamsHero({ authenticated, onStart }: { authenticated: boolean; onStart
             Find a crew to build with
           </Heading>
           <Text size="sm" variant="muted">
-            Browse teams that are recruiting, see what they've shipped and what they work in — or
-            start your own page and let people come to you.
+            Browse game dev and game jam crews that are recruiting, see what they've shipped and
+            what they work in — or start your own page and let people come to you.
           </Text>
         </div>
         <Button size="lg" onClick={onStart} className="tracking-widest">

@@ -21,7 +21,7 @@ export const OPERATOR = {
 
 const DOMAIN = "jams.team";
 
-/** Mail stays on the old domain until jams.team has MX, SPF, DKIM and DMARC. */
+/** Inbound contact mail stays on the old domain until jams.team has routing for it. */
 const MAIL_DOMAIN = "brackeys.community";
 
 /**
@@ -46,7 +46,7 @@ export const CONTACT = {
   /** Reports, appeals, and copyright notices. */
   abuse: `abuse@${MAIL_DOMAIN}`,
   /** Sender address only; nothing reads mail sent to it. */
-  noreply: `noreply@${MAIL_DOMAIN}`,
+  noreply: `noreply@${DOMAIN}`,
 } as const;
 
 /** The date the current version takes effect, as published. */

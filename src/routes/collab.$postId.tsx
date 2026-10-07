@@ -37,7 +37,9 @@ export const Route = createFileRoute("/collab/$postId")({
     }
     const description =
       post.metaDescription ??
-      `${post.title} — an open collaboration post on the Brackeys community board.`;
+      (post.jam
+        ? `${post.title} — looking for teammates for ${post.jam.title}.`
+        : `${post.title} — an open role on the game jam team finder.`);
     const path = `/collab/${post.id}`;
     const authorName = post.author ? memberDisplayName(post.author, ANON_VIEWER) : null;
 
@@ -47,7 +49,7 @@ export const Route = createFileRoute("/collab/$postId")({
         description,
         path,
         card: ogCardPath("collab", post.id),
-        imageAlt: `${post.title} — an open role on the Brackeys collab board`,
+        imageAlt: `${post.title} — an open role on the team finder`,
         type: "article",
         meta: [
           ...(post.createdAt
@@ -69,7 +71,7 @@ export const Route = createFileRoute("/collab/$postId")({
           {
             "@context": "https://schema.org",
             ...breadcrumbNode([
-              { name: "Collab board", path: "/collab" },
+              { name: "Team finder", path: "/collab" },
               { name: post.title, path },
             ]),
           },

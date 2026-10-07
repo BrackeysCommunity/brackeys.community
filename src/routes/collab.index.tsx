@@ -67,9 +67,9 @@ export const Route = createFileRoute("/collab/")({
     ),
   head: ({ match }) =>
     listingMeta({
-      title: "Collab board",
+      title: "Game jam team finder: find teammates",
       description:
-        "Find people to build with — open roles on game projects in the Brackeys community, paid and hobby, with the skills each one is looking for.",
+        "Find a team for your next game jam or game project — open roles from teams and solo devs, paid and hobby, with the skills each one is looking for.",
       path: "/collab",
       card: ogCardPath("board", "collab"),
       search: match.search,

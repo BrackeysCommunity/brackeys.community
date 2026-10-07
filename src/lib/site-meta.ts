@@ -23,7 +23,10 @@ export function feedId(path: string): string {
 }
 
 export const SITE_DESCRIPTION =
-  "The Brackeys community hub: every game jam worth entering, the people making games in them, and the teams looking for someone like you.";
+  "Game jam search and team finder: every game jam on itch.io, live and upcoming, plus the game dev teams and solo devs looking for someone like you.";
+
+/** The homepage's `<title>` lead — the searches the site is built to answer. */
+export const HOME_TITLE = "Game jam search & team finder";
 
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;

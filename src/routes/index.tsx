@@ -12,7 +12,7 @@ import { componentEmbed } from "@/lib/discord-embed";
 import { homeLinkPreview } from "@/lib/discord-link-preview";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { isServerLoad } from "@/lib/route-prefetch";
-import { buildMeta, jsonLd, organizationNode, SITE_NAME } from "@/lib/site-meta";
+import { buildMeta, HOME_TITLE, jsonLd, organizationNode, SITE_NAME } from "@/lib/site-meta";
 
 function HomeRoute() {
   const isMobile = useIsMobile();
@@ -64,7 +64,7 @@ async function prefetchHome(queryClient: QueryClient) {
 export const Route = createFileRoute("/")({
   loader: ({ context: { queryClient } }) => prefetchHome(queryClient),
   head: () => ({
-    ...buildMeta({ path: "/" }),
+    ...buildMeta({ title: HOME_TITLE, path: "/" }),
     scripts: [
       ...jsonLd([
         { "@context": "https://schema.org", ...organizationNode() },
