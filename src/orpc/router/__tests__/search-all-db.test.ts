@@ -30,7 +30,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
   isGuildMember: async () => true,
 }));
 vi.mock("@/lib/guild-sync", () => ({
-  refreshGuildRolesThrottled: async () => {},
+  refreshDiscordProfileThrottled: async () => {},
 }));
 let forumEnabled = true;
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({

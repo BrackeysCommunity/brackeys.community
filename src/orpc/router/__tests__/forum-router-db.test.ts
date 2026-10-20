@@ -33,7 +33,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
   isGuildMember: async (discordId: string) => !nonMembers.has(discordId),
 }));
 vi.mock("@/lib/guild-sync", () => ({
-  refreshGuildRolesThrottled: async () => {},
+  refreshDiscordProfileThrottled: async () => {},
 }));
 const removedObjects: string[] = [];
 vi.mock("@/lib/profile-project-image-storage", async (importOriginal) => ({

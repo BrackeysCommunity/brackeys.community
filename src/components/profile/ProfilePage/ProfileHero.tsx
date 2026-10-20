@@ -2,6 +2,7 @@ import { Edit02Icon, Link01Icon, UserBlock01Icon } from "@hugeicons/core-free-ic
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,6 +148,9 @@ export function ProfileHero({
 }
 
 function AvatarTile({ profile, compact }: { profile: ProfileViewModel; compact: boolean }) {
+  // Keyed by URL so a fixed avatar gets its chance instead of staying hidden.
+  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
+  const imageUrl = profile.avatar.imageUrl === brokenUrl ? null : profile.avatar.imageUrl;
   return (
     <div
       className={cn(
@@ -154,10 +158,11 @@ function AvatarTile({ profile, compact }: { profile: ProfileViewModel; compact: 
         compact ? "-mt-10 h-20 w-20" : "-mt-12 h-28 w-28",
       )}
     >
-      {profile.avatar.imageUrl ? (
+      {imageUrl ? (
         <TransformedImage
-          src={profile.avatar.imageUrl}
+          src={imageUrl}
           transform={{ width: 224 }}
+          onExhausted={() => setBrokenUrl(imageUrl)}
           alt={profile.name}
           decoding="async"
           className="h-full w-full object-cover"

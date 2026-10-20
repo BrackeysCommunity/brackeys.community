@@ -35,7 +35,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
     return new Response(status === 200 ? JSON.stringify({ id: "message-1" }) : "", { status });
   },
 }));
-vi.mock("@/lib/guild-sync", () => ({ refreshGuildRolesThrottled: async () => {} }));
+vi.mock("@/lib/guild-sync", () => ({ refreshDiscordProfileThrottled: async () => {} }));
 vi.mock("@/lib/queue", () => ({
   getNotificationsQueue: async () => ({ add: async () => ({}) }),
 }));

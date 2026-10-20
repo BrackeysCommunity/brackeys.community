@@ -1,4 +1,13 @@
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import {
+  Client,
+  Events,
+  GatewayIntentBits,
+  type GuildMember,
+  type PartialGuildMember,
+  type PartialUser,
+  Partials,
+  type User,
+} from "discord.js";
 
 import { createServiceTelemetry } from "../../../src/lib/service-telemetry.ts";
 import { createPublicApi } from "./api.ts";
@@ -7,6 +16,7 @@ import { config } from "./config.ts";
 import { createCooldown } from "./cooldown.ts";
 import { createInteractionHandler } from "./discord/adapter.ts";
 import { syncGuildCommands } from "./discord/register.ts";
+import { createMemberRelay, identityChanged, type MemberIdentity } from "./member-relay.ts";
 import { createMemo } from "./memo.ts";
 import { siteName } from "./reply.ts";
 
@@ -16,6 +26,11 @@ import { siteName } from "./reply.ts";
  * arrive regardless of intents, and nothing here reads messages — and every
  * answer is a GET to `$APP_URL/api/public/rpc` through the edge. No
  * database, no Redis, no queue; plan 20 adds those to this process.
+ *
+ * With `MEMBER_RELAY` on it also holds `GuildMembers`, and tells the site
+ * when a member's avatar or name changes so their profile doesn't wait for
+ * the daily resync. That intent needs Discord's privileged intent review
+ * first (see README).
  */
 
 const telemetry = createServiceTelemetry("discord-bot");
@@ -28,7 +43,43 @@ const cooldown = createCooldown({
   windowMs: config.COOLDOWN_WINDOW_MS,
 });
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const memberRelay = config.MEMBER_RELAY
+  ? createMemberRelay({ appUrl: config.APP_URL, secret: config.DISCORD_BOT_TOKEN, log })
+  : null;
+
+const client = new Client({
+  intents: memberRelay
+    ? [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+    : [GatewayIntentBits.Guilds],
+  // Members aren't cached ahead of time, so an update for one we haven't
+  // seen arrives with a partial old copy — without these it isn't emitted.
+  partials: memberRelay ? [Partials.GuildMember, Partials.User] : [],
+});
+
+function userIdentity(user: User | PartialUser): MemberIdentity | null {
+  if (user.partial) return null;
+  return { guildAvatar: null, nickname: null, avatar: user.avatar, username: user.username };
+}
+
+function memberIdentity(member: GuildMember | PartialGuildMember): MemberIdentity | null {
+  if (member.partial) return null;
+  return {
+    guildAvatar: member.avatar,
+    nickname: member.nickname,
+    avatar: member.user.avatar,
+    username: member.user.username,
+  };
+}
+
+if (memberRelay) {
+  client.on(Events.GuildMemberUpdate, (old, next) => {
+    if (next.guild.id !== config.DISCORD_GUILD_ID) return;
+    if (identityChanged(memberIdentity(old), memberIdentity(next)!)) memberRelay.relay(next.id);
+  });
+  client.on(Events.UserUpdate, (old, next) => {
+    if (identityChanged(userIdentity(old), userIdentity(next)!)) memberRelay.relay(next.id);
+  });
+}
 
 client.on(
   Events.InteractionCreate,
@@ -85,6 +136,7 @@ log(`[boot] discord-bot started — api ${config.APP_URL}, guild ${config.DISCOR
 async function shutdown(signal: string) {
   log(`[boot] received ${signal}, draining...`);
   memo.stop();
+  memberRelay?.stop();
   await client.destroy();
   // Before exit, not after: an interaction that failed in the last seconds
   // is exactly the one worth keeping.

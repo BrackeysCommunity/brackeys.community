@@ -36,7 +36,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
   isGuildMember: async () => true,
 }));
 vi.mock("@/lib/guild-sync", () => ({
-  refreshGuildRolesThrottled: async () => {},
+  refreshDiscordProfileThrottled: async () => {},
 }));
 vi.mock("@/lib/staff-roles", async (importOriginal) => importOriginal());
 vi.mock("@/lib/queue", () => ({

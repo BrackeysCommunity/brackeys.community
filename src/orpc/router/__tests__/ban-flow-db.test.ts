@@ -32,7 +32,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
   purgeGuildBanCache: async () => {},
 }));
 vi.mock("@/lib/guild-sync", () => ({
-  refreshGuildRolesThrottled: async () => {},
+  refreshDiscordProfileThrottled: async () => {},
   syncDiscordProfile: async () => ({ guildRolesSynced: false }),
 }));
 vi.mock("@/lib/staff-roles", async (importOriginal) => importOriginal());

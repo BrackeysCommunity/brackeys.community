@@ -46,7 +46,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
     return new Response(status === 200 ? JSON.stringify({ id: "message-1" }) : "", { status });
   },
 }));
-vi.mock("@/lib/guild-sync", () => ({ refreshGuildRolesThrottled: async () => {} }));
+vi.mock("@/lib/guild-sync", () => ({ refreshDiscordProfileThrottled: async () => {} }));
 
 /** The limiter runs on Redis, which these tests don't stand up — so the
  *  spend/refund pair is recorded here instead, and the handler's contract

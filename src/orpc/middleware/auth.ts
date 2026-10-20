@@ -12,7 +12,7 @@ import {
   isGuildMember,
 } from "@/lib/discord";
 import { NOT_GUILD_MEMBER_MESSAGE } from "@/lib/guild-gate";
-import { refreshGuildRolesThrottled } from "@/lib/guild-sync";
+import { refreshDiscordProfileThrottled } from "@/lib/guild-sync";
 import { resolveUserRoles } from "@/lib/staff-roles";
 
 type SessionResult = Awaited<ReturnType<typeof auth.api.getSession>>;
@@ -54,12 +54,15 @@ async function authedSession(context: unknown): Promise<NonNullable<SessionResul
     throw new ORPCError("UNAUTHORIZED", { message: "Authentication required." });
   }
   assertNotBanned(session);
+  void refreshDiscordProfileThrottled(session.user.id, "daily");
   return session;
 }
 
 export const authMiddleware = os.middleware(async ({ context, next }) => {
   let session = await readSession(context);
   if (isBanned(session)) session = null;
+  // Not awaited: a signed-in read never waits on discord.com.
+  if (session) void refreshDiscordProfileThrottled(session.user.id, "daily");
 
   return next({
     context: {
@@ -124,7 +127,7 @@ export const requireAuthWithPermissions = os.middleware(async ({ context, next }
   const isStaff = checkIsStaff(guildRoles);
 
   if (isStaff) {
-    void refreshGuildRolesThrottled(session.user.id);
+    void refreshDiscordProfileThrottled(session.user.id, "staff");
   }
 
   return next({
@@ -159,7 +162,7 @@ function roleGuard(
     // Cached roles are only as fresh as the last sign-in; a throttled
     // background re-fetch bounds how long a Discord demotion goes unnoticed.
     // Deliberately not awaited — staff routes never wait on discord.com.
-    void refreshGuildRolesThrottled(session.user.id);
+    void refreshDiscordProfileThrottled(session.user.id, "staff");
 
     return next({
       context: {

@@ -21,7 +21,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
   isGuildMember: async () => true,
 }));
 vi.mock("@/lib/guild-sync", () => ({
-  refreshGuildRolesThrottled: async () => {},
+  refreshDiscordProfileThrottled: async () => {},
 }));
 vi.mock("@/lib/dns-provider-lookup", () => ({ lookupDnsProvider: vi.fn() }));
 vi.mock("@/lib/website-verification-check", async (importOriginal) => {

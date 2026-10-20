@@ -293,6 +293,32 @@ export async function fetchGuildMember(accessToken: string): Promise<DiscordGuil
 }
 
 /**
+ * A guild member by Discord id, read with the bot token — the route that
+ * doesn't depend on the member's own OAuth token still being alive.
+ * Null when they aren't in the guild; undefined when Discord didn't answer.
+ */
+export async function fetchGuildMemberAsBot(
+  discordUserId: string,
+): Promise<DiscordGuildMember | null | undefined> {
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  if (!guildId || !botToken) return undefined;
+
+  let response: Response;
+  try {
+    response = await discordFetch(
+      `https://discord.com/api/v10/guilds/${guildId}/members/${discordUserId}`,
+      { headers: { Authorization: `Bot ${botToken}` } },
+    );
+  } catch {
+    return undefined;
+  }
+  if (response.status === 404) return null;
+  if (!response.ok) return undefined;
+  return (await response.json()) as DiscordGuildMember;
+}
+
+/**
  * Fetch the OAuth user's own profile. Only needed when the guild-member
  * lookup can't answer (user not in the guild) — the member payload already
  * embeds the user object.

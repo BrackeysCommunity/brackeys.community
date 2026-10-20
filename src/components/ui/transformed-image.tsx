@@ -6,6 +6,9 @@ interface TransformedImageProps extends Omit<ComponentProps<"img">, "src" | "src
   /** Untransformed source; the transform is applied here, not by the caller. */
   src: string;
   transform?: ItchImageOpts;
+  /** Both sources failed. Unlike `onError`, this also catches a failure that
+   *  landed before hydration, so a caller can swap in its own fallback. */
+  onExhausted?: () => void;
 }
 
 /**
@@ -19,6 +22,7 @@ export function TransformedImage({
   src,
   transform,
   onError,
+  onExhausted,
   ref,
   ...props
 }: TransformedImageProps) {
@@ -35,8 +39,9 @@ export function TransformedImage({
         // before React attaches the handler below and the retry never
         // runs. A finished-but-broken image reports `complete` with no
         // intrinsic width, which is the same failure read off the element.
-        if (node && rendered !== src && node.complete && node.naturalWidth === 0) {
-          setFailed(rendered);
+        if (node && node.complete && node.naturalWidth === 0) {
+          if (rendered !== src) setFailed(rendered);
+          else onExhausted?.();
         }
         if (typeof ref === "function") return ref(node);
         if (ref) ref.current = node;
@@ -48,6 +53,7 @@ export function TransformedImage({
           return;
         }
         onError?.(event);
+        onExhausted?.();
       }}
     />
   );

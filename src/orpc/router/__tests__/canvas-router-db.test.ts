@@ -48,7 +48,7 @@ vi.mock("@/lib/discord", async (importOriginal) => ({
   isGuildMember: async (discordId: string) => !nonMembers.has(discordId),
 }));
 vi.mock("@/lib/guild-sync", () => ({
-  refreshGuildRolesThrottled: async () => {},
+  refreshDiscordProfileThrottled: async () => {},
 }));
 let canvasesEnabled = true;
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({

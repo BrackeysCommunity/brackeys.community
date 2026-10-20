@@ -26,7 +26,7 @@ vi.mock("@/lib/auth", async () => {
   return fakeAuthModule();
 });
 vi.mock("@/lib/guild-sync", () => ({
-  refreshGuildRolesThrottled: async () => {},
+  refreshDiscordProfileThrottled: async () => {},
 }));
 
 /**

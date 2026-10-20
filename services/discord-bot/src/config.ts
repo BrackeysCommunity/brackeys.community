@@ -45,6 +45,13 @@ const schema = z
     // a load generator.
     COOLDOWN_LIMIT: z.coerce.number().int().positive().default(10),
     COOLDOWN_WINDOW_MS: z.coerce.number().int().positive().default(10_000),
+    // Relays avatar and name changes to the site (`member-relay.ts`). Needs
+    // the privileged Server Members intent, and the app reaches well over
+    // Discord's 10,000-user line, so that intent is behind Discord's
+    // privileged intent review — the portal toggle stays locked until it's
+    // approved. Without it the gateway refuses the login (4014), so this
+    // stays off until then; the site's daily resync covers the gap.
+    MEMBER_RELAY: z.stringbool().default(false),
   })
   .transform(({ DISCORD_APPLICATION_ID, DISCORD_CLIENT_ID, ...rest }, ctx) => {
     const applicationId = DISCORD_APPLICATION_ID ?? DISCORD_CLIENT_ID;

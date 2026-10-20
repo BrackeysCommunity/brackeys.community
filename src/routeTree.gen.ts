@@ -74,6 +74,7 @@ import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiNotificationsUnsubRouteImport } from './routes/api.notifications.unsub'
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notifications.stream'
 import { Route as ApiForumStreamRouteImport } from './routes/api.forum.stream'
+import { Route as ApiDiscordMemberSyncRouteImport } from './routes/api.discord.member-sync'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as OauthGitlabProviderIdCallbackRouteImport } from './routes/oauth.gitlab.$providerId.callback'
 import { Route as ApiPublicRpcSplatRouteImport } from './routes/api.public.rpc.$'
@@ -403,6 +404,11 @@ const ApiForumStreamRoute = ApiForumStreamRouteImport.update({
   path: '/api/forum/stream',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDiscordMemberSyncRoute = ApiDiscordMemberSyncRouteImport.update({
+  id: '/api/discord/member-sync',
+  path: '/api/discord/member-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -477,6 +483,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof SettingsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/discord/member-sync': typeof ApiDiscordMemberSyncRoute
   '/api/forum/stream': typeof ApiForumStreamRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
@@ -538,6 +545,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/teams': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/discord/member-sync': typeof ApiDiscordMemberSyncRoute
   '/api/forum/stream': typeof ApiForumStreamRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
@@ -609,6 +617,7 @@ export interface FileRoutesById {
   '/settings/': typeof SettingsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/discord/member-sync': typeof ApiDiscordMemberSyncRoute
   '/api/forum/stream': typeof ApiForumStreamRoute
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/notifications/unsub': typeof ApiNotificationsUnsubRoute
@@ -681,6 +690,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/teams/'
     | '/api/auth/$'
+    | '/api/discord/member-sync'
     | '/api/forum/stream'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
@@ -742,6 +752,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/teams'
     | '/api/auth/$'
+    | '/api/discord/member-sync'
     | '/api/forum/stream'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
@@ -812,6 +823,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/teams/'
     | '/api/auth/$'
+    | '/api/discord/member-sync'
     | '/api/forum/stream'
     | '/api/notifications/stream'
     | '/api/notifications/unsub'
@@ -859,6 +871,7 @@ export interface RootRouteChildren {
   ProjectsProjectSlugRoute: typeof ProjectsProjectSlugRoute
   StaffImageSplatRoute: typeof StaffImageSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiDiscordMemberSyncRoute: typeof ApiDiscordMemberSyncRoute
   ApiForumStreamRoute: typeof ApiForumStreamRoute
   ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
   ApiNotificationsUnsubRoute: typeof ApiNotificationsUnsubRoute
@@ -1328,6 +1341,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiForumStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/discord/member-sync': {
+      id: '/api/discord/member-sync'
+      path: '/api/discord/member-sync'
+      fullPath: '/api/discord/member-sync'
+      preLoaderRoute: typeof ApiDiscordMemberSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -1516,6 +1536,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsProjectSlugRoute: ProjectsProjectSlugRoute,
   StaffImageSplatRoute: StaffImageSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiDiscordMemberSyncRoute: ApiDiscordMemberSyncRoute,
   ApiForumStreamRoute: ApiForumStreamRoute,
   ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,
   ApiNotificationsUnsubRoute: ApiNotificationsUnsubRoute,

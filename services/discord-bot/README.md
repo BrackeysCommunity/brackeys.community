@@ -7,7 +7,9 @@ and gets the current Brackeys jam with its phase and countdown;
 site profile. Every answer is a GET to `$APP_URL/api/public/rpc/*` through
 the edge — the same requests the browser makes — so the bot is a client of
 the API, never a second implementation of it. It holds no database
-connection, no session, and writes nothing to the site (plan `28`).
+connection, no session, and writes nothing to the site (plan `28`) beyond
+the optional member relay, which only asks the site to re-read a member
+from Discord.
 
 ## Commands
 
@@ -77,6 +79,18 @@ Root `vp check` formats these files but does not type-check them.
    `DISCORD_CLIENT_ID` — same value, either name), `DISCORD_GUILD_ID`,
    `APP_URL` (required, never defaulted), optional `JAM_HOST_NAME`,
    `BOT_API_TIMEOUT_MS`, and the PostHog pair the other services read.
+6. **Member relay (optional)** — `MEMBER_RELAY=true` adds the privileged
+   `GuildMembers` intent and POSTs `{ discordId }` to
+   `$APP_URL/api/discord/member-sync` when a member's avatar, nickname or
+   username changes, signed with an HMAC keyed by `DISCORD_BOT_TOKEN`
+   (`src/lib/bot-relay-signature.ts`). It needs the privileged **Server
+   Members Intent**. Since June 2026 Discord gates privileged intents on
+   unique users reached, not servers: past 10,000 the toggle is locked
+   until the app passes Discord's
+   [privileged intent review](https://docs.discord.com/developers/gateway/getting-started-with-privileged-intent-review),
+   and the Brackeys server alone is far past that. Leave it off until the
+   intent is approved — the login is refused otherwise. Meanwhile the site
+   resyncs every signed-in member from Discord at most once a day.
 
 ### Deploys
 
