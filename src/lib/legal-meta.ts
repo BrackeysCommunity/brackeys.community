@@ -14,9 +14,9 @@ export const OPERATOR = {
   /**
    * How the operator is named in the documents. Not an incorporated entity
    * — it is the community that runs the Service, named so that the
-   * agreement has an identifiable counterparty.
+   * agreement has an identifiable counterparty. Always read mid-sentence.
    */
-  legalName: "Brackeys Community",
+  legalName: "the jams.team community",
 } as const;
 
 const DOMAIN = "jams.team";
@@ -30,11 +30,12 @@ const MAIL_DOMAIN = "brackeys.community";
  * Service images copy it, so it must stay import-free.
  */
 export const SITE = {
-  name: "Brackeys Community",
-  /** The wordmark beside the mark, the email sender name, the manifest `short_name`. */
-  shortName: "Brackeys",
+  /** Always lowercase, even at the start of a sentence: rephrase rather than capitalise. */
+  name: "jams.team",
+  /** The email sender name and the manifest `short_name`. */
+  shortName: "jams.team",
   /** The header and footer wordmark: `lead` plain, `accent` in the brand gradient. */
-  wordmark: { lead: "Brackeys", accent: "Community" },
+  wordmark: { lead: "jams", accent: ".team" },
   domain: DOMAIN,
   url: `https://${DOMAIN}`,
   discord: "https://discord.gg/brackeys",

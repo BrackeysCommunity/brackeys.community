@@ -37,19 +37,19 @@ const COPY: Record<
   { preview: string; heading: string; body: string; cta: string }
 > = {
   verify: {
-    preview: "Verify your Brackeys email address",
+    preview: `Verify your ${SITE.name} email address`,
     heading: "Verify your email",
     body: "Confirm this email so you can sign in. The link expires shortly.",
     cta: "Verify email",
   },
   reset: {
-    preview: "Reset your Brackeys password",
+    preview: `Reset your ${SITE.name} password`,
     heading: "Reset your password",
     body: "Click below to set a new password. If you didn't request this, ignore this email.",
     cta: "Reset password",
   },
   delete: {
-    preview: "Confirm deleting your Brackeys account",
+    preview: `Confirm deleting your ${SITE.name} account`,
     heading: "Delete your account",
     body: "Click below to permanently delete your account, profile, and projects. This cannot be undone. If you didn't request this, ignore this email and your account will stay untouched.",
     cta: "Delete my account",

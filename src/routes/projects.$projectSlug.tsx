@@ -6,7 +6,14 @@ import { ProjectPage } from "@/components/projects/ProjectPage";
 import { siteUrl } from "@/env";
 import { emojiTokensToNames } from "@/lib/discord-emoji";
 import { projectTypeLabel } from "@/lib/project-links";
-import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
+import {
+  breadcrumbNode,
+  buildMeta,
+  jsonLd,
+  NOT_FOUND_OG_CARD,
+  ogCardPath,
+  SITE_NAME,
+} from "@/lib/site-meta";
 import { client } from "@/orpc/client";
 
 /**
@@ -82,7 +89,7 @@ export const Route = createFileRoute("/projects/$projectSlug")({
       .join(", ");
     const description =
       (project.description ? emojiTokensToNames(project.description) : null) ??
-      (credits ? `A ${kind} by ${credits}.` : `A ${kind} on Brackeys Community.`);
+      (credits ? `A ${kind} by ${credits}.` : `A ${kind} on ${SITE_NAME}.`);
     const path = `/projects/${project.slug}`;
 
     return {
@@ -93,7 +100,7 @@ export const Route = createFileRoute("/projects/$projectSlug")({
         // A generated card rather than the raw cover: itch's 300×240
         // derivative declared as `summary_large_image` is a blurry stretch.
         card: ogCardPath("project", project.slug),
-        imageAlt: `${project.title} on Brackeys Community`,
+        imageAlt: `${project.title} on ${SITE_NAME}`,
         // Indexing follows anchoring, not existence: unpublished pages and
         // unanchored single-jam scrape-mints both stay out of the index —
         // the server computes which is which.

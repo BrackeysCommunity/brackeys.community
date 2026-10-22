@@ -29,7 +29,6 @@ import {
 import { collabRateLine, type CollabRateSource } from "@/lib/format-rate";
 import { itchImageUrl, itchOriginalUrl } from "@/lib/itch-image";
 import { jamSlug, jamUrl } from "@/lib/jam-links";
-import { SITE } from "@/lib/legal-meta";
 import { profileSlug } from "@/lib/profile-links";
 import { DEFAULT_OG_EMBED_CARD, ogCardPath, SITE_NAME } from "@/lib/site-meta";
 import { teamSlug } from "@/lib/team-links";
@@ -109,7 +108,7 @@ export function jamLinkPreview(
       mediaGallery([{ url: cardImage("jam", jam.slug), description: jam.title }]),
       separator(),
       actionRow([
-        linkButton("Open on Brackeys", url),
+        linkButton(`Open on ${SITE_NAME}`, url),
         linkButton("View on itch.io", jamUrl(jam.slug)),
       ]),
     ],
@@ -189,7 +188,7 @@ export function collabLinkPreview(
       footer ? textDisplay(subtext(footer)) : null,
       separator(),
       actionRow([
-        linkButton(isClosed ? "View the post" : "Apply on Brackeys", url),
+        linkButton(isClosed ? "View the post" : `Apply on ${SITE_NAME}`, url),
         post.jam ? linkButton(`Jam: ${post.jam.title}`, jamUrlOnSite) : null,
         linkButton("All open posts", siteUrl("/collab")),
       ]),
@@ -219,7 +218,6 @@ export function homeLinkPreview(): Container | null {
         linkButton("Collab board", siteUrl("/collab")),
         linkButton("Find members", siteUrl("/members")),
       ]),
-      textDisplay(subtext(SITE.domain)),
     ],
     { accent: ACCENT_BLURPLE },
   );

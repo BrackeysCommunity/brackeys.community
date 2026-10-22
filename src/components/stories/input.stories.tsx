@@ -47,9 +47,9 @@ export const Overview: Story = {
           </code>
         </pre>
         <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
-          The Input component wraps a native <InlineCode>&lt;input&gt;</InlineCode> with the
-          Brackeys design system styling. It features a debossed (sunken) appearance in dark mode
-          for visual depth, consistent with the sci-fi aesthetic.
+          The Input component wraps a native <InlineCode>&lt;input&gt;</InlineCode> with the site's
+          design system styling. It features a debossed (sunken) appearance in dark mode for visual
+          depth, consistent with the sci-fi aesthetic.
         </Text>
       </section>
 
@@ -112,7 +112,7 @@ export const Overview: Story = {
             </Field>
             <Field>
               <FieldLabel>Username</FieldLabel>
-              <Input placeholder="brackeys_fan" />
+              <Input placeholder="jam_fan" />
             </Field>
           </div>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">

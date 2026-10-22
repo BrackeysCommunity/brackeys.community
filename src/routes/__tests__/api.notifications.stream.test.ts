@@ -69,7 +69,7 @@ async function open(subscriber: FakeSubscriber) {
   state.subscriber = subscriber;
   const controller = new AbortController();
   const response = await GET({
-    request: new Request("https://brackeys.community/api/notifications/stream", {
+    request: new Request("https://jams.team/api/notifications/stream", {
       signal: controller.signal,
     }),
   });

@@ -112,8 +112,8 @@ export function SiteFooter() {
             <Wordmark className="font-display text-sm" />
           </div>
           <p className="max-w-xs font-sans text-xs text-muted-foreground">
-            A Discord server for indie game devs. Built, maintained, and moderated by the Brackeys
-            community.
+            The jam hub of the Brackeys Discord, a server for indie game devs. Built and maintained
+            for the server, and moderated by its community.
           </p>
           <p className="max-w-xs font-sans text-xs text-muted-foreground">
             Jams run on{" "}

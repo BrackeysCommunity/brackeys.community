@@ -113,7 +113,7 @@ export function NotificationEmail({
       </Section>
       <Section style={{ textAlign: "center" as const, margin: "24px 0 0" }}>
         <Button href={ctaUrl} style={buttonStyle}>
-          View on Brackeys
+          View on {SITE.name}
         </Button>
       </Section>
     </EmailLayout>

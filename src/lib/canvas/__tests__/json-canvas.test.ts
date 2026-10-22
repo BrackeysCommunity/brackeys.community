@@ -17,7 +17,11 @@ import {
 import { CANVAS_LIMITS } from "../limits";
 
 const FIXTURES = join(import.meta.dirname, "fixtures");
-const fixtureNames = readdirSync(FIXTURES).filter((f) => f.endsWith(".canvas"));
+/** Written before the rebrand: our key is spelled `brackeys`, which reads but is never written. */
+const LEGACY_FIXTURE = "synthetic-brackeys.canvas";
+const fixtureNames = readdirSync(FIXTURES).filter(
+  (f) => f.endsWith(".canvas") && f !== LEGACY_FIXTURE,
+);
 
 function fixture(name: string): JsonCanvas {
   return JSON.parse(readFileSync(join(FIXTURES, name), "utf8")) as JsonCanvas;
@@ -37,7 +41,7 @@ function load(canvas: unknown): Y.Doc {
 describe("JSON Canvas round trip", () => {
   it.each(fixtureNames)("%s: json → doc → json is lossless", (name) => {
     const source = fixture(name);
-    const canvasId = (source.brackeys as { id?: string } | undefined)?.id;
+    const canvasId = (source.jamsTeam as { id?: string } | undefined)?.id;
     const out = docToJsonCanvas(load(source), { canvasId });
     expect(out).toEqual(normalized(source));
   });
@@ -45,7 +49,7 @@ describe("JSON Canvas round trip", () => {
   it.each(fixtureNames)("%s: sanitising a real file changes nothing", (name) => {
     const source = normalized(fixture(name));
     expect(sanitizeSnapshot(source)).toEqual(source);
-    const { brackeys: _canvasKey, ...withoutCanvasKey } = source;
+    const { jamsTeam: _canvasKey, ...withoutCanvasKey } = source;
     expect(deriveSnapshot(load(source))).toEqual(withoutCanvasKey);
   });
 
@@ -75,14 +79,39 @@ describe("JSON Canvas round trip", () => {
     expect(out.edges[0]).toEqual({ id: "e", fromNode: "a", toNode: "b" });
   });
 
-  it("maps our image and entity types to file and link nodes with a brackeys key", () => {
-    const doc = load(fixture("synthetic-brackeys.canvas"));
+  it("maps our image and entity types to file and link nodes with a jamsTeam key", () => {
+    const doc = load(fixture("synthetic-jams-team.canvas"));
     const nodes = canvasNodes(doc);
     expect(nodes.get("c1c2c3c4c5c60001")?.get("type")).toBe("entity");
     expect(nodes.get("c1c2c3c4c5c60002")?.get("type")).toBe("image");
     const out = docToJsonCanvas(doc);
-    expect(out.nodes[0]).toMatchObject({ type: "link", brackeys: { type: "entity" } });
-    expect(out.nodes[1]).toMatchObject({ type: "file", brackeys: { type: "image" } });
+    expect(out.nodes[0]).toMatchObject({ type: "link", jamsTeam: { type: "entity" } });
+    expect(out.nodes[1]).toMatchObject({ type: "file", jamsTeam: { type: "image" } });
+  });
+
+  it("reads the legacy brackeys key and writes it back as jamsTeam", () => {
+    const legacy = fixture(LEGACY_FIXTURE);
+    const doc = load(legacy);
+    const nodes = canvasNodes(doc);
+    expect(nodes.get("c1c2c3c4c5c60001")?.get("type")).toBe("entity");
+    expect(nodes.get("c1c2c3c4c5c60002")?.get("type")).toBe("image");
+
+    const current = fixture("synthetic-jams-team.canvas");
+    const out = docToJsonCanvas(doc, { canvasId: "canvas-uuid-1" });
+    expect(JSON.stringify(out)).not.toContain('"brackeys"');
+    expect(out.nodes.map(({ url: _url, ...n }) => n)).toEqual(
+      current.nodes.map(({ url: _url, ...n }) => n),
+    );
+    expect(out.jamsTeam).toEqual(current.jamsTeam);
+  });
+
+  it("normalises a stored snapshot with the legacy key", () => {
+    const out = sanitizeSnapshot(normalized(fixture(LEGACY_FIXTURE)));
+    expect(out.brackeys).toBeUndefined();
+    expect(out.jamsTeam).toEqual({ id: "canvas-uuid-1", schemaVersion: 1 });
+    expect(out.nodes[0]).toMatchObject({ jamsTeam: { type: "entity" } });
+    expect(out.nodes[0].brackeys).toBeUndefined();
+    expect(out.nodes[1]).toMatchObject({ jamsTeam: { type: "image" } });
   });
 
   it("accepts a file with no nodes or edges keys", () => {
@@ -188,7 +217,7 @@ describe("sanitizeSnapshot", () => {
           y: 0,
           width: 1,
           height: 1,
-          brackeys: { type: "image", attachmentId: "x" },
+          jamsTeam: { type: "image", attachmentId: "x" },
         },
       ],
       edges: [

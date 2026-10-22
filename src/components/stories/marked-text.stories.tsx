@@ -125,7 +125,7 @@ export const Overview: Story = {
         </p>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <MarkedText>
-            {"This is a [link to Brackeys](https://example.com) in markdown."}
+            {"This is a [link to jams.team](https://example.com) in markdown."}
           </MarkedText>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
             {`<MarkedText>
@@ -245,7 +245,7 @@ After a rule.`}
         </p>
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <MarkedText>
-            {`# Welcome to Brackeys
+            {`# Welcome to jams.team
 
 This is a **full markdown document** rendered by the \`MarkedText\` component.
 

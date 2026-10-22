@@ -17,6 +17,7 @@ import {
   NOT_FOUND_OG_CARD,
   ogCardPath,
   organizationNode,
+  SITE_NAME,
 } from "@/lib/site-meta";
 import { client, orpc } from "@/orpc/client";
 
@@ -195,7 +196,7 @@ function jamDescription(jam: JamDescriptionSource, trackedEntries: number): stri
   const lead = [window, host, entries].filter(Boolean).join(" ");
   const room = 200 - lead.length;
   const body = room >= 60 ? htmlToPlainText(jam.contentHtml, room) : undefined;
-  return body ? `${lead} ${body}` : lead || `${jam.title}, tracked on Brackeys Community.`;
+  return body ? `${lead} ${body}` : lead || `${jam.title}, tracked on ${SITE_NAME}.`;
 }
 
 function JamDetailRoute() {

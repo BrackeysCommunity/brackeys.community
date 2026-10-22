@@ -3,4 +3,4 @@
 process.env.DISCORD_BOT_TOKEN ??= "test-token";
 process.env.DISCORD_APPLICATION_ID ??= "100000000000000001";
 process.env.DISCORD_GUILD_ID ??= "100000000000000002";
-process.env.APP_URL ??= "https://brackeys.test";
+process.env.APP_URL ??= "https://jams.test";

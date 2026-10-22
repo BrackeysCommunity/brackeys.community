@@ -67,7 +67,7 @@ describe("og card renderer", () => {
 
   it("renders without art, stats or a subtitle", async () => {
     const png = await render("bare", {
-      ...ogCard({ kind: "site", eyebrow: "Community", title: "Brackeys Community" }),
+      ...ogCard({ kind: "site", eyebrow: "Community", title: "jams.team" }),
     });
     expect(pngSize(png)).toEqual({ width: 1200, height: 630 });
   }, 30_000);

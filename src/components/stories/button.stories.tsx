@@ -48,7 +48,7 @@ export const Overview: Story = {
         <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
           The Button component is the primary interactive element. It supports multiple visual
           variants, sizes, icon placement, and an optional magnetic hover effect. All buttons use
-          sharp 0-radius corners consistent with the Brackeys design system.
+          sharp 0-radius corners consistent with the site's design system.
         </Text>
       </section>
 

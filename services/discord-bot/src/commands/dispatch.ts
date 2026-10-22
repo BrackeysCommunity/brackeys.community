@@ -44,7 +44,7 @@ export const OPT = {
 
 /** The user context-menu entry; right-click on a member is how people will
  *  actually reach `/member`. */
-export const PROFILE_CONTEXT_MENU = "Brackeys profile";
+export const PROFILE_CONTEXT_MENU = "jams.team profile";
 
 export type OptionValue = string | number | boolean;
 

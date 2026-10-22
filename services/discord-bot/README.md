@@ -13,18 +13,18 @@ from Discord.
 
 ## Commands
 
-| Command                                                     | Answers from                                                            | Visibility         |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------ |
-| `/jam now`                                                  | `listJamsByHost` → running › voting › upcoming                          | public             |
-| `/jam info <jam>`                                           | `getJam` + `getJamCommunity`                                            | ephemeral, `share` |
-| `/jam entries <jam> [sort] [search]`                        | `listJamEntries`, 10 a page, prev/next buttons                          | ephemeral, `share` |
-| `/jam results <jam>`                                        | `getJamResults` top 5 per criterion                                     | ephemeral, `share` |
-| `/collab browse [type] [skill] [role] [jam] [search]`       | `listPosts` + `countPostsByType`, same facets                           | ephemeral, `share` |
-| `/collab post <id>`                                         | `getPost`                                                               | ephemeral, `share` |
-| `/collab stats`                                             | `getBoardStats` + `getTeamStats`                                        | ephemeral, `share` |
-| `/member [user] [name]`, right-click → **Brackeys profile** | `getProfileByDiscordId` / `listMembers` + `getProfile`, `listUserTeams` | ephemeral, `share` |
-| `/team <name>`                                              | `getTeam`                                                               | ephemeral, `share` |
-| `/ping`                                                     | `getBoardStats` and the round-trip time                                 | ephemeral          |
+| Command                                                      | Answers from                                                            | Visibility         |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------- | ------------------ |
+| `/jam now`                                                   | `listJamsByHost` → running › voting › upcoming                          | public             |
+| `/jam info <jam>`                                            | `getJam` + `getJamCommunity`                                            | ephemeral, `share` |
+| `/jam entries <jam> [sort] [search]`                         | `listJamEntries`, 10 a page, prev/next buttons                          | ephemeral, `share` |
+| `/jam results <jam>`                                         | `getJamResults` top 5 per criterion                                     | ephemeral, `share` |
+| `/collab browse [type] [skill] [role] [jam] [search]`        | `listPosts` + `countPostsByType`, same facets                           | ephemeral, `share` |
+| `/collab post <id>`                                          | `getPost`                                                               | ephemeral, `share` |
+| `/collab stats`                                              | `getBoardStats` + `getTeamStats`                                        | ephemeral, `share` |
+| `/member [user] [name]`, right-click → **jams.team profile** | `getProfileByDiscordId` / `listMembers` + `getProfile`, `listUserTeams` | ephemeral, `share` |
+| `/team <name>`                                               | `getTeam`                                                               | ephemeral, `share` |
+| `/ping`                                                      | `getBoardStats` and the round-trip time                                 | ephemeral          |
 
 Autocomplete (jam titles, skills, roles, team names) never touches the API
 on the request path: `src/memo.ts` warms those lists at boot and refreshes
@@ -116,7 +116,7 @@ Auto-deploy is off on the prod instance. See "Releasing" in the root README.
 ### Staging
 
 A **second Discord application** against a scratch guild, deployed from the
-`staging` environment with `APP_URL=https://staging.brackeys.dev`. Guild
+`staging` environment with `APP_URL=https://staging.jams.team`. Guild
 commands keep it clean: the staging application's commands exist only in
 the scratch guild. Never point two live bots at the real guild.
 
@@ -139,7 +139,7 @@ bun run register --force  # PUT regardless
 cd services/discord-bot
 bun install
 cp .env.example .env.staging
-# the *staging* application's token/ids, and APP_URL=https://staging.brackeys.dev
+# the *staging* application's token/ids, and APP_URL=https://staging.jams.team
 
 bun run staging          # gateway + boot registration, against .env.staging
 bun run register:staging # registration only, no gateway

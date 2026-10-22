@@ -67,7 +67,7 @@ describe("dispatch", () => {
 });
 
 describe("manifest", () => {
-  const manifest = buildManifest("brackeys.test");
+  const manifest = buildManifest("jams.test");
 
   test("every option the dispatcher reads exists under the name it reads", () => {
     const names = new Set(manifest.map((c) => c.name));

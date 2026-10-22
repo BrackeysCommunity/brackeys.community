@@ -86,13 +86,13 @@ describe("ScrambleText", () => {
   });
 
   it("treats reduced motion as inactive", () => {
-    window.localStorage.setItem("brackeys-reduce-motion", "1");
+    window.localStorage.setItem("jt:reduce-motion", "1");
     try {
       const { container } = renderScramble(<ScrambleText duration={Infinity}>BUILD</ScrambleText>);
       expect(frames.size).toBe(0);
       expect(glyphs(container)).toBe("BUILD");
     } finally {
-      window.localStorage.removeItem("brackeys-reduce-motion");
+      window.localStorage.removeItem("jt:reduce-motion");
     }
   });
 

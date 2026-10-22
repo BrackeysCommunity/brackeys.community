@@ -30,8 +30,9 @@ import {
   rgbToHex,
 } from "@/lib/color-spaces";
 import { play } from "@/lib/sound";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
-const SPACE_STORAGE_KEY = "brackeys:glow-colour-space";
+const SPACE_STORAGE_KEY = STORAGE_KEYS.glowColourSpace;
 
 function readStoredSpace(): ColorSpaceId {
   try {

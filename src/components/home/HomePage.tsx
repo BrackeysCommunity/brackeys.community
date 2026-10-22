@@ -16,8 +16,8 @@ import { fadeUp } from "@/lib/motion";
 /**
  * The desktop landing page — "command deck" layout.
  *
- * The hierarchy the page argues for, top to bottom: what's happening at
- * Brackeys right now (the hero's jam panel), where else to go (the feature
+ * The hierarchy the page argues for, top to bottom: what's happening
+ * right now (the hero's jam panel), where else to go (the feature
  * rail), what's running and what people shipped (the jam band), who is
  * hiring and who just arrived (collab + community). The previous version
  * led with four equal-weight navigation cards, which asked the visitor to

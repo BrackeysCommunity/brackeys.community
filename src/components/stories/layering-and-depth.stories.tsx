@@ -75,10 +75,10 @@ export const Overview: Story = {
           Philosophy
         </Heading>
         <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
-          Depth in Brackeys is expressed through <strong>emboss</strong> and <strong>deboss</strong>{" "}
-          — solid offset shadows rather than soft blurs — and a small, predictable set of{" "}
-          <strong>z-index layers</strong>. Every interactive element is either pushed up off the
-          page, pressed into it, or sitting flat. There is no middle ground.
+          Depth on jams.team is expressed through <strong>emboss</strong> and{" "}
+          <strong>deboss</strong> — solid offset shadows rather than soft blurs — and a small,
+          predictable set of <strong>z-index layers</strong>. Every interactive element is either
+          pushed up off the page, pressed into it, or sitting flat. There is no middle ground.
         </Text>
       </section>
 

@@ -10,6 +10,7 @@ import {
 } from "../../../../src/db/schema.ts";
 import { NotificationEmail } from "../../../../src/emails/NotificationEmail.tsx";
 import { WeeklyDigestEmail } from "../../../../src/emails/WeeklyDigestEmail.tsx";
+import { SITE } from "../../../../src/lib/legal-meta.ts";
 import { renderNotificationText } from "../../../../src/lib/notification-copy.ts";
 import { censorText } from "../../../../src/lib/profanity.ts";
 import {
@@ -195,7 +196,7 @@ async function sendDigest(userId: string, sinceIso: string): Promise<void> {
 
   const result = await sendEmail({
     to: recipient.email,
-    subject: `Your Brackeys weekly digest — ${items.length} ${items.length === 1 ? "update" : "updates"}`,
+    subject: `Your ${SITE.name} weekly digest — ${items.length} ${items.length === 1 ? "update" : "updates"}`,
     react: createElement(WeeklyDigestEmail, {
       appUrl: APP_URL,
       recipientName: recipient.name ?? null,

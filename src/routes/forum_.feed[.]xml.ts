@@ -8,7 +8,7 @@ import { SITE_NAME } from "@/lib/site-meta";
 function handle() {
   return forumAtomResponse({
     title: `${SITE_NAME} — devlogs`,
-    subtitle: "Devlogs from the Brackeys community forum.",
+    subtitle: `Devlogs from the ${SITE_NAME} forum.`,
     selfPath: "/forum/feed.xml",
     alternatePath: "/forum?kind=devlog",
   });

@@ -20,11 +20,10 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          This Privacy Policy explains how {OPERATOR.legalName} ("{SITE.name}", "we", "us", or
-          "our") collects, uses, discloses, and retains personal information in connection with{" "}
-          {SITE.domain} and the features offered on it (the "Service"). For the purposes of the
-          General Data Protection Regulation and the UK GDPR, we are the controller of that
-          information.
+          This Privacy Policy explains how {OPERATOR.legalName} ("we", "us", or "our") collects,
+          uses, discloses, and retains personal information in connection with {SITE.domain} and the
+          features offered on it (the "Service"). For the purposes of the General Data Protection
+          Regulation and the UK GDPR, we are the controller of that information.
         </p>
         <p>
           This notice does not cover the Brackeys Discord server, which is operated on Discord's
@@ -233,6 +232,16 @@ const SECTIONS: LegalSection[] = [
           jam calendar, cues you have dismissed, and any unsent draft of a collaboration post. This
           information stays on your device, is not sent to us, and is cleared when you clear your
           browser's site data.
+        </p>
+        <p>
+          <strong>Our move to {SITE.domain}.</strong> The Service used to run at a different address
+          under the name Brackeys Community, and visits to that address are now redirected here.
+          Browsers keep settings separately for each address, so the first time yours is redirected,
+          the old address passes a short list of preferences across — your analytics choice, theme,
+          and reduced-motion, sound, and profanity-filter settings — in the part of the link after
+          the "#", which browsers never send to any server. The Service reads them once, saves them
+          in your browser under the new address, and removes them from the link. No personal
+          information and no drafts are carried over, and the preferences never reach us.
         </p>
         <p>
           <strong>Images.</strong> Cover images hosted on itch.io are delivered through Cloudflare's

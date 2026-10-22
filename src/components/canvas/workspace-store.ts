@@ -1,9 +1,11 @@
 import { Store } from "@tanstack/store";
 
+import { STORAGE_KEYS } from "@/lib/storage-keys";
+
 /** `all`, `personal`, or a team id: the workspace panel's scope chip. */
 type WorkspaceScope = string;
 
-const STORAGE_KEY = "brackeys:workspace-scope";
+const STORAGE_KEY = STORAGE_KEYS.workspaceScope;
 
 function rememberedScope(): WorkspaceScope {
   try {

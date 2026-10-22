@@ -8,7 +8,7 @@ import {
 } from "@/components/members/use-members-listing";
 import { MEMBER_SORTS, SORT_DIRECTIONS } from "@/lib/member-vocabulary";
 import { prefetchInLoader } from "@/lib/route-prefetch";
-import { listingMeta, ogCardPath } from "@/lib/site-meta";
+import { listingMeta, ogCardPath, SITE_NAME } from "@/lib/site-meta";
 
 // Validates the URL search params:
 //   `?q=…`            username/tagline/looking-for search
@@ -56,8 +56,7 @@ export const Route = createFileRoute("/members")({
   head: ({ match }) =>
     listingMeta({
       title: "Members",
-      description:
-        "Find the people behind the games — artists, composers, programmers and designers in the Brackeys community, with what they work in and whether they are open to work.",
+      description: `Find the people behind the games — artists, composers, programmers and designers on ${SITE_NAME}, with what they work in and whether they are open to work.`,
       path: "/members",
       card: ogCardPath("board", "members"),
       search: match.search,

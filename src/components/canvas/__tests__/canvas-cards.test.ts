@@ -21,9 +21,21 @@ describe("cardFromJson", () => {
         y: 0,
         width: 1,
         height: 1,
-        brackeys: { type: "image", attachmentId: "att" },
+        jamsTeam: { type: "image", attachmentId: "att" },
       }),
     ).toMatchObject({ type: "image", attachmentId: "att" });
+    expect(
+      cardFromJson({
+        id: "e",
+        type: "link",
+        url: "https://example.com",
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        brackeys: { type: "entity", entity: { kind: "jam", id: "7" } },
+      }),
+    ).toMatchObject({ type: "entity", entity: { kind: "jam", id: "7" } });
     expect(cardFromJson({ id: "x", type: "pdf", x: 0, y: 0, width: 1, height: 1 })).toBeNull();
   });
 });

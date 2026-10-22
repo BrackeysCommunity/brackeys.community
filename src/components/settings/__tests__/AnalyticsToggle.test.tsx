@@ -13,7 +13,7 @@ vi.mock("@/lib/auth-client", () => ({
 
 const { PrivacySection } = await import("@/components/settings/PrivacySection");
 
-const OPT_OUT_KEY = "brackeys-analytics";
+const OPT_OUT_KEY = "jt:analytics";
 
 function setGpc(value: boolean | undefined) {
   if (value === undefined) {

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Section } from "@/components/ui/section";
 import { Heading, MicroLabel, Prose, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
-import { CONTACT, EFFECTIVE_DATE, LAST_UPDATED } from "@/lib/legal-meta";
+import { CONTACT, EFFECTIVE_DATE, LAST_UPDATED, SITE } from "@/lib/legal-meta";
 
 export interface LegalSection {
   /** Anchor fragment — stable, because people link to clauses. */
@@ -131,7 +131,7 @@ export function LegalDocument({ marker, title, summary, atAGlance, sections }: L
           to="/"
           className="font-sans text-sm text-muted-foreground transition-colors hover:text-primary"
         >
-          Back to Brackeys
+          Back to {SITE.name}
         </Link>
       </footer>
     </div>

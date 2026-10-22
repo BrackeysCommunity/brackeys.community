@@ -7,6 +7,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatCount } from "@/lib/format-count";
 import { safeThemeColor } from "@/lib/jam-palette";
+import { SITE } from "@/lib/legal-meta";
 import { profileLinkParams } from "@/lib/profile-links";
 import { platformLabel } from "@/lib/project-taxonomy";
 import { cn } from "@/lib/utils";
@@ -137,7 +138,7 @@ export function JamEntryCard({
             to="/profile/$userId"
             params={profileLinkParams({ id: member.profileId, urlStub: member.urlStub })}
             className="flex min-w-0 items-center gap-1.5 hover:text-primary"
-            aria-label={`${member.username ?? "Member"} on Brackeys`}
+            aria-label={`${member.username ?? "Member"} on ${SITE.name}`}
           >
             <UserAvatar
               avatarUrl={member.avatarUrl}
@@ -146,7 +147,7 @@ export function JamEntryCard({
               size={16}
             />
             <Badge variant="default" size="label">
-              BRACKEYS
+              {SITE.name}
             </Badge>
             <MicroLabel ellipsis variant="primary" className="min-w-0">
               {member.username ?? "MEMBER"}

@@ -15,6 +15,7 @@ import { GITLAB_INSTANCES } from "@/lib/gitlab-instances";
 import { gitlabOAuthConfigs } from "@/lib/gitlab-oauth";
 import { applyGuildBanOnSignIn } from "@/lib/guild-ban-gate";
 import { syncDiscordProfile } from "@/lib/guild-sync";
+import { SITE } from "@/lib/legal-meta";
 import { personProperties } from "@/lib/person-properties";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
 import { purgePresence } from "@/lib/presence";
@@ -95,7 +96,7 @@ export const auth = betterAuth({
       sendDeleteAccountVerification: async ({ user: recipient, url }) => {
         await sendEmail({
           to: recipient.email,
-          subject: "Confirm deleting your Brackeys account",
+          subject: `Confirm deleting your ${SITE.name} account`,
           react: createElement(AuthEmail, {
             variant: "delete",
             recipientName: recipient.name ?? null,
@@ -128,7 +129,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user: recipient, url }) => {
       await sendEmail({
         to: recipient.email,
-        subject: "Verify your Brackeys email",
+        subject: `Verify your ${SITE.name} email`,
         react: createElement(AuthEmail, {
           variant: "verify",
           recipientName: recipient.name ?? null,
@@ -144,7 +145,7 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user: recipient, url }) => {
       await sendEmail({
         to: recipient.email,
-        subject: "Reset your Brackeys password",
+        subject: `Reset your ${SITE.name} password`,
         react: createElement(AuthEmail, {
           variant: "reset",
           recipientName: recipient.name ?? null,

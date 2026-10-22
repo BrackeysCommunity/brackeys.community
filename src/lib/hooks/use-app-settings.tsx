@@ -9,6 +9,7 @@ import {
 
 import { useIsHydrated } from "@/lib/hooks/use-is-hydrated";
 import { initSound, setSoundEnabled, setSoundVolume } from "@/lib/sound";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 /** The stored motion preference. `system` defers to the OS-level
  * `prefers-reduced-motion`; `reduced`/`full` are explicit overrides. */
@@ -57,10 +58,10 @@ interface AppSettingsValue {
 
 const Ctx = createContext<AppSettingsValue | null>(null);
 
-const REDUCE_MOTION_KEY = "brackeys-reduce-motion";
-const MUTED_KEY = "brackeys-muted";
-const VOLUME_KEY = "brackeys-volume";
-const CENSOR_KEY = "brackeys-censor-profanity";
+const REDUCE_MOTION_KEY = STORAGE_KEYS.reduceMotion;
+const MUTED_KEY = STORAGE_KEYS.muted;
+const VOLUME_KEY = STORAGE_KEYS.volume;
+const CENSOR_KEY = STORAGE_KEYS.censorProfanity;
 const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
 
 /** Read the stored motion preference. Legacy boolean values migrate at

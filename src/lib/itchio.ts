@@ -8,7 +8,7 @@
 import { SITE } from "./legal-meta";
 
 const ITCHIO_API_BASE = "https://api.itch.io";
-const DEFAULT_USER_AGENT = `brackeys-web/1.0 (+${SITE.url})`;
+const DEFAULT_USER_AGENT = `jams-team-web/1.0 (+${SITE.url})`;
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 export interface ItchIoUser {

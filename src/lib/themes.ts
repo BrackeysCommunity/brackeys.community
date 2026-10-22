@@ -9,9 +9,9 @@ export interface Theme {
 
 export const themes: Theme[] = [
   {
-    id: "brackeys",
-    name: "Brackeys",
-    description: "Default Brackeys community theme",
+    id: "default",
+    name: "jams.team",
+    description: "The house palette",
     mode: "dark",
   },
   {
@@ -123,4 +123,15 @@ export const themeSections: { mode: ThemeMode; label: string; themes: Theme[] }[
 
 /** The base `.dark` palette in `styles.css` *is* this theme — every other
  *  theme is an override file layered on top of it. */
-export const DEFAULT_THEME_ID = "brackeys";
+export const DEFAULT_THEME_ID = "default";
+
+/** Ids a theme used to have, still found in stored preferences. */
+const LEGACY_THEME_IDS: Record<string, string> = { brackeys: DEFAULT_THEME_ID };
+
+/** A stored theme id as one the app knows: legacy ids map to their
+ *  successor, and anything unrecognised falls back to the default. */
+export function resolveThemeId(id: string | null | undefined): string {
+  if (!id) return DEFAULT_THEME_ID;
+  const current = LEGACY_THEME_IDS[id] ?? id;
+  return themes.some((t) => t.id === current) ? current : DEFAULT_THEME_ID;
+}

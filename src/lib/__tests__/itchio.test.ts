@@ -32,7 +32,7 @@ describe("itchApiFetch plumbing", () => {
     expect(url).toBe("https://api.itch.io/profile/games");
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer tok");
-    expect(headers["User-Agent"]).toContain("brackeys");
+    expect(headers["User-Agent"]).toContain("jams-team");
   });
 
   it("uses the caller's User-Agent when provided", async () => {

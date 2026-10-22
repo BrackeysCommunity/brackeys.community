@@ -100,7 +100,7 @@ describe("editing one gradient stop", () => {
 
 describe("going past sRGB", () => {
   it("stores an OKLCH pick beyond sRGB as oklch rather than clipping it", async () => {
-    localStorage.setItem("brackeys:glow-colour-space", "oklch");
+    localStorage.setItem("jt:glow-colour-space", "oklch");
     const user = userEvent.setup();
     render(<Probe initial="#4f9dd9" />);
     await open(user);
@@ -113,7 +113,7 @@ describe("going past sRGB", () => {
   });
 
   it("reopens on a stored oklch stop without losing it", async () => {
-    localStorage.setItem("brackeys:glow-colour-space", "oklch");
+    localStorage.setItem("jt:glow-colour-space", "oklch");
     const user = userEvent.setup();
     render(<Probe initial="oklch(70% 0.4 150)" />);
     await open(user);
@@ -140,7 +140,7 @@ describe("slider value bubbles", () => {
   // Shown only while the thumb carries `data-dragging`; the content is what
   // matters here, the visibility is a CSS state.
   it("names each channel's value in the channel's own notation", async () => {
-    localStorage.setItem("brackeys:glow-colour-space", "hex");
+    localStorage.setItem("jt:glow-colour-space", "hex");
     const user = userEvent.setup();
     render(<Probe initial="#4f9dd9" />);
     await open(user);
@@ -242,7 +242,7 @@ describe("switching colour space", () => {
   });
 
   it("shows hex channels as hex", async () => {
-    localStorage.setItem("brackeys:glow-colour-space", "hex");
+    localStorage.setItem("jt:glow-colour-space", "hex");
     const user = userEvent.setup();
     render(<Probe initial="#4f9dd9" />);
     await open(user);

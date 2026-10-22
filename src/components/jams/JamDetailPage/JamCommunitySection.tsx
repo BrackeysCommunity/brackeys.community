@@ -17,7 +17,7 @@ import { STALE } from "@/orpc/public-procedures";
 import type { JamPhase } from "../JamCalendarPage/helpers";
 
 /**
- * Who from Brackeys is in this jam — the join nothing jam-side has ever
+ * Who from the site is in this jam — the join nothing jam-side has ever
  * rendered, and the one thing this page has that itch's own jam page
  * doesn't.
  *
@@ -52,7 +52,7 @@ export function JamCommunitySection({ jamId, phase }: { jamId: number; phase: Ja
   return (
     <Section
       id="community"
-      title="FROM BRACKEYS"
+      title="FROM THE COMMUNITY"
       blurb={
         members.length > 0
           ? `${members.length} member${members.length === 1 ? "" : "s"} shipped in this jam.`

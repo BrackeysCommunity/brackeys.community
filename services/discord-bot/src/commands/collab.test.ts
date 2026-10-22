@@ -74,7 +74,7 @@ describe("/collab browse", () => {
     expect(embed.description).toContain("**2 open posts** · 7 across all types");
     expect(embed.description).toContain("Filters: paid · skill Unity · “cosy”");
     expect(embed.description).toContain(
-      "**[Post 1](https://brackeys.test/collab/1)** · PAID · $25 - $50 /hr · [Cosy Crew](https://brackeys.test/teams/cosy-crew) · Unity, FMOD, Ableton, +1 · <t:1788220800:R>",
+      "**[Post 1](https://jams.test/collab/1)** · PAID · $25 - $50 /hr · [Cosy Crew](https://jams.test/teams/cosy-crew) · Unity, FMOD, Ableton, +1 · <t:1788220800:R>",
     );
     expect(reply.ephemeral).toBe(true);
     // One page of results: no pager at all. Both ends would clamp to page 0
@@ -174,13 +174,13 @@ describe("/collab post", () => {
     const reply = await collabPost(api, { id: 12 }, ctx);
     const embed = reply.embeds[0]!;
     expect(embed.title).toBe("Post 12");
-    expect(embed.url).toBe("https://brackeys.test/collab/12");
+    expect(embed.url).toBe("https://jams.test/collab/12");
     expect(embed.author).toEqual({
       name: "Josh",
-      url: "https://brackeys.test/profile/josh",
+      url: "https://jams.test/profile/josh",
       iconUrl: undefined,
     });
-    expect(embed.image).toBe("https://brackeys.test/images/collab/12/shot.png");
+    expect(embed.image).toBe("https://jams.test/images/collab/12/shot.png");
     expect(embed.fields?.map((f) => f.name)).toEqual([
       "Type",
       "Compensation",
@@ -192,7 +192,7 @@ describe("/collab post", () => {
       "Applications",
     ]);
     expect(embed.fields?.find((f) => f.name === "Jam")?.value).toBe(
-      "[Brackeys Game Jam 2026.1](https://brackeys.test/jams/brackeys-14)",
+      "[Brackeys Game Jam 2026.1](https://jams.test/jams/brackeys-14)",
     );
   });
 

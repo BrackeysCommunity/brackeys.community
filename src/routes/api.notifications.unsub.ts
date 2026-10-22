@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/db";
 import { ACCENT, ACCENT_TEXT, BG, FG, FONT_MONO, FONT_SANS, MUTED } from "@/emails/theme";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { SITE } from "@/lib/legal-meta";
 import { NOTIFICATION_TYPE_LABEL } from "@/lib/notification-copy";
 import { captureServerEvent, withErrorReporting } from "@/lib/posthog-server";
 import {
@@ -102,13 +103,13 @@ function renderPage(opts: {
     <input type="hidden" name="confirm" value="1" />
     <button type="submit">${escapeHtml(opts.form.cta)}</button>
   </form>`
-    : `<p><a href="/settings?tab=notifications">Manage preferences</a> · <a href="/">Back to Brackeys</a></p>`;
+    : `<p><a href="/settings?tab=notifications">Manage preferences</a> · <a href="/">Back to ${escapeHtml(SITE.name)}</a></p>`;
 
   const html = `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Unsubscribe — Brackeys</title>
+<title>Unsubscribe — ${escapeHtml(SITE.name)}</title>
 <style>
   body { background:${BG}; color:${FG}; font-family:${FONT_SANS}; display:flex; min-height:100dvh; align-items:center; justify-content:center; padding:24px; margin:0; }
   .card { max-width: 420px; }

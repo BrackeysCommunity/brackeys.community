@@ -4,6 +4,7 @@ import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query
 import { installMotionTiming } from "@/lib/motion-timing";
 import { captureEvent, initAnalytics } from "@/lib/product-insights";
 import { reloadOnChunkError } from "@/lib/reload-on-chunk-error";
+import { bootStorageHandoff } from "@/lib/storage-handoff";
 
 import { NotFoundPage } from "./components/layout/NotFoundPage";
 import { PageSkeleton } from "./components/layout/PageSkeleton";
@@ -13,6 +14,10 @@ import { routeTree } from "./routeTree.gen";
 reloadOnChunkError();
 
 export function getRouter() {
+  // Before the router or analytics read the URL: a `#handoff=` fragment is
+  // stripped here, and preferences under renamed keys are moved first.
+  bootStorageHandoff();
+
   // One client per router, and therefore one per request on the server —
   // hoisting it to module scope would leak one user's cache into the next
   // user's response. The same instance is what `TanStackQueryProvider`

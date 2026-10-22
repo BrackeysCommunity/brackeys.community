@@ -44,7 +44,7 @@ afterEach(cleanup);
 describe("useAppSettings motion coalescing", () => {
   it("migrates legacy '1' to an explicit reduced pref", () => {
     installMatchMedia(false);
-    localStorage.setItem("brackeys-reduce-motion", "1");
+    localStorage.setItem("jt:reduce-motion", "1");
 
     const { result } = renderSettings();
 
@@ -54,7 +54,7 @@ describe("useAppSettings motion coalescing", () => {
 
   it("migrates legacy '0' (and garbage) to system", () => {
     installMatchMedia(false);
-    localStorage.setItem("brackeys-reduce-motion", "0");
+    localStorage.setItem("jt:reduce-motion", "0");
 
     const { result } = renderSettings();
 
@@ -73,7 +73,7 @@ describe("useAppSettings motion coalescing", () => {
 
   it("explicit full overrides a native reduce preference", () => {
     installMatchMedia(true);
-    localStorage.setItem("brackeys-reduce-motion", "full");
+    localStorage.setItem("jt:reduce-motion", "full");
 
     const { result } = renderSettings();
 
@@ -82,7 +82,7 @@ describe("useAppSettings motion coalescing", () => {
 
   it("explicit reduced applies without any native preference", () => {
     installMatchMedia(false);
-    localStorage.setItem("brackeys-reduce-motion", "reduced");
+    localStorage.setItem("jt:reduce-motion", "reduced");
 
     const { result } = renderSettings();
 
@@ -98,7 +98,7 @@ describe("useAppSettings motion coalescing", () => {
     act(() => result.current.setMotionPref("reduced"));
 
     expect(document.documentElement.dataset.reduceMotion).toBe("true");
-    expect(localStorage.getItem("brackeys-reduce-motion")).toBe("reduced");
+    expect(localStorage.getItem("jt:reduce-motion")).toBe("reduced");
   });
 
   it("a native change event flips the effective value under system", () => {

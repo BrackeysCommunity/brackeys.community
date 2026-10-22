@@ -36,7 +36,7 @@ describe("Censored", () => {
   });
 
   it("renders as written once the viewer has opted out", () => {
-    localStorage.setItem("brackeys-censor-profanity", "0");
+    localStorage.setItem("jt:censor-profanity", "0");
     const { container } = renderCensored("this shit is broken");
     expect(container.querySelectorAll("[data-slot=censored]")).toHaveLength(0);
     expect(container.textContent).toBe("this shit is broken");

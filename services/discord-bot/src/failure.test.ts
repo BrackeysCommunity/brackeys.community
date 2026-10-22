@@ -4,7 +4,7 @@ import { ApiUnavailableError } from "./api.ts";
 import { classifyFailure, failureEmbed } from "./failure.ts";
 import { siteName } from "./reply.ts";
 
-const opts = { appUrl: "https://brackeys.community", label: "member" };
+const opts = { appUrl: "https://jams.team", label: "member" };
 
 describe("classifyFailure", () => {
   test("separates the reasons a command can fail", () => {
@@ -23,7 +23,7 @@ describe("failureEmbed", () => {
   test("names the site and carries the code in the footer", () => {
     const embed = failureEmbed({ kind: "unsupported", code: "HTTP 404" }, opts);
     expect(embed.title).toBe("Not available yet");
-    expect(embed.description).toContain("brackeys.community");
+    expect(embed.description).toContain("jams.team");
     expect(embed.footer).toBe("HTTP 404 · /member");
   });
 
@@ -39,7 +39,7 @@ describe("failureEmbed", () => {
   });
 
   test("siteName strips the scheme so copy reads as a site, not a URL", () => {
-    expect(siteName("https://brackeys.community")).toBe("brackeys.community");
-    expect(siteName("https://staging.brackeys.dev")).toBe("staging.brackeys.dev");
+    expect(siteName("https://jams.team")).toBe("jams.team");
+    expect(siteName("https://staging.jams.team")).toBe("staging.jams.team");
   });
 });

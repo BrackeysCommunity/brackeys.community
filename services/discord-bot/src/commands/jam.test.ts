@@ -32,7 +32,7 @@ describe("jam phases against a fixed clock", () => {
     expect(embed.description).toBe(
       `**SUBMISSIONS OPEN** · Submissions close <t:${unix(j.endsAt)}:R>`,
     );
-    expect(embed.url).toBe("https://brackeys.test/jams/brackeys-14");
+    expect(embed.url).toBe("https://jams.test/jams/brackeys-14");
     expect(embed.image).toBe(j.bannerUrl!);
     expect(embed.color).toBe(0xff3366);
     expect(JSON.stringify(embed)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
@@ -71,8 +71,8 @@ describe("/jam now", () => {
     expect(reply.buttons).toEqual([
       {
         kind: "link",
-        label: "Open on brackeys.test",
-        url: "https://brackeys.test/jams/brackeys-14",
+        label: "Open on jams.test",
+        url: "https://jams.test/jams/brackeys-14",
       },
       { kind: "link", label: "itch.io", url: "https://itch.io/jam/brackeys-14" },
     ]);

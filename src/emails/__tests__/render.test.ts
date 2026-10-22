@@ -2,6 +2,7 @@ import { render } from "@react-email/render";
 import { createElement } from "react";
 import { describe, expect, it } from "vite-plus/test";
 
+import { SITE } from "../../lib/legal-meta";
 import { NOTIFICATION_TYPES } from "../../lib/notification-copy";
 import { AuthEmail, type AuthEmailVariant } from "../AuthEmail";
 import { NotificationEmail } from "../NotificationEmail";
@@ -14,7 +15,7 @@ import { WeeklyDigestEmail } from "../WeeklyDigestEmail";
  * fail here instead of in a worker at 2am.
  */
 
-const APP_URL = "https://brackeys.community";
+const APP_URL = SITE.url;
 const UNSUB_TOKEN = "unsub-token-fixture";
 const UNSUB_URL = `${APP_URL}/api/notifications/unsub?token=${UNSUB_TOKEN}`;
 
@@ -54,6 +55,17 @@ describe("AuthEmail", () => {
       expect(text).toContain(url);
     },
   );
+});
+
+describe("EmailLayout", () => {
+  it("names the site from SITE, not the old brand", async () => {
+    const { html, text } = await both(
+      createElement(AuthEmail, { variant: "verify", recipientName: null, url: APP_URL }),
+    );
+    expect(html).toContain(SITE.name);
+    expect(text).toContain(SITE.name);
+    expect(html).not.toContain("Brackeys Community");
+  });
 });
 
 describe("NotificationEmail", () => {

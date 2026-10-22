@@ -8,6 +8,7 @@ import { HeroWordmark } from "@/components/home/HeroWordmark";
 import type { RecentEntry } from "@/components/home/use-recent-entries";
 import { Button } from "@/components/ui/button";
 import { Link } from "@/components/ui/typography";
+import { SITE } from "@/lib/legal-meta";
 import { cn } from "@/lib/utils";
 
 interface HeroSplitProps {
@@ -47,8 +48,8 @@ export function HeroSplit({ heroSlides, entriesByJamId, isLoading, now }: HeroSp
         </div>
 
         <p className="max-w-xl font-sans text-sm text-foreground [text-shadow:0_1px_2px_rgba(0,0,0,0.3)] lg:text-base">
-          The central neural network for the Brackeys game dev community. Find your squad, browse
-          every jam on itch, and deploy your build with a crew that ships.
+          Meet {SITE.name}, the central neural network for the Brackeys game dev community. Find
+          your squad, browse every jam on itch, and deploy your build with a crew that ships.
         </p>
 
         <div className="flex flex-wrap gap-3">

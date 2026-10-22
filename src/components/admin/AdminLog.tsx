@@ -22,6 +22,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import { MicroLabel, Quote, Text } from "@/components/ui/typography";
 import { formatDate } from "@/lib/format-date";
 import { jamLinkParams } from "@/lib/jam-links";
+import { SITE } from "@/lib/legal-meta";
 import { profileLinkParams } from "@/lib/profile-links";
 import { teamLinkParams } from "@/lib/team-links";
 import { orpc } from "@/orpc/client";
@@ -271,7 +272,7 @@ function LogRow({
           ) : (
             // A null actor is the app itself — today, the guild-ban gate.
             <Text size="sm" variant="muted">
-              {row.actorName ?? "Brackeys"}
+              {row.actorName ?? SITE.name}
             </Text>
           )}
         </div>

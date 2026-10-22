@@ -6,6 +6,7 @@ import { discordMessageLink } from "@/lib/discord-links";
 import { deleteDiscordMessage } from "@/lib/discord-message-delete";
 import { collabRateLine } from "@/lib/format-rate";
 import { jamSlug } from "@/lib/jam-links";
+import { SITE_NAME } from "@/lib/site-meta";
 import { teamSlug } from "@/lib/team-links";
 
 /**
@@ -220,7 +221,7 @@ function feedButtons(post: CollabFeedPost, postUrl: string): DiscordActionRow[] 
       style: 5,
       // A closed post's button must not still say "apply" — the page it
       // opens won't let them, and the embed above already says so.
-      label: isClosed ? "View the post" : "Apply on Brackeys",
+      label: isClosed ? "View the post" : `Apply on ${SITE_NAME}`,
       url: postUrl,
     },
   ];
@@ -329,7 +330,7 @@ export function buildCollabFeedMessage(post: CollabFeedPost): DiscordMessagePayl
         // Attribution now that the button below carries the call to
         // action. Still worth saying: applications are read, tracked and
         // answered on the site, and a Discord reply reaches nobody.
-        footer: { text: "Brackeys collab board" },
+        footer: { text: `${SITE_NAME} collab board` },
         ...(post.createdAt ? { timestamp: new Date(post.createdAt).toISOString() } : {}),
       },
     ],

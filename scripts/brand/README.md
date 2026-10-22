@@ -9,11 +9,11 @@ be able to fetch the source of an icon.
 | `app-icon.svg` | `public/icon-192.png`, `public/icon-512.png`, `public/apple-touch-icon.png` |
 | `favicon.svg`  | `public/favicon.ico` (16/32/48/64, packed by hand — see below)              |
 
-**Social cards are not here.** `public/og/brackeys-card.png` is cut from the
+**Social cards are not here.** `public/og/fallback.png` is cut from the
 live renderer, not from an SVG in this directory:
 
 ```bash
-bun run og:card
+vp run og:card
 ```
 
 That runs `src/lib/og/__tests__/fallback-card.test.ts` with `OG_DUMP` pointed

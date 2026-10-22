@@ -115,9 +115,11 @@ consolidated; new copies undo that.
 display faces — don't reintroduce it on headings, body copy, or links.
 
 **Brackeys vs. the site:** the site's own name comes from `SITE` and is
-moving to jams.team. A "Brackeys" in copy that names the
+jams.team. A "Brackeys" in copy that names the
 Brackeys Discord server, its roles, or Brackeys-hosted jams is a fact to
-keep, not branding to rename.
+keep, not branding to rename. Some `brackeys` identifiers are persisted
+elsewhere and never change (`gitlab-brackeys`, `brackeys-verify`, the
+legacy canvas key): see plan 48 §3.15 before renaming one.
 
 **Dates:** jam dates are UTC everywhere. Any `toLocaleString` on a jam date
 passes `timeZone: "UTC"` — pairing a local month label with a

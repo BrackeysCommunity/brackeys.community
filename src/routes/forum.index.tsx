@@ -2,7 +2,7 @@ import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { forumFeedSearchSchema } from "@/components/forum/forum-search";
 import { ForumHomePage } from "@/components/forum/ForumBrowse";
-import { listingMeta, ogCardPath } from "@/lib/site-meta";
+import { listingMeta, ogCardPath, SITE_NAME } from "@/lib/site-meta";
 
 const routeApi = getRouteApi("/forum/");
 
@@ -11,8 +11,7 @@ export const Route = createFileRoute("/forum/")({
   head: ({ match }) =>
     listingMeta({
       title: "Forum",
-      description:
-        "Devlogs, questions and show-and-tell from the Brackeys community — the things worth keeping between jams.",
+      description: `Devlogs, questions and show-and-tell from ${SITE_NAME} members — the things worth keeping between jams.`,
       path: "/forum",
       card: ogCardPath("board", "forum"),
       search: match.search,

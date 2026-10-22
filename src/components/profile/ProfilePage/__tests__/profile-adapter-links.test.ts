@@ -141,7 +141,7 @@ describe("adaptProfile — the member's own site", () => {
 /**
  * The scraper stores `submission_url` root-relative, and the jam log used
  * to hand that straight to an anchor — so the game name resolved against
- * brackeys.community instead of itch.io (BC-203).
+ * our own origin instead of itch.io.
  */
 function jamProject(
   overrides: Partial<RpcProfile["projects"][number]> = {},

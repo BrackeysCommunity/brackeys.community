@@ -9,7 +9,14 @@ import { forumPostParam, forumPostTitle, parseForumPostParam } from "@/lib/forum
 import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import { censorText } from "@/lib/profanity";
 import { profileSlug } from "@/lib/profile-links";
-import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
+import {
+  breadcrumbNode,
+  buildMeta,
+  jsonLd,
+  NOT_FOUND_OG_CARD,
+  ogCardPath,
+  SITE_NAME,
+} from "@/lib/site-meta";
 
 /**
  * JSON-LD for a live post: `BlogPosting` for a devlog, which reads as an
@@ -103,7 +110,7 @@ export const Route = createFileRoute("/forum/$postId")({
     const title = censorText(forumPostTitle(post)) ?? "Forum post";
     const live = post.visibility === "visible" && post.status === "published";
     const description =
-      censorText(post.excerpt) ?? `${post.category.name} on the Brackeys community forum.`;
+      censorText(post.excerpt) ?? `${post.category.name} on the ${SITE_NAME} forum.`;
 
     return {
       ...buildMeta({

@@ -40,7 +40,7 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
-  USER_AGENT: z.string().default(`brackeys-itchio-scraper/0.1 (+${SITE.url})`),
+  USER_AGENT: z.string().default(`jams-team-itchio-scraper/0.1 (+${SITE.url})`),
 
   // ── Tiers ──────────────────────────────────────────────────────────────────
   // The crawler is one resident process running every tier from a priority

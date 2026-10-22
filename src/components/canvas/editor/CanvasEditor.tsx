@@ -34,6 +34,7 @@ import {
 import { CANVAS_LIMITS } from "@/lib/canvas/limits";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { postImageForm } from "@/lib/image-upload";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
@@ -83,7 +84,7 @@ const NEW_CARD = { w: 260, h: 120 };
 const OPPOSITE = { top: "bottom", bottom: "top", left: "right", right: "left" } as const;
 const NUDGE = 10;
 
-const INSPECTOR_KEY = "brackeys:canvas-inspector";
+const INSPECTOR_KEY = STORAGE_KEYS.canvasInspector;
 const WIDE_QUERY = "(min-width: 1280px)";
 
 export interface CanvasEditorHandle {

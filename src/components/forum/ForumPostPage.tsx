@@ -34,6 +34,7 @@ import { formatDate } from "@/lib/format-date";
 import { FORUM_KIND_LABEL, FORUM_LIMITS, forumReadMinutes } from "@/lib/forum-posts";
 import { useMemberIdentity } from "@/lib/hooks/use-member-identity";
 import { jamLinkParams } from "@/lib/jam-links";
+import { SITE } from "@/lib/legal-meta";
 import { toastMutationError } from "@/lib/mutation-errors";
 import { captureEvent } from "@/lib/product-insights";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -300,7 +301,7 @@ function ActionBar({ post, onEdit }: { post: ForumPostDetail; onEdit: () => void
     const url = window.location.href.split("#")[0]!;
     if (navigator.share) {
       await navigator
-        .share({ title: post.title ?? "A post on the Brackeys forum", url })
+        .share({ title: post.title ?? `A post on the ${SITE.name} forum`, url })
         .catch(() => {});
       return;
     }

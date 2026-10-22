@@ -154,7 +154,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         rel: "alternate",
         type: "application/atom+xml",
         href: "/feed.xml",
-        title: "Brackeys Community — jams",
+        title: `${SITE_NAME} — jams`,
       },
       ...fontPreloads,
       { rel: "stylesheet", href: fontsCss },
@@ -239,8 +239,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              `try{var t=localStorage.getItem("brackeys-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}` +
-              `try{var m=localStorage.getItem("brackeys-reduce-motion");var p=m==="1"||m==="reduced"?"reduced":m==="full"?"full":"system";var r=p==="reduced"||(p==="system"&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);document.documentElement.dataset.reduceMotion=r?"true":"false"}catch(e){}`,
+              `try{var t=localStorage.getItem("jt:theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}` +
+              `try{var m=localStorage.getItem("jt:reduce-motion");var p=m==="1"||m==="reduced"?"reduced":m==="full"?"full":"system";var r=p==="reduced"||(p==="system"&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);document.documentElement.dataset.reduceMotion=r?"true":"false"}catch(e){}`,
           }}
         />
         {/* Owns the view-transition promises the router drops on the floor.

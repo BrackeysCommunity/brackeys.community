@@ -19,7 +19,7 @@ import {
 // The parsing/validation lives in `@/lib/itchio-oauth` so these tests hit
 // the real functions; the route component itself is thin glue around them.
 
-const PROD_ORIGIN = "https://brackeys.community";
+const PROD_ORIGIN = "https://jams.team";
 
 describe("parseOAuthState", () => {
   it("parses a bare nonce with no origin (production flow)", () => {

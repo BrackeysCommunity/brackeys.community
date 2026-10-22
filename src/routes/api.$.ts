@@ -16,6 +16,7 @@ import { insertCanvasAttachment } from "@/lib/canvas-persistence";
 import { atLeast } from "@/lib/canvas/access";
 import { CANVAS_IMAGE_UPLOADS_PER_DAY } from "@/lib/canvas/limits";
 import { isStaffMember } from "@/lib/discord";
+import { SITE } from "@/lib/legal-meta";
 import {
   bestEffort,
   captureServerException,
@@ -166,7 +167,7 @@ const handler = new OpenAPIHandler(router, {
       schemaConverters: [new ZodToJsonSchemaConverter()],
       specGenerateOptions: {
         info: {
-          title: "Brackeys API",
+          title: `${SITE.name} API`,
           version: "1.0.0",
         },
         commonSchemas: {

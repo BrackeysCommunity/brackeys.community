@@ -13,8 +13,10 @@
  *
  * `z` is a fractional index; JSON Canvas's array order is derived from it,
  * sorted by `(z, id)`. `image` and `entity` are our node types: in a file
- * they're a `file` and a `link` node carrying a `brackeys` key, which
- * Obsidian keeps. Keys we don't know (other plugins') ride in `extra` and
+ * they're a `file` and a `link` node carrying a `jamsTeam` key, which
+ * Obsidian keeps. Files and stored snapshots written before the rebrand
+ * carry the same key as `brackeys`, so every reader accepts both (see
+ * `canvasNodeKey`). Keys we don't know (other plugins') ride in `extra` and
  * are written back as they were.
  */
 import { generateNKeysBetween } from "fractional-indexing";
@@ -41,7 +43,7 @@ export interface EntityRef {
   id: string;
 }
 
-type BrackeysNodeKey =
+export type CanvasNodeKey =
   | { type: "image"; attachmentId: string }
   | { type: "entity"; entity: EntityRef };
 
@@ -60,7 +62,9 @@ export interface JsonCanvasNode {
   label?: string;
   background?: string;
   backgroundStyle?: string;
-  brackeys?: BrackeysNodeKey;
+  jamsTeam?: CanvasNodeKey;
+  /** The pre-rebrand spelling of `jamsTeam`; read, never written. */
+  brackeys?: CanvasNodeKey;
   [key: string]: unknown;
 }
 
@@ -129,6 +133,7 @@ const NODE_KEYS = new Set([
   "label",
   "background",
   "backgroundStyle",
+  "jamsTeam",
   "brackeys",
 ]);
 const EDGE_KEYS = new Set([
@@ -142,7 +147,7 @@ const EDGE_KEYS = new Set([
   "color",
   "label",
 ]);
-const CANVAS_KEYS = new Set(["nodes", "edges", "brackeys", "center"]);
+const CANVAS_KEYS = new Set(["nodes", "edges", "jamsTeam", "brackeys", "center"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -196,7 +201,7 @@ function entityOf(value: unknown): EntityRef | undefined {
   return kind && id ? { kind, id } : undefined;
 }
 
-function brackeysKeyOf(value: unknown): BrackeysNodeKey | undefined {
+function nodeKeyOf(value: unknown): CanvasNodeKey | undefined {
   if (!isRecord(value)) return undefined;
   if (value.type === "image") {
     const attachmentId = str(value.attachmentId);
@@ -206,6 +211,17 @@ function brackeysKeyOf(value: unknown): BrackeysNodeKey | undefined {
     const entity = entityOf(value.entity);
     return entity ? { type: "entity", entity } : undefined;
   }
+  return undefined;
+}
+
+/** A node's `jamsTeam` key, falling back to the legacy `brackeys` spelling. */
+export function canvasNodeKey(node: Record<string, unknown>): CanvasNodeKey | undefined {
+  return nodeKeyOf(node.jamsTeam) ?? nodeKeyOf(node.brackeys);
+}
+
+function canvasKeyOf(canvas: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (isRecord(canvas.jamsTeam)) return canvas.jamsTeam;
+  if (isRecord(canvas.brackeys)) return canvas.brackeys;
   return undefined;
 }
 
@@ -288,7 +304,7 @@ function nodeToJson(id: string, node: Y.Map<unknown>): JsonCanvasNode | null {
       body = {
         type: "file",
         file: str(node.get("file")) ?? "",
-        brackeys: { type: "image", attachmentId },
+        jamsTeam: { type: "image", attachmentId },
       };
       break;
     }
@@ -298,7 +314,7 @@ function nodeToJson(id: string, node: Y.Map<unknown>): JsonCanvasNode | null {
       body = {
         type: "link",
         url: str(node.get("url")) ?? "",
-        brackeys: { type: "entity", entity },
+        jamsTeam: { type: "entity", entity },
       };
       break;
     }
@@ -306,14 +322,14 @@ function nodeToJson(id: string, node: Y.Map<unknown>): JsonCanvasNode | null {
       return null;
   }
 
-  const { brackeys, ...content } = body;
+  const { jamsTeam, ...content } = body;
   return dropUndefined({
     ...extra,
     id,
     ...content,
     ...geometry,
     color,
-    brackeys,
+    jamsTeam,
   }) as JsonCanvasNode;
 }
 
@@ -366,7 +382,7 @@ export function docToJsonCanvas(doc: Y.Doc, options: { canvasId?: string } = {})
   const extra = boundedExtra(canvasMeta(doc).get("extra")) ?? {};
   const canvas: JsonCanvas = { ...extra, nodes, edges };
   if (options.canvasId) {
-    canvas.brackeys = { id: options.canvasId, schemaVersion: CANVAS_SCHEMA_VERSION };
+    canvas.jamsTeam = { id: options.canvasId, schemaVersion: CANVAS_SCHEMA_VERSION };
   }
   return canvas;
 }
@@ -430,12 +446,9 @@ export function sanitizeSnapshot(canvas: JsonCanvas): JsonCanvas {
     node.width = clampInt(raw.width, L.minSize, L.maxSize, 250);
     node.height = clampInt(raw.height, L.minSize, L.maxSize, 60);
     node.color = colorOf(raw.color);
-    const brackeys = brackeysKeyOf(raw.brackeys);
-    if (
-      (brackeys?.type === "image" && type === "file") ||
-      (brackeys?.type === "entity" && type === "link")
-    ) {
-      node.brackeys = brackeys;
+    const key = canvasNodeKey(raw);
+    if ((key?.type === "image" && type === "file") || (key?.type === "entity" && type === "link")) {
+      node.jamsTeam = key;
     }
 
     ids.add(id);
@@ -470,7 +483,8 @@ export function sanitizeSnapshot(canvas: JsonCanvas): JsonCanvas {
 
   const top = isRecord(canvas) ? (extraOf(canvas, CANVAS_KEYS) ?? {}) : {};
   const result: JsonCanvas = { ...top, nodes, edges };
-  if (isRecord(canvas.brackeys)) result.brackeys = canvas.brackeys;
+  const canvasKey = isRecord(canvas) ? canvasKeyOf(canvas) : undefined;
+  if (canvasKey) result.jamsTeam = canvasKey;
   return result;
 }
 
@@ -490,7 +504,7 @@ export function newCanvasId(): string {
 
 /** What a JSON Canvas node becomes in the doc, as plain values. */
 function nodeFields(raw: Record<string, unknown>): Record<string, unknown> | null {
-  const brackeys = brackeysKeyOf(raw.brackeys);
+  const key = canvasNodeKey(raw);
   const jsonType = oneOf(JSON_CANVAS_NODE_TYPES, raw.type);
   if (!jsonType) return null;
 
@@ -503,14 +517,14 @@ function nodeFields(raw: Record<string, unknown>): Record<string, unknown> | nul
     extra: extraOf(raw, NODE_KEYS),
   };
 
-  if (brackeys?.type === "image" && jsonType === "file") {
+  if (key?.type === "image" && jsonType === "file") {
     Object.assign(fields, {
       type: "image",
-      attachmentId: brackeys.attachmentId,
+      attachmentId: key.attachmentId,
       file: str(raw.file),
     });
-  } else if (brackeys?.type === "entity" && jsonType === "link") {
-    Object.assign(fields, { type: "entity", entity: brackeys.entity, url: str(raw.url) });
+  } else if (key?.type === "entity" && jsonType === "link") {
+    Object.assign(fields, { type: "entity", entity: key.entity, url: str(raw.url) });
   } else if (jsonType === "text") {
     Object.assign(fields, { type: "text", text: str(raw.text) ?? "" });
   } else if (jsonType === "file") {

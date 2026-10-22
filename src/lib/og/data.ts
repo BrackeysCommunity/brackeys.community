@@ -4,6 +4,7 @@ import { FORUM_KIND_LABEL, forumPostTitle } from "@/lib/forum-posts";
 import { itchOriginalUrl } from "@/lib/itch-image";
 import { jamDateLong } from "@/lib/jam-links";
 import { safeThemeColor } from "@/lib/jam-palette";
+import { SITE } from "@/lib/legal-meta";
 import { markdownToPlainText } from "@/lib/markdown-text";
 import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import {
@@ -96,7 +97,7 @@ const STATIC_PILLARS: OgHomePillar[] = [
   { kind: "collab", value: null, label: "Open roles" },
 ];
 
-/** The data-free home card — also what `public/og/brackeys-card.png` is cut from. */
+/** The data-free home card — also what `public/og/fallback.png` is cut from. */
 export function siteCard(): OgHomeInput {
   return { layout: "home", pillars: STATIC_PILLARS, art: [] };
 }
@@ -320,7 +321,7 @@ export async function profileCard(handle: string): Promise<OgCardInput | null> {
   return {
     kind: "profile",
     eyebrow: craft || "Member",
-    title: ogName(memberDisplayName(profile, ANON_VIEWER), "A Brackeys member"),
+    title: ogName(memberDisplayName(profile, ANON_VIEWER), `A ${SITE.name} member`),
     // Public and cached with no viewer to ask, so the card follows the
     // email rule and censors unconditionally.
     subtitle:

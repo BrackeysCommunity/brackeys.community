@@ -107,7 +107,7 @@ export const MAX_GALLERY_ITEMS = 10;
 export const ACCENT_BLURPLE = 0x5865f2;
 
 /**
- * Collab post accents — Brackeys purple while a post recruits, muted grey
+ * Collab post accents — blurple while a post recruits, muted grey
  * once it stops. Shared with the feed mirror (`collab-discord-feed.ts`) so
  * the same post reads the same whether it was shared into a channel or
  * merely linked there.

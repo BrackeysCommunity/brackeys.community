@@ -13,7 +13,7 @@ describe("public API client", () => {
   test("calls the public mount over GET and logs the cache status", async () => {
     const lines: string[] = [];
     let seen: Request | undefined;
-    const api = createPublicApi("https://brackeys.test", {
+    const api = createPublicApi("https://jams.test", {
       log: (l) => lines.push(l),
       fetchImpl: async (input) => {
         seen = input as Request;
@@ -23,12 +23,12 @@ describe("public API client", () => {
     const stats = await api.getTeamStats();
     expect(stats).toEqual({ active: 3, recruiting: 1 });
     expect(seen?.method).toBe("GET");
-    expect(seen?.url.startsWith("https://brackeys.test/api/public/rpc/getTeamStats")).toBe(true);
+    expect(seen?.url.startsWith("https://jams.test/api/public/rpc/getTeamStats")).toBe(true);
     expect(lines[0]).toMatch(/^\[api\] getTeamStats 200 \d+ms cf=HIT$/);
   });
 
   test("a hung origin becomes a timeout outage inside the budget", async () => {
-    const api = createPublicApi("https://brackeys.test", {
+    const api = createPublicApi("https://jams.test", {
       timeoutMs: 20,
       fetchImpl: (_input, init) =>
         new Promise((_resolve, reject) => {
@@ -41,7 +41,7 @@ describe("public API client", () => {
   });
 
   test("a network failure and a 5xx both become the error outcome", async () => {
-    const down = createPublicApi("https://brackeys.test", {
+    const down = createPublicApi("https://jams.test", {
       fetchImpl: async () => {
         throw new TypeError("fetch failed");
       },
@@ -50,7 +50,7 @@ describe("public API client", () => {
     expect(downError).toBeInstanceOf(ApiUnavailableError);
     expect((downError as ApiUnavailableError).outcome).toBe("error");
 
-    const broken = createPublicApi("https://brackeys.test", {
+    const broken = createPublicApi("https://jams.test", {
       fetchImpl: async () => new Response("boom", { status: 502 }),
     });
     const brokenError = await broken.getTeamStats().catch((e: unknown) => e);
@@ -59,7 +59,7 @@ describe("public API client", () => {
   });
 
   test("a null answer is a null, not an error", async () => {
-    const api = createPublicApi("https://brackeys.test", { fetchImpl: async () => rpcOk(null) });
+    const api = createPublicApi("https://jams.test", { fetchImpl: async () => rpcOk(null) });
     expect(await api.getJam({ idOrSlug: "nope" })).toBeNull();
   });
 });

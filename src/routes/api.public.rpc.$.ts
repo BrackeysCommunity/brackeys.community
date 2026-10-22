@@ -32,6 +32,9 @@ export function anonymousContext(): { headers: Headers } {
   return { headers: new Headers() };
 }
 
+/** The bot's user-agent prefix, then the one older bot builds still send. */
+const BOT_AGENT_PREFIXES = ["jams-team-discord-bot/", "brackeys-discord-bot/"];
+
 /**
  * Which kind of client this is, from headers only.
  *
@@ -46,7 +49,7 @@ export function callerKind(request: Request): PublicApiCallerKind {
     return "browser";
   }
   const agent = request.headers.get("user-agent") ?? "";
-  return agent.startsWith("brackeys-discord-bot/") ? "bot" : "unknown";
+  return BOT_AGENT_PREFIXES.some((prefix) => agent.startsWith(prefix)) ? "bot" : "unknown";
 }
 
 /** The procedure path, from the part of the URL after the mount. */

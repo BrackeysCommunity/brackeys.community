@@ -94,12 +94,12 @@ export function EmailLayout({
                           src={`${appUrl}/icon-192.png`}
                           width="28"
                           height="28"
-                          alt="Brackeys"
+                          alt={SITE.name}
                           style={markStyle}
                         />
                       </Column>
                       <Column style={{ verticalAlign: "middle" }}>
-                        <Text style={microLabelStyle}>Brackeys Community</Text>
+                        <Text style={mastheadLabelStyle}>{SITE.name}</Text>
                       </Column>
                     </Row>
                   </Section>
@@ -135,9 +135,7 @@ export function EmailLayout({
                   </table>
                   <Section style={{ marginTop: "20px" }}>
                     {footer}
-                    <Text style={footerStyle}>
-                      Brackeys Community — a home for game developers.
-                    </Text>
+                    <Text style={footerStyle}>{SITE.name} — the Brackeys Discord's jam hub.</Text>
                   </Section>
                 </Container>
               </td>
@@ -159,6 +157,8 @@ const bodyStyle = {
 const containerStyle = { margin: "0 auto", padding: "40px 24px", maxWidth: "560px" };
 const mastheadStyle = { marginBottom: "20px" };
 const markStyle = { borderRadius: "6px" };
+/** The name is always lowercase, so the masthead keeps the label voice without its uppercase. */
+const mastheadLabelStyle = { ...microLabelStyle, textTransform: "none" as const };
 const cardStyle = {
   backgroundColor: CARD_BG,
   border: `1px solid ${HAIRLINE}`,

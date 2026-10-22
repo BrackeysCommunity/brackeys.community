@@ -143,19 +143,19 @@ describe("buildCollabFeedMessage", () => {
     const [row] = buildCollabFeedMessage(feedPost()).components;
     expect(row.type).toBe(1);
     const [apply] = row.components;
-    expect(apply).toMatchObject({ type: 2, style: 5, label: "Apply on Brackeys" });
+    expect(apply).toMatchObject({ type: 2, style: 5, label: "Apply on jams.team" });
     expect(apply.url).toMatch(/\/collab\/42$/);
   });
 
   it("offers the jam alongside it only when the post names one", () => {
     const plain = buildCollabFeedMessage(feedPost()).components[0].components;
-    expect(plain.map((b) => b.label)).toEqual(["Apply on Brackeys", "All open posts"]);
+    expect(plain.map((b) => b.label)).toEqual(["Apply on jams.team", "All open posts"]);
 
     const withJam = buildCollabFeedMessage(
       feedPost({ jam: { jamId: 7, title: "Brackeys Game Jam 2026.2", slug: "bjam" } }),
     ).components[0].components;
     expect(withJam.map((b) => b.label)).toEqual([
-      "Apply on Brackeys",
+      "Apply on jams.team",
       "Jam: Brackeys Game Jam 2026.2",
       "All open posts",
     ]);

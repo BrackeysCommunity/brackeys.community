@@ -1,4 +1,5 @@
 import type { ForumPostKind } from "@/db/schema";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 /**
  * The composer's unsent text, kept in this browser so a reload, a sign-in
@@ -17,7 +18,7 @@ export type ForumDraft = {
   shareToDiscord: boolean;
 };
 
-const STORAGE_KEY = "brackeys:forum-composer-draft:v1";
+const STORAGE_KEY = STORAGE_KEYS.forumDraft;
 
 export const EMPTY_DRAFT: ForumDraft = {
   kind: "post",

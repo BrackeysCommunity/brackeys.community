@@ -145,15 +145,15 @@ export const Overview: Story = {
         <div className="flex flex-col gap-6 border border-border bg-card p-8">
           <Prose>
             <p>
-              Check out the <a href="https://example.com">Brackeys Community</a> for more
-              information. You can also visit the{" "}
-              <a href="https://discord.gg/brackeys">Discord server</a> to chat with other members.
+              Check out the <a href="https://example.com">jams.team</a> for more information. You
+              can also visit the <a href="https://discord.gg/brackeys">Discord server</a> to chat
+              with other members.
             </p>
           </Prose>
           <pre className="border-t border-border pt-4 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
             {`<Prose>
   <p>
-    Check out the <a href="...">Brackeys</a> for more info.
+    Check out the <a href="...">jams.team</a> for more info.
   </p>
 </Prose>`}
           </pre>
@@ -193,7 +193,7 @@ export const Overview: Story = {
             <p>Here's an example configuration:</p>
             <pre>
               <code>{`const config = {
-  theme: "brackeys",
+  theme: "default",
   fonts: {
     body: "Rubik",
     display: "Rubik",
@@ -314,7 +314,7 @@ export const Overview: Story = {
             <h2>Further Reading</h2>
             <ul>
               <li>
-                <a href="https://example.com">Brackeys Community</a>
+                <a href="https://example.com">jams.team</a>
               </li>
               <li>Component API Reference</li>
               <li>Theming Guide</li>

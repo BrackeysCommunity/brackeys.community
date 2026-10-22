@@ -43,5 +43,7 @@ Written by hand from the JSON Canvas 1.0 spec for what no licensed file covers:
 - `synthetic-spec-gaps.canvas`: group `background` + all `backgroundStyle` forms we
   accept, a block subpath (`#^block-1`), an empty text card, explicit default
   ends (`fromEnd: none`, `toEnd: arrow`), an edge with no sides, a hex group color.
-- `synthetic-brackeys.canvas`: our `image` and `entity` node types as they're
-  written to a vault, plus the top-level `brackeys` key.
+- `synthetic-jams-team.canvas`: our `image` and `entity` node types as they're
+  written to a vault, plus the top-level `jamsTeam` key.
+- `synthetic-brackeys.canvas`: the same canvas with the key spelled `brackeys`,
+  as files exported before the rebrand carry it. Kept as a read-compat case.

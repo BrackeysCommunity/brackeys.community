@@ -5,10 +5,10 @@ import { notFoundCard, siteCard } from "@/lib/og/data";
 import { renderOgPng } from "@/lib/og/render";
 
 /**
- * Also how `public/og/brackeys-card.png` is regenerated — a standalone
+ * Also how `public/og/fallback.png` is regenerated — a standalone
  * script can't resolve the `?inline` font imports:
  *
- *   bun run og:card
+ *   vp run og:card
  */
 describe("the committed fallback card", () => {
   it("renders, and is written out when OG_DUMP asks for it", async () => {
@@ -21,7 +21,7 @@ describe("the committed fallback card", () => {
     const dir = process.env.OG_DUMP;
     if (dir) {
       const { writeFile } = await import("node:fs/promises");
-      await writeFile(`${dir}/brackeys-card.png`, png);
+      await writeFile(`${dir}/fallback.png`, png);
     }
   }, 30_000);
 });

@@ -14,7 +14,7 @@ const {
   subscribeAnalyticsPreference,
 } = await import("@/lib/product-insights");
 
-const OPT_OUT_KEY = "brackeys-analytics";
+const OPT_OUT_KEY = "jt:analytics";
 
 /** GPC is not in lib.dom, and jsdom does not implement it. */
 function setGpc(value: boolean | undefined) {

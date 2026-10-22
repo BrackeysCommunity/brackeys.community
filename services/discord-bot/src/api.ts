@@ -41,9 +41,9 @@ export interface ApiClientOptions {
   log?: (line: string) => void;
 }
 
-/** The prefix `callerKind` in `src/routes/api.public.rpc.$.ts` matches on.
+/** A prefix `callerKind` in `src/routes/api.public.rpc.$.ts` matches on.
  *  Keep the two in step. */
-export const USER_AGENT = "brackeys-discord-bot/1";
+export const USER_AGENT = "jams-team-discord-bot/1";
 
 /** `RequestInit.headers` is a `HeadersInit` — three shapes, one of which is
  *  a `Headers` instance. Flatten whichever arrived so the agent can be merged

@@ -1007,7 +1007,7 @@ export const itchJamEntries = itchSchema.table(
     // "which jams did this game enter" join reads by it.
     index("jam_entries_game_id_idx").on(table.gameId),
     // Author id is how a scraped entry is matched to a linked itch account
-    // (the "Brackeys member" badge on the entries grid).
+    // (the member badge on the entries grid).
     index("jam_entries_author_id_idx").on(table.authorId),
     // `searchAll`'s entry match. Not folded: an expression index over the
     // largest table costs more than accents are worth on game titles.

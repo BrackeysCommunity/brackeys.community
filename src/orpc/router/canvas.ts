@@ -43,6 +43,7 @@ import {
 import { base64ToBytes, bytesToBase64 } from "@/lib/canvas/encoding";
 import {
   applyJsonCanvas,
+  canvasNodeKey,
   deriveSnapshot,
   ENTITY_KINDS,
   type EntityKind,
@@ -596,7 +597,8 @@ export const restoreCanvas = os
 function imageAttachmentIds(snapshot: JsonCanvas): string[] {
   const ids = new Set<string>();
   for (const node of snapshot.nodes) {
-    if (node.brackeys?.type === "image") ids.add(node.brackeys.attachmentId);
+    const key = canvasNodeKey(node);
+    if (key?.type === "image") ids.add(key.attachmentId);
   }
   return [...ids];
 }
@@ -851,7 +853,7 @@ export const openJamPlanCanvas = os
             y: 0,
             width: 360,
             height: 220,
-            brackeys: { type: "entity", entity: { kind: "jam", id: String(jam.jamId) } },
+            jamsTeam: { type: "entity", entity: { kind: "jam", id: String(jam.jamId) } },
           },
           {
             id: "deadline",

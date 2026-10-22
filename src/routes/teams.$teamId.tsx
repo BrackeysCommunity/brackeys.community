@@ -11,7 +11,14 @@ import { authStore } from "@/lib/auth-store";
 import { componentEmbed } from "@/lib/discord-embed";
 import { teamLinkPreview } from "@/lib/discord-link-preview";
 import { censorText } from "@/lib/profanity";
-import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
+import {
+  breadcrumbNode,
+  buildMeta,
+  jsonLd,
+  NOT_FOUND_OG_CARD,
+  ogCardPath,
+  SITE_NAME,
+} from "@/lib/site-meta";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { teamSlug } from "@/lib/team-links";
 import { orpc } from "@/orpc/client";
@@ -81,7 +88,7 @@ export const Route = createFileRoute("/teams/$teamId")({
       tagline ||
       censorText(team.bio?.trim().slice(0, 180) || null) ||
       [
-        `${memberCount} ${memberCount === 1 ? "member" : "members"} on Brackeys Community.`,
+        `${memberCount} ${memberCount === 1 ? "member" : "members"} on ${SITE_NAME}.`,
         stack && `Works in ${stack}.`,
         team.recruiting && "Currently recruiting.",
       ]
@@ -103,7 +110,7 @@ export const Route = createFileRoute("/teams/$teamId")({
         description,
         path,
         card: ogCardPath("team", team.slug),
-        imageAlt: `${team.name} on Brackeys Community`,
+        imageAlt: `${team.name} on ${SITE_NAME}`,
         // Insider view of a hidden team — crawlers 404, but belt and braces.
         ...(team.hiddenAt ? { noindexNofollow: true, canonical: false } : {}),
       }),

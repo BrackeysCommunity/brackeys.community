@@ -23,8 +23,8 @@ const SECTIONS: LegalSection[] = [
       <>
         <p>
           These Terms of Service (the "Terms") form a binding agreement between you and{" "}
-          {OPERATOR.legalName} ("{SITE.name}", "we", "us", or "our") and govern your access to and
-          use of {SITE.domain}, together with every page, feature, and service offered on it (the
+          {OPERATOR.legalName} ("we", "us", or "our") and govern your access to and use of{" "}
+          {SITE.domain}, together with every page, feature, and service offered on it (the
           "Service").
         </p>
         <p>
@@ -384,8 +384,10 @@ const SECTIONS: LegalSection[] = [
           otherwise.
         </p>
         <p>
-          The name Brackeys, the Brackeys logo, and associated marks may not be used without prior
-          written permission, except to refer accurately to the community or the Service.
+          The name {SITE.name} is ours. The name Brackeys, the Brackeys diamond logo, and associated
+          marks belong to Brackeys and are used on the Service with their permission. None of these
+          may be used without the prior written permission of its owner, except to refer accurately
+          to the community or the Service.
         </p>
         <p>
           If you send us suggestions, feature requests, or other feedback, you grant us an
@@ -501,10 +503,10 @@ const SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          The Service is provided by volunteers of the Brackeys community. We may change, suspend,
-          limit, or discontinue the Service or any part of it at any time, and we do not guarantee
-          that it will be available without interruption or free of error. Features may be tested
-          with a subset of members before wider release, or withdrawn.
+          Volunteers from the Brackeys community run {SITE.name}. We may change, suspend, limit, or
+          discontinue the Service or any part of it at any time, and we do not guarantee that it
+          will be available without interruption or free of error. Features may be tested with a
+          subset of members before wider release, or withdrawn.
         </p>
         <p>
           The Service is presently offered at no charge. If we introduce paid features, we will

@@ -21,7 +21,7 @@ const BIO_MAX = 600;
 const SKILLS_MAX = 12;
 const CANDIDATES_MAX = 5;
 
-/** `/member user:@someone` and the "Brackeys profile" context menu — one
+/** `/member user:@someone` and the profile context menu — one
  *  handler, so the two render byte-identical embeds. */
 export async function memberByDiscordId(
   api: PublicApi,

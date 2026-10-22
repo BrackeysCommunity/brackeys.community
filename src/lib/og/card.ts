@@ -274,7 +274,7 @@ export function ogCard(input: OgCardInput, options: OgRenderOptions = {}): OgNod
     ),
 
     // The spine: the one element identical on every card, and the reason a
-    // Brackeys link is identifiable before any of the words are read.
+    // link to the site is identifiable before any of the words are read.
     options.spine === false ? null : spineNode(),
 
     h(

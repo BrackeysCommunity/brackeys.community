@@ -13,6 +13,7 @@ import type {
 import { type Currency, DEFAULT_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { captureEvent } from "@/lib/product-insights";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 export type {
   CollabPostType,
@@ -300,7 +301,7 @@ export function isEditablePostType(type: string): type is CollabPostType {
 
 // ── Draft persistence ──────────────────────────────────────────────────────
 
-const DRAFT_STORAGE_KEY = "brackeys:collab-wizard-draft:v1";
+const DRAFT_STORAGE_KEY = STORAGE_KEYS.collabDraft;
 
 /**
  * Everything in the draft except the picked images — `File` objects

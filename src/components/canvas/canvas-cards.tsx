@@ -25,7 +25,12 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { createBatchLoader } from "@/lib/batch-loader";
-import type { EntityKind, EntityRef, JsonCanvasNode } from "@/lib/canvas/json-canvas";
+import {
+  canvasNodeKey,
+  type EntityKind,
+  type EntityRef,
+  type JsonCanvasNode,
+} from "@/lib/canvas/json-canvas";
 import { basename } from "@/lib/canvas/paths";
 import { type Wikilink, wikilinkLabel, wikilinkMatches } from "@/lib/canvas/wikilinks";
 import { externalUrlHost } from "@/lib/external-url";
@@ -77,11 +82,12 @@ export function cardFromJson(node: JsonCanvasNode): CanvasCard | null {
     h: node.height,
     color: node.color,
   };
-  if (node.brackeys?.type === "image") {
-    return { ...base, type: "image", attachmentId: node.brackeys.attachmentId, file: node.file };
+  const key = canvasNodeKey(node);
+  if (key?.type === "image") {
+    return { ...base, type: "image", attachmentId: key.attachmentId, file: node.file };
   }
-  if (node.brackeys?.type === "entity") {
-    return { ...base, type: "entity", entity: node.brackeys.entity, url: node.url };
+  if (key?.type === "entity") {
+    return { ...base, type: "entity", entity: key.entity, url: node.url };
   }
   switch (node.type) {
     case "text":

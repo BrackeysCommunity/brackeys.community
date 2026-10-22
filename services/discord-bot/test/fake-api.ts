@@ -23,7 +23,7 @@ export const NOW = new Date("2026-09-07T12:00:00Z");
 
 export const ctx: CommandContext = {
   now: NOW,
-  appUrl: "https://brackeys.test",
+  appUrl: "https://jams.test",
   hostName: "Brackeys",
   names: {
     skill: (id) => (({ 7: "Unity" }) as Record<number, string>)[id],

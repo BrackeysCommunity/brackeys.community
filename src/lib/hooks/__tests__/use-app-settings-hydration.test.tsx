@@ -87,11 +87,11 @@ function hydrateWithStoredPref(stored: Record<string, string>): unknown[] {
 
 describe("AppSettingsProvider hydration", () => {
   it("hydrates cleanly with an explicit reduced-motion preference", () => {
-    expect(hydrateWithStoredPref({ "brackeys-reduce-motion": "reduced" })).toEqual([]);
+    expect(hydrateWithStoredPref({ "jt:reduce-motion": "reduced" })).toEqual([]);
   });
 
   it("hydrates cleanly with the legacy '1' spelling", () => {
-    expect(hydrateWithStoredPref({ "brackeys-reduce-motion": "1" })).toEqual([]);
+    expect(hydrateWithStoredPref({ "jt:reduce-motion": "1" })).toEqual([]);
   });
 
   it("hydrates cleanly with no stored preference at all", () => {
@@ -107,7 +107,7 @@ describe("AppSettingsProvider hydration", () => {
       "false",
     );
 
-    localStorage.setItem("brackeys-reduce-motion", "reduced");
+    localStorage.setItem("jt:reduce-motion", "reduced");
     let root: ReturnType<typeof hydrateRoot>;
     act(() => {
       root = hydrateRoot(container, <Tree />);

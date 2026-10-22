@@ -200,7 +200,7 @@
 }
 
 /* ── Theme overrides ────────────────────────────────────────────────
-   "brackeys" is the default — no override needed, it uses the .dark values above.
+   "default" is the default theme — no override needed, it uses the .dark values above.
    Each theme file overrides the .dark variables via [data-theme="..."].dark.
    ──────────────────────────────────────────────────────────────────── */
 

@@ -14,7 +14,7 @@ describe("og glyph coverage", () => {
 
   it("omits a name the fold cannot rescue, and hands back the fallback", () => {
     expect(ogName("山田太郎")).toBeNull();
-    expect(ogName("山田太郎", "A Brackeys member")).toBe("A Brackeys member");
+    expect(ogName("山田太郎", "A jams.team member")).toBe("A jams.team member");
     expect(ogName("cookie 🍪")).toBeNull();
     expect(ogName(null, "x")).toBe("x");
     expect(ogName("   ")).toBeNull();

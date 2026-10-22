@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 
 import { signInWithDiscord } from "@/lib/auth-client";
 import { useMagnetic } from "@/lib/hooks/use-cursor";
+import { SITE } from "@/lib/legal-meta";
 
 const springTransition = { type: "spring", stiffness: 1000, damping: 30, mass: 0.1 } as const;
 
@@ -64,8 +65,8 @@ export function ProfileBuilderPage() {
           </span>
         </h1>
         <p className="mt-8 max-w-xl font-sans text-lg text-muted-foreground lg:text-xl">
-          Your developer identity in the Brackeys network. Sign in with Discord to view and edit
-          your profile.
+          Your developer identity on {SITE.name}. Sign in with Discord to view and edit your
+          profile.
         </p>
       </div>
 

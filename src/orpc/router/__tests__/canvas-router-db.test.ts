@@ -510,7 +510,7 @@ describe("entity cards and images", () => {
         y: 0,
         width: 10,
         height: 10,
-        brackeys: { type: "image", attachmentId: id },
+        jamsTeam: { type: "image", attachmentId: id },
       })),
     });
     const { id } = await call(
@@ -538,7 +538,7 @@ describe("openJamPlanCanvas", () => {
     expect(canvas.path).toBe("GMTK - 2026/Plan.canvas");
     expect(canvas.snapshot.nodes[0]).toMatchObject({
       type: "link",
-      brackeys: { type: "entity", entity: { kind: "jam", id: "7" } },
+      jamsTeam: { type: "entity", entity: { kind: "jam", id: "7" } },
     });
 
     const again = await call(openJamPlanCanvas, { jamId: 7, scope: teamScope() }, asUser("alice"));

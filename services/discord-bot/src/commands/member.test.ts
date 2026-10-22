@@ -42,8 +42,8 @@ describe("/member", () => {
     const reply = await memberByDiscordId(api, { discordId: "200000000000000009" }, ctx);
     expect(reply.outcome).toBe("not_found");
     expect(reply.ephemeral).toBe(true);
-    expect(reply.content).toContain("isn't on brackeys.test yet");
-    expect(reply.content).toContain("https://brackeys.test");
+    expect(reply.content).toContain("isn't on jams.test yet");
+    expect(reply.content).toContain("https://jams.test");
     expect(reply.embeds).toEqual([]);
   });
 
@@ -59,7 +59,7 @@ describe("/member", () => {
     const embed = reply.embeds[0]!;
     expect(embed.author).toEqual({
       name: "Josh",
-      url: "https://brackeys.test/profile/josh",
+      url: "https://jams.test/profile/josh",
       iconUrl: "https://cdn/avatar.png",
     });
     expect(embed.title).toBe("Makes small games");
@@ -70,10 +70,10 @@ describe("/member", () => {
     expect(byName.Availability).toBe("Open to work · part-time · $40+ /hr");
     expect(byName.Where).toBe("Lisbon-ish · Europe/Madrid");
     expect(byName.Shipped).toBe("3 projects");
-    expect(byName.Teams).toBe("[Cosy Crew](https://brackeys.test/teams/cosy-crew)");
+    expect(byName.Teams).toBe("[Cosy Crew](https://jams.test/teams/cosy-crew)");
     expect(byName.Links).toBe("[GitHub](https://github.com/joshe)");
     expect(reply.buttons).toEqual([
-      { kind: "link", label: "Open profile", url: "https://brackeys.test/profile/josh" },
+      { kind: "link", label: "Open profile", url: "https://jams.test/profile/josh" },
     ]);
   });
 
@@ -118,7 +118,7 @@ describe("/member", () => {
     const ambiguous = await memberByName(api, { name: "jos" }, ctx);
     expect(ambiguous.embeds).toEqual([]);
     expect(ambiguous.content).toContain("did you mean");
-    expect(ambiguous.content).toContain("[Joshua](https://brackeys.test/profile/u2)");
+    expect(ambiguous.content).toContain("[Joshua](https://jams.test/profile/u2)");
 
     const none = await memberByName(api, { name: "zed" }, ctx);
     expect(none.outcome).toBe("not_found");

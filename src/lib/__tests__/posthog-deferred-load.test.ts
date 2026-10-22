@@ -105,7 +105,7 @@ describe("deferred PostHog load", () => {
   });
 
   it("never loads posthog-js at all for an opted-out visitor", async () => {
-    localStorage.setItem("brackeys-analytics", "off");
+    localStorage.setItem("jt:analytics", "off");
     const { initAnalytics, captureEvent } = await import("@/lib/product-insights");
 
     initAnalytics();

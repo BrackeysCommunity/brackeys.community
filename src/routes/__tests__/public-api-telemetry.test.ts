@@ -4,7 +4,7 @@ import { USER_AGENT } from "../../../services/discord-bot/src/api";
 import { callerKind, procedureName } from "../api.public.rpc.$";
 
 function request(headers: Record<string, string>): Request {
-  return new Request("https://brackeys.community/api/public/rpc/getJam", { headers });
+  return new Request("https://jams.team/api/public/rpc/getJam", { headers });
 }
 
 describe("callerKind", () => {
@@ -24,12 +24,14 @@ describe("callerKind", () => {
 
   it("names the bot by the agent its own client sends", () => {
     expect(callerKind(request({ "user-agent": USER_AGENT }))).toBe("bot");
+    expect(callerKind(request({ "user-agent": "brackeys-discord-bot/1" }))).toBe("bot");
   });
 
   it("calls every other headless caller unknown", () => {
     expect(callerKind(request({}))).toBe("unknown");
     expect(callerKind(request({ "user-agent": "curl/8.4.0" }))).toBe("unknown");
     // A near-miss must not be counted as ours.
+    expect(callerKind(request({ "user-agent": "jams-team-discord-bot" }))).toBe("unknown");
     expect(callerKind(request({ "user-agent": "brackeys-discord-bot" }))).toBe("unknown");
   });
 });

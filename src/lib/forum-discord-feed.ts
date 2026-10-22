@@ -10,6 +10,7 @@ import { ACCENT_RECRUITING } from "@/lib/discord-embed";
 import { discordMessageLink } from "@/lib/discord-links";
 import { deleteDiscordMessage } from "@/lib/discord-message-delete";
 import { censorText } from "@/lib/profanity";
+import { SITE_NAME } from "@/lib/site-meta";
 
 /**
  * Mirroring a devlog into the guild's `#devlogs` channel — the collab
@@ -123,7 +124,7 @@ export function buildDevlogFeedMessage(post: DevlogFeedPost): DiscordMessagePayl
             }
           : {}),
         ...(cover ? { image: { url: cover } } : {}),
-        footer: { text: "Brackeys forum · devlog" },
+        footer: { text: `${SITE_NAME} forum · devlog` },
         ...(post.publishedAt ? { timestamp: new Date(post.publishedAt).toISOString() } : {}),
       },
     ],

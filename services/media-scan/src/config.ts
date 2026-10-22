@@ -18,7 +18,7 @@ const schema = z.object({
   MINIO_ACCESS_KEY: z.string().min(1).optional(),
   MINIO_SECRET_KEY: z.string().min(1).optional(),
   MINIO_BUCKET: z.string().min(1).optional(),
-  USER_AGENT: z.string().default(`brackeys-media-scan/0.1 (+${SITE.url})`),
+  USER_AGENT: z.string().default(`jams-team-media-scan/0.1 (+${SITE.url})`),
 
   // ── Pacing ─────────────────────────────────────────────────────────────────
   // Per host, shared pool-wide through Redis (src/lib/itch-pacer.ts). itch.io

@@ -14,7 +14,14 @@ import { useMemberViewer } from "@/lib/hooks/use-member-identity";
 import { ANON_VIEWER, memberDisplayName } from "@/lib/member-name";
 import { censorText } from "@/lib/profanity";
 import { profileSlug } from "@/lib/profile-links";
-import { breadcrumbNode, buildMeta, jsonLd, NOT_FOUND_OG_CARD, ogCardPath } from "@/lib/site-meta";
+import {
+  breadcrumbNode,
+  buildMeta,
+  jsonLd,
+  NOT_FOUND_OG_CARD,
+  ogCardPath,
+  SITE_NAME,
+} from "@/lib/site-meta";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { orpc } from "@/orpc/client";
 import { STALE } from "@/orpc/public-procedures";
@@ -58,7 +65,7 @@ export const Route = createFileRoute("/profile/$userId")({
     const { profile, roles, skills } = loaderData;
     // Server-rendered for whoever asks, so the head follows the anonymous
     // reading: the handle, never the nickname.
-    const name = memberDisplayName(profile, ANON_VIEWER, "A Brackeys member");
+    const name = memberDisplayName(profile, ANON_VIEWER, `A ${SITE_NAME} member`);
     const craft = roles
       .map((role) => role.name)
       .slice(0, 3)
@@ -72,7 +79,7 @@ export const Route = createFileRoute("/profile/$userId")({
       [craft && `${craft}.`, skills.length > 0 && `Works in ${skills[0]!.name}.`]
         .filter(Boolean)
         .join(" ") ||
-      `${name} on the Brackeys community directory — jams entered, projects shipped, and what they're up for next.`;
+      `${name} on the ${SITE_NAME} member directory — jams entered, projects shipped, and what they're up for next.`;
 
     const path = `/profile/${profileSlug({ id: profile.id, urlStub: loaderData.urlStub })}`;
     const sameAs = [profile.githubUrl, profile.twitterUrl, profile.websiteUrl].filter(
@@ -91,7 +98,7 @@ export const Route = createFileRoute("/profile/$userId")({
         description,
         path,
         card: ogCardPath("profile", profileSlug({ id: profile.id, urlStub: loaderData.urlStub })),
-        imageAlt: `${name} on Brackeys Community`,
+        imageAlt: `${name} on ${SITE_NAME}`,
         type: "profile",
       }),
       scripts: [

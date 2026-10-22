@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { buildMeta, jsonLd, listingMeta, ogCardPath, socialImage } from "@/lib/site-meta";
+import {
+  buildMeta,
+  jsonLd,
+  listingMeta,
+  ogCardPath,
+  SITE_NAME,
+  socialImage,
+} from "@/lib/site-meta";
 
 const ORIGIN = "https://jams.team";
 
@@ -38,7 +45,7 @@ describe("socialImage", () => {
 
   it("falls back to the site card, dimensions and all", () => {
     const image = socialImage(null);
-    expect(image.url).toBe(`${ORIGIN}/og/default.png?v=2`);
+    expect(image.url).toBe(`${ORIGIN}/og/default.png?v=3`);
     expect(image.width).toBe(1200);
     expect(image.height).toBe(630);
     expect(image.type).toBe("image/png");
@@ -65,8 +72,8 @@ describe("buildMeta", () => {
 
   it("suffixes the site name onto the page title, once", () => {
     const head = buildMeta({ title: "Teams", path: "/teams" });
-    expect(head.meta[0]).toEqual({ title: "Teams · Brackeys Community" });
-    expect(buildMeta({ path: "/" }).meta[0]).toEqual({ title: "Brackeys Community" });
+    expect(head.meta[0]).toEqual({ title: `Teams · ${SITE_NAME}` });
+    expect(buildMeta({ path: "/" }).meta[0]).toEqual({ title: SITE_NAME });
   });
 
   it("emits no robots tag by default, follow with noindex, neither with nofollow", () => {
@@ -93,13 +100,13 @@ describe("buildMeta", () => {
 
 describe("ogCardPath", () => {
   it("keys a card on the same handle the canonical URL uses", () => {
-    expect(ogCardPath("jam", "brackeys-13")).toBe("/og/jam/brackeys-13.png?v=2");
-    expect(ogCardPath("collab", 42)).toBe("/og/collab/42.png?v=2");
-    expect(ogCardPath("collab", 42, { embed: true })).toBe("/og/collab/42.png?v=2&embed");
+    expect(ogCardPath("jam", "brackeys-13")).toBe("/og/jam/brackeys-13.png?v=3");
+    expect(ogCardPath("collab", 42)).toBe("/og/collab/42.png?v=3");
+    expect(ogCardPath("collab", 42, { embed: true })).toBe("/og/collab/42.png?v=3&embed");
   });
 
   it("escapes a handle that would otherwise change the path", () => {
-    expect(ogCardPath("profile", "a/b")).toBe("/og/profile/a%2Fb.png?v=2");
+    expect(ogCardPath("profile", "a/b")).toBe("/og/profile/a%2Fb.png?v=3");
   });
 
   it("wins over a raw image, and carries its own dimensions", () => {
@@ -109,7 +116,7 @@ describe("ogCardPath", () => {
       card: ogCardPath("jam", "x"),
       image: "https://img.itch.zone/aW1n/300x240/x.png",
     });
-    expect(tag(head.meta, "og:image")).toBe(`${ORIGIN}/og/jam/x.png?v=2`);
+    expect(tag(head.meta, "og:image")).toBe(`${ORIGIN}/og/jam/x.png?v=3`);
     expect(tag(head.meta, "og:image:width")).toBe("1200");
     expect(tag(head.meta, "og:image:type")).toBe("image/png");
   });

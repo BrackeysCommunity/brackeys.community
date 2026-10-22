@@ -3,6 +3,7 @@ import { Store } from "@tanstack/store";
 import { useMemo } from "react";
 
 import { DAY_MS } from "@/lib/format-time";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 /**
  * Which attention items the viewer has waved away, and for how long.
@@ -17,7 +18,7 @@ import { DAY_MS } from "@/lib/format-time";
  * and the dashboard strip can never disagree about what's hidden.
  */
 
-const STORAGE_KEY = "brackeys-attention-dismissed";
+const STORAGE_KEY = STORAGE_KEYS.attentionDismissed;
 
 /**
  * Dismissals expire. Without a TTL the key set grows forever, and a key

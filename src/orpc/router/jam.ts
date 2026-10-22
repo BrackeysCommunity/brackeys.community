@@ -618,7 +618,7 @@ export const listJamEntries = os
     };
   });
 
-/** A Brackeys member recognized on a scraped entry. */
+/** A site member recognized on a scraped entry. */
 export interface JamEntryMember {
   profileId: string;
   username: string | null;

@@ -13,7 +13,7 @@ import {
   type TeamPreviewSource,
 } from "@/lib/discord-link-preview";
 
-const ORIGIN = "https://brackeys.community";
+const ORIGIN = "https://jams.team";
 
 vi.mock("@/env", () => ({
   env: { VITE_CF_IMAGES: "1" },
@@ -64,7 +64,7 @@ describe("jamLinkPreview", () => {
     const gallery = jamLinkPreview(jam())!.components.find((component) => component.type === 12);
     expect(gallery?.type === 12 ? gallery.items : []).toEqual([
       {
-        media: { url: `${ORIGIN}/og/jam/brackeys-game-jam-2026-1.png?v=2&embed` },
+        media: { url: `${ORIGIN}/og/jam/brackeys-game-jam-2026-1.png?v=3&embed` },
         description: "Brackeys Game Jam 2026.1",
       },
     ]);
@@ -84,7 +84,7 @@ describe("jamLinkPreview", () => {
   it("offers both destinations", () => {
     const row = jamLinkPreview(jam())!.components.at(-1);
     expect(row?.type === 1 ? row.components.map((b) => [b.label, b.url]) : []).toEqual([
-      ["Open on Brackeys", `${ORIGIN}/jams/brackeys-game-jam-2026-1`],
+      ["Open on jams.team", `${ORIGIN}/jams/brackeys-game-jam-2026-1`],
       ["View on itch.io", "https://itch.io/jam/brackeys-game-jam-2026-1"],
     ]);
   });
@@ -121,7 +121,7 @@ describe("collabLinkPreview", () => {
       "Tileset",
     ]);
     expect(gallery?.type === 12 ? gallery.items[0]!.media.url : "").toBe(
-      `${ORIGIN}/og/collab/412.png?v=2&embed`,
+      `${ORIGIN}/og/collab/412.png?v=3&embed`,
     );
   });
 
@@ -177,7 +177,7 @@ function galleryOf(root: ReturnType<typeof homeLinkPreview>) {
 describe("homeLinkPreview", () => {
   it("shows the home card and a button for each main board", () => {
     const root = homeLinkPreview();
-    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/default.png?v=2&embed`]);
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/default.png?v=3&embed`]);
     expect(root!.accent_color).toBe(0x5865f2);
     expect(buttonsOf(root).map((button) => button.url)).toEqual([
       `${ORIGIN}/jams`,
@@ -210,7 +210,7 @@ describe("profileLinkPreview", () => {
 
   it("shows their card, and GitHub only when the account is linked", () => {
     const root = profileLinkPreview(member(), extras);
-    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/profile/mellobacon.png?v=2&embed`]);
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/profile/mellobacon.png?v=3&embed`]);
     expect(buttonsOf(root).map((button) => button.label)).toEqual(["View profile", "All members"]);
 
     const linked = profileLinkPreview(member(), { ...extras, githubUsername: "mellobacon" });
@@ -231,12 +231,12 @@ describe("profileLinkPreview", () => {
 
   it("falls back to the id when no handle is claimed", () => {
     const root = profileLinkPreview(member({ urlStub: null, availableForWork: false }), {
-      name: "A Brackeys member",
+      name: "A jams.team member",
       skills: [],
     });
     expect(root!.components[0]).toEqual({
       type: 10,
-      content: `## [A Brackeys member](${ORIGIN}/profile/usr_9)`,
+      content: `## [A jams.team member](${ORIGIN}/profile/usr_9)`,
     });
     expect(root!.accent_color).toBe(0x5865f2);
   });
@@ -259,7 +259,7 @@ describe("teamLinkPreview", () => {
       type: 10,
       content: `## [Salty Sweet](${ORIGIN}/teams/salty-sweet)\n**Recruiting** · Works in Unity`,
     });
-    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/team/salty-sweet.png?v=2&embed`]);
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/team/salty-sweet.png?v=3&embed`]);
     expect(buttonsOf(root).map((button) => button.label)).toEqual([
       "View team and open roles",
       "All teams",

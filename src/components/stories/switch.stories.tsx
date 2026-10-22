@@ -39,7 +39,7 @@ export const Overview: Story = {
           </pre>
           <Text as="p" size="xs" variant="muted" density="comfortable" className="max-w-xl">
             Toggle controls for switching between two possible states. Uses sharp corners consistent
-            with the Brackeys design system (not rounded).
+            with the site's design system (not rounded).
           </Text>
         </section>
 

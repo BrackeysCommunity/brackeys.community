@@ -2,7 +2,7 @@ import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 import { forumFeedSearchSchema } from "@/components/forum/forum-search";
 import { ForumTagPage } from "@/components/forum/ForumBrowse";
-import { listingMeta, ogCardPath } from "@/lib/site-meta";
+import { listingMeta, ogCardPath, SITE_NAME } from "@/lib/site-meta";
 
 const routeApi = getRouteApi("/forum/tags/$tag");
 
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/forum/tags/$tag")({
   head: ({ params, match }) =>
     listingMeta({
       title: `#${params.tag} on the forum`,
-      description: `Forum posts tagged #${params.tag} in the Brackeys community.`,
+      description: `Forum posts tagged #${params.tag} on ${SITE_NAME}.`,
       path: `/forum/tags/${params.tag}`,
       card: ogCardPath("board", "forum"),
       search: match.search,

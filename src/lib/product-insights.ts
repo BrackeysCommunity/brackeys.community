@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/client";
 
 import { env } from "@/env";
 import type { AnalyticsEvent } from "@/lib/event-taxonomy";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 /**
  * Browser-side PostHog: product analytics, feature flags, and error tracking.
@@ -72,7 +73,7 @@ export type PostHogClient = typeof import("posthog-js").default;
  * the default and an explicit opt-in can override it. A pre-existing `off`
  * still reads as opted out, so nobody's earlier choice is lost.
  */
-const OPT_OUT_KEY = "brackeys-analytics";
+const OPT_OUT_KEY = STORAGE_KEYS.analytics;
 
 function storedChoice(): "on" | "off" | null {
   if (typeof window === "undefined") return null;

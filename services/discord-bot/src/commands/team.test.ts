@@ -31,14 +31,14 @@ describe("/team", () => {
     const reply = await teamInfo(api, { team: "cosy-crew" }, ctx);
     const embed = reply.embeds[0]!;
     expect(embed.title).toBe("Cosy Crew");
-    expect(embed.url).toBe("https://brackeys.test/teams/cosy-crew");
+    expect(embed.url).toBe("https://jams.test/teams/cosy-crew");
     expect(embed.description).toBe("*Small games, big hearts*");
     const byName = Object.fromEntries(embed.fields!.map((f) => [f.name, f.value]));
     expect(byName["Roster · 2"]).toBe("josh · owner\nana · Art");
     expect(byName.Recruiting).toBe("Yes · 1 open post");
     expect(byName.Showcase).toBe("3 projects");
     expect(byName.Stack).toBe("Unity");
-    expect(byName["Open posts"]).toBe("• [Need a composer](https://brackeys.test/collab/5)");
+    expect(byName["Open posts"]).toBe("• [Need a composer](https://jams.test/collab/5)");
     expect(byName.Links).toBe("[Website](https://cosy.example)");
     expect(embed.thumbnail).toBe("https://cdn/team.png");
     expect(reply.ephemeral).toBe(true);
@@ -63,9 +63,7 @@ describe("/team", () => {
       }),
     });
     const reply = await teamInfo(api, { team: "orange-crew" }, ctx);
-    expect(reply.embeds[0]!.thumbnail).toBe(
-      "https://brackeys.test/images/team-avatars/t1/orange.png",
-    );
+    expect(reply.embeds[0]!.thumbnail).toBe("https://jams.test/images/team-avatars/t1/orange.png");
   });
 
   test("unknown team → not_found", async () => {

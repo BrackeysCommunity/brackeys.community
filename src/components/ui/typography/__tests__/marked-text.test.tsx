@@ -82,7 +82,7 @@ describe("MarkedText censoring", () => {
   });
 
   it("leaves it alone once the viewer has opted out", () => {
-    localStorage.setItem("brackeys-censor-profanity", "0");
+    localStorage.setItem("jt:censor-profanity", "0");
     const { container } = renderMarkdown("this **shit** is broken");
     expect(container.textContent).toContain("shit");
   });

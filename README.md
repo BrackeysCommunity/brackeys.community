@@ -1,6 +1,6 @@
-# Brackeys
+# jams.team
 
-Brackeys is the community web app for the Brackeys Discord. This repo is a single TanStack Start application that powers:
+[jams.team](https://jams.team) is the Brackeys Discord community's jam hub. This repo is a single TanStack Start application that powers:
 
 - the home / jam landing page
 - the command center

@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-import { DEFAULT_THEME_ID, type Theme, themeSections, themes } from "@/lib/themes";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
+import { DEFAULT_THEME_ID, resolveThemeId, type Theme, themeSections, themes } from "@/lib/themes";
 
-const STORAGE_KEY = "brackeys-theme";
+const STORAGE_KEY = STORAGE_KEYS.theme;
 
 interface ThemeContextValue {
   themeId: string;
@@ -18,7 +19,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 function getStoredTheme(): string {
   if (typeof window === "undefined") return DEFAULT_THEME_ID;
   try {
-    return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_THEME_ID;
+    return resolveThemeId(localStorage.getItem(STORAGE_KEY));
   } catch {
     return DEFAULT_THEME_ID;
   }

@@ -32,7 +32,7 @@ export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 
 /** Served from `public/`, so `/og/$`'s failure redirect can't loop back into itself. */
-export const DEFAULT_OG_IMAGE = "/og/brackeys-card.png";
+export const DEFAULT_OG_IMAGE = "/og/fallback.png";
 
 /**
  * Bump when the card design changes. Discord and Cloudflare both cache a
@@ -40,7 +40,7 @@ export const DEFAULT_OG_IMAGE = "/og/brackeys-card.png";
  * edge TTL — so a new design only reaches a shared link under a new URL.
  * `/og/$` reads the path for the card and ignores `v`.
  */
-export const OG_CARD_VERSION = 2;
+export const OG_CARD_VERSION = 3;
 
 const OG_VERSION_QUERY = `?v=${OG_CARD_VERSION}`;
 
