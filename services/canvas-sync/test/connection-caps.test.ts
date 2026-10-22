@@ -26,12 +26,16 @@ import {
 
 setDefaultTimeout(60_000);
 
-if (!TEST_DATABASE_URL)
-  warnSkipped("connection caps across ledgers", "CANVAS_SYNC_TEST_DATABASE_URL");
+if (!TEST_DATABASE_URL) warnSkipped("connection caps", "CANVAS_SYNC_TEST_DATABASE_URL");
 
 const PER_CANVAS = SYNC_LIMITS.connectionsPerCanvas;
 const PER_USER = SYNC_LIMITS.connectionsPerUser;
 const quiet = { captureException() {}, capture() {}, async shutdown() {} };
+
+/** `until` with room for a loaded machine, failing as a timeout rather than as a later count mismatch. */
+async function waitFor(check: () => boolean | Promise<boolean>, ms = 15_000): Promise<void> {
+  if (!(await until(check, ms))) throw new Error(`condition not met within ${ms}ms`);
+}
 
 /** A ledger whose reads take `ms`, the way a slow Redis round trip would. */
 function slowLedger(ms: number): UserConnectionLedger {
@@ -62,27 +66,32 @@ type Variant = {
   setup: () => Promise<{ ledger?: UserConnectionLedger; teardown: () => Promise<void> }>;
   /** Reads are slow enough that a burst all waits on them together. */
   slow: boolean;
+  /** Also runs the one-socket, repeated-frame, bad-token and hang-up cases. */
+  edges: boolean;
 };
 
 const variants: Variant[] = [
-  { label: "local", slow: false, setup: async () => ({ teardown: async () => {} }) },
+  { label: "local", slow: false, edges: true, setup: async () => ({ teardown: async () => {} }) },
   {
     label: "300ms ledger",
     slow: true,
+    edges: true,
     setup: async () => ({ ledger: slowLedger(300), teardown: async () => {} }),
   },
   {
     label: "1500ms ledger",
     slow: true,
+    edges: false,
     setup: async () => ({ ledger: slowLedger(1500), teardown: async () => {} }),
   },
   {
     label: "redisLedger over FakeRedis",
     slow: false,
+    edges: true,
     setup: async () => {
       const redis = await new FakeRedis().start();
       return {
-        ledger: redisLedger(redis.url, "caps-variants:canvas-sync", "v-redis"),
+        ledger: redisLedger(redis.url, "connection-caps:canvas-sync", "v-redis"),
         teardown: () => redis.stop(),
       };
     },
@@ -90,18 +99,20 @@ const variants: Variant[] = [
   {
     label: "redisLedger, Redis down",
     slow: false,
+    edges: false,
     setup: async () => ({
-      ledger: redisLedger("redis://127.0.0.1:1", "caps-variants:canvas-sync", "v-down"),
+      ledger: redisLedger("redis://127.0.0.1:1", "connection-caps:canvas-sync", "v-down"),
       teardown: async () => {},
     }),
   },
   {
     label: "redisLedger, Redis hung",
     slow: false,
+    edges: false,
     setup: async () => {
       const hung = await hungServer();
       return {
-        ledger: redisLedger(hung.url, "caps-variants:canvas-sync", "v-hung"),
+        ledger: redisLedger(hung.url, "connection-caps:canvas-sync", "v-hung"),
         teardown: async () => hung.close(),
       };
     },
@@ -141,10 +152,16 @@ for (const variant of variants) {
       (server.hocuspocus.documents.get(name)?.getConnections() ?? []).filter(
         (c) => !userId || (c.context as SyncContext).userId === userId,
       ).length;
+    const liveForUser = (userId: string) => {
+      let n = 0;
+      for (const doc of server.hocuspocus.documents.values())
+        for (const c of doc.getConnections()) if ((c.context as SyncContext).userId === userId) n++;
+      return n;
+    };
     // Long enough for every auth frame to reach admission, then until no seat is pending.
     const settle = async () => {
-      await sleep(variant.slow ? 400 : 300);
-      await until(() => server.caps.pendingCount() === 0, 10_000);
+      await sleep(variant.slow ? 600 : 400);
+      await waitFor(() => server.caps.pendingCount() === 0);
       await sleep(200);
     };
 
@@ -266,7 +283,223 @@ for (const variant of variants) {
       a.destroy();
       b.destroy();
     });
+
+    if (variant.edges) {
+      it(`one socket, ${PER_USER + 3} different canvases for one user: exactly ${PER_USER} live`, async () => {
+        const ids = await Promise.all(Array.from({ length: PER_USER + 3 }, () => seedCanvas(db)));
+        const names = ids.map((id) => documentName("canvas", id));
+        const user = `mux-${variant.label}`;
+        const tokens = await Promise.all(
+          names.map((c) => signCanvasToken({ c, u: user, a: "write" }, SECRET)),
+        );
+        const { socket, state } = rawSocket(server.port);
+        await waitFor(() => state.open);
+        const capped = server.metrics.refusals.caps;
+        names.forEach((name, i) => socket.send(authFrame(name, tokens[i]!)));
+        await settle();
+        const live = liveForUser(user);
+        const refused = server.metrics.refusals.caps - capped;
+        socket.close();
+        await waitFor(() => state.closed !== null);
+        await waitFor(() => liveForUser(user) === 0);
+        expect({ live, refused, pending: server.caps.pendingCount() }).toEqual({
+          live: PER_USER,
+          refused: 3,
+          pending: 0,
+        });
+        expect(server.caps.localUserCount(user)).toBe(0);
+      });
+
+      it("the same auth frame repeated on one socket holds one connection and leaks no seat", async () => {
+        const canvasId = await seedCanvas(db);
+        const name = documentName("canvas", canvasId);
+        const user = `dupe-${variant.label}`;
+        const token = await signCanvasToken({ c: name, u: user, a: "write" }, SECRET);
+        const { socket, state } = rawSocket(server.port);
+        await waitFor(() => state.open);
+        for (let i = 0; i < 20; i++) socket.send(authFrame(name, token));
+        await settle();
+        const live = liveForUser(user);
+        const count = server.caps.localUserCount(user);
+        socket.close();
+        await waitFor(() => liveForUser(user) === 0);
+        expect({ live, count }).toEqual({ live: 1, count: 1 });
+      });
+
+      it("bad tokens reserve nothing", async () => {
+        const canvasId = await seedCanvas(db);
+        const name = documentName("canvas", canvasId);
+        const other = documentName("canvas", crypto.randomUUID());
+        const wrongDoc = await signCanvasToken({ c: other, u: "bad", a: "write" }, SECRET);
+        const forged = await signCanvasToken({ c: name, u: "bad", a: "write" }, "not-the-secret");
+        const sockets = Array.from({ length: 30 }, () => rawSocket(server.port));
+        await waitFor(() => sockets.every((s) => s.state.open));
+        sockets.forEach((s, i) => {
+          const token = i % 3 === 0 ? wrongDoc : i % 3 === 1 ? forged : "garbage";
+          s.socket.send(authFrame(name, token));
+        });
+        await settle();
+        expect(server.caps.pendingCount()).toBe(0);
+        expect(server.caps.localUserCount("bad")).toBe(0);
+        for (const s of sockets) s.socket.close();
+      });
+
+      it(`after a burst half hangs up, the canvas still fills to exactly ${PER_CANVAS}`, async () => {
+        const canvasId = await seedCanvas(db);
+        const name = documentName("canvas", canvasId);
+        const first = Array.from({ length: 60 }, () => rawSocket(server.port));
+        await waitFor(() => first.every((s) => s.state.open));
+        const tokens = await Promise.all(
+          first.map((_, i) =>
+            signCanvasToken({ c: name, u: `half-${variant.label}-${i}`, a: "write" }, SECRET),
+          ),
+        );
+        first.forEach((s, i) => s.socket.send(authFrame(name, tokens[i]!)));
+        first.forEach((s, i) => i % 2 && s.socket.close());
+        await settle();
+        const doc = () => server.hocuspocus.documents.get(name)?.getConnectionsCount() ?? 0;
+        await waitFor(() => doc() <= 30);
+        const afterHangUp = doc();
+        const second = Array.from({ length: 40 }, () => rawSocket(server.port));
+        await waitFor(() => second.every((s) => s.state.open));
+        const more = await Promise.all(
+          second.map((_, i) =>
+            signCanvasToken({ c: name, u: `half2-${variant.label}-${i}`, a: "write" }, SECRET),
+          ),
+        );
+        second.forEach((s, i) => s.socket.send(authFrame(name, more[i]!)));
+        await settle();
+        const held = doc();
+        console.log(`  ${variant.label}: ${afterHangUp} after hang-ups, ${held} after the refill`);
+        for (const s of [...first, ...second]) s.socket.close();
+        expect(afterHangUp).toBeLessThanOrEqual(30);
+        expect(held).toBe(PER_CANVAS);
+      });
+    }
   });
+}
+
+/**
+ * Hocuspocus routes `<documentName>\0<sessionId>` keys to separate
+ * connections on one websocket (the provider's `sessionAwareness`). A raw
+ * client can open many connections to one canvas over a single socket, all
+ * authenticating at once.
+ */
+for (const ledgerMs of [0, 300]) {
+  describe.skipIf(!TEST_DATABASE_URL)(
+    `session keys on one socket, every ledger read in flight together (ledger ${ledgerMs}ms)`,
+    () => {
+      let db: ServiceDb;
+      let end: () => Promise<void>;
+      let server: SyncServer;
+      // The Redis ledger is a network round trip. A burst of connects all
+      // waits on it together: each read returns once `burst` reads are in
+      // flight, or after `ledgerMs`, whichever comes first.
+      let burst = Infinity;
+      let waiting: (() => void)[] = [];
+      const release = () => {
+        const ready = waiting;
+        waiting = [];
+        for (const resolve of ready) resolve();
+      };
+      const ledger: UserConnectionLedger = {
+        othersCount: () =>
+          new Promise<number>((resolve) => {
+            waiting.push(() => resolve(0));
+            if (waiting.length >= burst) release();
+            else setTimeout(release, ledgerMs);
+          }),
+        async record() {},
+        async close() {},
+      };
+
+      beforeAll(async () => {
+        ({ db, end } = testDb());
+        server = await startServer({
+          port: 0,
+          secret: SECRET,
+          db,
+          instanceId: "multiplex",
+          telemetry: quiet,
+          debounceMs: 200,
+          maxDebounceMs: 1000,
+          ...(ledgerMs ? { ledger } : {}),
+        });
+      });
+
+      afterAll(async () => {
+        await server.stop(5000);
+        await end();
+      });
+
+      const liveFor = (name: string, userId?: string) =>
+        (server.hocuspocus.documents.get(name)?.getConnections() ?? []).filter(
+          (c) => !userId || (c.context as SyncContext).userId === userId,
+        ).length;
+
+      it(`one user can't hold more than ${PER_USER} connections through session keys on one socket`, async () => {
+        const canvasId = await seedCanvas(db);
+        const name = documentName("canvas", canvasId);
+        const raw = rawSocket(server.port);
+        await until(() => raw.state.open);
+        const token = await signCanvasToken({ c: name, u: "mallory", a: "write" }, SECRET);
+        const capped = server.metrics.refusals.caps;
+        burst = 15;
+        for (let i = 0; i < 15; i++) raw.socket.send(authFrame(`${name}\u0000s${i}`, token));
+        await sleep(1500);
+        burst = Infinity;
+        const held = liveFor(name, "mallory");
+        console.log(`  one socket, 15 sessions for one user: ${held} connections established`);
+        expect(held).toBeLessThanOrEqual(PER_USER);
+        // Each session held its own seat while they all waited on the ledger.
+        if (ledgerMs) {
+          expect(server.metrics.refusals.caps - capped).toBe(15 - PER_USER);
+        }
+        raw.socket.close();
+      });
+
+      it(`a canvas can't take more than ${PER_CANVAS} connections through session keys on one socket`, async () => {
+        const canvasId = await seedCanvas(db);
+        const name = documentName("canvas", canvasId);
+        const raw = rawSocket(server.port);
+        await until(() => raw.state.open);
+        const capped = server.metrics.refusals.caps;
+        burst = 60;
+        for (let i = 0; i < 60; i++) {
+          const token = await signCanvasToken({ c: name, u: `crowd${i}`, a: "write" }, SECRET);
+          raw.socket.send(authFrame(`${name}\u0000s${i}`, token));
+        }
+        await sleep(2000);
+        burst = Infinity;
+        const held = liveFor(name);
+        console.log(`  one socket, 60 sessions for 60 users: ${held} connections established`);
+        expect(held).toBeLessThanOrEqual(PER_CANVAS);
+        if (ledgerMs) {
+          expect(server.metrics.refusals.caps - capped).toBe(60 - PER_CANVAS);
+        }
+        raw.socket.close();
+      });
+
+      it("session-keyed connections are closed once established, and free their seats", async () => {
+        const canvasId = await seedCanvas(db);
+        const name = documentName("canvas", canvasId);
+        const raw = rawSocket(server.port);
+        await until(() => raw.state.open);
+        const token = await signCanvasToken({ c: name, u: "patient", a: "write" }, SECRET);
+        for (let i = 0; i < 12; i++) {
+          raw.socket.send(authFrame(`${name}\u0000p${i}`, token));
+          await sleep(80);
+        }
+        await sleep(500);
+        expect(liveFor(name, "patient")).toBe(0);
+        expect(server.caps.localUserCount("patient")).toBe(0);
+        // The plain document name on the same socket still connects.
+        raw.socket.send(authFrame(name, token));
+        expect(await until(() => liveFor(name, "patient") === 1, 3000)).toBe(true);
+        raw.socket.close();
+      });
+    },
+  );
 }
 
 describe.skipIf(!TEST_DATABASE_URL)("caps across two instances sharing the Redis ledger", () => {
@@ -342,44 +575,5 @@ describe.skipIf(!TEST_DATABASE_URL)("caps across two instances sharing the Redis
     extra.destroy();
     for (const c of topUp) c.destroy();
     for (const s of sockets) s.socket.close();
-  });
-});
-
-describe.skipIf(!TEST_DATABASE_URL)("seats of sockets that hang up mid-connect", () => {
-  let db: ServiceDb;
-  let end: () => Promise<void>;
-  let server: SyncServer;
-
-  beforeAll(async () => {
-    ({ db, end } = testDb());
-    server = await startServer({
-      port: 0,
-      secret: SECRET,
-      db,
-      instanceId: "caps-hangup",
-      telemetry: quiet,
-    });
-  });
-
-  afterAll(async () => {
-    await server.stop(5000);
-    await end();
-  });
-
-  it(`${PER_USER} hang-ups don't lock the user out`, async () => {
-    const canvasId = await seedCanvas(db);
-    const name = documentName("canvas", canvasId);
-    const token = await signCanvasToken({ c: name, u: "flaky", a: "write" }, SECRET);
-    const sockets = Array.from({ length: PER_USER }, () => rawSocket(server.port));
-    await until(() => sockets.every((s) => s.state.open));
-    for (const s of sockets) s.socket.send(authFrame(name, token));
-    for (const s of sockets) s.socket.close();
-    await until(() => sockets.every((s) => s.state.closed !== null));
-    await sleep(300);
-    const client = connect(server.port, canvasId, "flaky");
-    const ok = await synced(client, 3000);
-    const pending = server.caps.pendingCount();
-    client.destroy();
-    expect({ ok, pending }).toEqual({ ok: true, pending: 0 });
   });
 });

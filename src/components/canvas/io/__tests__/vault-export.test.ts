@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 
-import { applyJsonCanvas, type JsonCanvas } from "@/lib/canvas/json-canvas";
+import { applyJsonCanvas, canvasNodes, type JsonCanvas } from "@/lib/canvas/json-canvas";
 
 import { canvasOutline, outlineMarkdown } from "../../outline";
+import { runExportJob } from "../canvas-io-jobs";
 import { leftOutSummary } from "../export-actions";
 import { buildVaultExport, canvasMarkdown, serializeCanvas } from "../vault-export";
+import { unzipVault } from "../vault-zip";
+import { enc } from "./vault-fixtures";
 
 const canvas: JsonCanvas = {
   nodes: [
@@ -137,5 +140,81 @@ describe("leftOutSummary", () => {
     expect(line).toContain("a/2.png");
     expect(line).not.toContain("a/3.png");
     expect(line.endsWith("; and 37 more")).toBe(true);
+  });
+});
+
+describe("buildVaultExport: paths it won't write", () => {
+  it("a note path that could escape the vault is left out and reported", () => {
+    const doc = new Y.Doc();
+    const nodes = canvasNodes(doc);
+    for (const [id, file] of [
+      ["a", "../escape.md"],
+      ["b", "/abs.md"],
+      ["c", "ok/fine.md"],
+    ] as const) {
+      const n = new Y.Map<unknown>();
+      n.set("type", "file");
+      n.set("file", file);
+      n.set("text", new Y.Text("body"));
+      n.set("x", 0);
+      n.set("y", 0);
+      n.set("w", 1);
+      n.set("h", 1);
+      nodes.set(id, n);
+    }
+    const out = buildVaultExport(doc, { canvasPath: "c.canvas", attachments: {} });
+    expect(out.files.map((f) => f.path).sort()).toEqual(["c.canvas", "ok/fine.md"]);
+    expect(out.leftOut.map((l) => l.path).sort()).toEqual(["../escape.md", "/abs.md"]);
+  });
+
+  it("two cards with different text for the same note: the first is written, the clash reported", () => {
+    const doc = new Y.Doc();
+    const nodes = canvasNodes(doc);
+    for (const [id, text] of [
+      ["a", "one"],
+      ["b", "two"],
+    ] as const) {
+      const n = new Y.Map<unknown>();
+      n.set("type", "file");
+      n.set("file", "n.md");
+      n.set("text", new Y.Text(text));
+      n.set("z", id);
+      nodes.set(id, n);
+    }
+    const out = buildVaultExport(doc, { canvasPath: "c.canvas", attachments: {} });
+    expect(out.files.filter((f) => f.path === "n.md")).toHaveLength(1);
+    expect(out.leftOut).toHaveLength(1);
+  });
+
+  it("a note whose path is the canvas's own path is not written over the canvas", () => {
+    const doc = new Y.Doc();
+    const n = new Y.Map<unknown>();
+    n.set("type", "file");
+    n.set("file", "Plan.canvas");
+    n.set("text", new Y.Text("not json"));
+    canvasNodes(doc).set("a", n);
+    const out = buildVaultExport(doc, { canvasPath: "Plan.canvas", attachments: {} });
+    expect(out.files.filter((f) => f.path === "Plan.canvas")).toHaveLength(1);
+    expect(new TextDecoder().decode(out.files[0]!.bytes!)).toMatch(/^\{/);
+  });
+});
+
+describe("the export job", () => {
+  it("an image that can't be downloaded is left out of the zip and reported", async () => {
+    const fetchMock = vi.fn(async () => new Response("no", { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { zip, leftOut } = await runExportJob({
+        files: [
+          { path: "c.canvas", bytes: enc("{}") },
+          { path: "a.png", url: "/images/a" },
+        ],
+      });
+      expect(unzipVault(zip).entries.map((e) => e.path)).toEqual(["c.canvas"]);
+      expect(leftOut).toEqual([{ path: "a.png", reason: "The image couldn't be downloaded." }]);
+      expect(fetchMock).toHaveBeenCalledWith("/images/a", { credentials: "same-origin" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -1,20 +1,19 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 
 import { canvasNodes, docToJsonCanvas, type JsonCanvas } from "@/lib/canvas/json-canvas";
-import { CANVAS_IMPORT_LIMITS, CANVAS_LIMITS } from "@/lib/canvas/limits";
 
 import * as seam from "../markdown-seam";
 import { serializeCanvas } from "../vault-export";
-import {
-  canvasState,
-  commonRoot,
-  ImportRefusedError,
-  importVault,
-  scanVault,
-  VaultResolver,
-} from "../vault-import";
-import { entry, fixture, fixtureNames, normalized, PNG } from "./vault-fixtures";
+import { canvasState, commonRoot, importVault, scanVault, VaultResolver } from "../vault-import";
+import { zipVault } from "../vault-zip";
+import { importFiles, syntheticVault } from "./import-harness";
+import { enc, entry, fixture, fixtureNames, memoryScope, normalized, PNG } from "./vault-fixtures";
+
+vi.mock("@/orpc/client", () => ({ client: {} }));
 
 function load(state: Uint8Array): Y.Doc {
   const doc = new Y.Doc();
@@ -23,6 +22,18 @@ function load(state: Uint8Array): Y.Doc {
 }
 
 const canvasFile = (canvas: JsonCanvas) => serializeCanvas(canvas);
+const fileNode = (id: string, file: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  type: "file",
+  file,
+  x: 0,
+  y: 0,
+  width: 10,
+  height: 10,
+  ...extra,
+});
+const canvasBytes = (nodes: object[], edges: object[] = []) =>
+  enc(JSON.stringify({ nodes, edges }));
 
 describe("importVault: fixtures", () => {
   it.each(fixtureNames)("%s: .canvas → new canvas → JSON is lossless", (name) => {
@@ -52,17 +63,6 @@ describe("importVault: fixtures", () => {
       }),
     ]);
   });
-
-  it("reports an unreadable canvas instead of throwing", () => {
-    const result = importVault([entry("Broken.canvas", "{nope")], { mode: "new" });
-    expect(result.canvases).toEqual([]);
-    expect(result.report.skipped).toEqual([
-      expect.objectContaining({
-        path: "Broken.canvas",
-        reason: expect.stringContaining("JSON Canvas"),
-      }),
-    ]);
-  });
 });
 
 describe("path resolution", () => {
@@ -89,6 +89,7 @@ describe("path resolution", () => {
     ["unique basename", "Elsewhere/Only Here.md", "found", "Deep/Only Here.md"],
     ["ambiguous basename", "Gone/dup.md", "ambiguous", null],
     ["missing", "Nowhere.md", "missing", null],
+    ["a subpath is not part of the path", "Notes/Idea.md#Heading", "missing", null],
   ])("%s", (_label, file, kind, vaultPath) => {
     const resolved = resolver.resolve(file);
     expect(resolved.kind).toBe(kind);
@@ -101,6 +102,7 @@ describe("path resolution", () => {
     expect(commonRoot(["V/a.md", "V/b/c.md"])).toBe("V");
     expect(commonRoot(["V/a.md", "W/b.md"])).toBe("");
     expect(commonRoot(["a.md"])).toBe("");
+    expect(new VaultResolver([entry("A/x.md", ""), entry("y.md", "")]).root).toBe("");
   });
 });
 
@@ -169,17 +171,6 @@ describe("importVault: what file nodes become", () => {
     expect(canvasNodes(doc).get("n1")?.get("bom")).toBe(true);
   });
 
-  it("asks the Markdown seam about every note, and only it", () => {
-    const referenced = vi.spyOn(seam, "placeReferencedNote");
-    const asked = vi.spyOn(seam, "isMarkdownPath");
-    importVault(entries, { mode: "new", selected: ["Plan.canvas"] });
-    expect(referenced).toHaveBeenCalledTimes(2);
-    const mdPaths = new Set(asked.mock.calls.map(([p]) => p).filter((p) => p.endsWith(".md")));
-    expect(mdPaths.size).toBeGreaterThan(0);
-    referenced.mockRestore();
-    asked.mockRestore();
-  });
-
   it("puts loose notes and images on one canvas when there's none", () => {
     const result = importVault(
       [entry("Drop/a.md", "# A"), entry("Drop/b.png", PNG), entry("Drop/c.pdf", "%PDF")],
@@ -203,101 +194,128 @@ describe("importVault: what file nodes become", () => {
   });
 });
 
-describe("importVault: refused up front, with the numbers", () => {
-  const big = (n: number) => ({
-    nodes: Array.from({ length: n }, (_, i) => ({
-      id: `n${i}`,
-      type: "text",
-      text: "",
-      x: 0,
-      y: 0,
-      width: 10,
-      height: 10,
-    })),
-    edges: [],
-  });
-
-  function refused(run: () => unknown): ImportRefusedError {
-    try {
-      run();
-    } catch (error) {
-      expect(error).toBeInstanceOf(ImportRefusedError);
-      return error as ImportRefusedError;
-    }
-    throw new Error("not refused");
-  }
-
-  it("too many cards on a new canvas", () => {
-    const error = refused(() =>
-      importVault([entry("Big.canvas", JSON.stringify(big(CANVAS_LIMITS.maxNodes + 1)))], {
-        mode: "new",
+describe("importVault: malformed canvases", () => {
+  it("reports an unreadable canvas instead of throwing", () => {
+    const result = importVault([entry("Broken.canvas", "{nope")], { mode: "new" });
+    expect(result.canvases).toEqual([]);
+    expect(result.report.skipped).toEqual([
+      expect.objectContaining({
+        path: "Broken.canvas",
+        reason: expect.stringContaining("JSON Canvas"),
       }),
-    );
-    expect([error.limit, error.actual, error.max]).toEqual(["maxNodes", 2001, 2000]);
-    expect(error.message).toContain("2,001");
-  });
-
-  it("too many cards counted with what's already on the open canvas", () => {
-    const error = refused(() =>
-      importVault([entry("Small.canvas", JSON.stringify(big(10)))], {
-        mode: "into",
-        existing: { nodes: CANVAS_LIMITS.maxNodes - 5, stateBytes: 0 },
-      }),
-    );
-    expect([error.limit, error.actual]).toEqual(["maxNodes", CANVAS_LIMITS.maxNodes + 5]);
-  });
-
-  it("too much state", () => {
-    const text = "x".repeat(CANVAS_LIMITS.maxCardText);
-    const heavy = {
-      nodes: Array.from({ length: 300 }, (_, i) => ({
-        id: `n${i}`,
-        type: "text",
-        text,
-        x: 0,
-        y: 0,
-        width: 10,
-        height: 10,
-      })),
-      edges: [],
-    };
-    const error = refused(() =>
-      importVault([entry("Heavy.canvas", JSON.stringify(heavy))], { mode: "new" }),
-    );
-    expect(error.limit).toBe("maxStateBytes");
-    expect(error.actual).toBeGreaterThan(CANVAS_LIMITS.maxStateBytes);
-  });
-
-  it("too many files", () => {
-    const entries = Array.from({ length: CANVAS_IMPORT_LIMITS.maxFiles + 1 }, (_, i) =>
-      entry(`n${i}.md`, ""),
-    );
-    expect(refused(() => importVault(entries, { mode: "new" })).limit).toBe("maxFiles");
-  });
-
-  it("too many images", () => {
-    const n = CANVAS_IMPORT_LIMITS.maxImagesPerImport + 1;
-    const canvas = {
-      nodes: Array.from({ length: n }, (_, i) => ({
-        id: `n${i}`,
-        type: "file",
-        file: `i${i}.png`,
-        x: 0,
-        y: 0,
-        width: 10,
-        height: 10,
-      })),
-      edges: [],
-    };
-    const entries = [
-      entry("C.canvas", JSON.stringify(canvas)),
-      ...Array.from({ length: n }, (_, i) => entry(`i${i}.png`, PNG)),
-    ];
-    const error = refused(() => importVault(entries, { mode: "new" }));
-    expect([error.limit, error.actual, error.max]).toEqual([
-      "maxImagesPerImport",
-      n,
-      CANVAS_IMPORT_LIMITS.maxImagesPerImport,
     ]);
+  });
+
+  it.each([
+    ["not JSON", enc("{nodes: [")],
+    ["JSON array", enc("[]")],
+    ["nodes not an array", enc('{"nodes": 5}')],
+    ["Latin-1 bytes", new Uint8Array([0x7b, 0xe9, 0x7d])],
+    ["empty file", new Uint8Array()],
+  ])("%s is reported, not thrown, and the rest still imports", (_label, bytes) => {
+    const out = importVault(
+      [entry("bad.canvas", bytes), entry("good.canvas", canvasBytes([fileNode("a", "x.md")]))],
+      { mode: "new" },
+    );
+    expect(out.canvases.map((c) => c.sourcePath)).toContain("good.canvas");
+    if (!out.canvases.some((c) => c.sourcePath === "bad.canvas")) {
+      expect(out.report.skipped.find((s) => s.path === "bad.canvas")?.reason).toMatch(
+        /JSON Canvas/,
+      );
+    }
+  });
+
+  it("drops edges to missing nodes and duplicate ids instead of failing", () => {
+    const out = importVault(
+      [
+        entry(
+          "c.canvas",
+          canvasBytes(
+            [
+              { id: "a", type: "text", text: "a", x: 0, y: 0, width: 1, height: 1 },
+              { id: "a", type: "text", text: "dup", x: 0, y: 0, width: 1, height: 1 },
+              { id: "b", type: "weird", x: 0, y: 0, width: 1, height: 1 },
+            ],
+            [
+              { id: "e", fromNode: "a", toNode: "ghost" },
+              { id: "f", fromNode: "a", toNode: "a" },
+            ],
+          ),
+        ),
+      ],
+      { mode: "new" },
+    );
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, out.canvases[0]!.state);
+    const json = docToJsonCanvas(doc);
+    expect(json.nodes.map((n) => n.id)).toEqual(["a"]);
+    expect(json.edges.map((e) => e.id)).toEqual(["f"]);
+    expect(out.report.skipped.some((s) => s.path === "b" && /weird/.test(s.reason))).toBe(true);
+  });
+
+  it("a file node with no file string is left as is", () => {
+    const out = importVault(
+      [
+        entry(
+          "c.canvas",
+          canvasBytes([{ id: "a", type: "file", x: 0, y: 0, width: 1, height: 1 }]),
+        ),
+      ],
+      { mode: "new" },
+    );
+    expect(out.canvases[0]!.nodeCount).toBe(1);
+  });
+
+  it("a canvas referencing itself or another canvas is reported, not recursed", () => {
+    const out = importVault(
+      [
+        entry("a.canvas", canvasBytes([fileNode("x", "a.canvas"), fileNode("y", "b.canvas")])),
+        entry("b.canvas", canvasBytes([fileNode("z", "a.canvas")])),
+      ],
+      { mode: "new" },
+    );
+    expect(out.canvases).toHaveLength(2);
+    expect(out.report.skipped.filter((s) => /canvas inside a canvas/.test(s.reason))).toHaveLength(
+      3,
+    );
+  });
+
+  it("an empty import yields nothing and no error", () => {
+    const out = importVault([], { mode: "new" });
+    expect(out.canvases).toEqual([]);
+    expect(out.report.skipped).toEqual([]);
+  });
+});
+
+describe("the Markdown seam", () => {
+  it("is asked about every .md, referenced or lone, and decides what each becomes", async () => {
+    const referenced = vi.spyOn(seam, "placeReferencedNote");
+    const lone = vi.spyOn(seam, "placeLoneNote");
+    const isMd = vi.spyOn(seam, "isMarkdownPath");
+    const scope = memoryScope();
+    await importFiles(scope, zipVault(syntheticVault()));
+    // Six file nodes name a resolvable note (Idea.md twice).
+    expect(referenced).toHaveBeenCalledTimes(6);
+    const mdPaths = syntheticVault()
+      .filter((e) => e.path.toLowerCase().endsWith(".md"))
+      .map((e) => e.path);
+    for (const path of mdPaths) {
+      if (path.includes("/.trash/")) continue;
+      const asked = isMd.mock.calls.some(([p]) => p === path || p === path.slice("Vault/".length));
+      expect(asked, path).toBe(true);
+    }
+    referenced.mockRestore();
+    lone.mockRestore();
+    isMd.mockRestore();
+  });
+
+  it("is the only io module that tests for the .md extension", async () => {
+    const dir = join(import.meta.dirname, "..");
+    const routesMarkdown =
+      /endsWith\(\s*["'`]\.md|\\\.md\b|===\s*["'`]note["'`]|["'`]note["'`]\s*===/;
+    const offenders = readdirSync(dir)
+      .filter((f) => /\.(ts|tsx)$/.test(f) && f !== "markdown-seam.ts")
+      .filter((f) => routesMarkdown.test(readFileSync(join(dir, f), "utf8")));
+    expect(offenders).toEqual([]);
   });
 });

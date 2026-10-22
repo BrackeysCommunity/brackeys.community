@@ -26,6 +26,7 @@ import { isActiveBan } from "@/lib/ban-state";
 import { type CanvasEventScope, emitCanvasEvent } from "@/lib/canvas-events";
 import {
   bytea,
+  CanvasGoneError,
   CanvasStateError,
   CanvasUpdateError,
   EMPTY_STATE,
@@ -229,7 +230,7 @@ async function loadCanvas(
  * flags carry over from the first check.
  */
 async function reloadUnderLock(
-  tx: Tx,
+  tx: Pick<typeof db, "select">,
   canvasId: string,
   first: CanvasAccessViewer,
   needed: Exclude<CanvasAccess, null>,
@@ -335,6 +336,7 @@ function stateError(error: unknown): never {
   if (error instanceof CanvasUpdateError) {
     throw new ORPCError("BAD_REQUEST", { message: error.message });
   }
+  if (error instanceof CanvasGoneError) throw NOT_FOUND();
   throw error;
 }
 
@@ -1841,7 +1843,10 @@ export const moveCanvasToTeam = os
           .where(eq(canvasMembers.canvasId, canvas.id))
           .returning({ userId: canvasMembers.userId });
         const images = await rehomeAttachments(tx, canvas.id, canvas.ownerId, input.teamId);
-        return { path, visibility, dropped, images };
+        const linkTurnedOff =
+          visibility === "team" &&
+          visibilityOpenness(current.visibility) > visibilityOpenness("team");
+        return { path, visibility, linkTurnedOff, dropped, images };
       });
     // A canvas or image created in the team between the read and the write
     // takes the name; the retry picks the next free one.
@@ -1853,7 +1858,7 @@ export const moveCanvasToTeam = os
         if (!isUniqueViolation(error) || attempt >= 2) throw error;
       }
     }
-    const { path, visibility, dropped, images } = result;
+    const { path, visibility, linkTurnedOff, dropped, images } = result;
 
     // The image copies were written straight to the stored state; a doc open
     // in canvas-sync loads them before the revoke closes its sockets.
@@ -1879,7 +1884,7 @@ export const moveCanvasToTeam = os
       members_dropped: dropped.length,
       images_copied: images,
     });
-    return { id: canvas.id, path, visibility, teamId: input.teamId };
+    return { id: canvas.id, path, visibility, linkTurnedOff, teamId: input.teamId };
   });
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

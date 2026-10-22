@@ -228,9 +228,13 @@ export function useMoveCanvasToTeam(canvasId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (teamId: string) => client.moveCanvasToTeam({ canvasId, teamId }),
-    onSuccess: async ({ path }) => {
+    onSuccess: async ({ path, linkTurnedOff }) => {
       await invalidateSharing(queryClient, canvasId);
-      toast.success(`Moved to the team as ${path}.`);
+      toast.success(`Moved to the team as ${path}.`, {
+        description: linkTurnedOff
+          ? "Its link is off: only the team's owners can share a team canvas beyond the team."
+          : undefined,
+      });
     },
     onError: toastMutationError("canvas.move_to_team", "Couldn't move the canvas."),
   });

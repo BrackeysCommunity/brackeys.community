@@ -5,27 +5,20 @@ import type {
   onLoadDocumentPayload,
   onStoreDocumentPayload,
 } from "@hocuspocus/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import * as Y from "yjs";
 
-import { canvasDocs, canvasDocVersions, canvases, teams, user } from "../../../src/db/schema.ts";
-import { VERSION_INTERVAL_MS, SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
-import { checkLiveStore, snapshotOfState } from "../../../src/lib/canvas/live-store.ts";
+import { canvases, canvasDocs, teams } from "../../../src/db/schema.ts";
+import { SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
+import { refreshCanvasSnapshot, writeCanvasState } from "../../../src/lib/canvas/state-write.ts";
 import { parseDocumentName, SYNC_CLOSE, syncClose } from "../../../src/lib/canvas/sync-channels.ts";
 import { SERVER_APPLY_ORIGIN } from "./apply.ts";
 import type { ServiceDb } from "./db.ts";
 import { SyncRefusal } from "./limits.ts";
 import type { SyncMetrics } from "./telemetry.ts";
 
-const EMPTY_STATE = Y.encodeStateAsUpdate(new Y.Doc());
-
 /** How often a store may bump its team's `last_activity_at`. */
 const TEAM_TOUCH_INTERVAL_MS = 10 * 60 * 1000;
-
-/** Drizzle types `bytea` as Buffer; this is a view, not a copy. */
-function bytea(bytes: Uint8Array): Buffer {
-  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-}
 
 export function canvasIdOf(documentName: string): string | null {
   const parsed = parseDocumentName(documentName);
@@ -84,11 +77,11 @@ interface StoreInput {
 }
 
 /**
- * The service's copy of the web app's `updateCanvasState`, the rules the
- * same: one transaction, the row made to exist before it's locked (two
- * first stores would otherwise both read "nothing stored" and the second
- * would clobber the first), merge, caps, an hourly version of what was
- * stored, then the write.
+ * A live store through the shared write path. The merge runs on the live
+ * doc rather than a scratch one: whatever is stored that this doc lacks
+ * (another instance's or a solo save's work, deletions included) is folded
+ * in, then the whole doc is encoded. Never `Y.mergeUpdates`, which keeps
+ * deleted content forever.
  */
 export async function storeCanvasState(
   db: ServiceDb,
@@ -96,129 +89,55 @@ export async function storeCanvasState(
   metrics?: SyncMetrics,
 ): Promise<StoreOutcome & { teamId?: string | null }> {
   const started = performance.now();
-  return db.transaction(async (tx) => {
-    const [canvas] = await tx
-      .select({ id: canvases.id, teamId: canvases.teamId, deletedAt: canvases.deletedAt })
-      .from(canvases)
-      .where(eq(canvases.id, input.canvasId));
-    // Trashed, too: its revoke may not have reached this instance.
-    if (!canvas || canvas.deletedAt) return { kind: "gone" as const };
+  let mergeMs = 0;
+  const outcome = await db.transaction((tx) =>
+    writeCanvasState(tx, {
+      canvasId: input.canvasId,
+      editorId: input.editorId,
+      now: input.now,
+      snapshot: input.withSnapshot ? "always" : "never",
+      merge: (stored) => {
+        const mergeStarted = performance.now();
+        Y.applyUpdate(
+          input.document,
+          Y.diffUpdate(stored, Y.encodeStateVector(input.document)),
+          SERVER_APPLY_ORIGIN,
+        );
+        const next = Y.encodeStateAsUpdate(input.document);
+        const nodeCount = input.document.getMap("nodes").size;
+        mergeMs = performance.now() - mergeStarted;
+        return { next, nodeCount };
+      },
+    }),
+  );
 
-    await tx
-      .insert(canvasDocs)
-      .values({ canvasId: input.canvasId, state: bytea(EMPTY_STATE) })
-      .onConflictDoNothing();
-    const [row] = await tx
-      .select({ state: canvasDocs.state })
-      .from(canvasDocs)
-      .where(eq(canvasDocs.canvasId, input.canvasId))
-      .for("update");
-    const stored = new Uint8Array(row!.state);
-
-    // Merge on store, through the live doc rather than a second scratch doc:
-    // fold in whatever is stored that this doc lacks (another instance's or
-    // a solo save's work, deletions included), then encode the whole doc.
-    // Never `Y.mergeUpdates`, which keeps deleted content forever.
-    const mergeStarted = performance.now();
-    Y.applyUpdate(
-      input.document,
-      Y.diffUpdate(stored, Y.encodeStateVector(input.document)),
-      SERVER_APPLY_ORIGIN,
-    );
-    const merged = Y.encodeStateAsUpdate(input.document);
-    const nodeCount = input.document.getMap("nodes").size;
-    const mergeMs = performance.now() - mergeStarted;
-
-    const prepared = checkLiveStore(stored, merged, nodeCount, input.withSnapshot);
-    if (prepared.kind === "refused") {
+  switch (outcome.kind) {
+    case "gone":
+      return outcome;
+    case "refused":
       if (metrics) metrics.storesRefused++;
       console.warn(
-        `[store] refused ${input.canvasId}: ${prepared.reason} (${merged.length} bytes, ${nodeCount} nodes)`,
+        `[store] refused ${input.canvasId}: ${outcome.reason} (${outcome.bytes} bytes, ${outcome.nodes} nodes)`,
       );
-      return { kind: "refused" as const, reason: prepared.reason };
-    }
-    if (prepared.snapshot) metrics?.snapshot(prepared.snapshotMs);
-
-    if (prepared.kind === "unchanged") {
-      if (prepared.snapshot) {
-        await tx
-          .update(canvases)
-          .set({ snapshot: prepared.snapshot, nodeCount: prepared.snapshot.nodes.length })
-          .where(eq(canvases.id, input.canvasId));
-      }
-      return { kind: "unchanged" as const, snapshot: prepared.snapshot != null };
-    }
-
-    let versioned = false;
-    if (stored.length > EMPTY_STATE.length) {
-      const [latest] = await tx
-        .select({ takenAt: canvasDocVersions.takenAt })
-        .from(canvasDocVersions)
-        .where(
-          and(eq(canvasDocVersions.docKind, "canvas"), eq(canvasDocVersions.docId, input.canvasId)),
-        )
-        .orderBy(desc(canvasDocVersions.takenAt))
-        .limit(1);
-      if (!latest || input.now.getTime() - latest.takenAt.getTime() >= VERSION_INTERVAL_MS) {
-        await tx.insert(canvasDocVersions).values({
-          docKind: "canvas",
-          docId: input.canvasId,
-          takenAt: input.now,
-          reason: "hourly",
-          state: bytea(stored),
-          byteSize: stored.length,
-        });
-        versioned = true;
-      }
-    }
-
-    await tx
-      .update(canvasDocs)
-      .set({ state: bytea(merged), updatedAt: input.now })
-      .where(eq(canvasDocs.canvasId, input.canvasId));
-    await tx
-      .update(canvases)
-      .set({
-        byteSize: merged.length,
-        lastEditedAt: input.now,
-        updatedAt: input.now,
-        // An account deleted mid-session leaves its edits but not its name.
-        ...(input.editorId
-          ? {
-              lastEditedById: sql`coalesce((select ${user.id} from ${user} where ${user.id} = ${input.editorId}), ${canvases.lastEditedById})`,
-            }
-          : {}),
-        ...(prepared.snapshot
-          ? { snapshot: prepared.snapshot, nodeCount: prepared.snapshot.nodes.length }
-          : {}),
-      })
-      .where(eq(canvases.id, input.canvasId));
-
-    metrics?.store(performance.now() - started, mergeMs, merged.length);
-    return {
-      kind: "stored" as const,
-      snapshot: prepared.snapshot != null,
-      versioned,
-      teamId: canvas.teamId,
-    };
-  });
+      return { kind: "refused", reason: outcome.reason };
+    case "unchanged":
+      if (outcome.snapshot) metrics?.snapshot(outcome.snapshotMs);
+      return { kind: "unchanged", snapshot: outcome.snapshot };
+    case "stored":
+      if (outcome.snapshot) metrics?.snapshot(outcome.snapshotMs);
+      metrics?.store(performance.now() - started, mergeMs, outcome.state.length);
+      return {
+        kind: "stored",
+        snapshot: outcome.snapshot,
+        versioned: outcome.versioned,
+        teamId: outcome.teamId,
+      };
+  }
 }
 
 /** Rebuilds the snapshot from what's stored, for a doc leaving memory with a stale one. */
 async function refreshSnapshot(db: ServiceDb, canvasId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [row] = await tx
-      .select({ state: canvasDocs.state })
-      .from(canvasDocs)
-      .where(eq(canvasDocs.canvasId, canvasId))
-      .for("update");
-    if (!row) return;
-    const snapshot = snapshotOfState(new Uint8Array(row.state));
-    await tx
-      .update(canvases)
-      .set({ snapshot, nodeCount: snapshot.nodes.length })
-      .where(eq(canvases.id, canvasId));
-  });
+  await db.transaction((tx) => refreshCanvasSnapshot(tx, canvasId));
 }
 
 export interface PersistenceOptions {

@@ -105,13 +105,17 @@ describe("moving a shared personal canvas into a team", () => {
   for (const visibility of ["public", "unlisted"] as const) {
     it(`a plain member's ${visibility} canvas arrives at "team"`, async () => {
       const id = await personal("bob", visibility);
-      expect(await move(id, "bob")).toMatchObject({ teamId, visibility: "team" });
+      expect(await move(id, "bob")).toMatchObject({
+        teamId,
+        visibility: "team",
+        linkTurnedOff: true,
+      });
       expect(await stored(id)).toEqual({ teamId, visibility: "team" });
     });
 
     it(`a team owner's ${visibility} canvas keeps its visibility`, async () => {
       const id = await personal("alice", visibility);
-      expect(await move(id, "alice")).toMatchObject({ teamId, visibility });
+      expect(await move(id, "alice")).toMatchObject({ teamId, visibility, linkTurnedOff: false });
       expect(await stored(id)).toEqual({ teamId, visibility });
     });
   }
@@ -198,7 +202,7 @@ describe("changes landing between the move's checks and its write", () => {
     beforeTransaction(() =>
       db.update(canvases).set({ visibility: "private" }).where(eq(canvases.id, id)),
     );
-    expect(await move(id, "alice")).toMatchObject({ visibility: "team" });
+    expect(await move(id, "alice")).toMatchObject({ visibility: "team", linkTurnedOff: false });
     expect(await stored(id)).toEqual({ teamId, visibility: "team" });
   });
 });

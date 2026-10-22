@@ -1,22 +1,27 @@
 /**
  * The web app's writes of canvas state: the solo `save`, `create` with an
- * initial state, imports into an open canvas, and version restores. `canvas-sync` keeps its own copy of
- * this sequence (it can't import `@/db`); the rules are the same.
+ * initial state, imports into an open canvas, and version restores, all
+ * through the write path `canvas-sync` shares (`lib/canvas/state-write`).
  */
-import { and, desc, eq, isNull } from "drizzle-orm";
-import * as Y from "yjs";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { canvasAttachments, canvasDocs, canvasDocVersions, canvases } from "@/db/schema";
-import { docFromState, mergeStates } from "@/lib/canvas/doc-state";
-import { canvasNodes, deriveSnapshot } from "@/lib/canvas/json-canvas";
-import { CANVAS_LIMITS, VERSION_INTERVAL_MS } from "@/lib/canvas/limits";
+import { canvasAttachments, canvasDocs } from "@/db/schema";
+import { mergeStates } from "@/lib/canvas/doc-state";
+import { CANVAS_LIMITS } from "@/lib/canvas/limits";
 import { repairPath } from "@/lib/canvas/paths";
+import {
+  type CanvasWriteTx,
+  EMPTY_STATE,
+  type LockedCanvas,
+  type MergeResult,
+  sameBytes,
+  type VersionReason,
+  writeCanvasState,
+} from "@/lib/canvas/state-write";
 import { isUniqueViolation } from "@/lib/pg-errors";
 
-export const EMPTY_STATE = Y.encodeStateAsUpdate(new Y.Doc());
-
-type VersionReason = "hourly" | "pre-restore" | "pre-link" | "pre-import" | "staff";
+export { bytea, EMPTY_STATE } from "@/lib/canvas/state-write";
 
 export class CanvasStateError extends Error {
   constructor(
@@ -39,69 +44,19 @@ export class CanvasUpdateError extends Error {
   }
 }
 
-export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** The canvas was deleted, or trashed, before the write got its lock. */
+export class CanvasGoneError extends Error {
+  constructor() {
+    super("This canvas is gone.");
+  }
+}
 
 /**
- * Runs once the row lock is held and throws to refuse the write: what the
+ * Runs once the row locks are held and throws to refuse the write: what the
  * caller checked before it waited (a delete, hide or lost access) may have
  * changed meanwhile.
  */
-export type Recheck = (tx: Tx) => Promise<void>;
-
-/** Drizzle types `bytea` as Node's Buffer; this is a view, not a copy. */
-export function bytea(bytes: Uint8Array): Buffer {
-  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-}
-
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
-}
-
-async function takeVersion(
-  tx: Tx,
-  canvasId: string,
-  state: Uint8Array,
-  reason: VersionReason,
-  now: Date,
-): Promise<void> {
-  if (reason === "hourly") {
-    const [latest] = await tx
-      .select({ takenAt: canvasDocVersions.takenAt })
-      .from(canvasDocVersions)
-      .where(and(eq(canvasDocVersions.docKind, "canvas"), eq(canvasDocVersions.docId, canvasId)))
-      .orderBy(desc(canvasDocVersions.takenAt))
-      .limit(1);
-    if (latest && now.getTime() - latest.takenAt.getTime() < VERSION_INTERVAL_MS) return;
-  }
-  await tx.insert(canvasDocVersions).values({
-    docKind: "canvas",
-    docId: canvasId,
-    takenAt: now,
-    reason,
-    state: bytea(state),
-    byteSize: state.length,
-  });
-}
-
-/** The stored state, locked for the rest of `tx`. */
-async function lockedState(tx: Tx, canvasId: string, recheck?: Recheck): Promise<Uint8Array> {
-  // FOR UPDATE can't lock a row that isn't there, so two first writes
-  // would both read "nothing stored" and the second would clobber the
-  // first. Make sure the row exists before locking it.
-  await tx
-    .insert(canvasDocs)
-    .values({ canvasId, state: bytea(EMPTY_STATE) })
-    .onConflictDoNothing();
-  const [row] = await tx
-    .select({ state: canvasDocs.state })
-    .from(canvasDocs)
-    .where(eq(canvasDocs.canvasId, canvasId))
-    .for("update");
-  await recheck?.(tx);
-  return new Uint8Array(row!.state);
-}
+export type Recheck = (tx: CanvasWriteTx, canvas: LockedCanvas) => Promise<void>;
 
 interface CapRefusals {
   tooLarge: (bytes: number) => CanvasStateError;
@@ -113,46 +68,34 @@ const SAVE_REFUSALS: CapRefusals = {
   tooManyNodes: () => new CanvasStateError("too-many-nodes"),
 };
 
-/** Writes `next` with a fresh snapshot, refusing it over a cap. */
-async function writeState(
-  tx: Tx,
-  input: {
-    canvasId: string;
-    userId: string;
-    next: Uint8Array;
-    now: Date;
-    refusals: CapRefusals;
-    version?: { state: Uint8Array; reason: VersionReason };
-  },
-): Promise<void> {
-  const { canvasId, next, now, refusals } = input;
-  if (next.length > CANVAS_LIMITS.maxStateBytes) throw refusals.tooLarge(next.length);
-  const doc = docFromState(next);
-  try {
-    const nodes = canvasNodes(doc).size;
-    if (nodes > CANVAS_LIMITS.maxNodes) throw refusals.tooManyNodes(nodes);
-    const snapshot = deriveSnapshot(doc);
-    if (input.version) {
-      await takeVersion(tx, canvasId, input.version.state, input.version.reason, now);
+/** One write in its own transaction; anything but a store or a no-op throws and rolls back. */
+async function write(
+  canvasId: string,
+  userId: string,
+  refusals: CapRefusals,
+  options: { now?: Date; recheck?: Recheck },
+  merge: (stored: Uint8Array) => MergeResult,
+): Promise<{ state: Uint8Array; changed: boolean }> {
+  return db.transaction(async (tx) => {
+    const outcome = await writeCanvasState(tx, {
+      canvasId,
+      editorId: userId,
+      now: options.now,
+      snapshot: "when-changed",
+      recheck: options.recheck,
+      merge,
+    });
+    switch (outcome.kind) {
+      case "gone":
+        throw new CanvasGoneError();
+      case "refused":
+        throw outcome.reason === "too-large"
+          ? refusals.tooLarge(outcome.bytes)
+          : refusals.tooManyNodes(outcome.nodes);
+      default:
+        return { state: outcome.state, changed: outcome.kind === "stored" };
     }
-    await tx
-      .update(canvasDocs)
-      .set({ state: bytea(next), updatedAt: now })
-      .where(eq(canvasDocs.canvasId, canvasId));
-    await tx
-      .update(canvases)
-      .set({
-        snapshot,
-        nodeCount: snapshot.nodes.length,
-        byteSize: next.length,
-        lastEditedById: input.userId,
-        lastEditedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(canvases.id, canvasId));
-  } finally {
-    doc.destroy();
-  }
+  });
 }
 
 /**
@@ -171,25 +114,14 @@ export async function updateCanvasState(
   change: (stored: Uint8Array) => Uint8Array,
   options: { versionReason?: VersionReason; now?: Date; recheck?: Recheck } = {},
 ): Promise<Uint8Array> {
-  return db.transaction(async (tx) => {
-    const stored = await lockedState(tx, canvasId, options.recheck);
-    const next = change(stored);
-    if (sameBytes(next, stored)) return stored;
-    // Taken under the lock, so versions sort in the order they were written.
-    const now = options.now ?? new Date();
-    await writeState(tx, {
-      canvasId,
-      userId,
-      next,
-      now,
-      refusals: SAVE_REFUSALS,
-      version:
-        stored.length > EMPTY_STATE.length
-          ? { state: stored, reason: options.versionReason ?? "hourly" }
-          : undefined,
-    });
-    return next;
-  });
+  const { state } = await write(canvasId, userId, SAVE_REFUSALS, options, (stored) => ({
+    next: change(stored),
+    version:
+      options.versionReason && stored.length > EMPTY_STATE.length
+        ? { state: stored, reason: options.versionReason }
+        : undefined,
+  }));
+  return state;
 }
 
 function formatMb(bytes: number): string {
@@ -227,8 +159,7 @@ export async function importIntoCanvasState(
   imported: Uint8Array,
   options: { now?: Date; recheck?: Recheck } = {},
 ): Promise<{ state: Uint8Array; changed: boolean }> {
-  return db.transaction(async (tx) => {
-    const stored = await lockedState(tx, canvasId, options.recheck);
+  return write(canvasId, userId, IMPORT_REFUSALS, options, (stored) => {
     let before: Uint8Array;
     let next: Uint8Array;
     try {
@@ -237,23 +168,11 @@ export async function importIntoCanvasState(
     } catch {
       throw new CanvasUpdateError();
     }
-    if (sameBytes(next, stored)) return { state: stored, changed: false };
-    const now = options.now ?? new Date();
-    const added = !sameBytes(next, before);
-    await writeState(tx, {
-      canvasId,
-      userId,
+    // Even of an empty canvas: restoring it is how an import is taken back.
+    return {
       next,
-      now,
-      refusals: IMPORT_REFUSALS,
-      version: added
-        ? // Even of an empty canvas: restoring it is how an import is taken back.
-          { state: before, reason: "pre-import" }
-        : stored.length > EMPTY_STATE.length
-          ? { state: stored, reason: "hourly" }
-          : undefined,
-    });
-    return { state: next, changed: true };
+      version: !sameBytes(next, before) ? { state: before, reason: "pre-import" } : undefined,
+    };
   });
 }
 

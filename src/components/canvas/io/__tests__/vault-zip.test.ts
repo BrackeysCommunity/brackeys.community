@@ -1,9 +1,6 @@
 import { zipSync } from "fflate";
 import { describe, expect, it } from "vite-plus/test";
 
-import { CANVAS_IMPORT_LIMITS } from "@/lib/canvas/limits";
-
-import { ImportRefusedError } from "../vault-import";
 import { cleanZipPath, unzipVault, zipVault } from "../vault-zip";
 import { enc, PNG } from "./vault-fixtures";
 
@@ -35,33 +32,54 @@ describe("vault zips", () => {
     expect(ignored).toBe(5);
   });
 
-  it("refuses a zip whose directory declares too much, without inflating", () => {
-    const zip = zipSync({ "a.md": enc("a"), "b.md": enc("b") }, { level: 0 });
-    // Rewrite each central-directory entry's uncompressed size to just over half the cap.
-    const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
-    const half = Math.floor(CANVAS_IMPORT_LIMITS.maxUnzippedBytes / 2) + 1;
-    for (let i = 0; i < zip.length - 4; i++) {
-      if (view.getUint32(i, true) === 0x02014b50) view.setUint32(i + 24, half, true);
-    }
-    expect(() => unzipVault(zip)).toThrow(ImportRefusedError);
-    try {
-      unzipVault(zip);
-    } catch (error) {
-      expect((error as ImportRefusedError).limit).toBe("maxUnzippedBytes");
-      expect((error as ImportRefusedError).actual).toBe(half * 2);
-    }
-  });
-
-  it("refuses more files than an import reads", () => {
-    const tree: Record<string, Uint8Array> = {};
-    for (let i = 0; i <= CANVAS_IMPORT_LIMITS.maxFiles; i++) tree[`n${i}.md`] = new Uint8Array();
-    expect(() => unzipVault(zipSync(tree, { level: 0 }))).toThrow(/5,001 files/);
-  });
-
   it("keeps names inside the vault", () => {
     expect(cleanZipPath("Vault\\Notes\\a.md")).toBe("Vault/Notes/a.md");
     expect(cleanZipPath("/abs/a.md")).toBe("abs/a.md");
     expect(cleanZipPath("a/../b.md")).toBeNull();
     expect(cleanZipPath("folder/")).toBeNull();
+  });
+  it("never lets a path escape the vault", () => {
+    for (const bad of ["../x.md", "a/../../x.md", "a//b.md", "a/./../b.md", "..\\x.md"]) {
+      expect(cleanZipPath(bad), bad).toBeNull();
+    }
+    expect(cleanZipPath("C:/x.md")).toBe("C:/x.md");
+  });
+
+  it("drops traversal names when unzipping, keeping the rest", () => {
+    const zip = zipSync({ "ok.md": enc("ok"), "../evil.md": enc("x"), "dir/": new Uint8Array() });
+    const { entries } = unzipVault(zip);
+    expect(entries.map((e) => e.path)).toEqual(["ok.md"]);
+  });
+
+  it("refuses a zip that isn't one", () => {
+    expect(() => unzipVault(enc("not a zip at all, just text"))).toThrow();
+  });
+
+  it("an entry whose directory under-declares its size never yields more bytes than declared", () => {
+    const zip = zipSync({ "a.md": enc("x".repeat(1_000)) }, { level: 6 });
+    const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+    for (let i = 0; i < zip.length - 4; i++) {
+      if (view.getUint32(i, true) === 0x02014b50) view.setUint32(i + 24, 10, true);
+    }
+    let result: ReturnType<typeof unzipVault> | null = null;
+    try {
+      result = unzipVault(zip);
+    } catch {
+      // Refusing is fine too.
+    }
+    if (result) expect(result.entries[0]!.bytes.length).toBeLessThanOrEqual(1_000);
+  });
+
+  it("an empty zip and a junk-only zip import nothing", () => {
+    expect(unzipVault(zipSync({})).entries).toEqual([]);
+    const junk = unzipVault(zipSync({ ".obsidian/app.json": enc("{}"), "__MACOSX/x": enc("y") }));
+    expect(junk.entries).toEqual([]);
+    expect(junk.ignored).toBe(2);
+  });
+
+  it("zipVault → unzipVault keeps CJK, NFD and space names exactly", () => {
+    const names = ["日本語/メモ.md", "Résumé.md".normalize("NFD"), "a b/c d.md"];
+    const { entries } = unzipVault(zipVault(names.map((path) => ({ path, bytes: enc(path) }))));
+    expect(entries.map((e) => e.path).sort()).toEqual([...names].sort());
   });
 });

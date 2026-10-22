@@ -1,6 +1,7 @@
 /**
- * The worker's message handler, driven with a fake worker scope, and the
- * client's choice between the worker and the in-page fallback.
+ * The canvas-io worker: its message handler (driven with a fake worker
+ * scope), what crosses the postMessage boundary, and the client's choice
+ * between the worker and running the same jobs in the page.
  */
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
@@ -8,12 +9,17 @@ import * as Y from "yjs";
 import { docToJsonCanvas } from "@/lib/canvas/json-canvas";
 import { CANVAS_LIMITS } from "@/lib/canvas/limits";
 
+import { canvasIoUsesWorker, runCanvasIo } from "../canvas-io-client";
 import { type ImportJobResult, runImportJob } from "../canvas-io-jobs";
-import type { CanvasIoResponse } from "../canvas-io-protocol";
-import { deserializeIoError } from "../canvas-io-protocol";
-import { ImportRefusedError } from "../vault-import";
+import {
+  type CanvasIoResponse,
+  deserializeIoError,
+  serializeIoError,
+  transferablesOf,
+} from "../canvas-io-protocol";
+import { importVault, ImportRefusedError, refusal } from "../vault-import";
 import { zipVault } from "../vault-zip";
-import { enc, PNG } from "./vault-fixtures";
+import { enc, entry, PNG } from "./vault-fixtures";
 
 /** A job result without what differs run to run: Yjs client ids in states, file timestamps. */
 function comparable(result: unknown): unknown {
@@ -151,5 +157,85 @@ describe("the canvas-io client", () => {
     );
     const png = new File([PNG], "a.png", { type: "image/png" });
     expect(await client.prepareImageForUpload(png)).toBe(png);
+  });
+});
+
+describe("the canvas-io client without a Worker", () => {
+  it("runs the import in the page with the core's result", async () => {
+    expect(canvasIoUsesWorker()).toBe(false);
+    const canvas = JSON.stringify({
+      nodes: [{ id: "a", type: "file", file: "a.png", x: 0, y: 0, width: 1, height: 1 }],
+      edges: [],
+    });
+    const entries = [entry("C.canvas", canvas), entry("a.png", PNG)];
+    const progress: string[] = [];
+    const result = await runCanvasIo(
+      "import",
+      {
+        source: { zip: new Blob([zipVault(entries) as Uint8Array<ArrayBuffer>]) },
+        options: { mode: "new" },
+      },
+      (p) => progress.push(p.phase),
+    );
+    if (result.kind !== "import") throw new Error("expected an import");
+    const core = importVault(entries, { mode: "new" });
+    expect(result.report).toEqual(core.report);
+    expect(result.canvases.map((c) => c.canvas)).toEqual(core.canvases.map((c) => c.canvas));
+    expect(result.images[0]).toMatchObject({ path: "a.png", uploadPath: "a.png", error: null });
+    expect(result.images[0]!.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(progress).toContain("unzipping");
+  });
+
+  it("refuses with the core's error", async () => {
+    await expect(
+      runCanvasIo("import", {
+        source: {
+          files: Array.from({ length: 5_001 }, (_, i) => ({ path: `${i}.md`, file: new Blob([]) })),
+        },
+        options: { mode: "new" },
+      }),
+    ).rejects.toMatchObject({ name: "ImportRefusedError", limit: "maxFiles" });
+  });
+});
+
+describe("the worker message protocol", () => {
+  it("carries a refusal's limit and numbers across the boundary", () => {
+    const original = refusal("maxNodes", 2_001, 2_000);
+    const back = deserializeIoError(structuredClone(serializeIoError(original)));
+    expect(back).toBeInstanceOf(ImportRefusedError);
+    expect(back).toMatchObject({
+      limit: "maxNodes",
+      actual: 2_001,
+      max: 2_000,
+      message: original.message,
+    });
+  });
+
+  it("carries any other error's message", () => {
+    const back = deserializeIoError(structuredClone(serializeIoError(new TypeError("boom"))));
+    expect(back.message).toBe("boom");
+    expect(back.name).toBe("TypeError");
+    expect(deserializeIoError(serializeIoError("plain")).message).toBe("plain");
+  });
+
+  it("transfers whole buffers only, never a view into a shared one", () => {
+    const whole = new Uint8Array(8);
+    const shared = new Uint8Array(new ArrayBuffer(16), 4, 4);
+    const out = transferablesOf({ a: whole, b: [shared], c: { d: whole } });
+    expect(out).toEqual([whole.buffer]);
+  });
+
+  it("an import result survives structuredClone (what postMessage does)", async () => {
+    const result = await runImportJob({
+      source: {
+        files: [
+          { path: "c.canvas", file: new Blob([canvas]) },
+          { path: "a.png", file: new Blob([PNG]) },
+        ],
+      },
+      options: { mode: "new" },
+    });
+    const cloned = structuredClone(result);
+    expect(cloned).toEqual(result);
   });
 });

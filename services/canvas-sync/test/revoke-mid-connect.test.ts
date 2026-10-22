@@ -32,7 +32,7 @@ import {
 
 setDefaultTimeout(30_000);
 
-if (!TEST_DATABASE_URL) warnSkipped("revoke variants", "CANVAS_SYNC_TEST_DATABASE_URL");
+if (!TEST_DATABASE_URL) warnSkipped("revokes racing a connect", "CANVAS_SYNC_TEST_DATABASE_URL");
 
 /** A sync update frame (messageSync, update) carrying `update`. */
 function updateFrame(name: string, update: Uint8Array): Uint8Array<ArrayBuffer> {
@@ -55,7 +55,13 @@ function cardUpdate(id: string): Uint8Array {
   return Y.encodeStateAsUpdate(doc);
 }
 
-describe.skipIf(!TEST_DATABASE_URL)("revokes racing a connect, other shapes", () => {
+/**
+ * onAuthenticate checks the revocation list first, then awaits the canvas
+ * row and the per-user ledger (a Redis round trip, up to its 1s command
+ * timeout), then Hocuspocus loads the document. A revoke landing in any of
+ * those awaits finds no connection to close yet.
+ */
+describe.skipIf(!TEST_DATABASE_URL)("a revoke racing a connect", () => {
   let db: ServiceDb;
   let end: () => Promise<void>;
   let server: SyncServer;
@@ -79,7 +85,7 @@ describe.skipIf(!TEST_DATABASE_URL)("revokes racing a connect, other shapes", ()
       port: 0,
       secret: SECRET,
       db,
-      instanceId: "revoke-variants",
+      instanceId: "revoke-mid-connect",
       telemetry: { captureException() {}, capture() {}, async shutdown() {} },
       debounceMs: 200,
       maxDebounceMs: 1000,
@@ -118,6 +124,13 @@ describe.skipIf(!TEST_DATABASE_URL)("revokes racing a connect, other shapes", ()
   const shutOut = (client: TestClient) =>
     client.authFailures.some((r) => r.startsWith(`${SYNC_CLOSE.revoked}`)) ||
     client.closes.includes(SYNC_CLOSE.revoked);
+
+  it("a write token revoked mid-connect is shut out", async () => {
+    const canvasId = await seedCanvas(db);
+    const m = await connectWhileRevoked(canvasId, "mallory", { canvasId, userId: "mallory" });
+    expect(shutOut(m)).toBe(true);
+    expect(await until(() => !m.provider.isSynced, 1000)).toBe(true);
+  });
 
   it("a read token revoked mid-connect is shut out", async () => {
     const canvasId = await seedCanvas(db);
@@ -182,6 +195,20 @@ describe.skipIf(!TEST_DATABASE_URL)("revokes racing a connect, other shapes", ()
     ).toBe(true);
     expect(await storedNodeIds(db, canvasId)).toEqual(["fine"]);
     raw.socket.close();
+  });
+
+  it("a connect after the revoke with the same token is refused, and only for that member", async () => {
+    const canvasId = await seedCanvas(db);
+    const name = documentName("canvas", canvasId);
+    const token = await signCanvasToken({ c: name, u: "mallory", a: "write" }, SECRET);
+    server.handleRevoke({ canvasId, userId: "mallory" });
+    const m = connect(server.port, canvasId, "mallory", { token: async () => token });
+    clients.push(m);
+    expect(await until(() => m.authFailures.length > 0, 3000)).toBe(true);
+    expect(m.authFailures[0]).toStartWith(`${SYNC_CLOSE.revoked}`);
+    const other = connect(server.port, canvasId, "alice");
+    clients.push(other);
+    expect(await synced(other)).toBe(true);
   });
 
   it(`a member re-added after a revoke gets back in with a token minted more than ${REVOKE_CLOCK_SKEW_MS}ms later, not sooner`, async () => {

@@ -32,7 +32,7 @@ COPY src/lib/canvas/token.ts ./src/lib/canvas/token.ts
 COPY src/lib/canvas/sync-channels.ts ./src/lib/canvas/sync-channels.ts
 COPY src/lib/canvas/json-canvas.ts ./src/lib/canvas/json-canvas.ts
 COPY src/lib/canvas/doc-state.ts ./src/lib/canvas/doc-state.ts
-COPY src/lib/canvas/live-store.ts ./src/lib/canvas/live-store.ts
+COPY src/lib/canvas/state-write.ts ./src/lib/canvas/state-write.ts
 
 # The copied root files import bare specifiers (yjs, drizzle-orm, zod,
 # fractional-indexing, posthog-node), which resolve up from /app — not from

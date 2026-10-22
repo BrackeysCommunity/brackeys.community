@@ -1,21 +1,33 @@
 // @vitest-environment jsdom
+/**
+ * Dropped folders and the folder picker: every batch of every nested
+ * directory, entries taken before the first await, junk folders skipped,
+ * reader errors surfaced.
+ */
 import { describe, expect, it } from "vite-plus/test";
 
-import { captureDrop, filesFromInput, readCapturedDrop } from "../read-drop";
+import {
+  captureDrop,
+  filesFromInput,
+  hasDirectory,
+  readAllEntries,
+  readCapturedDrop,
+} from "../read-drop";
 
-type FakeEntry = FileSystemEntry & { children?: FakeEntry[] };
+type Entry = FileSystemEntry;
+let readCalls = 0;
 
-function fileEntry(name: string): FakeEntry {
+function file(name: string): Entry {
   return {
     name,
     isFile: true,
     isDirectory: false,
-    file: (resolve: (f: File) => void) => setTimeout(() => resolve(new File([name], name)), 0),
-  } as unknown as FakeEntry;
+    file: (resolve: (f: File) => void) => queueMicrotask(() => resolve(new File([name], name))),
+  } as unknown as Entry;
 }
 
-/** A directory whose reader hands back its children in batches, then nothing. */
-function dirEntry(name: string, children: FakeEntry[], batch = 2): FakeEntry {
+/** Hands back `batch` children per call, asynchronously, then [] forever. */
+function dir(name: string, children: Entry[], batch = 3, fail = false): Entry {
   return {
     name,
     isFile: false,
@@ -23,71 +35,116 @@ function dirEntry(name: string, children: FakeEntry[], batch = 2): FakeEntry {
     createReader: () => {
       let at = 0;
       return {
-        readEntries: (resolve: (entries: FileSystemEntry[]) => void) =>
+        readEntries: (resolve: (e: Entry[]) => void, reject: (e: Error) => void) => {
+          readCalls++;
           setTimeout(() => {
-            resolve(children.slice(at, at + batch));
+            if (fail && at > 0) return reject(new Error("NotReadableError"));
+            const out = children.slice(at, at + batch);
             at += batch;
-          }, 0),
+            resolve(out);
+          }, 0);
+        },
       };
     },
-  } as unknown as FakeEntry;
+  } as unknown as Entry;
 }
 
-/** A DataTransfer whose items empty themselves after the handler's first await. */
-function fakeDrop(entries: FakeEntry[]): DataTransfer {
-  let items: { kind: string; webkitGetAsEntry: () => FileSystemEntry }[] = entries.map((e) => ({
-    kind: "file",
-    webkitGetAsEntry: () => e,
-  }));
-  void Promise.resolve().then(() => {
-    items = [];
+/** A DataTransfer whose item list and entries go dead after the current task. */
+function dataTransfer(entries: Entry[], files: File[] = []) {
+  let alive = true;
+  queueMicrotask(() => {
+    alive = false;
   });
   return {
     get items() {
-      return items;
+      return entries.map((entry) => ({
+        kind: "file",
+        webkitGetAsEntry: () => (alive ? entry : null),
+      }));
     },
-    files: [],
+    get files() {
+      return alive ? files : [];
+    },
   } as unknown as DataTransfer;
 }
 
 describe("reading a dropped folder", () => {
-  it("reads every batch of every nested folder, entries taken synchronously", async () => {
-    const vault = dirEntry("Vault", [
-      fileEntry("Plan.canvas"),
-      dirEntry("Notes", [
-        fileEntry("a.md"),
-        fileEntry("b.md"),
-        fileEntry("c.md"),
-        fileEntry("d.md"),
-        fileEntry("e.md"),
-      ]),
-      fileEntry("x.png"),
-      dirEntry(".obsidian", [fileEntry("app.json")]),
-      fileEntry("y.png"),
+  it("reads three batches and the empty one in every nested folder", async () => {
+    readCalls = 0;
+    const leaves = (prefix: string, n: number) =>
+      Array.from({ length: n }, (_, i) => file(`${prefix}${i}.md`));
+    const tree = dir("Vault", [
+      ...leaves("root", 7),
+      dir("Notes", [...leaves("n", 8), dir("Deep", leaves("d", 9))]),
+      dir(".obsidian", leaves("cfg", 4)),
+      dir("__MACOSX", leaves("junk", 2)),
+      file(".DS_Store"),
     ]);
-    const transfer = fakeDrop([vault]);
-    const captured = captureDrop(transfer);
+    const captured = captureDrop(dataTransfer([tree]));
+    // Taken synchronously: the transfer is dead by the time anything awaits.
     await Promise.resolve();
-    expect(transfer.items).toHaveLength(0);
-
+    expect(hasDirectory(captured)).toBe(true);
     const files = await readCapturedDrop(captured);
-    expect(files.map((f) => f.path).sort()).toEqual([
-      "Vault/Notes/a.md",
-      "Vault/Notes/b.md",
-      "Vault/Notes/c.md",
-      "Vault/Notes/d.md",
-      "Vault/Notes/e.md",
-      "Vault/Plan.canvas",
-      "Vault/x.png",
-      "Vault/y.png",
-    ]);
+    const paths = files.map((f) => f.path);
+    expect(paths.filter((p) => p.startsWith("Vault/root"))).toHaveLength(7);
+    expect(paths.filter((p) => p.startsWith("Vault/Notes/n"))).toHaveLength(8);
+    expect(paths.filter((p) => p.startsWith("Vault/Notes/Deep/d"))).toHaveLength(9);
+    expect(
+      paths.some(
+        (p) => p.includes(".obsidian") || p.includes("__MACOSX") || p.endsWith(".DS_Store"),
+      ),
+    ).toBe(false);
+    expect(files).toHaveLength(24);
+    // Vault: 11 children → 4 batches + empty; Notes: 9 → 3 + empty; Deep: 9 → 3 + empty.
+    // Skipped folders are never opened.
+    expect(readCalls).toBe(5 + 4 + 4);
   });
 
-  it("keeps a folder picker's relative paths", () => {
-    const file = new File(["x"], "a.md");
-    Object.defineProperty(file, "webkitRelativePath", { value: "Vault/Notes/a.md" });
-    const hidden = new File(["x"], "w.json");
-    Object.defineProperty(hidden, "webkitRelativePath", { value: "Vault/.obsidian/w.json" });
-    expect(filesFromInput([file, hidden]).map((f) => f.path)).toEqual(["Vault/Notes/a.md"]);
+  it("a folder with exactly one batch of children still asks again", async () => {
+    readCalls = 0;
+    const all = await readAllEntries(
+      dir("D", [file("a"), file("b"), file("c")]) as FileSystemDirectoryEntry,
+    );
+    expect(all).toHaveLength(3);
+    expect(readCalls).toBe(2);
+  });
+
+  it("an empty folder yields nothing", async () => {
+    expect(await readCapturedDrop(captureDrop(dataTransfer([dir("Empty", [])])))).toEqual([]);
+  });
+
+  it("a reader error rejects instead of hanging or dropping files silently", async () => {
+    const broken = dir("Broken", [file("a"), file("b"), file("c"), file("d")], 2, true);
+    await expect(readCapturedDrop(captureDrop(dataTransfer([broken])))).rejects.toThrow(
+      /NotReadable/,
+    );
+  });
+
+  it("takes plain files when the browser has no entries API", async () => {
+    const a = new File(["a"], "a.canvas");
+    const transfer = { items: [{ kind: "file" }], files: [a] } as unknown as DataTransfer;
+    const files = await readCapturedDrop(captureDrop(transfer));
+    expect(files).toEqual([{ path: "a.canvas", file: a }]);
+  });
+
+  it("mixes a dropped folder with loose files", async () => {
+    const captured = captureDrop(dataTransfer([dir("F", [file("x.md")]), file("y.canvas")]));
+    const files = await readCapturedDrop(captured);
+    expect(files.map((f) => f.path).sort()).toEqual(["F/x.md", "y.canvas"]);
+  });
+
+  it("the folder picker drops junk folders by their relative paths", () => {
+    const pick = (path: string) => {
+      const f = new File(["x"], path.split("/").pop()!);
+      Object.defineProperty(f, "webkitRelativePath", { value: path });
+      return f;
+    };
+    const out = filesFromInput([
+      pick("V/a.md"),
+      pick("V/.obsidian/w.json"),
+      pick("V/.trash/b.md"),
+      pick("V/sub/c.png"),
+    ]);
+    expect(out.map((f) => f.path)).toEqual(["V/a.md", "V/sub/c.png"]);
   });
 });

@@ -3,6 +3,7 @@ import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
+import { yUndoManagerKeymap } from "y-codemirror.next";
 import * as Y from "yjs";
 
 import { CardTextEditor } from "../CardTextEditor";
@@ -60,5 +61,33 @@ describe("CardTextEditor line breaks on paste and drop", () => {
     view.contentDOM.dispatchEvent(clipboardEvent("paste", "one\r\ntwo"));
     view.dispatch({ changes: { from: view.state.doc.length, insert: "!" } });
     expect(text.toJSON()).toBe("one\ntwo!");
+  });
+});
+
+const command = (key: string) => yUndoManagerKeymap.find((b) => b.key === key)!.run!;
+
+describe("CardTextEditor with a CRLF body", () => {
+  it("restores the exact bytes on undo and redoes the edit exactly", async () => {
+    const body = "\uFEFFa  \r\nb\r\n\r\nc\rd\n";
+    const { text, view } = mount(body);
+    const at = view.state.doc.toString().indexOf("c");
+    view.dispatch({ changes: { from: at, to: at + 1, insert: "C!" } });
+    const edited = "\uFEFFa  \r\nb\r\n\r\nC!\rd\n";
+    expect(text.toJSON()).toBe(edited);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(command("Mod-z")(view)).toBe(true);
+    expect(text.toJSON()).toBe(body);
+    expect(view.state.doc.toString()).toBe(body);
+    expect(command("Mod-y")(view)).toBe(true);
+    expect(text.toJSON()).toBe(edited);
+    expect(view.state.doc.toString()).toBe(edited);
+  });
+
+  it("keeps a remote CRLF edit in step with the open editor", () => {
+    const { text, view } = mount("one\r\ntwo");
+    text.insert(0, "zero\r\n");
+    expect(view.state.doc.toString()).toBe("zero\r\none\r\ntwo");
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "!" } });
+    expect(text.toJSON()).toBe("zero\r\none\r\ntwo!");
   });
 });

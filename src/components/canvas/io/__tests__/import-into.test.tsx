@@ -2,7 +2,8 @@
 /**
  * Importing into the open canvas goes through `saveCanvasImport`: nothing
  * lands in the doc until the server took it, over a cap nothing lands at
- * all, one import runs at a time, it undoes in one step, and with the live
+ * all, one import runs at a time per canvas, it undoes in one step, a lost
+ * reply or proxy error isn't mistaken for a refusal, and with the live
  * provider on an import far over one sync message arrives without the
  * provider sending (or refusing) it.
  */
@@ -25,11 +26,13 @@ import { SERVER } from "../../editor/canvas-doc";
 import { useCanvasSync } from "../../editor/use-canvas-sync";
 import { IMPORT_BUSY_MESSAGE, useCanvasImport } from "../use-canvas-import";
 import { type FakeImportServer, fakeImportServer } from "./import-server";
+import { PNG } from "./vault-fixtures";
 
 const api = vi.hoisted(() => ({
   saveCanvasImport: vi.fn(),
   listCanvasAttachmentMatches: vi.fn(),
   toastError: vi.fn(),
+  upload: vi.fn(),
   providers: [] as { config: Record<string, unknown>; disconnect: ReturnType<typeof vi.fn> }[],
 }));
 
@@ -46,6 +49,10 @@ vi.mock("@/orpc/client", () => ({
       }),
     },
   },
+}));
+vi.mock("@/lib/image-upload", () => ({
+  postImageForm: (_url: string, file: File, fields: Record<string, string>) =>
+    api.upload(file, fields),
 }));
 vi.mock("@/lib/toast", () => ({
   toast: Object.assign(vi.fn(), { error: api.toastError, success: vi.fn(), message: vi.fn() }),
@@ -89,6 +96,7 @@ let server: FakeImportServer;
 beforeEach(() => {
   api.saveCanvasImport.mockReset();
   api.toastError.mockReset();
+  api.upload.mockReset();
   api.listCanvasAttachmentMatches.mockResolvedValue({ byId: {}, bySha: {} });
   api.providers.length = 0;
 });
@@ -120,15 +128,13 @@ const canvasSource = (
   ],
 });
 
-/** The solo editor's side: an undo manager on local edits and the save hook's `applyRestored`. */
-function soloHook(doc: Y.Doc) {
-  server = fakeImportServer(doc);
-  api.saveCanvasImport.mockImplementation(server.saveCanvasImport);
+/** The solo editor's import hook, with no server behind it unless the test mocks one. */
+function intoHook(doc: Y.Doc, canvasId = `solo-${Math.random()}`) {
   const undo = new Y.UndoManager([canvasNodes(doc)], { trackedOrigins: new Set([LOCAL]) });
   const hook = renderHook(() =>
     useCanvasImport({
       doc,
-      canvasId: `solo-${Math.random()}`,
+      canvasId,
       scope: { kind: "personal" },
       undo,
       flush: async () => {},
@@ -139,6 +145,21 @@ function soloHook(doc: Y.Doc) {
   );
   return { hook: hook.result, undo };
 }
+
+/** The solo editor's side, backed by a fake server holding what `doc` holds now. */
+function soloHook(doc: Y.Doc) {
+  server = fakeImportServer(doc);
+  api.saveCanvasImport.mockImplementation(server.saveCanvasImport);
+  return intoHook(doc);
+}
+
+const failure = (run: Promise<unknown>) =>
+  act(() =>
+    run.then(
+      () => null,
+      (e: Error) => e,
+    ),
+  );
 
 describe("an import into the open canvas", { timeout: 60_000 }, () => {
   it("lands only once the server has stored it, and undoes in one step", async () => {
@@ -227,6 +248,128 @@ describe("an import into the open canvas", { timeout: 60_000 }, () => {
       act(() => hook.current.importInto(canvasSource("B.canvas", cards("b", 600)), {})),
     ).rejects.toThrow(/2,200 cards/);
     expect(canvasNodes(doc).size).toBe(1_600);
+  });
+
+  it("is busy per canvas: another canvas imports meanwhile", async () => {
+    const docA = new Y.Doc();
+    const docB = new Y.Doc();
+    const serverA = fakeImportServer(docA);
+    const serverB = fakeImportServer(docB);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    api.saveCanvasImport.mockImplementation(async (input: { canvasId: string }) => {
+      if (input.canvasId === "A") {
+        await gate;
+        return serverA.saveCanvasImport(input as never);
+      }
+      return serverB.saveCanvasImport(input as never);
+    });
+    const a = intoHook(docA, "A").hook;
+    const b = intoHook(docB, "B").hook;
+    const first = a.current.importInto(canvasSource("A.canvas", cards("a", 2)), {});
+    await act(() => b.current.importInto(canvasSource("B.canvas", cards("b", 3)), {}));
+    expect(canvasNodes(docB).size).toBe(3);
+    release();
+    await act(() => first);
+    expect(canvasNodes(docA).size).toBe(2);
+  });
+
+  it("counts cards added while its images upload before it lands", async () => {
+    let release!: () => void;
+    api.upload.mockImplementation(
+      (_file: File, fields: Record<string, string>) =>
+        new Promise((resolve) => {
+          release = () => resolve({ id: "att-1", path: fields.path, url: "/images/1" });
+        }),
+    );
+    const doc = new Y.Doc();
+    applyJsonCanvas(doc, cards("e", 1_000));
+    const { hook } = soloHook(doc);
+    const board = {
+      nodes: [
+        ...cards("a", 899).nodes,
+        { id: "img", type: "file", file: "pic.png", x: 0, y: 0, width: 10, height: 10 },
+      ],
+      edges: [],
+    };
+    const run = hook.current
+      .importInto(
+        {
+          files: [
+            { path: "Board.canvas", file: new File([JSON.stringify(board)], "Board.canvas") },
+            { path: "pic.png", file: new File([PNG], "pic.png", { type: "image/png" }) },
+          ],
+        },
+        {},
+      )
+      .catch(() => null);
+    await waitFor(() => expect(api.upload).toHaveBeenCalledTimes(1), { timeout: 15_000 });
+    applyJsonCanvas(doc, cards("late", 500), { mode: "fragment", at: { x: 0, y: 900 } });
+    await act(async () => release());
+    await run;
+    expect(canvasNodes(doc).size).toBeLessThanOrEqual(CANVAS_LIMITS.maxNodes);
+  }, 30_000);
+});
+
+describe("an import into the open canvas whose request fails or is stopped", () => {
+  it("still applies what the server stored when a stop is asked for after the send", async () => {
+    const doc = new Y.Doc();
+    server = fakeImportServer(doc);
+    let stop = false;
+    api.saveCanvasImport.mockImplementation(async (input: never) => {
+      const reply = await server.saveCanvasImport(input);
+      stop = true;
+      return reply;
+    });
+    const { hook } = intoHook(doc);
+    await act(() =>
+      hook.current.importInto(canvasSource("A.canvas", cards("a", 4)), {
+        shouldStop: () => stop,
+      }),
+    );
+    expect(canvasNodes(server.stored).size).toBe(4);
+    expect(canvasNodes(doc).size).toBe(4);
+  });
+
+  it("doesn't claim nothing was added when the reply is lost after the server stored it", async () => {
+    const doc = new Y.Doc();
+    applyJsonCanvas(doc, cards("e", 2), { origin: LOCAL });
+    server = fakeImportServer(doc);
+    api.saveCanvasImport.mockImplementation(async (input: never) => {
+      await server.saveCanvasImport(input);
+      throw new TypeError("Failed to fetch");
+    });
+    const { hook } = intoHook(doc);
+    const error = await failure(
+      hook.current.importInto(canvasSource("A.canvas", cards("a", 5)), {}),
+    );
+    expect(canvasNodes(server.stored).size).toBe(7);
+    expect(canvasNodes(doc).size).toBe(2);
+    // The server has it, so "nothing was added" is wrong; retrying would import twice.
+    expect(error?.message ?? "").not.toMatch(/nothing was added/i);
+  });
+
+  it.each(["GATEWAY_TIMEOUT", "BAD_GATEWAY", "INTERNAL_SERVER_ERROR"])(
+    "doesn't report a %s as a refusal",
+    async (code) => {
+      api.saveCanvasImport.mockRejectedValue(Object.assign(new Error("Gateway Timeout"), { code }));
+      const { hook } = intoHook(new Y.Doc());
+      const error = await failure(
+        hook.current.importInto(canvasSource("A.canvas", cards("a", 2)), {}),
+      );
+      expect(error?.message).toMatch(/couldn't confirm the import was saved/i);
+    },
+  );
+
+  it("shows the server's own refusal message", async () => {
+    api.saveCanvasImport.mockRejectedValue(
+      Object.assign(new Error("A canvas holds 2,000 cards."), { code: "PAYLOAD_TOO_LARGE" }),
+    );
+    const { hook } = intoHook(new Y.Doc());
+    const error = await failure(
+      hook.current.importInto(canvasSource("A.canvas", cards("a", 2)), {}),
+    );
+    expect(error?.message).toBe("A canvas holds 2,000 cards.");
   });
 });
 
