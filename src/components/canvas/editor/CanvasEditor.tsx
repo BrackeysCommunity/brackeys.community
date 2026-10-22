@@ -84,6 +84,8 @@ import {
 import { HistoryPanel } from "./HistoryPanel";
 import { Inspector } from "./Inspector";
 import { PlacementLayer, type Placement } from "./PlacementLayer";
+import { PresenceContext, type PresenceStore } from "./presence-store";
+import { PeerCursors, PresenceAvatars } from "./PresenceLayer";
 import { SelectionBar } from "./SelectionBar";
 import { type CanvasTool, TOOL_KEYS, ToolDock } from "./ToolDock";
 import { selectionFragment, useCanvasCommands } from "./use-canvas-commands";
@@ -218,18 +220,19 @@ function SoloEditor(props: EditorProps) {
 function LiveEditor({ session, ...props }: EditorProps & { session: SyncSession }) {
   const doc = useInitialDoc(props.canvas);
   const saver = useCanvasSync(doc, props.canvas.id, session);
-  return <EditorInner {...props} doc={doc} saver={saver} />;
+  return <EditorInner {...props} doc={doc} saver={saver} presence={saver.presence} />;
 }
 
 function EditorInner({
   canvas,
   doc,
   saver,
+  presence = null,
   onStatus,
   panel,
   onClosePanel,
   chrome,
-}: EditorProps & { doc: Y.Doc; saver: CanvasPersistence }) {
+}: EditorProps & { doc: Y.Doc; saver: CanvasPersistence; presence?: PresenceStore | null }) {
   const [view] = useState(() => new CanvasDocView(doc));
   const [undo] = useState(
     () =>
@@ -325,6 +328,9 @@ function EditorInner({
   const selectedIds = useMemo(() => nodes.filter((n) => n.selected).map((n) => n.id), [nodes]);
   const selectedEdges = useMemo(() => edges.filter((e) => e.selected), [edges]);
   const atCap = nodes.length >= CANVAS_LIMITS.maxNodes;
+
+  useEffect(() => presence?.setSelection(selectedIds), [presence, selectedIds]);
+  useEffect(() => presence?.setEditing(editingId), [presence, editingId]);
 
   // ── Dragging ──────────────────────────────────────────────────────────────
 
@@ -880,6 +886,20 @@ function EditorInner({
 
   const links = useCanvasLinks(cards.values(), attachments, focusCard);
 
+  /** Pans to someone from the avatar stack, keeping the zoom. */
+  const goToPeer = useCallback(
+    (userId: string) => {
+      const where = presence?.locate(userId);
+      let point = where && "x" in where ? where : null;
+      if (where && "cardId" in where) {
+        const card = cardsRef.current.get(where.cardId);
+        if (card) point = { x: card.x + card.w / 2, y: card.y + card.h / 2 };
+      }
+      if (point) void flow.setCenter(point.x, point.y, { zoom: flow.getZoom(), duration: 250 });
+    },
+    [flow, presence],
+  );
+
   // ── Context for the cards ─────────────────────────────────────────────────
 
   const context = useMemo<CanvasEditorContextValue>(
@@ -980,179 +1000,185 @@ function EditorInner({
     ) : null;
 
   return (
-    <CanvasEditorContext value={context}>
-      <CanvasLinksContext value={links}>
-        <CanvasShell
-          topLeft={chrome.topLeft}
-          topRight={
-            <Island aria-label="View">
-              {chrome.toggles}
-              {wide ? (
-                <Button
-                  variant={inspectorOpen ? "secondary" : "ghost"}
-                  size="icon"
-                  tooltip="Inspector"
-                  aria-label="Inspector"
-                  aria-pressed={inspectorOpen}
-                  onClick={() => setInspector(!inspectorOpen)}
-                >
-                  <HugeiconsIcon icon={SidebarRight01Icon} size={16} />
-                </Button>
-              ) : null}
-              <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-              <ZoomMenu />
-            </Island>
-          }
-          left={
-            panel === "outline" ? (
-              <OutlinePanel
-                cards={[...cards.values()]}
-                edges={edges.map((e) => ({ from: e.source, to: e.target, label: e.data?.label }))}
-                onFocus={focusCard}
-                onClose={onClosePanel}
-                files={chrome.files}
-              />
-            ) : null
-          }
-          right={right}
-          dock={
-            <ToolDock
-              tool={tool}
-              onTool={setTool}
-              atCap={atCap}
-              canUndo={undoCount > 0}
-              canRedo={redoCount > 0}
-              onUndo={() => undo.undo()}
-              onRedo={() => undo.redo()}
-              linkOpen={linkOpen}
-              onLinkOpen={setLinkOpen}
-              onAddLink={(url) => add({ type: "link", url, w: 320, h: 90 })}
-              pickerOpen={pickerOpen}
-              onPickerOpen={setPickerOpen}
-              onAddEntity={(entity, url) => add({ type: "entity", entity, url, w: 300, h: 220 })}
-              imageInput={imageInput}
-              onAddImage={(file) => void uploadImage(file)}
-            />
-          }
-          status={chrome.status}
-          overlay={
-            <>
-              {showBar ? (
-                <SelectionBar
-                  commands={commands}
-                  cards={selectedCards}
-                  edges={selectedEdges}
-                  allCards={cards}
-                  onConnect={setConnectFrom}
-                  onRenameLabel={renameLabel}
-                  onColorCommit={colorCommit}
+    <PresenceContext value={presence}>
+      <CanvasEditorContext value={context}>
+        <CanvasLinksContext value={links}>
+          <CanvasShell
+            topLeft={chrome.topLeft}
+            topRight={
+              <Island aria-label="View">
+                <PresenceAvatars onLocate={goToPeer} />
+                {chrome.toggles}
+                {wide ? (
+                  <Button
+                    variant={inspectorOpen ? "secondary" : "ghost"}
+                    size="icon"
+                    tooltip="Inspector"
+                    aria-label="Inspector"
+                    aria-pressed={inspectorOpen}
+                    onClick={() => setInspector(!inspectorOpen)}
+                  >
+                    <HugeiconsIcon icon={SidebarRight01Icon} size={16} />
+                  </Button>
+                ) : null}
+                <span className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+                <ZoomMenu />
+              </Island>
+            }
+            left={
+              panel === "outline" ? (
+                <OutlinePanel
+                  cards={[...cards.values()]}
+                  edges={edges.map((e) => ({ from: e.source, to: e.target, label: e.data?.label }))}
+                  onFocus={focusCard}
+                  onClose={onClosePanel}
+                  files={chrome.files}
                 />
-              ) : null}
-              {connectFrom ? (
-                <div
-                  role="status"
-                  className="pointer-events-none absolute top-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-lg"
-                >
-                  Click the card to connect to. Esc cancels.
-                </div>
-              ) : null}
-              {importer.ui}
-            </>
-          }
-        >
-          <div
-            ref={host}
-            role="application"
-            aria-label="Canvas editor"
-            className="relative h-full w-full"
-            onKeyDown={onHostKeyDown}
-            onPointerMove={(e) => {
-              lastPointer.current = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
-            }}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={onDrop}
-            onDoubleClick={(e) => {
-              const target = e.target as HTMLElement;
-              if (
-                target.classList.contains("react-flow__pane") ||
-                target.hasAttribute("data-group-surface")
-              ) {
-                addText(flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
-              }
-            }}
+              ) : null
+            }
+            right={right}
+            dock={
+              <ToolDock
+                tool={tool}
+                onTool={setTool}
+                atCap={atCap}
+                canUndo={undoCount > 0}
+                canRedo={redoCount > 0}
+                onUndo={() => undo.undo()}
+                onRedo={() => undo.redo()}
+                linkOpen={linkOpen}
+                onLinkOpen={setLinkOpen}
+                onAddLink={(url) => add({ type: "link", url, w: 320, h: 90 })}
+                pickerOpen={pickerOpen}
+                onPickerOpen={setPickerOpen}
+                onAddEntity={(entity, url) => add({ type: "entity", entity, url, w: 300, h: 220 })}
+                imageInput={imageInput}
+                onAddImage={(file) => void uploadImage(file)}
+              />
+            }
+            status={chrome.status}
+            overlay={
+              <>
+                {showBar ? (
+                  <SelectionBar
+                    commands={commands}
+                    cards={selectedCards}
+                    edges={selectedEdges}
+                    allCards={cards}
+                    onConnect={setConnectFrom}
+                    onRenameLabel={renameLabel}
+                    onColorCommit={colorCommit}
+                  />
+                ) : null}
+                {connectFrom ? (
+                  <div
+                    role="status"
+                    className="pointer-events-none absolute top-16 left-1/2 z-30 -translate-x-1/2 rounded-full border border-border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-lg"
+                  >
+                    Click the card to connect to. Esc cancels.
+                  </div>
+                ) : null}
+                {importer.ui}
+              </>
+            }
           >
-            <ReactFlow<CanvasFlowNode, CanvasFlowEdge>
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={NODE_TYPES}
-              edgeTypes={EDGE_TYPES}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onDelete={onDelete}
-              onConnect={onConnect}
-              onConnectEnd={onConnectEnd}
-              onNodeClick={(_, node) => {
-                if (!connectFrom) return;
-                if (node.id !== connectFrom) addEdge(doc, { from: connectFrom, to: node.id });
-                setConnectFrom(null);
+            <div
+              ref={host}
+              role="application"
+              aria-label="Canvas editor"
+              className="relative h-full w-full"
+              onKeyDown={onHostKeyDown}
+              onPointerMove={(e) => {
+                lastPointer.current = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+                presence?.setPointer(lastPointer.current);
               }}
-              onPaneClick={() => setConnectFrom(null)}
-              onNodeDragStart={(_, node) => {
-                if (node.data.card.type === "group") {
-                  const carried = new Map<string, { x: number; y: number }>();
-                  for (const id of cardsInside(node.data.card, cards.values())) {
-                    const card = cards.get(id);
-                    if (card && !selectedIds.includes(id))
-                      carried.set(id, { x: card.x, y: card.y });
-                  }
-                  groupDrag.current = { id: node.id, start: { ...node.position }, carried };
+              onPointerLeave={() => presence?.setPointer(null)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onDrop}
+              onDoubleClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (
+                  target.classList.contains("react-flow__pane") ||
+                  target.hasAttribute("data-group-surface")
+                ) {
+                  addText(flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
                 }
               }}
-              onNodeDragStop={() => {
-                groupDrag.current = null;
-                flushMoves();
-              }}
-              connectionMode={ConnectionMode.Loose}
-              connectionLineStyle={{
-                stroke: "var(--primary)",
-                strokeWidth: 2,
-                strokeDasharray: "6 4",
-              }}
-              deleteKeyCode={["Backspace", "Delete"]}
-              minZoom={0.1}
-              maxZoom={2.5}
-              zoomOnDoubleClick={false}
-              panOnScroll
-              selectionOnDrag={!panning}
-              panOnDrag={panning ? true : [1, 2]}
-              nodesDraggable={!panning}
-              onlyRenderVisibleElements
-              elevateNodesOnSelect={false}
-              fitView
-              fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
-              proOptions={{ hideAttribution: true }}
-              className="bg-background"
             >
-              <Background
-                variant={BackgroundVariant.Dots}
-                gap={GRID_GAP}
-                size={2}
-                color={GRID_DOT}
-              />
-              {panel === "history" ? null : (
-                <MiniMap
-                  pannable
-                  zoomable
-                  className="!m-3 overflow-hidden rounded-xl border border-border !bg-popover shadow-lg"
-                  maskColor="color-mix(in srgb, var(--background) 70%, transparent)"
+              <ReactFlow<CanvasFlowNode, CanvasFlowEdge>
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={NODE_TYPES}
+                edgeTypes={EDGE_TYPES}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onDelete={onDelete}
+                onConnect={onConnect}
+                onConnectEnd={onConnectEnd}
+                onNodeClick={(_, node) => {
+                  if (!connectFrom) return;
+                  if (node.id !== connectFrom) addEdge(doc, { from: connectFrom, to: node.id });
+                  setConnectFrom(null);
+                }}
+                onPaneClick={() => setConnectFrom(null)}
+                onNodeDragStart={(_, node) => {
+                  if (node.data.card.type === "group") {
+                    const carried = new Map<string, { x: number; y: number }>();
+                    for (const id of cardsInside(node.data.card, cards.values())) {
+                      const card = cards.get(id);
+                      if (card && !selectedIds.includes(id))
+                        carried.set(id, { x: card.x, y: card.y });
+                    }
+                    groupDrag.current = { id: node.id, start: { ...node.position }, carried };
+                  }
+                }}
+                onNodeDragStop={() => {
+                  groupDrag.current = null;
+                  flushMoves();
+                }}
+                connectionMode={ConnectionMode.Loose}
+                connectionLineStyle={{
+                  stroke: "var(--primary)",
+                  strokeWidth: 2,
+                  strokeDasharray: "6 4",
+                }}
+                deleteKeyCode={["Backspace", "Delete"]}
+                minZoom={0.1}
+                maxZoom={2.5}
+                zoomOnDoubleClick={false}
+                panOnScroll
+                selectionOnDrag={!panning}
+                panOnDrag={panning ? true : [1, 2]}
+                nodesDraggable={!panning}
+                onlyRenderVisibleElements
+                elevateNodesOnSelect={false}
+                fitView
+                fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
+                proOptions={{ hideAttribution: true }}
+                className="bg-background"
+              >
+                <Background
+                  variant={BackgroundVariant.Dots}
+                  gap={GRID_GAP}
+                  size={2}
+                  color={GRID_DOT}
                 />
-              )}
-            </ReactFlow>
-            {placing ? <PlacementLayer onPlace={place} /> : null}
-          </div>
-        </CanvasShell>
-      </CanvasLinksContext>
-    </CanvasEditorContext>
+                {panel === "history" ? null : (
+                  <MiniMap
+                    pannable
+                    zoomable
+                    className="!m-3 overflow-hidden rounded-xl border border-border !bg-popover shadow-lg"
+                    maskColor="color-mix(in srgb, var(--background) 70%, transparent)"
+                  />
+                )}
+                <PeerCursors />
+              </ReactFlow>
+              {placing ? <PlacementLayer onPlace={place} /> : null}
+            </div>
+          </CanvasShell>
+        </CanvasLinksContext>
+      </CanvasEditorContext>
+    </PresenceContext>
   );
 }
 

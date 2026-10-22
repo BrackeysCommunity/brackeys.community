@@ -391,6 +391,7 @@ describe("an import into a live canvas", { timeout: 60_000 }, () => {
           token: "first",
           url: "wss://sync.test",
           access: "write",
+          self: { id: "u1", name: "Ana", avatarUrl: null },
         });
         const importer = useCanvasImport({
           doc,

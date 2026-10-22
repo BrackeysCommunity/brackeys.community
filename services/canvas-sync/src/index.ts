@@ -27,6 +27,7 @@ import {
 import { createPersistence, SnapshotSchedule } from "./persistence.ts";
 import type { SyncChannelSource } from "./redis.ts";
 import { noTombstones, RevocationList, type RevocationTombstones, revoke } from "./revoke.ts";
+import { connectedUsers, localRoster, type PresenceRoster } from "./roster.ts";
 import { reportMetrics, sampleEventLoopLag, SyncMetrics } from "./telemetry.ts";
 
 /**
@@ -75,6 +76,7 @@ export interface ServerOptions {
   ledger?: UserConnectionLedger;
   /** Revokes published before this instance started listening. */
   tombstones?: RevocationTombstones;
+  roster?: PresenceRoster;
   telemetry?: ServiceTelemetry;
   now?: () => number;
   debounceMs?: number;
@@ -102,6 +104,7 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
   const metrics = new SyncMetrics();
   const ledger = options.ledger ?? localLedger;
   const tombstones = options.tombstones ?? noTombstones;
+  const roster = options.roster ?? localRoster;
   const snapshots = new SnapshotSchedule(
     options.snapshotIntervalMs ?? SYNC_LIMITS.snapshotIntervalMs,
   );
@@ -161,8 +164,10 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
         throw error;
       }
     },
-    async connected({ context, connection }) {
+    async connected({ context, connection, documentName }) {
       caps.confirm(context.seat, context.userId);
+      const document = hocuspocus.documents.get(documentName);
+      if (document) roster.record(documentName, connectedUsers(document));
       if (connection.sessionId !== null) {
         metrics.refused("auth");
         connection.close(syncClose(SYNC_CLOSE.revoked, "unsupported document"));
@@ -208,7 +213,8 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
     async afterUnloadDocument({ documentName }) {
       growth.forget(documentName);
     },
-    async onDisconnect({ context }) {
+    async onDisconnect({ context, document, documentName }) {
+      if (document) roster.record(documentName, connectedUsers(document));
       if (!context?.userId) return;
       // A socket that closed while its connection was being set up never reaches `connected`.
       caps.drop(context.seat, context.userId);
@@ -337,6 +343,7 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
       await hocuspocus.hooks("onDestroy", { instance: hocuspocus });
       await ledger.close();
       await tombstones.close();
+      await roster.close();
       stopLag();
       stopReport();
       // Now drop the sockets, so clients reconnect to whichever instance is up.
@@ -366,15 +373,17 @@ async function main() {
   const prefix = syncEnvPrefix(config.RAILWAY_ENVIRONMENT_NAME);
   const telemetry = createServiceTelemetry("canvas-sync");
 
-  let redisPieces: Pick<ServerOptions, "redis" | "channels" | "ledger" | "tombstones"> = {};
+  let redisPieces: Pick<ServerOptions, "redis" | "channels" | "ledger" | "tombstones" | "roster"> =
+    {};
   if (config.REDIS_URL) {
-    const { createRedisExtension, redisChannels, redisLedger, redisTombstones } =
+    const { createRedisExtension, redisChannels, redisLedger, redisRoster, redisTombstones } =
       await import("./redis.ts");
     redisPieces = {
       redis: createRedisExtension(config.REDIS_URL, prefix, config.INSTANCE_ID),
       channels: redisChannels(config.REDIS_URL, prefix),
       ledger: redisLedger(config.REDIS_URL, prefix, config.INSTANCE_ID),
       tombstones: redisTombstones(config.REDIS_URL, prefix),
+      roster: redisRoster(config.REDIS_URL, prefix, config.INSTANCE_ID),
     };
   } else {
     console.warn("[boot] REDIS_URL unset: no relay between instances, no revokes from the web app");

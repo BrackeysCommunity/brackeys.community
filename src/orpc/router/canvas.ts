@@ -35,7 +35,7 @@ import {
   type Recheck,
   updateCanvasState,
 } from "@/lib/canvas-persistence";
-import { publishCanvasApply } from "@/lib/canvas-sync-publish";
+import { canvasPresence, publishCanvasApply } from "@/lib/canvas-sync-publish";
 import {
   atLeast,
   canSetVisibility,
@@ -509,6 +509,83 @@ export const listRecentCanvases = os
     return recent;
   });
 
+/** How many of the viewer's canvases "Live now" checks, most recently edited first. */
+const LIVE_CANDIDATES = 100;
+
+/**
+ * The viewer's canvases that other people have open right now, and who.
+ * Presence comes from `canvas-sync`'s roster in Redis, so this opens no
+ * sockets; the workspace panel polls it while open.
+ */
+export const listLiveCanvases = os
+  .use(canvasSignedIn)
+  .input(z.object({ scope: canvasScopeSchema.optional() }))
+  .handler(async ({ context, input }) => {
+    const userId = context.user.id;
+    if (!(await isServerFlagEnabled("canvases-multiplayer", userId))) return [];
+    const myTeams = db
+      .select({ id: teamMembers.teamId })
+      .from(teamMembers)
+      .where(eq(teamMembers.userId, userId));
+    const sharedWithMe = db
+      .select({ id: canvasMembers.canvasId })
+      .from(canvasMembers)
+      .where(eq(canvasMembers.userId, userId));
+    const rows = await db
+      .select(canvasColumns)
+      .from(canvases)
+      .where(
+        and(
+          isNull(canvases.deletedAt),
+          input.scope
+            ? scopeWhere(input.scope, userId)
+            : or(
+                and(isNull(canvases.teamId), eq(canvases.ownerId, userId)),
+                inArray(canvases.teamId, myTeams),
+                inArray(canvases.id, sharedWithMe),
+              ),
+        ),
+      )
+      .orderBy(sql`${canvases.lastEditedAt} DESC NULLS LAST, ${canvases.updatedAt} DESC`)
+      .limit(LIVE_CANDIDATES);
+
+    const here = await canvasPresence(rows.map((row) => row.id));
+    const others = (id: string) => (here.get(id) ?? []).filter((u) => u !== userId);
+    const flags = await viewerFlags(userId);
+    const live = [];
+    for (const row of rows) {
+      if (others(row.id).length && canvasAccess(row, await viewerFor(row, userId, db, flags))) {
+        live.push(row);
+      }
+    }
+    if (live.length === 0) return [];
+
+    const peopleIds = [...new Set(live.flatMap((row) => others(row.id)))];
+    const profiles = await db
+      .select({
+        id: developerProfiles.id,
+        discordUsername: developerProfiles.discordUsername,
+        guildNickname: developerProfiles.guildNickname,
+        avatarUrl: developerProfiles.avatarUrl,
+        guildAvatarUrl: developerProfiles.guildAvatarUrl,
+      })
+      .from(developerProfiles)
+      .where(inArray(developerProfiles.id, peopleIds));
+    const byId = new Map(profiles.map((p) => [p.id, p]));
+    const viewer = { inGuild: flags.isGuildMember };
+    return live.map((row) => ({
+      ...summary(row),
+      people: others(row.id).map((id) => {
+        const profile = byId.get(id) ?? {};
+        return {
+          userId: id,
+          displayName: memberDisplayName(profile, viewer, "Member"),
+          avatarUrl: memberAvatarUrl(profile, viewer),
+        };
+      }),
+    }));
+  });
+
 // ── One canvas ───────────────────────────────────────────────────────────────
 
 /**
@@ -576,11 +653,26 @@ export const getCanvasSyncToken = os
       throw new ORPCError("PRECONDITION_FAILED", { message: "Live canvases aren't set up here." });
     }
     const syncAccess: SyncAccess = atLeast(access, "write") ? "write" : "read";
-    const token = await signCanvasToken(
-      { c: documentName("canvas", canvas.id), u: userId, a: syncAccess },
-      secret,
-    );
-    return { token, url, access: syncAccess };
+    const [token, [profile]] = await Promise.all([
+      signCanvasToken({ c: documentName("canvas", canvas.id), u: userId, a: syncAccess }, secret),
+      db
+        .select({
+          discordUsername: developerProfiles.discordUsername,
+          guildNickname: developerProfiles.guildNickname,
+          avatarUrl: developerProfiles.avatarUrl,
+          guildAvatarUrl: developerProfiles.guildAvatarUrl,
+        })
+        .from(developerProfiles)
+        .where(eq(developerProfiles.id, userId)),
+    ]);
+    // Everyone else on a live canvas can write to it, so is in the guild:
+    // they see this member's guild face.
+    const self = {
+      id: userId,
+      name: memberName(profile ?? {}, context.user.name || "Member"),
+      avatarUrl: memberAvatarUrl(profile ?? {}, { inGuild: true }),
+    };
+    return { token, url, access: syncAccess, self };
   });
 
 export const createCanvas = os

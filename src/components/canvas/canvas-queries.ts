@@ -50,6 +50,20 @@ export function recentCanvasesQueryOptions(scope?: CanvasScope) {
   };
 }
 
+export type LiveCanvas = Awaited<ReturnType<typeof client.listLiveCanvases>>[number];
+
+/** How often an open "Live now" list re-reads who is where. */
+export const LIVE_POLL_MS = 15_000;
+
+/** The viewer's canvases others have open now; polled while something shows it. */
+export function liveCanvasesQueryOptions(scope?: CanvasScope) {
+  return {
+    ...orpc.listLiveCanvases.queryOptions({ input: { scope } }),
+    staleTime: LIVE_POLL_MS,
+    refetchInterval: LIVE_POLL_MS,
+  };
+}
+
 export function canvasVersionsQueryOptions(canvasId: string) {
   return {
     ...orpc.listCanvasVersions.queryOptions({ input: { canvasId } }),

@@ -30,6 +30,7 @@ import {
 import type { CanvasAttachmentMap } from "../canvas-queries";
 import type { CanvasFlowEdge, CanvasFlowNode } from "./canvas-doc";
 import { CardTextEditor } from "./CardTextEditor";
+import { PeerCardMarks } from "./PresenceLayer";
 
 export interface CanvasEditorContextValue {
   detail: CanvasDetailLevel;
@@ -136,6 +137,7 @@ const CardNode = memo(function CardNode({
       }}
     >
       <Resizer id={id} selected={selected} card={card} />
+      <PeerCardMarks id={id} />
       <div
         className={cn(
           CARD_SURFACE,
@@ -220,6 +222,7 @@ const GroupNode = memo(function GroupNode({ id, data, selected }: NodeProps<Canv
       }}
     >
       <Resizer id={id} selected={selected} card={card} />
+      <PeerCardMarks id={id} />
       <div data-group-surface="" className={cn(GROUP_SURFACE, selected && "border-primary")}>
         {renaming ? (
           <div className={GROUP_LABEL_SLOT}>

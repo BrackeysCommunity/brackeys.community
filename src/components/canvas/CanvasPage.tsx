@@ -35,7 +35,14 @@ const STATUS_COPY: Record<SaveStatus, string> = {
   offline: "Offline — changes kept in this tab",
   "too-large": "Too large to save",
   connecting: "Connecting…",
+  live: "Live",
+  reconnecting: "Reconnecting…",
+  queued: "Offline — changes will sync",
+  "read-only": "Read-only: your edit access changed",
 };
+
+const LOST: ReadonlySet<SaveStatus> = new Set(["offline", "too-large"]);
+const DEGRADED: ReadonlySet<SaveStatus> = new Set(["queued", "read-only"]);
 
 function useScopeName(canvas: CanvasDetail | undefined): string {
   const { data: scopes } = useQuery({
@@ -93,7 +100,8 @@ function StatusLine({
         <Text
           as="span"
           size="xs"
-          variant={status === "offline" || status === "too-large" ? "danger" : "muted"}
+          variant={LOST.has(status) ? "danger" : DEGRADED.has(status) ? undefined : "muted"}
+          className={DEGRADED.has(status) ? "text-warning" : undefined}
         >
           {STATUS_COPY[status]}
         </Text>

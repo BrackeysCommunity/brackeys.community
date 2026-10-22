@@ -94,6 +94,56 @@ export async function sendRevoke(
   );
 }
 
+/**
+ * Who is connected to each live document, for "Live now" and the team page.
+ * Each instance keeps a key per document it holds (its connected user ids,
+ * as JSON) and adds itself to the document's instance set; both expire
+ * unless refreshed, so a crashed instance stops counting within the TTL.
+ */
+export const PRESENCE_TTL_SECONDS = 90;
+export const PRESENCE_REFRESH_MS = 30_000;
+
+export const presenceKey = (prefix: string, documentName: string, instanceId: string) =>
+  `${prefix}:here:${documentName}:${instanceId}`;
+export const presenceInstancesKey = (prefix: string, documentName: string) =>
+  `${prefix}:here-instances:${documentName}`;
+
+/** The two Redis reads `readPresence` needs; an ioredis client fits. */
+export interface PresenceReader {
+  smembers(key: string): Promise<string[]>;
+  mget(...keys: string[]): Promise<(string | null)[]>;
+}
+
+/** Connected user ids per document, across every instance; documents with nobody are left out. */
+export async function readPresence(
+  client: PresenceReader,
+  prefix: string,
+  documentNames: readonly string[],
+): Promise<Map<string, string[]>> {
+  const instances = await Promise.all(
+    documentNames.map((name) => client.smembers(presenceInstancesKey(prefix, name))),
+  );
+  const keys = documentNames.flatMap((name, i) =>
+    instances[i]!.map((instance) => ({ name, key: presenceKey(prefix, name, instance) })),
+  );
+  const found = new Map<string, string[]>();
+  if (keys.length === 0) return found;
+  const values = await client.mget(...keys.map((k) => k.key));
+  keys.forEach(({ name }, i) => {
+    let ids: unknown;
+    try {
+      ids = JSON.parse(values[i] ?? "[]");
+    } catch {
+      return;
+    }
+    if (!Array.isArray(ids)) return;
+    const here = new Set(found.get(name));
+    for (const id of ids) if (typeof id === "string" && id) here.add(id);
+    if (here.size) found.set(name, [...here]);
+  });
+  return found;
+}
+
 /** The stored state changed outside the service; load it into the live doc. */
 export interface ApplyMessage {
   canvasId: string;

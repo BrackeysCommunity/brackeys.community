@@ -18,12 +18,17 @@ import {
   type ApplyMessage,
   parseApplyMessage,
   parseRevokeMessage,
+  PRESENCE_REFRESH_MS,
+  PRESENCE_TTL_SECONDS,
+  presenceInstancesKey,
+  presenceKey,
   revokeChannel,
   type RevokeMessage,
   revokeTombstoneKeys,
 } from "../../../src/lib/canvas/sync-channels.ts";
 import type { UserConnectionLedger } from "./limits.ts";
 import type { RevocationTombstones } from "./revoke.ts";
+import type { PresenceRoster } from "./roster.ts";
 
 /**
  * Fail fast while Redis is down: a command issued then rejects instead of
@@ -283,6 +288,50 @@ export function redisLedger(url: string, prefix: string, instanceId: string): Us
     async close() {
       clearInterval(refresh);
       await Promise.all([...counts.keys()].map((userId) => write(userId, 0).catch(() => {})));
+      client.disconnect();
+    },
+  };
+}
+
+/**
+ * The roster in Redis, as the web app reads it (`readPresence`). Best
+ * effort: with Redis down "Live now" is empty, and nothing else depends on it.
+ */
+export function redisRoster(url: string, prefix: string, instanceId: string): PresenceRoster {
+  const client = quietErrors(new IORedis(url, FAST), "roster");
+  const current = new Map<string, string[]>();
+
+  async function write(documentName: string, userIds: string[]): Promise<void> {
+    const key = presenceKey(prefix, documentName, instanceId);
+    const instances = presenceInstancesKey(prefix, documentName);
+    if (userIds.length > 0) {
+      await client
+        .multi()
+        .set(key, JSON.stringify(userIds), "EX", PRESENCE_TTL_SECONDS)
+        .sadd(instances, instanceId)
+        .expire(instances, PRESENCE_TTL_SECONDS)
+        .exec();
+    } else {
+      await client.multi().del(key).srem(instances, instanceId).exec();
+    }
+  }
+
+  const refresh = setInterval(() => {
+    for (const [name, userIds] of current) void write(name, userIds).catch(() => {});
+  }, PRESENCE_REFRESH_MS);
+  refresh.unref?.();
+
+  return {
+    record(documentName, userIds) {
+      if (userIds.length > 0) current.set(documentName, userIds);
+      else current.delete(documentName);
+      void write(documentName, userIds).catch(() => {});
+    },
+    async close() {
+      clearInterval(refresh);
+      const names = [...current.keys()];
+      current.clear();
+      await Promise.all(names.map((name) => write(name, []).catch(() => {})));
       client.disconnect();
     },
   };

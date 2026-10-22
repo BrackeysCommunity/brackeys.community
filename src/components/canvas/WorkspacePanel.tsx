@@ -9,16 +9,19 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/compone
 import { Skeleton } from "@/components/ui/skeleton";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 import {
   canvasScopesQueryOptions,
+  liveCanvasesQueryOptions,
   PERSONAL_SCOPE,
   recentCanvasesQueryOptions,
   type CanvasScope,
 } from "./canvas-queries";
 import { NewCanvasDialog } from "./NewCanvasDialog";
+import { PeopleHere } from "./PeopleHere";
 import {
   closeWorkspace,
   finishNewCanvas,
@@ -34,7 +37,7 @@ function toCanvasScope(scope: string): CanvasScope | undefined {
 
 /**
  * The way between canvases from anywhere on the site: scope chips, the
- * member's recent canvases, and "New canvas". `/canvases` is the "browse
+ * canvases others have open now, the member's recent ones, and "New canvas". `/canvases` is the "browse
  * all" behind it.
  */
 export function WorkspacePanel() {
@@ -44,6 +47,11 @@ export function WorkspacePanel() {
 
   const scopes = useQuery({ ...canvasScopesQueryOptions(), enabled: open });
   const recent = useQuery({ ...recentCanvasesQueryOptions(toCanvasScope(current)), enabled: open });
+  const multiplayer = useFlag("canvases-multiplayer");
+  const live = useQuery({
+    ...liveCanvasesQueryOptions(toCanvasScope(current)),
+    enabled: open && multiplayer,
+  });
   const teams = (scopes.data?.teams ?? []).filter((t) => !t.hidden);
   const teamName = (id: string) => teams.find((t) => t.teamId === id)?.name ?? "Team";
 
@@ -95,6 +103,40 @@ export function WorkspacePanel() {
                 </button>
               ))}
             </div>
+
+            {live.data?.length ? (
+              <div className="flex flex-col gap-1">
+                <MicroLabel>LIVE NOW</MicroLabel>
+                <ul className="flex flex-col">
+                  {live.data.map((canvas) => (
+                    <li
+                      key={canvas.id}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted"
+                    >
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <Text as="span" size="sm" bold ellipsis>
+                          {canvas.title}
+                        </Text>
+                        <PeopleHere people={canvas.people} />
+                      </span>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        render={
+                          <Link
+                            to="/canvases/$canvasId"
+                            params={{ canvasId: canvas.id }}
+                            onClick={closeWorkspace}
+                          />
+                        }
+                      >
+                        Join
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             <div className="flex flex-col gap-1">
               <MicroLabel>RECENT</MicroLabel>

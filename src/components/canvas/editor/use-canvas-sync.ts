@@ -1,20 +1,24 @@
 import { HocuspocusProvider, WebSocketStatus } from "@hocuspocus/provider";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import * as Y from "yjs";
 
 import { CANVAS_LIMITS } from "@/lib/canvas/limits";
+import { presenceColor } from "@/lib/canvas/presence";
 import { documentName, SYNC_CLOSE, syncCloseCode } from "@/lib/canvas/sync-channels";
 import type { SyncAccess } from "@/lib/canvas/token";
 import { client } from "@/orpc/client";
 
 import { canvasQueryOptions } from "../canvas-queries";
+import { PresenceStore } from "./presence-store";
 import type { SaveStatus } from "./use-canvas-save";
 
 export interface SyncSession {
   token: string;
   url: string;
   access: SyncAccess;
+  /** Who this member is to the others on the canvas. */
+  self: { id: string; name: string; avatarUrl: string | null };
 }
 
 /** How long `save()` waits for the server to acknowledge every local change. */
@@ -43,8 +47,8 @@ function errorCode(error: unknown): string | undefined {
  */
 export async function firstSyncSession(canvasId: string): Promise<SyncSession | null> {
   try {
-    const { token, url, access } = await client.getCanvasSyncToken({ canvasId });
-    return { token, url, access };
+    const { token, url, access, self } = await client.getCanvasSyncToken({ canvasId });
+    return { token, url, access, self };
   } catch {
     return null;
   }
@@ -65,9 +69,16 @@ export async function firstSyncSession(canvasId: string): Promise<SyncSession | 
  *   would refuse it with 4413, or, past the websocket frame cap, drop the
  *   socket without a code, and the provider would resend it forever.
  * - 4429 and 4401: back off, then reconnect with a fresh token.
+ *
+ * Status: `connecting` until the first sync, then `live`; `reconnecting`
+ * after a drop, or `queued` while the browser is offline (the provider
+ * keeps local changes and sends them on reconnect); `read-only` once edit
+ * access is gone. `presence` is everyone else on the canvas, over the
+ * provider's awareness; null between providers.
  */
 export function useCanvasSync(doc: Y.Doc, canvasId: string, first: SyncSession) {
   const queryClient = useQueryClient();
+  const [presence, setPresence] = useState<PresenceStore | null>(null);
   const state = useRef({
     provider: null as HocuspocusProvider | null,
     pendingToken: first.token as string | null,
@@ -94,14 +105,11 @@ export function useCanvasSync(doc: Y.Doc, canvasId: string, first: SyncSession) 
     const refresh = () => {
       const provider = s.provider;
       if (!provider || destroyed) return;
-      if (s.stopped) return setStatus(s.stopped === "too-large" ? "too-large" : "offline");
-      if (!provider.isSynced) {
-        const socket = provider.configuration.websocketProvider.status;
-        return setStatus(
-          socket === WebSocketStatus.Disconnected && s.everSynced ? "offline" : "connecting",
-        );
-      }
-      setStatus(provider.unsyncedChanges > 0 ? "saving" : "saved");
+      if (s.stopped) return setStatus(s.stopped === "too-large" ? "too-large" : "read-only");
+      const socket = provider.configuration.websocketProvider.status;
+      if (provider.isSynced && socket !== WebSocketStatus.Disconnected) return setStatus("live");
+      if (!s.everSynced) return setStatus("connecting");
+      setStatus(typeof navigator !== "undefined" && !navigator.onLine ? "queued" : "reconnecting");
     };
 
     const reconnectLater = (delay: number) => {
@@ -208,6 +216,12 @@ export function useCanvasSync(doc: Y.Doc, canvasId: string, first: SyncSession) 
       onUnsyncedChanges: refresh,
     });
     s.provider = provider;
+    const store = provider.awareness
+      ? new PresenceStore(provider.awareness, { ...first.self, ...presenceColor(first.self.id) })
+      : null;
+    setPresence(store);
+    window.addEventListener("online", refresh);
+    window.addEventListener("offline", refresh);
     if (first.access !== "write") {
       s.pendingToken = null;
       stop("revoked");
@@ -216,12 +230,16 @@ export function useCanvasSync(doc: Y.Doc, canvasId: string, first: SyncSession) 
 
     return () => {
       destroyed = true;
+      store?.destroy();
+      setPresence(null);
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("offline", refresh);
       doc.off("update", guardSize);
       if (s.retryTimer) clearTimeout(s.retryTimer);
       provider.destroy();
       if (s.provider === provider) s.provider = null;
     };
-  }, [canvasId, doc, first.url, first.access, queryClient, setStatus]);
+  }, [canvasId, doc, first.url, first.access, first.self, queryClient, setStatus]);
 
   /** Resolves once the server has every local change, or after a timeout. */
   const save = useCallback(async (): Promise<void> => {
@@ -259,6 +277,7 @@ export function useCanvasSync(doc: Y.Doc, canvasId: string, first: SyncSession) 
 
   return {
     status,
+    presence,
     save,
     applyRestored,
     hasUnsaved: () => {

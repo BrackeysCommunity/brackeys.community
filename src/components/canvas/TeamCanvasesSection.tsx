@@ -7,10 +7,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
+import { useFlag } from "@/lib/hooks/use-flag";
 
-import { canvasListQueryOptions, publicCanvasesQueryOptions } from "./canvas-queries";
+import {
+  canvasListQueryOptions,
+  liveCanvasesQueryOptions,
+  publicCanvasesQueryOptions,
+} from "./canvas-queries";
 import { CanvasCardLink } from "./CanvasCardLink";
 import { NewCanvasDialog } from "./NewCanvasDialog";
+import { PeopleHere } from "./PeopleHere";
 import { openWorkspace } from "./workspace-store";
 
 /** The team page's CANVASES & NOTES buttons, for its section header. */
@@ -34,12 +40,21 @@ export function TeamCanvasesActions({ teamId, canCreate }: { teamId: string; can
   );
 }
 
-/** The team's three most recently edited canvases, for its members. */
+/**
+ * The team's three most recently edited canvases, for its members, with
+ * who is on each right now.
+ */
 export function TeamCanvasesSection({ teamId }: { teamId: string }) {
   const scope = { kind: "team" as const, teamId };
   const { data, isPending } = useQuery(
     canvasListQueryOptions(scope, { thumbnails: true, limit: 3, orderBy: "edited" }),
   );
+  const multiplayer = useFlag("canvases-multiplayer");
+  const live = useQuery({
+    ...liveCanvasesQueryOptions(scope),
+    enabled: multiplayer && (data?.length ?? 0) > 0,
+  });
+  const peopleOn = (id: string) => live.data?.find((c) => c.id === id)?.people ?? [];
 
   if (isPending) {
     return (
@@ -58,9 +73,16 @@ export function TeamCanvasesSection({ teamId }: { teamId: string }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {data.map((canvas) => (
-          <CanvasCardLink key={canvas.id} canvas={canvas} />
-        ))}
+        {data.map((canvas) => {
+          const people = peopleOn(canvas.id);
+          return (
+            <CanvasCardLink
+              key={canvas.id}
+              canvas={canvas}
+              detail={people.length ? <PeopleHere people={people} /> : undefined}
+            />
+          );
+        })}
       </div>
       <Link
         to="/canvases"

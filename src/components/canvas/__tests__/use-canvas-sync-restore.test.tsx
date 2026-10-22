@@ -72,7 +72,12 @@ vi.mock("@/orpc/client", () => ({
   },
 }));
 
-const session = { token: "first", url: "wss://sync.test", access: "write" as const };
+const session = {
+  token: "first",
+  url: "wss://sync.test",
+  access: "write" as const,
+  self: { id: "u1", name: "Ana", avatarUrl: null },
+};
 let queryClient: QueryClient;
 
 function wrapper({ children }: { children: ReactNode }) {

@@ -7,8 +7,18 @@ import { client } from "@/orpc/client";
 
 import { SERVER } from "./canvas-doc";
 
-/** `connecting` is the live editor's, before its first sync. */
-export type SaveStatus = "saved" | "pending" | "saving" | "offline" | "too-large" | "connecting";
+/** The solo save's, then the live editor's (`useCanvasSync`). */
+export type SaveStatus =
+  | "saved"
+  | "pending"
+  | "saving"
+  | "offline"
+  | "too-large"
+  | "connecting"
+  | "live"
+  | "reconnecting"
+  | "queued"
+  | "read-only";
 
 const DEBOUNCE_MS = 1_500;
 const MAX_WAIT_MS = 10_000;

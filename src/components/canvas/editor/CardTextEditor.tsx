@@ -2,11 +2,13 @@ import { defaultKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, keymap, placeholder } from "@codemirror/view";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { use, useEffect, useEffectEvent, useRef } from "react";
 import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import * as Y from "yjs";
 
 import { CANVAS_LIMITS } from "@/lib/canvas/limits";
+
+import { PresenceContext } from "./presence-store";
 
 /**
  * Text undo history per card, kept after the editor closes: `yCollab` would
@@ -34,6 +36,14 @@ const theme = EditorView.theme({
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
     backgroundColor: "color-mix(in srgb, var(--primary) 25%, transparent) !important",
   },
+  // Peers' name labels stay up (not only on hover) and use the site's face.
+  "& .cm-ySelectionInfo": {
+    opacity: 1,
+    fontFamily: "inherit",
+    fontWeight: 500,
+    borderRadius: "3px",
+    padding: "0 3px",
+  },
 });
 
 /** Past the card's character cap, further input is refused. */
@@ -46,7 +56,9 @@ const normalizeLineBreaks = (text: string) => text.replace(/\r\n?/g, "\n");
 
 /**
  * CodeMirror on one card's `Y.Text`. Only one is ever mounted: every other
- * card renders its text statically and re-renders when it changes.
+ * card renders its text statically and re-renders when it changes. On a
+ * live canvas it shows the other editors' carets and selections in this
+ * card, with their names.
  */
 export function CardTextEditor({
   text,
@@ -60,6 +72,7 @@ export function CardTextEditor({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const finish = useEffectEvent(() => onDone());
+  const awareness = use(PresenceContext)?.awareness ?? null;
 
   useEffect(() => {
     if (!host.current) return;
@@ -94,7 +107,7 @@ export function CardTextEditor({
           // card; a body imported with CRLF keeps its own.
           EditorView.clipboardInputFilter.of(normalizeLineBreaks),
           theme,
-          yCollab(text, null, { undoManager: undoManagerFor(text) }),
+          yCollab(text, awareness, { undoManager: undoManagerFor(text) }),
           EditorView.domEventHandlers({
             blur: () => {
               if (!tearingDown) finish();
@@ -109,8 +122,10 @@ export function CardTextEditor({
     return () => {
       tearingDown = true;
       view.destroy();
+      // yCollab leaves the caret behind; peers would keep drawing it.
+      if (awareness?.getLocalState()) awareness.setLocalStateField("cursor", null);
     };
-  }, [text, maxLength]);
+  }, [text, maxLength, awareness]);
 
   return <div ref={host} className="nodrag nowheel nopan nokey h-full cursor-text" />;
 }

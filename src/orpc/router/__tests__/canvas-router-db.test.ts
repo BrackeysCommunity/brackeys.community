@@ -24,6 +24,7 @@ import {
   getCanvas,
   getCanvasEntities,
   getCanvasSyncToken,
+  listLiveCanvases,
   getCanvasVersion,
   listCanvases,
   listCanvasVersions,
@@ -62,10 +63,16 @@ vi.mock("@/lib/posthog-server", async (importOriginal) => ({
   isServerFlagEnabled: async (flag: string) =>
     flag === "canvases-multiplayer" ? multiplayerEnabled && canvasesEnabled : canvasesEnabled,
 }));
-const published = vi.hoisted(() => ({ revokes: [] as unknown[], applies: [] as string[] }));
+const published = vi.hoisted(() => ({
+  revokes: [] as unknown[],
+  applies: [] as string[],
+  here: new Map<string, string[]>(),
+}));
 vi.mock("@/lib/canvas-sync-publish", () => ({
   publishCanvasRevoke: async (message: unknown) => void published.revokes.push(message),
   publishCanvasApply: async (canvasId: string) => void published.applies.push(canvasId),
+  canvasPresence: async (ids: string[]) =>
+    new Map(ids.flatMap((id) => (published.here.has(id) ? [[id, published.here.get(id)!]] : []))),
 }));
 
 const SYNC_SECRET = "router-test-sync-secret";
@@ -81,6 +88,7 @@ beforeEach(async () => {
   multiplayerEnabled = true;
   published.revokes.length = 0;
   published.applies.length = 0;
+  published.here.clear();
   process.env.CANVAS_SYNC_SECRET = SYNC_SECRET;
   process.env.CANVAS_SYNC_URL = "wss://sync.test";
   nonMembers.clear();
@@ -622,6 +630,20 @@ describe("getCanvasSyncToken", () => {
     expect((await mint("alice", id)).access).toBe("read");
   });
 
+  it("says who the member is to the others on the canvas: their guild face", async () => {
+    const { developerProfiles } = await import("@/db/schema");
+    await db
+      .update(developerProfiles)
+      .set({ guildNickname: "Ali", guildAvatarUrl: "https://cdn.test/guild.png" })
+      .where(eq(developerProfiles.id, "alice"));
+    const { id } = await create("alice", "Me.canvas");
+    expect((await mint("alice", id)).self).toEqual({
+      id: "alice",
+      name: "Ali",
+      avatarUrl: "https://cdn.test/guild.png",
+    });
+  });
+
   it("is NOT_FOUND without access or with the flag off", async () => {
     const { id } = await create("alice", "Private.canvas");
     await expect(mint("stranger", id)).rejects.toMatchObject({ code: "NOT_FOUND" });
@@ -640,6 +662,41 @@ describe("getCanvasSyncToken", () => {
 
     await call(deleteCanvas, { canvasId: id }, asUser("alice"));
     await expect(mint("alice", id)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+describe("listLiveCanvases", () => {
+  const live = (userId: string, scope?: Scope) => call(listLiveCanvases, { scope }, asUser(userId));
+
+  it("lists the member's canvases others have open, with who, never themselves", async () => {
+    const { id: ours } = await create("alice", "Ours.canvas", teamScope());
+    const { id: mine } = await create("alice", "Mine.canvas");
+    const { id: alone } = await create("alice", "Alone.canvas");
+    published.here.set(ours, ["alice", "bob"]);
+    published.here.set(mine, ["carol"]);
+    published.here.set(alone, ["alice"]);
+
+    const forAlice = await live("alice");
+    expect(forAlice.map((c) => c.id).sort()).toEqual([ours, mine].sort());
+    expect(forAlice.find((c) => c.id === ours)!.people).toEqual([
+      { userId: "bob", displayName: "bob", avatarUrl: null },
+    ]);
+
+    expect((await live("alice", teamScope())).map((c) => c.id)).toEqual([ours]);
+    expect((await live("bob")).map((c) => c.id)).toEqual([ours]);
+  });
+
+  it("leaves out canvases the member can't reach, and everything with the flag off", async () => {
+    const { id } = await create("alice", "Private.canvas");
+    published.here.set(id, ["alice"]);
+    expect(await live("stranger")).toEqual([]);
+    expect(await live("carol")).toEqual([]);
+
+    await db.insert(canvasMembers).values({ canvasId: id, userId: "carol", role: "viewer" });
+    expect((await live("carol")).map((c) => c.id)).toEqual([id]);
+
+    multiplayerEnabled = false;
+    expect(await live("carol")).toEqual([]);
   });
 });
 

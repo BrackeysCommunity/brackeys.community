@@ -7,6 +7,8 @@ import { SYNC_LIMITS } from "@/lib/canvas/limits";
 import {
   applyChannel,
   type ApplyMessage,
+  documentName,
+  readPresence,
   REVOKE_CLOCK_SKEW_MS,
   revokeChannel,
   type RevokeMessage,
@@ -19,9 +21,10 @@ import { createRedisClient } from "@/lib/redis";
 /**
  * The web app's side of live canvases: tell `canvas-sync` when access
  * changes (close those sockets now) and when a server-side write changed a
- * canvas's stored state (load it into the live doc). Best-effort: with
- * Redis down a revoked member keeps their socket until it next reconnects,
- * when the token mint refuses them.
+ * canvas's stored state (load it into the live doc), and read who is
+ * connected where. Best-effort: with Redis down a revoked member keeps
+ * their socket until it next reconnects, when the token mint refuses them,
+ * and nobody shows as here.
  */
 
 declare global {
@@ -109,4 +112,22 @@ export async function revokeCanvases(canvasIds: string[], userId?: string): Prom
  */
 export async function revokeTeamCanvases(teamId: string, userId?: string): Promise<void> {
   await revokeCanvases(await liveTeamCanvasIds(teamId), userId);
+}
+
+/** Who is connected to each canvas, across every `canvas-sync` instance. */
+export async function canvasPresence(canvasIds: readonly string[]): Promise<Map<string, string[]>> {
+  if (!process.env.REDIS_URL || canvasIds.length === 0) return new Map();
+  const byName = await bestEffort("canvas_sync.presence", { count: canvasIds.length }, async () =>
+    readPresence(
+      await publisher(),
+      prefix(),
+      canvasIds.map((id) => documentName("canvas", id)),
+    ),
+  );
+  const byCanvas = new Map<string, string[]>();
+  for (const id of canvasIds) {
+    const here = byName?.get(documentName("canvas", id));
+    if (here) byCanvas.set(id, here);
+  }
+  return byCanvas;
 }

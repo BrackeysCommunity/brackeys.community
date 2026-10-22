@@ -74,7 +74,12 @@ vi.mock("@/orpc/client", () => ({
   },
 }));
 
-const session = { token: "first", url: "wss://sync.test", access: "write" as const };
+const session = {
+  token: "first",
+  url: "wss://sync.test",
+  access: "write" as const,
+  self: { id: "u1", name: "Ana", avatarUrl: null },
+};
 let queryClient: QueryClient;
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -114,15 +119,37 @@ describe("useCanvasSync", () => {
     expect(await token()).toBe("token-1");
   });
 
-  it("reports connecting, then saved and saving from the provider", () => {
+  it("reports connecting, then live, then reconnecting after a drop", () => {
     const { result, provider, fire } = mount();
     expect(result.current.status).toBe("connecting");
     provider.isSynced = true;
     fire("onSynced", { state: true });
-    expect(result.current.status).toBe("saved");
+    expect(result.current.status).toBe("live");
     provider.unsyncedChanges = 2;
     fire("onUnsyncedChanges", { number: 2 });
-    expect(result.current.status).toBe("saving");
+    expect(result.current.status).toBe("live");
+    provider.configuration.websocketProvider.status = "disconnected";
+    fire("onClose", { event: { code: 1006, reason: "" } });
+    expect(result.current.status).toBe("reconnecting");
+  });
+
+  it("says changes will sync while the browser is offline", () => {
+    const { result, provider, fire } = mount();
+    provider.isSynced = true;
+    fire("onSynced", { state: true });
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    provider.configuration.websocketProvider.status = "disconnected";
+    act(() => {
+      window.dispatchEvent(new Event("offline"));
+    });
+    expect(result.current.status).toBe("queued");
+    online.mockReturnValue(true);
+    provider.configuration.websocketProvider.status = "connected";
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(result.current.status).toBe("live");
+    online.mockRestore();
   });
 
   it("stops for good on 4413", () => {
@@ -139,7 +166,7 @@ describe("useCanvasSync", () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const { result, provider, fire } = mount();
     fire("onClose", { event: { code: 1000, reason: "4403 revoked" } });
-    expect(result.current.status).toBe("offline");
+    expect(result.current.status).toBe("read-only");
     expect(provider.disconnect).toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["getCanvas", "c1"] });
   });
@@ -238,7 +265,7 @@ describe("useCanvasSync close paths", () => {
       await invalidate.mock.results[1]!.value;
     });
     expect(provider.connect).toHaveBeenCalledTimes(1);
-    expect(result.current.status).toBe("offline");
+    expect(result.current.status).toBe("read-only");
   });
 
   it("backs off on a refused token (4401), then reconnects", () => {
@@ -348,7 +375,7 @@ describe("useCanvasSync with read access", () => {
     });
     expect(provider.disconnect).toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["getCanvas", "c1"] });
-    expect(["offline", "connecting"]).toContain(result.current.status);
+    expect(result.current.status).toBe("read-only");
   });
 
   it("stops at once when the first token only reads, and never uses it", async () => {
