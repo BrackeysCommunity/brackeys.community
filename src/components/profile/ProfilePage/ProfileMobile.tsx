@@ -8,6 +8,7 @@ import { fadeUp } from "@/lib/motion";
 import { ProfileAbout } from "./ProfileAbout";
 import { ProfileActivitySection } from "./ProfileActivity";
 import { ProfileAvailabilitySection } from "./ProfileAvailability";
+import { ProfileCanvasesSection } from "./ProfileCanvases";
 import { ProfileCreditsSection } from "./ProfileCredits";
 import { ProfileHero } from "./ProfileHero";
 import { ProfileJamLogSection } from "./ProfileJamLog";
@@ -104,6 +105,7 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
               layout="list"
             />
             <ProfileCreditsSection index="03" credits={profile.credits} />
+            <ProfileCanvasesSection index="04" profileId={profile.profileId} />
           </>
         ) : null}
 

@@ -457,7 +457,10 @@ export type NotificationType =
   | "jam_voting_open"
   | "jam_results_posted"
   | "jam_team_post_created"
-  | "image_quarantined";
+  | "image_quarantined"
+  | "canvas_shared_with_you"
+  | "canvas_hidden_by_staff"
+  | "canvas_unhidden_by_staff";
 
 export type NotificationEntityType =
   | "collab_post"
@@ -470,7 +473,8 @@ export type NotificationEntityType =
   | "comment"
   | "skill_request"
   | "jam"
-  | "forum_post";
+  | "forum_post"
+  | "canvas";
 
 export const notifications = userSchema.table(
   "notifications",
@@ -2106,7 +2110,10 @@ export type ModerationActionType =
   | "forum_post_moved"
   | "forum_post_retagged"
   | "forum_post_deleted"
-  | "forum_post_report_dismissed";
+  | "forum_post_report_dismissed"
+  | "canvas_hidden"
+  | "canvas_unhidden"
+  | "canvas_report_dismissed";
 
 export type ModerationTargetType =
   | "comment"
@@ -2125,7 +2132,9 @@ export type ModerationTargetType =
   | "jam_entry"
   | "stored_image"
   | "forum_post"
-  | "forum_post_report";
+  | "forum_post_report"
+  | "canvas"
+  | "canvas_report";
 
 export const moderationActions = socialSchema.table(
   "moderation_actions",
@@ -2490,5 +2499,31 @@ export const canvasOpens = canvasSchema.table(
   (t) => [
     primaryKey({ columns: [t.userId, t.docKind, t.docId] }),
     index("opens_user_recent_idx").on(t.userId, t.openedAt.desc()),
+  ],
+);
+
+/**
+ * Reports on public and unlisted canvases. The canvas FK is `set null`, like
+ * `team_reports`, so deleting the canvas can't delete the evidence; the
+ * title snapshot keeps an orphaned report readable.
+ */
+export const canvasReports = canvasSchema.table(
+  "canvas_reports",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    canvasId: text("canvas_id").references(() => canvases.id, { onDelete: "set null" }),
+    canvasTitle: text("canvas_title").notNull(),
+    reporterId: text("reporter_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    resolvedAt: timestamp("resolved_at"),
+    resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    index("canvas_reports_open_idx")
+      .on(t.canvasId)
+      .where(sql`${t.resolvedAt} IS NULL`),
   ],
 );

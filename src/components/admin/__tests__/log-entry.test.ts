@@ -167,4 +167,29 @@ describe("showValue", () => {
     expect(showValue(["a", "b"])).toBe("a, b");
     expect(showValue([])).toBe("(none)");
   });
+
+  it("links a hidden canvas by id, and names one that's gone from its snapshot", () => {
+    const hidden = describeLogEntry(
+      row({
+        action: "canvas_hidden",
+        targetType: "canvas",
+        targetId: "c1",
+        metadata: { canvasId: "c1", canvasTitle: "Plan", reportReason: "spam" },
+      }),
+      emptyRefs,
+    );
+    expect(hidden.target).toEqual({ kind: "canvas", canvasId: "c1", label: "Plan" });
+    expect(hidden.facts).toContainEqual({ label: "Report said", value: "spam" });
+
+    const orphan = describeLogEntry(
+      row({
+        action: "canvas_report_dismissed",
+        targetType: "canvas_report",
+        targetId: "9",
+        metadata: { canvasId: null, canvasTitle: "Plan" },
+      }),
+      emptyRefs,
+    );
+    expect(orphan.target).toEqual({ kind: "text", label: "Plan (deleted)" });
+  });
 });

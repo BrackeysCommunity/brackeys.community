@@ -1,7 +1,13 @@
-import { Add01Icon, Delete02Icon, Folder01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  Delete02Icon,
+  Folder01Icon,
+  Upload04Icon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,12 +21,17 @@ import {
   canvasListQueryOptions,
   canvasScopesQueryOptions,
   PERSONAL_SCOPE,
+  sharedCanvasesQueryOptions,
   useRestoreCanvas,
   type CanvasListItem,
   type CanvasScope,
 } from "./canvas-queries";
 import { CanvasCardLink } from "./CanvasCardLink";
 import { NewCanvasDialog } from "./NewCanvasDialog";
+
+const ImportDialog = lazy(() =>
+  import("./io/ImportDialog").then((m) => ({ default: m.ImportDialog })),
+);
 
 function scopeFromParam(param: string | undefined): CanvasScope {
   return param && param !== "personal" ? { kind: "team", teamId: param } : PERSONAL_SCOPE;
@@ -66,6 +77,36 @@ function FolderList({
   ));
 }
 
+type BrowseView = "canvases" | "deleted" | "shared";
+
+/** Personal canvases other members have shared with the viewer. */
+function SharedWithMe() {
+  const shared = useQuery(sharedCanvasesQueryOptions({ thumbnails: true }));
+  if (shared.isPending) {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="aspect-[16/12] w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+  if (!shared.data?.length) {
+    return <Text variant="muted">Nobody has shared a canvas with you yet.</Text>;
+  }
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {shared.data.map((c) => (
+        <CanvasCardLink
+          key={c.id}
+          canvas={c}
+          detail={`${c.owner?.displayName ?? "A member"} · ${c.role === "editor" ? "Can edit" : "Can view"}`}
+        />
+      ))}
+    </div>
+  );
+}
+
 /**
  * Every canvas in one scope, as its folders. Reached from the workspace
  * panel and the avatar menu; there's no header nav slot.
@@ -76,14 +117,15 @@ export function CanvasesBrowsePage({
   onChange,
 }: {
   scopeParam?: string;
-  view: "canvases" | "deleted";
-  onChange: (search: { scope?: string; view?: "canvases" | "deleted" }) => void;
+  view: BrowseView;
+  onChange: (search: { scope?: string; view?: BrowseView }) => void;
 }) {
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const signedIn = session?.user != null;
   const scope = scopeFromParam(param);
   const [folder, setFolder] = useState("");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const restore = useRestoreCanvas();
 
   const { data: scopes } = useQuery({ ...canvasScopesQueryOptions(), enabled: signedIn });
@@ -92,7 +134,7 @@ export function CanvasesBrowsePage({
       deleted: view === "deleted",
       thumbnails: view === "canvases",
     }),
-    enabled: signedIn,
+    enabled: signedIn && view !== "shared",
   });
 
   const tree = useMemo(() => folderTree(list.data ?? []), [list.data]);
@@ -171,6 +213,19 @@ export function CanvasesBrowsePage({
         ) : null}
         <button
           type="button"
+          onClick={() => onChange({ view: "shared" })}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs",
+            view === "shared"
+              ? "bg-muted text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <HugeiconsIcon icon={UserGroupIcon} size={13} />
+          Shared with me
+        </button>
+        <button
+          type="button"
           onClick={() => onChange({ scope: scopeParam(scope), view: "deleted" })}
           className={cn(
             "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs",
@@ -189,19 +244,27 @@ export function CanvasesBrowsePage({
           <div className="flex min-w-0 flex-col">
             <MicroLabel>{view === "deleted" ? "RECENTLY DELETED" : "CANVASES"}</MicroLabel>
             <Heading as="h1" size="xl" ellipsis>
-              {scopeName}
-              {folder ? ` / ${folder}` : ""}
+              {view === "shared" ? "Shared with me" : scopeName}
+              {folder && view !== "shared" ? ` / ${folder}` : ""}
             </Heading>
           </div>
           {view === "canvases" ? (
-            <Button onClick={() => setCreating(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={14} />
-              New canvas
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button variant="outline" onClick={() => setImporting(true)}>
+                <HugeiconsIcon icon={Upload04Icon} size={14} />
+                Import from Obsidian
+              </Button>
+              <Button onClick={() => setCreating(true)}>
+                <HugeiconsIcon icon={Add01Icon} size={14} />
+                New canvas
+              </Button>
+            </div>
           ) : null}
         </div>
 
-        {list.isPending ? (
+        {view === "shared" ? (
+          <SharedWithMe />
+        ) : list.isPending ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="aspect-[16/12] w-full rounded-lg" />
@@ -254,6 +317,17 @@ export function CanvasesBrowsePage({
 
       {creating ? (
         <NewCanvasDialog open onClose={() => setCreating(false)} scope={scope} folder={folder} />
+      ) : null}
+      {importing ? (
+        <Suspense fallback={null}>
+          <ImportDialog
+            open
+            mode="new"
+            onClose={() => setImporting(false)}
+            scope={scope}
+            folder={folder}
+          />
+        </Suspense>
       ) : null}
     </div>
   );

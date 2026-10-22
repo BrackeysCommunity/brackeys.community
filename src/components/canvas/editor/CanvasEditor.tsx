@@ -27,11 +27,13 @@ import {
   applyJsonCanvas,
   canvasEdges,
   canvasNodes,
+  type DocOnlyFields,
+  docOnlyFields,
   docToJsonCanvas,
-  jsonCanvasSchema,
   type JsonCanvas,
 } from "@/lib/canvas/json-canvas";
 import { CANVAS_LIMITS } from "@/lib/canvas/limits";
+import { useFlag } from "@/lib/hooks/use-flag";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { postImageForm } from "@/lib/image-upload";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
@@ -47,8 +49,17 @@ import {
   useCanvasLinks,
 } from "../canvas-cards";
 import type { CanvasAttachmentMap, CanvasDetail, CanvasScope } from "../canvas-queries";
-import { ImageTooLargeError, prepareImage } from "../io/prepare-image";
-import { canvasOutline, flattenOutline } from "../outline";
+import { prepareImageForUpload } from "../io/canvas-io-client";
+import {
+  pasteOrigin,
+  readCanvasClipboard,
+  stateOverCap,
+  writeCanvasClipboard,
+} from "../io/clipboard";
+import { ImageTooLargeError } from "../io/prepare-image";
+import { captureDrop, hasDirectory, readCapturedDrop } from "../io/read-drop";
+import { type ImportIntoCanvas, useCanvasImport } from "../io/use-canvas-import";
+import { canvasOutline, flattenOutline, outlineMarkdown } from "../outline";
 import { OutlinePanel } from "../OutlinePanel";
 import { CanvasShell, Island } from "../shell/CanvasShell";
 import {
@@ -77,6 +88,7 @@ import { SelectionBar } from "./SelectionBar";
 import { type CanvasTool, TOOL_KEYS, ToolDock } from "./ToolDock";
 import { selectionFragment, useCanvasCommands } from "./use-canvas-commands";
 import { type SaveStatus, useCanvasSave } from "./use-canvas-save";
+import { firstSyncSession, type SyncSession, useCanvasSync } from "./use-canvas-sync";
 import { ZoomMenu } from "./ZoomMenu";
 
 const DRAG_WRITE_MS = 50;
@@ -92,6 +104,10 @@ export interface CanvasEditorHandle {
   flush: () => Promise<void>;
   /** The canvas as it stands, for Export. */
   exportJson: () => JsonCanvas;
+  /** The live doc and its images, for the vault and Markdown exports. */
+  exportDoc: () => { doc: Y.Doc; attachments: CanvasAttachmentMap };
+  /** "Import into this canvas…" from the document menu. */
+  importInto: ImportIntoCanvas;
 }
 
 /** The page's own chrome, placed in the editor's shell. */
@@ -153,37 +169,67 @@ function imageSize(url: string): Promise<{ w: number; h: number }> {
   });
 }
 
-function parseCanvasText(text: string): JsonCanvas | null {
-  try {
-    const parsed = jsonCanvasSchema.safeParse(JSON.parse(text));
-    return parsed.success && (parsed.data.nodes?.length ?? 0) > 0
-      ? (parsed.data as JsonCanvas)
-      : null;
-  } catch {
-    return null;
-  }
-}
+/** Files the drop handler imports rather than uploads as images. */
+const IMPORTABLE = /\.(canvas|zip|md)$/i;
 
 export type CanvasPanel = "history" | "outline" | null;
 
-function EditorInner({
-  canvas,
-  onStatus,
-  panel,
-  onClosePanel,
-  chrome,
-}: {
+interface EditorProps {
   canvas: CanvasDetail;
   onStatus: (handle: CanvasEditorHandle) => void;
   panel: CanvasPanel;
   onClosePanel: () => void;
   chrome: CanvasChrome;
-}) {
+}
+
+/** The solo save and the live sync both look like this to the editor. */
+interface CanvasPersistence {
+  status: SaveStatus;
+  save: () => Promise<void>;
+  /** Applies a restore the server already stored, without saving it again. */
+  applyRestored: (update: Uint8Array, vector: Uint8Array) => void;
+  hasUnsaved: () => boolean;
+}
+
+/** The doc, hydrated from what the page loaded so the first paint needs no round trip. */
+function useInitialDoc(canvas: CanvasDetail): Y.Doc {
   const [doc] = useState(() => {
     const d = new Y.Doc();
     if (canvas.state) Y.applyUpdate(d, base64ToBytes(canvas.state), SERVER);
     return d;
   });
+  return doc;
+}
+
+function SoloEditor(props: EditorProps) {
+  const { canvas } = props;
+  const doc = useInitialDoc(canvas);
+  const serverVector = useMemo(
+    () =>
+      canvas.state
+        ? Y.encodeStateVectorFromUpdate(base64ToBytes(canvas.state))
+        : new Uint8Array([0]),
+    [canvas.state],
+  );
+  const saver = useCanvasSave(doc, canvas.id, serverVector);
+  return <EditorInner {...props} doc={doc} saver={saver} />;
+}
+
+function LiveEditor({ session, ...props }: EditorProps & { session: SyncSession }) {
+  const doc = useInitialDoc(props.canvas);
+  const saver = useCanvasSync(doc, props.canvas.id, session);
+  return <EditorInner {...props} doc={doc} saver={saver} />;
+}
+
+function EditorInner({
+  canvas,
+  doc,
+  saver,
+  onStatus,
+  panel,
+  onClosePanel,
+  chrome,
+}: EditorProps & { doc: Y.Doc; saver: CanvasPersistence }) {
   const [view] = useState(() => new CanvasDocView(doc));
   const [undo] = useState(
     () =>
@@ -226,23 +272,6 @@ function EditorInner({
     () => view.edges,
     () => view.edges,
   );
-  const serverVector = useMemo(
-    () =>
-      canvas.state
-        ? Y.encodeStateVectorFromUpdate(base64ToBytes(canvas.state))
-        : new Uint8Array([0]),
-    [canvas.state],
-  );
-  const saver = useCanvasSave(doc, canvas.id, serverVector);
-  useEffect(
-    () =>
-      onStatus({
-        status: saver.status,
-        flush: saver.save,
-        exportJson: () => docToJsonCanvas(doc),
-      }),
-    [doc, onStatus, saver.status, saver.save],
-  );
 
   const flow = useReactFlow<CanvasFlowNode, CanvasFlowEdge>();
   const detail = useStore((s) => detailLevelFor(s.transform[2]));
@@ -264,6 +293,10 @@ function EditorInner({
     onEnd: () => setViewportMoving(false),
   });
   const [attachments, setAttachments] = useState<CanvasAttachmentMap>(canvas.attachments);
+  const attachmentsRef = useRef(attachments);
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
   const host = useRef<HTMLDivElement>(null);
   const [labelLayer, setLabelLayer] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -436,7 +469,7 @@ function EditorInner({
     async (original: File) => {
       let file: File;
       try {
-        file = await prepareImage(original);
+        file = await prepareImageForUpload(original);
       } catch (error) {
         toast.error(
           error instanceof ImageTooLargeError ? error.message : "Couldn't read that image.",
@@ -547,21 +580,61 @@ function EditorInner({
     [add, tool],
   );
 
+  const selectOnly = useCallback(
+    (ids: string[]) => {
+      const set = new Set(ids);
+      requestAnimationFrame(() =>
+        view.patchLocal((current) => current.map((n) => ({ ...n, selected: set.has(n.id) }))),
+      );
+    },
+    [view],
+  );
+
   const insertFragment = useCallback(
-    (fragment: JsonCanvas, at: { x: number; y: number }) => {
+    (
+      fragment: JsonCanvas,
+      at: { x: number; y: number },
+      docFields?: Record<string, DocOnlyFields>,
+    ) => {
       if (nodes.length + fragment.nodes.length > CANVAS_LIMITS.maxNodes) {
         toast.error(`A canvas holds ${CANVAS_LIMITS.maxNodes} cards at most.`);
         return;
       }
-      const { created } = applyJsonCanvas(doc, fragment, { at, origin: LOCAL });
-      const createdSet = new Set(created);
-      requestAnimationFrame(() =>
-        view.patchLocal((current) =>
-          current.map((n) => ({ ...n, selected: createdSet.has(n.id) })),
-        ),
-      );
+      const bytes = stateOverCap(doc, fragment, { at, docFields }, CANVAS_LIMITS.maxStateBytes);
+      if (bytes != null) {
+        const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
+        toast.error(
+          `That would make this canvas ${mb(bytes)} MB, over the ${mb(CANVAS_LIMITS.maxStateBytes)} MB it can hold.`,
+        );
+        return;
+      }
+      const { created } = applyJsonCanvas(doc, fragment, { at, origin: LOCAL, docFields });
+      selectOnly(created);
     },
-    [doc, nodes.length, view],
+    [doc, nodes.length, selectOnly],
+  );
+
+  const importer = useCanvasImport({
+    doc,
+    canvasId: canvas.id,
+    scope: canvas.scope,
+    undo,
+    flush: saver.save,
+    applyServerUpdate: saver.applyRestored,
+    center: centerOfView,
+    onCreated: selectOnly,
+  });
+
+  useEffect(
+    () =>
+      onStatus({
+        status: saver.status,
+        flush: saver.save,
+        exportJson: () => docToJsonCanvas(doc),
+        exportDoc: () => ({ doc, attachments: attachmentsRef.current }),
+        importInto: importer.importInto,
+      }),
+    [doc, onStatus, saver.status, saver.save, importer.importInto],
   );
 
   // ── Keyboard, clipboard, drops ────────────────────────────────────────────
@@ -611,9 +684,13 @@ function EditorInner({
         view.patchLocal((current) => current.map((n) => ({ ...n, selected: true })));
       } else if (mod && key === "d" && selectedIds.length) {
         e.preventDefault();
-        const fragment = selectionFragment(doc, new Set(selectedIds));
+        const ids = new Set(selectedIds);
         const first = cards.get(selectedIds[0]!);
-        insertFragment(fragment, { x: (first?.x ?? 0) + 30, y: (first?.y ?? 0) + 30 });
+        insertFragment(
+          selectionFragment(doc, ids),
+          { x: (first?.x ?? 0) + 30, y: (first?.y ?? 0) + 30 },
+          docOnlyFields(doc, ids),
+        );
       } else if (mod && key === "0") {
         e.preventDefault();
         void flow.fitView({ duration: 200 });
@@ -640,7 +717,7 @@ function EditorInner({
         setCardFields(doc, updates);
       } else if (e.key === "Enter" && selectedIds.length === 1) {
         const card = cards.get(selectedIds[0]!);
-        if (card?.type === "text") {
+        if (card?.type === "text" || (card?.type === "file" && card.text != null)) {
           e.preventDefault();
           setEditingId(card.id);
         }
@@ -650,11 +727,25 @@ function EditorInner({
     const onCopy = (e: ClipboardEvent, cut = false) => {
       if (isEditableTarget(e.target) || selectedIds.length === 0 || !e.clipboardData) return;
       e.preventDefault();
-      const fragment = selectionFragment(doc, new Set(selectedIds));
-      const json = JSON.stringify(fragment);
-      // Obsidian reads its own type; everything else gets the plain JSON.
-      e.clipboardData.setData("obsidian/canvas", json);
-      e.clipboardData.setData("text/plain", json);
+      const ids = new Set(selectedIds);
+      const fragment = selectionFragment(doc, ids);
+      const outlineCards = selectedIds.flatMap((id) => cards.get(id) ?? []);
+      const written = writeCanvasClipboard(fragment, {
+        fields: docOnlyFields(doc, ids),
+        markdown: outlineMarkdown(
+          canvasOutline(outlineCards),
+          fragment.edges.map((edge) => ({
+            from: edge.fromNode,
+            to: edge.toNode,
+            label: edge.label,
+          })),
+        ),
+        imageUrl: (id) => {
+          const url = attachmentsRef.current[id]?.url;
+          return url ? new URL(url, window.location.origin).href : null;
+        },
+      });
+      for (const [type, value] of Object.entries(written)) e.clipboardData.setData(type, value);
       if (cut) deleteElements(doc, selectedIds, []);
     };
     const onCut = (e: ClipboardEvent) => onCopy(e, true);
@@ -663,25 +754,14 @@ function EditorInner({
       if (isEditableTarget(e.target) || !e.clipboardData) return;
       const data = e.clipboardData;
       const at = lastPointer.current ?? centerOfView();
-      const fragment =
-        parseCanvasText(data.getData("obsidian/canvas")) ??
-        parseCanvasText(data.getData("text/plain"));
-      if (fragment) {
-        e.preventDefault();
-        insertFragment(fragment, at);
-        return;
-      }
-      const image = [...data.files].find((f) => f.type.startsWith("image/"));
-      if (image) {
-        e.preventDefault();
-        void uploadImage(image, at);
-        return;
-      }
-      const text = data.getData("text/plain").trim();
-      if (!text) return;
+      const read = readCanvasClipboard((type) => data.getData(type), [...data.files]);
+      if (!read) return;
       e.preventDefault();
-      if (/^https?:\/\/\S+$/.test(text)) add({ type: "link", url: text, w: 320, h: 90 }, at);
-      else add({ type: "text", text: text.slice(0, CANVAS_LIMITS.maxCardText) }, at);
+      if (read.kind === "canvas")
+        insertFragment(read.canvas, pasteOrigin(read.canvas, at), read.fields);
+      else if (read.kind === "images") void uploadImage(read.files[0]!, at);
+      else if (read.kind === "url") add({ type: "link", url: read.url, w: 320, h: 90 }, at);
+      else add({ type: "text", text: read.text }, at);
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
@@ -720,9 +800,23 @@ function EditorInner({
     view,
   ]);
 
+  const { importDropped } = importer;
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      // Taken now: the drop's items are gone after the first await.
+      const captured = captureDrop(e.dataTransfer);
+      if (
+        hasDirectory(captured) ||
+        [...e.dataTransfer.files].some((f) => IMPORTABLE.test(f.name))
+      ) {
+        e.preventDefault();
+        void readCapturedDrop(captured).then(
+          (files) => importDropped(files, at),
+          () => toast.error("Couldn't read that drop."),
+        );
+        return;
+      }
       const images = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/"));
       if (images.length) {
         e.preventDefault();
@@ -735,7 +829,7 @@ function EditorInner({
         add({ type: "link", url, w: 320, h: 90 }, at);
       }
     },
-    [add, flow, uploadImage],
+    [add, flow, importDropped, uploadImage],
   );
 
   // ── Focus and reading order ───────────────────────────────────────────────
@@ -865,10 +959,7 @@ function EditorInner({
         canvasId={canvas.id}
         onClose={onClosePanel}
         editor={{
-          onRestored: (update, vector) => {
-            Y.applyUpdate(doc, update, SERVER);
-            saver.acknowledge(vector);
-          },
+          onRestored: saver.applyRestored,
           flushBeforeRestore: saver.save,
           stateVector: () => Y.encodeStateVector(doc),
         }}
@@ -965,6 +1056,7 @@ function EditorInner({
                   Click the card to connect to. Esc cancels.
                 </div>
               ) : null}
+              {importer.ui}
             </>
           }
         >
@@ -1065,19 +1157,42 @@ function EditorInner({
 }
 
 /**
- * The editor: React Flow over the canvas's Y.Doc, saved through `save`.
+ * The editor: React Flow over the canvas's Y.Doc, persisted through the solo
+ * `save` or, with `canvases-multiplayer` on, live through `canvas-sync`.
+ * The mode is settled once, before the doc exists, so the two never run
+ * together; turning the flag off takes effect the next time a canvas opens.
  * Lazy-loaded behind edit access; readers never download it.
  */
-export default function CanvasEditor(props: {
-  canvas: CanvasDetail;
-  onStatus: (handle: CanvasEditorHandle) => void;
-  panel: CanvasPanel;
-  onClosePanel: () => void;
-  chrome: CanvasChrome;
-}) {
+export default function CanvasEditor(props: EditorProps & { fallback?: React.ReactNode }) {
+  // The route keeps this mounted when a link opens another canvas; a fresh
+  // editor per canvas keeps one canvas's doc from being saved into another.
+  return <EditorForCanvas key={props.canvas.id} {...props} />;
+}
+
+function EditorForCanvas({
+  fallback = null,
+  ...props
+}: EditorProps & { fallback?: React.ReactNode }) {
+  const multiplayer = useFlag("canvases-multiplayer");
+  const [mode, setMode] = useState<"pending" | "solo" | SyncSession>(() =>
+    multiplayer ? "pending" : "solo",
+  );
+  const canvasId = props.canvas.id;
+  useEffect(() => {
+    if (mode !== "pending") return;
+    let cancelled = false;
+    void firstSyncSession(canvasId).then((session) => {
+      if (!cancelled) setMode(session ?? "solo");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, canvasId]);
+
+  if (mode === "pending") return fallback;
   return (
     <ReactFlowProvider>
-      <EditorInner {...props} />
+      {mode === "solo" ? <SoloEditor {...props} /> : <LiveEditor {...props} session={mode} />}
     </ReactFlowProvider>
   );
 }

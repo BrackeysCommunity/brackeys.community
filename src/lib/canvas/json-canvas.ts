@@ -6,9 +6,10 @@
  *
  *   nodes  id → Y.Map { type, x, y, w, h, z, color?, text?: Y.Text, file?,
  *                       subpath?, url?, attachmentId?, entity?, label?,
- *                       background?, backgroundStyle?, extra? }
+ *                       background?, backgroundStyle?, bom?, plain?, extra?,
+ *                       keys? }
  *   edges  id → Y.Map { from, fromSide?, fromEnd?, to, toSide?, toEnd?,
- *                       color?, label?, extra? }
+ *                       color?, label?, extra?, keys? }
  *   meta   { schemaVersion, extra? }
  *
  * `z` is a fractional index; JSON Canvas's array order is derived from it,
@@ -17,7 +18,16 @@
  * Obsidian keeps. Files and stored snapshots written before the rebrand
  * carry the same key as `brackeys`, so every reader accepts both (see
  * `canvasNodeKey`). Keys we don't know (other plugins') ride in `extra` and
- * are written back as they were.
+ * are written back as they were. `keys` is the order a file listed a node's
+ * or edge's keys in, kept when it isn't the order we write anyway, so a
+ * file Obsidian wrote exports byte for byte.
+ *
+ * Some fields live in the doc only and never reach JSON Canvas output or a
+ * snapshot (`DOC_ONLY_FIELDS`): a `file` card's `text` is the note's body,
+ * imported inline until notes are documents of their own, with `bom` when
+ * the file started with a UTF-8 byte order mark; an `image` card's `plain`
+ * says it came from a vault as a plain `file` node, so a vault export
+ * writes it back that way.
  */
 import { generateNKeysBetween } from "fractional-indexing";
 import * as Y from "yjs";
@@ -118,7 +128,7 @@ export const jsonCanvasSchema = z.looseObject({
 
 // ── Keys ──────────────────────────────────────────────────────────────────
 
-const NODE_KEYS = new Set([
+const COMMON_NODE_KEYS = [
   "id",
   "type",
   "x",
@@ -126,16 +136,28 @@ const NODE_KEYS = new Set([
   "width",
   "height",
   "color",
-  "text",
-  "file",
-  "subpath",
-  "url",
-  "label",
-  "background",
-  "backgroundStyle",
   "jamsTeam",
   "brackeys",
-]);
+];
+const TYPE_NODE_KEYS: Record<string, readonly string[]> = {
+  text: ["text"],
+  file: ["file", "subpath"],
+  link: ["url"],
+  group: ["label", "background", "backgroundStyle"],
+};
+/** Known keys per node type: another type's key (a plugin's `text` on a file node) stays in `extra`. */
+const NODE_KEYS = Object.fromEntries(
+  Object.entries(TYPE_NODE_KEYS).map(([type, keys]) => [
+    type,
+    new Set([...COMMON_NODE_KEYS, ...keys]),
+  ]),
+) as Record<string, ReadonlySet<string>>;
+/** A clipboard image is a `link` that also carries its vault path. */
+const IMAGE_LINK_KEYS = new Set([...NODE_KEYS.link!, "file"]);
+
+function nodeKeysFor(type: string, imageKey: boolean): ReadonlySet<string> {
+  return type === "link" && imageKey ? IMAGE_LINK_KEYS : NODE_KEYS[type]!;
+}
 const EDGE_KEYS = new Set([
   "id",
   "fromNode",
@@ -148,6 +170,66 @@ const EDGE_KEYS = new Set([
   "label",
 ]);
 const CANVAS_KEYS = new Set(["nodes", "edges", "jamsTeam", "brackeys", "center"]);
+
+/** The order we write keys in; keys not listed (other plugins') come first, as read. */
+const NODE_KEY_ORDER = [
+  "id",
+  "type",
+  "text",
+  "file",
+  "subpath",
+  "url",
+  "label",
+  "background",
+  "backgroundStyle",
+  "x",
+  "y",
+  "width",
+  "height",
+  "color",
+  "jamsTeam",
+];
+const EDGE_KEY_ORDER = [...EDGE_KEYS];
+const MAX_KEY_ORDER_BYTES = 1_024;
+
+/** A file's key order, when it differs from the order we'd write. */
+function sourceKeyOrder(
+  raw: Record<string, unknown>,
+  order: readonly string[],
+): string[] | undefined {
+  const keys = Object.keys(raw).map((key) => (key === "brackeys" ? "jamsTeam" : key));
+  const rank = (key: string) => order.indexOf(key);
+  const ours = [...keys].sort((a, b) => rank(a) - rank(b));
+  if (ours.every((key, i) => key === keys[i])) return undefined;
+  if (JSON.stringify(keys).length > MAX_KEY_ORDER_BYTES) return undefined;
+  return keys;
+}
+
+/** `record` with its keys in a file's order; keys the file didn't have keep their place after. */
+function inKeyOrder<T extends object>(record: T, keys: unknown): T {
+  if (!Array.isArray(keys)) return record;
+  const entries = Object.entries(record);
+  const at = new Map(keys.map((key, i) => [key, i]));
+  const placed = entries.filter(([key]) => at.has(key));
+  placed.sort(([a], [b]) => at.get(a)! - at.get(b)!);
+  return Object.fromEntries([...placed, ...entries.filter(([key]) => !at.has(key))]) as T;
+}
+
+/** A `file` card's inline note body. */
+export interface FileBody {
+  text: string;
+  /** The file started with a UTF-8 byte order mark, written back on export. */
+  bom?: boolean;
+}
+
+/** Per node, what the doc holds beyond JSON Canvas. */
+export interface DocOnlyFields {
+  /** `file` cards: the inline note body. */
+  text?: string;
+  bom?: boolean;
+  /** `image` cards: imported from a plain `file` node. */
+  plain?: boolean;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -268,7 +350,11 @@ function textOf(value: unknown): string | undefined {
   return str(value);
 }
 
-function nodeToJson(id: string, node: Y.Map<unknown>): JsonCanvasNode | null {
+function nodeToJson(
+  id: string,
+  node: Y.Map<unknown>,
+  options: { vault?: boolean },
+): JsonCanvasNode | null {
   const type = str(node.get("type"));
   const geometry = {
     x: num(node.get("x"), 0),
@@ -304,7 +390,8 @@ function nodeToJson(id: string, node: Y.Map<unknown>): JsonCanvasNode | null {
       body = {
         type: "file",
         file: str(node.get("file")) ?? "",
-        jamsTeam: { type: "image", attachmentId },
+        jamsTeam:
+          options.vault && node.get("plain") === true ? undefined : { type: "image", attachmentId },
       };
       break;
     }
@@ -323,14 +410,8 @@ function nodeToJson(id: string, node: Y.Map<unknown>): JsonCanvasNode | null {
   }
 
   const { jamsTeam, ...content } = body;
-  return dropUndefined({
-    ...extra,
-    id,
-    ...content,
-    ...geometry,
-    color,
-    jamsTeam,
-  }) as JsonCanvasNode;
+  const json = dropUndefined({ ...extra, id, ...content, ...geometry, color, jamsTeam });
+  return inKeyOrder(json, node.get("keys")) as JsonCanvasNode;
 }
 
 function edgeToJson(id: string, edge: Y.Map<unknown>): JsonCanvasEdge | null {
@@ -338,7 +419,7 @@ function edgeToJson(id: string, edge: Y.Map<unknown>): JsonCanvasEdge | null {
   const toNode = str(edge.get("to"));
   if (!fromNode || !toNode) return null;
   const extra = boundedExtra(edge.get("extra")) ?? {};
-  return dropUndefined({
+  const json = dropUndefined({
     ...extra,
     id,
     fromNode,
@@ -349,7 +430,8 @@ function edgeToJson(id: string, edge: Y.Map<unknown>): JsonCanvasEdge | null {
     toEnd: oneOf(CANVAS_ENDS, edge.get("toEnd")),
     color: str(edge.get("color")),
     label: str(edge.get("label")),
-  }) as JsonCanvasEdge;
+  });
+  return inKeyOrder(json, edge.get("keys")) as JsonCanvasEdge;
 }
 
 function dropUndefined(record: Record<string, unknown>): Record<string, unknown> {
@@ -362,13 +444,23 @@ function dropUndefined(record: Record<string, unknown>): Record<string, unknown>
  * any editor can write anything into the doc; run `sanitizeSnapshot` on the
  * result before anyone else sees it (`deriveSnapshot` does both).
  */
-export function docToJsonCanvas(doc: Y.Doc, options: { canvasId?: string } = {}): JsonCanvas {
+export function docToJsonCanvas(
+  doc: Y.Doc,
+  options: {
+    canvasId?: string;
+    /**
+     * For a vault, next to its images: image cards that came in as plain
+     * `file` nodes go back out that way.
+     */
+    vault?: boolean;
+  } = {},
+): JsonCanvas {
   const nodesMap = canvasNodes(doc);
   const nodes: JsonCanvasNode[] = [];
   for (const id of orderedNodeIds(doc)) {
     const node = nodesMap.get(id);
     if (!(node instanceof Y.Map)) continue;
-    const json = nodeToJson(id, node);
+    const json = nodeToJson(id, node, options);
     if (json) nodes.push(json);
   }
 
@@ -425,8 +517,9 @@ export function sanitizeSnapshot(canvas: JsonCanvas): JsonCanvas {
     const type = oneOf(JSON_CANVAS_NODE_TYPES, raw.type);
     if (!id || !type || ids.has(id)) continue;
 
+    const key = canvasNodeKey(raw);
     const node: Record<string, unknown> = {
-      ...extraOf(raw, NODE_KEYS),
+      ...extraOf(raw, nodeKeysFor(type, key?.type === "image")),
       id,
       type,
     };
@@ -446,8 +539,10 @@ export function sanitizeSnapshot(canvas: JsonCanvas): JsonCanvas {
     node.width = clampInt(raw.width, L.minSize, L.maxSize, 250);
     node.height = clampInt(raw.height, L.minSize, L.maxSize, 60);
     node.color = colorOf(raw.color);
-    const key = canvasNodeKey(raw);
-    if ((key?.type === "image" && type === "file") || (key?.type === "entity" && type === "link")) {
+    if (
+      (key?.type === "image" && (type === "file" || type === "link")) ||
+      (key?.type === "entity" && type === "link")
+    ) {
       node.jamsTeam = key;
     }
 
@@ -514,10 +609,13 @@ function nodeFields(raw: Record<string, unknown>): Record<string, unknown> | nul
     w: num(raw.width, 250),
     h: num(raw.height, 60),
     color: str(raw.color),
-    extra: extraOf(raw, NODE_KEYS),
+    extra: extraOf(raw, nodeKeysFor(jsonType, key?.type === "image")),
+    keys: sourceKeyOrder(raw, NODE_KEY_ORDER),
   };
 
-  if (key?.type === "image" && jsonType === "file") {
+  if (key?.type === "image" && (jsonType === "file" || jsonType === "link")) {
+    // On the clipboard an image is a link to its URL, so Obsidian shows it,
+    // carrying its path in `file` so it exports as a usable file node again.
     Object.assign(fields, {
       type: "image",
       attachmentId: key.attachmentId,
@@ -567,6 +665,7 @@ function edgeFields(
     color: str(raw.color),
     label: str(raw.label),
     extra: extraOf(raw, EDGE_KEYS),
+    keys: sourceKeyOrder(raw, EDGE_KEY_ORDER),
   });
 }
 
@@ -587,11 +686,15 @@ interface ApplyJsonCanvasOptions {
   at?: { x: number; y: number };
   /** Transaction origin; local edits pass the editor's undo origin. */
   origin?: unknown;
+  /** Doc-only fields per source node id: note bodies, image provenance. */
+  docFields?: Readonly<Record<string, DocOnlyFields>>;
 }
 
 interface ApplyJsonCanvasResult {
   /** Doc ids of the nodes created, bottom to top. */
   created: string[];
+  /** Source node id → doc node id. */
+  ids: Map<string, string>;
   /** Nodes left out because their type isn't one we can hold. */
   skipped: { id: string; type: string }[];
 }
@@ -625,6 +728,8 @@ export function applyJsonCanvas(
       skipped.push({ id: sourceId, type: String(raw.type) });
       continue;
     }
+    const only = options.docFields?.[sourceId];
+    if (only) Object.assign(fields, docOnlyFieldsFor(fields.type, only));
     const keep = mode === "whole" && !nodesMap.has(sourceId);
     const id = keep ? sourceId : newCanvasId();
     idMap.set(sourceId, id);
@@ -646,9 +751,9 @@ export function applyJsonCanvas(
   });
 
   const chunk = CANVAS_LIMITS.applyChunkSize;
-  for (let start = 0; start < pending.length; start += chunk) {
+  for (const batch of nodeBatches(pending, chunk)) {
     doc.transact(() => {
-      for (const p of pending.slice(start, start + chunk)) nodesMap.set(p.id, yNodeFrom(p.fields));
+      for (const p of batch) nodesMap.set(p.id, yNodeFrom(p.fields));
     }, options.origin);
   }
 
@@ -678,5 +783,77 @@ export function applyJsonCanvas(
     }, options.origin);
   }
 
-  return { created: pending.map((p) => p.id), skipped };
+  return { created: pending.map((p) => p.id), ids: idMap, skipped };
+}
+
+/** Rough upper bound on a node's encoded size: text is counted at 3 bytes a character. */
+function roughNodeBytes(fields: Record<string, unknown>): number {
+  let bytes = 200;
+  for (const value of Object.values(fields)) {
+    if (typeof value === "string") bytes += value.length * 3;
+    else if (value && typeof value === "object") bytes += JSON.stringify(value).length;
+  }
+  return bytes;
+}
+
+/**
+ * Nodes in transactions of at most `count` cards and about half a sync
+ * message's bytes, so one with long note bodies still travels as its own
+ * message. A single node larger than that goes alone.
+ */
+function nodeBatches<T extends { fields: Record<string, unknown> }>(
+  pending: readonly T[],
+  count: number,
+): T[][] {
+  const budget = CANVAS_LIMITS.maxMessageBytes / 2;
+  const batches: T[][] = [];
+  let current: T[] = [];
+  let bytes = 0;
+  for (const p of pending) {
+    const size = roughNodeBytes(p.fields);
+    if (current.length && (current.length >= count || bytes + size > budget)) {
+      batches.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(p);
+    bytes += size;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
+/** The doc-only fields a node of `type` may carry, and nothing else. */
+function docOnlyFieldsFor(type: unknown, only: DocOnlyFields): Record<string, unknown> {
+  if (type === "file" && typeof only.text === "string") {
+    return dropUndefined({ text: only.text, bom: only.bom === true ? true : undefined });
+  }
+  if (type === "image" && only.plain === true) return { plain: true };
+  return {};
+}
+
+/**
+ * The doc-only fields of the given nodes (all by default), keyed by node
+ * id: what a copy or a duplicate carries alongside the JSON Canvas so the
+ * same `applyJsonCanvas` brings note bodies with it.
+ */
+export function docOnlyFields(
+  doc: Y.Doc,
+  ids?: ReadonlySet<string>,
+): Record<string, DocOnlyFields> {
+  const out: Record<string, DocOnlyFields> = {};
+  canvasNodes(doc).forEach((node, id) => {
+    if (!(node instanceof Y.Map) || (ids && !ids.has(id))) return;
+    const body = fileBodyOf(node);
+    if (body) out[id] = body;
+    else if (node.get("type") === "image" && node.get("plain") === true) out[id] = { plain: true };
+  });
+  return out;
+}
+
+/** A `file` card's inline note body, if it has one. */
+export function fileBodyOf(node: Y.Map<unknown>): FileBody | undefined {
+  const text = node.get("text");
+  if (node.get("type") !== "file" || !(text instanceof Y.Text)) return undefined;
+  return node.get("bom") === true ? { text: text.toJSON(), bom: true } : { text: text.toJSON() };
 }

@@ -36,10 +36,13 @@ import { db } from "@/db";
 import {
   canvasDocVersions,
   canvases,
+  canvasMembers,
   comments,
   developerProfiles,
   profileProjects,
 } from "@/db/schema";
+import { emitCanvasEvent } from "@/lib/canvas-events";
+import { publishCanvasRevoke } from "@/lib/canvas-sync-publish";
 import { purgeGuildMemberCache } from "@/lib/discord";
 import { removeProfileProjectImageFromStorage } from "@/lib/profile-project-image-storage";
 
@@ -75,21 +78,68 @@ export async function cleanupUserData(userId: string): Promise<void> {
   // Personal canvases go with their owner (docs and memberships cascade);
   // team canvases stay with the team, their `owner_id` nulled by the FK.
   // Versions are keyed polymorphically, so they're removed by hand.
-  const personalCanvases = db
-    .select({ id: canvases.id })
+  const personalCanvases = await db
+    .select({ id: canvases.id, deletedAt: canvases.deletedAt })
     .from(canvases)
     .where(and(eq(canvases.ownerId, userId), isNull(canvases.teamId)));
-  await db
-    .delete(canvasDocVersions)
-    .where(
+  if (personalCanvases.length > 0) {
+    await db.delete(canvasDocVersions).where(
       and(
         eq(canvasDocVersions.docKind, "canvas"),
-        inArray(canvasDocVersions.docId, personalCanvases),
+        inArray(
+          canvasDocVersions.docId,
+          personalCanvases.map((c) => c.id),
+        ),
       ),
     );
+  }
   await db.delete(canvases).where(and(eq(canvases.ownerId, userId), isNull(canvases.teamId)));
+  const left = await leaveSharedCanvases(userId);
+  // One already in Recently deleted was announced when it was deleted.
+  for (const { id } of personalCanvases.filter((c) => !c.deletedAt)) {
+    await emitCanvasEvent({
+      type: "deleted",
+      canvasId: id,
+      scope: { kind: "personal", ownerId: userId },
+    });
+  }
+  for (const canvas of left) {
+    await emitCanvasEvent({
+      type: "member_removed",
+      canvasId: canvas.id,
+      scope: { kind: "personal", ownerId: canvas.ownerId },
+      userId,
+    });
+  }
+  void publishCanvasRevoke({ userId });
 
   await db.delete(developerProfiles).where(eq(developerProfiles.id, userId));
 
   if (profile.discordId) await purgeGuildMemberCache(profile.discordId);
+}
+
+/**
+ * Removes the user from canvases others shared with them, returning those
+ * canvases. The user row's cascade would do the delete a moment later, but
+ * only after the access change could be announced.
+ */
+async function leaveSharedCanvases(
+  userId: string,
+): Promise<{ id: string; ownerId: string | null }[]> {
+  const memberships = await db
+    .select({ canvasId: canvasMembers.canvasId })
+    .from(canvasMembers)
+    .where(eq(canvasMembers.userId, userId));
+  if (memberships.length === 0) return [];
+  const shared = await db
+    .select({ id: canvases.id, ownerId: canvases.ownerId })
+    .from(canvases)
+    .where(
+      inArray(
+        canvases.id,
+        memberships.map((m) => m.canvasId),
+      ),
+    );
+  await db.delete(canvasMembers).where(eq(canvasMembers.userId, userId));
+  return shared;
 }

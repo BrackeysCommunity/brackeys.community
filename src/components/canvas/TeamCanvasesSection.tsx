@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 
-import { canvasListQueryOptions } from "./canvas-queries";
+import { canvasListQueryOptions, publicCanvasesQueryOptions } from "./canvas-queries";
 import { CanvasCardLink } from "./CanvasCardLink";
 import { NewCanvasDialog } from "./NewCanvasDialog";
 import { openWorkspace } from "./workspace-store";
@@ -70,5 +70,28 @@ export function TeamCanvasesSection({ teamId }: { teamId: string }) {
         All of the team's canvases
       </Link>
     </div>
+  );
+}
+
+/**
+ * The team's public canvases, for visitors who aren't on the roster.
+ * Renders nothing while there are none, so `wrap` (the page's section
+ * chrome) only appears around a real list.
+ */
+export function TeamPublicCanvases({
+  teamId,
+  wrap,
+}: {
+  teamId: string;
+  wrap: (content: React.ReactNode) => React.ReactNode;
+}) {
+  const { data } = useQuery(publicCanvasesQueryOptions({ teamId }));
+  if (!data?.length) return null;
+  return wrap(
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {data.map((canvas) => (
+        <CanvasCardLink key={canvas.id} canvas={canvas} />
+      ))}
+    </div>,
   );
 }

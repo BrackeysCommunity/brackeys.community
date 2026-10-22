@@ -38,7 +38,14 @@ const ROOT_BUDGET = { chunks: 75, gzipBytes: 400 * 1024 };
  * Yjs, CodeMirror) is a dynamic import behind edit access, so a reader of a
  * canvas, and every other page, never downloads it.
  */
-const NEVER_PRELOADED = [/\/CanvasEditor-[^/]*\.js$/];
+const NEVER_PRELOADED = [
+  /\/CanvasEditor-[^/]*\.js$/,
+  // The file I/O worker and the jobs it runs in the page without one: they
+  // carry fflate and load only when an import or export starts.
+  /\/canvas-io\.worker-[^/]*\.js$/,
+  /\/canvas-io-jobs-[^/]*\.js$/,
+  /\/fflate[^/]*\.js$/,
+];
 
 const outputDir = join(process.cwd(), ".output");
 const serverDir = join(outputDir, "server");

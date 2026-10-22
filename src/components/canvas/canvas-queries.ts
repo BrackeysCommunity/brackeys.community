@@ -128,3 +128,134 @@ export function useOpenJamPlan() {
     onError: toastMutationError("canvas.jam_plan", "Couldn't open the plan."),
   });
 }
+
+// ── Sharing and moderation ───────────────────────────────────────────────────
+
+export type CanvasVisibility = "private" | "team" | "unlisted" | "public";
+export type CanvasMemberRole = "editor" | "viewer";
+export type CanvasMember = Awaited<ReturnType<typeof client.listCanvasMembers>>[number];
+export type SharedCanvas = Awaited<ReturnType<typeof client.listSharedCanvases>>[number];
+export type PublicCanvasListItem = Awaited<ReturnType<typeof client.listPublicCanvases>>[number];
+
+export function canvasMembersQueryOptions(canvasId: string) {
+  return {
+    ...orpc.listCanvasMembers.queryOptions({ input: { canvasId } }),
+    staleTime: STALE.viewer,
+  };
+}
+
+export function sharedCanvasesQueryOptions(options: { thumbnails?: boolean } = {}) {
+  return {
+    ...orpc.listSharedCanvases.queryOptions({ input: { thumbnails: options.thumbnails ?? false } }),
+    staleTime: STALE.viewer,
+  };
+}
+
+export function publicCanvasesQueryOptions(owner: { ownerId: string } | { teamId: string }) {
+  return {
+    ...orpc.listPublicCanvases.queryOptions({ input: owner }),
+    staleTime: STALE.listing,
+  };
+}
+
+/** The canvas itself, who it's shared with, and every list it shows up in. */
+function invalidateSharing(queryClient: QueryClient, canvasId: string) {
+  return Promise.all([
+    invalidateCanvasLists(queryClient),
+    queryClient.invalidateQueries({ queryKey: canvasQueryOptions(canvasId).queryKey }),
+    queryClient.invalidateQueries({ queryKey: orpc.listCanvasMembers.key() }),
+    queryClient.invalidateQueries({ queryKey: orpc.listSharedCanvases.key() }),
+    queryClient.invalidateQueries({ queryKey: orpc.listPublicCanvases.key() }),
+  ]);
+}
+
+export function useSetCanvasVisibility(canvasId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (visibility: CanvasVisibility) =>
+      client.setCanvasVisibility({ canvasId, visibility }),
+    onSuccess: () => invalidateSharing(queryClient, canvasId),
+    onError: toastMutationError("canvas.visibility", "Couldn't change who can see the canvas."),
+  });
+}
+
+export function useAddCanvasMember(canvasId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { userId: string; role: CanvasMemberRole }) =>
+      client.addCanvasMember({ canvasId, ...input }),
+    onSuccess: () => invalidateSharing(queryClient, canvasId),
+    onError: toastMutationError("canvas.share", "Couldn't share the canvas."),
+  });
+}
+
+export function useUpdateCanvasMember(canvasId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { userId: string; role: CanvasMemberRole }) =>
+      client.updateCanvasMember({ canvasId, ...input }),
+    onSuccess: () => invalidateSharing(queryClient, canvasId),
+    onError: toastMutationError("canvas.member_role", "Couldn't change their role."),
+  });
+}
+
+export function useRemoveCanvasMember(canvasId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => client.removeCanvasMember({ canvasId, userId }),
+    onSuccess: () => invalidateSharing(queryClient, canvasId),
+    onError: toastMutationError("canvas.member_remove", "Couldn't remove them."),
+  });
+}
+
+/** Leaving a canvas shared with you, then back to your own canvases. */
+export function useLeaveCanvas(canvasId: string) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  return useMutation({
+    mutationFn: () => client.removeCanvasMember({ canvasId }),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: canvasQueryOptions(canvasId).queryKey });
+      await queryClient.invalidateQueries({ queryKey: orpc.listSharedCanvases.key() });
+      toast.success("You left the canvas.");
+      await navigate({ to: "/canvases" });
+    },
+    onError: toastMutationError("canvas.leave", "Couldn't leave the canvas."),
+  });
+}
+
+export function useMoveCanvasToTeam(canvasId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (teamId: string) => client.moveCanvasToTeam({ canvasId, teamId }),
+    onSuccess: async ({ path }) => {
+      await invalidateSharing(queryClient, canvasId);
+      toast.success(`Moved to the team as ${path}.`);
+    },
+    onError: toastMutationError("canvas.move_to_team", "Couldn't move the canvas."),
+  });
+}
+
+export function useReportCanvas(canvasId: string) {
+  return useMutation({
+    mutationFn: (reason: string) => client.reportCanvas({ canvasId, reason }),
+    onSuccess: () => toast.success("Thanks. Staff will take a look."),
+    onError: toastMutationError("canvas.report", "Couldn't send the report."),
+  });
+}
+
+export function useSetCanvasHidden(canvasId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { hidden: boolean; reason?: string }) =>
+      client.setCanvasHidden({ canvasId, ...input }),
+    onSuccess: async (_result, input) => {
+      await Promise.all([
+        invalidateSharing(queryClient, canvasId),
+        queryClient.invalidateQueries({ queryKey: orpc.listCanvasReports.key() }),
+      ]);
+      toast.success(input.hidden ? "Canvas hidden." : "Canvas visible again.");
+    },
+    onError: toastMutationError("canvas.hide", "Couldn't change the canvas."),
+  });
+}

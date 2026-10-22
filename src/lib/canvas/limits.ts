@@ -27,6 +27,8 @@ export const CANVAS_LIMITS = {
   maxSize: 100_000,
   /** Unknown keys kept on a node, edge or canvas, serialised. */
   maxExtraBytes: 4_096,
+  /** People a personal canvas can be shared with. */
+  maxCanvasMembers: 50,
 } as const;
 
 /** Canvas images a member may upload a day, its own budget apart from avatars. */
@@ -38,3 +40,39 @@ export const VERSION_INTERVAL_MS = 60 * 60 * 1000;
 export const VERSION_RETENTION_DAYS = 30;
 /** Soft-deleted documents stay restorable this long. */
 export const SOFT_DELETE_DAYS = 30;
+
+/** Live sync: what `canvas-sync` enforces per connection, canvas and user. */
+export const SYNC_LIMITS = {
+  /** Messages per connection, sustained; a token bucket refilling at this rate. */
+  messagesPerSecond: 60,
+  /** The bucket's size: a burst a connection may send at once. */
+  messageBurst: 200,
+  connectionsPerCanvas: 50,
+  /** Across every canvas and every instance. */
+  connectionsPerUser: 10,
+  /** A live doc is stored this long after its last change… */
+  storeDebounceMs: 2_000,
+  /** …and at least this often while changes keep coming. */
+  storeMaxDebounceMs: 10_000,
+  /** The JSON Canvas snapshot is rebuilt at most this often per live canvas. */
+  snapshotIntervalMs: 30_000,
+  /** How long a minted sync token can be used to open a websocket. */
+  tokenTtlMs: 60_000,
+} as const;
+
+/**
+ * What one Obsidian import may bring in. An import over any of these is
+ * refused before anything is uploaded or created, with the numbers.
+ */
+export const CANVAS_IMPORT_LIMITS = {
+  /** A picked or dropped `.zip`, compressed. */
+  maxZipBytes: 200 * 1024 * 1024,
+  /** Everything in the import once unzipped: the zip-bomb guard. */
+  maxUnzippedBytes: 500 * 1024 * 1024,
+  /** Files in the import, counted before reading any of them. */
+  maxFiles: 5_000,
+  /** Images uploaded by one import, against the 200/day `canvas-image` budget. */
+  maxImagesPerImport: 200,
+  /** One note's bytes; a bigger note keeps the "not included" state. */
+  maxMarkdownBytes: 1024 * 1024,
+} as const;

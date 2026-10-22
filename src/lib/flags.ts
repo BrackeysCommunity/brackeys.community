@@ -33,6 +33,13 @@ export const FEATURE_FLAGS = {
    * server-side by the canvas middleware — every `canvas.*` procedure.
    */
   "canvases-enabled": false,
+  /**
+   * Live canvases: the editor syncs through `canvas-sync` instead of the
+   * solo save. Read once when the editor mounts, so turning it off (the
+   * kill switch) takes effect on the next open; the server refuses sync
+   * tokens while it's off for the caller.
+   */
+  "canvases-multiplayer": false,
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

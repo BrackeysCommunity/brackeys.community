@@ -119,7 +119,8 @@ function cardMarkdown(card: CanvasCard): string {
     case "text":
       return (card.text ?? "").trim();
     case "file":
-      return `[[${card.file ?? ""}${card.subpath ?? ""}]]`;
+      // A note imported with its body reads as the note itself.
+      return card.text != null ? card.text.trim() : `[[${card.file ?? ""}${card.subpath ?? ""}]]`;
     case "image":
       return `![[${card.file ?? ""}]]`;
     case "link":

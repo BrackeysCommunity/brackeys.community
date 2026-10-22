@@ -311,6 +311,37 @@ export function renderCopy(n: NotificationItem): {
         line: <>{teamEm} is visible again</>,
         href: teamHref,
       };
+    case "canvas_shared_with_you":
+    case "canvas_hidden_by_staff":
+    case "canvas_unhidden_by_staff": {
+      const canvasTitle = (n.data.canvasTitle as string | undefined) ?? "a canvas";
+      const reason = n.data.reason as string | undefined;
+      const title = <em className="font-medium not-italic">{canvasTitle}</em>;
+      const canvasHref =
+        typeof n.data.canvasId === "string" ? `/canvases/${n.data.canvasId}` : null;
+      return {
+        line:
+          n.type === "canvas_shared_with_you" ? (
+            n.data.role === "editor" ? (
+              <>
+                {actor} invited you to edit the canvas {title}
+              </>
+            ) : (
+              <>
+                {actor} shared the canvas {title} with you
+              </>
+            )
+          ) : n.type === "canvas_unhidden_by_staff" ? (
+            <>Your canvas {title} is visible again</>
+          ) : (
+            <>
+              Your canvas {title} is hidden pending review
+              {reason ? <> — {reason}</> : null}
+            </>
+          ),
+        href: canvasHref,
+      };
+    }
     case "image_quarantined": {
       const ownerLabel = (n.data.ownerLabel as string | undefined) ?? "your page";
       return {

@@ -7,7 +7,8 @@ import { client } from "@/orpc/client";
 
 import { SERVER } from "./canvas-doc";
 
-export type SaveStatus = "saved" | "pending" | "saving" | "offline" | "too-large";
+/** `connecting` is the live editor's, before its first sync. */
+export type SaveStatus = "saved" | "pending" | "saving" | "offline" | "too-large" | "connecting";
 
 const DEBOUNCE_MS = 1_500;
 const MAX_WAIT_MS = 10_000;
@@ -96,10 +97,14 @@ export function useCanvasSave(doc: Y.Doc, canvasId: string, initialServerVector:
     s.debounce = setTimeout(() => void save(), wait);
   }, [save]);
 
-  /** Adopts a state vector the server reported outside `save` (a restore). */
-  const acknowledge = useCallback((vector: Uint8Array) => {
-    state.current.serverVector = vector;
-  }, []);
+  /** A restore the server already stored: applied as the server's, so it isn't saved again. */
+  const applyRestored = useCallback(
+    (update: Uint8Array, vector: Uint8Array) => {
+      Y.applyUpdate(doc, update, SERVER);
+      state.current.serverVector = vector;
+    },
+    [doc],
+  );
 
   useEffect(() => {
     const onUpdate = (_update: Uint8Array, origin: unknown) => {
@@ -155,7 +160,7 @@ export function useCanvasSave(doc: Y.Doc, canvasId: string, initialServerVector:
   return {
     status,
     save,
-    acknowledge,
+    applyRestored,
     hasUnsaved: () => state.current.dirty || state.current.inFlight != null,
   };
 }

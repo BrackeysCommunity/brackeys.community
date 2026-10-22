@@ -98,6 +98,9 @@ const PUBLIC_PROCEDURES = new Set([
   // A readable canvas's image and live cards, behind the same access check.
   "listCanvasAttachments",
   "getCanvasEntities",
+  // The public tier's canvas reads: public and unlisted only, no session.
+  "getPublicCanvas",
+  "listPublicCanvases",
   // Whether the arcade flags are on for the caller; gates `/arcade/*`.
   "getArcadeAccess",
   // The caller's feature flags, bootstrapped into every page's root loader.
@@ -184,6 +187,10 @@ const STAFF_PROCEDURES = new Set([
   "rejectModerationProposal",
   "staffUpdateProfile",
   "staffResetUrlStub",
+  // Canvas moderation.
+  "setCanvasHidden",
+  "listCanvasReports",
+  "resolveCanvasReport",
 ]);
 
 const AUTH_REQUIRING = new Set<unknown>([

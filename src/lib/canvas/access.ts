@@ -91,3 +91,28 @@ export function canvasAccess(
 
   return guildCap(access);
 }
+
+const OPENNESS: Record<string, number> = { private: 0, team: 0, unlisted: 1, public: 2 };
+
+/** How open a visibility is: anyone with the link counts as more open than the roster. */
+export function visibilityOpenness(visibility: string): number {
+  return OPENNESS[visibility] ?? 0;
+}
+
+/**
+ * Who may move a canvas from one visibility to another. A canvas's owner
+ * (on a team, the team's owners) may choose any; on a team canvas anyone
+ * who can edit may narrow it, but widening who can read the team's work
+ * stays with the owners. An invited editor of a personal canvas can't
+ * change it at all.
+ */
+export function canSetVisibility(
+  canvas: Pick<CanvasAccessSubject, "teamId">,
+  access: CanvasAccess,
+  from: string,
+  to: string,
+): boolean {
+  if (access === "owner") return true;
+  if (!canvas.teamId || access !== "write") return false;
+  return visibilityOpenness(to) < visibilityOpenness(from);
+}

@@ -7,6 +7,7 @@ import {
   canvasAttachments,
   canvasDocVersions,
   canvases,
+  canvasMembers,
   itchJams,
   teamMembers,
   teams,
@@ -16,20 +17,24 @@ import { docFromState } from "@/lib/canvas/doc-state";
 import { base64ToBytes, bytesToBase64 } from "@/lib/canvas/encoding";
 import { applyJsonCanvas, canvasNodes, docToJsonCanvas } from "@/lib/canvas/json-canvas";
 import { CANVAS_LIMITS } from "@/lib/canvas/limits";
+import { verifyCanvasToken } from "@/lib/canvas/token";
 import {
   createCanvas,
   deleteCanvas,
   getCanvas,
   getCanvasEntities,
+  getCanvasSyncToken,
   getCanvasVersion,
   listCanvases,
   listCanvasVersions,
   listRecentCanvases,
+  listCanvasAttachmentMatches,
   moveCanvas,
   openJamPlanCanvas,
   restoreCanvas,
   restoreCanvasVersion,
   saveCanvas,
+  saveCanvasImport,
 } from "@/orpc/router/canvas";
 import { seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
@@ -51,10 +56,19 @@ vi.mock("@/lib/guild-sync", () => ({
   refreshDiscordProfileThrottled: async () => {},
 }));
 let canvasesEnabled = true;
+let multiplayerEnabled = true;
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
-  isServerFlagEnabled: async () => canvasesEnabled,
+  isServerFlagEnabled: async (flag: string) =>
+    flag === "canvases-multiplayer" ? multiplayerEnabled && canvasesEnabled : canvasesEnabled,
 }));
+const published = vi.hoisted(() => ({ revokes: [] as unknown[], applies: [] as string[] }));
+vi.mock("@/lib/canvas-sync-publish", () => ({
+  publishCanvasRevoke: async (message: unknown) => void published.revokes.push(message),
+  publishCanvasApply: async (canvasId: string) => void published.applies.push(canvasId),
+}));
+
+const SYNC_SECRET = "router-test-sync-secret";
 
 let db: TestDb;
 let teamId: string;
@@ -64,6 +78,11 @@ beforeEach(async () => {
   ({ db } = (await import("@/db")) as unknown as { db: TestDb });
   const { developerProfiles } = await import("@/db/schema");
   canvasesEnabled = true;
+  multiplayerEnabled = true;
+  published.revokes.length = 0;
+  published.applies.length = 0;
+  process.env.CANVAS_SYNC_SECRET = SYNC_SECRET;
+  process.env.CANVAS_SYNC_URL = "wss://sync.test";
   nonMembers.clear();
   await db.delete(canvasDocVersions);
   await db.delete(canvases);
@@ -567,6 +586,230 @@ describe("listCanvases thumbnails", () => {
     expect(row!.thumbnail).toEqual({
       box: { x: 10, y: 20, w: 100, h: 50 },
       rects: [[10, 20, 100, 50, "1", 0]],
+    });
+  });
+});
+
+describe("getCanvasSyncToken", () => {
+  const mint = (userId: string, canvasId: string) =>
+    call(getCanvasSyncToken, { canvasId }, asUser(userId));
+
+  it("mints a write token for the owner and teammates, naming the document", async () => {
+    const { id } = await create("alice", "Mine.canvas");
+    const result = await mint("alice", id);
+    expect(result).toMatchObject({ url: "wss://sync.test", access: "write" });
+    expect(await verifyCanvasToken(result.token, SYNC_SECRET)).toMatchObject({
+      c: `canvas:${id}`,
+      u: "alice",
+      a: "write",
+      v: 1,
+    });
+
+    const { id: teamCanvas } = await create("alice", "Ours.canvas", teamScope());
+    expect((await mint("bob", teamCanvas)).access).toBe("write");
+  });
+
+  it("mints read for viewers, unlisted readers, staff and members outside the guild", async () => {
+    const { id } = await create("alice", "Shared.canvas");
+    await db.insert(canvasMembers).values({ canvasId: id, userId: "carol", role: "viewer" });
+    expect((await mint("carol", id)).access).toBe("read");
+    expect((await mint("staff", id)).access).toBe("read");
+
+    await db.update(canvases).set({ visibility: "unlisted" }).where(eq(canvases.id, id));
+    expect((await mint("stranger", id)).access).toBe("read");
+
+    nonMembers.add("discord-alice");
+    expect((await mint("alice", id)).access).toBe("read");
+  });
+
+  it("is NOT_FOUND without access or with the flag off", async () => {
+    const { id } = await create("alice", "Private.canvas");
+    await expect(mint("stranger", id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    multiplayerEnabled = false;
+    await expect(mint("alice", id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("refuses a deleted canvas, and an unconfigured service", async () => {
+    const { id } = await create("alice", "Gone.canvas");
+    process.env.CANVAS_SYNC_URL = "";
+    await expect(mint("alice", id)).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    process.env.CANVAS_SYNC_URL = "wss://sync.test";
+    delete process.env.CANVAS_SYNC_SECRET;
+    await expect(mint("alice", id)).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    process.env.CANVAS_SYNC_SECRET = SYNC_SECRET;
+
+    await call(deleteCanvas, { canvasId: id }, asUser("alice"));
+    await expect(mint("alice", id)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+describe("live sync messages", () => {
+  it("revokes a deleted canvas and applies server-side writes", async () => {
+    const { id } = await create("alice", "Live.canvas");
+    const tab = await openTab("alice", id);
+    tab.add("hello");
+    await tab.save();
+    tab.add("hello again");
+    await tab.save();
+    expect(published.applies).toEqual([id, id]);
+
+    const {
+      versions: [version],
+    } = await call(listCanvasVersions, { canvasId: id }, asUser("alice"));
+    await call(restoreCanvasVersion, { canvasId: id, versionId: version!.id }, asUser("alice"));
+    expect(published.applies).toEqual([id, id, id]);
+
+    await call(deleteCanvas, { canvasId: id }, asUser("alice"));
+    expect(published.revokes).toEqual([{ canvasId: id }]);
+  });
+});
+
+describe("imports", () => {
+  it("keeps the canvas as it was before an import as a pre-import version", async () => {
+    const { id } = await create("alice", "Plan.canvas");
+    const tab = await openTab("alice", id);
+    tab.add("before");
+    await tab.save();
+
+    const copy = docFromState(Y.encodeStateAsUpdate(tab.doc));
+    applyJsonCanvas(copy, {
+      nodes: [{ id: "i", type: "text", text: "imported", x: 0, y: 0, width: 10, height: 10 }],
+    });
+    await call(
+      saveCanvasImport,
+      {
+        canvasId: id,
+        base: bytesToBase64(Y.encodeStateAsUpdate(tab.doc)),
+        update: bytesToBase64(Y.encodeStateAsUpdate(copy, Y.encodeStateVector(tab.doc))),
+        stateVector: bytesToBase64(Y.encodeStateVector(tab.doc)),
+      },
+      asUser("alice"),
+    );
+    const versions = await db
+      .select({ id: canvasDocVersions.id, reason: canvasDocVersions.reason })
+      .from(canvasDocVersions)
+      .where(eq(canvasDocVersions.docId, id));
+    expect(versions.map((v) => v.reason)).toEqual(["pre-import"]);
+    const preview = await call(
+      getCanvasVersion,
+      { canvasId: id, versionId: versions[0]!.id },
+      asUser("alice"),
+    );
+    expect(preview.snapshot.nodes.map((n) => n.text)).toEqual(["before"]);
+  });
+
+  it("creates nothing when an imported canvas is over the card cap", async () => {
+    const doc = new Y.Doc();
+    applyJsonCanvas(doc, {
+      nodes: Array.from({ length: CANVAS_LIMITS.maxNodes + 1 }, (_, i) => ({
+        id: `n${i}`,
+        type: "text",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+      })),
+    });
+    await expect(
+      call(
+        createCanvas,
+        {
+          scope: personal,
+          path: "Huge.canvas",
+          initialState: bytesToBase64(Y.encodeStateAsUpdate(doc)),
+          source: "obsidian_zip",
+        },
+        asUser("alice"),
+      ),
+    ).rejects.toThrow(/too many cards/);
+    expect(await db.select({ id: canvases.id }).from(canvases)).toEqual([]);
+  });
+
+  describe("listCanvasAttachmentMatches", () => {
+    const sha = (c: string) => c.repeat(64);
+
+    beforeEach(async () => {
+      await db.delete(canvasAttachments);
+      await db.insert(canvasAttachments).values([
+        {
+          id: "a-old",
+          ownerId: "alice",
+          path: "attachments/a.png",
+          imageKey: "k1",
+          sha256: sha("a"),
+          byteSize: 1,
+        },
+        {
+          id: "a-copy",
+          ownerId: "alice",
+          path: "attachments/a 2.png",
+          imageKey: "k2",
+          sha256: sha("a"),
+          byteSize: 1,
+        },
+        {
+          id: "a-gone",
+          ownerId: "alice",
+          path: "attachments/gone.png",
+          imageKey: "k3",
+          sha256: sha("c"),
+          byteSize: 1,
+          deletedAt: new Date(),
+        },
+        {
+          id: "b-own",
+          ownerId: "bob",
+          path: "attachments/b.png",
+          imageKey: "k4",
+          sha256: sha("b"),
+          byteSize: 1,
+        },
+        {
+          id: "t-1",
+          ownerId: "bob",
+          teamId,
+          path: "attachments/t.png",
+          imageKey: "k5",
+          sha256: sha("d"),
+          byteSize: 1,
+        },
+      ]);
+      await db
+        .update(canvasAttachments)
+        .set({ createdAt: sql`now() + interval '1 minute'` })
+        .where(eq(canvasAttachments.id, "a-copy"));
+    });
+
+    const match = (userId: string, scope: Scope, attachmentIds: string[], sha256s: string[]) =>
+      call(listCanvasAttachmentMatches, { scope, attachmentIds, sha256s }, asUser(userId));
+
+    it("matches by id and by sha256 within the scope, the oldest copy first", async () => {
+      const out = await match(
+        "alice",
+        personal,
+        ["a-copy", "b-own", "t-1"],
+        [sha("a"), sha("b"), sha("d")],
+      );
+      expect(out.byId).toEqual({ "a-copy": { path: "attachments/a 2.png", sha256: sha("a") } });
+      expect(out.bySha).toEqual({ [sha("a")]: { id: "a-old", path: "attachments/a.png" } });
+    });
+
+    it("ignores deleted attachments", async () => {
+      const out = await match("alice", personal, ["a-gone"], [sha("c")]);
+      expect(out).toEqual({ byId: {}, bySha: {} });
+    });
+
+    it("matches team attachments for a teammate who can write", async () => {
+      const out = await match("alice", teamScope(), ["t-1", "a-old"], [sha("d")]);
+      expect(Object.keys(out.byId)).toEqual(["t-1"]);
+      expect(out.bySha[sha("d")]?.id).toBe("t-1");
+    });
+
+    it("refuses a scope the caller can't write to", async () => {
+      nonMembers.add("discord-alice");
+      await expect(match("alice", personal, ["a-old"], [])).rejects.toThrow();
+      await expect(match("carol", teamScope(), ["t-1"], [])).rejects.toThrow(/not found/i);
     });
   });
 });

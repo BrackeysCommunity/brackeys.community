@@ -34,7 +34,18 @@ async function handle({ request }: { request: Request }) {
     }
 
     const png = await renderOgPng(renderCardNode(input, options));
-    return pngResponse(png, { headers: { "cache-control": "public, max-age=0, s-maxage=86400" } });
+    // A noindex card is an unlisted canvas, which can be narrowed at any
+    // time; a short edge TTL keeps its card from outliving the link.
+    const noindex = "noindex" in input && input.noindex;
+    return pngResponse(png, {
+      headers: noindex
+        ? {
+            "cache-control": "public, max-age=0, s-maxage=300",
+            "cdn-cache-control": "max-age=300",
+            "x-robots-tag": "noindex",
+          }
+        : { "cache-control": "public, max-age=0, s-maxage=86400" },
+    });
   } catch (error) {
     // Name rather than `instanceof`: importing the class would pull the
     // renderer (and satori) back into the SSR static graph.
@@ -78,7 +89,7 @@ function pngResponse(
   });
 }
 
-async function resolveCard(target: string) {
+export async function resolveCard(target: string) {
   const data = await import("@/lib/og/data");
   if (target === "default.png") return data.homeCard();
   if (target === "notfound.png") return data.notFoundCard();
@@ -115,6 +126,8 @@ async function resolveCard(target: string) {
       const postId = Number(id);
       return Number.isInteger(postId) && postId > 0 ? data.forumCard(postId) : null;
     }
+    case "canvas":
+      return data.canvasCard(id);
     default:
       return null;
   }

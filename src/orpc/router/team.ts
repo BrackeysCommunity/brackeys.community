@@ -40,6 +40,7 @@ import {
   type ModerationTargetType,
   type NotificationType,
 } from "@/db/schema";
+import { liveTeamCanvasIds, revokeCanvases, revokeTeamCanvases } from "@/lib/canvas-sync-publish";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { optionalExternalUrlSchema } from "@/lib/external-url";
 import { jamUrl } from "@/lib/jam-links";
@@ -645,6 +646,8 @@ export const setTeamArchived = os
         .update(collabPosts)
         .set({ status: "party_full", updatedAt: new Date() })
         .where(and(eq(collabPosts.teamId, input.teamId), eq(collabPosts.status, "recruiting")));
+      // An archived team's canvases are read-only: drop the live editors.
+      void revokeTeamCanvases(input.teamId);
     }
 
     return updated;
@@ -694,7 +697,9 @@ export async function applyTeamDelete(team: TeamRow, mod?: ModOverride) {
     });
   }
 
+  const canvasIds = await liveTeamCanvasIds(team.id);
   await db.delete(teams).where(eq(teams.id, team.id));
+  void revokeCanvases(canvasIds);
 
   // Replaced images are cleaned at replace time, so the current keys are
   // the only objects this team owns. Best-effort — an orphaned object is
@@ -1823,6 +1828,7 @@ export async function applyMemberRemoval(
   }
 
   await db.delete(teamMembers).where(eq(teamMembers.id, target.id));
+  void revokeTeamCanvases(team.id, userId);
 
   // On the staff path the actor is deliberately absent — the removed member
   // sees the staff reason, not the staff member.
@@ -2000,6 +2006,8 @@ export const leaveTeam = os
 
     await db.delete(teamMembers).where(eq(teamMembers.id, membership.id));
     await touchTeamActivity(input.teamId);
+    // The last one out archives the team, which makes its canvases read-only for everyone.
+    void revokeTeamCanvases(input.teamId, memberCount === 1 ? undefined : context.user.id);
 
     if (memberCount === 1) {
       await db
@@ -2633,6 +2641,7 @@ export async function applySetTeamHidden(
     .where(and(eq(teams.id, team.id), hidden ? isNull(teams.hiddenAt) : isNotNull(teams.hiddenAt)))
     .returning();
   if (!updated) return { success: true, changed: false };
+  if (hidden) void revokeTeamCanvases(team.id);
 
   await recordTeamModAction({
     action: hidden ? "team_hidden" : "team_unhidden",

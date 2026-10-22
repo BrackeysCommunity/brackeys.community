@@ -1,0 +1,23 @@
+# Config-as-code for the CANVAS-SYNC service: the live canvas relay. One
+# resident Bun process serving Hocuspocus over websockets; editors connect
+# with a token the web app mints, edits are relayed between them and merged
+# into canvas.canvas_docs every couple of seconds. See README.md.
+#
+# Create a service pointing at this repo, leave Root Directory blank (the
+# Dockerfile builds from the repo root so it can copy src/db/schema.ts), set
+# "Config file path" to services/canvas-sync/railway.toml, and reference
+# DATABASE_URL, REDIS_URL, CANVAS_SYNC_SECRET (the same value as Web's) and
+# the PostHog key. It needs a public domain: browsers connect to it directly.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/canvas-sync/Dockerfile"
+
+[deploy]
+startCommand = "bun run start"
+restartPolicyType = "ALWAYS"
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+# SIGTERM closes connections and stores every pending edit before exiting.
+# Railway's default is 0s, which would kill that flush mid-write.
+drainingSeconds = 30

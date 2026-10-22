@@ -13,7 +13,7 @@
  * dismiss can put everything back. Nothing here is deleted until a human
  * confirms.
  */
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import {
   canvasAttachments,
@@ -271,12 +271,15 @@ export async function reattachImageKey(
   await fill(projects, refs.projects);
   await fill(profileProjects, refs.profileProjects);
   await fill(teamProjects, refs.teamProjects);
-  for (const id of refs.canvasAttachments) {
-    await db
-      .update(canvasAttachments)
-      .set({ quarantinedAt: null })
-      .where(eq(canvasAttachments.id, id));
-  }
+  // By key, not the recorded ids: a canvas attachment is only ever quarantined
+  // through its key, and a row copied while quarantined (a move into a team)
+  // has an id the scan never recorded.
+  await db
+    .update(canvasAttachments)
+    .set({ quarantinedAt: null })
+    .where(
+      and(eq(canvasAttachments.imageKey, objectKey), isNotNull(canvasAttachments.quarantinedAt)),
+    );
 }
 
 type ScanRow = { status: string; detached: unknown };

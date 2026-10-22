@@ -1,3 +1,4 @@
+import { getPublicCanvas, listPublicCanvases } from "./canvas";
 import { listGuildChannels, listGuildRoles, resolveGuildChannel } from "./channels";
 import {
   countPostsByRole,
@@ -95,6 +96,8 @@ export const publicRouter = {
   listGuildRoles,
   resolveMentions,
   resolveDiscordUsers,
+  getPublicCanvas,
+  listPublicCanvases,
 };
 
 export default publicRouter;

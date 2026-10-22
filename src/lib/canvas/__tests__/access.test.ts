@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  canSetVisibility,
   canvasAccess,
   type CanvasAccess,
   type CanvasAccessSubject,
@@ -48,6 +49,82 @@ const rows: Row[] = [
   ["anon on unlisted", { ...personal, visibility: "unlisted" }, viewers.anon, "read"],
   ["stranger on public", { ...personal, visibility: "public" }, viewers.stranger, "read"],
   ["owner of public keeps owner", { ...personal, visibility: "public" }, viewers.owner, "owner"],
+  ["anon on personal public", { ...personal, visibility: "public" }, viewers.anon, "read"],
+  [
+    "stranger on personal unlisted",
+    { ...personal, visibility: "unlisted" },
+    viewers.stranger,
+    "read",
+  ],
+  ["anon on team public", { ...team, visibility: "public" }, viewers.anon, "read"],
+  ["non-roster member on team public", { ...team, visibility: "public" }, viewers.stranger, "read"],
+  [
+    "team member on team public keeps write",
+    { ...team, visibility: "public" },
+    viewers.teamMember,
+    "write",
+  ],
+  [
+    "viewer member on public stays read",
+    { ...personal, visibility: "public" },
+    viewers.viewer,
+    "read",
+  ],
+  [
+    "editor member on unlisted writes",
+    { ...personal, visibility: "unlisted" },
+    viewers.editor,
+    "write",
+  ],
+  ["the team value grants strangers nothing", team, viewers.anon, null],
+  [
+    "hidden public, stranger",
+    { ...personal, visibility: "public", hiddenAt: when },
+    viewers.stranger,
+    null,
+  ],
+  [
+    "hidden public, editor member",
+    { ...personal, visibility: "public", hiddenAt: when },
+    viewers.editor,
+    null,
+  ],
+  [
+    "hidden public, viewer member",
+    { ...personal, visibility: "public", hiddenAt: when },
+    viewers.viewer,
+    null,
+  ],
+  [
+    "hidden public, owner reads",
+    { ...personal, visibility: "public", hiddenAt: when },
+    viewers.owner,
+    "read",
+  ],
+  [
+    "hidden public, staff reads",
+    { ...personal, visibility: "public", hiddenAt: when },
+    viewers.staff,
+    "read",
+  ],
+  [
+    "hidden team's public canvas, anon",
+    { ...team, visibility: "public" },
+    { ...viewers.anon, team: { status: "active", hiddenAt: when } },
+    null,
+  ],
+  [
+    "owner outside the guild on public reads",
+    { ...personal, visibility: "public" },
+    { ...viewers.owner, isGuildMember: false },
+    "read",
+  ],
+  [
+    "stranger outside the guild on public reads",
+    { ...personal, visibility: "public" },
+    { ...viewers.stranger, isGuildMember: false },
+    "read",
+  ],
   // not in the guild
   ["owner outside the guild", personal, { ...viewers.owner, isGuildMember: false }, "read"],
   ["team member outside the guild", team, { ...viewers.teamMember, isGuildMember: false }, "read"],
@@ -112,5 +189,96 @@ describe("canvasAccess", () => {
     for (const canvas of [personal, team, { ...personal, visibility: "public" }]) {
       expect(canvasAccess(canvas, viewers.staff)).toBe("read");
     }
+  });
+});
+
+type VisibilityRow = [string, CanvasAccessSubject, CanvasAccessViewer, string, boolean];
+
+/** Who may move a canvas from its current visibility to `to`, through the same access check. */
+const visibilityRows: VisibilityRow[] = [
+  ["team owner widens to public", team, viewers.teamOwner, "public", true],
+  ["team owner widens to unlisted", team, viewers.teamOwner, "unlisted", true],
+  ["team owner narrows public", { ...team, visibility: "public" }, viewers.teamOwner, "team", true],
+  ["team member can't widen to public", team, viewers.teamMember, "public", false],
+  [
+    "team member can't widen unlisted to public",
+    { ...team, visibility: "unlisted" },
+    viewers.teamMember,
+    "public",
+    false,
+  ],
+  ["team member can't widen to unlisted", team, viewers.teamMember, "unlisted", false],
+  [
+    "team member narrows public to team",
+    { ...team, visibility: "public" },
+    viewers.teamMember,
+    "team",
+    true,
+  ],
+  [
+    "team member narrows public to unlisted",
+    { ...team, visibility: "public" },
+    viewers.teamMember,
+    "unlisted",
+    true,
+  ],
+  [
+    "team member narrows unlisted to team",
+    { ...team, visibility: "unlisted" },
+    viewers.teamMember,
+    "team",
+    true,
+  ],
+  [
+    "team member outside the guild can't narrow",
+    { ...team, visibility: "public" },
+    { ...viewers.teamMember, isGuildMember: false },
+    "team",
+    false,
+  ],
+  [
+    "archived team member can't narrow",
+    { ...team, visibility: "public" },
+    { ...viewers.teamMember, team: { status: "archived", hiddenAt: null } },
+    "team",
+    false,
+  ],
+  [
+    "non-roster stranger can't narrow a public team canvas",
+    { ...team, visibility: "public" },
+    viewers.stranger,
+    "team",
+    false,
+  ],
+  [
+    "staff can't change a team canvas",
+    { ...team, visibility: "public" },
+    viewers.staff,
+    "team",
+    false,
+  ],
+  ["personal owner widens", personal, viewers.owner, "public", true],
+  ["personal owner narrows", { ...personal, visibility: "public" }, viewers.owner, "private", true],
+  [
+    "invited editor can't narrow a personal canvas",
+    { ...personal, visibility: "public" },
+    viewers.editor,
+    "private",
+    false,
+  ],
+  ["invited editor can't widen a personal canvas", personal, viewers.editor, "unlisted", false],
+  [
+    "invited viewer can't narrow",
+    { ...personal, visibility: "unlisted" },
+    viewers.viewer,
+    "private",
+    false,
+  ],
+];
+
+describe("canSetVisibility", () => {
+  it.each(visibilityRows)("%s", (_, canvas, viewer, to, expected) => {
+    const access = canvasAccess(canvas, viewer);
+    expect(canSetVisibility(canvas, access, canvas.visibility, to)).toBe(expected);
   });
 });

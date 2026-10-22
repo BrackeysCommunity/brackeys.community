@@ -15,6 +15,7 @@ export type LogTarget =
   | { kind: "project"; slug: string; label: string }
   | { kind: "jam"; jam: { jamId: number; slug: string | null }; label: string }
   | { kind: "image"; href: string; label: string }
+  | { kind: "canvas"; canvasId: string; label: string }
   /** Gone, or never had a page — named but not linked. */
   | { kind: "text"; label: string };
 
@@ -166,6 +167,15 @@ function forumTarget(refs: LogRefs, postId: unknown, title: unknown): LogTarget 
     : { kind: "forum", postId: String(id), label };
 }
 
+/** Canvases aren't in the log's refs: the title is the one the row snapshotted. */
+function canvasTarget(canvasId: unknown, title: unknown): LogTarget | null {
+  const id = str(canvasId);
+  const label = str(title) ?? "A canvas";
+  return id
+    ? { kind: "canvas", canvasId: id, label }
+    : { kind: "text", label: `${label} (deleted)` };
+}
+
 function teamTarget(refs: LogRefs, teamId: unknown, meta: Meta): LogTarget | null {
   const id = str(teamId);
   if (!id) return null;
@@ -296,7 +306,9 @@ export function describeLogEntry(row: LogAction, refs: LogRefs): LogDetail {
             ? collabTarget(refs, meta.subjectId, null)
             : kind === "forum_post"
               ? forumTarget(refs, meta.subjectId, null)
-              : teamTarget(refs, meta.subjectId, meta);
+              : kind === "canvas"
+                ? canvasTarget(meta.subjectId, meta.canvasTitle)
+                : teamTarget(refs, meta.subjectId, meta);
       return {
         target,
         facts: value("Report", `${kind ?? "report"} report ${row.targetId}`),
@@ -466,6 +478,17 @@ export function describeLogEntry(row: LogAction, refs: LogRefs): LogDetail {
           ...(row.action === "forum_post_retagged" ? change("Tags", meta.before, meta.after) : []),
           ...reportFacts(refs, meta),
         ],
+        quote: null,
+      };
+    }
+
+    case "canvas_hidden":
+    case "canvas_unhidden":
+    case "canvas_report_dismissed": {
+      const canvasId = row.targetType === "canvas" ? row.targetId : meta.canvasId;
+      return {
+        target: canvasTarget(canvasId, meta.canvasTitle),
+        facts: reportFacts(refs, meta),
         quote: null,
       };
     }

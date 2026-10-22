@@ -6,6 +6,7 @@ import { fadeLeft, fadeUp } from "@/lib/motion";
 import { ProfileAbout } from "./ProfileAbout";
 import { ProfileActivitySection } from "./ProfileActivity";
 import { ProfileAvailabilitySection } from "./ProfileAvailability";
+import { ProfileCanvasesSection } from "./ProfileCanvases";
 import { ProfileCreditsSection } from "./ProfileCredits";
 import { ProfileHero } from "./ProfileHero";
 import { ProfileJamLogSection } from "./ProfileJamLog";
@@ -102,6 +103,7 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             onEdit={() => openEdit(4)}
             queryKey={queryKey}
           />
+          <ProfileCanvasesSection index="G" profileId={profile.profileId} stacked />
         </motion.div>
       </div>
 

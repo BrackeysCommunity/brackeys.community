@@ -8,7 +8,9 @@ import {
   applyJsonCanvas,
   canvasNodes,
   deriveSnapshot,
+  docOnlyFields,
   docToJsonCanvas,
+  fileBodyOf,
   jsonCanvasSchema,
   orderedNodeIds,
   sanitizeSnapshot,
@@ -311,5 +313,116 @@ describe("jsonCanvasSchema", () => {
       }).success,
     ).toBe(true);
     expect(jsonCanvasSchema.safeParse({ nodes: [{ id: 1 }] }).success).toBe(false);
+  });
+});
+
+describe("image keys on link nodes and doc-only fields", () => {
+  it("reads an image key on a link node as an image card", () => {
+    const doc = load({
+      nodes: [
+        {
+          id: "i",
+          type: "link",
+          url: "https://jams.team/images/k",
+          x: 0,
+          y: 0,
+          width: 10,
+          height: 10,
+          jamsTeam: { type: "image", attachmentId: "att-1" },
+        },
+      ],
+    });
+    const node = canvasNodes(doc).get("i");
+    expect(node?.get("type")).toBe("image");
+    expect(node?.get("attachmentId")).toBe("att-1");
+    expect(docToJsonCanvas(doc).nodes[0]).toMatchObject({
+      type: "file",
+      jamsTeam: { type: "image", attachmentId: "att-1" },
+    });
+    expect(
+      sanitizeSnapshot({
+        nodes: [
+          {
+            id: "i",
+            type: "link",
+            url: "u",
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1,
+            jamsTeam: { type: "image", attachmentId: "a" },
+          },
+        ],
+        edges: [],
+      }).nodes[0]?.jamsTeam,
+    ).toEqual({ type: "image", attachmentId: "a" });
+  });
+
+  const withBody = {
+    nodes: [
+      { id: "f", type: "file", file: "Notes/a.md", x: 0, y: 0, width: 10, height: 10 },
+      { id: "t", type: "text", text: "x", x: 0, y: 0, width: 10, height: 10 },
+      {
+        id: "i",
+        type: "file",
+        file: "a.png",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        jamsTeam: { type: "image", attachmentId: "att" },
+      },
+    ],
+    edges: [],
+  };
+
+  function loadWithFields() {
+    const doc = new Y.Doc();
+    applyJsonCanvas(doc, withBody, {
+      mode: "whole",
+      docFields: {
+        f: { text: "body\r\n", bom: true },
+        t: { text: "not for text cards", bom: true },
+        i: { plain: true },
+      },
+    });
+    return doc;
+  }
+
+  it("keeps a file card's body and bom in the doc, never in JSON Canvas or the snapshot", () => {
+    const doc = loadWithFields();
+    const node = canvasNodes(doc).get("f")!;
+    expect(fileBodyOf(node)).toEqual({ text: "body\r\n", bom: true });
+    expect(docToJsonCanvas(doc).nodes[0]).toEqual(withBody.nodes[0]);
+    const snapshot = JSON.stringify(deriveSnapshot(doc));
+    expect(snapshot).not.toContain("body\\r\\n");
+    expect(snapshot).not.toContain('"bom"');
+  });
+
+  it("puts doc-only fields only on the card types that hold them", () => {
+    const doc = loadWithFields();
+    expect(canvasNodes(doc).get("t")?.get("bom")).toBeUndefined();
+    expect(docOnlyFields(doc)).toEqual({ f: { text: "body\r\n", bom: true }, i: { plain: true } });
+  });
+
+  it("writes a plain image without its key only for a vault", () => {
+    const doc = loadWithFields();
+    expect(docToJsonCanvas(doc).nodes[2]?.jamsTeam).toBeDefined();
+    expect(docToJsonCanvas(doc, { vault: true }).nodes[2]).toEqual({
+      id: "i",
+      type: "file",
+      file: "a.png",
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+    });
+  });
+
+  it("maps source ids to doc ids", () => {
+    const doc = new Y.Doc();
+    const { ids } = applyJsonCanvas(doc, withBody, { at: { x: 0, y: 0 } });
+    expect([...ids.keys()]).toEqual(["f", "t", "i"]);
+    expect(ids.get("f")).not.toBe("f");
   });
 });

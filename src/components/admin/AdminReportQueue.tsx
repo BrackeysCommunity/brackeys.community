@@ -10,6 +10,7 @@ import {
   AdminSection,
   ReasonField,
 } from "@/components/admin/AdminUI";
+import { CanvasThumbnail } from "@/components/canvas/CanvasThumbnail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
@@ -27,6 +28,7 @@ type CommentReport = Awaited<ReturnType<typeof client.listCommentReports>>[numbe
 type PostReport = Awaited<ReturnType<typeof client.listReports>>[number];
 type TeamReport = Awaited<ReturnType<typeof client.listTeamReports>>[number];
 type ForumReport = Awaited<ReturnType<typeof client.listForumReports>>[number];
+type CanvasReport = Awaited<ReturnType<typeof client.listCanvasReports>>[number];
 
 /** One report, flattened to what the stacked reason list renders. */
 type ReportEntry = {
@@ -48,7 +50,7 @@ type ReportEntry = {
  */
 type QueueGroup = {
   key: string;
-  kind: "comment" | "post" | "team" | "forum_post";
+  kind: "comment" | "post" | "team" | "forum_post" | "canvas";
   /** Newest first; the head is what the action buttons act on. */
   entries: ReportEntry[];
   createdAt: Date | null;
@@ -57,6 +59,7 @@ type QueueGroup = {
   post: PostReport | null;
   team: TeamReport | null;
   forumPost: ForumReport | null;
+  canvas: CanvasReport | null;
 };
 
 /**
@@ -81,12 +84,16 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
     ...orpc.listForumReports.queryOptions({ input: { includeResolved } }),
     enabled: forumOn,
   });
+  const canvasReports = useQuery(
+    orpc.listCanvasReports.queryOptions({ input: { includeResolved } }),
+  );
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: orpc.listCommentReports.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listReports.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listTeamReports.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listForumReports.key() });
+    void queryClient.invalidateQueries({ queryKey: orpc.listCanvasReports.key() });
   };
 
   const resolveComment = useMutation({
@@ -109,6 +116,12 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
       client.resolveTeamReport(input),
     onSuccess: invalidate,
     onError: toastMutationError("admin.report_resolve_team"),
+  });
+  const resolveCanvas = useMutation({
+    mutationFn: (input: { reportId: number; action: "dismiss" | "hide_canvas"; reason?: string }) =>
+      client.resolveCanvasReport(input),
+    onSuccess: invalidate,
+    onError: toastMutationError("admin.report_resolve_canvas"),
   });
   const resolveForum = useMutation({
     mutationFn: (input: {
@@ -175,6 +188,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           post: null,
           team: null,
           forumPost: null,
+          canvas: null,
         }),
         {
           id: r.id,
@@ -198,6 +212,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           post: r,
           team: null,
           forumPost: null,
+          canvas: null,
         }),
         {
           id: r.id,
@@ -225,6 +240,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           post: null,
           team: r,
           forumPost: null,
+          canvas: null,
         }),
         {
           id: r.id,
@@ -249,6 +265,34 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
           post: null,
           team: null,
           forumPost: r,
+          canvas: null,
+        }),
+        {
+          id: r.id,
+          reason: r.reason,
+          createdAt: r.createdAt,
+          reporterName: r.reporter?.displayName ?? null,
+          reporter: r.reporter,
+        },
+      );
+    }
+
+    for (const r of (canvasReports.data ?? []).filter(inScope)) {
+      // Like teams: a report on a canvas that's gone stands alone.
+      const key = r.canvasId != null ? `cv-${r.canvasId}` : `cv-del-${r.id}`;
+      push(
+        key,
+        () => ({
+          key,
+          kind: "canvas",
+          entries: [],
+          createdAt: r.createdAt,
+          resolvedAt: r.resolvedAt,
+          comment: null,
+          post: null,
+          team: null,
+          forumPost: null,
+          canvas: r,
         }),
         {
           id: r.id,
@@ -274,6 +318,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
     postReports.data,
     teamReports.data,
     forumReports.data,
+    canvasReports.data,
     forumOn,
     includeResolved,
   ]);
@@ -282,12 +327,14 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
     commentReports.isPending ||
     postReports.isPending ||
     teamReports.isPending ||
+    canvasReports.isPending ||
     (forumOn && forumReports.isPending);
   const busy =
     resolveComment.isPending ||
     resolvePost.isPending ||
     resolveTeam.isPending ||
     resolveForum.isPending ||
+    resolveCanvas.isPending ||
     deletePostReports.isPending ||
     reopen.isPending;
 
@@ -298,7 +345,7 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
       hint={
         includeResolved
           ? "Already handled — kept for the record."
-          : "One row per reported post, comment, or team, newest first."
+          : "One row per reported post, comment, team or canvas, newest first."
       }
       actions={
         <SegmentedControl
@@ -339,7 +386,9 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                           ? "TEAM"
                           : row.kind === "forum_post"
                             ? "FORUM"
-                            : "POST"}
+                            : row.kind === "canvas"
+                              ? "CANVAS"
+                              : "POST"}
                     </Badge>
                     {row.kind === "team" && row.team?.teamId == null ? (
                       <Badge size="label" variant="destructive">
@@ -394,6 +443,8 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                     <TeamTarget report={row.team} />
                   ) : row.kind === "forum_post" && row.forumPost ? (
                     <ForumTarget report={row.forumPost} />
+                  ) : row.kind === "canvas" && row.canvas ? (
+                    <CanvasTarget report={row.canvas} />
                   ) : row.post ? (
                     <PostTarget report={row.post} />
                   ) : null}
@@ -409,8 +460,8 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                         message={
                           row.kind === "comment"
                             ? "The report goes back in the open queue for another look. A comment that was already removed stays removed."
-                            : row.kind === "team"
-                              ? "The report goes back in the open queue for another look. A team that was already hidden stays hidden."
+                            : row.kind === "team" || row.kind === "canvas"
+                              ? `The report goes back in the open queue for another look. A ${row.kind} that was already hidden stays hidden.`
                               : row.kind === "forum_post"
                                 ? "The report goes back in the open queue for another look. A post that was already hidden or removed stays that way."
                                 : "The report goes back in the open queue for another look. A post that was already closed stays closed."
@@ -487,6 +538,22 @@ export function AdminReportQueue({ isAdmin }: { isAdmin: boolean }) {
                           onResolve={async (action) => {
                             const reason = reasons[head.id]?.trim();
                             await resolveForum.mutateAsync({
+                              reportId: head.id,
+                              action,
+                              ...(reason ? { reason } : {}),
+                            });
+                          }}
+                        />
+                      ) : row.kind === "canvas" && row.canvas ? (
+                        <CanvasActions
+                          report={row.canvas}
+                          reportCount={row.entries.length}
+                          reason={reasons[head.id] ?? ""}
+                          onReason={(next) => setReasons((prev) => ({ ...prev, [head.id]: next }))}
+                          busy={busy}
+                          onResolve={async (action) => {
+                            const reason = reasons[head.id]?.trim();
+                            await resolveCanvas.mutateAsync({
                               reportId: head.id,
                               action,
                               ...(reason ? { reason } : {}),
@@ -861,6 +928,123 @@ function ForumActions({
           </Button>
         </Confirm>
       ) : null}
+    </div>
+  );
+}
+
+function CanvasTarget({ report }: { report: CanvasReport }) {
+  if (report.canvasId == null || report.liveDeletedAt != null) {
+    return (
+      <div className="flex items-start gap-2 border-l-2 border-muted pl-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <Text size="sm" className="font-medium">
+            {report.liveTitle ?? report.canvasTitle}
+          </Text>
+          <Text size="xs" variant="muted">
+            {report.canvasId == null
+              ? "canvas deleted — title from the report snapshot"
+              : "in its owner's Recently deleted"}
+          </Text>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-start gap-3 border-l-2 border-muted pl-3">
+      <CanvasThumbnail thumbnail={report.thumbnail} className="aspect-[16/10] w-32 shrink-0" />
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Staff can read any canvas, hidden ones included. */}
+          <Link
+            to="/canvases/$canvasId"
+            params={{ canvasId: report.canvasId }}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            {report.liveTitle ?? report.canvasTitle}
+          </Link>
+          <Badge size="label" variant="outline">
+            {(report.liveVisibility ?? "private").toUpperCase()}
+          </Badge>
+          {report.liveHiddenAt != null ? (
+            <Badge size="label" variant="destructive">
+              HIDDEN
+            </Badge>
+          ) : null}
+        </div>
+        {report.excerpt ? (
+          <Text size="xs" variant="muted" className="line-clamp-3 max-w-prose break-words">
+            {report.excerpt}
+          </Text>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CanvasActions({
+  report,
+  reportCount,
+  reason,
+  onReason,
+  busy,
+  onResolve,
+}: {
+  report: CanvasReport;
+  reportCount: number;
+  reason: string;
+  onReason: (next: string) => void;
+  busy: boolean;
+  onResolve: (action: "dismiss" | "hide_canvas") => Promise<void>;
+}) {
+  const live = report.canvasId != null && report.liveDeletedAt == null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Confirm
+        title="Dismiss this report?"
+        message={
+          live
+            ? "The canvas stays up and the report is marked resolved."
+            : "The canvas is already gone — this just closes the report."
+        }
+        confirmText="Dismiss report"
+        onConfirm={() => onResolve("dismiss")}
+      >
+        <Button variant="outline" size="xs" disabled={busy}>
+          Dismiss
+        </Button>
+      </Confirm>
+      {live &&
+        (report.liveHiddenAt != null ? (
+          <Button variant="ghost" size="xs" disabled>
+            Already hidden — dismiss instead
+          </Button>
+        ) : (
+          <Confirm
+            title="Hide this canvas?"
+            message={
+              <>
+                Only its owner and staff can open it while it's hidden, and the owner is told why.{" "}
+                {reportCount > 1
+                  ? `This resolves all ${reportCount} reports on it.`
+                  : "This resolves the report."}
+                <ReasonField
+                  id={`report-reason-${report.id}`}
+                  value={reason}
+                  onChange={onReason}
+                  required
+                />
+              </>
+            }
+            confirmText="Hide canvas"
+            variant="destructive"
+            confirmDisabled={!reason.trim()}
+            onConfirm={() => onResolve("hide_canvas")}
+          >
+            <Button variant="destructive" size="xs" disabled={busy}>
+              Hide canvas
+            </Button>
+          </Confirm>
+        ))}
     </div>
   );
 }

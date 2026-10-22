@@ -21,6 +21,7 @@ import type { SaveStatus } from "./editor/use-canvas-save";
 import { OutlinePanel } from "./OutlinePanel";
 import { CanvasShell, Island } from "./shell/CanvasShell";
 import { DocumentIsland } from "./shell/DocumentIsland";
+import { SharePopover } from "./shell/SharePopover";
 
 const CanvasEditor = lazy(() => import("./editor/CanvasEditor"));
 const HistoryPanel = lazy(() =>
@@ -33,6 +34,7 @@ const STATUS_COPY: Record<SaveStatus, string> = {
   saving: "Saving…",
   offline: "Offline — changes kept in this tab",
   "too-large": "Too large to save",
+  connecting: "Connecting…",
 };
 
 function useScopeName(canvas: CanvasDetail | undefined): string {
@@ -170,6 +172,7 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
       scopeName={scopeName}
       editable={editing}
       exportJson={() => editorHandle.current?.exportJson() ?? canvas.snapshot}
+      editor={() => editorHandle.current}
       compact={isMobile}
     />
   );
@@ -196,6 +199,9 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
         >
           <HugeiconsIcon icon={Clock01Icon} size={16} />
         </Button>
+      ) : null}
+      {canvas.canShare || canvas.isMember || (canvas.scope.kind === "team" && canEdit) ? (
+        <SharePopover canvas={canvas} teamName={scopeName} />
       ) : null}
     </>
   );
@@ -274,6 +280,7 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
           panel={panel}
           onClosePanel={() => setPanel(null)}
           chrome={{ topLeft, toggles, status: statusIsland, files }}
+          fallback={reader}
         />
       </Suspense>
     </ShellBoundary>

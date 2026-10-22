@@ -1,11 +1,17 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { collabPostReports, commentReports, forumPostReports, teamReports } from "@/db/schema";
+import {
+  canvasReports,
+  collabPostReports,
+  commentReports,
+  forumPostReports,
+  teamReports,
+} from "@/db/schema";
 import { notify } from "@/lib/notifications";
 import { bestEffort } from "@/lib/posthog-server";
 
-export type ReportKind = "post" | "comment" | "team" | "forum_post";
+export type ReportKind = "post" | "comment" | "team" | "forum_post" | "canvas";
 
 /** What the reporter is told: staff acted on the thing, or left it up. */
 export type ReportOutcome = "actioned" | "no_action";
@@ -27,7 +33,7 @@ export type ResolvedReport = { id: number; reporterId: string };
  */
 export async function resolveReportsForSubject(params: {
   kind: ReportKind;
-  /** `collab_posts.id`, `comments.id`, `teams.id`, or `forum.posts.id`. */
+  /** `collab_posts.id`, `comments.id`, `teams.id`, `forum.posts.id` or `canvas.canvases.id`. */
   subjectId: number | string;
   actorId: string;
 }): Promise<ResolvedReport[]> {
@@ -57,6 +63,16 @@ export async function resolveReportsForSubject(params: {
         ),
       )
       .returning({ id: forumPostReports.id, reporterId: forumPostReports.reporterId });
+  }
+
+  if (params.kind === "canvas") {
+    return db
+      .update(canvasReports)
+      .set(set)
+      .where(
+        and(eq(canvasReports.canvasId, String(params.subjectId)), isNull(canvasReports.resolvedAt)),
+      )
+      .returning({ id: canvasReports.id, reporterId: canvasReports.reporterId });
   }
 
   if (params.kind === "team") {
@@ -95,7 +111,7 @@ export async function notifyReporters(params: {
   reports: ResolvedReport[];
   actorId: string;
   outcome: ReportOutcome;
-  entityType: "collab_post" | "comment" | "team" | "forum_post";
+  entityType: "collab_post" | "comment" | "team" | "forum_post" | "canvas";
   entityId: number | string;
   subjectTitle: string;
   subjectUrl: string | null;

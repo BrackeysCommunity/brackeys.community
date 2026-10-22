@@ -90,6 +90,9 @@ export function renderNotificationText(input: {
   // Upload moderation names the surface, never the verdict: the image is
   // hidden pending a human look, and nothing about why belongs in a bell.
   const imageOwnerLabel = (input.data.ownerLabel as string | undefined) ?? "your page";
+  const canvasTitle = (input.data.canvasTitle as string | undefined) ?? "a canvas";
+  const canvasHref =
+    typeof input.data.canvasId === "string" ? `/canvases/${input.data.canvasId}` : null;
 
   switch (input.type) {
     case "collab_response_received":
@@ -305,6 +308,23 @@ export function renderNotificationText(input: {
         headline: `An image you uploaded to ${imageOwnerLabel} is under review`,
         href: (input.data.ownerUrl as string | undefined) ?? null,
       };
+    case "canvas_shared_with_you":
+      return {
+        headline:
+          input.data.role === "editor"
+            ? `${actor} invited you to edit the canvas "${canvasTitle}"`
+            : `${actor} shared the canvas "${canvasTitle}" with you`,
+        href: canvasHref,
+      };
+    case "canvas_hidden_by_staff":
+      return {
+        headline: moderationReason
+          ? `Your canvas "${canvasTitle}" is hidden pending review — ${moderationReason}`
+          : `Your canvas "${canvasTitle}" is hidden pending review`,
+        href: canvasHref,
+      };
+    case "canvas_unhidden_by_staff":
+      return { headline: `Your canvas "${canvasTitle}" is visible again`, href: canvasHref };
     default:
       return { headline: "You have a new notification", href };
   }
@@ -356,6 +376,9 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   jam_results_posted: "Jams — results are up for a jam you're watching",
   jam_team_post_created: "Jams — someone is crewing up for a jam you're watching",
   image_quarantined: "Moderation — an image you uploaded is under review",
+  canvas_shared_with_you: "Teams — someone shared a canvas with you",
+  canvas_hidden_by_staff: "Moderation — your canvas was hidden pending review",
+  canvas_unhidden_by_staff: "Moderation — your canvas is visible again",
 };
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
@@ -404,6 +427,9 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "jam_results_posted",
   "jam_team_post_created",
   "image_quarantined",
+  "canvas_shared_with_you",
+  "canvas_hidden_by_staff",
+  "canvas_unhidden_by_staff",
 ];
 
 /**
@@ -499,6 +525,11 @@ export const NOTIFICATION_DEFAULTS: Record<
   // Their banner just vanished from the page; silence reads as the site
   // being broken. Same reasoning as comment_removed_by_staff.
   image_quarantined: { inApp: true, email: true, digest: false },
+  // Someone handed you something to work on, like a team invite.
+  canvas_shared_with_you: { inApp: true, email: true, digest: false },
+  // The same silence-reads-as-broken reasoning as the team notices.
+  canvas_hidden_by_staff: { inApp: true, email: true, digest: false },
+  canvas_unhidden_by_staff: { inApp: true, email: false, digest: false },
 };
 
 /**
@@ -560,6 +591,9 @@ export const NOTIFICATION_CATEGORY: Record<NotificationType, NotificationCategor
   jam_results_posted: "jams",
   jam_team_post_created: "jams",
   image_quarantined: "moderation",
+  canvas_shared_with_you: "teams",
+  canvas_hidden_by_staff: "moderation",
+  canvas_unhidden_by_staff: "moderation",
 };
 
 export const NOTIFICATION_CATEGORIES: readonly NotificationCategory[] = [

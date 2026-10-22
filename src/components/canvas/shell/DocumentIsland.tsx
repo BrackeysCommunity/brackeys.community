@@ -2,25 +2,35 @@ import {
   ArrowDown01Icon,
   Delete02Icon,
   Download01Icon,
+  Flag02Icon,
   FolderTransferIcon,
   PencilEdit01Icon,
+  ViewIcon,
+  ViewOffIcon,
+  Upload04Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useId, useRef, useState } from "react";
+import { lazy, Suspense, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ResponsiveModal } from "@/components/ui/responsive-modal";
+import { Textarea } from "@/components/ui/textarea";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { base64ToBytes } from "@/lib/canvas/encoding";
 import type { JsonCanvas } from "@/lib/canvas/json-canvas";
 import {
   basename,
@@ -30,8 +40,16 @@ import {
   PATH_PROBLEM_MESSAGES,
   pathTitle,
 } from "@/lib/canvas/paths";
+import { toast } from "@/lib/toast";
 
-import { useDeleteCanvas, useMoveCanvas, type CanvasDetail } from "../canvas-queries";
+import {
+  useDeleteCanvas,
+  useMoveCanvas,
+  useReportCanvas,
+  useSetCanvasHidden,
+  type CanvasDetail,
+} from "../canvas-queries";
+import type { CanvasEditorHandle } from "../editor/CanvasEditor";
 import { Island } from "./CanvasShell";
 import { SiteMenu } from "./SiteMenu";
 
@@ -148,14 +166,114 @@ function MoveDialog({ canvas, onClose }: { canvas: CanvasDetail; onClose: () => 
   );
 }
 
-function downloadCanvas(path: string, json: JsonCanvas) {
-  const blob = new Blob([JSON.stringify(json, null, "\t")], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = basename(path);
-  a.click();
-  URL.revokeObjectURL(url);
+/** A Confirm that collects a required reason: staff hide and Report. */
+function ReasonConfirm({
+  open,
+  onOpenChange,
+  title,
+  message,
+  placeholder,
+  confirmText,
+  maxLength,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  message: string;
+  placeholder: string;
+  confirmText: string;
+  maxLength: number;
+  onSubmit: (reason: string) => Promise<unknown>;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <Confirm
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) setReason("");
+      }}
+      title={title}
+      message={
+        <>
+          <span>{message}</span>
+          <Textarea
+            aria-label="Reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={placeholder}
+            rows={3}
+            maxLength={maxLength}
+          />
+        </>
+      }
+      confirmText={confirmText}
+      confirmDisabled={!reason.trim()}
+      variant="destructive"
+      onConfirm={async () => {
+        await onSubmit(reason.trim());
+        setReason("");
+      }}
+    />
+  );
+}
+
+/**
+ * Staff hide and unhide, and Report for a signed-in reader of a public or
+ * unlisted canvas. Kept in their own group at the end of the menu.
+ */
+function ModerationItems({
+  canvas,
+  onHide,
+  onUnhide,
+  onReport,
+}: {
+  canvas: CanvasDetail;
+  onHide: () => void;
+  onUnhide: () => void;
+  onReport: () => void;
+}) {
+  if (!canvas.canModerate && !canvas.canReport) return null;
+  return (
+    <DropdownMenuGroup>
+      {canvas.canModerate ? (
+        canvas.hidden ? (
+          <DropdownMenuItem onClick={onUnhide}>
+            <HugeiconsIcon icon={ViewIcon} size={14} />
+            Unhide canvas
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onClick={onHide}>
+            <HugeiconsIcon icon={ViewOffIcon} size={14} />
+            Hide canvas…
+          </DropdownMenuItem>
+        )
+      ) : null}
+      {canvas.canReport ? (
+        <DropdownMenuItem onClick={onReport}>
+          <HugeiconsIcon icon={Flag02Icon} size={14} />
+          Report…
+        </DropdownMenuItem>
+      ) : null}
+    </DropdownMenuGroup>
+  );
+}
+
+const ImportDialog = lazy(() =>
+  import("../io/ImportDialog").then((m) => ({ default: m.ImportDialog })),
+);
+
+const loadExports = () => import("../io/export-actions");
+
+/** The open editor's doc, or one read from the canvas's stored state. */
+async function exportSource(canvas: CanvasDetail, editor: CanvasEditorHandle | null) {
+  if (editor) return editor.exportDoc();
+  const { docFromState } = await import("@/lib/canvas/doc-state");
+  return {
+    doc: docFromState(canvas.state ? base64ToBytes(canvas.state) : new Uint8Array()),
+    attachments: canvas.attachments,
+  };
 }
 
 /**
@@ -167,6 +285,7 @@ export function DocumentIsland({
   scopeName,
   editable,
   exportJson,
+  editor = () => null,
   compact = false,
 }: {
   canvas: CanvasDetail;
@@ -175,6 +294,8 @@ export function DocumentIsland({
   editable: boolean;
   /** The canvas as it stands, for Export. */
   exportJson: () => JsonCanvas;
+  /** The open editor, for the vault and Markdown exports and importing into it. */
+  editor?: () => CanvasEditorHandle | null;
   /** Phones: the title over the scope, no folders. */
   compact?: boolean;
 }) {
@@ -183,7 +304,21 @@ export function DocumentIsland({
   const titleInput = useRef<HTMLInputElement>(null);
   const [moving, setMoving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hiding, setHiding] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const setHidden = useSetCanvasHidden(canvas.id);
+  const report = useReportCanvas(canvas.id);
+  const moderation = canvas.canModerate || canvas.canReport;
+  const [importing, setImporting] = useState(false);
   const folders = dirname(canvas.path).split("/").filter(Boolean);
+  const moderationItems = (
+    <ModerationItems
+      canvas={canvas}
+      onHide={() => setHiding(true)}
+      onUnhide={() => setHidden.mutate({ hidden: false })}
+      onReport={() => setReporting(true)}
+    />
+  );
 
   const crumb = compact ? (
     <div className="flex min-w-0 flex-col">
@@ -247,19 +382,109 @@ export function DocumentIsland({
               <HugeiconsIcon icon={FolderTransferIcon} size={14} />
               Move…
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => downloadCanvas(canvas.path, exportJson())}>
-              <HugeiconsIcon icon={Download01Icon} size={14} />
-              Export .canvas
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <HugeiconsIcon icon={Download01Icon} size={14} />
+                Export
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="min-w-44">
+                <DropdownMenuItem
+                  onClick={() =>
+                    void loadExports().then((m) => m.downloadCanvasFile(canvas.path, exportJson()))
+                  }
+                >
+                  .canvas file
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void (async () => {
+                      const { doc, attachments } = await exportSource(canvas, editor());
+                      const { downloadVaultZip, leftOutSummary } = await loadExports();
+                      const leftOut = await downloadVaultZip(canvas.path, doc, attachments);
+                      if (leftOut.length) toast.warning(leftOutSummary(leftOut));
+                    })().catch(() => toast.error("Couldn't build the zip."))
+                  }
+                >
+                  Zip for Obsidian
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void (async () => {
+                      const { doc } = await exportSource(canvas, editor());
+                      (await loadExports()).downloadMarkdown(canvas.path, doc);
+                    })().catch(() => toast.error("Couldn't build the Markdown."))
+                  }
+                >
+                  Markdown
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuItem onClick={() => setImporting(true)}>
+              <HugeiconsIcon icon={Upload04Icon} size={14} />
+              Import into this canvas…
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={() => setConfirmDelete(true)}>
               <HugeiconsIcon icon={Delete02Icon} size={14} />
               Delete
             </DropdownMenuItem>
+            {moderation ? <DropdownMenuSeparator /> : null}
+            {moderationItems}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : moderation ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="Canvas menu"
+            render={<Button variant="ghost" size="icon-sm" tooltip="Canvas menu" />}
+          >
+            <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align={compact ? "end" : "start"}
+            sideOffset={8}
+            className="min-w-44"
+          >
+            {moderationItems}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
       {moving ? <MoveDialog canvas={canvas} onClose={() => setMoving(false)} /> : null}
+      <ReasonConfirm
+        open={hiding}
+        onOpenChange={setHiding}
+        title="Hide this canvas?"
+        message="Only its owner and staff can see it while it's hidden. The owner sees the reason."
+        placeholder="Reason (shown to the owner)"
+        confirmText="HIDE"
+        maxLength={500}
+        onSubmit={(reason) => setHidden.mutateAsync({ hidden: true, reason })}
+      />
+      <ReasonConfirm
+        open={reporting}
+        onOpenChange={setReporting}
+        title="Report this canvas?"
+        message="Tell staff what's wrong. Only staff see this."
+        placeholder="Reason"
+        confirmText="REPORT"
+        maxLength={1000}
+        onSubmit={(reason) => report.mutateAsync(reason)}
+      />
+      {importing ? (
+        <Suspense fallback={null}>
+          <ImportDialog
+            open
+            mode="into"
+            scope={canvas.scope}
+            onClose={() => setImporting(false)}
+            importInto={async (source, options) => {
+              const handle = editor();
+              if (!handle) throw new Error("The editor is still loading. Try again in a moment.");
+              return handle.importInto(source, options);
+            }}
+          />
+        </Suspense>
+      ) : null}
       <Confirm
         open={confirmDelete}
         onOpenChange={setConfirmDelete}

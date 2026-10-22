@@ -7,7 +7,7 @@ import { pageTitle } from "@/lib/site-meta";
 const searchSchema = z.object({
   /** `personal`, or a team id. */
   scope: z.string().max(100).optional(),
-  view: z.enum(["canvases", "deleted"]).default("canvases"),
+  view: z.enum(["canvases", "deleted", "shared"]).default("canvases"),
 });
 
 const routeApi = getRouteApi("/canvases/");

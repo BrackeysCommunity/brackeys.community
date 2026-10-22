@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 
 import { curvedEdge, type EdgeDrawing, type EdgeEnd } from "@/lib/canvas/edge-route";
 import type { CanvasSide } from "@/lib/canvas/json-canvas";
+import { CANVAS_IMPORT_LIMITS, CANVAS_LIMITS } from "@/lib/canvas/limits";
 import { cn } from "@/lib/utils";
 
 import {
@@ -129,7 +130,7 @@ const CardNode = memo(function CardNode({
       className="group/card h-full w-full"
       style={cardColorStyle(card.color)}
       onDoubleClick={(e) => {
-        if (readOnly || card.type !== "text" || !ytext) return;
+        if (readOnly || (card.type !== "text" && card.type !== "file") || !ytext) return;
         e.stopPropagation();
         setEditingId(id);
       }}
@@ -143,7 +144,15 @@ const CardNode = memo(function CardNode({
         )}
       >
         {editing ? (
-          <CardTextEditor text={ytext} onDone={() => setEditingId(null)} />
+          <CardTextEditor
+            text={ytext}
+            onDone={() => setEditingId(null)}
+            maxLength={
+              card.type === "file"
+                ? CANVAS_IMPORT_LIMITS.maxMarkdownBytes
+                : CANVAS_LIMITS.maxCardText
+            }
+          />
         ) : (
           <CardBody
             card={card}

@@ -50,6 +50,7 @@ export interface CanvasCard {
   w: number;
   h: number;
   color?: string;
+  /** A text card's text, or a file card's imported note body. */
   text?: string;
   file?: string;
   subpath?: string;
@@ -275,6 +276,7 @@ const TextCardBody = memo(function TextCardBody({
         scrollable ? "nowheel overflow-y-auto overscroll-contain" : "overflow-hidden",
       )}
       wikilink={renderWikilink}
+      ugcLinks
     >
       {text}
     </MarkedText>
@@ -324,6 +326,36 @@ function FileCardBody({ file, subpath }: { file: string; subpath?: string }) {
       <Text as="span" size="xs" variant="muted" ellipsis>
         {file} · not included
       </Text>
+    </div>
+  );
+}
+
+/** A file card holding its note's body: the text, under the note's path. */
+function NoteCardBody({
+  file,
+  text,
+  detail,
+  scrollable,
+}: {
+  file: string;
+  text: string;
+  detail: CanvasDetailLevel;
+  scrollable?: boolean;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <span className="flex min-w-0 items-center gap-1.5 border-b border-border/60 px-3 py-1.5">
+        <HugeiconsIcon icon={File01Icon} size={12} className="shrink-0 text-muted-foreground" />
+        <MicroLabel as="span" className="shrink-0" data-note-badge="">
+          NOTE
+        </MicroLabel>
+        <Text as="span" size="xs" variant="muted" ellipsis>
+          {file}
+        </Text>
+      </span>
+      <div className="min-h-0 flex-1">
+        <TextCardBody text={text} detail={detail} scrollable={scrollable} />
+      </div>
     </div>
   );
 }
@@ -673,6 +705,16 @@ export function CardBody({
     case "link":
       return detail === "far" ? null : <LinkCardBody url={card.url ?? ""} />;
     case "file":
+      if (card.text != null) {
+        return (
+          <NoteCardBody
+            file={card.file ?? ""}
+            text={card.text}
+            detail={detail}
+            scrollable={scrollable}
+          />
+        );
+      }
       return detail === "far" ? null : (
         <FileCardBody file={card.file ?? ""} subpath={card.subpath} />
       );

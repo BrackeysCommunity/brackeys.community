@@ -7,8 +7,21 @@ import { dirname } from "@/lib/canvas/paths";
 import type { CanvasListItem } from "./canvas-queries";
 import { CanvasThumbnail } from "./CanvasThumbnail";
 
-/** A canvas as a thumbnail card, for listings. */
-export function CanvasCardLink({ canvas }: { canvas: CanvasListItem }) {
+type CanvasCard = Pick<CanvasListItem, "id" | "path" | "title" | "thumbnail"> & {
+  lastEditedAt?: CanvasListItem["lastEditedAt"];
+};
+
+/**
+ * A canvas as a thumbnail card, for listings. `detail` replaces the folder
+ * and last-edit line, for lists that know something more useful.
+ */
+export function CanvasCardLink({
+  canvas,
+  detail,
+}: {
+  canvas: CanvasCard;
+  detail?: React.ReactNode;
+}) {
   const folder = dirname(canvas.path);
   return (
     <Link
@@ -22,8 +35,12 @@ export function CanvasCardLink({ canvas }: { canvas: CanvasListItem }) {
           {canvas.title}
         </Text>
         <Text as="span" size="xs" variant="muted" ellipsis>
-          {folder ? `${folder} · ` : ""}
-          {canvas.lastEditedAt ? <TimeAgo date={canvas.lastEditedAt} /> : "Not edited yet"}
+          {detail ?? (
+            <>
+              {folder ? `${folder} · ` : ""}
+              {canvas.lastEditedAt ? <TimeAgo date={canvas.lastEditedAt} /> : "Not edited yet"}
+            </>
+          )}
         </Text>
       </div>
     </Link>

@@ -11,7 +11,11 @@ import { useStore } from "@tanstack/react-store";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
-import { TeamCanvasesActions, TeamCanvasesSection } from "@/components/canvas/TeamCanvasesSection";
+import {
+  TeamCanvasesActions,
+  TeamCanvasesSection,
+  TeamPublicCanvases,
+} from "@/components/canvas/TeamCanvasesSection";
 import { CollabFunnelExplainer } from "@/components/collab/CollabFunnelExplainer";
 import { TeamDevlog } from "@/components/forum/TeamDevlog";
 import { Badge } from "@/components/ui/badge";
@@ -292,6 +296,15 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
             <TeamCanvasesSection teamId={team.id} />
           </Section>
         </motion.div>
+      ) : canvasesOn ? (
+        <TeamPublicCanvases
+          teamId={team.id}
+          wrap={(content) => (
+            <motion.div variants={fadeUp}>
+              <Section title="CANVASES">{content}</Section>
+            </motion.div>
+          )}
+        />
       ) : null}
 
       {/* Stack — derived from the roster's skills. */}

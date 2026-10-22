@@ -1,7 +1,12 @@
 import { useMemo } from "react";
 import type * as Y from "yjs";
 
-import { docToJsonCanvas, type JsonCanvas } from "@/lib/canvas/json-canvas";
+import {
+  type DocOnlyFields,
+  docOnlyFields,
+  docToJsonCanvas,
+  type JsonCanvas,
+} from "@/lib/canvas/json-canvas";
 import { toast } from "@/lib/toast";
 
 import type { CanvasCard } from "../canvas-cards";
@@ -59,7 +64,11 @@ export function useCanvasCommands({
   cards: Map<string, CanvasCard>;
   selectedIds: string[];
   selectedEdges: CanvasFlowEdge[];
-  insertFragment: (fragment: JsonCanvas, at: { x: number; y: number }) => void;
+  insertFragment: (
+    fragment: JsonCanvas,
+    at: { x: number; y: number },
+    docFields?: Record<string, DocOnlyFields>,
+  ) => void;
   onReplaceImage: (cardId: string, file: File) => void;
 }) {
   return useMemo(() => {
@@ -81,10 +90,12 @@ export function useCanvasCommands({
       duplicate: () => {
         if (selected.length === 0) return;
         const first = selected[0]!;
-        insertFragment(selectionFragment(doc, new Set(selectedIds)), {
-          x: first.x + 30,
-          y: first.y + 30,
-        });
+        const ids = new Set(selectedIds);
+        insertFragment(
+          selectionFragment(doc, ids),
+          { x: first.x + 30, y: first.y + 30 },
+          docOnlyFields(doc, ids),
+        );
       },
 
       copyMarkdown: async () => {

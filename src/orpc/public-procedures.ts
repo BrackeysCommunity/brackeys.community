@@ -72,6 +72,10 @@ export const PUBLIC_PROCEDURE_NAMES = [
   "resolveMentions",
   // Names behind Discord `<@id>` mentions.
   "resolveDiscordUsers",
+  // Public and unlisted canvases, and the public ones listed on a profile or
+  // team page. Hidden or narrowed canvases linger at the edge for the TTL.
+  "getPublicCanvas",
+  "listPublicCanvases",
 ] as const;
 
 export type PublicProcedureName = (typeof PUBLIC_PROCEDURE_NAMES)[number];
@@ -186,6 +190,9 @@ export const PUBLIC_EDGE_TTL: Record<PublicProcedureName, number> = {
   // A renamed member shows their new name within a minute.
   resolveMentions: 60,
   resolveDiscordUsers: 60,
+  // A staff hide or a narrowed visibility should stop showing quickly.
+  getPublicCanvas: 60,
+  listPublicCanvases: 60,
 };
 
 /**

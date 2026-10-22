@@ -182,6 +182,8 @@ export interface OgCardInput {
   /** Up to three; anything past that is dropped rather than crowded in. */
   stats?: OgStat[];
   art?: OgArt | null;
+  /** Served with `X-Robots-Tag: noindex`: a card for a page that isn't indexed either. */
+  noindex?: boolean;
 }
 
 /**

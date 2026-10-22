@@ -1,4 +1,6 @@
 /** What each kind of page puts on its card. Every card degrades rather than fails. */
+
+import type { CanvasThumbnail } from "@/lib/canvas/thumbnail";
 import { emojiTokensToNames } from "@/lib/discord-emoji";
 import { FORUM_KIND_LABEL, forumPostTitle } from "@/lib/forum-posts";
 import { itchOriginalUrl } from "@/lib/itch-image";
@@ -496,5 +498,65 @@ export async function teamCard(handle: string): Promise<OgCardInput | null> {
       coverSource(team.bannerUrl ?? team.avatarUrl),
       team.bannerUrl ? "panel" : "circle",
     ),
+  };
+}
+
+/** Card colours as JSON Canvas numbers them, in the house palette's hexes. */
+const CANVAS_CARD_COLORS: Record<string, string> = {
+  "1": "#e5484d",
+  "2": "#ffa949",
+  "3": "#f5d90a",
+  "4": "#46a758",
+  "5": "#3e9fdc",
+  "6": "#5865f2",
+};
+
+/** The canvas's thumbnail rects as an SVG, so the card shows its layout. */
+export function canvasArt(thumbnail: CanvasThumbnail | null): OgArt | null {
+  if (!thumbnail || thumbnail.rects.length === 0) return null;
+  const { x, y, w, h } = thumbnail.box;
+  const pad = Math.max(w, h) * 0.06;
+  const rects = thumbnail.rects
+    .map(([rx, ry, rw, rh, color, group]) => {
+      const fill =
+        (color &&
+          (CANVAS_CARD_COLORS[color] ?? (/^#[0-9a-f]{3,8}$/i.test(color) ? color : null))) ||
+        "#a6a6b2";
+      return group
+        ? `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="${pad / 4}" fill="none" stroke="${fill}" stroke-opacity="0.6" stroke-width="${pad / 6}"/>`
+        : `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="${pad / 6}" fill="${fill}" fill-opacity="0.85"/>`;
+    })
+    .join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x - pad} ${y - pad} ${w + pad * 2} ${h + pad * 2}" width="1200" height="${Math.round((1200 * (h + pad * 2)) / (w + pad * 2))}">${rects}</svg>`;
+  return {
+    dataUri: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
+    shape: "letterbox",
+    backdrop: "#14151d",
+  };
+}
+
+/** Public and unlisted canvases; an unlisted card is marked `noindex` so it unfurls but isn't searchable. */
+export async function canvasCard(canvasId: string): Promise<OgCardInput | null> {
+  const canvas = await client.getPublicCanvas({ canvasId }).catch(() => null);
+  if (!canvas || (canvas.visibility !== "public" && canvas.visibility !== "unlisted")) return null;
+
+  const by =
+    canvas.scope.kind === "team" ? canvas.scope.name : (canvas.scope.owner?.displayName ?? null);
+  const stats: OgStat[] = [
+    {
+      value: NUM.format(canvas.nodeCount),
+      label: canvas.nodeCount === 1 ? "Card" : "Cards",
+    },
+  ];
+  if (by) stats.push({ value: ogName(by), label: canvas.scope.kind === "team" ? "Team" : "Owner" });
+
+  return {
+    kind: "canvas",
+    eyebrow: "Canvas",
+    title: censorText(canvas.title) ?? "Canvas",
+    subtitle: null,
+    stats,
+    art: canvasArt(canvas.thumbnail),
+    noindex: canvas.visibility !== "public",
   };
 }

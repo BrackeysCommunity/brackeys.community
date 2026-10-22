@@ -31,6 +31,9 @@ type MarkedTextProps = Omit<ComponentProps<"div">, "ref" | "children"> & {
   /** Parse Obsidian `[[wikilinks]]` and render each through this. Code
    * spans and blocks keep them as written. */
   wikilink?: (link: Wikilink) => ReactNode;
+  /** Mark links as user-generated (`nofollow ugc`), for content that can
+   * be read publicly and indexed. */
+  ugcLinks?: boolean;
 };
 
 /** A separate instance, so only callers that pass `wikilink` lex `[[…]]`. */
@@ -60,6 +63,7 @@ type Censor = {
   prose: (text: string) => ReactNode;
   wikilink?: (link: Wikilink) => ReactNode;
   embeds?: boolean;
+  linkRel?: string;
 };
 
 /** A line that is nothing but one bare URL, as an embed. A link with its
@@ -220,7 +224,7 @@ function renderToken(t: AnyToken, censor: Censor): ReactNode {
       const link = t as Tokens.Link;
       return (
         <SimpleTooltip content={link.title}>
-          <a href={link.href} rel="noreferrer noopener" target="_blank">
+          <a href={link.href} rel={censor.linkRel ?? "noreferrer noopener"} target="_blank">
             {renderTokens(link.tokens as AnyToken[], {
               ...censor,
               prose: (text) => withEmojis(text, censor.nodes),
@@ -268,6 +272,7 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
       mentions = false,
       embeds = false,
       wikilink,
+      ugcLinks = false,
       className,
       ...props
     },
@@ -285,8 +290,9 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
         prose: (text) => withEmojis(text, (part) => withDiscordTokens(part, rest)),
         wikilink,
         embeds: embeds && !inline,
+        linkRel: ugcLinks ? "nofollow ugc noopener noreferrer" : undefined,
       };
-    }, [censor, mentions, embeds, inline, nodes, plain, wikilink]);
+    }, [censor, mentions, embeds, inline, nodes, plain, wikilink, ugcLinks]);
 
     const rendered = useMemo(() => {
       const lexer = apply.wikilink ? wikiMarked : marked;

@@ -42,6 +42,13 @@ export const env = createEnv({
     DISCORD_COLLAB_SHARE_COOLDOWN_SECONDS: z.string().optional(),
     // The forum's `#devlogs` mirror — `src/lib/forum-discord-feed.ts`.
     DISCORD_DEVLOGS_CHANNEL_ID: z.string().min(1).optional(),
+    // Live canvases (`services/canvas-sync`). The secret signs the sync
+    // tokens the service verifies, so both sides hold the same value. The
+    // URL (`wss://…`) goes to the editor with each token rather than into
+    // the bundle, so one build serves every environment. Either unset means
+    // the editor stays on the solo save.
+    CANVAS_SYNC_SECRET: z.string().min(16).optional(),
+    CANVAS_SYNC_URL: z.url().optional(),
   },
 
   /**

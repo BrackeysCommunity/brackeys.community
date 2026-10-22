@@ -15,6 +15,7 @@ import { isActiveBan } from "@/lib/ban-state";
 import { insertCanvasAttachment } from "@/lib/canvas-persistence";
 import { atLeast } from "@/lib/canvas/access";
 import { CANVAS_IMAGE_UPLOADS_PER_DAY } from "@/lib/canvas/limits";
+import { checkPath, repairPath } from "@/lib/canvas/paths";
 import { isStaffMember } from "@/lib/discord";
 import { SITE } from "@/lib/legal-meta";
 import {
@@ -485,8 +486,10 @@ const handleForumImageUpload = withImageUpload(
 /**
  * An image for a canvas: uploaded, scanned like every other upload, and
  * recorded as an attachment in the scope (`scope` = `personal` or `team`
- * with `teamId`) under `attachments/`. Its own daily budget, so one vault's
- * worth of images doesn't use up a member's avatar uploads.
+ * with `teamId`) under `attachments/`, or at `path` when an import keeps
+ * the vault's own (repaired if it isn't a valid image path). Its own daily
+ * budget, so one vault's worth of images doesn't use up a member's avatar
+ * uploads.
  */
 const handleCanvasImageUpload = withImageUpload(
   "canvas_attachment",
@@ -499,6 +502,10 @@ const handleCanvasImageUpload = withImageUpload(
     const teamId = formData.get("scope") === "team" ? formData.get("teamId") : null;
     if (teamId !== null && typeof teamId !== "string") {
       return Response.json({ message: 'Expected a "teamId" form field.' }, { status: 400 });
+    }
+    const requestedPath = formData.get("path");
+    if (requestedPath !== null && typeof requestedPath !== "string") {
+      return Response.json({ message: 'Expected a "path" form field.' }, { status: 400 });
     }
     const scope = teamId ? { kind: "team" as const, teamId } : { kind: "personal" as const };
     const access = await canvasScopeAccess(scope, userId);
@@ -518,7 +525,9 @@ const handleCanvasImageUpload = withImageUpload(
     const attachment = await insertCanvasAttachment({
       id: attachmentId,
       scope: { ownerId: userId, teamId },
-      wanted: `attachments/${image.name || "image"}`,
+      wanted: requestedPath
+        ? wantedImagePath(requestedPath)
+        : `attachments/${image.name || "image"}`,
       imageKey: uploaded.key,
       sha256: Buffer.from(digest).toString("hex"),
       byteSize: bytes.length,
@@ -527,6 +536,12 @@ const handleCanvasImageUpload = withImageUpload(
   },
   (userId) => checkRateLimit("canvas-image", userId, CANVAS_IMAGE_UPLOADS_PER_DAY, 86400),
 );
+
+/** An import's own path for an image, or the nearest valid one. */
+function wantedImagePath(path: string): string {
+  const checked = checkPath(path, "image");
+  return checked.ok ? checked.path : repairPath(path.slice(0, 1_024), "image");
+}
 
 /** Reports an unhandled throw before it becomes an opaque 500. */
 const reportedHandle = withErrorReporting("/api/$", handle);

@@ -68,6 +68,7 @@ vi.mock("@/db/schema", () => {
   return {
     canvases: table("canvases", ["id", "ownerId", "teamId"]),
     canvasDocVersions: table("doc_versions", ["docKind", "docId"]),
+    canvasMembers: table("canvas_members", ["canvasId", "userId"]),
     comments: table("comments", ["authorId", "content", "deletedAt"]),
     developerProfiles: table("developer_profiles", ["id", "discordId"]),
     linkedAccounts: table("linked_accounts", ["profileId"]),
@@ -121,7 +122,7 @@ describe("cleanupUserData comment redaction", () => {
   });
 
   it("deletes personal canvases and their versions before the profile row", async () => {
-    mocks.selectQueue.push([{ discordId: null }], []);
+    mocks.selectQueue.push([{ discordId: null }], [], [{ id: "c1", deletedAt: null }]);
     await cleanupUserData("u1");
 
     const versionsIdx = mocks.calls.indexOf("delete:doc_versions");

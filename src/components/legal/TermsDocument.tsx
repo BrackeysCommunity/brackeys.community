@@ -172,6 +172,24 @@ const SECTIONS: LegalSection[] = [
           in the section on moderation. Where a record is retained, it is retained in the most
           limited form that serves its purpose.
         </p>
+        <p id="canvases">
+          <strong>Canvases.</strong> Canvases you make are Your Content: you keep ownership of them,
+          including a canvas shared with other members or moved into a team. If you make a canvas
+          public, or readable by anyone with its link, the license above includes showing it to
+          anyone who visits it, without signing in, and on your profile or your team's page. You
+          choose who can see a canvas you own; on a team, the team's owners decide how widely its
+          canvases are shared, and any member who can edit one may narrow that. Members may report a
+          public or unlisted canvas on {SITE.name}, and we may hide a canvas that breaches these
+          Terms or the community rules, as set out in the section on moderation: once hidden, only
+          its owner (on a team, the team's owners) and our moderators can still read it, and they
+          are shown the reason. You may appeal a hide to{" "}
+          <a href={`mailto:${CONTACT.abuse}`} className={A}>
+            {CONTACT.abuse}
+          </a>
+          . A copy of a canvas that someone who could read it has exported is outside our control:
+          removing the canvas, narrowing who can see it, or a moderation action cannot reach copies
+          already made.
+        </p>
         <p>
           You are solely responsible for keeping your own copies of Your Content. The Service is not
           a backup service, and we do not undertake to preserve or return Your Content.
@@ -416,10 +434,10 @@ const SECTIONS: LegalSection[] = [
           an endorsement of it or a decision that it complies with these Terms.
         </p>
         <p>
-          <strong>Reporting.</strong> Members may report collaboration posts and comments from the
-          Service, and may block another member, which hides each from the other and stops
-          notifications passing between them. Reports of urgent harm should go to the Brackeys
-          Discord moderators or to{" "}
+          <strong>Reporting.</strong> Members may report collaboration posts, comments, and public
+          or unlisted canvases from the Service, and may block another member, which hides each from
+          the other and stops notifications passing between them. Reports of urgent harm should go
+          to the Brackeys Discord moderators or to{" "}
           <a href={`mailto:${CONTACT.abuse}`} className={A}>
             {CONTACT.abuse}
           </a>

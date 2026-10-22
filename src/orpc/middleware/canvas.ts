@@ -42,3 +42,13 @@ export const canvasSignedIn = os.middleware(async ({ context, next }) => {
 
   return next({ context: { session, user: session.user } });
 });
+
+/**
+ * The public tier's canvas reads: the flag as a signed-out visitor sees it,
+ * and no session, so every caller gets the same answer and the edge can
+ * cache it.
+ */
+export const canvasPublic = os.middleware(async ({ next }) => {
+  await assertCanvasesEnabled(null);
+  return next({});
+});

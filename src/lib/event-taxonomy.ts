@@ -112,6 +112,11 @@ export const EVENTS = {
   // Canvases. `source` says how it started: blank, an Obsidian file, a
   // duplicate.
   canvasCreated: "canvas_created",
+  // Sharing: `from`/`to` visibility, and `role` for a member add.
+  canvasVisibilityChanged: "canvas_visibility_changed",
+  canvasMemberAdded: "canvas_member_added",
+  canvasMovedToTeam: "canvas_moved_to_team",
+  canvasReported: "canvas_reported",
 
   // Any invite to the server, from any surface. `method: "web"` is the
   // fallback toast's button, for someone without the desktop app.

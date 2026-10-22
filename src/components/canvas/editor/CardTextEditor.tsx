@@ -37,16 +37,27 @@ const theme = EditorView.theme({
 });
 
 /** Past the card's character cap, further input is refused. */
-const maxLength = EditorState.changeFilter.of(
-  (tr) =>
-    tr.newDoc.length <= CANVAS_LIMITS.maxCardText || tr.newDoc.length <= tr.startState.doc.length,
-);
+const capLength = (max: number) =>
+  EditorState.changeFilter.of(
+    (tr) => tr.newDoc.length <= max || tr.newDoc.length <= tr.startState.doc.length,
+  );
+
+const normalizeLineBreaks = (text: string) => text.replace(/\r\n?/g, "\n");
 
 /**
  * CodeMirror on one card's `Y.Text`. Only one is ever mounted: every other
  * card renders its text statically and re-renders when it changes.
  */
-export function CardTextEditor({ text, onDone }: { text: Y.Text; onDone: () => void }) {
+export function CardTextEditor({
+  text,
+  onDone,
+  maxLength = CANVAS_LIMITS.maxCardText,
+}: {
+  text: Y.Text;
+  onDone: () => void;
+  /** Characters; a note body on a file card takes a whole note's worth. */
+  maxLength?: number;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const finish = useEffectEvent(() => onDone());
 
@@ -75,7 +86,13 @@ export function CardTextEditor({ text, onDone }: { text: Y.Text; onDone: () => v
           EditorView.lineWrapping,
           markdown(),
           placeholder("Write something…"),
-          maxLength,
+          capLength(maxLength),
+          // Y.Text counts `\r\n` as two characters; CodeMirror's default
+          // separator would count it as one and shift every edit after it.
+          EditorState.lineSeparator.of("\n"),
+          // With that separator a pasted or dropped `\r` would stay in the
+          // card; a body imported with CRLF keeps its own.
+          EditorView.clipboardInputFilter.of(normalizeLineBreaks),
           theme,
           yCollab(text, null, { undoManager: undoManagerFor(text) }),
           EditorView.domEventHandlers({
@@ -93,7 +110,7 @@ export function CardTextEditor({ text, onDone }: { text: Y.Text; onDone: () => v
       tearingDown = true;
       view.destroy();
     };
-  }, [text]);
+  }, [text, maxLength]);
 
   return <div ref={host} className="nodrag nowheel nopan nokey h-full cursor-text" />;
 }

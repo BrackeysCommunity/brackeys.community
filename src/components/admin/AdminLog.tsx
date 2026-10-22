@@ -87,6 +87,9 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "forum_post_retagged", label: "Forum posts retagged" },
   { value: "forum_post_deleted", label: "Forum posts removed" },
   { value: "forum_post_report_dismissed", label: "Forum reports dismissed" },
+  { value: "canvas_hidden", label: "Canvases hidden" },
+  { value: "canvas_unhidden", label: "Canvases unhidden" },
+  { value: "canvas_report_dismissed", label: "Canvas reports dismissed" },
 ];
 
 const ACTION_LABEL = new Map(ACTIONS.map((a) => [a.value, a.label]));
@@ -447,6 +450,16 @@ function TargetLink({ target }: { target: LogTarget }) {
     case "jam":
       return (
         <Link to="/jams/$jamSlug" params={jamLinkParams(target.jam)} className={TARGET_LINK}>
+          {target.label}
+        </Link>
+      );
+    case "canvas":
+      return (
+        <Link
+          to="/canvases/$canvasId"
+          params={{ canvasId: target.canvasId }}
+          className={TARGET_LINK}
+        >
           {target.label}
         </Link>
       );
