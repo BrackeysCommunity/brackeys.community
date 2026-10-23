@@ -15,7 +15,7 @@ import {
 } from "../../../src/lib/service-telemetry.ts";
 import { applyStoredState } from "./apply.ts";
 import { createAuthenticate, type SyncContext } from "./auth.ts";
-import { pinAwareness } from "./awareness.ts";
+import { holdAwarenessWhileConnected, pinAwareness } from "./awareness.ts";
 import type { ServiceDb } from "./db.ts";
 import {
   ConnectionCaps,
@@ -141,6 +141,7 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
   });
   const limitMessage = createMessageLimiter(now);
   const growth = new DocumentGrowth();
+  const awarenessHolds = new Map<string, () => void>();
   // A revoke can land while a connect is still awaiting the canvas row, the
   // ledger or the doc load, when there is no socket yet for it to close.
   const isRevoked = (context: SyncContext) =>
@@ -220,7 +221,13 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
     async afterStoreDocument({ documentName }) {
       growth.stored(documentName);
     },
+    async afterLoadDocument({ document, documentName }) {
+      awarenessHolds.get(documentName)?.();
+      awarenessHolds.set(documentName, holdAwarenessWhileConnected(document));
+    },
     async afterUnloadDocument({ documentName }) {
+      awarenessHolds.get(documentName)?.();
+      awarenessHolds.delete(documentName);
       growth.forget(documentName);
     },
     async onDisconnect({ context, document, documentName }) {

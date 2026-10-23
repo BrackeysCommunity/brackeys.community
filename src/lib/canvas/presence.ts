@@ -51,12 +51,17 @@ export interface PeerState {
   selection: readonly string[];
   /** The card whose text they have open. */
   editing: string | null;
+  /** Their tab is hidden or they haven't touched it for a while. */
+  idle: boolean;
+  /** What they're typing in the bubble at their cursor. */
+  chat: string | null;
 }
 
 const MAX_NAME = 80;
 const MAX_ID = 100;
 const MAX_URL = 2048;
 const MAX_SELECTION = 200;
+export const MAX_CHAT = 100;
 
 const isId = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= MAX_ID;
@@ -98,6 +103,8 @@ export function parsePeerState(raw: unknown): PeerState | null {
     pointer: parsePointer(state.pointer),
     selection,
     editing: isId(state.editing) ? state.editing : null,
+    idle: state.idle === true,
+    chat: typeof state.chat === "string" && state.chat ? state.chat.slice(0, MAX_CHAT) : null,
   };
 }
 

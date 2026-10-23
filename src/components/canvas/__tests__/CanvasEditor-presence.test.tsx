@@ -272,7 +272,37 @@ describe("presence on a live canvas", () => {
     peer(awareness, "rin", "Rin");
     const group = screen.getByRole("group", { name: "People here" });
     expect(group.querySelectorAll("button")).toHaveLength(2);
-    expect(screen.getByLabelText("Go to Ana")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ana" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("grays out an idle peer and lets you go to one with a pointer", async () => {
+    const { awareness } = await mount();
+    const ana = peer(awareness, "ana", "Ana");
+    ana.set("idle", true);
+    expect(screen.getByRole("button", { name: "Ana" }).hasAttribute("data-idle")).toBe(true);
+    ana.set("idle", false);
+    ana.set("pointer", { x: 5, y: 5 });
+    expect(screen.getByLabelText("Go to Ana").hasAttribute("data-idle")).toBe(false);
+  });
+
+  it("opens a chat bubble on /, sends it live, and shows peers' chat at their cursor without card renders", async () => {
+    const { container, awareness } = await mount();
+    const ana = peer(awareness, "ana", "Ana");
+    ana.set("pointer", { x: 40, y: 40 });
+    const before = fake.cardBodyRenders;
+    ana.set("chat", "over here");
+    expect(container.querySelector('[data-peer-cursor="ana"]')!.textContent).toContain("over here");
+
+    const host = container.querySelector('[role="application"]')!;
+    fireEvent.pointerMove(host, { clientX: 100, clientY: 120 });
+    fireEvent.keyDown(window, { key: "/" });
+    const input = await screen.findByLabelText("Chat at your cursor");
+    fireEvent.change(input, { target: { value: "on my way" } });
+    expect(awareness.getLocalState()?.chat).toBe("on my way");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(awareness.getLocalState()?.chat).toBeNull();
+    expect(screen.queryByLabelText("Chat at your cursor")).toBeNull();
+    expect(fake.cardBodyRenders - before).toBe(0);
   });
 
   it("publishes this tab's pointer in flow coordinates, its selection and clears on leave", async () => {

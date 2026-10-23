@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { namesHere, parsePeerState, PRESENCE_COLORS, presenceColor } from "../presence";
+import { MAX_CHAT, namesHere, parsePeerState, PRESENCE_COLORS, presenceColor } from "../presence";
 
 function luminance(hex: string): number {
   const channel = (offset: number) => {
@@ -50,6 +50,8 @@ describe("parsePeerState", () => {
     pointer: { x: 10, y: -4 },
     selection: ["a", "b"],
     editing: "a",
+    idle: true,
+    chat: "over here",
   };
 
   it("reads a peer's state and derives its color from the id", () => {
@@ -58,6 +60,8 @@ describe("parsePeerState", () => {
       pointer: { x: 10, y: -4 },
       selection: ["a", "b"],
       editing: "a",
+      idle: true,
+      chat: "over here",
     });
   });
 
@@ -73,12 +77,17 @@ describe("parsePeerState", () => {
       pointer: { x: Number.NaN, y: 1 },
       selection: ["ok", 5, "", "x".repeat(500)],
       editing: 3,
+      idle: "yes",
+      chat: 42,
     })!;
     expect(parsed.user.name).toBe("Member");
     expect(parsed.user.avatarUrl).toBeNull();
     expect(parsed.pointer).toBeNull();
     expect(parsed.selection).toEqual(["ok"]);
     expect(parsed.editing).toBeNull();
+    expect(parsed.idle).toBe(false);
+    expect(parsed.chat).toBeNull();
+    expect(parsePeerState({ ...valid, chat: "x".repeat(500) })!.chat).toHaveLength(MAX_CHAT);
     expect(parsePeerState({ user: { id: "u1", name: "x".repeat(500) } })!.user.name).toHaveLength(
       80,
     );

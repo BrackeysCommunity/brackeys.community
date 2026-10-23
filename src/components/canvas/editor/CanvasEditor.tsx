@@ -85,7 +85,7 @@ import { HistoryPanel } from "./HistoryPanel";
 import { Inspector } from "./Inspector";
 import { PlacementLayer, type Placement } from "./PlacementLayer";
 import { PresenceContext, type PresenceStore } from "./presence-store";
-import { PeerCursors, PresenceAvatars } from "./PresenceLayer";
+import { PeerCursors, PresenceAvatars, SelfChatBubble } from "./PresenceLayer";
 import { SelectionBar } from "./SelectionBar";
 import { type CanvasTool, TOOL_KEYS, ToolDock } from "./ToolDock";
 import { selectionFragment, useCanvasCommands } from "./use-canvas-commands";
@@ -669,6 +669,8 @@ function EditorInner({
         if ((e.target as HTMLElement | null)?.closest("button, a, [role='menuitem']")) return;
         e.preventDefault();
         setSpaceHeld(true);
+      } else if (e.key === "/" && !mod && !e.altKey && presence?.openChat()) {
+        e.preventDefault();
       } else if (!mod && !e.altKey && !e.shiftKey && key in TOOL_KEYS) {
         const picked = TOOL_KEYS[key as keyof typeof TOOL_KEYS];
         if (picked === "select" || picked === "hand") setTool(picked);
@@ -799,6 +801,7 @@ function EditorInner({
     edges,
     flow,
     insertFragment,
+    presence,
     selectedIds,
     tool,
     undo,
@@ -1172,6 +1175,7 @@ function EditorInner({
                   />
                 )}
                 <PeerCursors />
+                {presence ? <SelfChatBubble store={presence} /> : null}
               </ReactFlow>
               {placing ? <PlacementLayer onPlace={place} /> : null}
             </div>
