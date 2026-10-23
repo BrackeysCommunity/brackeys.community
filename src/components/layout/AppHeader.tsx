@@ -4,6 +4,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import { lazy, Suspense, useEffect, useState } from "react";
 
+import { SPOTLIGHT_TARGETS, spotlightTarget } from "@/components/announcements/spotlight";
 import { AttentionMenu } from "@/components/attention/AttentionMenu";
 import { DeployEnvBadge } from "@/components/layout/DeployEnvMarker";
 import { SettingsMenu } from "@/components/layout/SettingsMenu";
@@ -243,6 +244,7 @@ export function AppHeader() {
                       size="icon-lg"
                       aria-label="Open workspace"
                       tooltip="Workspace"
+                      {...spotlightTarget(SPOTLIGHT_TARGETS.workspace)}
                       onClick={() => openWorkspace()}
                     >
                       <HugeiconsIcon icon={DashboardSquare02Icon} size={16} />
@@ -327,6 +329,7 @@ export function AppHeader() {
               {canvasesOn && session?.user ? (
                 <button
                   type="button"
+                  {...spotlightTarget(SPOTLIGHT_TARGETS.workspace)}
                   onClick={() => {
                     setMenuOpen(false);
                     openWorkspace();

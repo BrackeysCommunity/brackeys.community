@@ -118,6 +118,10 @@ export const EVENTS = {
   canvasMovedToTeam: "canvas_moved_to_team",
   canvasReported: "canvas_reported",
 
+  // The new-feature banners. `announcement` is the registry id.
+  announcementCtaClicked: "announcement_cta_clicked",
+  announcementDismissed: "announcement_dismissed",
+
   // Any invite to the server, from any surface. `method: "web"` is the
   // fallback toast's button, for someone without the desktop app.
   discordInviteOpened: "discord_invite_opened",

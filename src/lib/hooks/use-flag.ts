@@ -1,4 +1,4 @@
-import { createContext, use, useEffect, useState, useSyncExternalStore } from "react";
+import { createContext, use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { FEATURE_FLAGS, type FeatureFlagKey, type FeatureFlagValues } from "@/lib/flags";
 import {
@@ -120,4 +120,37 @@ export function useFlagPayload(flag: FeatureFlagKey): unknown {
   }, [client, flag]);
 
   return payload;
+}
+
+function readFlags(client: PostHogClient | null): Partial<FeatureFlagValues> {
+  if (!client) return {};
+  const values: Partial<FeatureFlagValues> = {};
+  for (const flag of Object.keys(FEATURE_FLAGS) as FeatureFlagKey[]) {
+    const enabled = client.isFeatureEnabled(flag);
+    if (enabled !== undefined) values[flag] = enabled;
+  }
+  return values;
+}
+
+/**
+ * Every flag at once, resolved the way `useFlag` resolves one — for code that
+ * picks among flags named in data rather than at the call site.
+ */
+export function useFlags(): FeatureFlagValues {
+  const client = usePostHogClient();
+  const serverFlags = use(ServerFlagsContext);
+  const [resolved, setResolved] = useState(() => readFlags(client));
+
+  useEffect(() => {
+    if (!client) return;
+    return client.onFeatureFlags(() => setResolved(readFlags(client)));
+  }, [client]);
+
+  return useMemo(() => {
+    const values = { ...FEATURE_FLAGS } as FeatureFlagValues;
+    for (const flag of Object.keys(FEATURE_FLAGS) as FeatureFlagKey[]) {
+      values[flag] = resolved[flag] ?? serverFlags?.[flag] ?? FEATURE_FLAGS[flag];
+    }
+    return values;
+  }, [resolved, serverFlags]);
 }

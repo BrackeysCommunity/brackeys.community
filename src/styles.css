@@ -779,6 +779,21 @@
   will-change: transform;
 }
 
+/* The sheen across a spotlit nav control (`SpotlightOverlay`). */
+@keyframes spotlight-sheen {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+  }
+  60%,
+  100% {
+    transform: translateX(220%) skewX(-12deg);
+  }
+}
+
+.animate-spotlight-sheen {
+  animation: spotlight-sheen 1.6s ease-in-out infinite;
+}
+
 /* ── Cross-route page transition ──────────────────────────────────────
    The shells tag their persistent scroller `view-transition-name: page`
    (exactly one is mounted at a time), so the fade+rise is scoped to the
@@ -905,6 +920,7 @@ html[data-reduce-motion="true"]::view-transition-group(*) {
 }
 html[data-reduce-motion="true"] .animate-scanlines,
 html[data-reduce-motion="true"] .animate-logo-sweep,
+html[data-reduce-motion="true"] .animate-spotlight-sheen,
 html[data-reduce-motion="true"] .animate-terminal-blink,
 html[data-reduce-motion="true"] .name-glow {
   animation: none !important;
@@ -921,6 +937,7 @@ html[data-reduce-motion="true"] .header-follow-inset {
   html:not([data-reduce-motion="false"])::view-transition-group(*),
   html:not([data-reduce-motion="false"]) .animate-scanlines,
   html:not([data-reduce-motion="false"]) .animate-logo-sweep,
+  html:not([data-reduce-motion="false"]) .animate-spotlight-sheen,
   html:not([data-reduce-motion="false"]) .animate-terminal-blink,
   html:not([data-reduce-motion="false"]) .name-glow {
     animation: none !important;

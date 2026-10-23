@@ -49,6 +49,13 @@ const CommandPalette = lazy(() =>
   import("@/components/layout/CommandPalette").then((m) => ({ default: m.CommandPalette })),
 );
 
+// Client-only and usually empty, so it waits behind the shell too.
+const FeatureAnnouncements = lazy(() =>
+  import("@/components/announcements/FeatureAnnouncements").then((m) => ({
+    default: m.FeatureAnnouncements,
+  })),
+);
+
 const Cursor = lazy(() => import("@/components/ui/cursor").then((m) => ({ default: m.Cursor })));
 
 const ThemedDotField = lazy(() =>
@@ -382,6 +389,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
       <AuthSessionSync />
       <DiscordAppReturn />
       <NotificationStreamMount />
+      {takeover ? null : (
+        <Suspense>
+          <FeatureAnnouncements mobile={isMobile} />
+        </Suspense>
+      )}
       {takeover ? (
         <TakeoverShell>{children}</TakeoverShell>
       ) : isMobile ? (

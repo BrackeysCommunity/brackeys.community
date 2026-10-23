@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   volume: "jt:volume",
   censorProfanity: "jt:censor-profanity",
   attentionDismissed: "jt:attention-dismissed",
+  announcements: "jt:announcements",
   glowColourSpace: "jt:glow-colour-space",
   workspaceScope: "jt:workspace-scope",
   canvasInspector: "jt:canvas-inspector",

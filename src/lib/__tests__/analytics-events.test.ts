@@ -19,6 +19,7 @@ describe("event taxonomy", () => {
     const domains = new Set([
       "auth",
       "account",
+      "announcement",
       "canvas",
       "collab",
       "comment",
