@@ -638,10 +638,15 @@ describe("getCanvasSyncToken", () => {
       .set({ guildNickname: "Ali", guildAvatarUrl: "https://cdn.test/guild.png" })
       .where(eq(developerProfiles.id, "alice"));
     const { id } = await create("alice", "Me.canvas");
-    expect((await mint("alice", id)).self).toEqual({
+    const minted = await mint("alice", id);
+    expect(minted.self).toEqual({
       id: "alice",
       name: "Ali",
       avatarUrl: "https://cdn.test/guild.png",
+    });
+    expect(await verifyCanvasToken(minted.token, SYNC_SECRET)).toMatchObject({
+      n: "Ali",
+      p: "https://cdn.test/guild.png",
     });
   });
 

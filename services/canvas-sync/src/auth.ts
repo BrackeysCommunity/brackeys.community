@@ -22,6 +22,9 @@ export interface SyncContext {
   mintedAt: number;
   /** This connection's seat in the caps, from admission until it is established. */
   seat: string;
+  /** The face peers see, from the token; absent on a token minted before it carried one. */
+  name?: string;
+  avatarUrl?: string | null;
 }
 
 /**
@@ -79,6 +82,13 @@ export function createAuthenticate(options: {
     const seat = crypto.randomUUID();
     await options.caps.admit(seat, documentName, claims.u, request);
     connectionConfig.readOnly = claims.a === "read";
-    return { userId: claims.u, access: claims.a, canvasId: parsed.id, mintedAt, seat };
+    return {
+      userId: claims.u,
+      access: claims.a,
+      canvasId: parsed.id,
+      mintedAt,
+      seat,
+      ...(claims.n !== undefined ? { name: claims.n, avatarUrl: claims.p ?? null } : {}),
+    };
   };
 }

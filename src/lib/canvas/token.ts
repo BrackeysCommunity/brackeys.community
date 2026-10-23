@@ -21,6 +21,9 @@ export interface CanvasTokenClaims {
   /** Expiry, epoch milliseconds. */
   e: number;
   v: 1;
+  /** The name and avatar peers see; the service pins awareness to them. */
+  n?: string;
+  p?: string;
 }
 
 const encoder = new TextEncoder();
@@ -71,12 +74,14 @@ function hmacKey(secret: string): Promise<CryptoKey> {
 }
 
 export async function signCanvasToken(
-  claims: { c: string; u: string; a: SyncAccess },
+  claims: { c: string; u: string; a: SyncAccess; n?: string; p?: string | null },
   secret: string,
   now: number = Date.now(),
   ttlMs: number = SYNC_LIMITS.tokenTtlMs,
 ): Promise<string> {
   const full: CanvasTokenClaims = { c: claims.c, u: claims.u, a: claims.a, e: now + ttlMs, v: 1 };
+  if (claims.n !== undefined) full.n = claims.n;
+  if (claims.p) full.p = claims.p;
   const payload = toBase64Url(encoder.encode(JSON.stringify(full)));
   const signature = await crypto.subtle.sign(
     "HMAC",
@@ -97,7 +102,9 @@ function isClaims(value: unknown): value is CanvasTokenClaims {
     (claims.a === "read" || claims.a === "write") &&
     typeof claims.e === "number" &&
     Number.isFinite(claims.e) &&
-    claims.v === 1
+    claims.v === 1 &&
+    (claims.n === undefined || typeof claims.n === "string") &&
+    (claims.p === undefined || typeof claims.p === "string")
   );
 }
 

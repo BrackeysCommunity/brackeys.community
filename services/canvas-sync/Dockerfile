@@ -29,6 +29,7 @@ COPY src/lib/service-config.ts ./src/lib/service-config.ts
 COPY src/lib/service-telemetry.ts ./src/lib/service-telemetry.ts
 COPY src/lib/canvas/limits.ts ./src/lib/canvas/limits.ts
 COPY src/lib/canvas/token.ts ./src/lib/canvas/token.ts
+COPY src/lib/canvas/presence.ts ./src/lib/canvas/presence.ts
 COPY src/lib/canvas/sync-channels.ts ./src/lib/canvas/sync-channels.ts
 COPY src/lib/canvas/json-canvas.ts ./src/lib/canvas/json-canvas.ts
 COPY src/lib/canvas/doc-state.ts ./src/lib/canvas/doc-state.ts

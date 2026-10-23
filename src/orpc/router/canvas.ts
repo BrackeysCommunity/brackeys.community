@@ -700,18 +700,15 @@ export const getCanvasSyncToken = os
       throw new ORPCError("PRECONDITION_FAILED", { message: "Live canvases aren't set up here." });
     }
     const syncAccess: SyncAccess = atLeast(access, "write") ? "write" : "read";
-    const [token, [profile]] = await Promise.all([
-      signCanvasToken({ c: documentName("canvas", canvas.id), u: userId, a: syncAccess }, secret),
-      db
-        .select({
-          discordUsername: developerProfiles.discordUsername,
-          guildNickname: developerProfiles.guildNickname,
-          avatarUrl: developerProfiles.avatarUrl,
-          guildAvatarUrl: developerProfiles.guildAvatarUrl,
-        })
-        .from(developerProfiles)
-        .where(eq(developerProfiles.id, userId)),
-    ]);
+    const [profile] = await db
+      .select({
+        discordUsername: developerProfiles.discordUsername,
+        guildNickname: developerProfiles.guildNickname,
+        avatarUrl: developerProfiles.avatarUrl,
+        guildAvatarUrl: developerProfiles.guildAvatarUrl,
+      })
+      .from(developerProfiles)
+      .where(eq(developerProfiles.id, userId));
     // Everyone else on a live canvas can write to it, so is in the guild:
     // they see this member's guild face.
     const self = {
@@ -719,6 +716,16 @@ export const getCanvasSyncToken = os
       name: memberName(profile ?? {}, context.user.name || "Member"),
       avatarUrl: memberAvatarUrl(profile ?? {}, { inGuild: true }),
     };
+    const token = await signCanvasToken(
+      {
+        c: documentName("canvas", canvas.id),
+        u: userId,
+        a: syncAccess,
+        n: self.name,
+        p: self.avatarUrl,
+      },
+      secret,
+    );
     return { token, url, access: syncAccess, self };
   });
 

@@ -15,6 +15,7 @@ import {
 } from "../../../src/lib/service-telemetry.ts";
 import { applyStoredState } from "./apply.ts";
 import { createAuthenticate, type SyncContext } from "./auth.ts";
+import { pinAwareness } from "./awareness.ts";
 import type { ServiceDb } from "./db.ts";
 import {
   ConnectionCaps,
@@ -206,6 +207,15 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
         countRefusal(error);
         throw error;
       }
+    },
+    async beforeHandleAwareness({ connection, context, document, states }) {
+      if (!connection || !context) return;
+      const ownedElsewhere = new Set<number>();
+      for (const other of document.getConnections()) {
+        if (other !== connection)
+          for (const id of document.getClients(other)) ownedElsewhere.add(id);
+      }
+      pinAwareness(states, context, ownedElsewhere);
     },
     async afterStoreDocument({ documentName }) {
       growth.stored(documentName);

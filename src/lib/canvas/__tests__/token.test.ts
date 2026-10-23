@@ -21,6 +21,25 @@ describe("canvas sync tokens", () => {
     });
   });
 
+  it("carries the face peers see, leaving out a missing avatar", async () => {
+    const withFace = await signCanvasToken(
+      { ...claims, n: "Alice", p: "https://cdn.test/a.png" },
+      SECRET,
+      NOW,
+    );
+    expect(await verifyCanvasToken(withFace, SECRET, NOW)).toMatchObject({
+      n: "Alice",
+      p: "https://cdn.test/a.png",
+    });
+    const noAvatar = await verifyCanvasToken(
+      await signCanvasToken({ ...claims, n: "Alice", p: null }, SECRET, NOW),
+      SECRET,
+      NOW,
+    );
+    expect(noAvatar).toMatchObject({ n: "Alice" });
+    expect(noAvatar).not.toHaveProperty("p");
+  });
+
   it("expires", async () => {
     const token = await signCanvasToken(claims, SECRET, NOW);
     expect(await verifyCanvasToken(token, SECRET, NOW + SYNC_LIMITS.tokenTtlMs - 1)).not.toBeNull();
