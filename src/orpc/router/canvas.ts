@@ -81,7 +81,12 @@ import { memberAvatarUrl, memberDisplayName, memberName } from "@/lib/member-nam
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
 import { isUniqueViolation } from "@/lib/pg-errors";
-import { bestEffort, captureServerEvent, isServerFlagEnabled } from "@/lib/posthog-server";
+import {
+  ANONYMOUS_FLAG_DISTINCT_ID,
+  bestEffort,
+  captureServerEvent,
+  isServerFlagEnabled,
+} from "@/lib/posthog-server";
 import { censorText } from "@/lib/profanity";
 import { profileSlug } from "@/lib/profile-links";
 import { getProfileProjectImageUrl } from "@/lib/profile-project-image-storage";
@@ -560,30 +565,72 @@ export const listLiveCanvases = os
     }
     if (live.length === 0) return [];
 
-    const peopleIds = [...new Set(live.flatMap((row) => others(row.id)))];
-    const profiles = await db
-      .select({
-        id: developerProfiles.id,
-        discordUsername: developerProfiles.discordUsername,
-        guildNickname: developerProfiles.guildNickname,
-        avatarUrl: developerProfiles.avatarUrl,
-        guildAvatarUrl: developerProfiles.guildAvatarUrl,
-      })
-      .from(developerProfiles)
-      .where(inArray(developerProfiles.id, peopleIds));
-    const byId = new Map(profiles.map((p) => [p.id, p]));
-    const viewer = { inGuild: flags.isGuildMember };
+    const people = await peopleFor(
+      live.flatMap((row) => others(row.id)),
+      flags.isGuildMember,
+    );
     return live.map((row) => ({
       ...summary(row),
-      people: others(row.id).map((id) => {
-        const profile = byId.get(id) ?? {};
-        return {
+      people: others(row.id).map((id) => people.get(id)!),
+    }));
+  });
+
+/** Display names and avatars for people on a canvas, in the viewer's face. */
+async function peopleFor(userIds: readonly string[], viewerInGuild: boolean) {
+  const ids = [...new Set(userIds)];
+  const profiles = ids.length
+    ? await db
+        .select({
+          id: developerProfiles.id,
+          discordUsername: developerProfiles.discordUsername,
+          guildNickname: developerProfiles.guildNickname,
+          avatarUrl: developerProfiles.avatarUrl,
+          guildAvatarUrl: developerProfiles.guildAvatarUrl,
+        })
+        .from(developerProfiles)
+        .where(inArray(developerProfiles.id, ids))
+    : [];
+  const byId = new Map(profiles.map((p) => [p.id, p]));
+  const viewer = { inGuild: viewerInGuild };
+  return new Map(
+    ids.map((id) => {
+      const profile = byId.get(id) ?? {};
+      return [
+        id,
+        {
           userId: id,
           displayName: memberDisplayName(profile, viewer, "Member"),
           avatarUrl: memberAvatarUrl(profile, viewer),
-        };
-      }),
-    }));
+        },
+      ];
+    }),
+  );
+}
+
+/**
+ * Who has one canvas open, for a viewer on the snapshot (a reader, a phone)
+ * who has no socket of their own. Signed-out visitors get only the count,
+ * so a public canvas never shows members' faces to anonymous callers.
+ */
+export const getCanvasPresence = os
+  .use(canvasRead)
+  .input(z.object({ canvasId: canvasIdSchema }))
+  .handler(async ({ context, input }) => {
+    const userId = context.user?.id ?? null;
+    const { canvas, viewer } = await loadCanvas(input.canvasId, userId, "read");
+    const none = { count: 0, people: [] };
+    if (canvas.deletedAt) return none;
+    if (
+      !(await isServerFlagEnabled("canvases-multiplayer", userId ?? ANONYMOUS_FLAG_DISTINCT_ID))
+    ) {
+      return none;
+    }
+    const here = ((await canvasPresence([canvas.id])).get(canvas.id) ?? []).filter(
+      (id) => id !== userId,
+    );
+    if (!userId || here.length === 0) return { count: here.length, people: [] };
+    const people = await peopleFor(here, viewer.isGuildMember ?? false);
+    return { count: here.length, people: here.map((id) => people.get(id)!) };
   });
 
 // ── One canvas ───────────────────────────────────────────────────────────────

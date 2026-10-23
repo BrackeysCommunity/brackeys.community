@@ -64,6 +64,17 @@ export function liveCanvasesQueryOptions(scope?: CanvasScope) {
   };
 }
 
+export type CanvasPresence = Awaited<ReturnType<typeof client.getCanvasPresence>>;
+
+/** Who has a canvas open, for a viewer without a socket; polled while shown. */
+export function canvasPresenceQueryOptions(canvasId: string) {
+  return {
+    ...orpc.getCanvasPresence.queryOptions({ input: { canvasId } }),
+    staleTime: LIVE_POLL_MS,
+    refetchInterval: LIVE_POLL_MS,
+  };
+}
+
 export function canvasVersionsQueryOptions(canvasId: string) {
   return {
     ...orpc.listCanvasVersions.queryOptions({ input: { canvasId } }),

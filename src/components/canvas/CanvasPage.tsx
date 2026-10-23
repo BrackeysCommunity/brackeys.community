@@ -19,6 +19,7 @@ import { CanvasSnapshotView, snapshotCards, type SnapshotViewHandle } from "./Ca
 import type { CanvasEditorHandle, CanvasPanel } from "./editor/CanvasEditor";
 import type { SaveStatus } from "./editor/use-canvas-save";
 import { OutlinePanel } from "./OutlinePanel";
+import { ReaderPresence } from "./ReaderPresence";
 import { CanvasShell, Island } from "./shell/CanvasShell";
 import { DocumentIsland } from "./shell/DocumentIsland";
 import { SharePopover } from "./shell/SharePopover";
@@ -222,11 +223,25 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
     </Island>
   );
 
+  // An editor's own stack comes from its socket; this one is for everyone else.
+  const readerPresence = editing ? null : <ReaderPresence canvasId={canvas.id} />;
   const reader = (
     <CanvasShell
       phone={isMobile}
       topLeft={topLeft}
-      topRight={isMobile ? toggles : <Island aria-label="View">{toggles}</Island>}
+      topRight={
+        isMobile ? (
+          <>
+            {readerPresence}
+            {toggles}
+          </>
+        ) : (
+          <Island aria-label="View">
+            {readerPresence}
+            {toggles}
+          </Island>
+        )
+      }
       left={
         panel === "outline" ? (
           <OutlinePanel

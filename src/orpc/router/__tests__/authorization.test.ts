@@ -98,6 +98,8 @@ const PUBLIC_PROCEDURES = new Set([
   // A readable canvas's image and live cards, behind the same access check.
   "listCanvasAttachments",
   "getCanvasEntities",
+  // Who has a readable canvas open; signed-out callers get only a count.
+  "getCanvasPresence",
   // The public tier's canvas reads: public and unlisted only, no session.
   "getPublicCanvas",
   "listPublicCanvases",

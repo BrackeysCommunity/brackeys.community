@@ -6,7 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { CanvasDetail } from "../canvas-queries";
 import { CanvasPage } from "../CanvasPage";
 
-const current = vi.hoisted(() => ({ detail: null as unknown, mobile: false }));
+const current = vi.hoisted(() => ({
+  detail: null as unknown,
+  mobile: false,
+  presence: { count: 0, people: [] } as unknown,
+  presenceReads: 0,
+}));
 
 vi.mock("../canvas-queries", () => ({
   canvasQueryOptions: (id: string) => ({
@@ -15,6 +20,13 @@ vi.mock("../canvas-queries", () => ({
   }),
   canvasScopesQueryOptions: () => ({ queryKey: ["scopes"], queryFn: () => ({ teams: [] }) }),
   useRestoreCanvas: () => ({ mutate: () => {}, isPending: false }),
+  canvasPresenceQueryOptions: (id: string) => ({
+    queryKey: ["getCanvasPresence", id],
+    queryFn: () => {
+      current.presenceReads++;
+      return current.presence;
+    },
+  }),
 }));
 vi.mock("@tanstack/react-router", () => ({ useBlocker: () => {} }));
 vi.mock("@/lib/hooks/use-mobile", () => ({ useIsMobile: () => current.mobile }));
@@ -68,6 +80,8 @@ function detail(patch: Partial<CanvasDetail>): CanvasDetail {
 afterEach(() => {
   cleanup();
   current.mobile = false;
+  current.presence = { count: 0, people: [] };
+  current.presenceReads = 0;
 });
 
 async function mount(patch: Partial<CanvasDetail>) {
@@ -112,5 +126,33 @@ describe("the Share island", () => {
     cleanup();
     await mount({ access: "read", hidden: true, hiddenReason: "x", canShare: false });
     expect(screen.queryByTestId("share")).toBeNull();
+  });
+});
+
+describe("presence on the snapshot", () => {
+  it("shows a reader who is here without loading the editor", async () => {
+    current.presence = {
+      count: 2,
+      people: [
+        { userId: "u1", displayName: "Mara", avatarUrl: null },
+        { userId: "u2", displayName: "Rin", avatarUrl: null },
+      ],
+    };
+    await mount({ access: "read", visibility: "public" });
+    expect(await screen.findByRole("group", { name: "People here: Mara and Rin" })).toBeTruthy();
+    expect(screen.queryByTestId("editor")).toBeNull();
+  });
+
+  it("shows a signed-out visitor only a count", async () => {
+    current.presence = { count: 3, people: [] };
+    await mount({ access: "read", visibility: "public" });
+    expect(await screen.findByText("3 people here")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: /People here/ })).toBeNull();
+  });
+
+  it("is left to the editor's own socket for someone editing", async () => {
+    await mount({ access: "owner", canShare: true, state: "AA==" });
+    await screen.findByTestId("editor");
+    expect(current.presenceReads).toBe(0);
   });
 });

@@ -23,6 +23,7 @@ import {
   deleteCanvas,
   getCanvas,
   getCanvasEntities,
+  getCanvasPresence,
   getCanvasSyncToken,
   listLiveCanvases,
   getCanvasVersion,
@@ -697,6 +698,44 @@ describe("listLiveCanvases", () => {
 
     multiplayerEnabled = false;
     expect(await live("carol")).toEqual([]);
+  });
+});
+
+describe("getCanvasPresence", () => {
+  const presence = (userId: string | null, canvasId: string) =>
+    call(getCanvasPresence, { canvasId }, asUser(userId));
+
+  it("shows a reader who is here, never themselves, and a signed-out visitor only how many", async () => {
+    const { id } = await create("alice", "Open.canvas");
+    await db.update(canvases).set({ visibility: "public" }).where(eq(canvases.id, id));
+    published.here.set(id, ["alice", "bob"]);
+
+    expect(await presence("carol", id)).toEqual({
+      count: 2,
+      people: [
+        { userId: "alice", displayName: "alice", avatarUrl: null },
+        { userId: "bob", displayName: "bob", avatarUrl: null },
+      ],
+    });
+    expect((await presence("bob", id)).people.map((p) => p.userId)).toEqual(["alice"]);
+    expect(await presence(null, id)).toEqual({ count: 2, people: [] });
+  });
+
+  it("refuses a canvas the caller can't read and is empty with the flag off or once deleted", async () => {
+    const { id } = await create("alice", "Private.canvas");
+    published.here.set(id, ["alice"]);
+    await expect(presence("carol", id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(presence(null, id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await db.insert(canvasMembers).values({ canvasId: id, userId: "carol", role: "viewer" });
+    expect((await presence("carol", id)).count).toBe(1);
+
+    multiplayerEnabled = false;
+    expect(await presence("carol", id)).toEqual({ count: 0, people: [] });
+    multiplayerEnabled = true;
+
+    await call(deleteCanvas, { canvasId: id }, asUser("alice"));
+    expect(await presence("alice", id)).toEqual({ count: 0, people: [] });
   });
 });
 
