@@ -191,6 +191,7 @@ deploy-prod:
           - media-scan
           - notifications-worker
           - discord-bot
+          - canvas-sync
   environment:
     name: production/$SERVICE
     url: $PROD_URL
