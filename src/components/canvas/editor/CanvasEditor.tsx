@@ -61,6 +61,7 @@ import { captureDrop, hasDirectory, readCapturedDrop } from "../io/read-drop";
 import { type ImportIntoCanvas, useCanvasImport } from "../io/use-canvas-import";
 import { canvasOutline, flattenOutline, outlineMarkdown } from "../outline";
 import { OutlinePanel } from "../OutlinePanel";
+import { EditorViewers } from "../ReaderPresence";
 import { CanvasShell, Island } from "../shell/CanvasShell";
 import {
   addCard,
@@ -1011,6 +1012,7 @@ function EditorInner({
             topRight={
               <Island aria-label="View">
                 <PresenceAvatars onLocate={goToPeer} />
+                {presence ? <EditorViewers canvasId={canvas.id} /> : null}
                 {chrome.toggles}
                 {wide ? (
                   <Button

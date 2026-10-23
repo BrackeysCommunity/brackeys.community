@@ -66,10 +66,13 @@ export function liveCanvasesQueryOptions(scope?: CanvasScope) {
 
 export type CanvasPresence = Awaited<ReturnType<typeof client.getCanvasPresence>>;
 
-/** Who has a canvas open, for a viewer without a socket; polled while shown. */
-export function canvasPresenceQueryOptions(canvasId: string) {
+/**
+ * Who has a canvas open, polled while shown. A reader passes its tab's
+ * `viewer` id, which counts it when signed out.
+ */
+export function canvasPresenceQueryOptions(canvasId: string, viewer?: string) {
   return {
-    ...orpc.getCanvasPresence.queryOptions({ input: { canvasId } }),
+    ...orpc.getCanvasPresence.queryOptions({ input: { canvasId, viewer } }),
     staleTime: LIVE_POLL_MS,
     refetchInterval: LIVE_POLL_MS,
   };

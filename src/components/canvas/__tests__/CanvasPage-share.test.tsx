@@ -9,7 +9,7 @@ import { CanvasPage } from "../CanvasPage";
 const current = vi.hoisted(() => ({
   detail: null as unknown,
   mobile: false,
-  presence: { count: 0, people: [] } as unknown,
+  presence: { count: 0, people: [], anonymous: 0 } as unknown,
   presenceReads: 0,
 }));
 
@@ -80,7 +80,7 @@ function detail(patch: Partial<CanvasDetail>): CanvasDetail {
 afterEach(() => {
   cleanup();
   current.mobile = false;
-  current.presence = { count: 0, people: [] };
+  current.presence = { count: 0, people: [], anonymous: 0 };
   current.presenceReads = 0;
 });
 
@@ -137,14 +137,16 @@ describe("presence on the snapshot", () => {
         { userId: "u1", displayName: "Mara", avatarUrl: null },
         { userId: "u2", displayName: "Rin", avatarUrl: null },
       ],
+      anonymous: 3,
     };
     await mount({ access: "read", visibility: "public" });
     expect(await screen.findByRole("group", { name: "People here: Mara and Rin" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "3 anonymous viewers" })).toBeTruthy();
     expect(screen.queryByTestId("editor")).toBeNull();
   });
 
-  it("shows a signed-out visitor only a count", async () => {
-    current.presence = { count: 3, people: [] };
+  it("shows a signed-out visitor only a count, other visitors included", async () => {
+    current.presence = { count: 2, people: [], anonymous: 1 };
     await mount({ access: "read", visibility: "public" });
     expect(await screen.findByText("3 people here")).toBeTruthy();
     expect(screen.queryByRole("group", { name: /People here/ })).toBeNull();

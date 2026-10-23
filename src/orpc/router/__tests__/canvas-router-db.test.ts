@@ -68,12 +68,19 @@ const published = vi.hoisted(() => ({
   revokes: [] as unknown[],
   applies: [] as string[],
   here: new Map<string, string[]>(),
+  viewers: new Map<string, Set<string>>(),
 }));
 vi.mock("@/lib/canvas-sync-publish", () => ({
   publishCanvasRevoke: async (message: unknown) => void published.revokes.push(message),
   publishCanvasApply: async (canvasId: string) => void published.applies.push(canvasId),
   canvasPresence: async (ids: string[]) =>
     new Map(ids.flatMap((id) => (published.here.has(id) ? [[id, published.here.get(id)!]] : []))),
+  canvasViewers: async (canvasId: string, viewerId: string | null) => {
+    const set = published.viewers.get(canvasId) ?? new Set<string>();
+    published.viewers.set(canvasId, set);
+    if (viewerId) set.add(viewerId);
+    return set.size - (viewerId ? 1 : 0);
+  },
 }));
 
 const SYNC_SECRET = "router-test-sync-secret";
@@ -90,6 +97,7 @@ beforeEach(async () => {
   published.revokes.length = 0;
   published.applies.length = 0;
   published.here.clear();
+  published.viewers.clear();
   process.env.CANVAS_SYNC_SECRET = SYNC_SECRET;
   process.env.CANVAS_SYNC_URL = "wss://sync.test";
   nonMembers.clear();
@@ -707,8 +715,8 @@ describe("listLiveCanvases", () => {
 });
 
 describe("getCanvasPresence", () => {
-  const presence = (userId: string | null, canvasId: string) =>
-    call(getCanvasPresence, { canvasId }, asUser(userId));
+  const presence = (userId: string | null, canvasId: string, viewer?: string) =>
+    call(getCanvasPresence, { canvasId, viewer }, asUser(userId));
 
   it("shows a reader who is here, never themselves, and a signed-out visitor only how many", async () => {
     const { id } = await create("alice", "Open.canvas");
@@ -721,26 +729,40 @@ describe("getCanvasPresence", () => {
         { userId: "alice", displayName: "alice", avatarUrl: null },
         { userId: "bob", displayName: "bob", avatarUrl: null },
       ],
+      anonymous: 0,
     });
     expect((await presence("bob", id)).people.map((p) => p.userId)).toEqual(["alice"]);
-    expect(await presence(null, id)).toEqual({ count: 2, people: [] });
+    expect(await presence(null, id)).toEqual({ count: 2, people: [], anonymous: 0 });
+  });
+
+  it("counts signed-out visitors by tab for everyone else, and never counts a signed-in caller", async () => {
+    const { id } = await create("alice", "Open.canvas");
+    await db.update(canvases).set({ visibility: "public" }).where(eq(canvases.id, id));
+
+    expect((await presence(null, id, "tab-one-1234")).anonymous).toBe(0);
+    expect((await presence(null, id, "tab-one-1234")).anonymous).toBe(0);
+    expect((await presence(null, id, "tab-two-1234")).anonymous).toBe(1);
+    expect((await presence("carol", id, "carols-tab-1")).anonymous).toBe(2);
+    expect((await presence("alice", id)).anonymous).toBe(2);
+    await expect(presence(null, id, "bad id!")).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("refuses a canvas the caller can't read and is empty with the flag off or once deleted", async () => {
     const { id } = await create("alice", "Private.canvas");
     published.here.set(id, ["alice"]);
     await expect(presence("carol", id)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(presence(null, id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(presence(null, id, "tab-one-1234")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(published.viewers.get(id)).toBeUndefined();
 
     await db.insert(canvasMembers).values({ canvasId: id, userId: "carol", role: "viewer" });
     expect((await presence("carol", id)).count).toBe(1);
 
     multiplayerEnabled = false;
-    expect(await presence("carol", id)).toEqual({ count: 0, people: [] });
+    expect(await presence("carol", id)).toEqual({ count: 0, people: [], anonymous: 0 });
     multiplayerEnabled = true;
 
     await call(deleteCanvas, { canvasId: id }, asUser("alice"));
-    expect(await presence("alice", id)).toEqual({ count: 0, people: [] });
+    expect(await presence("alice", id)).toEqual({ count: 0, people: [], anonymous: 0 });
   });
 });
 

@@ -108,6 +108,45 @@ export const presenceKey = (prefix: string, documentName: string, instanceId: st
 export const presenceInstancesKey = (prefix: string, documentName: string) =>
   `${prefix}:here-instances:${documentName}`;
 
+/**
+ * Signed-out readers have no socket, so they don't reach the roster: each
+ * tab's presence poll scores its own id into a sorted set instead, and a
+ * viewer counts while it has polled within `VIEWER_TTL_MS`.
+ */
+export const VIEWER_TTL_MS = 45_000;
+const MAX_VIEWERS = 500;
+
+export const viewersKey = (prefix: string, documentName: string) =>
+  `${prefix}:viewers:${documentName}`;
+
+/** The sorted-set commands `touchViewers` needs; an ioredis client fits. */
+export interface ViewerStore {
+  zadd(key: string, score: number, member: string): Promise<unknown>;
+  zremrangebyrank(key: string, start: number, stop: number): Promise<unknown>;
+  zremrangebyscore(key: string, min: string | number, max: string | number): Promise<unknown>;
+  zcard(key: string): Promise<number>;
+  pexpire(key: string, ms: number): Promise<unknown>;
+}
+
+/** Records `viewerId` when given, and counts the other signed-out viewers still polling. */
+export async function touchViewers(
+  client: ViewerStore,
+  prefix: string,
+  documentName: string,
+  viewerId: string | null,
+  now: number = Date.now(),
+): Promise<number> {
+  const key = viewersKey(prefix, documentName);
+  if (viewerId) {
+    await client.zadd(key, now, viewerId);
+    await client.zremrangebyrank(key, 0, -(MAX_VIEWERS + 1));
+    await client.pexpire(key, VIEWER_TTL_MS * 2);
+  }
+  await client.zremrangebyscore(key, "-inf", now - VIEWER_TTL_MS);
+  const count = await client.zcard(key);
+  return Math.max(0, count - (viewerId ? 1 : 0));
+}
+
 /** The two Redis reads `readPresence` needs; an ioredis client fits. */
 export interface PresenceReader {
   smembers(key: string): Promise<string[]>;

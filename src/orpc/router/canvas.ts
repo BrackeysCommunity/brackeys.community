@@ -35,7 +35,7 @@ import {
   type Recheck,
   updateCanvasState,
 } from "@/lib/canvas-persistence";
-import { canvasPresence, publishCanvasApply } from "@/lib/canvas-sync-publish";
+import { canvasPresence, canvasViewers, publishCanvasApply } from "@/lib/canvas-sync-publish";
 import {
   atLeast,
   canSetVisibility,
@@ -608,29 +608,40 @@ async function peopleFor(userIds: readonly string[], viewerInGuild: boolean) {
 }
 
 /**
- * Who has one canvas open, for a viewer on the snapshot (a reader, a phone)
- * who has no socket of their own. Signed-out visitors get only the count,
- * so a public canvas never shows members' faces to anonymous callers.
+ * Who has one canvas open: the editors on it, by name for a signed-in
+ * caller and as a count for a signed-out one, and how many signed-out
+ * visitors are reading it. A signed-out caller passes its tab's `viewer`
+ * id and is counted for everyone else while it keeps polling.
  */
 export const getCanvasPresence = os
   .use(canvasRead)
-  .input(z.object({ canvasId: canvasIdSchema }))
+  .input(
+    z.object({
+      canvasId: canvasIdSchema,
+      viewer: z
+        .string()
+        .regex(/^[A-Za-z0-9_-]{8,64}$/)
+        .optional(),
+    }),
+  )
   .handler(async ({ context, input }) => {
     const userId = context.user?.id ?? null;
     const { canvas, viewer } = await loadCanvas(input.canvasId, userId, "read");
-    const none = { count: 0, people: [] };
+    const none = { count: 0, people: [], anonymous: 0 };
     if (canvas.deletedAt) return none;
     if (
       !(await isServerFlagEnabled("canvases-multiplayer", userId ?? ANONYMOUS_FLAG_DISTINCT_ID))
     ) {
       return none;
     }
-    const here = ((await canvasPresence([canvas.id])).get(canvas.id) ?? []).filter(
-      (id) => id !== userId,
-    );
-    if (!userId || here.length === 0) return { count: here.length, people: [] };
+    const [roster, anonymous] = await Promise.all([
+      canvasPresence([canvas.id]),
+      canvasViewers(canvas.id, userId ? null : (input.viewer ?? null)),
+    ]);
+    const here = (roster.get(canvas.id) ?? []).filter((id) => id !== userId);
+    if (!userId || here.length === 0) return { count: here.length, people: [], anonymous };
     const people = await peopleFor(here, viewer.isGuildMember ?? false);
-    return { count: here.length, people: here.map((id) => people.get(id)!) };
+    return { count: here.length, people: here.map((id) => people.get(id)!), anonymous };
   });
 
 // ── One canvas ───────────────────────────────────────────────────────────────

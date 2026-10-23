@@ -89,6 +89,12 @@ vi.mock("@/orpc/client", () => ({
         queryKey: ["getCanvas", input.canvasId],
       }),
     },
+    getCanvasPresence: {
+      queryOptions: ({ input }: { input: { canvasId: string } }) => ({
+        queryKey: ["getCanvasPresence", input.canvasId],
+        queryFn: () => ({ count: 0, people: [], anonymous: 2 }),
+      }),
+    },
   },
 }));
 
@@ -273,6 +279,11 @@ describe("presence on a live canvas", () => {
     const group = screen.getByRole("group", { name: "People here" });
     expect(group.querySelectorAll("button")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Ana" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("tells an editor how many signed-out visitors are reading", async () => {
+    await mount();
+    expect(await screen.findByRole("img", { name: "2 anonymous viewers" })).toBeTruthy();
   });
 
   it("grays out an idle peer and lets you go to one with a pointer", async () => {

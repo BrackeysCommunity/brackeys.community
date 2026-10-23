@@ -14,6 +14,7 @@ import {
   type RevokeMessage,
   sendRevoke,
   syncEnvPrefix,
+  touchViewers,
 } from "@/lib/canvas/sync-channels";
 import { bestEffort } from "@/lib/posthog-server";
 import { createRedisClient } from "@/lib/redis";
@@ -130,4 +131,16 @@ export async function canvasPresence(canvasIds: readonly string[]): Promise<Map<
     if (here) byCanvas.set(id, here);
   }
   return byCanvas;
+}
+
+/**
+ * Signed-out viewers of a canvas other than `viewerId`, recording
+ * `viewerId` (a signed-out tab's id) as one of them.
+ */
+export async function canvasViewers(canvasId: string, viewerId: string | null): Promise<number> {
+  if (!process.env.REDIS_URL) return 0;
+  const count = await bestEffort("canvas_sync.viewers", { canvas_id: canvasId }, async () =>
+    touchViewers(await publisher(), prefix(), documentName("canvas", canvasId), viewerId),
+  );
+  return count ?? 0;
 }
