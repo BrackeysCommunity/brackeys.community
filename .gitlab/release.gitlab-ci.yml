@@ -21,7 +21,7 @@
     # The production origin the release is checked against. A project CI/CD
     # variable of the same name overrides this, which is how a domain move
     # flips it without a commit.
-    PROD_URL: https://brackeys.community
+    PROD_URL: https://jams.team
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
