@@ -1,6 +1,7 @@
 import {
   Calendar03Icon,
   File01Icon,
+  Image01Icon,
   ImageNotFound01Icon,
   Link01Icon,
   Message01Icon,
@@ -69,8 +70,8 @@ export type CanvasDetailLevel = "blocks" | "far" | "mid" | "near";
 
 export function detailLevelFor(zoom: number): CanvasDetailLevel {
   if (zoom < 0.2) return "blocks";
-  if (zoom < 0.4) return "far";
-  if (zoom < 0.7) return "mid";
+  if (zoom < 0.3) return "far";
+  if (zoom < 0.5) return "mid";
   return "near";
 }
 
@@ -360,6 +361,23 @@ function NoteCardBody({
   );
 }
 
+const PLACEHOLDER_TINT: CSSProperties = {
+  backgroundImage:
+    "linear-gradient(135deg, color-mix(in srgb, var(--card-accent, var(--muted-foreground)) 16%, transparent), color-mix(in srgb, var(--card-accent, var(--muted-foreground)) 4%, transparent))",
+};
+
+/** Stands in for art that isn't drawn at this zoom: a soft tint and the card's kind. */
+function ArtPlaceholder({ icon }: { icon: IconSvgElement }) {
+  return (
+    <div
+      className="flex h-full w-full items-center justify-center text-muted-foreground/45"
+      style={PLACEHOLDER_TINT}
+    >
+      <HugeiconsIcon icon={icon} className="size-1/3 max-h-12 max-w-12" />
+    </div>
+  );
+}
+
 function ImageCardBody({
   attachmentId,
   attachments,
@@ -370,7 +388,7 @@ function ImageCardBody({
   detail: CanvasDetailLevel;
 }) {
   const attachment = attachmentId ? attachments[attachmentId] : undefined;
-  if (detail === "far") return <div className="h-full w-full bg-muted/40" />;
+  if (detail === "far") return <ArtPlaceholder icon={Image01Icon} />;
   if (!attachment?.url) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 p-3 text-center text-muted-foreground">
@@ -619,7 +637,9 @@ function EntityCardBody({
             draggable={false}
             className="h-full w-full object-contain"
           />
-        ) : null}
+        ) : (
+          <ArtPlaceholder icon={icon} />
+        )}
       </div>
     );
 

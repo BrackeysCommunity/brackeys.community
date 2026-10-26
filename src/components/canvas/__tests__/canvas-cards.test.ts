@@ -48,7 +48,7 @@ describe("colors and detail", () => {
   });
 
   it("drops detail as you zoom out", () => {
-    expect([0.1, 0.3, 0.5, 1].map(detailLevelFor)).toEqual(["blocks", "far", "mid", "near"]);
+    expect([0.1, 0.25, 0.4, 1].map(detailLevelFor)).toEqual(["blocks", "far", "mid", "near"]);
   });
 });
 
