@@ -89,7 +89,10 @@ preload-budget:
 
 test:
   stage: test
-  image: node:22
+  # Matches the Node the repo is developed on (vp env: 24 LTS). Node 22's
+  # structuredClone turns a File into a plain Blob, which browsers don't,
+  # so the canvas-io worker tests only fail there.
+  image: node:24
   before_script:
     - npm i -g bun
     - bun install --frozen-lockfile
