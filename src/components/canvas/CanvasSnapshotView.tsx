@@ -129,6 +129,12 @@ function useEdgeDrawings(
   );
 }
 
+/** Card text that's longer than its card, which the wheel scrolls instead of zooming. */
+function overflowingText(target: EventTarget | null): boolean {
+  const box = (target as Element | null)?.closest?.(".nowheel");
+  return box != null && box.scrollHeight > box.clientHeight;
+}
+
 /** What the page's chrome can ask of a snapshot view. */
 export interface SnapshotViewHandle {
   fit: () => void;
@@ -144,9 +150,10 @@ export function snapshotCards(snapshot: JsonCanvas): CanvasCard[] {
 
 /**
  * A canvas drawn straight from its snapshot: the first paint for everyone
- * and all a reader ever loads. Pans with a drag and zooms with the wheel;
+ * and all a reader sees. Pans with a drag and zooms with the wheel;
  * nothing here can edit. `focusable` makes the cards tab stops in reading
- * order, for the page's own view rather than previews. A live reader passes
+ * order and lets long text scroll, for the page's own view rather than
+ * previews. A live reader passes
  * `overlay` (drawn in flow coordinates, above the cards) and `onPointer`.
  */
 export function CanvasSnapshotView({
@@ -190,6 +197,7 @@ export function CanvasSnapshotView({
     const el = host.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      if (overflowingText(e.target)) return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       const px = e.clientX - rect.left;
@@ -279,6 +287,8 @@ export function CanvasSnapshotView({
         onPointerDown={(e) => {
           // Capturing the pointer would retarget the click away from a link or chip.
           if ((e.target as HTMLElement).closest("a, button")) return;
+          // A finger on long text scrolls it; a mouse still drags the view.
+          if (e.pointerType === "touch" && overflowingText(e.target)) return;
           drag.current = { x: e.clientX, y: e.clientY };
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
@@ -384,7 +394,12 @@ export function CanvasSnapshotView({
                 </div>
               ) : (
                 <div className={CARD_SURFACE}>
-                  <CardBody card={card} detail={detail} attachments={attachments} />
+                  <CardBody
+                    card={card}
+                    detail={detail}
+                    attachments={attachments}
+                    scrollable={focusable}
+                  />
                 </div>
               )}
             </div>

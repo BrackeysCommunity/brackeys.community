@@ -145,7 +145,9 @@ export function PresenceAvatars({ onLocate }: { onLocate: (userId: string) => vo
             aria-label={person.locatable ? `Go to ${person.name}` : person.name}
             aria-disabled={!person.locatable || undefined}
             data-idle={person.idle || undefined}
-            className="rounded-full hover:z-10 aria-disabled:cursor-default"
+            // Square and unfilled: the cursor's frame probes its corners, and a
+            // round button's corners land on the overlapping neighbour.
+            className="rounded-none hover:z-10 hover:bg-transparent aria-disabled:cursor-default dark:hover:bg-transparent"
             onClick={() => {
               if (person.locatable) onLocate(person.id);
             }}
