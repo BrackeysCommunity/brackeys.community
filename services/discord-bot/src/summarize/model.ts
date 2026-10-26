@@ -23,7 +23,7 @@ ${UNTRUSTED}
 
 The history comes as sections in time order. Each section header gives its time span and how many messages it had; a section is either the raw messages or an earlier summary of them. Message counts are how busy a stretch was: weigh topics by them, not by how long a section's text is.
 
-Write at most 200 words in Discord markdown: a bold label per topic with short bullets under it, busiest topic first. Cover the whole span, oldest sections included, not just the latest. End with a bold "Unanswered" label listing questions nobody answered, or leave it out if there are none. Skip greetings, emoji-only messages and one-off jokes. Do not add anything that is not in the history. ${PEOPLE}`;
+Write at most 200 words in Discord markdown: a bold label per topic with short bullets under it. Put the busiest topic first. Labels name the subject only: never write "most active", "busiest" or a message count anywhere. Cover the whole span, oldest sections included, not just the latest. If some questions got no answer, end with a bold "Unanswered" label listing them. If there are none, end after the last topic: never write an "Unanswered" label followed by "None". Skip greetings, emoji-only messages and one-off jokes. Do not add anything that is not in the history. ${PEOPLE}`;
 
 export interface ModelUsage {
   inputTokens: number;
@@ -45,12 +45,17 @@ export interface SummaryModel {
 export function createSummaryModel(apiKey: string): SummaryModel {
   const client = new Anthropic({ apiKey });
 
-  async function complete(system: string, content: string, maxTokens: number) {
+  async function complete(
+    system: string,
+    content: string,
+    maxTokens: number,
+    effort: "low" | "medium",
+  ) {
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: maxTokens,
       system,
-      output_config: { effort: "low" },
+      output_config: { effort },
       messages: [{ role: "user", content }],
     });
     if (response.stop_reason === "refusal") throw new SummaryRefusedError();
@@ -67,8 +72,10 @@ export function createSummaryModel(apiKey: string): SummaryModel {
   }
 
   return {
-    chunk: (transcript) => complete(CHUNK_SYSTEM, transcript, 2_000),
-    final: (sections) => complete(FINAL_SYSTEM, sections, 4_000),
+    chunk: (transcript) => complete(CHUNK_SYSTEM, transcript, 2_000, "low"),
+    // One step up: at low effort the final call kept narrating its own
+    // instructions ("most active topic", "Unanswered: none").
+    final: (sections) => complete(FINAL_SYSTEM, sections, 4_000, "medium"),
   };
 }
 

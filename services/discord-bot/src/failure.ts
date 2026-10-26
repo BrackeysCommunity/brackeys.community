@@ -1,6 +1,7 @@
 import { DiscordAPIError } from "discord.js";
 
 import { ApiUnavailableError } from "./api.ts";
+import { SummaryUnavailableError } from "./commands/summarize.ts";
 import { type Embed, embedReply, type Reply, siteName } from "./reply.ts";
 
 /**
@@ -26,12 +27,28 @@ export interface Failure {
   /** Discord answered 403. Never retried: those count toward the
    *  invalid-request ban that took sign-in down in July. */
   forbidden?: boolean;
+  /** Replaces the kind's generic body when the cause has its own line. */
+  detail?: string;
 }
 
 /** A muted red; failures should read as a state, not an alarm. */
 export const FAILURE_COLOR = 0xc4443f;
 
+const SUMMARY_KINDS: Record<SummaryUnavailableError["reason"], FailureKind> = {
+  unreadable: "rejected",
+  refused: "rejected",
+  busy: "throttled",
+  slow: "timeout",
+};
+
 export function classifyFailure(error: unknown): Failure {
+  if (error instanceof SummaryUnavailableError) {
+    return {
+      kind: SUMMARY_KINDS[error.reason],
+      code: `summary ${error.reason}`,
+      detail: error.userMessage,
+    };
+  }
   if (error instanceof ApiUnavailableError) {
     return error.outcome === "timeout"
       ? { kind: "timeout", code: "timeout" }
@@ -100,7 +117,8 @@ export interface FailureOptions {
 }
 
 export function failureEmbed(failure: Failure, options: FailureOptions): Embed {
-  const { title, body } = copy(failure.kind, siteName(options.appUrl));
+  const { title, body: generic } = copy(failure.kind, siteName(options.appUrl));
+  const body = failure.detail ?? generic;
   return {
     title,
     description: options.hint ? `${body}\n\n${options.hint}` : body,

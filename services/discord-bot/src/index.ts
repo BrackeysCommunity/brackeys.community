@@ -3,34 +3,45 @@ import {
   Events,
   GatewayIntentBits,
   type GuildMember,
+  Options,
   type PartialGuildMember,
   type PartialUser,
   Partials,
   type User,
 } from "discord.js";
 
+import { EVENTS } from "../../../src/lib/event-taxonomy.ts";
 import { createServiceTelemetry } from "../../../src/lib/service-telemetry.ts";
 import { createPublicApi } from "./api.ts";
-import { buildManifest } from "./commands/manifest.ts";
+import { COMMAND } from "./commands/dispatch.ts";
+import { buildManifest, manifestOptions } from "./commands/manifest.ts";
+import type { Summarize } from "./commands/summarize.ts";
 import { config } from "./config.ts";
 import { createCooldown } from "./cooldown.ts";
 import { createInteractionHandler } from "./discord/adapter.ts";
 import { syncGuildCommands } from "./discord/register.ts";
 import { createMemberRelay, identityChanged, type MemberIdentity } from "./member-relay.ts";
 import { createMemo } from "./memo.ts";
+import { redis } from "./redis.ts";
 import { siteName } from "./reply.ts";
+import { createHistoryReader } from "./summarize/history.ts";
+import { createSummaryModel } from "./summarize/model.ts";
+import { createSummarizer } from "./summarize/summarizer.ts";
 
 /**
  * The Discord bot (plan 28): slash commands answered from the site's public
- * API tier. One gateway connection with the `Guilds` intent — interactions
- * arrive regardless of intents, and nothing here reads messages — and every
- * answer is a GET to `$APP_URL/api/public/rpc` through the edge. No
- * database, no Redis, no queue; plan 20 adds those to this process.
+ * API tier. Lookups are a GET to `$APP_URL/api/public/rpc` through the edge.
  *
  * With `MEMBER_RELAY` on it also holds `GuildMembers`, and tells the site
  * when a member's avatar or name changes so their profile doesn't wait for
- * the daily resync. That intent needs Discord's privileged intent review
- * first (see README).
+ * the daily resync.
+ *
+ * With `REDIS_URL` and `ANTHROPIC_API_KEY` it also offers `/summarize`
+ * (plan 49): on a member's request it reads the channel the command ran in
+ * over REST and summarizes it, caching summaries (never messages) in
+ * Dragonfly for 30 days. It holds `GuildMessages` only to hear deletions,
+ * which drop the cached summaries that contained them; it does not request
+ * message content over the gateway and caches no messages.
  */
 
 const telemetry = createServiceTelemetry("discord-bot");
@@ -43,17 +54,58 @@ const cooldown = createCooldown({
   windowMs: config.COOLDOWN_WINDOW_MS,
 });
 
+const summaryCooldown = createCooldown({
+  limit: config.SUMMARY_COOLDOWN_LIMIT,
+  windowMs: config.SUMMARY_COOLDOWN_WINDOW_MS,
+});
+
+const summarizer =
+  redis && config.ANTHROPIC_API_KEY
+    ? createSummarizer({
+        redis,
+        readHistory: createHistoryReader(config.DISCORD_BOT_TOKEN, redis),
+        model: createSummaryModel(config.ANTHROPIC_API_KEY),
+      })
+    : null;
+
+const summarize: Summarize | undefined = summarizer
+  ? async (channelId, window) => {
+      const summary = await summarizer.summarize(channelId, window);
+      if (!summary.finalCached && summary.text) {
+        telemetry.capture(EVENTS.botSummaryGenerated, {
+          window,
+          message_count: summary.messageCount,
+          buckets_cached: summary.buckets.cached,
+          buckets_summarized: summary.buckets.summarized,
+          buckets_raw: summary.buckets.raw,
+          input_tokens: summary.inputTokens,
+          output_tokens: summary.outputTokens,
+          cost_usd: summary.costUsd,
+          truncated: summary.truncated,
+        });
+      }
+      return summary;
+    }
+  : undefined;
+
 const memberRelay = config.MEMBER_RELAY
   ? createMemberRelay({ appUrl: config.APP_URL, secret: config.DISCORD_BOT_TOKEN, log })
   : null;
 
 const client = new Client({
-  intents: memberRelay
-    ? [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
-    : [GatewayIntentBits.Guilds],
+  intents: [
+    GatewayIntentBits.Guilds,
+    ...(memberRelay ? [GatewayIntentBits.GuildMembers] : []),
+    ...(summarizer ? [GatewayIntentBits.GuildMessages] : []),
+  ],
   // Members aren't cached ahead of time, so an update for one we haven't
   // seen arrives with a partial old copy — without these it isn't emitted.
-  partials: memberRelay ? [Partials.GuildMember, Partials.User] : [],
+  // Messages are never cached at all, so every deletion arrives partial.
+  partials: [
+    ...(memberRelay ? [Partials.GuildMember, Partials.User] : []),
+    ...(summarizer ? [Partials.Message] : []),
+  ],
+  makeCache: Options.cacheWithLimits({ ...Options.DefaultMakeCacheSettings, MessageManager: 0 }),
 });
 
 function userIdentity(user: User | PartialUser): MemberIdentity | null {
@@ -81,13 +133,26 @@ if (memberRelay) {
   });
 }
 
+if (summarizer) {
+  client.on(Events.MessageDelete, (message) => {
+    if (message.guildId !== config.DISCORD_GUILD_ID) return;
+    void summarizer.invalidate(message.channelId, [message.id]);
+  });
+  client.on(Events.MessageBulkDelete, (messages, channel) => {
+    if (channel.guildId !== config.DISCORD_GUILD_ID) return;
+    void summarizer.invalidate(channel.id, [...messages.keys()]);
+  });
+}
+
 client.on(
   Events.InteractionCreate,
   createInteractionHandler({
     api,
     memo,
     cooldown,
+    commandCooldowns: { [COMMAND.summarize]: summaryCooldown },
     telemetry,
+    summarize,
     appUrl: config.APP_URL,
     hostName: config.JAM_HOST_NAME,
     shareGate: {
@@ -105,7 +170,7 @@ client.once(Events.ClientReady, async (ready) => {
     await syncGuildCommands(ready.rest, {
       applicationId: config.DISCORD_APPLICATION_ID,
       guildId: config.DISCORD_GUILD_ID,
-      commands: buildManifest(siteName(config.APP_URL)),
+      commands: buildManifest(siteName(config.APP_URL), manifestOptions(config)),
       log,
     });
   } catch (error) {
@@ -138,6 +203,7 @@ async function shutdown(signal: string) {
   memo.stop();
   memberRelay?.stop();
   await client.destroy();
+  redis?.disconnect();
   // Before exit, not after: an interaction that failed in the last seconds
   // is exactly the one worth keeping.
   await telemetry.shutdown();

@@ -1,6 +1,6 @@
 import { REST } from "discord.js";
 
-import { buildManifest } from "./commands/manifest.ts";
+import { buildManifest, manifestOptions } from "./commands/manifest.ts";
 import { config } from "./config.ts";
 import { syncGuildCommands } from "./discord/register.ts";
 import { siteName } from "./reply.ts";
@@ -13,7 +13,7 @@ const rest = new REST().setToken(config.DISCORD_BOT_TOKEN);
 const result = await syncGuildCommands(rest, {
   applicationId: config.DISCORD_APPLICATION_ID,
   guildId: config.DISCORD_GUILD_ID,
-  commands: buildManifest(siteName(config.APP_URL)),
+  commands: buildManifest(siteName(config.APP_URL), manifestOptions(config)),
   force: process.argv.includes("--force"),
   log: console.log,
 });

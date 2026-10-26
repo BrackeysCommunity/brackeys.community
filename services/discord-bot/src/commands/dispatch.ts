@@ -1,5 +1,6 @@
 import type { PublicApi } from "../api.ts";
 import { type Reply, siteName, textReply } from "../reply.ts";
+import { isSummaryWindow } from "../summarize/buckets.ts";
 import { collabBrowse, collabBrowsePage, collabPost, collabStats } from "./collab.ts";
 import type { CommandContext } from "./context.ts";
 import {
@@ -13,6 +14,7 @@ import { jamEntries, jamEntriesPage, jamInfo, jamNow, jamResults } from "./jam.t
 import { memberByDiscordId, memberByName } from "./member.ts";
 import { ping } from "./ping.ts";
 import type { ShareDecision } from "./share-gate.ts";
+import { summarizeChannel } from "./summarize.ts";
 import { teamInfo } from "./team.ts";
 
 /** Command and option names — the manifest and the adapter both read these. */
@@ -22,6 +24,7 @@ export const COMMAND = {
   member: "member",
   team: "team",
   ping: "ping",
+  summarize: "summarize",
 } as const;
 
 export const SUB = {
@@ -40,7 +43,10 @@ export const OPT = {
   id: "id",
   user: "user",
   name: "name",
+  since: "since",
 } as const;
+
+export const SUMMARY_WINDOW_DEFAULT = "24h";
 
 /** The user context-menu entry; right-click on a member is how people will
  *  actually reach `/member`. */
@@ -167,6 +173,17 @@ export async function runInvocation(
 
     case COMMAND.team:
       return teamInfo(api, { team: str(OPT.name) ?? "", share }, ctx);
+
+    case COMMAND.summarize: {
+      if (!ctx.summarize) return textReply("Summaries aren't switched on for this bot yet.");
+      if (!inv.channelId) return textReply("Run this in the channel you want summarized.");
+      const since = str(OPT.since);
+      return summarizeChannel(ctx.summarize, {
+        channelId: inv.channelId,
+        window: isSummaryWindow(since) ? since : SUMMARY_WINDOW_DEFAULT,
+        share,
+      });
+    }
   }
   return textReply(
     "That command isn't wired up — the bot may be mid-deploy. Try again in a minute.",

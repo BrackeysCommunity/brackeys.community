@@ -29,7 +29,8 @@ const SECTIONS: LegalSection[] = [
           This notice does not cover the Brackeys Discord server, which is operated on Discord's
           platform under Discord's own privacy policy, nor GitHub, itch.io, or any other site the
           Service links to. Reading their notices is worthwhile: much of what appears on your
-          profile here originates there.
+          profile here originates there. The one part of the Discord server this notice does cover
+          is our bot's summary command, described below, because we run it.
         </p>
       </>
     ),
@@ -81,6 +82,13 @@ const SECTIONS: LegalSection[] = [
           author profile addresses of submitted entries. Some of that information relates to people
           who have no account here. We collect it only as it is publicly posted, and any person
           named in it may ask us to remove it as described in the section on your rights.
+        </p>
+        <p>
+          <strong>f. Messages summarized on request.</strong> When a member of the Brackeys Discord
+          server runs our bot's /summarize command, the bot reads the recent messages in the channel
+          where it was run — their text, the display names of their authors, and when they were sent
+          — and has them summarized. This happens only when someone asks, only for that channel, and
+          only for messages that member can already see. We keep the summaries, not the messages.
         </p>
         <p>
           We do not collect payment information, government identifiers, or precise geolocation, and
@@ -314,6 +322,11 @@ const SECTIONS: LegalSection[] = [
             <strong>Cloudflare</strong> — network delivery and image processing.
           </li>
           <li>
+            <strong>Anthropic</strong> — writing the summaries requested with the Discord bot's{" "}
+            /summarize command, from the messages described above. Anthropic does not use that text
+            to train its models.
+          </li>
+          <li>
             <strong>Discord, GitHub, and itch.io</strong> — the accounts you connect. Information
             flows chiefly from them to us; we send only what is needed to identify your account when
             asking for it.
@@ -373,6 +386,10 @@ const SECTIONS: LegalSection[] = [
           <li>
             <strong>Operational records</strong> — rate-limit counters, the note that you have the
             site open, and the cache of your Discord roles expire on their own within minutes.
+          </li>
+          <li>
+            <strong>Channel summaries</strong> — up to 30 days. A summary is discarded as soon as a
+            message it drew on is deleted in Discord.
           </li>
           <li>
             <strong>Analytics and error reports</strong> — retained under the retention settings

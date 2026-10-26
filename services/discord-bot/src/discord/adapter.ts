@@ -31,6 +31,7 @@ import {
   shareRequested,
 } from "../commands/dispatch.ts";
 import { decideShare, type ShareGateConfig } from "../commands/share-gate.ts";
+import { type Summarize, SummaryUnavailableError } from "../commands/summarize.ts";
 import type { Cooldown } from "../cooldown.ts";
 import { classifyFailure, type Failure, failureReply } from "../failure.ts";
 import type { Choice, Memo } from "../memo.ts";
@@ -49,14 +50,22 @@ export const STALE_BUTTON_LINE =
 export const COOLDOWN_LINE =
   "Easy — you're sending commands faster than the site can answer. Try again in a few seconds.";
 
+export function commandCooldownLine(retryAfterMs: number): string {
+  const minutes = Math.ceil(retryAfterMs / 60_000);
+  return `You've used this a lot just now. Try again in ${minutes === 1 ? "a minute" : `${minutes} minutes`}.`;
+}
+
 export interface AdapterOptions {
   api: PublicApi;
   memo: Memo;
   cooldown: Cooldown;
+  /** Tighter windows for commands that cost more than a lookup, by name. */
+  commandCooldowns?: Partial<Record<string, Cooldown>>;
   telemetry: ServiceTelemetry;
   appUrl: string;
   hostName: string;
   shareGate: ShareGateConfig;
+  summarize?: Summarize;
   now?: () => Date;
   log?: (line: string) => void;
 }
@@ -66,10 +75,12 @@ export function createInteractionHandler(options: AdapterOptions) {
     api,
     memo,
     cooldown,
+    commandCooldowns = {},
     telemetry,
     appUrl,
     hostName,
     shareGate,
+    summarize,
     now = () => new Date(),
     log = console.log,
   } = options;
@@ -79,6 +90,7 @@ export function createInteractionHandler(options: AdapterOptions) {
     appUrl,
     hostName,
     names: { skill: memo.skillName, role: memo.roleName },
+    summarize,
   });
 
   async function onChatInput(interaction: ChatInputCommandInteraction) {
@@ -125,9 +137,11 @@ export function createInteractionHandler(options: AdapterOptions) {
       visibility,
     };
 
-    const gate = cooldown.check(interaction.user.id);
+    const own = commandCooldowns[inv.command];
+    const gate = (own ?? cooldown).check(interaction.user.id);
     if (!gate.allowed) {
-      await interaction.reply({ content: COOLDOWN_LINE, flags: MessageFlags.Ephemeral });
+      const content = own ? commandCooldownLine(gate.retryAfterMs) : COOLDOWN_LINE;
+      await interaction.reply({ content, flags: MessageFlags.Ephemeral });
       telemetry.capture(EVENTS.botCommandFailed, {
         ...props,
         api_outcome: "cooldown",
@@ -155,9 +169,9 @@ export function createInteractionHandler(options: AdapterOptions) {
     } catch (error) {
       const failure = classifyFailure(error);
       log(`[command] ${label} failed (${failure.kind} ${failure.code}): ${describe(error)}`);
-      // An unreachable origin is an outage, not a defect; everything else is
-      // worth a stack trace.
-      if (!(error instanceof ApiUnavailableError)) {
+      // An unreachable origin or a busy summarizer is an outage, not a
+      // defect; everything else is worth a stack trace.
+      if (!(error instanceof ApiUnavailableError || error instanceof SummaryUnavailableError)) {
         telemetry.captureException(error, { ...props, scope: "command" });
       }
       telemetry.capture(EVENTS.botCommandFailed, {

@@ -1,14 +1,16 @@
 import {
   ApplicationCommandType,
   ContextMenuCommandBuilder,
+  PermissionFlagsBits,
   type RESTPostAPIApplicationCommandsJSONBody,
   SlashCommandBuilder,
   type SlashCommandBooleanOption,
   type SlashCommandStringOption,
 } from "discord.js";
 
+import { WINDOWS } from "../summarize/buckets.ts";
 import { COLLAB_TYPES, ID_BOUNDS, JAM_ENTRY_SORTS, SEARCH_MAX } from "./custom-id.ts";
-import { COMMAND, OPT, PROFILE_CONTEXT_MENU, SUB } from "./dispatch.ts";
+import { COMMAND, OPT, PROFILE_CONTEXT_MENU, SUB, SUMMARY_WINDOW_DEFAULT } from "./dispatch.ts";
 
 /**
  * The command set, as the JSON Discord registers. Built once at boot and
@@ -21,7 +23,29 @@ interface Shareable {
   addBooleanOption(fn: (option: SlashCommandBooleanOption) => SlashCommandBooleanOption): unknown;
 }
 
-export function buildManifest(site: string): RESTPostAPIApplicationCommandsJSONBody[] {
+export interface ManifestOptions {
+  /** `/summarize` is registered only when the bot can run it. */
+  summarize?: { staffOnly: boolean };
+}
+
+/** Shared by the boot sync and `bun run register`, so neither drops a command the other adds. */
+export function manifestOptions(config: {
+  REDIS_URL?: string;
+  ANTHROPIC_API_KEY?: string;
+  SUMMARIZE_OPEN: boolean;
+}): ManifestOptions {
+  return {
+    summarize:
+      config.REDIS_URL && config.ANTHROPIC_API_KEY
+        ? { staffOnly: !config.SUMMARIZE_OPEN }
+        : undefined,
+  };
+}
+
+export function buildManifest(
+  site: string,
+  options: ManifestOptions = {},
+): RESTPostAPIApplicationCommandsJSONBody[] {
   const jamOption = (o: SlashCommandStringOption, description: string) =>
     o
       .setName(OPT.jam)
@@ -167,7 +191,7 @@ export function buildManifest(site: string): RESTPostAPIApplicationCommandsJSONB
     .setName(PROFILE_CONTEXT_MENU)
     .setType(ApplicationCommandType.User);
 
-  return [
+  const commands = [
     jam.toJSON(),
     collab.toJSON(),
     member.toJSON(),
@@ -175,4 +199,25 @@ export function buildManifest(site: string): RESTPostAPIApplicationCommandsJSONB
     pingCmd.toJSON(),
     profileMenu.toJSON(),
   ];
+
+  if (options.summarize) {
+    const summarize = shareOption(
+      new SlashCommandBuilder()
+        .setName(COMMAND.summarize)
+        .setDescription("Catch up on this channel with an AI summary")
+        .addStringOption((o) =>
+          o
+            .setName(OPT.since)
+            .setDescription(`How far back (default ${SUMMARY_WINDOW_DEFAULT})`)
+            .addChoices(...Object.keys(WINDOWS).map((w) => ({ name: w, value: w }))),
+        ),
+    );
+    // Staff-only while it's being tried out; server admins can widen it in
+    // Integrations without a deploy, and SUMMARIZE_OPEN drops the default.
+    if (options.summarize.staffOnly) {
+      summarize.setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages);
+    }
+    commands.push(summarize.toJSON());
+  }
+  return commands;
 }

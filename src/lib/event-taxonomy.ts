@@ -174,6 +174,8 @@ export const EVENTS = {
   // a command.
   botCommandInvoked: "bot_command_invoked",
   botCommandFailed: "bot_command_failed",
+  // One per summary actually produced by `/summarize`: its size and cost.
+  botSummaryGenerated: "bot_summary_generated",
 } as const;
 
 export type AnalyticsEvent = (typeof EVENTS)[keyof typeof EVENTS];

@@ -84,13 +84,18 @@ Root `vp check` formats these files but does not type-check them.
    `$APP_URL/api/discord/member-sync` when a member's avatar, nickname or
    username changes, signed with an HMAC keyed by `DISCORD_BOT_TOKEN`
    (`src/lib/bot-relay-signature.ts`). It needs the privileged **Server
-   Members Intent**. Since June 2026 Discord gates privileged intents on
-   unique users reached, not servers: past 10,000 the toggle is locked
-   until the app passes Discord's
-   [privileged intent review](https://docs.discord.com/developers/gateway/getting-started-with-privileged-intent-review),
-   and the Brackeys server alone is far past that. Leave it off until the
-   intent is approved — the login is refused otherwise. Meanwhile the site
-   resyncs every signed-in member from Discord at most once a day.
+   Members Intent**, which the app holds (approved October 2026); without
+   it the gateway refuses the login (4014). On in prod.
+7. **Summaries (optional)** — with `REDIS_URL` (the shared Dragonfly,
+   `${{Dragonfly.DRAGONFLY_URL}}`) and `ANTHROPIC_API_KEY` set, the bot
+   registers `/summarize` (plan 49) and takes the non-privileged
+   `GuildMessages` intent to hear deletions. Staff-only (Manage Messages)
+   until `SUMMARIZE_OPEN=true`; `SUMMARY_COOLDOWN_LIMIT` /
+   `SUMMARY_COOLDOWN_WINDOW_MS` set its per-member window (3 per 10 min).
+   Message text is read over REST on request only and goes to Anthropic
+   under an org with no training and zero data retention; only summaries
+   are cached, for 30 days. The same Redis holds the Discord backoff
+   window shared with the web app (`src/lib/discord-guard.ts`).
 
 ### Deploys
 

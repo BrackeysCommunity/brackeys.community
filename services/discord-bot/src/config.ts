@@ -54,6 +54,16 @@ const schema = z
     // model calls. Without either the command is not offered.
     REDIS_URL: z.url().optional(),
     ANTHROPIC_API_KEY: z.string().min(1).optional(),
+    // A summary costs model calls and a burst of history reads, so it gets
+    // its own, much slower window than the lookups.
+    SUMMARY_COOLDOWN_LIMIT: z.coerce.number().int().positive().default(3),
+    SUMMARY_COOLDOWN_WINDOW_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10 * 60_000),
+    // Off: `/summarize` registers for members with Manage Messages only.
+    SUMMARIZE_OPEN: z.stringbool().default(false),
   })
   .transform(({ DISCORD_APPLICATION_ID, DISCORD_CLIENT_ID, ...rest }, ctx) => {
     const applicationId = DISCORD_APPLICATION_ID ?? DISCORD_CLIENT_ID;
