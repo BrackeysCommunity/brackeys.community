@@ -703,14 +703,17 @@ export const getCanvasSyncToken = os
   .handler(async ({ context, input }) => {
     const userId = context.user.id;
     if (!(await isServerFlagEnabled("canvases-multiplayer", userId))) throw NOT_FOUND();
-    const { canvas, access } = await loadCanvas(input.canvasId, userId, "read");
+    const { canvas, access, viewer } = await loadCanvas(input.canvasId, userId, "read");
     assertLive(canvas);
+    const syncAccess: SyncAccess = atLeast(access, "write") ? "write" : "read";
+    // Awareness carries everyone's guild face, so a reader outside the guild
+    // stays on the polled roster, which shows them the global one.
+    if (syncAccess === "read" && !viewer.isGuildMember) throw NOT_FOUND();
     const secret = process.env.CANVAS_SYNC_SECRET;
     const url = process.env.CANVAS_SYNC_URL;
     if (!secret || !url) {
       throw new ORPCError("PRECONDITION_FAILED", { message: "Live canvases aren't set up here." });
     }
-    const syncAccess: SyncAccess = atLeast(access, "write") ? "write" : "read";
     const [profile] = await db
       .select({
         discordUsername: developerProfiles.discordUsername,
@@ -720,8 +723,7 @@ export const getCanvasSyncToken = os
       })
       .from(developerProfiles)
       .where(eq(developerProfiles.id, userId));
-    // Everyone else on a live canvas can write to it, so is in the guild:
-    // they see this member's guild face.
+    // Everyone else on a live canvas is in the guild: they see this member's guild face.
     const self = {
       id: userId,
       name: memberName(profile ?? {}, context.user.name || "Member"),

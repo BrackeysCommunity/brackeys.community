@@ -133,6 +133,8 @@ function useEdgeDrawings(
 export interface SnapshotViewHandle {
   fit: () => void;
   focusCard: (id: string) => void;
+  /** Centers a point in flow coordinates. */
+  panTo: (point: { x: number; y: number }) => void;
 }
 
 /** The snapshot's cards, as the outline and the view both read them. */
@@ -144,7 +146,8 @@ export function snapshotCards(snapshot: JsonCanvas): CanvasCard[] {
  * A canvas drawn straight from its snapshot: the first paint for everyone
  * and all a reader ever loads. Pans with a drag and zooms with the wheel;
  * nothing here can edit. `focusable` makes the cards tab stops in reading
- * order, for the page's own view rather than previews.
+ * order, for the page's own view rather than previews. A live reader passes
+ * `overlay` (drawn in flow coordinates, above the cards) and `onPointer`.
  */
 export function CanvasSnapshotView({
   snapshot,
@@ -152,6 +155,8 @@ export function CanvasSnapshotView({
   className,
   focusable = false,
   grid = false,
+  overlay,
+  onPointer,
   ref,
 }: {
   snapshot: JsonCanvas;
@@ -160,6 +165,9 @@ export function CanvasSnapshotView({
   focusable?: boolean;
   /** The editor's dot grid, moving with the view. */
   grid?: boolean;
+  overlay?: (zoom: number) => React.ReactNode;
+  /** The pointer in flow coordinates, null once it leaves. */
+  onPointer?: (point: { x: number; y: number } | null) => void;
   ref?: React.Ref<SnapshotViewHandle>;
 }) {
   const cards = useMemo(() => snapshotCards(snapshot), [snapshot]);
@@ -169,9 +177,13 @@ export function CanvasSnapshotView({
   const [view, setView] = useState<View>(() => fitView(cards, 1200, 700));
   const drag = useRef<{ x: number; y: number } | null>(null);
 
+  // Fits once there's something to fit; live edits after that leave the view alone.
+  const fitted = useRef(false);
   useEffect(() => {
     const el = host.current;
-    if (el) setView(fitView(cards, el.clientWidth, el.clientHeight));
+    if (!el || fitted.current) return;
+    setView(fitView(cards, el.clientWidth, el.clientHeight));
+    fitted.current = cards.length > 0;
   }, [cards]);
 
   useEffect(() => {
@@ -229,6 +241,15 @@ export function CanvasSnapshotView({
         if (el) setView(fitView(cards, el.clientWidth, el.clientHeight));
       },
       focusCard,
+      panTo: (point) => {
+        const el = host.current;
+        if (!el) return;
+        setView((v) => ({
+          ...v,
+          x: el.clientWidth / 2 - point.x * v.zoom,
+          y: el.clientHeight / 2 - point.y * v.zoom,
+        }));
+      },
     }),
     [cards, focusCard],
   );
@@ -248,9 +269,10 @@ export function CanvasSnapshotView({
         style={
           grid
             ? {
-                backgroundImage: `radial-gradient(${GRID_DOT} 2px, transparent 2px)`,
+                // React Flow's dot pattern: the dot scales with the zoom, offset by its radius.
+                backgroundImage: `radial-gradient(circle, ${GRID_DOT} ${view.zoom}px, transparent ${view.zoom}px)`,
                 backgroundSize: `${GRID_GAP * view.zoom}px ${GRID_GAP * view.zoom}px`,
-                backgroundPosition: `${view.x}px ${view.y}px`,
+                backgroundPosition: `${view.x + view.zoom}px ${view.y + view.zoom}px`,
               }
             : undefined
         }
@@ -261,6 +283,13 @@ export function CanvasSnapshotView({
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
         onPointerMove={(e) => {
+          if (onPointer) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            onPointer({
+              x: (e.clientX - rect.left - view.x) / view.zoom,
+              y: (e.clientY - rect.top - view.y) / view.zoom,
+            });
+          }
           if (!drag.current) return;
           const dx = e.clientX - drag.current.x;
           const dy = e.clientY - drag.current.y;
@@ -270,6 +299,7 @@ export function CanvasSnapshotView({
         onPointerUp={() => {
           drag.current = null;
         }}
+        onPointerLeave={() => onPointer?.(null)}
       >
         <div
           className="absolute top-0 left-0 origin-top-left"
@@ -359,6 +389,7 @@ export function CanvasSnapshotView({
               )}
             </div>
           ))}
+          {overlay?.(view.zoom)}
         </div>
       </div>
     </CanvasLinksContext>

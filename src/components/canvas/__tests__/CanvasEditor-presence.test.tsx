@@ -271,12 +271,15 @@ describe("presence on a live canvas", () => {
     ).not.toContain("Rin");
   });
 
-  it("stacks connected people once each in the top right", async () => {
+  it("stacks connected people once each in the top right, this member first", async () => {
     const { awareness } = await mount();
+    const group = screen.getByRole("group", { name: "People here" });
+    expect(screen.getByRole("img", { name: "Me (you)" })).toBeTruthy();
     peer(awareness, "ana", "Ana");
     peer(awareness, "ana", "Ana");
     peer(awareness, "rin", "Rin");
-    const group = screen.getByRole("group", { name: "People here" });
+    // Another tab of this member's own doesn't count twice.
+    peer(awareness, "me", "Me");
     expect(group.querySelectorAll("button")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Ana" }).getAttribute("aria-disabled")).toBe("true");
   });

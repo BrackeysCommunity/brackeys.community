@@ -17,12 +17,15 @@ import {
 } from "./canvas-queries";
 import { CanvasSnapshotView, snapshotCards, type SnapshotViewHandle } from "./CanvasSnapshotView";
 import type { CanvasEditorHandle, CanvasPanel } from "./editor/CanvasEditor";
+import { PresenceContext } from "./editor/presence-store";
+import { PeerCursorMarks, PresenceAvatars } from "./editor/PresenceLayer";
 import type { SaveStatus } from "./editor/use-canvas-save";
 import { OutlinePanel } from "./OutlinePanel";
-import { ReaderPresence } from "./ReaderPresence";
+import { EditorViewers, ReaderPresence } from "./ReaderPresence";
 import { CanvasShell, Island } from "./shell/CanvasShell";
 import { DocumentIsland } from "./shell/DocumentIsland";
 import { SharePopover } from "./shell/SharePopover";
+import { useReaderLive } from "./use-reader-live";
 
 const CanvasEditor = lazy(() => import("./editor/CanvasEditor"));
 const HistoryPanel = lazy(() =>
@@ -148,7 +151,12 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const editorHandle = useRef<CanvasEditorHandle | null>(null);
   const snapshotView = useRef<SnapshotViewHandle>(null);
-  const cards = useMemo(() => (canvas ? snapshotCards(canvas.snapshot) : []), [canvas]);
+  const canEdit =
+    canvas != null && canvas.access !== "read" && !canvas.deletedAt && canvas.state != null;
+  const editing = canEdit && !isMobile;
+  const live = useReaderLive(canvasId, canvas != null && !editing && !canvas.deletedAt);
+  const snapshot = live.snapshot ?? canvas?.snapshot;
+  const cards = useMemo(() => (snapshot ? snapshotCards(snapshot) : []), [snapshot]);
 
   const onStatus = useCallback((handle: CanvasEditorHandle) => {
     editorHandle.current = handle;
@@ -164,10 +172,8 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
     enableBeforeUnload: false,
   });
 
-  if (!canvas) return null;
+  if (!canvas || !snapshot) return null;
 
-  const canEdit = canvas.access !== "read" && !canvas.deletedAt && canvas.state != null;
-  const editing = canEdit && !isMobile;
   // Staff reach any canvas's history from the read-only view.
   const staffHistory = !editing && !isMobile && canvas.canModerate && !canvas.deletedAt;
   const files =
@@ -180,7 +186,7 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
       canvas={canvas}
       scopeName={scopeName}
       editable={editing}
-      exportJson={() => editorHandle.current?.exportJson() ?? canvas.snapshot}
+      exportJson={() => editorHandle.current?.exportJson() ?? snapshot}
       editor={() => editorHandle.current}
       compact={isMobile}
     />
@@ -223,8 +229,22 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
     </Island>
   );
 
-  // An editor's own stack comes from its socket; this one is for everyone else.
-  const readerPresence = editing ? null : <ReaderPresence canvasId={canvas.id} />;
+  // An editor's own stack comes from its socket, as does a live reader's.
+  const readerPresence = editing ? null : live.presence ? (
+    <>
+      <PresenceAvatars
+        onLocate={(userId) => {
+          const where = live.presence?.locate(userId);
+          if (!where) return;
+          if ("cardId" in where) snapshotView.current?.focusCard(where.cardId);
+          else snapshotView.current?.panTo(where);
+        }}
+      />
+      <EditorViewers canvasId={canvas.id} />
+    </>
+  ) : (
+    <ReaderPresence canvasId={canvas.id} />
+  );
   const reader = (
     <CanvasShell
       phone={isMobile}
@@ -246,7 +266,7 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
         panel === "outline" ? (
           <OutlinePanel
             cards={cards}
-            edges={canvas.snapshot.edges.map((e) => ({
+            edges={snapshot.edges.map((e) => ({
               from: e.fromNode,
               to: e.toNode,
               label: e.label,
@@ -284,15 +304,17 @@ export function CanvasPage({ canvasId }: { canvasId: string }) {
     >
       <CanvasSnapshotView
         ref={snapshotView}
-        snapshot={canvas.snapshot}
+        snapshot={snapshot}
         attachments={canvas.attachments}
         focusable
         grid
+        overlay={live.presence ? (zoom) => <PeerCursorMarks zoom={zoom} /> : undefined}
+        onPointer={live.presence ? (point) => live.presence?.setPointer(point) : undefined}
       />
     </CanvasShell>
   );
 
-  if (!editing) return reader;
+  if (!editing) return <PresenceContext value={live.presence}>{reader}</PresenceContext>;
 
   return (
     <ShellBoundary scope="canvas_editor" fallback={reader}>

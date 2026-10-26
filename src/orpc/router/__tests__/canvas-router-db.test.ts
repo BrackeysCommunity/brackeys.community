@@ -626,7 +626,7 @@ describe("getCanvasSyncToken", () => {
     expect((await mint("bob", teamCanvas)).access).toBe("write");
   });
 
-  it("mints read for viewers, unlisted readers, staff and members outside the guild", async () => {
+  it("mints read for viewers, unlisted readers and staff; none for readers outside the guild", async () => {
     const { id } = await create("alice", "Shared.canvas");
     await db.insert(canvasMembers).values({ canvasId: id, userId: "carol", role: "viewer" });
     expect((await mint("carol", id)).access).toBe("read");
@@ -636,7 +636,7 @@ describe("getCanvasSyncToken", () => {
     expect((await mint("stranger", id)).access).toBe("read");
 
     nonMembers.add("discord-alice");
-    expect((await mint("alice", id)).access).toBe("read");
+    await expect(mint("alice", id)).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("says who the member is to the others on the canvas: their guild face", async () => {

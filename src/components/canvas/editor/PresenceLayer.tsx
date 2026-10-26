@@ -1,12 +1,14 @@
 import { useStore, ViewportPortal } from "@xyflow/react";
-import { memo } from "react";
+import { memo, use } from "react";
 
 import { Button } from "@/components/ui/button";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { MAX_CHAT, type PresenceUser } from "@/lib/canvas/presence";
 import { cn } from "@/lib/utils";
 
 import {
+  PresenceContext,
   type PresenceStore,
   useCardMarks,
   usePeerPointers,
@@ -18,47 +20,52 @@ const NAME_TAG = "rounded-md px-1.5 py-0.5 text-[11px] leading-tight font-medium
 
 /** Peers' pointers with name tags, in flow coordinates, kept at screen size. */
 export function PeerCursors() {
-  const pointers = usePeerPointers();
   const zoom = useStore((s) => s.transform[2]);
-  if (pointers.length === 0) return null;
   return (
     <ViewportPortal>
-      {pointers.map((p) => (
-        <div
-          key={p.clientId}
-          aria-hidden
-          data-peer-cursor={p.user.id}
-          className="pointer-events-none absolute top-0 left-0 z-[1000] transition-transform duration-75 ease-linear"
-          style={{
-            transform: `translate(${p.x}px, ${p.y}px) scale(${1 / zoom})`,
-            transformOrigin: "0 0",
-          }}
-        >
-          <svg width="16" height="18" viewBox="0 0 16 18" className="drop-shadow-sm">
-            <path
-              d="M1 1l13 7.5-5.8 1.4L5.6 16z"
-              fill={p.user.color}
-              stroke="white"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-            />
-          </svg>
-          {p.chat ? (
-            <ChatBubble color={p.user.color} name={p.user.name}>
-              {p.chat}
-            </ChatBubble>
-          ) : (
-            <span
-              className={`${NAME_TAG} absolute top-4 left-3 whitespace-nowrap shadow-sm`}
-              style={{ backgroundColor: p.user.color }}
-            >
-              {p.user.name}
-            </span>
-          )}
-        </div>
-      ))}
+      <PeerCursorMarks zoom={zoom} />
     </ViewportPortal>
   );
+}
+
+/** The cursors themselves, for any layer already in flow coordinates. */
+export function PeerCursorMarks({ zoom }: { zoom: number }) {
+  const pointers = usePeerPointers();
+  if (pointers.length === 0) return null;
+  return pointers.map((p) => (
+    <div
+      key={p.clientId}
+      aria-hidden
+      data-peer-cursor={p.user.id}
+      className="pointer-events-none absolute top-0 left-0 z-[1000] transition-transform duration-75 ease-linear"
+      style={{
+        transform: `translate(${p.x}px, ${p.y}px) scale(${1 / zoom})`,
+        transformOrigin: "0 0",
+      }}
+    >
+      <svg width="16" height="18" viewBox="0 0 16 18" className="drop-shadow-sm">
+        <path
+          d="M1 1l13 7.5-5.8 1.4L5.6 16z"
+          fill={p.user.color}
+          stroke="white"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {p.chat ? (
+        <ChatBubble color={p.user.color} name={p.user.name}>
+          {p.chat}
+        </ChatBubble>
+      ) : (
+        <span
+          className={`${NAME_TAG} absolute top-4 left-3 whitespace-nowrap shadow-sm`}
+          style={{ backgroundColor: p.user.color }}
+        >
+          {p.user.name}
+        </span>
+      )}
+    </div>
+  ));
 }
 
 /**
@@ -100,15 +107,31 @@ function TypingTag({ user }: { user: PresenceUser }) {
 
 const MAX_FACES = 4;
 
-/** Everyone else here, for the top-right island. Clicking one goes to them; idle people are grayed out. */
+/**
+ * Everyone here, this tab's own face first, for the top-right island.
+ * Clicking someone else goes to them; idle people are grayed out.
+ */
 export function PresenceAvatars({ onLocate }: { onLocate: (userId: string) => void }) {
-  const people = usePeople();
-  if (people.length === 0) return null;
-  const shown = people.slice(0, MAX_FACES);
+  const self = use(PresenceContext)?.self;
+  const everyone = usePeople();
+  if (!self) return null;
+  const people = everyone.filter((p) => p.id !== self.id);
+  const shown = people.slice(0, MAX_FACES - 1);
   const more = people.length - shown.length;
   return (
     <>
       <div role="group" aria-label="People here" className="flex items-center -space-x-1.5 pr-1">
+        <SimpleTooltip content={`${self.name} (you)`}>
+          <span
+            role="img"
+            aria-label={`${self.name} (you)`}
+            className="flex size-7 items-center justify-center"
+          >
+            <span className="rounded-full" style={{ boxShadow: `0 0 0 2px ${self.color}` }}>
+              <UserAvatar avatarUrl={self.avatarUrl} username={self.name} size={24} />
+            </span>
+          </span>
+        </SimpleTooltip>
         {shown.map((person) => (
           <Button
             key={person.id}
