@@ -99,31 +99,15 @@ Root `vp check` formats these files but does not type-check them.
 
 ### Deploys
 
-Staging tracks `main` through the GitHub mirror. **Prod ships only on a
-`vX.Y.Z` tag**: the release pipeline uploads that tag's tree to this service
-with a Railway project token, so prod never holds a mix of commits — this bot
-tracked `main` directly until then, and ran ahead of the web app it calls.
-Auto-deploy is off on the prod instance. See "Releasing" in the root README.
-
-### Portal work (one-time, human)
-
-- The bot and the site's OAuth sign-in are **one Discord application**; the
-  bot user already exists for the ban probe.
-- Invite it to the guild with the `bot` and `applications.commands` scopes
-  and no permissions beyond those it already holds — slash replies need
-  none.
-- Disable "Public Bot" (or leave install links off) so nobody adds it to
-  another server. Commands register as **guild commands** for
-  `DISCORD_GUILD_ID` only; nothing is registered globally.
-- No privileged intent is requested — the client connects with `Guilds`
-  only — so no intent review is needed.
-
-### Staging
-
-A **second Discord application** against a scratch guild, deployed from the
-`staging` environment with `APP_URL=https://staging.jams.team`. Guild
-commands keep it clean: the staging application's commands exist only in
-the scratch guild. Never point two live bots at the real guild.
+The bot sits outside the app's release cycle: **prod deploys from `main`**
+through a Railway trigger on the prod instance (it has no staging
+instance). Watch paths limit it to `services/discord-bot/**` and the
+shared `src/lib` files the Dockerfile copies, so a web-only commit doesn't
+restart it. Keep the watch paths in step with the Dockerfile's COPY list
+(service settings, or `serviceInstanceUpdate` `watchPatterns`). The bot
+calls only the site's public API, so it doesn't need to ship in lockstep
+with a web release. Its telemetry release is the commit SHA Railway
+injects (`RAILWAY_GIT_COMMIT_SHA`).
 
 ## Registration
 

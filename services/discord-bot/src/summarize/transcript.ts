@@ -1,4 +1,5 @@
 import type { DiscordApiMessage } from "./history.ts";
+import type { RefTable } from "./refs.ts";
 
 export interface TranscriptMessage {
   id: string;
@@ -43,6 +44,12 @@ export function formatStamp(ms: number): string {
   return new Date(ms).toISOString().slice(5, 16).replace("T", " ");
 }
 
-export function formatLines(messages: TranscriptMessage[]): string {
-  return messages.map((m) => `[${formatStamp(m.at)}] ${m.author}: ${m.text}`).join("\n");
+/** One line per message, numbered for citation when a table is given. */
+export function formatLines(messages: TranscriptMessage[], refs?: RefTable): string {
+  return messages
+    .map((m) => {
+      const line = `[${formatStamp(m.at)}] ${m.author}: ${m.text}`;
+      return refs ? `#${refs.number(m.id)} ${line}` : line;
+    })
+    .join("\n");
 }

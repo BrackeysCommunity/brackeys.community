@@ -9,6 +9,7 @@ const MIN = 60_000;
 const HOUR = 60 * MIN;
 const NOW = Date.parse("2026-10-26T15:30:00Z");
 const CHANNEL = "243005537342586880";
+const GUILD = "100000000000000001";
 
 /** A channel with one message at each of `times`, oldest first. */
 function channel(times: number[]) {
@@ -49,16 +50,20 @@ function memoryRedis(): SummaryRedis & { store: Map<string, string> } {
 }
 
 function fakeModel() {
-  const calls = { chunk: [] as string[], final: [] as string[] };
+  const calls = { chunk: [] as string[], final: [] as string[], words: [] as number[] };
   const usage = { inputTokens: 1000, outputTokens: 100 };
   const model: SummaryModel = {
     chunk: async (transcript) => {
       calls.chunk.push(transcript);
-      return { text: `summary of ${transcript.split("\n").length}`, usage };
+      return {
+        text: `[summary of ${transcript.split("\n").length}](#1) and [a made-up one](#99999)`,
+        usage,
+      };
     },
-    final: async (sections) => {
+    final: async (sections, words) => {
       calls.final.push(sections);
-      return { text: "final", usage };
+      calls.words.push(words);
+      return { text: "[the first point](#1) final", usage };
     },
   };
   return { model, calls };
@@ -72,7 +77,12 @@ function setup(times: number[]) {
   const history = channel(times);
   const redis = memoryRedis();
   const { model, calls } = fakeModel();
-  const summarizer = createSummarizer({ redis, readHistory: history.readHistory, model });
+  const summarizer = createSummarizer({
+    redis,
+    readHistory: history.readHistory,
+    model,
+    guildId: GUILD,
+  });
   return { ...history, redis, calls, summarizer };
 }
 
@@ -80,6 +90,33 @@ const bucketKeys = (redis: { store: Map<string, string> }) =>
   [...redis.store.keys()].filter((key) => /^summarize:v\d+:/.test(key));
 
 describe("summarize", () => {
+  test("numbers the history and turns the answer's citations into message links", async () => {
+    const { summarizer, calls, messages } = setup(spread(NOW - 20 * HOUR, NOW, 50));
+    const summary = await summarizer.summarize(CHANNEL, "24h", NOW);
+    expect(calls.final[0]).toContain(
+      `#1 [${messages[0].timestamp.slice(5, 16).replace("T", " ")}]`,
+    );
+    expect(summary.text).toBe(
+      `[the first point](https://discord.com/channels/${GUILD}/${CHANNEL}/${messages[0].id}) final`,
+    );
+    expect(calls.words).toEqual([300]);
+  });
+
+  test("cached chunk summaries keep their citations as ids and are renumbered per request", async () => {
+    const { summarizer, calls, redis } = setup(spread(NOW - 6 * HOUR, NOW, 600));
+    await summarizer.summarize(CHANNEL, "6h", NOW);
+    const stored = [...redis.store.entries()].filter(([k]) => /^summarize:v\d+:/.test(k));
+    const parts = stored.flatMap(([, v]) => (JSON.parse(v) as { parts: string[] }).parts);
+    expect(parts.every((p) => /\]\(<m:\d{17,20}>\)/.test(p))).toBe(true);
+    // A number the model made up loses its link instead of pointing nowhere.
+    expect(parts.some((p) => p.includes("#99999") || p.includes("(<m:undefined"))).toBe(false);
+    expect(parts.join()).toContain("and a made-up one");
+    // In the final call they come back as this request's numbers.
+    expect(calls.final[0]).toMatch(/\[summary of \d+\]\(#\d+\)/);
+    expect(calls.final[0]).not.toContain("<m:");
+    expect(calls.words).toEqual([500]);
+  });
+
   test("an empty window calls nothing", async () => {
     const { summarizer, calls } = setup([NOW - 3 * HOUR]);
     const summary = await summarizer.summarize(CHANNEL, "1h", NOW);
@@ -114,6 +151,7 @@ describe("summarize", () => {
       redis,
       readHistory: channel([...times, later - MIN]).readHistory,
       model: fakeModel().model,
+      guildId: GUILD,
     });
     const second = await again.summarize(CHANNEL, "6h", later);
     expect(second.buckets.cached).toBe(2);

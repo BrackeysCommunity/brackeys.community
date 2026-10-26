@@ -12,7 +12,14 @@ import {
   splitParts,
 } from "./buckets.ts";
 import type { ReadHistory } from "./history.ts";
-import { type ModelUsage, PROMPT_VERSION, type SummaryModel, usageCostUsd } from "./model.ts";
+import {
+  type ModelUsage,
+  PROMPT_VERSION,
+  type SummaryModel,
+  summaryWords,
+  usageCostUsd,
+} from "./model.ts";
+import { RefTable, fitLinks, numberLinks, resolveLinks, storeLinks } from "./refs.ts";
 import { type TranscriptMessage, formatLines, formatStamp, toTranscript } from "./transcript.ts";
 
 /** The commands used, typed structurally so tests can pass a fake. */
@@ -50,6 +57,8 @@ const BUCKET_TTL_SECONDS = 30 * 86_400;
 /** Several people asking about the same busy channel at once cost one call. */
 const FINAL_TTL_SECONDS = 300;
 const CHUNK_CONCURRENCY = 6;
+/** Discord's embed description limit is 4096; the rest is headroom. */
+const MAX_SUMMARY_CHARS = 4_000;
 
 const bucketKey = (channelId: string, bucket: number) =>
   `summarize:v${PROMPT_VERSION}:${channelId}:${bucket}`;
@@ -85,8 +94,10 @@ export function createSummarizer(deps: {
   redis: SummaryRedis;
   readHistory: ReadHistory;
   model: SummaryModel;
+  /** For the message links the summary cites. */
+  guildId: string;
 }) {
-  const { redis, readHistory, model } = deps;
+  const { redis, readHistory, model, guildId } = deps;
 
   /** `[from, to)` newest page first; stops early once `budget` messages are read. */
   async function readRange(channelId: string, from: number, to: number, budget: number) {
@@ -188,29 +199,33 @@ export function createSummarizer(deps: {
     if (count === 0) return result({ from, truncated: cut !== null });
 
     const buckets = { cached: 0, summarized: 0, raw: 0 };
-    let sections: string[];
+    type Section =
+      | { from: number; to: number; kind: "raw"; messages: TranscriptMessage[] }
+      | { from: number; to: number; kind: "summary"; count: number; parts: string[] };
+    let sections: Section[];
     if (!kept.some((span) => hits.has(span)) && count <= DIRECT_LIMIT) {
       const all = kept.flatMap((span) => fetched.get(span) ?? []);
       buckets.raw = kept.filter((span) => fetched.get(span)?.length).length;
-      sections = [`${header(from, now, all.length, "raw")}\n${formatLines(all)}`];
+      sections = [{ from, to: now, kind: "raw", messages: all }];
     } else {
-      const work = kept.map((span) => async (): Promise<string | null> => {
+      const work = kept.map((span) => async (): Promise<Section | null> => {
         const hit = hits.get(span);
         if (hit) {
           buckets.cached++;
-          return `${header(span.from, span.to, hit.count, "summary")}\n${hit.parts.join("\n\n")}`;
+          return { from: span.from, to: span.to, kind: "summary", ...hit };
         }
         const messages = fetched.get(span) ?? [];
         if (!messages.length) return null;
         if (span.bucket === null || isPartial(span) || messages.length < QUIET_BELOW) {
           buckets.raw++;
-          return `${header(Math.max(span.from, from), span.to, messages.length, "raw")}\n${formatLines(messages)}`;
+          return { from: Math.max(span.from, from), to: span.to, kind: "raw", messages };
         }
         const parts = await Promise.all(
           splitParts(messages).map(async (part) => {
-            const reply = await model.chunk(formatLines(part));
+            const refs = new RefTable();
+            const reply = await model.chunk(formatLines(part, refs));
             usage.push(reply.usage);
-            return reply.text;
+            return storeLinks(reply.text, refs);
           }),
         );
         const entry: CachedBucket = { count: messages.length, parts };
@@ -225,15 +240,25 @@ export function createSummarizer(deps: {
           null,
         );
         buckets.summarized++;
-        return `${header(span.from, span.to, messages.length, "summary")}\n${parts.join("\n\n")}`;
+        return { from: span.from, to: span.to, kind: "summary", count: messages.length, parts };
       });
-      sections = (await pooled(work, CHUNK_CONCURRENCY)).filter((s): s is string => s !== null);
+      sections = (await pooled(work, CHUNK_CONCURRENCY)).filter((s): s is Section => s !== null);
     }
 
-    const final = await model.final(sections.join("\n\n"));
+    // Numbered in time order once everything is in, so #1 is the oldest.
+    const refs = new RefTable();
+    const history = sections
+      .map((section) =>
+        section.kind === "raw"
+          ? `${header(section.from, section.to, section.messages.length, "raw")}\n${formatLines(section.messages, refs)}`
+          : `${header(section.from, section.to, section.count, "summary")}\n${numberLinks(section.parts.join("\n\n"), refs)}`,
+      )
+      .join("\n\n");
+    const final = await model.final(history, summaryWords(count));
     usage.push(final.usage);
+    const messageUrl = (id: string) => `https://discord.com/channels/${guildId}/${channelId}/${id}`;
     const summary = result({
-      text: final.text,
+      text: fitLinks(resolveLinks(final.text, refs, messageUrl), MAX_SUMMARY_CHARS),
       from,
       messageCount: count,
       truncated: cut !== null,

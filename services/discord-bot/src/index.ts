@@ -65,6 +65,7 @@ const summarizer =
         redis,
         readHistory: createHistoryReader(config.DISCORD_BOT_TOKEN, redis),
         model: createSummaryModel(config.ANTHROPIC_API_KEY),
+        guildId: config.DISCORD_GUILD_ID,
       })
     : null;
 

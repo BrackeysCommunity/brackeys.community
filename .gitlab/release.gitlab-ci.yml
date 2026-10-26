@@ -1,13 +1,16 @@
 # Tagged production releases.
 #
 # Pushing `vX.Y.Z` runs one pipeline that gates the commit, migrates the prod
-# database, uploads that exact tree to all five application services in
-# Railway's `prod` environment, waits for each to report SUCCESS, smoke-checks
-# the live origin, and publishes a GitLab Release.
+# database, uploads that exact tree to the application services in Railway's
+# `prod` environment, waits for each to report SUCCESS, smoke-checks the live
+# origin, and publishes a GitLab Release.
 #
-# Every service ships on the tag — Web, itch-crawler, media-scan,
-# notifications-worker and discord-bot all come from this one tree, so prod
-# can no longer hold a mix of commits the way branch triggers allowed.
+# Web, itch-crawler, media-scan, notifications-worker and canvas-sync ship on
+# the tag, all from this one tree, so prod can't hold a mix of commits the way
+# branch triggers allowed. The Discord bot is the exception: it sits outside
+# the app's release cycle and deploys from `main` through its own Railway
+# trigger, watching only `services/discord-bot/**` and the shared files its
+# Dockerfile copies.
 #
 # Prod does not move because a branch moved: the Railway auto-deploy triggers
 # on the prod service instances are off (see docs/plans/32-tagged-ci-prod-releases.md).
@@ -190,7 +193,6 @@ deploy-prod:
           - itch-crawler
           - media-scan
           - notifications-worker
-          - discord-bot
           - canvas-sync
   environment:
     name: production/$SERVICE
