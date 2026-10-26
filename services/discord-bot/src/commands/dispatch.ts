@@ -44,6 +44,7 @@ export const OPT = {
   user: "user",
   name: "name",
   since: "since",
+  ask: "ask",
 } as const;
 
 export const SUMMARY_WINDOW_DEFAULT = "24h";
@@ -181,6 +182,7 @@ export async function runInvocation(
       return summarizeChannel(ctx.summarize, {
         channelId: inv.channelId,
         window: isSummaryWindow(since) ? since : SUMMARY_WINDOW_DEFAULT,
+        question: str(OPT.ask)?.trim() || undefined,
         share,
       });
     }

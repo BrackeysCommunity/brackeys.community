@@ -73,6 +73,20 @@ describe("summarizeChannel", () => {
     expect(splitSummary("short", 8)).toEqual(["short"]);
   });
 
+  test("a question becomes the title and is passed through", async () => {
+    let seen: string | undefined;
+    const reply = await summarizeChannel(
+      async (_c, _w, question) => {
+        seen = question;
+        return summary({ text: "Job argued for voting." });
+      },
+      { ...input, question: "who argued for voting?" },
+    );
+    expect(seen).toBe("who argued for voting?");
+    expect(reply.embeds[0].title).toBe("“who argued for voting?”");
+    expect(reply.embeds[0].description).toBe("Job argued for voting.");
+  });
+
   test("an empty window is a plain line", async () => {
     const reply = await summarizeChannel(async () => summary({ text: "" }), input);
     expect(reply.outcome).toBe("not_found");
@@ -149,6 +163,25 @@ describe("dispatch", () => {
     expect(seen).toEqual([["42", "24h"]]);
   });
 
+  test("passes a trimmed question, and none for a blank one", async () => {
+    const asked: (string | undefined)[] = [];
+    const run = (ask: string) =>
+      runInvocation(
+        fakeApi({}),
+        { command: "summarize", options: { ask }, channelId: "42" },
+        {
+          ...ctx,
+          summarize: async (_c, _w, question) => {
+            asked.push(question);
+            return summary();
+          },
+        },
+      );
+    await run("  what happened?  ");
+    await run("   ");
+    expect(asked).toEqual(["what happened?", undefined]);
+  });
+
   test("answers a line when summaries aren't configured", async () => {
     const reply = await runInvocation(
       fakeApi({}),
@@ -180,6 +213,6 @@ describe("manifest", () => {
     expect(staff?.default_member_permissions).toBe("8192");
     const open = find(buildManifest("jams.team", { summarize: { staffOnly: false } }));
     expect(open?.default_member_permissions).toBeUndefined();
-    expect(open?.options?.map((o) => o.name)).toEqual(["since", "share"]);
+    expect(open?.options?.map((o) => o.name)).toEqual(["since", "ask", "share"]);
   });
 });

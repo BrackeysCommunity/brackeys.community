@@ -70,11 +70,15 @@ const summarizer =
     : null;
 
 const summarize: Summarize | undefined = summarizer
-  ? async (channelId, window) => {
-      const summary = await summarizer.summarize(channelId, window);
+  ? async (channelId, window, question) => {
+      const summary = await summarizer.summarize(channelId, window, { question });
       if (!summary.finalCached && summary.text) {
         telemetry.capture(EVENTS.botSummaryGenerated, {
           window,
+          // Whether and how much was asked, never what: the question is the
+          // member's own words.
+          asked: Boolean(question),
+          question_length: question?.length ?? 0,
           message_count: summary.messageCount,
           buckets_cached: summary.buckets.cached,
           buckets_summarized: summary.buckets.summarized,

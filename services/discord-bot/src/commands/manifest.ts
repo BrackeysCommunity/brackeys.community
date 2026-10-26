@@ -11,6 +11,7 @@ import {
 import { WINDOWS } from "../summarize/buckets.ts";
 import { COLLAB_TYPES, ID_BOUNDS, JAM_ENTRY_SORTS, SEARCH_MAX } from "./custom-id.ts";
 import { COMMAND, OPT, PROFILE_CONTEXT_MENU, SUB, SUMMARY_WINDOW_DEFAULT } from "./dispatch.ts";
+import { QUESTION_MAX } from "./summarize.ts";
 
 /**
  * The command set, as the JSON Discord registers. Built once at boot and
@@ -204,12 +205,18 @@ export function buildManifest(
     const summarize = shareOption(
       new SlashCommandBuilder()
         .setName(COMMAND.summarize)
-        .setDescription("Catch up on this channel with an AI summary")
+        .setDescription("Catch up on this channel with an AI summary, or ask about it")
         .addStringOption((o) =>
           o
             .setName(OPT.since)
             .setDescription(`How far back (default ${SUMMARY_WINDOW_DEFAULT})`)
             .addChoices(...Object.keys(WINDOWS).map((w) => ({ name: w, value: w }))),
+        )
+        .addStringOption((o) =>
+          o
+            .setName(OPT.ask)
+            .setDescription("Ask something instead: about the conversation, or anything else")
+            .setMaxLength(QUESTION_MAX),
         ),
     );
     // Staff-only while it's being tried out; server admins can widen it in

@@ -1,14 +1,29 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { DiscordBackoffError } from "../../../../src/lib/discord-guard.ts";
-import { clampEmbed, EMBED_DESCRIPTION_MAX, notFound, plural, type Reply } from "../reply.ts";
+import {
+  clampEmbed,
+  EMBED_DESCRIPTION_MAX,
+  EMBED_TITLE_MAX,
+  notFound,
+  plural,
+  type Reply,
+  truncate,
+} from "../reply.ts";
 import type { SummaryWindow } from "../summarize/buckets.ts";
 import { ChannelUnreadableError } from "../summarize/history.ts";
 import { SummaryRefusedError } from "../summarize/model.ts";
 import type { Summary } from "../summarize/summarizer.ts";
 import { formatStamp } from "../summarize/transcript.ts";
 
-export type Summarize = (channelId: string, window: SummaryWindow) => Promise<Summary>;
+export type Summarize = (
+  channelId: string,
+  window: SummaryWindow,
+  question?: string,
+) => Promise<Summary>;
+
+/** Discord's option cap; also keeps the question a question rather than a prompt dump. */
+export const QUESTION_MAX = 300;
 
 /** Past this the member gets an answer, not a spinner; the work finishes into the cache. */
 export const SUMMARY_TIMEOUT_MS = 60_000;
@@ -86,12 +101,15 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 
 export async function summarizeChannel(
   summarize: Summarize,
-  input: { channelId: string; window: SummaryWindow; share: boolean },
+  input: { channelId: string; window: SummaryWindow; share: boolean; question?: string },
   timeoutMs = SUMMARY_TIMEOUT_MS,
 ): Promise<Reply> {
   let summary: Summary;
   try {
-    summary = await withTimeout(summarize(input.channelId, input.window), timeoutMs);
+    summary = await withTimeout(
+      summarize(input.channelId, input.window, input.question),
+      timeoutMs,
+    );
   } catch (error) {
     throw unavailable(error) ?? error;
   }
@@ -102,11 +120,14 @@ export async function summarizeChannel(
   const footer = summary.truncated
     ? `Newest ${plural(summary.messageCount, "message")} only · ${span}`
     : `${plural(summary.messageCount, "message")} · ${span}`;
+  const title = input.question
+    ? truncate(`“${input.question}”`, EMBED_TITLE_MAX)
+    : `Catch-up: the last ${input.window}`;
   const pages = splitSummary(summary.text);
   return {
     embeds: pages.map((description, i) =>
       clampEmbed({
-        title: i === 0 ? `Catch-up: the last ${input.window}` : undefined,
+        title: i === 0 ? title : undefined,
         description,
         color: SUMMARY_COLOR,
         footer: i === pages.length - 1 ? `${footer} · AI summary, may miss things` : undefined,

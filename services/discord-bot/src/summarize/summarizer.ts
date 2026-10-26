@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   DIRECT_LIMIT,
   MAX_FETCH,
@@ -121,10 +123,11 @@ export function createSummarizer(deps: {
     }
   }
 
+  /** A summary, or with `question` an answer to it drawn from the same history. */
   async function summarize(
     channelId: string,
     window: SummaryWindow,
-    now = Date.now(),
+    { now = Date.now(), question }: { now?: number; question?: string } = {},
   ): Promise<Summary> {
     const start = now - WINDOWS[window];
     const usage: ModelUsage[] = [];
@@ -146,7 +149,8 @@ export function createSummarizer(deps: {
     if (!latest || snowflakeTime(latest.id) < start) return result({});
 
     const generation = (await quietly(() => redis.get(generationKey(channelId)), null)) ?? "0";
-    const finalKey = `summarize:final:v${PROMPT_VERSION}:${channelId}:${generation}:${window}:${latest.id}`;
+    const asked = question ? createHash("sha256").update(question).digest("hex").slice(0, 16) : "-";
+    const finalKey = `summarize:final:v${PROMPT_VERSION}:${channelId}:${generation}:${window}:${latest.id}:${asked}`;
     const cachedFinal = await quietly(() => redis.get(finalKey), null);
     if (cachedFinal) return { ...(JSON.parse(cachedFinal) as Summary), finalCached: true };
 
@@ -254,7 +258,9 @@ export function createSummarizer(deps: {
           : `${header(section.from, section.to, section.count, "summary")}\n${numberLinks(section.parts.join("\n\n"), refs)}`,
       )
       .join("\n\n");
-    const final = await model.final(history, summaryWords(count));
+    const final = question
+      ? await model.answer(question, history, summaryWords(count))
+      : await model.final(history, summaryWords(count));
     usage.push(final.usage);
     const messageUrl = (id: string) => `https://discord.com/channels/${guildId}/${channelId}/${id}`;
     const summary = result({
