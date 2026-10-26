@@ -46,12 +46,14 @@ const schema = z
     COOLDOWN_LIMIT: z.coerce.number().int().positive().default(10),
     COOLDOWN_WINDOW_MS: z.coerce.number().int().positive().default(10_000),
     // Relays avatar and name changes to the site (`member-relay.ts`). Needs
-    // the privileged Server Members intent, and the app reaches well over
-    // Discord's 10,000-user line, so that intent is behind Discord's
-    // privileged intent review — the portal toggle stays locked until it's
-    // approved. Without it the gateway refuses the login (4014), so this
-    // stays off until then; the site's daily resync covers the gap.
+    // the privileged Server Members intent, which the app holds; without it
+    // the gateway refuses the login (4014).
     MEMBER_RELAY: z.stringbool().default(false),
+    // `/summarize` needs both: the Dragonfly instance for the chunk cache
+    // and the shared Discord backoff window, and the Anthropic key for the
+    // model calls. Without either the command is not offered.
+    REDIS_URL: z.url().optional(),
+    ANTHROPIC_API_KEY: z.string().min(1).optional(),
   })
   .transform(({ DISCORD_APPLICATION_ID, DISCORD_CLIENT_ID, ...rest }, ctx) => {
     const applicationId = DISCORD_APPLICATION_ID ?? DISCORD_CLIENT_ID;

@@ -8,8 +8,11 @@ import {
   publicThread,
 } from "@/lib/discord-channels";
 import type { GuildEmoji } from "@/lib/discord-emoji";
+import { createDiscordGuard } from "@/lib/discord-guard";
 import type { DiscordUserName, GuildRole } from "@/lib/discord-mentions";
 import { createRedisClient } from "@/lib/redis";
+
+export { DiscordBackoffError } from "@/lib/discord-guard";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -141,18 +144,12 @@ export function isAdmin(guildRoles: string[] | null): boolean {
 
 // ── Rate-limit hygiene ─────────────────────────────────────────────
 //
-// Railway egress IPs are shared across tenants, and a Cloudflare 1015 ban
-// on discord.com takes OAuth sign-in down with it (better-auth's token
-// exchange hits the same zone). So we are deliberately heavy handed:
-// every call funnels through `guardedFetch`, any 429 opens a Redis-backed
-// backoff window shared across instances, and guild membership is cached
-// so middleware traffic to discord.com is near zero. Redis being down must
-// never hurt more than Discord being down — the cache/backoff plumbing
-// swallows its own errors.
+// Every call funnels through `guardedFetch`, which honours the backoff
+// window shared with the Discord bot (`discord-guard.ts`), and guild
+// membership is cached so middleware traffic to discord.com is near zero.
+// Redis being down must never hurt more than Discord being down — the
+// cache plumbing swallows its own errors.
 
-const BACKOFF_KEY = "discord:backoff-until";
-const DEFAULT_BACKOFF_SECONDS = 30;
-const MAX_BACKOFF_SECONDS = 900;
 const MEMBER_CACHE_TTL_SECONDS = 600;
 const NON_MEMBER_CACHE_TTL_SECONDS = 120;
 const BOOSTING_CACHE_TTL_SECONDS = 600;
@@ -171,73 +168,13 @@ export type DiscordWriteInit = {
   body?: unknown;
 };
 
-/** Thrown when we refuse to call discord.com because a rate-limit backoff window is active. */
-export class DiscordBackoffError extends Error {
-  constructor(untilEpochMs: number) {
-    super(
-      `Discord requests suspended until ${new Date(untilEpochMs).toISOString()} (rate limited)`,
-    );
-    this.name = "DiscordBackoffError";
-  }
-}
-
 async function getRedis(): Promise<IORedis> {
   if (globalThis.__appDiscordRedis) return globalThis.__appDiscordRedis;
   globalThis.__appDiscordRedis = await createRedisClient("discord");
   return globalThis.__appDiscordRedis;
 }
 
-async function getBackoffUntil(): Promise<number | null> {
-  try {
-    const redis = await getRedis();
-    const raw = await redis.get(BACKOFF_KEY);
-    if (!raw) return null;
-    const until = Number(raw);
-    return Number.isFinite(until) && until > Date.now() ? until : null;
-  } catch {
-    return null;
-  }
-}
-
-async function openBackoffWindow(retryAfterSeconds: number): Promise<void> {
-  const seconds = Math.min(
-    Math.max(retryAfterSeconds, DEFAULT_BACKOFF_SECONDS),
-    MAX_BACKOFF_SECONDS,
-  );
-  try {
-    const redis = await getRedis();
-    const until = Date.now() + seconds * 1000;
-    // Keep the furthest-out window if two instances hit 429 concurrently.
-    const existing = Number((await redis.get(BACKOFF_KEY)) ?? 0);
-    if (until > existing) {
-      await redis.set(BACKOFF_KEY, String(until), "EX", seconds);
-    }
-  } catch {
-    // Backoff is best-effort — never let Redis failures mask the 429 itself.
-  }
-}
-
-function parseRetryAfter(response: Response): number {
-  const header = Number(response.headers.get("retry-after"));
-  return Number.isFinite(header) && header > 0 ? header : DEFAULT_BACKOFF_SECONDS;
-}
-
-/**
- * The one place discord.com is called from. Fails fast while the shared
- * backoff window is active, and opens/extends that window on any 429 —
- * whichever caller provoked it, because the thing being protected is the
- * shared egress IP, not a per-route budget.
- */
-async function guardedFetch(url: string, init: RequestInit): Promise<Response> {
-  const backoffUntil = await getBackoffUntil();
-  if (backoffUntil) throw new DiscordBackoffError(backoffUntil);
-
-  const response = await fetch(url, init);
-  if (response.status === 429) {
-    await openBackoffWindow(parseRetryAfter(response));
-  }
-  return response;
-}
+const guardedFetch = createDiscordGuard(getRedis);
 
 /**
  * Every *read* against discord.com. Read-only by construction: the method is

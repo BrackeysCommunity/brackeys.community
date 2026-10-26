@@ -56,6 +56,7 @@ COPY src/lib/profile-links.ts ./src/lib/profile-links.ts
 COPY src/lib/team-links.ts ./src/lib/team-links.ts
 COPY src/lib/discord-emoji.ts ./src/lib/discord-emoji.ts
 COPY src/lib/bot-relay-signature.ts ./src/lib/bot-relay-signature.ts
+COPY src/lib/discord-guard.ts ./src/lib/discord-guard.ts
 
 # The copied root files under /app/src import bare specifiers (posthog-node),
 # which resolve up from /app — not from the service dir.
