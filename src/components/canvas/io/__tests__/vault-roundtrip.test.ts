@@ -16,7 +16,7 @@ import {
 } from "@/lib/canvas/json-canvas";
 import { pathKey } from "@/lib/canvas/paths";
 
-import { buildVaultExport, serializeCanvas } from "../vault-export";
+import { serializeCanvas } from "../vault-export";
 import { unzipVault, zipVault } from "../vault-zip";
 import {
   ALL_FIXTURES,
@@ -28,7 +28,7 @@ import {
   raw,
   syntheticVault,
 } from "./import-harness";
-import { enc, memoryScope } from "./vault-fixtures";
+import { enc, flatVaultExport, memoryScope } from "./vault-fixtures";
 
 vi.mock("@/orpc/client", () => ({ client: {} }));
 
@@ -271,7 +271,7 @@ describe("note bodies through an import and a vault export", () => {
     const node = canvasNodes(doc).get(finals[0]!.canvas.nodes[0]!.id) as Y.Map<unknown>;
     const body = fileBodyOf(node)!;
     expect(body.bom === true).toBe(bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf);
-    const out = buildVaultExport(doc, { canvasPath: "c.canvas", attachments: {} });
+    const out = flatVaultExport(doc, { canvasPath: "c.canvas", attachments: {} });
     const note = out.files.find((f) => f.path === "n.md")!;
     expect(Buffer.from(note.bytes!).equals(Buffer.from(bytes))).toBe(true);
     expect(JSON.stringify(deriveSnapshot(doc))).not.toContain('"bom"');

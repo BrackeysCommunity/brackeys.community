@@ -152,11 +152,22 @@ const NODE_KEYS = Object.fromEntries(
     new Set([...COMMON_NODE_KEYS, ...keys]),
   ]),
 ) as Record<string, ReadonlySet<string>>;
-/** A clipboard image is a `link` that also carries its vault path. */
-const IMAGE_LINK_KEYS = new Set([...NODE_KEYS.link!, "file"]);
+/**
+ * Our cards written as something Obsidian can show carry what the card
+ * needs back: a clipboard image is a `link` with its vault path, and an
+ * export writes an image as a `text` placeholder with its path and a site
+ * card as `text` with its page's `url`.
+ */
+const CARRIED_KEYS: Record<string, Partial<Record<CanvasNodeKey["type"], ReadonlySet<string>>>> = {
+  link: { image: new Set([...NODE_KEYS.link!, "file"]) },
+  text: {
+    image: new Set([...NODE_KEYS.text!, "file"]),
+    entity: new Set([...NODE_KEYS.text!, "url"]),
+  },
+};
 
-function nodeKeysFor(type: string, imageKey: boolean): ReadonlySet<string> {
-  return type === "link" && imageKey ? IMAGE_LINK_KEYS : NODE_KEYS[type]!;
+function nodeKeysFor(type: string, key: CanvasNodeKey["type"] | undefined): ReadonlySet<string> {
+  return (key && CARRIED_KEYS[type]?.[key]) ?? NODE_KEYS[type]!;
 }
 const EDGE_KEYS = new Set([
   "id",
@@ -519,7 +530,7 @@ export function sanitizeSnapshot(canvas: JsonCanvas): JsonCanvas {
 
     const key = canvasNodeKey(raw);
     const node: Record<string, unknown> = {
-      ...extraOf(raw, nodeKeysFor(type, key?.type === "image")),
+      ...extraOf(raw, nodeKeysFor(type, key?.type)),
       id,
       type,
     };
@@ -609,19 +620,20 @@ function nodeFields(raw: Record<string, unknown>): Record<string, unknown> | nul
     w: num(raw.width, 250),
     h: num(raw.height, 60),
     color: str(raw.color),
-    extra: extraOf(raw, nodeKeysFor(jsonType, key?.type === "image")),
+    extra: extraOf(raw, nodeKeysFor(jsonType, key?.type)),
     keys: sourceKeyOrder(raw, NODE_KEY_ORDER),
   };
 
-  if (key?.type === "image" && (jsonType === "file" || jsonType === "link")) {
+  if (key?.type === "image" && jsonType !== "group") {
     // On the clipboard an image is a link to its URL, so Obsidian shows it,
-    // carrying its path in `file` so it exports as a usable file node again.
+    // and in a lone `.canvas` file a text placeholder; both carry its path
+    // in `file` so it exports as a usable file node again.
     Object.assign(fields, {
       type: "image",
       attachmentId: key.attachmentId,
       file: str(raw.file),
     });
-  } else if (key?.type === "entity" && jsonType === "link") {
+  } else if (key?.type === "entity" && (jsonType === "link" || jsonType === "text")) {
     Object.assign(fields, { type: "entity", entity: key.entity, url: str(raw.url) });
   } else if (jsonType === "text") {
     Object.assign(fields, { type: "text", text: str(raw.text) ?? "" });

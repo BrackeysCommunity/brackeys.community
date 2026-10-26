@@ -4,17 +4,53 @@
  */
 import type * as Y from "yjs";
 
-import type { JsonCanvas } from "@/lib/canvas/json-canvas";
+import { siteUrl } from "@/env";
+import { docToJsonCanvas, type JsonCanvas } from "@/lib/canvas/json-canvas";
 import { basename, pathTitle } from "@/lib/canvas/paths";
+import { client } from "@/orpc/client";
 
 import { runCanvasIo } from "./canvas-io-client";
 import type { CanvasIoProgress } from "./canvas-io-jobs";
 import {
   buildVaultExport,
+  canvasFileForObsidian,
   canvasMarkdown,
+  entityRefs,
   type ExportAttachment,
+  type ExportEntities,
+  type ExportEntity,
+  exportEntityKey,
   serializeCanvas,
 } from "./vault-export";
+
+const ENTITY_BATCH = 200;
+
+/**
+ * What the canvas's site cards show now, for their text in the export. A
+ * card the lookup misses (or a failed lookup) still exports, as a link.
+ */
+async function loadEntities(canvas: JsonCanvas): Promise<ExportEntities> {
+  const refs = entityRefs(canvas);
+  const found = new Map<string, ExportEntity>();
+  try {
+    for (let i = 0; i < refs.length; i += ENTITY_BATCH) {
+      const batch = refs.slice(i, i + ENTITY_BATCH);
+      const views = await client.getCanvasEntities({ refs: batch });
+      views.forEach((view, j) => {
+        if (!view) return;
+        found.set(exportEntityKey(batch[j]!), {
+          title: view.title,
+          subtitle: view.subtitle,
+          imageUrl: view.imageUrl ? siteUrl(view.imageUrl) : null,
+          url: siteUrl(view.href),
+        });
+      });
+    }
+  } catch {
+    // Exporting matters more than the cards' details.
+  }
+  return found;
+}
 
 function download(name: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -26,8 +62,9 @@ function download(name: string, blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
-export function downloadCanvasFile(path: string, canvas: JsonCanvas) {
-  download(basename(path), new Blob([serializeCanvas(canvas)], { type: "application/json" }));
+export async function downloadCanvasFile(path: string, canvas: JsonCanvas) {
+  const file = canvasFileForObsidian(canvas, await loadEntities(canvas));
+  download(basename(path), new Blob([serializeCanvas(file)], { type: "application/json" }));
 }
 
 export function downloadMarkdown(path: string, doc: Y.Doc) {
@@ -41,7 +78,8 @@ export async function downloadVaultZip(
   attachments: Readonly<Record<string, ExportAttachment>>,
   onProgress?: (progress: CanvasIoProgress) => void,
 ): Promise<{ path: string; reason: string }[]> {
-  const built = buildVaultExport(doc, { canvasPath: path, attachments });
+  const entities = await loadEntities(docToJsonCanvas(doc));
+  const built = buildVaultExport(doc, { canvasPath: path, attachments, entities });
   const { zip, leftOut } = await runCanvasIo("export", { files: built.files }, onProgress);
   download(
     `${pathTitle(path)}.zip`,

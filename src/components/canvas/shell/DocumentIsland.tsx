@@ -390,7 +390,9 @@ export function DocumentIsland({
               <DropdownMenuSubContent className="min-w-44">
                 <DropdownMenuItem
                   onClick={() =>
-                    void loadExports().then((m) => m.downloadCanvasFile(canvas.path, exportJson()))
+                    void loadExports()
+                      .then((m) => m.downloadCanvasFile(canvas.path, exportJson()))
+                      .catch(() => toast.error("Couldn't build the file."))
                   }
                 >
                   .canvas file
@@ -402,6 +404,10 @@ export function DocumentIsland({
                       const { downloadVaultZip, leftOutSummary } = await loadExports();
                       const leftOut = await downloadVaultZip(canvas.path, doc, attachments);
                       if (leftOut.length) toast.warning(leftOutSummary(leftOut));
+                      else
+                        toast.success(
+                          "Unzip it at the top of your vault so the cards find their files.",
+                        );
                     })().catch(() => toast.error("Couldn't build the zip."))
                   }
                 >

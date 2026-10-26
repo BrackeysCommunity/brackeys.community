@@ -393,6 +393,9 @@ export function importVault(
       }
       const { entry: target, vaultPath } = resolved;
       used.add(target);
+      // An exported zip names its files from outside its own folder; the card
+      // keeps the path inside it, as the vault knows it.
+      if (resolved.how === "exact" && resolver.root) node.file = vaultPath;
       const kind = kindOf(vaultPath);
 
       if (kind === "markdown" && key?.type !== "image") {

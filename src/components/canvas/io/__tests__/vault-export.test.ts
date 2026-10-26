@@ -6,9 +6,9 @@ import { applyJsonCanvas, canvasNodes, type JsonCanvas } from "@/lib/canvas/json
 import { canvasOutline, outlineMarkdown } from "../../outline";
 import { runExportJob } from "../canvas-io-jobs";
 import { leftOutSummary } from "../export-actions";
-import { buildVaultExport, canvasMarkdown, serializeCanvas } from "../vault-export";
+import { canvasMarkdown, serializeCanvas } from "../vault-export";
 import { unzipVault } from "../vault-zip";
-import { enc } from "./vault-fixtures";
+import { enc, flatVaultExport } from "./vault-fixtures";
 
 const canvas: JsonCanvas = {
   nodes: [
@@ -68,7 +68,7 @@ const attachments = {
 
 describe("buildVaultExport", () => {
   it("never writes a note body into the .canvas file", () => {
-    const { files } = buildVaultExport(doc(), { canvasPath: "Plan.canvas", attachments });
+    const { files } = flatVaultExport(doc(), { canvasPath: "Plan.canvas", attachments });
     const text = new TextDecoder().decode(files[0]!.bytes);
     expect(files[0]!.path).toBe("Plan.canvas");
     expect(text).not.toContain("Body one");
@@ -78,7 +78,7 @@ describe("buildVaultExport", () => {
   });
 
   it("writes a note referenced twice once, with its byte order mark", () => {
-    const { files } = buildVaultExport(doc(), { canvasPath: "Plan.canvas", attachments });
+    const { files } = flatVaultExport(doc(), { canvasPath: "Plan.canvas", attachments });
     const notes = files.filter((f) => f.path === "Notes/Idea.md");
     expect(notes).toHaveLength(1);
     expect([...notes[0]!.bytes!.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
@@ -88,7 +88,7 @@ describe("buildVaultExport", () => {
   });
 
   it("fetches live images and leaves quarantined ones out, saying so", () => {
-    const { files, leftOut } = buildVaultExport(doc(), { canvasPath: "Plan.canvas", attachments });
+    const { files, leftOut } = flatVaultExport(doc(), { canvasPath: "Plan.canvas", attachments });
     expect(files.filter((f) => f.url)).toEqual([{ path: "attachments/ok.png", url: "/images/ok" }]);
     expect(leftOut).toEqual([
       { path: "attachments/bad.png", reason: "The image is under review." },
@@ -96,7 +96,7 @@ describe("buildVaultExport", () => {
   });
 
   it("reports an image whose attachment isn't in the scope", () => {
-    const { leftOut } = buildVaultExport(doc(), { canvasPath: "Plan.canvas", attachments: {} });
+    const { leftOut } = flatVaultExport(doc(), { canvasPath: "Plan.canvas", attachments: {} });
     expect(leftOut.map((l) => l.path)).toEqual(["attachments/ok.png", "attachments/bad.png"]);
   });
 });
@@ -162,7 +162,7 @@ describe("buildVaultExport: paths it won't write", () => {
       n.set("h", 1);
       nodes.set(id, n);
     }
-    const out = buildVaultExport(doc, { canvasPath: "c.canvas", attachments: {} });
+    const out = flatVaultExport(doc, { canvasPath: "c.canvas", attachments: {} });
     expect(out.files.map((f) => f.path).sort()).toEqual(["c.canvas", "ok/fine.md"]);
     expect(out.leftOut.map((l) => l.path).sort()).toEqual(["../escape.md", "/abs.md"]);
   });
@@ -181,7 +181,7 @@ describe("buildVaultExport: paths it won't write", () => {
       n.set("z", id);
       nodes.set(id, n);
     }
-    const out = buildVaultExport(doc, { canvasPath: "c.canvas", attachments: {} });
+    const out = flatVaultExport(doc, { canvasPath: "c.canvas", attachments: {} });
     expect(out.files.filter((f) => f.path === "n.md")).toHaveLength(1);
     expect(out.leftOut).toHaveLength(1);
   });
@@ -193,7 +193,7 @@ describe("buildVaultExport: paths it won't write", () => {
     n.set("file", "Plan.canvas");
     n.set("text", new Y.Text("not json"));
     canvasNodes(doc).set("a", n);
-    const out = buildVaultExport(doc, { canvasPath: "Plan.canvas", attachments: {} });
+    const out = flatVaultExport(doc, { canvasPath: "Plan.canvas", attachments: {} });
     expect(out.files.filter((f) => f.path === "Plan.canvas")).toHaveLength(1);
     expect(new TextDecoder().decode(out.files[0]!.bytes!)).toMatch(/^\{/);
   });

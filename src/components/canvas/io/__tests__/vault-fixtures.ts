@@ -8,7 +8,7 @@ import { applyJsonCanvas, docToJsonCanvas, type JsonCanvas } from "@/lib/canvas/
 
 import type { PreparedImage } from "../canvas-io-jobs";
 import type { ImageUploader } from "../import-flow";
-import { serializeCanvas } from "../vault-export";
+import { buildVaultExport, serializeCanvas, vaultFolder } from "../vault-export";
 import type { VaultEntry } from "../vault-import";
 
 export const FIXTURES = join(import.meta.dirname, "../../../../lib/canvas/__tests__/fixtures");
@@ -104,3 +104,21 @@ export function memoryScope() {
 }
 
 export type { PreparedImage };
+
+/**
+ * The vault export with its one top folder taken off again, paths and the
+ * canvas's file references both, for comparing against what went in.
+ */
+export function flatVaultExport(...args: Parameters<typeof buildVaultExport>) {
+  const built = buildVaultExport(...args);
+  const folder = vaultFolder(args[1].canvasPath);
+  const prefix = `${folder}/`;
+  const ref = `"file":${JSON.stringify(prefix).slice(0, -1)}`;
+  const files = built.files.map((file) => {
+    const path = file.path.startsWith(prefix) ? file.path.slice(prefix.length) : file.path;
+    if (path !== args[1].canvasPath || !file.bytes) return { ...file, path };
+    const text = new TextDecoder().decode(file.bytes).replaceAll(ref, '"file":"');
+    return { path, bytes: new TextEncoder().encode(text) };
+  });
+  return { ...built, files };
+}

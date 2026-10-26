@@ -14,10 +14,10 @@ import {
   type JsonCanvas,
 } from "@/lib/canvas/json-canvas";
 
-import { buildVaultExport, serializeCanvas } from "../vault-export";
+import { serializeCanvas } from "../vault-export";
 import { unzipVault, zipVault } from "../vault-zip";
 import { exportVault, importFiles, OBSIDIAN_WRITTEN, obsidianLayout, raw } from "./import-harness";
-import { enc, entry, memoryScope, PNG } from "./vault-fixtures";
+import { enc, entry, flatVaultExport, memoryScope, PNG } from "./vault-fixtures";
 
 vi.mock("@/orpc/client", () => ({ client: {} }));
 
@@ -173,7 +173,7 @@ describe("Obsidian .canvas layout", { timeout: 60_000 }, () => {
     const { finals } = await importFiles(scope, zip);
     expect(finals).toHaveLength(OBSIDIAN_WRITTEN.length);
     for (const final of finals) {
-      const built = buildVaultExport(docFromState(final.state), {
+      const built = flatVaultExport(docFromState(final.state), {
         canvasPath: final.targetPath,
         attachments: scope.attachments(),
       });

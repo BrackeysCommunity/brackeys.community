@@ -4,11 +4,16 @@
  * anywhere; fetching the images and zipping happen in the `canvas-io`
  * worker.
  *
- * The zip mirrors the vault: the canvas at its own path, each file card's
- * note at the path the card names, each image at its attachment's path.
- * Obsidian resolves file nodes from the vault root, so unzipped into the
- * vault (or the scope's folder in it) everything opens where the canvas
- * expects it, and the zip imports back with no path rewriting.
+ * The zip mirrors the vault inside one folder named for the canvas: the
+ * canvas at its own path, each file card's note at the path the card names,
+ * each image at its attachment's path, and every file node pointing into
+ * that folder. Obsidian resolves file nodes from the vault root, so the
+ * folder unzipped at the root opens as is; the importer strips it again.
+ *
+ * Site cards (jams, teams, people) go out as Markdown text cards that link
+ * to their pages, since Obsidian would embed the page itself. A lone
+ * `.canvas` file can't hold images, so it shows a placeholder for each.
+ * Both keep the `jamsTeam` key, so the file imports back as the same cards.
  */
 import * as Y from "yjs";
 
@@ -16,11 +21,13 @@ import {
   canvasNodeKey,
   canvasNodes,
   docToJsonCanvas,
+  type EntityKind,
+  type EntityRef,
   fileBodyOf,
   type JsonCanvas,
   type JsonCanvasNode,
 } from "@/lib/canvas/json-canvas";
-import { pathKey } from "@/lib/canvas/paths";
+import { basename, pathKey, pathTitle } from "@/lib/canvas/paths";
 
 import type { CanvasCard } from "../canvas-cards";
 import { canvasOutline, outlineMarkdown } from "../outline";
@@ -37,6 +44,89 @@ export type VaultExportFile = { path: string } & (
   | { bytes: Uint8Array; url?: undefined }
   | { url: string; bytes?: undefined }
 );
+
+/** A site card as it reads now, with absolute URLs. */
+export interface ExportEntity {
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  url: string;
+}
+
+export type ExportEntities = ReadonlyMap<string, ExportEntity>;
+
+export const exportEntityKey = (entity: EntityRef) => `${entity.kind}:${entity.id}`;
+
+/** The site cards a canvas shows. */
+export function entityRefs(canvas: JsonCanvas): EntityRef[] {
+  const refs = new Map<string, EntityRef>();
+  for (const node of canvas.nodes) {
+    const key = canvasNodeKey(node);
+    if (key?.type === "entity") refs.set(exportEntityKey(key.entity), key.entity);
+  }
+  return [...refs.values()];
+}
+
+const ENTITY_LABEL: Record<EntityKind, string> = {
+  jam: "Jam",
+  game: "Game",
+  team: "Team",
+  profile: "Member",
+  "forum-post": "Forum post",
+};
+
+const escapeLinkText = (text: string) => text.replace(/[[\]\\]/g, "\\$&");
+
+/** Its title linked to its page, what it is, then its picture. */
+function entityMarkdown(entity: EntityRef, found: ExportEntity | undefined, url: string): string {
+  const label = ENTITY_LABEL[entity.kind];
+  if (!found) return url ? `### [${label}](<${url}>)` : `### ${label}`;
+  const lines = [`### [${escapeLinkText(found.title)}](<${found.url}>)`];
+  const about =
+    entity.kind === "forum-post"
+      ? found.subtitle
+      : [label, found.subtitle].filter(Boolean).join(" · ");
+  if (about) lines.push(about);
+  if (found.imageUrl) lines.push("", `![](<${found.imageUrl}>)`);
+  return lines.join("\n");
+}
+
+/** Site cards as text cards Obsidian can show; everything else as it is. */
+function withEntityText(canvas: JsonCanvas, entities: ExportEntities): JsonCanvas {
+  const nodes = canvas.nodes.map((node): JsonCanvasNode => {
+    const key = canvasNodeKey(node);
+    if (key?.type !== "entity" || node.type !== "link") return node;
+    const { url = "", ...rest } = node;
+    const text = entityMarkdown(key.entity, entities.get(exportEntityKey(key.entity)), url);
+    return { ...rest, type: "text", text, url };
+  });
+  return { ...canvas, nodes };
+}
+
+const IMAGE_PLACEHOLDER = "Images come with the \u201cZip for Obsidian\u201d export.";
+
+/**
+ * The `.canvas` file on its own: site cards as text, and a placeholder
+ * naming each image, which a lone file can't carry.
+ */
+export function canvasFileForObsidian(canvas: JsonCanvas, entities: ExportEntities): JsonCanvas {
+  const withText = withEntityText(canvas, entities);
+  const nodes = withText.nodes.map((node): JsonCanvasNode => {
+    if (canvasNodeKey(node)?.type !== "image" || node.type !== "file") return node;
+    const { file = "", subpath: _subpath, ...rest } = node;
+    const text = `**${basename(file) || "Image"}**\n\n${IMAGE_PLACEHOLDER}`;
+    return { ...rest, type: "text", text, file };
+  });
+  return { ...withText, nodes };
+}
+
+/** The zip's one top folder: the canvas's title, safe as a folder name. */
+export function vaultFolder(canvasPath: string): string {
+  const title = pathTitle(canvasPath)
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .trim();
+  return title && title !== "." && title !== ".." ? title : "Canvas";
+}
 
 export interface VaultExport {
   files: VaultExportFile[];
@@ -71,15 +161,19 @@ function safePath(path: string): boolean {
   );
 }
 
-/** The canvas as JSON Canvas for a vault, image nodes at their attachments' paths. */
-function vaultCanvas(doc: Y.Doc, attachments: Readonly<Record<string, ExportAttachment>>) {
+/** The canvas as JSON Canvas for a vault: images at their attachments' paths, site cards as text. */
+function vaultCanvas(
+  doc: Y.Doc,
+  attachments: Readonly<Record<string, ExportAttachment>>,
+  entities: ExportEntities,
+) {
   const canvas = docToJsonCanvas(doc, { vault: true });
   const nodes = canvas.nodes.map((node) => {
     const id = imageAttachmentId(node, doc);
     const attachment = id ? attachments[id] : undefined;
     return attachment ? { ...node, file: attachment.path } : node;
   });
-  return { ...canvas, nodes };
+  return withEntityText({ ...canvas, nodes }, entities);
 }
 
 /** The attachment an image card shows, keyed or plain. */
@@ -101,12 +195,14 @@ function imageAttachmentId(node: JsonCanvasNode, doc: Y.Doc): string | undefined
  */
 export function buildVaultExport(
   doc: Y.Doc,
-  options: { canvasPath: string; attachments: Readonly<Record<string, ExportAttachment>> },
+  options: {
+    canvasPath: string;
+    attachments: Readonly<Record<string, ExportAttachment>>;
+    entities?: ExportEntities;
+  },
 ): VaultExport {
-  const canvas = vaultCanvas(doc, options.attachments);
-  const files: VaultExportFile[] = [
-    { path: options.canvasPath, bytes: new TextEncoder().encode(serializeCanvas(canvas)) },
-  ];
+  const canvas = vaultCanvas(doc, options.attachments, options.entities ?? new Map());
+  const files: VaultExportFile[] = [];
   const leftOut: VaultExport["leftOut"] = [];
   const written = new Map<string, string>([[pathKey(options.canvasPath), "canvas"]]);
   const nodes = canvasNodes(doc);
@@ -152,7 +248,24 @@ export function buildVaultExport(
     written.set(pathKey(path), body.text);
     files.push({ path, bytes: encodeNote(body) });
   }
-  return { files, leftOut };
+
+  // Only what's in the zip moves into its folder; a card naming a file it
+  // left out keeps pointing where that file already is.
+  const folder = vaultFolder(options.canvasPath);
+  const inFolder = (path: string) => `${folder}/${path}`;
+  const nodesInFolder = canvas.nodes.map((node) =>
+    typeof node.file === "string" && written.has(pathKey(node.file))
+      ? { ...node, file: inFolder(node.file) }
+      : node,
+  );
+  const text = serializeCanvas({ ...canvas, nodes: nodesInFolder });
+  return {
+    files: [
+      { path: inFolder(options.canvasPath), bytes: new TextEncoder().encode(text) },
+      ...files.map((file) => ({ ...file, path: inFolder(file.path) })),
+    ],
+    leftOut,
+  };
 }
 
 /** The canvas's cards as the outline reads them, note bodies included. */

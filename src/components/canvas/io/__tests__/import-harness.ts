@@ -13,13 +13,14 @@ import { docToJsonCanvas } from "@/lib/canvas/json-canvas";
 
 import { runImportJob } from "../canvas-io-jobs";
 import { finalizeCanvases, resolveImages } from "../import-flow";
-import { buildVaultExport, serializeCanvas } from "../vault-export";
+import { serializeCanvas } from "../vault-export";
 import type { VaultEntry, VaultImportOptions } from "../vault-import";
 import {
   enc,
   entry,
   FIXTURES,
   fixtureNames,
+  flatVaultExport,
   GIF,
   LEGACY_FIXTURE,
   type memoryScope,
@@ -73,7 +74,7 @@ export function exportVault(scope: Scope, finals: { targetPath: string; state: U
   const files = new Map<string, Uint8Array>();
   const leftOut: { path: string; reason: string }[] = [];
   for (const final of finals) {
-    const built = buildVaultExport(docOf(final.state), {
+    const built = flatVaultExport(docOf(final.state), {
       canvasPath: final.targetPath,
       attachments: scope.attachments(),
     });
