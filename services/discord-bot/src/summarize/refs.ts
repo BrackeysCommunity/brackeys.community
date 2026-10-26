@@ -44,26 +44,48 @@ export function numberLinks(text: string, refs: RefTable): string {
   });
 }
 
+/** Link text for a citation the model made with a bare number instead of words. */
+const BARE_LABEL = "message";
+const BARE_NUMBER = /^#?\d+$/;
+
 /** The final answer's `[x](#n)` links as Discord message links. */
 export function resolveLinks(text: string, refs: RefTable, messageUrl: (id: string) => string) {
-  return text.replace(NUMBERED_LINK, (_, label: string, n: string) => {
+  const resolved = text.replace(NUMBERED_LINK, (_, label: string, n: string) => {
     const id = refs.id(Number(n));
-    if (!id) return /^#?\d+$/.test(label) ? "" : label;
-    // A bare number as link text reads as noise; name it for what it is.
-    return `[${/^#?\d+$/.test(label) ? "message" : label}](${messageUrl(id)})`;
+    const bare = BARE_NUMBER.test(label);
+    if (!id) return bare ? "" : label;
+    return `[${bare ? BARE_LABEL : label}](${messageUrl(id)})`;
   });
+  return tidy(resolved);
 }
 
+/** What removing a citation can leave behind: `()`, `(, )`, a space before punctuation. */
+function tidy(text: string): string {
+  return text
+    .replace(/(^|\s)\(\s*(?:,\s*)*\)/g, "$1")
+    .replace(/\(\s*,\s*/g, "(")
+    .replace(/\s*,\s*\)/g, ")")
+    .replace(/ +([.,;:])/g, "$1")
+    .replace(/ {2,}/g, " ");
+}
+
+const URL_LINK = /\[([^\]\n]+)\]\((https?:[^)\s]+)\)/g;
+
 /**
- * Under `max` characters by unlinking from the end, so a long answer loses
- * its last citations before it loses any words, and a cut never lands in the
- * middle of a link.
+ * Under `max` characters without cutting words or landing mid-link. Bare
+ * citations go first, from the end, removed outright: unlinked they'd read
+ * as a stray "message". Then other links are unlinked from the end, keeping
+ * their words.
  */
 export function fitLinks(text: string, max: number): string {
   let fitted = text;
   while (fitted.length > max) {
-    const links = [...fitted.matchAll(/\[([^\]\n]+)\]\((https?:[^)\s]+)\)/g)];
-    const last = links.at(-1);
+    const last = [...fitted.matchAll(URL_LINK)].filter((m) => m[1] === BARE_LABEL).at(-1);
+    if (!last) break;
+    fitted = tidy(fitted.slice(0, last.index) + fitted.slice(last.index + last[0].length));
+  }
+  while (fitted.length > max) {
+    const last = [...fitted.matchAll(URL_LINK)].at(-1);
     if (!last) break;
     fitted = fitted.slice(0, last.index) + last[1] + fitted.slice(last.index + last[0].length);
   }

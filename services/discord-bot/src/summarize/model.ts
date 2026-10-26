@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 /** Part of every bucket cache key: changing a prompt below must bump it. */
-export const PROMPT_VERSION = 2;
+export const PROMPT_VERSION = 3;
 
 const MODEL = "claude-haiku-5-5";
 
@@ -15,7 +15,7 @@ const DEBATES =
   "Give debates, heated exchanges and long-running threads more room than passing chatter: each side's main points and who held them, how the argument moved, and where it ended (agreement, a standoff, or dropped).";
 
 const CITE =
-  "Messages are numbered (#12). Cite the message behind a point by making two to five words of your own sentence a markdown link to its number, like [argued voting can't fix it](#12). The link text is always words from your sentence, never the number itself. Cite the key message of each topic and each side of a debate, at most once per bullet, and never make up a number.";
+  'Messages are numbered (#12). Cite the message behind a point by making two to five words of your own sentence a markdown link to its number, like [argued voting can\'t fix it](#12). The link text is always words from your sentence: never the number itself, never the word "message", and never a citation on its own in parentheses after a sentence. Cite the key message of each topic and each side of a debate, at most once per bullet, and never make up a number.';
 
 const CHUNK_SYSTEM = `You summarize one stretch of a Discord channel. Your summary is later combined with summaries of the stretches around it.
 

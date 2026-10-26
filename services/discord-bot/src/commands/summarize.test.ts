@@ -10,7 +10,12 @@ import { SummaryRefusedError } from "../summarize/model.ts";
 import type { Summary } from "../summarize/summarizer.ts";
 import { runInvocation } from "./dispatch.ts";
 import { buildManifest, manifestOptions } from "./manifest.ts";
-import { type Summarize, SummaryUnavailableError, summarizeChannel } from "./summarize.ts";
+import {
+  type Summarize,
+  SummaryUnavailableError,
+  splitSummary,
+  summarizeChannel,
+} from "./summarize.ts";
 
 const NOW = Date.parse("2026-10-26T15:30:00Z");
 
@@ -48,6 +53,24 @@ describe("summarizeChannel", () => {
       input,
     );
     expect(reply.embeds[0].footer).toStartWith("Newest 3,000 messages only");
+  });
+
+  test("a summary past one embed's limit continues in a second, footer on the last", async () => {
+    const line = `- ${"word ".repeat(60)}[a link](https://discord.com/channels/1/2/3)`;
+    const text = Array.from({ length: 14 }, () => line).join("\n");
+    expect(text.length).toBeGreaterThan(4096);
+    const reply = await summarizeChannel(async () => summary({ text }), input);
+    expect(reply.embeds).toHaveLength(2);
+    expect(reply.embeds[0].title).toBe("Catch-up: the last 24h");
+    expect(reply.embeds[0].footer).toBeUndefined();
+    expect(reply.embeds[1].footer).toContain("AI summary");
+    expect(reply.embeds.map((e) => e.description).join("\n")).toBe(text);
+    for (const e of reply.embeds) expect(e.description!.length).toBeLessThanOrEqual(4096);
+  });
+
+  test("splitSummary cuts at a line break", () => {
+    expect(splitSummary("aaa\nbbb\nccc", 8)).toEqual(["aaa\nbbb", "ccc"]);
+    expect(splitSummary("short", 8)).toEqual(["short"]);
   });
 
   test("an empty window is a plain line", async () => {

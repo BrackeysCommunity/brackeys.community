@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { DiscordBackoffError } from "../../../../src/lib/discord-guard.ts";
-import { embedReply, notFound, plural, type Reply } from "../reply.ts";
+import { clampEmbed, EMBED_DESCRIPTION_MAX, notFound, plural, type Reply } from "../reply.ts";
 import type { SummaryWindow } from "../summarize/buckets.ts";
 import { ChannelUnreadableError } from "../summarize/history.ts";
 import { SummaryRefusedError } from "../summarize/model.ts";
@@ -14,6 +14,17 @@ export type Summarize = (channelId: string, window: SummaryWindow) => Promise<Su
 export const SUMMARY_TIMEOUT_MS = 60_000;
 
 const SUMMARY_COLOR = 0x5865f2;
+
+/**
+ * A long summary as one or two embed descriptions, split at the last line
+ * break that fits, so a cut never lands inside a bullet or a link.
+ */
+export function splitSummary(text: string, max = EMBED_DESCRIPTION_MAX): string[] {
+  if (text.length <= max) return [text];
+  const cut = text.lastIndexOf("\n", max);
+  const at = cut > 0 ? cut : max;
+  return [text.slice(0, at).trimEnd(), ...splitSummary(text.slice(at).trimStart(), max)];
+}
 
 /**
  * A summary that couldn't be made for a reason that isn't a bug. Carries
@@ -91,13 +102,18 @@ export async function summarizeChannel(
   const footer = summary.truncated
     ? `Newest ${plural(summary.messageCount, "message")} only · ${span}`
     : `${plural(summary.messageCount, "message")} · ${span}`;
-  return embedReply(
-    {
-      title: `Catch-up: the last ${input.window}`,
-      description: summary.text,
-      color: SUMMARY_COLOR,
-      footer: `${footer} · AI summary, may miss things`,
-    },
-    { ephemeral: !input.share },
-  );
+  const pages = splitSummary(summary.text);
+  return {
+    embeds: pages.map((description, i) =>
+      clampEmbed({
+        title: i === 0 ? `Catch-up: the last ${input.window}` : undefined,
+        description,
+        color: SUMMARY_COLOR,
+        footer: i === pages.length - 1 ? `${footer} · AI summary, may miss things` : undefined,
+      }),
+    ),
+    buttons: [],
+    ephemeral: !input.share,
+    outcome: "hit",
+  };
 }

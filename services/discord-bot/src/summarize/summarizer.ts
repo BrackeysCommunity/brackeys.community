@@ -57,8 +57,8 @@ const BUCKET_TTL_SECONDS = 30 * 86_400;
 /** Several people asking about the same busy channel at once cost one call. */
 const FINAL_TTL_SECONDS = 300;
 const CHUNK_CONCURRENCY = 6;
-/** Discord's embed description limit is 4096; the rest is headroom. */
-const MAX_SUMMARY_CHARS = 4_000;
+/** Two embeds' worth: the reply splits at a line past 4096, inside the 6000 per message. */
+const MAX_SUMMARY_CHARS = 5_000;
 
 const bucketKey = (channelId: string, bucket: number) =>
   `summarize:v${PROMPT_VERSION}:${channelId}:${bucket}`;
