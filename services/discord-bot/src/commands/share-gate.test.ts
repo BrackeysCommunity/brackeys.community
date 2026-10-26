@@ -21,6 +21,12 @@ const ask = (over: Partial<Parameters<typeof decideShare>[0]> = {}) => ({
 });
 
 describe("share gate", () => {
+  test("an allowlisted member may share anywhere without a staff role", () => {
+    const allowed = { ...gate, userIds: ["474678259280510977"] };
+    expect(decideShare(ask({ actorId: "474678259280510977" }), allowed).shared).toBe(true);
+    expect(decideShare(ask({ actorId: "100000000000000009" }), allowed).denied).toBe(true);
+  });
+
   test("a member with no staff role cannot share into a channel", () => {
     const decision = decideShare(ask(), gate);
     expect(decision.shared).toBe(false);

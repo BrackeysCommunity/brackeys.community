@@ -19,6 +19,8 @@
 export interface ShareGateConfig {
   /** Roles that may share in any channel. Empty disables the gate. */
   roleIds: readonly string[];
+  /** Site admins, who may share anywhere without a staff role. */
+  userIds?: readonly string[];
   /** Where anyone may share. Null means nowhere is exempt. */
   botChannelId: string | null;
   /** How that channel is named in the refusal. */
@@ -28,6 +30,7 @@ export interface ShareGateConfig {
 export interface ShareRequest {
   /** Whether the caller actually asked for a public answer. */
   wanted: boolean;
+  actorId?: string;
   actorRoleIds: readonly string[];
   channelId: string | null;
 }
@@ -46,7 +49,9 @@ export function decideShare(request: ShareRequest, config: ShareGateConfig): Sha
   if (config.botChannelId != null && request.channelId === config.botChannelId) {
     return { shared: true, denied: false };
   }
-  const privileged = request.actorRoleIds.some((id) => config.roleIds.includes(id));
+  const privileged =
+    (request.actorId != null && (config.userIds ?? []).includes(request.actorId)) ||
+    request.actorRoleIds.some((id) => config.roleIds.includes(id));
   if (privileged) return { shared: true, denied: false };
   return { shared: false, denied: true, notice: shareNotice(config) };
 }

@@ -125,6 +125,7 @@ export function createInteractionHandler(options: AdapterOptions) {
     const decision = decideShare(
       {
         wanted: shareRequested(inv),
+        actorId: interaction.user.id,
         actorRoleIds: inv.actorRoleIds ?? [],
         channelId: inv.channelId ?? null,
       },

@@ -158,6 +158,7 @@ client.on(
     hostName: config.JAM_HOST_NAME,
     shareGate: {
       roleIds: config.SHARE_ROLE_IDS,
+      userIds: config.ADMIN_DISCORD_IDS,
       botChannelId: config.BOT_CHANNEL_ID ?? null,
       botChannelName: config.BOT_CHANNEL_NAME,
     },

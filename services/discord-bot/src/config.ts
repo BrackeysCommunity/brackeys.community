@@ -32,6 +32,17 @@ const schema = z
           .map((id) => id.trim())
           .filter((id) => /^\d{17,20}$/.test(id)),
       ),
+    // The site's break-glass admins (the same variable Web reads, referenced
+    // from it in Railway): they may share anywhere without a staff role.
+    ADMIN_DISCORD_IDS: z
+      .string()
+      .default("")
+      .transform((raw) =>
+        raw
+          .split(",")
+          .map((id) => id.trim())
+          .filter((id) => /^\d{17,20}$/.test(id)),
+      ),
     // The room where the gate doesn't apply, because it exists for this.
     BOT_CHANNEL_ID: snowflake.optional(),
     // How that room is named in the one-line refusal. Footers don't resolve
