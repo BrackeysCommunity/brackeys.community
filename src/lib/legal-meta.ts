@@ -51,7 +51,7 @@ export const CONTACT = {
 } as const;
 
 /** The date the current version takes effect, as published. */
-export const EFFECTIVE_DATE = "17 August 2026";
+export const EFFECTIVE_DATE = "26 October 2026";
 
 /** Bumped whenever a section changes in substance, not in wording. */
-export const LAST_UPDATED = "17 August 2026";
+export const LAST_UPDATED = "26 October 2026";
