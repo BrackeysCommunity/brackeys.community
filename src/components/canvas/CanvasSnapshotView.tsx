@@ -132,7 +132,13 @@ function useEdgeDrawings(
 /** Card text that's longer than its card, which the wheel scrolls instead of zooming. */
 function overflowingText(target: EventTarget | null): boolean {
   const box = (target as Element | null)?.closest?.(".nowheel");
-  return box != null && box.scrollHeight > box.clientHeight;
+  const scroller = box?.querySelector("[data-overlayscrollbars-viewport]") ?? box;
+  return scroller != null && scroller.scrollHeight > scroller.clientHeight;
+}
+
+/** A card's scrollbar, which drags its text rather than the view. */
+function onScrollbar(target: EventTarget | null): boolean {
+  return (target as Element | null)?.closest?.(".nowheel .os-scrollbar") != null;
 }
 
 /** What the page's chrome can ask of a snapshot view. */
@@ -289,6 +295,7 @@ export function CanvasSnapshotView({
           if ((e.target as HTMLElement).closest("a, button")) return;
           // A finger on long text scrolls it; a mouse still drags the view.
           if (e.pointerType === "touch" && overflowingText(e.target)) return;
+          if (onScrollbar(e.target)) return;
           drag.current = { x: e.clientX, y: e.clientY };
           e.currentTarget.setPointerCapture(e.pointerId);
         }}

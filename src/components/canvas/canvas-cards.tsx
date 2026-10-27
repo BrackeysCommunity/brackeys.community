@@ -10,6 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
+import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import {
   createContext,
   type CSSProperties,
@@ -270,17 +271,24 @@ const TextCardBody = memo(function TextCardBody({
       </Text>
     );
   }
-  return (
+  const body = (
     <MarkedText
-      className={cn(
-        "h-full p-3 text-sm/relaxed",
-        scrollable ? "nowheel overflow-y-auto overscroll-contain" : "overflow-hidden",
-      )}
+      className={cn("p-3 text-sm/relaxed", !scrollable && "h-full overflow-hidden")}
       wikilink={renderWikilink}
       ugcLinks
     >
       {text}
     </MarkedText>
+  );
+  if (!scrollable) return body;
+  return (
+    <OverlayScrollbarsComponent
+      element="div"
+      className="nowheel h-full [&_[data-overlayscrollbars-viewport]]:overscroll-contain"
+      options={{ scrollbars: { theme: "os-theme-dark os-theme-accent", autoHide: "leave" } }}
+    >
+      {body}
+    </OverlayScrollbarsComponent>
   );
 });
 
