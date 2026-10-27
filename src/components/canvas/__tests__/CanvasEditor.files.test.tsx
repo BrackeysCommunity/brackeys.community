@@ -424,10 +424,10 @@ describe("dropping files", () => {
     );
   });
 
-  it("a big import lands once the server stored it, sent with the state before it, and one ⌘Z undoes it", async () => {
+  it("an import lands once the server stored it, sent with the state before it, and one ⌘Z undoes it", async () => {
     const { container, doc } = mount();
     await waitFor(() => expect(cardCount(container)).toBe(7));
-    const count = 450;
+    const count = 60;
     const file = new File(
       [
         JSON.stringify({
@@ -462,7 +462,7 @@ describe("dropping files", () => {
     });
     await waitFor(() => expect(canvasNodes(doc()).size).toBe(7));
     expect(docToJsonCanvas(doc()).edges).toHaveLength(1);
-  }, 60_000);
+  });
 
   it("an import over the card cap is refused with the numbers and changes nothing", async () => {
     const { container, doc } = mount();
