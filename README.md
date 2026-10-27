@@ -176,9 +176,9 @@ The app runs on `http://localhost:3000`.
   posted is limited separately, at ten an hour.
 - `SERVER_URL`: server-side absolute URL override
 - `VITE_POSTHOG_KEY`: PostHog project API key — analytics, feature flags, error tracking (all off when unset)
-- `VITE_POSTHOG_HOST`: PostHog ingestion host, for example `https://eu.i.posthog.com`, or the
-  reverse proxy path once `workers/posthog-proxy` is deployed. Inlined into the browser bundle
-  at build time — changing it needs a rebuild, not just a restart.
+- `VITE_POSTHOG_HOST`: PostHog ingestion host, for example `https://eu.i.posthog.com`. Staging and
+  prod point it at PostHog's managed reverse proxy on a `jams.team` subdomain. Inlined into the
+  browser bundle at build time — changing it needs a rebuild, not just a restart.
 - `POSTHOG_PERSONAL_API_KEY`: **build-time, server-only** — enables source-map upload so error
   stacks are un-minified. Never give this a `VITE_` prefix: it is a write credential and the
   prefix would inline it into the browser bundle. Absent means maps are simply not uploaded.

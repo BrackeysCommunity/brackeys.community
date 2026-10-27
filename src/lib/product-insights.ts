@@ -234,12 +234,10 @@ async function loadAndInit() {
 
   posthog.init(env.VITE_POSTHOG_KEY!, {
     api_host: posthogIngestHost(),
-    // Required as soon as `api_host` stops being a posthog.com domain — i.e.
-    // the moment `VITE_POSTHOG_HOST` points at the reverse proxy
-    // (`workers/posthog-proxy`). Without it the toolbar tries to reach the
-    // PostHog UI through the ingestion path and breaks. Harmless when the
-    // host is direct, so it is set unconditionally rather than left as a
-    // step someone has to remember during the proxy cutover.
+    // Required whenever `api_host` is not a posthog.com domain, as with the
+    // managed reverse proxy staging and prod use. Without it the toolbar
+    // tries to reach the PostHog UI through the ingestion path and breaks.
+    // Harmless when the host is direct.
     ui_host: "https://eu.posthog.com",
     // Pinned rather than left to drift: it is the snapshot of every
     // default-behaviour breaking change, so bumping it is a decision.
