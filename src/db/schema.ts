@@ -535,6 +535,25 @@ export const userNotificationSettings = userSchema.table("user_notification_sett
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/**
+ * Which floating banners (announcements, the cookie notice) a signed-in user
+ * has seen and closed, so closing one on one device closes it on all of them.
+ * Signed-out visitors keep the browser-only record, which is uploaded on
+ * sign-in.
+ */
+export const bannerHistory = userSchema.table(
+  "banner_history",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    bannerId: text("banner_id").notNull(),
+    firstSeenAt: timestamp("first_seen_at").notNull(),
+    closedAt: timestamp("closed_at"),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.bannerId] })],
+);
+
 // ── Collaboration tables (collab schema) ─────────────────────────────────────
 
 export const collabPosts = collabSchema.table(

@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { mergeHistories } from "@/components/announcements/announcement-history";
 import type {
   Announcement,
   Banner,
@@ -113,6 +114,21 @@ describe("pickBanner", () => {
     const notice: Banner = { kind: "cookie-notice", id: "notice", showForDays: Infinity };
     const history = { notice: { firstSeen: ctx.now - 400 * 86_400_000 } };
     expect(pickAnnouncement([notice], { ...ctx, history })).toBe(notice);
+  });
+});
+
+describe("mergeHistories", () => {
+  it("keeps the earliest sighting and a close from either side", () => {
+    expect(
+      mergeHistories(
+        { a: { firstSeen: 5 }, b: { firstSeen: 1, closed: true } },
+        { a: { firstSeen: 2, closed: true }, b: { firstSeen: 3 }, c: { firstSeen: 4 } },
+      ),
+    ).toEqual({
+      a: { firstSeen: 2, closed: true },
+      b: { firstSeen: 1, closed: true },
+      c: { firstSeen: 4 },
+    });
   });
 });
 

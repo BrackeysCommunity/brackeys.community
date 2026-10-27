@@ -6,7 +6,9 @@ import {
   type AnnouncementHistory,
   closeAnnouncement,
   markAnnouncementSeen,
+  syncAnnouncementHistory,
   useAnnouncementHistory,
+  useSyncedAccount,
 } from "@/components/announcements/announcement-history";
 import {
   type Banner,
@@ -74,13 +76,21 @@ export function BannerSlot({ mobile }: { mobile: boolean }) {
   const { data: session, isPending } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const now = useDateNow();
+  const userId = session?.user?.id ?? null;
+  const syncedAccount = useSyncedAccount();
 
+  useEffect(() => {
+    if (!isPending) void syncAnnouncementHistory(userId);
+  }, [isPending, userId]);
+
+  // A signed-in viewer waits for the account's history, or a new device would
+  // flash a banner already closed elsewhere.
   const banner =
-    hydrated && !isPending
+    hydrated && !isPending && (!userId || syncedAccount === userId)
       ? pickBanner(BANNER_COLLECTIONS, {
           history,
           flags,
-          signedIn: !!session?.user,
+          signedIn: !!userId,
           pathname,
           now,
         })

@@ -30,6 +30,7 @@ import {
   requestImageRescan,
 } from "./admin";
 import { getArcadeAccess } from "./arcade";
+import { syncBannerHistory } from "./banners";
 import {
   listCanvasScopes,
   listCanvases,
@@ -511,6 +512,7 @@ export default {
   reorderForumSeries,
   setForumFollow,
   listMyForumFollows,
+  syncBannerHistory,
   getArcadeAccess,
   getFeatureFlags,
   listCanvasScopes,
