@@ -110,7 +110,7 @@ export function BannerSlot({ mobile }: { mobile: boolean }) {
         "pointer-events-none fixed z-61 flex",
         mobile
           ? "inset-x-3 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] justify-center"
-          : "bottom-6 left-6",
+          : "right-6 bottom-6 justify-end",
       )}
     >
       <AnimatePresence>

@@ -1,5 +1,6 @@
 import type { LinkOptions } from "@tanstack/react-router";
 
+import type { BannerArtKey } from "@/components/announcements/banner-art";
 import { SPOTLIGHT_TARGETS, type SpotlightTarget } from "@/components/announcements/spotlight";
 import type { FeatureFlagKey } from "@/lib/flags";
 
@@ -26,6 +27,7 @@ interface BannerRules {
 
 export interface Announcement extends BannerRules {
   kind: "feature";
+  art?: BannerArtKey;
   eyebrow?: string;
   title: string;
   body: string;
@@ -66,6 +68,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
   {
     kind: "feature",
     id: "canvases-launch",
+    art: "canvas",
     eyebrow: "NEW",
     title: "Canvases are here",
     body: "Sketch out plans, map your game, and work it through with your team on a shared board.",

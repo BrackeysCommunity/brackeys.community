@@ -120,10 +120,10 @@ describe("CookieBanner", () => {
   it("flips the analytics preference from the banner", () => {
     localStorage.clear();
     render(<CookieBanner onDismiss={() => {}} onFollow={() => {}} />);
-    const toggle = screen.getByRole("switch", { name: "Send anonymous usage analytics" });
-    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Turn off" }));
     expect(localStorage.getItem("jt:analytics")).toBe("off");
-    expect(screen.getByText("Off. Nothing leaves this browser.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Turn on" }));
+    expect(localStorage.getItem("jt:analytics")).toBe("on");
   });
 });
 

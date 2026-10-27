@@ -112,7 +112,9 @@ function PageShell({ children }: { children: React.ReactNode }) {
           <div key={i} className="h-24 rounded-lg border border-border bg-card" />
         ))}
       </main>
-      <div className="pointer-events-none fixed bottom-6 left-6 z-61 flex">{children}</div>
+      <div className="pointer-events-none fixed right-6 bottom-6 z-61 flex justify-end">
+        {children}
+      </div>
       <SpotlightOverlay />
     </div>
   );

@@ -7,6 +7,7 @@ import { hideSpotlight, showSpotlight } from "@/components/announcements/spotlig
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heading, Text } from "@/components/ui/typography";
+import { cn } from "@/lib/utils";
 
 export interface FeatureBannerProps {
   announcement: Announcement;
@@ -21,7 +22,7 @@ export function FeatureBanner({
   onFollow,
   className,
 }: FeatureBannerProps) {
-  const { eyebrow, title, body, cta } = announcement;
+  const { art, eyebrow, title, body, cta } = announcement;
   const target = cta.spotlight;
   const lit = target ? () => showSpotlight(target) : undefined;
   const unlit = target ? () => hideSpotlight(target) : undefined;
@@ -31,8 +32,8 @@ export function FeatureBanner({
   useEffect(() => (target ? () => hideSpotlight(target) : undefined), [target]);
 
   return (
-    <BannerCard label={title} onDismiss={onDismiss} className={className}>
-      <div className="flex flex-col gap-1">
+    <BannerCard label={title} art={art} onDismiss={onDismiss} className={className}>
+      <div className={cn("flex flex-col gap-1", art && "pr-24")}>
         {eyebrow ? (
           <Badge size="label" className="self-start">
             {eyebrow}
@@ -41,8 +42,8 @@ export function FeatureBanner({
         <Heading as="h2" size="md" display>
           {title}
         </Heading>
-        <Text variant="muted">{body}</Text>
       </div>
+      <Text variant="muted">{body}</Text>
       <Button
         size="sm"
         className="self-start"
