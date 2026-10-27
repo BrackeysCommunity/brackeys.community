@@ -109,6 +109,7 @@ export function createInteractionHandler(options: AdapterOptions) {
       targetUserId: interaction.targetId,
       actorRoleIds: actorRoleIds(interaction),
       channelId: interaction.channelId,
+      actorId: interaction.user.id,
     };
     await runCommand(interaction, inv, "member (context menu)");
   }
@@ -332,6 +333,7 @@ export function toInvocation(interaction: ChatInputCommandInteraction): Invocati
     options: {},
     actorRoleIds: actorRoleIds(interaction),
     channelId: interaction.channelId,
+    actorId: interaction.user.id,
   };
   let list: readonly CommandInteractionOption[] = interaction.options.data;
   const head = list[0];

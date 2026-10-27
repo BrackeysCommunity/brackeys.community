@@ -13,19 +13,19 @@ from Discord.
 
 ## Commands
 
-| Command                                                      | Answers from                                                                         | Visibility         |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------ |
-| `/jam now`                                                   | `listJamsByHost` → running › voting › upcoming                                       | public             |
-| `/jam info <jam>`                                            | `getJam` + `getJamCommunity`                                                         | ephemeral, `share` |
-| `/jam entries <jam> [sort] [search]`                         | `listJamEntries`, 10 a page, prev/next buttons                                       | ephemeral, `share` |
-| `/jam results <jam>`                                         | `getJamResults` top 5 per criterion                                                  | ephemeral, `share` |
-| `/collab browse [type] [skill] [role] [jam] [search]`        | `listPosts` + `countPostsByType`, same facets                                        | ephemeral, `share` |
-| `/collab post <id>`                                          | `getPost`                                                                            | ephemeral, `share` |
-| `/collab stats`                                              | `getBoardStats` + `getTeamStats`                                                     | ephemeral, `share` |
-| `/member [user] [name]`, right-click → **jams.team profile** | `getProfileByDiscordId` / `listMembers` + `getProfile`, `listUserTeams`              | ephemeral, `share` |
-| `/team <name>`                                               | `getTeam`                                                                            | ephemeral, `share` |
-| `/ping`                                                      | `getBoardStats` and the round-trip time                                              | ephemeral          |
-| `/summarize [since] [ask]`                                   | This channel's history over REST + Haiku (plan 49); `ask` answers a question instead | ephemeral, `share` |
+| Command                                                      | Answers from                                                                                                                                         | Visibility         |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `/jam now`                                                   | `listJamsByHost` → running › voting › upcoming                                                                                                       | public             |
+| `/jam info <jam>`                                            | `getJam` + `getJamCommunity`                                                                                                                         | ephemeral, `share` |
+| `/jam entries <jam> [sort] [search]`                         | `listJamEntries`, 10 a page, prev/next buttons                                                                                                       | ephemeral, `share` |
+| `/jam results <jam>`                                         | `getJamResults` top 5 per criterion                                                                                                                  | ephemeral, `share` |
+| `/collab browse [type] [skill] [role] [jam] [search]`        | `listPosts` + `countPostsByType`, same facets                                                                                                        | ephemeral, `share` |
+| `/collab post <id>`                                          | `getPost`                                                                                                                                            | ephemeral, `share` |
+| `/collab stats`                                              | `getBoardStats` + `getTeamStats`                                                                                                                     | ephemeral, `share` |
+| `/member [user] [name]`, right-click → **jams.team profile** | `getProfileByDiscordId` / `listMembers` + `getProfile`, `listUserTeams`                                                                              | ephemeral, `share` |
+| `/team <name>`                                               | `getTeam`                                                                                                                                            | ephemeral, `share` |
+| `/ping`                                                      | `getBoardStats` and the round-trip time                                                                                                              | ephemeral          |
+| `/summarize [since] [ask]`                                   | This channel's history over REST + Haiku (plan 49); `since` takes a window or `since I last posted` (up to 7 days); `ask` answers a question instead | ephemeral, `share` |
 
 Autocomplete (jam titles, skills, roles, team names) never touches the API
 on the request path: `src/memo.ts` warms those lists at boot and refreshes

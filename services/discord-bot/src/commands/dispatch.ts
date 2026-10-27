@@ -70,6 +70,8 @@ export interface Invocation {
   actorRoleIds?: readonly string[];
   /** Where the command was run, for the bot channel's own exemption. */
   channelId?: string | null;
+  /** Who ran it, for windows that depend on the caller. */
+  actorId?: string;
 }
 
 /** Whether the caller asked for the answer to go to the channel. */
@@ -183,6 +185,7 @@ export async function runInvocation(
         channelId: inv.channelId,
         window: isSummaryWindow(since) ? since : SUMMARY_WINDOW_DEFAULT,
         question: str(OPT.ask)?.trim() || undefined,
+        requesterId: inv.actorId,
         share,
       });
     }

@@ -151,6 +151,40 @@ describe("summarize", () => {
     expect(other.finalCached).toBe(false);
   });
 
+  test("since I last posted starts just after the caller's newest post", async () => {
+    const times = spread(NOW - 10 * HOUR, NOW, 100);
+    const { summarizer, messages, calls } = setup(times);
+    // user1 is every fifth message; their newest is near the end.
+    const theirs = messages.filter((m) => m.author.id === "1");
+    const last = theirs.at(-1)!;
+    const summary = await summarizer.summarize(CHANNEL, "mine", { now: NOW, requesterId: "1" });
+    expect(summary.sinceLastPost).toBe(true);
+    expect(summary.from).toBe(Date.parse(last.timestamp) + 1);
+    expect(summary.messageCount).toBe(
+      messages.filter((m) => Date.parse(m.timestamp) > Date.parse(last.timestamp)).length,
+    );
+    expect(calls.final[0]).not.toContain(`] user1: ${last.content}`);
+  });
+
+  test("since I last posted falls back to seven days when the caller hasn't posted", async () => {
+    const { summarizer } = setup(spread(NOW - 9 * 24 * HOUR, NOW, 60));
+    const summary = await summarizer.summarize(CHANNEL, "mine", {
+      now: NOW,
+      requesterId: "nobody",
+    });
+    expect(summary.sinceLastPost).toBe(false);
+    expect(summary.from).toBe(NOW - 7 * 24 * HOUR);
+  });
+
+  test("a post older than seven days doesn't count", async () => {
+    // Authors cycle by index, so user0's only message is the old one.
+    const { summarizer } = setup([NOW - 8 * 24 * HOUR, ...spread(NOW - 24 * HOUR, NOW, 4)]);
+    const summary = await summarizer.summarize(CHANNEL, "mine", { now: NOW, requesterId: "0" });
+    expect(summary.sinceLastPost).toBe(false);
+    expect(summary.from).toBe(NOW - 7 * 24 * HOUR);
+    expect(summary.messageCount).toBe(4);
+  });
+
   test("an empty window calls nothing", async () => {
     const { summarizer, calls } = setup([NOW - 3 * HOUR]);
     const summary = await summarizer.summarize(CHANNEL, "1h", { now: NOW });

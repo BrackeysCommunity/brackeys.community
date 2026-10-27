@@ -4,6 +4,8 @@ import {
   DIRECT_LIMIT,
   MAX_FETCH,
   QUIET_BELOW,
+  SINCE_MINE,
+  SINCE_MINE_MAX_MS,
   type Span,
   type SummaryWindow,
   WINDOWS,
@@ -47,6 +49,9 @@ export interface Summary {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
+  /** For the since-my-last-message window: whether that message was found
+   *  inside the cap (false means the summary covers the whole cap). */
+  sinceLastPost?: boolean;
 }
 
 interface CachedBucket {
@@ -123,13 +128,45 @@ export function createSummarizer(deps: {
     }
   }
 
+  /** The caller's newest message in the last `SINCE_MINE_MAX_MS`, if any. */
+  async function findLastPost(channelId: string, authorId: string, now: number) {
+    const floor = now - SINCE_MINE_MAX_MS;
+    let before = snowflakeAt(now + 1);
+    for (let read = 0; read < MAX_FETCH; ) {
+      const page = await readHistory(channelId, before);
+      read += page.length;
+      for (const raw of page) {
+        const at = snowflakeTime(raw.id);
+        if (at < floor) return null;
+        if (raw.author.id === authorId) return { id: raw.id, at };
+      }
+      if (page.length < 100) return null;
+      before = page.at(-1)!.id;
+    }
+    return null;
+  }
+
   /** A summary, or with `question` an answer to it drawn from the same history. */
   async function summarize(
     channelId: string,
     window: SummaryWindow,
-    { now = Date.now(), question }: { now?: number; question?: string } = {},
+    {
+      now = Date.now(),
+      question,
+      requesterId,
+    }: { now?: number; question?: string; requesterId?: string } = {},
   ): Promise<Summary> {
-    const start = now - WINDOWS[window];
+    let start: number;
+    let windowKey: string = window;
+    let sinceLastPost: boolean | undefined;
+    if (window === SINCE_MINE) {
+      const post = requesterId ? await findLastPost(channelId, requesterId, now) : null;
+      start = post ? post.at + 1 : now - SINCE_MINE_MAX_MS;
+      windowKey = `${SINCE_MINE}:${post?.id ?? "none"}`;
+      sinceLastPost = Boolean(post);
+    } else {
+      start = now - WINDOWS[window];
+    }
     const usage: ModelUsage[] = [];
     const result = (fields: Partial<Summary>): Summary => ({
       text: "",
@@ -142,6 +179,7 @@ export function createSummarizer(deps: {
       inputTokens: usage.reduce((sum, u) => sum + u.inputTokens, 0),
       outputTokens: usage.reduce((sum, u) => sum + u.outputTokens, 0),
       costUsd: usage.reduce((sum, u) => sum + usageCostUsd(u), 0),
+      sinceLastPost,
       ...fields,
     });
 
@@ -150,11 +188,11 @@ export function createSummarizer(deps: {
 
     const generation = (await quietly(() => redis.get(generationKey(channelId)), null)) ?? "0";
     const asked = question ? createHash("sha256").update(question).digest("hex").slice(0, 16) : "-";
-    const finalKey = `summarize:final:v${PROMPT_VERSION}:${channelId}:${generation}:${window}:${latest.id}:${asked}`;
+    const finalKey = `summarize:final:v${PROMPT_VERSION}:${channelId}:${generation}:${windowKey}:${latest.id}:${asked}`;
     const cachedFinal = await quietly(() => redis.get(finalKey), null);
     if (cachedFinal) return { ...(JSON.parse(cachedFinal) as Summary), finalCached: true };
 
-    const spans = planWindow(now, WINDOWS[window]);
+    const spans = planWindow(now, now - start);
     const whole = spans.filter((span) => span.bucket !== null);
     const stored = await quietly(
       async () =>

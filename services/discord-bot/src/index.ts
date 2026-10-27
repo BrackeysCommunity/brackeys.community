@@ -70,8 +70,8 @@ const summarizer =
     : null;
 
 const summarize: Summarize | undefined = summarizer
-  ? async (channelId, window, question) => {
-      const summary = await summarizer.summarize(channelId, window, { question });
+  ? async (channelId, window, { question, requesterId }) => {
+      const summary = await summarizer.summarize(channelId, window, { question, requesterId });
       if (!summary.finalCached && summary.text) {
         telemetry.capture(EVENTS.botSummaryGenerated, {
           window,

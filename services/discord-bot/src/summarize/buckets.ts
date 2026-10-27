@@ -24,10 +24,14 @@ export const WINDOWS = {
   "7d": 7 * 86_400_000,
 } as const;
 
-export type SummaryWindow = keyof typeof WINDOWS;
+/** Since the caller's own last message in the channel, at most as far back as the longest window. */
+export const SINCE_MINE = "mine";
+export const SINCE_MINE_MAX_MS = WINDOWS["7d"];
+
+export type SummaryWindow = keyof typeof WINDOWS | typeof SINCE_MINE;
 
 export function isSummaryWindow(value: unknown): value is SummaryWindow {
-  return typeof value === "string" && Object.hasOwn(WINDOWS, value);
+  return typeof value === "string" && (value === SINCE_MINE || Object.hasOwn(WINDOWS, value));
 }
 
 export function snowflakeTime(id: string): number {

@@ -8,7 +8,7 @@ import {
   type SlashCommandStringOption,
 } from "discord.js";
 
-import { WINDOWS } from "../summarize/buckets.ts";
+import { SINCE_MINE, WINDOWS } from "../summarize/buckets.ts";
 import { COLLAB_TYPES, ID_BOUNDS, JAM_ENTRY_SORTS, SEARCH_MAX } from "./custom-id.ts";
 import { COMMAND, OPT, PROFILE_CONTEXT_MENU, SUB, SUMMARY_WINDOW_DEFAULT } from "./dispatch.ts";
 import { QUESTION_MAX } from "./summarize.ts";
@@ -210,7 +210,10 @@ export function buildManifest(
           o
             .setName(OPT.since)
             .setDescription(`How far back (default ${SUMMARY_WINDOW_DEFAULT})`)
-            .addChoices(...Object.keys(WINDOWS).map((w) => ({ name: w, value: w }))),
+            .addChoices(...Object.keys(WINDOWS).map((w) => ({ name: w, value: w })), {
+              name: "since I last posted",
+              value: SINCE_MINE,
+            }),
         )
         .addStringOption((o) =>
           o

@@ -76,7 +76,7 @@ describe("summarizeChannel", () => {
   test("a question becomes the title and is passed through", async () => {
     let seen: string | undefined;
     const reply = await summarizeChannel(
-      async (_c, _w, question) => {
+      async (_c, _w, { question }) => {
         seen = question;
         return summary({ text: "Job argued for voting." });
       },
@@ -85,6 +85,20 @@ describe("summarizeChannel", () => {
     expect(seen).toBe("who argued for voting?");
     expect(reply.embeds[0].title).toBe("“who argued for voting?”");
     expect(reply.embeds[0].description).toBe("Job argued for voting.");
+  });
+
+  test("since I last posted: titled for it, or for the 7-day cap when there was none", async () => {
+    const mine = { ...input, window: "mine" as const };
+    const found = await summarizeChannel(async () => summary({ sinceLastPost: true }), mine);
+    expect(found.embeds[0].title).toBe("Catch-up: since you last posted");
+    const none = await summarizeChannel(async () => summary({ sinceLastPost: false }), mine);
+    expect(none.embeds[0].title).toBe("Catch-up: the last 7 days");
+    expect(none.embeds[0].footer).toContain("You haven't posted here in the last 7 days");
+    const quiet = await summarizeChannel(
+      async () => summary({ text: "", sinceLastPost: true }),
+      mine,
+    );
+    expect(quiet.content).toBe("Nothing new here since you last posted.");
   });
 
   test("an empty window is a plain line", async () => {
@@ -163,6 +177,22 @@ describe("dispatch", () => {
     expect(seen).toEqual([["42", "24h"]]);
   });
 
+  test("passes the caller for since-my-last-message", async () => {
+    let seen: unknown;
+    await runInvocation(
+      fakeApi({}),
+      { command: "summarize", options: { since: "mine" }, channelId: "42", actorId: "7" },
+      {
+        ...ctx,
+        summarize: async (_c, window, options) => {
+          seen = { window, ...options };
+          return summary();
+        },
+      },
+    );
+    expect(seen).toEqual({ window: "mine", question: undefined, requesterId: "7" });
+  });
+
   test("passes a trimmed question, and none for a blank one", async () => {
     const asked: (string | undefined)[] = [];
     const run = (ask: string) =>
@@ -171,7 +201,7 @@ describe("dispatch", () => {
         { command: "summarize", options: { ask }, channelId: "42" },
         {
           ...ctx,
-          summarize: async (_c, _w, question) => {
+          summarize: async (_c, _w, { question }) => {
             asked.push(question);
             return summary();
           },
@@ -214,5 +244,9 @@ describe("manifest", () => {
     const open = find(buildManifest("jams.team", { summarize: { staffOnly: false } }));
     expect(open?.default_member_permissions).toBeUndefined();
     expect(open?.options?.map((o) => o.name)).toEqual(["since", "ask", "share"]);
+    const since = open?.options?.find((o) => o.name === "since") as
+      | { choices?: { value: string }[] }
+      | undefined;
+    expect(since?.choices?.map((c) => c.value)).toContain("mine");
   });
 });
