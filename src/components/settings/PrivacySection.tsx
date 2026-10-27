@@ -1,7 +1,6 @@
 import { Analytics01Icon, NoteIcon, UserBlock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,12 +10,8 @@ import { Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
-import {
-  analyticsPreference,
-  analyticsPreferenceServerSnapshot,
-  setAnalyticsEnabled,
-  subscribeAnalyticsPreference,
-} from "@/lib/product-insights";
+import { useAnalyticsPreference } from "@/lib/hooks/use-analytics-preference";
+import { setAnalyticsEnabled } from "@/lib/product-insights";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
@@ -81,17 +76,7 @@ export function PrivacySection() {
 }
 
 function AnalyticsToggle() {
-  // The preference lives in device storage and in a browser API, so the
-  // server cannot know it. `useSyncExternalStore` is what makes that safe:
-  // React renders the server snapshot through hydration and then swaps in
-  // the real value, where a `useState` initialiser would have produced a
-  // hydration mismatch for every opted-out visitor. It also keeps the
-  // switch honest when the choice is changed in another tab.
-  const preference = useSyncExternalStore(
-    subscribeAnalyticsPreference,
-    analyticsPreference,
-    analyticsPreferenceServerSnapshot,
-  );
+  const preference = useAnalyticsPreference();
   const enabled = preference === "on";
   // Only named while the signal is doing the deciding: once the switch has
   // been touched, the stored choice wins and the signal is no longer why.

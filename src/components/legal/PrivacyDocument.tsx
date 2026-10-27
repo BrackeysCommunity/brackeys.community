@@ -198,8 +198,9 @@ const SECTIONS: LegalSection[] = [
           during sign-in to verify that the request completing it is the same one that began it. We
           set no advertising cookies and no cross-site tracking cookies, and no third party sets a
           cookie through the Service for its own purposes; our network provider may set a strictly
-          necessary cookie to tell automated traffic from human traffic. That is why you are not
-          shown a cookie banner.
+          necessary cookie to tell automated traffic from human traffic. None of these needs your
+          consent, so the cookie notice we show on your first visit is there to tell you this, not
+          to ask for anything.
         </p>
         <p>
           <strong>Analytics.</strong> We use PostHog, hosted on servers in the European Union, to

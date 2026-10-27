@@ -1,19 +1,12 @@
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
-import { motion } from "framer-motion";
 import { useEffect } from "react";
 
 import type { Announcement } from "@/components/announcements/announcements";
-import {
-  hideSpotlight,
-  showSpotlight,
-  SPOTLIGHT_KEEP_ATTR,
-} from "@/components/announcements/spotlight";
+import { BannerCard } from "@/components/announcements/BannerCard";
+import { hideSpotlight, showSpotlight } from "@/components/announcements/spotlight";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heading, Text } from "@/components/ui/typography";
-import { cn } from "@/lib/utils";
 
 export interface FeatureBannerProps {
   announcement: Announcement;
@@ -38,28 +31,7 @@ export function FeatureBanner({
   useEffect(() => (target ? () => hideSpotlight(target) : undefined), [target]);
 
   return (
-    <motion.aside
-      aria-label={title}
-      {...{ [SPOTLIGHT_KEEP_ATTR]: "" }}
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 16 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className={cn(
-        "pointer-events-auto relative flex w-full max-w-sm flex-col gap-3 rounded-lg border border-border bg-card p-4 pr-10 shadow-lg",
-        className,
-      )}
-    >
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Dismiss"
-        tooltip="Dismiss"
-        className="absolute top-2 right-2"
-        onClick={onDismiss}
-      >
-        <HugeiconsIcon icon={Cancel01Icon} size={14} />
-      </Button>
+    <BannerCard label={title} onDismiss={onDismiss} className={className}>
       <div className="flex flex-col gap-1">
         {eyebrow ? (
           <Badge size="label" className="self-start">
@@ -83,6 +55,6 @@ export function FeatureBanner({
       >
         {cta.label}
       </Button>
-    </motion.aside>
+    </BannerCard>
   );
 }

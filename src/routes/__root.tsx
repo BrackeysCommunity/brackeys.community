@@ -49,10 +49,10 @@ const CommandPalette = lazy(() =>
   import("@/components/layout/CommandPalette").then((m) => ({ default: m.CommandPalette })),
 );
 
-// Client-only and usually empty, so it waits behind the shell too.
-const FeatureAnnouncements = lazy(() =>
-  import("@/components/announcements/FeatureAnnouncements").then((m) => ({
-    default: m.FeatureAnnouncements,
+// Client-only and empty once its banners are closed, so it waits behind the shell too.
+const BannerSlot = lazy(() =>
+  import("@/components/announcements/BannerSlot").then((m) => ({
+    default: m.BannerSlot,
   })),
 );
 
@@ -391,7 +391,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
       <NotificationStreamMount />
       {takeover ? null : (
         <Suspense>
-          <FeatureAnnouncements mobile={isMobile} />
+          <BannerSlot mobile={isMobile} />
         </Suspense>
       )}
       {takeover ? (
