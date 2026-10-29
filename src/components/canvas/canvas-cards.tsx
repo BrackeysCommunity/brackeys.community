@@ -285,7 +285,11 @@ const TextCardBody = memo(function TextCardBody({
     <OverlayScrollbarsComponent
       element="div"
       className="nowheel h-full [&_[data-overlayscrollbars-viewport]]:overscroll-contain"
-      options={{ scrollbars: { theme: "os-theme-dark os-theme-accent", autoHide: "leave" } }}
+      // The theme classes land on the scrollbar elements, so React Flow's
+      // `nodrag`/`nopan` let the bar be dragged without moving the card.
+      options={{
+        scrollbars: { theme: "os-theme-dark os-theme-accent nodrag nopan", autoHide: "leave" },
+      }}
     >
       {body}
     </OverlayScrollbarsComponent>
