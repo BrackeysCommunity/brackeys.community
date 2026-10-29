@@ -313,6 +313,25 @@ export async function canvasScopeAccess(scope: Scope, userId: string): Promise<C
   );
 }
 
+/**
+ * Where an image uploaded to this canvas belongs: the canvas's own scope, so
+ * everyone who can open the canvas can see it, whoever uploaded it. Null when
+ * the viewer can't see the canvas, "read" when they can't add to it.
+ */
+async function canvasUploadScope(
+  canvasId: string,
+  userId: string,
+): Promise<{ ownerId: string; teamId: string | null } | "read" | null> {
+  const [canvas] = await db.select(canvasColumns).from(canvases).where(eq(canvases.id, canvasId));
+  if (!canvas) return null;
+  const access = canvasAccess(canvas, await viewerFor(canvas, userId));
+  if (!access) return null;
+  if (!atLeast(access, "write") || canvas.deletedAt) return "read";
+  return canvas.teamId
+    ? { ownerId: userId, teamId: canvas.teamId }
+    : { ownerId: canvas.ownerId ?? userId, teamId: null };
+}
+
 function scopeWhere(scope: Scope, userId: string) {
   return scope.kind === "personal"
     ? and(isNull(canvases.teamId), eq(canvases.ownerId, userId))
@@ -1036,6 +1055,19 @@ export const listCanvasAttachments = os
     return attachmentsFor(canvas, input.attachmentIds);
   });
 
+/** An upload's scope: the canvas's when there is one, else the requested scope. */
+export async function uploadTarget(
+  scope: Scope,
+  canvasId: string | undefined,
+  userId: string,
+): Promise<{ ownerId: string; teamId: string | null } | "read" | null> {
+  if (canvasId) return canvasUploadScope(canvasId, userId);
+  const access = await canvasScopeAccess(scope, userId);
+  if (!access) return null;
+  if (!atLeast(access, "write")) return "read";
+  return { ownerId: userId, teamId: scope.kind === "team" ? scope.teamId : null };
+}
+
 /**
  * Which of an import's images the scope already holds: by the attachment
  * id an image card's key names, or by the sha256 of the bytes it would
@@ -1047,25 +1079,25 @@ export const listCanvasAttachmentMatches = os
   .input(
     z.object({
       scope: canvasScopeSchema,
+      /** Importing into an existing canvas matches against that canvas's scope. */
+      canvasId: canvasIdSchema.optional(),
       attachmentIds: z.array(z.string().max(100)).max(2_000),
       sha256s: z.array(z.string().regex(/^[0-9a-f]{64}$/)).max(2_000),
     }),
   )
   .handler(async ({ context, input }) => {
-    const userId = context.user.id;
-    const access = await canvasScopeAccess(input.scope, userId);
-    if (!access) throw NOT_FOUND();
-    if (!atLeast(access, "write")) {
+    const target = await uploadTarget(input.scope, input.canvasId, context.user.id);
+    if (!target) throw NOT_FOUND();
+    if (target === "read") {
       throw new ORPCError("FORBIDDEN", { message: "You can't add images here." });
     }
     const byId: Record<string, { path: string; sha256: string }> = {};
     const bySha: Record<string, { id: string; path: string }> = {};
     if (input.attachmentIds.length === 0 && input.sha256s.length === 0) return { byId, bySha };
 
-    const inScope =
-      input.scope.kind === "team"
-        ? eq(canvasAttachments.teamId, input.scope.teamId)
-        : and(isNull(canvasAttachments.teamId), eq(canvasAttachments.ownerId, userId));
+    const inScope = target.teamId
+      ? eq(canvasAttachments.teamId, target.teamId)
+      : and(isNull(canvasAttachments.teamId), eq(canvasAttachments.ownerId, target.ownerId));
     const wanted = [
       input.attachmentIds.length ? inArray(canvasAttachments.id, input.attachmentIds) : undefined,
       input.sha256s.length ? inArray(canvasAttachments.sha256, input.sha256s) : undefined,

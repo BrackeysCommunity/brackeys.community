@@ -13,7 +13,6 @@ import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-g
 import { auth } from "@/lib/auth";
 import { isActiveBan } from "@/lib/ban-state";
 import { insertCanvasAttachment } from "@/lib/canvas-persistence";
-import { atLeast } from "@/lib/canvas/access";
 import { CANVAS_IMAGE_UPLOADS_PER_DAY } from "@/lib/canvas/limits";
 import { checkPath, repairPath } from "@/lib/canvas/paths";
 import { isStaffMember } from "@/lib/discord";
@@ -46,7 +45,7 @@ import {
 import { reportProcedureErrors } from "@/orpc/error-reporting";
 import { userIsGuildMember } from "@/orpc/middleware/auth";
 import router from "@/orpc/router";
-import { canvasScopeAccess } from "@/orpc/router/canvas";
+import { uploadTarget } from "@/orpc/router/canvas";
 import { forumPostRights } from "@/orpc/router/forum";
 
 /**
@@ -485,8 +484,9 @@ const handleForumImageUpload = withImageUpload(
 
 /**
  * An image for a canvas: uploaded, scanned like every other upload, and
- * recorded as an attachment in the scope (`scope` = `personal` or `team`
- * with `teamId`) under `attachments/`, or at `path` when an import keeps
+ * recorded as an attachment under `attachments/` in the scope of `canvasId`
+ * when given (so collaborators' uploads resolve for everyone), else in
+ * `scope` (`personal`, or `team` with `teamId`), or at `path` when an import keeps
  * the vault's own (repaired if it isn't a valid image path). Its own daily
  * budget, so one vault's worth of images doesn't use up a member's avatar
  * uploads.
@@ -507,10 +507,14 @@ const handleCanvasImageUpload = withImageUpload(
     if (requestedPath !== null && typeof requestedPath !== "string") {
       return Response.json({ message: 'Expected a "path" form field.' }, { status: 400 });
     }
+    const canvasId = formData.get("canvasId");
+    if (canvasId !== null && typeof canvasId !== "string") {
+      return Response.json({ message: 'Expected a "canvasId" form field.' }, { status: 400 });
+    }
     const scope = teamId ? { kind: "team" as const, teamId } : { kind: "personal" as const };
-    const access = await canvasScopeAccess(scope, userId);
-    if (!access) return Response.json({ message: "Not found." }, { status: 404 });
-    if (!atLeast(access, "write")) {
+    const target = await uploadTarget(scope, canvasId ?? undefined, userId);
+    if (!target) return Response.json({ message: "Not found." }, { status: 404 });
+    if (target === "read") {
       return Response.json({ message: "You can't add images here." }, { status: 403 });
     }
 
@@ -524,7 +528,7 @@ const handleCanvasImageUpload = withImageUpload(
     });
     const attachment = await insertCanvasAttachment({
       id: attachmentId,
-      scope: { ownerId: userId, teamId },
+      scope: target,
       wanted: requestedPath
         ? wantedImagePath(requestedPath)
         : `attachments/${image.name || "image"}`,

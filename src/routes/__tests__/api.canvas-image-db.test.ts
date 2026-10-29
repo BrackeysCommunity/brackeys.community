@@ -1,6 +1,7 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { canvasAttachments, developerProfiles, user } from "@/db/schema";
+import { canvasAttachments, canvases, canvasMembers, developerProfiles, user } from "@/db/schema";
 import { seedUser, type TestDb } from "@/test/db";
 
 const state = vi.hoisted(() => ({
@@ -58,22 +59,24 @@ beforeEach(async () => {
   state.buckets = [];
   state.uploads = [];
   await db.delete(canvasAttachments);
+  await db.delete(canvases);
   await db.delete(developerProfiles);
   await db.delete(user);
   await seedUser(db, "alice");
 });
 
-async function upload(path?: string) {
+async function upload(path?: string, canvasId?: string) {
   const form = new FormData();
   form.append("image", new File([new Uint8Array([1, 2, 3])], "boss.png", { type: "image/png" }));
   form.append("scope", "personal");
   if (path !== undefined) form.append("path", path);
+  if (canvasId !== undefined) form.append("canvasId", canvasId);
   const response = await POST({
     request: new Request("https://jams.team/api/canvas/image", { method: "POST", body: form }),
   });
   return {
     status: response.status,
-    body: (await response.json()) as { path?: string; message?: string },
+    body: (await response.json()) as { id?: string; path?: string; message?: string },
   };
 }
 
@@ -104,6 +107,36 @@ describe("/api/canvas/image path field", () => {
     state.allowed = false;
     const { status } = await upload("Art/boss.png");
     expect(status).toBe(429);
+    expect(state.uploads).toEqual([]);
+  });
+});
+
+describe("/api/canvas/image on someone else's canvas", () => {
+  beforeEach(() => seedUser(db, "bob"));
+
+  async function bobsCanvas(role?: "editor" | "viewer") {
+    const [row] = await db
+      .insert(canvases)
+      .values({ ownerId: "bob", path: "Plans.canvas" })
+      .returning({ id: canvases.id });
+    if (role) await db.insert(canvasMembers).values({ canvasId: row!.id, userId: "alice", role });
+    return row!.id;
+  }
+
+  it("files an editor's upload in the canvas owner's scope", async () => {
+    const { status, body } = await upload(undefined, await bobsCanvas("editor"));
+    expect(status).toBe(201);
+    const [row] = await db
+      .select({ ownerId: canvasAttachments.ownerId, teamId: canvasAttachments.teamId })
+      .from(canvasAttachments)
+      .where(eq(canvasAttachments.id, body.id!));
+    expect(row).toEqual({ ownerId: "bob", teamId: null });
+  });
+
+  it("refuses a viewer, and hides a canvas they aren't on", async () => {
+    expect((await upload(undefined, await bobsCanvas("viewer"))).status).toBe(403);
+    await db.delete(canvases);
+    expect((await upload(undefined, await bobsCanvas())).status).toBe(404);
     expect(state.uploads).toEqual([]);
   });
 });

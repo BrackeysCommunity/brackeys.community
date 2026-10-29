@@ -126,11 +126,16 @@ export function useCanvasImport({
         if (result.kind !== "import" || shouldStop()) return null;
 
         progress("Uploading images…", 0);
-        const images = await resolveImages(result.canvases, result.images, scopeUploader(scope), {
-          onProgress: (done, total) =>
-            progress("Uploading images…", total ? Math.round((done / total) * 100) : null),
-          shouldStop,
-        });
+        const images = await resolveImages(
+          result.canvases,
+          result.images,
+          scopeUploader(scope, canvasId),
+          {
+            onProgress: (done, total) =>
+              progress("Uploading images…", total ? Math.round((done / total) * 100) : null),
+            shouldStop,
+          },
+        );
         if (shouldStop()) return null;
         const finals = finalizeCanvases(result.canvases, result.images, images.resolved);
 

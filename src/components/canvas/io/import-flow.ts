@@ -247,10 +247,15 @@ export function finalizeCanvases(
   });
 }
 
-/** The uploader for a real scope: `listCanvasAttachmentMatches` and `/api/canvas/image`. */
-export function scopeUploader(scope: CanvasScope): ImageUploader {
-  const fields: Record<string, string> =
-    scope.kind === "team" ? { scope: "team", teamId: scope.teamId } : { scope: "personal" };
+/**
+ * The uploader for a real scope: `listCanvasAttachmentMatches` and `/api/canvas/image`.
+ * With `canvasId`, images land in that canvas's scope rather than the importer's.
+ */
+export function scopeUploader(scope: CanvasScope, canvasId?: string): ImageUploader {
+  const fields: Record<string, string> = {
+    ...(scope.kind === "team" ? { scope: "team", teamId: scope.teamId } : { scope: "personal" }),
+    ...(canvasId ? { canvasId } : {}),
+  };
   return {
     match: async ({ attachmentIds, sha256s }) => {
       const out: AttachmentMatches = { byId: {}, bySha: {} };
@@ -258,6 +263,7 @@ export function scopeUploader(scope: CanvasScope): ImageUploader {
       for (let i = 0; i < Math.max(attachmentIds.length, sha256s.length); i += 2_000) {
         const page = await client.listCanvasAttachmentMatches({
           scope,
+          canvasId,
           attachmentIds: attachmentIds.slice(i, i + 2_000),
           sha256s: sha256s.slice(i, i + 2_000),
         });

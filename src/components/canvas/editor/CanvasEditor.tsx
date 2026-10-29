@@ -483,10 +483,7 @@ function EditorInner({
         );
         return null;
       }
-      const fields: Record<string, string> =
-        canvas.scope.kind === "team"
-          ? { scope: "team", teamId: canvas.scope.teamId }
-          : { scope: "personal" };
+      const fields = { canvasId: canvas.id };
       try {
         const uploaded = await postImageForm<{
           id: string;
@@ -504,7 +501,7 @@ function EditorInner({
         return null;
       }
     },
-    [canvas.scope],
+    [canvas.id],
   );
 
   const uploadImage = useCallback(
