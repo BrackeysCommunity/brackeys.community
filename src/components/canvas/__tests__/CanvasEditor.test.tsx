@@ -12,6 +12,20 @@ import type { CanvasDetail } from "../canvas-queries";
 import CanvasEditor from "../editor/CanvasEditor";
 import { fakeImportServer } from "../io/__tests__/import-server";
 
+vi.mock("@/components/ui/text-suggestions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui/text-suggestions")>()),
+  useTextSuggestions: () => ({
+    live: null,
+    suggestions: [],
+    active: 0,
+    emojis: [],
+    unicodeEmojis: [],
+    setActive() {},
+    move() {},
+    dismiss() {},
+  }),
+}));
+
 const saveCanvas = vi.hoisted(() => vi.fn());
 const saveCanvasImport = vi.hoisted(() => vi.fn());
 

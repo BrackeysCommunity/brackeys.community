@@ -84,6 +84,12 @@ vi.mock("@/orpc/client", () => ({
     getCanvasEntities: vi.fn(async () => []),
   },
   orpc: {
+    listGuildEmojis: {
+      queryOptions: () => ({ queryKey: ["guildEmojis"], queryFn: async () => [] }),
+    },
+    searchProfiles: {
+      queryOptions: () => ({ queryKey: ["searchProfiles"], queryFn: async () => [] }),
+    },
     getCanvas: {
       queryOptions: ({ input }: { input: { canvasId: string } }) => ({
         queryKey: ["getCanvas", input.canvasId],

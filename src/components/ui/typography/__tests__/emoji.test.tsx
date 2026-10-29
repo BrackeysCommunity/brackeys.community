@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { EmojiText } from "@/components/ui/typography/emoji";
+import { EmojiText, withEmojiShortcodes } from "@/components/ui/typography/emoji";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 
@@ -87,5 +87,21 @@ describe("guild emojis through the image transform", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe(SRC);
     fireEvent.error(container.querySelector("img")!);
     expect(container.textContent).toBe(":fire:");
+  });
+});
+
+const PARTY = { id: "123456789012345678", name: "partyblob", animated: false };
+
+describe("withEmojiShortcodes", () => {
+  it("draws a known guild `:name:` as its image and keeps the text around it", () => {
+    const { container } = render(<p>{withEmojiShortcodes("gg :partyblob: all", [PARTY])}</p>);
+    expect(container.querySelector('img[alt=":partyblob:"]')).not.toBeNull();
+    expect(container.textContent).toBe("gg  all");
+  });
+
+  it("leaves unknown names and plain colons as written", () => {
+    const { container } = render(<p>{withEmojiShortcodes("at 12:30 :nope:", [PARTY])}</p>);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toBe("at 12:30 :nope:");
   });
 });

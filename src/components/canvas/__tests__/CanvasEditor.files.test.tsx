@@ -32,6 +32,20 @@ import CanvasEditor, { type CanvasEditorHandle } from "../editor/CanvasEditor";
 import { fakeImportServer } from "../io/__tests__/import-server";
 import { parseCanvasHtml } from "../io/clipboard";
 
+vi.mock("@/components/ui/text-suggestions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui/text-suggestions")>()),
+  useTextSuggestions: () => ({
+    live: null,
+    suggestions: [],
+    active: 0,
+    emojis: [],
+    unicodeEmojis: [],
+    setActive() {},
+    move() {},
+    dismiss() {},
+  }),
+}));
+
 const saveCanvas = vi.hoisted(() => vi.fn());
 const saveCanvasImport = vi.hoisted(() => vi.fn());
 const toasts = vi.hoisted(() => ({ error: [] as string[] }));

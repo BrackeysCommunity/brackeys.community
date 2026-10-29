@@ -1,5 +1,4 @@
 import "prosemirror-view/style/prosemirror.css";
-import { useQuery } from "@tanstack/react-query";
 import { baseKeymap } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { InputRule, inputRules } from "prosemirror-inputrules";
@@ -9,21 +8,16 @@ import { EditorState, Plugin, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import * as React from "react";
 
-import { Popover, PopoverContent } from "@/components/ui/popover";
-import { TEXTAREA_CLASS } from "@/components/ui/textarea";
 import {
-  GUILD_EMOJI_CLASS,
-  GUILD_EMOJI_TRANSFORM,
-  GuildEmojiImage,
-} from "@/components/ui/typography/emoji";
+  type Suggestion,
+  SuggestionList,
+  useTextSuggestions,
+} from "@/components/ui/text-suggestions";
+import { TEXTAREA_CLASS } from "@/components/ui/textarea";
+import { guildEmojiElement } from "@/components/ui/typography/emoji";
 import { MENTION_BADGE_CLASS, mentionLoadingDom } from "@/components/ui/typography/mentions";
-import { UserAvatar } from "@/components/ui/user-avatar";
 import type { GuildChannel } from "@/lib/discord-channels";
-import { type GuildEmoji, emojiUrl, filterByName } from "@/lib/discord-emoji";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { useGuildChannels } from "@/lib/hooks/use-guild-channels";
-import { useGuildEmojis, useUnicodeEmojis } from "@/lib/hooks/use-guild-emojis";
-import { itchImageUrl } from "@/lib/itch-image";
 import { loadMentionName } from "@/lib/mention-names";
 import {
   type ActiveTrigger,
@@ -34,18 +28,8 @@ import {
   proseSliceFromText,
   serializeProse,
 } from "@/lib/prose-doc";
-import { filterUnicodeEmojis, unicodeEmojiFor } from "@/lib/unicode-emoji";
+import { unicodeEmojiFor } from "@/lib/unicode-emoji";
 import { cn } from "@/lib/utils";
-import { orpc } from "@/orpc/client";
-import { STALE } from "@/orpc/public-procedures";
-
-type Suggestion =
-  | { kind: "emoji"; key: string; emoji: GuildEmoji }
-  | { kind: "unicode"; key: string; emoji: string; shortcode: string }
-  | { kind: "mention"; key: string; handle: string; name: string; avatarUrl: string | null }
-  | { kind: "channel"; key: string; channel: GuildChannel };
-
-const MAX_SUGGESTIONS = 8;
 
 type ProseEditorProps = {
   value: string;
@@ -140,62 +124,14 @@ export function ProseEditor({
   const lastValue = React.useRef(value);
   const listId = React.useId();
   const [trigger, setTrigger] = React.useState<ActiveTrigger | null>(null);
-  const [dismissedAt, setDismissedAt] = React.useState<number | null>(null);
-  const [highlight, setHighlight] = React.useState({ key: "", index: 0 });
 
-  const { data: emojis = [] } = useGuildEmojis();
-  const { data: unicodeEmojis = [] } = useUnicodeEmojis();
   const { data: guildChannels } = useGuildChannels();
   const pickable = React.useMemo(
     () => guildChannels?.channels.filter((c) => c.kind === "text") ?? [],
     [guildChannels],
   );
-  const open = trigger && trigger.from !== dismissedAt ? trigger : null;
-  const live = open && (open.kind !== "mention" || mentions) ? open : null;
-  const mentionQuery = useDebouncedValue(live?.kind === "mention" ? live.query : "", 200);
-  const { data: people } = useQuery({
-    ...orpc.searchProfiles.queryOptions({ input: { search: mentionQuery } }),
-    enabled: mentions && mentionQuery.length >= 2,
-    staleTime: STALE.listing,
-  });
-
-  const suggestions = React.useMemo<Suggestion[]>(() => {
-    if (!live) return [];
-    if (live.kind === "emoji") {
-      // The guild's own emojis first, standard ones fill the rest.
-      const guild: Suggestion[] = filterByName(emojis, live.query).map((emoji) => ({
-        kind: "emoji",
-        key: emoji.id,
-        emoji,
-      }));
-      const standard: Suggestion[] = filterUnicodeEmojis(
-        unicodeEmojis,
-        live.query,
-        MAX_SUGGESTIONS - guild.length,
-      ).map((match) => ({ kind: "unicode", key: match.emoji, ...match }));
-      return [...guild, ...standard];
-    }
-    if (live.kind === "channel") {
-      return filterByName(pickable, live.query, MAX_SUGGESTIONS).map((channel) => ({
-        kind: "channel",
-        key: channel.id,
-        channel,
-      }));
-    }
-    return (people ?? [])
-      .filter((p) => p.urlStub)
-      .slice(0, 6)
-      .map((p) => ({
-        kind: "mention",
-        key: p.id,
-        handle: p.urlStub!,
-        name: p.displayName,
-        avatarUrl: p.avatarUrl,
-      }));
-  }, [live, emojis, unicodeEmojis, pickable, people]);
-
-  const triggerKey = live ? `${live.kind}:${live.from}:${live.query}` : "";
-  const active = highlight.key === triggerKey ? highlight.index : 0;
+  const { live, suggestions, active, emojis, unicodeEmojis, setActive, move, dismiss } =
+    useTextSuggestions(trigger, { mentions, channels: pickable });
 
   const pick = (s: Suggestion) => {
     const view = viewRef.current;
@@ -215,9 +151,10 @@ export function ProseEditor({
   // current render without rebuilding the view.
   const latest = React.useRef({
     suggestions,
-    active,
     live,
-    triggerKey,
+    active,
+    move,
+    dismiss,
     pick,
     emojis,
     unicodeEmojis,
@@ -225,9 +162,10 @@ export function ProseEditor({
   });
   latest.current = {
     suggestions,
-    active,
     live,
-    triggerKey,
+    active,
+    move,
+    dismiss,
     pick,
     emojis,
     unicodeEmojis,
@@ -292,21 +230,13 @@ export function ProseEditor({
         ...(id ? { id } : {}),
       },
       nodeViews: {
-        emoji: (node) => {
-          const img = document.createElement("img");
-          const src = emojiUrl({
+        emoji: (node) => ({
+          dom: guildEmojiElement({
             id: node.attrs.id as string,
+            name: node.attrs.name as string,
             animated: node.attrs.animated as boolean,
-          });
-          img.src = itchImageUrl(src, GUILD_EMOJI_TRANSFORM);
-          img.onerror = () => {
-            if (img.src !== src) img.src = src;
-          };
-          img.alt = `:${node.attrs.name as string}:`;
-          img.draggable = false;
-          img.className = GUILD_EMOJI_CLASS;
-          return { dom: img };
-        },
+          }),
+        }),
         mention: (node) => {
           const chip = document.createElement("span");
           chip.className = cn(MENTION_BADGE_CLASS, "pointer-events-none");
@@ -325,15 +255,11 @@ export function ProseEditor({
         },
       },
       handleKeyDown: (_view, event) => {
-        const { suggestions, active, live, triggerKey, pick } = latest.current;
+        const { suggestions, active, live, move, dismiss, pick } = latest.current;
         if (!live || suggestions.length === 0 || event.isComposing) return false;
         const plain = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-          const step = event.key === "ArrowDown" ? 1 : -1;
-          setHighlight({
-            key: triggerKey,
-            index: (active + step + suggestions.length) % suggestions.length,
-          });
+          move(event.key === "ArrowDown" ? 1 : -1);
           return true;
         }
         if ((event.key === "Enter" || event.key === "Tab") && plain) {
@@ -342,7 +268,7 @@ export function ProseEditor({
         }
         if (event.key === "Escape") {
           event.stopPropagation();
-          setDismissedAt(live.from);
+          dismiss();
           return true;
         }
         return false;
@@ -373,8 +299,6 @@ export function ProseEditor({
         view.updateState(next);
         const current = activeTrigger(next);
         setTrigger(view.hasFocus() || tr.docChanged ? current : null);
-        // A dismissal lasts until the word it closed on is gone.
-        if (!current) setDismissedAt(null);
         if (tr.docChanged) {
           const serialized = serializeProse(next.doc.content);
           lastValue.current = serialized;
@@ -469,62 +393,15 @@ export function ProseEditor({
           {placeholder}
         </span>
       ) : null}
-      <Popover
-        open={showList}
-        onOpenChange={(next) => {
-          if (!next && live) setDismissedAt(live.from);
-        }}
-      >
-        <PopoverContent
-          anchor={anchor}
-          side="bottom"
-          align="start"
-          initialFocus={false}
-          finalFocus={false}
-          className="w-60 gap-0 p-1 in-data-anchor-hidden:invisible"
-        >
-          <div id={listId} role="listbox" className="flex flex-col">
-            {suggestions.map((s, i) => (
-              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- keys drive it from the editor
-              <div
-                key={s.key}
-                id={`${listId}-${i}`}
-                role="option"
-                aria-selected={i === active}
-                data-highlighted={i === active ? "" : undefined}
-                // pointerdown, so the editor keeps focus and its selection
-                onPointerDown={(e) => e.preventDefault()}
-                onPointerEnter={() => setHighlight({ key: triggerKey, index: i })}
-                onClick={() => pick(s)}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-              >
-                {s.kind === "emoji" ? (
-                  <>
-                    <GuildEmojiImage emoji={s.emoji} className="h-5! align-middle" />
-                    <span className="truncate">:{s.emoji.name}:</span>
-                  </>
-                ) : s.kind === "unicode" ? (
-                  <>
-                    <span className="w-5 text-center text-base leading-none">{s.emoji}</span>
-                    <span className="truncate">:{s.shortcode}:</span>
-                  </>
-                ) : s.kind === "channel" ? (
-                  <>
-                    <span className="w-5 text-center text-base leading-none opacity-60">#</span>
-                    <span className="truncate">{s.channel.name}</span>
-                  </>
-                ) : (
-                  <>
-                    <UserAvatar avatarUrl={s.avatarUrl} username={s.name} size={18} />
-                    <span className="truncate">{s.name}</span>
-                    <span className="ml-auto truncate opacity-60">@{s.handle}</span>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+      <SuggestionList
+        id={listId}
+        anchor={anchor}
+        suggestions={suggestions}
+        active={active}
+        onActive={setActive}
+        onPick={pick}
+        onDismiss={dismiss}
+      />
     </div>
   );
 }

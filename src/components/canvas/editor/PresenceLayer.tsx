@@ -1,10 +1,20 @@
 import { useStore, ViewportPortal } from "@xyflow/react";
-import { memo, use, useCallback, useEffect, useRef } from "react";
+import { memo, use, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  type Suggestion,
+  type SuggestionTrigger,
+  SuggestionList,
+  useTextSuggestions,
+} from "@/components/ui/text-suggestions";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { withEmojiShortcodes } from "@/components/ui/typography/emoji";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { MAX_CHAT, type PresenceUser } from "@/lib/canvas/presence";
+import { useGuildEmojis } from "@/lib/hooks/use-guild-emojis";
+import { findTrigger } from "@/lib/textarea-autocomplete";
+import { unicodeEmojiFor } from "@/lib/unicode-emoji";
 import { cn } from "@/lib/utils";
 
 import {
@@ -54,7 +64,7 @@ export function PeerCursorMarks({ zoom }: { zoom: number }) {
       </svg>
       {p.chat ? (
         <ChatBubble color={p.user.color} name={p.user.name}>
-          {p.chat}
+          <ChatText text={p.chat} />
         </ChatBubble>
       ) : (
         <span
@@ -190,14 +200,40 @@ function ChatBubble({
   );
 }
 
+/** Chat holds plain text, so guild emojis travel as `:name:` and are drawn here. */
+function ChatText({ text }: { text: string }) {
+  const { data: emojis = [] } = useGuildEmojis();
+  return withEmojiShortcodes(text, emojis);
+}
+
+type ChatTrigger = SuggestionTrigger & { to: number };
+
+const FINISHED_SHORTCODE = /(^|[\s([{]):([\w+-]{2,32}):$/;
+
 /**
- * This tab's chat bubble at its own pointer: a field while open, then the
- * sent message until it lingers out. Peers see it live as it's typed.
+ * The chat field: `:` offers emojis (inserted as the character, or as
+ * `:name:` for the guild's own), and a typed-out standard `:name:` becomes
+ * its character. Enter sends, Escape drops it, unless the list is open.
  */
-export function SelfChatBubble({ store }: { store: PresenceStore }) {
-  const chat = useSelfChat();
-  const zoom = useStore((s) => s.transform[2]);
+function ChatInput({
+  value,
+  onChange,
+  onClose,
+}: {
+  value: string;
+  onChange: (text: string) => void;
+  onClose: (send: boolean) => void;
+}) {
   const input = useRef<HTMLInputElement | null>(null);
+  const caretAfter = useRef<number | null>(null);
+  const listId = useId();
+  const [caret, setCaret] = useState(value.length);
+  const found = findTrigger(value, caret);
+  const trigger: ChatTrigger | null =
+    found?.kind === "emoji" ? { ...found, from: found.start, to: caret } : null;
+  const { live, suggestions, active, unicodeEmojis, setActive, move, dismiss } =
+    useTextSuggestions(trigger);
+
   const attachInput = useCallback((el: HTMLInputElement | null) => {
     input.current = el;
     el?.focus();
@@ -205,11 +241,104 @@ export function SelfChatBubble({ store }: { store: PresenceStore }) {
   // Browser UI (a find bar, another window) can take focus mid-message;
   // the field stays open and picks focus back up when the page regains it.
   useEffect(() => {
-    if (!chat.open) return;
     const refocus = () => input.current?.focus();
     window.addEventListener("focus", refocus);
     return () => window.removeEventListener("focus", refocus);
-  }, [chat.open]);
+  }, []);
+  useLayoutEffect(() => {
+    if (caretAfter.current == null || !input.current) return;
+    input.current.setSelectionRange(caretAfter.current, caretAfter.current);
+    caretAfter.current = null;
+  });
+
+  const replace = (from: number, to: number, insert: string) => {
+    const next = (value.slice(0, from) + insert + value.slice(to)).slice(0, MAX_CHAT);
+    const at = Math.min(from + insert.length, next.length);
+    caretAfter.current = at;
+    setCaret(at);
+    onChange(next);
+  };
+
+  const pick = (s: Suggestion) => {
+    if (!live) return;
+    if (s.kind === "emoji") replace(live.from, live.to, `:${s.emoji.name}: `);
+    else if (s.kind === "unicode") replace(live.from, live.to, `${s.emoji} `);
+  };
+
+  const anchor = {
+    get contextElement() {
+      return input.current ?? undefined;
+    },
+    getBoundingClientRect: () => input.current?.getBoundingClientRect() ?? new DOMRect(),
+  };
+
+  return (
+    <>
+      <input
+        ref={attachInput}
+        aria-label="Chat at your cursor"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={suggestions.length > 0}
+        aria-controls={suggestions.length > 0 ? listId : undefined}
+        aria-activedescendant={suggestions.length > 0 ? `${listId}-${active}` : undefined}
+        placeholder="Say something"
+        maxLength={MAX_CHAT}
+        value={value}
+        onChange={(e) => {
+          const at = e.target.selectionStart ?? e.target.value.length;
+          const before = e.target.value.slice(0, at);
+          const finished = before.endsWith(":") ? FINISHED_SHORTCODE.exec(before) : null;
+          const standard = finished && unicodeEmojiFor(unicodeEmojis, finished[2]!);
+          if (finished && standard) {
+            const from = finished.index + finished[1]!.length;
+            const next = e.target.value.slice(0, from) + standard + e.target.value.slice(at);
+            caretAfter.current = from + standard.length;
+            setCaret(from + standard.length);
+            onChange(next);
+            return;
+          }
+          setCaret(at);
+          onChange(e.target.value);
+        }}
+        onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? value.length)}
+        onKeyDown={(e) => {
+          if (suggestions.length > 0) {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") move(e.key === "ArrowDown" ? 1 : -1);
+            else if (e.key === "Enter" || e.key === "Tab") pick(suggestions[active]!);
+            else if (e.key === "Escape") dismiss();
+            else return;
+          } else if (e.key === "Enter") onClose(true);
+          else if (e.key === "Escape") onClose(false);
+          else return;
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onBlur={() => {
+          if (document.hasFocus()) onClose(true);
+        }}
+        className="nodrag nopan pointer-events-auto w-52 bg-transparent text-white outline-none placeholder:text-white/70"
+      />
+      <SuggestionList
+        id={listId}
+        anchor={anchor}
+        suggestions={suggestions}
+        active={active}
+        onActive={setActive}
+        onPick={pick}
+        onDismiss={dismiss}
+      />
+    </>
+  );
+}
+
+/**
+ * This tab's chat bubble at its own pointer: a field while open, then the
+ * sent message until it lingers out. Peers see it live as it's typed.
+ */
+export function SelfChatBubble({ store }: { store: PresenceStore }) {
+  const chat = useSelfChat();
+  const zoom = useStore((s) => s.transform[2]);
   if (!chat.at || (!chat.open && !chat.text)) return null;
   return (
     <ViewportPortal>
@@ -222,27 +351,13 @@ export function SelfChatBubble({ store }: { store: PresenceStore }) {
       >
         <ChatBubble color={store.self.color}>
           {chat.open ? (
-            <input
-              ref={attachInput}
-              aria-label="Chat at your cursor"
-              placeholder="Say something"
-              maxLength={MAX_CHAT}
+            <ChatInput
               value={chat.text}
-              onChange={(e) => store.typeChat(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") store.closeChat(true);
-                else if (e.key === "Escape") store.closeChat(false);
-                else return;
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onBlur={() => {
-                if (document.hasFocus()) store.closeChat(true);
-              }}
-              className="nodrag nopan pointer-events-auto w-52 bg-transparent text-white outline-none placeholder:text-white/70"
+              onChange={(text) => store.typeChat(text)}
+              onClose={(send) => store.closeChat(send)}
             />
           ) : (
-            chat.text
+            <ChatText text={chat.text} />
           )}
         </ChatBubble>
       </div>

@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+// Only the hex check; the whole card module is slow to re-import per test.
+vi.mock("../../canvas-cards", () => ({
+  isHexColor: (color: string) => /^#[0-9a-fA-F]{6}$/.test(color),
+}));
+
 beforeEach(() => {
   const store = new Map<string, string>();
   vi.stubGlobal("localStorage", {

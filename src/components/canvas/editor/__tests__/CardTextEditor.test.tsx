@@ -1,10 +1,24 @@
 // @vitest-environment jsdom
 import { EditorView } from "@codemirror/view";
 import { cleanup, render } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 
 import { CardTextEditor } from "../CardTextEditor";
+
+vi.mock("@/components/ui/text-suggestions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui/text-suggestions")>()),
+  useTextSuggestions: () => ({
+    live: null,
+    suggestions: [],
+    active: 0,
+    emojis: [],
+    unicodeEmojis: [],
+    setActive() {},
+    move() {},
+    dismiss() {},
+  }),
+}));
 
 beforeAll(() => {
   // CodeMirror measures layout; jsdom has none.

@@ -288,6 +288,7 @@ const TextCardBody = memo(function TextCardBody({
       wikilink={renderWikilink}
       ugcLinks
       breaks
+      mentions
     >
       {text}
     </MarkedText>

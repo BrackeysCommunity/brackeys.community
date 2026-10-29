@@ -5,7 +5,7 @@ import { useCensorNodes } from "@/components/ui/typography/censored";
 import { withDiscordTokens } from "@/components/ui/typography/channels";
 import { withMentionLinks } from "@/components/ui/typography/mentions";
 import { EMOJI_TOKEN_PATTERN, type GuildEmoji, emojiUrl } from "@/lib/discord-emoji";
-import type { ItchImageOpts } from "@/lib/itch-image";
+import { type ItchImageOpts, itchImageUrl } from "@/lib/itch-image";
 import { cn } from "@/lib/utils";
 
 /** Inline at text size; the `!`s beat prose image rules like `MarkedText`'s. */
@@ -40,6 +40,48 @@ export function GuildEmojiImage({ emoji, className }: { emoji: GuildEmoji; class
       className={cn(GUILD_EMOJI_CLASS, className)}
     />
   );
+}
+
+const SHORTCODE_PATTERN = /:([\w+-]{2,32}):/g;
+
+/**
+ * Splits `text` around `:name:` shortcodes for the guild's own emojis, for
+ * plain-text surfaces that can't hold a `<:name:id>` token. Unknown names
+ * stay as written.
+ */
+export function withEmojiShortcodes(
+  text: string,
+  emojis: GuildEmoji[],
+  rest: (text: string) => ReactNode = (t) => t,
+): ReactNode {
+  if (emojis.length === 0) return rest(text);
+  const byName = new Map(emojis.map((e) => [e.name, e]));
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const match of text.matchAll(SHORTCODE_PATTERN)) {
+    const emoji = byName.get(match[1]!);
+    if (!emoji) continue;
+    if (match.index > last) parts.push(rest(text.slice(last, match.index)));
+    parts.push(<GuildEmojiImage emoji={emoji} />);
+    last = match.index + match[0].length;
+  }
+  if (parts.length === 0) return rest(text);
+  if (last < text.length) parts.push(rest(text.slice(last)));
+  return parts.map((part, i) => <Fragment key={i}>{part}</Fragment>);
+}
+
+/** The same emoji as a plain element, for editors that draw outside React. */
+export function guildEmojiElement(emoji: GuildEmoji): HTMLImageElement {
+  const img = document.createElement("img");
+  const src = emojiUrl(emoji);
+  img.src = itchImageUrl(src, GUILD_EMOJI_TRANSFORM);
+  img.onerror = () => {
+    if (img.src !== src) img.src = src;
+  };
+  img.alt = `:${emoji.name}:`;
+  img.draggable = false;
+  img.className = GUILD_EMOJI_CLASS;
+  return img;
 }
 
 /** Splits `text` around `<:name:id>` tokens; everything between goes through `rest`. */
