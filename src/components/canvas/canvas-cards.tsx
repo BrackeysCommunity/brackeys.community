@@ -20,6 +20,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -163,6 +164,16 @@ interface CanvasLinks {
 }
 
 export const CanvasLinksContext = createContext<CanvasLinks | null>(null);
+
+/** The view's zoom, read by cards that only care when it crosses a threshold. */
+export interface CanvasZoom {
+  get: () => number;
+  subscribe: (onChange: () => void) => () => void;
+}
+
+export const CanvasZoomContext = createContext<CanvasZoom | null>(null);
+
+const noSubscription = () => () => {};
 
 /**
  * The link targets on a canvas. Rebuilt only when a file or image card's
@@ -390,16 +401,31 @@ function ArtPlaceholder({ icon }: { icon: IconSvgElement }) {
   );
 }
 
+/** Upscale factor past which an image is treated as pixel art and kept crisp. */
+const PIXELATED_UPSCALE = 2;
+
 function ImageCardBody({
   attachmentId,
   attachments,
   detail,
+  w,
+  h,
 }: {
   attachmentId: string | undefined;
   attachments: CanvasAttachmentMap;
   detail: CanvasDetailLevel;
+  w: number;
+  h: number;
 }) {
   const attachment = attachmentId ? attachments[attachmentId] : undefined;
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const zoom = use(CanvasZoomContext);
+  const fit = natural ? Math.min(w / natural.w, h / natural.h) : 0;
+  const pixelated = useSyncExternalStore(
+    zoom?.subscribe ?? noSubscription,
+    () => fit * (zoom?.get() ?? 1) >= PIXELATED_UPSCALE,
+    () => false,
+  );
   if (detail === "far") return <ArtPlaceholder icon={Image01Icon} />;
   if (!attachment?.url) {
     return (
@@ -417,7 +443,10 @@ function ImageCardBody({
       alt={basename(attachment.path)}
       loading="lazy"
       draggable={false}
-      className="h-full w-full object-contain"
+      onLoad={(e) =>
+        setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })
+      }
+      className={cn("h-full w-full object-contain", pixelated && "[image-rendering:pixelated]")}
     />
   );
 }
@@ -752,7 +781,13 @@ export function CardBody({
       );
     case "image":
       return (
-        <ImageCardBody attachmentId={card.attachmentId} attachments={attachments} detail={detail} />
+        <ImageCardBody
+          attachmentId={card.attachmentId}
+          attachments={attachments}
+          detail={detail}
+          w={size?.w ?? card.w}
+          h={size?.h ?? card.h}
+        />
       );
     case "entity":
       return (

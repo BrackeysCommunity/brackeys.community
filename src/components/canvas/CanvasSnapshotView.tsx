@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 
 import {
   CanvasLinksContext,
+  type CanvasZoom,
+  CanvasZoomContext,
   CARD_SURFACE,
   CardBody,
   cardColor,
@@ -269,151 +271,158 @@ export function CanvasSnapshotView({
   );
 
   const detail = detailLevelFor(view.zoom);
+  // Cards re-render with every view change here, so there is nothing to subscribe to.
+  const zoom = useMemo<CanvasZoom>(
+    () => ({ get: () => view.zoom, subscribe: () => () => {} }),
+    [view.zoom],
+  );
   // Reading order in the DOM, so tabbing follows it; groups paint underneath.
   const ordered = useMemo(() => flattenOutline(canvasOutline(cards)), [cards]);
 
   return (
     <CanvasLinksContext value={links}>
-      <div
-        ref={host}
-        className={cn(
-          "relative h-full w-full cursor-grab touch-none overflow-hidden select-none",
-          className,
-        )}
-        style={
-          grid
-            ? {
-                // React Flow's dot pattern: the dot scales with the zoom, offset by its radius.
-                backgroundImage: `radial-gradient(circle, ${GRID_DOT} ${view.zoom}px, transparent ${view.zoom}px)`,
-                backgroundSize: `${GRID_GAP * view.zoom}px ${GRID_GAP * view.zoom}px`,
-                backgroundPosition: `${view.x + view.zoom}px ${view.y + view.zoom}px`,
-              }
-            : undefined
-        }
-        onPointerDown={(e) => {
-          // Capturing the pointer would retarget the click away from a link or chip.
-          if ((e.target as HTMLElement).closest("a, button")) return;
-          // A finger on long text scrolls it; a mouse still drags the view.
-          if (e.pointerType === "touch" && overflowingText(e.target)) return;
-          if (onScrollbar(e.target)) return;
-          drag.current = { x: e.clientX, y: e.clientY };
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          if (onPointer) {
-            const rect = e.currentTarget.getBoundingClientRect();
-            onPointer({
-              x: (e.clientX - rect.left - view.x) / view.zoom,
-              y: (e.clientY - rect.top - view.y) / view.zoom,
-            });
-          }
-          if (!drag.current) return;
-          const dx = e.clientX - drag.current.x;
-          const dy = e.clientY - drag.current.y;
-          drag.current = { x: e.clientX, y: e.clientY };
-          setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
-        }}
-        onPointerUp={() => {
-          drag.current = null;
-        }}
-        onPointerLeave={() => onPointer?.(null)}
-      >
+      <CanvasZoomContext value={zoom}>
         <div
-          className="absolute top-0 left-0 origin-top-left"
-          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}
-        >
-          <svg className="absolute overflow-visible" width={1} height={1} aria-hidden>
-            <defs>
-              <marker
-                id="canvas-arrow"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="14"
-                markerHeight="14"
-                markerUnits="userSpaceOnUse"
-                orient="auto-start-reverse"
-              >
-                <path d="M0,0 L10,5 L0,10 z" fill="context-stroke" />
-              </marker>
-            </defs>
-            {snapshot.edges.map((edge) => {
-              const drawing = drawingOf(edge);
-              if (!drawing) return null;
-              // Too small to see a detour; the plain curve is what Obsidian draws.
-              const { d, label } =
-                drawing.routed && detail === "blocks"
-                  ? curvedEdge(drawing.start, drawing.end)
-                  : drawing;
-              const stroke = cardColor(edge.color) ?? "var(--muted-foreground)";
-              return (
-                <g key={edge.id}>
-                  <path
-                    d={d}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={EDGE_WIDTH}
-                    strokeLinecap="round"
-                    markerEnd={
-                      (edge.toEnd ?? "arrow") === "arrow" ? "url(#canvas-arrow)" : undefined
-                    }
-                    markerStart={edge.fromEnd === "arrow" ? "url(#canvas-arrow)" : undefined}
-                  />
-                  {edge.label && (detail === "mid" || detail === "near") ? (
-                    <text
-                      x={label[0]}
-                      y={label[1] - 6}
-                      textAnchor="middle"
-                      className="fill-foreground text-xs"
-                    >
-                      {edge.label}
-                    </text>
-                  ) : null}
-                </g>
-              );
-            })}
-          </svg>
-          {ordered.map((card) => (
-            <div
-              key={card.id}
-              data-card-id={card.id}
-              tabIndex={focusable ? 0 : undefined}
-              aria-label={focusable ? cardAriaLabel(card) : undefined}
-              onFocus={(e) => {
-                if (e.target === e.currentTarget && e.currentTarget.matches(":focus-visible")) {
-                  centerOn(card.id);
+          ref={host}
+          className={cn(
+            "relative h-full w-full cursor-grab touch-none overflow-hidden select-none",
+            className,
+          )}
+          style={
+            grid
+              ? {
+                  // React Flow's dot pattern: the dot scales with the zoom, offset by its radius.
+                  backgroundImage: `radial-gradient(circle, ${GRID_DOT} ${view.zoom}px, transparent ${view.zoom}px)`,
+                  backgroundSize: `${GRID_GAP * view.zoom}px ${GRID_GAP * view.zoom}px`,
+                  backgroundPosition: `${view.x + view.zoom}px ${view.y + view.zoom}px`,
                 }
-              }}
-              className="absolute rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              style={{
-                left: card.x,
-                top: card.y,
-                width: card.w,
-                height: card.h,
-                // Groups under the edges, cards over them.
-                zIndex: card.type === "group" ? -1 : 1,
-                ...cardColorStyle(card.color),
-              }}
-            >
-              {card.type === "group" ? (
-                <div className={GROUP_SURFACE}>
-                  <GroupLabel label={card.label} />
-                </div>
-              ) : (
-                <div className={CARD_SURFACE}>
-                  <CardBody
-                    card={card}
-                    detail={detail}
-                    attachments={attachments}
-                    scrollable={focusable}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-          {overlay?.(view.zoom)}
+              : undefined
+          }
+          onPointerDown={(e) => {
+            // Capturing the pointer would retarget the click away from a link or chip.
+            if ((e.target as HTMLElement).closest("a, button")) return;
+            // A finger on long text scrolls it; a mouse still drags the view.
+            if (e.pointerType === "touch" && overflowingText(e.target)) return;
+            if (onScrollbar(e.target)) return;
+            drag.current = { x: e.clientX, y: e.clientY };
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            if (onPointer) {
+              const rect = e.currentTarget.getBoundingClientRect();
+              onPointer({
+                x: (e.clientX - rect.left - view.x) / view.zoom,
+                y: (e.clientY - rect.top - view.y) / view.zoom,
+              });
+            }
+            if (!drag.current) return;
+            const dx = e.clientX - drag.current.x;
+            const dy = e.clientY - drag.current.y;
+            drag.current = { x: e.clientX, y: e.clientY };
+            setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+          }}
+          onPointerUp={() => {
+            drag.current = null;
+          }}
+          onPointerLeave={() => onPointer?.(null)}
+        >
+          <div
+            className="absolute top-0 left-0 origin-top-left"
+            style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})` }}
+          >
+            <svg className="absolute overflow-visible" width={1} height={1} aria-hidden>
+              <defs>
+                <marker
+                  id="canvas-arrow"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="14"
+                  markerHeight="14"
+                  markerUnits="userSpaceOnUse"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M0,0 L10,5 L0,10 z" fill="context-stroke" />
+                </marker>
+              </defs>
+              {snapshot.edges.map((edge) => {
+                const drawing = drawingOf(edge);
+                if (!drawing) return null;
+                // Too small to see a detour; the plain curve is what Obsidian draws.
+                const { d, label } =
+                  drawing.routed && detail === "blocks"
+                    ? curvedEdge(drawing.start, drawing.end)
+                    : drawing;
+                const stroke = cardColor(edge.color) ?? "var(--muted-foreground)";
+                return (
+                  <g key={edge.id}>
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={stroke}
+                      strokeWidth={EDGE_WIDTH}
+                      strokeLinecap="round"
+                      markerEnd={
+                        (edge.toEnd ?? "arrow") === "arrow" ? "url(#canvas-arrow)" : undefined
+                      }
+                      markerStart={edge.fromEnd === "arrow" ? "url(#canvas-arrow)" : undefined}
+                    />
+                    {edge.label && (detail === "mid" || detail === "near") ? (
+                      <text
+                        x={label[0]}
+                        y={label[1] - 6}
+                        textAnchor="middle"
+                        className="fill-foreground text-xs"
+                      >
+                        {edge.label}
+                      </text>
+                    ) : null}
+                  </g>
+                );
+              })}
+            </svg>
+            {ordered.map((card) => (
+              <div
+                key={card.id}
+                data-card-id={card.id}
+                tabIndex={focusable ? 0 : undefined}
+                aria-label={focusable ? cardAriaLabel(card) : undefined}
+                onFocus={(e) => {
+                  if (e.target === e.currentTarget && e.currentTarget.matches(":focus-visible")) {
+                    centerOn(card.id);
+                  }
+                }}
+                className="absolute rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                style={{
+                  left: card.x,
+                  top: card.y,
+                  width: card.w,
+                  height: card.h,
+                  // Groups under the edges, cards over them.
+                  zIndex: card.type === "group" ? -1 : 1,
+                  ...cardColorStyle(card.color),
+                }}
+              >
+                {card.type === "group" ? (
+                  <div className={GROUP_SURFACE}>
+                    <GroupLabel label={card.label} />
+                  </div>
+                ) : (
+                  <div className={CARD_SURFACE}>
+                    <CardBody
+                      card={card}
+                      detail={detail}
+                      attachments={attachments}
+                      scrollable={focusable}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+            {overlay?.(view.zoom)}
+          </div>
         </div>
-      </div>
+      </CanvasZoomContext>
     </CanvasLinksContext>
   );
 }
