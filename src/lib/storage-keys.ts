@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   glowColourSpace: "jt:glow-colour-space",
   workspaceScope: "jt:workspace-scope",
   canvasInspector: "jt:canvas-inspector",
+  canvasRecentColors: "jt:canvas-recent-colors",
   forumDraft: "jt:forum-composer-draft:v1",
   collabDraft: "jt:collab-wizard-draft:v1",
 } as const;

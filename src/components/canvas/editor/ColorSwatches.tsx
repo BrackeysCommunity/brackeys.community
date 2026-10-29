@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 
 import { ColorPicker } from "@/components/ui/color-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 import { CARD_COLOR_CHOICES, cardColor, isHexColor } from "../canvas-cards";
+import {
+  noRecentColors,
+  readRecentColors,
+  rememberColor,
+  subscribeRecentColors,
+} from "./recent-colors";
 
 const CUSTOM_SEED = "#7f5af0";
 
@@ -14,14 +20,17 @@ const ACTIVE = "ring-2 ring-ring ring-offset-1 ring-offset-popover";
 /** Any hex color, for when the six presets aren't it. Canvas files only store hex. */
 function CustomColorPopover({
   current,
+  active,
   onChange,
   onCommit,
 }: {
   current: string | undefined;
+  active: boolean;
   onChange: (hex: string) => void;
   onCommit: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const picked = useRef<string | null>(null);
   const hex = current && isHexColor(current) ? current : undefined;
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -30,7 +39,7 @@ function CustomColorPopover({
         render={
           <button
             type="button"
-            className={cn(SWATCH, hex && ACTIVE)}
+            className={cn(SWATCH, active && ACTIVE)}
             style={{
               background:
                 hex ??
@@ -44,15 +53,22 @@ function CustomColorPopover({
           label="CUSTOM COLOR"
           gamut="srgb"
           value={hex ?? CUSTOM_SEED}
-          onChange={onChange}
-          onCommit={onCommit}
+          onChange={(next) => {
+            picked.current = next;
+            onChange(next);
+          }}
+          onCommit={() => {
+            if (picked.current) rememberColor(picked.current);
+            picked.current = null;
+            onCommit();
+          }}
         />
       </PopoverContent>
     </Popover>
   );
 }
 
-/** No color, the six presets, then any hex. */
+/** No color, the six presets, recent custom picks, then any hex. */
 export function ColorSwatches({
   current,
   onColor,
@@ -65,6 +81,8 @@ export function ColorSwatches({
   onCommit: () => void;
   className?: string;
 }) {
+  const recent = useSyncExternalStore(subscribeRecentColors, readRecentColors, noRecentColors);
+  const custom = current && isHexColor(current) ? current.toLowerCase() : undefined;
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <button
@@ -85,7 +103,23 @@ export function ColorSwatches({
           onClick={() => onColor(color)}
         />
       ))}
-      <CustomColorPopover current={current} onChange={onColor} onCommit={onCommit} />
+      {recent.map((color) => (
+        <button
+          key={color}
+          type="button"
+          aria-label={`Recent color ${color}`}
+          aria-pressed={custom === color}
+          className={cn(SWATCH, custom === color && ACTIVE)}
+          style={{ background: color }}
+          onClick={() => onColor(color)}
+        />
+      ))}
+      <CustomColorPopover
+        current={current}
+        active={custom != null && !recent.includes(custom)}
+        onChange={onColor}
+        onCommit={onCommit}
+      />
     </div>
   );
 }

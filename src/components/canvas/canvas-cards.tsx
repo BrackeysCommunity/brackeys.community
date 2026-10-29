@@ -287,6 +287,7 @@ const TextCardBody = memo(function TextCardBody({
       className={cn("p-3 text-sm/relaxed", !scrollable && "h-full overflow-hidden")}
       wikilink={renderWikilink}
       ugcLinks
+      breaks
     >
       {text}
     </MarkedText>

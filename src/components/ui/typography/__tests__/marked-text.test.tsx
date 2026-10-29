@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { MarkedText } from "@/components/ui/typography/marked-text";
 import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 
-function renderMarkdown(source: string, props: { censor?: boolean; embeds?: boolean } = {}) {
+function renderMarkdown(
+  source: string,
+  props: { censor?: boolean; embeds?: boolean; breaks?: boolean } = {},
+) {
   return render(
     <AppSettingsProvider>
       <MarkedText {...props}>{source}</MarkedText>
@@ -160,5 +163,18 @@ describe("MarkedText embeds", () => {
       "https://cdn.example.com/clip.mp4",
       "https://cdn.example.com/b.webm",
     ]);
+  });
+});
+
+describe("MarkedText line breaks", () => {
+  it("folds a single newline into the paragraph by default", () => {
+    const { container } = renderMarkdown("one\ntwo");
+    expect(container.querySelector("br")).toBeNull();
+  });
+
+  it("keeps a single newline as a break with `breaks`", () => {
+    const { container } = renderMarkdown("one\ntwo", { breaks: true });
+    expect(container.querySelectorAll("p")).toHaveLength(1);
+    expect(container.querySelector("p br")).not.toBeNull();
   });
 });

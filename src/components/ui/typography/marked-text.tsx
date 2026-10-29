@@ -34,6 +34,9 @@ type MarkedTextProps = Omit<ComponentProps<"div">, "ref" | "children"> & {
   /** Mark links as user-generated (`nofollow ugc`), for content that can
    * be read publicly and indexed. */
   ugcLinks?: boolean;
+  /** Render a single newline as a line break, as Obsidian does, rather
+   * than folding it into the paragraph. */
+  breaks?: boolean;
 };
 
 /** A separate instance, so only callers that pass `wikilink` lex `[[…]]`. */
@@ -273,6 +276,7 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
       embeds = false,
       wikilink,
       ugcLinks = false,
+      breaks = false,
       className,
       ...props
     },
@@ -296,12 +300,12 @@ const MarkedText = forwardRef<HTMLElement, MarkedTextProps>(
 
     const rendered = useMemo(() => {
       const lexer = apply.wikilink ? wikiMarked : marked;
-      const options = apply.wikilink ? wikiMarked.defaults : undefined;
+      const options = { ...lexer.defaults, breaks };
       const tokens = (
-        inline ? lexer.Lexer.lexInline(children, options) : lexer.lexer(children)
+        inline ? lexer.Lexer.lexInline(children, options) : lexer.lexer(children, options)
       ) as AnyToken[];
       return renderTokens(tokens, apply);
-    }, [children, inline, apply]);
+    }, [children, inline, apply, breaks]);
 
     return (
       <Tag
