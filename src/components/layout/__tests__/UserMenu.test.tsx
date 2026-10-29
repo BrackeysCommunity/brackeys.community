@@ -133,6 +133,7 @@ vi.mock("@/lib/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock("@/lib/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/hooks/use-cursor", () => ({
   HEADER_MAGNET_STRENGTH: 0.05,
   useMagnetic: () => ({

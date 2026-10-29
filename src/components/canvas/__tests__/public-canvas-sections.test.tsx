@@ -29,6 +29,7 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 vi.mock("@/lib/hooks/use-flag", () => ({ useFlag: () => state.flag }));
+vi.mock("@/lib/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("../CanvasThumbnail", () => ({ CanvasThumbnail: () => <div data-testid="thumb" /> }));
 vi.mock("../NewCanvasDialog", () => ({ NewCanvasDialog: () => null }));
 

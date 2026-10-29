@@ -12,16 +12,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
-import { useFlag } from "@/lib/hooks/use-flag";
 
 import { canvasScopesQueryOptions, PERSONAL_SCOPE, useOpenJamPlan } from "./canvas-queries";
+import { useCanvasesOn } from "./use-canvases-on";
 
 /**
  * "Plan this jam": opens the chosen scope's plan canvas for the jam, making
  * it the first time with the jam's card and deadline on it.
  */
 export function JamPlanButton({ jamId }: { jamId: number }) {
-  const canvasesOn = useFlag("canvases-enabled");
+  const canvasesOn = useCanvasesOn();
   const { data: session } = authClient.useSession();
   const signedIn = canvasesOn && session?.user != null;
   const { data: scopes } = useQuery({ ...canvasScopesQueryOptions(), enabled: signedIn });

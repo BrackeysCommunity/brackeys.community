@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { publicCanvasesQueryOptions } from "@/components/canvas/canvas-queries";
 import { CanvasCardLink } from "@/components/canvas/CanvasCardLink";
-import { useFlag } from "@/lib/hooks/use-flag";
+import { useCanvasesOn } from "@/components/canvas/use-canvases-on";
 
 import { ProfileSectionHeader } from "./ProfileSectionHeader";
 
@@ -20,7 +20,7 @@ export function ProfileCanvasesSection({
   /** One card per row, for the profile's narrow side column. */
   stacked?: boolean;
 }) {
-  const canvasesOn = useFlag("canvases-enabled");
+  const canvasesOn = useCanvasesOn();
   const { data: canvases } = useQuery({
     ...publicCanvasesQueryOptions({ ownerId: profileId }),
     enabled: canvasesOn,

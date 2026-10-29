@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { useCanvasesOn } from "@/components/canvas/use-canvases-on";
 import { OptionCard } from "@/components/settings/SettingsUI";
 import { ThemePreview } from "@/components/settings/ThemePreview";
 import {
@@ -81,7 +82,7 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const router = useRouter();
   const forumOn = useFlag("forum-enabled");
-  const canvasesOn = useFlag("canvases-enabled");
+  const canvasesOn = useCanvasesOn();
   const { actions, rest } = usePaletteCommands(forumOn, canvasesOn);
 
   // The dialog paints first and the list follows a frame later, so the

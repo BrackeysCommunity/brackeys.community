@@ -51,6 +51,7 @@ const ctx: BannerContext = {
   signedIn: true,
   pathname: "/",
   now: Date.parse("2026-10-23"),
+  mobile: false,
 };
 
 /** A single collection, for the rules that don't care about ranking. */
@@ -96,6 +97,12 @@ describe("pickBanner", () => {
     const a = { ...base, hiddenOn: ["/canvases"] };
     expect(pickAnnouncement([a], { ...ctx, pathname: "/canvases/abc" })).toBeUndefined();
     expect(pickAnnouncement([a], { ...ctx, pathname: "/canvasesque" })).toBe(a);
+  });
+
+  it("keeps desktop-only banners off the mobile layout", () => {
+    const a = { ...base, desktopOnly: true };
+    expect(pickAnnouncement([a], { ...ctx, mobile: true })).toBeUndefined();
+    expect(pickAnnouncement([a], ctx)).toBe(a);
   });
 
   it("ranks collections, then banners within one, ahead of registry order", () => {

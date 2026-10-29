@@ -23,6 +23,8 @@ interface BannerRules {
   showForDays?: number;
   /** Path prefixes where the banner would only point at the page you're on. */
   hiddenOn?: string[];
+  /** Kept off the mobile layout, for features phones can't use yet. */
+  desktopOnly?: boolean;
 }
 
 export interface Announcement extends BannerRules {
@@ -80,6 +82,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     flag: "canvases-enabled",
     audience: "signed-in",
     hiddenOn: ["/canvases"],
+    desktopOnly: true,
   },
 ];
 

@@ -35,6 +35,7 @@ export interface BannerContext {
   signedIn: boolean;
   pathname: string;
   now: number;
+  mobile: boolean;
 }
 
 function isEligible(b: Banner, ctx: BannerContext): boolean {
@@ -46,6 +47,7 @@ function isEligible(b: Banner, ctx: BannerContext): boolean {
     (!b.flag || ctx.flags[b.flag]) &&
     (b.audience !== "signed-in" || ctx.signedIn) &&
     (!b.until || ctx.now < Date.parse(b.until)) &&
+    !(b.desktopOnly && ctx.mobile) &&
     !b.hiddenOn?.some((p) => ctx.pathname === p || ctx.pathname.startsWith(`${p}/`))
   );
 }
@@ -93,6 +95,7 @@ export function BannerSlot({ mobile }: { mobile: boolean }) {
           signedIn: !!userId,
           pathname,
           now,
+          mobile,
         })
       : undefined;
 

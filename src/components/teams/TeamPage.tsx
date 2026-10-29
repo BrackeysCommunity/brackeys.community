@@ -16,6 +16,7 @@ import {
   TeamCanvasesSection,
   TeamPublicCanvases,
 } from "@/components/canvas/TeamCanvasesSection";
+import { useCanvasesOn } from "@/components/canvas/use-canvases-on";
 import { CollabFunnelExplainer } from "@/components/collab/CollabFunnelExplainer";
 import { TeamDevlog } from "@/components/forum/TeamDevlog";
 import { Badge } from "@/components/ui/badge";
@@ -153,7 +154,7 @@ export function TeamPage({ team, onInvalidate }: { team: RpcTeam; onInvalidate: 
   const forumOn = useFlag("forum-enabled");
   const isStaffOutsider = team.isStaffViewer && !isMember;
   const isArchived = team.status === "archived";
-  const canvasesOn = useFlag("canvases-enabled");
+  const canvasesOn = useCanvasesOn();
   const isHidden = team.hiddenAt != null;
   const jamLog = team.projects.filter((p) => p.jamId != null || p.jamName);
   const showcase = team.projects;

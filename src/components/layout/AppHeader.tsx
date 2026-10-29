@@ -6,6 +6,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 
 import { SPOTLIGHT_TARGETS, spotlightTarget } from "@/components/announcements/spotlight";
 import { AttentionMenu } from "@/components/attention/AttentionMenu";
+import { useCanvasesOn } from "@/components/canvas/use-canvases-on";
 import { DeployEnvBadge } from "@/components/layout/DeployEnvMarker";
 import { SettingsMenu } from "@/components/layout/SettingsMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
@@ -111,7 +112,7 @@ export function AppHeader() {
   const { data: session } = authClient.useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const forumOn = useFlag("forum-enabled");
-  const canvasesOn = useFlag("canvases-enabled");
+  const canvasesOn = useCanvasesOn();
   const navItems = forumOn ? [FORUM_NAV_ITEM, ...NAV_ITEMS] : NAV_ITEMS;
 
   const PAGE_TITLES: Record<string, string> = {
