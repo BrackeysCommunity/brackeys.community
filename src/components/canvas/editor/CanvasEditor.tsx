@@ -670,8 +670,6 @@ function EditorInner({
         if ((e.target as HTMLElement | null)?.closest("button, a, [role='menuitem']")) return;
         e.preventDefault();
         setSpaceHeld(true);
-      } else if (e.key === "/" && !mod && !e.altKey && presence?.openChat()) {
-        e.preventDefault();
       } else if (!mod && !e.altKey && !e.shiftKey && key in TOOL_KEYS) {
         const picked = TOOL_KEYS[key as keyof typeof TOOL_KEYS];
         if (picked === "select" || picked === "hand") setTool(picked);
@@ -773,11 +771,40 @@ function EditorInner({
       else add({ type: "text", text: read.text }, at);
     };
 
+    // Capture phase, ahead of everything else: Firefox-family browsers bind
+    // "/" (and sometimes any typed key) to their find bar, which steals focus
+    // from the chat field unless the key is cancelled early on both keydown
+    // and keypress. Enter with nothing selected is the browser-safe trigger.
+    let swallowSlash = false;
+    const onChatKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || isEditableTarget(e.target)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const slash = e.key === "/";
+      const enter =
+        e.key === "Enter" &&
+        !e.shiftKey &&
+        selectedIds.length === 0 &&
+        !inOverlay() &&
+        !(e.target as HTMLElement | null)?.closest("button, a, [role='menuitem']");
+      if (!(slash || enter) || !presence?.openChat()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      swallowSlash = slash;
+    };
+    const onKeyPress = (e: KeyboardEvent) => {
+      if (!swallowSlash || e.key !== "/") return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === " ") setSpaceHeld(false);
+      if (e.key === "/") swallowSlash = false;
     };
     const onBlur = () => setSpaceHeld(false);
 
+    window.addEventListener("keydown", onChatKey, true);
+    window.addEventListener("keypress", onKeyPress, true);
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
@@ -785,6 +812,8 @@ function EditorInner({
     document.addEventListener("cut", onCut);
     document.addEventListener("paste", onPaste);
     return () => {
+      window.removeEventListener("keydown", onChatKey, true);
+      window.removeEventListener("keypress", onKeyPress, true);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);

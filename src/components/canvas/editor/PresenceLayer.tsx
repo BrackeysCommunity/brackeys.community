@@ -1,5 +1,5 @@
 import { useStore, ViewportPortal } from "@xyflow/react";
-import { memo, use } from "react";
+import { memo, use, useCallback, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -190,8 +190,6 @@ function ChatBubble({
   );
 }
 
-const focusOnMount = (input: HTMLInputElement | null) => input?.focus();
-
 /**
  * This tab's chat bubble at its own pointer: a field while open, then the
  * sent message until it lingers out. Peers see it live as it's typed.
@@ -199,6 +197,19 @@ const focusOnMount = (input: HTMLInputElement | null) => input?.focus();
 export function SelfChatBubble({ store }: { store: PresenceStore }) {
   const chat = useSelfChat();
   const zoom = useStore((s) => s.transform[2]);
+  const input = useRef<HTMLInputElement | null>(null);
+  const attachInput = useCallback((el: HTMLInputElement | null) => {
+    input.current = el;
+    el?.focus();
+  }, []);
+  // Browser UI (a find bar, another window) can take focus mid-message;
+  // the field stays open and picks focus back up when the page regains it.
+  useEffect(() => {
+    if (!chat.open) return;
+    const refocus = () => input.current?.focus();
+    window.addEventListener("focus", refocus);
+    return () => window.removeEventListener("focus", refocus);
+  }, [chat.open]);
   if (!chat.at || (!chat.open && !chat.text)) return null;
   return (
     <ViewportPortal>
@@ -212,7 +223,7 @@ export function SelfChatBubble({ store }: { store: PresenceStore }) {
         <ChatBubble color={store.self.color}>
           {chat.open ? (
             <input
-              ref={focusOnMount}
+              ref={attachInput}
               aria-label="Chat at your cursor"
               placeholder="Say something"
               maxLength={MAX_CHAT}
@@ -225,7 +236,9 @@ export function SelfChatBubble({ store }: { store: PresenceStore }) {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              onBlur={() => store.closeChat(true)}
+              onBlur={() => {
+                if (document.hasFocus()) store.closeChat(true);
+              }}
               className="nodrag nopan pointer-events-auto w-52 bg-transparent text-white outline-none placeholder:text-white/70"
             />
           ) : (
