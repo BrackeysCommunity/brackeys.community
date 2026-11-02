@@ -22,6 +22,7 @@ import {
 import { CANVAS_IMPORT_LIMITS, CANVAS_LIMITS } from "@/lib/canvas/limits";
 import { basename, joinPath, pathKey, pathKind, pathTitle, repairPath } from "@/lib/canvas/paths";
 
+import { dataUrlBytes, excalidrawToCanvas, isExcalidrawPath, parseExcalidraw } from "./excalidraw";
 import { formatBytes, isMarkdownPath, placeLoneNote, placeReferencedNote } from "./markdown-seam";
 
 export interface VaultEntry {
@@ -256,14 +257,82 @@ function parseCanvas(bytes: Uint8Array): JsonCanvas | null {
   }
 }
 
+function utf8(bytes: Uint8Array): string | null {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+interface ExpandedEntries {
+  entries: VaultEntry[];
+  /** What each converted canvas left out. */
+  notes: Map<VaultEntry, { path: string; reason: string }[]>;
+  unreadable: Set<VaultEntry>;
+  /** Images taken out of a scene: reported only through their canvas. */
+  generated: Set<VaultEntry>;
+}
+
+/**
+ * Each `.excalidraw` scene as the `.canvas` and images it converts to, so
+ * the rest of the import reads it like any canvas.
+ */
+function expandExcalidraw(entries: readonly VaultEntry[]): ExpandedEntries {
+  const out: ExpandedEntries = {
+    entries: [],
+    notes: new Map(),
+    unreadable: new Set(),
+    generated: new Set(),
+  };
+  if (!entries.some((e) => isExcalidrawPath(e.path))) {
+    out.entries = [...entries];
+    return out;
+  }
+  const taken = new Set(entries.map((e) => pathKey(e.path)));
+  const encoder = new TextEncoder();
+  for (const entry of entries) {
+    if (!isExcalidrawPath(entry.path)) {
+      out.entries.push(entry);
+      continue;
+    }
+    const stem = entry.path.slice(0, -".excalidraw".length);
+    let path = `${stem}.canvas`;
+    if (taken.has(pathKey(path))) path = `${stem} (Excalidraw).canvas`;
+    taken.add(pathKey(path));
+
+    const text = utf8(entry.bytes);
+    const scene = text ? parseExcalidraw(text) : null;
+    if (!scene) {
+      const canvas = { path, bytes: new Uint8Array() };
+      out.unreadable.add(canvas);
+      out.entries.push(canvas);
+      continue;
+    }
+    const converted = excalidrawToCanvas(scene, path);
+    const canvas = { path, bytes: encoder.encode(JSON.stringify(converted.canvas)) };
+    out.entries.push(canvas);
+    out.notes.set(canvas, converted.skipped);
+    for (const image of converted.images) {
+      const bytes = dataUrlBytes(image.dataUrl);
+      if (!bytes) continue;
+      const generated = { path: image.path, bytes };
+      out.generated.add(generated);
+      out.entries.push(generated);
+    }
+  }
+  return out;
+}
+
 /** What a vault holds, for choosing what to import. Cheap: canvases are parsed, nothing else is read. */
-export function scanVault(entries: readonly VaultEntry[]): {
+export function scanVault(source: readonly VaultEntry[]): {
   root: string;
   canvases: { sourcePath: string; nodes: number; valid: boolean }[];
   notes: number;
   images: number;
   other: number;
 } {
+  const { entries } = expandExcalidraw(source);
   const resolver = new VaultResolver(entries);
   const out = { root: resolver.root, canvases: [] as ScanCanvas[], notes: 0, images: 0, other: 0 };
   for (const entry of entries) {
@@ -321,10 +390,12 @@ const LOOSE_CARD = { w: 400, h: 300, gap: 40 };
  * import is over a cap, before anything has been uploaded or created.
  */
 export function importVault(
-  entries: readonly VaultEntry[],
+  source: readonly VaultEntry[],
   options: VaultImportOptions,
 ): VaultImportResult {
-  checkEntryLimits(entries.length, totalBytes(entries));
+  checkEntryLimits(source.length, totalBytes(source));
+  const expanded = expandExcalidraw(source);
+  const { entries } = expanded;
 
   const resolver = new VaultResolver(entries);
   const report: ImportReport = {
@@ -357,15 +428,21 @@ export function importVault(
     const sourcePath = resolver.vaultPath(entry);
     if (selected && !selected.has(sourcePath)) continue;
     used.add(entry);
-    const parsed = parseCanvas(entry.bytes);
+    const parsed = expanded.unreadable.has(entry) ? null : parseCanvas(entry.bytes);
     if (!parsed) {
-      report.skipped.push({ path: sourcePath, reason: "Not a readable JSON Canvas file." });
+      report.skipped.push({
+        path: sourcePath,
+        reason: expanded.unreadable.has(entry)
+          ? "Not a readable Excalidraw file."
+          : "Not a readable JSON Canvas file.",
+      });
       continue;
     }
     const index = canvases.length;
     const docFields: Record<string, DocOnlyFields> = {};
     const line = (path: string, reason: string) =>
       report.skipped.push({ path, canvas: sourcePath, reason });
+    for (const note of expanded.notes.get(entry) ?? []) line(note.path, note.reason);
 
     for (const node of parsed.nodes) {
       if (node.type === "group" && typeof node.background === "string" && node.background) {
@@ -460,7 +537,7 @@ export function importVault(
   }
 
   for (const entry of entries) {
-    if (used.has(entry)) continue;
+    if (used.has(entry) || expanded.generated.has(entry)) continue;
     const path = resolver.vaultPath(entry);
     const kind = kindOf(path);
     if (kind === "canvas") continue;

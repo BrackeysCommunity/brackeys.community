@@ -252,7 +252,7 @@ export function CanvasesBrowsePage({
             <div className="flex shrink-0 items-center gap-2">
               <Button variant="outline" onClick={() => setImporting(true)}>
                 <HugeiconsIcon icon={Upload04Icon} size={14} />
-                Import from Obsidian
+                Import
               </Button>
               <Button onClick={() => setCreating(true)}>
                 <HugeiconsIcon icon={Add01Icon} size={14} />

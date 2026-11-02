@@ -59,6 +59,7 @@ import {
   stateOverCap,
   writeCanvasClipboard,
 } from "../io/clipboard";
+import { excalidrawToCanvas, parseExcalidraw } from "../io/excalidraw";
 import { ImageTooLargeError } from "../io/prepare-image";
 import { captureDrop, hasDirectory, readCapturedDrop } from "../io/read-drop";
 import { type ImportIntoCanvas, useCanvasImport } from "../io/use-canvas-import";
@@ -176,7 +177,8 @@ function imageSize(url: string): Promise<{ w: number; h: number }> {
 }
 
 /** Files the drop handler imports rather than uploads as images. */
-const IMPORTABLE = /\.(canvas|zip|md)$/i;
+const IMPORTABLE = /\.(canvas|zip|md|excalidraw)$/i;
+const PASTED_EXCALIDRAW = "Excalidraw.excalidraw";
 
 export type CanvasPanel = "history" | "outline" | null;
 
@@ -636,6 +638,7 @@ function EditorInner({
     center: centerOfView,
     onCreated: selectOnly,
   });
+  const { importDropped } = importer;
 
   useEffect(
     () =>
@@ -771,7 +774,13 @@ function EditorInner({
       e.preventDefault();
       if (read.kind === "canvas")
         insertFragment(read.canvas, pasteOrigin(read.canvas, at), read.fields);
-      else if (read.kind === "images") void uploadImage(read.files[0]!, at);
+      else if (read.kind === "excalidraw") {
+        // Through the import, so its images upload and what's left out is reported.
+        const scene = parseExcalidraw(read.text)!;
+        const origin = pasteOrigin(excalidrawToCanvas(scene, PASTED_EXCALIDRAW).canvas, at);
+        const file = new File([read.text], PASTED_EXCALIDRAW, { type: "application/json" });
+        importDropped([{ path: PASTED_EXCALIDRAW, file }], origin);
+      } else if (read.kind === "images") void uploadImage(read.files[0]!, at);
       else if (read.kind === "url") add({ type: "link", url: read.url, w: 320, h: 90 }, at);
       else add({ type: "text", text: read.text }, at);
     };
@@ -835,6 +844,7 @@ function EditorInner({
     doc,
     edges,
     flow,
+    importDropped,
     insertFragment,
     presence,
     selectedIds,
@@ -844,7 +854,6 @@ function EditorInner({
     view,
   ]);
 
-  const { importDropped } = importer;
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
