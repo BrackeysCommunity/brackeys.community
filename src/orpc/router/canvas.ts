@@ -77,6 +77,7 @@ import { EVENTS } from "@/lib/event-taxonomy";
 import { forumPostParam, forumPostTitle } from "@/lib/forum-posts";
 import { NOT_GUILD_MEMBER_MESSAGE } from "@/lib/guild-gate";
 import { jamSlug } from "@/lib/jam-links";
+import { markdownToPlainText } from "@/lib/markdown-text";
 import { memberAvatarUrl, memberDisplayName, memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { notify } from "@/lib/notifications";
@@ -1185,6 +1186,7 @@ export const getCanvasEntities = os
             .select({
               id: developerProfiles.id,
               tagline: developerProfiles.tagline,
+              bio: developerProfiles.bio,
               ...profileIdentityColumns,
             })
             .from(developerProfiles)
@@ -1239,7 +1241,7 @@ export const getCanvasEntities = os
         kind: "profile",
         id: profile.id,
         title: memberDisplayName(profile, viewer, "Member"),
-        subtitle: profile.tagline,
+        subtitle: profile.tagline?.trim() || markdownToPlainText(profile.bio, 200) || null,
         imageUrl: memberAvatarUrl(profile, viewer),
         href: `/profile/${profileSlug({ id: profile.id, urlStub: profile.urlStub })}`,
       });
