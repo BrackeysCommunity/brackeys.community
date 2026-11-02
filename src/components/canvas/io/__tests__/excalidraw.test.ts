@@ -4,7 +4,8 @@ import * as Y from "yjs";
 import { docToJsonCanvas } from "@/lib/canvas/json-canvas";
 
 import { readCanvasClipboard } from "../clipboard";
-import { excalidrawToCanvas, parseExcalidraw, presetFor } from "../excalidraw";
+import { excalidrawToCanvas, parseExcalidraw } from "../excalidraw";
+import { presetFor } from "../preset-color";
 import { importVault, scanVault } from "../vault-import";
 import { entry, PNG } from "./vault-fixtures";
 

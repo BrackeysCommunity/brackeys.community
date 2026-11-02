@@ -60,6 +60,7 @@ import {
   writeCanvasClipboard,
 } from "../io/clipboard";
 import { excalidrawToCanvas, parseExcalidraw } from "../io/excalidraw";
+import { mermaidToCanvas } from "../io/mermaid";
 import { ImageTooLargeError } from "../io/prepare-image";
 import { captureDrop, hasDirectory, readCapturedDrop } from "../io/read-drop";
 import { type ImportIntoCanvas, useCanvasImport } from "../io/use-canvas-import";
@@ -177,7 +178,7 @@ function imageSize(url: string): Promise<{ w: number; h: number }> {
 }
 
 /** Files the drop handler imports rather than uploads as images. */
-const IMPORTABLE = /\.(canvas|zip|md|excalidraw)$/i;
+const IMPORTABLE = /\.(canvas|zip|md|excalidraw|mmd|mermaid)$/i;
 const PASTED_EXCALIDRAW = "Excalidraw.excalidraw";
 
 export type CanvasPanel = "history" | "outline" | null;
@@ -780,6 +781,18 @@ function EditorInner({
         const origin = pasteOrigin(excalidrawToCanvas(scene, PASTED_EXCALIDRAW).canvas, at);
         const file = new File([read.text], PASTED_EXCALIDRAW, { type: "application/json" });
         importDropped([{ path: PASTED_EXCALIDRAW, file }], origin);
+      } else if (read.kind === "mermaid") {
+        const text = read.text;
+        void mermaidToCanvas(text).then(
+          (canvas) => insertFragment(canvas, pasteOrigin(canvas, at)),
+          (error: unknown) => {
+            // Kept as text, so nothing pasted is lost.
+            add({ type: "text", text: text.slice(0, CANVAS_LIMITS.maxCardText) }, at);
+            toast.error(
+              `Pasted as text: Mermaid couldn't read that diagram. ${error instanceof Error ? error.message : ""}`.trim(),
+            );
+          },
+        );
       } else if (read.kind === "images") void uploadImage(read.files[0]!, at);
       else if (read.kind === "url") add({ type: "link", url: read.url, w: 320, h: 90 }, at);
       else add({ type: "text", text: read.text }, at);

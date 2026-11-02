@@ -62,8 +62,8 @@ function percent(progress: CanvasIoProgress): number | null {
 }
 
 /**
- * Import from Obsidian or Excalidraw: a `.canvas`, a vault `.zip`, a
- * folder, loose notes and images, or a `.excalidraw` scene. In `new` mode each chosen canvas becomes a canvas in
+ * Import from Obsidian, Excalidraw or Mermaid: a `.canvas`, a vault `.zip`,
+ * a folder, loose notes and images, a `.excalidraw` scene or a `.mmd` diagram. In `new` mode each chosen canvas becomes a canvas in
  * the scope; in `into` mode they land on the open canvas, through
  * `importInto`.
  */
@@ -252,7 +252,7 @@ export function ImportDialog({
       open={open}
       onClose={close}
       title={mode === "into" ? "Import into this canvas" : "Import canvases"}
-      description="Obsidian canvases, zipped vaults and folders, notes and images, or Excalidraw drawings."
+      description="Obsidian canvases, zipped vaults and folders, notes and images, Excalidraw drawings, or Mermaid diagrams."
       className="sm:max-w-lg"
       footer={footer}
     >
@@ -281,13 +281,14 @@ export function ImportDialog({
               </Button>
             </div>
             <Text as="p" size="xs" variant="muted">
-              Pasting works too: shapes copied from Excalidraw, or cards from Obsidian in Chrome.
+              Pasting works too: Mermaid text, shapes copied from Excalidraw, or cards from Obsidian
+              in Chrome.
             </Text>
             <input
               ref={fileInput}
               type="file"
               multiple
-              accept=".canvas,.excalidraw,.zip,.md,image/png,image/jpeg,image/gif,image/webp"
+              accept=".canvas,.excalidraw,.mmd,.mermaid,.zip,.md,image/png,image/jpeg,image/gif,image/webp"
               className="hidden"
               onChange={(e) => {
                 if (e.target.files) void scan(filesFromInput(e.target.files));

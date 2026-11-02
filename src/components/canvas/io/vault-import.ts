@@ -231,6 +231,8 @@ const EXTENSION_NAMES: Record<string, string> = {
   webm: "Audio and video files",
   mp4: "Video files",
   mov: "Video files",
+  mmd: "Mermaid diagrams inside a zip",
+  mermaid: "Mermaid diagrams inside a zip",
 };
 
 function unsupportedReason(path: string, onCard = true): string {

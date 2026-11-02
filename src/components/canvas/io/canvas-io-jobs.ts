@@ -36,6 +36,8 @@ type Progress = (progress: CanvasIoProgress) => void;
 export interface ImportSource {
   zip?: Blob;
   files?: { path: string; file: Blob }[];
+  /** Files the page couldn't convert before the job (Mermaid), and why. */
+  skipped?: { path: string; reason: string }[];
 }
 
 /** An image ready to upload: prepared bytes, their sha256, or why it can't go. */
@@ -153,7 +155,11 @@ export async function runImportJob(
     progress({ phase: "preparing", done: i, total: result.images.length });
     images.push(await prepareJob(job));
   }
-  return { kind: "import", canvases: result.canvases, images, report: result.report };
+  const report = {
+    ...result.report,
+    skipped: [...(input.source.skipped ?? []), ...result.report.skipped],
+  };
+  return { kind: "import", canvases: result.canvases, images, report };
 }
 
 export async function runPrepareImageJob(file: File): Promise<File> {

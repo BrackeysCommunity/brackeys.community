@@ -12,7 +12,7 @@
  *
  * Paste reads `obsidian/canvas`, then our HTML payload, then `text/plain`
  * that parses as JSON Canvas, then Excalidraw's copied JSON (imported, so
- * its images upload), then image files, then a single URL, then any text. One copy of ours writes both canvas types; when both are there and
+ * its images upload), then a Mermaid diagram, then image files, then a single URL, then any text. One copy of ours writes both canvas types; when both are there and
  * hold the same cards, the HTML payload wins, being the lossless one.
  *
  * Pure: no DOM.
@@ -30,6 +30,7 @@ import {
 import { CANVAS_IMPORT_LIMITS, CANVAS_LIMITS } from "@/lib/canvas/limits";
 
 import { parseExcalidraw } from "./excalidraw";
+import { mermaidSource } from "./mermaid";
 
 export const OBSIDIAN_CANVAS_TYPE = "obsidian/canvas";
 export const CANVAS_HTML_ATTRIBUTE = "data-jams-team-canvas";
@@ -133,6 +134,7 @@ export type CanvasClipboardRead =
     }
   | { kind: "images"; files: File[] }
   | { kind: "excalidraw"; text: string }
+  | { kind: "mermaid"; text: string }
   | { kind: "url"; url: string }
   | { kind: "text"; text: string };
 
@@ -210,6 +212,8 @@ export function readCanvasClipboard(
   const json = parseCanvasText(plain);
   if (json) return { kind: "canvas", source: "json", canvas: json, fields: {} };
   if (parseExcalidraw(plain)) return { kind: "excalidraw", text: plain };
+  const mermaid = mermaidSource(plain);
+  if (mermaid) return { kind: "mermaid", text: mermaid };
 
   const images = files.filter((f) => f.type.startsWith("image/"));
   if (images.length) return { kind: "images", files: images };
