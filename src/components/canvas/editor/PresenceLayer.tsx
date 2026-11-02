@@ -1,20 +1,21 @@
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { EditorState } from "@codemirror/state";
+import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { useStore, ViewportPortal } from "@xyflow/react";
-import { memo, use, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { memo, use, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
-  type Suggestion,
-  type SuggestionTrigger,
-  SuggestionList,
-  useTextSuggestions,
-} from "@/components/ui/text-suggestions";
+  capLength,
+  emojisChanged,
+  guildShortcodes,
+  useEditorSuggestions,
+} from "@/components/ui/editor-suggestions";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { withEmojiShortcodes } from "@/components/ui/typography/emoji";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { MAX_CHAT, type PresenceUser } from "@/lib/canvas/presence";
 import { useGuildEmojis } from "@/lib/hooks/use-guild-emojis";
-import { findTrigger } from "@/lib/textarea-autocomplete";
-import { unicodeEmojiFor } from "@/lib/unicode-emoji";
 import { cn } from "@/lib/utils";
 
 import {
@@ -206,128 +207,108 @@ function ChatText({ text }: { text: string }) {
   return withEmojiShortcodes(text, emojis);
 }
 
-type ChatTrigger = SuggestionTrigger & { to: number };
-
-const FINISHED_SHORTCODE = /(^|[\s([{]):([\w+-]{2,32}):$/;
+const chatTheme = EditorView.theme({
+  "&": { width: "13rem", backgroundColor: "transparent", color: "white" },
+  "&.cm-focused": { outline: "none" },
+  ".cm-scroller": { fontFamily: "inherit", lineHeight: "inherit", overflow: "hidden" },
+  ".cm-content": { padding: 0, caretColor: "white" },
+  ".cm-line": { padding: 0 },
+  ".cm-placeholder": { color: "rgb(255 255 255 / 0.7)" },
+  ".cm-cursor": { borderLeftColor: "white" },
+});
 
 /**
- * The chat field: `:` offers emojis (inserted as the character, or as
- * `:name:` for the guild's own), and a typed-out standard `:name:` becomes
- * its character. Enter sends, Escape drops it, unless the list is open.
+ * The chat field. Its value stays plain text (guild emojis as `:name:`),
+ * but they're drawn as the emoji as you type. `:` offers emojis; Enter
+ * sends and Escape drops the message, unless the list is open.
  */
 function ChatInput({
-  value,
+  initial,
   onChange,
   onClose,
 }: {
-  value: string;
+  initial: string;
   onChange: (text: string) => void;
   onClose: (send: boolean) => void;
 }) {
-  const input = useRef<HTMLInputElement | null>(null);
-  const caretAfter = useRef<number | null>(null);
-  const listId = useId();
-  const [caret, setCaret] = useState(value.length);
-  const found = findTrigger(value, caret);
-  const trigger: ChatTrigger | null =
-    found?.kind === "emoji" ? { ...found, from: found.start, to: caret } : null;
-  const { live, suggestions, active, unicodeEmojis, setActive, move, dismiss } =
-    useTextSuggestions(trigger);
+  const host = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const suggest = useEditorSuggestions(viewRef, { guildEmoji: (e) => `:${e.name}:` });
+  const emojis = useRef(suggest.emojis);
+  emojis.current = suggest.emojis;
+  const handlers = useRef({ onChange, onClose });
+  handlers.current = { onChange, onClose };
 
-  const attachInput = useCallback((el: HTMLInputElement | null) => {
-    input.current = el;
-    el?.focus();
-  }, []);
-  // Browser UI (a find bar, another window) can take focus mid-message;
-  // the field stays open and picks focus back up when the page regains it.
   useEffect(() => {
-    const refocus = () => input.current?.focus();
+    if (!host.current) return;
+    let tearingDown = false;
+    const view = new EditorView({
+      parent: host.current,
+      state: EditorState.create({
+        doc: initial,
+        extensions: [
+          suggest.extensions,
+          keymap.of([
+            { key: "Enter", run: () => (handlers.current.onClose(true), true) },
+            { key: "Escape", run: () => (handlers.current.onClose(false), true) },
+            ...historyKeymap,
+            ...defaultKeymap,
+          ]),
+          history(),
+          placeholder("Say something"),
+          capLength(MAX_CHAT),
+          // One line: a pasted break becomes a space.
+          EditorView.clipboardInputFilter.of((text) => text.replace(/\s*[\r\n]+\s*/g, " ")),
+          EditorState.transactionFilter.of((tr) => (tr.newDoc.lines > 1 ? [] : tr)),
+          guildShortcodes(() => emojis.current),
+          chatTheme,
+          EditorView.contentAttributes.of({
+            "aria-label": "Chat at your cursor",
+            "aria-autocomplete": "list",
+          }),
+          EditorView.updateListener.of((u) => {
+            if (u.docChanged) handlers.current.onChange(u.state.doc.toString());
+          }),
+          EditorView.domEventHandlers({
+            // Enter and Escape belong to the field, not the canvas around it.
+            keydown: (e) => {
+              if (e.key === "Enter" || e.key === "Escape") e.stopPropagation();
+              return false;
+            },
+            blur: () => {
+              if (!tearingDown && document.hasFocus()) handlers.current.onClose(true);
+              return false;
+            },
+          }),
+        ],
+      }),
+    });
+    viewRef.current = view;
+    view.focus();
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    // Browser UI (a find bar, another window) can take focus mid-message;
+    // the field stays open and picks focus back up when the page regains it.
+    const refocus = () => view.focus();
     window.addEventListener("focus", refocus);
-    return () => window.removeEventListener("focus", refocus);
+    return () => {
+      tearingDown = true;
+      window.removeEventListener("focus", refocus);
+      viewRef.current = null;
+      view.destroy();
+    };
+    // Built once per open; the value flows out through `onChange`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useLayoutEffect(() => {
-    if (caretAfter.current == null || !input.current) return;
-    input.current.setSelectionRange(caretAfter.current, caretAfter.current);
-    caretAfter.current = null;
-  });
 
-  const replace = (from: number, to: number, insert: string) => {
-    const next = (value.slice(0, from) + insert + value.slice(to)).slice(0, MAX_CHAT);
-    const at = Math.min(from + insert.length, next.length);
-    caretAfter.current = at;
-    setCaret(at);
-    onChange(next);
-  };
-
-  const pick = (s: Suggestion) => {
-    if (!live) return;
-    if (s.kind === "emoji") replace(live.from, live.to, `:${s.emoji.name}: `);
-    else if (s.kind === "unicode") replace(live.from, live.to, `${s.emoji} `);
-  };
-
-  const anchor = {
-    get contextElement() {
-      return input.current ?? undefined;
-    },
-    getBoundingClientRect: () => input.current?.getBoundingClientRect() ?? new DOMRect(),
-  };
+  // Emojis typed before the guild's list arrived get drawn once it does.
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: emojisChanged.of(null) });
+  }, [suggest.emojis]);
 
   return (
     <>
-      <input
-        ref={attachInput}
-        aria-label="Chat at your cursor"
-        role="combobox"
-        aria-autocomplete="list"
-        aria-expanded={suggestions.length > 0}
-        aria-controls={suggestions.length > 0 ? listId : undefined}
-        aria-activedescendant={suggestions.length > 0 ? `${listId}-${active}` : undefined}
-        placeholder="Say something"
-        maxLength={MAX_CHAT}
-        value={value}
-        onChange={(e) => {
-          const at = e.target.selectionStart ?? e.target.value.length;
-          const before = e.target.value.slice(0, at);
-          const finished = before.endsWith(":") ? FINISHED_SHORTCODE.exec(before) : null;
-          const standard = finished && unicodeEmojiFor(unicodeEmojis, finished[2]!);
-          if (finished && standard) {
-            const from = finished.index + finished[1]!.length;
-            const next = e.target.value.slice(0, from) + standard + e.target.value.slice(at);
-            caretAfter.current = from + standard.length;
-            setCaret(from + standard.length);
-            onChange(next);
-            return;
-          }
-          setCaret(at);
-          onChange(e.target.value);
-        }}
-        onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? value.length)}
-        onKeyDown={(e) => {
-          if (suggestions.length > 0) {
-            if (e.key === "ArrowDown" || e.key === "ArrowUp") move(e.key === "ArrowDown" ? 1 : -1);
-            else if (e.key === "Enter" || e.key === "Tab") pick(suggestions[active]!);
-            else if (e.key === "Escape") dismiss();
-            else return;
-          } else if (e.key === "Enter") onClose(true);
-          else if (e.key === "Escape") onClose(false);
-          else return;
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onBlur={() => {
-          if (document.hasFocus()) onClose(true);
-        }}
-        className="nodrag nopan pointer-events-auto w-52 bg-transparent text-white outline-none placeholder:text-white/70"
-      />
-      <SuggestionList
-        id={listId}
-        anchor={anchor}
-        suggestions={suggestions}
-        active={active}
-        onActive={setActive}
-        onPick={pick}
-        onDismiss={dismiss}
-      />
+      <div ref={host} className="nodrag nopan nokey pointer-events-auto cursor-text" />
+      {suggest.list}
     </>
   );
 }
@@ -352,7 +333,7 @@ export function SelfChatBubble({ store }: { store: PresenceStore }) {
         <ChatBubble color={store.self.color}>
           {chat.open ? (
             <ChatInput
-              value={chat.text}
+              initial={chat.text}
               onChange={(text) => store.typeChat(text)}
               onClose={(send) => store.closeChat(send)}
             />

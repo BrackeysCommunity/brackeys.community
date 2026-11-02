@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { EditorView } from "@codemirror/view";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
@@ -85,7 +86,10 @@ vi.mock("@/orpc/client", () => ({
   },
   orpc: {
     listGuildEmojis: {
-      queryOptions: () => ({ queryKey: ["guildEmojis"], queryFn: async () => [] }),
+      queryOptions: () => ({
+        queryKey: ["guildEmojis"],
+        queryFn: async () => [{ id: "123456789012345678", name: "partyblob", animated: false }],
+      }),
     },
     searchProfiles: {
       queryOptions: () => ({ queryKey: ["searchProfiles"], queryFn: async () => [] }),
@@ -317,8 +321,11 @@ describe("presence on a live canvas", () => {
     fireEvent.pointerMove(host, { clientX: 100, clientY: 120 });
     fireEvent.keyDown(window, { key: "/" });
     const input = await screen.findByLabelText("Chat at your cursor");
-    fireEvent.change(input, { target: { value: "on my way" } });
-    expect(awareness.getLocalState()?.chat).toBe("on my way");
+    const field = EditorView.findFromDOM(input.closest(".cm-editor") as HTMLElement)!;
+    act(() => field.dispatch({ changes: { from: 0, insert: "on my way :partyblob:" } }));
+    expect(awareness.getLocalState()?.chat).toBe("on my way :partyblob:");
+    // The guild emoji is drawn in the field itself, not left as its name.
+    await waitFor(() => expect(input.querySelector('img[alt=":partyblob:"]')).not.toBeNull());
     fireEvent.keyDown(input, { key: "Escape" });
     expect(awareness.getLocalState()?.chat).toBeNull();
     expect(screen.queryByLabelText("Chat at your cursor")).toBeNull();
