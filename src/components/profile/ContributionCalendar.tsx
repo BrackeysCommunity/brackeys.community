@@ -258,17 +258,15 @@ export function CalendarGrid({
 
   // party.js is pulled in only once someone actually clears a board, so the
   // profile route doesn't carry a particle engine for a game most visitors
-  // never start. It reads the DOM on first use, hence the dynamic import.
+  // never start.
   useEffect(() => {
     if (!playing || !game.won || reducedMotion) return;
     let cancelled = false;
     void (async () => {
-      // `.default` rather than a named import: the package re-exports its
-      // templates through `__exportStar`, which the CJS interop can't see.
-      const party = (await import("party-js")).default;
+      const { confetti, range } = await import("party-js");
       const board = boardRef.current;
       if (cancelled || !board) return;
-      party.confetti(board, { count: party.variation.range(40, 60) });
+      confetti(board, { count: range(40, 60) });
     })();
     return () => {
       cancelled = true;

@@ -9,7 +9,8 @@ import { AppSettingsProvider } from "@/lib/hooks/use-app-settings";
 
 const confetti = vi.fn();
 vi.mock("party-js", () => ({
-  default: { confetti: (...args: unknown[]) => confetti(...args), variation: { range: () => 1 } },
+  confetti: (...args: unknown[]) => confetti(...args),
+  range: () => 1,
 }));
 
 // The snake starts at column 0, row 3, already heading right, and one tick
