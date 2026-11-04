@@ -327,5 +327,29 @@ export function createSummarizer(deps: {
     }, undefined);
   }
 
-  return { summarize, invalidate };
+  /**
+   * Members asking for the same summary while one is being made share it,
+   * rather than each paging the channel and paying for the model again.
+   * Joiners see it as cached, so it is counted once.
+   */
+  const inFlight = new Map<string, Promise<Summary>>();
+  function summarizeShared(
+    channelId: string,
+    window: SummaryWindow,
+    options: Parameters<typeof summarize>[2] = {},
+  ): Promise<Summary> {
+    const key = [
+      channelId,
+      window,
+      options.question ?? "",
+      window === SINCE_MINE ? (options.requesterId ?? "") : "",
+    ].join("\0");
+    const pending = inFlight.get(key);
+    if (pending) return pending.then((summary) => ({ ...summary, finalCached: true }));
+    const run = summarize(channelId, window, options).finally(() => inFlight.delete(key));
+    inFlight.set(key, run);
+    return run;
+  }
+
+  return { summarize: summarizeShared, invalidate };
 }

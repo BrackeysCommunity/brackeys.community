@@ -273,4 +273,15 @@ describe("summarize", () => {
     expect(summary.messageCount).toBeLessThanOrEqual(MAX_FETCH);
     expect(pages()).toBeLessThanOrEqual(MAX_FETCH / 100 + 2);
   });
+
+  test("concurrent requests for the same summary share one run", async () => {
+    const { summarizer, calls } = setup(spread(NOW - 6 * HOUR, NOW, 600));
+    const [first, second] = await Promise.all([
+      summarizer.summarize(CHANNEL, "6h", { now: NOW }),
+      summarizer.summarize(CHANNEL, "6h", { now: NOW }),
+    ]);
+    expect(second.text).toBe(first.text);
+    expect(calls.final).toHaveLength(1);
+    expect([first.finalCached, second.finalCached]).toEqual([false, true]);
+  });
 });

@@ -6,8 +6,10 @@
  *
  * Railway egress IPs are shared across tenants, and a Cloudflare 1015 ban
  * on discord.com takes OAuth sign-in down with it (better-auth's token
- * exchange hits the same zone). So any 429 opens a Redis-backed backoff
- * window that every caller in every process honours, and Redis being down
+ * exchange hits the same zone). So a 429 that speaks for the IP opens a
+ * Redis-backed backoff window that every caller in every process honours.
+ * A 429 from one route's own bucket does not: it says nothing about the IP,
+ * and the caller that ran its bucket dry is the one to wait. Redis being down
  * must never hurt more than Discord being down: the plumbing swallows its
  * own errors.
  *
@@ -34,6 +36,16 @@ export class DiscordBackoffError extends Error {
   }
 }
 
+/**
+ * A 429 from one route's bucket (`user`) or a shared resource (`shared`),
+ * as opposed to the global limit or a Cloudflare 429, which carries no
+ * scope at all.
+ */
+export function isRouteLimit(response: Response): boolean {
+  const scope = response.headers.get("x-ratelimit-scope");
+  return scope === "user" || scope === "shared";
+}
+
 function parseRetryAfter(response: Response): number {
   const header = Number(response.headers.get("retry-after"));
   return Number.isFinite(header) && header > 0 ? header : DEFAULT_BACKOFF_SECONDS;
@@ -41,9 +53,9 @@ function parseRetryAfter(response: Response): number {
 
 /**
  * A fetch for discord.com that fails fast while the shared backoff window
- * is active, and opens or extends that window on any 429, whichever caller
- * provoked it: the thing being protected is the shared egress IP, not a
- * per-route budget.
+ * is active, and opens or extends that window on a global or Cloudflare
+ * 429, whichever caller provoked it: the thing being protected is the
+ * shared egress IP, not a per-route budget.
  */
 export function createDiscordGuard(getRedis: () => Promise<GuardRedis>) {
   async function backoffUntil(): Promise<number | null> {
@@ -77,7 +89,8 @@ export function createDiscordGuard(getRedis: () => Promise<GuardRedis>) {
     const until = await backoffUntil();
     if (until) throw new DiscordBackoffError(until);
     const response = await fetch(url, init);
-    if (response.status === 429) await openBackoffWindow(parseRetryAfter(response));
+    if (response.status === 429 && !isRouteLimit(response))
+      await openBackoffWindow(parseRetryAfter(response));
     return response;
   };
 }
