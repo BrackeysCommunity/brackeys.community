@@ -11,6 +11,7 @@ import { env, siteOrigin } from "@/env";
 import { cleanupUserData } from "@/lib/account-deletion";
 import { sendEmail } from "@/lib/email";
 import { EVENTS } from "@/lib/event-taxonomy";
+import { githubRefreshAccessToken } from "@/lib/github-refresh";
 import { GITLAB_INSTANCES } from "@/lib/gitlab-instances";
 import { gitlabOAuthConfigs } from "@/lib/gitlab-oauth";
 import { applyGuildBanOnSignIn } from "@/lib/guild-ban-gate";
@@ -40,6 +41,10 @@ export const auth = betterAuth({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
       scope: ["read:user"],
+      refreshAccessToken: githubRefreshAccessToken(
+        process.env.GITHUB_CLIENT_ID!,
+        process.env.GITHUB_CLIENT_SECRET!,
+      ),
       // Linking only. Discord is the sole way to become a user here, and
       // the `user.create` hook below reports every signup as one.
       disableSignUp: true,

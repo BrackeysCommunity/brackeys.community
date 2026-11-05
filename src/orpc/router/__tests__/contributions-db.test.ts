@@ -1,4 +1,5 @@
 import { call } from "@orpc/server";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { developerProfiles, linkedAccounts, user } from "@/db/schema";
@@ -21,7 +22,7 @@ vi.mock("@/lib/gitlab", async (importOriginal) => ({
 }));
 vi.mock("@/lib/github-token", () => ({ freshGitHubToken: vi.fn() }));
 
-const { fetchContributionCalendar } = await import("@/lib/github");
+const { fetchContributionCalendar, GitHubApiError } = await import("@/lib/github");
 const { fetchGitLabCalendar } = await import("@/lib/gitlab");
 const { freshGitHubToken } = await import("@/lib/github-token");
 const githubMock = vi.mocked(fetchContributionCalendar);
@@ -159,6 +160,63 @@ describe("getContributions", () => {
 
     expect(await call(getContributions, { userId: "u1" }, asUser(null))).toBeNull();
     expect(githubMock).not.toHaveBeenCalled();
+  });
+
+  describe("GitHub token health", () => {
+    async function invalidAt() {
+      const [row] = await db
+        .select({ at: linkedAccounts.tokenInvalidAt })
+        .from(linkedAccounts)
+        .where(eq(linkedAccounts.provider, "github"));
+      return row.at;
+    }
+
+    it("flags the link for reconnecting when GitHub answers 401", async () => {
+      await seedUser(db, "u1");
+      await link("u1", "github", "yasa");
+      githubMock.mockRejectedValue(new GitHubApiError("GitHub GraphQL error (401)", 401));
+
+      await call(getContributions, { userId: "u1" }, asUser(null));
+
+      expect(await invalidAt()).toBeInstanceOf(Date);
+    });
+
+    it("flags it when there is no token left to try", async () => {
+      await seedUser(db, "u1");
+      await db.insert(linkedAccounts).values({
+        profileId: "u1",
+        provider: "github",
+        providerUserId: "github-1",
+        providerUsername: "yasa",
+        accessToken: null,
+      });
+      tokenMock.mockResolvedValue(null);
+
+      await call(getContributions, { userId: "u1" }, asUser(null));
+
+      expect(await invalidAt()).toBeInstanceOf(Date);
+    });
+
+    it("leaves it alone when GitHub is having a bad minute", async () => {
+      await seedUser(db, "u1");
+      await link("u1", "github", "yasa");
+      githubMock.mockRejectedValue(new GitHubApiError("GitHub GraphQL error (502)", 502));
+
+      await call(getContributions, { userId: "u1" }, asUser(null));
+
+      expect(await invalidAt()).toBeNull();
+    });
+
+    it("clears the flag once the graph loads again", async () => {
+      await seedUser(db, "u1");
+      await link("u1", "github", "yasa");
+      await db.update(linkedAccounts).set({ tokenInvalidAt: new Date() });
+      githubMock.mockResolvedValue(githubCalendar(today, 1));
+
+      await call(getContributions, { userId: "u1" }, asUser(null));
+
+      expect(await invalidAt()).toBeNull();
+    });
   });
 
   it("ignores a linked account no forge in the registry owns", async () => {

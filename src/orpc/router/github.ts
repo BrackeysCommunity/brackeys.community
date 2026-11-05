@@ -53,6 +53,7 @@ export const syncGitHubLink = os
         providerProfileUrl: ghUser.html_url ?? null,
         accessToken: sealed,
         scopes: "read:user",
+        tokenInvalidAt: null,
         linkedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -65,6 +66,7 @@ export const syncGitHubLink = os
           providerProfileUrl: ghUser.html_url ?? null,
           accessToken: sealed,
           scopes: "read:user",
+          tokenInvalidAt: null,
           updatedAt: new Date(),
         },
       })

@@ -1,8 +1,11 @@
 import { ContributionCalendar } from "@/components/profile/ContributionCalendar";
 import { GitHubContributionsNote } from "@/components/profile/GitHubContributionsNote";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 
 import { ProfileEmptyState } from "./ProfileEmptyState";
+import { linkGithub } from "./ProfileLinkedAccounts";
 import { ProfileSectionHeader } from "./ProfileSectionHeader";
 
 interface ProfileActivitySectionProps {
@@ -15,6 +18,9 @@ interface ProfileActivitySectionProps {
    * see nothing at all. */
   githubUsername: string | null;
   isOwner: boolean;
+  /** Owner-only: GitHub stopped accepting the stored grant, so the graph
+   *  can't load until the member links again. */
+  githubNeedsReconnect?: boolean;
 }
 
 /**
@@ -29,6 +35,7 @@ export function ProfileActivitySection({
   profileId,
   githubUsername,
   isOwner,
+  githubNeedsReconnect = false,
 }: ProfileActivitySectionProps) {
   if (!githubUsername) {
     if (!isOwner) return null;
@@ -63,9 +70,21 @@ export function ProfileActivitySection({
       <Well className="overflow-hidden">
         <ContributionCalendar userId={profileId} />
       </Well>
-      {/* Owner-only: a visitor can't act on it, and a graph that looks
+      {/* Owner-only: a visitor can't act on either, and a graph that looks
           emptier than the member's GitHub is the owner's question. */}
-      {isOwner ? <GitHubContributionsNote /> : null}
+      {isOwner && githubNeedsReconnect ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Text size="xs" variant="muted" className="text-balance">
+            GitHub stopped accepting this link, so the graph can&apos;t load. Reconnect to bring it
+            back.
+          </Text>
+          <Button variant="outline" size="xs" onClick={() => void linkGithub()}>
+            RECONNECT
+          </Button>
+        </div>
+      ) : isOwner ? (
+        <GitHubContributionsNote />
+      ) : null}
     </section>
   );
 }

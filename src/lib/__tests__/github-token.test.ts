@@ -53,4 +53,20 @@ describe("freshGitHubToken", () => {
 
     expect(await freshGitHubToken("u1")).toBeNull();
   });
+
+  /**
+   * Refresh tokens are single-use, so two callers racing an expired token
+   * must not both spend it — they share the one refresh.
+   */
+  it("shares one refresh between concurrent callers for the same member", async () => {
+    let settle!: (value: unknown) => void;
+    getAccessToken.mockReturnValue(new Promise((resolve) => (settle = resolve)));
+
+    const both = Promise.all([freshGitHubToken("u1"), freshGitHubToken("u1")]);
+    await vi.waitFor(() => expect(getAccessToken).toHaveBeenCalled());
+    settle({ accessToken: "gho_once", accessTokenExpiresAt: inAnHour() });
+
+    expect(await both).toEqual(["gho_once", "gho_once"]);
+    expect(getAccessToken).toHaveBeenCalledTimes(1);
+  });
 });

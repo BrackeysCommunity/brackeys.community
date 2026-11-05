@@ -50,6 +50,9 @@ export function ProfileDesktop({ profile, isOwner, openEdit, queryKey }: Profile
             index="01"
             profileId={profile.profileId}
             githubUsername={profile.githubUsername}
+            githubNeedsReconnect={profile.links.some(
+              (l) => l.provider === "github" && l.needsReconnect,
+            )}
             isOwner={isOwner}
           />
           <ProfileProjectsSection

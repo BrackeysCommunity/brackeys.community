@@ -268,7 +268,7 @@ function AddProviderMenu({
   );
 }
 
-async function linkGithub(): Promise<void> {
+export async function linkGithub(): Promise<void> {
   try {
     await startGitHubLink();
   } catch (e) {
@@ -279,6 +279,14 @@ async function linkGithub(): Promise<void> {
 
 function isItchProvider(provider: string | undefined): boolean {
   return provider === "itchio" || provider === "itch.io";
+}
+
+/** The OAuth restart behind RECONNECT, for the providers whose token health
+ *  is tracked (itch's library sweep, GitHub's contribution graph). */
+function reconnectFor(provider: string | undefined): (() => void | Promise<void>) | null {
+  if (isItchProvider(provider)) return startItchOAuth;
+  if (provider === "github") return linkGithub;
+  return null;
 }
 
 async function linkGitlab(providerId: string): Promise<void> {
@@ -308,6 +316,7 @@ function LinkRow({
   // standalone remove `Button` on top of it (taking its own click
   // out of the anchor's bubble), so owners get a one-tap unlink
   // without losing the rest of the row's open-on-click behaviour.
+  const reconnect = reconnectFor(link.provider);
   return (
     <div className="group relative grid grid-cols-[3rem_minmax(0,1fr)_auto_auto_auto] items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/15">
       <Chonk
@@ -347,14 +356,12 @@ function LinkRow({
               </span>
             </SimpleTooltip>
           ) : null}
-          {link.needsReconnect && isItchProvider(link.provider) ? (
+          {link.needsReconnect && reconnect ? (
             // z-10 lifts the button above the row's stretched anchor so the
             // click starts the OAuth flow instead of opening the stale link.
-            // Itch is the only provider whose tokens are swept, and the only
-            // one this button knows how to restart.
             <button
               type="button"
-              onClick={() => startItchOAuth()}
+              onClick={() => void reconnect()}
               aria-label={`Reconnect ${link.label}`}
               className="relative z-10 cursor-pointer"
             >

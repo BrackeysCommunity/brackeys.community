@@ -93,6 +93,9 @@ export function ProfileMobile({ profile, isOwner, openEdit, queryKey }: ProfileL
               index="01"
               profileId={profile.profileId}
               githubUsername={profile.githubUsername}
+              githubNeedsReconnect={profile.links.some(
+                (l) => l.provider === "github" && l.needsReconnect,
+              )}
               isOwner={isOwner}
             />
             <ProfileProjectsSection

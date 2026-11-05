@@ -27,6 +27,18 @@ export interface GitHubContributionCalendar {
   weeks: GitHubContributionWeek[];
 }
 
+/** A non-2xx answer from GitHub, carrying the status so a 401 (dead token)
+ *  can be told apart from GitHub having a bad minute. */
+export class GitHubApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "GitHubApiError";
+    this.status = status;
+  }
+}
+
 export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
   const res = await fetch(`${GITHUB_API_URL}/user`, {
     headers: {
@@ -36,7 +48,7 @@ export async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> 
   });
 
   if (!res.ok) {
-    throw new Error(`GitHub API error (${res.status})`);
+    throw new GitHubApiError(`GitHub API error (${res.status})`, res.status);
   }
 
   return res.json() as Promise<GitHubUser>;
@@ -86,7 +98,7 @@ export async function fetchContributionCalendar(
   });
 
   if (!res.ok) {
-    throw new Error(`GitHub GraphQL error (${res.status})`);
+    throw new GitHubApiError(`GitHub GraphQL error (${res.status})`, res.status);
   }
 
   const json = (await res.json()) as {
