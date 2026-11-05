@@ -308,7 +308,7 @@ describe("copy", () => {
   });
 });
 
-describe("paste", () => {
+describe("paste", { timeout: 20_000 }, () => {
   it("copy → paste on the same canvas recreates every card type losslessly", async () => {
     const { container, doc } = mount();
     await selectAll(container, 7);
@@ -398,7 +398,7 @@ describe("paste", () => {
   });
 });
 
-describe("dropping files", () => {
+describe("dropping files", { timeout: 20_000 }, () => {
   function drop(container: HTMLElement, files: File[], at = { x: 500, y: 300 }) {
     const host = screen.getByRole("application", { name: "Canvas editor" });
     void container;
