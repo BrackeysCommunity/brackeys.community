@@ -76,7 +76,9 @@ Every JSON report names the scene hash `sceneHash`. `show` returns at most
 200 rows and sets `truncated: true` past that; narrow it with a filter.
 `show` rows put an entity's shape, point and the AABB first and every other
 field in `extra`; a shape that rides a path (a `follower`, the platformer's
-`mover`) is placed at its first path point. Each prefab instance is a row of
+`mover`) is placed at its first path point. A group member's row also has
+the group's `origin`: its `shape` and `at` stay as stored, relative to it,
+while its AABB and `--near` are in world px. Each prefab instance is a row of
 type `instance` (its `prefab`, its world `at`, the rest in `extra`) followed by
 its children as `gate-3/door` rows in world coordinates, each naming its
 `instance`; edit those with `override`, not `update`.

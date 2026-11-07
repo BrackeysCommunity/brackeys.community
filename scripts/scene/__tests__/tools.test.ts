@@ -228,6 +228,28 @@ describe("show", () => {
     expect(miss.text).toContain("did you mean elevator?");
   });
 
+  it("places a group member's AABB and --near in world space, keeping its stored geometry", async () => {
+    const yard = JSON.parse(await engineYardText());
+    yard.name = "grouped";
+    yard.groups = { shelf: { at: [1000, 500] } };
+    yard.entities.push(
+      { id: "board", type: "solid", group: "shelf", shape: ["box", 0, 0, 100, 10] },
+      { id: "pin", type: "marker", group: "shelf", at: [40, -20] },
+    );
+    await writeFile(join(avatarDir, "grouped.json"), JSON.stringify(yard));
+    const data = (await show({ scene: "grouped", ref: "board" }, ctx)).data as Rows;
+    expect(data.entities).toEqual([
+      expect.objectContaining({
+        shape: ["box", 0, 0, 100, 10],
+        origin: [1000, 500],
+        aabb: { minX: 900, minY: 490, maxX: 1100, maxY: 510 },
+        top: [900, 1100, 490],
+      }),
+    ]);
+    const near = refs((await show({ scene: "grouped", near: "1040,480,5" }, ctx)).data);
+    expect(near).toEqual(["pin"]);
+  });
+
   it("caps its rows and says so", async () => {
     const yard = JSON.parse(await yardText());
     yard.name = "big";

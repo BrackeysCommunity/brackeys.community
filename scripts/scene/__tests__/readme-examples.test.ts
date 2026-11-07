@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { existsSync } from "node:fs";
 import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,8 +14,13 @@ import { loadCompatRapier } from "../rapier-compat";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 
-/** Documents whose scene commands are checked: this CLI's README and the agent skill. */
-const DOCS = ["scripts/scene/README.md", ".claude/skills/scene-editing/SKILL.md"];
+const README = "scripts/scene/README.md";
+/** `.claude/` is gitignored, so the skill exists only in checkouts that have it, not in CI. */
+const SKILL = ".claude/skills/scene-editing/SKILL.md";
+const hasSkill = existsSync(repoFile(SKILL));
+
+/** Documents whose scene commands are checked: this CLI's README and, where present, the agent skill. */
+const DOCS = hasSkill ? [README, SKILL] : [README];
 
 const INVOCATION = /(?:vp run scene|bun scripts\/scene\/cli\.ts) ([^`\n]+)/g;
 
@@ -94,7 +100,7 @@ describe("scene commands in the docs", () => {
   it("finds the README's fenced examples and the skill's commands", () => {
     const [readme, skill] = all;
     expect(readme!.filter((e) => e.fenced).length).toBeGreaterThan(10);
-    expect(skill!.length).toBeGreaterThan(0);
+    if (hasSkill) expect(skill!.length).toBeGreaterThan(0);
   });
 
   for (const example of all.flat()) {
