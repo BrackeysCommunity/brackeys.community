@@ -6,6 +6,8 @@ export type InputSystem = {
   detach: () => void;
   poll: (tick: number) => InputAction[];
   getMousePosition: () => { x: number; y: number };
+  /** While disabled, key presses are ignored and their default actions left alone. */
+  setEnabled: (enabled: boolean) => void;
   isKeyDown: (key: string) => boolean;
   destroy: () => void;
 };
@@ -26,6 +28,7 @@ export function createInputSystem(bindings: InputBinding[] = DEFAULT_BINDINGS): 
   }
 
   let cleanupFns: (() => void)[] = [];
+  let enabled = true;
 
   /** Normalize key to handle modifier-induced case changes.
    *  e.g. pressing 'd' then Shift gives keyup 'D' — normalize to 'd'.
@@ -36,9 +39,22 @@ export function createInputSystem(bindings: InputBinding[] = DEFAULT_BINDINGS): 
     return key;
   }
 
+  /** Browser and app shortcuts (Mod+S), and typing into a field, are not game input. */
+  function isForeignKey(e: KeyboardEvent): boolean {
+    if (e.ctrlKey || e.metaKey || e.altKey) return true;
+    const target = e.target as { isContentEditable?: boolean; tagName?: string } | null;
+    if (!target) return false;
+    return (
+      target.isContentEditable === true ||
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT"
+    );
+  }
+
   function handleKeyDown(e: KeyboardEvent): void {
     // Ignore repeats — we only care about the initial press
-    if (e.repeat) return;
+    if (e.repeat || !enabled || isForeignKey(e)) return;
 
     const key = normalizeKey(e.key);
     keysDown.add(key);
@@ -115,6 +131,10 @@ export function createInputSystem(bindings: InputBinding[] = DEFAULT_BINDINGS): 
     return { ...mousePosition };
   }
 
+  function setEnabled(next: boolean): void {
+    enabled = next;
+  }
+
   function isKeyDown(key: string): boolean {
     return keysDown.has(key);
   }
@@ -125,5 +145,5 @@ export function createInputSystem(bindings: InputBinding[] = DEFAULT_BINDINGS): 
     keysDown.clear();
   }
 
-  return { attach, detach, poll, getMousePosition, isKeyDown, destroy };
+  return { attach, detach, poll, getMousePosition, setEnabled, isKeyDown, destroy };
 }

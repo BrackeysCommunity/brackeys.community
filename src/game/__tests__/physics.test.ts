@@ -1,19 +1,32 @@
 // @vitest-environment jsdom
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { createPhysicsWorld, getRapier, initRapier } from "../physics";
+import { createPhysicsWorld, degToRad, shapeColliderDesc, shapePose } from "../physics";
+import type { RapierModule } from "../types";
 
-// ─── Rapier WASM init (once for all tests) ───────────────
+let rapier: RapierModule;
 
 beforeAll(async () => {
-  await initRapier();
+  rapier = await import("@dimforge/rapier2d");
 });
+
+function addFloor(pw: ReturnType<typeof createPhysicsWorld>, topY: number): void {
+  const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(1000, topY + 20));
+  pw.addCollider(rapier.ColliderDesc.cuboid(2000, 20), body);
+}
 
 // ─── Physics world lifecycle ─────────────────────────────
 
 describe("createPhysicsWorld", () => {
+  it("creates an empty world", () => {
+    const pw = createPhysicsWorld(rapier);
+    expect(pw.world.bodies.len()).toBe(0);
+    expect(pw.world.colliders.len()).toBe(0);
+    pw.destroy();
+  });
+
   it("creates a world with correct gravity", () => {
-    const pw = createPhysicsWorld();
+    const pw = createPhysicsWorld(rapier);
     const gravity = pw.world.gravity;
     expect(gravity.x).toBe(0);
     expect(gravity.y).toBe(1200);
@@ -21,25 +34,25 @@ describe("createPhysicsWorld", () => {
   });
 
   it("creates a world with correct timestep", () => {
-    const pw = createPhysicsWorld();
+    const pw = createPhysicsWorld(rapier);
     expect(pw.world.timestep).toBeCloseTo(1 / 60, 6);
     pw.destroy();
   });
 
   it("accepts custom gravity", () => {
-    const pw = createPhysicsWorld({ gravity: { x: 0, y: 800 } });
+    const pw = createPhysicsWorld(rapier, { gravity: { x: 0, y: 800 } });
     expect(pw.world.gravity.y).toBe(800);
     pw.destroy();
   });
 
   it("steps without error", () => {
-    const pw = createPhysicsWorld();
+    const pw = createPhysicsWorld(rapier);
     expect(() => pw.step()).not.toThrow();
     pw.destroy();
   });
 
   it("destroys without error", () => {
-    const pw = createPhysicsWorld();
+    const pw = createPhysicsWorld(rapier);
     expect(() => pw.destroy()).not.toThrow();
   });
 });
@@ -48,32 +61,29 @@ describe("createPhysicsWorld", () => {
 
 describe("body management", () => {
   it("adds a dynamic rigid body", () => {
-    const pw = createPhysicsWorld();
-    const RAPIER = getRapier();
-    const bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(100, 0);
-    const body = pw.addRigidBody(bodyDesc);
-    expect(body).toBeDefined();
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(100, 0));
     expect(body.translation().x).toBe(100);
     expect(body.translation().y).toBe(0);
     pw.destroy();
   });
 
   it("adds a collider to a body", () => {
-    const pw = createPhysicsWorld();
-    const RAPIER = getRapier();
-    const bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 0);
-    const body = pw.addRigidBody(bodyDesc);
-    const colliderDesc = RAPIER.ColliderDesc.ball(10);
-    const collider = pw.addCollider(colliderDesc, body);
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(0, 0));
+    const collider = pw.addCollider(rapier.ColliderDesc.ball(10), body);
     expect(collider).toBeDefined();
+    expect(pw.world.colliders.len()).toBe(1);
     pw.destroy();
   });
 
-  it("removes a rigid body without error", () => {
-    const pw = createPhysicsWorld();
-    const RAPIER = getRapier();
-    const body = pw.addRigidBody(RAPIER.RigidBodyDesc.dynamic());
-    expect(() => pw.removeRigidBody(body)).not.toThrow();
+  it("removing a rigid body removes its colliders", () => {
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic());
+    pw.addCollider(rapier.ColliderDesc.ball(10), body);
+    pw.removeRigidBody(body);
+    expect(pw.world.bodies.len()).toBe(0);
+    expect(pw.world.colliders.len()).toBe(0);
     pw.destroy();
   });
 });
@@ -81,64 +91,39 @@ describe("body management", () => {
 // ─── Simulation ──────────────────────────────────────────
 
 describe("simulation", () => {
-  it.skip("gravity causes a dynamic body to fall", () => {
-    const pw = createPhysicsWorld();
-    const RAPIER = getRapier();
+  it("gravity causes a dynamic body to fall", () => {
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(0, 0));
+    pw.addCollider(rapier.ColliderDesc.ball(5), body);
 
-    const bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 0);
-    const body = pw.addRigidBody(bodyDesc);
-    pw.addCollider(RAPIER.ColliderDesc.ball(5), body);
+    for (let i = 0; i < 10; i++) pw.step();
 
-    const startY = body.translation().y;
-
-    for (let i = 0; i < 10; i++) {
-      pw.step();
-    }
-
-    expect(body.translation().y).toBeGreaterThan(startY);
+    expect(body.translation().y).toBeGreaterThan(0);
     pw.destroy();
   });
 
-  it.skip("static bodies do not move", () => {
-    const pw = createPhysicsWorld();
-    const RAPIER = getRapier();
+  it("static bodies do not move", () => {
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(500, 500));
+    pw.addCollider(rapier.ColliderDesc.cuboid(50, 50), body);
 
-    const bodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(500, 500);
-    const body = pw.addRigidBody(bodyDesc);
-    pw.addCollider(RAPIER.ColliderDesc.cuboid(50, 50), body);
-
-    for (let i = 0; i < 10; i++) {
-      pw.step();
-    }
+    for (let i = 0; i < 10; i++) pw.step();
 
     expect(body.translation().x).toBe(500);
     expect(body.translation().y).toBe(500);
     pw.destroy();
   });
-});
 
-// ─── Ground collider ─────────────────────────────────────
+  it("a falling body comes to rest on a floor", () => {
+    const pw = createPhysicsWorld(rapier);
+    addFloor(pw, 1020);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(1000, 0));
+    pw.addCollider(rapier.ColliderDesc.ball(5), body);
 
-describe("ground collider", () => {
-  it.skip("has a ground collider at FLOOR_Y region", () => {
-    const pw = createPhysicsWorld();
-    const RAPIER = getRapier();
+    for (let i = 0; i < 600; i++) pw.step();
 
-    // Drop a ball from above the floor — it should stop near FLOOR_Y (1020)
-    const bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(1000, 0);
-    const body = pw.addRigidBody(bodyDesc);
-    pw.addCollider(RAPIER.ColliderDesc.ball(5), body);
-
-    // Step enough for the ball to fall and hit the floor
-    for (let i = 0; i < 600; i++) {
-      pw.step();
-    }
-
-    // Ball should have stopped near the floor (1020), not fallen through
-    const finalY = body.translation().y;
-    expect(finalY).toBeLessThan(1100); // didn't fall through
-    expect(finalY).toBeGreaterThan(900); // fell down near the floor
-
+    expect(body.translation().y).toBeLessThan(1100);
+    expect(body.translation().y).toBeGreaterThan(900);
     pw.destroy();
   });
 });
@@ -147,59 +132,102 @@ describe("ground collider", () => {
 
 describe("character controller", () => {
   it("creates a character controller", () => {
-    const pw = createPhysicsWorld();
-    const controller = pw.createCharacterController();
-    expect(controller).toBeDefined();
+    const pw = createPhysicsWorld(rapier);
+    expect(pw.createCharacterController()).toBeDefined();
     pw.destroy();
   });
 
-  it.skip("resolves collider movement against the ground", () => {
-    const pw = createPhysicsWorld();
-    const RAPIER = getRapier();
+  it("resolves collider movement against a floor", () => {
+    const pw = createPhysicsWorld(rapier);
+    addFloor(pw, 1020);
     const controller = pw.createCharacterController(0.01);
-
-    // Create a kinematic body above the floor
-    const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 900);
-    const body = pw.addRigidBody(bodyDesc);
-    const colliderDesc = RAPIER.ColliderDesc.cuboid(30, 30);
-    const collider = pw.addCollider(colliderDesc, body);
-
-    // Step once so the world builds its internal collision structures
+    const body = pw.addRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 900),
+    );
+    const collider = pw.addCollider(rapier.ColliderDesc.cuboid(30, 30), body);
     pw.step();
 
-    // Try to move 200 units down (should be blocked by floor at y=1020)
-    // Body center at 900, half-height 30, so bottom at 930.
-    // Floor top at ~1020. Gap is ~90. Moving 200 down should be clamped.
-    controller.computeColliderMovement(collider, new RAPIER.Vector2(0, 200));
-    const corrected = controller.computedMovement();
-
-    // Movement should be clamped — can't go through the floor
-    expect(corrected.y).toBeLessThan(200);
-
+    controller.computeColliderMovement(collider, new rapier.Vector2(0, 200));
+    expect(controller.computedMovement().y).toBeLessThan(200);
     pw.destroy();
   });
 
-  it.skip("reports grounded after landing", () => {
-    const pw = createPhysicsWorld();
-    const RAPIER = getRapier();
+  it("reports grounded after landing", () => {
+    const pw = createPhysicsWorld(rapier);
+    addFloor(pw, 1020);
     const controller = pw.createCharacterController(0.01);
-
-    // Place body just above the floor (floor top = 1020, cuboid half-height = 30)
-    // Body center at y=989 means bottom at y=1019 — just above floor
-    const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 989);
-    const body = pw.addRigidBody(bodyDesc);
-    const colliderDesc = RAPIER.ColliderDesc.cuboid(30, 30);
-    const collider = pw.addCollider(colliderDesc, body);
-
-    // Step so collision structures are built
+    const body = pw.addRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 989),
+    );
+    const collider = pw.addCollider(rapier.ColliderDesc.cuboid(30, 30), body);
     pw.step();
 
-    // Move slightly downward to touch the floor
-    controller.computeColliderMovement(collider, new RAPIER.Vector2(0, 5));
-    const grounded = controller.computedGrounded();
+    controller.computeColliderMovement(collider, new rapier.Vector2(0, 5));
+    expect(controller.computedGrounded()).toBe(true);
+    pw.destroy();
+  });
+});
 
-    expect(grounded).toBe(true);
+// ─── Shapes ──────────────────────────────────────────────
 
+describe("shape colliders", () => {
+  it("poses a rotated box at its centre and converts degrees to radians", () => {
+    const pose = shapePose({ type: "box", cx: 10, cy: 20, hw: 5, hh: 2, rotDeg: 90 });
+    expect(pose).toEqual({ x: 10, y: 20, rotation: degToRad(90) });
+    expect(pose.rotation).toBeCloseTo(Math.PI / 2, 6);
+  });
+
+  it("poses poly and chain shapes at the origin", () => {
+    expect(
+      shapePose({
+        type: "chain",
+        pts: [
+          [0, 0],
+          [10, 0],
+        ],
+      }),
+    ).toEqual({ x: 0, y: 0, rotation: 0 });
+  });
+
+  it("builds a collider for every shape type", () => {
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed());
+    const shapes = [
+      { type: "box", cx: 0, cy: 0, hw: 10, hh: 5, rotDeg: 0 },
+      { type: "circle", cx: 0, cy: 0, r: 4 },
+      { type: "capsule", cx: 0, cy: 0, halfLen: 10, r: 3, rotDeg: 45 },
+      {
+        type: "poly",
+        pts: [
+          [0, 0],
+          [20, 0],
+          [10, 15],
+        ],
+      },
+      {
+        type: "chain",
+        pts: [
+          [0, 0],
+          [20, 0],
+          [40, 10],
+        ],
+      },
+    ] as const;
+    for (const shape of shapes) {
+      pw.addCollider(shapeColliderDesc(rapier, structuredClone(shape) as never), body);
+    }
+    expect(pw.world.colliders.len()).toBe(shapes.length);
+    pw.destroy();
+  });
+
+  it("offsets a local shape relative to its body", () => {
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(100, 100));
+    const collider = pw.addCollider(
+      shapeColliderDesc(rapier, { type: "box", cx: 5, cy: -3, hw: 10, hh: 2, rotDeg: 0 }, true),
+      body,
+    );
+    expect(collider.translation()).toEqual({ x: 105, y: 97 });
     pw.destroy();
   });
 });
@@ -208,39 +236,20 @@ describe("character controller", () => {
 
 describe("debugRender", () => {
   it("returns vertex and color buffers", () => {
-    const pw = createPhysicsWorld();
+    const pw = createPhysicsWorld(rapier);
+    addFloor(pw, 1020);
 
-    // debugRender() accesses WASM memory internals that may not be
-    // fully wired in Node/vitest. In the browser (with vite-plugin-wasm)
-    // this works correctly. We test that the method exists and the
-    // world supports it — browser integration tests cover the full path.
+    // debugRender() reads WASM memory through the glue module, which the
+    // test environment doesn't always wire up; the browser path is covered by use.
     try {
       const { vertices, colors } = pw.debugRender();
       expect(vertices).toBeInstanceOf(Float32Array);
       expect(colors).toBeInstanceOf(Float32Array);
       expect(vertices.length).toBeGreaterThan(0);
     } catch {
-      // WASM memory access not available in Node test environment
       expect(pw.debugRender).toBeDefined();
     }
 
     pw.destroy();
-  });
-});
-
-// ─── Rapier singleton ────────────────────────────────────
-
-describe("initRapier / getRapier", () => {
-  it("getRapier returns the module after init", () => {
-    const RAPIER = getRapier();
-    expect(RAPIER).toBeDefined();
-    expect(RAPIER.World).toBeDefined();
-    expect(RAPIER.RigidBodyDesc).toBeDefined();
-  });
-
-  it("multiple initRapier calls return the same module", async () => {
-    const r1 = await initRapier();
-    const r2 = await initRapier();
-    expect(r1).toBe(r2);
   });
 });

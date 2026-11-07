@@ -1,13 +1,9 @@
-import { type Container, Graphics } from "pixi.js";
+import type { Collider } from "@dimforge/rapier2d";
+import { Graphics } from "pixi.js";
 
-import {
-  PLAYER_COLLISION_GROUP,
-  registerPlayerCollider,
-  unregisterPlayerCollider,
-} from "../collisions";
-import type { PhysicsWorld } from "../physics";
-import { getRapier } from "../physics";
-import { getSurfaceMaterial, type SurfaceMaterial } from "../surfaces";
+import { PLAYER_COLLISION_GROUP } from "../collisions";
+import { addToLayer, type EngineContext } from "../context";
+import { surfaceMaterialOf, type SurfaceMaterial } from "../surfaces";
 import type { InputAction, Vec2 } from "../types";
 import type { GrappleAnchorSystem } from "./grapple-anchor";
 import {
@@ -16,7 +12,6 @@ import {
   getSwingReleaseVelocity,
   type GrappleSwingState,
 } from "./grapple-state";
-import { getActiveWindZones, getBouncePad } from "./shaper-constructs";
 
 // ─── Movement config ─────────────────────────────────────
 // All tunable constants in one place. Importable for tests, debug overlays, etc.
@@ -80,8 +75,10 @@ export const WALL_JUMP_LOCKOUT_MS = MOVEMENT_CONFIG.wallJumpLockoutMs;
 export const WALL_SLIDE_COYOTE_MS = MOVEMENT_CONFIG.wallSlideCoyoteMs;
 
 const WALL_NORMAL_THRESHOLD = 0.7; // |normal.x| must exceed this to count as a wall
-const PLAYER_WIDTH = 60;
-const PLAYER_HEIGHT = 60;
+export const PLAYER_WIDTH = 60;
+export const PLAYER_HEIGHT = 60;
+/** Tag entity id of the local player's collider. */
+export const PLAYER_ENTITY_ID = "player";
 
 // ─── Movement state machine ─────────────────────────────
 
@@ -131,6 +128,7 @@ export type PlayerEntity = {
   isDashing: () => boolean;
   isGrappling: () => boolean;
   getMovementState: () => MovementState;
+  getCollider: () => Collider;
   /** Position/velocity/grounded BEFORE this tick's update (for debug arc origin) */
   getPreUpdateState: () => { position: Vec2; velocity: Vec2; grounded: boolean };
   destroy: () => void;
@@ -233,25 +231,28 @@ export function computeDesiredMovement(
   return { desiredDelta, newVelocity: { x: vx, y: vy }, jumped };
 }
 
+/** `feet` is the bottom-centre of the player's box, as scenes store spawns. */
 export function createPlayerEntity(
-  worldContainer: Container,
-  physics: PhysicsWorld,
+  ctx: Pick<EngineContext, "rapier" | "physics" | "view" | "tags" | "fields">,
+  feet: Vec2,
   grappleAnchors?: GrappleAnchorSystem,
 ): PlayerEntity {
-  const RAPIER = getRapier();
+  const { rapier: RAPIER, physics, view, tags, fields } = ctx;
+  const spawn = { x: feet.x, y: feet.y - PLAYER_HEIGHT / 2 };
 
   // ─── Visual ──────────────────────────────────────────
-  const graphics = new Graphics();
-  graphics.rect(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT);
-  graphics.fill({ color: 0xffa949 }); // Brackeys yellow
-  graphics.pivot.set(PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2);
-  worldContainer.addChild(graphics);
+  let graphics: Graphics | null = null;
+  if (view) {
+    graphics = new Graphics();
+    graphics.rect(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT);
+    graphics.fill({ color: 0xffa949 }); // Brackeys yellow
+    graphics.pivot.set(PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2);
+    graphics.position.set(spawn.x, spawn.y);
+    addToLayer(view.world, graphics, "player");
+  }
 
   // ─── Physics body ────────────────────────────────────
-  const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
-    960,
-    1020 - PLAYER_HEIGHT,
-  );
+  const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y);
   const body = physics.addRigidBody(bodyDesc);
 
   const colliderDesc = RAPIER.ColliderDesc.cuboid(
@@ -259,7 +260,7 @@ export function createPlayerEntity(
     PLAYER_HEIGHT / 2,
   ).setCollisionGroups(PLAYER_COLLISION_GROUP);
   const collider = physics.addCollider(colliderDesc, body);
-  registerPlayerCollider(collider.handle);
+  tags.set(collider.handle, { entityId: PLAYER_ENTITY_ID, behavior: "player" });
 
   const controller = physics.createCharacterController();
 
@@ -304,7 +305,7 @@ export function createPlayerEntity(
 
   // Snapshot of state BEFORE each tick's update — for debug arc origin
   let preUpdateState = {
-    position: { x: 960, y: 1020 - PLAYER_HEIGHT },
+    position: { ...spawn },
     velocity: { x: 0, y: 0 },
     grounded: true,
   };
@@ -468,6 +469,7 @@ export function createPlayerEntity(
       controller.computeColliderMovement(
         collider,
         new RAPIER.Vector2(pendulumDelta.x, pendulumDelta.y),
+        RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
       );
       const corrected = controller.computedMovement();
 
@@ -500,7 +502,7 @@ export function createPlayerEntity(
 
       // Update visual
       const newPos = body.translation();
-      graphics.position.set(newPos.x, newPos.y);
+      graphics?.position.set(newPos.x, newPos.y);
 
       // Update state
       grounded = false;
@@ -524,6 +526,7 @@ export function createPlayerEntity(
     controller.computeColliderMovement(
       collider,
       new RAPIER.Vector2(desiredDelta.x, desiredDelta.y),
+      RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
     );
 
     // Get the corrected movement (after collision resolution)
@@ -564,12 +567,12 @@ export function createPlayerEntity(
       if (Math.abs(nx) > WALL_NORMAL_THRESHOLD && wallDir === 0) {
         wallDir = nx > 0 ? -1 : 1;
         if (collision.collider) {
-          wallSurface = getSurfaceMaterial(collision.collider.handle);
+          wallSurface = surfaceMaterialOf(tags.get(collision.collider.handle));
         }
       }
       // Ground: mostly-upward normal (ny < -0.7 in our +Y-down coords)
       if (ny < -WALL_NORMAL_THRESHOLD && collision.collider) {
-        groundSurface = getSurfaceMaterial(collision.collider.handle);
+        groundSurface = surfaceMaterialOf(tags.get(collision.collider.handle));
         groundColliderHandle = collision.collider.handle;
       }
     }
@@ -636,24 +639,18 @@ export function createPlayerEntity(
     for (let i = 0; i < numCollisions; i++) {
       const collision = controller.computedCollision(i);
       if (!collision || !collision.collider) continue;
-      const pad = getBouncePad(collision.collider.handle);
-      if (pad) {
-        newVelocity.y = pad.bounceVelocity;
+      const impulse = tags.get(collision.collider.handle)?.impulse;
+      if (impulse) {
+        newVelocity.y = impulse.y;
         break;
       }
     }
 
-    // 10c. Wind zone — apply force if player is inside any wind zone
+    // 10c. Wind zones
     const playerCenter = body.translation();
-    for (const wz of getActiveWindZones()) {
-      // Simple AABB check (ignoring rotation for now — TODO: rotated rect check)
-      const dx = playerCenter.x - wz.position.x;
-      const dy = playerCenter.y - wz.position.y;
-      if (Math.abs(dx) < wz.hw && Math.abs(dy) < wz.hh) {
-        newVelocity.x += wz.force.x * dtSec;
-        newVelocity.y += wz.force.y * dtSec;
-      }
-    }
+    const wind = fields.sample({ x: playerCenter.x, y: playerCenter.y });
+    newVelocity.x += wind.x * dtSec;
+    newVelocity.y += wind.y * dtSec;
 
     // 11. Update velocity
     //     When grounded, apply a downward "stick" velocity to keep the character
@@ -736,7 +733,7 @@ export function createPlayerEntity(
 
     // 14. Sync visual to physics body position
     const newPos = body.translation();
-    graphics.position.set(newPos.x, newPos.y);
+    graphics?.position.set(newPos.x, newPos.y);
   }
 
   function getPosition(): Vec2 {
@@ -801,9 +798,8 @@ export function createPlayerEntity(
   }
 
   function destroy(): void {
-    unregisterPlayerCollider(collider.handle);
-    worldContainer.removeChild(graphics);
-    graphics.destroy();
+    tags.delete(collider.handle);
+    graphics?.destroy();
     try {
       physics.world.removeCharacterController(controller);
     } catch {
@@ -827,6 +823,7 @@ export function createPlayerEntity(
     isDashing: getIsDashing,
     isGrappling: getIsGrappling,
     getMovementState,
+    getCollider: () => collider,
     getPreUpdateState,
     destroy,
   };

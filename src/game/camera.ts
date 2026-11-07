@@ -9,6 +9,8 @@ export type Camera = {
   getPosition: () => Vec2;
   getViewport: () => { x: number; y: number; width: number; height: number };
   getDisplayScale: () => number;
+  /** Canvas pixels to world units, honouring zoom. */
+  screenToWorld: (screen: Vec2) => Vec2;
   setBounds: (min: Vec2, max: Vec2) => void;
   setZoom: (zoom: number) => void;
   resize: (displayWidth: number, displayHeight: number) => void;
@@ -85,6 +87,12 @@ export function createCamera(
     return displayScale;
   }
 
+  function screenToWorld(screen: Vec2): Vec2 {
+    const vp = getViewport();
+    const scale = displayScale * zoom;
+    return { x: vp.x + screen.x / scale, y: vp.y + screen.y / scale };
+  }
+
   function setBounds(min: Vec2, max: Vec2): void {
     bounds = { min: { ...min }, max: { ...max } };
   }
@@ -101,5 +109,15 @@ export function createCamera(
     // No resources to release
   }
 
-  return { update, getPosition, getViewport, getDisplayScale, setBounds, setZoom, resize, destroy };
+  return {
+    update,
+    getPosition,
+    getViewport,
+    getDisplayScale,
+    screenToWorld,
+    setBounds,
+    setZoom,
+    resize,
+    destroy,
+  };
 }

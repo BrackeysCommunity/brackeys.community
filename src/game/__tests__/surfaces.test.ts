@@ -1,18 +1,6 @@
-import { describe, expect, it, beforeEach } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
-import {
-  SURFACE_MATERIALS,
-  registerSurface,
-  unregisterSurface,
-  getSurfaceType,
-  getSurfaceMaterial,
-  clearSurfaces,
-  registerCloudPlatform,
-  unregisterCloudPlatform,
-  isCloudPlatform,
-  clearCloudPlatforms,
-  type SurfaceType,
-} from "../surfaces";
+import { SURFACE_MATERIALS, surfaceMaterialOf, surfaceTypeOf, type SurfaceType } from "../surfaces";
 
 // ─── Surface materials config ────────────────────────────
 
@@ -62,67 +50,39 @@ describe("SURFACE_MATERIALS", () => {
   });
 });
 
-// ─── Surface registry ────────────────────────────────────
+// ─── Lookup by collider tag ──────────────────────────────
 
-describe("surface registry", () => {
-  beforeEach(() => {
-    clearSurfaces();
+describe("surfaceTypeOf", () => {
+  it("is normal for an untagged collider", () => {
+    expect(surfaceTypeOf(undefined)).toBe("normal");
   });
 
-  it("returns 'normal' for unregistered handles", () => {
-    expect(getSurfaceType(999)).toBe("normal");
+  it("is normal for a solid without a material", () => {
+    expect(surfaceTypeOf({ entityId: "~solid:0", behavior: "solid" })).toBe("normal");
   });
 
-  it("registers and retrieves a surface type", () => {
-    registerSurface(42, "ice");
-    expect(getSurfaceType(42)).toBe("ice");
+  it("uses the tag's material", () => {
+    expect(surfaceTypeOf({ entityId: "~solid:ice:0", behavior: "solid", material: "ice" })).toBe(
+      "ice",
+    );
+    expect(surfaceTypeOf({ entityId: "lift", behavior: "mover", material: "chocolate" })).toBe(
+      "chocolate",
+    );
   });
 
-  it("getSurfaceMaterial returns correct material", () => {
-    registerSurface(42, "trampoline");
-    const mat = getSurfaceMaterial(42);
-    expect(mat).toBe(SURFACE_MATERIALS.trampoline);
+  it("is cloud for cloud colliders", () => {
+    expect(surfaceTypeOf({ entityId: "~cloud:0", behavior: "cloud" })).toBe("cloud");
   });
 
-  it("unregisters a surface", () => {
-    registerSurface(42, "ice");
-    unregisterSurface(42);
-    expect(getSurfaceType(42)).toBe("normal");
-  });
-
-  it("clears all surfaces", () => {
-    registerSurface(1, "ice");
-    registerSurface(2, "lava");
-    clearSurfaces();
-    expect(getSurfaceType(1)).toBe("normal");
-    expect(getSurfaceType(2)).toBe("normal");
+  it("is lava for hazard sensors", () => {
+    expect(surfaceTypeOf({ entityId: "lava", behavior: "sensor", sensor: "hazard" })).toBe("lava");
   });
 });
 
-// ─── Cloud platform registry ─────────────────────────────
-
-describe("cloud platform registry", () => {
-  beforeEach(() => {
-    clearCloudPlatforms();
-  });
-
-  it("registers and identifies cloud platforms", () => {
-    registerCloudPlatform(10);
-    expect(isCloudPlatform(10)).toBe(true);
-    expect(isCloudPlatform(11)).toBe(false);
-  });
-
-  it("unregisters cloud platforms", () => {
-    registerCloudPlatform(10);
-    unregisterCloudPlatform(10);
-    expect(isCloudPlatform(10)).toBe(false);
-  });
-
-  it("clears all cloud platforms", () => {
-    registerCloudPlatform(1);
-    registerCloudPlatform(2);
-    clearCloudPlatforms();
-    expect(isCloudPlatform(1)).toBe(false);
-    expect(isCloudPlatform(2)).toBe(false);
+describe("surfaceMaterialOf", () => {
+  it("returns the material record for the tag", () => {
+    const tag = { entityId: "t", behavior: "solid" as const, material: "trampoline" as const };
+    expect(surfaceMaterialOf(tag)).toBe(SURFACE_MATERIALS.trampoline);
+    expect(surfaceMaterialOf(undefined)).toBe(SURFACE_MATERIALS.normal);
   });
 });

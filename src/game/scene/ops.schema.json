@@ -1,0 +1,485 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:ops:v1",
+  "type": "object",
+  "properties": {
+    "label": {
+      "description": "A short human label for history and logs, e.g. \"Add 3 clouds\".",
+      "type": "string"
+    },
+    "base": {
+      "description": "The sceneHash of the document these ops were written against. Required when any op uses a `~` bulk reference; a mismatch fails with `stale-base`. Batches that use only ids apply without it.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "actor": {
+      "description": "Who made the edit: \"human\", \"agent\", or an agent's name.",
+      "type": "string"
+    },
+    "ops": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "add"
+              },
+              "entity": {
+                "type": "object",
+                "properties": {
+                  "b": {
+                    "type": "string",
+                    "enum": [
+                      "solid",
+                      "cloud",
+                      "mover",
+                      "anchor",
+                      "sensor",
+                      "prop",
+                      "construct",
+                      "note"
+                    ],
+                    "description": "The entity's behavior: what it does at runtime. The remaining fields depend on it, as in the scene schema."
+                  },
+                  "id": {
+                    "description": "Optional. Without one the id is generated as `<behavior>-<n>` with the lowest free n and returned in `created`. Pass your own id to refer to the entity later in the same batch.",
+                    "type": "string"
+                  }
+                },
+                "required": ["b"],
+                "additionalProperties": {},
+                "description": "An entity as in the scene file, with `id` optional and `shape` accepting any shape form. A mover's `shape` is local to its path point; every other position is absolute."
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Insert at this position instead of appending. Used by inverse batches to restore an entry where it was."
+              }
+            },
+            "required": ["op", "entity"],
+            "additionalProperties": false,
+            "description": "Add one entity to `entities`."
+          },
+          {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "addBulk"
+                  },
+                  "key": {
+                    "type": "string",
+                    "enum": ["solid", "solid:ice", "solid:chocolate", "solid:trampoline", "cloud"],
+                    "description": "The bulk bucket: `solid`, `solid:<material>` or `cloud`."
+                  },
+                  "shapes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              }
+                            ]
+                          },
+                          "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?], [\"circle\", cx, cy, r], [\"capsule\", cx, cy, halfLen, r, rotDeg?], [\"poly\", x1, y1, x2, y2, x3, y3, ...] (convex) or [\"chain\", x1, y1, ..., xn, yn] (static polyline). Box and capsule sizes are half-extents. Integer pixels, integer degrees, y down."
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "description": "box, circle, capsule, poly, chain or rect."
+                            }
+                          },
+                          "required": ["type"],
+                          "additionalProperties": {},
+                          "description": "A shape object with named fields, or `{ type: \"rect\", left, top, right, bottom }` for a box given by its edges (width and height must be even so the half-extents are integers)."
+                        }
+                      ],
+                      "description": "A shape in any accepted form. It is checked when the op applies and stored as a tuple."
+                    },
+                    "description": "Shapes to append, in order. Absolute world pixels."
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Insert at this position instead of appending. Used by inverse batches to restore an entry where it was."
+                  }
+                },
+                "required": ["op", "key", "shapes"],
+                "additionalProperties": false,
+                "description": "Add id-less shapes to a bulk bucket of simple static geometry."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "const": "addBulk"
+                  },
+                  "key": {
+                    "type": "string",
+                    "const": "anchor",
+                    "description": "The bulk bucket of grapple anchor points."
+                  },
+                  "points": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "x in world pixels."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "y in world pixels; y is down."
+                        }
+                      ],
+                      "description": "A point [x, y] in integer world pixels. y is down, so a larger y is lower on screen."
+                    },
+                    "description": "Anchor points to append, in order."
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Insert at this position instead of appending. Used by inverse batches to restore an entry where it was."
+                  }
+                },
+                "required": ["op", "key", "points"],
+                "additionalProperties": false,
+                "description": "Add id-less grapple anchor points."
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "update"
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "description": "An entity id such as `lift`, or a bulk reference `~<bulkKey>:<index>` such as `~solid:3` or `~solid:ice:0`. Bulk references shift when an earlier entry is removed, so a batch that uses one must carry `base`. All references in a batch resolve against the document the batch started from."
+              },
+              "set": {
+                "description": "Field path to new value, e.g. `{ \"path.speed\": 140 }` or `{ \"shape\": [\"box\", 0, 0, 40, 6] }`. Paths are dot-separated, with numeric segments for array items (`path.pts.1`); missing objects on the way are created. On a bulk reference only `shape` (or `at` for an anchor) can be set. `id` and `b` can't be set: use rename, or remove and add.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "unset": {
+                "description": "Field paths to delete. An array item is spliced out.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["op", "ref"],
+            "additionalProperties": false,
+            "description": "Change fields of one entity. The result is checked against its behavior's schema."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "move"
+              },
+              "refs": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "An entity id such as `lift`, or a bulk reference `~<bulkKey>:<index>` such as `~solid:3` or `~solid:ice:0`. Bulk references shift when an earlier entry is removed, so a batch that uses one must carry `base`. All references in a batch resolve against the document the batch started from."
+                },
+                "description": "What to move."
+              },
+              "by": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "x in world pixels."
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "y in world pixels; y is down."
+                  }
+                ],
+                "description": "The offset [dx, dy] in integer pixels; positive dy moves down."
+              }
+            },
+            "required": ["op", "refs", "by"],
+            "additionalProperties": false,
+            "description": "Translate entities. A mover's path points move (its shape stays local); anchors, constructs and notes move `at`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "place"
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "description": "An entity id such as `lift`, or a bulk reference `~<bulkKey>:<index>` such as `~solid:3` or `~solid:ice:0`. Bulk references shift when an earlier entry is removed, so a batch that uses one must carry `base`. All references in a batch resolve against the document the batch started from."
+              },
+              "at": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "x in world pixels."
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "y in world pixels; y is down."
+                  }
+                ],
+                "description": "Where the chosen spot of the shape should end up."
+              },
+              "anchor": {
+                "description": "Which spot of the shape's bounding box lands on `at`: `center` (default), or the middle of the `top`, `bottom`, `left` or `right` edge. `top` puts the top edge at y without knowing the half-height. Point entities ignore it.",
+                "type": "string",
+                "enum": ["center", "top", "bottom", "left", "right"]
+              }
+            },
+            "required": ["op", "ref", "at"],
+            "additionalProperties": false,
+            "description": "Move one entity so a spot of its bounding box lands on a point."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "remove"
+              },
+              "refs": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "An entity id such as `lift`, or a bulk reference `~<bulkKey>:<index>` such as `~solid:3` or `~solid:ice:0`. Bulk references shift when an earlier entry is removed, so a batch that uses one must carry `base`. All references in a batch resolve against the document the batch started from."
+                },
+                "description": "What to remove."
+              }
+            },
+            "required": ["op", "refs"],
+            "additionalProperties": false,
+            "description": "Remove entities or bulk entries."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "rename"
+              },
+              "from": {
+                "type": "string",
+                "description": "The current id."
+              },
+              "to": {
+                "type": "string",
+                "description": "The new id; must be free."
+              }
+            },
+            "required": ["op", "from", "to"],
+            "additionalProperties": false,
+            "description": "Change an entity's id and rewrite every reference to it."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "promote"
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A bulk reference such as `~solid:3`."
+              },
+              "id": {
+                "type": "string",
+                "description": "The id the new entity gets; must be free."
+              }
+            },
+            "required": ["op", "ref", "id"],
+            "additionalProperties": false,
+            "description": "Turn a bulk entry into an entity with an id, keeping its behavior and material, so it can be referenced without `base`."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "demote"
+              },
+              "id": {
+                "type": "string",
+                "description": "A solid, cloud or anchor entity with no fields beyond what a bulk entry holds."
+              }
+            },
+            "required": ["op", "id"],
+            "additionalProperties": false,
+            "description": "Turn an entity back into an id-less bulk entry, appended to its bucket."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "setSpawn"
+              },
+              "index": {
+                "description": "Which spawn to set (default 0). An index at or past the end appends a new spawn.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "at": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "x in world pixels."
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "y in world pixels; y is down."
+                  }
+                ],
+                "description": "The player's feet, in integer world pixels."
+              }
+            },
+            "required": ["op", "at"],
+            "additionalProperties": false,
+            "description": "Set or add a player spawn point."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "removeSpawn"
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The spawn to remove."
+              }
+            },
+            "required": ["op", "index"],
+            "additionalProperties": false,
+            "description": "Remove a player spawn point."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "setScene"
+              },
+              "set": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "description": "The scene's name.",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "bounds": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "minX"
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "minY"
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "maxX"
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "maxY"
+                      }
+                    ],
+                    "description": "The scene's playable area as [minX, minY, maxX, maxY] in integer world pixels; y is down."
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Scene-level fields to change."
+              }
+            },
+            "required": ["op", "set"],
+            "additionalProperties": false,
+            "description": "Change the scene's name or bounds."
+          }
+        ],
+        "description": "One edit to a scene document."
+      },
+      "description": "Applied in order, atomically: if one fails, none apply."
+    }
+  },
+  "required": ["ops"],
+  "additionalProperties": false,
+  "description": "A batch of scene edits. Coordinates are integer world pixels with y down, rotations are integer degrees, and sizes of boxes and capsules are half-extents."
+}

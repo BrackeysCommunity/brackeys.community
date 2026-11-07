@@ -2,6 +2,7 @@ import type { Store } from "@tanstack/store";
 import type { Container } from "pixi.js";
 
 import type { Camera } from "../camera";
+import type { ColliderTags } from "../collider-tags";
 import type { PhysicsWorld } from "../physics";
 import { setDebugMode } from "../store";
 import type { DebugMode, GameStoreState, Vec2 } from "../types";
@@ -27,28 +28,31 @@ export type PlayerDebugState = {
   };
 };
 
+/** The world the physics wireframes draw; rebound whenever a scene loads. */
+export type DebugPhysicsSource = { physics: PhysicsWorld; tags: ColliderTags };
+
 export type DebugOverlay = {
-  update: (dt: number, player: PlayerDebugState, mouseWorldPos: Vec2) => void;
+  /** `player` is null when the scene has no spawn. */
+  update: (dt: number, player: PlayerDebugState | null, mouseWorldPos: Vec2) => void;
+  setPhysics: (source: DebugPhysicsSource | null) => void;
   destroy: () => void;
 };
 
-type DebugDeps = {
+export type DebugOverlayFactory = (deps: DebugDeps) => DebugOverlay;
+
+export type DebugDeps = {
   worldContainer: Container;
   uiContainer: Container;
   camera: Camera;
   store: Store<GameStoreState>;
-  physics: PhysicsWorld;
+  physics: DebugPhysicsSource | null;
   inputTarget: HTMLElement | Window;
 };
 
-/**
- * Creates the debug overlay system. Returns null in production builds.
- * All sub-systems are gated behind `import.meta.env.DEV`.
- */
-export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
-  if (!import.meta.env.DEV) return null;
-
-  const { worldContainer, uiContainer, camera, store, physics: physicsWorld, inputTarget } = deps;
+/** Creates the debug overlay. Hosts only call it in dev builds. */
+export function createDebugOverlay(deps: DebugDeps): DebugOverlay {
+  const { worldContainer, uiContainer, camera, store, inputTarget } = deps;
+  let physicsSource = deps.physics;
 
   // ── Sub-systems ──────────────────────────────────
   let grid: GridOverlay | null = null;
@@ -109,7 +113,7 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
 
   function ensurePhysics(): PhysicsWireframes {
     if (!physics) {
-      physics = createPhysicsWireframes(physicsWorld);
+      physics = createPhysicsWireframes(physicsSource);
       worldContainer.addChild(physics.container);
     }
     return physics;
@@ -150,7 +154,7 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
 
   // ── Public API ───────────────────────────────────
 
-  function update(_dt: number, player: PlayerDebugState, mouseWorldPos: Vec2): void {
+  function update(_dt: number, player: PlayerDebugState | null, mouseWorldPos: Vec2): void {
     if (currentMode === "off") return;
 
     const viewport = camera.getViewport();
@@ -163,13 +167,18 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
       physics.update();
     }
 
-    if (showArcs() && jumpArc) {
+    if (showArcs() && jumpArc && player) {
       jumpArc.update(player);
     }
 
     if (showPlayerScale() && playerScale) {
       playerScale.update(mouseWorldPos.x, mouseWorldPos.y);
     }
+  }
+
+  function setPhysics(source: DebugPhysicsSource | null): void {
+    physicsSource = source;
+    physics?.setSource(source);
   }
 
   function destroy(): void {
@@ -186,5 +195,5 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay | null {
     physics = null;
   }
 
-  return { update, destroy };
+  return { update, setPhysics, destroy };
 }

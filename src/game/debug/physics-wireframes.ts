@@ -1,7 +1,7 @@
 import { Container, Graphics } from "pixi.js";
 
-import type { PhysicsWorld } from "../physics";
-import { getSurfaceType, type SurfaceType } from "../surfaces";
+import { surfaceTypeOf, type SurfaceType } from "../surfaces";
+import type { DebugPhysicsSource } from "./index";
 
 // Colors for each surface type in debug wireframes
 const SURFACE_COLORS: Record<SurfaceType, number> = {
@@ -15,12 +15,14 @@ const SURFACE_COLORS: Record<SurfaceType, number> = {
 
 export type PhysicsWireframes = {
   update: () => void;
+  setSource: (source: DebugPhysicsSource | null) => void;
   setVisible: (visible: boolean) => void;
   destroy: () => void;
   container: Container;
 };
 
-export function createPhysicsWireframes(physicsWorld: PhysicsWorld): PhysicsWireframes {
+export function createPhysicsWireframes(initial: DebugPhysicsSource | null): PhysicsWireframes {
+  let source = initial;
   const container = new Container();
   container.label = "debug-physics";
 
@@ -32,8 +34,9 @@ export function createPhysicsWireframes(physicsWorld: PhysicsWorld): PhysicsWire
   function update(): void {
     graphics.clear();
     surfaceGraphics.clear();
+    if (!source) return;
 
-    const { vertices, colors } = physicsWorld.debugRender();
+    const { vertices, colors } = source.physics.debugRender();
 
     // Rapier returns line segments: every 4 floats in vertices = one segment
     // [x1, y1, x2, y2, ...] and colors has [r, g, b, a] per vertex
@@ -62,10 +65,10 @@ export function createPhysicsWireframes(physicsWorld: PhysicsWorld): PhysicsWire
       graphics.stroke();
     }
 
-    // Draw surface-colored overlays on registered colliders
-    const world = physicsWorld.world;
-    world.forEachCollider((collider) => {
-      const surfaceType = getSurfaceType(collider.handle);
+    // Draw surface-colored overlays on tagged colliders
+    const { tags } = source;
+    source.physics.world.forEachCollider((collider) => {
+      const surfaceType = surfaceTypeOf(tags.get(collider.handle));
       if (surfaceType === "normal") return; // skip normal — already drawn by Rapier
 
       const color = SURFACE_COLORS[surfaceType];
@@ -102,5 +105,10 @@ export function createPhysicsWireframes(physicsWorld: PhysicsWorld): PhysicsWire
     container.destroy();
   }
 
-  return { update, setVisible, destroy, container };
+  function setSource(next: DebugPhysicsSource | null): void {
+    source = next;
+    if (container.visible) update();
+  }
+
+  return { update, setSource, setVisible, destroy, container };
 }

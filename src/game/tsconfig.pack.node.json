@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.pack.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["vite/index.ts"]
+}

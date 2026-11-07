@@ -132,3 +132,9 @@ left-column patterns converts that file. New code never introduces them.
 single chat because that will not make sense to the user. And if you run into anything that is too heavily
 commented with chat-context-specific information (like a specific bug fixed at some point), reduce to
 what is actually relevant to a current dev
+
+## Game scenes
+
+Levels live in `src/game/scenes/*.json`; change them through `vp run scene` (list, show, schema,
+codes, validate, fmt, apply, step), never by hand. The workflow and conventions are in
+`scripts/scene/README.md`; the `scene-editing` skill loads them.

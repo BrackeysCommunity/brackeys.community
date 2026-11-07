@@ -1,30 +1,40 @@
 import type { Store } from "@tanstack/store";
+import { Container } from "pixi.js";
 
 import { initAssets } from "./assets";
 import { createCamera } from "./camera";
-import { createDebugOverlay, type DebugOverlay } from "./debug";
-import { createCloudPlatformSystem } from "./entities/cloud-platform";
-import { createGrappleAnchorSystem } from "./entities/grapple-anchor";
-import { createMovingPlatformSystem } from "./entities/moving-platform";
-import { createPlayerEntity } from "./entities/player";
+import type { DebugOverlay } from "./debug";
 import { type ConstructType, CONSTRUCT_CONFIGS } from "./entities/shaper-constructs";
 import { GameEventEmitter } from "./events";
 import { createInputSystem } from "./input";
 import { createGameLoop } from "./loop";
-import { initRapier, createPhysicsWorld } from "./physics";
 import { createRenderer } from "./renderer";
+import { createSceneRuntime, type SceneRuntimeHandle } from "./runtime/runtime";
+import type { LoadReport } from "./runtime/types";
+import type { ExpandedScene } from "./scene/types";
 import {
   createGameStore,
   incrementTick,
+  removePlayer,
   resetGameStore,
   setFPS,
+  setMode as setStoreMode,
   setPhase,
   updateCamera,
   updatePlayer,
 } from "./store";
-import { createShaperSystem } from "./systems/shaper";
-import type { GameConfig, GameEventMap, GameInstance, GameStoreState } from "./types";
+import { createShaperSystem, type ShaperSystem } from "./systems/shaper";
+import type {
+  GameConfig,
+  GameEventMap,
+  GameInstance,
+  GameMode,
+  GameStoreState,
+  RapierModule,
+} from "./types";
 import { DEFAULT_GAME_CONFIG } from "./types";
+
+const loadDefaultRapier = (): Promise<RapierModule> => import("@dimforge/rapier2d");
 
 export async function createGame(
   canvas: HTMLCanvasElement,
@@ -53,74 +63,112 @@ export async function createGame(
     cfg.camera,
   );
 
-  // Physics (Rapier WASM)
-  await initRapier();
-  const physics = createPhysicsWorld();
-
-  // Input
+  const rapier = await (cfg.rapier ?? loadDefaultRapier)();
   const input = createInputSystem(cfg.bindings);
 
-  // Moving platform system (must be created before player so player can reference it)
-  const movingPlatforms = createMovingPlatformSystem(physics, renderer.worldContainer);
+  // Each loaded scene draws into its own container inside this layer, so a
+  // reload never reorders it against the debug overlay.
+  const sceneLayer = new Container();
+  sceneLayer.label = "scene";
+  renderer.worldContainer.addChild(sceneLayer);
 
-  // ─── Test scene: moving platforms ─────────────────
-  // Horizontal platform over the pit
-  movingPlatforms.add({
-    waypoints: [
-      { x: 1500, y: 950 },
-      { x: 1700, y: 950 },
-    ],
-    speed: 80,
-    pauseMs: 500,
-    width: 100,
-    height: 12,
-    mode: "ping_pong",
-  });
-  // Vertical elevator near the wall-jump corridor
-  movingPlatforms.add({
-    waypoints: [
-      { x: 1300, y: 1000 },
-      { x: 1300, y: 700 },
-    ],
-    speed: 100,
-    pauseMs: 800,
-    width: 80,
-    height: 12,
-    mode: "ping_pong",
-  });
-  // Diagonal path platform
-  movingPlatforms.add({
-    waypoints: [
-      { x: 200, y: 800 },
-      { x: 400, y: 700 },
-      { x: 600, y: 750 },
-    ],
-    speed: 120,
-    pauseMs: 300,
-    width: 70,
-    height: 12,
-    mode: "loop",
-  });
+  let debugOverlay: DebugOverlay | null = null;
+  if (cfg.dev && cfg.debug) {
+    debugOverlay = cfg.debug({
+      worldContainer: renderer.worldContainer,
+      uiContainer: renderer.uiContainer,
+      camera,
+      store,
+      physics: null,
+      inputTarget: window,
+    });
+  }
 
-  // Grapple anchor system (Shaper places these, Runners swing from them)
-  const grappleAnchors = createGrappleAnchorSystem(renderer.worldContainer);
-  // Test anchors
-  grappleAnchors.add({ x: 600, y: 600 });
-  grappleAnchors.add({ x: 900, y: 500 });
-  grappleAnchors.add({ x: 1100, y: 550 });
-  grappleAnchors.add({ x: 400, y: 500 });
+  // ─── Scene runtime (one at a time) ────────────────────────
 
-  // Player entity (character controller handles platform riding via collision resolution)
-  const player = createPlayerEntity(renderer.worldContainer, physics, grappleAnchors);
+  let runtime: SceneRuntimeHandle | null = null;
+  let runtimeView: Container | null = null;
+  let shaper: ShaperSystem | null = null;
+  let shaperMode = false;
 
-  // Cloud platform system — handles one-way pass-through independently
-  const cloudPlatforms = createCloudPlatformSystem(physics, renderer.worldContainer);
+  function teardownRuntime(): void {
+    shaper?.destroy();
+    shaper = null;
+    debugOverlay?.setPhysics(null);
+    runtime?.destroy();
+    runtimeView?.destroy({ children: true });
+    runtime = null;
+    runtimeView = null;
+    removePlayer(store, "local");
+  }
 
-  // Shaper system — object placement (Tab toggles mode, number keys select, click places)
-  const shaperSystem = createShaperSystem(renderer.worldContainer, physics, grappleAnchors);
+  function loadScene(scene: ExpandedScene): LoadReport {
+    if (destroyed) return { ok: false, error: "game destroyed" };
+
+    const view = new Container();
+    view.label = `scene:${scene.name}`;
+    const next = createSceneRuntime({
+      rapier,
+      view: { world: view },
+      dev: cfg.dev,
+      now: () => performance.now(),
+    });
+    const report = next.load(scene);
+    if (!report.ok) {
+      next.destroy();
+      view.destroy({ children: true });
+      if (cfg.dev) console.warn(`[scene] load failed: ${report.error}`, report);
+      return report;
+    }
+
+    teardownRuntime();
+    runtime = next;
+    runtimeView = view;
+    sceneLayer.addChild(view);
+    shaper = createShaperSystem({
+      view,
+      constructs: next.constructs,
+      anchors: next.anchors,
+      bounds: next.ctx.bounds,
+    });
+    shaper.setActive(shaperMode);
+    debugOverlay?.setPhysics({ physics: next.ctx.physics, tags: next.ctx.tags });
+
+    const player = next.player();
+    if (player) {
+      updatePlayer(store, "local", {
+        id: "local",
+        position: player.getPosition(),
+        velocity: { x: 0, y: 0 },
+      });
+    }
+    return report;
+  }
+
+  function unloadScene(): void {
+    teardownRuntime();
+  }
+
+  function getMode(): GameMode {
+    return store.state.mode;
+  }
+
+  function setMode(mode: GameMode): void {
+    const prev = getMode();
+    if (prev === mode) return;
+    setStoreMode(store, mode);
+    input.setEnabled(mode === "play");
+    if (mode === "edit") {
+      shaperMode = false;
+      shaper?.setActive(false);
+      shaper?.clearSelection();
+      const scene = runtime?.scene();
+      if (prev === "play" && scene) loadScene(scene);
+    }
+  }
 
   // ─── Shaper input handling ────────────────────────
-  let shaperMode = false;
+
   function setupShaperInput(): void {
     window.addEventListener("keydown", onShaperKeyDown);
     window.addEventListener("mousedown", onShaperMouseDown);
@@ -128,11 +176,13 @@ export async function createGame(
   }
 
   function onShaperKeyDown(e: KeyboardEvent): void {
+    if (!shaper || getMode() !== "play") return;
+
     if (e.key === "Tab") {
       e.preventDefault();
       shaperMode = !shaperMode;
-      shaperSystem.setActive(shaperMode);
-      if (!shaperMode) shaperSystem.clearSelection();
+      shaper.setActive(shaperMode);
+      if (!shaperMode) shaper.clearSelection();
       return;
     }
 
@@ -141,54 +191,32 @@ export async function createGame(
     // Number keys select construct type
     const hotkeyNum = parseInt(e.key);
     if (hotkeyNum >= 1 && hotkeyNum <= 6) {
-      const entry = Object.entries(CONSTRUCT_CONFIGS).find(([, cfg]) => cfg.hotkey === hotkeyNum);
-      if (entry) {
-        shaperSystem.selectType(entry[0] as ConstructType);
-      }
+      const entry = Object.entries(CONSTRUCT_CONFIGS).find(([, c]) => c.hotkey === hotkeyNum);
+      if (entry) shaper.selectType(entry[0] as ConstructType);
     }
 
-    if (e.key === "Escape") {
-      shaperSystem.clearSelection();
+    if (e.key === "Escape" && shaper.getSelectedType()) {
+      // Consumed here, so an editor listening for Escape doesn't also stop play.
+      e.preventDefault();
+      shaper.clearSelection();
     }
   }
 
   function onShaperMouseDown(e: MouseEvent): void {
-    if (!shaperMode || !shaperSystem.getSelectedType()) return;
+    if (!shaper || !shaperMode || getMode() !== "play" || !shaper.getSelectedType()) return;
     if (e.button === 0) {
-      // Left click = place
-      const result = shaperSystem.place();
-      if (!result.valid && import.meta.env.DEV) {
+      const result = shaper.place();
+      if (!result.valid && cfg.dev) {
         console.log(`[shaper] placement rejected: ${result.reason}`);
       }
     } else if (e.button === 2) {
-      // Right click = cancel selection
-      shaperSystem.clearSelection();
+      shaper.clearSelection();
     }
   }
 
   function onShaperWheel(e: WheelEvent): void {
-    if (!shaperMode) return;
-    shaperSystem.rotatePreview(e.deltaY > 0 ? 1 : -1);
-  }
-
-  // Initialize player in store
-  updatePlayer(store, "local", {
-    id: "local",
-    position: player.getPosition(),
-    velocity: { x: 0, y: 0 },
-  });
-
-  // Debug overlay (dev-only, tree-shaken in production)
-  let debugOverlay: DebugOverlay | null = null;
-  if (import.meta.env.DEV) {
-    debugOverlay = createDebugOverlay({
-      worldContainer: renderer.worldContainer,
-      uiContainer: renderer.uiContainer,
-      camera,
-      store,
-      physics,
-      inputTarget: window,
-    });
+    if (!shaper || !shaperMode || getMode() !== "play") return;
+    shaper.rotatePreview(e.deltaY > 0 ? 1 : -1);
   }
 
   // ─── Game loop ────────────────────────────────────────────
@@ -197,104 +225,54 @@ export async function createGame(
     tickRate: cfg.targetFPS,
 
     onTick(dt: number) {
-      const tick = store.state.tick;
+      const actions = input.poll(store.state.tick);
+      const mouseWorld = camera.screenToWorld(input.getMousePosition());
 
-      // 1. Poll input
-      const actions = input.poll(tick);
+      if (runtime && getMode() === "play") {
+        if (shaperMode) shaper?.updatePreview(mouseWorld, dt);
+        const result = runtime.step(dt, actions);
+        if (cfg.dev) {
+          for (const evt of result.events) {
+            if (evt.type !== "landed" && evt.type !== "left-ground") {
+              console.log(`[scene] ${evt.type}`, evt);
+            }
+          }
+        }
+        incrementTick(store);
+      }
 
-      // 2a. Update moving platforms (before player, so rider delta is ready)
-      movingPlatforms.update(dt);
+      const player = runtime?.player() ?? null;
+      camera.update(dt, player ? player.getPosition() : camera.getPosition());
 
-      // 2b. Update shaper preview (cursor tracking in world space)
-      if (shaperMode) {
-        const mousePos = input.getMousePosition();
-        const scale = camera.getDisplayScale();
-        const vp = camera.getViewport();
-        shaperSystem.updatePreview({
-          x: vp.x + mousePos.x / scale,
-          y: vp.y + mousePos.y / scale,
+      if (player) {
+        updatePlayer(store, "local", {
+          position: player.getPosition(),
+          velocity: player.getVelocity(),
         });
       }
+      updateCamera(store, { position: camera.getPosition() });
 
-      // 2c. Update cloud platforms (sets collision groups before player's
-      //    character controller runs, so each cloud is independently
-      //    solid or pass-through based on the player's position)
-      cloudPlatforms.update(player.getPosition(), player.getHalfHeight(), player.isHoldingDown());
+      debugOverlay?.update(
+        dt,
+        player && {
+          position: player.getPosition(),
+          velocity: player.getVelocity(),
+          grounded: player.isGrounded(),
+          holdingJump: player.isHoldingJump(),
+          holdingMove: player.isHoldingMove(),
+          wallSliding: player.isWallSliding(),
+          wallDirection: player.getWallDirection(),
+          preUpdate: player.getPreUpdateState(),
+        },
+        mouseWorld,
+      );
 
-      // 2c. Compute ground platform delta hint for player stick velocity.
-      //     If the player is standing on a moving platform, pass its Y delta
-      //     so the player can adjust ground stick velocity to track it.
-      let groundDeltaY = 0;
-      if (player.isGrounded()) {
-        const groundHandle = player.getGroundColliderHandle();
-        if (groundHandle !== null) {
-          const pd = movingPlatforms.getFrameDeltaForCollider(groundHandle);
-          if (pd) groundDeltaY = pd.y;
-        }
-      }
-
-      // 3. Update player
-      player.update(dt, actions, groundDeltaY);
-
-      // 3. Step physics world + drain collision events
-      physics.step();
-      const collisionEvents = physics.drainEvents();
-
-      // Log collision events for testing (will be wired into game state later)
-      for (const evt of collisionEvents) {
-        if (import.meta.env.DEV) {
-          console.log(`[collision] ${evt.type}`, evt);
-        }
-      }
-
-      // 4. Update camera to follow player
-      camera.update(dt, player.getPosition());
-
-      // 5. Sync state to store
-      incrementTick(store);
-      updatePlayer(store, "local", {
-        position: player.getPosition(),
-        velocity: player.getVelocity(),
-      });
-      updateCamera(store, {
-        position: camera.getPosition(),
-      });
-
-      // 6. Update debug overlay
-      if (debugOverlay) {
-        const mousePos = input.getMousePosition();
-        // Convert screen mouse to world coordinates (screen px → game units)
-        const scale = camera.getDisplayScale();
-        const vp = camera.getViewport();
-        const mouseWorld = {
-          x: vp.x + mousePos.x / scale,
-          y: vp.y + mousePos.y / scale,
-        };
-        debugOverlay.update(
-          dt,
-          {
-            position: player.getPosition(),
-            velocity: player.getVelocity(),
-            grounded: player.isGrounded(),
-            holdingJump: player.isHoldingJump(),
-            holdingMove: player.isHoldingMove(),
-            wallSliding: player.isWallSliding(),
-            wallDirection: player.getWallDirection(),
-            preUpdate: player.getPreUpdateState(),
-          },
-          mouseWorld,
-        );
-      }
-
-      // 7. Emit tick event
       events.emit("game:tick", { tick: store.state.tick });
     },
 
     onRender(_alpha: number) {
       // Future: interpolate visual positions between physics ticks
       // For now, PixiJS renders automatically via its ticker (driven by rAF)
-
-      // Update FPS in store periodically
       setFPS(store, loop.getFPS());
     },
   });
@@ -327,14 +305,9 @@ export async function createGame(
     window.removeEventListener("mousedown", onShaperMouseDown);
     window.removeEventListener("wheel", onShaperWheel);
     debugOverlay?.destroy();
-    shaperSystem.destroy();
+    teardownRuntime();
     input.destroy();
     camera.destroy();
-    grappleAnchors.destroy();
-    cloudPlatforms.destroy();
-    movingPlatforms.destroy();
-    player.destroy();
-    physics.destroy();
     renderer.destroy();
 
     events.emit("game:destroy");
@@ -362,7 +335,15 @@ export async function createGame(
     return store;
   }
 
+  if (cfg.scene) {
+    const report = loadScene(cfg.scene);
+    if (!report.ok) {
+      destroy();
+      throw new Error(`scene "${cfg.scene.name}" failed to load: ${report.error}`);
+    }
+  }
+
   setPhase(store, "idle");
 
-  return { start, destroy, resize, on, off, getStore };
+  return { start, destroy, resize, on, off, getStore, loadScene, unloadScene, setMode, getMode };
 }

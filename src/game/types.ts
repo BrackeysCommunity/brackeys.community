@@ -1,6 +1,14 @@
+import type { Store } from "@tanstack/store";
+
+import type { DebugOverlayFactory } from "./debug";
+import type { LoadReport } from "./runtime/types";
+import type { ExpandedScene } from "./scene/types";
+
 // ─── Primitives ──────────────────────────────────────────
 
 export type Vec2 = { x: number; y: number };
+
+export type RapierModule = typeof import("@dimforge/rapier2d");
 
 // ─── Virtual Resolution ──────────────────────────────────
 // The game world is designed around a fixed virtual height.
@@ -32,6 +40,14 @@ export type GameConfig = {
   maxDeltaTime: number;
   camera: CameraConfig;
   bindings?: InputBinding[];
+  /** Enables dev logging, and the debug overlay when `debug` is given; hosts pass their build's dev flag. */
+  dev: boolean;
+  /** `createDebugOverlay` from `@jams/engine/debug`, passed only in dev builds so production never bundles it. */
+  debug?: DebugOverlayFactory;
+  /** Loads the Rapier module. Defaults to `@dimforge/rapier2d`. */
+  rapier?: () => Promise<RapierModule>;
+  /** Loaded on start. Without one the world is empty and there is no player. */
+  scene?: ExpandedScene;
 };
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
@@ -40,6 +56,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   backgroundColor: 0x1a1a2e,
   targetFPS: 60,
   maxDeltaTime: 250,
+  dev: false,
   camera: {
     lerpSpeed: 0.1,
     bounds: {
@@ -104,6 +121,9 @@ export type GameEventMap = {
 
 // ─── Store ───────────────────────────────────────────────
 
+/** `edit` pauses the simulation; `play` runs it. */
+export type GameMode = "edit" | "play";
+
 export type GamePhase = "idle" | "loading" | "running" | "paused" | "destroyed";
 
 export type PlayerInfo = {
@@ -119,6 +139,7 @@ export type GameStoreState = {
   tick: number;
   fps: number;
   debugMode: DebugMode;
+  mode: GameMode;
 };
 
 // ─── Game Instance ───────────────────────────────────────
@@ -132,5 +153,11 @@ export type GameInstance = {
     event: K,
     handler: (payload: GameEventMap[K]) => void,
   ) => void;
-  getStore: () => import("@tanstack/store").Store<GameStoreState>;
+  getStore: () => Store<GameStoreState>;
+  /** Builds a fresh world for `scene`; on failure the current scene keeps running. */
+  loadScene: (scene: ExpandedScene) => LoadReport;
+  unloadScene: () => void;
+  /** Switching from play to edit rebuilds the current scene at its authored state. */
+  setMode: (mode: GameMode) => void;
+  getMode: () => GameMode;
 };

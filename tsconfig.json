@@ -22,7 +22,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@jams/engine": ["./src/game/index.ts"],
+      "@jams/engine/*": ["./src/game/*/index.ts"]
     }
   }
 }

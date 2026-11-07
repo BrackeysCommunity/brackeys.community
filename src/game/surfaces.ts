@@ -5,6 +5,8 @@
  * and gameplay modifiers that the player movement system reads each tick.
  */
 
+import type { ColliderTag } from "./collider-tags";
+
 // ─── Surface types ───────────────────────────────────────
 
 export type SurfaceType = "normal" | "ice" | "trampoline" | "lava" | "chocolate" | "cloud";
@@ -83,59 +85,16 @@ export const SURFACE_MATERIALS: Record<SurfaceType, SurfaceMaterial> = {
   },
 };
 
-// ─── Surface registry ────────────────────────────────────
-// Maps collider handles → surface type so the player movement system
-// can query what surface it's standing on.
+// ─── Lookup by tag ───────────────────────────────────────
 
-const surfaceRegistry = new Map<number, SurfaceType>();
-
-/** Register a collider handle as a particular surface type */
-export function registerSurface(handle: number, surfaceType: SurfaceType): void {
-  surfaceRegistry.set(handle, surfaceType);
+export function surfaceTypeOf(tag: ColliderTag | undefined): SurfaceType {
+  if (!tag) return "normal";
+  if (tag.material) return tag.material;
+  if (tag.behavior === "cloud") return "cloud";
+  if (tag.sensor === "hazard") return "lava";
+  return "normal";
 }
 
-/** Unregister a surface (e.g. when a ground segment is removed) */
-export function unregisterSurface(handle: number): void {
-  surfaceRegistry.delete(handle);
-}
-
-/** Look up the surface type for a collider handle. Returns "normal" if unregistered. */
-export function getSurfaceType(handle: number): SurfaceType {
-  return surfaceRegistry.get(handle) ?? "normal";
-}
-
-/** Get the full material properties for a collider handle */
-export function getSurfaceMaterial(handle: number): SurfaceMaterial {
-  return SURFACE_MATERIALS[getSurfaceType(handle)];
-}
-
-/** Clear all registered surfaces (e.g. on map change) */
-export function clearSurfaces(): void {
-  surfaceRegistry.clear();
-}
-
-// ─── Cloud platform set ──────────────────────────────────
-// Separate set for fast lookup in the physics hooks filter.
-
-const cloudPlatforms = new Set<number>();
-
-export function registerCloudPlatform(handle: number): void {
-  cloudPlatforms.add(handle);
-}
-
-export function unregisterCloudPlatform(handle: number): void {
-  cloudPlatforms.delete(handle);
-}
-
-export function isCloudPlatform(handle: number): boolean {
-  return cloudPlatforms.has(handle);
-}
-
-export function clearCloudPlatforms(): void {
-  cloudPlatforms.clear();
-}
-
-/** Get all registered cloud platform collider handles */
-export function getCloudPlatformHandles(): ReadonlySet<number> {
-  return cloudPlatforms;
+export function surfaceMaterialOf(tag: ColliderTag | undefined): SurfaceMaterial {
+  return SURFACE_MATERIALS[surfaceTypeOf(tag)];
 }

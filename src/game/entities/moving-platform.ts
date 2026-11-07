@@ -1,42 +1,18 @@
-import { Graphics, type Container } from "pixi.js";
+import type { Collider, RigidBody } from "@dimforge/rapier2d";
+import { Graphics } from "pixi.js";
 
 import { GROUND_COLLISION_GROUP } from "../collisions";
-import { getRapier } from "../physics";
-import type { PhysicsWorld } from "../physics";
-import { registerSurface, type SurfaceType } from "../surfaces";
+import { addToLayer, type EngineContext } from "../context";
+import { shapeColliderDesc } from "../physics";
+import { SURFACE_MATERIALS } from "../surfaces";
+import { traceShape } from "../systems/draw-shape";
+import type { EntityOf, SceneSystem } from "../systems/scene-system";
 import type { Vec2 } from "../types";
 
 // ─── Types ──────────────────────────────────────────────
 
+/** Ping-pong reverses at the ends; loop runs the closing segment from last back to first. */
 export type WaypointMode = "ping_pong" | "loop";
-
-export type MovingPlatformConfig = {
-  /** Waypoints the platform travels between (world coordinates) */
-  waypoints: Vec2[];
-  /** Travel speed in game units/sec */
-  speed: number;
-  /** Pause at each waypoint in ms (0 = no pause) */
-  pauseMs: number;
-  /** Platform width (full, not half) */
-  width: number;
-  /** Platform height (full, not half) */
-  height: number;
-  /** Ping-pong reverses at endpoints, loop teleports to start */
-  mode: WaypointMode;
-  /** Optional surface type (ice, chocolate, etc.) */
-  surfaceType?: SurfaceType;
-  /** Visual color override (defaults to surface color or white) */
-  color?: number;
-};
-
-export type MovingPlatform = {
-  update: (dtMs: number) => void;
-  /** Get the position delta this platform moved THIS frame (for rider sync) */
-  getFrameDelta: () => Vec2;
-  /** Get the collider handle for rider detection */
-  getColliderHandle: () => number;
-  destroy: () => void;
-};
 
 // ─── Waypoint interpolation (pure, testable) ────────────
 
@@ -151,153 +127,149 @@ export function interpolatePosition(a: Vec2, b: Vec2, t: number): Vec2 {
   };
 }
 
-// ─── Entity factory ────────────────────────────────────
+// ─── Mover system ───────────────────────────────────────
 
 const SURFACE_COLORS: Record<string, number> = {
   normal: 0xffa500,
   ice: 0x88ddff,
   chocolate: 0x8b4513,
   trampoline: 0xff00ff,
-  cloud: 0xffffff,
 };
 
-export function createMovingPlatform(
-  config: MovingPlatformConfig,
-  physics: PhysicsWorld,
-  worldContainer: Container,
-): MovingPlatform {
-  const RAPIER = getRapier();
-  const { waypoints, speed, pauseMs, width, height, mode, surfaceType, color } = config;
+const DEFAULT_FRICTION = 0.8;
 
-  if (waypoints.length < 2) {
-    throw new Error("Moving platform requires at least 2 waypoints");
-  }
+export type MovingPlatformSystem = SceneSystem<EntityOf<"mover">> & {
+  /** Advance every mover. Call before player.update(). */
+  tick: (dtMs: number) => void;
+  /** Position delta the mover travelled this frame, for rider sync. */
+  frameDelta: (id: string) => Vec2 | null;
+  position: (id: string) => Vec2 | null;
+};
 
-  // ─── Visual ──────────────────────────────────────
-  const fillColor = color ?? SURFACE_COLORS[surfaceType ?? "normal"] ?? 0xffa500;
-  const graphics = new Graphics();
-  graphics.rect(-width / 2, -height / 2, width, height);
-  graphics.fill({ color: fillColor, alpha: 0.8 });
-  graphics.stroke({ width: 2, color: 0xffffff, alpha: 0.4 });
-  worldContainer.addChild(graphics);
+type Mover = {
+  entity: EntityOf<"mover">;
+  waypoints: Vec2[];
+  body: RigidBody;
+  collider: Collider;
+  graphics: Graphics | null;
+  state: WaypointState;
+  prevPos: Vec2;
+  frameDelta: Vec2;
+};
 
-  // ─── Physics body (kinematic) ────────────────────
-  const startPos = waypoints[0];
-  const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
-    startPos.x,
-    startPos.y,
-  );
-  const body = physics.addRigidBody(bodyDesc);
-
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(width / 2, height / 2)
-    .setCollisionGroups(GROUND_COLLISION_GROUP)
-    .setFriction(0.8);
-  const collider = physics.addCollider(colliderDesc, body);
-
-  // Register surface type if specified
-  if (surfaceType) {
-    registerSurface(collider.handle, surfaceType);
-  }
-
-  // ─── State ───────────────────────────────────────
-  let waypointState: WaypointState = {
-    currentIndex: 0,
-    nextIndex: 1,
-    t: 0,
-    direction: 1,
-    pauseRemainingMs: 0,
-  };
-
-  let prevPos: Vec2 = { x: startPos.x, y: startPos.y };
-  let frameDelta: Vec2 = { x: 0, y: 0 };
-
-  function update(dtMs: number): void {
-    // Advance waypoint state
-    waypointState = advanceWaypoint(waypointState, waypoints, speed, dtMs, pauseMs, mode);
-
-    // Compute new position
-    const a = waypoints[waypointState.currentIndex];
-    const b = waypoints[waypointState.nextIndex];
-    const newPos = interpolatePosition(a, b, waypointState.t);
-
-    // Track frame delta for rider sync
-    frameDelta = {
-      x: newPos.x - prevPos.x,
-      y: newPos.y - prevPos.y,
-    };
-    prevPos = { x: newPos.x, y: newPos.y };
-
-    // Move kinematic body
-    body.setNextKinematicTranslation(new RAPIER.Vector2(newPos.x, newPos.y));
-
-    // Sync visual
-    graphics.position.set(newPos.x, newPos.y);
-  }
-
-  function getFrameDelta(): Vec2 {
-    return { ...frameDelta };
-  }
-
-  function getColliderHandle(): number {
-    return collider.handle;
-  }
-
-  function destroy(): void {
-    worldContainer.removeChild(graphics);
-    graphics.destroy();
-    physics.removeRigidBody(body);
-  }
-
-  // Initial visual sync
-  graphics.position.set(startPos.x, startPos.y);
-
-  return { update, getFrameDelta, getColliderHandle, destroy };
+function initialState(): WaypointState {
+  return { currentIndex: 0, nextIndex: 1, t: 0, direction: 1, pauseRemainingMs: 0 };
 }
 
-// ─── Moving platform system ─────────────────────────────
+export function createMovingPlatformSystem(ctx: EngineContext): MovingPlatformSystem {
+  const { rapier, physics, view } = ctx;
+  const movers = new Map<string, Mover>();
 
-export type MovingPlatformSystem = {
-  /** Add a new moving platform */
-  add: (config: MovingPlatformConfig) => MovingPlatform;
-  /** Update all platforms. Call before player.update(). */
-  update: (dtMs: number) => void;
-  /** Get frame delta for a specific collider handle (for rider sync). Returns null if not a moving platform. */
-  getFrameDeltaForCollider: (handle: number) => Vec2 | null;
-  destroy: () => void;
-};
-
-export function createMovingPlatformSystem(
-  physics: PhysicsWorld,
-  worldContainer: Container,
-): MovingPlatformSystem {
-  const platforms: MovingPlatform[] = [];
-  const handleMap = new Map<number, MovingPlatform>();
-
-  function add(config: MovingPlatformConfig): MovingPlatform {
-    const platform = createMovingPlatform(config, physics, worldContainer);
-    platforms.push(platform);
-    handleMap.set(platform.getColliderHandle(), platform);
-    return platform;
+  function place(mover: Mover, pos: Vec2, teleport: boolean): void {
+    const v = new rapier.Vector2(pos.x, pos.y);
+    if (teleport) mover.body.setTranslation(v, true);
+    else mover.body.setNextKinematicTranslation(v);
+    mover.graphics?.position.set(pos.x, pos.y);
   }
 
-  function update(dtMs: number): void {
-    for (const platform of platforms) {
-      platform.update(dtMs);
+  function spawn(e: EntityOf<"mover">): void {
+    despawn(e.id);
+    const waypoints = e.path.pts.map(([x, y]) => ({ x, y }));
+    if (waypoints.length < 2) throw new Error(`mover ${e.id} needs at least 2 path points`);
+    const start = waypoints[0];
+
+    const body = physics.addRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(start.x, start.y),
+    );
+    const mat = e.material ? SURFACE_MATERIALS[e.material] : null;
+    const collider = physics.addCollider(
+      shapeColliderDesc(rapier, e.shape, true)
+        .setCollisionGroups(GROUND_COLLISION_GROUP)
+        .setFriction(mat?.friction ?? DEFAULT_FRICTION)
+        .setRestitution(mat?.restitution ?? 0),
+      body,
+    );
+    ctx.tags.set(collider.handle, { entityId: e.id, behavior: "mover", material: e.material });
+
+    let graphics: Graphics | null = null;
+    if (view) {
+      graphics = new Graphics();
+      traceShape(graphics, e.shape);
+      graphics.fill({ color: SURFACE_COLORS[e.material ?? "normal"], alpha: 0.8 });
+      traceShape(graphics, e.shape);
+      graphics.stroke({ width: 2, color: 0xffffff, alpha: 0.4 });
+      addToLayer(view.world, graphics, "mover");
+    }
+
+    const mover: Mover = {
+      entity: e,
+      waypoints,
+      body,
+      collider,
+      graphics,
+      state: initialState(),
+      prevPos: { ...start },
+      frameDelta: { x: 0, y: 0 },
+    };
+    place(mover, start, true);
+    movers.set(e.id, mover);
+  }
+
+  function despawn(id: string): void {
+    const mover = movers.get(id);
+    if (!mover) return;
+    ctx.tags.delete(mover.collider.handle);
+    physics.removeRigidBody(mover.body);
+    mover.graphics?.destroy();
+    movers.delete(id);
+  }
+
+  function tick(dtMs: number): void {
+    for (const mover of movers.values()) {
+      const { path } = mover.entity;
+      mover.state = advanceWaypoint(
+        mover.state,
+        mover.waypoints,
+        path.speed,
+        dtMs,
+        path.pauseMs ?? 0,
+        path.mode,
+      );
+      const a = mover.waypoints[mover.state.currentIndex];
+      const b = mover.waypoints[mover.state.nextIndex];
+      const pos = interpolatePosition(a, b, mover.state.t);
+      mover.frameDelta = { x: pos.x - mover.prevPos.x, y: pos.y - mover.prevPos.y };
+      mover.prevPos = pos;
+      place(mover, pos, false);
     }
   }
 
-  function getFrameDeltaForCollider(handle: number): Vec2 | null {
-    const platform = handleMap.get(handle);
-    return platform ? platform.getFrameDelta() : null;
-  }
-
-  function destroy(): void {
-    for (const platform of platforms) {
-      platform.destroy();
-    }
-    platforms.length = 0;
-    handleMap.clear();
-  }
-
-  return { add, update, getFrameDeltaForCollider, destroy };
+  return {
+    behaviors: ["mover"],
+    spawn,
+    despawn,
+    clear() {
+      for (const id of [...movers.keys()]) despawn(id);
+    },
+    reset() {
+      for (const mover of movers.values()) {
+        mover.state = initialState();
+        mover.prevPos = { ...mover.waypoints[0] };
+        mover.frameDelta = { x: 0, y: 0 };
+        place(mover, mover.waypoints[0], true);
+      }
+    },
+    size: () => movers.size,
+    tick,
+    frameDelta(id) {
+      const mover = movers.get(id);
+      return mover ? { ...mover.frameDelta } : null;
+    },
+    position(id) {
+      const mover = movers.get(id);
+      if (!mover) return null;
+      const t = mover.body.translation();
+      return { x: t.x, y: t.y };
+    },
+  };
 }

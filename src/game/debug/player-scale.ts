@@ -1,8 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 
-// Player hitbox dimensions — must match player.ts constants
-const PLAYER_WIDTH = 60;
-const PLAYER_HEIGHT = 60;
+import { PLAYER_HEIGHT, PLAYER_WIDTH } from "../entities/player";
 
 const OUTLINE_COLOR = 0x00ffff;
 const OUTLINE_ALPHA = 0.6;

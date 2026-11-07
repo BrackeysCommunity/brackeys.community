@@ -1,6 +1,14 @@
 import { Store } from "@tanstack/store";
 
-import type { CameraState, DebugMode, GamePhase, GameStoreState, PlayerInfo, Vec2 } from "./types";
+import type {
+  CameraState,
+  DebugMode,
+  GameMode,
+  GamePhase,
+  GameStoreState,
+  PlayerInfo,
+  Vec2,
+} from "./types";
 
 // ─── Factory ─────────────────────────────────────────────
 
@@ -21,6 +29,7 @@ function createInitialState(): GameStoreState {
     tick: 0,
     fps: 0,
     debugMode: "off",
+    mode: "play",
   };
 }
 
@@ -74,6 +83,10 @@ export function setDebugMode(store: Store<GameStoreState>, debugMode: DebugMode)
   store.setState((s) => ({ ...s, debugMode }));
 }
 
+export function setMode(store: Store<GameStoreState>, mode: GameMode): void {
+  store.setState((s) => ({ ...s, mode }));
+}
+
 export function resetGameStore(store: Store<GameStoreState>): void {
   store.setState(() => createInitialState());
 }
@@ -110,4 +123,8 @@ export function selectPlayerPosition(state: GameStoreState, id: string): Vec2 | 
 
 export function selectDebugMode(state: GameStoreState): DebugMode {
   return state.debugMode;
+}
+
+export function selectMode(state: GameStoreState): GameMode {
+  return state.mode;
 }

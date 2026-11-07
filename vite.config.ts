@@ -12,7 +12,7 @@ import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import type { Plugin as RolldownPlugin } from "rollup";
 import wasm from "vite-plugin-wasm";
-import { createLogger, defineConfig } from "vite-plus";
+import { createLogger, defineConfig, type Plugin } from "vite-plus";
 
 import pkg from "./package.json" with { type: "json" };
 import { publicCacheRouteRules } from "./src/orpc/public-procedures.ts";
@@ -194,6 +194,24 @@ const publicFileRules = Object.fromEntries(
     ]),
 );
 
+/**
+ * The engine's scene write-back endpoints (`/__scene`), dev server only.
+ * Loaded on demand: lint and fmt read this config with Node's own loader,
+ * which can't follow the engine's extensionless imports.
+ */
+function sceneDevSink(): Plugin {
+  return {
+    name: "scene-dev-sink",
+    apply: "serve",
+    async configureServer(server) {
+      const engine = await import("./src/game/vite/index.ts");
+      engine
+        .sceneDevSink({ dir: fileURLToPath(new URL("./src/game/scenes", import.meta.url)) })
+        .configureServer(server);
+    },
+  };
+}
+
 // Filter noisy "Failed to load source map" warnings from @tanstack/* packages
 // which ship sourceMappingURL comments without the .map files.
 const logger = createLogger();
@@ -250,6 +268,8 @@ const config = defineConfig({
       ".cache",
       ".output",
       "dist",
+      // Written by the engine's formatScene, which owns their layout.
+      "src/game/scenes/**",
     ],
   },
 
@@ -354,6 +374,7 @@ const config = defineConfig({
   },
   plugins: [
     wasm(),
+    sceneDevSink(),
     devtools(),
     tanstackStart({
       router: { routeFileIgnorePattern: "__tests__" },

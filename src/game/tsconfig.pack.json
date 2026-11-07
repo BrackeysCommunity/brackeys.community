@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "paths": {}
+  },
+  "include": [
+    "index.ts",
+    "scene/index.ts",
+    "editor/index.ts",
+    "headless/index.ts",
+    "debug/index.ts"
+  ]
+}

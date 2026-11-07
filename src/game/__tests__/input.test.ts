@@ -195,4 +195,49 @@ describe("createInputSystem", () => {
 
     input.destroy();
   });
+
+  it.each([
+    ["a Mod chord", { key: "s", metaKey: true }],
+    ["a Ctrl chord", { key: "s", ctrlKey: true }],
+    ["typing into a field", { key: "e", target: { tagName: "INPUT" } }],
+    ["a contenteditable", { key: "ArrowLeft", target: { isContentEditable: true } }],
+  ])("leaves %s alone", (_, init) => {
+    const input = createInputSystem();
+    const target = createMockTarget();
+    input.attach(target as unknown as HTMLElement);
+
+    const preventDefault = vi.fn();
+    target.dispatch("keydown", {
+      repeat: false,
+      timeStamp: 100,
+      preventDefault,
+      ...init,
+    } as unknown as Partial<KeyboardEvent>);
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(input.poll(1)).toEqual([]);
+    input.destroy();
+  });
+
+  it("ignores key presses while disabled", () => {
+    const input = createInputSystem();
+    const target = createMockTarget();
+    input.attach(target as unknown as HTMLElement);
+    input.setEnabled(false);
+
+    const preventDefault = vi.fn();
+    target.dispatch("keydown", {
+      key: "s",
+      repeat: false,
+      timeStamp: 100,
+      preventDefault,
+    } as unknown as Partial<KeyboardEvent>);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(input.poll(1)).toEqual([]);
+
+    input.setEnabled(true);
+    target.dispatch("keydown", { key: "s", repeat: false, timeStamp: 200 });
+    expect(input.poll(2).map((a) => a.action)).toEqual(["move_down"]);
+    input.destroy();
+  });
 });

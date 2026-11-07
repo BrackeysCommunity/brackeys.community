@@ -1,0 +1,52 @@
+{
+  "name": "@jams/engine",
+  "version": "0.1.0-dev.0",
+  "private": true,
+  "files": [
+    "dist",
+    "scene/*.schema.json",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./scene": {
+      "types": "./dist/scene.d.mts",
+      "import": "./dist/scene.mjs"
+    },
+    "./editor": {
+      "types": "./dist/editor.d.mts",
+      "import": "./dist/editor.mjs"
+    },
+    "./headless": {
+      "types": "./dist/headless.d.mts",
+      "import": "./dist/headless.mjs"
+    },
+    "./debug": {
+      "types": "./dist/debug.d.mts",
+      "import": "./dist/debug.mjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.mts",
+      "import": "./dist/vite.mjs"
+    },
+    "./schemas/scene.schema.json": "./scene/scene.schema.json",
+    "./schemas/ops.schema.json": "./scene/ops.schema.json",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@dimforge/rapier2d": "^0.19.3",
+    "@dimforge/rapier2d-compat": "^0.19.3",
+    "@tanstack/store": ">=0.8.1 <0.9.0",
+    "pixi.js": "^8.17.1",
+    "zod": "^4.1.11"
+  },
+  "peerDependenciesMeta": {
+    "@dimforge/rapier2d-compat": {
+      "optional": true
+    }
+  }
+}

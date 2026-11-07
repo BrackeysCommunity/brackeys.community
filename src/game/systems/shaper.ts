@@ -8,22 +8,20 @@
  *   - Left click places the construct
  *   - Right click or Escape cancels selection
  *
- * Validates: cooldown, max per round, position within bounds.
+ * Validates: cooldown, max per round, position within the scene bounds.
  * For now, single-player only (no server validation).
  */
 
 import { Graphics, type Container } from "pixi.js";
 
+import { addToLayer } from "../context";
 import type { GrappleAnchorSystem } from "../entities/grapple-anchor";
 import {
+  type ConstructSystem,
   type ConstructType,
-  type ShaperConstruct,
   CONSTRUCT_CONFIGS,
-  createShaperConstruct,
-  clearWindZones,
-  clearBouncePads,
 } from "../entities/shaper-constructs";
-import type { PhysicsWorld } from "../physics";
+import type { Bounds } from "../scene/types";
 import type { Vec2 } from "../types";
 
 // ─── Placement validation ────────────────────────────────
@@ -34,7 +32,6 @@ export type PlacementValidation = {
 };
 
 const PLACEMENT_COOLDOWN_MS = 500; // ms between placements
-const MAP_BOUNDS = { minX: -2000, maxX: 4000, minY: -500, maxY: 1200 };
 
 export function validatePlacement(
   type: ConstructType,
@@ -42,6 +39,7 @@ export function validatePlacement(
   placedCounts: Record<ConstructType, number>,
   lastPlacementTimeMs: number,
   currentTimeMs: number,
+  bounds: Bounds,
 ): PlacementValidation {
   const config = CONSTRUCT_CONFIGS[type];
 
@@ -57,13 +55,8 @@ export function validatePlacement(
     return { valid: false, reason: `Max ${config.label}s reached (${config.maxPerRound})` };
   }
 
-  // Bounds
-  if (
-    position.x < MAP_BOUNDS.minX ||
-    position.x > MAP_BOUNDS.maxX ||
-    position.y < MAP_BOUNDS.minY ||
-    position.y > MAP_BOUNDS.maxY
-  ) {
+  const [minX, minY, maxX, maxY] = bounds;
+  if (position.x < minX || position.x > maxX || position.y < minY || position.y > maxY) {
     return { valid: false, reason: "Out of bounds" };
   }
 
@@ -80,24 +73,32 @@ export type ShaperSystem = {
   getSelectedType: () => ConstructType | null;
   selectType: (type: ConstructType) => void;
   clearSelection: () => void;
-  /** Placement preview — call each frame with world-space mouse position */
-  updatePreview: (mouseWorldPos: Vec2) => void;
+  /** Placement preview — call each tick with world-space mouse position */
+  updatePreview: (mouseWorldPos: Vec2, dtMs: number) => void;
   /** Attempt to place at current preview position */
   place: () => PlacementValidation;
   /** Rotate preview (scroll wheel delta) */
   rotatePreview: (delta: number) => void;
-  /** Get all placed constructs */
-  getPlacedConstructs: () => readonly ShaperConstruct[];
-  /** Remove all placed constructs (round reset) */
+  /** Ids of the constructs placed this round */
+  getPlacedConstructs: () => readonly string[];
+  /** Remove everything placed this round; the scene's own constructs stay */
   clearAll: () => void;
   destroy: () => void;
 };
 
-export function createShaperSystem(
-  worldContainer: Container,
-  physics: PhysicsWorld,
-  grappleAnchors: GrappleAnchorSystem,
-): ShaperSystem {
+export type ShaperDeps = {
+  view: Container | null;
+  constructs: ConstructSystem;
+  anchors: GrappleAnchorSystem;
+  bounds: Bounds;
+};
+
+export function createShaperSystem({
+  view,
+  constructs,
+  anchors,
+  bounds,
+}: ShaperDeps): ShaperSystem {
   let active = false;
   let selectedType: ConstructType | null = null;
   let previewRotation = 0;
@@ -105,8 +106,7 @@ export function createShaperSystem(
   let lastPlacementTimeMs = -Infinity;
   let elapsedMs = 0;
 
-  // Track placed objects
-  const placedConstructs: ShaperConstruct[] = [];
+  const placedConstructs: string[] = [];
   const placedCounts: Record<ConstructType, number> = {
     bridge: 0,
     bounce_pad: 0,
@@ -120,7 +120,7 @@ export function createShaperSystem(
   const previewGfx = new Graphics();
   previewGfx.visible = false;
   previewGfx.alpha = 0.4;
-  worldContainer.addChild(previewGfx);
+  if (view) addToLayer(view, previewGfx, "preview");
 
   function redrawPreview(): void {
     previewGfx.clear();
@@ -196,61 +196,42 @@ export function createShaperSystem(
       placedCounts,
       lastPlacementTimeMs,
       elapsedMs,
+      bounds,
     );
     if (!validation.valid) return validation;
 
-    // Create the construct
-    if (selectedType === "grapple_anchor") {
-      // Grapple anchors are managed by the GrappleAnchorSystem
-      grappleAnchors.add(previewPos);
-      placedCounts.grapple_anchor++;
-      // No ShaperConstruct entity needed — grapple system handles it
-    } else {
-      const construct = createShaperConstruct(
-        selectedType,
-        previewPos,
-        previewRotation,
-        worldContainer,
-        physics,
-      );
-      placedConstructs.push(construct);
-      placedCounts[selectedType]++;
-    }
+    placedConstructs.push(constructs.place(selectedType, previewPos, previewRotation));
+    placedCounts[selectedType]++;
 
     lastPlacementTimeMs = elapsedMs;
     return { valid: true };
   }
 
-  function getPlacedConstructs(): readonly ShaperConstruct[] {
+  function getPlacedConstructs(): readonly string[] {
     return placedConstructs;
   }
 
   function clearAll(): void {
-    for (const c of placedConstructs) c.destroy();
     placedConstructs.length = 0;
     for (const key of Object.keys(placedCounts)) {
       placedCounts[key as ConstructType] = 0;
     }
-    clearWindZones();
-    clearBouncePads();
-    grappleAnchors.clearAll();
+    constructs.clearRuntime();
+    anchors.clearRuntime();
   }
 
   function destroy(): void {
-    clearAll();
-    worldContainer.removeChild(previewGfx);
     previewGfx.destroy();
   }
 
-  // Expose elapsed time update (called from engine tick)
   return {
     isActive: isActiveMode,
     setActive,
     getSelectedType,
     selectType,
     clearSelection,
-    updatePreview(mouseWorldPos: Vec2) {
-      elapsedMs += 1000 / 60; // approximate — TODO: pass dt properly
+    updatePreview(mouseWorldPos: Vec2, dtMs: number) {
+      elapsedMs += dtMs;
       updatePreview(mouseWorldPos);
     },
     place,

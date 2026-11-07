@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { type ConstructType, CONSTRUCT_CONFIGS } from "../entities/shaper-constructs";
+import type { Bounds } from "../scene/types";
 import { validatePlacement } from "../systems/shaper";
+
+const BOUNDS: Bounds = [-2000, -500, 4000, 1200];
 
 function zeroCounts(): Record<ConstructType, number> {
   return {
@@ -22,6 +25,7 @@ describe("validatePlacement", () => {
       zeroCounts(),
       0, // last placement
       1000, // current time (well past cooldown)
+      BOUNDS,
     );
     expect(result.valid).toBe(true);
   });
@@ -33,6 +37,7 @@ describe("validatePlacement", () => {
       zeroCounts(),
       900, // placed 100ms ago
       1000,
+      BOUNDS,
     );
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("Cooldown");
@@ -45,6 +50,7 @@ describe("validatePlacement", () => {
       zeroCounts(),
       400, // placed 600ms ago (> 500ms cooldown)
       1000,
+      BOUNDS,
     );
     expect(result.valid).toBe(true);
   });
@@ -52,7 +58,7 @@ describe("validatePlacement", () => {
   it("rejects when max per round is reached", () => {
     const counts = zeroCounts();
     counts.bridge = CONSTRUCT_CONFIGS.bridge.maxPerRound; // 12
-    const result = validatePlacement("bridge", { x: 500, y: 500 }, counts, 0, 1000);
+    const result = validatePlacement("bridge", { x: 500, y: 500 }, counts, 0, 1000, BOUNDS);
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("Max");
   });
@@ -60,18 +66,18 @@ describe("validatePlacement", () => {
   it("accepts when below max per round", () => {
     const counts = zeroCounts();
     counts.bridge = CONSTRUCT_CONFIGS.bridge.maxPerRound - 1;
-    const result = validatePlacement("bridge", { x: 500, y: 500 }, counts, 0, 1000);
+    const result = validatePlacement("bridge", { x: 500, y: 500 }, counts, 0, 1000, BOUNDS);
     expect(result.valid).toBe(true);
   });
 
   it("rejects when out of bounds (x too high)", () => {
-    const result = validatePlacement("bridge", { x: 5000, y: 500 }, zeroCounts(), 0, 1000);
+    const result = validatePlacement("bridge", { x: 5000, y: 500 }, zeroCounts(), 0, 1000, BOUNDS);
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("bounds");
   });
 
   it("rejects when out of bounds (y too low)", () => {
-    const result = validatePlacement("bridge", { x: 500, y: -600 }, zeroCounts(), 0, 1000);
+    const result = validatePlacement("bridge", { x: 500, y: -600 }, zeroCounts(), 0, 1000, BOUNDS);
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("bounds");
   });
@@ -80,9 +86,13 @@ describe("validatePlacement", () => {
     const counts = zeroCounts();
     counts.bounce_pad = CONSTRUCT_CONFIGS.bounce_pad.maxPerRound; // 4
     // Bounce pad should be rejected
-    expect(validatePlacement("bounce_pad", { x: 500, y: 500 }, counts, 0, 1000).valid).toBe(false);
+    expect(validatePlacement("bounce_pad", { x: 500, y: 500 }, counts, 0, 1000, BOUNDS).valid).toBe(
+      false,
+    );
     // But bridge should still be accepted
-    expect(validatePlacement("bridge", { x: 500, y: 500 }, counts, 0, 1000).valid).toBe(true);
+    expect(validatePlacement("bridge", { x: 500, y: 500 }, counts, 0, 1000, BOUNDS).valid).toBe(
+      true,
+    );
   });
 
   it("validates all 6 construct types", () => {
@@ -95,8 +105,20 @@ describe("validatePlacement", () => {
       "shield_barrier",
     ];
     for (const type of types) {
-      const result = validatePlacement(type, { x: 500, y: 500 }, zeroCounts(), 0, 1000);
+      const result = validatePlacement(type, { x: 500, y: 500 }, zeroCounts(), 0, 1000, BOUNDS);
       expect(result.valid).toBe(true);
     }
+  });
+});
+
+describe("validatePlacement bounds", () => {
+  it("uses the bounds it is given", () => {
+    const small: Bounds = [0, 0, 100, 100];
+    expect(validatePlacement("bridge", { x: 500, y: 50 }, zeroCounts(), 0, 1000, small).valid).toBe(
+      false,
+    );
+    expect(validatePlacement("bridge", { x: 50, y: 50 }, zeroCounts(), 0, 1000, small).valid).toBe(
+      true,
+    );
   });
 });

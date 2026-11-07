@@ -1,33 +1,31 @@
 /**
- * Shaper construct factory — creates the physics bodies and visuals
- * for all objects the Shaper can place into the level.
+ * Shaper constructs: the objects the Shaper places during play, which a
+ * scene can also pre-place.
  *
  * Each construct type has:
- *   - A Rapier rigid body (fixed or dynamic)
- *   - A collider with appropriate shape, mass, friction, restitution
+ *   - A Rapier rigid body (fixed) unless it is visual-only or an anchor
+ *   - A collider with appropriate shape, friction, restitution
  *   - A PixiJS Graphics placeholder visual
  *   - A collision group (SHAMAN_OBJ for physical, SENSOR for effect-only)
  *
- * The player entity detects interactions via collision normals and sensor events.
+ * The player reads bounce pads through collider tags and wind through
+ * the runtime's force fields.
  */
 
-import { Graphics, type Container } from "pixi.js";
+import type { Collider, RigidBody } from "@dimforge/rapier2d";
+import { Graphics } from "pixi.js";
 
-import { SHAMAN_OBJ_COLLISION_GROUP } from "../collisions";
-import { createSensorCollider } from "../collisions";
-import { getRapier } from "../physics";
-import type { PhysicsWorld } from "../physics";
+import { SHAMAN_OBJ_COLLISION_GROUP, createSensorCollider } from "../collisions";
+import { addToLayer, type EngineContext } from "../context";
+import { degToRad } from "../physics";
+import type { SceneConstructType } from "../scene/types";
+import type { EntityOf, SceneSystem } from "../systems/scene-system";
 import type { Vec2 } from "../types";
+import type { AnchorSource, GrappleAnchorSystem } from "./grapple-anchor";
 
 // ─── Construct type definitions ──────────────────────────
 
-export type ConstructType =
-  | "bridge"
-  | "bounce_pad"
-  | "wind_zone"
-  | "grapple_anchor"
-  | "light_orb"
-  | "shield_barrier";
+export type ConstructType = SceneConstructType;
 
 export type ConstructConfig = {
   label: string;
@@ -82,7 +80,7 @@ export const CONSTRUCT_CONFIGS: Record<ConstructType, ConstructConfig> = {
     label: "Grapple Anchor",
     hotkey: 4,
     maxPerRound: 6,
-    isPhysical: false, // no physics body — managed by GrappleAnchorSystem
+    isPhysical: false, // an anchor, not a body
     rotatable: false,
     color: 0x00ffff, // cyan
     hw: 8,
@@ -110,83 +108,46 @@ export const CONSTRUCT_CONFIGS: Record<ConstructType, ConstructConfig> = {
   },
 };
 
-// ─── Construct entity ────────────────────────────────────
-
-export type ShaperConstruct = {
-  type: ConstructType;
-  position: Vec2;
-  rotation: number;
-  destroy: () => void;
-};
-
-// ─── Wind zone registry ──────────────────────────────────
-// Player queries this each frame to check if they're inside a wind zone.
-
-export type WindZoneEntry = {
-  position: Vec2;
-  hw: number;
-  hh: number;
-  rotation: number;
-  /** Wind direction in game units/sec² (force applied to player) */
-  force: Vec2;
-};
-
-const activeWindZones: WindZoneEntry[] = [];
-
-export function getActiveWindZones(): readonly WindZoneEntry[] {
-  return activeWindZones;
-}
-
-export function clearWindZones(): void {
-  activeWindZones.length = 0;
-}
-
-// ─── Bounce pad registry ─────────────────────────────────
-
-export type BouncePadEntry = {
-  colliderHandle: number;
-  bounceVelocity: number;
-};
-
-const activeBouncePads = new Map<number, BouncePadEntry>();
-
-export function getBouncePad(handle: number): BouncePadEntry | undefined {
-  return activeBouncePads.get(handle);
-}
-
-export function clearBouncePads(): void {
-  activeBouncePads.clear();
-}
-
-// ─── Factory ─────────────────────────────────────────────
+// ─── Construct system ────────────────────────────────────
 
 const BOUNCE_PAD_VELOCITY = -650; // upward launch velocity
 const WIND_FORCE_STRENGTH = 800; // game units/sec² applied to player
 
-export function createShaperConstruct(
-  type: ConstructType,
-  position: Vec2,
-  rotation: number,
-  worldContainer: Container,
-  physics: PhysicsWorld,
-): ShaperConstruct {
+export type ShaperConstruct = {
+  id: string;
+  type: ConstructType;
+  position: Vec2;
+  /** Radians. */
+  rotation: number;
+  source: AnchorSource;
+};
+
+export type ConstructSystem = SceneSystem<EntityOf<"construct">> & {
+  /** Place a construct during play; returns its generated id. */
+  place: (type: ConstructType, position: Vec2, rotation: number) => string;
+  get: (id: string) => ShaperConstruct | undefined;
+  /** Remove constructs placed during play, keeping the scene's (round reset) */
+  clearRuntime: () => void;
+};
+
+type Placed = {
+  construct: ShaperConstruct;
+  body: RigidBody | null;
+  collider: Collider | null;
+  gfx: Graphics | null;
+};
+
+function drawConstruct(gfx: Graphics, type: ConstructType): void {
   const config = CONSTRUCT_CONFIGS[type];
-  const RAPIER = getRapier();
-
-  // ─── Visual (placeholder) ────────────────────────
-  const gfx = new Graphics();
-
   if (type === "grapple_anchor" || type === "light_orb") {
-    // Circle
     gfx.circle(0, 0, config.hw);
     gfx.fill({ color: config.color, alpha: type === "light_orb" ? 0.4 : 0.8 });
     gfx.stroke({ width: 2, color: config.color, alpha: 1.0 });
   } else if (type === "wind_zone") {
-    // Semi-transparent rectangle with directional arrows
     gfx.rect(-config.hw, -config.hh, config.hw * 2, config.hh * 2);
     gfx.fill({ color: config.color, alpha: 0.15 });
     gfx.stroke({ width: 1, color: config.color, alpha: 0.5 });
-    // Arrow indicators (upward by default, rotation changes direction)
+    // Arrows point up in local space; the rotation turns them with the wind
     for (let i = -1; i <= 1; i++) {
       const ax = i * config.hw * 0.5;
       gfx.moveTo(ax, config.hh * 0.3);
@@ -197,93 +158,114 @@ export function createShaperConstruct(
       gfx.stroke({ width: 1, color: config.color, alpha: 0.6 });
     }
   } else {
-    // Rectangle (bridge, bounce pad, shield barrier)
     gfx.rect(-config.hw, -config.hh, config.hw * 2, config.hh * 2);
     gfx.fill({ color: config.color, alpha: 0.7 });
     gfx.stroke({ width: 1, color: config.color, alpha: 1.0 });
   }
+}
 
-  gfx.position.set(position.x, position.y);
-  gfx.rotation = rotation;
-  worldContainer.addChild(gfx);
+export function createConstructSystem(
+  ctx: EngineContext,
+  anchors: GrappleAnchorSystem,
+): ConstructSystem {
+  const { rapier, physics, view, tags, fields } = ctx;
+  const placed = new Map<string, Placed>();
+  let nextRuntimeId = 0;
 
-  // ─── Physics body + collider ─────────────────────
-  let body: import("@dimforge/rapier2d").RigidBody | null = null;
-  let collider: import("@dimforge/rapier2d").Collider | null = null;
+  function create(construct: ShaperConstruct): void {
+    despawn(construct.id);
+    const { id, type, position, source } = construct;
+    const config = CONSTRUCT_CONFIGS[type];
+    const rotation = config.rotatable ? construct.rotation : 0;
 
-  if (type === "bridge") {
-    const bd = RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(position.x, position.y)
-      .setRotation(rotation);
-    body = physics.addRigidBody(bd);
-    const cd = RAPIER.ColliderDesc.cuboid(config.hw, config.hh)
-      .setCollisionGroups(SHAMAN_OBJ_COLLISION_GROUP)
-      .setFriction(0.8);
-    collider = physics.addCollider(cd, body);
-  } else if (type === "bounce_pad") {
-    const bd = RAPIER.RigidBodyDesc.fixed().setTranslation(position.x, position.y);
-    body = physics.addRigidBody(bd);
-    const cd = RAPIER.ColliderDesc.cuboid(config.hw, config.hh)
-      .setCollisionGroups(SHAMAN_OBJ_COLLISION_GROUP)
-      .setFriction(0.3)
-      .setRestitution(1.2);
-    collider = physics.addCollider(cd, body);
-    // Register for player bounce detection
-    activeBouncePads.set(collider.handle, {
-      colliderHandle: collider.handle,
-      bounceVelocity: BOUNCE_PAD_VELOCITY,
-    });
-  } else if (type === "wind_zone") {
-    // Sensor — no physics collision, just area detection
-    const bd = RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(position.x, position.y)
-      .setRotation(rotation);
-    body = physics.addRigidBody(bd);
-    const cd = RAPIER.ColliderDesc.cuboid(config.hw, config.hh);
-    collider = createSensorCollider(physics.world, body, cd, "wind_zone");
-    // Register wind zone for player force application
-    // Wind direction: "up" in local space, rotated by the placement angle
-    const dirX = -Math.sin(rotation) * WIND_FORCE_STRENGTH;
-    const dirY = -Math.cos(rotation) * WIND_FORCE_STRENGTH;
-    activeWindZones.push({
-      position: { ...position },
-      hw: config.hw,
-      hh: config.hh,
-      rotation,
-      force: { x: dirX, y: dirY },
-    });
-  } else if (type === "shield_barrier") {
-    const bd = RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(position.x, position.y)
-      .setRotation(rotation);
-    body = physics.addRigidBody(bd);
-    const cd = RAPIER.ColliderDesc.cuboid(config.hw, config.hh)
-      .setCollisionGroups(SHAMAN_OBJ_COLLISION_GROUP)
-      .setFriction(0.2);
-    collider = physics.addCollider(cd, body);
-  }
-  // grapple_anchor and light_orb: no physics body (visual only, grapple managed separately)
-
-  function destroy(): void {
-    worldContainer.removeChild(gfx);
-    gfx.destroy();
-    if (collider) {
-      if (type === "bounce_pad") {
-        activeBouncePads.delete(collider.handle);
-      }
-      physics.removeCollider(collider);
+    if (type === "grapple_anchor") {
+      anchors.add(id, position, source);
+      placed.set(id, { construct, body: null, collider: null, gfx: null });
+      return;
     }
-    if (body) {
-      physics.removeRigidBody(body);
+
+    let gfx: Graphics | null = null;
+    if (view) {
+      gfx = new Graphics();
+      drawConstruct(gfx, type);
+      gfx.position.set(position.x, position.y);
+      gfx.rotation = rotation;
+      addToLayer(view.world, gfx, "construct");
     }
-    // Wind zones: remove from active list
-    if (type === "wind_zone") {
-      const idx = activeWindZones.findIndex(
-        (wz) => wz.position.x === position.x && wz.position.y === position.y,
+
+    let body: RigidBody | null = null;
+    let collider: Collider | null = null;
+    if (type !== "light_orb") {
+      body = physics.addRigidBody(
+        rapier.RigidBodyDesc.fixed().setTranslation(position.x, position.y).setRotation(rotation),
       );
-      if (idx !== -1) activeWindZones.splice(idx, 1);
+      const desc = rapier.ColliderDesc.cuboid(config.hw, config.hh);
+      if (type === "wind_zone") {
+        collider = createSensorCollider(rapier, physics.world, body, desc);
+        fields.add(id, {
+          center: position,
+          hw: config.hw,
+          hh: config.hh,
+          rotation,
+          force: {
+            x: Math.sin(rotation) * WIND_FORCE_STRENGTH,
+            y: -Math.cos(rotation) * WIND_FORCE_STRENGTH,
+          },
+        });
+      } else {
+        desc.setCollisionGroups(SHAMAN_OBJ_COLLISION_GROUP);
+        if (type === "bridge") desc.setFriction(0.8);
+        if (type === "bounce_pad") desc.setFriction(0.3).setRestitution(1.2);
+        if (type === "shield_barrier") desc.setFriction(0.2);
+        collider = physics.addCollider(desc, body);
+      }
+      tags.set(collider.handle, {
+        entityId: id,
+        behavior: "construct",
+        impulse: type === "bounce_pad" ? { y: BOUNCE_PAD_VELOCITY } : undefined,
+      });
     }
+
+    placed.set(id, { construct, body, collider, gfx });
   }
 
-  return { type, position: { ...position }, rotation, destroy };
+  function despawn(id: string): void {
+    const entry = placed.get(id);
+    if (!entry) return;
+    if (entry.construct.type === "grapple_anchor") anchors.despawn(id);
+    if (entry.collider) tags.delete(entry.collider.handle);
+    if (entry.body) physics.removeRigidBody(entry.body);
+    if (entry.construct.type === "wind_zone") fields.remove(id);
+    entry.gfx?.destroy();
+    placed.delete(id);
+  }
+
+  return {
+    behaviors: ["construct"],
+    spawn(e) {
+      create({
+        id: e.id,
+        type: e.type,
+        position: { x: e.at[0], y: e.at[1] },
+        rotation: degToRad(e.rot),
+        source: "scene",
+      });
+    },
+    despawn,
+    clear() {
+      for (const id of [...placed.keys()]) despawn(id);
+    },
+    size: () => placed.size,
+    place(type, position, rotation) {
+      const id = `~runtime:${nextRuntimeId++}`;
+      create({ id, type, position: { ...position }, rotation, source: "runtime" });
+      return id;
+    },
+    get: (id) => placed.get(id)?.construct,
+    clearRuntime() {
+      for (const { construct } of [...placed.values()]) {
+        if (construct.source === "runtime") despawn(construct.id);
+      }
+    },
+  };
 }
