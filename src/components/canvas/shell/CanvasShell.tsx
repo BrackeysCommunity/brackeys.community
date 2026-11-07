@@ -49,6 +49,22 @@ function useRegionCycling(root: React.RefObject<HTMLDivElement | null>) {
   }, [root]);
 }
 
+export type CanvasShellSlots = {
+  topLeft: React.ReactNode;
+  topRight?: React.ReactNode;
+  /** The Outline panel. */
+  left?: React.ReactNode;
+  /** The inspector or History. */
+  right?: React.ReactNode;
+  /** The tool dock; on phones, the bottom bar. */
+  dock?: React.ReactNode;
+  /** Save and connection status, bottom left. */
+  status?: React.ReactNode;
+  /** Chrome placed by the document itself, such as the selection bar. */
+  overlay?: React.ReactNode;
+  phone?: boolean;
+};
+
 /**
  * The takeover layout for a document: the document fills the window and
  * the chrome floats over it in islands. Islands come first in the DOM, so
@@ -65,22 +81,7 @@ export function CanvasShell({
   overlay,
   phone = false,
   children,
-}: {
-  topLeft: React.ReactNode;
-  topRight?: React.ReactNode;
-  /** The Outline panel. */
-  left?: React.ReactNode;
-  /** The inspector or History. */
-  right?: React.ReactNode;
-  /** The tool dock; on phones, the bottom bar. */
-  dock?: React.ReactNode;
-  /** Save and connection status, bottom left. */
-  status?: React.ReactNode;
-  /** Chrome placed by the document itself, such as the selection bar. */
-  overlay?: React.ReactNode;
-  phone?: boolean;
-  children: React.ReactNode;
-}) {
+}: CanvasShellSlots & { children: React.ReactNode }) {
   const root = useRef<HTMLDivElement>(null);
   useRegionCycling(root);
 

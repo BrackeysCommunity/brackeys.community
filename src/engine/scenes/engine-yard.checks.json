@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "checks": [
+    { "id": "valid", "kind": "valid", "physical": true },
+    {
+      "id": "settles",
+      "kind": "reaches",
+      "script": { "v": 1, "scene": "engine-yard", "steps": [{ "wait": 60 }] },
+      "result": "script-end"
+    },
+    {
+      "id": "times-out",
+      "kind": "reaches",
+      "script": { "v": 1, "maxTicks": 30, "steps": [{ "wait": 60 }] },
+      "result": "timeout"
+    }
+  ]
+}

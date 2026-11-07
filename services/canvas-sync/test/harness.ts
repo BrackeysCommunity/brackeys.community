@@ -1,21 +1,33 @@
+import { it } from "bun:test";
+
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { eq, sql } from "drizzle-orm";
 import * as encoding from "lib0/encoding";
 import * as Y from "yjs";
 
-import { canvasDocs, canvases, user } from "../../../src/db/schema.ts";
-import { documentName, syncCloseCode } from "../../../src/lib/canvas/sync-channels.ts";
+import { canvasDocs, canvases, sceneDocs, user } from "../../../src/db/schema.ts";
+import { SCENE_FORMAT_VERSION } from "../../../src/engine/scene/types.ts";
+import { documentName, SYNC_CLOSE, syncCloseCode } from "../../../src/lib/canvas/sync-channels.ts";
 import { signCanvasToken, type SyncAccess } from "../../../src/lib/canvas/token.ts";
+import { sceneSnapshot } from "../../../src/lib/scene/doc-bytes.ts";
 import { createDb, type ServiceDb } from "../src/db.ts";
 
 export const TEST_DATABASE_URL = process.env.CANVAS_SYNC_TEST_DATABASE_URL;
 export const TEST_REDIS_URL = process.env.CANVAS_SYNC_TEST_REDIS_URL;
 export const SECRET = "test-secret-for-canvas-sync";
 
+/** Set in CI: a suite that would skip for want of a database or a Redis fails instead. */
+export const REQUIRE_INTEGRATION = process.env.CANVAS_SYNC_REQUIRE_INTEGRATION === "1";
+
 export function warnSkipped(what: string, variable: string): void {
-  console.warn(
-    `\n  !! SKIPPED: ${what} needs ${variable} (see services/canvas-sync/README.md, "Tests").\n`,
-  );
+  const message = `${what} needs ${variable} (see services/canvas-sync/README.md, "Tests")`;
+  if (REQUIRE_INTEGRATION) {
+    it(`${what} runs (CANVAS_SYNC_REQUIRE_INTEGRATION=1)`, () => {
+      throw new Error(`not skipped under CANVAS_SYNC_REQUIRE_INTEGRATION=1: ${message}`);
+    });
+    return;
+  }
+  console.warn(`\n  !! SKIPPED: ${message}.\n`);
 }
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -165,3 +177,140 @@ export function rawSocket(port: number) {
   });
   return { socket, state };
 }
+
+// ─── Scenes ──────────────────────────────────────────────
+
+export { SCENE_FORMAT_VERSION };
+
+export function sceneToken(
+  sceneId: string,
+  userId: string,
+  options: { access?: SyncAccess; format?: number } = {},
+): Promise<string> {
+  return signCanvasToken(
+    {
+      c: documentName("scene", sceneId),
+      u: userId,
+      a: options.access ?? "write",
+      k: "scene",
+      f: options.format ?? SCENE_FORMAT_VERSION,
+    },
+    SECRET,
+  );
+}
+
+export interface SceneClient {
+  doc: Y.Doc;
+  provider: HocuspocusProvider;
+  entities: Y.Map<Y.Map<unknown>>;
+  closes: (number | null)[];
+  authFailures: string[];
+  /** Stateless messages from the server, in arrival order. */
+  notices: string[];
+  /** The scope the server granted, once authenticated. */
+  scope: () => string | null;
+  /** How many times the server accepted this client's token. */
+  authentications: () => number;
+  /** Set once a 4413 or 4403 made the client give up, as the editor does. */
+  stopped: () => number | null;
+  destroy(): void;
+}
+
+export function connectScene(
+  port: number,
+  sceneId: string,
+  userId: string,
+  options: {
+    access?: SyncAccess;
+    format?: number;
+    token?: () => Promise<string>;
+    /** Reconnect an existing client's doc, as a provider does after a deploy. */
+    doc?: Y.Doc;
+  } = {},
+): SceneClient {
+  const doc = options.doc ?? new Y.Doc();
+  const closes: (number | null)[] = [];
+  const authFailures: string[] = [];
+  const notices: string[] = [];
+  let scope: string | null = null;
+  let authentications = 0;
+  let stopped: number | null = null;
+  const provider: HocuspocusProvider = new HocuspocusProvider({
+    url: `ws://127.0.0.1:${port}`,
+    name: documentName("scene", sceneId),
+    document: doc,
+    token: options.token ?? (() => sceneToken(sceneId, userId, options)),
+    onClose: ({ event }) => {
+      const code = syncCloseCode(event);
+      closes.push(code);
+      if (stopped === null && (code === SYNC_CLOSE.tooLarge || code === SYNC_CLOSE.revoked)) {
+        stopped = code;
+        provider.disconnect();
+      }
+    },
+    onAuthenticationFailed: ({ reason }) => authFailures.push(reason),
+    onAuthenticated: ({ scope: granted }) => {
+      scope = granted;
+      authentications++;
+    },
+    onStateless: ({ payload }) => notices.push(payload),
+  });
+  return {
+    doc,
+    provider,
+    entities: doc.getMap("entities"),
+    closes,
+    authFailures,
+    notices,
+    scope: () => scope,
+    authentications: () => authentications,
+    stopped: () => stopped,
+    destroy: () => provider.destroy(),
+  };
+}
+
+export const sceneSynced = (client: SceneClient, ms = 5000) =>
+  until(() => client.provider.isSynced, ms);
+
+/** A bulk `solid` box, laid out as the engine writes one. */
+export function addSolid(doc: Y.Doc, key: string, x = 0, z = "a0"): void {
+  doc.transact(() => {
+    const map = new Y.Map<unknown>();
+    map.set("z", z);
+    map.set("bulk", "solid");
+    map.set("type", "solid");
+    map.set("shape", ["box", x, 0, 16, 16]);
+    doc.getMap<Y.Map<unknown>>("entities").set(key, map);
+  });
+}
+
+/** A named entity, laid out as the engine writes one. */
+export function addNamed(doc: Y.Doc, key: string, id: string, x = 0, z = "a0"): void {
+  doc.transact(() => {
+    const map = new Y.Map<unknown>();
+    map.set("z", z);
+    map.set("id", id);
+    map.set("type", "marker");
+    map.set("at", [x, 0]);
+    doc.getMap<Y.Map<unknown>>("entities").set(key, map);
+  });
+}
+
+/** The canonical text and hash a doc reads as, through the engine. */
+export function sceneOf(doc: Y.Doc): { text: string; hash: string; schemaVersion: number } | null {
+  const snapshot = sceneSnapshot(Y.encodeStateAsUpdate(doc));
+  if (!snapshot?.text || !snapshot.hash) return null;
+  return { text: snapshot.text, hash: snapshot.hash, schemaVersion: snapshot.schemaVersion };
+}
+
+/** A hosted scene row, as the web app creates one. */
+export async function seedSceneRow(
+  db: ServiceDb,
+  sceneId: string,
+  seed: string | null = null,
+): Promise<void> {
+  await db.insert(sceneDocs).values({ sceneId, seed }).onConflictDoNothing();
+}
+
+/** A fresh scene id, so suites sharing a database never meet. */
+export const newSceneId = (game = "test") => `${game}.s-${crypto.randomUUID().slice(0, 8)}`;

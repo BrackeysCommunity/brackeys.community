@@ -1,0 +1,4 @@
+{
+  "label": "Slow the lift",
+  "ops": [{ "op": "update", "ref": "lift", "set": { "path.speed": 60 } }]
+}

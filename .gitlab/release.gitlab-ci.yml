@@ -279,3 +279,87 @@ publish-release:
   release:
     tag_name: $CI_COMMIT_TAG
     description: notes.md
+
+# ── Engine releases ──────────────────────────────────────────────────────────
+#
+# `@jams/engine` (src/engine) has its own semver and tags `engine-vX.Y.Z`. The
+# site's rules above only match `vX.Y.Z`, so an engine tag never migrates,
+# deploys or publishes the site, and `auto-tag` reads only the root
+# package.json, so nothing cuts an engine tag automatically: a maintainer
+# pushes it by hand on a commit that is on `main`. The tag checks and packs
+# the package and attaches the tarball to a GitLab release; nothing goes to a
+# package registry. `src/engine/__tests__/release-tags.test.ts` keeps the two
+# tag rules apart.
+
+.engine-release:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^engine-v\d+\.\d+\.\d+$/
+
+engine-pack:
+  extends: .engine-release
+  stage: release
+  # Node for `vp test` in the smoke test's jsdom consumer, as in the root `test` job.
+  image: node:24
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    - npm i -g bun
+    - bun install --frozen-lockfile
+  script:
+    - |
+      ENGINE_VERSION=$(bun -p 'require("./src/engine/package.json").version')
+      if [ "$ENGINE_VERSION" != "${CI_COMMIT_TAG#engine-v}" ]; then
+        echo "✗ src/engine/package.json is $ENGINE_VERSION but the tag is $CI_COMMIT_TAG"
+        exit 1
+      fi
+    - git fetch --quiet origin main
+    - |
+      if ! git merge-base --is-ancestor "$CI_COMMIT_SHA" origin/main; then
+        echo "✗ $CI_COMMIT_SHA is not reachable from origin/main"
+        exit 1
+      fi
+    # publint, attw and the unused-peer check, then the packed tarball in an outside consumer.
+    - bun run engine:pack:check
+    - bun run engine:smoke
+    # The repo-local `vp` has no `pm` command; `bun pm pack` is what it would run.
+    - (cd src/engine && bun pm pack --destination "$CI_PROJECT_DIR")
+    - ls -l jams-engine-*.tgz
+    # The release notes are the version's CHANGELOG section.
+    - |
+      awk -v v="$ENGINE_VERSION" '
+        index($0, "## [" v "]") == 1 { on = 1; next }
+        on && /^## \[/ { exit }
+        on { print }
+      ' src/engine/CHANGELOG.md > engine-notes.md
+      test -s engine-notes.md || { echo "✗ CHANGELOG.md has no [$ENGINE_VERSION] section"; exit 1; }
+    - echo "ENGINE_PACK_JOB_ID=$CI_JOB_ID" > engine-release.env
+    - echo "ENGINE_VERSION=$ENGINE_VERSION" >> engine-release.env
+  artifacts:
+    # The release links to the tarball here, so it must outlive the default expiry.
+    expire_in: never
+    paths:
+      - jams-engine-*.tgz
+      - engine-notes.md
+    reports:
+      dotenv: engine-release.env
+
+engine-publish-release:
+  extends: .engine-release
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: engine-pack
+      artifacts: true
+  script:
+    - cat engine-notes.md
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "@jams/engine $ENGINE_VERSION"
+    description: engine-notes.md
+    assets:
+      links:
+        - name: jams-engine-$ENGINE_VERSION.tgz
+          url: $CI_PROJECT_URL/-/jobs/$ENGINE_PACK_JOB_ID/artifacts/raw/jams-engine-$ENGINE_VERSION.tgz
+          link_type: package

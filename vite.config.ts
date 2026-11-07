@@ -12,9 +12,10 @@ import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import type { Plugin as RolldownPlugin } from "rollup";
 import wasm from "vite-plugin-wasm";
-import { createLogger, defineConfig, type Plugin } from "vite-plus";
+import { createLogger, defineConfig, runnerImport, type Plugin } from "vite-plus";
 
 import pkg from "./package.json" with { type: "json" };
+import { engineBundleReport } from "./scripts/engine-bundle-report.ts";
 import { publicCacheRouteRules } from "./src/orpc/public-procedures.ts";
 
 // Railpack builds from a snapshot with no .git dir and `railway up` has no
@@ -195,19 +196,22 @@ const publicFileRules = Object.fromEntries(
 );
 
 /**
- * The engine's scene write-back endpoints (`/__scene`), dev server only.
- * Loaded on demand: lint and fmt read this config with Node's own loader,
- * which can't follow the engine's extensionless imports.
+ * The engine's scene collab server, dev server only: `GET /__scene` lists the
+ * scenes and websockets on `/__scene-collab` co-edit them as `scene:<name>`
+ * documents, written back to the scene files. Run through a module runner
+ * with tsconfig paths, because the engine and games import each other by
+ * `@jams/engine/*`, which the config bundler, lint and fmt can't resolve.
  */
-function sceneDevSink(): Plugin {
+function sceneCollab(): Plugin {
   return {
-    name: "scene-dev-sink",
+    name: "scene-collab",
     apply: "serve",
     async configureServer(server) {
-      const engine = await import("./src/game/vite/index.ts");
-      engine
-        .sceneDevSink({ dir: fileURLToPath(new URL("./src/game/scenes", import.meta.url)) })
-        .configureServer(server);
+      const { module } = await runnerImport<typeof import("./scripts/scene/dev-sink.ts")>(
+        fileURLToPath(new URL("./scripts/scene/dev-sink.ts", import.meta.url)),
+        { configFile: false, resolve: { tsconfigPaths: true } },
+      );
+      module.devSceneCollab().configureServer(server);
     },
   };
 }
@@ -269,7 +273,12 @@ const config = defineConfig({
       ".output",
       "dist",
       // Written by the engine's formatScene, which owns their layout.
-      "src/game/scenes/**",
+      "src/engine/scenes/**",
+      "src/games/*/scenes/**",
+      "src/engine/__tests__/fixtures/*.json",
+      // Frozen copies of each scene format version, compared byte for byte.
+      "src/engine/scene/__tests__/fixtures/v*/**",
+      "src/games/*/__tests__/fixtures/v*/**",
     ],
   },
 
@@ -353,7 +362,10 @@ const config = defineConfig({
       ".output",
       "build/",
       "worker-configuration.d.ts",
-      "scripts/",
+      // One-off scripts stay unlinted; the scene CLI is linted like src.
+      "scripts/*.ts",
+      "scripts/brand/",
+      "scripts/ci/",
       "services/",
     ],
   },
@@ -374,7 +386,15 @@ const config = defineConfig({
   },
   plugins: [
     wasm(),
-    sceneDevSink(),
+    sceneCollab(),
+    // `vp run engine:bundle-check` sets these to read which modules each chunk holds.
+    process.env.ENGINE_BUNDLE_REPORT &&
+      engineBundleReport({
+        dir: process.env.ENGINE_BUNDLE_REPORT,
+        inject: process.env.ENGINE_BUNDLE_INJECT
+          ? JSON.parse(process.env.ENGINE_BUNDLE_INJECT)
+          : undefined,
+      }),
     devtools(),
     tanstackStart({
       router: { routeFileIgnorePattern: "__tests__" },

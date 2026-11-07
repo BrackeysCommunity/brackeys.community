@@ -239,6 +239,7 @@ import {
   updateProjectContributor,
   updateProjectDetails,
 } from "./project";
+import { createHostedScene, deleteHostedScene, getSceneSyncToken } from "./scene";
 import { searchAll } from "./search";
 import {
   createTeam,
@@ -548,4 +549,7 @@ export default {
   resolveCanvasReport,
   getPublicCanvas,
   listPublicCanvases,
+  getSceneSyncToken,
+  createHostedScene,
+  deleteHostedScene,
 };

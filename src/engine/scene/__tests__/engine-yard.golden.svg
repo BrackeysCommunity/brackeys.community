@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="800" viewBox="0 0 2000 1000" preserveAspectRatio="none" font-family="Rubik, sans-serif" data-scene="engine-yard" data-scale="0.8000">
+<rect x="0" y="0" width="2000" height="1000" fill="#101218"/>
+<rect id="bounds" x="0" y="0" width="2000" height="1000" fill="#181b22" stroke="#4a5060" stroke-width="1.25"/>
+<g id="grid" fill="none" stroke-width="1.25">
+<path d="M64 0V1000M128 0V1000M192 0V1000M256 0V1000M320 0V1000M384 0V1000M448 0V1000M512 0V1000M576 0V1000M640 0V1000M704 0V1000M768 0V1000M832 0V1000M896 0V1000M960 0V1000M1024 0V1000M1088 0V1000M1152 0V1000M1216 0V1000M1280 0V1000M1344 0V1000M1408 0V1000M1472 0V1000M1536 0V1000M1600 0V1000M1664 0V1000M1728 0V1000M1792 0V1000M1856 0V1000M1920 0V1000M1984 0V1000M0 64H2000M0 128H2000M0 192H2000M0 256H2000M0 320H2000M0 384H2000M0 448H2000M0 512H2000M0 576H2000M0 640H2000M0 704H2000M0 768H2000M0 832H2000M0 896H2000M0 960H2000" stroke="#ffffff" stroke-opacity="0.07"/>
+<path d="M0 0V1000M0 0H2000" stroke="#ffffff" stroke-opacity="0.25"/>
+</g>
+<g id="entities">
+<path data-ref="~solid:0" data-type="solid" d="M0 960L2000 960L2000 1000L0 1000Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="1.56" stroke-linejoin="round"/>
+<path data-ref="~solid:1" data-type="solid" d="M0 0L40 0L40 1000L0 1000Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="1.56" stroke-linejoin="round"/>
+<path data-ref="~solid:2" data-type="solid" d="M1960 0L2000 0L2000 1000L1960 1000Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="1.56" stroke-linejoin="round"/>
+<path data-ref="ledge" data-type="solid" d="M1280 790L1520 790L1520 810L1280 810Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="1.56" stroke-linejoin="round"/>
+<path data-ref="zone" data-type="sensor" d="M860 900L940 900L940 960L860 960Z" fill="#44cc88" fill-opacity="0.3" stroke="#44cc88" stroke-opacity="0.6" stroke-width="1.56" stroke-linejoin="round"/>
+<path data-ref="avatar" data-type="prop" d="M280 920L320 920L320 960L280 960Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="1.56" stroke-linejoin="round"/>
+<path data-ref="crate" data-type="prop" d="M1220 940A20 20 0 0 1 1200 960A20 20 0 0 1 1180 940A20 20 0 0 1 1200 920A20 20 0 0 1 1220 940Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="1.56" stroke-linejoin="round"/>
+<path data-ref="lift" data-type="follower" d="M1640 892L1760 892L1760 908L1640 908Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="1.56" stroke-linejoin="round"/>
+<g data-ref="start" data-type="marker" class="spawn"><path d="M300 960V932.5L315 938.75L300 945" fill="#ffcc44" fill-opacity="0.85" stroke="#ffcc44" stroke-width="1.88"/><circle cx="300" cy="960" r="3.75" fill="#ffcc44"/></g>
+</g>
+<g id="paths" fill="none">
+<g data-path="lift" stroke="#ffffff">
+<path d="M1700 900L1700 600" stroke-opacity="0.7" stroke-width="1.88" stroke-dasharray="7.5 5"/>
+<path d="M1640 592L1760 592L1760 608L1640 608Z" stroke-opacity="0.5" stroke-width="1.25" stroke-dasharray="7.5 5"/>
+<circle cx="1700" cy="900" r="8.75" fill="#101218" fill-opacity="0.85" stroke-width="1.88"/><text x="1700" y="904" font-size="11.25" text-anchor="middle" fill="#ffffff" stroke="none">0</text>
+<circle cx="1700" cy="600" r="8.75" fill="#101218" fill-opacity="0.85" stroke-width="1.88"/><text x="1700" y="604" font-size="11.25" text-anchor="middle" fill="#ffffff" stroke="none">1</text>
+</g>
+</g>
+<g id="labels" text-anchor="middle" fill="#f2f4f8" stroke="#000000" stroke-opacity="0.75" stroke-width="3.75" stroke-linejoin="round" paint-order="stroke">
+<text x="1400" y="804.91" font-size="13.75">ledge</text>
+<text x="900" y="934.91" font-size="13.75">zone</text>
+<text x="311.25" y="948.75" font-size="13.75" text-anchor="start">start</text>
+<text x="300" y="944.91" font-size="13.75">avatar</text>
+<text x="1200" y="944.91" font-size="13.75">crate</text>
+<text x="1700" y="885.66" font-size="13.75">lift</text>
+</g>
+<g id="ticks" font-size="12.5" fill="#c8ccd6" stroke="#101218" stroke-width="3.13" paint-order="stroke">
+<text x="3.75" y="13.75">0</text>
+<text x="67.75" y="13.75">64</text>
+<text x="131.75" y="13.75">128</text>
+<text x="195.75" y="13.75">192</text>
+<text x="259.75" y="13.75">256</text>
+<text x="323.75" y="13.75">320</text>
+<text x="387.75" y="13.75">384</text>
+<text x="451.75" y="13.75">448</text>
+<text x="515.75" y="13.75">512</text>
+<text x="579.75" y="13.75">576</text>
+<text x="643.75" y="13.75">640</text>
+<text x="707.75" y="13.75">704</text>
+<text x="771.75" y="13.75">768</text>
+<text x="835.75" y="13.75">832</text>
+<text x="899.75" y="13.75">896</text>
+<text x="963.75" y="13.75">960</text>
+<text x="1027.75" y="13.75">1024</text>
+<text x="1091.75" y="13.75">1088</text>
+<text x="1155.75" y="13.75">1152</text>
+<text x="1219.75" y="13.75">1216</text>
+<text x="1283.75" y="13.75">1280</text>
+<text x="1347.75" y="13.75">1344</text>
+<text x="1411.75" y="13.75">1408</text>
+<text x="1475.75" y="13.75">1472</text>
+<text x="1539.75" y="13.75">1536</text>
+<text x="1603.75" y="13.75">1600</text>
+<text x="1667.75" y="13.75">1664</text>
+<text x="1731.75" y="13.75">1728</text>
+<text x="1795.75" y="13.75">1792</text>
+<text x="1859.75" y="13.75">1856</text>
+<text x="1923.75" y="13.75">1920</text>
+<text x="3.75" y="60.25">64</text>
+<text x="3.75" y="124.25">128</text>
+<text x="3.75" y="188.25">192</text>
+<text x="3.75" y="252.25">256</text>
+<text x="3.75" y="316.25">320</text>
+<text x="3.75" y="380.25">384</text>
+<text x="3.75" y="444.25">448</text>
+<text x="3.75" y="508.25">512</text>
+<text x="3.75" y="572.25">576</text>
+<text x="3.75" y="636.25">640</text>
+<text x="3.75" y="700.25">704</text>
+<text x="3.75" y="764.25">768</text>
+<text x="3.75" y="828.25">832</text>
+<text x="3.75" y="892.25">896</text>
+<text x="3.75" y="956.25">960</text>
+</g>
+</svg>

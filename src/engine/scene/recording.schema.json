@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:recording:v1",
+  "x-agent-surface": 6,
+  "title": "jams engine run recording, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The recording JSON Schema this file follows.",
+      "type": "string"
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Recording format version."
+    },
+    "engine": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "The engine version that recorded it."
+        },
+        "physics": {
+          "type": "string",
+          "description": "The physics build, e.g. `rapier 0.19.3`."
+        }
+      },
+      "required": ["version", "physics"],
+      "additionalProperties": false,
+      "description": "What recorded it; a replay on another version or build warns."
+    },
+    "scene": {
+      "type": "string",
+      "description": "The scene's `name`."
+    },
+    "sceneHash": {
+      "type": "string",
+      "description": "The scene's canonical hash when recorded; a replay of a changed scene warns that it's stale."
+    },
+    "game": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The game's id; null for an engine-only registry."
+    },
+    "configHash": {
+      "type": "string",
+      "description": "What the run depends on besides the scene: engine version, tick rate, the game and its tuning."
+    },
+    "tickRate": {
+      "type": "number",
+      "const": 60,
+      "description": "Ticks per second."
+    },
+    "start": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "description": "Where play was asked to start, before the cast onto the ground; omitted for the game's spawn.",
+          "$ref": "#/$defs/Pt"
+        },
+        "timeOffsetMs": {
+          "description": "Time-driven entities (followers) were advanced by this much before tick 0.",
+          "type": "number",
+          "minimum": 0
+        },
+        "game": {
+          "description": "The game's play options, as its `play.options` schema defines them."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How the play world started."
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The action names `inputs` index into, in the order they were first used."
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The tick the edge is stepped on."
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Index into `actions`."
+          },
+          {
+            "anyOf": [
+              {
+                "type": "number",
+                "const": 0
+              },
+              {
+                "type": "number",
+                "const": 1
+              }
+            ],
+            "description": "1 for down, 0 for up."
+          }
+        ],
+        "description": "One input edge, in the order the runtime stepped it."
+      },
+      "description": "Every input edge played, oldest first."
+    },
+    "ticks": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Ticks simulated."
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "description": "An engine result (`timeout`, `script-end`, `stuck`, `quit`) or one the game declares."
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": -1,
+          "maximum": 9007199254740991,
+          "description": "The last tick simulated."
+        },
+        "at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The game's focus then; null without one."
+        },
+        "cause": {
+          "description": "Why, in a sentence.",
+          "type": "string"
+        },
+        "entityId": {
+          "description": "The entity the outcome names.",
+          "type": "string"
+        }
+      },
+      "required": ["result", "tick", "at"],
+      "additionalProperties": false,
+      "description": "How the run ended."
+    },
+    "markers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tick": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The tick that raised it."
+          },
+          "type": {
+            "type": "string",
+            "description": "The event type."
+          },
+          "at": {
+            "description": "Where.",
+            "$ref": "#/$defs/Pt"
+          },
+          "entityId": {
+            "description": "The entity it names.",
+            "type": "string"
+          },
+          "other": {
+            "description": "The other entity it names.",
+            "type": "string"
+          }
+        },
+        "required": ["tick", "type", "at"],
+        "additionalProperties": false,
+        "description": "An event worth showing on the ghost."
+      },
+      "description": "Events the game marks (`play.markers`; every event when it names none), capped."
+    },
+    "trail": {
+      "description": "The game's focus over the run, for the ghost.",
+      "type": "object",
+      "properties": {
+        "every": {
+          "type": "number",
+          "const": 4,
+          "description": "Ticks between samples."
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Pt"
+          },
+          "description": "The focus after ticks 0, 4, 8, …; a tick without a focus is left out."
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "True when the cap cut the trail short."
+        }
+      },
+      "required": ["every", "pts", "truncated"],
+      "additionalProperties": false
+    },
+    "end": {
+      "type": "string",
+      "description": "A digest of the game's snapshot after the last tick, which a replay must reproduce."
+    }
+  },
+  "required": [
+    "v",
+    "engine",
+    "scene",
+    "sceneHash",
+    "game",
+    "configHash",
+    "tickRate",
+    "start",
+    "actions",
+    "inputs",
+    "ticks",
+    "outcome",
+    "markers",
+    "end"
+  ],
+  "additionalProperties": false,
+  "description": "A recorded run: how it started and every input edge, enough to replay it tick for tick, plus what the ghost draws (trail and markers) and how it ended.",
+  "$defs": {
+    "Pt": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "description": "x in world pixels."
+        },
+        {
+          "type": "number",
+          "description": "y in world pixels; y is down."
+        }
+      ]
+    }
+  }
+}

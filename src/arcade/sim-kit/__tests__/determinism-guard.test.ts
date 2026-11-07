@@ -22,8 +22,12 @@ import { describe, expect, it } from "vite-plus/test";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 
-/** Directories whose contents the validator re-runs. Tests excepted. */
-const GUARDED = ["sim-kit", "en-prison/sim"];
+/**
+ * Directories whose contents the validator re-runs, relative to `src/arcade`.
+ * Tests excepted. The kit itself lives in the engine; `sim-kit/` here is its
+ * re-export.
+ */
+const GUARDED = ["sim-kit", "../engine/sim-kit", "en-prison/sim"];
 
 type Ban = { pattern: RegExp; why: string };
 

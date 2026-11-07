@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:input-script:platformer:v1",
+  "x-agent-surface": 6,
+  "title": "jams engine input script for platformer, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The input-script JSON Schema this file follows.",
+      "type": "string"
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Input-script format version."
+    },
+    "scene": {
+      "description": "The scene this script was written for; a run against another scene is refused.",
+      "type": "string"
+    },
+    "at": {
+      "description": "Play from here instead of the game's spawn, cast down onto the first surface below; refused inside a solid.",
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "description": "x in world pixels."
+        },
+        {
+          "type": "number",
+          "description": "y in world pixels; y is down."
+        }
+      ]
+    },
+    "timeOffsetMs": {
+      "description": "Advance time-driven entities (followers) by this much before tick 0.",
+      "type": "number",
+      "minimum": 0
+    },
+    "maxTicks": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 36000,
+      "description": "The run ends as `timeout` after this many ticks (default 1800, 30 s)."
+    },
+    "steps": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "description": "The steps, played in order from tick 0."
+    }
+  },
+  "required": ["v", "steps"],
+  "additionalProperties": false,
+  "description": "A headless playtest: steps of held actions at 60 ticks a second. The run ends when the game's outcome hook decides, when the steps run out (`script-end`), at `maxTicks` (`timeout`), or `stuck` (a movement action held with the focus moving under 4 px in 120 ticks).",
+  "$defs": {
+    "Step": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "hold": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Action"
+              },
+              "description": "Every action held during the step; what the step before held and this one doesn't is released when it starts. Empty holds nothing."
+            },
+            "for": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36000,
+              "description": "Hold for this many ticks (60 a second)."
+            }
+          },
+          "required": ["hold", "for"],
+          "additionalProperties": false,
+          "description": "Hold actions for a fixed number of ticks."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "hold": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Action"
+              },
+              "description": "Every action held during the step; what the step before held and this one doesn't is released when it starts. Empty holds nothing."
+            },
+            "forMs": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 600000,
+              "description": "Hold for this many milliseconds, rounded to whole 60 Hz ticks (at least one)."
+            }
+          },
+          "required": ["hold", "forMs"],
+          "additionalProperties": false,
+          "description": "Hold actions for a duration in milliseconds."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "hold": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Action"
+              },
+              "description": "Every action held during the step; what the step before held and this one doesn't is released when it starts. Empty holds nothing."
+            },
+            "until": {
+              "$ref": "#/$defs/Until"
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36000,
+              "description": "Give up waiting after this many ticks and go on to the next step (default 600)."
+            }
+          },
+          "required": ["hold", "until"],
+          "additionalProperties": false,
+          "description": "Hold actions until a condition holds, capped by `max` ticks."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "press": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Action"
+                },
+                {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Action"
+                  }
+                }
+              ],
+              "description": "The action or actions to press."
+            }
+          },
+          "required": ["press"],
+          "additionalProperties": false,
+          "description": "Press for one tick: the actions go down at the step's tick and up at the next. Nothing else is held."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wait": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36000,
+              "description": "Hold nothing for this many ticks."
+            }
+          },
+          "required": ["wait"],
+          "additionalProperties": false,
+          "description": "Release everything for a number of ticks."
+        }
+      ],
+      "description": "One step: `hold` with exactly one of `for`, `forMs` or `until`; `press`; or `wait`."
+    },
+    "Action": {
+      "type": "string",
+      "enum": ["move_left", "move_right", "jump", "move_down", "dash", "grapple"],
+      "description": "An action the game declares: move_left, move_right, jump, move_down, dash, grapple."
+    },
+    "Until": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/EventMatch"
+        },
+        "tick": {
+          "description": "Holds once this absolute tick (from 0) is reached or passed.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 36000
+        },
+        "grounded": {
+          "description": "The player is (true) or isn't (false) standing on something.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "Ends the step on the first tick where every key holds (AND), checked after each tick, so the step runs at least one tick. Predicates: event, tick, grounded."
+    },
+    "EventMatch": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "description": "An event type, e.g. `sensor:enter`."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The event type."
+            },
+            "entityId": {
+              "description": "The entity the event must name, e.g. the sensor for `sensor:enter`.",
+              "type": "string"
+            },
+            "other": {
+              "description": "The other entity it must name, e.g. what entered the sensor.",
+              "type": "string"
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false,
+          "description": "An event type with the entity ids it must name."
+        }
+      ],
+      "description": "Holds on a tick that raised a matching event."
+    }
+  }
+}

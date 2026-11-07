@@ -48,7 +48,7 @@ import {
   withGaff,
   withTrait,
 } from "../src/arcade/en-prison/sim/upgrades.ts";
-import { canonicalize, digest32 } from "../src/arcade/sim-kit/digest.ts";
+import { canonicalize, digest32 } from "../src/arcade/sim-kit/index.ts";
 
 const FIXTURE = new URL(
   "../src/arcade/en-prison/sim/__tests__/golden-vectors.json",

@@ -84,6 +84,14 @@ export async function publishCanvasRevoke(message: RevokeMessage): Promise<void>
   });
 }
 
+/**
+ * Closes live sockets on a hosted scene: one person's, or everyone's. A
+ * `{ userId }` revoke from `publishCanvasRevoke` already covers scenes.
+ */
+export async function publishSceneRevoke(sceneId: string, userId?: string): Promise<void> {
+  await publishCanvasRevoke(userId ? { sceneId, userId } : { sceneId });
+}
+
 /** The stored state changed outside the service; connected editors should see it. */
 export async function publishCanvasApply(canvasId: string): Promise<void> {
   await publish(applyChannel(prefix()), { canvasId });

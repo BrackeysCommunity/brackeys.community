@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../src/games/platformer/input-script.schema.json",
+  "v": 1,
+  "scene": "test-yard",
+  "steps": [
+    { "hold": ["move_left"], "for": 30 },
+    { "hold": ["move_left", "jump"], "for": 14 },
+    {
+      "hold": ["move_left"],
+      "until": { "event": { "type": "landed", "entityId": "~solid:7" } },
+      "max": 90
+    },
+    { "wait": 30 }
+  ]
+}

@@ -50,8 +50,7 @@ import {
   type CanvasDetail,
 } from "../canvas-queries";
 import type { CanvasEditorHandle } from "../editor/CanvasEditor";
-import { Island } from "./CanvasShell";
-import { SiteMenu } from "./SiteMenu";
+import { ShellTitle, SiteIsland } from "./SiteIsland";
 
 function scopeSearch(canvas: CanvasDetail) {
   return { scope: canvas.scope.kind === "team" ? canvas.scope.teamId : "personal" };
@@ -70,9 +69,7 @@ function TitleField({
   const [draft, setDraft] = useState<string | null>(null);
   const title = pathTitle(canvas.path);
 
-  if (!editable) {
-    return <h1 className="min-w-0 truncate px-1 text-sm font-bold text-foreground">{title}</h1>;
-  }
+  if (!editable) return <ShellTitle>{title}</ShellTitle>;
 
   const commit = () => {
     const next = (draft ?? title).trim();
@@ -350,13 +347,23 @@ export function DocumentIsland({
   );
 
   return (
-    <Island
-      aria-label="Canvas"
-      region={!compact}
-      className={compact ? "min-w-0 flex-1 border-0 bg-transparent p-0 shadow-none" : "min-w-0"}
+    <SiteIsland
+      label="Canvas"
+      compact={compact}
+      site={{
+        back: {
+          label: scopeName,
+          link:
+            canvas.scope.kind === "team" ? (
+              <Link to="/teams/$teamId" params={{ teamId: canvas.scope.teamId }} />
+            ) : (
+              <Link to="/canvases" search={{ scope: "personal" }} />
+            ),
+        },
+        signinSource: "canvases",
+        workspace: true,
+      }}
     >
-      <SiteMenu scope={canvas.scope} scopeName={scopeName} />
-      {compact ? null : <span className="h-5 w-px shrink-0 bg-border" aria-hidden />}
       {crumb}
       {editable && !compact ? (
         <DropdownMenu>
@@ -503,6 +510,6 @@ export function DocumentIsland({
           await navigate({ to: "/canvases", search: scopeSearch(canvas) });
         }}
       />
-    </Island>
+    </SiteIsland>
   );
 }

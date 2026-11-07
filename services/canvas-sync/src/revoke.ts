@@ -3,6 +3,7 @@ import {
   documentName,
   REVOKE_CLOCK_SKEW_MS,
   type RevokeMessage,
+  revokeSubject,
   SYNC_CLOSE,
   syncClose,
 } from "../../../src/lib/canvas/sync-channels.ts";
@@ -21,16 +22,24 @@ function userIdOf(connection: RevocableConnection): string | undefined {
   return typeof context?.userId === "string" ? context.userId : undefined;
 }
 
+/** The live document a revoke names, if it names one. */
+function revokedDocumentName(message: RevokeMessage): string | null {
+  if (message.canvasId) return documentName("canvas", message.canvasId);
+  if (message.sceneId) return documentName("scene", message.sceneId);
+  return null;
+}
+
 /**
- * The connections a revoke closes: one person's on one canvas, everyone's
- * on a canvas, or one person's everywhere.
+ * The connections a revoke closes: one person's on one document, everyone's
+ * on a document, or one person's everywhere.
  */
 export function connectionsToRevoke(
   documents: ReadonlyMap<string, RevocableDocument>,
   message: RevokeMessage,
 ): RevocableConnection[] {
-  const scope = message.canvasId
-    ? [documents.get(documentName("canvas", message.canvasId))].filter((d) => d !== undefined)
+  const name = revokedDocumentName(message);
+  const scope = name
+    ? [documents.get(name)].filter((d) => d !== undefined)
     : [...documents.values()];
   return scope.flatMap((document) =>
     document
@@ -51,8 +60,8 @@ export function revoke(
 
 /** Revokes stored outside this process, read when a connection authenticates. */
 export interface RevocationTombstones {
-  /** The latest revoke covering this user on this canvas, in ms; null for none or on any error. */
-  latest(canvasId: string, userId: string): Promise<number | null>;
+  /** The latest revoke covering this user on this document's subject, in ms; null for none or on any error. */
+  latest(subject: string, userId: string): Promise<number | null>;
   close(): Promise<void>;
 }
 
@@ -79,8 +88,8 @@ export class RevocationList {
     private readonly skewMs: number = REVOKE_CLOCK_SKEW_MS,
   ) {}
 
-  private static key(canvasId: string | undefined, userId: string | undefined): string {
-    return `${canvasId ?? ""}\u0000${userId ?? ""}`;
+  private static key(subject: string | undefined, userId: string | undefined): string {
+    return `${subject ?? ""}\u0000${userId ?? ""}`;
   }
 
   private sweep(now: number): void {
@@ -89,15 +98,18 @@ export class RevocationList {
 
   record(message: RevokeMessage, now: number): void {
     this.sweep(now);
-    this.revokedAt.set(RevocationList.key(message.canvasId, message.userId), now);
+    this.revokedAt.set(RevocationList.key(revokeSubject(message), message.userId), now);
   }
 
-  /** Whether a token for this user and canvas, minted at `mintedAt`, predates a revoke covering it. */
-  covers(canvasId: string, userId: string, mintedAt: number, now: number): boolean {
+  /**
+   * Whether a token for this user and subject (a canvas id, or `scene:<id>`),
+   * minted at `mintedAt`, predates a revoke covering it.
+   */
+  covers(subject: string, userId: string, mintedAt: number, now: number): boolean {
     this.sweep(now);
     for (const key of [
-      RevocationList.key(canvasId, userId),
-      RevocationList.key(canvasId, undefined),
+      RevocationList.key(subject, userId),
+      RevocationList.key(subject, undefined),
       RevocationList.key(undefined, userId),
     ]) {
       const at = this.revokedAt.get(key);

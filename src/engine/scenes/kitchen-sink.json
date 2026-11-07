@@ -1,0 +1,46 @@
+{
+  "$schema": "../scene/scene.schema.json",
+  "v": 2,
+  "name": "kitchen-sink",
+  "bounds": [0, 0, 2400, 1200],
+  "settings": { "gravity": [0, 1200] },
+  "groups": {
+    "shelf": { "name": "Shelf", "at": [1400, 700] }
+  },
+  "instances": [
+    { "id": "post-1", "prefab": "post", "at": [1640, 1160] },
+    { "id": "post-2", "prefab": "post", "at": [1760, 1160] },
+    { "id": "gate-1", "prefab": "gate", "at": [1980, 1160] },
+    { "id": "gate-2", "prefab": "gate", "at": [2200, 1160], "overrides": { "bar.oneWay": true } }
+  ],
+  "solid": [
+    ["box", 1200, 1180, 1160, 20],
+    ["box", 20, 600, 20, 600],
+    ["box", 2380, 600, 20, 600],
+    ["box", 200, 1000, 60, 10, 15],
+    ["circle", 380, 1110, 50],
+    ["capsule", 540, 1140, 40, 20, 90],
+    ["poly", 620, 1160, 700, 1160, 660, 1100],
+    ["chain", 100, 700, 300, 740, 500, 700]
+  ],
+  "entities": [
+    { "id": "ledge", "type": "solid", "shape": ["box", 820, 900, 80, 10], "oneWay": true },
+    { "id": "zone", "type": "sensor", "shape": ["box", 1000, 1120, 40, 40], "tags": ["goal"] },
+    { "id": "start", "type": "marker", "at": [760, 1140], "tags": ["spawn"] },
+    { "id": "crate", "type": "prop", "shape": ["box", 880, 1140, 20, 20], "density": 1, "restitution": 0 },
+    { "id": "ball", "type": "prop", "shape": ["circle", 1000, 1050, 20], "density": 2, "restitution": 0.3 },
+    { "id": "carrier", "type": "follower", "shape": ["box", 0, 0, 60, 8], "path": { "pts": [[760, 400], [1240, 400]], "mode": "ping_pong", "speed": 100, "pauseMs": 300 } },
+    { "id": "deck", "type": "solid", "shape": ["box", 760, 380, 20, 12], "attach": "carrier" },
+    { "id": "deck-zone", "type": "sensor", "shape": ["box", 760, 340, 40, 20], "attach": "carrier", "tags": ["riding"] },
+    { "id": "orbit", "type": "follower", "shape": ["circle", 0, 0, 16], "path": { "pts": [[1700, 200], [1900, 200], [1800, 360]], "mode": "loop", "speed": 60 } },
+    { "id": "shelf-board", "type": "solid", "group": "shelf", "shape": ["box", 0, 0, 100, 10] },
+    { "id": "shelf-box", "type": "prop", "group": "shelf", "shape": ["box", -40, -30, 20, 20], "density": 1, "restitution": 0 },
+    { "id": "shelf-mark", "type": "marker", "group": "shelf", "at": [40, -20], "tags": ["shelf"] },
+    { "id": "about", "type": "note", "at": [60, 40], "text": "Kitchen sink: every engine primitive, bulk shape form, group, prefab and attachment in one scene. Each region has a note." },
+    { "id": "about-bulk", "type": "note", "at": [60, 640], "text": "Bulk solids, one per shape form: the floor and walls (box), a rotated box, circle, capsule, poly and chain." },
+    { "id": "about-primitives", "type": "note", "at": [740, 820], "text": "Entity primitives: a one-way solid ledge, a sensor zone the ball falls into, a spawn marker and two props (box and circle)." },
+    { "id": "about-follower", "type": "note", "at": [740, 260], "text": "Followers: carrier ping-pongs with a solid deck and a sensor attached to it; orbit loops a closed triangle." },
+    { "id": "about-group", "type": "note", "at": [1300, 560], "text": "Group shelf: three members stored relative to the group's origin, so moving the group is one edit." },
+    { "id": "about-prefabs", "type": "note", "at": [1600, 860], "text": "Prefabs: two post instances, and two gate instances where gate-2 overrides its bar to be one-way." }
+  ]
+}

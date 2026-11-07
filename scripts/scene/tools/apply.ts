@@ -1,4 +1,7 @@
+import { dirname } from "node:path";
+
 import { applyOps, describeChange, formatScene, type OpBatch } from "@jams/engine/scene";
+import { readPrefabFiles, writePrefabFiles } from "@jams/engine/vite";
 
 import {
   failure,
@@ -35,7 +38,7 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
     batch = { ...batch, base: input.base };
   }
 
-  const result = applyOps(loaded.def, batch);
+  const result = applyOps(loaded.def, batch, loaded.registry, { prefabs: loaded.prefabs });
   if (!result.ok) {
     return {
       exitCode: result.issue.code === "stale-base" ? 3 : 1,
@@ -47,10 +50,17 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
     };
   }
 
-  const { def, ...rest } = renameHash(result);
+  const { def, prefabs: _prefabs, ...rest } = renameHash(result);
   const errors = result.issues.filter((i) => i.severity === "error");
   const write = !input.dryRun && errors.length === 0;
-  if (write) await writeSceneText(ctx, loaded.name, formatScene(def).text);
+  if (write) {
+    if (result.prefabs) {
+      const dir = dirname(loaded.scene.file);
+      const files = await readPrefabFiles(dir, loaded.registry);
+      await writePrefabFiles(dir, files.texts, result.prefabs);
+    }
+    await writeSceneText(loaded.scene, formatScene(def).text);
+  }
 
   const verb = input.dryRun ? "would change" : write ? "changed" : "not written (errors)";
   const lines = [

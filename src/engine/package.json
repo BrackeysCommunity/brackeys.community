@@ -1,0 +1,76 @@
+{
+  "name": "@jams/engine",
+  "version": "0.5.0",
+  "private": true,
+  "files": [
+    "dist",
+    "scene/*.schema.json",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./scene": {
+      "types": "./dist/scene.d.mts",
+      "import": "./dist/scene.mjs"
+    },
+    "./editor": {
+      "types": "./dist/editor.d.mts",
+      "import": "./dist/editor.mjs"
+    },
+    "./collab": {
+      "types": "./dist/collab.d.mts",
+      "import": "./dist/collab.mjs"
+    },
+    "./headless": {
+      "types": "./dist/headless.d.mts",
+      "import": "./dist/headless.mjs"
+    },
+    "./game": {
+      "types": "./dist/game.d.mts",
+      "import": "./dist/game.mjs"
+    },
+    "./debug": {
+      "types": "./dist/debug.d.mts",
+      "import": "./dist/debug.mjs"
+    },
+    "./sim-kit": {
+      "types": "./dist/sim-kit.d.mts",
+      "import": "./dist/sim-kit.mjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.mts",
+      "import": "./dist/vite.mjs"
+    },
+    "./schemas/scene.schema.json": "./scene/scene.schema.json",
+    "./schemas/ops.schema.json": "./scene/ops.schema.json",
+    "./schemas/input-script.schema.json": "./scene/input-script.schema.json",
+    "./schemas/recording.schema.json": "./scene/recording.schema.json",
+    "./schemas/fragment.schema.json": "./scene/fragment.schema.json",
+    "./schemas/prefab.schema.json": "./scene/prefab.schema.json",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@dimforge/rapier2d": "^0.19.3",
+    "@dimforge/rapier2d-compat": "^0.19.3",
+    "@hocuspocus/server": "^4.7.0",
+    "@tanstack/store": ">=0.8.1 <0.9.0",
+    "fractional-indexing": "^4.0.0",
+    "pixi.js": "^8.17.1",
+    "yjs": "^13.6.33",
+    "zod": "^4.1.11"
+  },
+  "peerDependenciesMeta": {
+    "@dimforge/rapier2d-compat": {
+      "optional": true
+    },
+    "@hocuspocus/server": {
+      "optional": true
+    }
+  }
+}

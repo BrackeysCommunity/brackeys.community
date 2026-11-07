@@ -18,7 +18,7 @@ export const fmt: Tool<FmtInput> = async (input, ctx) => {
         : `${loaded.name}: canonical`,
     };
   }
-  if (changed) await writeSceneText(ctx, loaded.name, text);
+  if (changed) await writeSceneText(loaded.scene, text);
   return {
     exitCode: 0,
     data: { ok: true, scene: loaded.name, changed },

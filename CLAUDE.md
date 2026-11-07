@@ -135,6 +135,6 @@ what is actually relevant to a current dev
 
 ## Game scenes
 
-Levels live in `src/game/scenes/*.json`; change them through `vp run scene` (list, show, schema,
+Levels live in `src/games/<game>/scenes/*.json` (the platformer's: `src/games/platformer/scenes/`); change them through `vp run scene` (list, show, schema,
 codes, validate, fmt, apply, step), never by hand. The workflow and conventions are in
 `scripts/scene/README.md`; the `scene-editing` skill loads them.

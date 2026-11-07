@@ -1,24 +1,24 @@
+import { validatePhysical } from "@jams/engine/headless";
 import {
   parseScene,
   pointerLines,
   sceneHash,
   validateScene,
+  type SceneDefinition,
   type SceneIssue,
 } from "@jams/engine/scene";
-import { ScenePathError } from "@jams/engine/vite";
 
 import {
-  failure,
-  isFileArg,
   issueLine,
-  listSceneNames,
-  readArg,
-  readSceneText,
+  judgeScene,
+  prefabsOf,
+  readSource,
+  sceneDirOf,
   usage,
   type Tool,
 } from "../context";
 
-export type ValidateInput = { target?: string };
+export type ValidateInput = { target?: string; physical?: boolean };
 
 function tally(issues: SceneIssue[]) {
   const counts = { error: 0, warn: 0, info: 0 };
@@ -28,38 +28,46 @@ function tally(issues: SceneIssue[]) {
 
 export const validate: Tool<ValidateInput> = async (input, ctx) => {
   const target = input.target;
-  if (!target) return usage("scene validate <scene|file>");
-  let text: string;
-  try {
-    text =
-      isFileArg(target) || target === "-"
-        ? await readArg(ctx, target)
-        : await readSceneText(ctx, target);
-  } catch (e) {
-    if (e instanceof ScenePathError) return usage(e.message);
-    if ((e as { code?: string }).code === "ENOENT") {
-      const stem = target.endsWith(".json") && !target.includes("/") ? target.slice(0, -5) : null;
-      const isScene = stem !== null && (await listSceneNames(ctx)).includes(stem);
-      return failure(
-        isScene
-          ? `Not found: ${target}. To validate the scene, pass its name: validate ${stem}.`
-          : `Not found: ${target}.`,
-      );
-    }
-    throw e;
-  }
+  if (!target) return usage("scene validate <scene|file|-> [--physical]");
+  const source = await readSource(ctx, target);
+  if (!source.ok) return source.result;
+  const { text } = source;
 
-  const parsed = parseScene(text);
-  const issues = parsed.ok
-    ? [...parsed.issues, ...validateScene(parsed.def, { lines: pointerLines(text) })]
-    : parsed.issues;
+  const judged = judgeScene(ctx, text);
+  const game = judged.game ?? null;
+  let issues: SceneIssue[];
+  let def: SceneDefinition | undefined;
+  if (!judged.ok) issues = [judged.issue];
+  else {
+    const parsed = parseScene(text, judged.registry);
+    if (parsed.ok) {
+      def = parsed.def;
+      const lines = pointerLines(text);
+      const prefabs = await prefabsOf(sceneDirOf(source, target), judged.registry);
+      issues = [...parsed.issues, ...validateScene(def, judged.registry, { lines, prefabs })];
+      if (input.physical) {
+        const rapier = await ctx.loadRapier();
+        issues.push(
+          ...validatePhysical({ rapier, scene: def, registry: judged.registry, lines, prefabs }),
+        );
+      }
+    } else issues = parsed.issues;
+  }
   const counts = tally(issues);
-  const ok = parsed.ok && counts.error === 0;
-  const hash = parsed.ok ? sceneHash(parsed.def) : undefined;
-  const head = `${target}${hash ? ` ${hash}` : ""}: ${counts.error} errors, ${counts.warn} warnings, ${counts.info} info`;
+  const ok = def !== undefined && counts.error === 0;
+  const hash = def ? sceneHash(def) : undefined;
+  const head = `${target}${hash ? ` ${hash}` : ""}${input.physical ? " (physical)" : ""}: ${counts.error} errors, ${counts.warn} warnings, ${counts.info} info`;
   return {
     exitCode: ok ? 0 : 1,
-    data: { ok, scene: target, sceneHash: hash, counts, issues },
+    data: {
+      ok,
+      scene: target,
+      game,
+      sceneHash: hash,
+      physical: input.physical === true,
+      counts,
+      issues,
+    },
     text: [head, ...issues.map(issueLine)].join("\n"),
   };
 };

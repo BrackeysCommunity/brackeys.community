@@ -12,8 +12,11 @@ import { SYNC_LIMITS } from "./limits";
 
 export type SyncAccess = "read" | "write";
 
+/** The kind of document a token opens. */
+export type SyncTokenKind = "canvas" | "scene";
+
 export interface CanvasTokenClaims {
-  /** The full document name, `canvas:<id>` (or `note:<id>`). */
+  /** The full document name, `canvas:<id>`, `scene:<id>` (or `note:<id>`). */
   c: string;
   /** The user's id. */
   u: string;
@@ -24,6 +27,17 @@ export interface CanvasTokenClaims {
   /** The name and avatar peers see; the service pins awareness to them. */
   n?: string;
   p?: string;
+  /** The kind; absent on canvas tokens, which predate it. */
+  k?: SyncTokenKind;
+  /**
+   * Scene tokens: the scene format version of the engine the client runs.
+   * The service connects a client on another version read-only.
+   */
+  f?: number;
+}
+
+export function tokenKind(claims: Pick<CanvasTokenClaims, "k">): SyncTokenKind {
+  return claims.k ?? "canvas";
 }
 
 const encoder = new TextEncoder();
@@ -74,7 +88,15 @@ function hmacKey(secret: string): Promise<CryptoKey> {
 }
 
 export async function signCanvasToken(
-  claims: { c: string; u: string; a: SyncAccess; n?: string; p?: string | null },
+  claims: {
+    c: string;
+    u: string;
+    a: SyncAccess;
+    n?: string;
+    p?: string | null;
+    k?: SyncTokenKind;
+    f?: number;
+  },
   secret: string,
   now: number = Date.now(),
   ttlMs: number = SYNC_LIMITS.tokenTtlMs,
@@ -82,6 +104,8 @@ export async function signCanvasToken(
   const full: CanvasTokenClaims = { c: claims.c, u: claims.u, a: claims.a, e: now + ttlMs, v: 1 };
   if (claims.n !== undefined) full.n = claims.n;
   if (claims.p) full.p = claims.p;
+  if (claims.k && claims.k !== "canvas") full.k = claims.k;
+  if (claims.f !== undefined) full.f = claims.f;
   const payload = toBase64Url(encoder.encode(JSON.stringify(full)));
   const signature = await crypto.subtle.sign(
     "HMAC",
@@ -104,7 +128,10 @@ function isClaims(value: unknown): value is CanvasTokenClaims {
     Number.isFinite(claims.e) &&
     claims.v === 1 &&
     (claims.n === undefined || typeof claims.n === "string") &&
-    (claims.p === undefined || typeof claims.p === "string")
+    (claims.p === undefined || typeof claims.p === "string") &&
+    (claims.k === undefined || claims.k === "canvas" || claims.k === "scene") &&
+    (claims.f === undefined ||
+      (typeof claims.f === "number" && Number.isInteger(claims.f) && claims.f >= 0))
   );
 }
 

@@ -1,0 +1,191 @@
+import type { Registry } from "../game/types";
+import { parseBulkId } from "../scene/expand";
+import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, SceneOp } from "../scene/types";
+import { moveBatch } from "./gizmos/batch";
+import { shapePivot } from "./gizmos/handles";
+import { rotateTargetsBatch, selectionBox } from "./gizmos/multi";
+import { gizmoTarget, type GizmoTarget } from "./gizmos/target";
+import { buildOutline } from "./outline";
+import type { PickLayers } from "./picking";
+import { docRefs } from "./refs";
+import type { SpatialIndex } from "./tools";
+
+/** Grid steps a coarse (Shift) nudge moves. */
+export const COARSE_NUDGE_STEPS = 4;
+
+const DIRECTIONS: Record<string, Pt> = {
+  up: [0, -1],
+  down: [0, 1],
+  left: [-1, 0],
+  right: [1, 0],
+};
+
+/**
+ * The offset a `nudge-<dir>[-coarse|-fine]` command moves by: one grid
+ * `step`, four with `-coarse`, one px with `-fine`. `null` for any other
+ * command.
+ */
+export function nudgeDelta(command: string, step: number): Pt | null {
+  const m = /^nudge-(up|down|left|right)(?:-(coarse|fine))?$/.exec(command);
+  if (!m) return null;
+  const [dx, dy] = DIRECTIONS[m[1]!]!;
+  const by = m[2] === "fine" ? 1 : m[2] === "coarse" ? step * COARSE_NUDGE_STEPS : step;
+  return [dx * by + 0, dy * by + 0];
+}
+
+/** The selection's editable targets, in selection order; refs without geometry are left out. */
+export function targetsOf(
+  def: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+): GizmoTarget[] {
+  return refs
+    .map((r) => gizmoTarget(def, registry, r))
+    .filter((t): t is GizmoTarget => t !== undefined);
+}
+
+/** What a selection turns about: one shape's pivot, else the centre of the box around all of it. */
+export function rotationPivot(targets: readonly GizmoTarget[]): Pt | null {
+  if (targets.length === 0) return null;
+  const only = targets.length === 1 ? targets[0]! : undefined;
+  if (only?.shape) return shapePivot(only.shape);
+  const b = selectionBox(targets);
+  return [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2];
+}
+
+/** One batch moving `refs` by `delta`; `null` when nothing moves. */
+export function nudgeBatch(refs: readonly Ref[], delta: Pt): OpBatch | null {
+  return moveBatch(refs, delta, `Nudge ${refs.length === 1 ? refs[0] : `${refs.length} entities`}`);
+}
+
+/** One batch turning the selection `deg` degrees (clockwise on screen) about its pivot. */
+export function rotateSelectionBatch(
+  def: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+  deg: number,
+): OpBatch | null {
+  const targets = targetsOf(def, registry, refs);
+  const about = rotationPivot(targets);
+  return about ? rotateTargetsBatch(targets, about, deg) : null;
+}
+
+/** The box around the selection's geometry; `null` when none of it has any. */
+export function selectionBounds(
+  def: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+): Aabb | null {
+  const targets = targetsOf(def, registry, refs);
+  return targets.length > 0 ? selectionBox(targets) : null;
+}
+
+/** Every ref in the document, in file order, except those on a hidden or locked layer. */
+export function selectAllRefs(
+  def: SceneDefinition,
+  index: SpatialIndex,
+  layers?: PickLayers,
+): Ref[] {
+  return docRefs(def).filter((r) => {
+    const layer = index.get(r)?.layer;
+    return !layers || !layer || (!layers.hidden.has(layer) && !layers.locked.has(layer));
+  });
+}
+
+/** One batch removing `refs`; `null` for an empty selection. */
+export function deleteBatch(refs: readonly Ref[]): OpBatch | null {
+  if (refs.length === 0) return null;
+  const unique = [...new Set(refs)];
+  return {
+    label: `Delete ${unique.length === 1 ? unique[0] : `${unique.length} entities`}`,
+    ops: [{ op: "remove", refs: unique }],
+  };
+}
+
+const groupsOf = (def: SceneDefinition) =>
+  new Set((def.entities ?? []).flatMap((e) => (typeof e.group === "string" ? [e.group] : [])));
+
+/** The first `group-<n>` no entity uses. */
+export function nextGroupName(def: SceneDefinition): string {
+  const taken = groupsOf(def);
+  for (let n = 1; ; n++) if (!taken.has(`group-${n}`)) return `group-${n}`;
+}
+
+const entityRefs = (refs: readonly Ref[]) => refs.filter((r) => !parseBulkId(r));
+
+/**
+ * One batch putting the selected entities in a group (their `group` field),
+ * a new one unless `name` is given. Bulk entries have no fields, so they are
+ * left out; `null` when no entity is selected or all are already in it.
+ */
+export function groupBatch(
+  def: SceneDefinition,
+  refs: readonly Ref[],
+  name = nextGroupName(def),
+): OpBatch | null {
+  const byId = new Map((def.entities ?? []).map((e) => [e.id, e]));
+  const ops: SceneOp[] = entityRefs(refs)
+    .filter((r) => byId.has(r) && byId.get(r)!.group !== name)
+    .map((ref) => ({ op: "update", ref, set: { group: name } }));
+  return ops.length > 0 ? { label: `Group ${ops.length} as ${name}`, ops } : null;
+}
+
+/** One batch taking the selected entities out of their groups; `null` when none is in one. */
+export function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): OpBatch | null {
+  const byId = new Map((def.entities ?? []).map((e) => [e.id, e]));
+  const ops: SceneOp[] = entityRefs(refs)
+    .filter((r) => byId.get(r)?.group !== undefined)
+    .map((ref) => ({ op: "update", ref, unset: ["group"] }));
+  return ops.length > 0 ? { label: `Ungroup ${ops.length}`, ops } : null;
+}
+
+const sameSet = (a: readonly Ref[], b: readonly Ref[]) =>
+  a.length === b.length && new Set([...a, ...b]).size === a.length;
+
+/**
+ * `[`: the selection's parent. Inside a group not wholly selected, the whole
+ * group; otherwise everything under the first selected ref's outline row
+ * (its bulk key, or its type), climbing past rows that hold exactly the
+ * selection. `null` at the top.
+ */
+export function hierarchyUp(
+  def: SceneDefinition,
+  registry: Registry,
+  sel: readonly Ref[],
+): Ref[] | null {
+  const first = sel[0];
+  if (first === undefined) return null;
+  const group = (def.entities ?? []).find((e) => e.id === first)?.group;
+  if (group !== undefined) {
+    const members = (def.entities ?? []).filter((e) => e.group === group).map((e) => e.id);
+    if (!members.every((m) => sel.includes(m))) return members;
+  }
+  const rows = buildOutline(def, registry);
+  const at = rows.findIndex((r) => r.ref === first);
+  if (at < 0) return null;
+  // Climb past rows whose contents are already exactly the selection.
+  for (let row = at; ; ) {
+    let parent = row - 1;
+    while (parent >= 0 && rows[parent]!.depth >= rows[row]!.depth) parent--;
+    if (parent < 0) return null;
+    const under: Ref[] = [];
+    for (let i = parent + 1; i < rows.length && rows[i]!.depth > rows[parent]!.depth; i++) {
+      const ref = rows[i]!.ref;
+      if (ref !== undefined) under.push(ref);
+    }
+    if (!sameSet(under, sel)) return under;
+    row = parent;
+  }
+}
+
+/** `]`: from a selection of several, its first ref in outline order; `null` for one or none. */
+export function hierarchyDown(
+  def: SceneDefinition,
+  registry: Registry,
+  sel: readonly Ref[],
+): Ref[] | null {
+  if (sel.length < 2) return null;
+  const has = new Set(sel);
+  const first = buildOutline(def, registry).find((r) => r.ref !== undefined && has.has(r.ref));
+  return [first?.ref ?? sel[0]!];
+}

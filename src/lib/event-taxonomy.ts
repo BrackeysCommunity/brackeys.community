@@ -235,6 +235,7 @@ export type SigninSource =
   | "profile_wall"
   | "teams_discovery"
   | "canvases"
+  | "game"
   | "members_discovery"
   | "forum";
 

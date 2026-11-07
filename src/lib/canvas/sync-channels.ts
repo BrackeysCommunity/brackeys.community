@@ -4,16 +4,16 @@
  * close codes a client acts on. Shared with services, so no `@/` imports.
  */
 
-export type SyncDocumentKind = "canvas" | "note";
+export type SyncDocumentKind = "canvas" | "note" | "scene";
 
-const KINDS: readonly SyncDocumentKind[] = ["canvas", "note"];
+const KINDS: readonly SyncDocumentKind[] = ["canvas", "note", "scene"];
 const MAX_ID_LENGTH = 100;
 
 export function documentName(kind: SyncDocumentKind, id: string): string {
   return `${kind}:${id}`;
 }
 
-/** `canvas:<id>` or `note:<id>`; null for anything else, ids with a colon included. */
+/** `canvas:<id>`, `note:<id>` or `scene:<id>`; null for anything else, ids with a colon included. */
 export function parseDocumentName(name: string): { kind: SyncDocumentKind; id: string } | null {
   const colon = name.indexOf(":");
   if (colon < 0) return null;
@@ -44,29 +44,45 @@ export const REVOKE_CLOCK_SKEW_MS = 2_000;
 /**
  * Where a revoke is remembered (its time, in ms), so an instance that boots
  * after the publish still refuses tokens minted before it. Kept for as long
- * as such a token could be valid. Ids never contain a colon.
+ * as such a token could be valid. The subject is a canvas id or
+ * `scene:<id>` (see `revokeSubject`); user ids never contain a colon.
  */
 export const revokeTombstoneKey = (
   prefix: string,
-  canvasId: string | undefined,
+  subject: string | undefined,
   userId: string | undefined,
-) => `${prefix}:revoked:${canvasId ?? ""}:${userId ?? ""}`;
+) => `${prefix}:revoked:${subject ?? ""}:${userId ?? ""}`;
 
-/** The tombstones that cover one person's connection to one canvas. */
-export const revokeTombstoneKeys = (prefix: string, canvasId: string, userId: string) => [
-  revokeTombstoneKey(prefix, canvasId, userId),
-  revokeTombstoneKey(prefix, canvasId, undefined),
+/** The tombstones that cover one person's connection to one document. */
+export const revokeTombstoneKeys = (prefix: string, subject: string, userId: string) => [
+  revokeTombstoneKey(prefix, subject, userId),
+  revokeTombstoneKey(prefix, subject, undefined),
   revokeTombstoneKey(prefix, undefined, userId),
 ];
 
 /**
  * Close live connections after an access change. `{ canvasId, userId }`
  * closes one person's sockets on one canvas, `{ canvasId }` everyone's on it,
- * and `{ userId }` that person's sockets everywhere (a ban).
+ * and `{ userId }` that person's sockets everywhere (a ban). `sceneId` names
+ * a scene the same way.
  */
 export type RevokeMessage =
-  | { canvasId: string; userId?: string }
-  | { canvasId?: string; userId: string };
+  | { canvasId: string; sceneId?: never; userId?: string }
+  | { sceneId: string; canvasId?: never; userId?: string }
+  | { canvasId?: never; sceneId?: never; userId: string };
+
+/**
+ * What a revoke is remembered under: a canvas's id, or `scene:<id>` (canvas
+ * ids are UUIDs, so the two never collide); undefined for a revoke that
+ * covers a person everywhere.
+ */
+export function revokeSubject(message: {
+  canvasId?: string;
+  sceneId?: string;
+}): string | undefined {
+  if (message.canvasId) return message.canvasId;
+  return message.sceneId ? documentName("scene", message.sceneId) : undefined;
+}
 
 /** The two Redis calls a revoke needs; an ioredis client fits. */
 export interface RevokeSender {
@@ -87,7 +103,7 @@ export async function sendRevoke(
   const at = Date.now();
   await client.publish(revokeChannel(prefix), JSON.stringify(message));
   await client.set(
-    revokeTombstoneKey(prefix, message.canvasId, message.userId),
+    revokeTombstoneKey(prefix, revokeSubject(message), message.userId),
     String(at),
     "PX",
     ttlMs,
@@ -198,9 +214,12 @@ export function parseRevokeMessage(raw: string): RevokeMessage | null {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null) return null;
     const canvasId = optionalId((value as Record<string, unknown>).canvasId);
+    const sceneId = optionalId((value as Record<string, unknown>).sceneId);
     const userId = optionalId((value as Record<string, unknown>).userId);
-    if (canvasId === null || userId === null) return null;
+    if (canvasId === null || sceneId === null || userId === null) return null;
+    if (canvasId && sceneId) return null;
     if (canvasId) return userId ? { canvasId, userId } : { canvasId };
+    if (sceneId) return userId ? { sceneId, userId } : { sceneId };
     return userId ? { userId } : null;
   } catch {
     return null;

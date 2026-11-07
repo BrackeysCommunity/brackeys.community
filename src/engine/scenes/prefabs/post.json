@@ -1,0 +1,9 @@
+{
+  "kind": "prefab",
+  "v": 2,
+  "id": "post",
+  "entities": [
+    { "id": "pole", "type": "solid", "shape": ["box", 0, -60, 10, 60] },
+    { "id": "cap", "type": "marker", "at": [0, -130], "tags": ["top"] }
+  ]
+}

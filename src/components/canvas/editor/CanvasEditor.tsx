@@ -34,6 +34,7 @@ import {
   type JsonCanvas,
 } from "@/lib/canvas/json-canvas";
 import { CANVAS_LIMITS } from "@/lib/canvas/limits";
+import { inOverlay, isEditableTarget } from "@/lib/dom/editable-target";
 import { useFlag } from "@/lib/hooks/use-flag";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { postImageForm } from "@/lib/image-upload";
@@ -142,23 +143,6 @@ function rememberInspector(open: boolean) {
   } catch {
     // A blocked store just means the choice isn't remembered.
   }
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.isContentEditable ||
-    target.closest(".cm-editor, input, textarea, select, [contenteditable]") != null
-  );
-}
-
-/** Menus, popovers and dialogs own Escape while focus is inside them. */
-function inOverlay(): boolean {
-  return (
-    document.activeElement?.closest(
-      '[role="menu"], [role="dialog"], [data-slot="popover-content"]',
-    ) != null
-  );
 }
 
 /** Loads the image to size a new card, capped to a sensible first size. */

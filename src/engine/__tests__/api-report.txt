@@ -1,0 +1,5193 @@
+# @jams/engine API report
+# Generated from the packed .d.mts files by scripts/engine-api-report.ts; regenerate with --write.
+
+## @jams/engine
+CameraMode
+CameraState
+DISPLAY_RESOLUTIONS
+DisplayResolution
+ENGINE_VERSION
+ExpandedScene
+GameConfig
+GameDefinition
+GameEventMap
+GameInstance
+GameMode
+GamePhase
+GameStoreState
+InputAction
+InputBinding
+LoadReport
+PixiView
+PlayOptions
+PlayOutcome
+PlayReport
+PlaySession
+RapierModule
+Registry
+RunRecording
+RuntimeEntity
+SimState
+StepEvent
+StepResult
+TOOL_PRIORITY
+ToolConsumer
+ToolEvent
+ToolRouter
+VIRTUAL_HEIGHT
+Vec2
+createGame
+createPixiView
+pixiContainer
+selectCamera
+selectDebugMode
+selectFPS
+selectGame
+selectMode
+selectPhase
+selectSession
+selectSim
+selectTick
+
+## @jams/engine/collab
+AwarenessLike
+BULK_FIELD
+BindOptions
+BindableRuntime
+DOC_MAPS
+DocApplyOptions
+DocApplyResult
+DocView
+ENTITIES_BUCKET
+EntityRecord
+GROUP_KEY_PREFIX
+INSTANCE_KEY_PREFIX
+IssueWatch
+KeyGen
+LOG_ARRAY
+LOG_CAP
+LogEntry
+MigrateDocOptions
+NESTED_FIELDS
+OVERRIDES_FIELD
+PATH_FIELD
+PREFAB_KEY_PREFIX
+PRESENCE_FIELD
+PeerPresence
+RevertResult
+SCENE_KEY
+SETTINGS_KEY
+SceneBinding
+SceneDocMeta
+SceneOrigin
+ScenePresence
+SceneToDocOptions
+SceneUndo
+SelectionMeta
+WatchIssuesOptions
+Z_FIELD
+actorLabel
+applyOpsToDoc
+assignZ
+bindSceneDoc
+bucketOf
+bulkRecord
+compareZ
+contentMaps
+createSceneUndo
+docMeta
+docPrefabs
+docToScene
+entitiesMap
+entityRecord
+expandLenient
+fingerprint
+groupsMap
+headerOf
+instanceRecord
+instancesMap
+metaMap
+migrateDoc
+observeLog
+observePeers
+patchRecord
+peers
+prefabsMap
+randomKey
+readDoc
+readLog
+recordMap
+recordOf
+refsOfView
+revertEntry
+sceneMap
+sceneToDoc
+selectionsByKey
+sequentialKeys
+setPresence
+settingsMap
+stableJson
+validateDoc
+watchIssues
+
+## @jams/engine/debug
+DEBUG_OFF
+DebugDeps
+DebugFrame
+DebugLayer
+DebugLayerFactory
+DebugLayerHost
+DebugOverlay
+DebugOverlayFactory
+DebugSceneSource
+DebugTick
+ENGINE_DEBUG_LAYERS
+createDebugOverlay
+debugModes
+
+## @jams/engine/editor
+Aabb
+ApplyOptions
+ApplyResult
+BulkEntry
+BulkKey
+CLOSE_PX
+COARSE_NUDGE_STEPS
+DEFAULT_CELL
+DEFAULT_DRAW_TYPE
+DEFAULT_SNAP
+DRAG_THRESHOLD_PX
+DispatchOptions
+DocApplyResult
+DragOptions
+DrawToolOptions
+ENGINE_KEYS
+ENGINE_TOOL_IDS
+EditGeometry
+EditableSpatialIndex
+EditorCommand
+EditorKeyEvent
+EditorMode
+EditorSession
+EditorSessionEvent
+EditorSessionOptions
+EditorStoreState
+EditorTool
+EditorToolContext
+EditorToolDef
+EngineKeyBinding
+EngineToolId
+EntityDef
+EntityTypeName
+EnumOption
+FieldWidget
+GameEditorDef
+GameKeyBinding
+GesturePreview
+GesturePreviewOptions
+GizmoEdit
+GizmoHandle
+GizmoTarget
+HANDLE_HIT_PX
+HANDLE_PX
+HandleKind
+History
+HistoryEntry
+HistoryOptions
+INSPECTOR_SECTIONS
+INSTANCES_ROW
+IndexEntry
+InspectorField
+InspectorModel
+InspectorSectionId
+InspectorSectionModel
+InspectorWidgetDef
+KeyContext
+KeyMatch
+KeyScope
+Keymap
+Layer
+LogEntry
+MIN_POINTS
+MIN_WAYPOINTS
+MULTI_CLICK_MS
+MULTI_CLICK_PX
+ModelEdit
+ModelField
+NumberBounds
+OpBatch
+OutlineRow
+OverlayTone
+PICK_TOL_PX
+POINT_PICK_PX
+ParseFragmentResult
+PasteOptions
+PasteResult
+PeerPresence
+PickLayers
+PickOptions
+PlacedTemplate
+PlacementCheck
+PlacementEditorToolOptions
+PlacementTemplate
+PointShape
+PrefabIsolation
+PrefabIsolationOptions
+PreviewRuntime
+Pt
+RESIZE_DIRS
+Ref
+RefTarget
+Registry
+ResizeDir
+RevertResult
+SECTION_TITLES
+SNAP_PX
+SNAP_REACH_PX
+SNAP_STEPS
+STALK_PX
+SceneChange
+SceneDefinition
+SceneFragment
+SceneHash
+SceneIssue
+SceneOp
+SceneOrigin
+ScenePresence
+SelectMode
+SessionHistory
+ShapeConversion
+ShapeObj
+ShapeSlot
+ShapeTuple
+SnapGuide
+SnapMoveInput
+SnapMoveResult
+SnapSettings
+SnapTarget
+SpatialIndex
+SpatialIndexOptions
+ToolHost
+ToolHostOptions
+ToolKeyEvent
+ToolLayers
+ToolModifiers
+ToolOverlay
+ToolPointerEvent
+WHEEL_ZOOM
+applyToPrefabBatch
+boxTool
+buildInspectorModel
+buildOutline
+builtinTools
+bulkGeometry
+capsuleLength
+childOverrides
+circleTool
+convertToChainFix
+copySelection
+createDrawTool
+createEditorSession
+createEditorStore
+createGesturePreview
+createHistory
+createKeymap
+createPenTool
+createPrefabBatch
+createSpatialIndex
+createToolHost
+cutSelection
+cycleHit
+defaultLayer
+defineEditorTool
+deleteBatch
+deleteVertices
+dirSigns
+docRefs
+dragAngle
+dragHandle
+dragInsertVertex
+dragInsertWaypoint
+dragSelection
+dragVertex
+dragWaypoint
+drawBatch
+drawnShape
+duplicateSelection
+entityGeometry
+expandRefs
+fieldOp
+fragmentBounds
+fragmentOf
+geometryOfRef
+gizmoTarget
+groupBatch
+hierarchyDown
+hierarchyUp
+hitHandle
+insertVertex
+inspectorFields
+instanceOfRef
+instancesOf
+isBulkRef
+isolationBounds
+keyChord
+labelFor
+lock45
+lookupRef
+marqueeSelect
+modelBatch
+modelOps
+moveBatch
+moveTarget
+moveVertex
+nextFreeId
+nextGroupName
+normDeg
+normalizeChord
+nudgeBatch
+nudgeDelta
+numberBounds
+openPrefabIsolation
+outlineOrder
+panTool
+parseFragment
+parseRelative
+pasteFragment
+pathBatch
+penTool
+pickAt
+placedShape
+placementEditorTool
+pointBatch
+prune
+radiusTo
+readAngle
+readDelta
+readLength
+readPoint
+readRadius
+readShapeSize
+readSize
+rebasePath
+refCandidates
+remap
+removeVertices
+removeWaypoints
+resizeBox
+resizeCursor
+revertAllBatch
+revertFieldBatch
+rotateByHandle
+rotateSelectionBatch
+rotateTargetsBatch
+rotateTool
+rotationPivot
+roundPt
+roundShape
+select
+selectAllRefs
+selectTool
+selectionBounds
+selectionBox
+selectionHandles
+shapeBatch
+shapeConversions
+shapeEdit
+shapeHandles
+shapePivot
+shapeSet
+shapeSlots
+snapAngle
+snapDraggedPoint
+snapMove
+snapPoint
+strokeShape
+targetBox
+targetHandles
+targetsOf
+toolKeyEventOf
+ungroupBatch
+unpackBatch
+vertexHandles
+waypointHandles
+waypointsTool
+withShapeSlot
+
+## @jams/engine/game
+ActionDef
+Attachment
+AttachmentHub
+BASE_FIELDS
+BODY_SHAPE_TYPES
+BasePrimitive
+BulkKeyInfo
+CheckEnv
+CheckKindDef
+CheckVerdict
+ColliderTag
+ColliderTags
+DEFAULT_GRAVITY
+DEFAULT_ROTATE_STEP
+DRAW_LAYERS
+DrawLayer
+ENGINE_CHECK_KINDS
+ENGINE_COLLISION_GROUPS
+ENGINE_PREDICATES
+ENGINE_REGISTRY_ID
+ENGINE_RUN_RESULTS
+ENGINE_TOOL_IDS
+EditorToolDef
+EngineCheckKind
+EngineCollisionGroup
+EngineContext
+EngineRunResult
+EngineToolId
+EntityOf
+EntityTypeDef
+FieldEnv
+FollowerOptions
+FollowerSystem
+GameAttachment
+GameDefinition
+GameEditorDef
+GameKeyBinding
+GameOutcome
+GamePlayDef
+GameRuntime
+GameShell
+ID_PATTERN
+InspectorWidgetDef
+IssueCodeDef
+Macro
+MacroRandom
+MarkerEntity
+MarkerSystem
+MaterialDef
+PRIMITIVE_TYPES
+PathSchema
+PhysicalCheck
+PhysicalEnv
+PhysicalHit
+PhysicsWorld
+PlacementCheck
+PlacementDraw
+PlacementGhost
+PlacementTool
+PlacementToolOptions
+PlayStart
+PlayState
+PrimitiveType
+PtSchema
+RegisteredType
+Registry
+RegistryError
+RunResult
+SENSOR_ENTER
+SENSOR_EXIT
+SceneRuntimeHandle
+SceneSystem
+SceneTemplate
+SceneValidator
+SceneView
+ScriptPredicate
+SensorSystem
+SolidOptions
+SolidSystem
+SpawnShape
+StepEvent
+StepResult
+Style
+SystemFactory
+TOOL_PRIORITY
+ToolConsumer
+ToolEvent
+ToolRouter
+ViewLayer
+ViewLayerHandle
+VisualOptions
+WaypointMode
+WaypointState
+advanceWaypoint
+bodyLocalShape
+bodyShapeField
+carrierDelta
+clamp
+clampVec2
+createFollowerSystem
+createMarkerSystem
+createPlacementTool
+createPropSystem
+createRegistry
+createSensorCollider
+createSensorSystem
+createSolidSystem
+defineEntityType
+defineGame
+degToRad
+distanceVec2
+drawEntity
+drawShape
+initialWaypointState
+interpolatePosition
+lerp
+lerpVec2
+materialField
+pointField
+posedBodyDesc
+primitiveFields
+shapeColliderDesc
+shapeField
+shapePose
+styleOf
+tagsField
+traceShape
+
+## @jams/engine/headless
+CheckEnv
+CheckResult
+CheckVerdict
+ChecksReport
+CompileResult
+CompiledInputScript
+CompiledStep
+EventMatch
+FuzzOptions
+FuzzReport
+FuzzRun
+FuzzTouch
+HeadlessRuntimeOptions
+InputEdge
+InputScript
+InputScriptStep
+LoadReport
+ParseRecordingResult
+PhysicalEnv
+PhysicalHit
+PhysicalOptions
+PlayOptions
+PlaytestBlocked
+PlaytestOptions
+PlaytestOutcomeReport
+PlaytestReport
+PlaytestRun
+PlaytestStep
+PreparedPlay
+ProbeInput
+ProbeOptions
+ProbeReport
+RECORDING_VERSION
+RapierModule
+RecorderOptions
+RecordingEnd
+RecordingIssue
+RecordingMarker
+ReplayOptions
+ReplayReport
+ReplayRun
+RunChecksOptions
+RunRecorder
+RunRecording
+RuntimeStats
+SENSOR_ENTER
+SENSOR_EXIT
+STUCK_PX
+STUCK_TICKS
+SceneRuntime
+SceneRuntimeHandle
+ScriptIssue
+StepDuration
+StepEvent
+StepResult
+UntilClause
+ValidatePhysicalOptions
+compileInputScript
+createHeadlessRuntime
+createRunRecorder
+defaultFuzzMacro
+fuzz
+heldEdges
+parseRecording
+physicalEnv
+preparePlay
+probeConfigHash
+recordingDivergence
+replayRecording
+runChecks
+runPhysicalChecks
+runPlaytest
+runProbe
+unknownActionError
+validatePhysical
+
+## @jams/engine/scene
+AGENT_SURFACE_KEYWORD
+AGENT_SURFACE_VERSION
+Aabb
+ApplyOptions
+ApplyResult
+Bounds
+BulkEntry
+BulkForm
+BulkKey
+CHECKS_FORMAT_VERSION
+CHECKS_SUFFIX
+CHILD_SEPARATOR
+ChecksFile
+ChecksIssue
+DEFAULT_ASCII_TAG_CHARS
+DEFAULT_SCRIPT_MAX_TICKS
+DEFAULT_TOUCH_ROLLOUTS
+DEFAULT_TOUCH_SEED
+DEFAULT_TOUCH_TICKS
+DEFAULT_UNTIL_MAX
+EMPTY_SCENE_TEMPLATE
+ENGINE_ISSUE_CODE_LIST
+ENGINE_REGISTRY_ID
+EngineIssueCode
+EntityBase
+EntityDef
+EntityInput
+EntityTypeName
+ExpandOptions
+ExpandedScene
+FRAGMENT_KIND
+FieldKind
+FieldPath
+GameCheck
+GroupDef
+GroupSchema
+ID_PATTERN
+INPUT_SCRIPT_VERSION
+ISSUE_CODES
+InputScriptSchemas
+InstanceDef
+InstanceInput
+InstanceSchema
+IssueCode
+IssueCodeInfo
+LAYERS
+Layer
+LocalChild
+MAX_SCRIPT_TICKS
+MAX_TOUCH_ROLLOUTS
+MIGRATIONS
+MigrateResult
+Migration
+OP_NAMES
+OVERRIDE_PATH
+OpBatch
+OverlayPoint
+OverridePath
+PREFABS_DIR
+PREFAB_KIND
+ParseChecksResult
+ParseFragmentResult
+ParsePrefabResult
+ParseRecordingResult
+ParseSceneResult
+ParseShapeResult
+PathCommand
+PathDef
+PlacedFragment
+Prefab
+PrefabBody
+PrefabLibrary
+Pt
+RECORDING_SCHEMA_ID
+RECORDING_TRAIL_EVERY
+RECORDING_VERSION
+RESERVED_SCENE_KEYS
+ReachesCheck
+RecordingIssue
+RecordingMarker
+RectInput
+Ref
+Registry
+RegistryError
+ResolvedOrigin
+ResolvedScene
+ResolvedSettings
+RunRecording
+RuntimeEntity
+RuntimeField
+RuntimeFields
+SCENE_FORMAT_VERSION
+SCENE_HEADER_KEYS
+SCENE_SVG_MAX_SIZE
+SCHEMA_ID_BASE
+SceneAsciiMap
+SceneAsciiOptions
+SceneChange
+SceneCheck
+SceneDefinition
+SceneFragment
+SceneHash
+SceneIssue
+SceneLabels
+SceneOp
+SceneOverlay
+SceneParseError
+SceneRegionOptions
+SceneSettings
+SceneSvgOptions
+SceneVersionError
+SceneViewport
+Severity
+ShapeInput
+ShapeObj
+ShapeTuple
+ShapeTupleSchema
+ShapeType
+SpotAnchor
+TouchesCheck
+ValidCheck
+ValidateOptions
+aabb
+aabbUnion
+applyOps
+boxCorners
+bulkEntries
+bulkId
+bulkKeyType
+bulkKeysOf
+centroid
+checksJsonSchema
+checksPathOf
+checksSchemaFor
+checksSchemaId
+childRef
+closest
+closestOnSegment
+comparePointers
+containedInRect
+containsPoint
+convexHull
+createRegistry
+createScene
+describeChange
+diffScenes
+diffToOps
+entityIssues
+entitySchemaFor
+expandScene
+fieldKind
+formatAsciiMap
+formatPrefab
+formatPrefabs
+formatScene
+fragmentBounds
+fragmentJsonSchema
+fragmentOf
+fragmentSchemaFor
+geometryFields
+groupOrigin
+hashText
+inputScriptJsonSchema
+inputScriptSchemaFor
+inputScriptSchemaId
+inputScriptSchemasFor
+instanceOrigin
+intersectsRect
+isConvex
+isExpandedScene
+jsonPointer
+localChild
+localChildren
+makeIssue
+migrate
+nearestSegment
+nearestVertex
+nextFreeId
+opBatchSchemaFor
+opsJsonSchema
+opsSchemaId
+parseBulkId
+parseChecks
+parseChildRef
+parseFragment
+parsePrefab
+parseRecording
+parseScene
+parseSceneOrThrow
+parseShape
+placeFragment
+pointerLines
+prefabBody
+prefabJsonSchema
+prefabLibrary
+prefabOf
+prefabScene
+prefabSchemaFor
+prefabsUsedBy
+recordingJsonSchema
+renderSceneAscii
+renderSceneSvg
+resolveScene
+resolveSceneDetailed
+rotateShape
+runRecordingSchema
+sceneAsciiMap
+sceneBody
+sceneGameOf
+sceneHash
+sceneHashWith
+sceneJsonSchema
+sceneOpSchemaFor
+sceneRegistry
+sceneSchemaFor
+sceneViewport
+schemaIdFor
+shapeIsClosed
+shapeOutline
+shapeToTuple
+shapeVertices
+splitOverridePath
+suggestType
+takenIds
+toSourceBatch
+topSpan
+translateShape
+undescribedProperties
+unknownGameIssue
+untitledEntityFields
+validateScene
+
+## @jams/engine/sim-kit
+FP_HALF
+FP_MAX_SAFE
+FP_ONE
+FP_SHIFT
+Rng
+RngState
+canonicalize
+digest32
+digestOf
+fp
+fpApply
+fpClamp
+fpDiv
+fpLerp
+fpMul
+fpRatio
+fpRound
+fpToString
+seedFromString
+
+## @jams/engine/vite
+DISK_ORIGIN
+DiskSync
+ListeningSceneCollab
+PrefabFiles
+SCENE_COLLAB_PATH
+SCENE_DOC_PREFIX
+SCENE_NAME_PATTERN
+SCENE_ROUTE
+SceneCollab
+SceneCollabOptions
+SceneCollabPlugin
+SceneFileAdapter
+SceneHome
+ScenePathError
+createSceneCollab
+createSceneFileAdapter
+listenSceneCollab
+prefabPath
+prefabsDirOf
+readPrefabFiles
+resolveScenePath
+sceneCollabServer
+sceneDocName
+sceneNameOf
+sceneOfDocName
+writePrefabFiles
+
+## camera.ts
+type Viewport = {
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+};
+
+## collab/apply.ts
+type DocApplyOptions = ApplyOptions & {
+    key?: KeyGen;
+    label?: string;
+    noLog?: boolean;
+};
+type DocApplyResult = (Extract<ApplyResult, {
+    ok: true;
+}> & {
+    keys: string[];
+    refKeys: Record<Ref, string>;
+}) | Extract<ApplyResult, {
+    ok: false;
+}>;
+declare function applyOpsToDoc(doc: Y.Doc, batch: OpBatch, origin: SceneOrigin, registry: Registry, opts?: DocApplyOptions): DocApplyResult;
+declare function headerOf(def: SceneDefinition): Record<string, unknown>;
+declare function refsOfView(view: DocView): Map<string, Ref>;
+
+## collab/bind.ts
+type BindOptions = {
+    onChange?: (def: SceneDefinition, tr: Y.Transaction) => void;
+    onSkipped?: (errors: string[]) => void;
+};
+type BindableRuntime = {
+    add(entities: RuntimeEntity[]): {
+        ok: boolean;
+    };
+    load(scene: ExpandedScene): {
+        ok: boolean;
+    };
+    remove(ids: string[]): void;
+    update(entities: RuntimeEntity[]): {
+        ok: boolean;
+    };
+};
+type SceneBinding = {
+    destroy(): void;
+    reload(): void;
+    scene(): ExpandedScene;
+    setPaused(paused: boolean): void;
+};
+declare function bindSceneDoc(doc: Y.Doc, runtime: BindableRuntime, registry: Registry, opts?: BindOptions): SceneBinding;
+declare function expandLenient(source: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): {
+    errors: string[];
+    scene: ExpandedScene;
+};
+
+## collab/convert.ts
+type DocView = {
+    bulkKeys: Map<BulkKey, string[]>;
+    def: SceneDefinition;
+    entityKeys: string[];
+    instanceKeys: string[];
+    instanceRecords: Map<string, EntityRecord>;
+    prefabs: PrefabLibrary;
+    records: Map<string, EntityRecord>;
+};
+declare const ENTITIES_BUCKET = "entities";
+type SceneToDocOptions = {
+    doc?: Y.Doc;
+    key?: KeyGen;
+    origin?: unknown;
+    prefabs?: PrefabLibrary;
+};
+declare const bucketOf: (rec: EntityRecord) => string;
+declare function bulkRecord(key: BulkKey, value: BulkEntry, z: string): EntityRecord;
+declare function contentMaps(doc: Y.Doc): Y.Map<unknown>[];
+declare function docMeta(doc: Y.Doc): SceneDocMeta | null;
+declare function docPrefabs(doc: Y.Doc): PrefabLibrary;
+declare function docToScene(doc: Y.Doc): SceneDefinition;
+declare const entitiesMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
+declare function entityRecord(def: EntityDef, z: string): EntityRecord;
+declare const groupsMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
+declare function instanceRecord(def: InstanceDef, z: string): EntityRecord;
+declare const instancesMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
+declare const metaMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function patchRecord(map: Y.Map<unknown>, prev: EntityRecord, next: EntityRecord): void;
+declare const prefabsMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function readDoc(doc: Y.Doc): DocView;
+declare function recordMap(rec: EntityRecord): Y.Map<unknown>;
+declare function recordOf(map: Y.Map<unknown>): EntityRecord;
+declare const sceneMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function sceneToDoc(def: SceneDefinition, opts?: SceneToDocOptions): Y.Doc;
+declare const settingsMap: (doc: Y.Doc) => Y.Map<unknown>;
+
+## collab/keys.ts
+type KeyGen = () => string;
+declare const randomKey: KeyGen;
+declare function sequentialKeys(prefix?: string): KeyGen;
+
+## collab/log.ts
+declare const LOG_CAP = 200;
+declare function fingerprint(rec: unknown): string;
+declare function observeLog(doc: Y.Doc, cb: (entries: LogEntry[]) => void): () => void;
+declare function readLog(doc: Y.Doc): LogEntry[];
+declare function stableJson(value: unknown): string;
+
+## collab/migrate.ts
+type MigrateDocOptions = {
+    key?: KeyGen;
+    migrations?: Readonly<Record<number, Migration>>;
+    target?: number;
+};
+declare function migrateDoc(doc: Y.Doc, opts?: MigrateDocOptions): null | {
+    from: number;
+    to: number;
+};
+
+## collab/order.ts
+declare function assignZ(current: readonly (string | undefined)[]): string[];
+declare function compareZ(a: {
+    key: string;
+    z: string;
+}, b: {
+    key: string;
+    z: string;
+}): number;
+
+## collab/presence.ts
+type PeerPresence = ScenePresence & {
+    clientId: number;
+};
+declare function observePeers(awareness: AwarenessLike, cb: (peers: PeerPresence[]) => void): () => void;
+declare function peers(awareness: AwarenessLike): PeerPresence[];
+declare function selectionsByKey(list: readonly PeerPresence[]): Map<string, PeerPresence[]>;
+declare function setPresence(awareness: AwarenessLike, patch: Partial<ScenePresence>): void;
+
+## collab/revert.ts
+type RevertResult = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    keys: string[];
+    ok: true;
+};
+declare function revertEntry(doc: Y.Doc, entry: LogEntry, origin: SceneOrigin): RevertResult;
+
+## collab/types.ts
+type AwarenessLike = {
+    clientID: number;
+    getLocalState(): Record<string, unknown> | null;
+    getStates(): Map<number, Record<string, unknown>>;
+    off(event: "change", cb: (...args: unknown[]) => void): void;
+    on(event: "change", cb: (...args: unknown[]) => void): void;
+    setLocalStateField(field: string, value: unknown): void;
+};
+declare const BULK_FIELD = "bulk";
+declare const DOC_MAPS: {
+    readonly entities: "entities";
+    readonly groups: "groups";
+    readonly instances: "instances";
+    readonly meta: "meta";
+    readonly prefabs: "prefabs";
+    readonly scene: "scene";
+    readonly settings: "settings";
+};
+type EntityRecord = {
+    [field: string]: unknown;
+    bulk?: BulkKey;
+    type?: string;
+    z: string;
+};
+declare const GROUP_KEY_PREFIX = "@group:";
+declare const INSTANCE_KEY_PREFIX = "@instance:";
+declare const LOG_ARRAY = "log";
+type LogEntry = {
+    actor: SceneOrigin;
+    after?: Record<string, null | string>;
+    at: number;
+    before?: Record<string, unknown>;
+    id: string;
+    keys: string[];
+    kind?: "batch" | "redo" | "revert" | "undo";
+    label: string;
+    ops?: SceneOp["op"][];
+};
+declare const NESTED_FIELDS: readonly string[];
+declare const OVERRIDES_FIELD = "overrides";
+declare const PATH_FIELD = "path";
+declare const PREFAB_KEY_PREFIX = "@prefab:";
+declare const PRESENCE_FIELD = "scene";
+declare const SCENE_KEY = "@scene";
+declare const SETTINGS_KEY = "@settings";
+type SceneDocMeta = {
+    $schema?: string;
+    game?: string;
+    schemaVersion: number;
+};
+type SceneOrigin = {
+    agentId: string;
+    kind: "agent";
+    onBehalfOf?: string;
+} | {
+    kind: "disk";
+} | {
+    kind: "migration";
+} | {
+    kind: "user";
+    name?: string;
+    userId: string;
+};
+type ScenePresence = {
+    cursor?: Pt;
+    ghost?: {
+        by: Pt;
+        keys: string[];
+    };
+    mode: "edit" | "play";
+    selection: string[];
+    tool?: string;
+    user: {
+        color: string;
+        id: string;
+        name: string;
+    };
+};
+declare const Z_FIELD = "z";
+declare function actorLabel(origin: SceneOrigin): string;
+
+## collab/undo.ts
+type SceneUndo = {
+    canRedo(): boolean;
+    canUndo(): boolean;
+    commit(selection: SelectionMeta): void;
+    destroy(): void;
+    manager: Y.UndoManager;
+    redo(): SelectionMeta | null;
+    redoLabel(): string | undefined;
+    undo(): SelectionMeta | null;
+    undoLabel(): string | undefined;
+};
+type SelectionMeta = {
+    after: string[];
+    before: string[];
+    label?: string;
+};
+declare function createSceneUndo(doc: Y.Doc, origin: SceneOrigin): SceneUndo;
+
+## collab/watch-issues.ts
+type IssueWatch = {
+    flush(): SceneIssue[];
+    stop(): void;
+};
+type WatchIssuesOptions = {
+    clearTimer?: (handle: unknown) => void;
+    debounceMs?: number;
+    setTimer?: (fn: () => void, ms: number) => unknown;
+};
+declare function validateDoc(doc: Y.Doc, registry: Registry): SceneIssue[];
+declare function watchIssues(doc: Y.Doc, registry: Registry, onIssues: (issues: SceneIssue[]) => void, opts?: WatchIssuesOptions): IssueWatch;
+
+## collisions.ts
+declare function createSensorCollider(ctx: Pick<EngineContext, "physics" | "rapier" | "registry">, body: RigidBody, desc: ColliderDesc): Collider;
+
+## context.ts
+declare const DRAW_LAYERS: {
+    readonly actor: 30;
+    readonly body: 10;
+    readonly marker: 20;
+    readonly overlay: 50;
+    readonly preview: 60;
+    readonly terrain: 0;
+};
+type DrawLayer = keyof typeof DRAW_LAYERS;
+interface SceneView {
+    draw(id: string, shape: ShapeObj, style: Style, layer: ViewLayer): void;
+    pose(id: string, x: number, y: number, rot?: number): void;
+    remove(id: string): void;
+    layer(layer: ViewLayer): ViewLayerHandle;
+}
+type ViewLayer = DrawLayer | number;
+type ViewLayerHandle = {
+    readonly __viewLayer: true;
+};
+
+## debug/index.ts
+declare const DEBUG_OFF = "off";
+type DebugDeps = DebugLayerHost & {
+    layers?: readonly DebugLayerFactory[];
+    router: ToolRouter;
+    store: Store<GameStoreState>;
+};
+type DebugFrame = {
+    dtMs: number;
+    info: unknown;
+    mouseWorld: Vec2;
+    scene: DebugSceneSource | null;
+    viewport: Viewport;
+};
+type DebugLayer = {
+    destroy: () => void;
+    setVisible: (visible: boolean) => void;
+    update: (frame: DebugFrame) => void;
+};
+type DebugLayerFactory = {
+    create: (host: DebugLayerHost) => DebugLayer;
+    id: string;
+};
+type DebugLayerHost = {
+    uiContainer: Container;
+    worldContainer: Container;
+};
+type DebugOverlay = {
+    destroy: () => void;
+    setPhysics: (source: DebugSceneSource | null) => void;
+    update: (tick: DebugTick) => void;
+};
+type DebugOverlayFactory = (deps: DebugDeps) => DebugOverlay;
+type DebugSceneSource = Pick<EngineContext, "physics" | "registry" | "tags">;
+type DebugTick = Omit<DebugFrame, "scene">;
+declare const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[];
+declare function createDebugOverlay(deps: DebugDeps): DebugOverlay;
+declare function debugModes(layers: readonly DebugLayerFactory[]): string[];
+
+## editor/builtin/draw.ts
+declare const DEFAULT_DRAW_TYPE = "solid";
+type DrawToolOptions = {
+    description: string;
+    id: string;
+    label: string;
+    shape: "box" | "circle";
+    type?: string;
+};
+declare const boxTool: EditorToolDef;
+declare const circleTool: EditorToolDef;
+declare function createDrawTool(opts: DrawToolOptions): EditorToolDef;
+declare function drawBatch(def: SceneDefinition, registry: Registry, type: string, shape: ShapeObj, label?: string): null | {
+    batch: OpBatch;
+    select: Ref;
+};
+declare function drawnShape(kind: "box" | "circle", a: Pt, b: Pt, mods: {
+    alt: boolean;
+    shift: boolean;
+}): ShapeObj | null;
+
+## editor/builtin/polyline.ts
+declare const CLOSE_PX = 8;
+declare const PICK_TOL_PX = 4;
+declare function createPenTool(opts?: {
+    type?: string;
+}): {
+    create(ctx: EditorToolContext): EditorTool;
+    description: string;
+    id: string;
+    label: string;
+};
+declare function lock45(from: Pt, p: Pt): Pt;
+declare const penTool: {
+    create(ctx: EditorToolContext): EditorTool;
+    description: string;
+    id: string;
+    label: string;
+};
+declare function strokeShape(pts: readonly Pt[], closed: boolean): ShapeObj;
+declare const waypointsTool: {
+    create(ctx: EditorToolContext): EditorTool;
+    description: string;
+    id: string;
+    label: string;
+};
+
+## editor/builtin/select.ts
+declare const DRAG_THRESHOLD_PX = 3;
+declare const selectTool: {
+    create(ctx: EditorToolContext): {
+        cancel(): boolean;
+        command(command: (string & {}) | EditorCommand): boolean;
+        cursor(): string | undefined;
+        destroy(): void;
+        gesture: () => boolean;
+        overlay(): ToolOverlay;
+        pointer(e: ToolPointerEvent): boolean;
+        subObject: () => boolean;
+    };
+    description: string;
+    id: string;
+    label: string;
+};
+
+## editor/builtin/transform.ts
+declare const panTool: {
+    create(ctx: EditorToolContext): {
+        cancel(): boolean;
+        cursor: () => "grab" | "grabbing";
+        gesture: () => boolean;
+        pointer(e: ToolPointerEvent): boolean;
+    };
+    description: string;
+    id: string;
+    label: string;
+};
+declare const rotateTool: {
+    create(ctx: EditorToolContext): {
+        cancel(): boolean;
+        cursor: () => "grab" | "grabbing";
+        gesture: () => boolean;
+        overlay(): ToolOverlay;
+        pointer(e: ToolPointerEvent): boolean;
+    };
+    description: string;
+    id: string;
+    label: string;
+};
+
+## editor/clipboard.ts
+type PasteOptions = {
+    at?: Pt;
+    def: SceneDefinition;
+    offset?: Pt;
+    registry: Registry;
+    snap?: SnapSettings;
+};
+type PasteResult = {
+    batch: OpBatch;
+    issues: SceneIssue[];
+    ok: true;
+    select: Ref[];
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+declare function copySelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry): string;
+declare function cutSelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry): {
+    batch: OpBatch;
+    text: string;
+};
+declare function duplicateSelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry, step: number, opts?: {
+    from?: SceneDefinition;
+}): PasteResult;
+declare function pasteFragment(input: SceneFragment | string, opts: PasteOptions): PasteResult;
+
+## editor/commands.ts
+declare const COARSE_NUDGE_STEPS = 4;
+declare function deleteBatch(refs: readonly Ref[]): OpBatch | null;
+declare function groupBatch(def: SceneDefinition, refs: readonly Ref[], name?: string): OpBatch | null;
+declare function hierarchyDown(def: SceneDefinition, registry: Registry, sel: readonly Ref[]): Ref[] | null;
+declare function hierarchyUp(def: SceneDefinition, registry: Registry, sel: readonly Ref[]): Ref[] | null;
+declare function nextGroupName(def: SceneDefinition): string;
+declare function nudgeBatch(refs: readonly Ref[], delta: Pt): OpBatch | null;
+declare function nudgeDelta(command: string, step: number): Pt | null;
+declare function rotateSelectionBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], deg: number): OpBatch | null;
+declare function rotationPivot(targets: readonly GizmoTarget[]): Pt | null;
+declare function selectAllRefs(def: SceneDefinition, index: SpatialIndex, layers?: PickLayers): Ref[];
+declare function selectionBounds(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): Aabb | null;
+declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): GizmoTarget[];
+declare function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): OpBatch | null;
+
+## editor/gesture.ts
+type GesturePreview = {
+    active(): boolean;
+    def(): SceneDefinition | null;
+    preview(batch: OpBatch | null): boolean;
+};
+type GesturePreviewOptions = {
+    getDoc: () => SceneDefinition;
+    registry: Registry;
+    runtime?: PreviewRuntime | null;
+};
+type PreviewRuntime = {
+    add?(entities: RuntimeEntity[]): unknown;
+    remove?(ids: string[]): void;
+    update(entities: RuntimeEntity[]): unknown;
+};
+declare function createGesturePreview({ registry, getDoc, runtime }: GesturePreviewOptions): GesturePreview;
+declare function expandRefs(def: SceneDefinition, registry: Registry, refs: Iterable<Ref>): Map<string, RuntimeEntity>;
+
+## editor/gizmos/batch.ts
+declare function convertToChainFix(def: SceneDefinition, registry: Registry, ref: Ref): OpBatch | undefined;
+declare function moveBatch(refs: readonly Ref[], delta: Pt, label?: string): OpBatch | null;
+declare function normDeg(deg: number): number;
+declare function pathBatch(t: GizmoTarget, pts: readonly Pt[], label?: string): OpBatch | null;
+declare function pointBatch(t: GizmoTarget, at: Pt, label?: string): OpBatch | null;
+declare function roundShape(s: ShapeObj): ShapeObj;
+declare function shapeBatch(t: GizmoTarget, world: ShapeObj, label?: string): OpBatch | null;
+declare function shapeSet(t: GizmoTarget, world: ShapeObj): Record<string, unknown> | null;
+
+## editor/gizmos/drag.ts
+type Box = Extract<ShapeObj, {
+    type: "box";
+}>;
+type Capsule = Extract<ShapeObj, {
+    type: "capsule";
+}>;
+declare function capsuleLength(c: Capsule, to: Pt): Capsule;
+declare function dragAngle(pivot: Pt, from: Pt, to: Pt): number;
+declare function dragHandle(t: GizmoTarget, handleId: string, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+declare function moveTarget(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions): GizmoEdit;
+declare function radiusTo(s: Extract<ShapeObj, {
+    type: "capsule" | "circle";
+}>, to: Pt): ShapeObj;
+declare function resizeBox(b: Box, dir: ResizeDir, to: Pt, opts: {
+    alt: boolean;
+    bypass?: boolean;
+    shift: boolean;
+    snap?: SnapSettings;
+}): Box;
+declare function rotateByHandle(s: ShapeObj, from: Pt, to: Pt, snap: SnapSettings, free: boolean): {
+    deg: number;
+    shape: ShapeObj;
+};
+
+## editor/gizmos/edit.ts
+type DragOptions = {
+    index?: SpatialIndex;
+    mods: ToolModifiers;
+    scale: number;
+    snap: SnapSettings;
+};
+type GizmoEdit = {
+    at?: Pt;
+    batch: OpBatch | null;
+    concave?: boolean;
+    guides?: SnapGuide[];
+    pts?: Pt[];
+    readout: string;
+    shape?: ShapeObj;
+};
+declare function shapeEdit(t: GizmoTarget, world: ShapeObj, label: string, readout?: string): GizmoEdit;
+declare function snapDraggedPoint(t: GizmoTarget, start: Pt, from: Pt, to: Pt, opts: DragOptions): {
+    at: Pt;
+    guides: SnapGuide[];
+};
+
+## editor/gizmos/handles.ts
+declare const HANDLE_HIT_PX = 6;
+declare const HANDLE_PX = 8;
+declare const RESIZE_DIRS: readonly [
+    "nw",
+    "n",
+    "ne",
+    "e",
+    "se",
+    "s",
+    "sw",
+    "w"
+];
+type ResizeDir = (typeof RESIZE_DIRS)[number];
+declare const STALK_PX = 24;
+declare function dirSigns(dir: ResizeDir): Pt;
+declare function hitHandle(handles: readonly GizmoHandle[], p: Pt, scale: number, tolPx?: number): GizmoHandle | undefined;
+declare function resizeCursor([x, y]: Pt): string;
+declare function selectionHandles(box: Aabb, scale: number): GizmoHandle[];
+declare function shapeHandles(s: ShapeObj, scale: number): GizmoHandle[];
+declare function shapePivot(s: ShapeObj): Pt;
+declare function targetHandles(t: GizmoTarget, opts: {
+    scale: number;
+    subObject?: boolean;
+}): GizmoHandle[];
+declare function vertexHandles(s: ShapeObj): GizmoHandle[];
+declare function waypointHandles(pts: readonly Pt[], opts: {
+    inserts: boolean;
+    loop?: boolean;
+}): GizmoHandle[];
+
+## editor/gizmos/multi.ts
+declare function dragSelection(targets: readonly GizmoTarget[], handleId: string, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+declare function rotateTargetsBatch(targets: readonly GizmoTarget[], about: Pt, deg: number, label?: string): OpBatch | null;
+declare function selectionBox(targets: readonly GizmoTarget[]): Aabb;
+
+## editor/gizmos/readout.ts
+declare const readAngle: (deg: number) => string;
+declare const readDelta: ([dx, dy]: Pt) => string;
+declare const readLength: (len: number) => string;
+declare const readPoint: ([x, y]: Pt) => string;
+declare const readRadius: (r: number) => string;
+declare function readShapeSize(s: ShapeObj): string;
+declare const readSize: (w: number, h: number) => string;
+
+## editor/gizmos/target.ts
+type GizmoTarget = {
+    at?: Pt;
+    bulk: boolean;
+    local?: ShapeObj;
+    path?: {
+        field: string;
+        loop: boolean;
+        pts: Pt[];
+    };
+    pointField?: string;
+    ref: Ref;
+    shape?: ShapeObj;
+    shapeField?: string;
+    type: string;
+};
+declare function gizmoTarget(def: SceneDefinition, registry: Registry, ref: Ref): GizmoTarget | undefined;
+declare function targetBox(t: GizmoTarget): Aabb;
+
+## editor/gizmos/vertices.ts
+declare const MIN_POINTS: {
+    readonly chain: 2;
+    readonly poly: 3;
+};
+type PointShape = Extract<ShapeObj, {
+    type: "chain" | "poly";
+}>;
+declare function deleteVertices(s: PointShape, indices: readonly number[]): PointShape | null;
+declare function dragInsertVertex(t: GizmoTarget, segment: number, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+declare function dragVertex(t: GizmoTarget, index: number, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+declare function insertVertex(s: PointShape, segment: number, at: Pt): PointShape;
+declare function moveVertex(s: PointShape, index: number, at: Pt): PointShape;
+declare function removeVertices(t: GizmoTarget, indices: readonly number[]): GizmoEdit | null;
+
+## editor/gizmos/waypoints.ts
+declare const MIN_WAYPOINTS = 2;
+declare function dragInsertWaypoint(t: GizmoTarget, segment: number, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+declare function dragWaypoint(t: GizmoTarget, index: number, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+declare function rebasePath(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+declare function removeWaypoints(t: GizmoTarget, indices: readonly number[]): GizmoEdit | null;
+
+## editor/history.ts
+type History = {
+    canRedo(): boolean;
+    canUndo(): boolean;
+    clear(): void;
+    entries(): readonly HistoryEntry[];
+    isDirty(): boolean;
+    markSaved(): void;
+    peekRedo(): HistoryEntry | null;
+    peekUndo(): HistoryEntry | null;
+    push(entry: Omit<HistoryEntry, "at"> & {
+        at?: number;
+    }): void;
+    redo(): HistoryEntry | null;
+    redoLabel(): string | undefined;
+    undo(): HistoryEntry | null;
+    undoLabel(): string | undefined;
+};
+type HistoryEntry = {
+    actor: string;
+    at: number;
+    batch: OpBatch;
+    inverse: OpBatch;
+    label: string;
+    selectionAfter: Ref[];
+    selectionBefore: Ref[];
+    touched: Ref[];
+};
+type HistoryOptions = {
+    cap?: number;
+    coalesceMs?: number;
+    now?: () => number;
+};
+declare function createHistory({ cap, coalesceMs, now }?: HistoryOptions): History;
+
+## editor/inspector-model.ts
+type EnumOption = {
+    label: string;
+    value: number | string;
+};
+type FieldWidget = {
+    accepts: EntityTypeName[];
+    kind: "entity-ref";
+    multiple: boolean;
+} | {
+    bigStep: number;
+    exclusiveMin?: boolean;
+    integer: boolean;
+    kind: "number";
+    max?: number;
+    min?: number;
+    scrub: boolean;
+    step: number;
+    unit?: string;
+} | {
+    format: "json" | "text";
+    kind: "readonly";
+} | {
+    id: string;
+    kind: "custom";
+    widget: InspectorWidgetDef;
+} | {
+    integer: boolean;
+    kind: "angle";
+    snapDeg: number;
+} | {
+    kind: "object";
+} | {
+    kind: "path";
+} | {
+    kind: "point";
+    pick: true;
+    unit?: string;
+} | {
+    kind: "points";
+    min?: number;
+} | {
+    kind: "segmented";
+    options: EnumOption[];
+} | {
+    kind: "select";
+    options: EnumOption[];
+} | {
+    kind: "shape";
+    types: ShapeType[];
+} | {
+    kind: "switch";
+} | {
+    kind: "tags";
+} | {
+    kind: "text";
+    maxLength?: number;
+    pattern?: string;
+};
+declare const INSPECTOR_SECTIONS: readonly [
+    "identity",
+    "transform",
+    "shape",
+    "behavior",
+    "path",
+    "physics",
+    "overrides"
+];
+type InspectorModel = {
+    refs: Ref[];
+    sections: InspectorSectionModel[];
+    types: EntityTypeName[];
+};
+type InspectorSectionId = (typeof INSPECTOR_SECTIONS)[number];
+type InspectorSectionModel = {
+    fields: ModelField[];
+    id: InspectorSectionId;
+    title: string;
+};
+type ModelEdit = {
+    error: string;
+    ok: false;
+} | {
+    ok: true;
+    ops: SceneOp[];
+};
+type ModelField = {
+    children?: ModelField[];
+    description?: string;
+    mixed: boolean;
+    name: string;
+    optional: boolean;
+    path: FieldPath;
+    readonly: boolean;
+    schema: z.ZodType;
+    section: InspectorSectionId;
+    title: string;
+    value: unknown;
+    widget: FieldWidget;
+};
+declare const SECTION_TITLES: Readonly<Record<InspectorSectionId, string>>;
+type ShapeConversion = {
+    lossless: boolean;
+    note?: string;
+    to: ShapeType;
+    tuple: ShapeTuple;
+};
+declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[]): InspectorModel;
+declare function modelBatch(field: ModelField, input: unknown, targets: readonly RefTarget[], def: SceneDefinition): {
+    batch: OpBatch;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
+declare function modelOps(field: ModelField, input: unknown, targets: readonly RefTarget[]): ModelEdit;
+declare function parseRelative(text: string, current: unknown): number | undefined;
+declare function refCandidates(def: SceneDefinition, registry: Registry, accepts: readonly EntityTypeName[]): string[];
+declare function shapeConversions(tuple: ShapeTuple, types?: readonly ShapeType[]): ShapeConversion[];
+
+## editor/inspector.ts
+type FieldBase = {
+    description?: string;
+    path: string;
+    title: string;
+};
+type InspectorField = (FieldBase & {
+    exclusive?: boolean;
+    integer: boolean;
+    kind: "number";
+    max?: number;
+    min?: number;
+    value: number | undefined;
+}) | (FieldBase & {
+    fields: InspectorField[];
+    kind: "object";
+}) | (FieldBase & {
+    kind: "point";
+    value: Pt | undefined;
+}) | (FieldBase & {
+    kind: "points";
+    value: Pt[];
+}) | (FieldBase & {
+    kind: "shape";
+    slots: ShapeSlot[] | null;
+    value: ShapeTuple;
+}) | (FieldBase & {
+    kind: "value";
+    value: unknown;
+});
+type NumberBounds = {
+    exclusive?: boolean;
+    integer: boolean;
+    max?: number;
+    min?: number;
+};
+type ShapeSlot = {
+    index: number;
+    name: string;
+    size: boolean;
+    value: number;
+};
+declare function fieldOp(ref: Ref, path: string, value: unknown): SceneOp;
+declare function inspectorFields(registry: Registry, target: RefTarget): InspectorField[];
+declare function numberBounds(s: z.ZodNumber): NumberBounds;
+declare function shapeSlots(tuple: ShapeTuple): ShapeSlot[] | null;
+declare function withShapeSlot(tuple: ShapeTuple, index: number, value: number): ShapeTuple;
+
+## editor/isolation.ts
+type PrefabIsolation = {
+    close(): void;
+    prefab: string;
+    scene: EditorSession;
+    session: EditorSession;
+};
+type PrefabIsolationOptions = {
+    issuesDebounceMs?: number;
+    key?: KeyGen;
+    onGone?: () => void;
+};
+declare function isolationBounds(prefab: Prefab, parent: Bounds, registry: EditorSession["registry"]): Bounds;
+declare function openPrefabIsolation(scene: EditorSession, prefab: string, opts?: PrefabIsolationOptions): PrefabIsolation | null;
+
+## editor/keymap.ts
+type Direction = "down" | "left" | "right" | "up";
+declare const ENGINE_KEYS: readonly EngineKeyBinding[];
+type EditorCommand = "cancel-gesture" | "clear-selection" | "clear-tool" | "copy" | "cut" | "debug" | "delete" | "delete-points" | "duplicate" | "faster" | "frame" | "group" | "hierarchy-down" | "hierarchy-up" | "leave-sub-object" | "pan-hold" | "paste" | "pause" | "play" | "play-here" | "redo" | "rotate-ccw" | "rotate-cw" | "save" | "select-all" | "slower" | "step" | "stop" | "toggle-snap" | "tool:box" | "tool:circle" | "tool:pan" | "tool:pen" | "tool:rotate" | "tool:select" | "tool:waypoints" | "undo" | "ungroup" | `nudge-${Direction}-coarse` | `nudge-${Direction}-fine` | `nudge-${Direction}`;
+type EditorKeyEvent = {
+    altKey: boolean;
+    ctrlKey: boolean;
+    key: string;
+    metaKey: boolean;
+    shiftKey: boolean;
+};
+type EngineKeyBinding = {
+    command: EditorCommand;
+    description: string;
+    key: string;
+    scope: KeyScope;
+    when?: (ctx: KeyContext) => boolean;
+};
+type KeyContext = {
+    editableTarget: boolean;
+    gesture?: boolean;
+    mode: EditorMode;
+    subObject?: boolean;
+    tool?: string;
+};
+type KeyMatch = {
+    binding: EngineKeyBinding;
+    command: EditorCommand;
+    source: "engine";
+} | {
+    binding: GameKeyBinding;
+    command: string;
+    source: "game";
+};
+type KeyScope = "edit" | "global" | "play" | "sub-object" | "text-field";
+type Keymap = {
+    bindings: readonly (EngineKeyBinding | GameKeyBinding)[];
+    chordOf(command: EditorCommand): string | undefined;
+    resolve(e: EditorKeyEvent, ctx: KeyContext): KeyMatch | null;
+    shadowed: readonly GameKeyBinding[];
+};
+declare function createKeymap(gameKeys?: readonly GameKeyBinding[]): Keymap;
+declare function keyChord(e: EditorKeyEvent): string;
+declare function normalizeChord(chord: string): string;
+
+## editor/outline.ts
+declare const INSTANCES_ROW = "instances";
+type OutlineRow = {
+    count?: number;
+    depth: number;
+    detail?: string;
+    key: string;
+    kind: "bucket" | "entity" | "type";
+    label: string;
+    overrides?: number;
+    prefab?: string;
+    ref?: Ref;
+    type?: EntityTypeName;
+};
+declare function buildOutline(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): OutlineRow[];
+declare function outlineOrder(rows: readonly OutlineRow[]): Ref[];
+
+## editor/picking.ts
+declare const POINT_PICK_PX = 8;
+type PickLayers = {
+    hidden: ReadonlySet<Layer>;
+    locked: ReadonlySet<Layer>;
+};
+type PickOptions = {
+    layers?: PickLayers;
+    pointPx?: number;
+    scale: number;
+    tolPx: number;
+};
+declare function cycleHit(hits: readonly IndexEntry[], current?: Ref): Ref | undefined;
+declare function marqueeSelect(index: SpatialIndex, rect: Aabb, opts: {
+    layers?: PickLayers;
+    touch: boolean;
+}): Ref[];
+declare function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntry[];
+
+## editor/placement.ts
+type PlacedTemplate<T> = {
+    at: Pt;
+    rotDeg: number;
+    shape: ShapeObj;
+    template: T;
+};
+type PlacementEditorToolOptions<T extends PlacementTemplate> = {
+    description: string;
+    id: string;
+    label: string;
+    templates: readonly T[];
+    toEntity(template: T, at: Pt, rotDeg: number, ctx: EditorToolContext): EntityInput;
+    validate?(placed: PlacedTemplate<T>, ctx: EditorToolContext): PlacementCheck;
+};
+type PlacementTemplate = {
+    id: string;
+    label: string;
+    rotatable?: boolean;
+    shape: ShapeObj;
+    style?: Style;
+};
+declare function placedShape(shape: ShapeObj, at: Pt, rotDeg: number): ShapeObj;
+declare function placementEditorTool<T extends PlacementTemplate>(opts: PlacementEditorToolOptions<T>): EditorToolDef;
+
+## editor/prefab-commands.ts
+declare function applyToPrefabBatch(def: SceneDefinition, ref: Ref): OpBatch | null;
+declare function childOverrides(def: SceneDefinition, ref: Ref): null | {
+    child: string;
+    fields: Map<string, string[]>;
+    instance: string;
+};
+declare function createPrefabBatch(def: SceneDefinition, refs: readonly Ref[], prefabs: PrefabLibrary): OpBatch | null;
+declare function instanceOfRef(def: SceneDefinition, ref: Ref): InstanceDef | undefined;
+declare function instancesOf(def: SceneDefinition, prefab: string): number;
+declare function revertAllBatch(def: SceneDefinition, ref: Ref): OpBatch | null;
+declare function revertFieldBatch(def: SceneDefinition, ref: Ref, field: string): OpBatch | null;
+declare function unpackBatch(def: SceneDefinition, ref: Ref): OpBatch | null;
+
+## editor/refs.ts
+type RefTarget = {
+    entity: EntityDef;
+    index: number;
+    kind: "entity";
+    ref: Ref;
+} | {
+    index: number;
+    key: BulkKey;
+    kind: "bulk";
+    ref: Ref;
+    value: BulkEntry;
+};
+declare function docRefs(def: SceneDefinition): Ref[];
+declare function isBulkRef(ref: Ref): boolean;
+declare function lookupRef(def: SceneDefinition, ref: Ref): RefTarget | null;
+
+## editor/selection.ts
+type SelectMode = "add" | "range" | "replace" | "toggle";
+declare function prune(sel: readonly Ref[], existing: Iterable<Ref>): Ref[];
+declare function remap(sel: readonly Ref[], renames: Readonly<Record<Ref, Ref | null>> | ReadonlyMap<Ref, Ref | null>): Ref[];
+declare function select(sel: readonly Ref[], refs: readonly Ref[], mode: SelectMode, order?: readonly Ref[]): Ref[];
+
+## editor/session.ts
+type DispatchOptions = {
+    resolved?: boolean;
+    selectionAfter?: Ref[];
+};
+type EditorSession = {
+    destroy(): void;
+    dispatch(batch: OpBatch, opts?: DispatchOptions): DocApplyResult;
+    doc: Y.Doc;
+    getDoc(): SceneDefinition;
+    getHash(): SceneHash;
+    getPrefabs(): PrefabLibrary;
+    getResolved(): SceneDefinition;
+    keyOf(ref: Ref): string | undefined;
+    origin: SceneOrigin;
+    redo(): boolean;
+    refOf(key: string): Ref | undefined;
+    registry: Registry;
+    revert(entryId: string): RevertResult;
+    select(refs: Ref[], mode?: SelectMode, order?: readonly Ref[]): void;
+    setCursor(at: Pt | undefined): void;
+    setGhost(ghost: ScenePresence["ghost"]): void;
+    setMode(mode: EditorMode): void;
+    setTool(tool: string): void;
+    store: Store<EditorStoreState>;
+    subscribe(listener: (e: EditorSessionEvent) => void): () => void;
+    undo(): boolean;
+};
+type EditorSessionEvent = {
+    doc: SceneDefinition;
+    logged: LogEntry[];
+    source: "dispatch" | "redo" | "remote" | "undo";
+    touched: Ref[];
+};
+type EditorSessionOptions = {
+    awareness?: AwarenessLike;
+    doc: Y.Doc;
+    history?: SessionHistory;
+    issuesDebounceMs?: number;
+    key?: KeyGen;
+    name: string;
+    origin: SceneOrigin;
+    registry: Registry;
+    user?: ScenePresence["user"];
+};
+type SessionHistory = {
+    redo(): boolean;
+    revert(entryId: string): RevertResult;
+    state(): Pick<EditorStoreState, "canRedo" | "canUndo" | "history" | "redoLabel" | "undoLabel">;
+    subscribe(listener: () => void): () => void;
+    undo(): boolean;
+};
+declare function createEditorSession({ doc, origin, name, registry, awareness, user, key, issuesDebounceMs, history }: EditorSessionOptions): EditorSession;
+declare function labelFor(batch: OpBatch): string;
+
+## editor/snap.ts
+declare const SNAP_PX = 8;
+declare const SNAP_REACH_PX = 128;
+type SnapGuide = {
+    from: Pt;
+    to: Pt;
+};
+type SnapMoveInput = {
+    aabb: Aabb;
+    bypass: boolean;
+    delta: Pt;
+    exclude?: readonly Ref[];
+    grab: Pt;
+    index?: SpatialIndex;
+    scale: number;
+    settings: SnapSettings;
+    view?: Aabb;
+};
+type SnapMoveResult = {
+    by: {
+        x?: SnapTarget;
+        y?: SnapTarget;
+    };
+    delta: Pt;
+    guides: SnapGuide[];
+};
+type SnapTarget = "center" | "edge" | "grid" | "vertex";
+declare function roundPt([x, y]: Pt): Pt;
+declare function snapAngle(deg: number, settings: SnapSettings, free: boolean): number;
+declare function snapMove(input: SnapMoveInput): SnapMoveResult;
+declare function snapPoint(p: Pt, settings: SnapSettings, opts?: {
+    bypass?: boolean;
+}): Pt;
+
+## editor/spatial-index.ts
+declare const DEFAULT_CELL = 256;
+type EditGeometry = {
+    at?: Pt;
+    local?: ShapeObj;
+    loop?: boolean;
+    pathField?: string;
+    pointField?: string;
+    pts?: Pt[];
+    shape?: ShapeObj;
+    shapeField?: string;
+};
+type EditableSpatialIndex = SpatialIndex & {
+    rebuild(def: SceneDefinition, registry: Registry): void;
+    update(def: SceneDefinition, registry: Registry, touched: readonly Ref[]): void;
+};
+type SpatialIndexOptions = {
+    cell?: number;
+    keyOf?: (ref: Ref) => string | undefined;
+};
+declare function bulkGeometry(registry: Registry, key: BulkKey, value: unknown): EditGeometry | undefined;
+declare function createSpatialIndex(opts?: SpatialIndexOptions): EditableSpatialIndex;
+declare function defaultLayer(type: RegisteredType | undefined, bulk: boolean): Layer;
+declare function entityGeometry(type: RegisteredType, e: EntityDef): EditGeometry;
+declare function geometryOfRef(def: SceneDefinition, registry: Registry, ref: Ref): (EditGeometry & {
+    bulk: boolean;
+    type: string;
+}) | undefined;
+
+## editor/store.ts
+type EditorMode = "edit" | "play";
+type EditorStoreState = {
+    canRedo: boolean;
+    canUndo: boolean;
+    hash: SceneHash;
+    history: LogEntry[];
+    issues: SceneIssue[];
+    lastActor?: SceneOrigin;
+    mode: EditorMode;
+    peers: PeerPresence[];
+    redoLabel?: string;
+    sceneName: string;
+    selection: Ref[];
+    tool: string;
+    undoLabel?: string;
+};
+declare function createEditorStore(init?: Partial<EditorStoreState>): Store<EditorStoreState>;
+
+## editor/tool-host.ts
+declare const MULTI_CLICK_MS = 500;
+declare const MULTI_CLICK_PX = 5;
+type ToolHost = {
+    acceptOffer(): boolean;
+    cancel(): boolean;
+    command(command: string): boolean;
+    copy(): string;
+    cursor(): string | undefined;
+    cut(): string;
+    destroy(): void;
+    duplicate(): boolean;
+    index(): SpatialIndex;
+    key(e: ToolKeyEvent): boolean;
+    keyContext(): Pick<KeyContext, "gesture" | "subObject" | "tool">;
+    layers(): ToolLayers;
+    overlay(): ToolOverlay;
+    paste(text: string, at?: Pt): boolean;
+    pointerWorld(): Pt | null;
+    selectionBounds(): Aabb | null;
+    setLayers(patch: {
+        hidden?: Iterable<Layer>;
+        locked?: Iterable<Layer>;
+    }): void;
+    setSnap(patch: Partial<SnapSettings>): void;
+    setTool(id: string, arg?: string): boolean;
+    snap(): SnapSettings;
+    subscribe(listener: () => void): () => void;
+    tool(): string;
+    tools(): readonly EditorToolDef[];
+};
+type ToolHostOptions = {
+    engineTools?: readonly EditorToolDef[];
+    frame?: (rect: Aabb) => void;
+    gameTools?: readonly EditorToolDef[];
+    layers?: {
+        hidden?: Iterable<Layer>;
+        locked?: Iterable<Layer>;
+    };
+    now?: () => number;
+    onChange?: () => void;
+    pan?: (screenDelta: Pt) => void;
+    router: ToolRouter;
+    runtime?: PreviewRuntime | null;
+    scale: () => number;
+    session: EditorSession;
+    snap?: SnapSettings;
+    toWorld: (screen: Vec2) => Pt;
+    tool?: string;
+    zoomAt?: (screen: Pt, factor: number) => void;
+};
+type ToolLayers = {
+    hidden: ReadonlySet<Layer>;
+    locked: ReadonlySet<Layer>;
+};
+declare const WHEEL_ZOOM = 1.15;
+declare function builtinTools(): EditorToolDef[];
+declare function createToolHost(opts: ToolHostOptions): ToolHost;
+declare function toolKeyEventOf(e: Extract<ToolEvent, {
+    kind: "key";
+}>): ToolKeyEvent;
+
+## editor/tools.ts
+declare const DEFAULT_SNAP: SnapSettings;
+type EditorTool = {
+    cancel?(): boolean;
+    command?(command: (string & {}) | EditorCommand): boolean;
+    cursor?(): string | undefined;
+    destroy?(): void;
+    gesture?(): boolean;
+    key?(e: ToolKeyEvent): boolean;
+    overlay?(): ToolOverlay;
+    pointer?(e: ToolPointerEvent): boolean;
+    subObject?(): boolean;
+};
+type EditorToolContext = {
+    commit(batch: OpBatch, opts?: {
+        selectionAfter?: Ref[];
+    }): boolean;
+    getDoc(): SceneDefinition;
+    index(): SpatialIndex;
+    invalidate(): void;
+    layers(): {
+        hidden: ReadonlySet<Layer>;
+        locked: ReadonlySet<Layer>;
+    };
+    pan?(screenDelta: Pt): void;
+    preview(batch: OpBatch | null): void;
+    registry: Registry;
+    scale(): number;
+    select(refs: Ref[], mode?: SelectMode): void;
+    selection(): readonly Ref[];
+    setSubObject(on: boolean): void;
+    setTool(id: string): void;
+    shareGhost(ghost: undefined | {
+        by: Pt;
+        keys: string[];
+    }): void;
+    snap(): SnapSettings;
+};
+type EditorToolDef = {
+    create(ctx: EditorToolContext): EditorTool;
+    description: string;
+    id: string;
+    label: string;
+};
+type GizmoHandle = {
+    active?: boolean;
+    at: Pt;
+    cursor?: string;
+    id: string;
+    kind: HandleKind;
+};
+type HandleKind = "insert" | "length" | "move" | "radius" | "resize" | "rotate" | "vertex" | "waypoint";
+type IndexEntry = {
+    aabb: Aabb;
+    geometry: Pt | ShapeObj;
+    key: string;
+    layer: Layer;
+    ref: Ref;
+    type: string;
+    z: number;
+};
+type OverlayTone = "ghost" | "guide" | "hover" | "invalid" | "selected";
+declare const SNAP_STEPS: readonly [
+    8,
+    16,
+    32,
+    64,
+    128
+];
+type SnapSettings = {
+    angleDeg: number;
+    enabled: boolean;
+    geometry: boolean;
+    step: number;
+};
+type SpatialIndex = {
+    entries(): IndexEntry[];
+    get(ref: Ref): IndexEntry | undefined;
+    query(rect: Aabb): IndexEntry[];
+    readonly size: number;
+};
+type ToolKeyEvent = ToolModifiers & {
+    key: string;
+    repeat: boolean;
+    type: "down" | "up";
+};
+type ToolModifiers = {
+    alt: boolean;
+    mod: boolean;
+    shift: boolean;
+};
+type ToolOverlay = {
+    ghosts?: {
+        reason?: string;
+        shape: ShapeObj;
+        style?: Style;
+        valid: boolean;
+    }[];
+    guides?: {
+        from: Pt;
+        to: Pt;
+    }[];
+    handles?: GizmoHandle[];
+    marquee?: {
+        rect: Aabb;
+        touch: boolean;
+    };
+    offer?: {
+        batch: OpBatch;
+        label: string;
+    };
+    outlines?: {
+        shape: ShapeObj;
+        tone: OverlayTone;
+    }[];
+    points?: {
+        at: Pt;
+        tone: OverlayTone;
+    }[];
+    polylines?: {
+        closed: boolean;
+        dashed?: boolean;
+        numbered?: boolean;
+        pts: Pt[];
+        tone: OverlayTone;
+    }[];
+    readout?: {
+        at: Pt;
+        text: string;
+    };
+};
+type ToolPointerEvent = ToolModifiers & {
+    button: number;
+    clicks: number;
+    deltaY: number;
+    screen?: Pt;
+    type: "down" | "move" | "up" | "wheel";
+    world: Pt;
+};
+declare function defineEditorTool<T extends EditorToolDef>(def: T): T;
+
+## engine.ts
+declare function createGame(canvas: HTMLCanvasElement, config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier">): Promise<GameInstance>;
+
+## game/define.ts
+type EntityOf<D extends EntityTypeDef> = D extends EntityTypeDef<infer F> ? RuntimeEntity<z.infer<z.ZodObject<F>>> : RuntimeEntity;
+declare class RegistryError extends Error {
+    readonly problems: string[];
+    constructor(id: string, problems: string[]);
+}
+declare function createRegistry(game?: GameDefinition | null): Registry;
+declare function defineEntityType<F extends z.ZodRawShape>(def: EntityTypeDef<F>): EntityTypeDef<F>;
+declare function defineGame<S, G = unknown>(def: GameDefinition<S, G>): GameDefinition<S, G>;
+
+## game/fields.ts
+declare const BASE_FIELDS: {
+    readonly group: z.ZodOptional<z.ZodString>;
+    readonly id: z.ZodString;
+    readonly layer: z.ZodOptional<z.ZodEnum<{
+        decor: "decor";
+        editor: "editor";
+        gameplay: "gameplay";
+        terrain: "terrain";
+    }>>;
+    readonly name: z.ZodOptional<z.ZodString>;
+    readonly off: z.ZodOptional<z.ZodBoolean>;
+};
+declare const BODY_SHAPE_TYPES: readonly ShapeType[];
+declare const ID_PATTERN: RegExp;
+declare const PathSchema: z.ZodObject<{
+    mode: z.ZodEnum<{
+        loop: "loop";
+        ping_pong: "ping_pong";
+    }>;
+    pauseMs: z.ZodOptional<z.ZodNumber>;
+    pts: z.ZodArray<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    speed: z.ZodNumber;
+}, z.core.$strict>;
+declare const PtSchema: z.ZodTuple<[
+    z.ZodNumber,
+    z.ZodNumber
+], null>;
+declare function bodyShapeField(description: string): z.ZodType<ShapeTuple>;
+declare function materialField(env: FieldEnv, description?: string): z.ZodOptional<z.ZodEnum<{
+    [x: string]: string;
+}>> | z.ZodOptional<z.ZodNever>;
+declare function pointField(description: string): z.ZodTuple<[
+    z.ZodNumber,
+    z.ZodNumber
+], null>;
+declare function shapeField(description: string, only?: {
+    id: string;
+    owner: string;
+    types: readonly ShapeType[];
+}): z.ZodType<ShapeTuple>;
+declare function tagsField(description: string): z.ZodOptional<z.ZodArray<z.ZodString>>;
+
+## game/primitives.ts
+declare const DEFAULT_GRAVITY: [
+    number,
+    number
+];
+declare const PRIMITIVES: {
+    follower: {
+        ascii: string;
+        description: string;
+        fields: (env: FieldEnv) => {
+            material: z.ZodOptional<z.ZodEnum<{
+                [x: string]: string;
+            }>> | z.ZodOptional<z.ZodNever>;
+            path: z.ZodObject<{
+                mode: z.ZodEnum<{
+                    loop: "loop";
+                    ping_pong: "ping_pong";
+                }>;
+                pauseMs: z.ZodOptional<z.ZodNumber>;
+                pts: z.ZodArray<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>;
+                speed: z.ZodNumber;
+            }, z.core.$strict>;
+            shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+        };
+        style: {
+            alpha: number;
+            fill: number;
+            stroke: number;
+        };
+        type: string;
+    };
+    marker: {
+        ascii: string;
+        description: string;
+        fields: {
+            at: z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>;
+            tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        };
+        style: {
+            stroke: number;
+        };
+        type: string;
+    };
+    note: {
+        description: string;
+        fields: {
+            at: z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>;
+            text: z.ZodString;
+        };
+        loads: false;
+        type: string;
+    };
+    prop: {
+        ascii: string;
+        description: string;
+        fields: (env: FieldEnv) => {
+            density: z.ZodNumber;
+            friction: z.ZodOptional<z.ZodNumber>;
+            material: z.ZodOptional<z.ZodEnum<{
+                [x: string]: string;
+            }>> | z.ZodOptional<z.ZodNever>;
+            restitution: z.ZodNumber;
+            shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+        };
+        style: {
+            alpha: number;
+            fill: number;
+            stroke: number;
+        };
+        type: string;
+    };
+    sensor: {
+        ascii: string;
+        description: string;
+        fields: {
+            attach: z.ZodOptional<z.ZodString>;
+            shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+            tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        };
+        style: {
+            alpha: number;
+            fill: number;
+            stroke: number;
+        };
+        type: string;
+    };
+    solid: {
+        ascii: string;
+        bulk: {
+            description: string;
+            form: "shape";
+            materials: true;
+        };
+        description: string;
+        fields: (env: FieldEnv) => {
+            attach: z.ZodOptional<z.ZodString>;
+            material: z.ZodOptional<z.ZodEnum<{
+                [x: string]: string;
+            }>> | z.ZodOptional<z.ZodNever>;
+            oneWay: z.ZodOptional<z.ZodBoolean>;
+            shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+        };
+        style: {
+            alpha: number;
+            fill: number;
+            stroke: number;
+        };
+        type: string;
+    };
+};
+type ResolvedFields<D> = D extends {
+    fields: infer F;
+} ? F extends ((env: FieldEnv) => infer R) ? R : F : never;
+declare function primitiveFields<P extends PrimitiveType>(name: P, env: FieldEnv): ResolvedFields<(typeof PRIMITIVES)[P]>;
+
+## game/style.ts
+declare function styleOf(ctx: Pick<EngineContext, "registry">, type: RegisteredType, material: string | undefined): Style | undefined;
+
+## game/types.ts
+type ActionDef = InputBinding & {
+    description: string;
+};
+type BasePrimitive = Exclude<PrimitiveType, "note">;
+type BulkKeyInfo = {
+    field: "at" | "shape";
+    form: BulkForm;
+    key: BulkKey;
+    material?: string;
+    type: EntityTypeName;
+};
+type CheckEnv = {
+    def: SceneDefinition;
+    prefabs?: PrefabLibrary;
+    rapier: RapierModule;
+    readFile(path: string): string;
+    registry: Registry;
+};
+type CheckKindDef<A = unknown> = {
+    arg: z.ZodType<A>;
+    description: string;
+    run(arg: A, env: CheckEnv): CheckVerdict;
+};
+type CheckVerdict = {
+    detail?: unknown;
+    message: string;
+    pass: boolean;
+};
+type ColliderTag = {
+    carrier?: {
+        entityId: string;
+        type: string;
+    };
+    entityId: string;
+    impulse?: Vec2;
+    material?: string;
+    oneWay?: boolean;
+    tags?: readonly string[];
+    type: string;
+};
+type ColliderTags = {
+    clear: () => void;
+    delete: (handle: number) => void;
+    get: (handle: number) => ColliderTag | undefined;
+    handlesOf: (entityId: string) => number[];
+    readonly size: number;
+    set: (handle: number, tag: ColliderTag) => void;
+};
+declare const ENGINE_CHECK_KINDS: readonly [
+    "valid",
+    "reaches",
+    "touches"
+];
+declare const ENGINE_COLLISION_GROUPS: readonly [
+    "static",
+    "dynamic",
+    "sensor"
+];
+declare const ENGINE_PREDICATES: readonly [
+    "event",
+    "tick"
+];
+declare const ENGINE_REGISTRY_ID = "engine";
+declare const ENGINE_RUN_RESULTS: readonly [
+    "timeout",
+    "script-end",
+    "stuck",
+    "quit"
+];
+declare const ENGINE_TOOL_IDS: readonly [
+    "select",
+    "pan",
+    "box",
+    "circle",
+    "pen",
+    "waypoints",
+    "rotate"
+];
+type EngineCheckKind = (typeof ENGINE_CHECK_KINDS)[number];
+type EngineCollisionGroup = (typeof ENGINE_COLLISION_GROUPS)[number];
+type EngineContext = {
+    attachments: AttachmentHub;
+    bounds: Bounds;
+    dev: boolean;
+    emit: (event: Omit<StepEvent, "tick">) => void;
+    gravity: Vec2;
+    physics: PhysicsWorld;
+    rapier: RapierModule;
+    readonly play: PlayStart | null;
+    readonly tick: number;
+    registry: Registry;
+    settings: ResolvedSettings;
+    system: <S extends SceneSystem = SceneSystem>(type: EntityTypeName) => S | undefined;
+    tags: ColliderTags;
+    view: SceneView | null;
+};
+type EngineRunResult = (typeof ENGINE_RUN_RESULTS)[number];
+type EngineToolId = (typeof ENGINE_TOOL_IDS)[number];
+type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
+    ascii?: string;
+    base?: BasePrimitive;
+    bulk?: {
+        description: string;
+        form: BulkForm;
+        materials?: boolean;
+    };
+    description: string;
+    fields: ((env: FieldEnv) => F) | F;
+    inspector?: {
+        group?: string;
+        label?: string;
+        order?: readonly string[];
+    };
+    loads?: boolean;
+    refs?: {
+        field: string;
+        targets: readonly EntityTypeName[];
+    }[];
+    style?: Style;
+    system?: SystemFactory;
+    type: EntityTypeName;
+};
+type FieldEnv = {
+    materialDefs: ReadonlyMap<string, MaterialDef>;
+    materials: readonly string[];
+    types: readonly string[];
+};
+type GameAttachment = {
+    destroy(): void;
+    onCancel?(): boolean;
+    onCommand?(command: string): boolean;
+    onModeChange?(mode: GameMode): void;
+    onTick?(dtMs: number, mouseWorld: Vec2): void;
+};
+type GameDefinition<S = unknown, G = unknown> = {
+    actions: readonly ActionDef[];
+    attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
+    checks?: Readonly<Record<string, CheckKindDef>>;
+    collisionGroups?: Readonly<Record<string, {
+        collidesWith: readonly string[];
+    }>>;
+    configHash?: string;
+    createRuntime(ctx: EngineContext): GameRuntime<S>;
+    editor?: GameEditorDef;
+    editorKeys?: readonly GameKeyBinding[];
+    id: string;
+    issues?: Readonly<Record<string, IssueCodeDef>>;
+    materials?: Readonly<Record<string, MaterialDef>>;
+    physicalChecks?: readonly PhysicalCheck[];
+    play?: GamePlayDef<S, G>;
+    prefabContract?: z.ZodRawShape;
+    settings?: z.ZodRawShape;
+    spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
+    template?: SceneTemplate;
+    types: readonly EntityTypeDef[];
+    validators?: readonly SceneValidator[];
+};
+type GameEditorDef = {
+    tools?: () => Promise<readonly EditorToolDef[]>;
+    widgets?: Readonly<Record<string, InspectorWidgetDef>>;
+};
+type GameKeyBinding = {
+    command: string;
+    description: string;
+    key: string;
+    scope: "edit" | "play";
+};
+type GameOutcome = {
+    cause?: string;
+    entityId?: string;
+    result: string;
+};
+type GamePlayDef<S = unknown, G = unknown> = {
+    focus?(snapshot: S): Vec2 | null;
+    macro?(rng: MacroRandom, actions: readonly string[]): Macro;
+    markers?: readonly string[];
+    movementActions?: readonly string[];
+    options?: z.ZodType<G>;
+    outcome?(state: PlayState<S>): GameOutcome | null;
+    predicates?: Readonly<Record<string, ScriptPredicate<S>>>;
+    results?: readonly string[];
+    spawnShape?: SpawnShape;
+};
+type GameRuntime<S = unknown> = {
+    afterStep?(dtMs: number, events: readonly StepEvent[]): void;
+    beforeStep?(dtMs: number, actions: InputAction[]): void;
+    cameraTarget?(): Vec2 | null;
+    debugInfo?(): unknown;
+    destroy?(): void;
+    onLoad?(scene: ExpandedScene): void;
+    onUnload?(): void;
+    snapshot(): S;
+    storeSlice?(): unknown;
+};
+type GameShell = {
+    dev: boolean;
+    getMode: () => GameMode;
+    router: ToolRouter;
+    view: SceneView;
+};
+type InspectorWidgetDef = {
+    format?: "json" | "text";
+    kind: "readonly";
+} | {
+    kind: "choice";
+    options: readonly {
+        description?: string;
+        label: string;
+        value: number | string;
+    }[];
+} | {
+    kind: "color";
+} | {
+    kind: "slider";
+    max: number;
+    min: number;
+    step?: number;
+    unit?: string;
+};
+type IssueCodeDef = IssueCodeInfo;
+type Macro = {
+    hold: readonly string[];
+    ticks: number;
+};
+type MacroRandom = {
+    below(bound: number): number;
+    pick<T>(items: readonly T[]): T;
+    range(lo: number, hi: number): number;
+};
+type MaterialDef = {
+    description: string;
+    friction: number;
+    impulse?: Vec2;
+    restitution: number;
+    style?: Style;
+};
+declare const PRIMITIVE_TYPES: readonly [
+    "solid",
+    "sensor",
+    "marker",
+    "prop",
+    "follower",
+    "note"
+];
+type PhysicalCheck = {
+    description: string;
+    id: string;
+    run(env: PhysicalEnv): SceneIssue[];
+};
+type PhysicalEnv = {
+    cast(shape: ShapeObj, by: Vec2, opts?: {
+        exclude?: readonly string[];
+    }): (PhysicalHit & {
+        toi: number;
+    }) | null;
+    def: SceneDefinition;
+    overlaps(shape: ShapeObj, opts?: {
+        exclude?: readonly string[];
+        sensors?: boolean;
+    }): PhysicalHit[];
+    physics: PhysicsWorld;
+    rapier: RapierModule;
+    registry: Registry;
+    scene: ExpandedScene;
+    tags: ColliderTags;
+};
+type PhysicalHit = {
+    at: Vec2;
+    tag: ColliderTag;
+};
+type PlayStart = {
+    at?: Vec2;
+    game?: unknown;
+    timeOffsetMs: number;
+};
+type PlayState<S = unknown> = {
+    events: readonly StepEvent[];
+    snapshot: S;
+    tick: number;
+};
+type PrimitiveType = (typeof PRIMITIVE_TYPES)[number];
+type RegisteredType = EntityTypeDef & {
+    origin: string;
+    shape: z.ZodRawShape;
+};
+type Registry = {
+    actionNames: readonly string[];
+    actions: readonly ActionDef[];
+    bulkKey: (key: BulkKey) => BulkKeyInfo | undefined;
+    bulkKeys: readonly BulkKeyInfo[];
+    checkKinds: readonly string[];
+    collisionGroupNames: readonly string[];
+    collisionGroups: (name: string) => number;
+    game: GameDefinition | null;
+    id: string;
+    issueCodes: Readonly<Record<string, IssueCodeInfo>>;
+    materialNames: readonly string[];
+    materials: ReadonlyMap<string, MaterialDef>;
+    physicalChecks: readonly PhysicalCheck[];
+    predicateNames: readonly string[];
+    prefabContract: z.ZodRawShape;
+    primitives: Registry;
+    runResults: readonly string[];
+    schemaId: string;
+    settings: z.ZodRawShape;
+    spawnGroupOf: (type: EntityTypeName) => number | undefined;
+    spawnGroups: readonly (readonly EntityTypeName[])[];
+    typeNames: readonly EntityTypeName[];
+    types: ReadonlyMap<EntityTypeName, RegisteredType>;
+    validators: readonly SceneValidator[];
+    widgets: ReadonlyMap<string, InspectorWidgetDef>;
+};
+type RunResult = (string & {}) | EngineRunResult;
+interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
+    spawn(e: E): void;
+    despawn(id: string): void;
+    clear(): void;
+    update?(e: E, prev: E): void;
+    reset?(): void;
+    seek?(ms: number): void;
+    size(): number;
+    beforeStep?(dtMs: number): void;
+    afterStep?(dtMs: number): void;
+}
+type SceneTemplate = {
+    [bulkKey: BulkKey]: unknown;
+    bounds: Bounds;
+    entities?: EntityDef[];
+    settings?: SceneSettings;
+};
+type SceneValidator = (def: SceneDefinition, env: {
+    lines?: ReadonlyMap<string, number>;
+    registry: Registry;
+}) => SceneIssue[];
+type ScriptPredicate<S = unknown> = {
+    arg: z.ZodType;
+    description: string;
+    test(arg: unknown, state: PlayState<S>): boolean;
+};
+type SpawnShape = {
+    halfLen: number;
+    r: number;
+    type: "capsule";
+} | {
+    hh: number;
+    hw: number;
+    type: "box";
+} | {
+    r: number;
+    type: "circle";
+};
+type Style = {
+    alpha?: number;
+    fill?: number;
+    stroke?: number;
+    strokeAlpha?: number;
+    strokeWidth?: number;
+};
+type SystemFactory<E extends RuntimeEntity = RuntimeEntity> = (ctx: EngineContext, type: RegisteredType) => SceneSystem<E>;
+
+## headless/compile-input-script.ts
+declare function compileInputScript(script: unknown, registry: Registry): CompileResult;
+declare function heldEdges(prev: readonly string[], next: readonly string[], tick: number): InputEdge[];
+
+## headless/fuzz.ts
+declare function defaultFuzzMacro(rng: MacroRandom, actions: readonly string[]): Macro;
+declare function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun;
+
+## headless/headless.ts
+declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions): SceneRuntimeHandle;
+declare function runProbe<S = unknown>(opts: ProbeOptions<S>): ProbeReport<S>;
+declare function unknownActionError(action: string, actionNames: readonly string[]): null | string;
+
+## headless/play-loop.ts
+declare const STUCK_PX = 4;
+declare const STUCK_TICKS = 120;
+
+## headless/playtest-types.ts
+type CompileResult = {
+    issues: ScriptIssue[];
+    ok: false;
+} | {
+    ok: true;
+    script: CompiledInputScript;
+};
+type CompiledInputScript = {
+    edges: InputEdge[] | null;
+    maxTicks: number;
+    play: PlayOptions;
+    scene?: string;
+    steps: CompiledStep[];
+};
+type CompiledStep = {
+    hold: string[];
+    index: number;
+    max?: number;
+    ticks?: number;
+    until?: UntilClause;
+};
+type EventMatch = string | {
+    entityId?: string;
+    other?: string;
+    type: string;
+};
+type FuzzOptions<S = unknown, G = unknown> = {
+    dev?: boolean;
+    game?: GameDefinition<S, G> | null;
+    play?: PlayOptions<G>;
+    prefabs?: PrefabLibrary;
+    rapier: RapierModule;
+    registry?: Registry;
+    rollouts?: number;
+    scene: SceneDefinition;
+    seed: number | string;
+    ticks?: number;
+};
+type FuzzReport = {
+    blocked: false;
+    configHash: string;
+    results: Record<RunResult, number>;
+    rollouts: number;
+    scene: string;
+    sceneHash: SceneHash;
+    seed: number | string;
+    ticks: number;
+    ticksPerRollout: number;
+    timing: {
+        elapsedMs: number;
+        ticksPerSecond: number;
+    };
+    touched: FuzzTouch[];
+    untouched: Ref[];
+};
+type FuzzRun = FuzzReport | PlaytestBlocked;
+type FuzzTouch = {
+    firstRollout: number;
+    firstTick: number;
+    reached: number;
+    ref: Ref;
+    type: EntityTypeName;
+};
+type InputEdge = [
+    tick: number,
+    action: string,
+    pressed: 0 | 1
+];
+type InputScript<G = unknown> = {
+    $schema?: string;
+    at?: Pt;
+    game?: G;
+    maxTicks?: number;
+    scene?: string;
+    steps: InputScriptStep[];
+    timeOffsetMs?: number;
+    v: 1;
+};
+type InputScriptStep = ({
+    hold: string[];
+} & StepDuration) | {
+    press: string | string[];
+} | {
+    wait: number;
+};
+type PlayOptions<G = unknown> = {
+    at?: Vec2;
+    game?: G;
+    timeOffsetMs?: number;
+};
+type PlaytestBlocked = {
+    blocked: true;
+    issues: SceneIssue[];
+    load?: LoadReport;
+    scene: string;
+    scriptIssues: ScriptIssue[];
+    stage: "load" | "scene" | "script";
+};
+type PlaytestOptions<S = unknown, G = unknown> = {
+    dev?: boolean;
+    game?: GameDefinition<S, G> | null;
+    maxEvents?: number;
+    maxTrail?: number;
+    prefabs?: PrefabLibrary;
+    rapier: RapierModule;
+    registry?: Registry;
+    scene: SceneDefinition;
+    script: CompiledInputScript | InputScript<G>;
+};
+type PlaytestOutcomeReport = {
+    at: Vec2 | null;
+    cause?: string;
+    entityId?: string;
+    result: RunResult;
+    tick: number;
+};
+type PlaytestReport<S = unknown> = {
+    blocked: false;
+    configHash: string;
+    events: StepEvent[];
+    final: S | null;
+    inputs: InputEdge[];
+    issues: SceneIssue[];
+    outcome: PlaytestOutcomeReport;
+    recording: RunRecording;
+    scene: string;
+    sceneHash: SceneHash;
+    steps: PlaytestStep[];
+    stepsReached: number;
+    tickRate: 60;
+    ticks: number;
+    trail: {
+        every: 4;
+        pts: Pt[];
+        truncated: boolean;
+    };
+    truncated: boolean;
+};
+type PlaytestRun<S = unknown> = PlaytestBlocked | PlaytestReport<S>;
+type PlaytestStep = {
+    end: "done" | "max" | "run" | "until";
+    index: number;
+    start: number;
+    ticks: number;
+};
+type ScriptIssue = {
+    expected?: string;
+    got?: string;
+    hint?: string;
+    message: string;
+    path: string;
+};
+type StepDuration = {
+    for?: number;
+    forMs?: number;
+    max?: number;
+    until?: UntilClause;
+};
+type UntilClause = {
+    [predicate: string]: unknown;
+    event?: EventMatch;
+    tick?: number;
+};
+
+## headless/playtest.ts
+declare function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G>): PlaytestRun<S>;
+
+## headless/recording.ts
+type ReplayOptions<S = unknown> = {
+    dev?: boolean;
+    game?: GameDefinition<S> | null;
+    prefabs?: PrefabLibrary;
+    rapier: RapierModule;
+    recording: RunRecording | unknown;
+    registry?: Registry;
+    scene: SceneDefinition;
+};
+type ReplayReport<S = unknown> = {
+    blocked: false;
+    divergence: null | string;
+    final: S | null;
+    matches: boolean;
+    recording: RunRecording;
+    stale: boolean;
+    warnings: string[];
+};
+type ReplayRun<S = unknown> = PlaytestBlocked | ReplayReport<S>;
+declare function recordingDivergence(a: RunRecording, b: RunRecording): null | string;
+declare function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<S>;
+
+## headless/run-checks.ts
+type CheckResult = {
+    detail?: unknown;
+    id: string;
+    kind: string;
+    message: string;
+    pass: boolean;
+    skipped?: string;
+};
+type ChecksReport = {
+    ok: boolean;
+    results: CheckResult[];
+};
+type RunChecksOptions = {
+    checks: ChecksFile;
+    prefabs?: PrefabLibrary;
+    rapier: RapierModule;
+    readFile: (path: string) => string;
+    registry: Registry;
+    scene: SceneDefinition;
+};
+declare function runChecks(opts: RunChecksOptions): ChecksReport;
+
+## headless/types.ts
+type HeadlessRuntimeOptions = {
+    dev?: boolean;
+    game?: GameDefinition | null;
+    rapier: RapierModule;
+    registry?: Registry;
+    scene?: ExpandedScene;
+};
+type ProbeInput = {
+    hold?: string[];
+    inputs?: [
+        tick: number,
+        action: string,
+        pressed: 0 | 1
+    ][];
+    maxEvents?: number;
+    ticks: number;
+};
+type ProbeOptions<S = unknown> = ProbeInput & {
+    game?: GameDefinition<S> | null;
+    rapier: RapierModule;
+    registry?: Registry;
+    scene: ExpandedScene;
+};
+type ProbeReport<S = unknown> = {
+    configHash: string;
+    events: StepEvent[];
+    final: S | null;
+    load: LoadReport;
+    outcome?: GameOutcome & {
+        tick: number;
+    };
+    stats: RuntimeStats;
+    tickRate: 60;
+    ticks: number;
+    truncated: boolean;
+};
+
+## headless/validate-physical.ts
+type PhysicalOptions = {
+    lines?: ReadonlyMap<string, number>;
+};
+type ValidatePhysicalOptions = PhysicalOptions & {
+    prefabs?: PrefabLibrary;
+    rapier: RapierModule;
+    registry: Registry;
+    scene: SceneDefinition;
+};
+declare function physicalEnv(runtime: SceneRuntimeHandle, def: SceneDefinition): PhysicalEnv | null;
+declare function runPhysicalChecks(env: PhysicalEnv, opts?: PhysicalOptions): SceneIssue[];
+declare function validatePhysical(opts: ValidatePhysicalOptions): SceneIssue[];
+
+## math.ts
+declare function clamp(value: number, min: number, max: number): number;
+declare function clampVec2(v: Vec2, min: Vec2, max: Vec2): Vec2;
+declare function distanceVec2(a: Vec2, b: Vec2): number;
+declare function lerp(a: number, b: number, t: number): number;
+declare function lerpVec2(a: Vec2, b: Vec2, t: number): Vec2;
+
+## physics.ts
+type PhysicsWorld = {
+    addCollider: (desc: ColliderDesc, body?: RigidBody) => Collider;
+    addRigidBody: (desc: RigidBodyDesc) => RigidBody;
+    createCharacterController: (offset?: number) => KinematicCharacterController;
+    debugRender: () => {
+        colors: Float32Array;
+        vertices: Float32Array;
+    };
+    destroy: () => void;
+    rapier: RapierModule;
+    refreshQueries: () => void;
+    removeCollider: (collider: Collider) => void;
+    removeRigidBody: (body: RigidBody) => void;
+    setGravity: (gravity: Vec2) => void;
+    step: () => void;
+    world: World;
+};
+declare function degToRad(deg: number): number;
+declare function posedBodyDesc(desc: RigidBodyDesc, shape: ShapeObj): RigidBodyDesc;
+declare function shapeColliderDesc(rapier: RapierModule, shape: ShapeObj, local?: boolean): ColliderDesc;
+declare function shapePose(shape: ShapeObj): {
+    rotation: number;
+    x: number;
+    y: number;
+};
+
+## placement.ts
+declare const DEFAULT_ROTATE_STEP = 0.15;
+type PlacementCheck = {
+    reason?: string;
+    valid: boolean;
+};
+type PlacementDraw<T> = {
+    hide(): void;
+    pose(ghost: PlacementGhost<T>): void;
+    show(ghost: PlacementGhost<T>): void;
+};
+type PlacementGhost<T> = {
+    at: Vec2;
+    rotation: number;
+    template: T;
+};
+type PlacementTool<T> = {
+    clear: () => void;
+    destroy: () => void;
+    ghost: () => PlacementGhost<T> | null;
+    hide: () => void;
+    move: (at: Vec2, show?: boolean) => void;
+    place: () => PlacementCheck;
+    rotate: (delta: number) => void;
+    select: (template: T) => void;
+    selected: () => T | null;
+};
+type PlacementToolOptions<T> = {
+    commit(ghost: PlacementGhost<T>): void;
+    draw: PlacementDraw<T>;
+    rotatable?(template: T): boolean;
+    rotateStep?: number;
+    validate(ghost: PlacementGhost<T>): PlacementCheck;
+};
+declare function createPlacementTool<T>(opts: PlacementToolOptions<T>): PlacementTool<T>;
+
+## render/draw-shape.ts
+declare function drawShape(g: Graphics, shape: ShapeObj, style: Style): void;
+declare function traceShape(g: Graphics, shape: ShapeObj): void;
+
+## render/pixi-view.ts
+type PixiView = SceneView & {
+    destroy(): void;
+    readonly container: Container;
+};
+declare function createPixiView(container: Container): PixiView;
+declare function pixiContainer(handle: ViewLayerHandle): Container;
+
+## runtime/play-session.ts
+type PreparedPlay = {
+    def: SceneDefinition;
+    hash: SceneHash;
+    issues: SceneIssue[];
+    ok: true;
+    scene: ExpandedScene;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+declare function preparePlay(doc: SceneDefinition, registry: Registry, opts?: {
+    dev?: boolean;
+    prefabs?: PrefabLibrary;
+}): PreparedPlay;
+
+## runtime/recorder.ts
+type RecorderOptions = {
+    game: GameDefinition | null;
+    maxMarkers?: number;
+    maxTrail?: number;
+    rapier: RapierModule;
+    scene: string;
+    sceneHash: SceneHash;
+    start: PlayOptions;
+};
+type RecordingEnd = {
+    cause?: string;
+    entityId?: string;
+    result: RunResult;
+    tick: number;
+    ticks: number;
+};
+type RunRecorder = {
+    finish(end: RecordingEnd, final: unknown): RunRecording;
+    tick(state: PlayState, edges: readonly InputEdge[], focus: Vec2 | null): void;
+};
+declare function createRunRecorder(opts: RecorderOptions): RunRecorder;
+declare function probeConfigHash(game?: GameDefinition | null): string;
+
+## runtime/types.ts
+type LoadReport = {
+    counts: Record<EntityTypeName, number>;
+    ms: number;
+    ok: true;
+} | {
+    entityId?: string;
+    error: string;
+    ok: false;
+    reason?: "spawn-blocked";
+};
+type ReconcileReport = {
+    entityId?: string;
+    error: string;
+    ok: false;
+} | {
+    ok: true;
+};
+type RuntimeStats = {
+    bodies: number;
+    colliders: number;
+    entities: number;
+    perType: Record<EntityTypeName, number>;
+    tags: number;
+};
+declare const SENSOR_ENTER = "sensor:enter";
+declare const SENSOR_EXIT = "sensor:exit";
+type SceneRuntime = {
+    add: (entities: RuntimeEntity[]) => ReconcileReport;
+    destroy: () => void;
+    get: (id: string) => RuntimeEntity | undefined;
+    load: (scene: ExpandedScene, play?: PlayOptions) => LoadReport;
+    remove: (ids: string[]) => void;
+    snapshot: () => unknown;
+    stats: () => RuntimeStats;
+    step: (dtMs: number, actions: InputAction[]) => StepResult;
+    unload: () => void;
+    update: (entities: RuntimeEntity[]) => ReconcileReport;
+};
+type SceneRuntimeHandle = SceneRuntime & {
+    readonly ctx: EngineContext;
+    readonly game: GameRuntime | null;
+    scene: () => ExpandedScene | null;
+};
+type StepEvent = {
+    at: Vec2;
+    entityId?: string;
+    other?: string;
+    tick: number;
+    type: string;
+};
+type StepResult = {
+    events: StepEvent[];
+    game: unknown;
+    tick: number;
+};
+
+## scene/agent-surface.ts
+declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
+declare const AGENT_SURFACE_VERSION = 6;
+
+## scene/ascii.ts
+declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
+type SceneAsciiMap = {
+    cell: number;
+    cols: number;
+    legend: {
+        char: string;
+        label: string;
+    }[];
+    lines: string[];
+    name: string;
+    region: Bounds;
+    rows: number;
+};
+type SceneAsciiOptions = SceneRegionOptions & {
+    cell?: number;
+    maxCells?: number;
+    overlay?: Pick<SceneOverlay, "outcome" | "trail">;
+    paths?: boolean;
+    registry: Registry;
+    tagChars?: Readonly<Record<string, string>>;
+};
+declare function formatAsciiMap(map: SceneAsciiMap): string;
+declare function renderSceneAscii(scene: ExpandedScene | SceneDefinition, opts: SceneAsciiOptions): string;
+declare function sceneAsciiMap(scene: ExpandedScene | SceneDefinition, opts: SceneAsciiOptions): SceneAsciiMap;
+
+## scene/bulk-ref.ts
+declare function bulkId(key: BulkKey, index: number): Ref;
+declare function bulkKeyType(key: BulkKey): EntityTypeName;
+declare function parseBulkId(ref: Ref): null | {
+    index: number;
+    key: BulkKey;
+};
+
+## scene/checks.ts
+declare const CHECKS_FORMAT_VERSION = 1;
+declare const CHECKS_SUFFIX = ".checks.json";
+type CheckHead = {
+    id: string;
+    kind: string;
+    skip?: string;
+};
+type ChecksFile = {
+    $schema?: string;
+    checks: SceneCheck[];
+    v: 1;
+};
+type ChecksIssue = {
+    expected?: string;
+    got?: string;
+    hint?: string;
+    line?: number;
+    message: string;
+    path: string;
+};
+declare const DEFAULT_TOUCH_ROLLOUTS = 100;
+declare const DEFAULT_TOUCH_SEED = 1;
+declare const DEFAULT_TOUCH_TICKS = 600;
+type GameCheck = CheckHead & {
+    [field: string]: unknown;
+};
+declare const MAX_TOUCH_ROLLOUTS = 10000;
+type ParseChecksResult = {
+    file: ChecksFile;
+    ok: true;
+} | {
+    issues: ChecksIssue[];
+    ok: false;
+};
+type ReachesCheck = CheckHead & {
+    at?: Pt;
+    kind: "reaches";
+    result: string;
+    script: InputScript | string;
+};
+type SceneCheck = GameCheck | ReachesCheck | TouchesCheck | ValidCheck;
+type TouchesCheck = CheckHead & {
+    atLeast: number;
+    entity: Ref;
+    kind: "touches";
+    rollouts?: number;
+    seed?: number | string;
+    ticks?: number;
+};
+type ValidCheck = CheckHead & {
+    kind: "valid";
+    max?: "error" | "warn";
+    physical?: boolean;
+};
+declare function checksJsonSchema(registry: Registry): Record<string, unknown>;
+declare function checksPathOf(sceneFile: string): string;
+declare function checksSchemaFor(registry: Registry): z.ZodType<ChecksFile>;
+declare function checksSchemaId(registry: Registry): string;
+declare function parseChecks(text: string, registry: Registry): ParseChecksResult;
+
+## scene/create.ts
+declare const EMPTY_SCENE_TEMPLATE: SceneTemplate;
+declare function createScene(name: string, registry: Registry, opts?: {
+    $schema?: string;
+    template?: SceneTemplate;
+}): SceneDefinition;
+
+## scene/did-you-mean.ts
+declare function closest(word: string, candidates: readonly string[]): string | undefined;
+
+## scene/diff-to-ops.ts
+declare function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Registry): OpBatch;
+
+## scene/diff.ts
+declare function describeChange(c: SceneChange): string;
+declare function diffScenes(a: SceneDefinition, b: SceneDefinition): SceneChange[];
+
+## scene/expand.ts
+type ExpandOptions = {
+    prefabs?: PrefabLibrary;
+};
+declare function bulkEntries(def: SceneDefinition, k: BulkKey): BulkEntry[];
+declare function bulkKeysOf(def: SceneDefinition): BulkKey[];
+declare function expandScene(source: SceneDefinition, registry: Registry, opts?: ExpandOptions): ExpandedScene;
+declare function isExpandedScene(scene: ExpandedScene | SceneDefinition): scene is ExpandedScene;
+
+## scene/format.ts
+declare function comparePointers(a: string | undefined, b: string | undefined): number;
+declare function formatPrefab(prefab: Prefab): string;
+declare function formatScene(def: SceneDefinition): {
+    lines: Map<string, number>;
+    text: string;
+};
+
+## scene/fragment.ts
+declare const FRAGMENT_KIND = "scene-fragment";
+type ParseFragmentResult = {
+    fragment: SceneFragment;
+    issues: SceneIssue[];
+    migratedFrom?: number;
+    ok: true;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+type PlacedFragment = {
+    issues: SceneIssue[];
+    ops: SceneOp[];
+    select: Ref[];
+};
+type SceneFragment = {
+    bulk?: Record<BulkKey, BulkEntry[]>;
+    entities: EntityDef[];
+    game?: string;
+    kind: typeof FRAGMENT_KIND;
+    v: number;
+};
+declare function fragmentBounds(fragment: SceneFragment, registry: Registry): Aabb | null;
+declare function fragmentOf(def: SceneDefinition, refs: readonly Ref[], registry: Registry): SceneFragment;
+declare function fragmentSchemaFor(registry: Registry): z.ZodObject;
+declare function nextFreeId(id: string, taken: ReadonlySet<string>): string;
+declare function parseFragment(input: unknown, registry: Registry): ParseFragmentResult;
+declare function placeFragment(fragment: SceneFragment, def: SceneDefinition, registry: Registry, by: Pt): PlacedFragment;
+declare function takenIds(def: SceneDefinition): Set<string>;
+
+## scene/hash.ts
+declare function hashText(text: string): string;
+declare function sceneHash(def: SceneDefinition): SceneHash;
+
+## scene/input-script.ts
+declare const DEFAULT_SCRIPT_MAX_TICKS = 1800;
+declare const DEFAULT_UNTIL_MAX = 600;
+declare const INPUT_SCRIPT_VERSION = 1;
+type InputScriptSchemas = ReturnType<typeof buildInputScriptSchemas>;
+declare const MAX_SCRIPT_TICKS = 36000;
+declare function buildInputScriptSchemas(registry: Registry): {
+    head: z.ZodObject<{
+        $schema: z.ZodOptional<z.ZodString>;
+        at: z.ZodOptional<z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>>;
+        game?: undefined | z.ZodOptional<z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>;
+        maxTicks: z.ZodOptional<z.ZodNumber>;
+        scene: z.ZodOptional<z.ZodString>;
+        steps: z.ZodArray<z.ZodUnknown>;
+        timeOffsetMs: z.ZodOptional<z.ZodNumber>;
+        v: z.ZodLiteral<1>;
+    }, z.core.$strict>;
+    script: z.ZodObject<{
+        $schema: z.ZodOptional<z.ZodString>;
+        at: z.ZodOptional<z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>>;
+        game?: undefined | z.ZodOptional<z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>>;
+        maxTicks: z.ZodOptional<z.ZodNumber>;
+        scene: z.ZodOptional<z.ZodString>;
+        steps: z.ZodArray<z.ZodUnion<readonly [
+            z.ZodObject<{
+                for: z.ZodNumber;
+                hold: z.ZodArray<z.ZodEnum<{
+                    [x: string]: string;
+                }> | z.ZodNever>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                forMs: z.ZodNumber;
+                hold: z.ZodArray<z.ZodEnum<{
+                    [x: string]: string;
+                }> | z.ZodNever>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                hold: z.ZodArray<z.ZodEnum<{
+                    [x: string]: string;
+                }> | z.ZodNever>;
+                max: z.ZodOptional<z.ZodNumber>;
+                until: z.ZodObject<{
+                    event: z.ZodOptional<z.ZodUnion<readonly [
+                        z.ZodString,
+                        z.ZodObject<{
+                            entityId: z.ZodOptional<z.ZodString>;
+                            other: z.ZodOptional<z.ZodString>;
+                            type: z.ZodString;
+                        }, z.core.$strict>
+                    ]>>;
+                    tick: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                press: z.ZodUnion<readonly [
+                    z.ZodEnum<{
+                        [x: string]: string;
+                    }> | z.ZodNever,
+                    z.ZodArray<z.ZodEnum<{
+                        [x: string]: string;
+                    }> | z.ZodNever>
+                ]>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                wait: z.ZodNumber;
+            }, z.core.$strict>
+        ]>>;
+        timeOffsetMs: z.ZodOptional<z.ZodNumber>;
+        v: z.ZodLiteral<1>;
+    }, z.core.$strict>;
+    steps: {
+        holdFor: z.ZodObject<{
+            for: z.ZodNumber;
+            hold: z.ZodArray<z.ZodEnum<{
+                [x: string]: string;
+            }> | z.ZodNever>;
+        }, z.core.$strict>;
+        holdForMs: z.ZodObject<{
+            forMs: z.ZodNumber;
+            hold: z.ZodArray<z.ZodEnum<{
+                [x: string]: string;
+            }> | z.ZodNever>;
+        }, z.core.$strict>;
+        holdUntil: z.ZodObject<{
+            hold: z.ZodArray<z.ZodEnum<{
+                [x: string]: string;
+            }> | z.ZodNever>;
+            max: z.ZodOptional<z.ZodNumber>;
+            until: z.ZodObject<{
+                event: z.ZodOptional<z.ZodUnion<readonly [
+                    z.ZodString,
+                    z.ZodObject<{
+                        entityId: z.ZodOptional<z.ZodString>;
+                        other: z.ZodOptional<z.ZodString>;
+                        type: z.ZodString;
+                    }, z.core.$strict>
+                ]>>;
+                tick: z.ZodOptional<z.ZodNumber>;
+            }, z.core.$strict>;
+        }, z.core.$strict>;
+        press: z.ZodObject<{
+            press: z.ZodUnion<readonly [
+                z.ZodEnum<{
+                    [x: string]: string;
+                }> | z.ZodNever,
+                z.ZodArray<z.ZodEnum<{
+                    [x: string]: string;
+                }> | z.ZodNever>
+            ]>;
+        }, z.core.$strict>;
+        wait: z.ZodObject<{
+            wait: z.ZodNumber;
+        }, z.core.$strict>;
+    };
+    until: z.ZodObject<{
+        event: z.ZodOptional<z.ZodUnion<readonly [
+            z.ZodString,
+            z.ZodObject<{
+                entityId: z.ZodOptional<z.ZodString>;
+                other: z.ZodOptional<z.ZodString>;
+                type: z.ZodString;
+            }, z.core.$strict>
+        ]>>;
+        tick: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>;
+};
+declare function inputScriptJsonSchema(registry: Registry): Record<string, unknown>;
+declare function inputScriptSchemaFor(registry: Registry): InputScriptSchemas["script"];
+declare function inputScriptSchemaId(registry: Registry): string;
+declare function inputScriptSchemasFor(registry: Registry): InputScriptSchemas;
+
+## scene/issues.ts
+declare const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>>;
+declare function jsonPointer(segments: readonly (number | string)[]): string;
+declare function makeIssue(code: IssueCode, fields: Partial<Omit<SceneIssue, "code">> & {
+    message: string;
+}, codes?: Readonly<Record<string, IssueCodeInfo>>): SceneIssue;
+
+## scene/json-schema.ts
+declare const SCHEMA_ID_BASE = "urn:jams-engine:";
+declare function fragmentJsonSchema(registry: Registry): Record<string, unknown>;
+declare function prefabJsonSchema(registry: Registry): Record<string, unknown>;
+declare function sceneJsonSchema(registry: Registry): Record<string, unknown>;
+declare function schemaIdFor(registry: Registry, name: string, version: number): string;
+declare function undescribedProperties(schema: Record<string, unknown>): string[];
+declare function untitledEntityFields(schema: Record<string, unknown>): string[];
+
+## scene/migrate.ts
+declare const MIGRATIONS: Readonly<Record<number, Migration>>;
+type MigrateResult = {
+    from: number;
+    ok: true;
+    raw: unknown;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+type Migration = (raw: unknown) => unknown;
+declare function migrate(raw: unknown, migrations?: Readonly<Record<number, Migration>>, target?: number): MigrateResult;
+
+## scene/ops-schema.ts
+type OpSchemas = ReturnType<typeof buildOpSchemas>;
+declare function buildOpSchemas(registry: Registry): {
+    batch: z.ZodObject<{
+        actor: z.ZodOptional<z.ZodString>;
+        base: z.ZodOptional<z.ZodString>;
+        label: z.ZodOptional<z.ZodString>;
+        ops: z.ZodArray<z.ZodDiscriminatedUnion<[
+            z.ZodObject<{
+                entity: z.ZodObject<{
+                    id: z.ZodOptional<z.ZodString>;
+                    type: z.ZodEnum<{
+                        [x: string]: string;
+                    }>;
+                }, z.core.$loose>;
+                index: z.ZodOptional<z.ZodNumber>;
+                op: z.ZodLiteral<"add">;
+            }, z.core.$strict>,
+            z.ZodDiscriminatedUnion<[
+                z.ZodObject<{
+                    index: z.ZodOptional<z.ZodNumber>;
+                    key: z.ZodEnum<{
+                        [x: string]: string;
+                    }>;
+                    op: z.ZodLiteral<"addBulk">;
+                    points: z.ZodArray<z.ZodTuple<[
+                        z.ZodNumber,
+                        z.ZodNumber
+                    ], null>>;
+                }, z.core.$strict> | z.ZodObject<{
+                    index: z.ZodOptional<z.ZodNumber>;
+                    key: z.ZodEnum<{
+                        [x: string]: string;
+                    }>;
+                    op: z.ZodLiteral<"addBulk">;
+                    shapes: z.ZodArray<z.ZodUnion<readonly [
+                        z.ZodArray<z.ZodUnion<readonly [
+                            z.ZodString,
+                            z.ZodNumber
+                        ]>>,
+                        z.ZodObject<{
+                            type: z.ZodString;
+                        }, z.core.$loose>
+                    ]>>;
+                }, z.core.$strict>,
+                ...(z.ZodObject<{
+                    index: z.ZodOptional<z.ZodNumber>;
+                    key: z.ZodEnum<{
+                        [x: string]: string;
+                    }>;
+                    op: z.ZodLiteral<"addBulk">;
+                    points: z.ZodArray<z.ZodTuple<[
+                        z.ZodNumber,
+                        z.ZodNumber
+                    ], null>>;
+                }, z.core.$strict> | z.ZodObject<{
+                    index: z.ZodOptional<z.ZodNumber>;
+                    key: z.ZodEnum<{
+                        [x: string]: string;
+                    }>;
+                    op: z.ZodLiteral<"addBulk">;
+                    shapes: z.ZodArray<z.ZodUnion<readonly [
+                        z.ZodArray<z.ZodUnion<readonly [
+                            z.ZodString,
+                            z.ZodNumber
+                        ]>>,
+                        z.ZodObject<{
+                            type: z.ZodString;
+                        }, z.core.$loose>
+                    ]>>;
+                }, z.core.$strict>)[]
+            ], "key">,
+            z.ZodObject<{
+                op: z.ZodLiteral<"update">;
+                ref: z.ZodString;
+                set: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                unset: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                by: z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>;
+                op: z.ZodLiteral<"move">;
+                refs: z.ZodArray<z.ZodString>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                anchor: z.ZodOptional<z.ZodEnum<{
+                    bottom: "bottom";
+                    center: "center";
+                    left: "left";
+                    right: "right";
+                    top: "top";
+                }>>;
+                at: z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>;
+                op: z.ZodLiteral<"place">;
+                ref: z.ZodString;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                op: z.ZodLiteral<"remove">;
+                refs: z.ZodArray<z.ZodString>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                from: z.ZodString;
+                op: z.ZodLiteral<"rename">;
+                to: z.ZodString;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                id: z.ZodString;
+                op: z.ZodLiteral<"promote">;
+                ref: z.ZodString;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                id: z.ZodString;
+                op: z.ZodLiteral<"demote">;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                op: z.ZodLiteral<"setScene">;
+                set: z.ZodObject<{
+                    bounds: z.ZodOptional<z.ZodTuple<[
+                        z.ZodNumber,
+                        z.ZodNumber,
+                        z.ZodNumber,
+                        z.ZodNumber
+                    ], null>>;
+                    name: z.ZodOptional<z.ZodString>;
+                }, z.core.$strict>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                op: z.ZodLiteral<"setSettings">;
+                set: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                unset: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                index: z.ZodNumber;
+                op: z.ZodLiteral<"reorder">;
+                refs: z.ZodArray<z.ZodString>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                index: z.ZodOptional<z.ZodNumber>;
+                instance: z.ZodObject<{
+                    at: z.ZodTuple<[
+                        z.ZodNumber,
+                        z.ZodNumber
+                    ], null>;
+                    id: z.ZodOptional<z.ZodString>;
+                    prefab: z.ZodString;
+                }, z.core.$loose>;
+                op: z.ZodLiteral<"instantiate">;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                at: z.ZodOptional<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>;
+                id: z.ZodString;
+                name: z.ZodOptional<z.ZodUnion<readonly [
+                    z.ZodString,
+                    z.ZodNull
+                ]>>;
+                op: z.ZodLiteral<"setGroup">;
+                remove: z.ZodOptional<z.ZodBoolean>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                op: z.ZodLiteral<"override">;
+                ref: z.ZodString;
+                set: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                op: z.ZodLiteral<"revertOverride">;
+                paths: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                ref: z.ZodString;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                op: z.ZodLiteral<"applyToPrefab">;
+                paths: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                ref: z.ZodString;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                op: z.ZodLiteral<"unpack">;
+                ref: z.ZodString;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                at: z.ZodOptional<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>;
+                id: z.ZodString;
+                instance: z.ZodOptional<z.ZodString>;
+                op: z.ZodLiteral<"createPrefab">;
+                refs: z.ZodArray<z.ZodString>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                id: z.ZodString;
+                op: z.ZodLiteral<"definePrefab">;
+                prefab: z.ZodUnion<readonly [
+                    z.ZodObject<{
+                        bulk: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodArray<z.ZodUnknown>>>;
+                        contract: z.ZodOptional<z.ZodUnknown>;
+                        entities: z.ZodArray<z.ZodObject<{}, z.core.$loose>>;
+                    }, z.core.$loose>,
+                    z.ZodNull
+                ]>;
+            }, z.core.$strict>
+        ], "op">>;
+    }, z.core.$strict>;
+    op: z.ZodDiscriminatedUnion<[
+        z.ZodObject<{
+            entity: z.ZodObject<{
+                id: z.ZodOptional<z.ZodString>;
+                type: z.ZodEnum<{
+                    [x: string]: string;
+                }>;
+            }, z.core.$loose>;
+            index: z.ZodOptional<z.ZodNumber>;
+            op: z.ZodLiteral<"add">;
+        }, z.core.$strict>,
+        z.ZodDiscriminatedUnion<[
+            z.ZodObject<{
+                index: z.ZodOptional<z.ZodNumber>;
+                key: z.ZodEnum<{
+                    [x: string]: string;
+                }>;
+                op: z.ZodLiteral<"addBulk">;
+                points: z.ZodArray<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>;
+            }, z.core.$strict> | z.ZodObject<{
+                index: z.ZodOptional<z.ZodNumber>;
+                key: z.ZodEnum<{
+                    [x: string]: string;
+                }>;
+                op: z.ZodLiteral<"addBulk">;
+                shapes: z.ZodArray<z.ZodUnion<readonly [
+                    z.ZodArray<z.ZodUnion<readonly [
+                        z.ZodString,
+                        z.ZodNumber
+                    ]>>,
+                    z.ZodObject<{
+                        type: z.ZodString;
+                    }, z.core.$loose>
+                ]>>;
+            }, z.core.$strict>,
+            ...(z.ZodObject<{
+                index: z.ZodOptional<z.ZodNumber>;
+                key: z.ZodEnum<{
+                    [x: string]: string;
+                }>;
+                op: z.ZodLiteral<"addBulk">;
+                points: z.ZodArray<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>;
+            }, z.core.$strict> | z.ZodObject<{
+                index: z.ZodOptional<z.ZodNumber>;
+                key: z.ZodEnum<{
+                    [x: string]: string;
+                }>;
+                op: z.ZodLiteral<"addBulk">;
+                shapes: z.ZodArray<z.ZodUnion<readonly [
+                    z.ZodArray<z.ZodUnion<readonly [
+                        z.ZodString,
+                        z.ZodNumber
+                    ]>>,
+                    z.ZodObject<{
+                        type: z.ZodString;
+                    }, z.core.$loose>
+                ]>>;
+            }, z.core.$strict>)[]
+        ], "key">,
+        z.ZodObject<{
+            op: z.ZodLiteral<"update">;
+            ref: z.ZodString;
+            set: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            unset: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            by: z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>;
+            op: z.ZodLiteral<"move">;
+            refs: z.ZodArray<z.ZodString>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            anchor: z.ZodOptional<z.ZodEnum<{
+                bottom: "bottom";
+                center: "center";
+                left: "left";
+                right: "right";
+                top: "top";
+            }>>;
+            at: z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>;
+            op: z.ZodLiteral<"place">;
+            ref: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            op: z.ZodLiteral<"remove">;
+            refs: z.ZodArray<z.ZodString>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            from: z.ZodString;
+            op: z.ZodLiteral<"rename">;
+            to: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"promote">;
+            ref: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"demote">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            op: z.ZodLiteral<"setScene">;
+            set: z.ZodObject<{
+                bounds: z.ZodOptional<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber,
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>;
+                name: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            op: z.ZodLiteral<"setSettings">;
+            set: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            unset: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            index: z.ZodNumber;
+            op: z.ZodLiteral<"reorder">;
+            refs: z.ZodArray<z.ZodString>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            index: z.ZodOptional<z.ZodNumber>;
+            instance: z.ZodObject<{
+                at: z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>;
+                id: z.ZodOptional<z.ZodString>;
+                prefab: z.ZodString;
+            }, z.core.$loose>;
+            op: z.ZodLiteral<"instantiate">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            at: z.ZodOptional<z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>>;
+            id: z.ZodString;
+            name: z.ZodOptional<z.ZodUnion<readonly [
+                z.ZodString,
+                z.ZodNull
+            ]>>;
+            op: z.ZodLiteral<"setGroup">;
+            remove: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            op: z.ZodLiteral<"override">;
+            ref: z.ZodString;
+            set: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            op: z.ZodLiteral<"revertOverride">;
+            paths: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            ref: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            op: z.ZodLiteral<"applyToPrefab">;
+            paths: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            ref: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            op: z.ZodLiteral<"unpack">;
+            ref: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            at: z.ZodOptional<z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>>;
+            id: z.ZodString;
+            instance: z.ZodOptional<z.ZodString>;
+            op: z.ZodLiteral<"createPrefab">;
+            refs: z.ZodArray<z.ZodString>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"definePrefab">;
+            prefab: z.ZodUnion<readonly [
+                z.ZodObject<{
+                    bulk: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodArray<z.ZodUnknown>>>;
+                    contract: z.ZodOptional<z.ZodUnknown>;
+                    entities: z.ZodArray<z.ZodObject<{}, z.core.$loose>>;
+                }, z.core.$loose>,
+                z.ZodNull
+            ]>;
+        }, z.core.$strict>
+    ], "op">;
+};
+declare function opBatchSchemaFor(registry: Registry): OpSchemas["batch"];
+declare function opsJsonSchema(registry: Registry): Record<string, unknown>;
+declare function opsSchemaId(registry: Registry): string;
+declare function sceneOpSchemaFor(registry: Registry): OpSchemas["op"];
+
+## scene/ops.ts
+declare function applyOps(def: SceneDefinition, batch: OpBatch, given: Registry, opts?: ApplyOptions): ApplyResult;
+declare function toSourceBatch(def: SceneDefinition, batch: OpBatch, given: Registry, prefabs?: PrefabLibrary): SourceBatchResult;
+
+## scene/parse.ts
+type ParseSceneResult = {
+    def: SceneDefinition;
+    issues: SceneIssue[];
+    migratedFrom?: number;
+    ok: true;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+declare class SceneParseError extends Error {
+    readonly issues: SceneIssue[];
+    constructor(issues: SceneIssue[]);
+}
+declare class SceneVersionError extends SceneParseError {
+    constructor(issues: SceneIssue[]);
+}
+declare function entityIssues(issues: readonly z.core.$ZodIssue[], def: unknown, relocate: (rel: string) => string, registry: Registry): SceneIssue[];
+declare function parseScene(input: unknown, registry: Registry): ParseSceneResult;
+declare function parseSceneOrThrow(input: unknown, registry: Registry): SceneDefinition;
+declare function pointerLines(text: string): Map<string, number>;
+declare function suggestType(word: string, registry: Registry): EntityTypeName | undefined;
+
+## scene/prefab.ts
+declare const PREFABS_DIR = "prefabs";
+type ParsePrefabResult = {
+    issues: SceneIssue[];
+    migratedFrom?: number;
+    ok: true;
+    prefab: Prefab;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+declare function formatPrefabs(prefabs: PrefabLibrary): Map<string, string>;
+declare function parsePrefab(input: unknown, registry: Registry): ParsePrefabResult;
+declare function prefabBody(prefab: Prefab): PrefabBody;
+declare function prefabLibrary(prefabs: Iterable<Prefab>): PrefabLibrary;
+declare function prefabOf(id: string, body: PrefabBody, game?: string): Prefab;
+declare function prefabScene(prefab: Prefab, bounds: SceneDefinition["bounds"]): SceneDefinition;
+declare function prefabSchemaFor(registry: Registry): z.ZodObject;
+declare function prefabsUsedBy(def: SceneDefinition): string[];
+declare function sceneBody(def: SceneDefinition, registry: Registry, contract?: unknown): PrefabBody;
+declare function sceneHashWith(def: SceneDefinition, prefabs?: PrefabLibrary): SceneHash;
+
+## scene/recording-schema.ts
+type ParseRecordingResult = {
+    issues: RecordingIssue[];
+    ok: false;
+} | {
+    ok: true;
+    recording: RunRecording;
+};
+declare const RECORDING_SCHEMA_ID = "urn:jams-engine:recording:v1";
+declare const RECORDING_TRAIL_EVERY = 4;
+declare const RECORDING_VERSION = 1;
+type RecordingIssue = {
+    message: string;
+    path: string;
+};
+type RecordingMarker = RunRecording["markers"][number];
+type RunRecording = z.infer<typeof runRecordingSchema>;
+declare function parseRecording(input: unknown): ParseRecordingResult;
+declare function recordingJsonSchema(): Record<string, unknown>;
+declare const runRecordingSchema: z.ZodObject<{
+    $schema: z.ZodOptional<z.ZodString>;
+    actions: z.ZodArray<z.ZodString>;
+    configHash: z.ZodString;
+    end: z.ZodString;
+    engine: z.ZodObject<{
+        physics: z.ZodString;
+        version: z.ZodString;
+    }, z.core.$strict>;
+    game: z.ZodNullable<z.ZodString>;
+    inputs: z.ZodArray<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber,
+        z.ZodUnion<readonly [
+            z.ZodLiteral<0>,
+            z.ZodLiteral<1>
+        ]>
+    ], null>>;
+    markers: z.ZodArray<z.ZodObject<{
+        at: z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>;
+        entityId: z.ZodOptional<z.ZodString>;
+        other: z.ZodOptional<z.ZodString>;
+        tick: z.ZodNumber;
+        type: z.ZodString;
+    }, z.core.$strict>>;
+    outcome: z.ZodObject<{
+        at: z.ZodNullable<z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>>;
+        cause: z.ZodOptional<z.ZodString>;
+        entityId: z.ZodOptional<z.ZodString>;
+        result: z.ZodString;
+        tick: z.ZodNumber;
+    }, z.core.$strict>;
+    scene: z.ZodString;
+    sceneHash: z.ZodString;
+    start: z.ZodObject<{
+        at: z.ZodOptional<z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>>;
+        game: z.ZodOptional<z.ZodUnknown>;
+        timeOffsetMs: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>;
+    tickRate: z.ZodLiteral<60>;
+    ticks: z.ZodNumber;
+    trail: z.ZodOptional<z.ZodObject<{
+        every: z.ZodLiteral<4>;
+        pts: z.ZodArray<z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>>;
+        truncated: z.ZodBoolean;
+    }, z.core.$strict>>;
+    v: z.ZodLiteral<1>;
+}, z.core.$strict>;
+
+## scene/render-geometry.ts
+type OverlayPoint = Pt | {
+    x: number;
+    y: number;
+};
+type SceneOverlay = {
+    events?: readonly {
+        at: OverlayPoint;
+        entityId?: string;
+        tick?: number;
+        type: string;
+    }[];
+    issues?: readonly Pick<SceneIssue, "at" | "code" | "entityIds" | "severity">[];
+    outcome?: null | {
+        at: OverlayPoint | null;
+        cause?: string;
+        result: string;
+        tick?: number;
+    };
+    trail?: readonly Pt[] | {
+        pts: readonly Pt[];
+    };
+};
+type SceneRegionOptions = {
+    around?: Ref;
+    margin?: number;
+    prefabs?: PrefabLibrary;
+    region?: Bounds;
+};
+
+## scene/resolve.ts
+declare const CHILD_SEPARATOR = "/";
+type LocalChild = {
+    child: Ref;
+    def: EntityDef;
+    kind: "entity";
+} | {
+    child: Ref;
+    index: number;
+    key: string;
+    kind: "bulk";
+    value: BulkEntry;
+};
+type ResolvedOrigin = {
+    child: Ref;
+    instance: number;
+    kind: "child";
+} | {
+    index: number;
+    kind: "entity";
+};
+type ResolvedScene = {
+    def: SceneDefinition;
+    origins: ResolvedOrigin[];
+};
+type SourceBatchResult = {
+    batch: OpBatch;
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+declare const childRef: (instance: string, child: Ref) => Ref;
+declare function groupOrigin(def: SceneDefinition, group: string | undefined): Pt;
+declare function instanceOrigin(def: SceneDefinition, inst: InstanceDef): Pt;
+declare function localChild(prefab: Prefab, inst: InstanceDef, child: Ref, registry: Registry): LocalChild | null;
+declare function localChildren(prefab: Prefab, inst: InstanceDef, registry: Registry): LocalChild[];
+declare function parseChildRef(ref: Ref): null | {
+    child: Ref;
+    instance: string;
+};
+declare function resolveScene(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): SceneDefinition;
+declare function resolveSceneDetailed(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): ResolvedScene;
+declare function splitOverridePath(path: OverridePath): null | {
+    child: Ref;
+    field: string;
+};
+
+## scene/schema.ts
+type FieldKind = "path" | "point" | "shape" | "value";
+declare const GroupSchema: z.ZodObject<{
+    at: z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>;
+    name: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+declare const InstanceSchema: z.ZodObject<{
+    at: z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>;
+    group: z.ZodOptional<z.ZodString>;
+    id: z.ZodString;
+    layer: z.ZodOptional<z.ZodEnum<{
+        decor: "decor";
+        editor: "editor";
+        gameplay: "gameplay";
+        terrain: "terrain";
+    }>>;
+    name: z.ZodOptional<z.ZodString>;
+    off: z.ZodOptional<z.ZodBoolean>;
+    overrides: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    prefab: z.ZodString;
+}, z.core.$strict>;
+declare const OVERRIDE_PATH: RegExp;
+declare function entitySchemaFor(registry: Registry, type: EntityTypeName): undefined | z.ZodObject;
+declare function fieldKind(schema: z.core.$ZodType): FieldKind;
+declare function geometryFields(t: RegisteredType): {
+    field: string;
+    kind: Exclude<FieldKind, "value">;
+}[];
+declare function sceneGameOf(raw: unknown): string | undefined;
+declare function sceneRegistry(game: string | undefined, registry: Registry): Registry | null;
+declare function sceneSchemaFor(registry: Registry): z.ZodObject;
+declare function unknownGameIssue(game: string, registry: Registry): SceneIssue;
+
+## scene/shape-geometry.ts
+declare function aabb(s: ShapeObj): Aabb;
+declare function aabbUnion(a: Aabb, b: Aabb): Aabb;
+declare function boxCorners(s: Extract<ShapeObj, {
+    type: "box";
+}>): Pt[];
+declare function centroid(pts: readonly Pt[]): Pt;
+declare function closestOnSegment([px, py]: Pt, [ax, ay]: Pt, [bx, by]: Pt): {
+    at: Pt;
+    dist: number;
+    t: number;
+};
+declare function containedInRect(s: ShapeObj, rect: Aabb): boolean;
+declare function containsPoint(s: ShapeObj, p: Pt, tol?: number): boolean;
+declare function convexHull(pts: readonly Pt[]): Pt[];
+declare function intersectsRect(s: ShapeObj, rect: Aabb): boolean;
+declare function isConvex(pts: readonly Pt[]): boolean;
+declare function nearestSegment(s: ShapeObj, p: Pt): null | {
+    at: Pt;
+    dist: number;
+    index: number;
+    t: number;
+};
+declare function nearestVertex(s: ShapeObj, p: Pt): null | {
+    at: Pt;
+    dist: number;
+    index: number;
+};
+declare function rotateShape(s: ShapeObj, about: Pt, deg: number): ShapeObj;
+declare function shapeVertices(s: ShapeObj): Pt[];
+declare function topSpan(s: ShapeObj): [
+    x0: number,
+    x1: number,
+    y: number
+];
+declare function translateShape(s: ShapeObj, [dx, dy]: Pt): ShapeObj;
+
+## scene/shape-outline.ts
+type PathCommand = {
+    cx: number;
+    cy: number;
+    end: number;
+    op: "arc";
+    r: number;
+    start: number;
+} | {
+    op: "close";
+} | {
+    op: "lineTo";
+    x: number;
+    y: number;
+} | {
+    op: "moveTo";
+    x: number;
+    y: number;
+};
+declare function shapeIsClosed(shape: ShapeObj): boolean;
+declare function shapeOutline(shape: ShapeObj): PathCommand[];
+
+## scene/shapes.ts
+type ParseShapeResult = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+    shape: ShapeObj;
+};
+declare const ShapeTupleSchema: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+declare function parseShape(input: unknown, path?: string): ParseShapeResult;
+declare function shapeToTuple(s: ShapeObj): ShapeTuple;
+
+## scene/svg.ts
+declare const SCENE_SVG_MAX_SIZE = 1600;
+type SceneLabels = "all" | "entities" | "none";
+type SceneSvgOptions = SceneRegionOptions & {
+    labels?: SceneLabels;
+    maxSize?: number;
+    overlay?: SceneOverlay;
+    paths?: boolean;
+    registry: Registry;
+    scale?: number;
+};
+type SceneViewport = {
+    height: number;
+    region: Bounds;
+    scale: number;
+    tick: number;
+    width: number;
+};
+declare function renderSceneSvg(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): string;
+declare function sceneViewport(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): SceneViewport;
+
+## scene/types.ts
+type Aabb = {
+    maxX: number;
+    maxY: number;
+    minX: number;
+    minY: number;
+};
+type ApplyOptions = {
+    prefabs?: PrefabLibrary;
+    validate?: "none" | "structural";
+};
+type ApplyResult = {
+    created: string[];
+    def: SceneDefinition;
+    diff: SceneChange[];
+    hash: SceneHash;
+    inverse: OpBatch;
+    issues: SceneIssue[];
+    ok: true;
+    prefabs?: PrefabLibrary;
+    prefabsChanged?: string[];
+    remap: Record<Ref, Ref | null>;
+    touched: Ref[];
+} | {
+    failedAt: number;
+    hash: SceneHash;
+    issue: SceneIssue;
+    ok: false;
+};
+type Bounds = [
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number
+];
+type BulkEntry = Pt | ShapeTuple;
+type BulkForm = "point" | "shape";
+type BulkKey = string;
+declare const ENGINE_ISSUE_CODE_LIST: readonly [
+    "schema",
+    "unknown-key",
+    "unknown-type",
+    "unknown-game",
+    "bad-shape",
+    "bad-id",
+    "version-newer",
+    "dup-id",
+    "dangling-ref",
+    "ref-type",
+    "poly-invalid",
+    "chain-invalid",
+    "path-invalid",
+    "prefab-unknown",
+    "path-degenerate",
+    "non-integer",
+    "out-of-bounds",
+    "hidden-layer",
+    "unused-override",
+    "follower-hits-solid",
+    "solid-overlap",
+    "stale-base",
+    "ref-not-found",
+    "op-invalid",
+    "id-taken"
+];
+type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
+type EntityBase = {
+    group?: string;
+    id: string;
+    layer?: Layer;
+    name?: string;
+    off?: boolean;
+    type: EntityTypeName;
+};
+type EntityDef = EntityBase & {
+    [field: string]: unknown;
+};
+type EntityInput = Omit<EntityBase, "id"> & {
+    [field: string]: unknown;
+    id?: string;
+};
+type EntityTypeName = string;
+type ExpandedScene = {
+    bounds: Bounds;
+    entities: RuntimeEntity[];
+    game?: string;
+    name: string;
+    settings: ResolvedSettings;
+};
+type FieldPath = string;
+type GroupDef = {
+    at: Pt;
+    name?: string;
+};
+type InstanceDef = {
+    at: Pt;
+    group?: string;
+    id: string;
+    layer?: Layer;
+    name?: string;
+    off?: boolean;
+    overrides?: Record<OverridePath, unknown>;
+    prefab: string;
+};
+type InstanceInput = Omit<InstanceDef, "id"> & {
+    id?: string;
+};
+type IssueCode = EngineIssueCode | `${string}/${string}`;
+type IssueCodeInfo = {
+    fixable: boolean;
+    hint: string;
+    severity: Severity;
+    summary: string;
+};
+declare const LAYERS: readonly [
+    "terrain",
+    "gameplay",
+    "decor",
+    "editor"
+];
+type Layer = (typeof LAYERS)[number];
+declare const OP_NAMES: readonly [
+    "add",
+    "addBulk",
+    "update",
+    "move",
+    "place",
+    "remove",
+    "rename",
+    "promote",
+    "demote",
+    "setScene",
+    "setSettings",
+    "reorder",
+    "instantiate",
+    "setGroup",
+    "override",
+    "revertOverride",
+    "applyToPrefab",
+    "unpack",
+    "createPrefab",
+    "definePrefab"
+];
+type OpBatch = {
+    actor?: string;
+    base?: SceneHash;
+    label?: string;
+    ops: SceneOp[];
+};
+type OverridePath = string;
+declare const PREFAB_KIND = "prefab";
+type PathDef = {
+    mode: "loop" | "ping_pong";
+    pauseMs?: number;
+    pts: Pt[];
+    speed: number;
+};
+type Prefab = PrefabBody & {
+    $schema?: string;
+    game?: string;
+    id: string;
+    kind: typeof PREFAB_KIND;
+    v: number;
+};
+type PrefabBody = {
+    bulk?: Record<BulkKey, BulkEntry[]>;
+    contract?: unknown;
+    entities: EntityDef[];
+};
+type PrefabLibrary = ReadonlyMap<string, Prefab>;
+type Pt = [
+    x: number,
+    y: number
+];
+declare const RESERVED_SCENE_KEYS: readonly string[];
+type RectInput = {
+    bottom: number;
+    left: number;
+    right: number;
+    top: number;
+    type: "rect";
+};
+type Ref = string;
+type ResolvedSettings = {
+    [key: string]: unknown;
+    gravity: Pt;
+};
+type RuntimeEntity<F extends object = {
+    [field: string]: unknown;
+}> = {
+    id: string;
+    type: EntityTypeName;
+} & RuntimeFields<F>;
+type RuntimeField<T> = T extends ShapeTuple ? ShapeObj : T;
+type RuntimeFields<F> = {
+    [K in keyof F]: RuntimeField<F[K]>;
+};
+declare const SCENE_FORMAT_VERSION = 2;
+declare const SCENE_HEADER_KEYS: readonly [
+    "$schema",
+    "v",
+    "game",
+    "name",
+    "bounds",
+    "settings",
+    "groups",
+    "instances"
+];
+type SceneChange = {
+    by: Pt;
+    kind: "moved";
+    ref: Ref;
+} | {
+    field: "bounds" | "game" | "name" | "v" | `groups.${string}` | `settings.${string}`;
+    from: unknown;
+    kind: "scene";
+    to: unknown;
+} | {
+    field: FieldPath;
+    from: unknown;
+    kind: "modified";
+    ref: Ref;
+    to: unknown;
+} | {
+    from: BulkEntry;
+    kind: "resized";
+    ref: Ref;
+    to: BulkEntry;
+} | {
+    from: string;
+    kind: "renamed";
+    to: string;
+} | {
+    kind: "added";
+    ref: Ref;
+    type: EntityTypeName;
+} | {
+    kind: "removed";
+    ref: Ref;
+    type: EntityTypeName;
+};
+type SceneDefinition = {
+    $schema?: string;
+    [bulkKey: BulkKey]: unknown;
+    bounds: Bounds;
+    entities?: EntityDef[];
+    game?: string;
+    groups?: Record<string, GroupDef>;
+    instances?: InstanceDef[];
+    name: string;
+    settings?: SceneSettings;
+    v: number;
+};
+type SceneHash = string;
+type SceneIssue = {
+    at?: Pt;
+    code: IssueCode;
+    entityIds: string[];
+    expected?: string;
+    fix?: OpBatch;
+    got?: string;
+    hint?: string;
+    line?: number;
+    message: string;
+    path?: string;
+    severity: Severity;
+};
+type SceneOp = {
+    anchor?: SpotAnchor;
+    at: Pt;
+    op: "place";
+    ref: Ref;
+} | {
+    at?: Pt;
+    id: string;
+    instance?: string;
+    op: "createPrefab";
+    refs: Ref[];
+} | {
+    at?: Pt;
+    id: string;
+    name?: null | string;
+    op: "setGroup";
+    remove?: boolean;
+} | {
+    by: Pt;
+    op: "move";
+    refs: Ref[];
+} | {
+    entity: EntityInput;
+    index?: number;
+    op: "add";
+} | {
+    from: string;
+    op: "rename";
+    to: string;
+} | {
+    id: string;
+    op: "definePrefab";
+    prefab: PrefabBody | null;
+} | {
+    id: string;
+    op: "demote";
+} | {
+    id: string;
+    op: "promote";
+    ref: Ref;
+} | {
+    index: number;
+    op: "reorder";
+    refs: Ref[];
+} | {
+    index?: number;
+    instance: InstanceInput;
+    op: "instantiate";
+} | {
+    index?: number;
+    key: BulkKey;
+    op: "addBulk";
+    points: Pt[];
+} | {
+    index?: number;
+    key: BulkKey;
+    op: "addBulk";
+    shapes: ShapeInput[];
+} | {
+    op: "applyToPrefab";
+    paths?: OverridePath[];
+    ref: Ref;
+} | {
+    op: "override";
+    ref: Ref;
+    set: Record<OverridePath, unknown>;
+} | {
+    op: "remove";
+    refs: Ref[];
+} | {
+    op: "revertOverride";
+    paths?: OverridePath[];
+    ref: Ref;
+} | {
+    op: "setScene";
+    set: {
+        bounds?: Bounds;
+        name?: string;
+    };
+} | {
+    op: "setSettings";
+    set?: Record<FieldPath, unknown>;
+    unset?: FieldPath[];
+} | {
+    op: "unpack";
+    ref: Ref;
+} | {
+    op: "update";
+    ref: Ref;
+    set?: Record<FieldPath, unknown>;
+    unset?: FieldPath[];
+};
+type SceneSettings = {
+    [key: string]: unknown;
+    gravity?: Pt;
+};
+type Severity = "error" | "info" | "warn";
+type ShapeInput = RectInput | ShapeObj | ShapeTuple;
+type ShapeObj = {
+    cx: number;
+    cy: number;
+    halfLen: number;
+    r: number;
+    rotDeg: number;
+    type: "capsule";
+} | {
+    cx: number;
+    cy: number;
+    hh: number;
+    hw: number;
+    rotDeg: number;
+    type: "box";
+} | {
+    cx: number;
+    cy: number;
+    r: number;
+    type: "circle";
+} | {
+    pts: Pt[];
+    type: "chain";
+} | {
+    pts: Pt[];
+    type: "poly";
+};
+type ShapeTuple = [
+    "box",
+    cx: number,
+    cy: number,
+    hw: number,
+    hh: number
+] | [
+    "box",
+    cx: number,
+    cy: number,
+    hw: number,
+    hh: number,
+    rotDeg: number
+] | [
+    "capsule",
+    cx: number,
+    cy: number,
+    halfLen: number,
+    r: number
+] | [
+    "capsule",
+    cx: number,
+    cy: number,
+    halfLen: number,
+    r: number,
+    rotDeg: number
+] | [
+    "chain",
+    ...coords: number[]
+] | [
+    "circle",
+    cx: number,
+    cy: number,
+    r: number
+] | [
+    "poly",
+    ...coords: number[]
+];
+type ShapeType = ShapeObj["type"];
+type SpotAnchor = "bottom" | "center" | "left" | "right" | "top";
+
+## scene/validate.ts
+type ValidateOptions = {
+    lines?: ReadonlyMap<string, number>;
+    prefabs?: PrefabLibrary;
+};
+declare function validateScene(source: SceneDefinition, registry: Registry, opts?: ValidateOptions): SceneIssue[];
+
+## sim-kit/digest.ts
+declare function canonicalize(value: unknown): string;
+declare function digest32(canonical: string): number;
+declare function digestOf(value: unknown): number;
+
+## sim-kit/fixed.ts
+declare const FP_HALF: number;
+declare const FP_MAX_SAFE = 90000000;
+declare const FP_ONE = 1000000;
+declare const FP_SHIFT = 6;
+declare function fp(whole: number): number;
+declare function fpApply(value: number, multiplier: number): number;
+declare function fpClamp(value: number, lo: number, hi: number): number;
+declare function fpDiv(a: number, b: number): number;
+declare function fpLerp(a: number, b: number, t: number): number;
+declare function fpMul(a: number, b: number): number;
+declare function fpRatio(numerator: number, denominator: number): number;
+declare function fpRound(value: number): number;
+declare function fpToString(value: number): string;
+
+## sim-kit/rng.ts
+declare class Rng {
+    private a;
+    private b;
+    private c;
+    private d;
+    private constructor();
+    static from(seed: number | string): Rng;
+    static restore(state: RngState): Rng;
+    snapshot(): RngState;
+    clone(): Rng;
+    fork(label: string): Rng;
+    nextU32(): number;
+    below(bound: number): number;
+    range(lo: number, hi: number): number;
+    chance(probability: number, one: number): boolean;
+    weighted(weights: readonly number[]): number;
+    pick<T>(items: readonly T[]): T;
+}
+type RngState = readonly [
+    number,
+    number,
+    number,
+    number
+];
+declare function seedFromString(seed: string): number;
+
+## store.ts
+declare function selectCamera(state: GameStoreState): CameraState;
+declare function selectDebugMode(state: GameStoreState): string;
+declare function selectFPS(state: GameStoreState): number;
+declare function selectGame<G = unknown>(state: GameStoreState): G;
+declare function selectMode(state: GameStoreState): GameMode;
+declare function selectPhase(state: GameStoreState): GamePhase;
+declare function selectSession(state: GameStoreState): PlaySession | null;
+declare function selectSim(state: GameStoreState): SimState;
+declare function selectTick(state: GameStoreState): number;
+
+## systems/attachments.ts
+type Attachment = {
+    collider(): Collider | null;
+    detach(): void;
+    host(): AttachmentHost | null;
+};
+type AttachmentHost = {
+    body: RigidBody;
+    id: string;
+    origin: Vec2;
+    type: string;
+};
+type AttachmentHub = {
+    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider): Attachment;
+    attachedTo(hostId: string): string[];
+    clear(): void;
+    host(hostId: string, type: string, body: RigidBody, origin: Vec2): void;
+    unhost(hostId: string): void;
+};
+
+## systems/bodies.ts
+type PropEntity = RuntimeEntity<{
+    density: number;
+    friction?: number;
+    material?: string;
+    restitution: number;
+    shape: ShapeObj;
+}>;
+type SensorEntity = RuntimeEntity<{
+    attach?: string;
+    shape: ShapeObj;
+    tags?: string[];
+}>;
+type SensorSystem = SceneSystem<SensorEntity> & {
+    afterStep(dtMs: number): void;
+};
+type SolidEntity = RuntimeEntity<{
+    attach?: string;
+    material?: string;
+    oneWay?: boolean;
+    shape: ShapeObj;
+}>;
+type SolidOptions = SurfaceDefaults & VisualOptions & {
+    group?: string;
+    oneWay?: boolean;
+};
+type SolidSystem = SceneSystem<SolidEntity> & {
+    gateOneWay(actorBottomY: number, dropping: boolean): void;
+    isHidden(id: string): boolean;
+    position(id: string): Vec2 | null;
+};
+type SurfaceDefaults = {
+    friction?: number;
+    restitution?: number;
+};
+type VisualOptions = {
+    draw?: boolean;
+    layer?: ViewLayer;
+};
+declare function bodyLocalShape(shape: ShapeObj): ShapeObj;
+declare function createPropSystem(ctx: EngineContext, type: RegisteredType): SceneSystem<PropEntity>;
+declare function createSensorSystem(ctx: EngineContext, type: RegisteredType): SensorSystem;
+declare function createSolidSystem(ctx: EngineContext, type: RegisteredType, opts?: SolidOptions): SolidSystem;
+declare function drawEntity(ctx: Pick<EngineContext, "registry" | "view">, type: RegisteredType, e: {
+    id: string;
+    material?: string;
+    shape: ShapeObj;
+}, layer: ViewLayer, shape?: ShapeObj): void;
+
+## systems/marker.ts
+type MarkerEntity = RuntimeEntity<{
+    at: Pt;
+    tags?: string[];
+}>;
+type MarkerSystem = SceneSystem<MarkerEntity> & {
+    get(id: string): MarkerEntity | undefined;
+    list(): MarkerEntity[];
+};
+declare function createMarkerSystem(_ctx: EngineContext, _type: RegisteredType): MarkerSystem;
+
+## systems/path-follower.ts
+type FollowerEntity = RuntimeEntity<{
+    material?: string;
+    path: PathDef;
+    shape: ShapeObj;
+}>;
+type FollowerOptions = SurfaceDefaults & VisualOptions;
+type FollowerSystem = SceneSystem<FollowerEntity> & {
+    frameDelta(id: string): Vec2 | null;
+    position(id: string): Vec2 | null;
+};
+type WaypointMode = "loop" | "ping_pong";
+type WaypointState = {
+    currentIndex: number;
+    direction: -1 | 1;
+    nextIndex: number;
+    pauseRemainingMs: number;
+    t: number;
+};
+declare function advanceWaypoint(state: WaypointState, waypoints: Vec2[], speed: number, dtMs: number, pauseMs: number, mode: WaypointMode): WaypointState;
+declare function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null;
+declare function createFollowerSystem(ctx: EngineContext, type: RegisteredType, opts?: FollowerOptions): FollowerSystem;
+declare function initialWaypointState(): WaypointState;
+declare function interpolatePosition(a: Vec2, b: Vec2, t: number): Vec2;
+
+## tool-router.ts
+declare const TOOL_PRIORITY: {
+    readonly debug: 300;
+    readonly editor: 200;
+    readonly game: 100;
+    readonly play: 0;
+};
+type ToolConsumer = {
+    accepts(e: ToolEvent): boolean;
+    editable?: boolean;
+    handle(e: ToolEvent): void;
+    id: string;
+    priority: number;
+};
+type ToolEvent = {
+    button: number;
+    deltaY: number;
+    kind: "pointer";
+    native: MouseEvent | PointerEvent | WheelEvent;
+    screen: Vec2;
+    type: "down" | "move" | "up" | "wheel";
+} | {
+    editable?: boolean;
+    key: string;
+    kind: "key";
+    native: KeyboardEvent;
+    outsideTarget?: boolean;
+    type: "down" | "up";
+};
+type ToolRouter = {
+    attach(target: HTMLElement | Window, keyTarget?: HTMLElement | Window): void;
+    destroy(): void;
+    detach(): void;
+    dispatch(e: ToolEvent): null | string;
+    register(c: ToolConsumer): () => void;
+};
+
+## types.ts
+type CameraConfig = {
+    bounds: {
+        max: Vec2;
+        min: Vec2;
+    };
+    lerpSpeed: number;
+};
+type CameraMode = "follow" | "free";
+type CameraState = {
+    bounds: {
+        max: Vec2;
+        min: Vec2;
+    };
+    mode: CameraMode;
+    position: Vec2;
+    zoom: number;
+};
+declare const DISPLAY_RESOLUTIONS: DisplayResolution[];
+type DisplayResolution = {
+    height: number;
+    label: string;
+    width: number;
+};
+type GameConfig = {
+    backgroundColor: number;
+    bindings?: readonly InputBinding[];
+    camera: CameraConfig;
+    debug?: DebugOverlayFactory;
+    debugLayers?: readonly DebugLayerFactory[];
+    dev: boolean;
+    displayHeight: number;
+    displayWidth: number;
+    game: GameDefinition;
+    inputTarget?: HTMLElement;
+    keyTarget?: HTMLElement | Window;
+    maxDeltaTime: number;
+    prefabs?: PrefabLibrary;
+    rapier: () => Promise<RapierModule>;
+    registry?: Registry;
+    scene?: ExpandedScene | SceneDefinition;
+    targetFPS: number;
+};
+type GameEventMap = {
+    "game:destroy": undefined;
+    "game:pause": undefined;
+    "game:start": undefined;
+    "game:tick": {
+        tick: number;
+    };
+    "play:outcome": PlayOutcome;
+    "play:recorded": RunRecording;
+    "scene:step": StepResult;
+};
+type GameInstance = {
+    cancel: () => boolean;
+    command: (name: string) => boolean;
+    destroy: () => void;
+    frame: (rect: Aabb, marginPx?: number) => void;
+    getMode: () => GameMode;
+    getStore: () => Store<GameStoreState>;
+    loadScene: (scene: ExpandedScene | SceneDefinition) => LoadReport;
+    off: <K extends keyof GameEventMap>(event: K, handler: (payload: GameEventMap[K]) => void) => void;
+    on: <K extends keyof GameEventMap>(event: K, handler: (payload: GameEventMap[K]) => void) => void;
+    panBy: (screenDelta: Vec2) => void;
+    pause: () => void;
+    play: (doc: SceneDefinition, opts?: PlayOptions) => PlayReport;
+    pointerWorld: () => Vec2 | null;
+    recording: () => RunRecording | null;
+    registry: Registry;
+    replay: (doc: SceneDefinition, recording: RunRecording) => PlayReport;
+    resize: (width: number, height: number) => void;
+    resume: () => void;
+    router: ToolRouter;
+    runtime: () => SceneRuntime | null;
+    screenToWorld: (screen: Vec2) => Vec2;
+    setMode: (mode: GameMode) => void;
+    setPrefabs: (prefabs: PrefabLibrary) => void;
+    setTimeScale: (scale: number) => void;
+    start: () => void;
+    step: (n?: number) => void;
+    stop: () => void;
+    unloadScene: () => void;
+    zoomAt: (screen: Vec2, factor: number) => void;
+};
+type GameMode = "edit" | "play";
+type GamePhase = "destroyed" | "idle" | "loading" | "paused" | "running";
+type GameStoreState = {
+    camera: CameraState;
+    debugMode: string;
+    fps: number;
+    game: unknown;
+    mode: GameMode;
+    phase: GamePhase;
+    session: PlaySession | null;
+    sim: SimState;
+    tick: number;
+};
+type InputAction = {
+    action: string;
+    pressed: boolean;
+    tick: number;
+    timestamp: number;
+};
+type InputBinding = {
+    action: string;
+    keys: string[];
+};
+type PlayOutcome = GameOutcome & {
+    tick: number;
+};
+type PlayReport = {
+    error?: string;
+    issues: SceneIssue[];
+    ok: false;
+    reason?: "spawn-blocked";
+} | {
+    issues: SceneIssue[];
+    ok: true;
+};
+type PlaySession = {
+    outcome: PlayOutcome | null;
+    startTick: number;
+};
+type RapierModule = typeof _$_dimforge_rapier2d0;
+type SimState = {
+    paused: boolean;
+    timeScale: number;
+};
+declare const VIRTUAL_HEIGHT = 1080;
+type Vec2 = {
+    x: number;
+    y: number;
+};
+
+## version.ts
+declare const ENGINE_VERSION = "0.5.0";
+
+## vite/collab-server.ts
+type ListeningSceneCollab = SceneCollab & {
+    close(): Promise<void>;
+    httpUrl: string;
+    url: string;
+};
+type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void;
+declare const SCENE_COLLAB_PATH = "/__scene-collab";
+type SceneCollab = {
+    adapter: SceneFileAdapter;
+    destroy(): Promise<void>;
+    handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean;
+    idle(): Promise<void>;
+    server: Server;
+};
+type SceneCollabOptions = {
+    debounceMs?: number;
+    hocuspocus?: Pick<typeof _$_hocuspocus_server0, "Server">;
+    homes: readonly SceneHome[];
+    path?: string;
+    warn?: (message: string) => void;
+    watchDelayMs?: number;
+};
+type SceneCollabPlugin = {
+    apply: "serve";
+    configureServer(server: {
+        httpServer?: null | {
+            on(event: "close", listener: () => void): unknown;
+            on(event: "upgrade", listener: UpgradeListener): unknown;
+        };
+        middlewares: {
+            use(fn: Middleware): unknown;
+        };
+    }): void;
+    name: string;
+};
+type UpgradeListener = (req: IncomingMessage, socket: Duplex, head: Buffer) => void;
+declare function createSceneCollab(options: SceneCollabOptions): Promise<SceneCollab>;
+declare function listenSceneCollab(options: SceneCollabOptions & {
+    host?: string;
+    port?: number;
+}): Promise<ListeningSceneCollab>;
+declare function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugin;
+
+## vite/file-adapter.ts
+declare const DISK_ORIGIN: SceneOrigin;
+type DiskSync = {
+    issues?: SceneIssue[];
+    kind: "refused";
+    reason: string;
+} | {
+    kind: "applied";
+    ops: number;
+} | {
+    kind: "unchanged";
+};
+declare const SCENE_DOC_PREFIX = "scene:";
+type SceneFileAdapter = {
+    forget(name: string): void;
+    homeOf(name: string): SceneHome | undefined;
+    list(): Promise<string[]>;
+    load(name: string, doc: Y.Doc): Promise<void>;
+    store(name: string, doc: Y.Doc): Promise<boolean>;
+    sync(name: string, doc: Y.Doc): Promise<DiskSync>;
+};
+type SceneHome = {
+    dir: string;
+    registry: Registry;
+};
+declare function createSceneFileAdapter(homes: readonly SceneHome[]): SceneFileAdapter;
+declare const sceneDocName: (name: string) => string;
+declare function sceneOfDocName(docName: string): null | string;
+
+## vite/handler.ts
+declare const SCENE_ROUTE = "/__scene";
+
+## vite/prefab-files.ts
+type PrefabFiles = {
+    prefabs: PrefabLibrary;
+    problems: {
+        id: string;
+        issues: SceneIssue[];
+    }[];
+    texts: Map<string, string>;
+};
+declare const prefabPath: (scenesDir: string, id: string) => string;
+declare const prefabsDirOf: (scenesDir: string) => string;
+declare function readPrefabFiles(scenesDir: string, registry: Registry): Promise<PrefabFiles>;
+declare function writePrefabFiles(scenesDir: string, texts: ReadonlyMap<string, string>, prefabs: PrefabLibrary): Promise<Map<string, string>>;
+
+## vite/scene-paths.ts
+declare const SCENE_NAME_PATTERN: RegExp;
+declare class ScenePathError extends Error {
+    constructor(message: string);
+}
+declare function resolveScenePath(dir: string, name: string): string;
+declare function sceneNameOf(fileName: string): null | string;

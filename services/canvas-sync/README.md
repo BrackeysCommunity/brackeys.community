@@ -15,6 +15,12 @@ browser ──getCanvasSyncToken──▶ web app (access check, mints a 60s tok
 
 ## What it does
 
+The service hosts document kinds by name prefix (`src/kinds.ts`): `canvas:<id>`
+and `scene:<id>`, each with its own access check, load, store, migration and
+limits. A token names its document and its kind; any other prefix is refused at
+`onAuthenticate` with `4403`. Everything below is the canvas kind; scenes are in
+[Scenes](#scenes).
+
 - **Auth.** `onAuthenticate` verifies the token from `src/lib/canvas/token.ts`
   (HMAC-SHA256, `CANVAS_SYNC_SECRET`, shared with the web app). The token names one
   document (`canvas:<id>`) and an access level; a `read` token connects read-only,
@@ -71,6 +77,45 @@ browser ──getCanvasSyncToken──▶ web app (access check, mints a 60s tok
 Close codes (in `src/lib/canvas/sync-channels.ts`; Hocuspocus carries them at the
 front of the close reason): `4401` bad token (retry with a fresh one), `4403`
 revoked, `4413` too large (stop), `4429` rate or caps (back off).
+
+## Scenes
+
+Hosted scene documents for `@jams/engine` (`src/scene/`), co-edited the way
+canvases are. Rows live in `canvas.scene_docs`, keyed by the scene id
+(`<game>.<name>`, each part an engine id).
+
+- **Tokens.** The canvas token with `k: "scene"` and `f`, the scene format version
+  of the engine the client runs (`SCENE_FORMAT_VERSION`), minted by
+  `getSceneSyncToken` for staff only. A canvas token can't open a scene, nor a
+  scene token a canvas (`4401`). The scene must exist (`4403` otherwise).
+- **Seeding.** Only the server fills a new doc, in `onLoadDocument`: from the
+  row's `seed` (the JSON the web app stored at `createHostedScene`, migrated),
+  else an empty scene of the id's name. The seed is written deterministically
+  (the writing client id and every key derive from the scene and its content),
+  so two instances seeding one scene at once write the same items and the
+  merged doc holds one copy. The seeded state is stored at once.
+- **Versions.** A doc older than this instance's format is migrated in place at
+  load (keys kept: named entities by id, bulk entries by position) and stored.
+  A client whose `f` differs from the doc's `meta.schemaVersion` connects
+  read-only and gets a stateless `{"type":"scene-read-only","reason":…}`:
+  `engine-outdated` (reload to update) or `server-outdated` (this instance
+  can't migrate the doc to the client's version yet). An instance older than a
+  stored doc serves it unchanged and leaves its snapshot alone.
+- **Store.** Same debounce as canvases. Every store merges the live doc into
+  what's stored through a scratch `Y.Doc` under the row lock, then folds back
+  into the live doc whatever was stored that it lacked. The canonical JSON
+  (`formatScene`) and its `sceneHash` are rebuilt on a worker thread, at most
+  every 30s per scene and on the store that runs as the last person leaves.
+- **Caps** (`src/lib/scene/limits.ts`): 2 MB of state, 10,000 entities, 512 KB
+  per message after the first sync. Over either cap: `4413`, as for canvases.
+- **Revoke.** `{"sceneId":"<id>","userId"?:"<user>"}` on the same revoke
+  channel; tombstones are kept under `revoked:scene:<id>:<user>`. A `{userId}`
+  revoke covers scenes too. An instance from before scenes reads a
+  `{sceneId,userId}` revoke as `{userId}` and closes that person's sockets
+  everywhere; they reconnect.
+- **Not in 0.1.** Agent clients (`vp run scene apply --live`, MCP) get no hosted
+  tokens and stay on the dev server; getting hosted edits back into git (an
+  export or `scene pull` from the snapshot) comes later.
 
 ## Environment
 
@@ -131,10 +176,11 @@ if an instance may start within the next minute.
 ## Tests
 
 ```sh
-bun test                       # unit tests; integration suites skip loudly without a DB
+bun test                       # unit tests and the scene suites; Postgres suites skip loudly without a DB
 test/scratch-pg.sh start <dir> # throwaway Postgres 16 with the app's migrations; prints the URL
 CANVAS_SYNC_TEST_DATABASE_URL=… bun test
 CANVAS_SYNC_TEST_REDIS_URL=…   # enables the Redis suites when a Redis is available
+CANVAS_SYNC_REQUIRE_INTEGRATION=1 # what CI sets: a suite that would skip fails instead
 bun run test/load.ts           # manual load check; results in test/LOAD.md
 bunx tsc --noEmit
 ```

@@ -2419,6 +2419,39 @@ export const canvasDocs = canvasSchema.table("canvas_docs", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/**
+ * A hosted scene document, co-edited live through `canvas-sync` (`scene:<id>`).
+ * The id is `<game>.<name>`. The web app creates the row with the scene JSON
+ * to start from in `seed`; the service seeds the doc from it on first load
+ * and merges every store into `state`, deriving the canonical `snapshot` and
+ * its `scene_hash` as it goes.
+ */
+export const sceneDocs = canvasSchema.table(
+  "scene_docs",
+  {
+    sceneId: text("scene_id").primaryKey(),
+    state: bytea("state"),
+    seed: text("seed"),
+    snapshot: text("snapshot"),
+    sceneHash: text("scene_hash"),
+    byteSize: integer("byte_size").notNull().default(0),
+    schemaVersion: integer("schema_version"),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    lastEditedById: text("last_edited_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    lastEditedAt: timestamp("last_edited_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "scene_docs_id",
+      sql`${t.sceneId} ~ '^[a-z0-9][a-z0-9-]{0,47}\\.[a-z0-9][a-z0-9-]{0,47}$'`,
+    ),
+  ],
+);
+
 /** People invited to a personal canvas. Team canvases use the roster. */
 export const canvasMembers = canvasSchema.table(
   "canvas_members",

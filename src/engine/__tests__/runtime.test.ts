@@ -1,0 +1,403 @@
+import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { z } from "zod";
+
+import { createRegistry, defineGame } from "../game/define";
+import { shapeField } from "../game/fields";
+import type { GameDefinition } from "../game/types";
+import { createSceneRuntime } from "../runtime/runtime";
+import { SENSOR_ENTER, SENSOR_EXIT, type RuntimeStats } from "../runtime/types";
+import type { ExpandedScene, RuntimeEntity, ShapeObj } from "../scene/types";
+import { createSolidSystem, type SolidSystem } from "../systems/bodies";
+import type { MarkerSystem } from "../systems/marker";
+import type { FollowerSystem } from "../systems/path-follower";
+import type { InputAction, RapierModule } from "../types";
+import { engineYard } from "./fixtures/engine-yard.expanded";
+import { testGame, type TestGameSnapshot } from "./fixtures/test-game";
+
+let rapier: RapierModule;
+
+beforeAll(async () => {
+  rapier = await import("@dimforge/rapier2d");
+});
+
+const DT = 1000 / 60;
+
+function runtime(game: GameDefinition | null = testGame) {
+  return createSceneRuntime({ rapier, view: null, game });
+}
+
+const box = (cx: number, cy: number, hw: number, hh: number): ShapeObj => ({
+  type: "box",
+  cx,
+  cy,
+  hw,
+  hh,
+  rotDeg: 0,
+});
+
+function scene(entities: RuntimeEntity[], gravity: [number, number] = [0, 1200]): ExpandedScene {
+  return { name: "t", bounds: [-1000, -1000, 1000, 1000], settings: { gravity }, entities };
+}
+
+const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 20, 500, 20) };
+
+const EMPTY: RuntimeStats = { bodies: 0, colliders: 0, tags: 0, entities: 0, perType: {} };
+
+const press = (action: string): InputAction => ({ action, pressed: true, tick: 0, timestamp: 0 });
+
+function steps(rt: ReturnType<typeof runtime>, n: number, first: InputAction[] = []) {
+  return Array.from({ length: n }, (_, i) => rt.step(DT, i === 0 ? first : []));
+}
+
+function handleOf(rt: ReturnType<typeof runtime>, id: string): number {
+  const handle = rt.ctx.tags.handlesOf(id)[0];
+  if (handle === undefined) throw new Error(`no collider for ${id}`);
+  return handle;
+}
+
+function bodyOf(rt: ReturnType<typeof runtime>, id: string) {
+  return rt.ctx.physics.world.getCollider(handleOf(rt, id))!.parent()!;
+}
+
+const ENGINE_YARD_COUNTS = { solid: 4, sensor: 1, marker: 1, prop: 2, follower: 1 };
+
+describe("SceneRuntime load and unload", () => {
+  it("loads engine-yard with one system per primitive", () => {
+    const rt = runtime();
+    expect(rt.load(engineYard())).toEqual({ ok: true, counts: ENGINE_YARD_COUNTS, ms: 0 });
+    expect(rt.stats()).toEqual({
+      bodies: 8,
+      colliders: 8,
+      tags: 8,
+      entities: 9,
+      perType: ENGINE_YARD_COUNTS,
+    });
+    expect(rt.get("lift")?.type).toBe("follower");
+    expect(
+      rt.ctx
+        .system<MarkerSystem>("marker")
+        ?.list()
+        .map((m) => m.id),
+    ).toEqual(["start"]);
+    expect(rt.scene()?.name).toBe("engine-yard");
+    rt.destroy();
+  });
+
+  it("unload empties every table, and the scene loads again", () => {
+    const rt = runtime();
+    rt.load(engineYard());
+    const loaded = rt.stats();
+    steps(rt, 30, [press("right")]);
+
+    rt.unload();
+    expect(rt.stats()).toEqual(EMPTY);
+    expect(rt.ctx.physics.world.bodies.len()).toBe(0);
+    expect(rt.get("lift")).toBeUndefined();
+    expect(rt.scene()).toBeNull();
+    expect(rt.snapshot()).toBeNull();
+    expect(rt.step(DT, []).events).toEqual([]);
+
+    expect(rt.load(engineYard()).ok).toBe(true);
+    expect(rt.stats()).toEqual(loaded);
+    expect(rt.step(DT, []).tick).toBe(0);
+    rt.destroy();
+  });
+
+  it("rejects duplicate ids and unknown types before touching the current scene", () => {
+    const rt = runtime();
+    rt.load(engineYard());
+    const before = rt.stats();
+    expect(rt.load(scene([floor, { ...floor }]))).toEqual({
+      ok: false,
+      error: 'duplicate entity id "floor"',
+      entityId: "floor",
+    });
+    expect(rt.load(scene([{ id: "c", type: "cloud", shape: box(0, 0, 1, 1) }]))).toEqual({
+      ok: false,
+      error: 'unknown type "cloud"',
+      entityId: "c",
+    });
+    expect(rt.stats()).toEqual(before);
+    rt.destroy();
+  });
+
+  it("reports the entity that failed to spawn and leaves the runtime empty", () => {
+    const rt = runtime();
+    const report = rt.load(
+      scene([
+        floor,
+        {
+          id: "stuck",
+          type: "follower",
+          shape: box(0, 0, 10, 5),
+          path: { pts: [[0, 0]], mode: "loop", speed: 10 },
+        },
+      ]),
+    );
+    expect(report).toMatchObject({ ok: false, entityId: "stuck" });
+    expect(rt.stats()).toEqual(EMPTY);
+    rt.destroy();
+  });
+
+  it("two runtimes alive at once share no state", () => {
+    const a = runtime();
+    const b = runtime(null);
+    a.load(engineYard());
+    b.load(scene([floor]));
+    expect(a.stats().tags).toBe(8);
+    expect(b.stats().tags).toBe(1);
+
+    a.unload();
+    expect(a.stats()).toEqual(EMPTY);
+    expect(b.stats()).toMatchObject({ bodies: 1, tags: 1, entities: 1 });
+    expect(b.step(DT, []).game).toBeNull();
+    a.destroy();
+    b.destroy();
+  });
+
+  it("re-sorts a hand-built scene by spawn group, keeping file order inside one", () => {
+    const rt = runtime();
+    const yard = engineYard();
+    yard.entities.reverse();
+    expect(rt.load(yard).ok).toBe(true);
+    const handle = (id: string) => handleOf(rt, id);
+    expect(handle("~solid:2")).toBeLessThan(handle("~solid:0"));
+    expect(handle("~solid:0")).toBeLessThan(handle("zone"));
+    expect(handle("zone")).toBeLessThan(handle("lift"));
+    rt.destroy();
+  });
+
+  it("refuses a registry built from another game", () => {
+    const registry = createRegistry();
+    expect(() => createSceneRuntime({ rapier, view: null, registry, game: testGame })).toThrow(
+      /not built from game "test-game"/,
+    );
+  });
+});
+
+describe("primitive systems", () => {
+  it("tags colliders with type, material, tags and the one-way flag, never the material's impulse", () => {
+    const game = defineGame({
+      id: "mat",
+      types: [],
+      actions: [],
+      materials: {
+        ice: { friction: 0.02, restitution: 0, impulse: { x: 0, y: -5 }, description: "" },
+      },
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const rt = runtime(game);
+    rt.load(
+      scene([
+        { id: "~solid:ice:0", type: "solid", shape: box(0, 0, 10, 10), material: "ice" },
+        ...engineYard().entities.filter((e) => e.id === "ledge" || e.id === "zone"),
+      ]),
+    );
+    const tagOf = (id: string) => rt.ctx.tags.get(handleOf(rt, id));
+    expect(tagOf("~solid:ice:0")).toEqual({
+      entityId: "~solid:ice:0",
+      type: "solid",
+      material: "ice",
+    });
+    expect(tagOf("ledge")).toEqual({ entityId: "ledge", type: "solid", oneWay: true });
+    expect(tagOf("zone")).toEqual({ entityId: "zone", type: "sensor", tags: ["goal"] });
+    const ice = rt.ctx.physics.world.getCollider(handleOf(rt, "~solid:ice:0"))!;
+    expect(ice.friction()).toBeCloseTo(0.02, 6);
+    rt.destroy();
+  });
+
+  it("a game type on a base primitive gets its own system instance", () => {
+    const game = defineGame({
+      id: "based",
+      types: [
+        {
+          type: "goal",
+          description: "A goal.",
+          base: "sensor",
+          fields: { shape: shapeField("Trigger.") },
+        },
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const rt = runtime(game);
+    rt.load(scene([{ id: "g", type: "goal", shape: box(0, 0, 5, 5) }]));
+    expect(rt.ctx.system("goal")).toBeDefined();
+    expect(rt.ctx.system("goal")).not.toBe(rt.ctx.system("sensor"));
+    expect(rt.stats().perType).toEqual({ goal: 1 });
+    expect(rt.ctx.tags.get(handleOf(rt, "g"))?.type).toBe("goal");
+    rt.destroy();
+  });
+
+  it("gates one-way solids for an actor and applies the type's surface defaults", () => {
+    const game = defineGame({
+      id: "clouds",
+      types: [
+        {
+          type: "cloud",
+          description: "A one-way platform.",
+          fields: { shape: shapeField("Box.") },
+          system: (ctx, t) =>
+            createSolidSystem(ctx, t, { friction: 0.7, restitution: 0, oneWay: true }),
+        },
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const rt = runtime(game);
+    rt.load(scene([{ id: "c", type: "cloud", shape: box(0, 100, 50, 6) }, floor]));
+    const clouds = rt.ctx.system<SolidSystem>("cloud")!;
+    const solids = rt.ctx.system<SolidSystem>("solid")!;
+    expect(rt.ctx.tags.get(handleOf(rt, "c"))).toMatchObject({ oneWay: true });
+    expect(bodyOf(rt, "c").collider(0).friction()).toBeCloseTo(0.7, 6);
+
+    clouds.gateOneWay(98, false);
+    expect(clouds.isHidden("c")).toBe(false);
+    clouds.gateOneWay(99, false);
+    expect(clouds.isHidden("c")).toBe(true);
+    expect(clouds.position("c")).toEqual({ x: 0, y: -99999 });
+    clouds.gateOneWay(50, true);
+    expect(clouds.isHidden("c")).toBe(true);
+    clouds.gateOneWay(50, false);
+    expect(clouds.position("c")).toEqual({ x: 0, y: 100 });
+
+    solids.gateOneWay(1000, false);
+    expect(solids.isHidden("floor")).toBe(false);
+    rt.destroy();
+  });
+
+  it("world gravity comes from the scene's settings", () => {
+    const rt = runtime();
+    rt.load(
+      scene(
+        [{ id: "avatar", type: "prop", shape: box(0, 0, 5, 5), density: 1, restitution: 0 }],
+        [0, 0],
+      ),
+    );
+    expect(rt.ctx.gravity).toEqual({ x: 0, y: 0 });
+    expect(rt.ctx.settings.gravity).toEqual([0, 0]);
+    steps(rt, 30);
+    expect(bodyOf(rt, "avatar").translation()).toEqual({ x: 0, y: 0 });
+
+    rt.load(
+      scene([{ id: "avatar", type: "prop", shape: box(0, 0, 5, 5), density: 1, restitution: 0 }]),
+    );
+    expect(rt.ctx.physics.world.gravity).toMatchObject({ x: 0, y: 1200 });
+    steps(rt, 30);
+    expect(bodyOf(rt, "avatar").translation().y).toBeGreaterThan(0);
+    rt.destroy();
+  });
+
+  it("leaves props at their authored pose after load", () => {
+    const rt = runtime();
+    rt.load(engineYard());
+    expect(bodyOf(rt, "crate").translation()).toEqual({ x: 1200, y: 940 });
+    rt.destroy();
+  });
+
+  it("moves followers along their path and reports the frame delta", () => {
+    const rt = runtime();
+    rt.load(engineYard());
+    const lift = rt.ctx.system<FollowerSystem>("follower")!;
+    steps(rt, 60);
+    expect(bodyOf(rt, "lift").translation().y).toBeCloseTo(820, 3);
+    expect(lift.position("lift")?.x).toBe(1700);
+    expect(lift.frameDelta("lift")?.y).toBeCloseTo(-80 / 60, 6);
+    expect(lift.frameDelta("nope")).toBeNull();
+    rt.destroy();
+  });
+});
+
+describe("SceneRuntime step", () => {
+  it("emits sensor:enter and sensor:exit naming the sensor and what crossed it", () => {
+    const rt = runtime();
+    rt.load(engineYard());
+    const events = steps(rt, 240, [press("right")]).flatMap((r) => r.events);
+    const crossings = events.filter((e) => e.entityId === "zone" && e.type.startsWith("sensor:"));
+    expect(crossings.map((e) => [e.type, e.other])).toEqual([
+      [SENSOR_ENTER, "avatar"],
+      [SENSOR_EXIT, "avatar"],
+    ]);
+    expect(crossings[0]!.at.x).toBeGreaterThan(840);
+    expect(crossings[0]!.tick).toBeLessThan(crossings[1]!.tick);
+    rt.destroy();
+  });
+
+  it("raises no sensor events for groups the registry doesn't link", () => {
+    const rt = runtime(null);
+    rt.load(engineYard());
+    const avatar = bodyOf(rt, "avatar");
+    avatar.setTranslation({ x: 900, y: 940 }, true);
+    expect(steps(rt, 10).flatMap((r) => r.events)).toEqual([]);
+    rt.destroy();
+  });
+
+  it("returns the game's snapshot each tick", () => {
+    const rt = runtime();
+    rt.load(engineYard());
+    const results = steps(rt, 30, [press("right")]);
+    const last = results.at(-1)!.game as TestGameSnapshot;
+    expect(last?.position.x).toBeGreaterThan(300);
+    expect(rt.snapshot()).toEqual(last);
+    expect(results.map((r) => r.tick)).toEqual(Array.from({ length: 30 }, (_, i) => i));
+    rt.destroy();
+  });
+
+  it("runs hooks in order and lists engine events before the game's", () => {
+    const log: string[] = [];
+    const game = defineGame({
+      id: "order",
+      types: [
+        {
+          type: "probe",
+          description: "Logs its hooks.",
+          fields: { label: z.string().optional().describe("Unused.") },
+          system: (ctx) => ({
+            spawn: () => log.push("spawn"),
+            despawn: () => {},
+            clear: () => log.push(`clear tags=${ctx.tags.size}`),
+            size: () => 0,
+            beforeStep: () => log.push("system.beforeStep"),
+            afterStep: () => {
+              log.push("system.afterStep");
+              ctx.emit({ type: "from-system", at: { x: 0, y: 0 } });
+            },
+          }),
+        },
+      ],
+      actions: [],
+      createRuntime: (ctx) => ({
+        onLoad: () => log.push(`onLoad tags=${ctx.tags.size}`),
+        onUnload: () => log.push(`onUnload tags=${ctx.tags.size}`),
+        beforeStep: () => {
+          log.push(`game.beforeStep tick=${ctx.tick}`);
+          ctx.emit({ type: "from-game", at: { x: 0, y: 0 } });
+        },
+        afterStep: (_dt, events) =>
+          log.push(`game.afterStep ${events.map((e) => e.type).join(",")}`),
+        snapshot: () => log.length,
+      }),
+    });
+    const rt = runtime(game);
+    rt.load(scene([floor, { id: "p", type: "probe" }]));
+    const result = rt.step(DT, []);
+    rt.unload();
+
+    expect(log).toEqual([
+      "clear tags=0",
+      "spawn",
+      "onLoad tags=1",
+      "system.beforeStep",
+      "game.beforeStep tick=0",
+      "system.afterStep",
+      "game.afterStep from-system,from-game",
+      "onUnload tags=1",
+      "clear tags=1",
+    ]);
+    expect(result.events).toEqual([
+      { type: "from-system", at: { x: 0, y: 0 }, tick: 0 },
+      { type: "from-game", at: { x: 0, y: 0 }, tick: 0 },
+    ]);
+    rt.destroy();
+  });
+});

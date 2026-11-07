@@ -1,205 +1,147 @@
-import type { GameInstance } from "@jams/engine";
-import type { EditorSession } from "@jams/engine/editor";
-import {
-  expandScene,
-  sceneHash,
-  validateScene,
-  type SceneDefinition,
-  type SceneHash,
-} from "@jams/engine/scene";
-import { createElement, useEffect, useState, type ComponentType, type ReactNode } from "react";
+import type { GameInstance, RapierModule, RunRecording } from "@jams/engine";
+import { useStore } from "@tanstack/react-store";
+import { Store } from "@tanstack/store";
+import { useEffect, useMemo, useState } from "react";
 
-import type { EditorShellProps } from "@/components/game/editor/EditorShell";
-import { openConfirmModal } from "@/components/ui/confirm";
-import { toast } from "@/lib/toast";
+import type { EditorChrome } from "@/components/game/editor/EditorShell";
+import type { LoadedRun } from "@/components/game/editor/loaded-run";
+import { activeUserStore } from "@/lib/active-user-store";
 
-type LoadedEditor = {
-  session: EditorSession;
-  Shell: ComponentType<EditorShellProps>;
-  sync: DiskSync;
+import type { EditorIdentity, LiveEditor, OpenPrefab } from "./live-scene-editor";
+import { useSceneDoc, type ConnectSceneDoc, type SceneDocStatus } from "./use-scene-doc";
+
+type EditorModules = {
+  openLiveEditor: typeof import("./live-scene-editor").openLiveEditor;
+  editorChrome: typeof import("@/components/game/editor/EditorShell").editorChrome;
+  connect: ConnectSceneDoc;
+  identity: EditorIdentity;
+  rapier: RapierModule | null;
 };
 
-export type SceneSource = {
-  /** The scene as last read from disk. */
-  get(): SceneDefinition;
-  /** Notifies when the file changes on disk; returns an unsubscribe. */
-  subscribe(listener: (doc: SceneDefinition) => void): () => void;
-};
+const NO_PREFAB = new Store<OpenPrefab | null>(null);
+
+/** `null` in production builds, so the editor's chunks (and the provider) are never emitted there. */
+const loadEditor = import.meta.env.DEV
+  ? () =>
+      Promise.all([
+        import("./live-scene-editor"),
+        import("@/components/game/editor/EditorShell"),
+        import("./scene-provider"),
+      ])
+  : null;
 
 type SceneEditorOptions = {
   game: GameInstance | null;
-  /** Read once when the editor opens; later disk changes arrive through `subscribe`. */
-  source: SceneSource;
-  /** The scene file the dev sink writes, `src/game/scenes/<name>.json`. */
+  /** The scene co-edited as `scene:<name>` on the dev server. */
   name: string;
   enabled: boolean;
+  /** The game's Rapier loader, for the editor's physical checks. */
+  rapier?: () => Promise<RapierModule>;
+  /** The game's canvas, which takes the active tool's cursor. */
+  canvas?: () => HTMLElement | null;
+};
+
+export type SceneEditorState = {
+  /** The editor's islands, once the doc has synced and the game is up. */
+  chrome: EditorChrome | null;
+  /** The connection while the editor is on; null when it's off. */
+  status: SceneDocStatus | null;
 };
 
 /**
- * `diskHash` is the file as the session last agreed with it, `savingHash`
- * a save in flight (its own write can come back as a file change before the
- * response), `playedHash` the doc that play started from.
+ * The in-game scene editor, in dev builds with `?edit=1`: everyone with the
+ * scene open edits one shared doc on the dev server, which writes it back
+ * to the scene file. A reconnect that brings a fresh doc reopens the editor
+ * on it.
  */
-type DiskSync = {
-  diskHash: SceneHash;
-  savingHash: SceneHash | null;
-  playedHash: SceneHash | null;
-};
-
-type SaveResponse = {
-  ok: boolean;
-  hash?: SceneHash;
-  error?: string;
-  issues?: { message: string }[];
-};
-
-async function saveScene(
-  name: string,
-  doc: SceneDefinition,
-  base: SceneHash | null,
-): Promise<{ status: number; body: SaveResponse }> {
-  const query = base ? `?base=${encodeURIComponent(base)}` : "";
-  const res = await fetch(`/__scene/${name}${query}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(doc),
-  });
-  return { status: res.status, body: (await res.json()) as SaveResponse };
-}
-
-function play(game: GameInstance, session: EditorSession, sync: DiskSync): void {
-  const doc = session.getDoc();
-  const errors = validateScene(doc).filter((i) => i.severity === "error");
-  if (errors.length > 0) {
-    toast.error("Fix the scene's errors before you play", { description: errors[0]!.message });
-    return;
-  }
-  const report = game.loadScene(expandScene(structuredClone(doc)));
-  if (!report.ok) {
-    toast.error("The scene failed to load", { description: report.error });
-    return;
-  }
-  sync.playedHash = session.getHash();
-  game.setMode("play");
-  session.setMode("play");
-}
-
-function stop(game: GameInstance, session: EditorSession, sync: DiskSync): void {
-  // Leaving play restores the scene that was played; reload only if the doc moved on meanwhile.
-  game.setMode("edit");
-  if (session.getHash() !== sync.playedHash) game.loadScene(expandScene(session.getDoc()));
-  sync.playedHash = null;
-  session.setMode("edit");
-}
-
-async function save(name: string, session: EditorSession, sync: DiskSync): Promise<void> {
-  const fail = (description?: string) => toast.error(`Couldn't save ${name}`, { description });
-  sync.savingHash = session.getHash();
-  try {
-    let res = await saveScene(name, session.getDoc(), sync.diskHash);
-    if (res.status === 409) {
-      const overwrite = await openConfirmModal({
-        title: `${name} changed on disk`,
-        message:
-          "Someone else wrote this scene since you loaded it. Overwrite their version with yours?",
-        confirmText: "Overwrite",
-        variant: "destructive",
-      });
-      if (!overwrite) return;
-      res = await saveScene(name, session.getDoc(), null);
-    }
-    if (!res.body.ok) {
-      fail(res.body.issues?.[0]?.message ?? res.body.error);
-      return;
-    }
-    if (res.body.hash) sync.diskHash = res.body.hash;
-    session.markSaved();
-    toast.success(`Saved ${name}`);
-  } catch (error) {
-    fail(error instanceof Error ? error.message : String(error));
-  } finally {
-    sync.savingHash = null;
-  }
-}
-
-/** A write from outside the editor: reload when clean, ask when there are unsaved edits. */
-async function onDiskChange(
-  name: string,
-  session: EditorSession,
-  sync: DiskSync,
-  doc: SceneDefinition,
-): Promise<void> {
-  const hash = sceneHash(doc);
-  if (hash === sync.diskHash) return;
-  sync.diskHash = hash;
-  if (hash === session.getHash() || hash === sync.savingHash) return;
-  if (session.store.state.dirty) {
-    const reload = await openConfirmModal({
-      title: `${name} changed on disk`,
-      message:
-        "The file was written outside the editor. Reload it and lose your unsaved edits, or keep them (your next save overwrites the file)?",
-      confirmText: "Reload",
-      cancelText: "Keep my edits",
-      variant: "destructive",
-    });
-    if (!reload || sync.diskHash !== hash) return;
-  }
-  session.replaceDoc(structuredClone(doc));
-}
-
-/** `null` in production builds, so the editor's chunks are never emitted there. */
-const loadEditor = import.meta.env.DEV
-  ? () =>
-      Promise.all([import("@jams/engine/editor"), import("@/components/game/editor/EditorShell")])
-  : null;
-
-/**
- * The in-game scene editor, in dev builds with `?edit=1`. Each commit
- * rebuilds the running scene; the shell owns the editor keyboard.
- */
-export function useSceneEditor({ game, source, name, enabled }: SceneEditorOptions): ReactNode {
-  const [editor, setEditor] = useState<LoadedEditor | null>(null);
+export function useSceneEditor({
+  game,
+  name,
+  enabled,
+  rapier,
+  canvas,
+}: SceneEditorOptions): SceneEditorState {
+  const [modules, setModules] = useState<EditorModules | null>(null);
+  const [liveCell] = useState(() => new Store<LiveEditor | null>(null));
+  // Outlives reconnects, so a loaded run stays loaded.
+  const [runStore] = useState(() => new Store<LoadedRun | null>(null));
+  const [loadRapier] = useState(() => rapier);
+  const [getCanvas] = useState(() => canvas);
 
   useEffect(() => {
-    if (!loadEditor || !enabled || !game) return;
-
+    if (!loadEditor || !enabled) return;
     let cancelled = false;
-    let teardown: (() => void) | null = null;
-
-    void loadEditor().then(([{ createEditorSession }, { EditorShell }]) => {
+    void Promise.all([
+      loadEditor(),
+      loadRapier?.().catch(() => null) ?? Promise.resolve(null),
+    ]).then(([[liveModule, shell, provider], rapierModule]) => {
       if (cancelled) return;
-      const initial = source.get();
-      const session = createEditorSession({ doc: structuredClone(initial), name });
-      const sync: DiskSync = { diskHash: sceneHash(initial), savingHash: null, playedHash: null };
-      game.setMode("edit");
-      const unsubscribe = session.subscribe((e) => {
-        if (game.getMode() !== "edit") return;
-        const report = game.loadScene(expandScene(e.doc));
-        if (!report.ok) toast.error("The edit failed to load", { description: report.error });
+      const profile = activeUserStore.state.profile;
+      setModules({
+        openLiveEditor: liveModule.openLiveEditor,
+        editorChrome: shell.editorChrome,
+        connect: provider.connectSceneDoc,
+        identity: liveModule.editorIdentity(profile?.guildNickname ?? profile?.discordUsername),
+        rapier: rapierModule,
       });
-      const unwatch = source.subscribe((doc) => void onDiskChange(name, session, sync, doc));
-      teardown = () => {
-        unwatch();
-        unsubscribe();
-        session.destroy();
-        game.setMode("play");
-      };
-      setEditor({ session, Shell: EditorShell, sync });
     });
-
     return () => {
       cancelled = true;
-      teardown?.();
-      setEditor(null);
+      setModules(null);
     };
-  }, [game, source, name, enabled]);
+  }, [enabled, loadRapier]);
 
-  if (!editor || !game) return null;
-  const { session, Shell, sync } = editor;
-  return createElement(Shell, {
-    session,
-    onPlay: () => play(game, session, sync),
-    onStop: () => stop(game, session, sync),
-    onSave: () => void save(name, session, sync),
-  });
+  const link = useSceneDoc(name, modules?.connect ?? null);
+  const ready = link.ready;
+
+  useEffect(() => {
+    if (!modules || !game || !ready) return;
+    const next = modules.openLiveEditor({
+      game,
+      doc: ready.doc,
+      awareness: ready.awareness,
+      name,
+      identity: modules.identity,
+    });
+    liveCell.setState(() => next);
+    return () => {
+      liveCell.setState(() => null);
+      next.destroy();
+    };
+  }, [liveCell, modules, game, ready, name]);
+  const live = useStore(liveCell);
+
+  useEffect(() => {
+    live?.host.setState((s) => ({ ...s, connection: link.status }));
+  }, [live, link.status]);
+
+  // The last Play's recording becomes the loaded run, so its ghost shows after Stop.
+  useEffect(() => {
+    if (!game || !live) return;
+    const show = (recording: RunRecording) => {
+      if (!live.replaying()) runStore.setState(() => ({ recording, name: "Last run" }));
+    };
+    game.on("play:recorded", show);
+    return () => game.off("play:recorded", show);
+  }, [game, live, runStore]);
+
+  const open = useStore(live?.prefab ?? NO_PREFAB);
+
+  const chrome = useMemo(() => {
+    if (!live || !modules || !game) return null;
+    return modules.editorChrome({
+      ...live.editing(open),
+      host: live.host,
+      game,
+      onPlay: live.play,
+      onReplay: live.replay,
+      onStop: live.stop,
+      onRestart: live.restart,
+      rapier: modules.rapier,
+      runStore,
+      ...(getCanvas ? { canvas: getCanvas } : {}),
+    });
+  }, [live, modules, game, runStore, getCanvas, open]);
+
+  return { chrome, status: enabled && loadEditor ? link.status : null };
 }

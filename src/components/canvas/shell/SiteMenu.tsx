@@ -17,6 +17,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
+import type { ReactElement } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { BrandMark } from "@/components/ui/brand-mark";
@@ -32,11 +33,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { activeUserStore } from "@/lib/active-user-store";
 import { authClient, signInWithDiscord } from "@/lib/auth-client";
+import type { SigninSource } from "@/lib/event-taxonomy";
 import { useFlag } from "@/lib/hooks/use-flag";
 import { profileLinkParams } from "@/lib/profile-links";
 import { orpc } from "@/orpc/client";
 
-import type { CanvasScope } from "../canvas-queries";
 import { openWorkspace } from "../workspace-store";
 import { WorkspacePanel } from "../WorkspacePanel";
 
@@ -48,11 +49,19 @@ const SECTIONS = [
 ] as const;
 
 /**
- * Everything the site header gave, behind the logo: the way back, the site
- * sections, the workspace, notifications and your profile. It also mounts
- * the workspace panel, which the header would otherwise own.
+ * Everything the site header gave, behind the logo, for pages that take over
+ * the window: the way back, the site sections, notifications and your
+ * profile. With `workspace` it also offers the canvas workspace and mounts
+ * its panel, which the header would otherwise own.
  */
-export function SiteMenu({ scope, scopeName }: { scope: CanvasScope; scopeName: string }) {
+export type SiteMenuProps = {
+  /** The first item: where this page came from, as a `Link` element. */
+  back?: { label: string; link: ReactElement };
+  signinSource: SigninSource;
+  workspace?: boolean;
+};
+
+export function SiteMenu({ back, signinSource, workspace = false }: SiteMenuProps) {
   const { data: session } = authClient.useSession();
   const user = session?.user;
   const forumOn = useFlag("forum-enabled");
@@ -66,7 +75,7 @@ export function SiteMenu({ scope, scopeName }: { scope: CanvasScope; scopeName: 
 
   return (
     <>
-      {user ? <WorkspacePanel /> : null}
+      {user && workspace ? <WorkspacePanel /> : null}
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={
@@ -88,19 +97,15 @@ export function SiteMenu({ scope, scopeName }: { scope: CanvasScope; scopeName: 
           ) : null}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" sideOffset={8} className="min-w-56">
-          <DropdownMenuItem
-            render={
-              scope.kind === "team" ? (
-                <Link to="/teams/$teamId" params={{ teamId: scope.teamId }} />
-              ) : (
-                <Link to="/canvases" search={{ scope: "personal" }} />
-              )
-            }
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
-            Back to {scopeName}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          {back ? (
+            <>
+              <DropdownMenuItem render={back.link}>
+                <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
+                Back to {back.label}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           <DropdownMenuGroup>
             <DropdownMenuLabel>Site</DropdownMenuLabel>
             <DropdownMenuItem render={<Link to="/" />}>
@@ -122,18 +127,22 @@ export function SiteMenu({ scope, scopeName }: { scope: CanvasScope; scopeName: 
           </DropdownMenuGroup>
           {user ? (
             <>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => openWorkspace()}>
-                  <HugeiconsIcon icon={DashboardSquare02Icon} size={14} />
-                  Switch canvas
-                </DropdownMenuItem>
-                <DropdownMenuItem render={<Link to="/canvases" />}>
-                  <HugeiconsIcon icon={Files01Icon} size={14} />
-                  All canvases
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
+              {workspace ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Workspace</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => openWorkspace()}>
+                      <HugeiconsIcon icon={DashboardSquare02Icon} size={14} />
+                      Switch canvas
+                    </DropdownMenuItem>
+                    <DropdownMenuItem render={<Link to="/canvases" />}>
+                      <HugeiconsIcon icon={Files01Icon} size={14} />
+                      All canvases
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem render={<Link to="/notifications" />}>
                 <HugeiconsIcon icon={Notification03Icon} size={14} />
@@ -159,7 +168,7 @@ export function SiteMenu({ scope, scopeName }: { scope: CanvasScope; scopeName: 
           ) : (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void signInWithDiscord("canvases")}>
+              <DropdownMenuItem onClick={() => void signInWithDiscord(signinSource)}>
                 <HugeiconsIcon icon={Login01Icon} size={14} />
                 Sign in with Discord
               </DropdownMenuItem>

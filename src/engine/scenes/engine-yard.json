@@ -1,0 +1,21 @@
+{
+  "$schema": "../scene/scene.schema.json",
+  "v": 2,
+  "name": "engine-yard",
+  "bounds": [0, 0, 2000, 1000],
+  "settings": { "gravity": [0, 1200] },
+  "solid": [
+    ["box", 1000, 980, 1000, 20],
+    ["box", 20, 500, 20, 500],
+    ["box", 1980, 500, 20, 500]
+  ],
+  "entities": [
+    { "id": "ledge", "type": "solid", "shape": ["box", 1400, 800, 120, 10], "oneWay": true },
+    { "id": "avatar", "type": "prop", "shape": ["box", 300, 940, 20, 20], "density": 1, "restitution": 0 },
+    { "id": "crate", "type": "prop", "shape": ["circle", 1200, 940, 20], "density": 2, "restitution": 0.3 },
+    { "id": "lift", "type": "follower", "shape": ["box", 0, 0, 60, 8], "path": { "pts": [[1700, 900], [1700, 600]], "mode": "ping_pong", "speed": 80, "pauseMs": 400 } },
+    { "id": "zone", "type": "sensor", "shape": ["box", 900, 930, 40, 30], "tags": ["goal"] },
+    { "id": "start", "type": "marker", "at": [300, 960], "tags": ["spawn"] },
+    { "id": "readme", "type": "note", "at": [100, 100], "text": "Engine fixture: primitives only." }
+  ]
+}

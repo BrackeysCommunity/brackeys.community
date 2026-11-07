@@ -65,14 +65,17 @@ preload-budget:
     - apt-get update -qq && apt-get install -y -qq git
     - bun install --frozen-lockfile
   script:
-    - bun run build
+    # The same build also reports each chunk's modules for the engine bundle check.
+    - ENGINE_BUNDLE_REPORT=.engine-bundle bun run build
     - bun scripts/measure-preload-graph.ts --check
+    - bun scripts/engine-bundle-check.ts --report .engine-bundle
   rules:
     - !reference [.skip-version-bump, rules]
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
         - scripts/measure-preload-graph.ts
+        - scripts/engine-bundle-*.ts
         - package.json
         - bun.lock
         - vite.config.*
@@ -82,6 +85,7 @@ preload-budget:
       changes:
         - src/**/*
         - scripts/measure-preload-graph.ts
+        - scripts/engine-bundle-*.ts
         - package.json
         - bun.lock
         - vite.config.*
@@ -134,3 +138,102 @@ test:
         - vite.config.*
         - "*.config.*"
     # No tag clause — see the note on `lint` above.
+
+# canvas-sync's own suites, integration included: the root `test` job never
+# runs them, and without a database most of them skip. With
+# CANVAS_SYNC_REQUIRE_INTEGRATION=1 a suite that would skip fails instead, so
+# a missing service or URL can't pass as green.
+canvas-sync-test:
+  stage: test
+  image: oven/bun:latest
+  services:
+    - name: postgres:16
+      alias: postgres
+      # Several server instances per suite, each with its own pool.
+      command: ["postgres", "-c", "max_connections=200"]
+    - name: redis:7
+      alias: redis
+  variables:
+    POSTGRES_DB: canvas_sync_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    POSTGRES_HOST_AUTH_METHOD: trust
+    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/canvas_sync_test
+    CANVAS_SYNC_TEST_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/canvas_sync_test
+    CANVAS_SYNC_TEST_REDIS_URL: redis://redis:6379
+    CANVAS_SYNC_REQUIRE_INTEGRATION: "1"
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq git
+    # The root install: drizzle-kit for the migrations, and the packages the
+    # shared src/ files the service imports resolve from the repo root.
+    - bun install --frozen-lockfile
+    - (cd services/canvas-sync && bun install --frozen-lockfile)
+    - bun run db:migrate
+  script:
+    - cd services/canvas-sync
+    - bun run typecheck
+    - bun test
+  rules:
+    - !reference [.skip-version-bump, rules]
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - src/**/*
+        - services/canvas-sync/**/*
+        - drizzle/**/*
+        - package.json
+        - bun.lock
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - src/**/*
+        - services/canvas-sync/**/*
+        - drizzle/**/*
+        - package.json
+        - bun.lock
+    # No tag clause — see the note on `lint` above.
+
+# The engine package as an outside consumer gets it: publint, attw and the
+# unused-peer check on the packed tarball, then the smoke test (the tarball
+# installed outside the repo, `dist/headless` under Bun with `-compat`, and a
+# jsdom host on `dist`), and the API report of the packed `.d.mts` files
+# against `src/engine/__tests__/api-report.txt`. The root `test` job only ever
+# sees the source.
+engine-package:
+  stage: test
+  # Node for `vp test` in the smoke test's jsdom consumer, as in `test`.
+  image: node:24
+  before_script:
+    - npm i -g bun
+    - bun install --frozen-lockfile
+  script:
+    - bun run engine:typecheck:strict
+    - bun run engine:pack:check
+    - bun scripts/engine-api-report.ts --check
+    - bun run engine:smoke
+    # The determinism probe's digests on this image; `test` checks them against
+    # the pinned ones under Node, and this artifact keeps Bun's for the record.
+    - bun src/engine/__tests__/probes/determinism-probe.ts | tee determinism-probe.json
+  artifacts:
+    paths:
+      - determinism-probe.json
+    expire_in: 1 month
+  rules:
+    - !reference [.skip-version-bump, rules]
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - src/engine/**/*
+        - scripts/engine-smoke/**/*
+        - scripts/engine-api-report.ts
+        - package.json
+        - bun.lock
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - src/engine/**/*
+        - scripts/engine-smoke/**/*
+        - scripts/engine-api-report.ts
+        - package.json
+        - bun.lock
+    # No tag clause — see the note on `lint` above; `engine-pack` runs both on an engine tag.

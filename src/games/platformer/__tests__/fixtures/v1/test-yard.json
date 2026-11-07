@@ -1,0 +1,56 @@
+{
+  "$schema": "../scene.schema.json",
+  "v": 1,
+  "game": "platformer",
+  "name": "test-yard",
+  "bounds": [-2000, -500, 4000, 1200],
+  "anchor": [
+    [600, 600],
+    [900, 500],
+    [1100, 550],
+    [400, 500]
+  ],
+  "cloud": [
+    ["box", 960, 900, 60, 6],
+    ["box", 960, 780, 60, 6],
+    ["box", 680, 850, 50, 6]
+  ],
+  "solid": [
+    ["box", -255, 1040, 1745, 20],
+    ["box", 2855, 1040, 1145, 20],
+    ["box", 1200, 770, 10, 250],
+    ["box", 1400, 770, 10, 250],
+    ["box", 700, 940, 80, 8],
+    ["box", 500, 840, 80, 8],
+    ["box", 350, 720, 80, 8],
+    ["box", 820, 970, 40, 8],
+    ["box", 740, 920, 40, 8],
+    ["box", 660, 870, 40, 8],
+    ["box", 1600, 1160, 120, 10],
+    ["box", 1490, 1100, 10, 80],
+    ["box", 1710, 1100, 10, 80],
+    ["box", 200, 920, 10, 100]
+  ],
+  "solid:chocolate": [
+    ["box", 550, 970, 60, 8]
+  ],
+  "solid:ice": [
+    ["box", 100, 1000, 100, 8]
+  ],
+  "solid:trampoline": [
+    ["box", 1600, 1120, 40, 8]
+  ],
+  "spawn": [
+    [960, 1020]
+  ],
+  "entities": [
+    { "id": "pit-shuttle", "type": "mover", "shape": ["box", 0, 0, 50, 6], "path": { "pts": [[1500, 950], [1700, 950]], "mode": "ping_pong", "speed": 80, "pauseMs": 500 } },
+    { "id": "elevator", "type": "mover", "shape": ["box", 0, 0, 40, 6], "path": { "pts": [[1300, 1000], [1300, 700]], "mode": "ping_pong", "speed": 100, "pauseMs": 800 } },
+    { "id": "diagonal", "type": "mover", "shape": ["box", 0, 0, 35, 6], "path": { "pts": [[200, 800], [400, 700], [600, 750]], "mode": "loop", "speed": 120, "pauseMs": 300 } },
+    { "id": "plank", "type": "prop", "shape": ["box", 350, 700, 50, 6], "density": 2, "restitution": 0.2 },
+    { "id": "ball", "type": "prop", "shape": ["circle", 780, 900, 15], "density": 1.5, "restitution": 0.6 },
+    { "id": "cheese", "type": "goal", "shape": ["circle", 500, 800, 12] },
+    { "id": "hole", "type": "exit", "shape": ["circle", 1850, 1010, 20] },
+    { "id": "lava", "type": "hazard", "shape": ["box", 1600, 1160, 100, 8] }
+  ]
+}

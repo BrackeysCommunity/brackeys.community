@@ -1,0 +1,810 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:prefab:v2",
+  "x-agent-surface": 6,
+  "title": "jams engine prefab, format v2",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Path or URI of this file's JSON Schema, for editors. Ignored by the engine.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "prefab"
+    },
+    "v": {
+      "type": "number",
+      "const": 2,
+      "description": "The scene format version it was written at."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+      "description": "The prefab's id; matches the file name without .json.",
+      "title": "Id"
+    },
+    "contract": {
+      "description": "This game defines no prefab contract, so a prefab carries none.",
+      "not": {}
+    },
+    "entities": {
+      "default": [],
+      "description": "Entities with their ids, as a scene holds them; ids are renamed on paste if taken.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Entity"
+      }
+    },
+    "bulk": {
+      "description": "Id-less bulk entries by bulk key, as a scene holds them.",
+      "type": "object",
+      "properties": {
+        "solid": {
+          "description": "Static ground shapes, absolute px; `solid:<material>` for a material. Entries have no id; ops refer to them as ~solid:<index>.",
+          "type": "array",
+          "items": {
+            "description": "Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.",
+            "title": "Shape",
+            "group": "geometry",
+            "$ref": "#/$defs/ShapeTuple"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["kind", "v", "id", "entities"],
+  "additionalProperties": false,
+  "description": "A prefab: entities and bulk entries around a local origin, placed in scenes by instances. Coordinates are relative to the origin, which an instance's `at` puts in the world.",
+  "$defs": {
+    "Entity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "solid",
+              "description": "Static ground, walls and platforms: collides from every side, or from above only.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "enum": ["terrain", "gameplay", "decor", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "shape": {
+              "description": "Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/ShapeTuple"
+            },
+            "material": {
+              "description": "Surface material.",
+              "title": "Material",
+              "group": "surface",
+              "not": {}
+            },
+            "oneWay": {
+              "description": "When true, actors pass up through it and land on top.",
+              "title": "One-way",
+              "group": "surface",
+              "type": "boolean"
+            },
+            "attach": {
+              "description": "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
+              "title": "Attached to",
+              "group": "motion",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            }
+          },
+          "required": ["id", "type", "shape"],
+          "additionalProperties": false,
+          "description": "solid: Static ground, walls and platforms: collides from every side, or from above only."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "sensor",
+              "description": "Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "enum": ["terrain", "gameplay", "decor", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "shape": {
+              "description": "Trigger shape. Absolute world px; y is down.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/ShapeTuple"
+            },
+            "tags": {
+              "description": "Labels a game reads off the sensor's events.",
+              "title": "Tags",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              }
+            },
+            "attach": {
+              "description": "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
+              "title": "Attached to",
+              "group": "motion",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            }
+          },
+          "required": ["id", "type", "shape"],
+          "additionalProperties": false,
+          "description": "sensor: Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "marker",
+              "description": "A named point with tags; what it means is up to the game.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "enum": ["terrain", "gameplay", "decor", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "at": {
+              "description": "Marker position. Absolute world px; y is down.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "tags": {
+              "description": "Labels a game reads, e.g. spawn or checkpoint.",
+              "title": "Tags",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              }
+            }
+          },
+          "required": ["id", "type", "at"],
+          "additionalProperties": false,
+          "description": "marker: A named point with tags; what it means is up to the game."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "prop",
+              "description": "Dynamic physics object that can be pushed and stood on.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "enum": ["terrain", "gameplay", "decor", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "shape": {
+              "description": "Starting collider shape. Absolute world px; y is down. Not chain.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/BodyShape"
+            },
+            "density": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Density, mass per px²; heavier props are harder to push.",
+              "title": "Density"
+            },
+            "restitution": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Bounciness: 0 doesn't bounce, 1 keeps all its speed.",
+              "title": "Restitution"
+            },
+            "friction": {
+              "description": "Surface friction; omitted uses the material's, else the physics default.",
+              "title": "Friction",
+              "type": "number",
+              "minimum": 0
+            },
+            "material": {
+              "description": "Surface material.",
+              "title": "Material",
+              "group": "surface",
+              "not": {}
+            }
+          },
+          "required": ["id", "type", "shape", "density", "restitution"],
+          "additionalProperties": false,
+          "description": "prop: Dynamic physics object that can be pushed and stood on."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "follower",
+              "description": "Kinematic body that follows a waypoint path.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "enum": ["terrain", "gameplay", "decor", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "shape": {
+              "description": "Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. [\"box\", 0, 0, 40, 6]). Not chain.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/BodyShape"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            },
+            "material": {
+              "description": "Surface material.",
+              "title": "Material",
+              "group": "surface",
+              "not": {}
+            }
+          },
+          "required": ["id", "type", "shape", "path"],
+          "additionalProperties": false,
+          "description": "follower: Kinematic body that follows a waypoint path."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "note",
+              "description": "Editor note: text pinned to a point. Never loaded into the game.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "enum": ["terrain", "gameplay", "decor", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "at": {
+              "description": "Where the note shows, absolute world px.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "text": {
+              "type": "string",
+              "description": "The note, for whoever edits the scene next.",
+              "title": "Text"
+            }
+          },
+          "required": ["id", "type", "at", "text"],
+          "additionalProperties": false,
+          "description": "note: Editor note: text pinned to a point. Never loaded into the game."
+        }
+      ],
+      "description": "An entity with a stable id. `type` picks the registered type and which fields apply."
+    },
+    "ShapeTuple": {
+      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...] | [\"chain\", x1, y1, x2, y2, ...]. Integer pixels, y is down.",
+      "oneOf": [
+        {
+          "title": "box",
+          "description": "Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "box"
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Half-width; the box is 2*hw wide."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Half-height; the box is 2*hh tall."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "circle",
+          "description": "Circle (a Rapier ball) by centre and radius.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "circle"
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Radius."
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        {
+          "title": "capsule",
+          "description": "Capsule, vertical before rotation: a segment of half-length halfLen through the centre, swept by radius r.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "capsule"
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Half the length of the inner segment."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Radius."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "poly",
+          "description": "Convex polygon as flat x, y pairs (at least 3 points). Points are absolute; the loader centres the body on their centroid. Concave outlines must be split or drawn as a chain.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "poly"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "px"
+          },
+          "minItems": 7
+        },
+        {
+          "title": "chain",
+          "description": "Open polyline as flat x, y pairs (at least 2 points), for static terrain. Allowed on solid and sensor only.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "chain"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "px"
+          },
+          "minItems": 5
+        }
+      ]
+    },
+    "Pt": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "description": "x, px.",
+          "unit": "px"
+        },
+        {
+          "type": "number",
+          "description": "y, px; y is down.",
+          "unit": "px"
+        }
+      ],
+      "description": "A point [x, y] in integer world pixels; y is down.",
+      "unit": "px"
+    },
+    "BodyShape": {
+      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...]. Integer pixels, y is down.",
+      "oneOf": [
+        {
+          "title": "box",
+          "description": "Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "box"
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Half-width; the box is 2*hw wide."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Half-height; the box is 2*hh tall."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "circle",
+          "description": "Circle (a Rapier ball) by centre and radius.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "circle"
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Radius."
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        {
+          "title": "capsule",
+          "description": "Capsule, vertical before rotation: a segment of half-length halfLen through the centre, swept by radius r.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "capsule"
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "px",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Half the length of the inner segment."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "px",
+              "description": "Radius."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "poly",
+          "description": "Convex polygon as flat x, y pairs (at least 3 points). Points are absolute; the loader centres the body on their centroid. Concave outlines must be split or drawn as a chain.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "poly"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "px"
+          },
+          "minItems": 7
+        }
+      ]
+    },
+    "Path": {
+      "type": "object",
+      "properties": {
+        "pts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Pt"
+          },
+          "description": "Waypoints in absolute world px. The entity's shape is centred on each point in turn. At least 2, no repeats.",
+          "title": "Waypoints"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["ping_pong", "loop"],
+          "description": "ping_pong: travel to the last point, then back. loop: after the last point, travel back to the first along the closing segment.",
+          "title": "Mode"
+        },
+        "speed": {
+          "type": "number",
+          "description": "Travel speed along the path, px per second; must be > 0.",
+          "title": "Speed",
+          "unit": "px/s"
+        },
+        "pauseMs": {
+          "description": "How long it waits at each waypoint, in milliseconds. Omitted means 0.",
+          "title": "Pause",
+          "unit": "ms",
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": ["pts", "mode", "speed"],
+      "additionalProperties": false,
+      "description": "A waypoint path with linear segments.",
+      "title": "Path",
+      "group": "motion"
+    }
+  }
+}

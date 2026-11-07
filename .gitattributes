@@ -1,0 +1,6 @@
+# Scene files diff by entry once diff.scene.textconv is set (scripts/scene/README.md).
+src/engine/scenes/*.json diff=scene
+src/games/*/scenes/*.json diff=scene
+# Playtest checks beside a scene are plain JSON.
+src/engine/scenes/*.checks.json !diff
+src/games/*/scenes/*.checks.json !diff

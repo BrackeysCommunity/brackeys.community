@@ -82,21 +82,29 @@ export function isSyncStep2(message: Uint8Array): boolean {
   return readVarUint(message, type[1])?.[0] === SYNC_STEP_2;
 }
 
+/** A document kind's two byte caps; canvases' unless a kind says otherwise. */
+export interface MessageLimits {
+  maxStateBytes: number;
+  maxMessageBytes: number;
+}
+
 /**
  * The most one message may carry. A connection's first sync step 2 may hold
- * a whole canvas (the offline backlog); every later message gets the
+ * a whole document (the offline backlog); every later message gets the
  * message cap, so step 2 can't be replayed to push megabytes at a time.
  */
-export function messageByteCap(message: Uint8Array, firstStep2: boolean): number {
-  return firstStep2 && isSyncStep2(message)
-    ? CANVAS_LIMITS.maxStateBytes
-    : CANVAS_LIMITS.maxMessageBytes;
+export function messageByteCap(
+  message: Uint8Array,
+  firstStep2: boolean,
+  limits: MessageLimits = CANVAS_LIMITS,
+): number {
+  return firstStep2 && isSyncStep2(message) ? limits.maxStateBytes : limits.maxMessageBytes;
 }
 
 /** Checks one incoming message against its byte cap and its connection's bucket. */
 export function createMessageLimiter(now: () => number) {
   const state = new WeakMap<object, { bucket: TokenBucket; step2Seen: boolean }>();
-  return (connection: object, message: Uint8Array): void => {
+  return (connection: object, message: Uint8Array, limits: MessageLimits = CANVAS_LIMITS): void => {
     let entry = state.get(connection);
     if (!entry) {
       entry = {
@@ -105,7 +113,7 @@ export function createMessageLimiter(now: () => number) {
       };
       state.set(connection, entry);
     }
-    const cap = messageByteCap(message, !entry.step2Seen);
+    const cap = messageByteCap(message, !entry.step2Seen, limits);
     if (isSyncStep2(message)) entry.step2Seen = true;
     if (message.byteLength > cap) {
       throw new SyncRefusal(SYNC_CLOSE.tooLarge, "message too large", "size");
@@ -128,14 +136,19 @@ export class DocumentGrowth {
 
   constructor(private readonly maxBytes: number = CANVAS_LIMITS.maxStateBytes) {}
 
-  /** Counts an incoming update; true when the doc is already over the cap. */
-  exceeds(documentName: string, bytes: number, measure: () => number): boolean {
+  /** Counts an incoming update; true when the doc is already over the cap (its kind's, when given). */
+  exceeds(
+    documentName: string,
+    bytes: number,
+    measure: () => number,
+    maxBytes: number = this.maxBytes,
+  ): boolean {
     const total = (this.since.get(documentName) ?? 0) + bytes;
-    if (total <= this.maxBytes) {
+    if (total <= maxBytes) {
       this.since.set(documentName, total);
       return false;
     }
-    if (measure() > this.maxBytes) return true;
+    if (measure() > maxBytes) return true;
     this.since.set(documentName, bytes);
     return false;
   }

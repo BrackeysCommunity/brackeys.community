@@ -193,6 +193,10 @@ const STAFF_PROCEDURES = new Set([
   "setCanvasHidden",
   "listCanvasReports",
   "resolveCanvasReport",
+  // Hosted scene docs: only the team building games edits them for now.
+  "getSceneSyncToken",
+  "createHostedScene",
+  "deleteHostedScene",
 ]);
 
 const AUTH_REQUIRING = new Set<unknown>([

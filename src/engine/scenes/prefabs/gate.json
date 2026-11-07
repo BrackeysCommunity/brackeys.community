@@ -1,0 +1,9 @@
+{
+  "kind": "prefab",
+  "v": 2,
+  "id": "gate",
+  "entities": [
+    { "id": "bar", "type": "solid", "shape": ["box", 0, -10, 60, 10] },
+    { "id": "trigger", "type": "sensor", "shape": ["box", 0, -60, 60, 30], "tags": ["gate"] }
+  ]
+}

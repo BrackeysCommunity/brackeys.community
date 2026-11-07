@@ -9,14 +9,15 @@ import {
   SYNC_CLOSE,
   syncClose,
 } from "../../../src/lib/canvas/sync-channels.ts";
+import type { SceneFormat } from "../../../src/lib/scene/doc-bytes.ts";
 import {
   createServiceTelemetry,
   type ServiceTelemetry,
 } from "../../../src/lib/service-telemetry.ts";
-import { applyStoredState } from "./apply.ts";
 import { createAuthenticate, type SyncContext } from "./auth.ts";
 import { holdAwarenessWhileConnected, pinAwareness } from "./awareness.ts";
 import type { ServiceDb } from "./db.ts";
+import { canvasKind, type DocumentKind, DocumentKinds } from "./kinds.ts";
 import {
   ConnectionCaps,
   createMessageLimiter,
@@ -29,6 +30,9 @@ import { createPersistence, SnapshotSchedule } from "./persistence.ts";
 import type { SyncChannelSource } from "./redis.ts";
 import { noTombstones, RevocationList, type RevocationTombstones, revoke } from "./revoke.ts";
 import { connectedUsers, localRoster, type PresenceRoster } from "./roster.ts";
+import { createSceneKind, type SceneLimits } from "./scene/kind.ts";
+import type { SnapshotRunner } from "./scene/snapshot.ts";
+import type { SceneStore } from "./scene/store.ts";
 import { reportMetrics, sampleEventLoopLag, SyncMetrics } from "./telemetry.ts";
 
 /**
@@ -69,7 +73,14 @@ export interface ServerOptions {
   /** 0 picks a free port. */
   port: number;
   secret: string;
-  db: ServiceDb;
+  /** Hosts canvases; without it `canvas:` documents are refused. */
+  db?: ServiceDb;
+  /** Hosts scenes; without it `scene:` documents are refused. */
+  sceneStore?: SceneStore;
+  sceneLimits?: SceneLimits;
+  /** The scene format this instance migrates to at load; the engine's by default. */
+  sceneFormat?: SceneFormat;
+  sceneSnapshots?: SnapshotRunner;
   instanceId: string;
   /** Relays updates between instances; without it this instance stands alone. */
   redis?: Extension;
@@ -129,11 +140,32 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
     now,
   );
 
-  const persistence = createPersistence({ db: options.db, now, metrics, snapshots, telemetry });
+  const documents = () => hocuspocus.documents as ReadonlyMap<string, Y.Doc>;
+  const hosted: DocumentKind[] = [];
+  if (options.db) {
+    const persistence = createPersistence({ db: options.db, now, metrics, snapshots, telemetry });
+    hosted.push(canvasKind({ db: options.db, persistence, documents }));
+  }
+  if (options.sceneStore) {
+    hosted.push(
+      createSceneKind({
+        store: options.sceneStore,
+        documents,
+        now,
+        metrics,
+        telemetry,
+        limits: options.sceneLimits,
+        format: options.sceneFormat,
+        snapshots: options.sceneSnapshots,
+        snapshotIntervalMs: options.snapshotIntervalMs,
+      }),
+    );
+  }
+  const kinds = new DocumentKinds(hosted);
   const revocations = new RevocationList();
   const authenticate = createAuthenticate({
     secret: options.secret,
-    db: options.db,
+    kinds,
     caps,
     revocations,
     tombstones,
@@ -145,7 +177,7 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
   // A revoke can land while a connect is still awaiting the canvas row, the
   // ledger or the doc load, when there is no socket yet for it to close.
   const isRevoked = (context: SyncContext) =>
-    revocations.covers(context.canvasId, context.userId, context.mintedAt, now());
+    revocations.covers(context.subject, context.userId, context.mintedAt, now());
 
   const countRefusal = (error: unknown) => {
     if (error instanceof SyncRefusal) metrics.refused(error.metric);
@@ -157,7 +189,7 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
     quiet: true,
     debounce: options.debounceMs ?? SYNC_LIMITS.storeDebounceMs,
     maxDebounce: options.maxDebounceMs ?? SYNC_LIMITS.storeMaxDebounceMs,
-    extensions: [...(options.redis ? [options.redis] : []), persistence],
+    extensions: [...(options.redis ? [options.redis] : []), kinds.extension()],
     async onAuthenticate(payload) {
       try {
         return await authenticate(payload);
@@ -176,6 +208,8 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
       } else if (isRevoked(context)) {
         metrics.revocations++;
         connection.close(syncClose(SYNC_CLOSE.revoked));
+      } else if (context.notice !== undefined) {
+        connection.sendStateless(context.notice);
       }
     },
     async beforeHandleMessage({ connection, update, context, document, documentName }) {
@@ -189,20 +223,22 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
         if (isRevoked(context)) {
           throw new SyncRefusal(SYNC_CLOSE.revoked, "access revoked", "auth");
         }
-        limitMessage(connection, update);
+        const kind = kinds.get(context.kind);
+        limitMessage(connection, update, kind?.limits);
         if (
-          context.access === "write" &&
+          !context.readOnly &&
           growth.exceeds(
             documentName,
             update.byteLength,
             () => Y.encodeStateAsUpdate(document).byteLength,
+            kind?.limits.maxStateBytes,
           )
         ) {
+          const tooLarge = `${kind?.noun ?? "document"} too large`;
           for (const other of document.getConnections()) {
-            if (other !== connection)
-              other.close(syncClose(SYNC_CLOSE.tooLarge, "canvas too large"));
+            if (other !== connection) other.close(syncClose(SYNC_CLOSE.tooLarge, tooLarge));
           }
-          throw new SyncRefusal(SYNC_CLOSE.tooLarge, "canvas too large", "size");
+          throw new SyncRefusal(SYNC_CLOSE.tooLarge, tooLarge, "size");
         }
       } catch (error) {
         countRefusal(error);
@@ -305,7 +341,8 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
   };
   const handleApply = async (message: ApplyMessage) => {
     try {
-      const applied = await applyStoredState(hocuspocus.documents, options.db, message.canvasId);
+      const canvas = kinds.get("canvas");
+      const applied = canvas?.apply ? await canvas.apply(message.canvasId) : false;
       if (applied) metrics.applies++;
       return applied;
     } catch (error) {
@@ -358,6 +395,7 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
         );
       }
       await hocuspocus.hooks("onDestroy", { instance: hocuspocus });
+      await kinds.close();
       await ledger.close();
       await tombstones.close();
       await roster.close();
@@ -385,6 +423,8 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
 async function main() {
   const { config } = await import("./config.ts");
   const { createDb } = await import("./db.ts");
+  const { postgresSceneStore } = await import("./scene/pg-store.ts");
+  const { workerSnapshots } = await import("./scene/snapshot.ts");
   const { syncEnvPrefix } = await import("../../../src/lib/canvas/sync-channels.ts");
   const { pool, db } = createDb(config.DATABASE_URL);
   const prefix = syncEnvPrefix(config.RAILWAY_ENVIRONMENT_NAME);
@@ -410,6 +450,8 @@ async function main() {
     port: config.PORT,
     secret: config.CANVAS_SYNC_SECRET,
     db,
+    sceneStore: postgresSceneStore(db),
+    sceneSnapshots: workerSnapshots(),
     instanceId: config.INSTANCE_ID,
     telemetry,
     debounceMs: config.STORE_DEBOUNCE_MS,
