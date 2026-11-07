@@ -76,6 +76,12 @@ resolved: true })`; the tool host picks, draws and edits the resolved
   undo there steps the scene's history back through its own edits only,
   and changes from anywhere else are diffed in. `EditorSessionOptions.history`
   (`SessionHistory`) lets a session undo and list history elsewhere.
+- `scenes/kitchen-sink.json`, with its prefabs `post` and `gate` and
+  `kitchen-sink.checks.json`: one gameless scene holding every engine
+  primitive, a bulk solid of each shape form, a group, two prefabs with
+  overridden instances, and a solid and a sensor attached to a follower,
+  with a note per region. Its `touches` check is skipped without a game:
+  the engine's own collision groups don't let props touch sensors.
 
 ### Changed
 
@@ -89,6 +95,9 @@ resolved: true })`; the tool host picks, draws and edits the resolved
   groups, so a gated attached platform lets it through.
 - `follower-hits-solid` also sweeps every solid attached to the follower
   (gated one-way ones too; attached sensors don't count).
+- `follower-hits-solid`'s summary says what the sweep covers: "A path
+  follower, or a solid riding it, swept along the path, runs into a
+  solid."
 
 ### Agent surface
 
@@ -102,6 +111,19 @@ schema fragment|prefab` and `which: "fragment" | "prefab"` on the MCP
   loaded; `unused-override` (now a warning with a fix) one that names no
   child or field; an undeclared group is `dangling-ref` with a fix that
   declares it at `[0, 0]`.
+
+### Internal
+
+- The engine compiles under `noUncheckedIndexedAccess`
+  (`src/engine/tsconfig.strict.json`, `vp run engine:typecheck:strict`, and
+  the pack's dts build); `services/canvas-sync` turns the flag back on.
+- A browser smoke (`vp run engine:smoke:browser`) runs engine-yard for 120
+  ticks with `rapier2d-compat` in headless Chromium, Firefox and WebKit and
+  compares each digest with the in-process run; CI runs it as
+  `engine-browser-smoke`.
+- Probes for Rapier's `lengthUnit` (`__tests__/probes/length-unit-probe.ts`,
+  and the platformer's): setting it changes the traces, so the engine
+  leaves it unset.
 
 ## [0.4.0] — unreleased
 

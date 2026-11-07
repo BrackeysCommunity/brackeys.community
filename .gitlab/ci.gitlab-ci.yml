@@ -237,3 +237,35 @@ engine-package:
         - package.json
         - bun.lock
     # No tag clause — see the note on `lint` above; `engine-pack` runs both on an engine tag.
+
+engine-browser-smoke:
+  stage: test
+  # The tag must match the exact `playwright` devDependency, whose browser
+  # builds this image ships, so the job downloads none.
+  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  before_script:
+    - npm i -g bun
+    - bun install --frozen-lockfile
+  script:
+    - bun scripts/engine-smoke/browser.ts --browsers chromium,firefox,webkit
+  artifacts:
+    when: always
+    paths:
+      - engine-browser-smoke.json
+    expire_in: 1 month
+  rules:
+    - !reference [.skip-version-bump, rules]
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - src/engine/**/*
+        - scripts/engine-smoke/**/*
+        - package.json
+        - bun.lock
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - src/engine/**/*
+        - scripts/engine-smoke/**/*
+        - package.json
+        - bun.lock

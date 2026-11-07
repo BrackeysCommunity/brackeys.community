@@ -25,6 +25,7 @@ export default defineConfig({
       "src/**/__tests__/**/*.test.{ts,tsx}",
       "scripts/scene/**/__tests__/**/*.test.ts",
       "scripts/engine-readme/**/__tests__/**/*.test.ts",
+      "scripts/engine-smoke/__tests__/**/*.test.ts",
     ],
     environment: "node",
     globalSetup: ["./src/test/global-setup.ts"],
