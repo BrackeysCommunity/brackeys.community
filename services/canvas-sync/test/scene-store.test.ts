@@ -13,6 +13,7 @@ import {
   addSolid,
   connectScene,
   newSceneId,
+  SCENE_FORMAT_VERSION,
   sceneOf,
   sceneSynced,
   SECRET,
@@ -251,7 +252,7 @@ if (TEST_DATABASE_URL) {
       );
       const stored = await row();
       expect(stored.byteSize).toBe(stored.state!.byteLength);
-      expect(stored.schemaVersion).toBe(1);
+      expect(stored.schemaVersion).toBe(SCENE_FORMAT_VERSION);
       expect(stored.lastEditedAt).toBeInstanceOf(Date);
 
       const ghost = connectScene(server.port, sceneId, "no-such-user");
