@@ -634,9 +634,10 @@ describe.skipIf(!TEST_DATABASE_URL)("canvas-sync against Postgres", () => {
     garbage.socket.close();
   });
 
-  // Bun drops a frame over its cap without a close code, so the server can't
-  // tell the client to stop; the editor refuses to send such an update
-  // instead (use-canvas-sync's size guard). Here: the server shrugs it off.
+  // Depending on the Bun release, an update over the frame cap is either
+  // dropped by Bun with no close code (so the editor's own size guard in
+  // use-canvas-sync is what stops the client) or reaches the server and is
+  // refused with tooLarge. Either way only the sender is affected.
   it("drops an update over Bun's frame cap without harm to the server, the peer or Postgres", async () => {
     const canvasId = await seedCanvas(db);
     const a = open(server.port, canvasId, "alice");
@@ -648,7 +649,6 @@ describe.skipIf(!TEST_DATABASE_URL)("canvas-sync against Postgres", () => {
     a.destroy();
     await sleep(500);
     console.log(`  over-cap update: closes ${JSON.stringify(a.closes)}`);
-    expect(a.closes).not.toContain(SYNC_CLOSE.tooLarge);
     expect(b.nodes.has("enormous")).toBe(false);
     expect(b.closes).toEqual([]);
     expect(await storedNodeIds(db, canvasId)).not.toContain("enormous");
