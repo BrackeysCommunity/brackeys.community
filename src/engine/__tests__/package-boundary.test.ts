@@ -369,7 +369,7 @@ describe("package boundary", () => {
     violations(bad);
   });
 
-  it("ships no game code: no entry reaches src/games, and the built files name no game feature", () => {
+  it("ships no game code: no entry reaches src/games, and the built files and engine scenes name no game feature", () => {
     for (const file of Object.values(ENTRIES)) {
       for (const reached of runtimeGraph(file).files) {
         expect(reached, `${file} reaches ${reached}`).not.toMatch(/^\.\.\//);
@@ -380,6 +380,7 @@ describe("package boundary", () => {
       ...built,
       join(ENGINE, "scene/scene.schema.json"),
       join(ENGINE, "scene/ops.schema.json"),
+      ...walk(join(ENGINE, "scenes"), /\.json$/),
     ];
     const named = shipped
       .filter((f) => GAME_WORDS.test(readFileSync(f, "utf8")))
