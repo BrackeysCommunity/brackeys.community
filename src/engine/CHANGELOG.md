@@ -316,8 +316,7 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   same write frees.
 - `./vite`: `readProjectPrefabFiles(project, state, registry)` reads a
   project's live prefab assets at their registry paths. `PrefabFiles` gains
-  `files` (each read prefab's file). A project's prefabs change through
-  `applyProjectBatchToFiles`.
+  `files` (each read prefab's file).
 - `./vite`: `FileApplyOptions.store`: where `applyProjectBatchToFiles`
   inspects blob bytes from (a dry run's bytes stay out of the cache).
 - `reinspectBlobs` (`./collab`): the project's one writer re-derives a
@@ -475,10 +474,23 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
 - On files, a scene in a project resolves its prefabs through the project's
   registry: every live prefab asset under the project's globs, at its path,
   whatever its file name (`validate`, `list`, `show`, `step`, `apply` and
-  the rest). `apply` writes a changed prefab back to its asset's file and a
-  new one to `prefabs/` beside the scene, where the live path puts it
-  (`prefabPathNear`). Only a scene file outside every project still reads
+  the rest). Only a scene file outside every project still reads
   `prefabs/` beside it.
+- `apply` on files, in a project, sends the batch as one `editScene` op
+  through `applyProjectBatchToFiles`, as `--live` does, writing prefab
+  files, sidecars, registry and dev cache the way `assets apply` does. A
+  changed prefab goes back to its asset's file and a new one to `prefabs/`
+  beside the scene (`prefabPathNear`). A prefab id another asset holds is
+  refused with `asset-id-taken`, and a path another asset or an unlisted
+  file holds with `path-taken`: exit 1 with `ok: false`, `failedAt`,
+  `issue`, `sceneHash` and `written: false` in the data, nothing written,
+  dry run included. A
+  `definePrefab` with `"prefab": null` sends the prefab to the trash, where
+  `assets restore` brings it back.
+- `new` creates the scene as a `createAsset` op through
+  `applyProjectBatchToFiles` and refuses an id or path another asset holds
+  (`asset-id-taken` / `path-taken`): exit 1, nothing written, the issue in
+  its result's `issue` with `written: false`.
 - Hosted projects: every `--live` command (`apply`, `assets list`, the
   `assets` writers, `project tree` and `project refs`) takes a site `--url https://…` (`http://` only on
   localhost, since the token travels with every request) and an agent token
