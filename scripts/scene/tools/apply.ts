@@ -1,17 +1,9 @@
-import { applyOps, describeChange, formatScene, type OpBatch } from "@jams/engine/scene";
-import { writePrefabFiles } from "@jams/engine/vite";
+import type { ProjectApplyResult, ProjectOpBatch } from "@jams/engine/project";
+import { applyOps, describeChange, type OpBatch, type SceneOp } from "@jams/engine/scene";
+import { applyProjectBatchToFiles, type FileProject } from "@jams/engine/vite";
 
-import {
-  failure,
-  issueLine,
-  loadScene,
-  readArg,
-  readScenePrefabs,
-  usage,
-  UsageError,
-  writeSceneText,
-  type Tool,
-} from "../context";
+import { failure, issueLine, loadScene, readArg, usage, UsageError, type Tool } from "../context";
+import { overlayMaterials, scanProject, type ProjectHandle } from "../projects";
 
 export type ApplyInput = { scene?: string; ops?: string; dryRun?: boolean; base?: string };
 
@@ -20,6 +12,21 @@ function renameHash<T extends { hash: string }>({ hash, ...rest }: T) {
   return { ...rest, sceneHash: hash };
 }
 
+/** The project as a file batch sees it: its material assets as their files hold them now. */
+async function fileProject(project: ProjectHandle): Promise<FileProject> {
+  const registry = await overlayMaterials(project, project.registry, await scanProject(project));
+  return { ...project, registry };
+}
+
+/**
+ * Applies a batch to a scene's file. The batch is tried with `applyOps`
+ * (its `base` is the scene hash; stale exits 3), then applied as one
+ * `editScene` project op through `applyProjectBatchToFiles`, the way the dev
+ * server applies it live: prefab ops follow the project's id, path and trash
+ * rules and write sidecars and the registry. `--dry-run` runs that project
+ * batch in memory too, so it reports what the write would refuse. A batch
+ * that would leave error-severity issues writes nothing.
+ */
 export const apply: Tool<ApplyInput> = async (input, ctx) => {
   if (!input.ops) return usage("scene apply <scene> --ops <file|-> [--dry-run] [--base hash]");
   const loaded = await loadScene(ctx, input.scene, "apply --ops <file|->");
@@ -49,15 +56,18 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
     };
   }
 
-  const { def, prefabs: _prefabs, ...rest } = renameHash(result);
+  const { def: _def, prefabs: _prefabs, ...rest } = renameHash(result);
   const errors = result.issues.filter((i) => i.severity === "error");
   const write = !input.dryRun && errors.length === 0;
-  if (write) {
-    if (result.prefabs) {
-      const files = await readScenePrefabs(loaded.home, loaded.registry);
-      if (files.where) await writePrefabFiles(files.where, files.texts, result.prefabs);
-    }
-    await writeSceneText(loaded.scene, formatScene(def).text);
+  if (errors.length === 0) {
+    const projectBatch: ProjectOpBatch = {
+      v: 1,
+      ...(batch.label ? { label: batch.label } : {}),
+      ops: [{ op: "editScene", id: loaded.name, ops: batch.ops as SceneOp[] }],
+    };
+    const files = await fileProject(loaded.scene.project);
+    const applied = await applyProjectBatchToFiles(files, projectBatch, { dryRun: !write });
+    if (!applied.ok) return refused(loaded.name, rest.sceneHash, applied);
   }
 
   const verb = input.dryRun ? "would change" : write ? "changed" : "not written (errors)";
@@ -73,3 +83,16 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
     text: lines.join("\n"),
   };
 };
+
+/** A batch the scene accepts but the project refuses (an id or path another asset holds). */
+function refused(
+  scene: string,
+  sceneHash: string,
+  applied: Extract<ProjectApplyResult, { ok: false }>,
+) {
+  return {
+    exitCode: 1 as const,
+    data: { ok: false, scene, sceneHash, issue: applied.issue, written: false },
+    text: [`${scene}: not applied`, issueLine(applied.issue)].join("\n"),
+  };
+}

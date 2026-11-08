@@ -393,11 +393,6 @@ type Parsed = {
   project: ProjectHandle | null;
 };
 
-export type ScenePrefabs = PrefabFiles & {
-  /** What `writePrefabFiles` writes them back to; absent for stdin. */
-  where?: string | ((id: string) => string);
-};
-
 /**
  * The prefabs of `home`, judged by `registry`. A project's are its live
  * prefab assets at their registry paths, from `scan` when given. A prefab
@@ -408,15 +403,20 @@ export async function readScenePrefabs(
   home: PrefabHome,
   registry: Registry,
   scan?: ProjectScan,
-): Promise<ScenePrefabs> {
+): Promise<PrefabFiles> {
   if (home === undefined)
     return { prefabs: new Map(), texts: new Map(), files: new Map(), problems: [] };
-  if ("dir" in home) return { ...(await readPrefabFiles(home.dir, registry)), where: home.dir };
+  if ("dir" in home) return readPrefabFiles(home.dir, registry);
   const { project } = home;
   const { state } = scan ?? (await scanProject(project));
   const near = relative(project.dir, home.scene).split(sep).join("/");
-  const files = await readProjectPrefabFiles(project, state, registry, near);
-  return { ...files, where: files.pathOf };
+  const { pathOf: _pathOf, ...files } = await readProjectPrefabFiles(
+    project,
+    state,
+    registry,
+    near,
+  );
+  return files;
 }
 
 /** The prefab library of `home`; see `readScenePrefabs`. */

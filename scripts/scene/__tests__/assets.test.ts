@@ -235,6 +235,8 @@ describe("assets on files", { timeout: 60_000 }, () => {
         }),
       );
       expect((await run("show", scene)).exitCode).toBe(0);
+      const stepped = await run("step", scene, "--ticks", "5");
+      expect(stepped.exitCode, JSON.stringify(stepped.data)).toBe(0);
     };
 
     it("after the scene moves to another folder", async () => {
@@ -281,6 +283,66 @@ describe("assets on files", { timeout: 60_000 }, () => {
       expect(applied.exitCode, JSON.stringify(applied.data)).toBe(0);
       expect(Object.keys(await tree(deck))).toContain("levels/prefabs/peg.json");
       expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toContain("peg");
+    });
+  });
+
+  describe("scene apply follows the project's asset rules", () => {
+    const peg = { id: "peg", type: "solid", shape: ["box", 0, -5, 5, 5] };
+    const applyOps = async (ops: unknown[], ...flags: string[]) => {
+      const file = join(root, "scene-ops.json");
+      await writeFile(file, JSON.stringify({ ops }));
+      return run("apply", "kitchen-sink", "--ops", file, ...flags);
+    };
+
+    it("refuses a prefab id another asset holds and writes nothing", async () => {
+      const before = await tree(deck);
+      const ops = [{ op: "definePrefab", id: "bouncy", prefab: { entities: [peg] } }];
+      for (const flags of [["--dry-run"], []]) {
+        const r = await applyOps(ops, ...flags);
+        expect(r.exitCode, JSON.stringify(r.data)).toBe(1);
+        expect(r.data).toMatchObject({ written: false, issue: { code: "asset-id-taken" } });
+      }
+      expect(await tree(deck)).toEqual(before);
+    });
+
+    it("refuses a new prefab whose file another kind's asset holds", async () => {
+      await writeFile(join(root, "peg.json"), JSON.stringify(RUBBER));
+      const imported = await run(
+        "assets",
+        "import",
+        join(root, "peg.json"),
+        "--path",
+        "prefabs/",
+        "--id",
+        "rubber-peg",
+      );
+      expect(imported.exitCode, JSON.stringify(imported.data)).toBe(0);
+      const before = await tree(deck);
+      const r = await applyOps([{ op: "definePrefab", id: "peg", prefab: { entities: [peg] } }]);
+      expect(r.exitCode, JSON.stringify(r.data)).toBe(1);
+      expect(r.data).toMatchObject({ written: false, issue: { code: "path-taken" } });
+      expect(await tree(deck)).toEqual(before);
+      expect(JSON.parse(await readFile(join(deck, "prefabs/peg.json"), "utf8"))).toMatchObject(
+        RUBBER,
+      );
+    });
+
+    it("sends a deleted prefab to the trash, and restore brings back its file and entry", async () => {
+      const made = await applyOps([{ op: "definePrefab", id: "peg", prefab: { entities: [peg] } }]);
+      expect(made.exitCode, JSON.stringify(made.data)).toBe(0);
+      const text = await readFile(join(deck, "prefabs/peg.json"), "utf8");
+
+      const dropped = await applyOps([{ op: "definePrefab", id: "peg", prefab: null }]);
+      expect(dropped.exitCode, JSON.stringify(dropped.data)).toBe(0);
+      expect(Object.keys(await tree(deck))).not.toContain("prefabs/peg.json");
+      expect(ids((await run("assets", "list", "--trash")).data)).toEqual(["peg"]);
+      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).not.toContain("peg");
+
+      const restored = await run("assets", "restore", "peg");
+      expect(restored.exitCode, JSON.stringify(restored.data)).toBe(0);
+      expect(await readFile(join(deck, "prefabs/peg.json"), "utf8")).toBe(text);
+      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toContain("peg");
+      expect((await run("assets", "list", "--trash")).data.assets).toEqual([]);
     });
   });
 

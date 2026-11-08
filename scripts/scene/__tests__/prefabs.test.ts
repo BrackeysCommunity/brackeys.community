@@ -51,12 +51,15 @@ const SCENE: SceneDefinition = {
   entities: [{ id: "start", type: "marker", at: [100, 900], group: "east" }],
 };
 
+/** Holds the project and, beside it, its dev cache. */
+let tmp: string;
 let root: string;
 let ctx: ToolContext;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "scene-prefabs-"));
-  await mkdir(join(root, "prefabs"));
+  tmp = await mkdtemp(join(tmpdir(), "scene-prefabs-"));
+  root = join(tmp, "game");
+  await mkdir(join(root, "prefabs"), { recursive: true });
   await writeFile(join(root, "prefabs", "gate.json"), formatPrefab(GATE));
   await writeFile(join(root, "gates.json"), formatScene(SCENE).text);
   ctx = {
@@ -66,7 +69,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await rm(root, { recursive: true, force: true });
+  await rm(tmp, { recursive: true, force: true });
 });
 
 describe("scenes with prefabs", () => {

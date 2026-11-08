@@ -142,16 +142,12 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
     const declared = Number(length);
     if (Number.isFinite(declared) && declared > maxBytes) return tooLarge();
 
-    // A re-upload of a blob the project holds is answered from its row,
-    // unread; any other upload is charged before its body is read.
+    // Re-uploading a blob the project already holds isn't charged against the
+    // day's uploads, but its bytes are still read and must hash to it.
     const expect = request.headers.get("x-expect-sha256") ?? undefined;
     const heldRow =
       expect !== undefined && isSha256(expect) ? await blobRow(projectId, expect) : null;
-    if (heldRow && (length === null || declared === heldRow.byteSize)) {
-      await request.body?.cancel();
-      return Response.json({ sha256: expect, bytes: heldRow.byteSize }, { status: 200 });
-    }
-    if (!(await engineBlobUploadAllowed(userId))) {
+    if (!heldRow && !(await engineBlobUploadAllowed(userId))) {
       return refuse(429, "Too many uploads today — try again tomorrow.");
     }
 
@@ -169,7 +165,7 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
 
     const reply = (status: number) =>
       Response.json({ sha256: hash, bytes: bytes.byteLength }, { status });
-    if (await blobRow(projectId, hash)) return reply(200);
+    if (heldRow ?? (await blobRow(projectId, hash))) return reply(200);
 
     const refusal = checkQuota(quota, await storedProjectUsage(projectId), {
       blobs: 1,

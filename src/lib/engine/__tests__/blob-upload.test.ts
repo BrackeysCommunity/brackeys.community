@@ -225,18 +225,57 @@ describe("blob upload: the rate limit", () => {
     expect(limiter.hits.get("engine-blob:staff")).toBeUndefined();
   });
 
-  it("answers a re-upload of a held blob unread and uncharged, even when the day's uploads are spent", async () => {
+  it("answers a held re-upload uncharged, even when the day's uploads are spent", async () => {
     expect((await send(upload(PNG))).status).toBe(201);
     limiter.hits.set("engine-blob:staff", ENGINE_BLOB_UPLOADS_PER_DAY);
     const hash = await sha256(PNG);
-    const again = endless({ "x-expect-sha256": hash });
-    const response = await send(again.request);
+    const response = await send(upload(PNG, { expect: hash }));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ sha256: hash, bytes: PNG.byteLength });
-    expect(again.pulls()).toBeLessThanOrEqual(1);
     expect(limiter.hits.get("engine-blob:staff")).toBe(ENGINE_BLOB_UPLOADS_PER_DAY);
+    expect(minio.objects.size).toBe(1);
+    expect(await db.select().from(engineBlobs)).toHaveLength(1);
     expect((await send(upload(PNG))).status).toBe(429);
     expect((await send(upload(bytes("new bytes")))).status).toBe(429);
+  });
+
+  it("refuses same-length bytes that don't hash to a held blob, uncharged and storing nothing", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    const hash = await sha256(PNG);
+    const forged = new Uint8Array(PNG).map((byte) => byte ^ 0xff);
+    const other = upload(forged, { expect: hash });
+    other.headers.set("content-length", String(forged.byteLength));
+    const response = await send(other);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      code: "hash-mismatch",
+      issue: { code: "hash-mismatch", expected: hash, got: await sha256(forged) },
+    });
+    expect(limiter.hits.get("engine-blob:staff")).toBe(1);
+    expect(minio.objects.size).toBe(1);
+    expect(await db.select().from(engineBlobs)).toHaveLength(1);
+    expect(scans.requested).toHaveLength(1);
+  });
+
+  it("refuses a held hash sent with no content-length and other bytes", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    const hash = await sha256(PNG);
+    const response = await send(
+      new Request(`https://site.test/api/engine/projects/${PROJECT}/blobs`, {
+        method: "POST",
+        headers: { "x-test-user": "staff", "x-asset-kind": "texture", "x-expect-sha256": hash },
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(bytes("not the png"));
+            controller.close();
+          },
+        }),
+        duplex: "half",
+      } as RequestInit),
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "hash-mismatch" });
+    expect(await db.select().from(engineBlobs)).toHaveLength(1);
   });
 
   it("refuses a spent member before reading the body", async () => {
@@ -246,7 +285,7 @@ describe("blob upload: the rate limit", () => {
     expect(spent.pulls()).toBeLessThanOrEqual(1);
   });
 
-  it("reads a body whose length differs from the held blob's, and charges it", async () => {
+  it("refuses a body whose length differs from the held blob's, uncharged", async () => {
     expect((await send(upload(PNG))).status).toBe(201);
     const hash = await sha256(PNG);
     const other = upload(bytes("not the png"), { expect: hash });
@@ -254,7 +293,7 @@ describe("blob upload: the rate limit", () => {
     const response = await send(other);
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ code: "hash-mismatch" });
-    expect(limiter.hits.get("engine-blob:staff")).toBe(2);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(1);
   });
 
   it("counts per member", async () => {
