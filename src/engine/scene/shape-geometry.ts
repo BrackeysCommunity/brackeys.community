@@ -20,7 +20,7 @@ function rotate([x, y]: Pt, deg: number): Pt {
     case 270:
       return [y + 0, 0 - x];
   }
-  const rad = deg * DEG;
+  const rad = (deg % 360) * DEG;
   const c = Math.cos(rad);
   const s = Math.sin(rad);
   return [x * c - y * s, x * s + y * c];

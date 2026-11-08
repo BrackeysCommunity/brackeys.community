@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
+import { docToPrefab, prefabToDoc } from "../../collab/prefab-doc";
 import { createRegistry, defineGame } from "../../game/define";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../agent-surface";
 import { formatPrefab } from "../format";
@@ -239,6 +240,28 @@ describe("variants and exposed parameters in a prefab", () => {
     expect(r.ok && Object.keys(r.prefab)).toEqual(["kind", "v", "id", "params", "entities"]);
     const empty = parsePrefab({ ...bare, params: {} }, engine);
     expect(empty.ok && "params" in empty.prefab).toBe(false);
+  });
+
+  it("reads back from its doc as the prefab parsed from a file written with empty maps", () => {
+    const r = parsePrefab(
+      {
+        ...bare,
+        base: "gate",
+        params: {},
+        assets: [],
+        overrides: {},
+        instances: [{ id: "latch", prefab: "gate", at: [40, 0], params: {}, overrides: {} }],
+        entities: [{ id: "lamp", type: "marker", at: [20, -90], behaviors: {} }],
+      },
+      engine,
+    );
+    if (!r.ok) throw new Error(r.issues[0]!.message);
+    expect(Object.keys(r.prefab)).toEqual(["kind", "v", "id", "base", "instances", "entities"]);
+    expect(r.prefab.instances).toEqual([{ id: "latch", prefab: "gate", at: [40, 0] }]);
+    expect(r.prefab.entities).toEqual([{ id: "lamp", type: "marker", at: [20, -90] }]);
+    const back = docToPrefab(prefabToDoc(r.prefab));
+    expect(back).toEqual(r.prefab);
+    expect(formatPrefab(back)).toBe(formatPrefab(r.prefab));
   });
 
   it("parses the assets header", () => {

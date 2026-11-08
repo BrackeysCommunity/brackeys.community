@@ -579,8 +579,8 @@
                 "description": "The op: override."
               },
               "ref": {
-                "type": "string",
-                "description": "The instance."
+                "description": "The instance. Omitted in a prefab's own document: the prefab's own overrides of its variant base's children.",
+                "type": "string"
               },
               "set": {
                 "type": "object",
@@ -593,9 +593,9 @@
                 "description": "Override key to value, in the prefab's own frame (before the instance's `at`): `{ \"door.path.speed\": 140 }`. Replaces any override of the same field or inside it."
               }
             },
-            "required": ["op", "ref", "set"],
+            "required": ["op", "set"],
             "additionalProperties": false,
-            "description": "Set fields of one instance's children that differ from the prefab."
+            "description": "Set fields of one instance's children that differ from the prefab, or with no ref a variant's fields of its base's children."
           },
           {
             "type": "object",
@@ -606,8 +606,8 @@
                 "description": "The op: revertOverride."
               },
               "ref": {
-                "type": "string",
-                "description": "The instance."
+                "description": "The instance. Omitted in a prefab's own document: the prefab's own overrides of its variant base's children.",
+                "type": "string"
               },
               "paths": {
                 "description": "Override keys to drop, with any inside them; omitted drops every override.",
@@ -619,9 +619,9 @@
                 }
               }
             },
-            "required": ["op", "ref"],
+            "required": ["op"],
             "additionalProperties": false,
-            "description": "Put an instance's children back to the prefab's values."
+            "description": "Put an instance's children back to the prefab's values, or with no ref a variant's back to its base's."
           },
           {
             "type": "object",

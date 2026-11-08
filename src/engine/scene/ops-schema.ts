@@ -248,25 +248,33 @@ const SetGroupOp = z
 const OverrideOp = z
   .strictObject({
     op: opName("override"),
-    ref: IdSchema.describe("The instance."),
+    ref: IdSchema.optional().describe(
+      "The instance. Omitted in a prefab's own document: the prefab's own overrides of its variant base's children.",
+    ),
     set: z
       .record(OverridePathSchema, z.unknown())
       .describe(
         "Override key to value, in the prefab's own frame (before the instance's `at`): `{ \"door.path.speed\": 140 }`. Replaces any override of the same field or inside it.",
       ),
   })
-  .describe("Set fields of one instance's children that differ from the prefab.");
+  .describe(
+    "Set fields of one instance's children that differ from the prefab, or with no ref a variant's fields of its base's children.",
+  );
 
 const RevertOverrideOp = z
   .strictObject({
     op: opName("revertOverride"),
-    ref: IdSchema.describe("The instance."),
+    ref: IdSchema.optional().describe(
+      "The instance. Omitted in a prefab's own document: the prefab's own overrides of its variant base's children.",
+    ),
     paths: z
       .array(OverridePathSchema)
       .optional()
       .describe("Override keys to drop, with any inside them; omitted drops every override."),
   })
-  .describe("Put an instance's children back to the prefab's values.");
+  .describe(
+    "Put an instance's children back to the prefab's values, or with no ref a variant's back to its base's.",
+  );
 
 const ApplyToPrefabOp = z
   .strictObject({
@@ -729,6 +737,7 @@ export function opRefs(op: SceneOp): Ref[] {
     case "promote":
     case "override":
     case "revertOverride":
+      return op.ref !== undefined ? [op.ref] : [];
     case "applyToPrefab":
     case "unpack":
     case "paintCells":

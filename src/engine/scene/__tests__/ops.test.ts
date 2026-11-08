@@ -1862,6 +1862,8 @@ describe("applyOps: prefab header and params", () => {
       { op: "setPrefabBase", base: null },
       { op: "exposeParam", name: "speed", param: speed },
       { op: "exposeParam", name: "speed", param: null },
+      { op: "override", set: { "panel.path.speed": 9 } },
+      { op: "revertOverride" },
     ] satisfies SceneOp[]) {
       const refused = failed(applyOps(hall(), { ops: [op] }, engine, { prefabs }));
       expect(refused.issue.code, op.op).toBe("op-invalid");
@@ -1904,10 +1906,11 @@ describe("applyOps: prefab header and params", () => {
     const unknown = set("room", "dor");
     expect(unknown.code).toBe("variant-base-unknown");
     expect(unknown.message).toContain('did you mean "door"');
-    expect(unknown.path).toBe("/ops/0");
-    expect(set("room", "room").code).toBe("variant-base-unknown");
+    expect(unknown.path).toBe("/ops/0/base");
+    const itself = set("room", "room");
+    expect([itself.code, itself.path]).toEqual(["prefab-cycle", "/ops/0/base"]);
     const through = set("door", "room");
-    expect(through.code).toBe("prefab-cycle");
+    expect([through.code, through.path]).toEqual(["prefab-cycle", "/ops/0/base"]);
     expect(through.message).toContain('Prefab "door" would contain itself: door → room');
   });
 
@@ -1947,7 +1950,59 @@ describe("applyOps: prefab header and params", () => {
       }),
     ).issue;
     expect(missing.code).toBe("op-invalid");
+    expect(missing.path).toBe("/ops/0/name");
     expect(missing.message).toContain('did you mean "speed"');
+  });
+
+  it("sets and drops a variant's own overrides with no ref, with exact inverses", () => {
+    const prefabs = prefabLibrary([
+      ...library().values(),
+      {
+        kind: "prefab",
+        v: 3,
+        id: "blue-door",
+        base: "door",
+        entities: [],
+        overrides: { "panel.path.speed": 20, "knob.at": [1, 1] },
+      },
+    ]);
+    const view = viewOf(prefabs, "blue-door");
+    const set = headerRoundTrip(
+      view,
+      { ops: [{ op: "override", set: { "panel.path": { mode: "loop" }, "lamp.at": [2, 2] } }] },
+      prefabs,
+      { prefab: "blue-door" },
+    );
+    expect(set.prefabs!.get("blue-door")!.overrides).toEqual({
+      "knob.at": [1, 1],
+      "panel.path": { mode: "loop" },
+      "lamp.at": [2, 2],
+    });
+    expect(set.inverse.ops).toEqual([
+      { op: "revertOverride", paths: ["lamp.at", "panel.path"] },
+      { op: "override", set: { "panel.path.speed": 20 } },
+    ]);
+
+    const dropped = headerRoundTrip(
+      view,
+      { ops: [{ op: "revertOverride", paths: ["panel.path"] }] },
+      prefabs,
+      { prefab: "blue-door" },
+    );
+    expect(dropped.prefabs!.get("blue-door")!.overrides).toEqual({ "knob.at": [1, 1] });
+    const all = headerRoundTrip(view, { ops: [{ op: "revertOverride" }] }, prefabs, {
+      prefab: "blue-door",
+    });
+    expect(all.prefabs!.get("blue-door")!.overrides).toBeUndefined();
+    expect(all.prefabs!.get("blue-door")!.base).toBe("door");
+
+    const empty = failed(
+      applyOps(view, { ops: [{ op: "override", set: {} }] }, engine, {
+        prefabs,
+        prefab: "blue-door",
+      }),
+    ).issue;
+    expect([empty.code, empty.path]).toEqual(["op-invalid", "/ops/0/set"]);
   });
 
   it("keeps the view's own edits in the prefab a header op reports", () => {

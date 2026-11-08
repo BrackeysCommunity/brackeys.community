@@ -35,7 +35,16 @@ import {
   prefabsUsedBy,
   sceneBody,
 } from "./prefab";
-import { applyHeaderOp, sortedParams, type PrefabHeader } from "./prefab-header";
+import {
+  applyHeaderOp,
+  headerFields,
+  headerOf,
+  headerOpsBetween,
+  revertOverrides,
+  setOverride,
+  type PrefabHeader,
+  type PrefabHeaderOp,
+} from "./prefab-header";
 import {
   CHILD_SEPARATOR,
   gridTurns,
@@ -154,30 +163,31 @@ type Work = {
   startDef: SceneDefinition;
   /** The prefab this document is a view of, when it is one. */
   view?: string;
-  /** The viewed prefab's variant base and own exposed params, which header ops change. */
-  header: ViewHeader;
+  /** The viewed prefab's variant base, own exposed params and own overrides, which header ops change. */
+  header: PrefabHeader;
   headerTouched: boolean;
 };
 
-type ViewHeader = PrefabHeader;
-
-function headerOf(prefab: Prefab | undefined): ViewHeader {
-  return {
-    ...(prefab?.base !== undefined ? { base: prefab.base } : {}),
-    params: sortedParams(clone(prefab?.params ?? {})),
-  };
-}
-
-/** Refuses a prefab-header op outside a prefab's own document. */
-function viewOnly(w: Work, op: string): void {
-  if (w.view !== undefined) return;
-  fail(
-    "op-invalid",
-    `${op} changes a prefab's header, so it works only in that prefab's document, not in a scene.`,
-    {
-      hint: 'Send it through editScene with the prefab\'s id, or open the prefab and apply it there (applyOps with { prefab: "<id>" }).',
-    },
-  );
+/** Runs a prefab-header op on the viewed prefab's header; outside a prefab's own document it is refused. */
+function headerOp(w: Work, op: PrefabHeaderOp, i: number): void {
+  if (w.view === undefined) {
+    const what =
+      op.op === "override" || op.op === "revertOverride" ? `${op.op} with no ref` : op.op;
+    fail(
+      "op-invalid",
+      `${what} changes a prefab's header, so it works only in that prefab's document, not in a scene.`,
+      {
+        hint:
+          op.op === "override" || op.op === "revertOverride"
+            ? "Name the instance with ref, or send it through editScene with the prefab's id to change the prefab's own overrides."
+            : 'Send it through editScene with the prefab\'s id, or open the prefab and apply it there (applyOps with { prefab: "<id>" }).',
+      },
+    );
+  }
+  const next = applyHeaderOp(w.header, op, w.view, w.prefabs);
+  if (!next.ok) throw new OpFailure({ ...next.issue, path: `/ops/${i}${next.issue.path ?? ""}` });
+  w.header = next.header;
+  w.headerTouched = true;
 }
 
 class OpFailure extends Error {
@@ -1352,6 +1362,7 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       return;
     }
     case "override": {
+      if (op.ref === undefined) return headerOp(w, { op: op.op, set: op.set }, i);
       const rec = resolveInstance(w, op.ref);
       const keys = Object.keys(op.set);
       if (keys.length === 0) fail("op-invalid", `override of ${op.ref} sets nothing.`);
@@ -1365,13 +1376,11 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       return;
     }
     case "revertOverride": {
+      if (op.ref === undefined)
+        return headerOp(w, { op: op.op, ...(op.paths ? { paths: op.paths } : {}) }, i);
       const rec = resolveInstance(w, op.ref);
       const overrides = { ...clone(rec.def.overrides ?? {}) };
-      for (const key of op.paths ?? Object.keys(overrides)) {
-        delete overrides[key];
-        for (const other of Object.keys(overrides))
-          if (other.startsWith(`${key}.`)) delete overrides[other];
-      }
+      revertOverrides(overrides, op.paths);
       const next = { ...clone(rec.def) };
       if (Object.keys(overrides).length > 0) next.overrides = overrides;
       else delete next.overrides;
@@ -1483,14 +1492,8 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       return;
     }
     case "setPrefabBase":
-    case "exposeParam": {
-      viewOnly(w, op.op);
-      const next = applyHeaderOp(w.header, op, w.view!, w.prefabs);
-      if (!next.ok) throw new OpFailure(next.issue);
-      w.header = next.header;
-      w.headerTouched = true;
-      return;
-    }
+    case "exposeParam":
+      return headerOp(w, op, i);
     case "setParam": {
       const rec = resolveInstance(w, op.ref);
       const params: Json = { ...rec.def.params };
@@ -1701,14 +1704,6 @@ const NESTING_OPS: readonly SceneOp["op"][] = [
 /** Whether a child ref runs through a nested instance (`door-1/panel`). */
 const isNestedRef = (ref: Ref) => ref.includes(CHILD_SEPARATOR);
 
-/** Sets `key` in an override map, dropping the keys it contains or that contain it. */
-function setOverride(overrides: Json, key: string, value: unknown): void {
-  for (const other of Object.keys(overrides))
-    if (other !== key && (other.startsWith(`${key}.`) || key.startsWith(`${other}.`)))
-      delete overrides[other];
-  overrides[key] = clone(value);
-}
-
 /** Whether two override keys touch the same value: equal, or one inside the other. */
 const overlaps = (a: string, b: string) =>
   a === b || a.startsWith(`${b}.`) || b.startsWith(`${a}.`);
@@ -1790,29 +1785,48 @@ function headerChanged(w: Work, prefabs: PrefabLibrary | undefined): boolean {
 /** The viewed prefab as the batch leaves it: the document's children and `assets` under its header. */
 function viewedPrefab(w: Work, start: SceneDefinition, after: SceneDefinition): Prefab {
   const id = w.view!;
-  const was = w.prefabs.get(id);
-  const {
-    entities: _e,
-    bulk: _b,
-    instances: _i,
-    base: _base,
-    params: _p,
-    assets: wasAssets,
-    contract,
-    ...head
-  }: Prefab = was ?? {
+  const was: Prefab = w.prefabs.get(id) ?? {
     kind: PREFAB_KIND,
     v: SCENE_FORMAT_VERSION,
     ...(after.game !== undefined ? { game: after.game } : {}),
     id,
     entities: [],
   };
-  const assets = w.assetsTouched || start.assets !== undefined ? after.assets : wasAssets;
+  return prefabLeftByView(was, start, after, w.header, w.registry, w.assetsTouched);
+}
+
+/**
+ * The prefab a view of `was` leaves: `was`'s other fields (id, game, and
+ * so on), the children, nested instances and contract `after` holds, and
+ * `header`. Its `assets` are `after`'s when the view carried them (`start`
+ * or `after` has an `assets` header, or `assetsTouched`), else `was`'s.
+ */
+export function prefabLeftByView(
+  was: Prefab,
+  start: SceneDefinition,
+  after: SceneDefinition,
+  header: PrefabHeader,
+  registry: Registry,
+  assetsTouched = false,
+): Prefab {
+  const {
+    entities: _e,
+    bulk: _b,
+    instances: _i,
+    base: _base,
+    params: _p,
+    overrides: _o,
+    assets: wasAssets,
+    contract,
+    ...head
+  } = was;
+  const carried = assetsTouched || start.assets !== undefined || after.assets !== undefined;
+  const assets = carried ? after.assets : wasAssets;
+  const { assets: _a, ...body } = sceneBody(after, registry, contract);
   return {
     ...head,
-    ...sceneBody(after, w.registry, contract),
-    ...(w.header.base !== undefined ? { base: w.header.base } : {}),
-    ...(Object.keys(w.header.params).length > 0 ? { params: clone(w.header.params) } : {}),
+    ...body,
+    ...headerFields(header),
     ...(assets && assets.length > 0 ? { assets: [...assets] } : {}),
   };
 }
@@ -2390,19 +2404,10 @@ function assetsInverse(start: SceneDefinition, w: Work): SceneOp[] {
   ];
 }
 
-/** The header ops that put the viewed prefab's base and params back as `startPrefabs` holds them. */
+/** The header ops that put the viewed prefab's header back as `startPrefabs` holds it. */
 function headerInverse(w: Work, startPrefabs: PrefabLibrary): SceneOp[] {
   if (w.view === undefined || !w.headerTouched) return [];
-  const was = headerOf(startPrefabs.get(w.view));
-  const ops: SceneOp[] = [];
-  if (was.base !== w.header.base) ops.push({ op: "setPrefabBase", base: was.base ?? null });
-  const names = new Set([...Object.keys(was.params), ...Object.keys(w.header.params)]);
-  for (const name of [...names].sort()) {
-    const param = was.params[name];
-    if (!same(param, w.header.params[name]))
-      ops.push({ op: "exposeParam", name, param: param ? clone(param) : null });
-  }
-  return ops;
+  return headerOpsBetween(w.header, headerOf(startPrefabs.get(w.view)));
 }
 
 /**

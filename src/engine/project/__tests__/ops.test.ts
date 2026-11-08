@@ -1180,7 +1180,11 @@ describe("references", () => {
       expect(bad([create("red-gate", { base: "gat" })]).issue.message).toContain(
         'did you mean "gate"',
       );
-      expect(refused([create("red-gate", { base: "red-gate" })])[1]).toBe("variant-base-unknown");
+      expect(refused([create("red-gate", { base: "red-gate" })])).toEqual([
+        0,
+        "prefab-cycle",
+        "/ops/0/content/base",
+      ]);
       const holding = docs();
       holding.set("gate", { ...gate, instances: [{ id: "r", prefab: "red-gate", at: [0, 0] }] });
       expect(refused([create("red-gate", { base: "gate" })], holding)).toEqual([
@@ -1235,6 +1239,32 @@ describe("references", () => {
       expect(r.scenes.get("yard")!.prefabs?.get("gate")?.params).toEqual({
         surface: { description: "What the slope is made of.", targets: ["slope.material"] },
       });
+    });
+
+    it("drops a prefab's assets header when an editScene removes its last asset", () => {
+      const held = (assets: string[]) => {
+        const d = docs();
+        d.set("gate", { ...gate, assets });
+        const lib = () => new Map([["gate", { ...structuredClone(gate), assets } as never]]);
+        return { docs: d, env: { prefabsFor: lib, prefabEdit: () => null } };
+      };
+      const use = (remove: string[]): ProjectOp => ({
+        op: "editScene",
+        id: "gate",
+        ops: [{ op: "useAssets", remove }],
+      });
+      const later: ProjectOp = {
+        op: "editScene",
+        id: "yard",
+        ops: [{ op: "move", refs: ["floor"], by: [1, 0] }],
+      };
+      const seen = (assets: string[], remove: string[]) => {
+        const r = check([use(remove), later], held(assets));
+        if (!r.ok) throw new Error(`op ${r.opIndex}: ${r.issue.code} ${r.issue.message}`);
+        return r.scenes.get("yard")!.prefabs?.get("gate");
+      };
+      expect(seen(["tiles"], ["tiles"])).not.toHaveProperty("assets");
+      expect(seen(["sheet", "tiles"], ["tiles"])?.assets).toEqual(["sheet"]);
     });
 
     it("still reports the param unknown when the set comes first", () => {

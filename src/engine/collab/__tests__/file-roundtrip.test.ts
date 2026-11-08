@@ -62,7 +62,7 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
   }
 
   it("reads empty nested maps as absent in the file, the doc and the hash alike", () => {
-    const written: SceneDefinition = {
+    const parseable: SceneDefinition = {
       v: SCENE_FORMAT_VERSION,
       game: "test-game",
       name: "empties",
@@ -73,21 +73,30 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
         { id: "lit", type: "lamp", at: [20, 20], behaviors: { "test-game/glow": {} } },
       ],
     };
-    const parsed = parseSceneOrThrow(JSON.stringify(written, null, 2), createRegistry(testGame));
-    const text = formatScene(parsed).text;
-    expect(text).not.toMatch(/"(behaviors|params|overrides)": \{\}/);
+    const lift = { id: "lift", type: "follower", shape: ["box", 0, 0, 40, 6] } as const;
+    // A path is required wherever it is a field, so an empty one never parses; it can still reach the doc from an edit.
+    const written: SceneDefinition = {
+      ...parseable,
+      entities: [...parseable.entities!, { ...lift, path: {} }],
+    };
+    const registry = createRegistry(testGame);
+    const parsed = parseSceneOrThrow(JSON.stringify(parseable, null, 2), registry);
+    const text = formatScene({ ...parsed, entities: [...parsed.entities!, lift] }).text;
+    expect(text).not.toMatch(/"(behaviors|path|params|overrides)": \{\}/);
     expect(text).toContain('"behaviors": { "test-game/glow": {} }');
     expect(formatScene(written).text).toBe(text);
-    for (const def of [parsed, written]) {
+    const expected = JSON.parse(text) as SceneDefinition;
+    for (const def of [expected, written]) {
       const doc = sceneToDoc(def);
       const remote = new Y.Doc();
       Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
       for (const d of [doc, remote]) {
         expect(formatScene(docToScene(d)).text).toBe(text);
-        expect(sceneHash(docToScene(d))).toBe(sceneHash(parsed));
+        expect(sceneHash(docToScene(d))).toBe(sceneHash(expected));
       }
     }
-    expect(sceneHash(written)).toBe(sceneHash(parsed));
+    expect(sceneHash(written)).toBe(sceneHash(expected));
+    expect(sceneHash(parseable)).toBe(sceneHash(parsed));
     expect(docToScene(sceneToDoc(parsed))).toEqual(parsed);
   });
 });

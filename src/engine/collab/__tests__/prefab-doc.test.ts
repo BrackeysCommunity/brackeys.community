@@ -879,7 +879,7 @@ describe("prefab header ops through the project", () => {
     );
     expect(unknown.ok || [unknown.issue.code, unknown.issue.path]).toEqual([
       "variant-base-unknown",
-      "/ops/1",
+      "/ops/1/base",
     ]);
     const cycle = await applyProjectBatch(
       session,

@@ -318,9 +318,9 @@ cells. Every addition is optional with a default equal to v2's behaviour.
 - `./collab`: `setPrefabBase` and `exposeParam` in an `editScene` of a
   prefab write that prefab doc's header through the session's prefab
   writer: the base on its own and overrides per path (logged under
-  `VARIANT_KEY`), parameters per name (`@param:<name>`). An unknown base,
-  or the prefab itself, is `variant-base-unknown` (with a did-you-mean); a
-  base that leads back through bases or nested instances is
+  `VARIANT_KEY`), parameters per name (`@param:<name>`). An unknown base
+  is `variant-base-unknown` (with a did-you-mean); the prefab itself, or a
+  base that leads back through bases or nested instances, is
   `prefab-cycle`. Sent to a scene, either op is refused with `op-invalid`.
   `changeAssetId` of a base prefab repoints its variants' `base`.
 - `./game`: `CHILD_REF_PATTERN` and `refField(description)`: a reference
@@ -554,7 +554,24 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
 - A variant's own `overrides` count as asset and material references (so
   renames rewrite them) and are validated in its view: a path naming no
   child of the base is `unused-override`, one naming a grid field is
-  `grid-invalid`, each with a fix that drops it.
+  `grid-invalid`, each with a fix that drops it. The fix is a
+  `revertOverride` with no ref, so it applies to a live prefab doc and
+  touches only that override.
+- `override` and `revertOverride` with no `ref`, in a prefab's own
+  document, set and drop the prefab's own overrides of its variant base,
+  on the scene, project and live paths (a prefab doc writes them per
+  path); their inverses are the same ops. Sent to a scene they are refused
+  with `op-invalid`, like the other header ops.
+- A header op's failure points at its field on every path
+  (`/ops/<i>/base`, `/ops/<i>/name`, `/ops/<i>/set`), and a prefab named
+  as its own base is `prefab-cycle` on every path.
+- An `editScene` on the project path that removes a prefab's last
+  `assets` entry drops its `assets` header; the scene and project paths
+  build the prefab a view leaves with one helper (`prefabLeftByView`).
+- A prefab validated on its own judges a turned or flipped nested instance
+  over grid children against the grid `ValidateOptions.settings` (the
+  project's engine block, the game's defaults) resolves; with none, each
+  scene that places the prefab judges it.
 - Generated JSON Schemas no longer carry the field builders' `kind` and
   `axis` meta, which aren't JSON Schema keywords.
 - Quarter-turn rotation is exact and writes no trailing `rotDeg: 0`; bulk
@@ -573,8 +590,15 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   cells; `rects` fill first and `cells` paint over them), `setPrefabBase`,
   `exposeParam` and `setParam` in the ops schema; `setGroup` takes `rot`
   and `flip`, `instantiate`'s instance takes `rot`, `flip`, `z` and
-  `params`, `applyToPrefab` takes `to`, and `definePrefab`'s body takes
+  `params`, `applyToPrefab` takes `to`, `override` and `revertOverride`
+  take an optional `ref` (omitted, in a prefab's own document: the
+  prefab's own overrides of its base), and `definePrefab`'s body takes
   `instances`, `base`, `overrides`, `params` and `assets`.
+- A variant's `unused-override` and `grid-invalid` fixes are
+  `{ "op": "revertOverride", "paths": [<path>] }`, not a `definePrefab`;
+  a prefab named as its own base through `editScene` or a prefab doc is
+  `prefab-cycle` (was `variant-base-unknown`), and header op issues point
+  at the op's field (`/ops/<i>/base`, `/ops/<i>/name`).
 - The prefab schema (`prefab:v3`) takes an optional `instances` array of
   the scene's `Instance`, and `base` (before `contract`), then `params`
   (`PrefabParam`: `description`, `targets`, `default`), `assets` and

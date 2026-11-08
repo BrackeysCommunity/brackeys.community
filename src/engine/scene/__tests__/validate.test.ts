@@ -845,6 +845,33 @@ describe("grid fields", () => {
     }
   });
 
+  it("a prefab view judges a turned nested instance over grid children against the project's grid", () => {
+    const view = prefabScene(prefabs.get("nest")!, [-512, -512, 512, 512]);
+    const judged = (grid: Record<string, unknown> | undefined) =>
+      validateScene(view, painter, {
+        prefabs,
+        prefab: "nest",
+        ...(grid ? { settings: { project: { grid } } } : {}),
+      });
+    const flagged = judged({ kind: "square", cell: [32, 16] });
+    expect(flagged.map((i) => [i.code, i.path, i.entityIds])).toEqual([
+      ["grid-invalid", "/instances/0/rot", ["inner"]],
+    ]);
+    expect(flagged[0]?.message).toContain("inner/floor");
+    expect(flagged[0]?.message).toContain("the project's grid");
+    expect(
+      validateScene(view, painter, {
+        prefabs,
+        prefab: "nest",
+        settings: {
+          game: { grid: { kind: "hex", cell: [32, 28], side: 16, stagger: "x", index: "odd" } },
+        },
+      }).map((i) => i.code),
+    ).toEqual(["grid-invalid"]);
+    expect(judged(square)).toEqual([]);
+    expect(judged(undefined)).toEqual([]);
+  });
+
   it("an override naming a grid field, with a fix that drops it", () => {
     const def = gridScene(square, {
       instances: [
@@ -885,13 +912,7 @@ describe("grid fields", () => {
       ["grid-invalid", "/overrides/floor.cells"],
     ]);
     const fix = issues[0]!.fix!;
-    expect(fix.ops).toMatchObject([
-      {
-        op: "definePrefab",
-        id: "tiles-red",
-        prefab: { base: "tiles", overrides: { "floor.at": [8, 8] } },
-      },
-    ]);
+    expect(fix.ops).toEqual([{ op: "revertOverride", paths: ["floor.cells"] }]);
     const fixed = applyOps(view, fix, painter, { prefabs: lib, prefab: "tiles-red" });
     if (!fixed.ok) throw new Error(fixed.issue.message);
     expect(fixed.prefabs?.get("tiles-red")?.overrides).toEqual({ "floor.at": [8, 8] });

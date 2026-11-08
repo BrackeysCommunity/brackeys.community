@@ -438,6 +438,10 @@ describe("variants: their own overrides, validated in the variant's view", () =>
       ["unused-override", "/overrides/ghost.at"],
     ]);
     expect(issues[1]?.message).toContain('names no child of prefab "gate"');
+    expect(issues.map((i) => i.fix?.ops)).toEqual([
+      [{ op: "revertOverride", paths: ["door.color"] }],
+      [{ op: "revertOverride", paths: ["ghost.at"] }],
+    ]);
     const fixOnce = (lib: PrefabLibrary, def: SceneDefinition) => {
       const [first] = validateScene(def, engine, { prefabs: lib, prefab: "red-gate" });
       const r = applyOps(def, first!.fix!, engine, { prefabs: lib, prefab: "red-gate" });

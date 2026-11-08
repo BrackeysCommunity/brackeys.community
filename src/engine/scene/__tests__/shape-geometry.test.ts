@@ -4,6 +4,7 @@ import {
   convexHull,
   signedArea,
   aabb,
+  boxCorners,
   centroid,
   closestOnSegment,
   containedInRect,
@@ -59,6 +60,15 @@ describe("aabb", () => {
       maxX: 10,
       maxY: 2,
     });
+  });
+
+  it("turns a full revolution past a non-quarter angle bit for bit like the angle itself", () => {
+    const box = { type: "box", cx: 3, cy: 7, hw: 11, hh: 4, rotDeg: 45 } as const;
+    expect(boxCorners({ ...box, rotDeg: 405 })).toEqual(boxCorners(box));
+    expect(boxCorners({ ...box, rotDeg: -405 })).toEqual(boxCorners({ ...box, rotDeg: -45 }));
+    expect(aabb({ ...box, rotDeg: 765 })).toEqual(aabb(box));
+    const cap = { type: "capsule", cx: 0, cy: 0, halfLen: 9, r: 2, rotDeg: 30 } as const;
+    expect(aabb({ ...cap, rotDeg: 390 })).toEqual(aabb(cap));
   });
 
   it("rotates capsules, vertical before rotation", () => {

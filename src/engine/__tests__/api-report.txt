@@ -7035,6 +7035,7 @@ type OverlayPoint = Pt | {
     x: number;
     y: number;
 };
+declare const SCENE_GRID_MAX_CELLS = 4096;
 type SceneOverlay = {
     events?: readonly {
         at: OverlayPoint;
@@ -7253,7 +7254,6 @@ declare function parseShape(input: unknown, path?: string): ParseShapeResult;
 declare function shapeToTuple(s: ShapeObj): ShapeTuple;
 
 ## scene/svg.ts
-declare const SCENE_GRID_MAX_CELLS = 4096;
 declare const SCENE_SVG_MAX_SIZE = 1600;
 type SceneLabels = "all" | "entities" | "none";
 type SceneSvgOptions = SceneRegionOptions & {
@@ -7761,7 +7761,7 @@ type SceneOp = {
     to?: string;
 } | {
     op: "override";
-    ref: Ref;
+    ref?: Ref;
     set: Record<OverridePath, unknown>;
 } | {
     op: "remove";
@@ -7769,7 +7769,7 @@ type SceneOp = {
 } | {
     op: "revertOverride";
     paths?: OverridePath[];
-    ref: Ref;
+    ref?: Ref;
 } | {
     op: "setScene";
     set: {
@@ -7873,6 +7873,7 @@ type ValidateOptions = {
     prefab?: string;
     prefabs?: PrefabLibrary;
     project?: ProjectView;
+    settings?: SettingsSources;
 };
 declare function validateScene(source: SceneDefinition, registry: Registry, opts?: ValidateOptions): SceneIssue[];
 

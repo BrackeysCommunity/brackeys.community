@@ -382,9 +382,13 @@ export type SceneOp =
       name?: string | null;
       remove?: boolean;
     }
-  | { op: "override"; ref: Ref; set: Record<OverridePath, unknown> }
-  /** Drops overrides: the paths given, or every one. */
-  | { op: "revertOverride"; ref: Ref; paths?: OverridePath[] }
+  /**
+   * Sets an instance's overrides; with no `ref`, in a prefab's own document,
+   * the prefab's own overrides of its variant base's children.
+   */
+  | { op: "override"; ref?: Ref; set: Record<OverridePath, unknown> }
+  /** Drops overrides (the paths given, or every one) of an instance, or with no `ref` of the open prefab. */
+  | { op: "revertOverride"; ref?: Ref; paths?: OverridePath[] }
   /**
    * Folds an instance's overrides (the paths given, or every one) into its
    * prefab, or into `to`, a deeper prefab in its chain.

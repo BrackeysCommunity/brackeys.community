@@ -17,6 +17,7 @@ import { makeIssue } from "../scene/issues";
 import { applyOpsTracked, type EntryTags } from "../scene/ops";
 import { usesBulkRefs } from "../scene/ops-schema";
 import { PREFAB_KIND } from "../scene/prefab";
+import { headerFields } from "../scene/prefab-header";
 import {
   RESERVED_SCENE_KEYS,
   type ApplyOptions,
@@ -266,7 +267,7 @@ export function applyOpsToDoc(
         failedAt: headed.failedAt,
         issue: headed.issue,
       };
-    header = { ...headed.header, ...(own.overrides ? { overrides: own.overrides } : {}) };
+    header = headerFields(headed.header);
   }
   if (view.kind === "prefab") {
     const grouped = [...(result.def.entities ?? []), ...(result.def.instances ?? [])].some(

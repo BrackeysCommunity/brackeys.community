@@ -7,12 +7,12 @@ import { entityRefSites } from "../project/kinds/fields";
 import { schemaRefSites, type RefSite } from "../project/refs";
 import type { AssetKindName, ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
-import { bulkId } from "./expand";
+import { bulkId, resolveSettings, type SettingsSources } from "./expand";
 import { isInstanceOverrideField } from "./field-path";
 import { comparePointers } from "./format";
 import { sceneHash } from "./hash";
 import { jsonPointer, lineAt, makeIssue, pointerSegments } from "./issues";
-import { prefabsUsedBy, sceneBody } from "./prefab";
+import { prefabsUsedBy } from "./prefab";
 import {
   CHILD_SEPARATOR,
   childEntity,
@@ -49,7 +49,6 @@ import {
   type OpBatch,
   type PathDef,
   type Prefab,
-  type PrefabBody,
   type PrefabLibrary,
   type Pt,
   type Ref,
@@ -83,6 +82,14 @@ export type ValidateOptions = {
    * asset ids aren't checked.
    */
   project?: ProjectView;
+  /**
+   * Where engine settings come from besides the scene (the project's
+   * `game-settings` engine block, the game's defaults). A prefab view has
+   * no settings of its own, so it judges a turned or flipped nested
+   * instance over grid children against the grid these resolve; with no
+   * grid there, each scene that places the prefab judges it.
+   */
+  settings?: SettingsSources;
 };
 
 type Located<T> = { field: string; pointer: string; value: T };
@@ -256,8 +263,13 @@ export function validateScene(
   const batch = (label: string, ops: SceneOp[], refs: Ref[]): OpBatch =>
     refs.some((ref) => ref.startsWith("~")) ? { label, base: base(), ops } : { label, ops };
 
-  validateSource(source, r, opts.prefabs, opts.prefab, (code, fields) =>
-    issues.push(withLine(makeIssue(code, fields))),
+  validateSource(
+    source,
+    r,
+    opts.prefabs,
+    opts.prefab,
+    (code, fields) => issues.push(withLine(makeIssue(code, fields))),
+    opts.settings,
   );
 
   const resolved = resolveSceneDetailed(source, r, opts.prefabs);
@@ -822,6 +834,7 @@ function validateSource(
   prefabs: PrefabLibrary | undefined,
   self: string | undefined,
   push: Push,
+  settings?: SettingsSources,
 ): void {
   const entities = def.entities ?? [];
   const instances = def.instances ?? [];
@@ -1051,7 +1064,14 @@ function validateSource(
     }
   });
 
-  validateGridTransforms(def, registry, prefabs, push);
+  validateGridTransforms(
+    def,
+    registry,
+    prefabs,
+    self === undefined ? def.settings?.grid : resolveSettings(undefined, settings).grid,
+    self === undefined ? "the scene's grid" : "the project's grid",
+    push,
+  );
 }
 
 type OverrideVerdict =
@@ -1131,11 +1151,11 @@ function variantClashes(
 /**
  * A prefab's own overrides against its variant base's children:
  * `unused-override` for a path that names none of them (every path, when it
- * has no base), `grid-invalid` for a grid field. The fix redefines the
- * prefab without the path.
+ * has no base), `grid-invalid` for a grid field. The fix drops the path
+ * with a `revertOverride` that has no ref, a header op of the prefab's own
+ * document.
  */
 function validateVariantOverrides(
-  def: SceneDefinition,
   registry: Registry,
   prefabs: PrefabLibrary,
   own: Prefab,
@@ -1148,19 +1168,10 @@ function validateVariantOverrides(
   if (resolved && !resolved.ok) return;
   const children = resolved?.prefab.children ?? [];
   const nested = nestedInstanceRefs(children.map((c) => c.child));
-  const drop = (path: string) => {
-    const { [path]: _gone, ...overrides } = own.overrides ?? {};
-    const body: PrefabBody = {
-      ...sceneBody(def, registry, own.contract),
-      ...(base !== undefined ? { base } : {}),
-      ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
-      ...(own.params && Object.keys(own.params).length > 0 ? { params: own.params } : {}),
-    };
-    return {
-      label: `Drop ${own.id}'s override ${path}`,
-      ops: [{ op: "definePrefab", id: own.id, prefab: body } satisfies SceneOp],
-    };
-  };
+  const drop = (path: string) => ({
+    label: `Drop ${own.id}'s override ${path}`,
+    ops: [{ op: "revertOverride", paths: [path] } satisfies SceneOp],
+  });
   for (const path of paths) {
     const verdict: OverrideVerdict =
       base === undefined
@@ -1200,7 +1211,7 @@ function validateView(
   if (!own) return;
   const baseRefs: Ref[] = [];
   const base = own.base;
-  if (base === undefined) validateVariantOverrides(def, registry, prefabs, own, undefined, push);
+  if (base === undefined) validateVariantOverrides(registry, prefabs, own, undefined, push);
   if (base !== undefined && !prefabs.has(base)) {
     const known = [...prefabs.keys()].filter((id) => id !== self);
     const guess = closest(base, known);
@@ -1234,7 +1245,7 @@ function validateView(
       });
     if (!issue && lost.length === 0) {
       baseRefs.push(...prefabChildRefs(base, prefabs, registry));
-      validateVariantOverrides(def, registry, prefabs, own, base, push);
+      validateVariantOverrides(registry, prefabs, own, base, push);
       const clashes = new Set(
         variantClashes(
           { base, entities: def.entities ?? [], instances: def.instances ?? [] },
@@ -1372,9 +1383,10 @@ function validateGridTransforms(
   def: SceneDefinition,
   registry: Registry,
   prefabs: PrefabLibrary | undefined,
+  grid: unknown,
+  whose: string,
   push: Push,
 ): void {
-  const grid = def.settings?.grid;
   if (!isPlainObject(grid)) return;
   const cell = Array.isArray(grid.cell) ? grid.cell : [];
   if (grid.kind === "square" && cell[0] === cell[1]) return;
@@ -1384,7 +1396,7 @@ function validateGridTransforms(
       : `it is a ${String(grid.kind)} grid`;
   const report = (path: string, owner: string, children: readonly Ref[]) =>
     push("grid-invalid", {
-      message: `${owner} turns or flips ${children.length === 1 ? "a grid" : "grids"} (${children.join(", ")}), and the scene's grid can't turn or flip cells (${which})`,
+      message: `${owner} turns or flips ${children.length === 1 ? "a grid" : "grids"} (${children.join(", ")}), and ${whose} can't turn or flip cells (${which})`,
       path,
       entityIds: [owner],
       hint: "Only a square grid with square cells (cell[0] === cell[1]) turns or flips; clear the rotation and mirror, or move the grid out.",

@@ -11,10 +11,16 @@ import { closest } from "../scene/did-you-mean";
 import { sceneHash } from "../scene/hash";
 import { jsonPointer, makeIssue, pointerSegments } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
-import { applyOps } from "../scene/ops";
+import { applyOps, prefabLeftByView } from "../scene/ops";
 import { opBatchSchemaFor, usesBulkRefs } from "../scene/ops-schema";
-import { prefabOf, prefabScene, sceneBody } from "../scene/prefab";
-import { applyHeaderOp, type PrefabHeader, type PrefabHeaderOp } from "../scene/prefab-header";
+import { prefabOf, prefabScene } from "../scene/prefab";
+import {
+  applyHeaderOp,
+  headerOf,
+  isHeaderOp,
+  type PrefabHeader,
+  type PrefabHeaderOp,
+} from "../scene/prefab-header";
 import {
   PREFAB_KIND,
   type ApplyResult,
@@ -144,12 +150,6 @@ export const PREFAB_SCENE_OPS: readonly SceneOp["op"][] = [
   "unpack",
 ];
 
-/** Scene ops that change the header of the prefab doc they are sent to; a scene refuses them. */
-export const PREFAB_HEADER_OPS: readonly SceneOp["op"][] = ["setPrefabBase", "exposeParam"];
-
-const isHeaderOp = (op: unknown): op is PrefabHeaderOp =>
-  isPlainObject(op) && PREFAB_HEADER_OPS.includes(op.op as SceneOp["op"]);
-
 /** A batch with its header ops taken out: `at` is each remaining op's index in the original. */
 export type SplitHeaderOps = {
   body: SceneOp[];
@@ -174,8 +174,9 @@ export const headerOpAt = (ops: readonly unknown[]): number => ops.findIndex(isH
 
 /** The refusal of a header op sent to a scene. */
 export function headerOpOnScene(op: SceneOp, index: number, scene: string): SceneIssue {
+  const what = op.op === "override" || op.op === "revertOverride" ? `${op.op} with no ref` : op.op;
   return makeIssue("op-invalid", {
-    message: `${op.op} only works on a prefab doc, not on scene "${scene}": send it in an editScene with the prefab's id`,
+    message: `${what} only works on a prefab doc, not on scene "${scene}": name the instance with ref, or send it in an editScene with the prefab's id`,
     path: jsonPointer(["ops", index]),
     entityIds: [scene],
   });
@@ -198,16 +199,12 @@ export function remapBodyFailure<T extends { failedAt: number; issue: SceneIssue
   };
 }
 
-/** A prefab's variant base and parameters, as header ops leave them. */
-export type PrefabHeaderEdit = Pick<Prefab, "base" | "params">;
-
 export type HeaderOpsResult =
-  | { ok: true; header: PrefabHeaderEdit }
+  | { ok: true; header: PrefabHeader }
   | { ok: false; failedAt: number; issue: SceneIssue };
 
 /**
- * Runs a batch's `setPrefabBase` and `exposeParam` ops on `prefab`, in
- * order, by `applyHeaderOp`'s rules (the ones `applyOps` keeps on a
+ * Runs a batch's header ops on `prefab`'s header, in order, by `applyHeaderOp`'s rules (the ones `applyOps` keeps on a
  * prefab's view), each failure at the op's index in the batch.
  */
 export function applyHeaderOps(
@@ -230,27 +227,18 @@ export function applyHeaderOps(
       }),
     };
   }
-  let header: PrefabHeader = {
-    ...(prefab.base !== undefined ? { base: prefab.base } : {}),
-    params: cloneJson(prefab.params ?? {}),
-  };
+  let header = headerOf(prefab);
   for (const { op, index } of ops) {
     const next = applyHeaderOp(header, op, prefab.id, library);
     if (!next.ok)
       return {
         ok: false,
         failedAt: index,
-        issue: { ...next.issue, path: jsonPointer(["ops", index]) },
+        issue: { ...next.issue, path: `${jsonPointer(["ops", index])}${next.issue.path ?? ""}` },
       };
     header = next.header;
   }
-  return {
-    ok: true,
-    header: {
-      ...(header.base !== undefined ? { base: header.base } : {}),
-      ...(Object.keys(header.params).length > 0 ? { params: header.params } : {}),
-    },
-  };
+  return { ok: true, header };
 }
 
 /** Whether an `editScene` writes prefab docs: it targets a prefab, or holds a prefab op. */
@@ -1301,15 +1289,6 @@ class BatchWork {
           { entityIds: [d.entry.id] },
         ],
       };
-    const {
-      entities: _e,
-      bulk: _b,
-      instances: _i,
-      base: _base,
-      params: _params,
-      contract,
-      ...head
-    } = ownPrefab;
     const nested = result.def.instances?.length ? { instances: result.def.instances } : {};
     const headed = applyHeaderOps(
       { ...ownPrefab, ...nested },
@@ -1336,12 +1315,7 @@ class BatchWork {
     return {
       ok: true,
       result,
-      prefab: {
-        ...head,
-        ...headed.header,
-        ...sceneBody(result.def, d.registry, contract),
-        ...nested,
-      },
+      prefab: prefabLeftByView(ownPrefab, own, result.def, headed.header, d.registry),
     };
   }
 
@@ -1483,13 +1457,13 @@ class BatchWork {
     this.warnings.push(...parsed.issues.map(inContent));
     if (doc.kind === PREFAB_KIND && isPrefab(parsed.value) && parsed.value.base !== undefined) {
       const based = applyHeaderOp(
-        { params: {} },
+        headerOf(undefined),
         { op: "setPrefabBase", base: parsed.value.base },
         id,
         this.liveLibrary(id),
       );
       if (!based.ok) {
-        const { code, message, ...rest } = based.issue;
+        const { code, message, path: _path, ...rest } = based.issue;
         this.fail(code, message, ["content", "base"], rest);
       }
     }

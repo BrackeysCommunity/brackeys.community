@@ -20,6 +20,7 @@ import { sceneHash } from "../../scene/hash";
 import { applyOps } from "../../scene/ops";
 import { formatPrefabs, prefabLibrary } from "../../scene/prefab";
 import type { OpBatch, Prefab, SceneDefinition } from "../../scene/types";
+import { validateScene } from "../../scene/validate";
 import { applyOpsToDoc } from "../apply";
 import {
   assetsMap,
@@ -680,17 +681,17 @@ describe("applyOpsToDoc: a prefab doc's header ops", () => {
     expect(issue([{ op: "setPrefabBase", base: "shorts" }])).toEqual({
       code: "variant-base-unknown",
       failedAt: 0,
-      path: "/ops/0",
+      path: "/ops/0/base",
     });
     const r = apply(doc, [{ op: "setPrefabBase", base: "shorts" }]);
     expect(r.ok || r.issue.message).toContain('did you mean "short"');
-    expect(issue([{ op: "setPrefabBase", base: "post" }])?.code).toBe("variant-base-unknown");
+    expect(issue([{ op: "setPrefabBase", base: "post" }])?.code).toBe("prefab-cycle");
     expect(
       issue([
         { op: "move", refs: ["cap"], by: [1, 0] },
         { op: "setPrefabBase", base: "tall" },
       ]),
-    ).toEqual({ code: "prefab-cycle", failedAt: 1, path: "/ops/1" });
+    ).toEqual({ code: "prefab-cycle", failedAt: 1, path: "/ops/1/base" });
     const holder: Prefab = {
       kind: "prefab",
       v: 3,
@@ -704,6 +705,59 @@ describe("applyOpsToDoc: a prefab doc's header ops", () => {
       issue([{ op: "exposeParam", name: "height", param: { description: "", targets: [] } }]),
     ).toMatchObject({ code: "op-invalid", failedAt: 0 });
     expect(Y.encodeStateVector(doc)).toEqual(vector);
+  });
+
+  it("applies a variant's unused-override fix to its doc, per path, keeping a concurrent edit", () => {
+    const stale: Prefab = { ...tall, overrides: { "cap.at": [0, -150], "ghost.at": [1, 1] } };
+    const lib = prefabLibrary([post, stale]);
+    const doc = prefabToDoc(stale, { key: sequentialKeys() });
+    const view = readDoc(doc, { registry: engineReg, prefabs: lib });
+    const [issue, ...rest] = validateScene(view.def, engineReg, { prefabs: lib, prefab: "tall" });
+    expect(rest).toEqual([]);
+    expect(issue).toMatchObject({ code: "unused-override", path: "/overrides/ghost.at" });
+    expect(issue!.fix!.ops).toEqual([{ op: "revertOverride", paths: ["ghost.at"] }]);
+
+    const other = new Y.Doc();
+    Y.applyUpdate(other, Y.encodeStateAsUpdate(doc));
+    const moved = applyOpsToDoc(
+      other,
+      { ops: [{ op: "move", refs: ["lamp"], by: [0, 5] }] },
+      user,
+      engineReg,
+      { prefabs: lib },
+    );
+    expect(moved.ok).toBe(true);
+
+    const fixed = applyOpsToDoc(doc, issue!.fix!, user, engineReg, { prefabs: lib });
+    expect(fixed.ok && fixed.keys).toEqual(["@variant"]);
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(other));
+    Y.applyUpdate(other, Y.encodeStateAsUpdate(doc));
+    const merged = docToPrefab(doc);
+    expect(docToPrefab(other)).toEqual(merged);
+    expect(merged.overrides).toEqual({ "cap.at": [0, -150] });
+    expect(merged.entities).toEqual([{ id: "lamp", type: "marker", at: [0, -155] }]);
+    const after = prefabLibrary([post, merged]);
+    expect(
+      validateScene(readDoc(doc, { registry: engineReg, prefabs: after }).def, engineReg, {
+        prefabs: after,
+        prefab: "tall",
+      }),
+    ).toEqual([]);
+    const entry = readLog(doc).find((e) => e.ops?.includes("revertOverride"))!;
+    expect(revertEntry(doc, entry, bo).ok).toBe(true);
+    expect(docToPrefab(doc).overrides).toEqual(stale.overrides);
+    expect(docToPrefab(doc).entities).toEqual(merged.entities);
+  });
+
+  it("sets a variant's own overrides with an override that has no ref", () => {
+    const doc = prefabToDoc(tall, { key: sequentialKeys() });
+    const r = apply(doc, [{ op: "override", set: { "cap.at": [0, -170] } }]);
+    expect(r.ok && r.keys).toEqual(["@variant"]);
+    expect(docToPrefab(doc).overrides).toEqual({ "cap.at": [0, -170] });
+    const cleared = apply(doc, [{ op: "revertOverride" }]);
+    expect(cleared.ok).toBe(true);
+    expect(docToPrefab(doc).overrides).toBeUndefined();
+    expect(docToPrefab(doc).base).toBe("post");
   });
 
   it("reports a body op's failure at its index in the batch the header ops were sent in", () => {
@@ -723,6 +777,7 @@ describe("applyOpsToDoc: a prefab doc's header ops", () => {
     for (const op of [
       { op: "setPrefabBase", base: "post" },
       { op: "exposeParam", name: "height", param: height },
+      { op: "revertOverride", paths: ["cap.at"] },
     ] as OpBatch["ops"]) {
       const r = apply(doc, [{ op: "setScene", set: { name: "court" } }, op]);
       expect(r.ok || [r.issue.code, r.failedAt]).toEqual(["op-invalid", 1]);
