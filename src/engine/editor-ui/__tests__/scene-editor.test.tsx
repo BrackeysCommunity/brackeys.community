@@ -34,7 +34,11 @@ vi.mock("pixi.js", async (importOriginal) => {
   };
 });
 
-const games = vi.hoisted(() => ({ made: [] as { destroyed: boolean }[] }));
+const games = vi.hoisted(() => ({
+  made: [] as { destroyed: boolean; game: unknown }[],
+  /** What each game's `preload` reports as failed. */
+  failed: [] as { id: string }[],
+}));
 
 // Records every game the editor builds and whether it was destroyed.
 vi.mock("../../index", async (importOriginal) => {
@@ -43,8 +47,14 @@ vi.mock("../../index", async (importOriginal) => {
     ...engine,
     createGame: async (...args: Parameters<typeof engine.createGame>) => {
       const game: GameInstance = await engine.createGame(...args);
-      const made = { destroyed: false };
+      const made = { destroyed: false, game: game as unknown };
       games.made.push(made);
+      const preload = game.preload;
+      game.preload = vi.fn(async (...a: Parameters<typeof preload>) => {
+        const result = await preload(...a);
+        return { failed: [...result.failed, ...(games.failed as typeof result.failed)] };
+      });
+      game.resize = vi.fn(game.resize);
       const destroy = game.destroy;
       game.destroy = () => {
         made.destroyed = true;
@@ -155,6 +165,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   games.made.length = 0;
+  games.failed = [];
   vi.unstubAllGlobals();
 });
 
@@ -227,6 +238,121 @@ describe("SceneEditor", () => {
       />,
     );
     await waitFor(() => expect(onSceneChange).toHaveBeenCalledWith("yard"), { timeout: 10_000 });
+  }, 20_000);
+
+  it("keeps the scene doc open when the host's route follows the fallback", async () => {
+    const { host, connections } = fakeProject();
+    const onSceneChange = vi.fn();
+    const props = { host: { ...host, onSceneChange }, game: yardGame, project: "p", rapier };
+    const view = render(<SceneEditor {...props} scene="nowhere" />);
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    expect(onSceneChange).toHaveBeenCalledWith("yard");
+    const session = connections[0]!.session!;
+    const release = vi.spyOn(session, "release");
+    const open = vi.spyOn(session, "open");
+    const built = games.made.length;
+
+    view.rerender(<SceneEditor {...props} scene="yard" />);
+    await act(async () => {});
+    const sceneDocs = (calls: [string][]) => calls.filter(([name]) => name.startsWith("scene:"));
+    expect(sceneDocs(release.mock.calls)).toEqual([]);
+    expect(sceneDocs(open.mock.calls)).toEqual([]);
+    expect(games.made.length).toBe(built);
+    expect(outliner().getByRole("button", { name: /pad/ })).toBeTruthy();
+    expect(onSceneChange).toHaveBeenCalledTimes(1);
+  }, 20_000);
+
+  it("tells a host that named no scene nothing about the one it opened", async () => {
+    const { host } = fakeProject();
+    const onSceneChange = vi.fn();
+    render(
+      <SceneEditor host={{ ...host, onSceneChange }} game={yardGame} project="p" rapier={rapier} />,
+    );
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    expect(onSceneChange).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("resizes the game to the box the canvas sits in when that box changes", async () => {
+    const observers: { callback: () => void; targets: Element[] }[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        targets: Element[] = [];
+        constructor(readonly callback: () => void) {
+          observers.push(this);
+        }
+        observe(target: Element) {
+          this.targets.push(target);
+        }
+        disconnect() {
+          this.targets = [];
+        }
+      },
+    );
+    let box = { width: 1440, height: 900 };
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        return (
+          this.classList.contains("je-frame-document") ? { ...box } : { width: 0, height: 0 }
+        ) as DOMRect;
+      });
+    const { host } = fakeProject();
+    const { container } = render(
+      <SceneEditor host={host} game={yardGame} project="p" scene="yard" rapier={rapier} />,
+    );
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    const frameBox = container.querySelector(".je-frame-document")!;
+    const watching = observers.find((o) => o.targets.includes(frameBox));
+    expect(watching).toBeTruthy();
+    const game = games.made.at(-1)!.game as GameInstance;
+
+    box = { width: 900, height: 700 };
+    act(() => watching!.callback());
+    expect(game.resize).toHaveBeenLastCalledWith(900, 700);
+
+    box = { width: 1440, height: 900 };
+    act(() => window.dispatchEvent(new Event("resize")));
+    expect(game.resize).toHaveBeenLastCalledWith(1440, 900);
+    rect.mockRestore();
+  }, 20_000);
+
+  it("preloads the opened scene and names the textures that failed", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    games.failed = [{ id: "crate-art" }, { id: "sky" }];
+    const { host } = fakeProject();
+    render(<SceneEditor host={host} game={yardGame} project="p" scene="yard" rapier={rapier} />);
+    await waitFor(
+      () =>
+        expect(warn).toHaveBeenCalledWith(
+          "[assets] yard: 2 texture(s) failed to load: crate-art, sky",
+        ),
+      { timeout: 10_000 },
+    );
+    const game = games.made.at(-1)!.game as GameInstance;
+    expect(game.preload).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(game.preload).mock.lastCall![0]).toMatchObject({ name: "yard" });
+    warn.mockRestore();
+  }, 20_000);
+
+  it("takes no inspector edits when the host is read-only", async () => {
+    const { host } = fakeProject();
+    render(
+      <SceneEditor
+        host={{ ...host, readOnly: true }}
+        game={yardGame}
+        project="p"
+        scene="yard"
+        rapier={rapier}
+      />,
+    );
+    const row = await waitFor(() => outliner().getByRole("button", { name: /zone/ }), {
+      timeout: 10_000,
+    });
+    fireEvent.click(row);
+    const radius = screen.getByLabelText("shape.r") as HTMLInputElement;
+    expect(radius.closest("fieldset")?.disabled).toBe(true);
+    expect(radius.matches(":disabled")).toBe(true);
   }, 20_000);
 });
 

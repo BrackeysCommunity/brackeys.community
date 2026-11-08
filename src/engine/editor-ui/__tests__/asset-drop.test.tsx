@@ -84,12 +84,15 @@ beforeAll(async () => {
   rapier = await import("@dimforge/rapier2d");
 });
 
+const cue = vi.fn();
+
 let game: GameInstance | null = null;
 let live: LiveEditor | null = null;
 
 beforeEach(() => {
   toast.mockReset();
   toast.error.mockReset();
+  cue.mockReset();
   vi.stubGlobal("requestAnimationFrame", () => 0);
   vi.stubGlobal("cancelAnimationFrame", () => {});
 });
@@ -133,6 +136,7 @@ async function setup() {
       <ProjectTree projectId="yard" projectName="Yard" nodes={nodes} assetInfo={infoOf} />
       <EditorFrame
         topLeft={null}
+        host={{ cue }}
         {...editorChrome({
           session,
           host: live.host,
@@ -187,6 +191,7 @@ describe("dropping an asset on the canvas", () => {
     expect(session.store.state.history).toHaveLength(logged + 1);
     expect(session.store.state.history.at(-1)?.label).toBe("Place tree");
     expect(session.store.state.selection).toEqual(["decor"]);
+    expect(cue.mock.calls.filter(([c]) => c === "drop")).toHaveLength(1);
 
     act(() => {
       fireEvent.keyDown(window, { key: "z", ctrlKey: true });
@@ -201,5 +206,6 @@ describe("dropping an asset on the canvas", () => {
     expect(toast).toHaveBeenCalledWith(expect.stringContaining("can't be placed"));
     expect(session.getDoc().entities ?? []).toEqual([]);
     expect(session.store.state.history).toHaveLength(logged);
+    expect(cue).not.toHaveBeenCalledWith("drop");
   });
 });

@@ -28,6 +28,7 @@ export { hocuspocusTransport } from "./connect/hocuspocus";
 export {
   connectProjectSession,
   createProjectTokens,
+  offConnection,
   type ConnectProjectSessionOptions,
   type ProjectTokens,
 } from "./connect/project-session";

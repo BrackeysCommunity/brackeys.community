@@ -87,24 +87,32 @@ try {
     `dist/sim-kit.mjs reaches ${simKit.join(", ")} (./sim-kit has no dependencies)`,
   );
   const editorUiLib = /^(react|react-dom|@base-ui\/react|@dnd-kit\/core|@hugeicons\/[a-z-]+)(\/|$)/;
-  for (const entry of [
-    "index",
-    "scene",
-    "editor",
-    "collab",
-    "headless",
-    "game",
-    "debug",
-    "sim-kit",
-    "project",
-  ]) {
-    forbid(entry, ["@hocuspocus/server"], "only ./vite may load the dev server");
+  const builtEntries = Object.values(pkg.exports).flatMap((target) => {
+    const built =
+      typeof target === "string" ? null : /^\.\/dist\/([a-z-]+)\.mjs$/.exec(target.import);
+    return built?.[1] ? [built[1]] : [];
+  });
+  check(builtEntries.includes("editor-ui"), "package.json exports no ./editor-ui entry");
+  for (const entry of builtEntries) {
+    if (entry === "editor-ui") continue;
+    if (entry !== "vite")
+      forbid(entry, ["@hocuspocus/server"], "only ./vite may load the dev server");
     const ui = [...reach(entry)].filter((s) => editorUiLib.test(s));
     check(
       ui.length === 0,
       `dist/${entry}.mjs reaches ${ui.join(", ")} (only ./editor-ui uses React and its libraries)`,
     );
   }
+  forbid(
+    "editor-ui",
+    ["@hocuspocus/server", "@hocuspocus/provider"],
+    "the host passes the provider module in, and the dev server is ./vite's",
+  );
+  const editorUiNode = [...reach("editor-ui")].filter((s) => s.startsWith("node:"));
+  check(
+    editorUiNode.length === 0,
+    `dist/editor-ui.mjs reaches ${editorUiNode.join(", ")} (the editor UI runs in a browser)`,
+  );
 
   // ─── 3. Headless under Bun: dist matches source ────────
   copyInto(dir, {

@@ -547,7 +547,7 @@ export function EditorOutliner({
   /** Opens an instance's prefab on its own, from the instance's row. */
   onOpenPrefab?: (prefab: string, from: Ref) => void;
 }) {
-  const { storage } = useKit();
+  const { storage, cue } = useKit();
   const doc = useEditorDoc(session);
   const sceneName = useEditorStore(session, (s) => s.sceneName);
   const selection = useEditorStore(session, (s) => s.selection);
@@ -625,7 +625,7 @@ export function EditorOutliner({
         : drop.kind === "attach"
           ? attachAll(current, registry, prefabs, dragged, drop.follower)
           : attachAll(current, registry, prefabs, dragged, null, drop.type);
-    if (batch) session.dispatch(batch);
+    if (batch && session.dispatch(batch).ok) cue("drop");
   };
 
   return (

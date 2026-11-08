@@ -20,7 +20,7 @@ import {
   tagsField,
 } from "../../game/index";
 import { prefabLibrary, SCENE_FORMAT_VERSION } from "../../scene/index";
-import { EditorInspector } from "../panels/EditorInspector";
+import { EditorInspector, InspectorReadOnly } from "../panels/EditorInspector";
 
 const HUM = defineBehavior({
   name: "panels/hum",
@@ -102,7 +102,7 @@ function scene(): SceneDefinition {
   };
 }
 
-function setup(selection: string[]) {
+function setup(selection: string[], readOnly?: "prop" | "context") {
   const session = createEditorSession({
     doc: sceneToDoc(scene(), { key: sequentialKeys("t") }),
     origin: ada,
@@ -112,7 +112,15 @@ function setup(selection: string[]) {
   });
   session.select(selection);
   const dispatch = vi.spyOn(session, "dispatch");
-  render(<EditorInspector session={session} />);
+  render(
+    readOnly === "context" ? (
+      <InspectorReadOnly value>
+        <EditorInspector session={session} />
+      </InspectorReadOnly>
+    ) : (
+      <EditorInspector session={session} {...(readOnly ? { readOnly: true } : {})} />
+    ),
+  );
   return { session, dispatch };
 }
 
@@ -123,6 +131,21 @@ const entity = (session: ReturnType<typeof setup>["session"], id: string) =>
 afterEach(cleanup);
 
 describe("EditorInspector", () => {
+  it.each(["prop", "context"] as const)("takes no edits when read-only (through its %s)", (how) => {
+    const { session, dispatch } = setup(["bell"], how);
+    expect(input("shape.r").matches(":disabled")).toBe(true);
+    const hum = screen.getByRole("region", { name: "Hum" });
+    const remove = within(hum).getByRole("button", { name: "Remove" }) as HTMLButtonElement;
+    expect(remove.matches(":disabled")).toBe(true);
+
+    fireEvent.change(input("shape.r"), { target: { value: "20" } });
+    fireEvent.keyDown(input("shape.r"), { key: "Enter" });
+    fireEvent.click(remove);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(entity(session, "bell").shape).toEqual(["circle", 500, 600, 10]);
+    expect(entity(session, "bell").behaviors).toEqual({ "panels/hum": { volume: 5 } });
+  });
+
   it("draws the selection's fields by section and commits a draft as one batch on Enter", () => {
     const { session, dispatch } = setup(["zone"]);
     expect(screen.getByRole("region", { name: "Identity" })).toBeTruthy();

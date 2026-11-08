@@ -6,17 +6,17 @@ import {
   type GameInstance,
   type GameStoreState,
 } from "@jams/engine";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { CanvasShell, Island } from "@/components/canvas/shell/CanvasShell";
-import { ShellTitle, SiteIsland } from "@/components/canvas/shell/SiteIsland";
 import { MicroLabel } from "@/components/ui/typography";
 import { platformerGame } from "@/games/platformer";
 
 import { BUNDLED_PREFABS, BUNDLED_SCENE, SCENE_REGISTRY } from "./platformer-scene";
+import { GameSiteIsland } from "./site-island";
 
 const loadRapier = () => import("@dimforge/rapier2d");
 
@@ -36,7 +36,7 @@ type GameCanvasProps = {
 export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
   if (edit && SiteSceneEditor) {
     return (
-      <Suspense fallback={<div className="fixed inset-0 bg-background" />}>
+      <Suspense fallback={<EditorLoading roomId={roomId} />}>
         <GameEditor Editor={SiteSceneEditor} roomId={roomId} scene={scene} />
       </Suspense>
     );
@@ -70,15 +70,22 @@ function GameEditor({
   );
 }
 
-/** The site menu, the lobby link and the room's title, top left in play and in the editor. */
-export function GameSiteIsland({ title }: { title: ReactNode }) {
+/** While the editor's chunk loads: the room's chrome and what is happening. */
+function EditorLoading({ roomId }: { roomId: string }) {
   return (
-    <SiteIsland
-      label="Game"
-      site={{ back: { label: "lobby", link: <Link to="/game" /> }, signinSource: "game" }}
+    <CanvasShell
+      topLeft={<GameSiteIsland title={roomId} />}
+      status={
+        <Island
+          role="status"
+          className="flex-col items-start gap-0.5 px-2.5 py-1.5 text-xs text-muted-foreground"
+        >
+          <span>Opening the editor</span>
+        </Island>
+      }
     >
-      <ShellTitle>{title}</ShellTitle>
-    </SiteIsland>
+      <div className="h-full w-full bg-[#1a1a2e]" />
+    </CanvasShell>
   );
 }
 

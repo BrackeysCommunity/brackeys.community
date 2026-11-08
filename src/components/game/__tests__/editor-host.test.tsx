@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+
 import type { EditorHost } from "@jams/engine/editor-ui";
 import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
@@ -32,7 +34,7 @@ vi.mock("@jams/engine/editor-ui", async (original) => ({
   },
 }));
 
-const { SCENE_PROJECT, siteIdentity, SiteSceneEditor, siteStorage, useSiteEditorHost } =
+const { SCENE_PROJECT, siteIdentity, SiteSceneEditor, useSiteEditorHost } =
   await import("../editor-host");
 
 const profile = (patch: Partial<ActiveUserProfile> = {}): ActiveUserProfile => ({
@@ -120,15 +122,9 @@ describe("the site's editor host", () => {
     expect(result.current.flag?.("no-such-flag")).toBe(false);
   });
 
-  it("keeps per-viewer state in localStorage, and never throws when it's blocked", () => {
-    siteStorage.set("jams-editor:test", "1");
-    expect(siteStorage.get("jams-editor:test")).toBe("1");
-    const blocked = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
-    expect(siteStorage.get("jams-editor:test")).toBeNull();
-    blocked.mockRestore();
-    window.localStorage.removeItem("jams-editor:test");
+  it("leaves per-viewer storage to the package's guarded localStorage", () => {
+    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }));
+    expect(result.current.storage).toBeUndefined();
   });
 
   it("calls the latest onSceneChange through a host that stays the same", () => {
@@ -148,6 +144,13 @@ describe("the site's editor host", () => {
 });
 
 describe("SiteSceneEditor", () => {
+  it("edits the project the platformer's jams.project.json names", () => {
+    const project = JSON.parse(readFileSync("src/games/platformer/jams.project.json", "utf8")) as {
+      id: string;
+    };
+    expect(SCENE_PROJECT).toBe(project.id);
+  });
+
   it("opens the platformer project on the dev server, titled by the room until the editor is up", () => {
     render(<SiteSceneEditor roomId="lobby-1" />);
     const props = fakes.editor.mock.lastCall![0] as {

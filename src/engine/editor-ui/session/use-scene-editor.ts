@@ -82,7 +82,10 @@ export type EditorProps = EditingTarget & {
   project?: EditorProjectLink;
 };
 
-type Loaded = { identity: EditorIdentity; rapier: RapierModule | null };
+type Loaded = { identity: EditorIdentity; avatarUrl: string | null; rapier: RapierModule | null };
+
+/** Who the editor joined as: its presence user and the host's avatar for them. */
+export type EditorSelf = EditorIdentity["user"] & { avatarUrl: string | null };
 
 const NO_PREFAB = new Store<OpenPrefab | null>(null);
 // Only `mode` is read from it.
@@ -98,7 +101,11 @@ const consoleNotify: EditorNotify = Object.assign(
 );
 
 export type SceneEditorOptions = {
-  /** The project connection and who is editing; read once, except `connect`, which runs again when `project` or `registry` changes. */
+  /**
+   * The project connection and who is editing; read once, except `connect`,
+   * which runs again when `project` or `registry` changes, and `identity`,
+   * read when the editor has loaded.
+   */
   host: Pick<EditorHost, "connect" | "identity" | "peerColor" | "notify" | "readOnly">;
   /** Where notices go when the host has no `notify`: the frame's own toast region. */
   notify?: EditorNotify;
@@ -142,6 +149,8 @@ export type SceneEditorState = {
    * game settings and tables, null without one. It changes as `registry` does.
    */
   projectData: ProjectRuntimeView | null;
+  /** Who the editor joined as, once it has loaded. */
+  identity: EditorSelf | null;
   /** True from a change that needs a new game until the editor is open on it. */
   rebuilding: boolean;
   /** What the host's asset loader bundles scenes over while the project is open; null without one. */
@@ -186,10 +195,12 @@ export function useSceneEditor({
   const [say] = useState(() => notify ?? host.notify ?? consoleNotify);
   const [connect] = useState(() => host.connect);
   const [readOnly] = useState(() => host.readOnly);
-  const [identityInput] = useState(() => ({
-    name: host.identity?.name ?? null,
-    peerColor: hostPeerColor(host),
-  }));
+  const [peerColor] = useState(() => hostPeerColor(host));
+  // A host's profile can arrive after the editor mounts; whoever it names once Rapier is in is who joins.
+  const identityInput = useRef(host.identity);
+  useEffect(() => {
+    identityInput.current = host.identity;
+  });
   const carried = useRef<Carried | null>(null);
   const [carrying, setCarrying] = useState(false);
 
@@ -198,8 +209,10 @@ export function useSceneEditor({
     let cancelled = false;
     void (loadRapier?.().catch(() => null) ?? Promise.resolve(null)).then((rapierModule) => {
       if (cancelled) return;
+      const input = identityInput.current;
       setLoaded({
-        identity: editorIdentity(identityInput.name, identityInput.peerColor),
+        identity: editorIdentity(input?.name ?? null, peerColor),
+        avatarUrl: input?.avatarUrl ?? null,
         rapier: rapierModule,
       });
     });
@@ -207,7 +220,7 @@ export function useSceneEditor({
       cancelled = true;
       setLoaded(null);
     };
-  }, [enabled, loadRapier, identityInput]);
+  }, [enabled, loadRapier, peerColor]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -372,6 +385,11 @@ export function useSceneEditor({
     };
   }, [live, loaded, game, runStore, getCanvas, open, ready, connection, readOnly]);
 
+  const self = useMemo<EditorSelf | null>(
+    () => (loaded ? { ...loaded.identity.user, avatarUrl: loaded.avatarUrl } : null),
+    [loaded],
+  );
+
   const on = enabled;
   return {
     editor,
@@ -382,6 +400,7 @@ export function useSceneEditor({
     error: on ? link.error : null,
     registry: applied.registry,
     projectData: applied.projectData,
+    identity: on ? self : null,
     rebuilding: on && (carrying ? ready !== null && live === null : live !== null && !fits),
     assets: on ? assets : null,
   };

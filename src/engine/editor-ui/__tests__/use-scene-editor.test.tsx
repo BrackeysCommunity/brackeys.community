@@ -4,7 +4,7 @@ import { Store } from "@tanstack/store";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import type { GameInstance, RunRecording } from "../../index";
+import type { GameInstance, RapierModule, RunRecording } from "../../index";
 import type { Registry } from "../../scene/index";
 import type { ProjectConnection } from "../host";
 import type { LiveEditor, OpenPrefab } from "../session/live-scene-editor";
@@ -45,7 +45,10 @@ vi.mock("../connect/scene-doc", () => ({
 vi.mock("../session/live-scene-editor", async () => {
   const { Store } = await import("@tanstack/store");
   return {
-    editorIdentity: () => ({ origin: { kind: "user", userId: "u", name: "U" } }),
+    editorIdentity: (name?: string | null) => ({
+      origin: { kind: "user", userId: "u", name: name ?? "Guest 1" },
+      user: { id: "u", name: name ?? "Guest 1", color: "#123456" },
+    }),
     prefabsReady: async () => {},
     projectRegistry: () => ({
       current: () => fakes.overlay,
@@ -322,6 +325,45 @@ describe("useSceneEditor's rebuild", () => {
     const next = fakes.sessions.at(-1)!;
     expect(next.select).toHaveBeenCalledWith(["crate"]);
     expect(next.setTool).toHaveBeenCalledWith("rect");
+  });
+});
+
+describe("useSceneEditor's identity", () => {
+  it("joins as the host's identity when the editor has loaded, avatar and all", async () => {
+    let loadRapier!: (rapier: RapierModule) => void;
+    const rapier = new Promise<RapierModule>((resolve) => (loadRapier = resolve));
+    const { game } = fakeGame();
+    const hook = renderHook(
+      ({ identity }: { identity?: { name: string; avatarUrl?: string | null } }) =>
+        useSceneEditor({
+          host: { ...host, ...(identity ? { identity } : {}) },
+          game,
+          project: "p",
+          registry: REGISTRY,
+          scene: "yard",
+          enabled: true,
+          rapier: () => rapier,
+        }),
+      { initialProps: {} },
+    );
+    expect(hook.result.current.identity).toBeNull();
+    hook.rerender({ identity: { name: "Ada", avatarUrl: "https://cdn.test/ada.png" } });
+    await act(async () => loadRapier({} as RapierModule));
+    await waitFor(() => expect(hook.result.current.identity).not.toBeNull());
+    expect(hook.result.current.identity).toEqual({
+      id: "u",
+      name: "Ada",
+      color: "#123456",
+      avatarUrl: "https://cdn.test/ada.png",
+    });
+    await waitFor(() => expect(hook.result.current.editor).not.toBeNull());
+    const { openLiveEditor } = await import("../session/live-scene-editor");
+    expect(vi.mocked(openLiveEditor).mock.lastCall![0].identity.origin.name).toBe("Ada");
+  });
+
+  it("joins without an avatar when the host gives none", async () => {
+    const { hook } = await mount();
+    expect(hook.result.current.identity).toMatchObject({ name: "Guest 1", avatarUrl: null });
   });
 });
 

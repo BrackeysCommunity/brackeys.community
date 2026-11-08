@@ -25,6 +25,7 @@ import { EditorFrame, editorChrome, Island } from "./frame/EditorFrame";
 import { hostCue, type EditorHost, type EditorNotify } from "./host";
 import { createToaster, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
+import { InspectorReadOnly } from "./panels/EditorInspector";
 import type { Pending, PendingTask } from "./pending/pending";
 import { useSceneEditor, type EditorAssets } from "./session/use-scene-editor";
 
@@ -123,12 +124,23 @@ const PANEL_ISLAND: Readonly<Record<string, string>> = {
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
 
-/** What the canvas is sized to: its own box once laid out, else the window, as a full-page editor is. */
+/**
+ * What the canvas is sized to: the box it sits in once laid out, else the
+ * window, as a full-page editor is. Never the canvas's own box, which keeps
+ * whatever size the renderer last gave it.
+ */
 function displaySize(canvas: HTMLCanvasElement): { width: number; height: number } {
-  const box = canvas.getBoundingClientRect();
+  const box = (canvas.parentElement ?? canvas).getBoundingClientRect();
   return box.width > 0 && box.height > 0
     ? { width: Math.round(box.width), height: Math.round(box.height) }
     : { width: window.innerWidth, height: window.innerHeight };
+}
+
+/** Textures that didn't load draw as the fallback box; the console says which. */
+function warnFailedTextures(scene: string, failed: readonly { id: string }[]): void {
+  if (failed.length === 0) return;
+  const ids = failed.map((e) => e.id).join(", ");
+  console.warn(`[assets] ${scene}: ${failed.length} texture(s) failed to load: ${ids}`);
 }
 
 /**
@@ -156,6 +168,8 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   const [built, setBuilt] = useState<{
     game: GameInstance;
     projectData: ProjectRuntimeView | null;
+    /** Built with the open project's asset loader. */
+    loads: boolean;
   } | null>(null);
   const game = built?.game ?? null;
   const editing = useSceneEditor({
@@ -183,6 +197,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     if (!canvas) return;
 
     let instance: GameInstance | null = null;
+    let last = { width: 0, height: 0 };
     let mounted = true;
     // One loader per game, only while a project is open, over the host's blob URLs.
     const open = assetsRef.current;
@@ -225,8 +240,11 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
         return;
       }
       instance = created;
-      setBuilt({ game: created, projectData });
+      last = size;
+      setBuilt({ game: created, projectData, loads: loader !== null });
       created.start();
+      // The box may have changed while the game was being made.
+      handleResize();
     }
 
     init().catch((error: unknown) =>
@@ -236,13 +254,20 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     function handleResize() {
       if (!instance || !canvas) return;
       const size = displaySize(canvas);
+      if (size.width === last.width && size.height === last.height) return;
+      last = size;
       instance.resize(size.width, size.height);
     }
     window.addEventListener("resize", handleResize);
+    const box = canvas.parentElement;
+    const observer =
+      box && typeof ResizeObserver !== "undefined" ? new ResizeObserver(handleResize) : null;
+    if (box) observer?.observe(box);
 
     return () => {
       mounted = false;
       window.removeEventListener("resize", handleResize);
+      observer?.disconnect();
       instance?.destroy();
       instance = null;
       loader?.destroy();
@@ -252,9 +277,23 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
 
   const opened = editing.scene;
   useEffect(() => {
-    if (opened !== null && opened !== latest.current.scene)
+    const asked = latest.current.scene;
+    if (opened !== null && asked !== undefined && opened !== asked)
       latest.current.host.onSceneChange?.(opened);
   }, [opened]);
+
+  // Once per game built over the project's loader: the opened scene's textures, and which failed.
+  const editorSession = editing.editor?.session ?? null;
+  const preloaded = useRef<GameInstance | null>(null);
+  useEffect(() => {
+    if (!game || !built?.loads || !editorSession || preloaded.current === game) return;
+    preloaded.current = game;
+    const doc = editorSession.getDoc();
+    void game.preload(doc).then(
+      ({ failed }) => warnFailedTextures(doc.name, failed),
+      () => {},
+    );
+  }, [game, built, editorSession]);
 
   const chrome = useMemo(
     () => (editing.editor ? editorChrome({ ...editing.editor, notify }) : null),
@@ -288,21 +327,23 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
 
   return (
     <PendingProvider pending={pending}>
-      <EditorFrame
-        host={host}
-        topLeft={host.chrome?.topLeft}
-        topRight={host.chrome?.topRight}
-        {...chrome}
-        status={chrome?.status ?? connecting}
-        overlay={
-          <>
-            {chrome?.overlay}
-            {host.notify ? null : <Toasts toaster={toaster} />}
-          </>
-        }
-      >
-        <canvas ref={canvasRef} className="je-scene-canvas" />
-      </EditorFrame>
+      <InspectorReadOnly value={editing.editor?.project?.readOnly ?? false}>
+        <EditorFrame
+          host={host}
+          topLeft={host.chrome?.topLeft}
+          topRight={host.chrome?.topRight}
+          {...chrome}
+          status={chrome?.status ?? connecting}
+          overlay={
+            <>
+              {chrome?.overlay}
+              {host.notify ? null : <Toasts toaster={toaster} />}
+            </>
+          }
+        >
+          <canvas ref={canvasRef} className="je-scene-canvas" />
+        </EditorFrame>
+      </InspectorReadOnly>
     </PendingProvider>
   );
 }

@@ -29,8 +29,9 @@ of React.
   session and asset route on `./vite`'s paths), `connectProjectSession`
   and `createProjectTokens` (tokens and the close-code classifier are
   injected), `hocuspocusTransport` (it reports each doc's unacknowledged
-  updates as `ProjectConnectionState.unsynced`), and the blob client
-  `projectBlobs` and `BlobRouteError`. The provider module is always passed
+  updates as `ProjectConnectionState.unsynced`), `offConnection(access?)`
+  (a connection that opens nothing, for a host whose project is switched
+  off), and the blob client `projectBlobs` and `BlobRouteError`. The provider module is always passed
   in, never imported.
 - `@jams/engine/editor-ui/style.css`, the editor's stylesheet, exported as a
   file and named by `EDITOR_UI_STYLESHEET`: `je-` classes in

@@ -28,6 +28,15 @@ const check = process.env.ENGINE_PACK_CHECK === "1";
  */
 const hostOnlyPeers = ["@dimforge/rapier2d-compat", "@hocuspocus/provider"];
 
+/** Only the browser editor UI imports these, so the Node `./vite` build never sees them. */
+const editorUiDeps = [
+  "@base-ui/react",
+  "@dnd-kit/core",
+  "@hugeicons/core-free-icons",
+  "@hugeicons/react",
+];
+const editorUiPeers = ["react", "react-dom"];
+
 const shared: PackConfig = {
   format: "esm",
   dts: true,
@@ -68,7 +77,13 @@ export default defineConfig({
       platform: "node",
       tsconfig: "./tsconfig.pack.node.json",
       clean: false,
-      unused: check && { level: "error", ignore: { peerDependencies: hostOnlyPeers } },
+      unused: check && {
+        level: "error",
+        ignore: {
+          dependencies: editorUiDeps,
+          peerDependencies: [...hostOnlyPeers, ...editorUiPeers],
+        },
+      },
       entry: { vite: "./vite/index.ts" },
     },
   ],

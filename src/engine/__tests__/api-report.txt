@@ -643,6 +643,7 @@ devProjectHost
 fitLayout
 hocuspocusTransport
 mountSceneEditor
+offConnection
 parseLayout
 projectBlobs
 
@@ -2451,6 +2452,7 @@ declare function createProjectTokens(request: ProjectTokenRequest, mint: MintPro
     now?: () => number;
     ttlMs: number;
 }): ProjectTokens;
+declare function offConnection(access?: ProjectAccess): ProjectConnection;
 
 ## editor-ui/host.ts
 type CloseReason = "retry" | "revoked" | "too-large";

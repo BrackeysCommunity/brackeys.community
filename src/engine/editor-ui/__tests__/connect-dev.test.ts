@@ -4,6 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { createRegistry } from "../../scene/index";
 import * as engineVite from "../../vite/index";
 import { devCollabUrl, devProjectHost, PROJECT_ROUTE, SCENE_COLLAB_PATH } from "../connect/dev";
+import { CONNECTION_OFF, offConnection } from "../connect/project-session";
 import type { HocuspocusModule } from "../host";
 
 /** A Hocuspocus module that records the socket URLs it's asked for and never connects. */
@@ -72,6 +73,20 @@ describe("devProjectHost", () => {
     expect(host.assetUrl("p", entry)).toBe(
       `http://dev.test:5173${PROJECT_ROUTE}/p/blob/${entry.sha256}`,
     );
+    connection.destroy();
+  });
+});
+
+describe("offConnection", () => {
+  it("stays off with the access it was given, and never notifies", () => {
+    const connection = offConnection("read");
+    expect(connection.getState()).toEqual({ ...CONNECTION_OFF, access: "read" });
+    expect(offConnection().getState()).toEqual(CONNECTION_OFF);
+    expect(connection.blobs).toBeUndefined();
+    const unsubscribe = connection.subscribe(() => {
+      throw new Error("an off connection never changes");
+    });
+    unsubscribe();
     connection.destroy();
   });
 });

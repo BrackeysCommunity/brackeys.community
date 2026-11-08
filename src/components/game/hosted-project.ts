@@ -2,11 +2,10 @@ import { buildAtFrom, COLLAB_LAYOUT_VERSION } from "@jams/engine/collab";
 import {
   connectProjectSession,
   createProjectTokens,
+  offConnection,
   projectBlobs,
   type CloseReason,
   type EditorHost,
-  type ProjectConnection,
-  type ProjectConnectionState,
   type ProjectTokens,
   type ProjectTransport,
 } from "@jams/engine/editor-ui";
@@ -52,23 +51,6 @@ export function hostedProjectTokens(
     opts.mint ?? mintWithOrpc,
     { ttlMs: SYNC_LIMITS.tokenTtlMs, ...(opts.now ? { now: opts.now } : {}) },
   );
-}
-
-function offConnection(access: SyncAccess): ProjectConnection {
-  const state: ProjectConnectionState = {
-    status: "off",
-    session: null,
-    access,
-    stopped: {},
-    error: null,
-    unsynced: 0,
-  };
-  return {
-    getState: () => state,
-    subscribe: () => () => {},
-    onAssetChanged: () => () => {},
-    destroy() {},
-  };
 }
 
 const BUILD_AT = buildAtFrom(import.meta.env.VITE_BUILD_AT);

@@ -109,6 +109,7 @@ consolidated; new copies undo that.
 | Hover hint on a control                                     | `Button tooltip="…"`, or `SimpleTooltip` from `@/components/ui/tooltip`            | a native `title` attribute                         |
 | Site name, domain, contact addresses                        | `SITE` / `CONTACT` from `@/lib/legal-meta`; `siteUrl()` for links                  | a domain literal (`domain-literals.test.ts` fails) |
 | Logo mark, wordmark                                         | `BrandMark` / `Wordmark` from `@/components/ui/brand-mark`                         | an inline `mask-image` or gradient span            |
+| UI primitives inside `src/engine/editor-ui/`                | the editor's kit (`editor-ui/kit/*`)                                               | `@/components/ui`                                  |
 
 **Monospace:** `font-mono` is reserved for the command-center surfaces,
 `Badge size="label"`, and `MicroLabel`. Everything else uses the sans and

@@ -6,6 +6,8 @@ import {
   RotateRight01Icon,
 } from "@hugeicons/core-free-icons";
 import {
+  createContext,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -93,6 +95,14 @@ import {
 import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
 import { AssetPanel, type SelectedAsset } from "./project-tree/asset-panel";
 
+/** Why an edit didn't land in a read-only inspector. */
+const READ_ONLY = "This scene is read-only.";
+
+const ReadOnlyContext = createContext(false);
+
+/** Makes every inspector below it take no edits, as `EditorInspector`'s `readOnly` does. */
+export const InspectorReadOnly = ReadOnlyContext.Provider;
+
 /** What a field shows when the selection disagrees. */
 const MIXED = "—";
 /** Pointer pixels per step when scrubbing a number label. */
@@ -112,6 +122,8 @@ type Ctx = {
   overrides?: Map<string, string[]>;
   /** Builds the batch for an edit instead of `modelBatch`; it's written against the document. */
   edit?: (field: ModelField, input: unknown) => Edit;
+  /** Every edit is refused. */
+  readOnly?: boolean;
 };
 
 type Edit = { ok: true; batch: OpBatch } | { ok: false; error: string };
@@ -139,13 +151,19 @@ function valueAt(target: RefTarget, path: string): unknown {
 
 function dispatch(ctx: Ctx, batch: OpBatch): string | null {
   if (batch.ops.length === 0) return null;
+  if (ctx.readOnly) return READ_ONLY;
   const result = ctx.session.dispatch(batch, ctx.edit ? {} : { resolved: true });
   return result.ok ? null : result.issue.message;
 }
 
 /** A batch written against the document itself (prefab commands), not the resolved view. */
-function dispatchSource(session: EditorSession, batch: OpBatch | null): string | null {
+function dispatchSource(
+  session: EditorSession,
+  batch: OpBatch | null,
+  readOnly: boolean,
+): string | null {
   if (!batch) return null;
+  if (readOnly) return READ_ONLY;
   const result = session.dispatch(batch);
   return result.ok ? null : result.issue.message;
 }
@@ -1167,7 +1185,8 @@ function FieldView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           tooltip="Revert to the prefab's value"
           onClick={() => {
             const ref = ctx.targets[0]?.ref;
-            if (ref) dispatchSource(ctx.session, revertFieldBatch(ctx.def, ref, top));
+            if (ref)
+              dispatchSource(ctx.session, revertFieldBatch(ctx.def, ref, top), !!ctx.readOnly);
           }}
         >
           Revert
@@ -1288,11 +1307,27 @@ function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehavio
  * project tree shows instead, with its licence fields.
  */
 export function EditorInspector({
-  session,
-  onOpenPrefab,
-  inPrefab = false,
-  asset,
-}: {
+  readOnly,
+  ...props
+}: InspectorProps & {
+  /** Every field and action is disabled and no edit lands; default the nearest `InspectorReadOnly`, else false. */
+  readOnly?: boolean;
+}) {
+  const inherited = useContext(ReadOnlyContext);
+  if (!(readOnly ?? inherited)) return <Inspector {...props} />;
+  return (
+    <ReadOnlyContext.Provider value>
+      <fieldset disabled className="je-insp-locked" style={LOCKED}>
+        <Inspector {...props} />
+      </fieldset>
+    </ReadOnlyContext.Provider>
+  );
+}
+
+// The fieldset only disables what is inside it; it draws nothing of its own.
+const LOCKED = { display: "contents" } as const;
+
+type InspectorProps = {
   session: EditorSession;
   /** Opens an instance's prefab on its own. */
   onOpenPrefab?: (prefab: string, from: Ref) => void;
@@ -1300,7 +1335,10 @@ export function EditorInspector({
   inPrefab?: boolean;
   /** The asset picked in the project tree. */
   asset?: SelectedAsset;
-}) {
+};
+
+function Inspector({ session, onOpenPrefab, inPrefab = false, asset }: InspectorProps) {
+  const readOnly = useContext(ReadOnlyContext);
   const selection = useEditorStore(session, (s) => s.selection);
   const doc = useEditorDoc(session);
   const view = session.getResolved();
@@ -1324,7 +1362,13 @@ export function EditorInspector({
 
   const model = buildInspectorModel(session.registry, targets);
   const child = targets.length === 1 ? childOverrides(doc, targets[0]!.ref) : null;
-  const ctx: Ctx = { session, targets, def: doc, ...(child ? { overrides: child.fields } : {}) };
+  const ctx: Ctx = {
+    session,
+    targets,
+    def: doc,
+    readOnly,
+    ...(child ? { overrides: child.fields } : {}),
+  };
   const prefabBatch =
     child || inPrefab ? null : createPrefabBatch(doc, selection, session.getPrefabs());
   const typeDefs = model.types.map((t) => session.registry.types.get(t));
@@ -1351,7 +1395,7 @@ export function EditorInspector({
           size="sm"
           variant="outline"
           tooltip="Move the selection into a new prefab, with one instance where it stands"
-          onClick={() => dispatchSource(session, prefabBatch)}
+          onClick={() => dispatchSource(session, prefabBatch, readOnly)}
         >
           Create prefab
         </Button>
@@ -1395,10 +1439,12 @@ function ParamsSection({
   model: InstanceParamsModel;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const readOnly = useContext(ReadOnlyContext);
   const ctx: Ctx = {
     session,
     targets: [model.target],
     def: doc,
+    readOnly,
     edit: (field, input) => {
       const param = model.params.find(
         (p) => field.path === p.field.path || field.path.startsWith(`${p.field.path}.`),
@@ -1452,7 +1498,8 @@ function PlacementSection({
   model: InstanceTransformModel;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const run = (batch: OpBatch | null) => setError(dispatchSource(session, batch));
+  const readOnly = useContext(ReadOnlyContext);
+  const run = (batch: OpBatch | null) => setError(dispatchSource(session, batch, readOnly));
   const controls = [
     {
       label: "Turn counter-clockwise",
@@ -1502,7 +1549,7 @@ function PlacementSection({
             bigStep={10}
             onCommit={(text) => {
               const edit = instanceZBatch(model, text);
-              return edit.ok ? dispatchSource(session, edit.batch) : edit.error;
+              return edit.ok ? dispatchSource(session, edit.batch, readOnly) : edit.error;
             }}
           />
         ) : (
@@ -1530,6 +1577,7 @@ function InstancePanel({
   id: Ref;
   onOpenPrefab?: (prefab: string, from: Ref) => void;
 }) {
+  const readOnly = useContext(ReadOnlyContext);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState<string | null>(null);
@@ -1614,7 +1662,7 @@ function InstancePanel({
           variant="ghost"
           disabled={keys.length === 0}
           tooltip="Drop every override"
-          onClick={() => setError(dispatchSource(session, revertAllBatch(doc, id)))}
+          onClick={() => setError(dispatchSource(session, revertAllBatch(doc, id), readOnly))}
         >
           Revert all
         </Button>
@@ -1624,7 +1672,7 @@ function InstancePanel({
             variant="ghost"
             disabled={missing}
             tooltip="Turn the instance into plain entities"
-            onClick={() => setError(dispatchSource(session, unpackBatch(doc, id)))}
+            onClick={() => setError(dispatchSource(session, unpackBatch(doc, id), readOnly))}
           >
             Unpack
           </Button>
@@ -1649,7 +1697,9 @@ function InstancePanel({
         message={`This changes the prefab, so ${count === 1 ? "its one instance changes" : `all ${count} of its instances change`} (those that override the same fields keep theirs). Undo brings it back.`}
         confirmText="Apply"
         onConfirm={() => {
-          setError(dispatchSource(session, applyToPrefabBatch(doc, id, { to: target, prefabs })));
+          setError(
+            dispatchSource(session, applyToPrefabBatch(doc, id, { to: target, prefabs }), readOnly),
+          );
           setConfirming(false);
         }}
       />

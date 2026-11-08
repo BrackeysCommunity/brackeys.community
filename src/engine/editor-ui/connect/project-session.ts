@@ -115,6 +115,17 @@ export const CONNECTION_OFF: ProjectConnectionState = {
   unsynced: 0,
 };
 
+/** A connection that opens nothing: for a host whose project is switched off. */
+export function offConnection(access: ProjectAccess = "write"): ProjectConnection {
+  const state: ProjectConnectionState = { ...CONNECTION_OFF, access };
+  return {
+    getState: () => state,
+    subscribe: () => () => {},
+    onAssetChanged: () => () => {},
+    destroy() {},
+  };
+}
+
 const retryAll = (): CloseReason => "retry";
 
 /** A token refusal that means the project is gone or no longer this viewer's. */

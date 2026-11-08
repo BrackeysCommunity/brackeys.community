@@ -174,14 +174,19 @@ export function createSceneDocLink({
 /**
  * The scene `scene` of the project `source` serves, held open while the
  * component is mounted. Null `source` (not connected yet, or the editor is
- * off) keeps it closed.
+ * off) keeps it closed. Asking for the scene that is already open (a host
+ * following a fallback in its route) keeps the doc and the fallback as they are.
  */
 export function useSceneDoc(source: SceneDocSource | null, scene?: string | null): SceneDocState {
   const [store] = useState(() => new Store<SceneDocState>(EMPTY));
+  const state = useStoreValue(store);
+  const asked = scene ?? null;
+  const [wanted, setWanted] = useState(asked);
+  if (asked !== wanted && asked !== state.ready?.id) setWanted(asked);
 
   useEffect(() => {
     if (!source) return;
-    const link = createSceneDocLink({ source, scene: scene ?? null });
+    const link = createSceneDocLink({ source, scene: wanted });
     const copy = () => store.setState(() => link.getState());
     const unsubscribe = link.subscribe(copy);
     copy();
@@ -190,7 +195,7 @@ export function useSceneDoc(source: SceneDocSource | null, scene?: string | null
       link.destroy();
       store.setState(() => EMPTY);
     };
-  }, [store, source, scene]);
+  }, [store, source, wanted]);
 
-  return useStoreValue(store);
+  return state;
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { dropBatch, type EditorSession, type ToolHost } from "../../../editor/index";
 import type { GameStoreState } from "../../../index";
 import type { EditorNotify } from "../../host";
-import { Button } from "../../kit/index";
+import { Button, useKit } from "../../kit/index";
 import { runOverlay, type LoadedRun } from "../../session/loaded-run";
 import { useEditorDoc, useEditorStore } from "../../session/use-editor-store";
 import { useStoreValue } from "../../session/use-store-value";
@@ -57,7 +57,8 @@ function useCanvasInput(host: ToolHost | null, canvas: (() => HTMLElement | null
  * The canvas as the project tree's drop target: an asset row dropped on it
  * is placed at the drop point, snapped as the tool host snaps, in one batch
  * (one undo step), through the same screen-to-world conversion as the
- * host's pointer. A kind that can't be placed says so through `notify`.
+ * host's pointer, and sounds the `drop` cue. A kind that can't be placed
+ * says so through `notify`.
  */
 function useAssetDrop(
   session: EditorSession,
@@ -65,9 +66,10 @@ function useAssetDrop(
   canvas: (() => HTMLElement | null) | undefined,
   notify: EditorNotify,
 ) {
-  const latest = useRef({ session, host, notify });
+  const { cue } = useKit();
+  const latest = useRef({ session, host, notify, cue });
   useEffect(() => {
-    latest.current = { session, host, notify };
+    latest.current = { session, host, notify, cue };
   });
   useEffect(() => {
     const el = canvas?.();
@@ -82,7 +84,7 @@ function useAssetDrop(
       e.preventDefault();
       const drop = readAssetDrag(e.dataTransfer);
       if (!drop || !Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return;
-      const { session: s, host: h, notify: say } = latest.current;
+      const { session: s, host: h, notify: say, cue: sound } = latest.current;
       const toWorld = h && hostToWorld(h);
       if (!h || !toWorld) return;
       const rect = el.getBoundingClientRect();
@@ -98,7 +100,8 @@ function useAssetDrop(
         return;
       }
       const applied = s.dispatch(result.batch, { selectionAfter: result.select });
-      if (!applied.ok) say.error(applied.issue.message);
+      if (applied.ok) sound("drop");
+      else say.error(applied.issue.message);
     };
     el.addEventListener("dragover", onOver);
     el.addEventListener("drop", onDrop);

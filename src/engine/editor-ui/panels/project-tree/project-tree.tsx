@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 
 import type { AssetEntry } from "../../../project/index";
 import type { EditorNotify } from "../../host";
+import { useKit } from "../../kit/context";
 import { Skeleton } from "../../kit/skeleton";
 import { DeleteConfirm, type PendingDelete } from "./delete-confirm";
 import { FileDropTarget } from "./file-drop-target";
@@ -85,6 +86,7 @@ export function ProjectTree({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
+  const { cue } = useKit();
   const run = <T,>(fn: () => T | Promise<T>, fallback: string) => attempt(notify, fn, fallback);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -122,6 +124,8 @@ export function ProjectTree({
         }
       : undefined;
 
+  const dropped = () => cue("drop");
+
   const rename = (entry: AssetEntry, file: string) => {
     setRenaming(null);
     if (onRename) settle(run(() => onRename(entry, { file }), `Couldn't rename ${entry.id}.`));
@@ -129,7 +133,7 @@ export function ProjectTree({
 
   const move = (entry: AssetEntry, folder: string) => {
     if (!onMove || parentFolder(entry.path) === folder) return;
-    settle(run(() => onMove([entry.id], folder), `Couldn't move ${entry.id}.`));
+    settle(run(() => onMove([entry.id], folder), `Couldn't move ${entry.id}.`).then(dropped));
   };
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -154,7 +158,9 @@ export function ProjectTree({
   };
 
   const drop = (files: File[], folder: string) => {
-    if (onDropFiles) settle(run(() => onDropFiles(files, folder), "Couldn't import those files."));
+    if (onDropFiles) {
+      settle(run(() => onDropFiles(files, folder), "Couldn't import those files.").then(dropped));
+    }
   };
 
   return (

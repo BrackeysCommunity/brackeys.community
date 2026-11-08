@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 // @vitest-environment jsdom
 import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -119,6 +122,26 @@ describe("the frame's regions", () => {
     const portal = container.querySelector(".je-portal");
     expect(portal?.classList.contains("je-root")).toBe(true);
     expect(portal?.getAttribute("data-je-theme")).toBe("light");
+  });
+
+  it("marks only the host's chrome slots .je-host, which the editor's resets skip", () => {
+    slots();
+    const hosts = [...document.querySelectorAll(".je-host")].map((el) => el.className);
+    expect(hosts).toEqual(["je-frame-top-left je-host", "je-frame-top-right je-host"]);
+    expect(screen.getByText("context").closest(".je-host")).toBeNull();
+  });
+
+  it("keeps every descendant reset in the stylesheet off .je-host", () => {
+    const styleCss = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+    const resets = styleCss.slice(
+      styleCss.indexOf("@layer jams-editor"),
+      styleCss.indexOf("/* ─── Kit"),
+    );
+    const selectors = [...resets.matchAll(/^\s*(\.je-root [^{]+)\{/gm)].flatMap((m) =>
+      m[1]!.split(/,\n/).map((s) => s.trim()),
+    );
+    expect(selectors.length).toBeGreaterThan(8);
+    for (const selector of selectors) expect(selector).toMatch(/:where\(:not\(\.je-host/);
   });
 });
 

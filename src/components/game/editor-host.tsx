@@ -8,7 +8,6 @@ import {
   type EditorCue,
   type EditorHost,
   type EditorIdentityInput,
-  type EditorStorage,
 } from "@jams/engine/editor-ui";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -21,8 +20,8 @@ import { useFlags } from "@/lib/hooks/use-flag";
 import { play, type SoundName } from "@/lib/sound";
 import { toast } from "@/lib/toast";
 
-import { GameSiteIsland } from "./GameCanvas";
 import { BUNDLED_SCENE_ID } from "./platformer-scene";
+import { GameSiteIsland } from "./site-island";
 
 /** The project the game room's scenes belong to: the platformer's `jams.project.json`. */
 export const SCENE_PROJECT = "platformer";
@@ -48,24 +47,6 @@ const CUE_SOUND: Record<EditorCue, SoundName> = {
 export const siteCue = (cue: EditorCue): void => play(CUE_SOUND[cue]);
 
 export const sitePeerColor = (id: string): string => presenceColor(id).color;
-
-/** `localStorage`, every call guarded: private windows and blocked site data keep nothing. */
-export const siteStorage: EditorStorage = {
-  get(key) {
-    try {
-      return window.localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  },
-  set(key, value) {
-    try {
-      window.localStorage.setItem(key, value);
-    } catch {
-      // The value lives until the page closes.
-    }
-  },
-};
 
 /** The active user as the editor names them: guild nickname, else Discord username. */
 export function siteIdentity(profile: ActiveUserProfile | null): EditorIdentityInput | undefined {
@@ -126,7 +107,6 @@ export function useSiteEditorHost({
       notify: toast,
       cue: siteCue,
       flag,
-      storage: siteStorage,
       chrome: {
         topLeft: <GameSiteIsland title={title} />,
       },

@@ -153,12 +153,12 @@ export function EditorFrame({
         <div ref={root} className={cx("je-root je-frame", className)} data-je-theme={theme}>
           <div className="je-frame-chrome">
             {topLeft ? (
-              <div className="je-frame-top-left" data-je-region="">
+              <div className="je-frame-top-left je-host" data-je-region="">
                 {topLeft}
               </div>
             ) : null}
             {topRight ? (
-              <div className="je-frame-top-right" data-je-region="">
+              <div className="je-frame-top-right je-host" data-je-region="">
                 {topRight}
               </div>
             ) : null}

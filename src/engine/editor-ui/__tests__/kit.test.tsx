@@ -97,19 +97,11 @@ function choose(option: HTMLElement): void {
 }
 
 describe("the kit's sources", () => {
-  it("import nothing from the site, sonner or Tailwind", () => {
-    const bad: string[] = [];
-    for (const name of readdirSync(KIT)) {
-      const source = readFileSync(join(KIT, name), "utf8");
-      for (const spec of source.matchAll(/from\s+"([^"]+)"/g)) {
-        const s = spec[1] ?? "";
-        if (s.startsWith("@/") || s === "sonner" || s.startsWith("tailwind")) {
-          bad.push(`${name}: ${s}`);
-        }
-      }
-      if (/\bclassName="[^"]*\b(flex|px-\d|text-xs|bg-)\b/.test(source))
-        bad.push(`${name}: utility class`);
-    }
+  // Imports are the package boundary test's to check, for every editor-ui file.
+  it("style with the kit's own classes, not Tailwind utilities", () => {
+    const bad = readdirSync(KIT).filter((name) =>
+      /\bclassName="[^"]*\b(flex|px-\d|text-xs|bg-)\b/.test(readFileSync(join(KIT, name), "utf8")),
+    );
     expect(bad).toEqual([]);
   });
 });

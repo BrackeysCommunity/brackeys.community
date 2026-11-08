@@ -4,12 +4,14 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import type { AssetEntry, ProjectTreeNode } from "../../../../project/index";
+import { KitProvider } from "../../../kit/index";
 import { ProjectTree } from "../project-tree";
 import { ASSET_DRAG_TYPE, readAssetDrag } from "../tree-rows";
 import type { ProjectTreeProps } from "../types";
 import { entry, gone, hero, ice, jump, level, peer, PROJECT, tree } from "./fixtures";
 
 const toastError = vi.fn();
+const cue = vi.fn();
 
 function setup(props: Partial<ProjectTreeProps> = {}) {
   const handlers = {
@@ -21,15 +23,17 @@ function setup(props: Partial<ProjectTreeProps> = {}) {
     onDropFiles: vi.fn(),
   };
   const view = render(
-    <ProjectTree
-      projectId={PROJECT}
-      projectName="Yard"
-      nodes={tree()}
-      trash={[gone]}
-      notify={{ error: toastError }}
-      {...handlers}
-      {...props}
-    />,
+    <KitProvider host={{ cue }}>
+      <ProjectTree
+        projectId={PROJECT}
+        projectName="Yard"
+        nodes={tree()}
+        trash={[gone]}
+        notify={{ error: toastError }}
+        {...handlers}
+        {...props}
+      />
+    </KitProvider>,
   );
   return { ...handlers, ...view };
 }
@@ -50,6 +54,7 @@ afterAll(() => vi.restoreAllMocks());
 afterEach(() => {
   cleanup();
   toastError.mockReset();
+  cue.mockReset();
 });
 
 async function drag(from: HTMLElement, to: HTMLElement) {
@@ -191,6 +196,29 @@ describe("ProjectTree", () => {
       files().getByRole("button", { name: /^scenes/ }),
     );
     expect(onMove).toHaveBeenCalledTimes(2);
+  });
+
+  it("sounds the drop cue for each move and import that lands, and none for a failed one", async () => {
+    setup();
+    await drag(
+      files().getByRole("button", { name: /^hero\.png/ }),
+      files().getByRole("button", { name: /^sfx/ }),
+    );
+    const png = new File(["x"], "coin.png", { type: "image/png" });
+    await act(async () => dropFiles(rowOf("Yard"), [png]));
+    expect(cue.mock.calls).toEqual([["drop"], ["drop"]]);
+
+    cleanup();
+    cue.mockReset();
+    const refused = () => Promise.reject(new Error("path-taken"));
+    setup({ onMove: refused, onDropFiles: refused });
+    await drag(
+      files().getByRole("button", { name: /^hero\.png/ }),
+      files().getByRole("button", { name: /^sfx/ }),
+    );
+    await act(async () => dropFiles(rowOf("Yard"), [png]));
+    expect(toastError).toHaveBeenCalledTimes(2);
+    expect(cue).not.toHaveBeenCalledWith("drop");
   });
 
   it("deletes through the confirm when nothing references the asset", async () => {

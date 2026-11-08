@@ -121,6 +121,13 @@ describe("hostedProject", () => {
     expect(link.getState().status).toBe("off");
     expect(mint).not.toHaveBeenCalled();
     expect(urls).toEqual([]);
+    const read = hostedProject({ transport, flag, mint, access: "read" }).connect({
+      project: "p",
+      registry,
+      origin,
+    });
+    cleanups.push(() => read.destroy());
+    expect(read.getState()).toMatchObject({ status: "off", access: "read", session: null });
   });
 
   it("opens the socket the minted token names, and authenticates each doc with it", async () => {

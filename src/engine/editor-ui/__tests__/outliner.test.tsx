@@ -50,8 +50,13 @@ function setup(def: SceneDefinition = scene(), prefabs?: PrefabLibrary, reg: Reg
   });
   const dispatch = vi.spyOn(session, "dispatch");
   const onHover = vi.fn();
-  render(<EditorOutliner session={session} onHover={onHover} />);
-  return { session, dispatch, onHover };
+  const cue = vi.fn();
+  render(
+    <KitProvider host={{ cue }}>
+      <EditorOutliner session={session} onHover={onHover} />
+    </KitProvider>,
+  );
+  return { session, dispatch, onHover, cue };
 }
 
 /** The outliner under a host whose storage is `storage`. */
@@ -328,12 +333,13 @@ describe("EditorOutliner attaching and nesting", () => {
   ]);
 
   it("attaches a row dropped on a follower's row, in one batch", async () => {
-    const { session, dispatch } = setup(rides(), gates);
+    const { session, dispatch, cue } = setup(rides(), gates);
     await drag(
       outliner().getByRole("button", { name: /^deck/ }),
       outliner().getAllByRole("button", { name: /^lift/ })[0]!,
     );
     expect(dispatch).toHaveBeenCalledOnce();
+    expect(cue.mock.calls.filter(([c]) => c === "drop")).toHaveLength(1);
     expect(dispatch.mock.calls[0]![0]).toEqual({
       label: "Attach deck to lift",
       ops: [{ op: "update", ref: "deck", set: { attach: "lift" } }],
@@ -368,7 +374,7 @@ describe("EditorOutliner attaching and nesting", () => {
   });
 
   it("changes nothing for a drop on a row that isn't a follower or the dragged row's type", async () => {
-    const { dispatch } = setup(rides(), gates);
+    const { dispatch, cue } = setup(rides(), gates);
     await drag(
       outliner().getByRole("button", { name: /^deck/ }),
       outliner().getByRole("button", { name: /^trip/ }),
@@ -378,6 +384,7 @@ describe("EditorOutliner attaching and nesting", () => {
       outliner().getByRole("button", { name: /^solid/ }),
     );
     expect(dispatch).not.toHaveBeenCalled();
+    expect(cue).not.toHaveBeenCalledWith("drop");
   });
 
   it("shows nested instances' children as a tree that opens and closes", () => {

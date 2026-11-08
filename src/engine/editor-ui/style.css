@@ -85,7 +85,11 @@
     color-scheme: light;
   }
 
-  /* Resets scoped to the editor, so a host needs no preflight of its own. */
+  /*
+   * Resets scoped to the editor, so a host needs no preflight of its own. They
+   * skip .je-host, the slots that hold the host's own chrome, which keeps the
+   * host's styles whatever order the layers were declared in.
+   */
   .je-root {
     font-family: var(--je-font);
     font-size: var(--je-text);
@@ -94,50 +98,55 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  .je-root *,
-  .je-root *::before,
-  .je-root *::after {
+  .je-host {
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .je-root :where(:not(.je-host, .je-host *)),
+  .je-root :where(:not(.je-host, .je-host *))::before,
+  .je-root :where(:not(.je-host, .je-host *))::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
     border: 0 solid var(--je-border);
   }
 
-  .je-root :where(button, input, select, textarea) {
+  .je-root :where(button, input, select, textarea):where(:not(.je-host *)) {
     font: inherit;
     color: inherit;
     background: transparent;
     letter-spacing: inherit;
   }
 
-  .je-root :where(button, [role="button"]) {
+  .je-root :where(button, [role="button"]):where(:not(.je-host *)) {
     cursor: pointer;
   }
 
-  .je-root :where(button:disabled, [aria-disabled="true"]) {
+  .je-root :where(button:disabled, [aria-disabled="true"]):where(:not(.je-host *)) {
     cursor: default;
   }
 
-  .je-root :where(h1, h2, h3, h4, h5, h6) {
+  .je-root :where(h1, h2, h3, h4, h5, h6):where(:not(.je-host *)) {
     font-size: inherit;
     font-weight: inherit;
   }
 
-  .je-root :where(ol, ul) {
+  .je-root :where(ol, ul):where(:not(.je-host *)) {
     list-style: none;
   }
 
-  .je-root :where(img, svg, canvas, video) {
+  .je-root :where(img, svg, canvas, video):where(:not(.je-host *)) {
     display: block;
     max-width: 100%;
   }
 
-  .je-root :where(a) {
+  .je-root :where(a):where(:not(.je-host *)) {
     color: inherit;
     text-decoration: inherit;
   }
 
-  .je-root :focus-visible {
+  .je-root :focus-visible:where(:not(.je-host *)) {
     outline: 2px solid var(--je-ring);
     outline-offset: 1px;
   }
