@@ -576,7 +576,7 @@ describe("the dev server's blob routes", () => {
       body,
       headers: { "x-expect-sha256": "ab".repeat(32) },
     });
-    expect(wrong.status).toBe(409);
+    expect(wrong.status).toBe(422);
     expect(((await wrong.json()) as { issue: { code: string } }).issue.code).toBe("hash-mismatch");
     expect(await fileContentStore(copy.cacheDir).has(sha(body))).toBe(false);
 

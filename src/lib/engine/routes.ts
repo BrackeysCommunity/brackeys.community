@@ -35,13 +35,10 @@ import {
 } from "./limits";
 import { engineProjectsEnabled, isEngineStaff, liveEngineProject } from "./projects";
 import { checkQuota, ENGINE_QUOTA, quotaExceededResponse, storedProjectUsage } from "./quota";
+import { AGENT_SYNC_TOKEN_PATH, BLOBS_PATH, BUNDLE_PATH } from "./route-paths";
 
 /** Blobs never change under their hash; only the project's members may cache them. */
 export const ENGINE_BLOB_CACHE_CONTROL = "private, max-age=31536000, immutable";
-
-export const AGENT_SYNC_TOKEN_PATH = "/api/engine/agent-sync-token";
-const BLOBS_PATH = /^\/api\/engine\/projects\/([^/]+)\/blobs(?:\/([^/]+))?$/;
-const BUNDLE_PATH = /^\/api\/engine\/projects\/([^/]+)\/bundle$/;
 
 export type EngineRouteDeps = {
   /** The caller's session, a banned one already treated as signed out. */

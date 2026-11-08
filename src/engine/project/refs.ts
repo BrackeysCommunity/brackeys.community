@@ -4,6 +4,7 @@ import type { SceneIssue } from "../scene/types";
 import { fieldLayout } from "./canonical";
 import type { DocLayout, KindEnv, KindRegistry } from "./kinds";
 import { byCodeUnit, isPlainObject } from "./kinds/define";
+import { MATERIAL_KIND } from "./kinds/material";
 import type { JsonPointer } from "./ops";
 import type { AssetEntry, AssetId, AssetKey, AssetKindName, ProjectView } from "./types";
 
@@ -29,16 +30,14 @@ export type RefIndex = {
   dangling(): readonly SceneIssue[];
 };
 
+const fits = (entry: AssetEntry, site: RefSite): boolean =>
+  site.kinds.length === 0 || site.kinds.includes(entry.kind);
+
 /**
  * A site that may name a material is a reference only when an entry of one
  * of its kinds (live or trashed) has the id: other names are a game's code
  * materials, which aren't assets.
  */
-const MATERIAL_KIND = "material";
-
-const fits = (entry: AssetEntry, site: RefSite): boolean =>
-  site.kinds.length === 0 || site.kinds.includes(entry.kind);
-
 function siteCounts(view: ProjectView, site: RefSite): boolean {
   if (!site.kinds.includes(MATERIAL_KIND)) return true;
   const live = view.byId.get(site.id);

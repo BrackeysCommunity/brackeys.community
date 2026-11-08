@@ -10,9 +10,18 @@ import {
 } from "@jams/engine/project";
 import { SCENE_FORMAT_VERSION, type SceneIssue } from "@jams/engine/scene";
 
+import {
+  AGENT_SYNC_TOKEN_PATH,
+  engineBlobPath,
+  engineBundlePath,
+} from "../../src/lib/engine/route-paths";
+
+export { AGENT_SYNC_TOKEN_PATH };
+
 /** Where the CLI and the MCP server read the agent token when `--token` isn't given. */
 export const AGENT_TOKEN_ENV = "JAMS_AGENT_TOKEN";
-export const AGENT_SYNC_TOKEN_PATH = "/api/engine/agent-sync-token";
+/** The one site origin the MCP server sends the agent token to. */
+export const AGENT_SITE_ENV = "JAMS_AGENT_SITE";
 /** The longest a sync token lives; the site's answer can only shorten it. */
 export const SYNC_TOKEN_TTL_MS = 60_000;
 /** A held sync token is replaced this long before it expires. */
@@ -151,9 +160,7 @@ export function agentSyncTokenUrl(site: string): string {
   } catch {
     throw new HostedError("bad-url", `${JSON.stringify(site)} isn't a URL.`);
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new HostedError("bad-url", `The site URL must be http(s), not ${url.protocol}`);
-  }
+  if (!isHostedUrl(url.toString())) throw new HostedError("bad-url", siteUrlRule(site));
   return url.toString();
 }
 
@@ -358,14 +365,38 @@ function parseGrant(payload: unknown): Omit<HostedSyncToken, "onBehalfOf"> | nul
 
 // ─── Hosted projects over HTTP ───────────────────────────
 
-/** A site URL (`http(s)://…`): a hosted project, where a `ws(s)://` URL is a dev collab server. */
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])$/;
+
+/** This machine: the only host a dev server or a plain-http site may be on. */
+export const isLocalHost = (hostname: string) => LOCAL_HOST.test(hostname);
+
+/**
+ * A site URL: a hosted project, where a `ws(s)://` URL is a dev collab
+ * server. `https://`, or `http://` on this machine only, since the agent
+ * token travels with every request.
+ */
 export function isHostedUrl(url: string): boolean {
   try {
-    const { protocol } = new URL(url);
-    return protocol === "https:" || protocol === "http:";
+    const { protocol, hostname } = new URL(url);
+    return protocol === "https:" || (protocol === "http:" && isLocalHost(hostname));
   } catch {
     return false;
   }
+}
+
+const siteUrlRule = (site: string) =>
+  `The site URL must be https:// (http:// only on localhost): ${site}`;
+
+/**
+ * The site origin `JAMS_AGENT_SITE` pins, the only one the MCP server
+ * sends the agent token to; null when it is unset or not a site URL.
+ */
+export function agentSiteFrom(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string | null {
+  const site = env[AGENT_SITE_ENV]?.trim();
+  if (!site || !isHostedUrl(site)) return null;
+  return new URL(site).origin;
 }
 
 /** The agent and user a sync token's `g` and `o` claims name; null for a token that carries none. */
@@ -413,8 +444,7 @@ export function hostedSite(options: HostedSiteOptions): HostedSite {
   } catch {
     throw new HostedError("bad-url", `${JSON.stringify(options.site)} isn't a URL.`);
   }
-  if (!isHostedUrl(origin))
-    throw new HostedError("bad-url", `The site URL must be http(s): ${options.site}`);
+  if (!isHostedUrl(origin)) throw new HostedError("bad-url", siteUrlRule(options.site));
   const secret = options.agentToken.trim();
   if (!secret)
     throw new HostedError(
@@ -447,10 +477,6 @@ export function hostedSite(options: HostedSiteOptions): HostedSite {
     },
   };
 }
-
-/** `/api/engine/projects/<id><rest>`. */
-export const engineProjectPath = (projectId: string, rest = "") =>
-  `/api/engine/projects/${encodeURIComponent(projectId)}${rest}`;
 
 /** What an upload names besides its bytes: its asset kind, which the site caps sizes by, and its type. */
 export type BlobPutOptions = { kind?: string; contentType?: string };
@@ -504,8 +530,7 @@ export function putBlob(
  * `asset-too-large`, `quota-exceeded`) is a `ContentStoreError`.
  */
 export function hostedContentStore(site: HostedSite, projectId: string): ContentStore {
-  const blobPath = (hash?: Sha256) =>
-    engineProjectPath(projectId, `/blobs${hash ? `/${hash}` : ""}`);
+  const blobPath = (hash?: Sha256) => engineBlobPath(projectId, hash);
   return {
     async has(hash) {
       if (!isSha256(hash)) return false;
@@ -625,7 +650,7 @@ export async function fetchHostedBundle(
   site: HostedSite,
   projectId: string,
 ): Promise<HostedBundle> {
-  const res = await site.request(engineProjectPath(projectId, "/bundle"), {
+  const res = await site.request(engineBundlePath(projectId), {
     headers: { accept: "application/json" },
   });
   const bundle = parseHostedBundle(await res.json().catch(() => null));
@@ -652,7 +677,7 @@ export async function seedHostedBundle(
   projectId: string,
   body: { bundle: ProjectBundle; game: string | null; code: Record<string, CodeModuleInfo> },
 ): Promise<{ ok: true; docs: number; warnings: unknown[] } | ({ ok: false } & SeedRefusal)> {
-  const res = await site.request(engineProjectPath(projectId, "/bundle"), {
+  const res = await site.request(engineBundlePath(projectId), {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),

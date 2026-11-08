@@ -143,7 +143,8 @@ function uploadLimit(project: FileProject): number {
  * - `GET /__project`: the projects, `{ ok, projects: [{ id, name, game }] }`.
  * - `POST /__project/<id>/blob`: stores the raw body in the project's
  *   content store and answers `{ sha256, bytes }`; with `x-expect-sha256`,
- *   bytes that hash otherwise are refused with `hash-mismatch` (409).
+ *   bytes that hash otherwise are refused with `hash-mismatch` (422, as the
+ *   site's blob route answers).
  * - `GET /__project/<id>/blob/<sha256>`: the bytes, cacheable forever.
  *
  * A request from another site's page is 403. Returns null for URLs outside
@@ -187,7 +188,7 @@ export async function handleProjectRequest(
       const sha256 = await source.store.put(bytes, expect);
       return { status: 200, body: { sha256, bytes: bytes.byteLength } };
     } catch (e) {
-      if (e instanceof ContentStoreError) return error(409, e.message, { issue: e.issue });
+      if (e instanceof ContentStoreError) return error(422, e.message, { issue: e.issue });
       throw e;
     }
   }

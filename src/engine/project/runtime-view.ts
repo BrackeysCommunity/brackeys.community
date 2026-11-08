@@ -1,4 +1,5 @@
 import type { Registry } from "../game/types";
+import { deepFreeze } from "./canonical";
 import type { ContentStore } from "./content-store";
 import { DATA_TABLE_KIND, rowSchemaOf, tableAssets } from "./kinds/data-table";
 import { isPlainObject } from "./kinds/define";
@@ -15,14 +16,6 @@ export type ProjectRuntimeView = {
 };
 
 type Row = Readonly<Record<string, unknown> & { id: string }>;
-
-function deepFreeze<T>(value: T): T {
-  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const v of Object.values(value)) deepFreeze(v);
-  }
-  return value;
-}
 
 /**
  * The runtime view of a project; `values` holds each doc asset's plain JSON

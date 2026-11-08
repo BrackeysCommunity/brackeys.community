@@ -4,8 +4,7 @@ import { splitOverridePath } from "../../scene/resolve";
 import { unwrapSchema } from "../../scene/schema";
 import type { EntityTypeName, InstanceDef } from "../../scene/types";
 import type { RefSite } from "../refs";
-
-const MATERIAL_KIND = "material";
+import { MATERIAL_KIND } from "./material";
 
 /**
  * A type's material fields: those whose schema is the registry's material

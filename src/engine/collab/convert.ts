@@ -1,6 +1,8 @@
 import * as Y from "yjs";
 
 import type { Registry } from "../game/types";
+import { cloneJson } from "../project/canonical";
+import { isPlainObject } from "../project/kinds/define";
 import { EMPTY_SCENE_TEMPLATE } from "../scene/create";
 import { bulkEntries, bulkKeysOf, bulkKeyType } from "../scene/expand";
 import { FRAGMENT_KIND, fragmentBounds } from "../scene/fragment";
@@ -34,10 +36,6 @@ import {
 const META_HEADER = ["$schema", "v", "game"] as const;
 /** The bucket a named entity is written to. */
 export const ENTITIES_BUCKET = "entities";
-
-const clone = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
-const isPlainObject = (v: unknown): v is Record<string, unknown> =>
-  v !== null && typeof v === "object" && !Array.isArray(v);
 
 export const entitiesMap = (doc: Y.Doc) => doc.getMap<Y.Map<unknown>>(DOC_MAPS.entities);
 export const settingsMap = (doc: Y.Doc) => doc.getMap<unknown>(DOC_MAPS.settings);
@@ -79,28 +77,28 @@ export const bucketOf = (rec: EntityRecord): string =>
 /** An entity's `Y.Map` as plain JSON; values are copies. */
 export function recordOf(map: Y.Map<unknown>): EntityRecord {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of map.entries()) out[k] = v instanceof Y.Map ? v.toJSON() : clone(v);
+  for (const [k, v] of map.entries()) out[k] = v instanceof Y.Map ? v.toJSON() : cloneJson(v);
   if (typeof out[Z_FIELD] !== "string") out[Z_FIELD] = "";
   return out as EntityRecord;
 }
 
 /** The record a named entity is stored as. */
 export function entityRecord(def: EntityDef, z: string): EntityRecord {
-  return { ...clone(def), z } as EntityRecord;
+  return { ...cloneJson(def), z } as EntityRecord;
 }
 
 /** The record a bulk entry is stored as: its key, its type and its one geometry field. */
 export function bulkRecord(key: BulkKey, value: BulkEntry, z: string): EntityRecord {
   const field = Array.isArray(value) && typeof value[0] === "number" ? "at" : "shape";
-  return { z, [BULK_FIELD]: key, type: bulkKeyType(key), [field]: clone(value) };
+  return { z, [BULK_FIELD]: key, type: bulkKeyType(key), [field]: cloneJson(value) };
 }
 
 function setField(map: Y.Map<unknown>, k: string, v: unknown): void {
   if (NESTED_FIELDS.includes(k) && isPlainObject(v)) {
     const nested = new Y.Map<unknown>();
-    for (const [pk, pv] of Object.entries(v)) if (pv !== undefined) nested.set(pk, clone(pv));
+    for (const [pk, pv] of Object.entries(v)) if (pv !== undefined) nested.set(pk, cloneJson(pv));
     map.set(k, nested);
-  } else map.set(k, clone(v));
+  } else map.set(k, cloneJson(v));
 }
 
 /** A new `Y.Map` holding a record. */
@@ -129,7 +127,7 @@ export function patchRecord(map: Y.Map<unknown>, prev: EntityRecord, next: Entit
       const before = prev[k] as Record<string, unknown>;
       for (const pk of Object.keys(before)) if (v[pk] === undefined) current.delete(pk);
       for (const [pk, pv] of Object.entries(v))
-        if (pv !== undefined && !same(before[pk], pv)) current.set(pk, clone(pv));
+        if (pv !== undefined && !same(before[pk], pv)) current.set(pk, cloneJson(pv));
     } else setField(map, k, v);
   }
 }
@@ -214,7 +212,7 @@ export function docPrefabs(doc: Y.Doc): PrefabLibrary {
   const out = new Map<string, Prefab>();
   for (const id of [...prefabsMap(doc).keys()].sort()) {
     const p = prefabsMap(doc).get(id);
-    if (isPlainObject(p) && Array.isArray(p.entities)) out.set(id, clone(p) as Prefab);
+    if (isPlainObject(p) && Array.isArray(p.entities)) out.set(id, cloneJson(p) as Prefab);
   }
   return out;
 }
@@ -251,7 +249,7 @@ export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
   if (typeof game === "string") out.game = game;
   const header = prefab ? readPrefabHeader(doc) : undefined;
   if (header) out.name = header.id;
-  else for (const [k, v] of scene.entries()) out[k] = clone(v);
+  else for (const [k, v] of scene.entries()) out[k] = cloneJson(v);
   if (!prefab && settingsMap(doc).size > 0) out.settings = settingsMap(doc).toJSON();
   const groups = prefab ? undefined : readGroups(doc);
   if (groups) out.groups = groups;
@@ -336,7 +334,7 @@ function readPrefabHeader(doc: Y.Doc): { id: string; contract?: unknown } {
   const contract = map.get("contract");
   return {
     id: typeof id === "string" ? id : "",
-    ...(contract !== undefined ? { contract: clone(contract) } : {}),
+    ...(contract !== undefined ? { contract: cloneJson(contract) } : {}),
   };
 }
 
@@ -396,13 +394,13 @@ export type SceneToDocOptions = {
 
 /** The record an instance is stored as. */
 export function instanceRecord(def: InstanceDef, z: string): EntityRecord {
-  return { ...clone(def), z } as unknown as EntityRecord;
+  return { ...cloneJson(def), z } as unknown as EntityRecord;
 }
 
 /** A new `Y.Map` holding a group. */
 export function groupMap(group: GroupDef): Y.Map<unknown> {
   const map = new Y.Map<unknown>();
-  map.set("at", clone(group.at));
+  map.set("at", cloneJson(group.at));
   if (group.name !== undefined) map.set("name", group.name);
   return map;
 }
@@ -431,11 +429,11 @@ export function sceneToDoc(def: SceneDefinition, opts: SceneToDocOptions = {}): 
       if (v === undefined || (META_HEADER as readonly string[]).includes(k)) continue;
       if (k === "settings" || k === "entities" || k === "groups" || k === "instances") continue;
       if (!RESERVED_SCENE_KEYS.includes(k) && Array.isArray(v)) continue;
-      scene.set(k, clone(v));
+      scene.set(k, cloneJson(v));
     }
     const settings = settingsMap(doc);
     for (const [k, v] of Object.entries(def.settings ?? {}))
-      if (v !== undefined) settings.set(k, clone(v));
+      if (v !== undefined) settings.set(k, cloneJson(v));
 
     seedEntities(
       doc,

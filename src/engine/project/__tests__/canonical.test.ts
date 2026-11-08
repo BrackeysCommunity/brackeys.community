@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { canonicalJson, stableJson } from "../canonical";
+import { canonicalJson, cloneJson, deepFreeze, stableJson } from "../canonical";
 import type { DocLayout } from "../kinds";
 
 type MapLayout = Extract<DocLayout, { as: "map" }>;
@@ -249,5 +249,28 @@ describe("canonicalJson", () => {
         expect(line, `seed ${seed}`).toMatch(/^( {2})*\S(.*\S)?$/s);
       }
     }
+  });
+});
+
+describe("cloneJson and deepFreeze", () => {
+  it("copies deeply and keeps undefined", () => {
+    const src = { a: [1, { b: 2 }] };
+    const copy = cloneJson(src);
+    expect(copy).toEqual(src);
+    expect(copy.a).not.toBe(src.a);
+    expect(cloneJson(undefined)).toBeUndefined();
+  });
+
+  it("freezes every level and returns the same value", () => {
+    const value = { a: [1, { b: 2 }], c: { d: null } };
+    expect(deepFreeze(value)).toBe(value);
+    expect(Object.isFrozen(value.a)).toBe(true);
+    expect(Object.isFrozen(value.a[1])).toBe(true);
+    expect(Object.isFrozen(value.c)).toBe(true);
+    expect(() => {
+      (value.c as Record<string, unknown>).d = 1;
+    }).toThrow(TypeError);
+    expect(deepFreeze(null)).toBeNull();
+    expect(deepFreeze(3)).toBe(3);
   });
 });

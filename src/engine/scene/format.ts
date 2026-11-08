@@ -229,10 +229,29 @@ export const INPUT_SCRIPT_LAYOUT = {
   rest: ATOMIC,
 } as const satisfies DocLayout;
 
-/** A checks file in Yjs and on disk: checks keyed by id, merging per check and field; `kind` after the id. */
+/** An input script inside another file: the root header keys first, as the script's own file writes them. */
+const NESTED_INPUT_SCRIPT_LAYOUT = {
+  as: "map",
+  fields: { $schema: ATOMIC, kind: ATOMIC, v: ATOMIC, ...INPUT_SCRIPT_LAYOUT.fields },
+  rest: ATOMIC,
+} as const satisfies DocLayout;
+
+/**
+ * A checks file in Yjs and on disk: checks keyed by id, merging per check and
+ * field; `kind` after the id; an inline `script` laid out as an input script.
+ */
 export const CHECKS_LAYOUT = {
   as: "map",
-  fields: { checks: { as: "keyed", item: { as: "map", fields: { kind: ATOMIC }, rest: ATOMIC } } },
+  fields: {
+    checks: {
+      as: "keyed",
+      item: {
+        as: "map",
+        fields: { kind: ATOMIC, script: NESTED_INPUT_SCRIPT_LAYOUT },
+        rest: ATOMIC,
+      },
+    },
+  },
   rest: ATOMIC,
 } as const satisfies DocLayout;
 

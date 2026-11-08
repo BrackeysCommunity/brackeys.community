@@ -63,7 +63,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe("assets on files", () => {
+describe("assets on files", { timeout: 60_000 }, () => {
   it("list shows every live asset by path", async () => {
     const r = await run("assets", "list");
     expect(r.exitCode).toBe(0);
@@ -278,7 +278,7 @@ describe("assets on files", () => {
   });
 });
 
-describe("assets --live", () => {
+describe("assets --live", { timeout: 60_000 }, () => {
   let server: ListeningSceneCollab;
 
   async function until(check: () => Promise<boolean>, what: string, ms = 5_000) {

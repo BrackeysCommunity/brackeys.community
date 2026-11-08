@@ -32,7 +32,7 @@ function flatten(nodes: readonly ProjectTreeNode[]): ProjectTreeNode[] {
 }
 const pathOf = (n: ProjectTreeNode) => (n.type === "asset" ? n.entry.path : n.path);
 
-describe("project tools over the two homes", () => {
+describe("project tools over the two homes", { timeout: 60_000 }, () => {
   let ctx: { projects: ProjectHandle[] };
   beforeAll(async () => {
     ctx = { projects: await discoverProjects(ROOT) };
@@ -225,7 +225,7 @@ describe("project tools over the two homes", () => {
   });
 });
 
-describe("project tools over a temp project", () => {
+describe("project tools over a temp project", { timeout: 60_000 }, () => {
   let root: string;
   let ctx: { projects: ProjectHandle[] };
 

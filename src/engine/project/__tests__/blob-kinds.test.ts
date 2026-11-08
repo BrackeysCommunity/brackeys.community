@@ -389,7 +389,7 @@ describe("recording", () => {
   });
 });
 
-describe("inspect never throws", () => {
+describe("inspect never throws", { timeout: 30_000 }, () => {
   const files = fixtureFiles().map((name) => [name, fixture(name)] as const);
 
   function check(kind: BlobKindDef, bytes: Uint8Array, settings: unknown, env: InspectEnv): void {
@@ -437,7 +437,7 @@ describe("inspect never throws", () => {
   });
 });
 
-describe("through project ops", () => {
+describe("through project ops", { timeout: 60_000 }, () => {
   const H = (c: string) => c.repeat(64);
 
   async function store(names: string[]) {

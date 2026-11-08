@@ -398,13 +398,19 @@ describe("a snapshot's materials", () => {
     const snap = await snapshotProject(...args(f));
     const store = await storeOf(f.texts);
     const issues = await checkSnapshot(snap, store, kinds, env);
-    expect(issues.map((i) => [i.code, i.entityIds[0], i.path])).toEqual([
-      ["schema", "kitchen-sink", "/entities/0/material"],
+    expect(issues.map((i) => [i.code, i.entityIds[0], i.path, i.message])).toEqual([
+      [
+        "schema",
+        "kitchen-sink",
+        "/entities/0/material",
+        '/entities/0/material: unknown material "bouncy": this project and game define no materials',
+      ],
     ]);
     const error = await snapshotScene(snap, "kitchen-sink", store, registry).catch(
       (e: unknown) => e,
     );
     expect(error).toBeInstanceOf(SnapshotError);
+    expect((error as SnapshotError).message).toContain('unknown material "bouncy"');
   });
 });
 

@@ -1,5 +1,6 @@
 import { ENGINE_RUN_RESULTS, type GameOutcome, type Registry } from "../game/types";
 import type { InputEdge } from "../headless/playtest-types";
+import { deepFreeze } from "../project/canonical";
 import { expandScene } from "../scene/expand";
 import { parseScene } from "../scene/parse";
 import { sceneHashWith } from "../scene/prefab";
@@ -34,14 +35,6 @@ export type PreparedPlay =
       issues: SceneIssue[];
     }
   | { ok: false; issues: SceneIssue[] };
-
-/** Freezes `value` and everything it holds, so a system that writes to its definition throws. */
-export function deepFreeze<T>(value: T): T {
-  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
-  Object.freeze(value);
-  for (const child of Object.values(value)) deepFreeze(child);
-  return value;
-}
 
 /**
  * The first half of Play, shared by the shell, `runPlaytest` and `fuzz`:

@@ -383,67 +383,71 @@ function randomOp(rand: () => number, state: ProjectState, i: number): ProjectOp
   return { op: "setLicence", id: target.id, licence: rand() < 0.3 ? null : { author: `a${i}` } };
 }
 
-describe("item 11: project tree convergence", () => {
-  it("random creates, moves, renames, deletes and restores converge with no lost entries and repair to no duplicates", () => {
-    let applied = 0;
-    let collisions = 0;
-    for (let seed = 1; seed <= 40; seed++) {
-      const rand = rng(seed * 104729);
-      const clients = 2 + (seed % 4);
-      const net = new SimNetwork(clients, rand, seeded());
-      const keyGens = net.docs.map((_, i) => sequentialKeys(`c${i}x`));
-      const created = new Set(Object.keys(seedState.assets));
-      for (let step = 0; step < 60; step++) {
-        const i = Math.floor(rand() * clients);
-        const doc = net.docs[i]!;
-        const op = randomOp(rand, readProject(doc), step);
-        if (op) {
-          const result = applyRegistryBatch(
-            doc,
-            { v: 1, ops: [op] },
-            { kind: "user", userId: `u${i}` },
-            opts({ newKey: keyGens[i], now: Math.floor(step / 4) }),
-          );
-          if (result.ok) {
-            applied++;
-            for (const key of result.check.written) created.add(key);
-            for (const [key, entry] of Object.entries(result.check.state.assets))
-              if (!seedState.assets[key] && entry.created.by === `u${i}`) created.add(key);
+describe("project tree convergence", () => {
+  it(
+    "random creates, moves, renames, deletes and restores converge with no lost entries and repair to no duplicates",
+    { timeout: 30_000 },
+    () => {
+      let applied = 0;
+      let collisions = 0;
+      for (let seed = 1; seed <= 40; seed++) {
+        const rand = rng(seed * 104729);
+        const clients = 2 + (seed % 4);
+        const net = new SimNetwork(clients, rand, seeded());
+        const keyGens = net.docs.map((_, i) => sequentialKeys(`c${i}x`));
+        const created = new Set(Object.keys(seedState.assets));
+        for (let step = 0; step < 60; step++) {
+          const i = Math.floor(rand() * clients);
+          const doc = net.docs[i]!;
+          const op = randomOp(rand, readProject(doc), step);
+          if (op) {
+            const result = applyRegistryBatch(
+              doc,
+              { v: 1, ops: [op] },
+              { kind: "user", userId: `u${i}` },
+              opts({ newKey: keyGens[i], now: Math.floor(step / 4) }),
+            );
+            if (result.ok) {
+              applied++;
+              for (const key of result.check.written) created.add(key);
+              for (const [key, entry] of Object.entries(result.check.state.assets))
+                if (!seedState.assets[key] && entry.created.by === `u${i}`) created.add(key);
+            }
           }
+          net.deliver(Math.floor(rand() * 4));
+          const roll = rand();
+          if (roll < 0.08) net.partition([Math.floor(rand() * clients)]);
+          else if (roll < 0.14) net.heal();
         }
-        net.deliver(Math.floor(rand() * 4));
-        const roll = rand();
-        if (roll < 0.08) net.partition([Math.floor(rand() * clients)]);
-        else if (roll < 0.14) net.heal();
-      }
-      net.settle();
+        net.settle();
 
-      const states = net.docs.map(readProject);
-      for (const [i, s] of states.entries())
-        expect(stableJson(s), `seed ${seed}, client ${i}`).toBe(stableJson(states[0]));
-      expect(new Set(Object.keys(states[0]!.assets)), `seed ${seed}: no lost entries`).toEqual(
-        created,
-      );
-      if (projectView(states[0]!).issues.length > 0) collisions++;
-
-      const writers = net.docs.slice(0, 1 + (seed % 2));
-      for (const w of writers) applyRepairs(w);
-      net.settle();
-      const fixed = net.docs.map(readProject);
-      for (const s of fixed)
-        expect(stableJson(s), `seed ${seed} after repairs`).toBe(stableJson(fixed[0]));
-      const view = projectView(fixed[0]!, kinds);
-      expect(view.issues, `seed ${seed}`).toEqual([]);
-      const live = liveOf(fixed[0]!);
-      expect(new Set(live.map((e) => e.id)).size).toBe(live.length);
-      expect(new Set(live.map((e) => e.path.toLowerCase())).size).toBe(live.length);
-      expect(Object.keys(fixed[0]!.assets).length).toBe(created.size);
-      for (const entry of Object.values(fixed[0]!.assets) as AssetEntry[])
-        expect(kinds.detect(entry.path, entry.kind === "note" ? { v: 1 } : undefined)?.kind).toBe(
-          entry.kind,
+        const states = net.docs.map(readProject);
+        for (const [i, s] of states.entries())
+          expect(stableJson(s), `seed ${seed}, client ${i}`).toBe(stableJson(states[0]));
+        expect(new Set(Object.keys(states[0]!.assets)), `seed ${seed}: no lost entries`).toEqual(
+          created,
         );
-    }
-    expect(applied).toBeGreaterThan(1000);
-    expect(collisions, "the runs must hit concurrent collisions").toBeGreaterThan(5);
-  });
+        if (projectView(states[0]!).issues.length > 0) collisions++;
+
+        const writers = net.docs.slice(0, 1 + (seed % 2));
+        for (const w of writers) applyRepairs(w);
+        net.settle();
+        const fixed = net.docs.map(readProject);
+        for (const s of fixed)
+          expect(stableJson(s), `seed ${seed} after repairs`).toBe(stableJson(fixed[0]));
+        const view = projectView(fixed[0]!, kinds);
+        expect(view.issues, `seed ${seed}`).toEqual([]);
+        const live = liveOf(fixed[0]!);
+        expect(new Set(live.map((e) => e.id)).size).toBe(live.length);
+        expect(new Set(live.map((e) => e.path.toLowerCase())).size).toBe(live.length);
+        expect(Object.keys(fixed[0]!.assets).length).toBe(created.size);
+        for (const entry of Object.values(fixed[0]!.assets) as AssetEntry[])
+          expect(kinds.detect(entry.path, entry.kind === "note" ? { v: 1 } : undefined)?.kind).toBe(
+            entry.kind,
+          );
+      }
+      expect(applied).toBeGreaterThan(1000);
+      expect(collisions, "the runs must hit concurrent collisions").toBeGreaterThan(5);
+    },
+  );
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { closest } from "../scene/did-you-mean";
 import { derivesFrom, SHAPE_TYPES, ShapeTupleSchema, shapeTupleSchemaOf } from "../scene/shapes";
 import type { ShapeTuple, ShapeType } from "../scene/types";
 import type { FieldEnv } from "./types";
@@ -73,11 +74,24 @@ export function shapeField(
   return schema.meta({ ...SHAPE_META, description });
 }
 
+function unknownMaterialMessage(got: unknown, known: readonly string[]): string {
+  const name =
+    typeof got === "string"
+      ? `unknown material ${JSON.stringify(got)}`
+      : `a material is a name, not ${JSON.stringify(got)}`;
+  if (known.length === 0) return `${name}: this project and game define no materials`;
+  const suggestion = typeof got === "string" ? closest(got, known) : undefined;
+  return `${name}${suggestion ? `; did you mean "${suggestion}"?` : "."} Known: ${known.join(", ")}.`;
+}
+
 /** An optional material, one of the registry's; the description lists each with its own. */
 export function materialField(env: FieldEnv, description = "Surface material.") {
   const [first, ...rest] = env.materials;
+  const error = (iss: { input?: unknown }) => unknownMaterialMessage(iss.input, env.materials);
   const schema =
-    first === undefined ? z.never() : z.enum([first, ...rest] as [string, ...string[]]);
+    first === undefined
+      ? z.never({ error })
+      : z.enum([first, ...rest] as [string, ...string[]], { error });
   const each = env.materials.map((m) => `${m}: ${env.materialDefs.get(m)?.description ?? ""}`);
   const text = each.length > 0 ? `${description} ${each.join(" ")}` : description;
   return schema.optional().describe(text).meta({ title: "Material", group: "surface" });

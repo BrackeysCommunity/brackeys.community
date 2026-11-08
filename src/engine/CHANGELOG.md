@@ -287,7 +287,9 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   writes the code map and this build's schema stamps.
 - `./vite`: `GET /__project`, `POST /__project/<id>/blob`
   (`x-expect-sha256`) and `GET /__project/<id>/blob/<sha256>`, same-origin
-  only (`PROJECT_ROUTE`).
+  only (`PROJECT_ROUTE`). A body that doesn't hash to `x-expect-sha256` is
+  refused with 422 and a `hash-mismatch` issue, the status the site's blob
+  route answers.
 - `./vite`: `applyProjectBatchToFiles` and `snapshotFiles` apply a
   `ProjectOpBatch` to a project's files through the live path; a stale base
   fails with `stale-base`.
@@ -450,7 +452,8 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
 - `apply --live` runs on the project client as one `editScene` op, so
   prefab ops write their prefab docs.
 - Hosted projects: every `--live` command (`apply`, `assets list` and the
-  `assets` writers) takes a site `--url https://…` and an agent token
+  `assets` writers) takes a site `--url https://…` (`http://` only on
+  localhost, since the token travels with every request) and an agent token
   (`--token`, else `JAMS_AGENT_TOKEN`). The CLI exchanges the token at
   `POST /api/engine/agent-sync-token` for 60 s project sync tokens and
   refreshes them before they expire. Edits carry the token's actor (`g` as
@@ -466,7 +469,9 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   `--dry-run` checks the files and reads the hosted project, sending
   nothing).
 - MCP: a live tool's `url` may be a hosted site only when the MCP server's
-  environment has `JAMS_AGENT_TOKEN`; the token is never a tool argument.
+  environment has `JAMS_AGENT_TOKEN` and `JAMS_AGENT_SITE`, the site's
+  origin; the token is sent to that origin only, so a tool argument can't
+  redirect it, and is never a tool argument itself.
 
 ### Internal
 
@@ -474,6 +479,9 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   game files, and leaves `HocuspocusProviderWebsocket` (one socket shared by
   a project's docs) to hosts: the site's project session and the scene
   CLI's project client build it, never an engine source file.
+- The site's engine route paths live in one dependency-free module
+  (`src/lib/engine/route-paths.ts`) that the routes and the scene CLI's
+  hosted client both import.
 - `services/canvas-sync` copies `src/engine/project` and
   `src/engine/version.ts` into its image and serves the project and asset
   doc kinds beside scenes.

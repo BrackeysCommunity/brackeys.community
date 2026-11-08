@@ -16,7 +16,14 @@ import {
   type ToolContext,
   type ToolResult,
 } from "./context";
-import { agentTokenFrom, AGENT_TOKEN_ENV, isHostedUrl } from "./hosted";
+import {
+  AGENT_SITE_ENV,
+  agentSiteFrom,
+  agentTokenFrom,
+  AGENT_TOKEN_ENV,
+  isHostedUrl,
+  isLocalHost,
+} from "./hosted";
 import { DEFAULT_PROJECT_URL, ProjectClientError, readLiveScene } from "./project-client";
 import { rasterizeSvg } from "./raster";
 import { apply } from "./tools/apply";
@@ -100,7 +107,7 @@ const liveFields = {
     .string()
     .optional()
     .describe(
-      `Collab server URL, localhost only, default ${DEFAULT_PROJECT_URL}; or, with ${AGENT_TOKEN_ENV} set in the server's environment, the https:// site hosting that token's project.`,
+      `Collab server URL, localhost only, default ${DEFAULT_PROJECT_URL}; or, with ${AGENT_TOKEN_ENV} and ${AGENT_SITE_ENV} set in the server's environment, that site, which hosts the token's project.`,
     ),
 };
 const writerFields = {
@@ -124,12 +131,11 @@ const jsonOrPath = (what: string) =>
 
 // ─── Live docs and inline payloads ───────────────────────
 
-const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])$/;
-
 /**
  * The collab URL for a live call: the local dev server's, or a hosted
- * project's site when the server was started with an agent token in its
- * environment. The token never travels as a tool argument.
+ * project's site when the server was started with an agent token and that
+ * site's origin in its environment. Neither travels as a tool argument, so
+ * a caller can't send the token anywhere else.
  */
 function liveUrl(url: string | undefined, ctx: ToolContext): string | ToolResult {
   if (url === undefined) return DEFAULT_PROJECT_URL;
@@ -139,15 +145,23 @@ function liveUrl(url: string | undefined, ctx: ToolContext): string | ToolResult
   } catch {
     return usage(`url: not a URL: ${url}`);
   }
-  if (isHostedUrl(url)) {
-    if (!agentTokenFrom(undefined, ctx.env ?? process.env))
+  if (/^https?:$/.test(parsed.protocol)) {
+    const env = ctx.env ?? process.env;
+    if (!agentTokenFrom(undefined, env))
       return usage(
         `url: a hosted project needs ${AGENT_TOKEN_ENV} set in the MCP server's environment`,
       );
+    const site = agentSiteFrom(env);
+    if (!site)
+      return usage(
+        `url: a hosted project needs ${AGENT_SITE_ENV} (the site's https:// origin) set in the MCP server's environment`,
+      );
+    if (!isHostedUrl(url) || parsed.origin !== site)
+      return usage(`url: the agent token is only sent to ${site} (${AGENT_SITE_ENV})`);
     return url;
   }
   if (!/^wss?:$/.test(parsed.protocol)) return usage("url: expected ws://, wss:// or https://");
-  if (!LOCAL_HOST.test(parsed.hostname))
+  if (!isLocalHost(parsed.hostname))
     return usage("url: only the local dev server's docs are reachable (localhost)");
   return url;
 }

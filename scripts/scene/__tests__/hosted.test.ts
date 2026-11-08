@@ -4,6 +4,8 @@ import { SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  AGENT_SITE_ENV,
+  agentSiteFrom,
   AGENT_SYNC_TOKEN_PATH,
   AGENT_TOKEN_ENV,
   AgentTokenExpiredError,
@@ -12,6 +14,8 @@ import {
   createAgentSyncTokens,
   HostedError,
   HostedProjectsOffError,
+  hostedSite,
+  isHostedUrl,
   requireAgentToken,
   SYNC_TOKEN_REFRESH_MARGIN_MS,
   SYNC_TOKEN_TTL_MS,
@@ -279,15 +283,53 @@ describe("createAgentSyncTokens", () => {
     expect(Object.values(offline.tokens).join(" ")).not.toContain(SECRET);
   });
 
-  it("refuses a site that isn't http(s) and an empty agent token up front", () => {
-    expect(() => createAgentSyncTokens({ site: "ftp://x.test", agentToken: SECRET })).toThrow(
-      expect.objectContaining({ code: "bad-url" }),
-    );
+  it("refuses a site that isn't https (or http on localhost) and an empty agent token up front", () => {
+    for (const site of ["ftp://x.test", "http://staging.example.test", "http://10.0.0.2:3000"])
+      expect(() => createAgentSyncTokens({ site, agentToken: SECRET }), site).toThrow(
+        expect.objectContaining({ code: "bad-url" }),
+      );
+    expect(() =>
+      createAgentSyncTokens({ site: "http://localhost:3000", agentToken: SECRET }),
+    ).not.toThrow();
     expect(() => createAgentSyncTokens({ site: "not a url", agentToken: SECRET })).toThrow(
       expect.objectContaining({ code: "bad-url" }),
     );
     expect(() => createAgentSyncTokens({ site: SITE, agentToken: "  " })).toThrow(
       expect.objectContaining({ code: "no-token" }),
     );
+  });
+});
+
+describe("the site the agent token goes to", () => {
+  it("is https, or http only on this machine", () => {
+    for (const url of [
+      SITE,
+      "https://10.0.0.2",
+      "http://localhost:3000",
+      "http://127.0.0.1:1",
+      "http://[::1]:2",
+    ])
+      expect(isHostedUrl(url), url).toBe(true);
+    for (const url of [
+      "http://staging.example.test",
+      "http://localhost.evil.test",
+      "ws://localhost:1",
+      "nope",
+    ])
+      expect(isHostedUrl(url), url).toBe(false);
+  });
+
+  it("hostedSite refuses a plain-http remote site before any request", () => {
+    expect(() => hostedSite({ site: "http://attacker.example", agentToken: SECRET })).toThrow(
+      expect.objectContaining({ code: "bad-url" }),
+    );
+    expect(hostedSite({ site: `${SITE}/any/path`, agentToken: SECRET }).origin).toBe(SITE);
+  });
+
+  it(`${AGENT_SITE_ENV} pins one origin, and only a site URL`, () => {
+    expect(agentSiteFrom({ [AGENT_SITE_ENV]: ` ${SITE}/projects \n` })).toBe(SITE);
+    expect(agentSiteFrom({ [AGENT_SITE_ENV]: "http://staging.example.test" })).toBeNull();
+    expect(agentSiteFrom({ [AGENT_SITE_ENV]: "  " })).toBeNull();
+    expect(agentSiteFrom({})).toBeNull();
   });
 });

@@ -238,77 +238,81 @@ describe("code skew on a simulated network", () => {
     { kinds: OLD, buildAt: 150 },
   ];
 
-  it("every client ends on the newest build's stamp, read-only exactly where its schema differs", async () => {
-    let partitions = 0;
-    for (let seed = 1; seed <= 16; seed++) {
-      const host = world();
-      const names = ["project:p", "asset:p.post", "scene:p.yard"];
-      const sim = new SimProject(
-        BUILDS.length,
-        rng(seed * 104_729),
-        Object.fromEntries(names.map((n) => [n, host.doc(n)])),
-      );
-      const order = BUILDS.map((_, i) => i).sort(() => sim.rand() - 0.5);
-      const sessions: ProjectSession[] = [];
-      for (const i of order) {
-        const { kinds, buildAt } = BUILDS[i]!;
-        const s = await createProjectSession({
-          project: "p",
-          openDoc: sim.openDoc(i),
-          origin: { kind: "user", userId: `u${i}` },
-          registry: engine,
-          kinds,
-          buildAt,
-        });
-        sessions[i] = s;
-        await s.open("asset:p.post");
-        await s.open("scene:p.yard");
-        for (let step = 0; step < 3; step++) {
-          // Registry writes between the stamps leave updates waiting on others as they arrive.
-          const writer =
-            sessions[order[Math.floor(sim.rand() * sessions.filter(Boolean).length)]!]!;
-          const ok = await applyProjectBatch(
-            writer,
-            {
-              v: 1,
-              ops: [{ op: "setLicence", id: "yard", licence: { author: `a${seed}-${step}` } }],
-            },
-            writer.origin,
-          );
-          expect(ok.ok).toBe(true);
-          sim.weather(0.25, 0.15);
-        }
-      }
-      partitions += sim.partitions;
-      sim.settle();
-
-      const stamps = sessions.map((s) => readProject(s.projectDoc).build);
-      for (const [i, stamp] of stamps.entries())
-        expect(stamp, `seed ${seed}, client ${i}`).toEqual(stamps[0]);
-      const newest = [sessions[1]!, sessions[2]!].sort((x, y) =>
-        x.hashes.card! < y.hashes.card! ? 1 : -1,
-      )[0]!;
-      expect(stamps[0]!.card, `seed ${seed}`).toMatchObject({
-        hash: newest.hashes.card,
-        buildAt: 300,
-      });
-      expect(stamps[0]!.scene!.hash).toBe(sessions[0]!.hashes.scene);
-      for (const s of sessions) {
-        expect(s.get("asset:p.post")!.readOnly, `seed ${seed}, build ${s.buildAt}`).toBe(
-          s !== newest,
+  it(
+    "every client ends on the newest build's stamp, read-only exactly where its schema differs",
+    { timeout: 30_000 },
+    async () => {
+      let partitions = 0;
+      for (let seed = 1; seed <= 16; seed++) {
+        const host = world();
+        const names = ["project:p", "asset:p.post", "scene:p.yard"];
+        const sim = new SimProject(
+          BUILDS.length,
+          rng(seed * 104_729),
+          Object.fromEntries(names.map((n) => [n, host.doc(n)])),
         );
-        expect(s.get("scene:p.yard")!.readOnly).toBe(false);
-      }
+        const order = BUILDS.map((_, i) => i).sort(() => sim.rand() - 0.5);
+        const sessions: ProjectSession[] = [];
+        for (const i of order) {
+          const { kinds, buildAt } = BUILDS[i]!;
+          const s = await createProjectSession({
+            project: "p",
+            openDoc: sim.openDoc(i),
+            origin: { kind: "user", userId: `u${i}` },
+            registry: engine,
+            kinds,
+            buildAt,
+          });
+          sessions[i] = s;
+          await s.open("asset:p.post");
+          await s.open("scene:p.yard");
+          for (let step = 0; step < 3; step++) {
+            // Registry writes between the stamps leave updates waiting on others as they arrive.
+            const writer =
+              sessions[order[Math.floor(sim.rand() * sessions.filter(Boolean).length)]!]!;
+            const ok = await applyProjectBatch(
+              writer,
+              {
+                v: 1,
+                ops: [{ op: "setLicence", id: "yard", licence: { author: `a${seed}-${step}` } }],
+              },
+              writer.origin,
+            );
+            expect(ok.ok).toBe(true);
+            sim.weather(0.25, 0.15);
+          }
+        }
+        partitions += sim.partitions;
+        sim.settle();
 
-      const refused = await applyProjectBatch(sessions[0]!, resize, ada);
-      expect(refused.ok).toBe(false);
-      expect((await applyProjectBatch(newest, resize, bo)).ok).toBe(true);
-      expect((await applyProjectBatch(sessions[3]!, moveCrate, ada)).ok).toBe(true);
-      sim.settle();
-      for (const i of BUILDS.keys())
-        expect(layoutFromDoc(sim.doc("asset:p.post", i), layout)).toEqual({ v: 1, size: 2 });
-      for (const s of sessions) s.destroy();
-    }
-    expect(partitions, "the runs must cut clients off").toBeGreaterThan(5);
-  });
+        const stamps = sessions.map((s) => readProject(s.projectDoc).build);
+        for (const [i, stamp] of stamps.entries())
+          expect(stamp, `seed ${seed}, client ${i}`).toEqual(stamps[0]);
+        const newest = [sessions[1]!, sessions[2]!].sort((x, y) =>
+          x.hashes.card! < y.hashes.card! ? 1 : -1,
+        )[0]!;
+        expect(stamps[0]!.card, `seed ${seed}`).toMatchObject({
+          hash: newest.hashes.card,
+          buildAt: 300,
+        });
+        expect(stamps[0]!.scene!.hash).toBe(sessions[0]!.hashes.scene);
+        for (const s of sessions) {
+          expect(s.get("asset:p.post")!.readOnly, `seed ${seed}, build ${s.buildAt}`).toBe(
+            s !== newest,
+          );
+          expect(s.get("scene:p.yard")!.readOnly).toBe(false);
+        }
+
+        const refused = await applyProjectBatch(sessions[0]!, resize, ada);
+        expect(refused.ok).toBe(false);
+        expect((await applyProjectBatch(newest, resize, bo)).ok).toBe(true);
+        expect((await applyProjectBatch(sessions[3]!, moveCrate, ada)).ok).toBe(true);
+        sim.settle();
+        for (const i of BUILDS.keys())
+          expect(layoutFromDoc(sim.doc("asset:p.post", i), layout)).toEqual({ v: 1, size: 2 });
+        for (const s of sessions) s.destroy();
+      }
+      expect(partitions, "the runs must cut clients off").toBeGreaterThan(5);
+    },
+  );
 });

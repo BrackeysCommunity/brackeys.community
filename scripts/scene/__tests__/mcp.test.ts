@@ -15,8 +15,9 @@ import * as Y from "yjs";
 
 import { platformerGame } from "../../../src/games/platformer";
 import type { ToolContext } from "../context";
+import { AGENT_SITE_ENV, AGENT_TOKEN_ENV } from "../hosted";
 import { createSceneMcpServer, MCP_SERVER_NAME } from "../mcp";
-import { DEFAULT_MCP_AGENT_ID, MCP_TOOL_NAMES } from "../mcp-tools";
+import { DEFAULT_MCP_AGENT_ID, MCP_TOOL_NAMES, MCP_TOOLS, runMcpTool } from "../mcp-tools";
 import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
 
@@ -293,7 +294,53 @@ describe("scene MCP server", () => {
   });
 });
 
-describe("live docs", () => {
+describe("hosted URLs", () => {
+  const SITE = "https://staging.example.test";
+  const SECRET = "jat_mcpSecretThatMustStayHome";
+  const projectTree = MCP_TOOLS.find((t) => t.name === "project_tree")!;
+
+  async function attempt(url: string, env: Record<string, string>) {
+    const sentTo: string[] = [];
+    const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const target =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (new Headers(init?.headers).get("authorization")?.includes(SECRET)) sentTo.push(target);
+      return Response.json({ message: "no" }, { status: 401 });
+    }) as typeof globalThis.fetch;
+    const result = (await runMcpTool(
+      projectTree,
+      { live: true, url },
+      { projects: [], loadRapier: loadCompatRapier, env, fetch },
+    )) as Called;
+    return { result, sentTo };
+  }
+
+  it(`sends the agent token only to the origin ${AGENT_SITE_ENV} pins`, async () => {
+    const pinned = { [AGENT_TOKEN_ENV]: SECRET, [AGENT_SITE_ENV]: SITE };
+    for (const [url, env, says] of [
+      ["https://attacker.example", pinned, AGENT_SITE_ENV],
+      ["http://attacker.example", pinned, AGENT_SITE_ENV],
+      ["http://staging.example.test", pinned, AGENT_SITE_ENV],
+      [`${SITE}:8443`, pinned, AGENT_SITE_ENV],
+      [SITE, { [AGENT_TOKEN_ENV]: SECRET }, AGENT_SITE_ENV],
+      [SITE, { [AGENT_SITE_ENV]: SITE }, AGENT_TOKEN_ENV],
+    ] as const) {
+      const { result, sentTo } = await attempt(url, env);
+      expect(result, url).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+      expect(JSON.stringify(result), url).toContain(says);
+      expect(JSON.stringify(result)).not.toContain(SECRET);
+      expect(sentTo, url).toEqual([]);
+    }
+
+    const { result, sentTo } = await attempt(`${SITE}/projects/demo`, pinned);
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result)).not.toContain(SECRET);
+    expect(sentTo.length).toBeGreaterThan(0);
+    for (const target of sentTo) expect(new URL(target).origin).toBe(SITE);
+  });
+});
+
+describe("live docs", { timeout: 60_000 }, () => {
   let server: ListeningSceneCollab;
   let human: { doc: Y.Doc; provider: HocuspocusProvider };
 

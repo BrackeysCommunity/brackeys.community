@@ -20,6 +20,14 @@ export const sameValue = (a: unknown, b: unknown): boolean => stableJson(a) === 
 export const cloneJson = <T>(v: T): T =>
   v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T);
 
+/** Freezes `value` and everything it holds, so code that writes to it throws. */
+export function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value)) deepFreeze(child);
+  return value;
+}
+
 /** Keys that lead a declarative file, as they lead a scene or prefab file. */
 const CANONICAL_HEADER_KEYS = ["$schema", "kind", "v"] as const;
 

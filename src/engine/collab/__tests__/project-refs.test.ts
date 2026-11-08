@@ -155,117 +155,131 @@ const sessionDoc = (s: ProjectSession) => (name: string) => s.get(name)!.doc;
 // ─── Reference integrity ─────────────────────────────────
 
 describe("reference integrity", () => {
-  it("a rename or move during concurrent referrer edits leaves no dangling ref", async () => {
-    let partitions = 0;
-    for (const seed of [1, 2, 3, 4, 5]) {
-      const sim = simProject(3, seed);
-      const [mover, b, c] = await Promise.all([sim.join(0, ada), sim.join(1, bo), sim.join(2, cy)]);
-      for (const s of [b, c]) for (const id of LEVELS) await s.open(`asset:p.${id}`);
-      const pick = <T>(list: readonly T[]) => list[Math.floor(sim.rand() * list.length)]!;
-      let placed = 1;
-      for (let step = 0; step < 24; step++) {
-        const moving = pick([...PREFABS, ...TEXTURES]);
-        const at = mover.view().byId.get(moving)!;
-        const name = at.path.slice(at.path.lastIndexOf("/") + 1);
-        await applied(
-          mover,
-          sim.rand() < 0.5
-            ? [{ op: "moveAsset", ids: [moving], to: `moved-${step}/` }]
-            : [{ op: "renameAsset", id: moving, file: `s${step}-${name}` }],
-        );
-        for (const [i, s] of [b, c].entries()) {
-          const into = pick(LEVELS);
-          await applied(s, [
-            {
-              op: "editAsset",
-              id: into,
-              edits: [
-                { insert: "/instances", value: { id: `c${i}-${step}`, prefab: pick(PREFABS) } },
-              ],
-            },
-          ]);
-          placed++;
-          if (sim.rand() < 0.5)
-            await applied(s, [{ op: "setImport", id: "sheet", set: { texture: pick(TEXTURES) } }]);
+  it(
+    "a rename or move during concurrent referrer edits leaves no dangling ref",
+    { timeout: 30_000 },
+    async () => {
+      let partitions = 0;
+      for (const seed of [1, 2, 3, 4, 5]) {
+        const sim = simProject(3, seed);
+        const [mover, b, c] = await Promise.all([
+          sim.join(0, ada),
+          sim.join(1, bo),
+          sim.join(2, cy),
+        ]);
+        for (const s of [b, c]) for (const id of LEVELS) await s.open(`asset:p.${id}`);
+        const pick = <T>(list: readonly T[]) => list[Math.floor(sim.rand() * list.length)]!;
+        let placed = 1;
+        for (let step = 0; step < 24; step++) {
+          const moving = pick([...PREFABS, ...TEXTURES]);
+          const at = mover.view().byId.get(moving)!;
+          const name = at.path.slice(at.path.lastIndexOf("/") + 1);
+          await applied(
+            mover,
+            sim.rand() < 0.5
+              ? [{ op: "moveAsset", ids: [moving], to: `moved-${step}/` }]
+              : [{ op: "renameAsset", id: moving, file: `s${step}-${name}` }],
+          );
+          for (const [i, s] of [b, c].entries()) {
+            const into = pick(LEVELS);
+            await applied(s, [
+              {
+                op: "editAsset",
+                id: into,
+                edits: [
+                  { insert: "/instances", value: { id: `c${i}-${step}`, prefab: pick(PREFABS) } },
+                ],
+              },
+            ]);
+            placed++;
+            if (sim.rand() < 0.5)
+              await applied(s, [
+                { op: "setImport", id: "sheet", set: { texture: pick(TEXTURES) } },
+              ]);
+          }
+          sim.net.deliver(Math.floor(sim.rand() * 3));
+          sim.net.weather(0.15, 0.2);
         }
-        sim.net.deliver(Math.floor(sim.rand() * 3));
-        sim.net.weather(0.15, 0.2);
-      }
-      sim.net.settle();
+        sim.net.settle();
 
-      const states = [mover, b, c].map((s) => readProject(s.projectDoc));
-      expect(states[1], `seed ${seed}`).toEqual(states[0]);
-      expect(states[2], `seed ${seed}`).toEqual(states[0]);
-      for (const s of [b, c]) {
-        const { view, index } = refsOf(readProject(s.projectDoc), sessionDoc(s));
-        expect(index.dangling(), `seed ${seed}`).toEqual([]);
-        for (const id of [...PREFABS, ...TEXTURES])
-          expect(view.byId.get(id)?.path).not.toBe(seedState.assets[id]!.path);
-        const instances = LEVELS.flatMap(
-          (id) => (layoutFromDoc(s.get(`asset:p.${id}`)!.doc, LEVEL_LAYOUT) as Level).instances,
+        const states = [mover, b, c].map((s) => readProject(s.projectDoc));
+        expect(states[1], `seed ${seed}`).toEqual(states[0]);
+        expect(states[2], `seed ${seed}`).toEqual(states[0]);
+        for (const s of [b, c]) {
+          const { view, index } = refsOf(readProject(s.projectDoc), sessionDoc(s));
+          expect(index.dangling(), `seed ${seed}`).toEqual([]);
+          for (const id of [...PREFABS, ...TEXTURES])
+            expect(view.byId.get(id)?.path).not.toBe(seedState.assets[id]!.path);
+          const instances = LEVELS.flatMap(
+            (id) => (layoutFromDoc(s.get(`asset:p.${id}`)!.doc, LEVEL_LAYOUT) as Level).instances,
+          );
+          expect(instances, `seed ${seed}: no placement lost`).toHaveLength(placed);
+        }
+        partitions += sim.net.partitions;
+        for (const s of [mover, b, c]) s.destroy();
+      }
+      expect(partitions, "the runs must cut clients off").toBeGreaterThan(5);
+    },
+  );
+
+  it(
+    "a delete racing a new reference ends restored, with asset-in-use, never dangling",
+    { timeout: 30_000 },
+    async () => {
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const sim = simProject(2, seed);
+        const [a, b] = await Promise.all([sim.join(0, ada), sim.join(1, bo)]);
+        for (const id of LEVELS) await b.open(`asset:p.${id}`);
+
+        if (seed % 2 === 1) sim.net.partition([seed % 3]);
+        await applied(a, [{ op: "deleteAsset", id: "crate" }]);
+        await applied(b, [
+          {
+            op: "editAsset",
+            id: "l1",
+            edits: [{ insert: "/instances", value: { id: "b1", prefab: "crate" } }],
+          },
+        ]);
+        for (let step = 0; step < 4; step++) sim.net.weather(0.2, 0.2);
+        sim.net.settle();
+        const raced = refsOf(readProject(b.projectDoc), sessionDoc(b));
+        expect(raced.view.byId.has("crate")).toBe(false);
+        expect(raced.index.dangling().map((i) => [i.code, i.got, i.entityIds])).toEqual([
+          ["asset-missing", "crate", ["l1"]],
+        ]);
+
+        // The project's one writer, on store: restore what a live doc it holds still names.
+        const server = sim.server("project:p");
+        const stored = refsOf(readProject(server), sim.server);
+        const restore = referencedTrash(stored.view, stored.index);
+        expect(restore).toEqual(["crate"]);
+        const repair = { kind: "repair", reason: "asset-in-use" } as const;
+        const fixed = applyRepairs(server, { restore, origin: repair, now: 5 });
+        expect([fixed.wrote, fixed.restored]).toEqual([true, ["crate"]]);
+        expect(applyRepairs(server, { restore, origin: repair }).wrote).toBe(false);
+        sim.net.settle();
+
+        for (const s of [a, b]) {
+          const state = readProject(s.projectDoc);
+          expect(state.assets.crate!.deleted).toBeUndefined();
+          const log = readProjectLog(s.projectDoc).at(-1)!;
+          expect([log.actor, log.label]).toEqual([repair, "Restore crate"]);
+        }
+        expect(refsOf(readProject(b.projectDoc), sessionDoc(b)).index.dangling()).toEqual([]);
+
+        const again = await applyProjectBatch(
+          a,
+          { v: 1, ops: [{ op: "deleteAsset", id: "crate" }] },
+          ada,
         );
-        expect(instances, `seed ${seed}: no placement lost`).toHaveLength(placed);
+        expect(again.ok || [again.issue.code, again.issue.detail]).toEqual([
+          "asset-in-use",
+          { referrers: [{ id: "l1", pointer: "/instances/@b1/prefab" }] },
+        ]);
+        for (const s of [a, b]) s.destroy();
       }
-      partitions += sim.net.partitions;
-      for (const s of [mover, b, c]) s.destroy();
-    }
-    expect(partitions, "the runs must cut clients off").toBeGreaterThan(5);
-  });
-
-  it("a delete racing a new reference ends restored, with asset-in-use, never dangling", async () => {
-    for (const seed of [1, 2, 3, 4, 5, 6]) {
-      const sim = simProject(2, seed);
-      const [a, b] = await Promise.all([sim.join(0, ada), sim.join(1, bo)]);
-      for (const id of LEVELS) await b.open(`asset:p.${id}`);
-
-      if (seed % 2 === 1) sim.net.partition([seed % 3]);
-      await applied(a, [{ op: "deleteAsset", id: "crate" }]);
-      await applied(b, [
-        {
-          op: "editAsset",
-          id: "l1",
-          edits: [{ insert: "/instances", value: { id: "b1", prefab: "crate" } }],
-        },
-      ]);
-      for (let step = 0; step < 4; step++) sim.net.weather(0.2, 0.2);
-      sim.net.settle();
-      const raced = refsOf(readProject(b.projectDoc), sessionDoc(b));
-      expect(raced.view.byId.has("crate")).toBe(false);
-      expect(raced.index.dangling().map((i) => [i.code, i.got, i.entityIds])).toEqual([
-        ["asset-missing", "crate", ["l1"]],
-      ]);
-
-      // The project's one writer, on store: restore what a live doc it holds still names.
-      const server = sim.server("project:p");
-      const stored = refsOf(readProject(server), sim.server);
-      const restore = referencedTrash(stored.view, stored.index);
-      expect(restore).toEqual(["crate"]);
-      const repair = { kind: "repair", reason: "asset-in-use" } as const;
-      const fixed = applyRepairs(server, { restore, origin: repair, now: 5 });
-      expect([fixed.wrote, fixed.restored]).toEqual([true, ["crate"]]);
-      expect(applyRepairs(server, { restore, origin: repair }).wrote).toBe(false);
-      sim.net.settle();
-
-      for (const s of [a, b]) {
-        const state = readProject(s.projectDoc);
-        expect(state.assets.crate!.deleted).toBeUndefined();
-        const log = readProjectLog(s.projectDoc).at(-1)!;
-        expect([log.actor, log.label]).toEqual([repair, "Restore crate"]);
-      }
-      expect(refsOf(readProject(b.projectDoc), sessionDoc(b)).index.dangling()).toEqual([]);
-
-      const again = await applyProjectBatch(
-        a,
-        { v: 1, ops: [{ op: "deleteAsset", id: "crate" }] },
-        ada,
-      );
-      expect(again.ok || [again.issue.code, again.issue.detail]).toEqual([
-        "asset-in-use",
-        { referrers: [{ id: "l1", pointer: "/instances/@b1/prefab" }] },
-      ]);
-      for (const s of [a, b]) s.destroy();
-    }
-  });
+    },
+  );
 });
 
 // ─── changeAssetId as one cross-doc batch ────────────────

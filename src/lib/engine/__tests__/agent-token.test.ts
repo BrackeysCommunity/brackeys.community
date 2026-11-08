@@ -14,7 +14,7 @@ import {
   listAgentTokens,
   revokeAgentToken,
 } from "../agent-token";
-import { AGENT_SYNC_TOKEN_PATH } from "../routes";
+import { AGENT_SYNC_TOKEN_PATH } from "../route-paths";
 import { fakeMinio } from "./fake-minio";
 import { engineRoutes, PROJECT, seedEngine } from "./harness";
 
