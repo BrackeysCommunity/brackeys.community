@@ -1,6 +1,6 @@
 import type { Registry } from "../game/types";
 import { parseBulkId } from "../scene/expand";
-import { parseChildRef } from "../scene/resolve";
+import { CHILD_SEPARATOR, parseChildRef } from "../scene/resolve";
 import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, SceneOp } from "../scene/types";
 import { moveBatch } from "./gizmos/batch";
 import { shapePivot } from "./gizmos/handles";
@@ -105,11 +105,14 @@ export function deleteBatch(refs: readonly Ref[]): OpBatch | null {
 
 /**
  * One batch raising (`by` 1, bring forward) or lowering (`by` -1, send
- * backward) the `z` of the selected entities and instances. Bulk entries
- * carry no `z` and are left out; `null` when nothing is left.
+ * backward) the `z` of the selected entities and instances. Bulk entries,
+ * including an instance's bulk children, carry no `z` and are left out;
+ * `null` when nothing is left.
  */
 export function zOrderBatch(refs: readonly Ref[], by: 1 | -1): OpBatch | null {
-  const placed = [...new Set(refs)].filter((r) => !parseBulkId(r));
+  const placed = [...new Set(refs)].filter(
+    (r) => !parseBulkId(r.slice(r.lastIndexOf(CHILD_SEPARATOR) + 1)),
+  );
   if (placed.length === 0) return null;
   const n = placed.length === 1 ? placed[0]! : `${placed.length} entities`;
   return {

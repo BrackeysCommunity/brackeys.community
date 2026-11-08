@@ -2,6 +2,7 @@ import { BEHAVIORS_FIELD, type BehaviorBlock, type BehaviorName } from "../game/
 import { BASE_FIELDS } from "../game/fields";
 import { DEFAULT_GRAVITY, ENGINE_SETTING_KEYS } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
+import { isPlainObject } from "../project/kinds/define";
 import { bulkId } from "./bulk-ref";
 import { resolveSceneDetailed } from "./resolve";
 import { fieldKind } from "./schema";
@@ -86,9 +87,6 @@ export function resolveSettings(
   return out as ResolvedSettings;
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  v !== null && typeof v === "object" && !Array.isArray(v);
-
 /**
  * The behavior blocks an entity of `type` runs with, in registration order:
  * each required behavior and each allowed one `written` carries, as the
@@ -102,7 +100,7 @@ export function behaviorBlocks(
   written?: unknown,
 ): Record<BehaviorName, BehaviorBlock> {
   const rules = registry.behaviorRules(type);
-  const own = isRecord(written) ? written : {};
+  const own = isPlainObject(written) ? written : {};
   const out: Record<BehaviorName, BehaviorBlock> = {};
   for (const name of registry.behaviorNames) {
     const required = rules.required.get(name);
@@ -111,7 +109,7 @@ export function behaviorBlocks(
     if (!carried) continue;
     const block: Record<string, unknown> = structuredClone({ ...rules.defaults.get(name) });
     const fields = own[name];
-    if (isRecord(fields)) {
+    if (isPlainObject(fields)) {
       for (const [field, value] of Object.entries(fields))
         if (value !== undefined) block[field] = structuredClone(value);
     }

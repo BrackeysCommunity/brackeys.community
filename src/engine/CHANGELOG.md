@@ -93,8 +93,9 @@ cells. Every addition is optional with a default equal to v2's behaviour.
   `PARAM_KEY_PREFIX` and `VARIANT_KEY`.
 - `./scene` and `.` (through `math.ts`): `Transform2D`, `IDENTITY_2D`,
   `Dihedral` and `dihedral`, `compose`, `invert`, `applyPt`, `applyVec`,
-  `dihedralOf`, `composeDihedral` and `flipWorld`. Quarter turns and flips
-  are exact on integers.
+  `dihedralOf`, `composeDihedral`, `flipWorld`, `translation`, `turnOf`,
+  `inverseTurn` and `isIdentityTurn`. Quarter turns and flips are exact on
+  integers.
 - `transformEntityDef`, `transformBulkEntry` and `transformFieldValue` act
   on fields by kind: shapes, points and paths move; vectors turn and flip;
   angles gain 90° per turn and negate under a flip; mirror booleans toggle
@@ -201,8 +202,8 @@ cells. Every addition is optional with a default equal to v2's behaviour.
   (anchor mapped), `add`, `instantiate` (rot/flip into the group's frame)
   and `paintCells` on members of a turned group follow. Updating one
   coordinate of a turned point and painting an instance child are
-  `op-invalid`. New: `placeChildren`, `PlacedChild`, `turnOf`,
-  `inverseTurn`. `fragmentBounds(fragment, registry, prefabs?)` boxes a
+  `op-invalid`. New: `placeChildren` and `PlacedChild` (the turn helpers
+  are listed with `Transform2D`). `fragmentBounds(fragment, registry, prefabs?)` boxes a
   fragment's instances, turned and flipped, with exact integer bounds.
 - The `transform` and `paintCells` ops apply. `transform` turns and flips
   instances and whole groups in world terms about `about` (each one's own
@@ -408,7 +409,8 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   path whose segment right after `behaviors` may be a behavior name.
 - The formatter's entity and instance key order ends with every other key
   by code unit, then `behaviors` (its blocks by name in code-unit order),
-  then grid-valued keys. An entity that holds grids spans lines, one chunk
+  then grid-valued keys. A behavior block's fields are written by code
+  unit too, whatever their names. An entity that holds grids spans lines, one chunk
   per line, chunk keys row-major by (cy, cx); `formatScene`'s `lines` maps
   each chunk pointer to its line. `formatPrefab` writes grid entities the
   same way. `comparePointers` takes an optional document to place grid

@@ -1,7 +1,7 @@
 import { BEHAVIORS_FIELD } from "../game/behaviors";
 import type { InputScript } from "../headless/playtest-types";
 import { canonicalJson } from "../project/canonical";
-import type { DocLayout } from "../project/kinds/define";
+import { byCodeUnit, isPlainObject, type DocLayout } from "../project/kinds/define";
 import type { ChecksFile } from "./checks";
 import { compareChunkKeys, isGridValue, parseChunkKey, type GridCells } from "./grid";
 import { jsonPointer, pointerSegments } from "./issues";
@@ -32,8 +32,6 @@ const ENTITY_KEY_ORDER = [
   "overrides",
 ];
 const PATH_KEY_ORDER = ["pts", "mode", "speed", "pauseMs"];
-
-const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Keys of `obj` that hold a grid, sorted by code unit; never one of the leading keys or `behaviors`. */
 function gridKeys(obj: Record<string, unknown>): string[] {
@@ -105,15 +103,13 @@ function compareInnerKeys(
   return rank(a) - rank(b) || byCodeUnit(a, b);
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> =>
-  v !== null && typeof v === "object" && !Array.isArray(v);
-
 /**
  * Orders two JSON Pointers by where they land in `formatScene`'s text: an
  * ancestor before what it holds, array items by index, keys in canonical
  * order, chunk keys row-major. A missing pointer sorts last. Inside an
- * object, a key under `path` is taken to be a path's and a key under
- * `behaviors` a behavior's. Pass the document to place grid-valued keys,
+ * object, a key under `path` is taken to be a path's; behavior names and
+ * the fields of a behavior block sort by code unit. Pass the document to
+ * place grid-valued keys,
  * which only their values tell apart.
  */
 export function comparePointers(
@@ -136,12 +132,12 @@ export function comparePointers(
       if (!Number.isNaN(nx) && !Number.isNaN(ny)) return nx - ny;
       if (i === 0) return compareTopKeys(x, y);
       if (parseChunkKey(x) && parseChunkKey(y)) return compareChunkKeys(x, y);
-      if (sa[i - 1] === BEHAVIORS_FIELD) return byCodeUnit(x, y);
-      const grids = isObject(holder) ? gridKeys(holder) : [];
+      if (sa[i - 1] === BEHAVIORS_FIELD || sa[i - 2] === BEHAVIORS_FIELD) return byCodeUnit(x, y);
+      const grids = isPlainObject(holder) ? gridKeys(holder) : [];
       return compareInnerKeys(x, y, sa[i - 1] === "path", grids);
     }
     holder =
-      isObject(holder) || Array.isArray(holder)
+      isPlainObject(holder) || Array.isArray(holder)
         ? (holder as Record<string, unknown>)[x]
         : undefined;
   }
@@ -159,9 +155,15 @@ function inline(value: unknown, plain = false): string {
   return JSON.stringify(value) ?? "null";
 }
 
-/** `"key": value`; behavior blocks are keyed by name in code-unit order. */
+/** `"key": value`; behavior blocks are keyed by name, and hold their fields, in code-unit order. */
 const member = (k: string, v: unknown) =>
-  `${JSON.stringify(k)}: ${inline(v, k === BEHAVIORS_FIELD && isObject(v))}`;
+  `${JSON.stringify(k)}: ${k === BEHAVIORS_FIELD && isPlainObject(v) ? behaviorsInline(v) : inline(v)}`;
+
+function behaviorsInline(blocks: Record<string, unknown>): string {
+  const entries = ordered(blocks, true);
+  if (entries.length === 0) return "{}";
+  return `{ ${entries.map(([name, block]) => `${JSON.stringify(name)}: ${inline(block, true)}`).join(", ")} }`;
+}
 
 /**
  * One row of a row array (an entity, instance or bulk entry) as its lines,
@@ -176,7 +178,7 @@ function rowLines(
   first: number,
   lines?: Map<string, number>,
 ): string[] {
-  const grids = isObject(row) ? gridKeys(row) : [];
+  const grids = isPlainObject(row) ? gridKeys(row) : [];
   if (lines) addNested(lines, pointer, row, first);
   if (grids.length === 0) return [`${indent}${inline(row)}`];
   const entries = ordered(row as Record<string, unknown>).filter(([k]) => !grids.includes(k));
@@ -310,7 +312,7 @@ export function formatPrefab(prefab: Prefab): string {
     });
   const keyed = (key: string) => {
     const value = doc[key];
-    if (!isObject(value)) return;
+    if (!isPlainObject(value)) return;
     const ids = Object.keys(value)
       .filter((k) => value[k] !== undefined)
       .sort(byCodeUnit);

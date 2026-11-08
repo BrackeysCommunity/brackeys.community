@@ -1,3 +1,4 @@
+import { isPlainObject } from "../project/kinds/define";
 import { bulkEntries, bulkId, bulkKeysOf, bulkKeyType } from "./expand";
 import { sortedAssets } from "./format";
 import {
@@ -13,8 +14,7 @@ import {
 type Json = Record<string, unknown>;
 
 const key = (v: unknown) => JSON.stringify(v);
-export const isObj = (v: unknown): v is Json =>
-  v !== null && typeof v === "object" && !Array.isArray(v);
+export const isObj = isPlainObject;
 /** An object or an array. */
 export const isStructured = (v: unknown) => v !== null && typeof v === "object";
 

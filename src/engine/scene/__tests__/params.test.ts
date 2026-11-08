@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
+import { applyOps } from "../ops";
 import { prefabLibrary } from "../prefab";
 import {
   localChildren,
@@ -212,4 +213,68 @@ describe("params: nested levels", () => {
     });
     expect(speedOf(direct, "g/door")).toBe(28);
   });
+});
+
+describe("params: unpack", () => {
+  const lib = () =>
+    prefabLibrary([
+      gate(),
+      prefab("pair", {
+        entities: [
+          {
+            id: "post",
+            type: "follower",
+            shape: ["box", 0, 0, 10, 10],
+            path: { pts: [[0, 0]], mode: "loop", speed: 60 },
+          },
+        ],
+        instances: [{ id: "g", prefab: "gate", at: [100, 0] }],
+        params: {
+          inner: { description: "The gate's speed.", targets: ["g.params.speed"], default: 25 },
+          direct: { description: "The second door's speed.", targets: ["g/door2.path.speed"] },
+          turn: { description: "The gate's turn.", targets: ["g.rot"], default: 1 },
+          post: { description: "The post's speed.", targets: ["post.path.speed"], default: 5 },
+        },
+      }),
+    ]);
+
+  const view = (def: SceneDefinition, prefabs: PrefabLibrary, prefix = "") =>
+    new Map(
+      (resolveScene(def, engine, prefabs).entities ?? []).map(({ id, group: _, ...rest }) => [
+        id.startsWith(prefix) ? id.slice(prefix.length) : id,
+        rest,
+      ]),
+    );
+
+  for (const [params, label] of [
+    [{ direct: 26 }, "defaulted"],
+    [{ direct: 26, inner: 30, turn: 2, post: 7 }, "set"],
+  ] as const) {
+    it(`keeps the resolved scene when the outer params are ${label}`, () => {
+      const prefabs = lib();
+      const def: SceneDefinition = {
+        v: 3,
+        name: "params",
+        bounds: [-500, -500, 500, 500],
+        instances: [
+          {
+            id: "x",
+            prefab: "pair",
+            at: [10, 20],
+            params: { ...params },
+            overrides: { "g/door2.shape": ["box", 20, 0, 12, 40] },
+          },
+        ],
+      };
+      const before = view(def, prefabs, "x/");
+      expect((before.get("g/door")?.path as { speed?: number } | undefined)?.speed).toBe(
+        "inner" in params ? params.inner : 25,
+      );
+      expect((before.get("g/door2")?.path as { speed?: number } | undefined)?.speed).toBe(26);
+      const r = applyOps(def, { ops: [{ op: "unpack", ref: "x" }] }, engine, { prefabs });
+      if (!r.ok) throw new Error(r.issue.message);
+      expect(r.def.instances!.map((n) => n.id)).toEqual(["g"]);
+      expect(view(r.def, prefabs)).toEqual(before);
+    });
+  }
 });

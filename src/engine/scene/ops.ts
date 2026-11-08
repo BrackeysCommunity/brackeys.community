@@ -41,6 +41,7 @@ import {
   localChild,
   localChildren,
   mapResolvedBatch,
+  paramOverrides as paramEntries,
   parseChildRef,
   placeChildren,
   resolvePrefab,
@@ -2165,7 +2166,12 @@ function retargetNested(
 function unpackOps(w: Work, inst: InstanceDef): SceneOp[] {
   const prefab = prefabOf(w, inst.prefab);
   const d = turnOf(inst);
-  const overrides = inst.overrides ?? {};
+  // The nested instances take the outer params (defaults included) under its overrides, as resolving does.
+  const resolved = resolvePrefab(inst.prefab, w.prefabs, w.registry);
+  const overrides: Json = Object.fromEntries([
+    ...(resolved.ok ? paramEntries(resolved.prefab.params, inst.params) : []),
+    ...Object.entries(inst.overrides ?? {}),
+  ]);
   // Entities stay in the group's frame and `placeFragment` adds `at`, so they take only the turn.
   const children = placeChildren(
     prefab,

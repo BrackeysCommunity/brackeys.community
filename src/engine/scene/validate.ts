@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
 import type { RegisteredType, Registry } from "../game/types";
+import { isPlainObject } from "../project/kinds/define";
 import { schemaRefSites, type RefSite } from "../project/refs";
 import type { AssetKindName, ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
@@ -144,7 +145,7 @@ function geometryShaped(kind: string, value: unknown): boolean {
     return Array.isArray(value) && typeof value[0] === "number" && typeof value[1] === "number";
   if (kind === "path")
     return (
-      isRecord(value) &&
+      isPlainObject(value) &&
       Array.isArray(value.pts) &&
       value.pts.every((p) => Array.isArray(p) && p.length >= 2)
     );
@@ -351,7 +352,7 @@ export function validateScene(
 
   // grid fields need the scene's grid to size their cells; a prefab view has
   // no settings, and the scene placing it sizes its cells instead
-  if (opts.prefab === undefined && !isRecord(source.settings?.grid)) {
+  if (opts.prefab === undefined && !isPlainObject(source.settings?.grid)) {
     entities.forEach((e, i) => {
       for (const field of gridFields(r, e.type)) {
         if (e[field] === undefined) continue;
@@ -570,9 +571,6 @@ export function validateScene(
 
 type Push = (code: IssueCode, fields: Partial<SceneIssue> & { message: string }) => void;
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
-
 /** The asset ids an entity names: its type's fields and its registered behaviors' blocks. */
 function entityAssetSites(
   registry: Registry,
@@ -583,7 +581,7 @@ function entityAssetSites(
   const sites = new Map<string, RefSite>();
   for (const site of schemaRefSites(type.shape, entity, at)) sites.set(site.pointer, site);
   const blocks = entity[BEHAVIORS_FIELD];
-  if (isRecord(blocks)) {
+  if (isPlainObject(blocks)) {
     for (const [name, block] of Object.entries(blocks)) {
       const behavior = registry.behaviors.get(name);
       if (!behavior) continue;
@@ -617,7 +615,7 @@ function checkBehaviors(
   batch: MakeBatch,
 ): void {
   const raw = e[BEHAVIORS_FIELD];
-  const blocks = isRecord(raw) ? raw : {};
+  const blocks = isPlainObject(raw) ? raw : {};
   const loads = type.loads !== false;
   const rules = registry.behaviorRules(type.type);
   const allowed = new Set<BehaviorName>(loads ? rules.allowed : []);
@@ -696,7 +694,7 @@ function checkBehaviors(
   for (const name of order) {
     const behavior = registry.behaviors.get(name)!;
     const block = blocks[name];
-    if (block !== undefined && !isRecord(block)) {
+    if (block !== undefined && !isPlainObject(block)) {
       push("schema", {
         message: `${e.id}.${BEHAVIORS_FIELD}.${name} must be an object of the behavior's fields; got ${showValue(block)}`,
         path: pointer(name),
@@ -729,7 +727,7 @@ function checkBehaviors(
       const field = [BEHAVIORS_FIELD, name, ...path].join(".");
       let got: unknown = merged;
       for (const s of path)
-        got = isRecord(got) || Array.isArray(got) ? (got as never)[s] : undefined;
+        got = isPlainObject(got) || Array.isArray(got) ? (got as never)[s] : undefined;
       push("schema", {
         message: `${e.id}.${field}: ${issue.message}`,
         path: pointer(name, ...path),
@@ -893,7 +891,7 @@ function validateSource(
 
   // settings
   const grid = def.settings?.grid;
-  if (isRecord(grid)) validateGrid(grid, push);
+  if (isPlainObject(grid)) validateGrid(grid, push);
 
   // the assets header
   const listed = new Set<string>();
@@ -1317,7 +1315,7 @@ function validateGridTransforms(
   push: Push,
 ): void {
   const grid = def.settings?.grid;
-  if (!isRecord(grid)) return;
+  if (!isPlainObject(grid)) return;
   const cell = Array.isArray(grid.cell) ? grid.cell : [];
   if (grid.kind === "square" && cell[0] === cell[1]) return;
   const which =

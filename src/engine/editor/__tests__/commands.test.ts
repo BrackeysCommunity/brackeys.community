@@ -110,7 +110,37 @@ describe("zOrderBatch", () => {
 
   it("is null when only bulk entries, or nothing, are selected", () => {
     expect(zOrderBatch(["~solid:0", "~solid:1"], 1)).toBeNull();
+    expect(zOrderBatch(["gate-1/~solid:0"], 1)).toBeNull();
     expect(zOrderBatch([], -1)).toBeNull();
+  });
+
+  it("leaves an instance's bulk children out of a mixed selection", () => {
+    expect(zOrderBatch(["gate-1/~solid:0", "crate", "gate-1/door", "gate-1"], -1)).toEqual({
+      label: "Send 3 entities backward",
+      ops: [{ op: "setZ", refs: ["crate", "gate-1/door", "gate-1"], by: -1 }],
+    });
+  });
+
+  it("applies a mixed selection holding a bulk child instead of refusing it", () => {
+    const def: SceneDefinition = {
+      ...structuredClone(doc),
+      instances: [{ id: "post-1", prefab: "post", at: [100, 900] }],
+    };
+    const prefabs = prefabLibrary([
+      {
+        kind: "prefab",
+        v: doc.v,
+        id: "post",
+        entities: [{ id: "top", type: "marker", at: [0, 0] }],
+        bulk: { solid: [["box", 0, 20, 8, 2]] },
+      },
+    ]);
+    const r = applyOps(def, zOrderBatch(["post-1/~solid:0", "crate", "post-1"], 1)!, registry, {
+      prefabs,
+    });
+    if (!r.ok) throw new Error(r.issue.message);
+    expect(entity(r.def, "crate").z).toBe(1);
+    expect(r.def.instances![0]!.z).toBe(1);
   });
 
   it("shifts z on entities and instances, and undoes exactly", () => {

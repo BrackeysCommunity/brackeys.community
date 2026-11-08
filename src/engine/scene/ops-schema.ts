@@ -110,7 +110,7 @@ const UpdateOp = z
       .describe(
         'Field path to new value, e.g. `{ "path.speed": 140 }` or `{ "shape": ["box", 0, 0, 40, 6] }`. ' +
           "Paths are dot-separated, with numeric segments for array items (`path.pts.1`); missing objects on the way are created. " +
-          "Behavior fields are `behaviors.<behavior>.<field>`, e.g. `behaviors.test-game/glow.intensity`; set `behaviors.<behavior>` to `{}` to add a block. " +
+          "Behavior fields are `behaviors.<behavior>.<field>`, e.g. `behaviors.tactics/selectable.team`; set `behaviors.<behavior>` to `{}` to add a block. " +
           "On an instance, set `rot`, `flip`, `z` or `params.<name>` (null clears a param); its overrides change through override and revertOverride. " +
           "On a bulk reference only its bulk field (`shape`, or `at` for a point bulk key) can be set. " +
           "A grid field is set whole, never below the field: paint its cells with paintCells. " +

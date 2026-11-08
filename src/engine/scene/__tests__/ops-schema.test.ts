@@ -67,7 +67,7 @@ describe("ops JSON Schema", () => {
     for (const phrase of [
       "instances become nested instances",
       "its nested instances become instances",
-      "behaviors.test-game/glow.intensity",
+      "behaviors.tactics/selectable.team",
       "`params.<name>` (null clears a param)",
       "paint its cells with paintCells",
       "door-1/panel.path.speed",

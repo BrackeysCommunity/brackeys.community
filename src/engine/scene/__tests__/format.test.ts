@@ -201,8 +201,42 @@ describe("formatScene: behaviors and grids", () => {
       ],
     };
     expect(formatScene(def).text).toContain(
-      '{ "id": "m", "type": "marker", "at": [0, 0], "alpha": 2, "zeta": 1, "behaviors": { "path": { "speed": 2 }, "sprite": { "id": "a", "frame": 1 }, "zz/late": {} } }',
+      '{ "id": "m", "type": "marker", "at": [0, 0], "alpha": 2, "zeta": 1, "behaviors": { "path": { "speed": 2 }, "sprite": { "frame": 1, "id": "a" }, "zz/late": {} } }',
     );
+  });
+
+  it("writes a behavior block's fields by code unit, whatever their names", () => {
+    const def: SceneDefinition = {
+      v: 3,
+      name: "x",
+      bounds: [0, 0, 1, 1],
+      entities: [
+        {
+          id: "m",
+          type: "marker",
+          behaviors: {
+            path: { speed: 1, pts: 3, mode: 2 },
+            glow: { zeta: 0, name: "n", frame: 1, at: 2 },
+          },
+        },
+      ],
+    };
+    const { text, lines } = formatScene(def);
+    expect(text).toContain(
+      '"behaviors": { "glow": { "at": 2, "frame": 1, "name": "n", "zeta": 0 }, "path": { "mode": 2, "pts": 3, "speed": 1 } }',
+    );
+    const pointers = [...lines.keys()].filter((p) => p.startsWith("/entities/0/behaviors/"));
+    expect(pointers.sort((x, y) => comparePointers(x, y, def))).toEqual([
+      "/entities/0/behaviors/glow",
+      "/entities/0/behaviors/glow/at",
+      "/entities/0/behaviors/glow/frame",
+      "/entities/0/behaviors/glow/name",
+      "/entities/0/behaviors/glow/zeta",
+      "/entities/0/behaviors/path",
+      "/entities/0/behaviors/path/mode",
+      "/entities/0/behaviors/path/pts",
+      "/entities/0/behaviors/path/speed",
+    ]);
   });
 
   const painted: SceneDefinition = {
@@ -359,7 +393,7 @@ describe("formatPrefab", () => {
   });
 
   it("writes the nested-prefab and variant fixtures exactly as committed", () => {
-    for (const name of ["room", "door", "red-gate"]) {
+    for (const name of ["room", "door", "gate", "red-gate"]) {
       const text = readFileSync(
         new URL(`./fixtures/prefabs/${name}.json`, import.meta.url),
         "utf8",
