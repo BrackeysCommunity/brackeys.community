@@ -159,6 +159,7 @@ export {
   type SessionDoc,
 } from "./project-session";
 export {
+  applyEntityDiff,
   bindSceneDoc,
   expandLenient,
   type BindableRuntime,

@@ -431,6 +431,49 @@ describe("behavior defaults on parse", () => {
     ).toThrow(/intensity/);
   });
 
+  it("leaves out a default under an optional or nullable wrapper too", () => {
+    const ring = defineBehavior({
+      name: "test-game/ring",
+      description: "A ring.",
+      fields: {
+        size: z.number().default(3).optional().describe("Px."),
+        tone: z.string().default("red").nullable(),
+      },
+    });
+    const withRing = createRegistry(
+      defineGame({ ...testGame, behaviors: [...(testGame.behaviors ?? []), ring] }),
+    );
+    const written: SceneDefinition = {
+      ...scene({}),
+      entities: [{ id: "m", type: "marker", at: [0, 0], behaviors: { [ring.name]: {} } }],
+    };
+    const def = parseSceneOrThrow(formatScene(written).text, withRing);
+    expect(def.entities![0]!.behaviors).toEqual({ [ring.name]: {} });
+    expect(formatScene(def).text).toBe(formatScene(written).text);
+    const kept = parseSceneOrThrow(
+      formatScene({
+        ...written,
+        entities: [
+          { id: "m", type: "marker", at: [0, 0], behaviors: { [ring.name]: { tone: null } } },
+        ],
+      }).text,
+      withRing,
+    );
+    expect(kept.entities![0]!.behaviors).toEqual({ [ring.name]: { tone: null } });
+    const e = expandScene(def, withRing).entities.find((x) => x.id === "m")!;
+    expect(e.behaviors).toMatchObject({ [ring.name]: { size: 3, tone: "red" } });
+    const entities = (
+      sceneJsonSchema(withRing) as {
+        $defs: { Entity: { oneOf: { properties: Record<string, any> }[] } };
+      }
+    ).$defs.Entity.oneOf;
+    const marker = entities.find((x) => x.properties.type.const === "marker")!;
+    expect(marker.properties.behaviors.properties[ring.name].properties.size).toMatchObject({
+      default: 3,
+      description: "Px.",
+    });
+  });
+
   it("keeps each default and description in the JSON Schema", () => {
     const entities = (
       sceneJsonSchema(r) as {

@@ -170,6 +170,7 @@ actorId
 actorLabel
 appendHistory
 appendProjectLog
+applyEntityDiff
 applyOpsToDoc
 applyProjectBatch
 applyRegistryBatch
@@ -1497,6 +1498,7 @@ type SceneBinding = {
     scene(): ExpandedScene;
     setPaused(paused: boolean): void;
 };
+declare function applyEntityDiff(runtime: BindableRuntime, before: readonly RuntimeEntity[], after: readonly RuntimeEntity[]): boolean;
 declare function bindSceneDoc(doc: Y.Doc, runtime: BindableRuntime, registry: Registry, opts?: BindOptions): SceneBinding;
 declare function expandLenient(source: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): {
     errors: string[];

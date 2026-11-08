@@ -371,6 +371,10 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
 - `README.md` covers format v3: behaviors, layers and `z`, assets and the
   `assets` header, scene settings, grids, transforms, nested prefabs,
   variants and parameters.
+- `./collab`: `applyEntityDiff(runtime, before, after)` moves a
+  `BindableRuntime` from one set of entities to another (removes, adds and
+  updates only what differs) and returns false when an add or update
+  failed, so the caller reloads; `bindSceneDoc` uses it.
 
 ### Changed
 
@@ -576,6 +580,14 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   until a caller passes one.
 - An override of a bulk child's `off` (a variant hiding a base solid, or a
   cut of an instance's bulk child) is no longer `unused-override`.
+- A behavior field's default under an `optional` or `nullable` wrapper
+  (`z.number().default(3).optional()`) is no longer filled on parse and
+  written back to files; `expandScene` still fills it.
+- The `assets` header's asset checks skip a non-string entry, as the
+  project's ref sites do, instead of reporting it.
+- In a variant's isolation, an edit whose base children the edit world
+  can't add or update reloads the world instead of leaving it out of
+  step.
 - Generated JSON Schemas no longer carry the field builders' `kind` and
   `axis` meta, which aren't JSON Schema keywords.
 - Quarter-turn rotation is exact and writes no trailing `rotDeg: 0`; bulk

@@ -1,11 +1,14 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { sceneToDoc } from "../../collab/convert";
 import { sequentialKeys } from "../../collab/keys";
 import type { SceneOrigin } from "../../collab/types";
 import { fake, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
+import { prefabLibrary } from "../../scene/prefab";
 import { resolveScene } from "../../scene/resolve";
-import type { SceneDefinition } from "../../scene/types";
+import type { Prefab, PrefabLibrary, SceneDefinition } from "../../scene/types";
 import { validateScene } from "../../scene/validate";
 import { createToolRouter } from "../../tool-router";
 import { createEditorSession } from "../session";
@@ -28,15 +31,32 @@ afterEach(() => {
   for (const f of cleanup.splice(0)) f();
 });
 
-function rig() {
-  const doc = sceneToDoc(yard, { key: sequentialKeys("k") });
+const fixturePrefab = (name: string): Prefab =>
+  JSON.parse(
+    readFileSync(
+      new URL(`../../scene/__tests__/fixtures/prefabs/${name}.json`, import.meta.url),
+      "utf8",
+    ),
+  ) as Prefab;
+/** room holds a door instance, and the door holds a gate: three levels. */
+const nestedPrefabs = prefabLibrary(["gate", "door", "room"].map(fixturePrefab));
+const hall: SceneDefinition = {
+  v: 3,
+  game: "fake",
+  name: "hall",
+  bounds: [0, 0, 2000, 2000],
+  instances: [{ id: "room-1", prefab: "room", at: [600, 600] }],
+};
+
+function rig(scene: SceneDefinition = yard, library: PrefabLibrary = prefabs) {
+  const doc = sceneToDoc(scene, { key: sequentialKeys("k") });
   const session = createEditorSession({
     doc,
     origin: ada,
-    name: "yard",
+    name: scene.name,
     registry: fake,
     issuesDebounceMs: 0,
-    prefabs: { library: () => prefabs, subscribe: () => () => {}, open: async () => null },
+    prefabs: { library: () => library, subscribe: () => () => {}, open: async () => null },
   });
   const host: ToolHost = createToolHost({
     session,
@@ -81,5 +101,33 @@ describe("cutting through the tool host", () => {
     );
     expect(solid?.off).toBe(true);
     expect(validateScene(def, fake, { prefabs })).toEqual([]);
+  });
+
+  it("cuts a nested instance's child and a nested instance into off overrides", () => {
+    const { session, host } = rig(hall, nestedPrefabs);
+    const entityOf = (def: SceneDefinition, id: string) =>
+      resolveScene(def, fake, nestedPrefabs).entities!.find((e) => e.id === id);
+
+    session.select(["room-1/door-1/panel"]);
+    host.cut();
+    let def = session.getDoc();
+    expect(def.instances![0]!.overrides).toEqual({ "door-1/panel.off": true });
+    expect(entityOf(def, "room-1/door-1/panel")?.off).toBe(true);
+    expect(entityOf(def, "room-1/door-1/frame")?.off).toBeFalsy();
+    expect(validateScene(def, fake, { prefabs: nestedPrefabs })).toEqual([]);
+    session.undo();
+    expect(session.getDoc().instances![0]!.overrides).toBeUndefined();
+
+    session.select(["room-1/door-1"]);
+    host.cut();
+    def = session.getDoc();
+    expect(def.instances![0]!.overrides).toEqual({ "door-1.off": true });
+    for (const id of ["room-1/door-1/panel", "room-1/door-1/frame", "room-1/door-1/latch/door"]) {
+      expect(entityOf(def, id)?.off).toBe(true);
+    }
+    expect(entityOf(def, "room-1/lamp")?.off).toBeFalsy();
+    expect(validateScene(def, fake, { prefabs: nestedPrefabs })).toEqual([]);
+    session.undo();
+    expect(session.getDoc()).toEqual(hall);
   });
 });

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
 import type { RegisteredType, Registry } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
-import { entityRefSites } from "../project/kinds/fields";
+import { entityRefSites, headerAssetRefs } from "../project/kinds/fields";
 import { schemaRefSites, type RefSite } from "../project/refs";
 import type { AssetKindName, ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
@@ -398,15 +398,7 @@ export function validateScene(
         check(entityRefSites(r, e, jsonPointer(["entities", i])), e.id, [e.id]);
     });
     check(schemaRefSites(r.settings, source.settings ?? {}, "/settings"), "", []);
-    check(
-      (source.assets ?? []).map((id, k) => ({
-        pointer: jsonPointer(["assets", k]),
-        id,
-        kinds: [],
-      })),
-      "",
-      [],
-    );
+    check(headerAssetRefs(source.assets), "", []);
   }
 
   // geometry

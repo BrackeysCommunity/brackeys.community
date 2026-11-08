@@ -111,19 +111,28 @@ export const BEHAVIOR_SLOT_META = "x-behaviors";
 /**
  * A block field without its default, so parsing keeps only what a file
  * writes (`expandScene` fills the rest); the description and the
- * default stay in its metadata for the JSON Schema.
+ * default stay in its metadata for the JSON Schema. A default under an
+ * `optional` or `nullable` wrapper goes too (`blockSchema` makes the field
+ * optional again), and `nullable` is kept.
  */
 function withoutDefault(s: z.core.$ZodType): z.core.$ZodType {
   let inner: z.core.$ZodType = s;
   let meta: Record<string, unknown> = {};
   let fallback: unknown;
-  while (inner instanceof z.ZodDefault || inner instanceof z.ZodPrefault) {
-    fallback ??= inner._zod.def.defaultValue;
+  let defaulted = false;
+  let nullable = false;
+  for (;;) {
+    if (inner instanceof z.ZodDefault || inner instanceof z.ZodPrefault) {
+      if (!defaulted) fallback = inner._zod.def.defaultValue;
+      defaulted = true;
+    } else if (inner instanceof z.ZodNullable) nullable = true;
+    else if (!(inner instanceof z.ZodOptional)) break;
     meta = { ...z.globalRegistry.get(inner), ...meta };
     inner = inner.unwrap();
   }
-  if (inner === s) return s;
-  return (inner as z.ZodType).meta({ ...meta, default: fallback });
+  if (!defaulted) return s;
+  const bare = inner as z.ZodType;
+  return (nullable ? bare.nullable() : bare).meta({ ...meta, default: fallback });
 }
 
 /**

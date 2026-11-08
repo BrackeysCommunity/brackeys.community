@@ -454,6 +454,7 @@
       "actorLabel",
       "appendHistory",
       "appendProjectLog",
+      "applyEntityDiff",
       "applyOpsToDoc",
       "applyProjectBatch",
       "applyRegistryBatch",

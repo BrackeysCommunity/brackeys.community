@@ -1,6 +1,7 @@
 import type { GameInstance, PlayOptions, PlayReport, RunRecording } from "@jams/engine";
 import {
   actorLabel,
+  applyEntityDiff,
   bindSceneDoc,
   expandLenient,
   layoutFromDoc,
@@ -379,12 +380,13 @@ function variantBaseEntities(
 /**
  * `runtime` with a variant's base children laid over what the binding
  * loads, kept in step as the variant's overrides, its base or the prefabs
- * under it change.
+ * under it change; `reload` rebuilds the world when a step can't apply.
  */
 function withVariantBase(
   runtime: BindableRuntime,
   target: EditorSession,
   prefabId: string,
+  reload: () => void,
 ): { runtime: BindableRuntime; setPaused(paused: boolean): void; destroy(): void } {
   let held: RuntimeEntity[] = [];
   let paused = false;
@@ -394,18 +396,9 @@ function withVariantBase(
   function refresh() {
     if (paused) return;
     const next = compute();
-    const before = new Map(held.map((e) => [e.id, e]));
-    const after = new Set(next.map((e) => e.id));
-    const removed = held.filter((e) => !after.has(e.id)).map((e) => e.id);
-    const added = next.filter((e) => !before.has(e.id));
-    const changed = next.filter((e) => {
-      const prev = before.get(e.id);
-      return prev !== undefined && stableJson(prev) !== stableJson(e);
-    });
+    const before = held;
     held = next;
-    if (removed.length > 0) runtime.remove(removed);
-    if (added.length > 0) runtime.add(added);
-    if (changed.length > 0) runtime.update(changed);
+    if (!applyEntityDiff(runtime, before, next)) reload();
   }
 
   const offPrefabs = target.prefabs.subscribe(refresh);
@@ -575,7 +568,10 @@ export function openLiveEditor({
   game.stop();
   /** Binds the edit world to `target`'s doc; in a prefab's isolation, a variant's base shows too. */
   const bind = (target: EditorSession, isolated?: string): SceneBinding => {
-    const base = isolated === undefined ? null : withVariantBase(runtime, target, isolated);
+    const base =
+      isolated === undefined
+        ? null
+        : withVariantBase(runtime, target, isolated, () => binding.reload());
     const binding = bindSceneDoc(target.doc, base?.runtime ?? runtime, game.registry, {
       prefabs: target.prefabs,
       ...(target.parentBounds ? { parentBounds: target.parentBounds } : {}),

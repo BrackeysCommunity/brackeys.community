@@ -103,6 +103,30 @@ export function expandLenient(
 }
 
 /**
+ * Moves `runtime` from holding `before` to holding `after`: removes the
+ * entities `after` lacks, adds the new ones and updates those whose value
+ * changed. False when an add or update failed, so the caller reloads.
+ */
+export function applyEntityDiff(
+  runtime: BindableRuntime,
+  before: readonly RuntimeEntity[],
+  after: readonly RuntimeEntity[],
+): boolean {
+  const prev = new Map(before.map((e) => [e.id, e]));
+  const next = new Set(after.map((e) => e.id));
+  const removed = before.filter((e) => !next.has(e.id)).map((e) => e.id);
+  const added = after.filter((e) => !prev.has(e.id));
+  const changed = after.filter((e) => {
+    const was = prev.get(e.id);
+    return was !== undefined && !sameValue(was, e);
+  });
+  if (removed.length > 0) runtime.remove(removed);
+  const okAdd = added.length === 0 || runtime.add(added).ok;
+  const okUpdate = changed.length === 0 || runtime.update(changed).ok;
+  return okAdd && okUpdate;
+}
+
+/**
  * Keeps an edit-mode runtime in step with a doc: after each transaction
  * that changed the scene (local or remote), the touched entities are
  * removed, added and updated, each at most once per transaction. A change
@@ -143,18 +167,7 @@ export function bindSceneDoc(
       current = next;
       return;
     }
-    const before = new Map(current.entities.map((e) => [e.id, e]));
-    const after = new Map(next.entities.map((e) => [e.id, e]));
-    const removed = [...before.keys()].filter((id) => !after.has(id));
-    const added = next.entities.filter((e) => !before.has(e.id));
-    const changed = next.entities.filter((e) => {
-      const prev = before.get(e.id);
-      return prev !== undefined && !sameValue(prev, e);
-    });
-    if (removed.length > 0) runtime.remove(removed);
-    const okAdd = added.length === 0 || runtime.add(added).ok;
-    const okUpdate = changed.length === 0 || runtime.update(changed).ok;
-    if (!okAdd || !okUpdate) runtime.load(next);
+    if (!applyEntityDiff(runtime, current.entities, next.entities)) runtime.load(next);
     current = next;
   }
 
