@@ -11,7 +11,7 @@ import { createKindRegistry, projectView, runtimeView } from "@jams/engine/proje
 import { parsePrefab, parseSceneOrThrow, type Prefab } from "@jams/engine/scene";
 import { Rectangle, type Application } from "pixi.js";
 
-import { devAssetUrl } from "../../../src/components/game/asset-urls";
+import { devAssetUrl } from "../../../src/engine/editor-ui/connect/dev";
 import type { RenderProbe, Rgba } from "../browser-compare";
 import { smokeGame } from "../game";
 import type { SinkProjectData } from "./project";
@@ -74,7 +74,7 @@ export async function runRenderSmoke(): Promise<RenderProbe> {
 
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
-  const loader = createAssetLoader({ project: SINK_PROJECT, url: devAssetUrl });
+  const loader = createAssetLoader({ project: SINK_PROJECT, url: devAssetUrl() });
   const hook = catchApp();
   let game: Awaited<ReturnType<typeof createGame>> | null = null;
   try {

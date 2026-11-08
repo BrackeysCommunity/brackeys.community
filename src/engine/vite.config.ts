@@ -11,6 +11,9 @@ const peers = [
   "yjs",
   "fractional-indexing",
   "@hocuspocus/server",
+  "@hocuspocus/provider",
+  "react",
+  "react-dom",
 ];
 
 /**
@@ -19,8 +22,11 @@ const peers = [
  */
 const check = process.env.ENGINE_PACK_CHECK === "1";
 
-/** Peers a host supplies that the package never imports: `-compat` is the Bun/Node flavour a host injects. */
-const hostOnlyPeers = ["@dimforge/rapier2d-compat"];
+/**
+ * Peers a host supplies that the package never imports: `-compat` is the
+ * Bun/Node flavour a host injects, and the editor takes Hocuspocus as a module.
+ */
+const hostOnlyPeers = ["@dimforge/rapier2d-compat", "@hocuspocus/provider"];
 
 const shared: PackConfig = {
   format: "esm",
@@ -29,7 +35,7 @@ const shared: PackConfig = {
   fixedExtension: true,
   outDir: "dist",
   tsconfig: "./tsconfig.pack.json",
-  deps: { neverBundle: [...peers, /^node:/] },
+  deps: { neverBundle: [...peers, /^react(-dom)?\//, /^node:/] },
 };
 
 export default defineConfig({
@@ -48,6 +54,7 @@ export default defineConfig({
         index: "./index.ts",
         scene: "./scene/index.ts",
         editor: "./editor/index.ts",
+        "editor-ui": "./editor-ui/index.ts",
         collab: "./collab/index.ts",
         headless: "./headless/index.ts",
         game: "./game/index.ts",

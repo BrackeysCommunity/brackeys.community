@@ -609,6 +609,43 @@ waypointsTool
 withShapeSlot
 zOrderBatch
 
+## @jams/engine/editor-ui
+BlobRouteError
+CloseReason
+ConnectProjectSessionOptions
+DEFAULT_LAYOUT
+EDITOR_UI_STYLESHEET
+EditorCue
+EditorHost
+EditorIdentityInput
+EditorLayout
+EditorNotify
+EditorStorage
+PanelId
+Pending
+PendingRun
+PendingTask
+ProjectBlobs
+ProjectConnection
+ProjectConnectionState
+ProjectConnectionStatus
+ProjectSocket
+ProjectTokenAnswer
+ProjectTokens
+ProjectTransport
+SceneEditor
+SceneEditorHandle
+SceneEditorProps
+connectProjectSession
+createPending
+createProjectTokens
+devProjectHost
+fitLayout
+hocuspocusTransport
+mountSceneEditor
+parseLayout
+projectBlobs
+
 ## @jams/engine/game
 ActionDef
 AssetIdSchema
@@ -2344,6 +2381,292 @@ type DebugTick = Omit<DebugFrame, "scene">;
 declare const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[];
 declare function createDebugOverlay(deps: DebugDeps): DebugOverlay;
 declare function debugModes(layers: readonly DebugLayerFactory[]): string[];
+
+## editor-ui/SceneEditor.ts
+declare function SceneEditor(props: SceneEditorProps): ReactElement;
+type SceneEditorHandle = {
+    openPanel(id: PanelId): void;
+    resetLayout(): void;
+};
+type SceneEditorProps = {
+    debug?: () => Promise<{
+        layers?: readonly DebugLayerFactory[];
+        overlay: DebugOverlayFactory;
+    }>;
+    game: GameDefinition;
+    host: EditorHost;
+    onReady?: (handle: SceneEditorHandle) => void;
+    project: ProjectId;
+    rapier: () => Promise<RapierModule>;
+    scene?: string;
+};
+declare function mountSceneEditor(element: HTMLElement, props: SceneEditorProps): {
+    unmount(): void;
+    update(props: SceneEditorProps): void;
+};
+
+## editor-ui/connect/blobs.ts
+declare class BlobRouteError extends Error {
+    readonly status: number;
+    readonly issue?: SceneIssue | undefined;
+    constructor(message: string, status: number, issue?: SceneIssue | undefined);
+}
+declare function projectBlobs(route: string, fetcher?: typeof fetch): ProjectBlobs;
+
+## editor-ui/connect/dev.ts
+declare function devProjectHost(opts: {
+    buildAt?: number;
+    hocuspocus: HocuspocusModule;
+    origin?: string;
+}): Pick<EditorHost, "assetUrl" | "connect">;
+
+## editor-ui/connect/hocuspocus.ts
+declare function hocuspocusTransport(mod: HocuspocusModule): ProjectTransport;
+
+## editor-ui/connect/project-session.ts
+type ConnectProjectSessionOptions = {
+    access?: ProjectAccess;
+    buildAt?: number;
+    cap?: number;
+    closeReason?: (code: null | number, reason?: string) => CloseReason;
+    isOnline?: () => boolean;
+    key?: KeyGen;
+    kinds: KindRegistry;
+    now?: () => number;
+    origin: DocOrigin;
+    prefabWriter?: PrefabWriter;
+    project: ProjectId;
+    registry: Registry;
+    retryMs?: readonly number[];
+    store?: ContentStore;
+    tokens?: ProjectTokens | null;
+    transport: ProjectTransport;
+    url?: string;
+};
+type ProjectTokens = {
+    get(): Promise<ProjectTokenAnswer>;
+};
+declare function connectProjectSession(options: ConnectProjectSessionOptions): ProjectConnection;
+declare function createProjectTokens(request: ProjectTokenRequest, mint: MintProjectToken, opts?: {
+    now?: () => number;
+    ttlMs: number;
+}): ProjectTokens;
+
+## editor-ui/host.ts
+type CloseReason = "retry" | "revoked" | "too-large";
+type EditorCue = "drop" | "error" | "press" | "tab" | "toggle";
+type EditorHost = {
+    assetUrl: AssetUrl;
+    chrome?: {
+        topLeft?: ReactNode;
+        topRight?: ReactNode;
+    };
+    connect(args: {
+        origin: DocOrigin;
+        project: ProjectId;
+        registry: Registry;
+    }): ProjectConnection;
+    cue?: (cue: EditorCue) => void;
+    flag?: (name: string) => boolean;
+    identity?: EditorIdentityInput;
+    notify?: EditorNotify;
+    onSceneChange?: (id: string) => void;
+    peerColor?: (id: string) => string;
+    readOnly?: boolean;
+    storage?: EditorStorage | null;
+};
+type EditorIdentityInput = {
+    avatarUrl?: null | string;
+    name: string;
+};
+type EditorNotify = ((message: string, opts?: NotifyOptions) => unknown) & {
+    error(message: string, opts?: NotifyOptions): unknown;
+    success(message: string, opts?: NotifyOptions): unknown;
+    warning(message: string, opts?: NotifyOptions): unknown;
+};
+type EditorStorage = {
+    get(key: string): null | string;
+    set(key: string, value: string): void;
+};
+type HocuspocusModule = typeof _$_hocuspocus_provider0;
+type MintProjectToken = (request: ProjectTokenRequest) => Promise<ProjectTokenAnswer>;
+type NotifyOptions = {
+    description?: string;
+    id?: string;
+};
+type ProjectAccess = "read" | "write";
+type ProjectBlobs = {
+    read(hash: Sha256): Promise<Uint8Array | null>;
+    upload(bytes: Uint8Array, opts?: {
+        contentType?: string;
+        kind?: AssetKindName;
+        onProgress?: (sent: number, total: number) => void;
+    }): Promise<UploadedBlob>;
+};
+type ProjectConnection = {
+    blobs?: ProjectBlobs;
+    destroy(): void;
+    getState(): ProjectConnectionState;
+    onAssetChanged(listener: (message: AssetChangedMessage) => void): () => void;
+    subscribe(listener: () => void): () => void;
+};
+type ProjectConnectionState = {
+    access: ProjectAccess;
+    error: Error | null;
+    session: ProjectSession | null;
+    status: ProjectConnectionStatus;
+    stopped: Readonly<Record<string, Exclude<CloseReason, "retry">>>;
+    unsynced: number;
+};
+type ProjectConnectionStatus = "connecting" | "failed" | "live" | "off" | "offline" | "reconnecting";
+type ProjectDocEvents = {
+    closed(code: null | number, socketOpen: boolean, reason?: string): void;
+    stateless?(payload: string): void;
+    synced(): void;
+    unsynced?(count: number): void;
+};
+type ProjectSocket = {
+    destroy(): void;
+    provider(args: {
+        doc: Doc;
+        events: ProjectDocEvents;
+        name: string;
+        token: (() => Promise<string>) | null;
+    }): {
+        attach(): void;
+        awareness: AwarenessLike;
+        destroy(): void;
+        detach(): void;
+    };
+    status(): ProjectSocketStatus;
+    subscribe(listener: () => void): () => void;
+};
+type ProjectSocketStatus = "connected" | "connecting" | "disconnected";
+type ProjectTokenAnswer = {
+    access: ProjectAccess;
+    token: string;
+    url: string;
+};
+type ProjectTokenRequest = {
+    access: ProjectAccess;
+    formatVersion: number;
+    layoutVersion: number;
+    projectId: ProjectId;
+};
+type ProjectTransport = (url: string) => ProjectSocket;
+type UploadedBlob = {
+    bytes: number;
+    sha256: Sha256;
+};
+
+## editor-ui/index.ts
+declare const EDITOR_UI_STYLESHEET = "@jams/engine/editor-ui/style.css";
+
+## editor-ui/layout/model.ts
+type ColumnState = {
+    collapsed: boolean;
+    groups: [
+        GroupState
+    ] | [
+        GroupState,
+        GroupState
+    ];
+    width: number;
+};
+declare const DEFAULT_LAYOUT: EditorLayout;
+type EditorLayout = {
+    left: ColumnState;
+    right: ColumnState;
+    v: 1;
+};
+type FittedColumn = {
+    groups: {
+        collapsed: boolean;
+        height: number;
+        y: number;
+    }[];
+    height: number;
+    rail: boolean;
+    width: number;
+    x: number;
+    y: number;
+};
+type FittedLayout = {
+    canvas: {
+        bottom: number;
+        left: number;
+        right: number;
+        top: number;
+    };
+    left: FittedColumn | null;
+    mode: "desktop" | "phone" | "single";
+    right: FittedColumn | null;
+};
+type GroupState = {
+    active: PanelId;
+    collapsed: boolean;
+    panels: PanelId[];
+    size: null | number;
+};
+type PanelId = "history" | "inspector" | "outliner" | "problems" | "project" | "run" | (string & {});
+type Viewport = {
+    bottom: number;
+    height: number;
+    topLeft: number;
+    topRight: number;
+    width: number;
+};
+declare const fitLayout: (layout: EditorLayout, viewport: Viewport) => FittedLayout;
+declare const parseLayout: (raw: unknown, known: readonly PanelId[]) => EditorLayout | null;
+
+## editor-ui/pending/pending.ts
+type Pending = {
+    busy(scope: string): PendingTask | undefined;
+    hold(spec: {
+        id: string;
+        label: string;
+        scope: string;
+    }): (outcome?: {
+        error?: unknown;
+        errorTitle?: string;
+    }) => void;
+    readonly store: Store<{
+        tasks: readonly PendingTask[];
+    }>;
+    run<T>(spec: PendingRun<T>, work: (step: PendingStep) => Promise<T>): Promise<{
+        error: unknown;
+        ok: false;
+    } | {
+        ok: true;
+        value: T;
+    }>;
+};
+type PendingRun<T> = {
+    error: ((error: unknown) => string) | string;
+    id?: string;
+    label: string;
+    scope: string;
+    success?: ((value: T) => null | string) | string;
+    total?: number;
+};
+type PendingStep = {
+    label(text: string): void;
+    progress(done: number, total?: number): void;
+};
+type PendingTask = {
+    id: string;
+    label: string;
+    progress: null | {
+        done: number;
+        total: number;
+    };
+    scope: string;
+    startedAt: number;
+};
+declare const createPending: (opts: {
+    notify: EditorNotify;
+    now?: () => number;
+}) => Pending;
 
 ## editor/asset-drop.ts
 type AssetDrop = {
@@ -8726,7 +9049,7 @@ type Vec2 = {
 };
 
 ## version.ts
-declare const ENGINE_VERSION = "0.8.0";
+declare const ENGINE_VERSION = "0.8.1";
 
 ## vite/apply-files.ts
 type FileApplyOptions = {

@@ -9,6 +9,7 @@
     "index.ts",
     "scene/index.ts",
     "editor/index.ts",
+    "editor-ui/index.ts",
     "collab/index.ts",
     "headless/index.ts",
     "game/index.ts",

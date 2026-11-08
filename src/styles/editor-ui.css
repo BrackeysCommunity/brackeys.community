@@ -1,0 +1,36 @@
+/*
+ * The scene editor in the site's theme: @jams/engine/editor-ui's tokens set
+ * from the site's own. Unlayered, so it wins over the package's layered
+ * defaults in light and dark alike; imported after the package stylesheet.
+ */
+.je-root {
+  --je-bg: var(--background);
+  --je-panel: var(--popover);
+  --je-panel-fg: var(--popover-foreground);
+  --je-muted: var(--muted);
+  --je-muted-fg: var(--muted-foreground);
+  --je-border: var(--border);
+  --je-primary: var(--primary);
+  --je-primary-fg: var(--primary-foreground);
+  --je-ring: var(--ring);
+  --je-danger: var(--destructive);
+  --je-warning: var(--warning);
+  --je-success: var(--success);
+  --je-info: var(--info);
+  --je-chart-1: var(--chart-1);
+  --je-chart-2: var(--chart-2);
+  --je-chart-3: var(--chart-3);
+  --je-chart-4: var(--chart-4);
+  --je-chart-5: var(--chart-5);
+  --je-radius: calc(var(--radius) + 4px);
+  --je-radius-sm: calc(var(--radius) - 2px);
+  --je-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --je-font: var(--font-sans);
+  --je-font-mono: var(--font-mono);
+
+  color-scheme: light;
+}
+
+.dark .je-root {
+  color-scheme: dark;
+}

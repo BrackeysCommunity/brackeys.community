@@ -391,6 +391,9 @@ const config = defineConfig({
   resolve: {
     tsconfigPaths: true,
     alias: {
+      "@jams/engine/editor-ui/style.css": fileURLToPath(
+        new URL("./src/engine/editor-ui/style.css", import.meta.url),
+      ),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },

@@ -15,7 +15,7 @@ import {
 } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { devAssetUrl } from "../../../src/components/game/asset-urls";
+import { devAssetUrl } from "../../../src/engine/editor-ui/connect/dev";
 import { drawnEntities } from "../../../src/engine/scene/render-geometry";
 import { answerSinkRequest, loadSinkProject, type SinkProject } from "../browser/project";
 import { loadRapier } from "../browser/run";
@@ -109,7 +109,7 @@ describe("the preview's sink routes", () => {
     expect(issues).toEqual([]);
     expect(bundle.entries.map((e) => e.id)).toEqual(["backdrop", "crates-texture", "hero-texture"]);
     for (const entry of bundle.entries) {
-      const url = devAssetUrl(SINK_PROJECT, entry);
+      const url = devAssetUrl()(SINK_PROJECT, entry);
       expect(url).toBe(`/__project/${SINK_PROJECT}/blob/${entry.sha256}`);
       const res = await get(url);
       expect(res?.status, entry.id).toBe(200);

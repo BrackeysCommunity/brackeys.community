@@ -20,6 +20,7 @@ export type PackageJson = {
   name: string;
   version: string;
   exports: Record<string, string | { types: string; import: string }>;
+  dependencies?: Record<string, string>;
   peerDependencies: Record<string, string>;
   files: string[];
 };
@@ -48,8 +49,9 @@ export type Packed = {
 /**
  * Builds `dist`, packs the tarball as the release job does, and
  * extracts it into a fresh directory outside the repo, so nothing resolves
- * through the repo's tsconfig paths or aliases. Peers (and `tools`, the test
- * tooling a consumer brings) are symlinked from the repo's `node_modules`.
+ * through the repo's tsconfig paths or aliases. Dependencies, peers and
+ * `tools` (the test tooling a consumer brings) are symlinked from the repo's
+ * `node_modules`.
  */
 export function packAndExtract(tools: string[] = []): Packed {
   run("vp", ["pack"], { cwd: ENGINE });
@@ -74,7 +76,11 @@ export function packAndExtract(tools: string[] = []): Packed {
   renameSync(join(scope, "package"), pkgDir);
   const pkg = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8")) as PackageJson;
 
-  for (const name of [...Object.keys(pkg.peerDependencies), ...tools]) {
+  for (const name of [
+    ...Object.keys(pkg.dependencies ?? {}),
+    ...Object.keys(pkg.peerDependencies),
+    ...tools,
+  ]) {
     const from = join(REPO, "node_modules", name);
     if (!existsSync(from)) throw new Error(`${name} isn't installed in the repo`);
     const to = join(dir, "node_modules", name);
@@ -84,7 +90,8 @@ export function packAndExtract(tools: string[] = []): Packed {
   return { dir, pkgDir, pkg, tarball, files };
 }
 
-/** Copies repo files into the consumer directory under their base names. */
+/** Copies repo files and directories into the consumer directory under the given names. */
 export function copyInto(dir: string, paths: Record<string, string>): void {
-  for (const [name, from] of Object.entries(paths)) cpSync(join(REPO, from), join(dir, name));
+  for (const [name, from] of Object.entries(paths))
+    cpSync(join(REPO, from), join(dir, name), { recursive: true });
 }

@@ -23,8 +23,10 @@ bun add ./jams-engine-0.3.0.tgz
 bun add pixi.js @dimforge/rapier2d @tanstack/store zod yjs fractional-indexing
 ```
 
-Everything the engine uses is a peer dependency, so the host owns one copy of
-each:
+Everything the engine shares with its host is a peer dependency, so the host
+owns one copy of each. The editor UI's own libraries (`@base-ui/react`,
+`@dnd-kit/core`, `@hugeicons/core-free-icons`, `@hugeicons/react`) are plain
+dependencies, used only by `./editor-ui`.
 
 | Peer                        | Range            | Needed for                                                               |
 | --------------------------- | ---------------- | ------------------------------------------------------------------------ |
@@ -36,20 +38,24 @@ each:
 | `yjs`                       | `^13.6.33`       | `./collab` and `./editor`, the shared scene document                     |
 | `fractional-indexing`       | `^4.0.0`         | entity order in the shared document                                      |
 | `@hocuspocus/server`        | `^4.7.0`         | optional: only `./vite`'s dev server imports it, on the first connection |
+| `react`, `react-dom`        | `^19.0.0`        | optional: only `./editor-ui` uses them                                   |
+| `@hocuspocus/provider`      | `^4.7.0`         | optional: never imported; a host hands the module to `./editor-ui`       |
 
-The package is ESM only and has no side effects on import.
+The package is ESM only and has no side effects on import; the one file a
+host imports for its effect is `@jams/engine/editor-ui/style.css`.
 
-| Entry                   | What it holds                                                                                                                                              | Runtime peers                     |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `@jams/engine`          | `createGame`, the browser shell: renderer, camera, input, the tool router and the store selectors                                                          | pixi.js, @tanstack/store          |
-| `@jams/engine/scene`    | the scene format: parse, migrate, format, hash, expand, validate, issue codes, `applyOps`, diffs, the JSON Schemas                                         | zod                               |
-| `@jams/engine/game`     | the authoring API: `defineGame`, `defineEntityType`, `createRegistry`, field helpers and the primitive systems                                             | zod                               |
-| `@jams/engine/headless` | a DOM- and Pixi-free runtime: `createHeadlessRuntime`, `runProbe`, input scripts, `runPlaytest`, `fuzz`, `validatePhysical`, `runChecks`                   | zod                               |
-| `@jams/engine/collab`   | the shared `Y.Doc` layout, `sceneToDoc`/`docToScene`, `applyOpsToDoc`, undo, revert, binding and presence                                                  | yjs, fractional-indexing, zod     |
-| `@jams/engine/editor`   | the editor without UI: `createEditorSession`, the keymap, `createToolHost` and its tools, picking, snapping, gizmos, the clipboard and the inspector model | yjs, @tanstack/store, zod         |
-| `@jams/engine/debug`    | `createDebugOverlay`, the F3 overlay; pass it only in dev builds                                                                                           | pixi.js                           |
-| `@jams/engine/vite`     | Node only: `sceneCollabServer`, a dev-server plugin that co-edits a project's files                                                                        | node builtins, @hocuspocus/server |
-| `@jams/engine/sim-kit`  | the seeded `Rng`, `digest32` and fixed-point maths, with no dependencies                                                                                   | none                              |
+| Entry                    | What it holds                                                                                                                                              | Runtime peers                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `@jams/engine`           | `createGame`, the browser shell: renderer, camera, input, the tool router and the store selectors                                                          | pixi.js, @tanstack/store          |
+| `@jams/engine/scene`     | the scene format: parse, migrate, format, hash, expand, validate, issue codes, `applyOps`, diffs, the JSON Schemas                                         | zod                               |
+| `@jams/engine/game`      | the authoring API: `defineGame`, `defineEntityType`, `createRegistry`, field helpers and the primitive systems                                             | zod                               |
+| `@jams/engine/headless`  | a DOM- and Pixi-free runtime: `createHeadlessRuntime`, `runProbe`, input scripts, `runPlaytest`, `fuzz`, `validatePhysical`, `runChecks`                   | zod                               |
+| `@jams/engine/collab`    | the shared `Y.Doc` layout, `sceneToDoc`/`docToScene`, `applyOpsToDoc`, undo, revert, binding and presence                                                  | yjs, fractional-indexing, zod     |
+| `@jams/engine/editor`    | the editor without UI: `createEditorSession`, the keymap, `createToolHost` and its tools, picking, snapping, gizmos, the clipboard and the inspector model | yjs, @tanstack/store, zod         |
+| `@jams/engine/debug`     | `createDebugOverlay`, the F3 overlay; pass it only in dev builds                                                                                           | pixi.js                           |
+| `@jams/engine/editor-ui` | the scene editor's UI: `SceneEditor`, `mountSceneEditor`, the host seam `EditorHost` and its connectors (below)                                            | react, react-dom, and the above   |
+| `@jams/engine/vite`      | Node only: `sceneCollabServer`, a dev-server plugin that co-edits a project's files                                                                        | node builtins, @hocuspocus/server |
+| `@jams/engine/sim-kit`   | the seeded `Rng`, `digest32` and fixed-point maths, with no dependencies                                                                                   | none                              |
 
 The JSON Schemas ship as files too: `@jams/engine/schemas/scene.schema.json`,
 `prefab.schema.json`, `fragment.schema.json`, `ops.schema.json`,
@@ -1219,9 +1225,11 @@ onProgress?)` loads the scene's bundle, joined by the project bundle until
   their boxes.
 - **URLs are the host's.** `AssetUrl` is `(project, entry) => string`:
   the dev server serves `/__project/<id>/blob/<sha256>`, the site
-  `/api/engine/projects/<id>/blobs/<sha256>` (the site's resolvers are
-  `devAssetUrl` and `hostedAssetUrl` in
-  `src/components/game/asset-urls.ts`), and tests pass an in-memory one.
+  `/api/engine/projects/<id>/blobs/<sha256>`. The dev route is the
+  package's `devAssetUrl(origin?)` (`editor-ui/connect/dev.ts`, served
+  through `devProjectHost(...).assetUrl`); the site keeps only
+  `hostedAssetUrl` in `src/components/game/asset-urls.ts`. Tests pass an
+  in-memory one.
 - **Headless never builds a loader** and never fetches: it sizes sprites
   from `assetInfo` alone.
 
@@ -1551,6 +1559,65 @@ export const devPlugins = [
   `GET /__project` (the projects served), `POST /__project/<id>/blob`
   (store the body; with `x-expect-sha256`, bytes that hash otherwise are
   refused with `hash-mismatch`) and `GET /__project/<id>/blob/<sha256>`.
+
+## Editor UI
+
+`@jams/engine/editor-ui` is the scene editor the jams.team site runs, as a
+React component any host can render: the outliner, inspector, problems,
+history, project tree and load-run panels around a full-bleed game canvas,
+with the toolbar, play bar and status bar in floating islands. It drives
+`./editor`'s session and `./collab`'s docs, and reaches a server only
+through the host.
+
+- **`SceneEditor`** takes `{ host, game, project, scene?, rapier, debug?,
+onReady? }`; `mountSceneEditor(element, props)` mounts the same thing
+  without JSX and returns `{ update, unmount }`. `onReady` hands the host a
+  `SceneEditorHandle` (`openPanel(id)`, `resetLayout()`).
+- **`EditorHost`** is the one seam. `connect({ project, registry, origin })`
+  returns a `ProjectConnection` and `assetUrl` says where the asset loader
+  fetches blobs; both are required. The rest default when left out:
+  `identity` ("Guest n"), `peerColor` (a fixed palette by hash), `notify`
+  (the editor's own toast region; sonner's `toast` fits as it is), `cue`
+  (silent), `flag` (every flag off), `storage` (guarded `localStorage`
+  under `jams-editor:*`; `null` keeps nothing), `chrome.topLeft` and
+  `chrome.topRight` (the host's own islands), `onSceneChange` (the editor
+  opened another scene than the one asked for) and `readOnly`.
+- **Connectors.** `devProjectHost({ hocuspocus, origin?, buildAt? })` is
+  `connect` and `assetUrl` for `./vite`'s dev server: one Hocuspocus socket
+  for every doc, and the project's blob route as its content store and
+  import target. A hosted server builds its own from
+  `connectProjectSession` (a `transport`, and `tokens` from
+  `createProjectTokens` for servers that want one per doc),
+  `hocuspocusTransport`, `projectBlobs` and a `closeReason` classifier.
+  The provider module is always passed in, never imported, so
+  `@hocuspocus/provider` stays an optional peer.
+- **Styling** is a plain stylesheet, `@jams/engine/editor-ui/style.css`
+  (`EDITOR_UI_STYLESHEET` names it, for a `<link>`). Its classes are
+  `je-`-prefixed in `@layer jams-editor`, themed by custom properties on
+  `.je-root` (`--je-bg`, `--je-panel`, `--je-primary`, `--je-font`, …):
+  a host sets the variables, unlayered, after importing the sheet. It needs
+  no Tailwind and no preflight, and ships no font files.
+
+A game outside jams.team serves its project with `./vite` and opens the
+editor on it:
+
+```ts editor-ui.ts
+import "@jams/engine/editor-ui/style.css";
+import * as hocuspocus from "@hocuspocus/provider";
+import { devProjectHost, mountSceneEditor } from "@jams/engine/editor-ui";
+
+import { coinGame } from "./coin-game";
+
+/** Opens the project `dev-server.ts` serves in `#editor`, on the same dev server. */
+export function openEditor(element: HTMLElement, project: string) {
+  return mountSceneEditor(element, {
+    host: devProjectHost({ hocuspocus }),
+    game: coinGame,
+    project,
+    rapier: () => import("@dimforge/rapier2d"),
+  });
+}
+```
 
 ## Versioning
 

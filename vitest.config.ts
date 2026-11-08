@@ -11,6 +11,10 @@ export default defineConfig({
     alias: [
       { find: /^@jams\/engine$/, replacement: `${engineRoot}/index.ts` },
       { find: /^@jams\/engine-testing$/, replacement: `${engineRoot}/__tests__/testing.ts` },
+      {
+        find: /^@jams\/engine\/editor-ui\/style\.css$/,
+        replacement: `${engineRoot}/editor-ui/style.css`,
+      },
       { find: /^@jams\/engine\/(.+)$/, replacement: `${engineRoot}/$1/index.ts` },
       { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
       {

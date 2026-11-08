@@ -44,6 +44,7 @@ const ENTRIES = {
   ".": "index.ts",
   "./scene": "scene/index.ts",
   "./editor": "editor/index.ts",
+  "./editor-ui": "editor-ui/index.ts",
   "./collab": "collab/index.ts",
   "./headless": "headless/index.ts",
   "./game": "game/index.ts",
@@ -71,6 +72,37 @@ const TEST_ONLY = [
   "@dimforge/rapier2d-deterministic-compat",
   "@hocuspocus/provider",
 ];
+/** The editor UI's own libraries: only `editor-ui/` imports them, so every other entry stays React-free. */
+const EDITOR_UI_LIBS = [
+  "react",
+  "react-dom",
+  "@base-ui/react",
+  "@dnd-kit/core",
+  "@hugeicons/core-free-icons",
+  "@hugeicons/react",
+];
+/** The editor UI's tests render with these. */
+const EDITOR_UI_TEST_ONLY = ["@testing-library/react"];
+/** The site's store bindings, toasts and styling, which the editor UI replaces with its own. */
+const EDITOR_UI_NEVER = [
+  "@tanstack/react-store",
+  "sonner",
+  "tailwindcss",
+  "@tailwindcss",
+  "tailwind-merge",
+  "tailwind-variants",
+];
+/** Injected by the host as a module: the editor UI names its type and never loads it. */
+const HOST_MODULE_TYPES = ["@hocuspocus/provider"];
+/** The editor UI's transport, which builds the socket from the module its host passes in. */
+const HOCUSPOCUS_TRANSPORT = "editor-ui/connect/hocuspocus.ts";
+/** Specifiers of exported files that aren't entries. */
+const FILE_EXPORTS = ["@jams/engine/editor-ui/style.css"];
+/**
+ * What the canvas-sync service image copies of the engine. None of it may
+ * import the editor UI, which the image doesn't have.
+ */
+const SERVICE_COPIED = ["scene/", "collab/", "game/", "project/", "version.ts"];
 /** The engine's shared test helpers, a tsconfig alias only games' tests may import. */
 const TEST_SUPPORT = "@jams/engine-testing";
 /**
@@ -122,7 +154,11 @@ function stripComments(src: string): string {
 }
 
 function importsOf(file: string): Import[] {
-  const src = stripComments(readFileSync(file, "utf8"));
+  return importsIn(readFileSync(file, "utf8"));
+}
+
+function importsIn(source: string): Import[] {
+  const src = stripComments(source);
   const lineOf = (index: number) => src.slice(0, index).split("\n").length;
   const out: Import[] = [];
   const statement = /^\s*(import|export)\s+(type\s+)?([^;]*?)\s*from\s*["']([^"']+)["']/gms;
@@ -162,9 +198,10 @@ const sourceFiles = engineFiles.filter((f) => !isTest(f));
 const gameFiles = walk(GAMES, /\.tsx?$/);
 const inside = (file: string, root: string) => file === root || file.startsWith(root + sep);
 const entrySpecs = () =>
-  new Set(
-    Object.keys(ENTRIES).map((e) => (e === "." ? "@jams/engine" : `@jams/engine/${e.slice(2)}`)),
-  );
+  new Set([
+    ...Object.keys(ENTRIES).map((e) => (e === "." ? "@jams/engine" : `@jams/engine/${e.slice(2)}`)),
+    ...FILE_EXPORTS,
+  ]);
 /**
  * A game is reached through its directory's index (`src/games/platformer`),
  * or its dev-only debug layers (`src/games/platformer/debug`), loaded apart
@@ -186,7 +223,7 @@ function runtimeGraph(entry: string): { files: Set<string>; bare: Map<string, st
       if (imp.typeOnly) continue;
       if (imp.spec.startsWith(".")) {
         const target = resolveRelative(file, imp.spec);
-        if (target && target.endsWith(".ts")) queue.push(target);
+        if (target && /\.tsx?$/.test(target)) queue.push(target);
       } else {
         bare.set(imp.spec, [...(bare.get(imp.spec) ?? []), rel(file)]);
       }
@@ -196,6 +233,45 @@ function runtimeGraph(entry: string): { files: Set<string>; bare: Map<string, st
 }
 
 const violations = (list: string[]) => expect(list, list.join("\n")).toEqual([]);
+
+/** `spec` is the package `pkg` or one of its subpaths. */
+const isPackage = (spec: string, pkg: string) => spec === pkg || spec.startsWith(`${pkg}/`);
+const isAny = (spec: string, pkgs: readonly string[]) => pkgs.some((p) => isPackage(spec, p));
+
+/**
+ * Why a bare import in the engine file at `path` (engine-relative) breaks the
+ * boundary, or null when it may: peers anywhere, node builtins in vite/ and
+ * tests, test tooling in tests, and the editor UI's libraries in editor-ui/ only.
+ */
+function bareImportViolation(
+  path: string,
+  imp: Pick<Import, "spec" | "typeOnly">,
+  test: boolean,
+): string | null {
+  const { spec } = imp;
+  if (spec.startsWith(".") || spec.startsWith("@/")) return null;
+  const editorUi = path.startsWith("editor-ui/");
+  if (editorUi && isAny(spec, EDITOR_UI_NEVER)) return `the editor UI never imports ${spec}`;
+  if (spec.startsWith("node:")) {
+    return path.startsWith("vite/") || test ? null : `imports the node builtin ${spec}`;
+  }
+  if (test && TEST_ONLY.includes(spec)) return null;
+  if (test && EDITOR_UI_TEST_ONLY.includes(spec)) return null;
+  if (VITE_ONLY.includes(spec) && (path.startsWith("vite/") || test)) return null;
+  if (editorUi && imp.typeOnly && HOST_MODULE_TYPES.includes(spec)) return null;
+  if (PEERS.includes(spec)) return null;
+  if (isAny(spec, EDITOR_UI_LIBS)) {
+    return editorUi ? null : `imports ${spec}, which only editor-ui/ may`;
+  }
+  return `imports ${spec}`;
+}
+
+/** A relative import from `path` (engine-relative) that lands in editor-ui/. */
+function reachesEditorUi(path: string, spec: string): boolean {
+  if (!spec.startsWith(".")) return false;
+  const target = posix(relative(ENGINE, resolve(ENGINE, dirname(path), spec)));
+  return target === "editor-ui" || target.startsWith("editor-ui/");
+}
 
 // ─── Rules ───────────────────────────────────────────────
 
@@ -225,19 +301,98 @@ describe("package boundary", () => {
     );
   });
 
-  it("imports only peers, node builtins in vite/, and test tooling in tests", () => {
+  it("imports only peers, node builtins in vite/, test tooling in tests, and UI libraries in editor-ui/", () => {
     const bad: string[] = [];
     for (const file of engineFiles) {
       const path = rel(file);
-      const test = isTest(file);
       for (const imp of importsOf(file)) {
-        const spec = imp.spec;
-        if (spec.startsWith(".") || spec.startsWith("@/")) continue;
-        if (spec.startsWith("node:") && (path.startsWith("vite/") || test)) continue;
-        if (test && TEST_ONLY.includes(spec)) continue;
-        if (VITE_ONLY.includes(spec) && (path.startsWith("vite/") || test)) continue;
-        if (PEERS.includes(spec)) continue;
-        bad.push(`${path}:${imp.line} imports ${spec}`);
+        const why = bareImportViolation(path, imp, isTest(file));
+        if (why) bad.push(`${path}:${imp.line} ${why}`);
+      }
+    }
+    violations(bad);
+  });
+
+  it("refuses a fixture's React import outside editor-ui/ and the site's libraries inside it", () => {
+    const check = (path: string, source: string, test = false) =>
+      importsIn(source).map((imp) => bareImportViolation(path, imp, test));
+    expect(check("editor/fixture.ts", 'import { useState } from "react";')).toEqual([
+      "imports react, which only editor-ui/ may",
+    ]);
+    expect(check("scene/fixture.ts", 'import { HugeiconsIcon } from "@hugeicons/react";')).toEqual([
+      "imports @hugeicons/react, which only editor-ui/ may",
+    ]);
+    expect(check("index.ts", 'export { createRoot } from "react-dom/client";')).toEqual([
+      "imports react-dom/client, which only editor-ui/ may",
+    ]);
+    expect(
+      check(
+        "editor-ui/kit/fixture.tsx",
+        [
+          'import { useState } from "react";',
+          'import { createRoot } from "react-dom/client";',
+          'import { Tabs } from "@base-ui/react/tabs";',
+          'import { DndContext } from "@dnd-kit/core";',
+          'import { Add01Icon } from "@hugeicons/core-free-icons";',
+          'import type { HocuspocusProvider } from "@hocuspocus/provider";',
+          'import { Store } from "@tanstack/store";',
+        ].join("\n"),
+      ),
+    ).toEqual([null, null, null, null, null, null, null]);
+    expect(
+      check(
+        "editor-ui/fixture.tsx",
+        [
+          'import { useStore } from "@tanstack/react-store";',
+          'import { toast } from "sonner";',
+          'import { twMerge } from "tailwind-merge";',
+          'import { readFileSync } from "node:fs";',
+          'import { HocuspocusProvider } from "@hocuspocus/provider";',
+          'import "tailwindcss";',
+        ].join("\n"),
+      ),
+    ).toEqual([
+      "the editor UI never imports @tanstack/react-store",
+      "the editor UI never imports sonner",
+      "the editor UI never imports tailwind-merge",
+      "imports the node builtin node:fs",
+      "imports @hocuspocus/provider",
+      "the editor UI never imports tailwindcss",
+    ]);
+    expect(
+      check(
+        "editor-ui/__tests__/fixture.test.tsx",
+        'import { render } from "@testing-library/react";\nimport { join } from "node:path";',
+        true,
+      ),
+    ).toEqual([null, null]);
+    expect(reachesEditorUi("collab/fixture.ts", "../editor-ui/host")).toBe(true);
+    expect(reachesEditorUi("editor-ui/kit/button.tsx", "../host")).toBe(true);
+    expect(reachesEditorUi("collab/fixture.ts", "../editor/index")).toBe(false);
+  });
+
+  it("keeps every entry but ./editor-ui free of React and the editor UI's libraries", () => {
+    const bad: string[] = [];
+    for (const [entry, file] of Object.entries(ENTRIES)) {
+      if (entry === "./editor-ui") continue;
+      const { files, bare } = runtimeGraph(file);
+      for (const [spec, from] of bare) {
+        if (isAny(spec, EDITOR_UI_LIBS))
+          bad.push(`${entry} reaches ${spec} via ${from.join(", ")}`);
+      }
+      for (const f of files) if (f.startsWith("editor-ui/")) bad.push(`${entry} reaches ${f}`);
+    }
+    violations(bad);
+  });
+
+  it("never imports the editor UI from what the canvas-sync image copies", () => {
+    const bad: string[] = [];
+    for (const file of engineFiles) {
+      const path = rel(file);
+      if (!SERVICE_COPIED.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p)))
+        continue;
+      for (const imp of importsOf(file)) {
+        if (reachesEditorUi(path, imp.spec)) bad.push(`${path}:${imp.line} imports ${imp.spec}`);
       }
     }
     violations(bad);
@@ -348,6 +503,7 @@ describe("package boundary", () => {
     const providers = sourceFiles.flatMap((f) =>
       importsOf(f)
         .filter((imp) => imp.spec.startsWith("@hocuspocus/") && !rel(f).startsWith("vite/"))
+        .filter((imp) => bareImportViolation(rel(f), imp, false) !== null)
         .map((imp) => `${rel(f)}:${imp.line} imports ${imp.spec}`),
     );
     violations(providers);
@@ -356,6 +512,7 @@ describe("package boundary", () => {
   it("leaves the shared provider socket to hosts", () => {
     violations(
       sourceFiles
+        .filter((f) => rel(f) !== HOCUSPOCUS_TRANSPORT)
         .filter((f) =>
           /\bHocuspocusProviderWebsocket\b/.test(stripComments(readFileSync(f, "utf8"))),
         )

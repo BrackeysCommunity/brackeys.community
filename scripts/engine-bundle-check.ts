@@ -1,7 +1,7 @@
 /**
  * Builds the site and checks that the game route's production chunks hold no
- * dev-only engine module: the debug overlay, the editor, the dev server, or a
- * game's debug layers. Checked by module id from the build's chunk report
+ * dev-only engine module: the debug overlay, the editor and its UI, the dev
+ * server, or a game's debug layers. Checked by module id from the build's chunk report
  * (`scripts/engine-bundle-report.ts`), since minification renames functions.
  *
  *   vp run engine:bundle-check                  # the check (one build)
@@ -28,7 +28,8 @@ const DEV_ONLY = [
   /\/src\/engine\/editor\//,
   /\/src\/engine\/vite\//,
   /\/src\/games\/[^/]+\/debug\//,
-  /\/src\/components\/game\/editor\//,
+  /\/src\/engine\/editor-ui\//,
+  /\/src\/components\/game\/editor-host\.tsx$/,
 ];
 /** Also kept out of the game route, though canvases load them elsewhere: the scene editor's provider. */
 const NOT_IN_ROUTE = [...DEV_ONLY, /\/node_modules\/@hocuspocus\//];

@@ -1,5 +1,4 @@
 import {
-  createAssetLoader,
   createGame,
   selectDebugMode,
   selectFPS,
@@ -7,29 +6,24 @@ import {
   type GameInstance,
   type GameStoreState,
 } from "@jams/engine";
-import type { ProjectRuntimeView } from "@jams/engine/project";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { CanvasShell, Island } from "@/components/canvas/shell/CanvasShell";
 import { ShellTitle, SiteIsland } from "@/components/canvas/shell/SiteIsland";
 import { MicroLabel } from "@/components/ui/typography";
 import { platformerGame } from "@/games/platformer";
 
-import { editorAssetUrl, warnFailedTextures } from "./asset-urls";
-import {
-  BUNDLED_PREFABS,
-  BUNDLED_SCENE,
-  BUNDLED_SCENE_ID,
-  SCENE_REGISTRY,
-} from "./platformer-scene";
-import { SCENE_PROJECT } from "./scene-collab";
-import type { SceneDocStatus } from "./use-scene-doc";
-import { useSceneEditor, type EditorAssets } from "./use-scene-editor";
+import { BUNDLED_PREFABS, BUNDLED_SCENE, SCENE_REGISTRY } from "./platformer-scene";
 
 const loadRapier = () => import("@dimforge/rapier2d");
+
+/** `null` in production builds, so the editor's chunks (and the provider) are never emitted there. */
+const SiteSceneEditor = import.meta.env.DEV
+  ? lazy(() => import("./editor-host").then((m) => ({ default: m.SiteSceneEditor })))
+  : null;
 
 type GameCanvasProps = {
   roomId: string;
@@ -40,48 +34,65 @@ type GameCanvasProps = {
 };
 
 export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
+  if (edit && SiteSceneEditor) {
+    return (
+      <Suspense fallback={<div className="fixed inset-0 bg-background" />}>
+        <GameEditor Editor={SiteSceneEditor} roomId={roomId} scene={scene} />
+      </Suspense>
+    );
+  }
+  return <GameRoom roomId={roomId} />;
+}
+
+function GameEditor({
+  Editor,
+  roomId,
+  scene,
+}: {
+  Editor: NonNullable<typeof SiteSceneEditor>;
+  roomId: string;
+  scene?: string;
+}) {
+  const navigate = useNavigate();
+  return (
+    <Editor
+      roomId={roomId}
+      scene={scene}
+      onSceneChange={(id) =>
+        void navigate({
+          to: "/game/$roomId",
+          params: { roomId },
+          search: (prev) => ({ ...prev, scene: id }),
+          replace: true,
+        })
+      }
+    />
+  );
+}
+
+/** The site menu, the lobby link and the room's title, top left in play and in the editor. */
+export function GameSiteIsland({ title }: { title: ReactNode }) {
+  return (
+    <SiteIsland
+      label="Game"
+      site={{ back: { label: "lobby", link: <Link to="/game" /> }, signinSource: "game" }}
+    >
+      <ShellTitle>{title}</ShellTitle>
+    </SiteIsland>
+  );
+}
+
+/** The game room as everyone plays it: the bundled scene. */
+function GameRoom({ roomId }: { roomId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [built, setBuilt] = useState<{
-    game: GameInstance;
-    projectData: ProjectRuntimeView | null;
-  } | null>(null);
-  const game = built?.game ?? null;
-  const {
-    chrome: editor,
-    status: connection,
-    scene: editing,
-    error,
-    registry,
-    projectData,
-    assets,
-  } = useSceneEditor({
-    game,
-    builtWith: built?.projectData ?? null,
-    project: SCENE_PROJECT,
-    registry: SCENE_REGISTRY,
-    scene: scene ?? BUNDLED_SCENE_ID,
-    enabled: edit,
-    rapier: loadRapier,
-    canvas: () => canvasRef.current,
-  });
+  const [game, setGame] = useState<GameInstance | null>(null);
 
-  // Read by the build, never a key of it: the project's view changes with every edit.
-  const assetsRef = useRef<EditorAssets | null>(null);
-  useEffect(() => {
-    assetsRef.current = assets;
-  }, [assets]);
-
-  // Rebuilt when the editor's project overlays other materials on the code registry, or its settings or tables change.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     let instance: GameInstance | null = null;
     let mounted = true;
-    // One loader per game instance, only while a project is open: the bundled room has no blobs to fetch.
-    // Its URL scheme is the editor session's blob host, so textures load from where its uploads went.
-    const open = assetsRef.current;
-    const loader = open ? createAssetLoader({ project: open.project, url: editorAssetUrl }) : null;
 
     async function init() {
       if (!canvas || !mounted) return;
@@ -97,39 +108,19 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
       if (!mounted) return;
       const created = await createGame(canvas, {
         game: platformerGame,
-        registry,
-        project: projectData,
+        registry: SCENE_REGISTRY,
         displayWidth: window.innerWidth,
         displayHeight: window.innerHeight,
         dev: import.meta.env.DEV,
         debug,
         debugLayers,
         rapier: loadRapier,
-        // The page is the game: editor and debug keys work with focus on a panel
-        // or fallen to the body, while play input still needs the canvas focused.
+        // The page is the game: debug keys work with focus fallen to the body,
+        // while play input still needs the canvas focused.
         keyTarget: window,
         prefabs: BUNDLED_PREFABS,
-        ...(open && loader
-          ? {
-              assets: {
-                loader,
-                kinds: open.kinds,
-                get view() {
-                  return open.view();
-                },
-              },
-            }
-          : { scene: BUNDLED_SCENE }),
+        scene: BUNDLED_SCENE,
       });
-
-      if (mounted && loader) {
-        const { failed } = await created.preload(BUNDLED_SCENE);
-        warnFailedTextures(BUNDLED_SCENE.name, failed);
-        if (mounted) {
-          const report = created.loadScene(BUNDLED_SCENE);
-          if (!report.ok) console.warn(`[scene] ${BUNDLED_SCENE.name}: ${report.error}`);
-        }
-      }
 
       if (!mounted) {
         created.destroy();
@@ -137,7 +128,7 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
       }
 
       instance = created;
-      setBuilt({ game: created, projectData });
+      setGame(created);
       created.start();
     }
 
@@ -157,29 +148,14 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
         instance.destroy();
         instance = null;
       }
-      loader?.destroy();
-      setBuilt(null);
+      setGame(null);
     };
-  }, [registry, projectData]);
+  }, []);
 
   return (
     <CanvasShell
-      topLeft={
-        <SiteIsland
-          label="Game"
-          site={{ back: { label: "lobby", link: <Link to="/game" /> }, signinSource: "game" }}
-        >
-          <ShellTitle>{editor && editing ? editing : roomId}</ShellTitle>
-        </SiteIsland>
-      }
-      status={
-        editor ? undefined : connection ? (
-          <EditorConnecting status={connection} error={error} />
-        ) : game ? (
-          <GameHUD store={game.getStore()} />
-        ) : undefined
-      }
-      {...editor}
+      topLeft={<GameSiteIsland title={roomId} />}
+      status={game ? <GameHUD store={game.getStore()} /> : undefined}
     >
       <canvas
         ref={canvasRef}
@@ -187,28 +163,6 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
         style={{ touchAction: "none" }}
       />
     </CanvasShell>
-  );
-}
-
-const CONNECTING_LABEL: Record<SceneDocStatus, string> = {
-  connecting: "Connecting to the scene server",
-  live: "Opening the editor",
-  reconnecting: "Reconnecting to the scene server",
-  offline: "Offline",
-  failed: "The editor couldn't open the project",
-};
-
-function EditorConnecting({ status, error }: { status: SceneDocStatus; error: Error | null }) {
-  return (
-    <Island
-      role="status"
-      className="flex-col items-start gap-0.5 px-2.5 py-1.5 text-xs text-muted-foreground"
-    >
-      <span>{CONNECTING_LABEL[status]}</span>
-      {status === "failed" && error ? (
-        <span className="text-destructive">{error.message}</span>
-      ) : null}
-    </Island>
   );
 }
 

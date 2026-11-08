@@ -7,6 +7,49 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.8.1] — unreleased
+
+The editor UI moves into the package. The scene editor the site drew from
+its own components is now `@jams/engine/editor-ui`, rendered by any host
+through one seam, `EditorHost`, and mountable standalone on `./vite`'s
+file-backed collab. Nothing it does changes. Every other entry stays free
+of React.
+
+### Added
+
+- `@jams/engine/editor-ui`: `SceneEditor` and `mountSceneEditor`, the
+  outliner, inspector, problems, history, project and load-run panels, the
+  toolbar, play bar and status bar, around a full-bleed game canvas, as the
+  site had them. The host seam is `EditorHost` with its adapters
+  (`EditorNotify`, `EditorStorage`, `EditorCue`, `EditorIdentityInput`);
+  everything but `connect` and `assetUrl` has a default, and per-viewer
+  settings are stored under `jams-editor:*`.
+- `./editor-ui`'s connectors, moved from the site and made host-neutral:
+  `devProjectHost({ hocuspocus, origin?, buildAt? })` (the dev server's
+  session and asset route on `./vite`'s paths), `connectProjectSession`
+  and `createProjectTokens` (tokens and the close-code classifier are
+  injected), `hocuspocusTransport` (it reports each doc's unacknowledged
+  updates as `ProjectConnectionState.unsynced`), and the blob client
+  `projectBlobs` and `BlobRouteError`. The provider module is always passed
+  in, never imported.
+- `@jams/engine/editor-ui/style.css`, the editor's stylesheet, exported as a
+  file and named by `EDITOR_UI_STYLESHEET`: `je-` classes in
+  `@layer jams-editor`, themed by `--je-*` custom properties on `.je-root`,
+  with no Tailwind.
+- The layout model's `DEFAULT_LAYOUT` and the types of `fitLayout`,
+  `parseLayout` and `createPending`, exported ahead of their behaviour:
+  the three functions throw until the resizable frame and the pending
+  mechanism land.
+- `react`, `react-dom` and `@hocuspocus/provider` are optional peers, used
+  only by `./editor-ui`. The package's first `dependencies` are the editor's
+  own libraries, `@base-ui/react`, `@dnd-kit/core`,
+  `@hugeicons/core-free-icons` and `@hugeicons/react`. `sideEffects` is
+  `["*.css"]`.
+
+### Agent surface
+
+- Unchanged; `AGENT_SURFACE_VERSION` stays 9.
+
 ## [0.8.0] — unreleased
 
 Sprites and rendering: a scene names art, the engine loads and draws it,

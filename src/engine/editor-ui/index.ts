@@ -1,0 +1,47 @@
+// ─── The editor ──────────────────────────────────────────
+
+export {
+  mountSceneEditor,
+  SceneEditor,
+  type SceneEditorHandle,
+  type SceneEditorProps,
+} from "./SceneEditor";
+
+// ─── Host adapters and connectors ────────────────────────
+
+export type {
+  EditorCue,
+  EditorHost,
+  EditorIdentityInput,
+  EditorNotify,
+  EditorStorage,
+  ProjectBlobs,
+  ProjectConnection,
+  ProjectConnectionState,
+  ProjectConnectionStatus,
+} from "./host";
+export type { CloseReason, ProjectSocket, ProjectTokenAnswer, ProjectTransport } from "./host";
+
+export { BlobRouteError, projectBlobs } from "./connect/blobs";
+export { devProjectHost } from "./connect/dev";
+export { hocuspocusTransport } from "./connect/hocuspocus";
+export {
+  connectProjectSession,
+  createProjectTokens,
+  type ConnectProjectSessionOptions,
+  type ProjectTokens,
+} from "./connect/project-session";
+
+// ─── Building blocks ─────────────────────────────────────
+
+export {
+  DEFAULT_LAYOUT,
+  fitLayout,
+  parseLayout,
+  type EditorLayout,
+  type PanelId,
+} from "./layout/model";
+export { createPending, type Pending, type PendingRun, type PendingTask } from "./pending/pending";
+
+/** The stylesheet's specifier, for hosts that inject a `<link>`. */
+export const EDITOR_UI_STYLESHEET = "@jams/engine/editor-ui/style.css";

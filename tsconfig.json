@@ -24,6 +24,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@jams/engine": ["./src/engine/index.ts"],
+      "@jams/engine/editor-ui/style.css": ["./src/engine/editor-ui/style.css"],
       "@jams/engine/*": ["./src/engine/*/index.ts"],
       "@jams/engine-testing": ["./src/engine/__tests__/testing.ts"]
     }

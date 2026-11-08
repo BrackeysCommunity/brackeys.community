@@ -1,5 +1,5 @@
 {
-  "version": "0.8.0",
+  "version": "0.8.1",
   "entries": {
     ".": [
       "DEFAULT_RESOLUTION",
@@ -421,6 +421,21 @@
       "waypointsTool",
       "withShapeSlot",
       "zOrderBatch"
+    ],
+    "./editor-ui": [
+      "BlobRouteError",
+      "DEFAULT_LAYOUT",
+      "EDITOR_UI_STYLESHEET",
+      "SceneEditor",
+      "connectProjectSession",
+      "createPending",
+      "createProjectTokens",
+      "devProjectHost",
+      "fitLayout",
+      "hocuspocusTransport",
+      "mountSceneEditor",
+      "parseLayout",
+      "projectBlobs"
     ],
     "./collab": [
       "ASSETS_KEY",

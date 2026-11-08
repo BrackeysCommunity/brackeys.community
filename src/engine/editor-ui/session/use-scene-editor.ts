@@ -1,0 +1,402 @@
+import { Store } from "@tanstack/store";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+
+import type { ProjectSession } from "../../collab/index";
+import type { EditorStoreState, Ref } from "../../editor/index";
+import type { GameInstance, PlayOptions, RapierModule, RunRecording } from "../../index";
+import type { KindRegistry, ProjectId, ProjectRuntimeView, ProjectView } from "../../project/index";
+import type { Registry } from "../../scene/index";
+import { useSceneDoc, type SceneDocStatus, type SceneFallback } from "../connect/scene-doc";
+import {
+  hostPeerColor,
+  type EditorHost,
+  type EditorNotify,
+  type ProjectBlobs,
+  type ProjectConnection,
+} from "../host";
+import {
+  editorIdentity,
+  openLiveEditor,
+  prefabsReady,
+  projectRegistry,
+  type EditingTarget,
+  type EditorHostState,
+  type EditorIdentity,
+  type LiveEditor,
+  type OpenPrefab,
+  type ProjectRegistry,
+} from "./live-scene-editor";
+import type { LoadedRun } from "./loaded-run";
+import { useStoreValue } from "./use-store-value";
+
+/** The parts of the game the editor's chrome reads and drives. */
+export type EditorChromeGame = Pick<
+  GameInstance,
+  | "getStore"
+  | "registry"
+  | "router"
+  | "pause"
+  | "resume"
+  | "step"
+  | "setTimeScale"
+  | "command"
+  | "cancel"
+  | "pointerWorld"
+  | "screenToWorld"
+  | "panBy"
+  | "zoomAt"
+  | "frame"
+  | "runtime"
+>;
+
+/** The project the open scene belongs to, as the project tree edits it. */
+export type EditorProjectLink = {
+  session: ProjectSession;
+  /** The scene doc the editor has open. */
+  doc: string;
+  /** Where dropped files are uploaded; without it the tree takes no files. */
+  blobs?: ProjectBlobs;
+  /** Viewers: the tree and the licence fields take no edits. */
+  readOnly?: boolean;
+};
+
+/** Everything the editor's frame and panels are drawn from. */
+export type EditorProps = EditingTarget & {
+  /** The connection and play state the host keeps. */
+  host: Store<EditorHostState>;
+  /** The game the editor drives: its camera, its router for keys and pointers, its sim controls. */
+  game: EditorChromeGame;
+  onPlay: (opts?: PlayOptions) => void;
+  /** Plays a recording's input again in place of the keyboard's. */
+  onReplay: (recording: RunRecording) => void;
+  onStop: () => void;
+  /** Rebuilds the play world from the latest doc. */
+  onRestart: () => void;
+  /** Rapier, for the physical checks; null until it has loaded. */
+  rapier?: RapierModule | null;
+  /** The run loaded into the editor; one is made when absent. */
+  runStore?: Store<LoadedRun | null>;
+  /** The game's canvas, which takes the active tool's cursor. */
+  canvas?: () => HTMLElement | null;
+  /** The project the scene belongs to: its tree goes above the outliner. */
+  project?: EditorProjectLink;
+};
+
+type Loaded = { identity: EditorIdentity; rapier: RapierModule | null };
+
+const NO_PREFAB = new Store<OpenPrefab | null>(null);
+// Only `mode` is read from it.
+const NOT_EDITING = new Store({ mode: "edit" } as EditorStoreState);
+
+const consoleNotify: EditorNotify = Object.assign(
+  (message: string) => console.info(`[editor] ${message}`),
+  {
+    success: (message: string) => console.info(`[editor] ${message}`),
+    warning: (message: string) => console.warn(`[editor] ${message}`),
+    error: (message: string) => console.error(`[editor] ${message}`),
+  },
+);
+
+export type SceneEditorOptions = {
+  /** The project connection and who is editing; read once, except `connect`, which runs again when `project` or `registry` changes. */
+  host: Pick<EditorHost, "connect" | "identity" | "peerColor" | "notify" | "readOnly">;
+  /** Where notices go when the host has no `notify`: the frame's own toast region. */
+  notify?: EditorNotify;
+  /** Built with the `registry` and `projectData` this hook returns; the editor opens once it is. */
+  game: GameInstance | null;
+  /** The `projectData` `game` was built with (`createGame`'s `project`); default null. */
+  builtWith?: ProjectRuntimeView | null;
+  project: ProjectId;
+  /** The game's code registry; the project session is opened with it. */
+  registry: Registry;
+  /** The scene to open, by id; the project's first scene when it holds none of that id. */
+  scene?: string | null;
+  enabled: boolean;
+  /** The game's Rapier loader, for the editor's physical checks. */
+  rapier?: () => Promise<RapierModule>;
+  /** The game's canvas, which takes the active tool's cursor. */
+  canvas?: () => HTMLElement | null;
+};
+
+export type SceneEditorState = {
+  /** What the editor's frame draws, once the scene has synced and the game is up. */
+  editor: EditorProps | null;
+  /** The connection while the editor is on; null when it's off. */
+  status: SceneDocStatus | null;
+  /** Updates the server hasn't acknowledged yet. */
+  unsynced: number;
+  /** The id of the scene the editor has open. */
+  scene: string | null;
+  /** Set while the open scene isn't the one asked for. */
+  fellBack: SceneFallback | null;
+  /** Why the project or its scene couldn't be opened. */
+  error: Error | null;
+  /**
+   * The registry the host builds its game with: the code registry with the
+   * open project's material assets overlaid. It changes when they do, except
+   * while the editor plays, when the change waits for Stop.
+   */
+  registry: Registry;
+  /**
+   * What the host builds its game with as `project`: the open project's
+   * game settings and tables, null without one. It changes as `registry` does.
+   */
+  projectData: ProjectRuntimeView | null;
+  /** True from a change that needs a new game until the editor is open on it. */
+  rebuilding: boolean;
+  /** What the host's asset loader bundles scenes over while the project is open; null without one. */
+  assets: EditorAssets | null;
+};
+
+/** The open project's assets: `view` follows its edits, so read it when bundling, not once. */
+export type EditorAssets = { project: ProjectId; view: () => ProjectView; kinds: KindRegistry };
+
+type Build = { registry: Registry; projectData: ProjectRuntimeView | null };
+
+/** What a rebuild carries from the editor it replaces to the next one on the same doc. */
+type Carried = { doc: string; selection: Ref[]; tool: string };
+
+/**
+ * The scene editor on the host's project connection, where everyone with
+ * the project open edits its scene and prefab docs. A dropped connection
+ * resumes the same docs, so the editor stays open through it. When the
+ * game has to be rebuilt (the project's materials, settings or tables
+ * changed), the next editor keeps the selection that still resolves and
+ * the tool.
+ */
+export function useSceneEditor({
+  host,
+  notify,
+  game,
+  builtWith = null,
+  project,
+  registry,
+  scene,
+  enabled,
+  rapier,
+  canvas,
+}: SceneEditorOptions): SceneEditorState {
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [liveCell] = useState(() => new Store<LiveEditor | null>(null));
+  // Outlives reconnects, so a loaded run stays loaded.
+  const [runStore] = useState(() => new Store<LoadedRun | null>(null));
+  const [loadRapier] = useState(() => rapier);
+  const [getCanvas] = useState(() => canvas);
+  const [projectCell] = useState(() => new Store<ProjectConnection | null>(null));
+  const [say] = useState(() => notify ?? host.notify ?? consoleNotify);
+  const [connect] = useState(() => host.connect);
+  const [readOnly] = useState(() => host.readOnly);
+  const [identityInput] = useState(() => ({
+    name: host.identity?.name ?? null,
+    peerColor: hostPeerColor(host),
+  }));
+  const carried = useRef<Carried | null>(null);
+  const [carrying, setCarrying] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    void (loadRapier?.().catch(() => null) ?? Promise.resolve(null)).then((rapierModule) => {
+      if (cancelled) return;
+      setLoaded({
+        identity: editorIdentity(identityInput.name, identityInput.peerColor),
+        rapier: rapierModule,
+      });
+    });
+    return () => {
+      cancelled = true;
+      setLoaded(null);
+    };
+  }, [enabled, loadRapier, identityInput]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const link = connect({ project, registry, origin: loaded.identity.origin });
+    projectCell.setState(() => link);
+    return () => {
+      projectCell.setState(() => null);
+      link.destroy();
+    };
+  }, [projectCell, loaded, connect, project, registry]);
+
+  const connection = useStoreValue(projectCell);
+  const watchConnection = useCallback(
+    (listener: () => void) => connection?.subscribe(listener) ?? (() => {}),
+    [connection],
+  );
+  const readUnsynced = () => connection?.getState().unsynced ?? 0;
+  const unsynced = useSyncExternalStore(watchConnection, readUnsynced, readUnsynced);
+  const link = useSceneDoc(connection, scene);
+  const ready = link.ready;
+  const session = ready?.session ?? null;
+
+  const [overlay, setOverlay] = useState<
+    ({ session: ProjectSession; watch: ProjectRegistry } & Build) | null
+  >(null);
+  useEffect(() => {
+    if (!loaded || !session) return;
+    const watch = projectRegistry(session);
+    let opened = false;
+    let gone = false;
+    const publish = () => {
+      if (opened && !gone)
+        setOverlay({
+          session,
+          watch,
+          registry: watch.current(),
+          projectData: watch.project?.() ?? null,
+        });
+    };
+    const off = watch.subscribe(publish);
+    // Published once every material doc is open, so the game isn't built twice on the way.
+    void watch.ready().then(() => {
+      opened = true;
+      publish();
+    });
+    return () => {
+      gone = true;
+      off();
+      watch.destroy();
+      setOverlay(null);
+    };
+  }, [loaded, session]);
+  const current = session !== null && overlay?.session === session ? overlay : null;
+  const settled = current !== null;
+  const openSession = current?.session ?? null;
+  const assets = useMemo<EditorAssets | null>(
+    () =>
+      openSession ? { project, view: () => openSession.view(), kinds: openSession.kinds } : null,
+    [openSession, project],
+  );
+
+  // Re-imported art redraws in the running game; only the dev server sends these messages.
+  const watch = current?.watch ?? null;
+  useEffect(() => {
+    if (!watch || !connection || !game) return;
+    return watch.followAssets?.(connection, game);
+  }, [watch, connection, game]);
+
+  const live = useStoreValue(liveCell);
+  const playing = useStoreValue(live?.session.store ?? NOT_EDITING, (s) => s.mode === "play");
+  const [applied, setApplied] = useState<Build>(() => ({ registry, projectData: null }));
+  const target: Build = {
+    registry: current?.registry ?? registry,
+    projectData: current?.projectData ?? null,
+  };
+  if (
+    !playing &&
+    (applied.registry !== target.registry || applied.projectData !== target.projectData)
+  )
+    setApplied(target);
+  const fits =
+    game !== null && game.registry === applied.registry && builtWith === applied.projectData;
+
+  useEffect(() => {
+    if (!loaded || !game || !ready || !settled || !fits) return;
+    let next: LiveEditor | null = null;
+    let gone = false;
+    // Opened once the prefab docs are, so the scene's instances resolve from the first frame.
+    void prefabsReady(ready.session)
+      .catch(() => {})
+      .then(() => {
+        if (gone) return;
+        next = openLiveEditor({
+          game,
+          doc: ready.doc.doc,
+          awareness: ready.doc.awareness,
+          name: ready.id,
+          identity: loaded.identity,
+          notify: say,
+          project: { session: ready.session, doc: ready.name },
+        });
+        const kept = carried.current;
+        carried.current = null;
+        if (kept && kept.doc === ready.name) restore(next, kept);
+        liveCell.setState(() => next);
+        setCarrying(false);
+      });
+    return () => {
+      gone = true;
+      liveCell.setState(() => null);
+      if (next) {
+        carried.current = carry(next, ready.name);
+        setCarrying(true);
+      }
+      next?.destroy();
+    };
+  }, [liveCell, loaded, game, ready, settled, fits, say]);
+
+  useEffect(() => {
+    live?.host.setState((s) => ({ ...s, connection: link.status }));
+  }, [live, link.status]);
+
+  useEffect(() => {
+    live?.host.setState((s) => (s.unsynced === unsynced ? s : { ...s, unsynced }));
+  }, [live, unsynced]);
+
+  // The last Play's recording becomes the loaded run, so its ghost shows after Stop.
+  useEffect(() => {
+    if (!game || !live) return;
+    const show = (recording: RunRecording) => {
+      if (!live.replaying()) runStore.setState(() => ({ recording, name: "Last run" }));
+    };
+    game.on("play:recorded", show);
+    return () => game.off("play:recorded", show);
+  }, [game, live, runStore]);
+
+  const open = useStoreValue(live?.prefab ?? NO_PREFAB);
+
+  const editor = useMemo<EditorProps | null>(() => {
+    if (!live || !loaded || !game) return null;
+    return {
+      ...live.editing(open),
+      host: live.host,
+      game,
+      onPlay: live.play,
+      onReplay: live.replay,
+      onStop: live.stop,
+      onRestart: live.restart,
+      rapier: loaded.rapier,
+      runStore,
+      ...(getCanvas ? { canvas: getCanvas } : {}),
+      ...(ready
+        ? {
+            project: {
+              session: ready.session,
+              doc: ready.name,
+              ...(connection?.blobs ? { blobs: connection.blobs } : {}),
+              ...(readOnly ? { readOnly } : {}),
+            },
+          }
+        : {}),
+    };
+  }, [live, loaded, game, runStore, getCanvas, open, ready, connection, readOnly]);
+
+  const on = enabled;
+  return {
+    editor,
+    status: on ? link.status : null,
+    unsynced: on ? unsynced : 0,
+    scene: on ? (ready?.id ?? null) : null,
+    fellBack: on ? link.fellBack : null,
+    error: on ? link.error : null,
+    registry: applied.registry,
+    projectData: applied.projectData,
+    rebuilding: on && (carrying ? ready !== null && live === null : live !== null && !fits),
+    assets: on ? assets : null,
+  };
+}
+
+function carry(live: LiveEditor, doc: string): Carried {
+  const { selection = [], tool = "select" } = live.session.store.state;
+  return { doc, selection: [...selection], tool };
+}
+
+/** Puts what `kept` carried on `live`'s session: the refs that still resolve, and the tool. */
+function restore(live: LiveEditor, kept: Carried): void {
+  if (kept.selection.length > 0) live.session.select(kept.selection);
+  if (kept.tool !== live.session.store.state.tool) {
+    live.session.setTool(kept.tool);
+    live.session.store.setState((s) => ({ ...s, tool: kept.tool }));
+  }
+}

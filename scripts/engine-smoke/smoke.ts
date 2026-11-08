@@ -5,14 +5,18 @@
  *   vp run engine:smoke [--keep]
  *
  * 1. The tarball holds exactly the published files, and every export resolves.
- * 2. The entries that must load without a DOM or Pixi don't reach them.
+ * 2. The entries that must load without a DOM or Pixi don't reach them, and
+ *    only `./editor-ui` reaches React and the editor's libraries.
  * 3. Under Bun, `dist/headless` with `-compat` Rapier gives the same probe
  *    and playtest reports as the source build, the playtest wins, and its
  *    recording replays to the same end.
  * 4. Under Bun, `./vite` loads and the schema files resolve by export.
- * 5. A jsdom vitest drives `dist` with standard Rapier (`consumer.test.ts`).
+ * 5. A jsdom vitest drives `dist` with standard Rapier (`consumer.test.ts`),
+ *    and mounts the packed editor UI on `./vite`'s dev server over a scratch
+ *    copy of the engine project (`editor-consumer.test.tsx`).
  */
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { dirname, join, relative } from "node:path";
 
 import { copyInto, ENGINE, packAndExtract, REPO, run, type PackageJson } from "./pack";
@@ -26,7 +30,13 @@ const check = (ok: boolean, message: string) => {
 const SCENE = join(ENGINE, "scenes/engine-yard.json");
 const INPUTS = join(ENGINE, "__tests__/fixtures/parity-inputs.json");
 
-const packed = packAndExtract(["vite-plus", "vite-plugin-wasm", "jsdom"]);
+const packed = packAndExtract([
+  "vite-plus",
+  "vite-plugin-wasm",
+  "jsdom",
+  "@testing-library/react",
+  "@testing-library/dom",
+]);
 const { dir, pkgDir, pkg, files } = packed;
 console.log(`packed ${pkg.name}@${pkg.version} into ${dir}`);
 
@@ -40,11 +50,11 @@ try {
       !f.startsWith("dist/") &&
       !/^scene\/[a-z-]+\.schema\.json$/.test(f) &&
       !/^project\/[a-z-]+\.schema\.json$/.test(f) &&
-      !["package.json", "README.md", "CHANGELOG.md"].includes(f),
+      !["package.json", "README.md", "CHANGELOG.md", "editor-ui/style.css"].includes(f),
   );
   check(
     stray.length === 0,
-    `the tarball has files outside dist and the schemas: ${stray.join(", ")}`,
+    `the tarball has files outside dist, the schemas and the stylesheet: ${stray.join(", ")}`,
   );
   const sources = files.filter((f) => /\.tsx?$/.test(f) && !f.endsWith(".d.mts"));
   check(sources.length === 0, `the tarball has TypeScript sources: ${sources.join(", ")}`);
@@ -76,6 +86,7 @@ try {
     simKit.length === 0,
     `dist/sim-kit.mjs reaches ${simKit.join(", ")} (./sim-kit has no dependencies)`,
   );
+  const editorUiLib = /^(react|react-dom|@base-ui\/react|@dnd-kit\/core|@hugeicons\/[a-z-]+)(\/|$)/;
   for (const entry of [
     "index",
     "scene",
@@ -88,6 +99,11 @@ try {
     "project",
   ]) {
     forbid(entry, ["@hocuspocus/server"], "only ./vite may load the dev server");
+    const ui = [...reach(entry)].filter((s) => editorUiLib.test(s));
+    check(
+      ui.length === 0,
+      `dist/${entry}.mjs reaches ${ui.join(", ")} (only ./editor-ui uses React and its libraries)`,
+    );
   }
 
   // ─── 3. Headless under Bun: dist matches source ────────
@@ -95,7 +111,9 @@ try {
     "game.ts": "scripts/engine-smoke/game.ts",
     "headless.ts": "scripts/engine-smoke/headless.ts",
     "consumer.test.ts": "scripts/engine-smoke/consumer.test.ts",
+    "editor-consumer.test.tsx": "scripts/engine-smoke/editor-consumer.test.tsx",
     "engine-yard.json": relative(REPO, SCENE),
+    "engine-project": relative(REPO, join(ENGINE, "scenes")),
   });
   writeFileSync(join(dir, "package.json"), `${JSON.stringify(consumerPackage(pkg), null, 2)}\n`);
 
@@ -144,13 +162,19 @@ try {
   run("bun", ["exports-probe.ts"], { cwd: dir });
 
   // ─── 5. The jsdom consumer ─────────────────────────────
-  writeFileSync(join(dir, "vite.config.ts"), consumerViteConfig());
+  // The jsdom page and the editor's dev server share this origin, as an editor page served by it would.
+  const collabPort = await freePort();
+  writeFileSync(join(dir, "vite.config.ts"), consumerViteConfig(collabPort));
   // vite logs a missing source map for every Rapier file, so the output shows only on failure.
   const vitest = run("vp", ["test", "run"], {
     cwd: dir,
-    env: { ...process.env, NODE_OPTIONS: "--no-experimental-webstorage" },
+    env: {
+      ...process.env,
+      NODE_OPTIONS: "--no-experimental-webstorage",
+      SMOKE_COLLAB_PORT: String(collabPort),
+    },
   });
-  console.log(vitest.match(/^\s*Tests\s+.*$/m)?.[0]?.trim() ?? "consumer.test.ts passed");
+  console.log(vitest.match(/^\s*Tests\s+.*$/m)?.[0]?.trim() ?? "the jsdom consumers passed");
 } catch (err) {
   failures.push(err instanceof Error ? err.message : String(err));
 } finally {
@@ -195,7 +219,23 @@ function consumerPackage(pkg: PackageJson) {
   };
 }
 
-function consumerViteConfig(): string {
+/** A port nothing listens on, for the editor consumer's dev server. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      probe.close(() =>
+        typeof address === "object" && address
+          ? resolve(address.port)
+          : reject(new Error("no free port")),
+      );
+    });
+  });
+}
+
+function consumerViteConfig(collabPort: number): string {
   // Standard Rapier needs the wasm plugin and its `rapier.js` entry under vitest,
   // as in the repo's own config; the engine is inlined so `vi.mock("pixi.js")`
   // reaches the imports inside `dist`.
@@ -207,7 +247,8 @@ export default defineConfig({
   plugins: [wasm()],
   resolve: { alias: [{ find: /^@dimforge\\/rapier2d$/, replacement: ${JSON.stringify(rapierJs)} }] },
   test: {
-    include: ["consumer.test.ts"],
+    include: ["consumer.test.ts", "editor-consumer.test.tsx"],
+    environmentOptions: { jsdom: { url: "http://127.0.0.1:${collabPort}/" } },
     server: { deps: { inline: [/@jams\\/engine/] } },
   },
 });
