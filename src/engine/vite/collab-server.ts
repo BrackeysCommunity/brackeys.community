@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { sep } from "node:path";
+import { isAbsolute, relative, sep } from "node:path";
 import type { Duplex } from "node:stream";
 
 import type { DirectConnection, Server as HocuspocusServer } from "@hocuspocus/server";
@@ -120,6 +120,8 @@ type Served = {
   checked: Map<AssetKey, string>;
   /** The last write `blockedWrite` reported, so a held path warns once. */
   blocked?: string;
+  /** The cache dir as a project-relative folder with a trailing slash, when it sits inside the project. */
+  cache: string | null;
   hold?: Promise<DirectConnection>;
 };
 
@@ -133,13 +135,14 @@ type Served = {
  * project into `disk` transactions and registry ops. On each store of a
  * project doc it repairs binaries whose bytes the content store lacks
  * (`hash-mismatch`), restores trashed assets a live doc it holds still
- * names (`asset-in-use`; a doc it loads later is judged as it loads), re-inspects binaries whose meta lags their bytes or
- * merged settings, and repairs duplicate ids and paths. It writes the code
- * map and this build's schema stamps when a project doc loads, and sends
- * `asset:changed` on the project doc whenever a binary's hash changes: on
- * disk, by a client's `replaceContent`, or by a repair. Needs
- * `@hocuspocus/server`, imported here and only here, and Node: its
- * websocket adapter refuses to run under Bun.
+ * names (`asset-in-use`; a doc it loads later is judged as it loads),
+ * re-inspects binaries whose meta lags their bytes or merged settings, and
+ * repairs duplicate ids and paths. It writes the code map and this build's
+ * schema stamps when a project doc loads, and sends `asset:changed` on the
+ * project doc whenever a binary's hash changes: on disk, by a client's
+ * `replaceContent`, or by a repair. Needs `@hocuspocus/server`, imported
+ * here and only here, and Node: its websocket adapter refuses to run under
+ * Bun.
  */
 export async function createSceneCollab(options: SceneCollabOptions): Promise<SceneCollab> {
   const { Server } = options.hocuspocus ?? (await import("@hocuspocus/server"));
@@ -160,6 +163,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       name: docNameOf({ kind: "project", project: id }),
       env: { registry: project.registry, project: null },
       checked: new Map(),
+      cache: folderWithin(project.dir, project.cacheDir),
     });
   }
 
@@ -190,6 +194,9 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     if (message !== undefined && message !== s.blocked) warn(`${message}; not written yet`);
     s.blocked = message;
   }
+
+  // The store persists docs to the cache dir; those writes never free a path.
+  const inCache = (s: Served, file: string) => s.cache !== null && file.startsWith(s.cache);
 
   const docOf = (name: string): Y.Doc | undefined => server.hocuspocus.documents.get(name);
 
@@ -430,17 +437,17 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
   }
 
   /**
-   * Any file event while a write is held may be its path freeing: check
-   * again, and store the project once what blocks it has changed.
+   * Any file event while a write is held may free one of the held paths, not
+   * necessarily the one reported: store the project (which still skips what
+   * stays held), then check again.
    */
   function recheckBlocked(s: Served): void {
     later(`blocked:${s.project.file.id}`, watchDelay, () =>
       enqueue(s.project.file.id, async () => {
         const project = docOf(s.name);
         if (!project || s.blocked === undefined) return;
-        const before = s.blocked;
+        await s.adapter.storeProject(project);
         await warnBlocked(s, project);
-        if (s.blocked !== before) await s.adapter.storeProject(project);
       }),
     );
   }
@@ -467,7 +474,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
         if (!name || !docOf(s.name)) return;
         const file = String(name).split(sep).join("/");
         if (s.adapter.watches(file)) schedule(s, file, watchDelay, false);
-        if (s.blocked !== undefined) recheckBlocked(s);
+        if (s.blocked !== undefined && !inCache(s, file)) recheckBlocked(s);
         if (isCodePath(s.project.file, file))
           later(`code:${s.project.file.id}`, watchDelay, () =>
             enqueue(s.project.file.id, async () => {
@@ -727,4 +734,10 @@ export async function listenSceneCollab(
       await closed;
     },
   };
+}
+
+function folderWithin(dir: string, path: string): string | null {
+  const rel = relative(dir, path);
+  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null;
+  return `${rel.split(sep).join("/")}/`;
 }

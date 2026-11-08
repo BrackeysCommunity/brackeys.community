@@ -285,8 +285,9 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   `AssetChangedMessage`).
 - `./vite`: on store, the dev server repairs binaries whose bytes the
   content store lacks (`hash-mismatch`), restores trashed assets a loaded
-  doc still names (`asset-in-use`; also as such a doc loads), and repairs duplicate ids and paths; it
-  writes the code map and this build's schema stamps.
+  doc still names (`asset-in-use`; also as such a doc loads), and repairs
+  duplicate ids and paths; it writes the code map and this build's schema
+  stamps.
 - `./vite`: `GET /__project`, `POST /__project/<id>/blob`
   (`x-expect-sha256`) and `GET /__project/<id>/blob/<sha256>`, same-origin
   only (`PROJECT_ROUTE`). A body that doesn't hash to `x-expect-sha256` is
@@ -311,10 +312,10 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   folder goes, ignoring case); a path a trash or move in the same write
   frees isn't blocked. `applyProjectBatchToFiles` refuses such a batch with
   it, dry run or not, and writes nothing; the dev server warns once,
-  leaves the entry unwritten, and writes it once a file event under the
-  project frees its path. `storeProject` trashes
-  and stages moves before it creates, so a new entry can take a path the
-  same write frees.
+  leaves the entry unwritten, and writes each held entry once a file event
+  under the project frees its own path. `storeProject` trashes and stages
+  moves before it creates, so a new entry can take a path the same write
+  frees.
 - `./vite`: `readProjectPrefabFiles(project, state, registry)` reads a
   project's live prefab assets at their registry paths. `PrefabFiles` gains
   `files` (each read prefab's file).

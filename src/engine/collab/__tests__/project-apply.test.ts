@@ -10,7 +10,7 @@ import { prefabKind } from "../../project/kinds/prefab";
 import { sceneKind } from "../../project/kinds/scene";
 import type { EditSceneOp, ProjectApplyResult, ProjectOp, ProjectOpBatch } from "../../project/ops";
 import type { AssetEntry, ProjectState } from "../../project/types";
-import { engine, engineYard } from "../../scene/__tests__/fixtures/random-ops";
+import { engine, engineYard, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
 import { makeIssue } from "../../scene/issues";
 import type { Prefab, SceneDefinition } from "../../scene/types";
 import * as apply from "../apply";
@@ -383,6 +383,7 @@ describe("applyProjectBatch", () => {
       },
     };
     s.prefabWriter = writer;
+    s.prefabLibrary = () => yardPrefabs();
     const r = ok(
       await applyProjectBatch(
         s,
@@ -697,6 +698,51 @@ describe("removing a prefab through editScene", () => {
     });
     expect(vectors()).toEqual(mid);
     expect(live(session)).toBe(true);
+    source.destroy();
+    session.destroy();
+  });
+
+  it("refuses delegated ops the batch's earlier delegated ops break, and writes nothing", async () => {
+    const { host, session, source } = await shared();
+    await session.open("scene:p.lot");
+    const vectors = () =>
+      ["scene:p.yard", "scene:p.lot", "asset:p.post", "project:p"].map((n) =>
+        Y.encodeStateVector(host.doc(n)),
+      );
+    const before = vectors();
+    const unpack = (id: string, ref: string): ProjectOp => ({
+      op: "editScene",
+      id,
+      ops: [{ op: "unpack", ref }],
+    });
+
+    const removed = await applyProjectBatch(
+      session,
+      { v: 1, ops: [drop("yard", ["post-1", "post-2"]), unpack("lot", "post-9")] },
+      ada,
+    );
+    expect(removed).toMatchObject({
+      ok: false,
+      opIndex: 1,
+      issue: { code: "prefab-unknown", got: "post" },
+    });
+    const twice = await applyProjectBatch(
+      session,
+      { v: 1, ops: [unpack("yard", "post-1"), unpack("yard", "post-1")] },
+      ada,
+    );
+    expect(twice).toMatchObject({ ok: false, opIndex: 1, issue: { code: "ref-not-found" } });
+    expect(vectors()).toEqual(before);
+    expect(live(session)).toBe(true);
+
+    ok(
+      await applyProjectBatch(
+        session,
+        { v: 1, ops: [unpack("lot", "post-9"), drop("yard", ["post-1", "post-2"])] },
+        ada,
+      ),
+    );
+    expect(live(session)).toBe(false);
     source.destroy();
     session.destroy();
   });

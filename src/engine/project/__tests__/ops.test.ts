@@ -879,6 +879,50 @@ describe("references", () => {
       expect(run([later], freed).ok).toBe(false);
     });
 
+    it("judges a later delegated op against the prefabs earlier ones leave", () => {
+      const unpack: ProjectOp = {
+        op: "editScene",
+        id: "field",
+        ops: [{ op: "unpack", ref: "g1" }],
+      };
+      const r = run([drop, unpack]);
+      if (r.ok) throw new Error("expected prefab-unknown");
+      expect([r.opIndex, r.issue.code, r.issue.got]).toEqual([1, "prefab-unknown", "gate"]);
+      expect(run([unpack, drop]).ok).toBe(true);
+    });
+
+    it("refuses a scene it can't replay once the batch has changed the prefabs it may read", () => {
+      const unread = shared({ field: undefined });
+      const onField = (ops: unknown[]): ProjectOp => ({
+        op: "editScene",
+        id: "field",
+        ops: ops as never,
+      });
+      const unpack = run([drop, onField([{ op: "unpack", ref: "g1" }])], unread);
+      if (unpack.ok) throw new Error("expected op-invalid");
+      expect([unpack.opIndex, unpack.issue.code, unpack.issue.entityIds]).toEqual([
+        1,
+        "op-invalid",
+        ["field"],
+      ]);
+      const create = run(
+        [drop, onField([{ op: "createPrefab", refs: ["floor"], id: "gate" }])],
+        unread,
+      );
+      expect(create.ok ? "" : create.issue.message).toContain("removed by op 0");
+
+      const after = run(
+        [
+          onField([{ op: "applyToPrefab", ref: "g1" }]),
+          { op: "editScene", id: "yard", ops: [{ op: "unpack", ref: "g1" }] },
+        ],
+        unread,
+      );
+      if (after.ok) throw new Error("expected op-invalid");
+      expect([after.opIndex, after.issue.code]).toEqual([1, "op-invalid"]);
+      expect(after.issue.message).toContain("op 0");
+    });
+
     it("still judges the removal when the batch isn't given the scene's value", () => {
       const r = run([drop], shared({ yard: undefined }));
       if (r.ok) throw new Error("expected asset-in-use");

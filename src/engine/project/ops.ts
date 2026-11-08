@@ -12,6 +12,7 @@ import { jsonPointer, makeIssue, pointerSegments } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import { applyOps } from "../scene/ops";
 import { usesBulkRefs } from "../scene/ops-schema";
+import { prefabOf, prefabScene, sceneBody } from "../scene/prefab";
 import {
   PREFAB_KIND,
   type IssueCode,
@@ -572,7 +573,11 @@ class BatchWork {
   >();
   /** What the delegated `editScene`s leave their scenes and prefabs, by key: read only to find references. */
   private readonly leaves = new Map<AssetKey, unknown>();
-  /** Delegated `editScene`s in op order, with what they were judged with, for `settleDelegated`. */
+  /**
+   * Delegated `editScene`s in op order, for `settleDelegated`: with the
+   * library as given (their writes land before the batch's renames do) and
+   * the registry they were judged with.
+   */
   private readonly deferred: {
     entry: AssetEntry;
     index: number;
@@ -957,7 +962,7 @@ class BatchWork {
         entry,
         index: this.opIndex,
         ops: op.ops,
-        prefabs: this.prefabsFor(entry),
+        prefabs: this.env.prefabsFor?.(this.givenId(entry)),
         registry: this.judge,
       });
       return;
@@ -995,16 +1000,23 @@ class BatchWork {
 
   /**
    * Replays the delegated `editScene`s the way `applyProjectBatch` writes
-   * them: after every other write, in op order, each scene's ops on what
-   * the batch left it. Fails an op whose ops don't apply there, or that
+   * them: after every other write, in op order, each one's ops on what the
+   * batch left its scene or prefab, against the prefab library the earlier
+   * delegated ops leave. Fails an op whose ops don't apply there, or that
    * defines or changes a prefab an earlier op removed (the prefab writer
    * would patch a trashed doc). Records what they leave each scene and
-   * prefab, and each prefab they remove, for `trashedInUse`; for a scene
-   * whose value wasn't given, its removed prefabs are still judged,
-   * against every referrer but that scene.
+   * prefab, and each prefab they remove, for `trashedInUse`. A scene whose
+   * value wasn't given can't be replayed: its removed prefabs are still
+   * judged, against every referrer but that scene, and it is refused when
+   * an earlier op changes the library it would read, or when a later
+   * op's library would depend on what it does.
    */
   settleDelegated(): void {
     const removedAt = new Map(this.deletedAt);
+    /** What the delegated ops so far did to the library, by id; null for a removal. */
+    const changes = new Map<AssetId, Prefab | null>();
+    /** The first unread op that changed prefabs in a way the check can't follow. */
+    let unknownBy: number | undefined;
     for (const d of this.deferred) {
       this.opIndex = d.index;
       const earlier = (id: AssetId) => {
@@ -1017,21 +1029,47 @@ class BatchWork {
           { entityIds: [id] },
         );
       };
-      if (d.entry.kind !== SCENE_KIND_NAME) {
-        earlier(d.entry.id);
-        continue;
-      }
+      const unjudged = (why: string) =>
+        this.fail(
+          "op-invalid",
+          `"${d.entry.id}" can't be judged with the batch: ${why}; apply them in batches of their own`,
+          "ops",
+          { entityIds: [d.entry.id] },
+        );
+      if (unknownBy !== undefined)
+        unjudged(
+          `op ${unknownBy} changes prefabs in a way the check can't follow from what it was given`,
+        );
+      const library = withChanges(d.prefabs, changes);
       const key = d.entry.key;
-      const own = (this.leaves.has(key) ? this.leaves.get(key) : this.peek(d.entry)) as
-        | SceneDefinition
-        | undefined;
+      const isScene = d.entry.kind === SCENE_KIND_NAME;
+      if (!isScene) earlier(d.entry.id);
+      const known = this.leaves.has(key) ? this.leaves.get(key) : this.peek(d.entry);
+      const ownPrefab = isScene ? undefined : isPrefab(known) ? known : library?.get(d.entry.id);
+      const own = isScene
+        ? (known as SceneDefinition | undefined)
+        : ownPrefab && prefabScene(ownPrefab, PREFAB_EDIT_BOUNDS);
       if (own === undefined) {
+        if (!isScene) {
+          unknownBy ??= d.index;
+          continue;
+        }
+        for (const op of d.ops)
+          if ((op.op === "definePrefab" && op.prefab !== null) || op.op === "createPrefab")
+            earlier(op.id);
+        if (changes.size > 0)
+          unjudged(
+            "its content wasn't given, and earlier ops of this batch change prefabs it may read",
+          );
         for (const op of d.ops) {
+          if (op.op === "applyToPrefab" || op.op === "createPrefab") unknownBy ??= d.index;
           if (op.op !== "definePrefab") continue;
           if (op.prefab !== null) {
-            earlier(op.id);
+            const prev = library?.get(op.id);
+            changes.set(op.id, prefabOf(op.id, op.prefab, prev?.game));
             continue;
           }
+          changes.set(op.id, null);
           const prefab = this.view.byId.get(op.id);
           if (prefab?.kind !== PREFAB_KIND) continue;
           this.trashing.set(op.id, {
@@ -1047,25 +1085,50 @@ class BatchWork {
       let batch: OpBatch = { ops: d.ops };
       if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(own) };
       const result = applyOps(own, batch, d.registry, {
-        ...(d.prefabs ? { prefabs: d.prefabs } : {}),
+        ...(library ? { prefabs: library } : {}),
         validate: "none",
       });
       if (!result.ok) {
         const { code, message, path, ...rest } = result.issue;
-        this.fail(code, message, undefined, {
-          ...rest,
-          path: `${jsonPointer(["ops", d.index])}${path ?? ""}`,
-          entityIds: rest.entityIds.length > 0 ? rest.entityIds : [d.entry.id],
-        });
+        const renamed =
+          code === "prefab-unknown" && [...this.prefabIds.values()].some((to) => to === rest.got);
+        this.fail(
+          renamed ? "op-invalid" : code,
+          renamed
+            ? `prefab "${String(rest.got)}" is a new id this batch gives a prefab, and ops that write prefabs see it only once the batch is written; do them in a batch of their own`
+            : message,
+          undefined,
+          {
+            ...rest,
+            path: `${jsonPointer(["ops", d.index])}${path ?? ""}`,
+            entityIds: rest.entityIds.length > 0 ? rest.entityIds : [d.entry.id],
+          },
+        );
       }
-      this.leaves.set(key, result.def);
+      if (ownPrefab) {
+        if (result.def.entities?.some((e) => e.group !== undefined))
+          this.fail(
+            "op-invalid",
+            `"${d.entry.id}": a prefab's children can't join a group; an instance takes its group`,
+            "ops",
+            { entityIds: [d.entry.id] },
+          );
+        const { entities: _e, bulk: _b, contract, ...head } = ownPrefab;
+        const next: Prefab = { ...head, ...sceneBody(result.def, d.registry, contract) };
+        this.leaves.set(key, next);
+        changes.set(d.entry.id, next);
+      } else this.leaves.set(key, result.def);
       if (!result.prefabsChanged || !result.prefabs) continue;
       for (const id of result.prefabsChanged) {
         const prefab = this.view.byId.get(id);
-        if (result.prefabs.has(id)) {
+        const next = result.prefabs.get(id);
+        if (next) {
           earlier(id);
-          if (prefab?.kind === PREFAB_KIND) this.leaves.set(prefab.key, result.prefabs.get(id));
-        } else if (prefab?.kind === PREFAB_KIND && d.prefabs?.has(id)) {
+          changes.set(id, next);
+          if (prefab?.kind === PREFAB_KIND) this.leaves.set(prefab.key, next);
+        } else if (library?.has(id)) {
+          changes.set(id, null);
+          if (prefab?.kind !== PREFAB_KIND) continue;
           this.trashing.set(id, { entry: prefab, index: d.index, by: "editScene" });
           removedAt.set(id, d.index);
         }
@@ -1559,6 +1622,23 @@ function withOptional(
 
 const isPrefab = (v: unknown): v is Prefab =>
   isPlainObject(v) && v.kind === PREFAB_KIND && Array.isArray(v.entities);
+
+/** Where a prefab's children are replayed as a scene; the replay never validates, so only its shape matters. */
+const PREFAB_EDIT_BOUNDS: SceneDefinition["bounds"] = [-1e6, -1e6, 1e6, 1e6];
+
+/** `library` with `changes` laid over it (null removes an id); `library` itself when nothing changed. */
+function withChanges(
+  library: PrefabLibrary | undefined,
+  changes: ReadonlyMap<AssetId, Prefab | null>,
+): PrefabLibrary | undefined {
+  if (changes.size === 0) return library;
+  const out = new Map(library ?? []);
+  for (const [id, prefab] of changes) {
+    if (prefab) out.set(id, { ...prefab, id });
+    else out.delete(id);
+  }
+  return out;
+}
 
 /**
  * `registry` with each material in `ids` (old → new, in the order given)

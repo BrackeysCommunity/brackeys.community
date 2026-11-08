@@ -533,11 +533,13 @@ export async function applyProjectBatch(
     if ((op.op !== "editAsset" && op.op !== "editScene") || typeof op.id !== "string") continue;
     const entry = first.byId.get(op.id);
     if (!entry) continue;
+    const name = session.docNameFor(entry);
     if (op.op === "editScene" && writesPrefabs(op as EditSceneOp, entry.kind)) {
       prefabOps.push({ index, op: op as EditSceneOp, entry });
+      // Read too, so the check replays it on what the batch's earlier ops leave its doc.
+      if (name) scans.set(entry.id, { name, kind: entry.kind });
       continue;
     }
-    const name = session.docNameFor(entry);
     if (name && !reads.has(op.id)) reads.set(op.id, { index, name, kind: entry.kind });
   }
   if (scanAll)

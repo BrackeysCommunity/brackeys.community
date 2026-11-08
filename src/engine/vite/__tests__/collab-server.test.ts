@@ -283,6 +283,55 @@ describe("the dev collab server: the project doc", () => {
     expect(warnings.some((w) => w.includes("asset-in-use"))).toBe(true);
   });
 
+  it("writes each held entry as its own path frees, whichever is reported", async () => {
+    await start(["engine-yard.json", "prefabs/post.json", "prefabs/gate.json"]);
+    await writeFile(copy.file("stuff"), "a file");
+    await writeFile(copy.file("other"), "a file");
+    const postText = await copy.read("prefabs/post.json");
+    const gateText = await copy.read("prefabs/gate.json");
+    const project = await open(PROJECT);
+    const entry = (id: string) => readProject(project.doc).assets[id]!;
+    writeEntry(project.doc, { ...entry("post"), path: "stuff/post.json" });
+    writeEntry(project.doc, { ...entry("gate"), path: "other/gate.json" });
+    await pushed(project.provider);
+    await until(() => warnings.some((w) => w.includes("path-taken")), "the path-taken warning");
+    const reported = warnings.find((w) => w.includes("path-taken"))!;
+    const [first, second] = reported.includes('blocked by "stuff"')
+      ? (["stuff", "other"] as const)
+      : (["other", "stuff"] as const);
+    const moved: Record<string, readonly [string, string]> = {
+      stuff: ["stuff/post.json", postText],
+      other: ["other/gate.json", gateText],
+    };
+
+    await rm(copy.file(second));
+    const [secondPath, secondText] = moved[second]!;
+    await until(
+      () =>
+        copy.read(secondPath).then(
+          () => true,
+          () => false,
+        ),
+      `${secondPath} once only its own holder is gone`,
+    );
+    await server.idle();
+    expect(await copy.read(secondPath)).toBe(secondText);
+    expect(await copy.read(first)).toBe("a file");
+
+    await rm(copy.file(first));
+    const [firstPath, firstText] = moved[first]!;
+    await until(
+      () =>
+        copy.read(firstPath).then(
+          () => true,
+          () => false,
+        ),
+      `${firstPath} once its holder is gone`,
+    );
+    await server.idle();
+    expect(await copy.read(firstPath)).toBe(firstText);
+  });
+
   it("leaves a forced delete trashed while its referrers are closed, and restores it once one loads", async () => {
     await start(["kitchen-sink.json", "prefabs/post.json", "prefabs/gate.json"]);
     const project = await open(PROJECT);

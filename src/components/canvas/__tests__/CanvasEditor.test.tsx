@@ -39,7 +39,10 @@ vi.mock("@/orpc/client", () => ({
   orpc: {},
 }));
 
-beforeAll(() => {
+beforeAll(async () => {
+  // Without a Worker the import job loads this module on the first drop;
+  // loading it here keeps that transform out of the drop test's time budget.
+  await import("../io/canvas-io-jobs");
   // React Flow measures its container and nodes; jsdom has no layout.
   vi.stubGlobal(
     "ResizeObserver",
