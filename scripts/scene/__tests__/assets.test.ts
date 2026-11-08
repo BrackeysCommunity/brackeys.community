@@ -1,0 +1,391 @@
+// @vitest-environment node
+import { cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { parseSidecar, sha256 } from "@jams/engine/project";
+import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+
+import { runCli } from "../commands";
+import type { ToolContext } from "../context";
+import { readLiveScene } from "../project-client";
+import { loadCompatRapier } from "../rapier-compat";
+import { tempProject } from "./fixtures";
+
+const ENGINE_SCENES = fileURLToPath(new URL("../../../src/engine/scenes", import.meta.url));
+const FIXTURES = fileURLToPath(
+  new URL("../../../src/engine/project/__tests__/fixtures", import.meta.url),
+);
+
+/** A 1×1 PNG. */
+const DOT = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
+const RUBBER = { kind: "material", v: 1, description: "Bouncy." };
+
+let root: string;
+let deck: string;
+let ctx: ToolContext;
+
+type Data = Record<string, unknown>;
+
+async function run(...argv: string[]) {
+  const r = await runCli([...argv, "--json"], ctx);
+  return { exitCode: r.exitCode, data: JSON.parse(r.stdout) as Data };
+}
+
+/** Every file under `dir` with its bytes, by relative path. */
+async function tree(dir: string): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const entry of await readdir(dir, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const path = join(entry.parentPath, entry.name);
+    out[relative(dir, path)] = (await readFile(path)).toString("base64");
+  }
+  return out;
+}
+
+const ids = (data: Data) => (data.assets as { id: string }[]).map((a) => a.id);
+
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), "scene-assets-"));
+  deck = join(root, "deck");
+  await cp(ENGINE_SCENES, deck, { recursive: true });
+  await writeFile(join(root, "dot.png"), DOT);
+  await writeFile(join(root, "rubber.json"), JSON.stringify(RUBBER));
+  ctx = { projects: [await tempProject(deck, { id: "deck" })], loadRapier: loadCompatRapier };
+});
+
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true });
+});
+
+describe("assets on files", () => {
+  it("list shows every live asset by path", async () => {
+    const r = await run("assets", "list");
+    expect(r.exitCode).toBe(0);
+    expect(ids(r.data)).toEqual([
+      "cards",
+      "engine-yard-checks",
+      "engine-yard",
+      "game-settings",
+      "kitchen-sink-checks",
+      "kitchen-sink",
+      "bouncy",
+      "gate",
+      "post",
+    ]);
+    expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(2);
+    expect((await run("assets", "list", "--trash")).data.assets).toEqual([]);
+  });
+
+  it("import copies a binary to its path, with its sidecar and registry entry", async () => {
+    const r = await run("assets", "import", join(root, "dot.png"), "--path", "art/");
+    expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    expect(r.data).toMatchObject({ written: true, created: ["dot"] });
+    expect(await readFile(join(deck, "art/dot.png"))).toEqual(DOT);
+    const sidecar = parseSidecar(await readFile(join(deck, "art/dot.png.asset.json"), "utf8"));
+    expect(sidecar.ok && sidecar.sidecar).toMatchObject({
+      id: "dot",
+      sha256: await sha256(new Uint8Array(DOT)),
+      bytes: DOT.byteLength,
+      meta: { format: "png", width: 1, height: 1 },
+    });
+    const listed = await run("assets", "list", "--kind", "texture");
+    expect(listed.data.assets).toEqual([
+      expect.objectContaining({ id: "dot", path: "art/dot.png", bytes: DOT.byteLength }),
+    ]);
+  });
+
+  it("import makes a doc kind's file a createAsset, in the kind's folder", async () => {
+    const r = await run("assets", "import", join(root, "rubber.json"));
+    expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    expect(JSON.parse(await readFile(join(deck, "materials/rubber.json"), "utf8"))).toMatchObject(
+      RUBBER,
+    );
+    expect(ids((await run("assets", "list", "--kind", "material")).data)).toEqual([
+      "bouncy",
+      "rubber",
+    ]);
+  });
+
+  it("import tells an Aseprite or TexturePacker JSON by its meta.app, with no --kind", async () => {
+    const png = [
+      "assets",
+      "import",
+      join(FIXTURES, "hero.png"),
+      "--path",
+      "art/",
+      "--id",
+      "hero-art",
+    ];
+    expect((await run(...png)).exitCode).toBe(0);
+    for (const [file, tool] of [
+      ["hero.json", "aseprite"],
+      ["items.json", "texturepacker"],
+    ] as const) {
+      const r = await run("assets", "import", join(FIXTURES, file), "--path", "art/");
+      expect(r.exitCode, `${file}: ${JSON.stringify(r.data)}`).toBe(0);
+      const raw = await readFile(join(deck, `art/${file}.asset.json`), "utf8");
+      const sidecar = parseSidecar(raw);
+      expect(sidecar.ok && sidecar.sidecar, file).toMatchObject({
+        assetKind: "atlas",
+        meta: { tool },
+      });
+    }
+    const hero = parseSidecar(await readFile(join(deck, "art/hero.json.asset.json"), "utf8"));
+    expect(hero.ok && hero.sidecar.import).toEqual({ texture: "hero-art" });
+    const listed = await run("assets", "list", "--kind", "atlas");
+    expect(listed.data.assets).toEqual([
+      expect.objectContaining({ id: "hero", path: "art/hero.json" }),
+      expect.objectContaining({ id: "items", path: "art/items.json" }),
+    ]);
+
+    await writeFile(join(root, "frames.json"), JSON.stringify({ frames: {}, meta: {} }));
+    const unnamed = await run("assets", "import", join(root, "frames.json"), "--dry-run");
+    expect(unnamed.exitCode).toBe(2);
+    expect(String(unnamed.data.error)).toMatch(/no asset kind matches/);
+  });
+
+  it("rename, move and set-import edit the registry, the files and their sidecars", async () => {
+    await run("assets", "import", join(root, "dot.png"), "--path", "art/");
+    expect((await run("assets", "rename", "dot", "--name", "Dot")).exitCode).toBe(0);
+    expect((await run("assets", "move", "dot", "--to", "sprites")).exitCode).toBe(0);
+    const set = await run("assets", "set-import", "dot", "--set", "filter=nearest");
+    expect(set.exitCode, JSON.stringify(set.data)).toBe(0);
+    expect(await readFile(join(deck, "sprites/dot.png"))).toEqual(DOT);
+    const sidecar = parseSidecar(await readFile(join(deck, "sprites/dot.png.asset.json"), "utf8"));
+    expect(sidecar.ok && sidecar.sidecar).toMatchObject({
+      name: "Dot",
+      import: { filter: "nearest" },
+    });
+    expect((await tree(deck))["art/dot.png"]).toBeUndefined();
+    const renamed = await run("assets", "rename", "post", "--file", "pillar.json");
+    expect(renamed.exitCode, JSON.stringify(renamed.data)).toBe(0);
+    expect(Object.keys(await tree(deck))).toContain("prefabs/pillar.json");
+  });
+
+  it("change-id rewrites every reference; delete refuses an asset in use unless forced; restore brings it back", async () => {
+    const changed = await run("assets", "change-id", "post", "pillar");
+    expect(changed.exitCode, JSON.stringify(changed.data)).toBe(0);
+    expect(changed.data).toMatchObject({ written: true });
+    const sink = JSON.parse(await readFile(join(deck, "kitchen-sink.json"), "utf8")) as {
+      instances: { prefab: string }[];
+    };
+    expect(sink.instances.map((i) => i.prefab)).toEqual(["pillar", "pillar", "gate", "gate"]);
+
+    const refused = await run("assets", "delete", "pillar");
+    expect(refused.exitCode).toBe(1);
+    expect(refused.data).toMatchObject({ written: false, issue: { code: "asset-in-use" } });
+    const forced = await run("assets", "delete", "pillar", "--force");
+    expect(forced.exitCode).toBe(1);
+    expect(forced.data).toMatchObject({
+      written: true,
+      issues: [{ code: "asset-missing" }, { code: "asset-missing" }],
+    });
+    expect(ids((await run("assets", "list", "--trash")).data)).toEqual(["pillar"]);
+    const restored = await run("assets", "restore", "pillar");
+    expect(restored.exitCode, JSON.stringify(restored.data)).toBe(0);
+    expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toContain("pillar");
+  });
+
+  it("apply takes a project op batch; a stale base exits 3 and the current one applies", async () => {
+    const batch = (base: string) => ({
+      v: 1,
+      base,
+      ops: [
+        { op: "renameAsset", id: "gate", name: "The gate" },
+        { op: "moveAsset", ids: ["gate"], to: "kit/" },
+      ],
+    });
+    const ops = join(root, "ops.json");
+    await writeFile(ops, JSON.stringify(batch("0".repeat(64))));
+    const stale = await run("assets", "apply", "--ops", ops);
+    expect(stale.exitCode).toBe(3);
+    expect(stale.data).toMatchObject({ issue: { code: "stale-base" }, written: false });
+
+    const { hash } = (await run("project", "snapshot")).data as { hash: string };
+    await writeFile(ops, JSON.stringify(batch(hash)));
+    const applied = await run("assets", "apply", "--ops", ops);
+    expect(applied.exitCode, JSON.stringify(applied.data)).toBe(0);
+    expect((await run("assets", "list")).data.assets).toContainEqual(
+      expect.objectContaining({ id: "gate", name: "The gate", path: "kit/gate.json" }),
+    );
+    const now = (await run("project", "snapshot")).data.hash;
+    expect(now).not.toBe(hash);
+    expect((await run("assets", "rename", "gate", "--name", "x", "--base", hash)).exitCode).toBe(3);
+    expect(
+      (await run("assets", "rename", "gate", "--name", "x", "--base", String(now))).exitCode,
+    ).toBe(0);
+  });
+
+  it("--dry-run reports what every writer would do and writes nothing", async () => {
+    await run("assets", "import", join(root, "dot.png"), "--path", "art/");
+    const before = await tree(root);
+    const ops = join(root, "ops.json");
+    await writeFile(
+      ops,
+      JSON.stringify({ v: 1, ops: [{ op: "renameAsset", id: "gate", name: "G" }] }),
+    );
+    const after = { ...before, [relative(root, ops)]: (await readFile(ops)).toString("base64") };
+    await writeFile(join(root, "big.png"), Buffer.concat([DOT]));
+    after["big.png"] = (await readFile(join(root, "big.png"))).toString("base64");
+    for (const argv of [
+      ["assets", "import", join(root, "rubber.json")],
+      ["assets", "rename", "gate", "--name", "Gate"],
+      ["assets", "move", "gate", "post", "--to", "kit/"],
+      ["assets", "delete", "dot"],
+      ["assets", "change-id", "post", "pillar"],
+      ["assets", "set-import", "dot", "--set", '{"filter":"nearest"}'],
+      ["assets", "apply", "--ops", ops],
+    ]) {
+      const r = await run(...argv, "--dry-run");
+      expect(r.exitCode, `${argv.join(" ")}: ${JSON.stringify(r.data)}`).toBe(0);
+      expect(r.data).toMatchObject({ dryRun: true, written: false });
+    }
+    const imported = await run("assets", "import", join(root, "big.png"), "--dry-run");
+    expect(imported.data).toMatchObject({ created: ["big"], written: false });
+    expect(await tree(root)).toEqual(after);
+  });
+
+  it("an id two projects hold needs --project, which exits 2 when it names no project", async () => {
+    const other = join(root, "other");
+    await cp(join(deck, "prefabs"), join(other, "prefabs"), { recursive: true });
+    ctx = { ...ctx, projects: [...ctx.projects, await tempProject(other, { id: "other" })] };
+    const ambiguous = await run("assets", "rename", "post", "--name", "Post");
+    expect(ambiguous.exitCode).toBe(2);
+    expect(String(ambiguous.data.error)).toMatch(/more than one project: deck, other/);
+    const picked = await run("assets", "rename", "post", "--name", "Post", "--project", "other");
+    expect(picked.exitCode, JSON.stringify(picked.data)).toBe(0);
+    expect(picked.data).toMatchObject({ project: "other" });
+    expect((await run("assets", "list", "--project", "nope")).exitCode).toBe(2);
+    expect((await run("assets", "import", join(root, "dot.png"))).exitCode).toBe(2);
+  });
+
+  it("exits 2 on usage and 1 on a missing asset or file", async () => {
+    expect((await run("assets", "move", "gate")).exitCode).toBe(2);
+    expect((await run("assets", "rename", "gate")).exitCode).toBe(2);
+    expect((await run("assets", "set-import", "gate", "--set", "oops")).exitCode).toBe(2);
+    expect((await run("assets", "rename", "gate", "--name", "x", "--url", "ws://x")).exitCode).toBe(
+      2,
+    );
+    expect((await run("assets", "rename", "nope", "--name", "x")).exitCode).toBe(1);
+    expect((await run("assets", "import", join(root, "missing.png"))).exitCode).toBe(1);
+    expect((await run("assets", "restore", "gate")).exitCode).toBe(1);
+  });
+});
+
+describe("assets --live", () => {
+  let server: ListeningSceneCollab;
+
+  async function until(check: () => Promise<boolean>, what: string, ms = 5_000) {
+    const end = Date.now() + ms;
+    while (!(await check())) {
+      if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  }
+
+  beforeEach(async () => {
+    server = await listenSceneCollab({
+      projects: [await readFileProject(deck, { cacheDir: join(root, "server-cache") })],
+      debounceMs: 50,
+      warn: () => undefined,
+    });
+  });
+
+  afterEach(async () => {
+    await server.close();
+  });
+
+  const live = (...argv: string[]) => run(...argv, "--live", "--url", server.url);
+
+  it("lists, renames and changes ids on the server's docs as the agent", async () => {
+    const listed = await live("assets", "list");
+    expect(listed.exitCode, JSON.stringify(listed.data)).toBe(0);
+    expect(listed.data).toMatchObject({ live: true });
+    expect(ids(listed.data)).toContain("kitchen-sink");
+
+    const renamed = await live("assets", "rename", "gate", "--name", "Gate", "--agent", "claude");
+    expect(renamed.exitCode, JSON.stringify(renamed.data)).toBe(0);
+    expect(renamed.data).toMatchObject({ live: true, written: true, actor: { agentId: "claude" } });
+
+    const changed = await live("assets", "change-id", "post", "pillar");
+    expect(changed.exitCode, JSON.stringify(changed.data)).toBe(0);
+    const { text } = await readLiveScene({
+      projects: ctx.projects,
+      url: server.url,
+      scene: "kitchen-sink",
+    });
+    expect(text).toContain('"prefab": "pillar"');
+    expect((await live("assets", "list")).data.assets).toContainEqual(
+      expect.objectContaining({ id: "gate", name: "Gate" }),
+    );
+    await until(
+      async () =>
+        (await readFile(join(deck, "kitchen-sink.json"), "utf8")).includes('"prefab": "pillar"'),
+      "the server to write the scene back",
+    );
+  });
+
+  it("imports a binary: the bytes upload to the server's store, then importAsset names them", async () => {
+    const dry = await live(
+      "assets",
+      "import",
+      join(root, "dot.png"),
+      "--path",
+      "art/",
+      "--dry-run",
+    );
+    expect(dry.exitCode, JSON.stringify(dry.data)).toBe(0);
+    expect(dry.data).toMatchObject({ dryRun: true, written: false, created: ["dot"] });
+    expect(ids((await live("assets", "list")).data)).not.toContain("dot");
+
+    const r = await live("assets", "import", join(root, "dot.png"), "--path", "art/");
+    expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    const hash = await sha256(new Uint8Array(DOT));
+    expect((await live("assets", "list", "--kind", "texture")).data.assets).toEqual([
+      expect.objectContaining({ id: "dot", path: "art/dot.png", sha256: hash }),
+    ]);
+    const blob = await fetch(new URL(`/__project/deck/blob/${hash}`, server.httpUrl));
+    expect(Buffer.from(await blob.arrayBuffer())).toEqual(DOT);
+  });
+
+  it("imports an atlas export told by its meta.app, with no --kind", async () => {
+    for (const file of ["hero.json", "items.json"]) {
+      const r = await live("assets", "import", join(FIXTURES, file), "--path", "art/");
+      expect(r.exitCode, `${file}: ${JSON.stringify(r.data)}`).toBe(0);
+    }
+    const atlases = (await live("assets", "list", "--kind", "atlas")).data.assets;
+    expect(atlases).toEqual([
+      expect.objectContaining({ id: "hero", path: "art/hero.json" }),
+      expect.objectContaining({ id: "items", path: "art/items.json" }),
+    ]);
+    await until(async () => {
+      const raw = await readFile(join(deck, "art/items.json.asset.json"), "utf8").catch(() => "");
+      const sidecar = parseSidecar(raw);
+      return sidecar.ok && sidecar.sidecar.assetKind === "atlas";
+    }, "the server to write the atlas's sidecar");
+  });
+
+  it("fails fast with no server, and refuses --base on a live batch", async () => {
+    const down = await run(
+      "assets",
+      "rename",
+      "gate",
+      "--name",
+      "x",
+      "--live",
+      "--url",
+      "ws://127.0.0.1:9/__scene-collab",
+    );
+    expect(down.exitCode).toBe(1);
+    expect(String(down.data.error)).toMatch(/Can't reach/);
+    expect(
+      (await live("assets", "rename", "gate", "--name", "x", "--base", "0".repeat(64))).exitCode,
+    ).toBe(2);
+  });
+});

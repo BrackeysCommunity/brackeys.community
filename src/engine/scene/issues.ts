@@ -160,6 +160,70 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Pick an unused id, or omit it on add to get a generated one.",
     fixable: false,
   },
+  "asset-missing": {
+    severity: "error",
+    summary: "A reference names an asset the project has no live asset for.",
+    hint: "Point it at an existing asset (the message suggests the closest id), restore the asset from the trash, or remove the reference.",
+    fixable: false,
+  },
+  "asset-kind": {
+    severity: "error",
+    summary:
+      "An asset's kind isn't registered, doesn't fit the file's extension or the op, or a one-per-project kind has a second asset.",
+    hint: "Use a kind the project registers, with a path whose extension that kind matches; an immutable kind (recordings) can't take new content.",
+    fixable: false,
+  },
+  "asset-in-use": {
+    severity: "error",
+    summary: "An asset can't be deleted while other assets reference it.",
+    hint: "Remove or repoint the references `detail.referrers` lists, or delete with `force` and fix them after.",
+    fixable: false,
+  },
+  "asset-id-taken": {
+    severity: "error",
+    summary: "Two live assets share an id.",
+    hint: "Rename the later one with changeAssetId; the project's server appends -2 until then.",
+    fixable: false,
+  },
+  "path-taken": {
+    severity: "error",
+    summary: "Two live assets share a path, or paths that differ only in case.",
+    hint: "Move or rename one of them; the project's server suffixes the later one's file name until then.",
+    fixable: false,
+  },
+  "hash-mismatch": {
+    severity: "error",
+    summary:
+      "Bytes don't match the content hash claimed for them, or an op names a hash the content store doesn't hold.",
+    hint: "Upload the bytes to the content store first and use the hash it returns.",
+    fixable: false,
+  },
+  "code-skew": {
+    severity: "warn",
+    summary:
+      "A newer build of the game's code changed this kind's schema, so this client can only read docs of that kind.",
+    hint: "Reload with the newer build to edit again.",
+    fixable: false,
+  },
+  "asset-too-large": {
+    severity: "error",
+    summary: "An asset is larger than its kind allows.",
+    hint: "Shrink the file, or split it into several assets.",
+    fixable: false,
+  },
+  "import-failed": {
+    severity: "error",
+    summary:
+      "An imported file couldn't be read as its kind: its header or JSON isn't what the kind expects.",
+    hint: "Re-export the file from its tool, or import it as another kind.",
+    fixable: false,
+  },
+  "quota-exceeded": {
+    severity: "error",
+    summary: "The project is out of room for what the op adds.",
+    hint: "The message names the limit; empty the trash or remove unused assets, then retry.",
+    fixable: false,
+  },
 };
 
 /**

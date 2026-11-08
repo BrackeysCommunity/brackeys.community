@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bu
 
 import * as Y from "yjs";
 
+import { COLLAB_LAYOUT_VERSION } from "../../../src/engine/collab/types.ts";
 import { documentName, SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
 import { signCanvasToken } from "../../../src/lib/canvas/token.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
@@ -156,5 +157,92 @@ describe("scene auth", () => {
     // The provider names the scene doc; a token for a canvas doesn't match it.
     expect(await until(() => client.authFailures.length > 0, 3000)).toBe(true);
     expect(client.authFailures[0]).toContain("another document");
+  });
+
+  describe("project-scoped tokens", () => {
+    const projectToken = (project: string, userId: string) =>
+      signCanvasToken(
+        {
+          c: documentName("project", project),
+          u: userId,
+          a: "write",
+          k: "project",
+          s: "project",
+          f: SCENE_FORMAT_VERSION,
+          l: COLLAB_LAYOUT_VERSION,
+        },
+        SECRET,
+      );
+    const projectScene = (project: string) => {
+      const id = newSceneId(project);
+      store.create(id);
+      return id;
+    };
+
+    it("one token opens every scene of its project, and no other project's", async () => {
+      const project = `p-${crypto.randomUUID().slice(0, 8)}`;
+      const token = () => projectToken(project, "alice");
+      const first = open(server.port, projectScene(project), "alice", { token });
+      const second = open(server.port, projectScene(project), "alice", { token });
+      expect(await sceneSynced(first)).toBe(true);
+      expect(await sceneSynced(second)).toBe(true);
+      expect(first.scope()).toBe("read-write");
+
+      const elsewhere = open(server.port, projectScene(`${project}-other`), "alice", { token });
+      expect(await until(() => elsewhere.authFailures.length > 0, 3000)).toBe(true);
+      expect(elsewhere.authFailures[0]).toContain("another document");
+    });
+
+    it("an unscoped project token opens none of its project's scenes", async () => {
+      const project = `p-${crypto.randomUUID().slice(0, 8)}`;
+      const client = open(server.port, projectScene(project), "alice", {
+        token: () =>
+          signCanvasToken(
+            {
+              c: documentName("project", project),
+              u: "alice",
+              a: "write",
+              k: "project",
+              f: SCENE_FORMAT_VERSION,
+              l: COLLAB_LAYOUT_VERSION,
+            },
+            SECRET,
+          ),
+      });
+      expect(await until(() => client.authFailures.length > 0, 3000)).toBe(true);
+      expect(client.authFailures[0]).toContain("another document");
+    });
+
+    it("revoking the project closes every scene of it and refuses its token after", async () => {
+      const project = `p-${crypto.randomUUID().slice(0, 8)}`;
+      const other = `${project}-other`;
+      const token = await projectToken(project, "frank");
+      const sceneA = projectScene(project);
+      const sceneB = projectScene(project);
+      const frankA = open(server.port, sceneA, "frank", { token: async () => token });
+      const frankB = open(server.port, sceneB, "frank", { token: async () => token });
+      const aliceA = open(server.port, sceneA, "alice");
+      const frankOther = open(server.port, projectScene(other), "frank", {
+        token: () => projectToken(other, "frank"),
+      });
+      for (const client of [frankA, frankB, aliceA, frankOther]) {
+        expect(await sceneSynced(client)).toBe(true);
+      }
+
+      expect(server.handleRevoke({ projectId: project, userId: "frank" })).toBe(2);
+      expect(await until(() => frankA.stopped() === SYNC_CLOSE.revoked, 3000)).toBe(true);
+      expect(await until(() => frankB.stopped() === SYNC_CLOSE.revoked, 3000)).toBe(true);
+      await sleep(200);
+      expect(aliceA.closes).toEqual([]);
+      expect(frankOther.closes).toEqual([]);
+
+      const again = open(server.port, projectScene(project), "frank", { token: async () => token });
+      expect(await until(() => again.authFailures.length > 0, 3000)).toBe(true);
+      expect(again.authFailures[0]).toContain("access revoked");
+
+      expect(server.handleRevoke({ projectId: project })).toBe(1);
+      expect(await until(() => aliceA.stopped() === SYNC_CLOSE.revoked, 3000)).toBe(true);
+      expect(frankOther.closes).toEqual([]);
+    });
   });
 });

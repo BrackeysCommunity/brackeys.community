@@ -1,9 +1,10 @@
 import { SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import {
-  documentName,
   REVOKE_CLOCK_SKEW_MS,
   type RevokeMessage,
+  revokeReaches,
   revokeSubject,
+  revokeSubjectsCovering,
   SYNC_CLOSE,
   syncClose,
 } from "../../../src/lib/canvas/sync-channels.ts";
@@ -22,26 +23,16 @@ function userIdOf(connection: RevocableConnection): string | undefined {
   return typeof context?.userId === "string" ? context.userId : undefined;
 }
 
-/** The live document a revoke names, if it names one. */
-function revokedDocumentName(message: RevokeMessage): string | null {
-  if (message.canvasId) return documentName("canvas", message.canvasId);
-  if (message.sceneId) return documentName("scene", message.sceneId);
-  return null;
-}
-
 /**
- * The connections a revoke closes: one person's on one document, everyone's
- * on a document, or one person's everywhere.
+ * The connections a revoke closes: one person's or everyone's on one
+ * document or on every document of a project, or one person's everywhere.
  */
 export function connectionsToRevoke(
   documents: ReadonlyMap<string, RevocableDocument>,
   message: RevokeMessage,
 ): RevocableConnection[] {
-  const name = revokedDocumentName(message);
-  const scope = name
-    ? [documents.get(name)].filter((d) => d !== undefined)
-    : [...documents.values()];
-  return scope.flatMap((document) =>
+  const scope = [...documents].filter(([name]) => revokeReaches(message, name));
+  return scope.flatMap(([, document]) =>
     document
       .getConnections()
       .filter((connection) => !message.userId || userIdOf(connection) === message.userId),
@@ -102,14 +93,17 @@ export class RevocationList {
   }
 
   /**
-   * Whether a token for this user and subject (a canvas id, or `scene:<id>`),
-   * minted at `mintedAt`, predates a revoke covering it.
+   * Whether a token for this user and subject (a canvas id, or a document
+   * name), minted at `mintedAt`, predates a revoke covering it: one of that
+   * subject, of its project, or of the user everywhere.
    */
   covers(subject: string, userId: string, mintedAt: number, now: number): boolean {
     this.sweep(now);
     for (const key of [
-      RevocationList.key(subject, userId),
-      RevocationList.key(subject, undefined),
+      ...revokeSubjectsCovering(subject).flatMap((covering) => [
+        RevocationList.key(covering, userId),
+        RevocationList.key(covering, undefined),
+      ]),
       RevocationList.key(undefined, userId),
     ]) {
       const at = this.revokedAt.get(key);

@@ -1,8 +1,11 @@
 import type * as Y from "yjs";
 
+import { sameValue, stableJson } from "../project/canonical";
 import { hashText } from "../scene/hash";
 import { randomKey } from "./keys";
 import { LOG_ARRAY, Z_FIELD, type LogEntry } from "./types";
+
+export { sameValue, stableJson };
 
 /** How many entries the doc keeps; the oldest go first. */
 export const LOG_CAP = 200;
@@ -12,20 +15,6 @@ export const LOG_ENTRY_MAX_CHARS = 64 * 1024;
 export type LogInput = Omit<LogEntry, "id" | "at"> & { at?: number };
 
 export const logArray = (doc: Y.Doc) => doc.getArray<LogEntry>(LOG_ARRAY);
-
-/** JSON with object keys sorted, so equal values give equal text whatever order their keys were set in. */
-export function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    const keys = Object.keys(value)
-      .filter((k) => (value as Record<string, unknown>)[k] !== undefined)
-      .sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableJson((value as Record<string, unknown>)[k])}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-
-export const sameValue = (a: unknown, b: unknown) => stableJson(a) === stableJson(b);
 
 /** A short digest of an entry's state, ignoring its place in the order. */
 export function fingerprint(rec: unknown): string {

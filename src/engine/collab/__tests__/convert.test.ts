@@ -7,8 +7,20 @@ import { generateScene } from "../../__tests__/fixtures/generate-scene";
 import { formatScene } from "../../scene/format";
 import { sceneHash } from "../../scene/hash";
 import type { SceneDefinition } from "../../scene/types";
-import { docToScene, readDoc, sceneToDoc } from "../convert";
+import {
+  contentMaps,
+  docLayout,
+  docMeta,
+  docToScene,
+  metaMap,
+  prefabsMap,
+  readDoc,
+  sceneMap,
+  sceneToDoc,
+} from "../convert";
 import { sequentialKeys } from "../keys";
+import { prefabToDoc } from "../prefab-doc";
+import { COLLAB_LAYOUT_VERSION, DOC_MAPS } from "../types";
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
 
@@ -88,5 +100,49 @@ describe("sceneToDoc and docToScene", () => {
       entities.set(key!, m);
     }
     expect(docToScene(doc).entities!.map((e) => e.id)).toEqual(["first", "second"]);
+  });
+});
+
+describe("layout 2", () => {
+  it("seeds meta at this layout, with the project and key when given, and no prefabs map", () => {
+    const def = JSON.parse(FIXTURES[0]![1]) as SceneDefinition;
+    const doc = sceneToDoc(def, { project: "engine", assetKey: "engine-yard" });
+    expect(docMeta(doc)).toMatchObject({
+      schemaVersion: def.v,
+      layout: COLLAB_LAYOUT_VERSION,
+      project: "engine",
+      key: "engine-yard",
+    });
+    expect(COLLAB_LAYOUT_VERSION).toBe(2);
+    expect(docLayout(doc)).toBe(2);
+    expect(doc.share.has(DOC_MAPS.prefabs)).toBe(false);
+    expect(contentMaps(doc)).not.toContain(prefabsMap(doc));
+    expect(readDoc(doc)).toMatchObject({ kind: "scene" });
+    expect("prefabs" in readDoc(doc)).toBe(false);
+  });
+
+  it("reads a doc with no meta.layout as layout 1", () => {
+    const doc = sceneToDoc(JSON.parse(FIXTURES[0]![1]) as SceneDefinition);
+    metaMap(doc).delete("layout");
+    expect(docLayout(doc)).toBe(1);
+  });
+
+  it("reads a prefab doc as a scene of its children, with bounds it never writes", () => {
+    const doc = prefabToDoc({
+      kind: "prefab",
+      v: 2,
+      id: "post",
+      entities: [{ id: "top", type: "marker", at: [0, -40] }],
+    });
+    const view = readDoc(doc, { parentBounds: [0, 0, 200, 100] });
+    expect(view.kind).toBe("prefab");
+    expect(view.prefab).toEqual({ id: "post" });
+    expect(view.def).toEqual({
+      v: 2,
+      name: "post",
+      bounds: [-100, -50, 100, 50],
+      entities: [{ id: "top", type: "marker", at: [0, -40] }],
+    });
+    expect(sceneMap(doc).size).toBe(0);
   });
 });

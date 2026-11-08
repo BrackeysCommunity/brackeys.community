@@ -1,10 +1,11 @@
 {
   "name": "@jams/engine",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "files": [
     "dist",
     "scene/*.schema.json",
+    "project/*.schema.json",
     "README.md",
     "CHANGELOG.md"
   ],
@@ -47,12 +48,23 @@
       "types": "./dist/vite.d.mts",
       "import": "./dist/vite.mjs"
     },
+    "./project": {
+      "types": "./dist/project.d.mts",
+      "import": "./dist/project.mjs"
+    },
     "./schemas/scene.schema.json": "./scene/scene.schema.json",
     "./schemas/ops.schema.json": "./scene/ops.schema.json",
     "./schemas/input-script.schema.json": "./scene/input-script.schema.json",
     "./schemas/recording.schema.json": "./scene/recording.schema.json",
     "./schemas/fragment.schema.json": "./scene/fragment.schema.json",
     "./schemas/prefab.schema.json": "./scene/prefab.schema.json",
+    "./schemas/project.schema.json": "./project/project.schema.json",
+    "./schemas/asset-sidecar.schema.json": "./project/asset-sidecar.schema.json",
+    "./schemas/project-ops.schema.json": "./project/project-ops.schema.json",
+    "./schemas/material.schema.json": "./project/material.schema.json",
+    "./schemas/game-settings.schema.json": "./project/game-settings.schema.json",
+    "./schemas/data-table.schema.json": "./project/data-table.schema.json",
+    "./schemas/project-snapshot.schema.json": "./project/project-snapshot.schema.json",
     "./package.json": "./package.json"
   },
   "peerDependencies": {

@@ -7,7 +7,7 @@ import { quarantineKey } from "@/lib/image-quarantine";
 import { withErrorReporting } from "@/lib/posthog-server";
 import { streamStoredImage } from "@/lib/profile-project-image-storage";
 import { resolveUserRoles } from "@/lib/staff-roles";
-import { isServableImageKey } from "@/lib/stored-image-keys";
+import { describeImageKey } from "@/lib/stored-image-keys";
 
 /**
  * Staff-only view of an uploaded image wherever it currently sits: a
@@ -26,7 +26,7 @@ async function handle({ request }: { request: Request }) {
   } catch {
     return new Response("Bad Request", { status: 400 });
   }
-  if (!isServableImageKey(objectKey)) {
+  if (describeImageKey(objectKey) === null) {
     return new Response("Not Found", { status: 404 });
   }
 

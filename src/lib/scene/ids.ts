@@ -1,28 +1,31 @@
 /**
- * Hosted scene ids: `<game>.<name>`, each part an engine id (lowercase, digits
- * and dashes), so the id is also the doc's name after `scene:`. Shared with
- * services, so no `@/` imports.
+ * Hosted scene ids: `<project>.<key>`, each part an engine id (lowercase,
+ * digits and dashes), so the id is also the doc's name after `scene:`.
+ * Scenes hosted before projects existed are `<game>.<name>`, which is the
+ * same grammar with the game as the project. Shared with services, so no
+ * `@/` imports.
  */
 // The scene entry by relative path: the service image has no tsconfig paths.
-import { ENGINE_REGISTRY_ID, ID_PATTERN } from "../../engine/scene/index.ts";
+import { ENGINE_REGISTRY_ID } from "../../engine/scene/index.ts";
+import { parseProjectKey } from "../canvas/sync-channels.ts";
 
 export interface SceneId {
-  /** The registry the scene belongs to; `engine` for primitives only. */
-  game: string;
-  name: string;
+  /** The project the scene belongs to; `engine` for the engine's primitives. */
+  project: string;
+  /** The scene's asset key, which never changes. */
+  key: string;
 }
 
 export function parseSceneId(id: unknown): SceneId | null {
   if (typeof id !== "string") return null;
-  const dot = id.indexOf(".");
-  if (dot < 0) return null;
-  const game = id.slice(0, dot);
-  const name = id.slice(dot + 1);
-  return ID_PATTERN.test(game) && ID_PATTERN.test(name) ? { game, name } : null;
+  return parseProjectKey(id);
 }
 
 export const isSceneId = (id: unknown): id is string => parseSceneId(id) !== null;
 
-/** The `game` a scene's header names, or undefined for the engine's primitives. */
-export const sceneGame = (id: SceneId): string | undefined =>
-  id.game === ENGINE_REGISTRY_ID ? undefined : id.game;
+/**
+ * The `game` a new scene's header names: its project, which for a scene
+ * hosted before projects is its game; undefined for the engine's primitives.
+ */
+export const sceneGame = (id: Pick<SceneId, "project">): string | undefined =>
+  id.project === ENGINE_REGISTRY_ID ? undefined : id.project;

@@ -1,18 +1,31 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
-import { docPrefabs, docToScene, sceneToDoc } from "../collab/convert";
-import { createRegistry, defineGame } from "../game/define";
-import { PRIMITIVE_TYPES } from "../game/types";
+import { docToScene, sceneToDoc } from "../collab/convert";
+import { docToPrefab, prefabToDoc } from "../collab/prefab-doc";
+import { createRegistry, defineGame, withProject } from "../game/define";
+import { PRIMITIVE_TYPES, type GameDefinition, type Registry } from "../game/types";
+import { loadHeadless } from "../headless/load";
 import { runPlaytest } from "../headless/playtest";
 import type { PlaytestReport } from "../headless/playtest-types";
 import { recordingDivergence, replayRecording } from "../headless/recording";
 import { runChecks } from "../headless/run-checks";
 import { validatePhysical } from "../headless/validate-physical";
+import { memoryContentStore } from "../project/content-store";
+import { formatAssetDoc, parseAssetDoc, type DocKindDef } from "../project/kinds";
+import { DATA_TABLE_KIND } from "../project/kinds/data-table";
+import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
+import { MATERIAL_KIND } from "../project/kinds/material";
+import { snapshotProject } from "../project/snapshot";
+import type { AssetEntry, AssetId, ProjectView } from "../project/types";
+import { projectView } from "../project/view";
 import { SENSOR_ENTER } from "../runtime/types";
 import { parseChecks, type ChecksFile } from "../scene/checks";
 import { formatPrefab, formatScene } from "../scene/format";
@@ -22,14 +35,20 @@ import { SHAPE_TYPES } from "../scene/shapes";
 import type { PrefabLibrary, SceneDefinition } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { RapierModule } from "../types";
-import { readPrefabFiles } from "../vite/prefab-files";
-import { testGame } from "./fixtures/test-game";
+import {
+  createProjectFileAdapter,
+  readFileProject,
+  readPrefabFiles,
+  type FileProject,
+  type ProjectFileAdapter,
+  type ProjectScan,
+} from "../vite/project-files";
+import { AVATAR_SPEED, CARD_TABLE, testGame } from "./fixtures/test-game";
 
 const scenesDir = new URL("../scenes/", import.meta.url);
+const scenesPath = fileURLToPath(scenesDir);
 const text = readFileSync(new URL("kitchen-sink.json", scenesDir), "utf8");
 const checksText = readFileSync(new URL("kitchen-sink.checks.json", scenesDir), "utf8");
-const engine = createRegistry();
-const game = createRegistry(testGame);
 
 type Body = [id: string, x: number, y: number, rot: number];
 const MOVING = ["ball", "crate", "shelf-box", "carrier", "deck", "deck-zone", "orbit"];
@@ -58,13 +77,37 @@ let def: SceneDefinition;
 let prefabs: PrefabLibrary;
 let prefabTexts: Map<string, string>;
 let checks: ChecksFile;
+let cacheDir: string;
+let project: FileProject;
+let adapter: ProjectFileAdapter;
+let scan: ProjectScan;
+let view: ProjectView;
+/** Every doc asset's JSON by id, as its file holds it. */
+let values: Map<AssetId, unknown>;
+/** The engine's and the test game's registries with the project's material assets overlaid. */
+let engine: Registry;
+let game: Registry;
+const overlaid = (g: GameDefinition | null) => withProject(createRegistry(g), view, values);
 
 beforeAll(async () => {
   rapier = await import("@dimforge/rapier2d");
+  cacheDir = await mkdtemp(join(tmpdir(), "kitchen-sink-"));
+  project = await readFileProject(scenesPath, { cacheDir });
+  const bare = await createProjectFileAdapter(project).scan();
+  view = projectView(bare.state, project.kinds);
+  values = new Map();
+  for (const entry of view.byId.values())
+    values.set(entry.id, JSON.parse(await readFile(join(scenesPath, entry.path), "utf8")));
+  engine = overlaid(null);
+  game = overlaid(testGame);
+  adapter = createProjectFileAdapter({ ...project, registry: engine });
+  scan = await adapter.scan();
+  view = projectView(scan.state, project.kinds);
+
   const parsed = parseScene(text, engine);
   if (!parsed.ok) throw new Error(parsed.issues.map((i) => i.message).join("\n"));
   def = parsed.def;
-  const files = await readPrefabFiles(fileURLToPath(scenesDir), engine);
+  const files = await readPrefabFiles(scenesPath, engine);
   expect(files.problems).toEqual([]);
   prefabs = files.prefabs;
   prefabTexts = files.texts;
@@ -73,7 +116,21 @@ beforeAll(async () => {
   checks = parsedChecks.file;
 });
 
+afterAll(() => rm(cacheDir, { recursive: true, force: true }));
+
 const entities = () => def.entities ?? [];
+const entriesOf = (kind: string): AssetEntry[] =>
+  [...view.byId.values()].filter((e) => e.kind === kind);
+
+async function walk(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, e.name);
+    if (e.isDirectory()) out.push(...(await walk(path)));
+    else out.push(path);
+  }
+  return out;
+}
 
 describe("kitchen-sink.json", () => {
   describe("covers", () => {
@@ -119,6 +176,36 @@ describe("kitchen-sink.json", () => {
     it("a note per region", () => {
       expect(entities().filter((e) => e.type === "note").length).toBeGreaterThanOrEqual(5);
     });
+
+    it("a solid of the project's material asset, which validates and has physics", () => {
+      const materials = new Set(entriesOf(MATERIAL_KIND).map((e) => e.id));
+      const solids = entities().filter(
+        (e) => e.type === "solid" && typeof e.material === "string" && materials.has(e.material),
+      );
+      expect(solids.length).toBeGreaterThanOrEqual(1);
+      const kind = project.kinds.get(MATERIAL_KIND) as DocKindDef;
+      for (const id of new Set(solids.map((e) => e.material as string))) {
+        const parsed = parseAssetDoc(kind, values.get(id), { registry: engine, project: view });
+        expect(parsed.ok && parsed.issues).toEqual([]);
+        expect(engine.materials.get(id)?.restitution).toBeGreaterThan(0);
+      }
+      expect(createRegistry().materials.size).toBe(0);
+    });
+
+    it("a game-settings doc and a data table of a table the test game declares", () => {
+      expect(entriesOf(GAME_SETTINGS_KIND)).toHaveLength(1);
+      const tables = entriesOf(DATA_TABLE_KIND);
+      expect(tables.length).toBeGreaterThanOrEqual(1);
+      for (const entry of [...entriesOf(GAME_SETTINGS_KIND), ...tables]) {
+        const kind = project.kinds.get(entry.kind) as DocKindDef;
+        const parsed = parseAssetDoc(kind, values.get(entry.id), { registry: game, project: view });
+        expect(parsed.ok && parsed.issues, entry.id).toEqual([]);
+      }
+      expect(tables.map((e) => (values.get(e.id) as { table: string }).table)).toContain(
+        CARD_TABLE,
+      );
+      expect(Object.keys(testGame.tables ?? {})).toContain(CARD_TABLE);
+    });
   });
 
   it("validates with no errors, structural and physical", () => {
@@ -138,21 +225,24 @@ describe("kitchen-sink.json", () => {
   });
 
   it("is byte-identical file → doc → file, prefabs included, also after the doc crosses the wire", () => {
-    const doc = sceneToDoc(JSON.parse(text) as SceneDefinition, { prefabs });
+    const doc = sceneToDoc(JSON.parse(text) as SceneDefinition);
     const remote = new Y.Doc();
     Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
-    for (const d of [doc, remote]) {
-      expect(formatScene(docToScene(d)).text).toBe(text);
-      const back = docPrefabs(d);
-      expect([...back.keys()]).toEqual([...prefabTexts.keys()]);
-      for (const [id, prefab] of back) expect(formatPrefab(prefab)).toBe(prefabTexts.get(id));
+    for (const d of [doc, remote]) expect(formatScene(docToScene(d)).text).toBe(text);
+    for (const [id, prefab] of prefabs) {
+      const pdoc = prefabToDoc(prefab);
+      const wire = new Y.Doc();
+      Y.applyUpdate(wire, Y.encodeStateAsUpdate(pdoc));
+      for (const d of [pdoc, wire]) expect(formatPrefab(docToPrefab(d))).toBe(prefabTexts.get(id));
     }
   });
 
   it("records 300 ticks and replays them to the same result and digest", () => {
+    const registry = overlaid(watcher);
     const run = runPlaytest<Body[]>({
       rapier,
       game: watcher,
+      registry,
       scene: def,
       prefabs,
       script: { v: 1, scene: "kitchen-sink", steps: [{ wait: 300 }] },
@@ -171,6 +261,7 @@ describe("kitchen-sink.json", () => {
     const replay = replayRecording<Body[]>({
       rapier,
       game: watcher,
+      registry,
       scene: def,
       prefabs,
       recording: JSON.parse(JSON.stringify(report.recording)),
@@ -182,6 +273,62 @@ describe("kitchen-sink.json", () => {
     expect(recordingDivergence(report.recording, replay.recording)).toBeNull();
     expect(replay.recording.end).toBe(report.recording.end);
     expect(replay.final).toEqual(report.final);
+  });
+
+  it("gives the material's physics to the solid that names it, and a test-game run loaded by snapshot reads the table and settings", async () => {
+    const material = entities().find((e) => e.type === "solid" && typeof e.material === "string")!;
+    const physics = engine.materials.get(material.material as string)!;
+    const seen: unknown[] = [];
+    const reading = defineGame({
+      ...testGame,
+      createRuntime(ctx) {
+        const inner = testGame.createRuntime(ctx);
+        return {
+          ...inner,
+          onLoad(loaded) {
+            inner.onLoad?.(loaded);
+            const [handle] = ctx.tags.handlesOf(material.id);
+            const collider = handle === undefined ? null : ctx.physics.world.getCollider(handle);
+            seen.push(
+              [collider?.friction(), collider?.restitution()],
+              ctx.project?.settings,
+              ctx.project?.table(CARD_TABLE),
+            );
+          },
+        };
+      },
+    });
+    const store = memoryContentStore();
+    const texts = new Map<AssetId, string>();
+    for (const entry of view.byId.values()) {
+      const text = await readFile(join(scenesPath, entry.path), "utf8");
+      texts.set(entry.id, text);
+      await store.put(new TextEncoder().encode(text));
+    }
+    const snapshot = await snapshotProject(view, texts, scan.state.build);
+    const loaded = await loadHeadless({
+      snapshot,
+      store,
+      scene: def.name,
+      registry: overlaid(reading),
+    });
+    const run = runPlaytest({
+      rapier,
+      game: reading,
+      ...loaded,
+      script: { v: 1, scene: "kitchen-sink", steps: [{ wait: 1 }] },
+    });
+    if (run.blocked) throw new Error(`blocked: ${JSON.stringify(run)}`);
+    const [surface, settings, rows] = seen;
+    expect(surface).toEqual([
+      expect.closeTo(physics.friction, 6),
+      expect.closeTo(physics.restitution, 6),
+    ]);
+    expect(settings).toEqual({ avatarSpeed: AVATAR_SPEED });
+    expect(rows).toEqual([
+      { id: "fireball", cost: 3, damage: 5 },
+      { id: "heal", cost: 2, damage: 0 },
+    ]);
   });
 
   describe("checks", () => {
@@ -221,5 +368,35 @@ describe("kitchen-sink.json", () => {
         expect(r.pass, `${r.id}: ${r.message}`).toBe(true);
       }
     });
+  });
+});
+
+describe("the engine project", () => {
+  it("scans with no problems, keys equal to ids and no sidecars", async () => {
+    expect(scan.problems).toEqual([]);
+    expect(scan.state.meta).toMatchObject({ projectId: "engine", name: "Engine" });
+    const entries = Object.values(scan.state.assets);
+    expect(new Set(entries.map((e) => e.kind))).toEqual(
+      new Set(["scene", "prefab", "checks", MATERIAL_KIND, GAME_SETTINGS_KIND, DATA_TABLE_KIND]),
+    );
+    for (const e of entries) {
+      expect(e.key, e.path).toBe(e.id);
+      expect(e.created).toEqual({ at: 0, by: "disk" });
+    }
+    expect((await walk(scenesPath)).filter((p) => p.endsWith(".asset.json"))).toEqual([]);
+  });
+
+  it("round-trips every doc asset byte-identically through its doc and back, also across the wire", async () => {
+    for (const entry of Object.values(scan.state.assets)) {
+      const kind = project.kinds.get(entry.kind) as DocKindDef;
+      const file = await readFile(join(scenesPath, entry.path), "utf8");
+      const name = adapter.docNameOf(entry);
+      const doc = new Y.Doc();
+      await adapter.loadDoc(name, doc);
+      const remote = new Y.Doc();
+      Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
+      for (const d of [doc, remote])
+        expect(formatAssetDoc(kind, adapter.valueOf(name, d)), entry.path).toBe(file);
+    }
   });
 });

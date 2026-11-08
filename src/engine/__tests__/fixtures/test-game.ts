@@ -21,6 +21,9 @@ export const AVATAR_SPEED = 300;
 export const AVATAR_FLOATING = "test-game/avatar-floating";
 export const PUSH_IMPULSE = 400;
 
+/** The test game's data table: cards with a cost and an optional damage. */
+export const CARD_TABLE = "card";
+
 function avatarBody(ctx: EngineContext): RigidBody | null {
   const [handle] = ctx.tags.handlesOf("avatar");
   if (handle === undefined) return null;
@@ -30,7 +33,7 @@ function avatarBody(ctx: EngineContext): RigidBody | null {
 /**
  * A minimal game for engine tests: the prop `avatar` walks left and right and
  * pushes up, and wins on entering a sensor tagged `goal`. It implements every
- * play hook.
+ * play hook, has a data table, and walks at its project's `avatarSpeed`.
  */
 export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
   id: "test-game",
@@ -41,6 +44,23 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
     { action: "push", keys: ["space"], description: "Push the avatar up." },
   ],
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
+  tables: {
+    [CARD_TABLE]: {
+      description: "Cards a deck holds.",
+      row: {
+        cost: z.number().int().min(0).describe("What playing it costs."),
+        damage: z.number().int().min(0).default(0).describe("What it deals; default 0."),
+      },
+    },
+  },
+  projectSettings: {
+    avatarSpeed: z
+      .number()
+      .positive()
+      .default(AVATAR_SPEED)
+      .describe(`The avatar's walking speed, px/s; default ${AVATAR_SPEED}.`),
+    title: z.string().optional().describe("A name shown nowhere; tests read it back."),
+  },
   editorKeys: [{ key: "1", scope: "edit", command: "test:one", description: "A game command." }],
   play: {
     spawnShape: { type: "box", hw: 20, hh: 20 },
@@ -70,6 +90,7 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
     const held = new Set<string>();
     let avatar: RigidBody | null = null;
     let goals = new Set<string>();
+    const speed = (ctx.project?.settings.avatarSpeed as number | undefined) ?? AVATAR_SPEED;
 
     return {
       onLoad(scene) {
@@ -108,7 +129,7 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
         if (!avatar) return;
         const dir = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
         const v = avatar.linvel();
-        avatar.setLinvel({ x: dir * AVATAR_SPEED, y: v.y }, true);
+        avatar.setLinvel({ x: dir * speed, y: v.y }, true);
         if (pushed) avatar.applyImpulse({ x: 0, y: -PUSH_IMPULSE * avatar.mass() }, true);
       },
       snapshot() {

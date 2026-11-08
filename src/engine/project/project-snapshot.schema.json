@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:project-snapshot:v1",
+  "x-agent-surface": 7,
+  "title": "jams engine project snapshot, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The project snapshot JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "project-snapshot",
+      "description": "Always \"project-snapshot\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Snapshot format version."
+    },
+    "project": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+      "description": "The id of the project it pins."
+    },
+    "engine": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The engine version that wrote it."
+    },
+    "at": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "When it was taken, in ms since the epoch; not part of `hash`."
+    },
+    "build": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "description": "An asset kind: an engine kind's name, or `<game>/<kind>` for a game's."
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "The kind's schema hash."
+      },
+      "description": "Each kind's schema hash in the newest build that wrote the project."
+    },
+    "assets": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+        "description": "An asset id."
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The asset's registry key, which never changes."
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "An asset kind: an engine kind's name, or `<game>/<kind>` for a game's."
+          },
+          "path": {
+            "type": "string",
+            "description": "The asset's project-relative POSIX path."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "A doc's SHA-256 of its canonical UTF-8 text, a blob's SHA-256 of its bytes."
+          },
+          "import": {
+            "description": "A blob's import settings, when it has any: with its bytes they give its meta, and they hold its references.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": ["key", "kind", "path", "sha256"],
+        "additionalProperties": false,
+        "description": "One live asset, pinned by its content hash."
+      },
+      "description": "Every live asset by id."
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the key-sorted JSON of every field but `at` and `$schema`: equal content gives an equal hash."
+    }
+  },
+  "required": ["kind", "v", "project", "engine", "at", "build", "assets", "hash"],
+  "additionalProperties": false,
+  "description": "A project pinned by content: each live asset's id, kind, path and content hash. What releases and live levels pin."
+}

@@ -1,5 +1,7 @@
 import type { z } from "zod";
 
+import { MATERIAL_KIND, projectMaterialOf } from "../project/kinds/material";
+import type { AssetId, ProjectView } from "../project/types";
 import { ISSUE_CODES } from "../scene/issues";
 import {
   RESERVED_SCENE_KEYS,
@@ -8,6 +10,7 @@ import {
   type IssueCodeInfo,
   type RuntimeEntity,
 } from "../scene/types";
+import type { Vec2 } from "../types";
 import { ID_PATTERN, isAttachField, RESERVED_FIELDS } from "./fields";
 import { BASE_REQUIRED_FIELDS, ENGINE_SETTINGS, PRIMITIVES, resolveFields } from "./primitives";
 import {
@@ -25,6 +28,7 @@ import {
   type MaterialDef,
   type RegisteredType,
   type Registry,
+  type Style,
 } from "./types";
 
 /** The runtime entity a type's fields describe. */
@@ -63,13 +67,36 @@ function packGroups(membership: number, filter: number): number {
   return ((membership & 0xffff) << 16) | (filter & 0xffff);
 }
 
+/** A project's material asset as the registry takes it; without `physics` it is render data only. */
+export type ProjectMaterialDef = {
+  description: string;
+  physics?: { friction: number; restitution: number; impulse?: Vec2 };
+  style?: Style;
+};
+
+export type CreateRegistryOptions = {
+  /**
+   * The project's materials by asset id. Each wins over the game's code
+   * material of that name. One with `physics` joins `materials` (and so
+   * the material fields' choices); one without is left out of them, so a
+   * physics body naming it is refused like any unknown material. The
+   * `primitives` registry beside a game's has them too, so a scene with
+   * no game run under one sees its project's materials.
+   */
+  materials?: Readonly<Record<string, ProjectMaterialDef>>;
+};
+
 /**
  * Merges the engine's primitives with a game's types, materials, actions,
- * collision groups and issue codes. Throws `RegistryError` listing every
- * problem: duplicate or reserved names, bulk keys or codes, a type without a
- * system, a spawn order that misses or repeats a type, unknown groups.
+ * collision groups and issue codes, and the project's materials over the
+ * game's. Throws `RegistryError` listing every problem: duplicate or
+ * reserved names, bulk keys or codes, a type without a system, a spawn
+ * order that misses or repeats a type, unknown groups.
  */
-export function createRegistry(game?: GameDefinition | null): Registry {
+export function createRegistry(
+  game?: GameDefinition | null,
+  opts: CreateRegistryOptions = {},
+): Registry {
   const id = game?.id ?? ENGINE_REGISTRY_ID;
   const problems: string[] = [];
   const problem = (msg: string) => problems.push(msg);
@@ -84,6 +111,21 @@ export function createRegistry(game?: GameDefinition | null): Registry {
   for (const [name, def] of Object.entries(game?.materials ?? {})) {
     if (!ID_PATTERN.test(name)) problem(`material "${name}" must match ${ID_PATTERN}`);
     materials.set(name, def);
+  }
+  for (const [name, def] of Object.entries(opts.materials ?? {})) {
+    if (!ID_PATTERN.test(name)) problem(`material "${name}" must match ${ID_PATTERN}`);
+    if (!def.physics) {
+      materials.delete(name);
+      continue;
+    }
+    const { friction, restitution, impulse } = def.physics;
+    materials.set(name, {
+      friction,
+      restitution,
+      ...(impulse ? { impulse: { ...impulse } } : {}),
+      description: def.description,
+      ...(def.style ? { style: { ...def.style } } : {}),
+    });
   }
   const materialNames = [...materials.keys()];
 
@@ -333,6 +375,28 @@ export function createRegistry(game?: GameDefinition | null): Registry {
       return primitives;
     },
   };
-  const primitives = game ? createRegistry() : registry;
+  const primitives = game ? createRegistry(null, { materials: opts.materials }) : registry;
   return registry;
+}
+
+/**
+ * `registry`'s game with `view`'s live material assets overlaid by id
+ * (`values` holds each asset's JSON); a material whose JSON isn't valid
+ * is left out.
+ */
+export function withProject(
+  registry: Registry,
+  view: ProjectView,
+  values: ReadonlyMap<AssetId, unknown>,
+): Registry {
+  const materials: Record<string, ProjectMaterialDef> = {};
+  const ids = [...view.byId.values()]
+    .filter((e) => e.kind === MATERIAL_KIND)
+    .map((e) => e.id)
+    .sort();
+  for (const id of ids) {
+    const def = projectMaterialOf(values.get(id));
+    if (def) materials[id] = def;
+  }
+  return createRegistry(registry.game, { materials });
 }

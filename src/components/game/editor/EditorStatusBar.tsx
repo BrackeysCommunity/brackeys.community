@@ -13,6 +13,7 @@ const CONNECTION: Record<SceneDocStatus, { label: string; tone: string }> = {
   live: { label: "Live", tone: "text-success" },
   reconnecting: { label: "Reconnecting", tone: "text-warning" },
   offline: { label: "Offline", tone: "text-warning" },
+  failed: { label: "Disconnected", tone: "text-destructive" },
 };
 
 export function EditorStatusBar({

@@ -18,9 +18,9 @@ import {
 } from "@jams/engine/scene";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
+import { platformerGame } from "../../../src/games/platformer";
 import { COMMAND_NAMES, runCli } from "../commands";
 import type { ToolContext } from "../context";
-import { GAMES } from "../games";
 import { apply } from "../tools/apply";
 import { check } from "../tools/check";
 import { codes } from "../tools/codes";
@@ -35,6 +35,8 @@ import { schema } from "../tools/schema";
 import { MAX_ROWS, show } from "../tools/show";
 import { step } from "../tools/step";
 import { validate } from "../tools/validate";
+import { CARD_SPEED, CARD_TABLE, cardGame } from "./card-game";
+import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
@@ -80,7 +82,7 @@ const avatarGame = defineGame({
   },
 });
 
-const PLATFORMER = createRegistry(GAMES.platformer);
+const PLATFORMER = createRegistry(platformerGame);
 const ENGINE = createRegistry();
 
 let root: string;
@@ -99,8 +101,10 @@ beforeEach(async () => {
   await copyFile(ENGINE_YARD, join(avatarDir, "engine-yard.json"));
   stdin = "";
   ctx = {
-    games: { ...GAMES, [avatarGame.id]: avatarGame },
-    scenesDirs: { platformer: platformerDir, [avatarGame.id]: avatarDir },
+    projects: [
+      await tempProject(platformerDir, { game: platformerGame }),
+      await tempProject(avatarDir, { game: avatarGame }),
+    ],
     loadRapier: () => import("@dimforge/rapier2d") as Promise<RapierModule>,
     readStdin: async () => stdin,
   };
@@ -143,15 +147,20 @@ describe("list", () => {
     expect(r.text).toMatch(/^test-yard {2}platformer /m);
   });
 
-  it("reports a name held by two games, and refuses to pick one", async () => {
+  it("reports a name held by two projects, and refuses to pick one without --project", async () => {
     await copyFile(ENGINE_YARD, join(platformerDir, "engine-yard.json"));
     const r = await list({}, ctx);
     expect((r.data as { clashes: object }).clashes).toEqual({
       "engine-yard": [avatarGame.id, "platformer"],
     });
     const shown = await show({ scene: "engine-yard" }, ctx);
-    expect(shown.exitCode).toBe(1);
-    expect(shown.text).toContain("more than one game's scenes");
+    expect(shown.exitCode).toBe(2);
+    expect(shown.text).toContain("more than one project");
+    const picked = await show({ scene: "engine-yard" }, { ...ctx, project: "platformer" });
+    expect(picked.exitCode, picked.text).toBe(0);
+    const cli = await runCli(["show", "engine-yard", "--project", "nope"], ctx);
+    expect(cli.exitCode).toBe(2);
+    expect(cli.stderr).toMatch(/no project "nope"/);
   });
 });
 
@@ -267,6 +276,35 @@ describe("show", () => {
 });
 
 describe("schema and codes", () => {
+  it("serves every schema it names, fragment, prefab and the project schemas included", async () => {
+    const usage = await runCli(["schema", "nope"], ctx);
+    expect(usage.exitCode).toBe(2);
+    for (const which of ["scene", "ops", "script", "checks", "recording", "fragment", "prefab"])
+      expect(usage.stderr).toContain(which);
+    const ids: Record<string, string> = {
+      project: "urn:jams-engine:project:v1",
+      "asset-sidecar": "urn:jams-engine:asset-sidecar:v1",
+      "project-ops": "urn:jams-engine:project-ops:v1",
+      "project-snapshot": "urn:jams-engine:project-snapshot:v1",
+      material: "urn:jams-engine:material:v1",
+      "game-settings": "urn:jams-engine:game-settings:v1",
+      "data-table": "urn:jams-engine:data-table:v1",
+      "input-script": "urn:jams-engine:input-script:v1",
+    };
+    for (const [which, id] of Object.entries(ids)) {
+      const r = await schema({ which }, ctx);
+      expect(r.exitCode, which).toBe(0);
+      expect((r.data as { $id: string }).$id, which).toBe(id);
+      expect(usage.stderr.includes(which) || which === "input-script", which).toBe(true);
+    }
+    const scoped = await schema({ which: "scene" }, { ...ctx, project: "platformer" });
+    expect((scoped.data as { $id: string }).$id).toBe(PLATFORMER.schemaId);
+    expect(
+      (await schema({ which: "scene", game: avatarGame.id }, { ...ctx, project: "platformer" }))
+        .exitCode,
+    ).toBe(2);
+  });
+
   it("prints the engine's or a game's schemas and refuses others", async () => {
     expect((await schema({}, ctx)).data).toMatchObject({ $id: "urn:jams-engine:scene:v2" });
     expect((await schema({ which: "ops" }, ctx)).data).toMatchObject({
@@ -406,14 +444,14 @@ describe("new", () => {
     const original = parseSceneOrThrow(await yardText(), PLATFORMER);
     expect(copy.name).toBe("yard-2");
     expect(copy.entities).toEqual(original.entities);
-    expect(copy.$schema).toBeUndefined();
+    expect(copy.$schema).toBe(original.$schema);
   });
 
   it("writes a gameless scene into the engine home", async () => {
     const engineDir = join(root, "engine");
     const withEngine: ToolContext = {
       ...ctx,
-      scenesDirs: { ...ctx.scenesDirs, engine: engineDir },
+      projects: [...ctx.projects, await tempProject(engineDir, { id: "engine" })],
     };
     const r = await newScene({ name: "blank" }, withEngine);
     expect(r.exitCode, r.text).toBe(0);
@@ -520,6 +558,30 @@ describe("validate", () => {
 });
 
 describe("fmt", () => {
+  it("formats every doc kind through the kind's format, one by id or all of them", async () => {
+    await copyFile(ENGINE_YARD_CHECKS, join(avatarDir, "engine-yard.checks.json"));
+    const script = { v: 1, scene: "engine-yard", steps: [{ wait: 10 }] };
+    await writeFile(join(avatarDir, "hop.script.json"), JSON.stringify(script, null, 8));
+    const check = await fmt({ scene: "engine-yard-checks", check: true }, ctx);
+    expect(check.data).toMatchObject({ asset: "engine-yard-checks", kind: "checks" });
+    const all = await fmt({ check: true }, ctx);
+    const rows = (all.data as { assets: { id: string; kind: string; changed?: boolean }[] }).assets;
+    expect(rows.map((r) => [r.id, r.kind])).toEqual(
+      expect.arrayContaining([
+        ["engine-yard-checks", "checks"],
+        ["hop-script", "input-script"],
+        ["test-yard", "scene"],
+      ]),
+    );
+    expect(rows.find((r) => r.id === "hop-script")?.changed).toBe(true);
+    expect(all.exitCode).toBe(1);
+    const written = await fmt({}, ctx);
+    expect(written.exitCode, written.text).toBe(0);
+    expect((await fmt({ check: true }, ctx)).exitCode).toBe(0);
+    expect((await fmt({ scene: "hop-script", check: true }, ctx)).exitCode).toBe(0);
+    expect((await fmt({ scene: "nope" }, ctx)).exitCode).toBe(1);
+  });
+
   it("--check reports and fmt rewrites to canonical text in the scene's own directory", async () => {
     expect((await fmt({ scene: "test-yard", check: true }, ctx)).exitCode).toBe(0);
     expect((await fmt({ scene: "engine-yard", check: true }, ctx)).exitCode).toBe(0);
@@ -700,11 +762,7 @@ async function goalCtx(): Promise<ToolContext> {
     join(dir, "goal-yard.json"),
     JSON.stringify({ ...yard, name: "goal-yard", game: goalGame.id }),
   );
-  return {
-    ...ctx,
-    games: { ...ctx.games, [goalGame.id]: goalGame },
-    scenesDirs: { ...ctx.scenesDirs, [goalGame.id]: dir },
-  };
+  return { ...ctx, projects: [...ctx.projects, await tempProject(dir, { game: goalGame })] };
 }
 
 const HOP_LEFT = repoFile("scripts/scene/examples/hop-left.json");
@@ -788,6 +846,61 @@ describe("playtest", () => {
     expect(
       (await playtest({ scene: "test-yard", script: join(root, "nope.json") }, ctx)).exitCode,
     ).toBe(1);
+  });
+});
+
+describe("playtest in a project with data", () => {
+  async function cardCtx(settings: Record<string, unknown>): Promise<ToolContext> {
+    const dir = join(root, cardGame.id);
+    await mkdir(join(dir, "data"), { recursive: true });
+    const yard = JSON.parse(await engineYardText()) as Record<string, unknown>;
+    await writeFile(
+      join(dir, "card-yard.json"),
+      JSON.stringify({ ...yard, name: "card-yard", game: cardGame.id }),
+    );
+    await writeFile(
+      join(dir, "data", "cards.json"),
+      JSON.stringify({
+        kind: "data-table",
+        v: 1,
+        table: CARD_TABLE,
+        rows: [
+          { id: "fireball", cost: 3, damage: 5 },
+          { id: "heal", cost: 2 },
+        ],
+      }),
+    );
+    await writeFile(
+      join(dir, "game-settings.json"),
+      JSON.stringify({ kind: "game-settings", v: 1, engine: {}, game: settings }),
+    );
+    return { ...ctx, projects: [...ctx.projects, await tempProject(dir, { game: cardGame })] };
+  }
+
+  it("gives the game its project's table rows and settings", async () => {
+    await writeFile(
+      join(root, "walk.json"),
+      JSON.stringify({ v: 1, steps: [{ hold: ["right"], for: 60 }] }),
+    );
+    const run = (c: ToolContext) =>
+      playtest({ scene: "card-yard", script: join(root, "walk.json") }, c);
+
+    const fast = await run(await cardCtx({ avatarSpeed: CARD_SPEED * 2 }));
+    expect(fast.exitCode, fast.text).toBe(0);
+    const data = fast.data as { events: { type: string; entityId?: string }[] };
+    expect(data.events.filter((e) => e.type === "card").map((e) => e.entityId)).toEqual([
+      "fireball",
+      "heal",
+    ]);
+    expect(fast.text).toContain("card fireball");
+
+    await rm(join(root, cardGame.id), { recursive: true, force: true });
+    const slow = await run(await cardCtx({}));
+    expect(slow.exitCode, slow.text).toBe(0);
+    const x = (r: typeof fast) =>
+      (r.data as { final: { position: { x: number } } }).final.position.x;
+    const start = 300;
+    expect(x(fast) - start).toBeGreaterThan(1.5 * (x(slow) - start));
   });
 });
 
@@ -1057,7 +1170,34 @@ describe("runCli", () => {
       "check",
       "render",
       "textconv",
+      "project show",
+      "project tree",
+      "project refs",
+      "project snapshot",
+      "project pull",
+      "project push",
+      "assets list",
+      "assets import",
+      "assets rename",
+      "assets move",
+      "assets delete",
+      "assets restore",
+      "assets change-id",
+      "assets set-import",
+      "assets apply",
     ]);
+  });
+
+  it("runs two-word commands and lists them in the help", async () => {
+    const help = await runCli(["help"], ctx);
+    for (const name of ["project show", "assets import", "assets set-import"])
+      expect(help.stdout).toContain(name);
+    const shown = await runCli(["project", "show", "--project", "platformer", "--json"], ctx);
+    expect(shown.exitCode, shown.stdout).toBe(0);
+    expect(JSON.parse(shown.stdout)).toMatchObject({ project: "platformer" });
+    const bad = await runCli(["assets", "nope"], ctx);
+    expect(bad.exitCode).toBe(2);
+    expect((await runCli(["project", "show"], ctx)).exitCode).toBe(2);
   });
 
   it("prints JSON with --json and exits 2 on usage errors", async () => {

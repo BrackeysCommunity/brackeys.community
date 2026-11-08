@@ -1,58 +1,37 @@
+import type { ProjectSession, SessionDoc } from "@jams/engine/collab";
+import type { AssetEntry, ProjectView } from "@jams/engine/project";
 import { useStore } from "@tanstack/react-store";
 import { Store } from "@tanstack/store";
 import { useEffect, useState } from "react";
-import type { Awareness } from "y-protocols/awareness";
-import type * as Y from "yjs";
 
-import { sceneCollabUrl } from "./scene-collab";
+import { SCENE_KIND } from "./scene-collab";
+import type { ProjectSessionLink, ProjectSessionStatus } from "./use-project-session";
 
 /**
- * `connecting` until the first sync, then `live`; `reconnecting` after a
- * drop until a fresh connection syncs, or `offline` while the browser is.
+ * `connecting` until the project and the scene's doc have synced, then
+ * `live`; `reconnecting` while the socket is down, or `offline` while the
+ * browser is; `failed` when the project or the scene couldn't be opened.
  */
-export type SceneDocStatus = "connecting" | "live" | "reconnecting" | "offline";
+export type SceneDocStatus = "connecting" | "live" | "reconnecting" | "offline" | "failed";
 
-/** What a provider tells the link about its socket. */
-export type SceneProviderEvents = {
-  synced(): void;
-  /** The socket closed or the server dropped the document. */
-  closed(): void;
-};
-
-/** One provider on one doc; `scene-provider.ts` makes the Hocuspocus one. */
-export type SceneProviderHandle = {
-  doc: Y.Doc;
-  awareness: Awareness | null;
-  provider: unknown;
-  destroy(): void;
-};
-
-export type ConnectSceneDoc = (args: {
-  url: string;
+/** The scene doc an editor edits, held open in its project session. */
+export type OpenSceneDoc = {
+  session: ProjectSession;
+  /** The doc's name in the session. */
   name: string;
-  events: SceneProviderEvents;
-}) => SceneProviderHandle;
+  /** The scene's asset id. */
+  id: string;
+  doc: SessionDoc;
+};
 
 export type SceneDocState = {
-  /** The newest connection's doc and awareness, synced or not. */
-  doc: Y.Doc | null;
-  awareness: Awareness | null;
-  provider: unknown;
   status: SceneDocStatus;
-  /** The newest connection has synced with the server. */
-  synced: boolean;
-  /** The newest connection that synced; it stays while a later one connects. */
-  ready: { doc: Y.Doc; awareness: Awareness | null } | null;
+  ready: OpenSceneDoc | null;
+  error: Error | null;
 };
 
-export type SceneDocLinkOptions = {
-  name: string;
-  url: string;
-  connect: ConnectSceneDoc;
-  /** Waits before each fresh connection after a drop. */
-  retryMs?: readonly number[];
-  isOnline?: () => boolean;
-};
+/** What the link follows: a project session link, or anything with its state. */
+export type SceneDocSource = Pick<ProjectSessionLink, "getState" | "subscribe">;
 
 export type SceneDocLink = {
   getState(): SceneDocState;
@@ -60,95 +39,104 @@ export type SceneDocLink = {
   destroy(): void;
 };
 
-const RETRY_MS = [500, 1_000, 2_000, 5_000];
+const EMPTY: SceneDocState = { status: "connecting", ready: null, error: null };
 
-const EMPTY: SceneDocState = {
-  doc: null,
-  awareness: null,
-  provider: null,
-  status: "connecting",
-  synced: false,
-  ready: null,
+const byPath = (a: AssetEntry, b: AssetEntry) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+
+/** The scene an editor opens: `wanted` when the project holds a live scene of that id, else its first scene by path. */
+export function pickScene(view: ProjectView, wanted?: string | null): AssetEntry | null {
+  const named = wanted ? view.byId.get(wanted) : undefined;
+  if (named?.kind === SCENE_KIND) return named;
+  return [...view.byId.values()].filter((e) => e.kind === SCENE_KIND).sort(byPath)[0] ?? null;
+}
+
+const WAITING: Partial<Record<ProjectSessionStatus, SceneDocStatus>> = {
+  reconnecting: "reconnecting",
+  offline: "offline",
+  failed: "failed",
 };
 
 /**
- * Keeps one scene doc connected. A connection that drops after syncing is
- * replaced by a fresh doc rather than reconnected: the dev server unloads a
- * doc once its last client leaves and seeds it again from the file with new
- * keys, so resending the old doc's state would duplicate every entity.
- * Before the first sync the provider retries on its own.
+ * Holds one scene of a project session open. The doc is the session's, so
+ * a dropped socket reconnects it in place (the server resumes it from its
+ * persisted state) and `ready` keeps the same doc throughout; only a new
+ * session opens the scene again.
  */
 export function createSceneDocLink({
-  name,
-  url,
-  connect,
-  retryMs = RETRY_MS,
-  isOnline = () => typeof navigator === "undefined" || navigator.onLine,
-}: SceneDocLinkOptions): SceneDocLink {
+  source,
+  scene,
+}: {
+  source: SceneDocSource;
+  /** The scene's id; the project's first scene when it holds none of that id. */
+  scene?: string | null;
+}): SceneDocLink {
   const listeners = new Set<() => void>();
   let state: SceneDocState = EMPTY;
-  let handle: SceneProviderHandle | null = null;
-  let everSynced = false;
-  let retries = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let session: ProjectSession | null = null;
+  let held: string | null = null;
+  let opening: OpenSceneDoc | Error | null = null;
   let destroyed = false;
 
-  const set = (patch: Partial<SceneDocState>) => {
-    state = { ...state, ...patch };
+  const emit = (next: SceneDocState) => {
+    if (next.status === state.status && next.ready === state.ready && next.error === state.error)
+      return;
+    state = next;
     for (const l of listeners) l();
   };
 
-  const waiting = (): SceneDocStatus =>
-    !isOnline() ? "offline" : everSynced ? "reconnecting" : "connecting";
-
-  function open() {
-    if (destroyed) return;
-    let current: SceneProviderHandle | null = null;
-    let synced = false;
-    const events: SceneProviderEvents = {
-      synced() {
-        if (destroyed || synced || current !== handle || !current) return;
-        synced = true;
-        everSynced = true;
-        retries = 0;
-        set({
-          synced: true,
-          status: "live",
-          ready: { doc: current.doc, awareness: current.awareness },
-        });
-      },
-      closed() {
-        if (destroyed || current !== handle || !current) return;
-        if (!synced) return set({ status: waiting() });
-        current.destroy();
-        handle = null;
-        set({ synced: false, status: waiting() });
-        const delay = retryMs[Math.min(retries++, retryMs.length - 1)] ?? 1_000;
-        timer = setTimeout(() => {
-          timer = null;
-          open();
-        }, delay);
-      },
-    };
-    current = connect({ url, name, events });
-    handle = current;
-    set({
-      doc: current.doc,
-      awareness: current.awareness,
-      provider: current.provider,
-      synced: false,
-      status: waiting(),
-    });
-  }
-
-  const onNetwork = () => {
-    if (!state.synced) set({ status: waiting() });
+  const release = () => {
+    if (session && held) session.release(held);
+    held = null;
+    opening = null;
   };
-  if (typeof window !== "undefined") {
-    window.addEventListener("online", onNetwork);
-    window.addEventListener("offline", onNetwork);
+
+  function open(current: ProjectSession) {
+    const entry = pickScene(current.view(), scene);
+    const name = entry && current.docNameFor(entry);
+    if (!entry || !name) {
+      opening = new Error(`The project "${current.project}" holds no scene to edit.`);
+      return;
+    }
+    current.open(name).then(
+      (doc) => {
+        if (destroyed || session !== current) return current.release(name);
+        held = name;
+        opening = { session: current, name, id: entry.id, doc };
+        refresh();
+      },
+      (error: unknown) => {
+        if (destroyed || session !== current) return;
+        opening = error instanceof Error ? error : new Error(String(error));
+        refresh();
+      },
+    );
   }
-  open();
+
+  function refresh() {
+    if (destroyed) return;
+    const project = source.getState();
+    if (project.session !== session) {
+      release();
+      session = project.session;
+      if (session) open(session);
+    }
+    const ready = opening && !(opening instanceof Error) ? opening : null;
+    const stopped = ready ? project.stopped[ready.name] : undefined;
+    const error =
+      opening instanceof Error
+        ? opening
+        : stopped
+          ? new Error(`The scene was closed: ${stopped}`)
+          : project.error;
+    const status: SceneDocStatus =
+      error || project.status === "failed"
+        ? "failed"
+        : (WAITING[project.status] ?? (ready ? "live" : "connecting"));
+    emit({ status, ready, error });
+  }
+
+  const unsubscribe = source.subscribe(refresh);
+  refresh();
 
   return {
     getState: () => state,
@@ -157,43 +145,35 @@ export function createSceneDocLink({
       return () => listeners.delete(listener);
     },
     destroy() {
+      if (destroyed) return;
       destroyed = true;
-      if (timer) clearTimeout(timer);
-      if (typeof window !== "undefined") {
-        window.removeEventListener("online", onNetwork);
-        window.removeEventListener("offline", onNetwork);
-      }
-      handle?.destroy();
-      handle = null;
+      unsubscribe();
+      release();
       listeners.clear();
     },
   };
 }
 
 /**
- * The scene `scene:<name>` on the dev server's collab endpoint. Null
- * `connect` (not loaded yet, or the editor is off) keeps it disconnected.
- * Only the server seeds a doc: wait for `ready` before reading it.
+ * The scene `scene` of the project `source` serves, held open while the
+ * component is mounted. Null `source` (not loaded yet, or the editor is
+ * off) keeps it closed.
  */
-export function useSceneDoc(
-  name: string,
-  connect: ConnectSceneDoc | null,
-  url?: string,
-): SceneDocState {
-  const [state] = useState(() => new Store<SceneDocState>(EMPTY));
+export function useSceneDoc(source: SceneDocSource | null, scene?: string | null): SceneDocState {
+  const [store] = useState(() => new Store<SceneDocState>(EMPTY));
 
   useEffect(() => {
-    if (!connect) return;
-    const link = createSceneDocLink({ name, url: url ?? sceneCollabUrl(), connect });
-    const copy = () => state.setState(() => link.getState());
+    if (!source) return;
+    const link = createSceneDocLink({ source, scene: scene ?? null });
+    const copy = () => store.setState(() => link.getState());
     const unsubscribe = link.subscribe(copy);
     copy();
     return () => {
       unsubscribe();
       link.destroy();
-      state.setState(() => EMPTY);
+      store.setState(() => EMPTY);
     };
-  }, [state, name, connect, url]);
+  }, [store, source, scene]);
 
-  return useStore(state);
+  return useStore(store);
 }

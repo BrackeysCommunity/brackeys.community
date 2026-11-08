@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:asset-sidecar:v1",
+  "x-agent-surface": 7,
+  "title": "jams engine asset sidecar, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The asset sidecar JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "asset-sidecar",
+      "description": "Always \"asset-sidecar\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Sidecar format version."
+    },
+    "key": {
+      "description": "The asset's registry key, which never changes; omitted when it equals `id`.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+      "description": "The asset's id, unique among the project's live assets."
+    },
+    "assetKind": {
+      "description": "The asset kind (`texture`, or `<game>/<kind>` for a game's); omitted when the file's suffix or content gives it.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47})?$"
+    },
+    "name": {
+      "description": "Display name; omitted when it is the file's stem.",
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "description": "A binary asset's SHA-256, 64 lowercase hex characters.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "bytes": {
+      "description": "A binary asset's size in bytes.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "import": {
+      "description": "Import settings the asset's kind defines (a texture's `filter`).",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "meta": {
+      "description": "What the kind's inspector read from the file; never hand-edited.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "licence": {
+      "type": "object",
+      "properties": {
+        "spdx": {
+          "description": "An SPDX id (\"CC-BY-4.0\") or \"proprietary\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "author": {
+          "description": "Who made it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "description": "Where it came from: a URL or a description.",
+          "type": "string",
+          "minLength": 1
+        },
+        "attribution": {
+          "description": "The exact credit line the licence asks for; the credits page prints it.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "description": "The asset's licence and credit."
+    }
+  },
+  "required": ["kind", "v", "id"],
+  "additionalProperties": false,
+  "description": "The metadata of the asset in the file beside it (`<file>.asset.json`): its key, id, kind, content hash, import settings and licence."
+}

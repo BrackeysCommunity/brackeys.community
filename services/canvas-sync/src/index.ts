@@ -2,9 +2,11 @@ import { type Extension, Hocuspocus } from "@hocuspocus/server";
 import crossws from "crossws/adapters/bun";
 import * as Y from "yjs";
 
+import type { KindRegistry, QuotaPolicy } from "../../../src/engine/project/index.ts";
 import { CANVAS_LIMITS, SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import {
   type ApplyMessage,
+  documentProject,
   type RevokeMessage,
   SYNC_CLOSE,
   syncClose,
@@ -17,6 +19,9 @@ import {
 import { createAuthenticate, type SyncContext } from "./auth.ts";
 import { holdAwarenessWhileConnected, pinAwareness } from "./awareness.ts";
 import type { ServiceDb } from "./db.ts";
+import { createAssetKind, type AssetKind } from "./engine/asset-kind.ts";
+import type { EngineDocStore } from "./engine/doc-store.ts";
+import { createProjectKind, type ProjectKind, type ProjectStore } from "./engine/project-kind.ts";
 import { canvasKind, type DocumentKind, DocumentKinds } from "./kinds.ts";
 import {
   ConnectionCaps,
@@ -30,7 +35,7 @@ import { createPersistence, SnapshotSchedule } from "./persistence.ts";
 import type { SyncChannelSource } from "./redis.ts";
 import { noTombstones, RevocationList, type RevocationTombstones, revoke } from "./revoke.ts";
 import { connectedUsers, localRoster, type PresenceRoster } from "./roster.ts";
-import { createSceneKind, type SceneLimits } from "./scene/kind.ts";
+import { createSceneKind, type SceneLimits, type SceneProjects } from "./scene/kind.ts";
 import type { SnapshotRunner } from "./scene/snapshot.ts";
 import type { SceneStore } from "./scene/store.ts";
 import { reportMetrics, sampleEventLoopLag, SyncMetrics } from "./telemetry.ts";
@@ -81,6 +86,14 @@ export interface ServerOptions {
   /** The scene format this instance migrates to at load; the engine's by default. */
   sceneFormat?: SceneFormat;
   sceneSnapshots?: SnapshotRunner;
+  /** Hosts project registries; without it `project:` documents are refused. */
+  projectStore?: ProjectStore;
+  /** Hosts asset docs; without it `asset:` documents are refused. */
+  assetStore?: EngineDocStore;
+  /** Checked before a new asset doc gets its row; everything fits by default. */
+  quota?: QuotaPolicy;
+  /** The asset kinds projects and asset docs are judged by; the engine's by default. */
+  engineKinds?: KindRegistry;
   instanceId: string;
   /** Relays updates between instances; without it this instance stands alone. */
   redis?: Extension;
@@ -107,6 +120,20 @@ export interface SyncServer {
   handleApply(message: ApplyMessage): Promise<boolean>;
   /** Stops accepting, closes every connection, stores what's pending and waits for docs to unload. */
   stop(timeoutMs?: number): Promise<void>;
+}
+
+/** What a scene's layout migration reaches of its project, when this instance hosts both kinds. */
+function sceneProjects(
+  projects: ProjectKind | undefined,
+  assets: AssetKind | undefined,
+): SceneProjects | undefined {
+  if (!projects || !assets) return undefined;
+  return {
+    registry: (projectId) => projects.registry(projectId),
+    updateRegistry: (projectId, state) => projects.update(projectId, state),
+    readAsset: (docId) => assets.read(docId),
+    writeAsset: (docId, state) => assets.write(docId, state),
+  };
 }
 
 /** The Hocuspocus instance served by Bun, plus the routes Railway needs. */
@@ -146,6 +173,32 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
     const persistence = createPersistence({ db: options.db, now, metrics, snapshots, telemetry });
     hosted.push(canvasKind({ db: options.db, persistence, documents }));
   }
+  let projectKind: ProjectKind | undefined;
+  let assetKind: AssetKind | undefined;
+  if (options.projectStore) {
+    projectKind = createProjectKind({
+      store: options.projectStore,
+      documents,
+      now,
+      metrics,
+      telemetry,
+      quota: options.quota,
+      kinds: options.engineKinds,
+    });
+    hosted.push(projectKind);
+  }
+  if (options.assetStore) {
+    assetKind = createAssetKind({
+      store: options.assetStore,
+      documents,
+      now,
+      metrics,
+      telemetry,
+      kinds: options.engineKinds,
+      snapshotIntervalMs: options.snapshotIntervalMs,
+    });
+    hosted.push(assetKind);
+  }
   if (options.sceneStore) {
     hosted.push(
       createSceneKind({
@@ -158,9 +211,16 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
         format: options.sceneFormat,
         snapshots: options.sceneSnapshots,
         snapshotIntervalMs: options.snapshotIntervalMs,
+        projects: sceneProjects(projectKind, assetKind),
       }),
     );
   }
+  /** A project's other docs may name its trash; the registry rechecks after they load or store. */
+  const reviewProject = (name: string, doc?: Y.Doc) => {
+    if (!projectKind || !(name.startsWith("scene:") || name.startsWith("asset:"))) return;
+    const project = documentProject(name);
+    if (project !== null) void projectKind.review(project, doc && { name, doc });
+  };
   const kinds = new DocumentKinds(hosted);
   const revocations = new RevocationList();
   const authenticate = createAuthenticate({
@@ -224,14 +284,16 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
           throw new SyncRefusal(SYNC_CLOSE.revoked, "access revoked", "auth");
         }
         const kind = kinds.get(context.kind);
-        limitMessage(connection, update, kind?.limits);
+        const limits =
+          context.kind === "asset" && assetKind ? assetKind.limitsFor(context.docId) : kind?.limits;
+        limitMessage(connection, update, limits);
         if (
           !context.readOnly &&
           growth.exceeds(
             documentName,
             update.byteLength,
             () => Y.encodeStateAsUpdate(document).byteLength,
-            kind?.limits.maxStateBytes,
+            limits?.maxStateBytes,
           )
         ) {
           const tooLarge = `${kind?.noun ?? "document"} too large`;
@@ -256,10 +318,12 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
     },
     async afterStoreDocument({ documentName }) {
       growth.stored(documentName);
+      reviewProject(documentName);
     },
     async afterLoadDocument({ document, documentName }) {
       awarenessHolds.get(documentName)?.();
       awarenessHolds.set(documentName, holdAwarenessWhileConnected(document));
+      reviewProject(documentName, document);
     },
     async afterUnloadDocument({ documentName }) {
       awarenessHolds.get(documentName)?.();
@@ -425,6 +489,8 @@ async function main() {
   const { createDb } = await import("./db.ts");
   const { postgresSceneStore } = await import("./scene/pg-store.ts");
   const { workerSnapshots } = await import("./scene/snapshot.ts");
+  const { postgresAssetDocStore } = await import("./engine/doc-store.ts");
+  const { postgresProjectStore } = await import("./engine/project-kind.ts");
   const { syncEnvPrefix } = await import("../../../src/lib/canvas/sync-channels.ts");
   const { pool, db } = createDb(config.DATABASE_URL);
   const prefix = syncEnvPrefix(config.RAILWAY_ENVIRONMENT_NAME);
@@ -452,6 +518,8 @@ async function main() {
     db,
     sceneStore: postgresSceneStore(db),
     sceneSnapshots: workerSnapshots(),
+    projectStore: postgresProjectStore(db),
+    assetStore: postgresAssetDocStore(db),
     instanceId: config.INSTANCE_ID,
     telemetry,
     debounceMs: config.STORE_DEBOUNCE_MS,

@@ -11,9 +11,9 @@ export type ListInput = Record<string, never>;
 export const list: Tool<ListInput> = async (_input, ctx) => {
   const files = await listSceneFiles(ctx);
   const scenes = await Promise.all(
-    files.map(async ({ name, home, file }) => {
+    files.map(async ({ name, home, file, project }) => {
       const text = await readFile(file, "utf8");
-      const judged = judgeScene(ctx, text);
+      const judged = judgeScene(ctx, text, undefined, project);
       const game = judged.game ?? null;
       const failed = (issues: number) => ({ name, home, game, ok: false as const, issues });
       if (!judged.ok) return failed(1);

@@ -1,0 +1,534 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:project-ops:v1",
+  "x-agent-surface": 7,
+  "title": "jams engine project op batch, format v1",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Project op batch format version."
+    },
+    "label": {
+      "description": "A short human label for history and logs, e.g. \"Import crate art\".",
+      "type": "string"
+    },
+    "base": {
+      "description": "File batches only: the project snapshot hash the batch was written against; a stale one is refused.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ops": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "createAsset",
+                "description": "The op: createAsset."
+              },
+              "kind": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47})?$",
+                "description": "An asset kind: \"material\", \"texture\", or \"<game>/<kind>\" for a game's own kind."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 255,
+                "description": "Where the file goes: a file path (\"materials/rubber.json\"), a folder ending in \"/\" for `<id><extension>` there, or \"\" for the kind's default folder."
+              },
+              "id": {
+                "description": "The new asset's id; omitted, the file's stem (or `<kind>-<n>` for a folder path).",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              },
+              "content": {
+                "description": "The file's JSON as the kind's schema defines it; omitted, the kind's empty value."
+              },
+              "licence": {
+                "type": "object",
+                "properties": {
+                  "spdx": {
+                    "description": "An SPDX id (\"CC-BY-4.0\") or \"proprietary\".",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "author": {
+                    "description": "Who made it.",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "source": {
+                    "description": "Where it came from: a URL or a description.",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "attribution": {
+                    "description": "The exact credit line the licence asks for; the credits page prints it.",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false,
+                "description": "The asset's licence and credit."
+              }
+            },
+            "required": ["op", "kind", "path"],
+            "additionalProperties": false,
+            "description": "Create a text asset (a scene, prefab, material, table, …) and its doc."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "importAsset",
+                "description": "The op: importAsset."
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "A project-relative POSIX path with the file name, e.g. \"sprites/crate.png\": no leading \"/\", no \".\" or \"..\" segments, names of letters, digits, \".\", \"_\", \"-\" and spaces. Two live paths may not differ only in case."
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "A SHA-256 of the bytes as 64 lowercase hex characters, as the content store returned it when they were uploaded."
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The size of the bytes."
+              },
+              "kind": {
+                "description": "The blob kind; omitted, the one the path's suffix gives.",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47})?$"
+              },
+              "id": {
+                "description": "The new asset's id; omitted, the file's stem.",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              },
+              "settings": {
+                "description": "Import settings the kind defines (a texture's `filter`); omitted, defaults.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "licence": {
+                "type": "object",
+                "properties": {
+                  "spdx": {
+                    "description": "An SPDX id (\"CC-BY-4.0\") or \"proprietary\".",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "author": {
+                    "description": "Who made it.",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "source": {
+                    "description": "Where it came from: a URL or a description.",
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "attribution": {
+                    "description": "The exact credit line the licence asks for; the credits page prints it.",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false,
+                "description": "The asset's licence and credit."
+              }
+            },
+            "required": ["op", "path", "sha256", "bytes"],
+            "additionalProperties": false,
+            "description": "Add a binary asset (an image, atlas, font, sound) whose bytes are already in the project's content store."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "renameAsset",
+                "description": "The op: renameAsset."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "The asset."
+              },
+              "name": {
+                "description": "The display name; null goes back to the file's stem.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "file": {
+                "description": "A new file name in the same folder, e.g. \"rubber-ball.json\"; same kind suffix.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 96
+              }
+            },
+            "required": ["op", "id"],
+            "additionalProperties": false,
+            "description": "Change an asset's display name or file name. Its id and references stay."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "moveAsset",
+                "description": "The op: moveAsset."
+              },
+              "ids": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                  "description": "An asset id: lowercase letters, digits and hyphens, starting with a letter or digit, at most 48 characters; unique among the project's live assets."
+                },
+                "description": "The assets to move."
+              },
+              "to": {
+                "type": "string",
+                "maxLength": 255,
+                "description": "A folder ending in \"/\", e.g. \"sprites/enemies/\", or \"\" for the project root."
+              }
+            },
+            "required": ["op", "ids", "to"],
+            "additionalProperties": false,
+            "description": "Move assets into a folder, keeping their file names. References follow by id."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "deleteAsset",
+                "description": "The op: deleteAsset."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "The asset."
+              },
+              "force": {
+                "description": "Trash it even while other assets reference it; they report asset-missing.",
+                "type": "boolean"
+              }
+            },
+            "required": ["op", "id"],
+            "additionalProperties": false,
+            "description": "Move an asset to the trash. Its content is kept, so restoreAsset brings it back."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "restoreAsset",
+                "description": "The op: restoreAsset."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "The trashed asset's id; the most recently trashed one wins."
+              }
+            },
+            "required": ["op", "id"],
+            "additionalProperties": false,
+            "description": "Bring an asset back from the trash to its old path; refused while it is taken."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "changeAssetId",
+                "description": "The op: changeAssetId."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "The asset's current id."
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "The new id; must be free."
+              }
+            },
+            "required": ["op", "id", "to"],
+            "additionalProperties": false,
+            "description": "Change an asset's id and rewrite every reference to it, in every doc."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "setImport",
+                "description": "The op: setImport."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "A binary asset."
+              },
+              "set": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {},
+                "description": "Setting name to new value; null resets one to its default."
+              }
+            },
+            "required": ["op", "id", "set"],
+            "additionalProperties": false,
+            "description": "Change a binary asset's import settings, field by field; its metadata is re-read."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "replaceContent",
+                "description": "The op: replaceContent."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "A binary asset."
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "A SHA-256 of the bytes as 64 lowercase hex characters, as the content store returned it when they were uploaded."
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The size of the bytes."
+              }
+            },
+            "required": ["op", "id", "sha256", "bytes"],
+            "additionalProperties": false,
+            "description": "Point a binary asset at new bytes already in the content store; the old ones stay in its history. Recordings can't be replaced."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "setLicence",
+                "description": "The op: setLicence."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "The asset."
+              },
+              "licence": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "spdx": {
+                        "description": "An SPDX id (\"CC-BY-4.0\") or \"proprietary\".",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "author": {
+                        "description": "Who made it.",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source": {
+                        "description": "Where it came from: a URL or a description.",
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "attribution": {
+                        "description": "The exact credit line the licence asks for; the credits page prints it.",
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "The asset's licence and credit."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The whole licence (fields left out are cleared), or null to clear it."
+              }
+            },
+            "required": ["op", "id", "licence"],
+            "additionalProperties": false,
+            "description": "Set or clear an asset's licence and credit line."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "editAsset",
+                "description": "The op: editAsset."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "A declarative text asset (a material, table, settings, …)."
+              },
+              "edits": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "set": {
+                          "type": "string",
+                          "description": "A JSON Pointer into the asset's file, e.g. \"/physics/friction\"; a segment \"@<id>\" picks a keyed item by its id (\"/rows/@fireball/cost\")."
+                        },
+                        "value": {
+                          "description": "The new value."
+                        }
+                      },
+                      "required": ["set", "value"],
+                      "additionalProperties": false,
+                      "description": "Set the value at a pointer."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "unset": {
+                          "type": "string",
+                          "description": "A JSON Pointer into the asset's file, e.g. \"/physics/friction\"; a segment \"@<id>\" picks a keyed item by its id (\"/rows/@fireball/cost\")."
+                        }
+                      },
+                      "required": ["unset"],
+                      "additionalProperties": false,
+                      "description": "Remove an object key."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "insert": {
+                          "type": "string",
+                          "description": "The keyed collection or list to insert into."
+                        },
+                        "value": {
+                          "description": "The item; a keyed collection's item carries its id."
+                        },
+                        "before": {
+                          "description": "A sibling's id (keyed) or index (list) to insert before; omitted appends.",
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["insert", "value"],
+                      "additionalProperties": false,
+                      "description": "Insert an item into a keyed collection or a list."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "remove": {
+                          "type": "string",
+                          "description": "A JSON Pointer into the asset's file, e.g. \"/physics/friction\"; a segment \"@<id>\" picks a keyed item by its id (\"/rows/@fireball/cost\")."
+                        }
+                      },
+                      "required": ["remove"],
+                      "additionalProperties": false,
+                      "description": "Remove an item or key."
+                    }
+                  ],
+                  "description": "One edit to a declarative asset's JSON."
+                },
+                "description": "Applied in order."
+              }
+            },
+            "required": ["op", "id", "edits"],
+            "additionalProperties": false,
+            "description": "Edit a text asset's JSON; the result is checked against its kind's schema."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "editScene",
+                "description": "The op: editScene."
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "A scene or prefab."
+              },
+              "ops": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "description": "The scene op's name, e.g. move."
+                    }
+                  },
+                  "required": ["op"],
+                  "additionalProperties": {},
+                  "description": "A scene op as the game's ops.schema.json defines it."
+                },
+                "description": "Scene ops, applied as one scene batch."
+              }
+            },
+            "required": ["op", "id", "ops"],
+            "additionalProperties": false,
+            "description": "Edit a scene or prefab with scene ops, inside this project batch."
+          }
+        ],
+        "description": "One edit to a project's assets."
+      },
+      "description": "Applied in order, atomically: if one fails, none do."
+    }
+  },
+  "required": ["v", "ops"],
+  "additionalProperties": false,
+  "description": "A batch of edits to a project's assets: creating, importing, moving, renaming, trashing and restoring them, their import settings, content and licences. Assets are named by id; paths are project-relative."
+}

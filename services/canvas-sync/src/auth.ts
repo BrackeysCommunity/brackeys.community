@@ -2,7 +2,12 @@ import type { onAuthenticatePayload } from "@hocuspocus/server";
 
 import { SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import { SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
-import { type SyncAccess, tokenKind, verifyCanvasToken } from "../../../src/lib/canvas/token.ts";
+import {
+  type SyncAccess,
+  tokenAdmits,
+  tokenKind,
+  verifyCanvasToken,
+} from "../../../src/lib/canvas/token.ts";
 import type { DocumentKindName, DocumentKinds, KindGrant } from "./kinds.ts";
 import { type ConnectionCaps, SyncRefusal } from "./limits.ts";
 import {
@@ -36,8 +41,9 @@ export interface SyncContext {
 /**
  * Who is connecting comes only from the token the web app minted after
  * checking access. The token must name this exact document and its kind,
- * the kind must still admit it, and the caps must have room. A read token
- * connects read-only, so nothing it sends is applied or relayed.
+ * or be project-scoped to the document's project; the kind must still admit
+ * it, and the caps must have room. A read token connects read-only, so
+ * nothing it sends is applied or relayed.
  */
 export function createAuthenticate(options: {
   secret: string;
@@ -56,14 +62,15 @@ export function createAuthenticate(options: {
   }: onAuthenticatePayload): Promise<SyncContext> => {
     const claims = await verifyCanvasToken(token, options.secret, options.now());
     if (!claims) throw new SyncRefusal(SYNC_CLOSE.unauthorized, "invalid token", "auth");
-    if (claims.c !== documentName) {
+    if (!tokenAdmits(claims, documentName)) {
       throw new SyncRefusal(SYNC_CLOSE.unauthorized, "token is for another document", "auth");
     }
     // Notes have names already, and a service that serves them later; not yet.
     const target = options.kinds.resolve(documentName);
     if (!target) throw new SyncRefusal(SYNC_CLOSE.revoked, "unsupported document", "auth");
     const { kind, id } = target;
-    if (tokenKind(claims) !== kind.name) {
+    // A project-scoped token is a project token that opens any kind of its project's documents.
+    if (claims.c === documentName && tokenKind(claims) !== kind.name) {
       throw new SyncRefusal(SYNC_CLOSE.unauthorized, "token is for another kind", "auth");
     }
 

@@ -1,13 +1,13 @@
 import { AGENT_SURFACE_VERSION, ISSUE_CODES, type IssueCodeInfo } from "@jams/engine/scene";
 
-import { registryOf, type Tool } from "../context";
+import { gameIds, registryOf, type Tool } from "../context";
 
 type CodeTable = Record<string, IssueCodeInfo>;
 
 /** The engine's codes, then each game's own (`<game>/<code>`), grouped by owner, with the agent surface version. */
 export const codes: Tool<Record<string, never>> = async (_input, ctx) => {
   const groups: Record<string, CodeTable> = { engine: { ...ISSUE_CODES } };
-  for (const id of Object.keys(ctx.games)) {
+  for (const id of gameIds(ctx)) {
     const own = Object.entries(registryOf(ctx, id)!.issueCodes).filter(([code]) =>
       code.startsWith(`${id}/`),
     );

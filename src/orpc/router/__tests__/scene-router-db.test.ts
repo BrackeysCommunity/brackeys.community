@@ -2,7 +2,7 @@ import { call } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { developerProfiles, sceneDocs, user } from "@/db/schema";
+import { developerProfiles, engineProjects, sceneDocs, user } from "@/db/schema";
 import { verifyCanvasToken } from "@/lib/canvas/token";
 import { createHostedScene, deleteHostedScene, getSceneSyncToken } from "@/orpc/router/scene";
 import { seedUser, type TestDb } from "@/test/db";
@@ -54,6 +54,7 @@ beforeEach(async () => {
   process.env.CANVAS_SYNC_SECRET = SECRET;
   process.env.CANVAS_SYNC_URL = "wss://sync.test";
   await db.delete(sceneDocs);
+  await db.delete(engineProjects);
   await db.delete(developerProfiles);
   await db.delete(user);
   await seedUser(db, "member");
@@ -64,7 +65,11 @@ beforeEach(async () => {
 });
 
 const mint = (userId: string | null, input: Partial<{ access: "read" | "write" }> = {}) =>
-  call(getSceneSyncToken, { sceneId: SCENE, formatVersion: 1, ...input }, asUser(userId));
+  call(
+    getSceneSyncToken,
+    { sceneId: SCENE, formatVersion: 1, layoutVersion: 2, ...input },
+    asUser(userId),
+  );
 
 describe("getSceneSyncToken: the gate", () => {
   it.each(["moderator", "staff", "admin"])("mints a write token for %s", async (who) => {
@@ -77,6 +82,7 @@ describe("getSceneSyncToken: the gate", () => {
       a: "write",
       k: "scene",
       f: 1,
+      l: 2,
     });
   });
 
@@ -101,21 +107,29 @@ describe("getSceneSyncToken", () => {
     expect(await verifyCanvasToken(token, SECRET)).toMatchObject({ a: "read", k: "scene" });
   });
 
-  it("carries the caller's format version, which the service compares", async () => {
+  it("carries the caller's format and layout versions, which the service compares", async () => {
     const { token } = await call(
       getSceneSyncToken,
-      { sceneId: SCENE, formatVersion: 3 },
+      { sceneId: SCENE, formatVersion: 3, layoutVersion: 2 },
       asUser("staff"),
     );
-    expect(await verifyCanvasToken(token, SECRET)).toMatchObject({ f: 3 });
+    expect(await verifyCanvasToken(token, SECRET)).toMatchObject({ f: 3, l: 2 });
   });
 
   it("refuses a scene that doesn't exist and an id that isn't one", async () => {
     await expect(
-      call(getSceneSyncToken, { sceneId: "platformer.nope", formatVersion: 1 }, asUser("staff")),
+      call(
+        getSceneSyncToken,
+        { sceneId: "platformer.nope", formatVersion: 1, layoutVersion: 2 },
+        asUser("staff"),
+      ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(
-      call(getSceneSyncToken, { sceneId: "Level One", formatVersion: 1 }, asUser("staff")),
+      call(
+        getSceneSyncToken,
+        { sceneId: "Level One", formatVersion: 1, layoutVersion: 2 },
+        asUser("staff"),
+      ),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
@@ -158,5 +172,64 @@ describe("hosted scenes", () => {
       `development:canvas-sync:revoked:scene:${SCENE}:`,
     ]);
     await expect(mint("staff")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("scene tokens: the layout claim", () => {
+  it("is the caller's layoutVersion, and required", async () => {
+    for (const layoutVersion of [1, 2, 7]) {
+      const { token } = await call(
+        getSceneSyncToken,
+        { sceneId: SCENE, formatVersion: 1, layoutVersion },
+        asUser("staff"),
+      );
+      expect((await verifyCanvasToken(token, SECRET))!.l).toBe(layoutVersion);
+    }
+    await expect(
+      call(getSceneSyncToken, { sceneId: SCENE, formatVersion: 1 } as never, asUser("staff")),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      call(
+        getSceneSyncToken,
+        { sceneId: SCENE, formatVersion: 1, layoutVersion: 0 },
+        asUser("staff"),
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+describe("hosted scenes and their project", () => {
+  it("belong to the project their id names, made on first use", async () => {
+    await call(createHostedScene, { sceneId: "yard.level-1" }, asUser("staff"));
+    const [scene] = await db.select().from(sceneDocs).where(eq(sceneDocs.sceneId, "yard.level-1"));
+    expect(scene!.projectId).toBe("yard");
+    const [project] = await db
+      .select()
+      .from(engineProjects)
+      .where(eq(engineProjects.projectId, "yard"));
+    expect(project).toMatchObject({ name: "yard", deletedAt: null, createdById: "staff" });
+
+    await call(createHostedScene, { sceneId: "yard.level-2" }, asUser("staff"));
+    expect(await db.select().from(engineProjects)).toHaveLength(1);
+  });
+
+  it("read as gone once their project is deleted, and a deleted project takes no new ones", async () => {
+    await call(createHostedScene, { sceneId: "yard.level-1" }, asUser("staff"));
+    await db.update(engineProjects).set({ deletedAt: new Date() });
+    await expect(
+      call(
+        getSceneSyncToken,
+        { sceneId: "yard.level-1", formatVersion: 1, layoutVersion: 2 },
+        asUser("staff"),
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      call(createHostedScene, { sceneId: "yard.level-3" }, asUser("staff")),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await db.select().from(sceneDocs).where(eq(sceneDocs.sceneId, "yard.level-3"))).toEqual(
+      [],
+    );
+    // A scene from before projects keeps working.
+    await expect(mint("staff")).resolves.toMatchObject({ access: "write" });
   });
 });

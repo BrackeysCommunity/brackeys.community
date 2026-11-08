@@ -67,6 +67,7 @@ import { Switch } from "@/components/ui/switch";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { MicroLabel } from "@/components/ui/typography";
 
+import { AssetPanel, type SelectedAsset } from "./project-tree/asset-panel";
 import { useEditorDoc, useEditorStore } from "./use-editor-store";
 
 /** What a field shows when the selection disagrees. */
@@ -1180,22 +1181,27 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
  * a widget per field kind, `.describe()` text as tooltips, and drafts that
  * commit on Enter or blur as one batch. With several selected, only the
  * shared fields show; values that differ read "—", and `+=16` edits each
- * one relatively.
+ * one relatively. An asset picked in the project tree shows instead, with
+ * its licence fields.
  */
 export function EditorInspector({
   session,
   onOpenPrefab,
   inPrefab = false,
+  asset,
 }: {
   session: EditorSession;
   /** Opens an instance's prefab on its own. */
   onOpenPrefab?: (prefab: string, from: Ref) => void;
   /** `session` edits a prefab in isolation, where no prefab can be made. */
   inPrefab?: boolean;
+  /** The asset picked in the project tree. */
+  asset?: SelectedAsset;
 }) {
   const selection = useEditorStore(session, (s) => s.selection);
   const doc = useEditorDoc(session);
   const view = session.getResolved();
+  if (asset) return <AssetPanel {...asset} />;
 
   const targets = selection.flatMap((ref) => {
     const t = lookupRef(view, ref);

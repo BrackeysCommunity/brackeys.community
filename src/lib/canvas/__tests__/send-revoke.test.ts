@@ -68,6 +68,26 @@ describe("sendRevoke", () => {
     expect(calls.map((c) => c[0])).toEqual(["publish"]);
   });
 
+  it.each<[RevokeMessage, string]>([
+    [{ projectId: "jam" }, `${PREFIX}:revoked:project:jam:`],
+    [{ projectId: "jam", userId: "u1" }, `${PREFIX}:revoked:project:jam:u1`],
+    [{ sceneId: "jam.l" }, `${PREFIX}:revoked:scene:jam.l:`],
+  ])("a %j revoke tombstones a key every document of its project checks", async (message, key) => {
+    const { client, calls } = recorder();
+    await sendRevoke(client, PREFIX, message, 1_000);
+    expect(calls[1]?.[1]).toBe(key);
+    expect(revokeTombstoneKeys(PREFIX, "scene:jam.l", "u1")).toContain(key);
+    expect(parseRevokeMessage(calls[0]![2] as string)).toEqual(message);
+  });
+
+  it("a project revoke's tombstone covers none of another project's documents", async () => {
+    const { client, calls } = recorder();
+    await sendRevoke(client, PREFIX, { projectId: "jam" }, 1_000);
+    expect(revokeTombstoneKeys(PREFIX, "asset:jam.k1", "u1")).toContain(calls[1]?.[1]);
+    expect(revokeTombstoneKeys(PREFIX, "scene:other.l", "u1")).not.toContain(calls[1]?.[1]);
+    expect(revokeTombstoneKeys(PREFIX, "c1", "u1")).not.toContain(calls[1]?.[1]);
+  });
+
   it("keys never collide between a canvas-wide and a user-wide revoke", () => {
     expect(revokeTombstoneKey(PREFIX, "x", undefined)).not.toBe(
       revokeTombstoneKey(PREFIX, undefined, "x"),

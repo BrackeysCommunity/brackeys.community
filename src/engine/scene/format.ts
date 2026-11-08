@@ -1,3 +1,7 @@
+import type { InputScript } from "../headless/playtest-types";
+import { canonicalJson } from "../project/canonical";
+import type { DocLayout } from "../project/kinds/define";
+import type { ChecksFile } from "./checks";
 import { jsonPointer, pointerSegments } from "./issues";
 import { RESERVED_SCENE_KEYS, SCENE_HEADER_KEYS, type Prefab, type SceneDefinition } from "./types";
 
@@ -204,4 +208,40 @@ export function formatPrefab(prefab: Prefab): string {
     return p.join("\n");
   });
   return `{\n${body.join("\n")}\n}\n`;
+}
+
+const ATOMIC: DocLayout = { as: "atomic" };
+
+/**
+ * An input script in Yjs and on disk: steps merge by insert, each step
+ * replaced whole; the header keys before `steps` in this order.
+ */
+export const INPUT_SCRIPT_LAYOUT = {
+  as: "map",
+  fields: {
+    scene: ATOMIC,
+    at: ATOMIC,
+    timeOffsetMs: ATOMIC,
+    game: ATOMIC,
+    maxTicks: ATOMIC,
+    steps: { as: "list", item: ATOMIC },
+  },
+  rest: ATOMIC,
+} as const satisfies DocLayout;
+
+/** A checks file in Yjs and on disk: checks keyed by id, merging per check and field; `kind` after the id. */
+export const CHECKS_LAYOUT = {
+  as: "map",
+  fields: { checks: { as: "keyed", item: { as: "map", fields: { kind: ATOMIC }, rest: ATOMIC } } },
+  rest: ATOMIC,
+} as const satisfies DocLayout;
+
+/** The canonical text of an input script: `canonicalJson` over `INPUT_SCRIPT_LAYOUT`, one step per line. */
+export function formatInputScript(script: InputScript): string {
+  return canonicalJson(script, INPUT_SCRIPT_LAYOUT);
+}
+
+/** The canonical text of a checks file: `canonicalJson` over `CHECKS_LAYOUT`, one check per line. */
+export function formatChecks(file: ChecksFile): string {
+  return canonicalJson(file, CHECKS_LAYOUT);
 }

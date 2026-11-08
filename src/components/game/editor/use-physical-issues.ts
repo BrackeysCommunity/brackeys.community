@@ -11,8 +11,8 @@ const NONE: SceneIssue[] = [];
 
 /**
  * The scene's physical issues (a spawn in a solid, a mover hitting one),
- * rechecked in a headless world `delayMs` after the doc stops changing.
- * None without Rapier, and none while playing.
+ * rechecked in a headless world `delayMs` after the doc or one of its
+ * prefabs stops changing. None without Rapier, and none while playing.
  */
 export function usePhysicalIssues(
   session: EditorSession,
@@ -22,6 +22,9 @@ export function usePhysicalIssues(
   const hash = useEditorStore(session, (s) => s.hash);
   const mode = useEditorStore(session, (s) => s.mode);
   const [issues, setIssues] = useState<SceneIssue[]>(NONE);
+  const [prefabRevision, setPrefabRevision] = useState(0);
+
+  useEffect(() => session.prefabs.subscribe(() => setPrefabRevision((n) => n + 1)), [session]);
 
   useEffect(() => {
     if (!rapier || mode !== "edit") return;
@@ -41,7 +44,7 @@ export function usePhysicalIssues(
       }
     }, delayMs);
     return () => clearTimeout(timer);
-  }, [session, rapier, hash, mode, delayMs]);
+  }, [session, rapier, hash, prefabRevision, mode, delayMs]);
 
   return rapier ? issues : NONE;
 }

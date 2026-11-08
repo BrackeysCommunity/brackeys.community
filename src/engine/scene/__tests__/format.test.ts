@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { comparePointers, formatScene } from "../format";
+import type { InputScript } from "../../headless/playtest-types";
+import type { ChecksFile } from "../checks";
+import { comparePointers, formatChecks, formatInputScript, formatScene } from "../format";
 import { parseScene, parseSceneOrThrow } from "../parse";
 import type { SceneDefinition } from "../types";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
@@ -151,5 +153,62 @@ describe("comparePointers", () => {
       "/entities/10/shape",
       undefined,
     ]);
+  });
+});
+
+describe("formatInputScript", () => {
+  const text = [
+    "{",
+    '  "$schema": "../input-script.schema.json",',
+    '  "v": 1,',
+    '  "scene": "yard",',
+    '  "at": [10, 20],',
+    '  "timeOffsetMs": 500,',
+    '  "game": { "push": false },',
+    '  "maxTicks": 900,',
+    '  "steps": [',
+    '    { "for": 30, "hold": ["right"] },',
+    '    { "hold": ["left"], "max": 60, "until": { "event": { "entityId": "zone", "type": "sensor:enter" } } },',
+    '    { "press": ["jump", "right"] },',
+    '    { "wait": 5 }',
+    "  ]",
+    "}",
+    "",
+  ].join("\n");
+
+  it("writes the header, then one step per line with sorted keys", () => {
+    const script = JSON.parse(text) as Record<string, unknown>;
+    const shuffled = Object.fromEntries(Object.entries(script).reverse());
+    expect(formatInputScript(shuffled as InputScript)).toBe(text);
+    expect(formatInputScript(JSON.parse(text))).toBe(text);
+  });
+
+  it("keeps an empty step list on one line", () => {
+    expect(formatInputScript({ v: 1, steps: [] } as unknown as InputScript)).toBe(
+      '{\n  "v": 1,\n  "steps": []\n}\n',
+    );
+  });
+});
+
+describe("formatChecks", () => {
+  const text = [
+    "{",
+    '  "v": 1,',
+    '  "checks": [',
+    '    { "id": "valid", "kind": "valid", "max": "warn", "physical": true },',
+    '    { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "steps": [{ "wait": 60 }], "v": 1 } },',
+    '    { "id": "touch", "kind": "touches", "atLeast": 1, "entity": "zone" }',
+    "  ]",
+    "}",
+    "",
+  ].join("\n");
+
+  it("writes one check per line, its id and kind first", () => {
+    const file = JSON.parse(text) as { v: 1; checks: Record<string, unknown>[] };
+    const reordered = {
+      checks: file.checks.map((c) => Object.fromEntries(Object.entries(c).reverse())),
+      v: 1 as const,
+    };
+    expect(formatChecks(reordered as ChecksFile)).toBe(text);
   });
 });

@@ -40,6 +40,11 @@ export const FEATURE_FLAGS = {
    * tokens while it's off for the caller.
    */
   "canvases-multiplayer": false,
+  /**
+   * Hosted engine projects: enforced server-side on every `engine-project`
+   * procedure and every `/api/engine/*` route, on top of the staff gate.
+   */
+  "engine-projects": false,
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

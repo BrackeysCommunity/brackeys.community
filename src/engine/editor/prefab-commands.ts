@@ -1,3 +1,5 @@
+import type { ProjectOpBatch } from "../project/ops";
+import type { AssetId } from "../project/types";
 import { nextFreeId } from "../scene/fragment";
 import { sceneHash } from "../scene/hash";
 import { parseChildRef } from "../scene/resolve";
@@ -6,8 +8,19 @@ import type { InstanceDef, OpBatch, PrefabLibrary, Ref, SceneDefinition } from "
 /**
  * The editor's prefab commands as op batches against the document (not
  * the resolved view): what the inspector's buttons and the outliner's
- * menu dispatch.
+ * menu dispatch. Apply to prefab, Create prefab and Unpack read or write
+ * prefab docs as well as the scene's, so a session dispatches them through
+ * its prefab source's writer: one transaction per doc, one undo step.
  */
+
+/** A scene batch as one `editScene` of a project batch, for `applyProjectBatch` (agents, the CLI). */
+export function asProjectBatch(scene: AssetId, batch: OpBatch): ProjectOpBatch {
+  return {
+    v: 1,
+    ...(batch.label ? { label: batch.label } : {}),
+    ops: [{ op: "editScene", id: scene, ops: batch.ops }],
+  };
+}
 
 /** The instance an instance's ref or one of its children's refs names. */
 export function instanceOfRef(def: SceneDefinition, ref: Ref): InstanceDef | undefined {
@@ -75,13 +88,15 @@ export function unpackBatch(def: SceneDefinition, ref: Ref): OpBatch | null {
 /**
  * Create prefab from selection: the selected entities and bulk entries
  * become a new prefab, named after the first one, with one instance where
- * they stood. Null when the selection holds instances or their children,
- * which a prefab can't hold.
+ * they stood. `taken` adds ids the new prefab can't have besides the
+ * library's (every asset id in the project). Null when the selection holds
+ * instances or their children, which a prefab can't hold.
  */
 export function createPrefabBatch(
   def: SceneDefinition,
   refs: readonly Ref[],
   prefabs: PrefabLibrary,
+  taken: Iterable<string> = [],
 ): OpBatch | null {
   if (refs.length === 0) return null;
   if (refs.some((r) => parseChildRef(r) || def.instances?.some((i) => i.id === r))) return null;
@@ -89,7 +104,7 @@ export function createPrefabBatch(
   const stem = first.startsWith("~")
     ? first.slice(1, first.lastIndexOf(":")).split(":")[0]!
     : first.replace(/-\d+$/, "");
-  const id = nextFreeId(stem, new Set(prefabs.keys()));
+  const id = nextFreeId(stem, new Set([...prefabs.keys(), ...taken]));
   const bulk = refs.some((r) => r.startsWith("~"));
   return {
     label: `Create prefab ${id}`,

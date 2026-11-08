@@ -13,16 +13,19 @@ import {
   type SceneOrigin,
   type SceneUndo,
 } from "@jams/engine/collab";
+import { docNameOf } from "@jams/engine/project";
 import { createRegistry, formatScene } from "@jams/engine/scene";
-import { listenSceneCollab, sceneDocName, type ListeningSceneCollab } from "@jams/engine/vite";
+import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
+import { platformerGame } from "../../../src/games/platformer";
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
-import { GAMES } from "../games";
+import { openProject } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
 import { applyLive } from "../tools/apply-live";
+import { tempProject } from "./fixtures";
 
 const ENGINE = createRegistry();
 const ENGINE_YARD = fileURLToPath(
@@ -58,16 +61,26 @@ beforeEach(async () => {
   await mkdir(dirs.engine);
   await mkdir(dirs.platformer);
   await copyFile(ENGINE_YARD, join(dirs.engine, "engine-yard.json"));
-  ctx = { games: GAMES, scenesDirs: dirs, loadRapier: loadCompatRapier };
+  await writeFile(
+    join(dirs.engine, "jams.project.json"),
+    JSON.stringify({ kind: "project", v: 1, id: "engine", name: "Engine", game: null }),
+  );
+  ctx = {
+    projects: [
+      await openProject(dirs.engine, { cacheDir: join(root, "cli-cache") }),
+      await tempProject(dirs.platformer, { game: platformerGame }),
+    ],
+    loadRapier: loadCompatRapier,
+  };
   server = await listenSceneCollab({
-    homes: [{ dir: dirs.engine, registry: ENGINE }],
+    projects: [await readFileProject(dirs.engine, { cacheDir: join(root, "cache") })],
     debounceMs: 50,
     warn: () => undefined,
   });
   const doc = new Y.Doc();
   const provider = new HocuspocusProvider({
     url: server.url,
-    name: sceneDocName("engine-yard"),
+    name: docNameOf({ kind: "scene", project: "engine", key: "engine-yard" }),
     document: doc,
   });
   await until(() => provider.synced, "the human's first sync");
@@ -135,7 +148,7 @@ describe("apply --live", () => {
       written: true,
       actor: { agentId: "scene-cli" },
     });
-    const file = join(ctx.scenesDirs.engine!, "engine-yard.json");
+    const file = join(root, "engine", "engine-yard.json");
     await until(
       async () =>
         JSON.parse(await readFile(file, "utf8")).entities.find(
@@ -209,6 +222,56 @@ describe("apply --live", () => {
     );
     expect(down.exitCode).toBe(1);
     expect(down.text).toMatch(/Can't reach/);
+  });
+
+  it("sends prefab ops as one project batch: the prefab doc and its file follow", async () => {
+    const r = await applyLive(
+      {
+        scene: "engine-yard",
+        ops: await opsFile({
+          label: "Kit the crate",
+          ops: [{ op: "createPrefab", refs: ["crate"], id: "crate-kit", at: [1200, 940] }],
+        }),
+        url: server.url,
+        agent: "claude",
+      },
+      ctx,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({ written: true, project: "engine" });
+    await until(
+      () => (docToScene(human.doc).instances ?? []).some((i) => i.prefab === "crate-kit"),
+      "the instance to reach the human",
+    );
+    expect(docToScene(human.doc).entities!.some((e) => e.id === "crate")).toBe(false);
+    const prefab = join(root, "engine", "prefabs", "crate-kit.json");
+    await until(
+      () =>
+        readFile(prefab, "utf8").then(
+          (t) => JSON.parse(t).id === "crate-kit",
+          () => false,
+        ),
+      "the prefab file",
+    );
+  });
+
+  it("a dry run with prefab ops checks the prefab side and sends nothing", async () => {
+    const before = formatScene(docToScene(human.doc)).text;
+    const r = await applyLive(
+      {
+        scene: "engine-yard",
+        ops: await opsFile({
+          ops: [{ op: "createPrefab", refs: ["crate"], id: "crate-kit", at: [1200, 940] }],
+        }),
+        url: server.url,
+        dryRun: true,
+      },
+      ctx,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({ dryRun: true, written: false });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(formatScene(docToScene(human.doc)).text).toBe(before);
   });
 
   it("refuses live-only flags without --live", async () => {

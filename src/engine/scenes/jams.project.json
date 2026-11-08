@@ -1,0 +1,10 @@
+{
+  "$schema": "../project/project.schema.json",
+  "kind": "project",
+  "v": 1,
+  "id": "engine",
+  "name": "Engine",
+  "game": null,
+  "assets": ["**"],
+  "code": []
+}

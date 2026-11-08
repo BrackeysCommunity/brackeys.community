@@ -1,0 +1,345 @@
+// @vitest-environment node
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+
+import { describe, expect, it } from "vite-plus/test";
+import * as Y from "yjs";
+
+import { createRegistry } from "../../game/define";
+import { engineHomeRegistry } from "../../project/__tests__/fixtures/engine-home";
+import {
+  createKindRegistry,
+  formatAssetDoc,
+  parseAssetDoc,
+  type DocKindDef,
+  type DocLayout,
+  type KindEnv,
+} from "../../project/kinds";
+import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
+import { formatSidecar, parseSidecar, sidecarPathOf } from "../../project/sidecar";
+import type { ProjectFile } from "../../project/types";
+import type { Prefab, SceneDefinition } from "../../scene/types";
+import { fileContentStore } from "../../vite/content-store";
+import { createProjectFileAdapter, type FileProject } from "../../vite/project-files";
+import { docToScene, sceneToDoc } from "../convert";
+import { sequentialKeys } from "../keys";
+import { layoutFromDoc, layoutToDoc } from "../layout";
+import { docToPrefab, prefabToDoc } from "../prefab-doc";
+import { applyRegistryBatch, reinspectBlobs } from "../project-apply";
+import { readProject } from "../project-doc";
+import { deckGame, deckKind } from "./fixtures/deck-kind";
+
+const lines = (...rows: string[]) => `${rows.join("\n")}\n`;
+
+const env: KindEnv = { registry: createRegistry(deckGame), project: null };
+const kinds = createKindRegistry(deckGame);
+
+const FIXTURES: Record<string, string> = {
+  material: lines(
+    "{",
+    '  "kind": "material",',
+    '  "v": 1,',
+    '  "description": "Ice.",',
+    '  "physics": { "friction": 0, "restitution": 0 },',
+    '  "render": { "style": { "fill": "#ccf", "stroke": "#ffffff", "strokeWidth": 2 } }',
+    "}",
+  ),
+  "game-settings": lines(
+    "{",
+    '  "kind": "game-settings",',
+    '  "v": 1,',
+    '  "engine": {},',
+    '  "game": {',
+    '    "avatarSpeed": 180',
+    "  }",
+    "}",
+  ),
+  "data-table": lines(
+    "{",
+    '  "$schema": "../../engine/project/data-table.schema.json",',
+    '  "kind": "data-table",',
+    '  "v": 1,',
+    '  "table": "card",',
+    '  "rows": [',
+    '    { "id": "zap", "cost": 0, "damage": 1 },',
+    '    { "id": "anchor", "cost": 4 },',
+    '    { "id": "bolt", "cost": 1, "damage": 2 }',
+    "  ]",
+    "}",
+  ),
+  "input-script": lines(
+    "{",
+    '  "v": 1,',
+    '  "scene": "yard",',
+    '  "steps": [',
+    '    { "for": 10, "hold": ["left"] },',
+    '    { "hold": ["right", "push"], "until": { "past": 400 } },',
+    '    { "forMs": 250, "hold": [] }',
+    "  ]",
+    "}",
+  ),
+  checks: lines(
+    "{",
+    '  "v": 1,',
+    '  "checks": [',
+    '    { "id": "valid", "kind": "valid" },',
+    '    { "id": "props", "kind": "test-game/props", "atLeast": 1 },',
+    '    { "id": "far", "kind": "reaches", "at": [5, 5], "result": "won", "script": "far.script.json" }',
+    "  ]",
+    "}",
+  ),
+  "test-game/deck": lines(
+    "{",
+    '  "v": 1,',
+    '  "title": "Red deck",',
+    '  "style": {',
+    '    "fill": "#f00",',
+    '    "line": [1, 2]',
+    "  },",
+    '  "tags": [',
+    '    "fast",',
+    '    "red"',
+    "  ],",
+    '  "cards": [',
+    '    { "id": "zap", "note": "cheap", "cost": 0 },',
+    '    { "id": "bolt" }',
+    "  ]",
+    "}",
+  ),
+};
+
+const docKinds = kinds
+  .list()
+  .filter((k): k is DocKindDef => k.storage === "doc" && k.layout !== "custom");
+
+/** Through a seeded doc and a second client's copy of its state. */
+function throughDocs(layout: DocLayout, value: unknown): Record<string, unknown>[] {
+  const doc = layoutToDoc(
+    new Y.Doc(),
+    layout,
+    value,
+    { kind: "disk" },
+    { key: sequentialKeys("s") },
+  );
+  const remote = new Y.Doc();
+  Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
+  return [layoutFromDoc(doc, layout), layoutFromDoc(remote, layout)];
+}
+
+describe("file → doc → file, per kind", () => {
+  it("covers every declarative engine kind and the game's", () => {
+    const engine = ENGINE_ASSET_KINDS.filter((k) => k.storage === "doc" && k.layout !== "custom");
+    expect(docKinds.map((k) => k.kind)).toEqual([...engine.map((k) => k.kind), deckKind.kind]);
+    expect(Object.keys(FIXTURES).sort()).toEqual(docKinds.map((k) => k.kind).sort());
+  });
+
+  for (const kind of docKinds) {
+    const text = FIXTURES[kind.kind]!;
+    it(`${kind.kind}: is byte-identical, also after the doc crosses the wire`, () => {
+      const parsed = parseAssetDoc(kind, text, env);
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+      const value = parsed.value;
+      expect(formatAssetDoc(kind, value)).toBe(text);
+      for (const back of throughDocs(kind.layout as DocLayout, value))
+        expect(formatAssetDoc(kind, back)).toBe(text);
+    });
+
+    it(`${kind.kind}: its empty value survives the doc`, () => {
+      const empty = kind.empty(env, { id: "fresh" });
+      const text = formatAssetDoc(kind, empty);
+      for (const back of throughDocs(kind.layout as DocLayout, empty))
+        expect(formatAssetDoc(kind, back)).toBe(text);
+    });
+  }
+
+  it("the game's deck keeps two items with one id through the doc, reported as dup-id", () => {
+    const value = JSON.parse(FIXTURES[deckKind.kind]!) as { cards: { id: string }[] };
+    value.cards.splice(1, 0, { id: "zap" });
+    for (const back of throughDocs(deckKind.layout, value)) {
+      expect((back.cards as { id: string }[]).map((c) => c.id)).toEqual(["zap", "zap", "bolt"]);
+      const parsed = parseAssetDoc(deckKind as DocKindDef, back, env);
+      expect(!parsed.ok && parsed.issues.map((i) => [i.code, i.path])).toEqual([
+        ["dup-id", "/cards/1/id"],
+      ]);
+    }
+  });
+
+  const sceneFiles = ["../../scenes/kitchen-sink.json", "../../scenes/engine-yard.json"];
+  const sceneKind = kinds.get("scene") as DocKindDef<SceneDefinition>;
+  for (const path of sceneFiles) {
+    it(`scene: the kind's parse and format round-trip ${path} through the scene codec`, () => {
+      const text = readFileSync(new URL(path, import.meta.url), "utf8");
+      const parsed = parseAssetDoc(sceneKind, text, {
+        registry: engineHomeRegistry(),
+        project: null,
+      });
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+      const doc = sceneToDoc(parsed.value);
+      const remote = new Y.Doc();
+      Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
+      expect(formatAssetDoc(sceneKind, docToScene(remote))).toBe(text);
+    });
+  }
+
+  const prefabKind = kinds.get("prefab") as DocKindDef<Prefab>;
+  for (const path of ["../../scenes/prefabs/post.json", "../../scenes/prefabs/gate.json"]) {
+    it(`prefab: the kind's parse and format round-trip ${path} through the prefab codec`, () => {
+      const text = readFileSync(new URL(path, import.meta.url), "utf8");
+      const parsed = parseAssetDoc(prefabKind, text, {
+        registry: engineHomeRegistry(),
+        project: null,
+      });
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+      const doc = prefabToDoc(parsed.value, { key: sequentialKeys("p") });
+      const remote = new Y.Doc();
+      Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
+      expect(formatAssetDoc(prefabKind, docToPrefab(remote))).toBe(text);
+    });
+  }
+});
+
+// ─── Blob kinds: sidecar → registry → sidecar ────────────
+
+const blobFixture = (name: string) =>
+  readFile(new URL(`../../project/__tests__/fixtures/${name}`, import.meta.url));
+const sha = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+/** Each blob kind's file, the files its import resolves beside it, and the settings its sidecar sets. */
+const BLOBS: Record<
+  string,
+  { path: string; file: string; beside?: Record<string, string>; import?: object }
+> = {
+  texture: {
+    path: "art/crate.png",
+    file: "texture.png",
+    import: { filter: "linear", pivot: [0.5, 1] },
+  },
+  atlas: {
+    path: "art/hero.atlas.json",
+    file: "hero.json",
+    beside: { "art/hero.png": "hero.png" },
+    import: { pivotDefault: [0.5, 1] },
+  },
+  font: { path: "fonts/font.fnt", file: "font.fnt", beside: { "fonts/font_0.png": "font_0.png" } },
+  audio: { path: "sfx/tone.wav", file: "tone.wav" },
+  recording: { path: "runs/run.recording.json", file: "run.recording.json" },
+};
+
+describe("sidecar → registry → sidecar, per blob kind", () => {
+  const blobKinds = kinds.list().filter((k) => k.storage === "blob");
+  const projectFile: ProjectFile = {
+    kind: "project",
+    v: 1,
+    id: "demo",
+    name: "Demo",
+    game: null,
+    assets: ["**"],
+  };
+
+  it("covers every blob kind", () => {
+    expect(blobKinds.map((k) => k.kind).sort()).toEqual(Object.keys(BLOBS).sort());
+  });
+
+  for (const { kind } of blobKinds) {
+    it(`${kind}: its sidecar crosses the wire and a move writes it back byte-identical`, async () => {
+      const spec = BLOBS[kind]!;
+      const root = await mkdtemp(join(tmpdir(), "kinds-roundtrip-"));
+      const dir = join(root, "demo");
+      const put = async (path: string, data: string | Uint8Array) => {
+        await mkdir(dirname(join(dir, path)), { recursive: true });
+        await writeFile(join(dir, path), data);
+      };
+      const read = (path: string) => readFile(join(dir, path), "utf8");
+      const project = (cache: string): FileProject => ({
+        dir,
+        file: projectFile,
+        registry: env.registry,
+        kinds,
+        cacheDir: join(root, cache),
+      });
+      try {
+        const bytes = new Uint8Array(await blobFixture(spec.file));
+        await put("jams.project.json", `${JSON.stringify(projectFile)}\n`);
+        await put(spec.path, bytes);
+        for (const [path, file] of Object.entries(spec.beside ?? {}))
+          await put(path, await blobFixture(file));
+        const key = `k-${kind}`;
+        await put(
+          sidecarPathOf(spec.path),
+          formatSidecar({
+            kind: "asset-sidecar",
+            v: 1,
+            key,
+            id: `my-${kind}`,
+            name: "Shown name",
+            licence: { spdx: "CC-BY-4.0", author: "Ana", attribution: "Art by Ana" },
+            ...(spec.import ? { import: { ...spec.import } } : {}),
+          }),
+        );
+
+        const writer = createProjectFileAdapter(project("cache-a"));
+        const first = new Y.Doc();
+        expect(await writer.loadProject(first)).toEqual([]);
+        expect(await writer.storeProject(first)).toBe(true);
+        const text = await read(sidecarPathOf(spec.path));
+        const parsed = parseSidecar(text);
+        if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+        expect(parsed.sidecar).toMatchObject({
+          key,
+          id: `my-${kind}`,
+          name: "Shown name",
+          sha256: sha(bytes),
+          bytes: bytes.byteLength,
+          licence: { attribution: "Art by Ana" },
+          ...(spec.import ? { import: spec.import } : {}),
+        });
+        expect(parsed.sidecar.meta).toBeDefined();
+        expect(formatSidecar(parsed.sidecar, { detectedKind: kind })).toBe(text);
+
+        const host = createProjectFileAdapter(project("cache-b"));
+        const doc = new Y.Doc();
+        expect(await host.loadProject(doc)).toEqual([]);
+        const entry = readProject(doc).assets[key]!;
+        expect(entry).toEqual(readProject(first).assets[key]);
+        const remote = new Y.Doc();
+        Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
+        expect(readProject(remote).assets[key]).toEqual(entry);
+
+        // What its import resolves beside it moves along, so its meta stays put.
+        const near = new Set([spec.path, ...Object.keys(spec.beside ?? {})]);
+        const together = Object.values(readProject(remote).assets)
+          .filter((e) => near.has(e.path))
+          .map((e) => e.id);
+        const moved = applyRegistryBatch(
+          remote,
+          { v: 1, ops: [{ op: "moveAsset", ids: together, to: "moved/" }] },
+          { kind: "user", userId: "ada" },
+          { registry: env.registry, kinds },
+        );
+        expect(moved.ok).toBe(true);
+        Y.applyUpdate(doc, Y.encodeStateAsUpdate(remote, Y.encodeStateVector(doc)));
+        // As the one writer stores: meta that names paths (a font's pages) follows the move.
+        await reinspectBlobs(doc, { kinds, store: fileContentStore(join(root, "cache-b")) });
+        expect(await host.storeProject(doc)).toBe(true);
+        const to = `moved/${spec.path.split("/").pop()}`;
+        const after = readProject(doc).assets[key]!;
+        expect(after).toEqual({ ...entry, path: to, meta: after.meta });
+        expect(await read(sidecarPathOf(to))).toBe(
+          formatSidecar({ ...parsed.sidecar, meta: after.meta }, { detectedKind: kind }),
+        );
+        if (kind !== "font") expect(await read(sidecarPathOf(to))).toBe(text);
+        expect(new Uint8Array(await readFile(join(dir, to)))).toEqual(bytes);
+        expect(await host.storeProject(doc)).toBe(false);
+
+        const rescan = await createProjectFileAdapter(project("cache-c")).scan();
+        expect(rescan.problems).toEqual([]);
+        expect(rescan.state.assets[key]).toEqual(after);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+  }
+});

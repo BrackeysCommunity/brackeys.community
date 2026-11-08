@@ -135,6 +135,19 @@ what is actually relevant to a current dev
 
 ## Game scenes
 
-Levels live in `src/games/<game>/scenes/*.json` (the platformer's: `src/games/platformer/scenes/`); change them through `vp run scene` (list, show, schema,
-codes, validate, fmt, apply, step), never by hand. The workflow and conventions are in
-`scripts/scene/README.md`; the `scene-editing` skill loads them.
+Levels and their assets live in **projects**: a folder with a `jams.project.json` naming
+the project's id, its game module (or `null`) and the globs of its asset and code files.
+The platformer's is `src/games/platformer/` (levels in `scenes/`); the engine's gameless one
+is `src/engine/scenes/` (the engine yard, the kitchen sink, its prefabs, a material, the
+game settings and a data table). Every scene, prefab, checks file, input script, material,
+game-settings doc, data table and binary (texture, atlas, font, audio, recording) under a
+project's globs is an asset whose id survives renames and moves; binaries carry a
+`<file>.asset.json` sidecar the CLI writes.
+
+Change them through `vp run scene`, never by hand: `list`, `show`, `schema`, `codes`,
+`validate`, `fmt`, `apply`, `step` for scenes; `vp run scene project show|tree|refs|snapshot|pull|push`
+for a project (`pull` and `push` talk to a hosted project through `--url`);
+`vp run scene assets list|import|rename|move|delete|restore|change-id|set-import|apply`
+for its assets (`--dry-run` first). An id two projects hold needs `--project <id>`. The
+workflow and conventions are in `scripts/scene/README.md`; the `scene-editing` skill loads
+them.

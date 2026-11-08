@@ -7,6 +7,477 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.6.0] — unreleased
+
+The collaborative project and asset model: a project is a set of typed
+assets, each kind co-editing like a scene, with a registry, references,
+content-addressed blobs and one undo stack across every doc a client
+writes.
+
+### Added
+
+- `./project`, a new entry that needs only zod: the project model as plain
+  JSON. Ids and keys (`AssetId`, `AssetKey`, `AssetPath`, `Sha256`),
+  `ProjectFile`, `AssetEntry`, `ProjectState`, `Licence`, `ProjectOp` and
+  `ProjectOpBatch` (`PROJECT_OP_NAMES`); doc names `project:<id>`,
+  `scene:<project>.<key>` and `asset:<project>.<key>` (`parseDocName`
+  returns null for anything else, `docNameOf` throws on a bad id or key;
+  `DOC_NAME_KINDS`, `DOC_NAME_MAX_LENGTH`); `sha256`, `isSha256` and
+  `stableJson`.
+- `./game`: `GameDefinition.assetKinds`, `tables` (`GameTableDef`) and
+  `projectSettings`; `EngineContext.project` (a frozen
+  `ProjectRuntimeView`, or null) for the run.
+- `./collab`: `DocOrigin` (`SceneOrigin` stays as its alias) gains the
+  `repair` origin, labelled `repair (<reason>)`; `ProjectLogEntry` sits
+  beside `LogEntry`.
+- `./project`: `canonicalJson(value, layout)` writes a declarative kind's
+  canonical text: `$schema`, `kind`, `v` first at the root, then the
+  layout's declared fields, then the rest sorted; one line per keyed or
+  list item, a keyed item's id first; two-space indent; trailing newline.
+- `./project`: `applyJsonEdits(value, layout, edits)` applies `set`,
+  `unset`, `insert` (before a sibling id or an index, default the end) and
+  `remove` to plain JSON; RFC 6901 pointers with `@<id>` segments for keyed
+  items (`parseJsonPointer`, `keyedItemPointer`, `readPointer`). It refuses
+  a pointer into an atomic or text value with `op-invalid`, a repeated
+  keyed id with `id-taken`, and a missing target with `ref-not-found`.
+- `./project`: `memoryContentStore()` implements `ContentStore`. `put`
+  rejects with a `ContentStoreError` carrying a `hash-mismatch` issue when
+  `expect` differs. `hashForPut` gives other stores the same check.
+- `./project`: `createKindRegistry(game, base)` builds a kind registry:
+  engine kinds then the game's `assetKinds`. It refuses duplicate names,
+  game kinds not named `<gameId>/<name>`, game kinds with
+  `layout: "custom"`, declarative layouts without a `map` root, and a
+  suffix or `jsonKind` that two kinds claim. `detect` goes in order:
+  sidecar kind, longest suffix, `.json` top-level `kind`, then a kind's
+  `test`. It always skips `*.schema.json`, `*.asset.json`,
+  `jams.project.json`, `__tests__`, `node_modules` and `dist`
+  (`isSkippedAssetPath`). `schemaHashes` hashes each kind's JSON Schema.
+- `./project`: `validateAssetDoc(kind, value, env)`: schema issues
+  (`schema`, `unknown-key`), `dup-id` for repeated ids in `keyed`
+  collections, then the kind's own `validate`.
+- `byCodeUnit` (`./project`): the code-unit string comparator the
+  project model sorts by.
+- `./project`: `buildRefIndex` (referrers, targets, dangling references as
+  `asset-missing` with a did-you-mean), `rewriteRefs`, `referencedTrash`
+  (the trashed entries a live value names, for the writer's
+  restore-on-store repair), `projectUsage` and `unreferencedBlobs` (keeps
+  current hashes of live and trashed entries, hashes replaced within the
+  grace period, and pinned snapshots' hashes). Every replacement appends
+  the outgoing hash to the asset's history stamped with its time, so a
+  hash's newest `HashHistoryEntry.at` is when it last stopped being
+  current.
+- `./project`: the files-to-registry steps every host seeds a project
+  with, shared by the dev server's scan and the site's bundle seeding:
+  `projectPathMatcher(file, matchesGlob)` (asset and code candidates by
+  the project file's globs), `ownAssetId`, `orphanSidecarIssue`,
+  `idsAtPaths`, `assetFileEntry` and `assetFileEntries` (keys from the
+  sidecar or id, suffixed in file order; name, licence, settings and the
+  inspected meta), over `AssetFile`.
+- `./project`: `parseProjectFile` / `formatProjectFile` for
+  `jams.project.json` (`urn:jams-engine:project:v1`, defaults
+  `assets: ["**"]`, `code: ["**/*.ts", "**/*.tsx"]`) and `parseSidecar` /
+  `formatSidecar` for `<file>.asset.json`
+  (`urn:jams-engine:asset-sidecar:v1`; `key` omitted when it equals `id`,
+  `assetKind` when detection agrees). New schema files
+  `./schemas/project.schema.json` and `./schemas/asset-sidecar.schema.json`.
+  `src/engine/scenes/` and `src/games/platformer/` each carry a
+  `jams.project.json`.
+- `./project`: pure header readers `readPngSize`, `readJpegSize`,
+  `readWebpSize` (VP8, VP8L, VP8X) and `readGifSize`; `parseAsepriteJson`
+  and `parseTexturePackerJson` (hash and array exports: frames, tags with
+  direction, slices with nine-slice centre, file order) with `atlasImage`
+  and `atlasTool`; `parseBmfont` for text .fnt line height and pages. They
+  read headers and JSON only and return null on bad input.
+- `./collab`: `layoutToDoc`, `layoutFromDoc` and `layoutPatch` keep a
+  declarative kind's value in `doc.getMap("content")` by its `DocLayout`
+  (atomic, text, map, list, keyed). A patch writes only what changed, in
+  one transaction. Keyed items keep their keys when ids match, and two
+  items with one id stay two.
+- `createUndoCoordinator(origin, { cap })` (`./collab`): one undo stack per
+  client across every doc it writes in a project. Each attached doc gets a
+  `Y.UndoManager` with `createSceneUndo`'s settings over every root type
+  but `log` and `meta`; a step that wrote several docs undoes (newest doc
+  first) and redoes as one, carries its label and selection, never reaches
+  into an older step when a collaborator overwrote part of it, and the
+  stack keeps the newest 100 steps. `pinned()` names the docs with steps on
+  either stack.
+- Project log and project presence (`./collab`): `readProjectLog`,
+  `observeProjectLog` and `projectLogFor` over the project doc's `log` of
+  cross-doc batches (capped at `LOG_CAP`); `setProjectPresence`,
+  `projectPeers`, `observeProjectPeers` and `projectPeersByDoc` over
+  `PROJECT_PRESENCE_FIELD`, beside each doc's unchanged `ScenePresence`.
+- `ENGINE_ASSET_KINDS` (`./project`): the engine's doc kinds `scene`,
+  `prefab`, `material` (`material:v1`), `game-settings`
+  (`game-settings:v1`), `data-table` (`data-table:v1`), `input-script` and
+  `checks`, plus `code`. `createKindRegistry` uses them as its default
+  base.
+- `parseAssetDoc`, `formatAssetDoc` and `docKindJsonSchema` (`./project`):
+  read, write and publish any doc kind's file. `DocKindDef.parse` lets the
+  scene and prefab kinds use their own parsers.
+- `createRegistry(game, { materials })` and
+  `withProject(registry, view, values)` (`./game`): a project's material
+  assets overlay the game's code materials by name. A material without
+  `physics` can't be used on a body.
+- `runtimeView` (`./project`): `EngineContext.project` reads game-settings
+  (with `projectSettings` defaults) and data tables (merged in path
+  order). `createGame`, `createHeadlessRuntime`, `runPlaytest` and
+  `createSceneRuntime` take a `project` option; without one, `ctx.project`
+  is null. `./headless` re-exports the `ProjectRuntimeView` type.
+- `formatInputScript`, `formatChecks`, `INPUT_SCRIPT_LAYOUT` and
+  `CHECKS_LAYOUT` (`./scene`).
+- The project doc (`./collab`): `readProject`, `readEntry`, `writeEntry`,
+  `seedProjectDoc`, `writeProjectState`, `appendHistory` and the
+  `PROJECT_MAPS` accessors. Registry entries are `Y.Map`s whose `import`
+  and `licence` are nested `Y.Map`s, so they merge per field.
+- `applyRegistryBatch` (`./collab`) applies `createAsset`, `importAsset`,
+  `renameAsset`, `moveAsset`, `deleteAsset`, `restoreAsset`, `setImport`,
+  `replaceContent` and `setLicence` to a project doc in one transaction
+  with the batch's origin and one project log entry. `applyRepairs`
+  (repair origin, idempotent) writes the view's deterministic id and path
+  repairs, plus restores of the trashed keys it is given.
+- `projectView` (`./project`) resolves `byId`, `byPath`, `byKey`, the
+  trash, the issues `asset-id-taken`, `path-taken` (case-only included)
+  and `asset-kind`, the repairs (sorted by `(created.at, key)`, with
+  `-2`/`-3` before the extension) and `tree()`. `checkProjectBatch` checks
+  the registry ops on plain JSON; `ProjectBatchEnv.newKey` is required and
+  `inspect` (a `BlobInspect`) is new. `assetIdOfPath`, `assetPathProblem`,
+  `compareEntries`, `suffixedId` and `suffixedPath` are exported beside
+  it.
+- `./vite`: `fileContentStore(cacheDir)`, the dev content store: blobs at
+  `<cacheDir>/blobs/<sha256>`, written atomically, `put` refused with
+  `hash-mismatch` when `expect` differs; `defaultCacheDir(project, root?)`
+  and `DEV_CACHE_ROOT` (`node_modules/.cache/jams-engine/<project>`).
+- `./vite`: `createProjectFileAdapter(project)` reads a project's files
+  into a `ProjectState` (`scan`: keys are ids unless a sidecar names one;
+  schemas, sidecars, the project file, `__tests__`, `node_modules` and
+  `dist` are skipped) and writes declarative asset docs and registry
+  changes back: canonical text only when it changed, a sidecar only when
+  it carries something, moves, trash and restore from the dev cache. File
+  events: an edit is one `disk` layoutPatch; adds and unlinks wait for
+  `settle`, which pairs them into moves (`pairDiskEvents`, by sidecar key
+  then id, within `MOVE_SETTLE_MS`).
+- Blob asset kinds `texture` (PNG, JPEG, WebP, GIF; 8 MiB), `atlas`
+  (Aseprite and TexturePacker JSON; 2 MiB), `font` (text BMFont, WOFF2,
+  WOFF, TTF, OTF; 4 MiB), `audio` (Ogg, MP3, WAV, M4A; 16 MiB) and
+  `recording` (recording:v1; 4 MiB, immutable) join `ENGINE_ASSET_KINDS`,
+  each with zod settings and meta and a pure, header-only `inspect` that
+  returns `import-failed` instead of throwing.
+- `./collab`: `createProjectSession({ project, openDoc, origin, registry,
+kinds, store?, buildAt?, prefabWriter?, cap?, key?, now? })` is a
+  client's live project. Docs open lazily through the host's injected
+  `openDoc(name): Promise<{ doc, awareness, close }>`, one undo
+  coordinator spans all of them, and docs with undo steps stay open
+  (`pinned()`). Code skew: a doc of a kind whose schema hash differs from
+  the project's build stamp opens read-only with `code-skew`
+  (`detail: { kind, mine, project }`), unless this build's
+  `(buildAt, hash)` is newer, in which case the session writes its stamp
+  with origin `repair`/`build`. `prefabWriter` is a slot;
+  `NO_PREFAB_WRITER` refuses prefab writes with `op-invalid` ("needs the
+  project"). `memoryDocHost()` serves docs in-process for tests and
+  headless runs.
+- `./collab`: `applyProjectBatch(session, batch, origin, opts?)` applies a
+  project batch across docs. It checks first, so a failing op or a
+  read-only doc writes nothing. Each doc gets one transaction and its own
+  log entry, a batch that wrote two or more docs gets one project log
+  entry, and the batch is one undo step for the session's origin.
+  `editAsset` goes through `layoutPatch`, `editScene` through
+  `applyOpsToDoc`, and a new asset's content is written as its doc's first
+  edit. `applyRegistryBatch` still refuses `editAsset`, `editScene` and
+  `changeAssetId`.
+- `./collab`: `revertProjectEntry` / `revertOpenProjectEntry` revert a
+  project entry as one new cross-doc batch, or name the doc that changed
+  since. `revertEntry` takes `{ layout }` for asset docs'
+  `@content:<field>` keys. `revertProblem` and `contentLogKey` are new.
+- `./collab`: `historyRows(log, projectLog, docName)` returns
+  `HistoryRow`s, and `appendProjectLog` is exported. `ProjectLogInput`
+  takes an optional `id`.
+- `./editor`: `projectHistory(project, docName, { onUndone? })` is a
+  `SessionHistory` backed by the coordinator. `SessionHistory.undo`/`redo`
+  may return the `SelectionMeta` to restore, and the new optional
+  `commit(selection)` is called after each dispatch.
+- `./project`: `checkProjectBatch` now checks `editAsset` (through the
+  layout, then the kind's schema) and `editScene` (`applyOps` on scenes).
+  Ops that write prefabs go to `env.prefabEdit`. `ProjectBatchEnv` gains
+  `prefabsFor` and `prefabEdit`, `ProjectBatchCheck` gains `delegated`,
+  and `writesPrefabs`, `PREFAB_SCENE_OPS` and `SCENE_KIND_NAME` are new.
+- `./project`: project snapshots are real: `snapshotProject` pins every
+  live asset by content hash (docs by canonical text, blobs by bytes and
+  import settings), `checkSnapshot` resolves every reference to an asset
+  in the snapshot (`asset-missing`, `asset-kind`, `hash-mismatch`),
+  `snapshotScene` reads a scene and its prefabs from the content store
+  and returns the registry they run by. Both parse with the snapshot's own
+  material assets overlaid in place of any the caller's registry had, so
+  a material edited after a snapshot never reaches it;
+  `parseProjectSnapshot`, `formatProjectSnapshot`, `SnapshotError` and
+  `SnapshotAsset`.
+- `./headless`: `loadHeadless({ snapshot, store, scene, registry,
+project? })` or `loadHeadless({ files, registry, project? })` loads a
+  scene for a run without fetching or decoding a blob; two snapshots of
+  one scene load side by side, each with its own materials in the
+  returned `registry`.
+- `SceneIssue.detail` (`./scene`): optional facts specific to an issue
+  code, such as `code-skew`'s two schema hashes.
+- `./project`: `checkProjectBatch` refuses `deleteAsset` with `asset-in-use`
+  while another live asset names it, listing `detail.referrers: { id,
+pointer }[]`. With `force` it trashes the asset, and the result carries
+  each referrer's `asset-missing`. A site only counts when its kinds include
+  the asset's kind. `changeAssetId` is checked: the entry's id, a prefab's
+  own id, then every referrer is rewritten with `rewriteRefs`. A doc
+  referrer goes through `editAsset` (set at the deepest addressable
+  pointer), a scene through `update` scene ops, a prefab through
+  `env.prefabEdit` as an `editScene` of its own, and a binary referrer
+  through its import settings. A referrer that refuses fails the op, and so
+  does a recording, whose bytes name its scene. The op needs every live doc
+  whose kind has `refs`. `ProjectBatchCheck` gains `writtenBy` and `scenes`
+  (`SceneWrite`: the scene ops, registry and prefabs each scene doc is
+  written with).
+- `./collab`: `applyProjectBatch` applies `changeAssetId` as one cross-doc
+  batch. The registry entry, the prefab doc's header id (logged under
+  `@header`) and every referrer each get one transaction, and it is one undo
+  step. For `changeAssetId` and `deleteAsset` it opens every doc that can
+  hold a reference. A doc it only reads refuses the batch for code skew only
+  when the batch writes it. The prefab writer is asked about every prefab
+  rewrite, and the batch is planned before anything is written.
+- Breaking: `sceneToDoc` takes no `prefabs` and writes `meta.layout`, plus
+  `project` and `assetKey` when given. `DocView` loses `prefabs` and gains
+  `kind` and `prefab`. `readDoc(doc, { registry, parentBounds })` reads a
+  prefab doc as a scene with synthesised bounds. `contentMaps` covers the
+  prefab header map, not `prefabs`. `docMeta` returns `layout`, `kind`,
+  `project` and `key`. `writeScene` takes no `prefabs`.
+- `PrefabSource` (`staticPrefabSource`, `localPrefabSource`,
+  `sessionPrefabSource`, `EMPTY_PREFAB_SOURCE`): `bindSceneDoc`,
+  `watchIssues`, `validateDoc` and `createEditorSession` take an optional
+  `prefabs` source and re-expand or revalidate once per prefab transaction.
+  `EditorSession` gains `prefabs` and `parentBounds`.
+- `applyOpsToDoc` takes `prefabWriter` and `parentBounds`. Without a writer
+  it refuses definePrefab, createPrefab, applyToPrefab and unpack with
+  op-invalid ('needs the project'). On a prefab doc it refuses scene-only
+  ops and grouped children (`SCENE_ONLY_OPS`). Its result gains `docs`.
+- Breaking: `openPrefabIsolation` is async and returns a session over the
+  prefab's own doc; the scratch doc is gone. It takes `awareness`, `user`
+  and `history` options. Apply to prefab, Create prefab and Unpack are
+  cross-doc batches, one undo step each. `asProjectBatch` was added.
+- `ProjectSession.prefabLibrary` slot; `PrefabPlan.release`.
+- `./vite`: the project file adapter handles binary kinds. `scan` hashes
+  each binary, copies its bytes into `fileContentStore` and inspects it;
+  `storeProject` writes the sidecar every binary has (hash, bytes, settings,
+  meta), the bytes of a `replaceContent` or restore taken from the content
+  store, and moves and deletes the sidecar along with its file. When a
+  binary's bytes change on disk, that becomes one `disk` `replaceContent`
+  with re-inspected meta, and its `ProjectSync` result names the
+  `AssetChange` for the server to broadcast as `asset:changed`. A persisted
+  doc state loads with `PERSISTED_ORIGIN`, followed by at most one `disk`
+  transaction for whatever changed on disk while the server was down.
+- Breaking: `./vite`: the dev server serves every project doc
+  (`project:<id>`, `scene:<project>.<key>`, `asset:<project>.<key>`) on
+  `/__scene-collab` from the projects' files;
+  `sceneCollabServer`/`listenSceneCollab` take
+  `{ projects: FileProject[], buildAt?, settleMs? }` instead of `{ homes }`.
+- `./vite`: dev persistence: each doc's Yjs state is kept in
+  `<cacheDir>/docs` and reloaded on restart, with a file edited meanwhile
+  applied as one disk transaction.
+- `./vite`: one watcher per project root pairs unlink+add into moves within
+  the settle delay; disk edits, moves and deletes become one disk
+  transaction or registry op; binaries are rehashed and announced with an
+  `asset:changed` stateless message on the project doc (`ASSET_CHANGED`,
+  `AssetChangedMessage`).
+- `./vite`: on store, the dev server repairs binaries whose bytes the
+  content store lacks (`hash-mismatch`), restores trashed assets a loaded
+  doc still names (`asset-in-use`), and repairs duplicate ids and paths; it
+  writes the code map and this build's schema stamps.
+- `./vite`: `GET /__project`, `POST /__project/<id>/blob`
+  (`x-expect-sha256`) and `GET /__project/<id>/blob/<sha256>`, same-origin
+  only (`PROJECT_ROUTE`).
+- `./vite`: `applyProjectBatchToFiles` and `snapshotFiles` apply a
+  `ProjectOpBatch` to a project's files through the live path; a stale base
+  fails with `stale-base`.
+- Breaking: `./vite`: `readFileProject`, `codeModules`, `gameRegisters`,
+  `isCodePath`; scene and prefab docs in the project file adapter;
+  `file-adapter.ts` and `prefab-files.ts` folded into `project-files.ts`
+  (`createSceneFileAdapter`, `sceneDocName`, `sceneOfDocName`,
+  `SCENE_DOC_PREFIX`, `SceneHome` and `SceneFileAdapter` removed; use
+  `createProjectFileAdapter` and `docNameOf`/`parseDocName`).
+- `./vite`: `FileApplyOptions.store`: where `applyProjectBatchToFiles`
+  inspects blob bytes from (a dry run's bytes stay out of the cache).
+- `reinspectBlobs` (`./collab`): the project's one writer re-derives a
+  binary's meta from its bytes and merged import settings on store, with a
+  `repair` (`reinspect`) origin; `inspectEntry` (`./project`): the shared,
+  never-throwing blob inspection every host uses.
+- `./project`: `detectImport(kinds, path, json?)`, the kind a file brought
+  into a project takes: `detect`'s, else `atlas` for a `.json` that names
+  no `kind` and whose `meta.app` says Aseprite or TexturePacker exported it
+  (`atlasExportApp`). The scene CLI's `assets import`, the MCP
+  `asset_import` and the editor tree's drop import use it, so such a file
+  imports without `--kind`, and its sidecar records `assetKind: atlas`.
+- `./collab`: `buildAtFrom(raw)` and `stampWins(buildAt, hash, than)`, the
+  build-time reading and stamp comparison every host shares, so a dev
+  server and the browser given the same `VITE_BUILD_AT` agree on it.
+
+### Changed
+
+- **Breaking:** doc names carry the project. A scene is
+  `scene:<project>.<key>` (the platformer's yard is
+  `scene:platformer.test-yard`), every other asset `asset:<project>.<key>`,
+  and the registry `project:<id>`, on the dev server and on canvas-sync
+  alike; the old `scene:<name>` no longer resolves.
+- Collab layout 2: `COLLAB_LAYOUT_VERSION` is 2. Each prefab is a doc of its
+  own with the scene entity layout (`prefabToDoc`, `docToPrefab`,
+  `prefabPatch`), so concurrent edits to different children or fields merge.
+  Scene docs drop their `prefabs` map (`DOC_MAPS.prefabs` stays as the
+  layout-1 name). `migrateLayout(sceneDoc, projectWriter)` and
+  `projectDocWriter` move a layout-1 doc's prefabs into prefab assets at
+  load. A client whose sync token's `l` claim is older or newer than the
+  doc's layout connects read-only.
+- Prefabs are assets: a prefab file is a `prefab` asset of its project,
+  edited in its own doc, and the editor's prefab ops write that doc in the
+  same undo step as the scene.
+- The scene CLI's `GAMES` table, `gameScenesDirs` and `gameSchemaFiles` are
+  gone: every `jams.project.json` names its game, and `ToolContext` takes
+  `projects`.
+- Concurrent `replaceContent`s now resolve to one writer's hash, size and
+  meta together (never a mix).
+- The dev server sends `asset:changed` whenever a binary's hash changes (a
+  client's `replaceContent`, a disk re-export or a hash repair), not only on
+  disk edits, and re-inspects binaries on store.
+- A `data-table` asset in a project with no game takes any table name, its
+  rows needing only ids; the game a run names judges the rows when it reads
+  them (`ctx.project.table`). A game without tables still refuses every
+  table.
+- The engine's own project (`src/engine/scenes/jams.project.json`) holds a
+  `bouncy` material asset the kitchen sink's `ledge` uses, a
+  `game-settings` doc and a `card` data table (`data/cards.json`);
+  `engine-yard.checks.json` and `kitchen-sink.checks.json` are in
+  `formatChecks`' canonical form.
+
+### Fixed
+
+- A material's bulk keys (`solid:<material>`, a prefab's `bulk` too) and
+  instance overrides that set a material field are references: `deleteAsset`
+  reports them as `asset-in-use`, a forced delete leaves them
+  `asset-missing`, and `changeAssetId` moves the bulk entries to the new
+  key (`addBulk` then `remove`) and rewrites the overrides (`override`).
+  `RefSite` gains `in?: "key"` for a site whose id is the end of the key
+  it points at, and `rewriteRefs` renames such a key, joining arrays when
+  the new key is there already.
+- `changeAssetId` follows a keyed collection's own id field:
+  `rewriteRefs(value, sites, from, to, layout?)` matches `@<id>` by the
+  layout's `id`. A site that still names the old id after the rewrite
+  fails the op with `op-invalid` instead of being written back, and a
+  scene or prefab that wouldn't read under the new ids (each rewritten one,
+  and every one when a material changed id) fails the batch.
+- A project holds at most one game-settings asset: `projectView` (with
+  kinds) reports a second as `asset-kind` (so `project show` lists it, the
+  dev server warns on load and `project push` refuses it), and
+  `createAsset` or `restoreAsset` of a second is refused with `asset-kind`.
+- A data-table row id that two assets of one table hold is reported as
+  `dup-id` (`detail: { table, first }`): by `project show`, by the dev
+  server when it loads the project, and on `checkProjectBatch`'s result
+  for every table the batch wrote.
+- `projectView` treats two folders that differ only in case as taken:
+  the later entry gets `path-taken` and a repair under the first entry's
+  spelling, and `createAsset`, `renameAsset`, `moveAsset` and
+  `restoreAsset` refuse such a path.
+- `registry.primitives` beside a game's registry now carries the project
+  materials passed to `createRegistry(game, { materials })` /
+  `withProject`, so a scene with no game run under a game keeps its
+  project's materials.
+- Code skew: a newer build whose stamp was held back while project-doc
+  updates waited on missing ones now writes it once they land, even when
+  they don't touch the build map.
+- Code skew hashes each kind's schema under the game's code alone
+  (`buildHashes` in collab/project-session.ts), so a registry carrying the
+  project's material assets no longer makes a CLI or tab read-only against
+  the dev server.
+- The dev server's file adapter judges scenes and other docs by the
+  project's material assets (its open material docs, else their files), so
+  a scene naming a material asset scans, loads and writes back.
+- `reinspectBlobs` re-derives meta after a move, for meta that names paths
+  (a font's pages).
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` 7: the project ops `createAsset`, `importAsset`,
+  `renameAsset`, `moveAsset`, `deleteAsset`, `restoreAsset`,
+  `changeAssetId`, `setImport`, `replaceContent`, `setLicence`, `editAsset`
+  and `editScene` (`project-ops:v1`; `public-api.json` lists them as
+  `projectOpNames`); the issue codes `asset-missing`, `asset-kind`,
+  `asset-in-use`, `asset-id-taken`, `path-taken`, `hash-mismatch`,
+  `code-skew` (a warning: the doc stays readable, but read-only),
+  `asset-too-large`, `import-failed` and `quota-exceeded`, none with a
+  scene fix, since project ops and server repairs mend them; the schema ids
+  `urn:jams-engine:project:v1`, `asset-sidecar:v1`, `project-ops:v1`,
+  `project-snapshot:v1`, `material:v1`, `game-settings:v1` and
+  `data-table:v1`, each a schema file in the package exports; every
+  published schema carries `x-agent-surface: 7`.
+- MCP tools `project_tree`, `asset_import` (dry run by default),
+  `asset_refs` and `asset_apply_ops` (dry run by default), in file and live
+  mode; every tool takes `project?`, and `scene_schema`'s `which` takes any
+  schema name the CLI serves.
+- New schema files `./schemas/material.schema.json`
+  (`urn:jams-engine:material:v1`), `./schemas/game-settings.schema.json`
+  (`urn:jams-engine:game-settings:v1`), `./schemas/data-table.schema.json`
+  (`urn:jams-engine:data-table:v1`) and `./schemas/project-ops.schema.json`
+  (`urn:jams-engine:project-ops:v1`, built from `projectOpBatchSchema` by
+  `projectOpsJsonSchema`).
+- New schema file `./schemas/project-snapshot.schema.json`
+  (`urn:jams-engine:project-snapshot:v1`, built from
+  `projectSnapshotSchema` by `projectSnapshotJsonSchema`).
+- `checkProjectBatch` and `applyProjectBatch` accept `editAsset`,
+  `editScene` and `changeAssetId`. `deleteAsset` is refused with
+  `asset-in-use` while referenced, unless `force`.
+- The scene CLI works on projects: every `jams.project.json` under `src/`
+  (`discoverProjects`), with `--project <id>` on every command; a scene or
+  asset id two projects hold exits 2 until `--project` picks one.
+- New CLI commands `project show`, `project tree [--live]`,
+  `project refs [id] [--live]` and `project snapshot [--out]`;
+  `assets list [--kind] [--trash] [--live]`,
+  `assets import <file> [--path] [--id] [--kind] [--settings]`,
+  `assets rename <id> [--name] [--file]`, `assets move <id…> --to`,
+  `assets delete <id> [--force]`, `assets restore <id>`,
+  `assets change-id <id> <new-id>`, `assets set-import <id> --set` and
+  `assets apply --ops`. Every `assets` writer takes `--dry-run` (writes
+  nothing: no file, cache or upload), `--live [--url]` (the dev server's
+  docs, as an agent), `--agent`, `--on-behalf-of`, and on files `--base`
+  (the project snapshot hash; stale exits 3).
+- `assets import` uploads a binary's bytes first
+  (`POST /__project/<id>/blob`, or the dev cache on files), then applies
+  `importAsset`.
+- `fmt [asset]` formats any doc kind through the kind's format, or every doc
+  asset.
+- `schema` serves project, asset-sidecar, project-ops, project-snapshot,
+  material, game-settings, data-table and any doc kind, and its usage line
+  lists fragment and prefab.
+- `apply --live` runs on the project client as one `editScene` op, so
+  prefab ops write their prefab docs.
+- Hosted projects: every `--live` command (`apply`, `assets list` and the
+  `assets` writers) takes a site `--url https://…` and an agent token
+  (`--token`, else `JAMS_AGENT_TOKEN`). The CLI exchanges the token at
+  `POST /api/engine/agent-sync-token` for 60 s project sync tokens and
+  refreshes them before they expire. Edits carry the token's actor (`g` as
+  `agentId`, `o` as `onBehalfOf`). Blobs go through
+  `/api/engine/projects/<id>/blobs`. A read-only token can read and dry-run,
+  but writes are refused.
+- New CLI commands `project pull <project> --url … [--out dir] [--check]`
+  (the hosted bundle formatted on the client into files and sidecars; every
+  added, changed or removed file is reported; `--check` writes nothing and
+  exits 1 on a difference) and `project push <dir> --create --url …`
+  (uploads binaries, then seeds the agent token's reserved project from a
+  `ProjectBundle`; refused if the project already holds anything;
+  `--dry-run` checks the files and reads the hosted project, sending
+  nothing).
+- MCP: a live tool's `url` may be a hosted site only when the MCP server's
+  environment has `JAMS_AGENT_TOKEN`; the token is never a tool argument.
+
+### Internal
+
+- The boundary test keeps `./project` on zod and the project, scene and
+  game files, and leaves `HocuspocusProviderWebsocket` (one socket shared by
+  a project's docs) to hosts: the site's project session and the scene
+  CLI's project client build it, never an engine source file.
+- `services/canvas-sync` copies `src/engine/project` and
+  `src/engine/version.ts` into its image and serves the project and asset
+  doc kinds beside scenes.
+
 ## [0.5.0] — unreleased
 
 Prefabs, groups and attachment: a scene places prefab files as instances

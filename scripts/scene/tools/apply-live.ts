@@ -1,18 +1,29 @@
-import { applyOpsToDoc, type SceneOrigin } from "@jams/engine/collab";
-import { describeChange, type OpBatch } from "@jams/engine/scene";
+import { applyOpsToDoc, docMeta, type PrefabDocWriter } from "@jams/engine/collab";
+import { PREFAB_SCENE_OPS, type ProjectOpBatch } from "@jams/engine/project";
+import { describeChange, type OpBatch, type SceneOp } from "@jams/engine/scene";
 import * as Y from "yjs";
 
 import {
   failure,
   issueLine,
   isFileArg,
+  hostedOptions,
   readArg,
   registryOf,
   usage,
   UsageError,
   type Tool,
 } from "../context";
-import { DEFAULT_LIVE_URL, LiveError, openLiveScene } from "../live";
+import {
+  agentOrigin,
+  DEFAULT_AGENT_ID,
+  DEFAULT_PROJECT_URL,
+  findScene,
+  openLiveProject,
+  ProjectClientError,
+} from "../project-client";
+
+export { DEFAULT_AGENT_ID };
 
 export type ApplyLiveInput = {
   scene?: string;
@@ -20,24 +31,27 @@ export type ApplyLiveInput = {
   url?: string;
   agent?: string;
   onBehalfOf?: string;
+  /** A hosted project's agent token (`--token`); `JAMS_AGENT_TOKEN` when left out. */
+  token?: string;
   dryRun?: boolean;
   base?: string;
   timeoutMs?: number;
 };
 
-/** The agent id a live batch is logged under when `--agent` is left out. */
-export const DEFAULT_AGENT_ID = "scene-cli";
+/** Lets a trial on a copy of the scene doc run prefab ops; the project batch writes the prefab docs. */
+const TRIAL_PREFABS: PrefabDocWriter = { plan: () => ({ ok: true, write: () => [] }) };
 
 const USAGE =
-  "scene apply <scene> --live --ops <file|-> [--url ws://…] [--agent id] [--on-behalf-of user] [--dry-run]";
+  "scene apply <scene> --live --ops <file|-> [--url ws://…|https://site [--token t]] [--agent id] [--on-behalf-of user] [--dry-run]";
 
 /**
- * Applies a batch to the live scene doc on a collab server as an agent
- * client: connect, sync, apply in one transaction with an `agent` origin,
- * wait for the server to acknowledge it, disconnect. `~` refs resolve
- * against the doc as it is when the batch lands, so a batch needs no `base`
- * (one it brings is still checked, and failing it is exit 1, not 3). Like
- * `apply`, a batch that would leave error-severity issues isn't applied.
+ * Applies a batch to a scene on a running dev server as an agent client of
+ * its project: the batch is tried on a copy of the scene doc as the server
+ * has it, then sent as one `editScene` project op, so prefab ops write the
+ * prefab docs they name. `~` refs resolve against the doc as it is when the
+ * batch lands, so a batch needs no `base` (one it brings is still checked,
+ * and failing it is exit 1, not 3). Like `apply`, a batch that would leave
+ * error-severity issues isn't applied.
  */
 export const applyLive: Tool<ApplyLiveInput> = async (input, ctx) => {
   if (!input.ops || !input.scene) return usage(USAGE);
@@ -55,73 +69,110 @@ export const applyLive: Tool<ApplyLiveInput> = async (input, ctx) => {
   if (input.base && batch && typeof batch === "object" && !("base" in batch))
     batch = { ...batch, base: input.base };
 
-  const url = input.url ?? DEFAULT_LIVE_URL;
-  const origin: SceneOrigin = {
-    kind: "agent",
-    agentId: input.agent ?? DEFAULT_AGENT_ID,
-    ...(input.onBehalfOf ? { onBehalfOf: input.onBehalfOf } : {}),
-  };
+  const url = input.url ?? DEFAULT_PROJECT_URL;
+  const origin = agentOrigin({ agent: input.agent, onBehalfOf: input.onBehalfOf });
+  let head = { scene: input.scene, live: true, url, actor: origin };
 
   let live;
   try {
-    live = await openLiveScene({ url, scene: input.scene, timeoutMs: input.timeoutMs });
+    live = await openLiveProject({
+      projects: ctx.projects,
+      url,
+      project: ctx.project,
+      find: findScene(input.scene),
+      origin,
+      prefabs: true,
+      write: !input.dryRun,
+      timeoutMs: input.timeoutMs,
+      ...hostedOptions(ctx, input.token),
+    });
   } catch (e) {
-    if (e instanceof LiveError) return failure(e.message, { scene: input.scene, url });
+    if (e instanceof ProjectClientError)
+      return e.exitCode === 2 ? usage(e.message) : failure(e.message, { scene: input.scene, url });
     throw e;
   }
+  const { client, project } = live;
+  head = { ...head, actor: client.origin };
+  const { session } = client;
+  const name = session.docNameFor(session.view().byId.get(input.scene)!)!;
   try {
-    const registry = registryOf(ctx, live.meta.game);
-    if (!registry)
-      return failure(`${input.scene} is for game "${live.meta.game}", which the CLI doesn't know.`);
+    const opened = await session.open(name);
+    let meta;
+    try {
+      meta = docMeta(opened.doc);
+      if (!meta) return failure(`${name} synced empty: the server didn't seed it.`, head);
+      const registry = registryOf(ctx, meta.game, project);
+      if (!registry)
+        return failure(
+          `${input.scene} is for game "${meta.game}", which no project of the CLI's has.`,
+        );
 
-    // A scratch copy shows what the batch would do without touching the shared doc.
-    const scratch = new Y.Doc();
-    Y.applyUpdate(scratch, Y.encodeStateAsUpdate(live.doc));
-    const trial = applyOpsToDoc(scratch, batch, origin, registry);
-    scratch.destroy();
-    const head = { scene: input.scene, live: true, url, actor: origin };
-    if (!trial.ok) {
-      const { hash, ...rest } = trial;
-      return {
-        exitCode: 1,
-        data: { ...rest, ...head, sceneHash: hash, written: false },
-        text: [
-          `${input.scene} (live): op ${trial.failedAt} failed (scene ${hash})`,
-          issueLine(trial.issue),
-        ].join("\n"),
-      };
-    }
-
-    const errors = trial.issues.filter((i) => i.severity === "error");
-    const write = !input.dryRun && errors.length === 0;
-    let result = trial;
-    if (write) {
-      const applied = applyOpsToDoc(live.doc, batch, origin, registry);
-      if (!applied.ok)
-        throw new Error(`the batch failed on the live doc: ${applied.issue.message}`);
-      result = applied;
-      try {
-        await live.pushed();
-      } catch (e) {
-        if (e instanceof LiveError) return failure(e.message, { ...head, written: false });
-        throw e;
+      // A copy shows what the batch would do without touching the shared doc.
+      const scratch = new Y.Doc();
+      Y.applyUpdate(scratch, Y.encodeStateAsUpdate(opened.doc));
+      const trial = applyOpsToDoc(scratch, batch, origin, registry, {
+        prefabs: session.prefabLibrary(),
+        prefabWriter: TRIAL_PREFABS,
+      });
+      scratch.destroy();
+      if (!trial.ok) {
+        const { hash, ...rest } = trial;
+        return {
+          exitCode: 1,
+          data: { ...rest, ...head, project: project.file.id, sceneHash: hash, written: false },
+          text: [
+            `${input.scene} (live): op ${trial.failedAt} failed (scene ${hash})`,
+            issueLine(trial.issue),
+          ].join("\n"),
+        };
       }
-    }
 
-    const { def: _def, keys: _keys, refKeys: _refKeys, hash, ...rest } = result;
-    const verb = input.dryRun ? "would change" : write ? "changed" : "not applied (errors)";
-    const lines = [
-      `${input.scene} (live): ${verb}, ${result.diff.length} ${result.diff.length === 1 ? "change" : "changes"}, hash ${hash}`,
-      ...result.diff.map((c) => `  ${describeChange(c)}`),
-      ...(result.created.length > 0 ? [`  created ${result.created.join(", ")}`] : []),
-      ...result.issues.map(issueLine),
-    ];
-    return {
-      exitCode: errors.length > 0 ? 1 : 0,
-      data: { ...rest, ...head, sceneHash: hash, dryRun: Boolean(input.dryRun), written: write },
-      text: lines.join("\n"),
-    };
+      const errors = trial.issues.filter((i) => i.severity === "error");
+      const write = !input.dryRun && errors.length === 0;
+      const sceneOps = (Array.isArray(batch.ops) ? batch.ops : []) as SceneOp[];
+      const projectBatch: ProjectOpBatch = {
+        v: 1,
+        ...(batch.label ? { label: batch.label } : {}),
+        ops: [{ op: "editScene", id: input.scene, ops: sceneOps }],
+      };
+      const prefabOps = sceneOps.some((o) => PREFAB_SCENE_OPS.includes(o?.op));
+      if (write || (prefabOps && errors.length === 0)) {
+        const sent = write ? await client.apply(projectBatch) : await client.trial(projectBatch);
+        if (!sent.ok)
+          return {
+            exitCode: 1,
+            data: { ok: false, ...head, issue: sent.issue, written: false },
+            text: [`${input.scene} (live): not applied`, issueLine(sent.issue)].join("\n"),
+          };
+      }
+
+      const { def: _def, keys: _keys, refKeys: _refKeys, hash, ...rest } = trial;
+      const verb = input.dryRun ? "would change" : write ? "changed" : "not applied (errors)";
+      const lines = [
+        `${input.scene} (live): ${verb}, ${trial.diff.length} ${trial.diff.length === 1 ? "change" : "changes"}, hash ${hash}`,
+        ...trial.diff.map((c) => `  ${describeChange(c)}`),
+        ...(trial.created.length > 0 ? [`  created ${trial.created.join(", ")}`] : []),
+        ...trial.issues.map(issueLine),
+      ];
+      return {
+        exitCode: errors.length > 0 ? 1 : 0,
+        data: {
+          ...rest,
+          ...head,
+          project: project.file.id,
+          sceneHash: hash,
+          dryRun: Boolean(input.dryRun),
+          written: write,
+        },
+        text: lines.join("\n"),
+      };
+    } finally {
+      session.release(name);
+    }
+  } catch (e) {
+    if (e instanceof ProjectClientError) return failure(e.message, { ...head, written: false });
+    throw e;
   } finally {
-    live.close();
+    await client.close().catch(() => undefined);
   }
 };

@@ -4,6 +4,8 @@ import { z } from "zod";
 import { createRegistry, defineGame } from "../game/define";
 import { shapeField } from "../game/fields";
 import type { GameDefinition } from "../game/types";
+import { runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetEntry, ProjectView } from "../project/types";
 import { createSceneRuntime } from "../runtime/runtime";
 import { SENSOR_ENTER, SENSOR_EXIT, type RuntimeStats } from "../runtime/types";
 import type { ExpandedScene, RuntimeEntity, ShapeObj } from "../scene/types";
@@ -12,7 +14,7 @@ import type { MarkerSystem } from "../systems/marker";
 import type { FollowerSystem } from "../systems/path-follower";
 import type { InputAction, RapierModule } from "../types";
 import { engineYard } from "./fixtures/engine-yard.expanded";
-import { testGame, type TestGameSnapshot } from "./fixtures/test-game";
+import { AVATAR_SPEED, CARD_TABLE, testGame, type TestGameSnapshot } from "./fixtures/test-game";
 
 let rapier: RapierModule;
 
@@ -399,5 +401,110 @@ describe("SceneRuntime step", () => {
       { type: "from-game", at: { x: 0, y: 0 }, tick: 0 },
     ]);
     rt.destroy();
+  });
+});
+
+const entry = (id: string, kind: string, path: string): AssetEntry => ({
+  key: id,
+  id,
+  kind,
+  path,
+  created: { at: 0, by: "test" },
+});
+
+/** A test-game project: one game-settings asset and two decks of the card table. */
+function testProject(game: Record<string, unknown>): ProjectRuntimeView {
+  const entries = [
+    entry("settings", "game-settings", "settings.json"),
+    entry("deck-b", "data-table", "data/b.json"),
+    entry("deck-a", "data-table", "data/a.json"),
+  ];
+  const view: ProjectView = {
+    state: {
+      meta: { projectId: "test", layout: 1, name: "Test" },
+      assets: Object.fromEntries(entries.map((e) => [e.key, e])),
+      history: {},
+      code: {},
+      build: {},
+    },
+    byId: new Map(entries.map((e) => [e.id, e])),
+    byPath: new Map(entries.map((e) => [e.path, e])),
+    byKey: new Map(entries.map((e) => [e.key, e])),
+    deleted: [],
+    issues: [],
+    repairs: new Map(),
+    tree: () => [],
+  };
+  const deck = (...rows: Record<string, unknown>[]) => ({
+    kind: "data-table",
+    v: 1,
+    table: CARD_TABLE,
+    rows,
+  });
+  const values = new Map<string, unknown>([
+    ["settings", { kind: "game-settings", v: 1, engine: {}, game }],
+    ["deck-a", deck({ id: "fireball", cost: 3, damage: 5 }, { id: "heal", cost: 2 })],
+    ["deck-b", deck({ id: "bolt", cost: 1 }, { id: "heal", cost: 9 }, { id: "bad" })],
+  ]);
+  return runtimeView(view, values, createRegistry(testGame));
+}
+
+describe("EngineContext.project", () => {
+  it("is null for a run with no project", () => {
+    const rt = runtime();
+    expect(rt.ctx.project).toBeNull();
+    rt.destroy();
+  });
+
+  it("a test-game run reads a table and a setting", () => {
+    const project = testProject({ avatarSpeed: 120, title: "Deck" });
+    const seen: unknown[] = [];
+    const reading = defineGame({
+      ...testGame,
+      createRuntime(ctx) {
+        const inner = testGame.createRuntime(ctx);
+        return {
+          ...inner,
+          onLoad(loaded) {
+            inner.onLoad?.(loaded);
+            seen.push(ctx.project?.settings.title, ctx.project?.table(CARD_TABLE));
+          },
+        };
+      },
+    });
+    const rt = createSceneRuntime({ rapier, view: null, game: reading, project });
+    rt.load(engineYard());
+    expect(seen).toEqual([
+      "Deck",
+      [
+        { id: "fireball", cost: 3, damage: 5 },
+        { id: "heal", cost: 2, damage: 0 },
+        { id: "bolt", cost: 1, damage: 0 },
+      ],
+    ]);
+    const last = steps(rt, 30, [press("right")]).at(-1)!.game as TestGameSnapshot;
+    expect(last!.velocity.x).toBeGreaterThan(60);
+    expect(last!.velocity.x).toBeLessThanOrEqual(120);
+    rt.destroy();
+  });
+
+  it("applies the game's settings defaults and freezes what it hands out", () => {
+    const project = testProject({});
+    expect(project.settings).toEqual({ avatarSpeed: AVATAR_SPEED });
+    expect(Object.isFrozen(project.settings)).toBe(true);
+    const rows = project.table(CARD_TABLE);
+    expect(Object.isFrozen(rows) && Object.isFrozen(rows[0])).toBe(true);
+    expect(project.table("unknown")).toEqual([]);
+    const fallback = testProject({ avatarSpeed: -1, title: "Kept" });
+    expect(fallback.settings).toEqual({ avatarSpeed: AVATAR_SPEED, title: "Kept" });
+    const walk = (rt: ReturnType<typeof runtime>) => {
+      rt.load(engineYard());
+      const out = steps(rt, 30, [press("right")]).map((r) => r.game);
+      rt.destroy();
+      return out;
+    };
+    expect(walk(createSceneRuntime({ rapier, view: null, game: testGame, project }))).toEqual(
+      walk(runtime()),
+    );
   });
 });

@@ -34,5 +34,5 @@ export function createSceneMcpServer(ctx: ToolContext): McpServer {
 
 if (import.meta.main) {
   // stdin is the transport, so no tool reads `-` from it.
-  await createSceneMcpServer(defaultToolContext()).connect(new StdioServerTransport());
+  await createSceneMcpServer(await defaultToolContext()).connect(new StdioServerTransport());
 }

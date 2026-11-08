@@ -54,28 +54,78 @@ AwarenessLike
 BULK_FIELD
 BindOptions
 BindableRuntime
+COLLAB_LAYOUT_VERSION
+CONTENT_KEY_PREFIX
+CONTENT_MAP
+CodeSkewIssue
 DOC_MAPS
 DocApplyOptions
 DocApplyResult
+DocOrigin
 DocView
+EMPTY_PREFAB_SOURCE
 ENTITIES_BUCKET
+ENTRY_NESTED_FIELDS
 EntityRecord
 GROUP_KEY_PREFIX
+HistoryRow
 INSTANCE_KEY_PREFIX
 IssueWatch
+KEYED_ITEM
+KEYED_Z
 KeyGen
 LOG_ARRAY
 LOG_CAP
+LayoutMigration
+LayoutWriteOptions
 LogEntry
+LogWarning
+MemoryDocClient
+MemoryDocHost
 MigrateDocOptions
 NESTED_FIELDS
+NO_PREFAB_WRITER
 OVERRIDES_FIELD
+OpenDoc
+OpenedDoc
 PATH_FIELD
+PREFAB_HEADER_KEY
 PREFAB_KEY_PREFIX
 PRESENCE_FIELD
+PROJECT_LAYOUT_VERSION
+PROJECT_MAPS
+PROJECT_PRESENCE_FIELD
 PeerPresence
+PrefabChange
+PrefabDocPlan
+PrefabDocWrite
+PrefabDocWriter
+PrefabPatchOptions
+PrefabPlan
+PrefabSource
+PrefabToDocOptions
+PrefabWriteRequest
+PrefabWriter
+ProjectApplyOptions
+ProjectDocWriterOptions
+ProjectLogEntry
+ProjectLogInput
+ProjectPeer
+ProjectPresence
+ProjectRevertResult
+ProjectSession
+ProjectSessionEvent
+ProjectSessionOptions
+ProjectWriter
+ReadDocOptions
+RegistryApplyOptions
+RegistryApplyResult
+ReinspectResult
+RepairResult
+RevertOptions
 RevertResult
 SCENE_KEY
+SCENE_ONLY_OPS
 SETTINGS_KEY
 SceneBinding
 SceneDocMeta
@@ -84,51 +134,110 @@ ScenePresence
 SceneToDocOptions
 SceneUndo
 SelectionMeta
+SessionDoc
+SessionPrefabSource
+SessionPrefabSourceOptions
+StepSelection
+UNDO_CAP
+UndoCoordinator
+UndoneStep
 WatchIssuesOptions
 Z_FIELD
+actorId
 actorLabel
+appendHistory
+appendProjectLog
 applyOpsToDoc
+applyProjectBatch
+applyRegistryBatch
+applyRepairs
 assignZ
 bindSceneDoc
 bucketOf
+buildAtFrom
 bulkRecord
 compareZ
+contentLogKey
+contentMap
 contentMaps
+createProjectSession
 createSceneUndo
+createUndoCoordinator
+docLayout
 docMeta
 docPrefabs
+docToPrefab
 docToScene
 entitiesMap
 entityRecord
 expandLenient
+fieldLayout
 fingerprint
 groupsMap
 headerOf
+historyRows
 instanceRecord
 instancesMap
+isPrefabDoc
+layoutFromDoc
+layoutPatch
+layoutToDoc
+localPrefabSource
+memoryDocHost
 metaMap
 migrateDoc
+migrateLayout
 observeLog
 observePeers
+observeProjectLog
+observeProjectPeers
 patchRecord
 peers
+prefabHeaderMap
+prefabPatch
+prefabPathNear
+prefabSceneBounds
+prefabToDoc
 prefabsMap
+projectAssetsMap
+projectBuildMap
+projectCodeMap
+projectDocWriter
+projectHistoryMap
+projectLogFor
+projectMetaMap
+projectPeers
+projectPeersByDoc
 randomKey
 readDoc
+readEntry
 readLog
+readProject
+readProjectLog
 recordMap
 recordOf
 refsOfView
+reinspectBlobs
 revertEntry
+revertOpenProjectEntry
+revertProblem
+revertProjectEntry
 sceneMap
 sceneToDoc
+seedProjectDoc
 selectionsByKey
 sequentialKeys
+sessionPrefabSource
 setPresence
+setProjectPresence
 settingsMap
 stableJson
+stampWins
+staticPrefabSource
 validateDoc
 watchIssues
+writeEntry
+writeProjectState
 
 ## @jams/engine/debug
 DEBUG_OFF
@@ -276,6 +385,7 @@ ToolOverlay
 ToolPointerEvent
 WHEEL_ZOOM
 applyToPrefabBatch
+asProjectBatch
 boxTool
 buildInspectorModel
 buildOutline
@@ -360,6 +470,7 @@ pickAt
 placedShape
 placementEditorTool
 pointBatch
+projectHistory
 prune
 radiusTo
 readAngle
@@ -416,6 +527,7 @@ withShapeSlot
 
 ## @jams/engine/game
 ActionDef
+AssetKindDef
 Attachment
 AttachmentHub
 BASE_FIELDS
@@ -427,6 +539,7 @@ CheckKindDef
 CheckVerdict
 ColliderTag
 ColliderTags
+CreateRegistryOptions
 DEFAULT_GRAVITY
 DEFAULT_ROTATE_STEP
 DRAW_LAYERS
@@ -456,6 +569,7 @@ GameOutcome
 GamePlayDef
 GameRuntime
 GameShell
+GameTableDef
 ID_PATTERN
 InspectorWidgetDef
 IssueCodeDef
@@ -478,6 +592,8 @@ PlacementToolOptions
 PlayStart
 PlayState
 PrimitiveType
+ProjectMaterialDef
+ProjectRuntimeView
 PtSchema
 RegisteredType
 Registry
@@ -542,6 +658,7 @@ shapePose
 styleOf
 tagsField
 traceShape
+withProject
 
 ## @jams/engine/headless
 CheckEnv
@@ -552,10 +669,13 @@ CompileResult
 CompiledInputScript
 CompiledStep
 EventMatch
+FilesLoadInput
 FuzzOptions
 FuzzReport
 FuzzRun
 FuzzTouch
+HeadlessLoad
+HeadlessLoadInput
 HeadlessRuntimeOptions
 InputEdge
 InputScript
@@ -576,6 +696,8 @@ PreparedPlay
 ProbeInput
 ProbeOptions
 ProbeReport
+ProjectRuntimeView
+ProjectSnapshot
 RECORDING_VERSION
 RapierModule
 RecorderOptions
@@ -596,6 +718,8 @@ STUCK_TICKS
 SceneRuntime
 SceneRuntimeHandle
 ScriptIssue
+SnapshotError
+SnapshotLoadInput
 StepDuration
 StepEvent
 StepResult
@@ -607,6 +731,7 @@ createRunRecorder
 defaultFuzzMacro
 fuzz
 heldEdges
+loadHeadless
 parseRecording
 physicalEnv
 preparePlay
@@ -620,6 +745,228 @@ runProbe
 unknownActionError
 validatePhysical
 
+## @jams/engine/project
+ATLAS_KIND
+ATLAS_SUFFIX
+AUDIO_KIND
+AssetEntry
+AssetFile
+AssetId
+AssetKey
+AssetKindDef
+AssetKindName
+AssetMatch
+AssetPath
+AssetSidecar
+AtlasDirection
+AtlasFrame
+AtlasMeta
+AtlasSettings
+AtlasSheet
+AtlasSlice
+AtlasTag
+AtlasTool
+AudioMeta
+AudioSettings
+BlobInspect
+BlobKindDef
+BuildStamp
+CodeKindDef
+CodeModuleInfo
+ContentStore
+ContentStoreError
+DATA_TABLE_KIND
+DATA_TABLE_SCHEMA_ID
+DATA_TABLE_VERSION
+DOC_NAME_KINDS
+DOC_NAME_MAX_LENGTH
+DataTableFile
+DataTableRow
+DocKindDef
+DocLayout
+DocName
+DocNameKind
+ENGINE_ASSET_KINDS
+EditSceneOp
+FONT_KIND
+FontFormat
+FontMeta
+FontSettings
+GAME_SETTINGS_KIND
+GAME_SETTINGS_SCHEMA_ID
+GAME_SETTINGS_VERSION
+GameSettingsFile
+GlobMatch
+HashHistoryEntry
+INPUT_SCRIPT_SUFFIX
+ImageSize
+InspectEnv
+InspectResult
+JsonEdit
+JsonEditResult
+JsonPointer
+KindEnv
+KindRegistry
+Licence
+MATERIAL_KIND
+MATERIAL_SCHEMA_ID
+MATERIAL_VERSION
+MaterialFile
+PREFAB_SCENE_OPS
+PROJECT_FILE
+PROJECT_FILE_DEFAULTS
+PROJECT_FILE_VERSION
+PROJECT_OPS_SCHEMA_ID
+PROJECT_OP_NAMES
+PROJECT_SCHEMA_ID
+PROJECT_SNAPSHOT_SCHEMA_ID
+PROJECT_SNAPSHOT_VERSION
+ParseAssetResult
+ParseProjectFileResult
+ParseProjectSnapshotResult
+ParseSidecarResult
+PointerRead
+ProjectApplyResult
+ProjectBatchCheck
+ProjectBatchEnv
+ProjectBundle
+ProjectFile
+ProjectId
+ProjectOp
+ProjectOpBatch
+ProjectOpName
+ProjectPathMatcher
+ProjectRuntimeView
+ProjectSnapshot
+ProjectState
+ProjectTreeNode
+ProjectUsage
+ProjectView
+QuotaPolicy
+QuotaVerdict
+RECORDING_KIND
+RECORDING_SUFFIX
+RecordingMeta
+RecordingSettings
+RefIndex
+RefSite
+Referrer
+SCENE_KIND_NAME
+SIDECAR_SCHEMA_ID
+SIDECAR_SUFFIX
+SIDECAR_VERSION
+SceneWrite
+Sha256
+SnapshotAsset
+SnapshotError
+TEXTURE_KIND
+TextureFormat
+TextureMeta
+TextureSettings
+UNLIMITED_QUOTA
+applyJsonEdits
+assetFileEntries
+assetFileEntry
+assetIdOfPath
+assetPathProblem
+atlasExportApp
+atlasImage
+atlasKind
+atlasMetaSchema
+atlasSettingsSchema
+atlasTool
+audioKind
+audioMetaSchema
+audioSettingsSchema
+buildRefIndex
+byCodeUnit
+canonicalJson
+checkProjectBatch
+checkSnapshot
+checksKind
+codeKind
+compareEntries
+createKindRegistry
+dataTableIssues
+dataTableKind
+defineAssetKind
+detectImport
+docKindJsonSchema
+docNameOf
+fontKind
+fontMetaSchema
+fontSettingsSchema
+formatAssetDoc
+formatProjectFile
+formatProjectSnapshot
+formatSidecar
+gameSettingsEntries
+gameSettingsIssues
+gameSettingsKind
+gameSettingsValues
+hashForPut
+idsAtPaths
+inputScriptKind
+inspectEntry
+isSha256
+isSkippedAssetPath
+keyedItemPointer
+materialKind
+materialSchema
+memoryContentStore
+orphanSidecarIssue
+ownAssetId
+parseAsepriteJson
+parseAssetDoc
+parseBmfont
+parseDocName
+parseJsonPointer
+parseProjectFile
+parseProjectSnapshot
+parseSidecar
+parseTexturePackerJson
+prefabKind
+projectFileSchema
+projectGlobs
+projectJsonSchema
+projectMaterialOf
+projectOpBatchSchema
+projectOpsJsonSchema
+projectPathMatcher
+projectSnapshotJsonSchema
+projectSnapshotSchema
+projectUsage
+projectView
+readGifSize
+readJpegSize
+readPngSize
+readPointer
+readWebpSize
+recordingKind
+recordingMetaSchema
+recordingSettingsSchema
+referencedTrash
+rewriteRefs
+rowSchemaOf
+runtimeView
+sceneKind
+sha256
+sidecarJsonSchema
+sidecarPathOf
+sidecarSchema
+snapshotProject
+snapshotScene
+stableJson
+suffixedId
+suffixedPath
+tableAssets
+textureKind
+textureMetaSchema
+textureSettingsSchema
+unreferencedBlobs
+validateAssetDoc
+writesPrefabs
+
 ## @jams/engine/scene
 AGENT_SURFACE_KEYWORD
 AGENT_SURFACE_VERSION
@@ -631,6 +978,7 @@ BulkEntry
 BulkForm
 BulkKey
 CHECKS_FORMAT_VERSION
+CHECKS_LAYOUT
 CHECKS_SUFFIX
 CHILD_SEPARATOR
 ChecksFile
@@ -658,6 +1006,7 @@ GameCheck
 GroupDef
 GroupSchema
 ID_PATTERN
+INPUT_SCRIPT_LAYOUT
 INPUT_SCRIPT_VERSION
 ISSUE_CODES
 InputScriptSchemas
@@ -773,6 +1122,8 @@ entitySchemaFor
 expandScene
 fieldKind
 formatAsciiMap
+formatChecks
+formatInputScript
 formatPrefab
 formatPrefabs
 formatScene
@@ -875,31 +1226,53 @@ fpToString
 seedFromString
 
 ## @jams/engine/vite
+ASSET_CHANGED
+AssetChange
+AssetChangedMessage
+BlobRepair
+DEV_CACHE_ROOT
 DISK_ORIGIN
+DiskChange
+DiskEvent
 DiskSync
+FileApplyOptions
+FileProject
 ListeningSceneCollab
+MOVE_SETTLE_MS
+PERSISTED_ORIGIN
+PROJECT_ROUTE
 PrefabFiles
+ProjectDiskSync
+ProjectFileAdapter
+ProjectFileAdapterOptions
+ProjectProblem
+ProjectScan
+ProjectSync
 SCENE_COLLAB_PATH
-SCENE_DOC_PREFIX
 SCENE_NAME_PATTERN
 SCENE_ROUTE
 SceneCollab
 SceneCollabOptions
 SceneCollabPlugin
-SceneFileAdapter
-SceneHome
 ScenePathError
+applyProjectBatchToFiles
+codeModules
+createProjectFileAdapter
 createSceneCollab
-createSceneFileAdapter
+defaultCacheDir
+fileContentStore
+gameRegisters
+isCodePath
 listenSceneCollab
+pairDiskEvents
 prefabPath
 prefabsDirOf
+readFileProject
 readPrefabFiles
 resolveScenePath
 sceneCollabServer
-sceneDocName
 sceneNameOf
-sceneOfDocName
+snapshotFiles
 writePrefabFiles
 
 ## camera.ts
@@ -915,15 +1288,41 @@ type DocApplyOptions = ApplyOptions & {
     key?: KeyGen;
     label?: string;
     noLog?: boolean;
+    parentBounds?: Bounds;
+    prefabWriter?: PrefabDocWriter;
 };
 type DocApplyResult = (Extract<ApplyResult, {
     ok: true;
 }> & {
+    docs: PrefabDocWrite[];
     keys: string[];
     refKeys: Record<Ref, string>;
 }) | Extract<ApplyResult, {
     ok: false;
 }>;
+type PrefabChange = {
+    changed: readonly string[];
+    next: PrefabLibrary;
+    prev: PrefabLibrary;
+};
+type PrefabDocPlan = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+    write(origin: DocOrigin, ctx: {
+        label: string;
+        scene: LogEntry | null;
+    }): PrefabDocWrite[];
+};
+type PrefabDocWrite = {
+    doc: string;
+    entry: string;
+};
+type PrefabDocWriter = {
+    plan(change: PrefabChange): PrefabDocPlan;
+};
+declare const SCENE_ONLY_OPS: readonly SceneOp["op"][];
 declare function applyOpsToDoc(doc: Y.Doc, batch: OpBatch, origin: SceneOrigin, registry: Registry, opts?: DocApplyOptions): DocApplyResult;
 declare function headerOf(def: SceneDefinition): Record<string, unknown>;
 declare function refsOfView(view: DocView): Map<string, Ref>;
@@ -932,6 +1331,8 @@ declare function refsOfView(view: DocView): Map<string, Ref>;
 type BindOptions = {
     onChange?: (def: SceneDefinition, tr: Y.Transaction) => void;
     onSkipped?: (errors: string[]) => void;
+    parentBounds?: Bounds;
+    prefabs?: PrefabSource;
 };
 type BindableRuntime = {
     add(entities: RuntimeEntity[]): {
@@ -957,6 +1358,10 @@ declare function expandLenient(source: SceneDefinition, registry: Registry, pref
     scene: ExpandedScene;
 };
 
+## collab/build-stamp.ts
+declare function buildAtFrom(raw: unknown): number;
+declare function stampWins(buildAt: number, hash: Sha256, than: BuildStamp): boolean;
+
 ## collab/convert.ts
 type DocView = {
     bulkKeys: Map<BulkKey, string[]>;
@@ -964,19 +1369,29 @@ type DocView = {
     entityKeys: string[];
     instanceKeys: string[];
     instanceRecords: Map<string, EntityRecord>;
-    prefabs: PrefabLibrary;
+    kind: "prefab" | "scene";
+    prefab?: {
+        contract?: unknown;
+        id: string;
+    };
     records: Map<string, EntityRecord>;
 };
 declare const ENTITIES_BUCKET = "entities";
+type ReadDocOptions = {
+    parentBounds?: Bounds;
+    registry?: Registry;
+};
 type SceneToDocOptions = {
+    assetKey?: string;
     doc?: Y.Doc;
     key?: KeyGen;
     origin?: unknown;
-    prefabs?: PrefabLibrary;
+    project?: string;
 };
 declare const bucketOf: (rec: EntityRecord) => string;
 declare function bulkRecord(key: BulkKey, value: BulkEntry, z: string): EntityRecord;
 declare function contentMaps(doc: Y.Doc): Y.Map<unknown>[];
+declare function docLayout(doc: Y.Doc): number;
 declare function docMeta(doc: Y.Doc): SceneDocMeta | null;
 declare function docPrefabs(doc: Y.Doc): PrefabLibrary;
 declare function docToScene(doc: Y.Doc): SceneDefinition;
@@ -985,10 +1400,13 @@ declare function entityRecord(def: EntityDef, z: string): EntityRecord;
 declare const groupsMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
 declare function instanceRecord(def: InstanceDef, z: string): EntityRecord;
 declare const instancesMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
+declare const isPrefabDoc: (doc: Y.Doc) => boolean;
 declare const metaMap: (doc: Y.Doc) => Y.Map<unknown>;
 declare function patchRecord(map: Y.Map<unknown>, prev: EntityRecord, next: EntityRecord): void;
+declare const prefabHeaderMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function prefabSceneBounds(prefab: Pick<Prefab, "bulk" | "entities" | "v">, parent?: Bounds, registry?: Registry): Bounds;
 declare const prefabsMap: (doc: Y.Doc) => Y.Map<unknown>;
-declare function readDoc(doc: Y.Doc): DocView;
+declare function readDoc(doc: Y.Doc, opts?: ReadDocOptions): DocView;
 declare function recordMap(rec: EntityRecord): Y.Map<unknown>;
 declare function recordOf(map: Y.Map<unknown>): EntityRecord;
 declare const sceneMap: (doc: Y.Doc) => Y.Map<unknown>;
@@ -1000,12 +1418,54 @@ type KeyGen = () => string;
 declare const randomKey: KeyGen;
 declare function sequentialKeys(prefix?: string): KeyGen;
 
+## collab/layout.ts
+declare const CONTENT_MAP = "content";
+declare const KEYED_ITEM = "item";
+declare const KEYED_Z = "z";
+type LayoutWriteOptions = {
+    key?: KeyGen;
+};
+declare const contentMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function layoutFromDoc(doc: Y.Doc, layout: DocLayout): Record<string, unknown>;
+declare function layoutPatch(doc: Y.Doc, layout: DocLayout, next: unknown, origin?: unknown, opts?: LayoutWriteOptions): boolean;
+declare function layoutToDoc(doc: Y.Doc, layout: DocLayout, value: unknown, origin?: unknown, opts?: LayoutWriteOptions): Y.Doc;
+
 ## collab/log.ts
 declare const LOG_CAP = 200;
 declare function fingerprint(rec: unknown): string;
 declare function observeLog(doc: Y.Doc, cb: (entries: LogEntry[]) => void): () => void;
 declare function readLog(doc: Y.Doc): LogEntry[];
-declare function stableJson(value: unknown): string;
+
+## collab/migrate-layout.ts
+type LayoutMigration = {
+    created: AssetId[];
+    diverged: AssetId[];
+    entry?: LogEntry;
+    from: number;
+    kept: AssetId[];
+    migrated: boolean;
+    to: number;
+};
+type ProjectDocWriterOptions = {
+    key?: KeyGen;
+    now?: () => number;
+    prefabDoc(key: AssetKey): Y.Doc | null;
+    scene: AssetKey;
+};
+type ProjectWriter = {
+    createPrefab(input: {
+        id: AssetId;
+        path: AssetPath;
+        prefab: Prefab;
+    }, origin: DocOrigin): void;
+    prefab(id: AssetId): null | {
+        body: Prefab | null;
+        entry: AssetEntry;
+    };
+    scenePath: AssetPath;
+};
+declare function migrateLayout(sceneDoc: Y.Doc, project: ProjectWriter): LayoutMigration;
+declare function projectDocWriter(projectDoc: Y.Doc, opts: ProjectDocWriterOptions): ProjectWriter;
 
 ## collab/migrate.ts
 type MigrateDocOptions = {
@@ -1028,6 +1488,51 @@ declare function compareZ(a: {
     z: string;
 }): number;
 
+## collab/prefab-doc.ts
+declare const PREFAB_HEADER_KEY = "@header";
+type PrefabPatchOptions = {
+    key?: KeyGen;
+    label?: string;
+    noLog?: boolean;
+};
+type PrefabToDocOptions = {
+    assetKey?: string;
+    doc?: Y.Doc;
+    key?: KeyGen;
+    origin?: unknown;
+    project?: string;
+};
+declare function docToPrefab(doc: Y.Doc): Prefab;
+declare function prefabPatch(doc: Y.Doc, next: Prefab, origin: DocOrigin, opts?: PrefabPatchOptions): LogEntry | null;
+declare function prefabPathNear(id: string, scenePath?: AssetPath): AssetPath;
+declare function prefabToDoc(prefab: Prefab, opts?: PrefabToDocOptions): Y.Doc;
+
+## collab/prefab-source.ts
+declare const EMPTY_PREFAB_SOURCE: PrefabSource;
+type PrefabSource = {
+    library(): PrefabLibrary;
+    open(id: AssetId): Promise<Y.Doc | null>;
+    subscribe(cb: (changed: readonly AssetId[]) => void): () => void;
+    writer?: PrefabDocWriter;
+};
+type SessionPrefabSource = PrefabSource & {
+    destroy(): void;
+    docName(id: AssetId): null | string;
+    readonly session: ProjectSession;
+    ready(): Promise<void>;
+    writer: PrefabDocWriter;
+};
+type SessionPrefabSourceOptions = {
+    scene?: AssetId;
+};
+declare function localPrefabSource(library?: PrefabLibrary, opts?: {
+    key?: KeyGen;
+}): PrefabSource & {
+    docs(): ReadonlyMap<AssetId, Y.Doc>;
+};
+declare function sessionPrefabSource(session: ProjectSession, opts?: SessionPrefabSourceOptions): SessionPrefabSource;
+declare function staticPrefabSource(library?: PrefabLibrary): PrefabSource;
+
 ## collab/presence.ts
 type PeerPresence = ScenePresence & {
     clientId: number;
@@ -1037,7 +1542,250 @@ declare function peers(awareness: AwarenessLike): PeerPresence[];
 declare function selectionsByKey(list: readonly PeerPresence[]): Map<string, PeerPresence[]>;
 declare function setPresence(awareness: AwarenessLike, patch: Partial<ScenePresence>): void;
 
+## collab/project-apply.ts
+type ProjectApplyOptions = {
+    label?: string;
+    selection?: StepSelection;
+};
+type RegistryApplyOptions = Pick<ProjectBatchEnv, "inspect" | "kinds" | "registry"> & Partial<Pick<ProjectBatchEnv, "by" | "newKey" | "now">> & {
+    alsoWrote?: readonly {
+        doc: string;
+        entry: string;
+    }[];
+    docs?: ReadonlyMap<AssetId, unknown>;
+    label?: string;
+};
+type RegistryApplyResult = (Extract<ProjectApplyResult, {
+    ok: true;
+}> & {
+    check: Extract<ProjectBatchCheck, {
+        ok: true;
+    }>;
+}) | Extract<ProjectApplyResult, {
+    ok: false;
+}>;
+type ReinspectResult = {
+    entry?: ProjectLogEntry;
+    reinspected: AssetKey[];
+    wrote: boolean;
+};
+type RepairResult = {
+    entry?: ProjectLogEntry;
+    repaired: ReadonlyMap<AssetKey, {
+        id?: AssetId;
+        path?: AssetPath;
+    }>;
+    restored: AssetKey[];
+    wrote: boolean;
+};
+declare function actorId(origin: DocOrigin): string;
+declare function applyProjectBatch(session: ProjectSession, batch: ProjectOpBatch, origin: DocOrigin, opts?: ProjectApplyOptions): Promise<ProjectApplyResult>;
+declare function applyRegistryBatch(doc: Y.Doc, batch: ProjectOpBatch, origin: DocOrigin, opts: RegistryApplyOptions): RegistryApplyResult;
+declare function applyRepairs(doc: Y.Doc, opts?: {
+    now?: number;
+    origin?: Extract<DocOrigin, {
+        kind: "repair";
+    }>;
+    restore?: readonly AssetKey[];
+}): RepairResult;
+declare function reinspectBlobs(doc: Y.Doc, opts: {
+    checked?: Map<AssetKey, string>;
+    kinds: KindRegistry;
+    now?: number;
+    origin?: Extract<DocOrigin, {
+        kind: "repair";
+    }>;
+    store: ContentStore;
+}): Promise<ReinspectResult>;
+
+## collab/project-doc.ts
+declare const ENTRY_NESTED_FIELDS: readonly [
+    "import",
+    "licence"
+];
+declare const PROJECT_LAYOUT_VERSION = 1;
+declare const PROJECT_MAPS: {
+    readonly assets: "assets";
+    readonly build: "build";
+    readonly code: "code";
+    readonly history: "history";
+    readonly meta: "meta";
+};
+declare function appendHistory(doc: Y.Doc, key: AssetKey, items: readonly HashHistoryEntry[], origin?: unknown): void;
+declare const projectAssetsMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
+declare const projectBuildMap: (doc: Y.Doc) => Y.Map<BuildStamp>;
+declare const projectCodeMap: (doc: Y.Doc) => Y.Map<CodeModuleInfo>;
+declare const projectHistoryMap: (doc: Y.Doc) => Y.Map<Y.Array<HashHistoryEntry>>;
+declare const projectMetaMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function readEntry(key: AssetKey, map: Y.Map<unknown>): AssetEntry | null;
+declare function readProject(doc: Y.Doc): ProjectState;
+declare function seedProjectDoc(doc: Y.Doc, state: ProjectState, origin?: unknown): void;
+declare function writeEntry(doc: Y.Doc, entry: AssetEntry, origin?: unknown): void;
+declare function writeProjectState(doc: Y.Doc, prev: ProjectState, next: ProjectState): void;
+
+## collab/project-log.ts
+type HistoryRow = LogEntry & {
+    project?: {
+        docs: string[];
+        entry: string;
+    };
+};
+type ProjectLogInput = Omit<ProjectLogEntry, "at" | "id"> & {
+    at?: number;
+    id?: string;
+};
+declare function appendProjectLog(doc: Y.Doc, input: ProjectLogInput): ProjectLogEntry;
+declare function historyRows(log: readonly LogEntry[], projectLog: readonly ProjectLogEntry[], docName: string): HistoryRow[];
+declare function observeProjectLog(doc: Y.Doc, cb: (entries: ProjectLogEntry[]) => void): () => void;
+declare function projectLogFor(entries: readonly ProjectLogEntry[], docName: string): ProjectLogEntry[];
+declare function readProjectLog(doc: Y.Doc): ProjectLogEntry[];
+
+## collab/project-presence.ts
+type ProjectPeer = ProjectPresence & {
+    clientId: number;
+};
+declare function observeProjectPeers(awareness: AwarenessLike, cb: (peers: ProjectPeer[]) => void): () => void;
+declare function projectPeers(awareness: AwarenessLike): ProjectPeer[];
+declare function projectPeersByDoc(list: readonly ProjectPeer[]): Map<null | string, ProjectPeer[]>;
+declare function setProjectPresence(awareness: AwarenessLike, patch: Partial<ProjectPresence>): void;
+
+## collab/project-session.ts
+type CodeSkewIssue = SceneIssue & {
+    code: "code-skew";
+    detail: {
+        kind: AssetKindName;
+        mine: Sha256;
+        project: Sha256;
+    };
+};
+type MemoryDocClient = {
+    openDoc: OpenDoc;
+    readonly opened: readonly string[];
+    setOnline(online: boolean): void;
+};
+type MemoryDocHost = {
+    client(): MemoryDocClient;
+    doc(name: string): Y.Doc;
+};
+declare const NO_PREFAB_WRITER: PrefabWriter;
+type OpenDoc = (name: string) => Promise<OpenedDoc>;
+type OpenedDoc = {
+    awareness: AwarenessLike;
+    close(): void;
+    doc: Y.Doc;
+};
+type PrefabPlan = {
+    docs: readonly string[];
+    ok: true;
+    release?(): void;
+    write(origin: DocOrigin): {
+        doc: string;
+        entry: string;
+    }[];
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+type PrefabWriteRequest = {
+    entry: AssetEntry;
+    index: number;
+    op: EditSceneOp;
+    session: ProjectSession;
+};
+type PrefabWriter = {
+    plan(request: PrefabWriteRequest): Promise<PrefabPlan>;
+};
+type ProjectSession = {
+    canRedo(): boolean;
+    canUndo(): boolean;
+    commit(step: {
+        docs: string[];
+        label: string;
+        selection?: StepSelection;
+    }): void;
+    destroy(): void;
+    docNameFor(entry: AssetEntry): null | string;
+    get(name: string): SessionDoc | undefined;
+    now(): number;
+    open(name: string): Promise<SessionDoc>;
+    openDocs(): readonly string[];
+    pinned(): readonly string[];
+    prefabLibrary: () => PrefabLibrary;
+    prefabWriter: PrefabWriter;
+    readonly awareness: AwarenessLike;
+    readonly buildAt: number;
+    readonly coordinator: UndoCoordinator;
+    readonly hashes: Readonly<Record<AssetKindName, Sha256>>;
+    readonly key: KeyGen;
+    readonly kinds: KindRegistry;
+    readonly name: string;
+    readonly origin: DocOrigin;
+    readonly project: ProjectId;
+    readonly projectDoc: Y.Doc;
+    readonly registry: Registry;
+    readonly store?: ContentStore;
+    redo(): UndoneStep | null;
+    redoLabel(): string | undefined;
+    release(name: string): void;
+    skew(): readonly CodeSkewIssue[];
+    skewFor(kind: AssetKindName): CodeSkewIssue | null;
+    state(): ProjectState;
+    subscribe(listener: (e: ProjectSessionEvent) => void): () => void;
+    undo(): UndoneStep | null;
+    undoLabel(): string | undefined;
+    view(): ProjectView;
+};
+type ProjectSessionEvent = {
+    doc: string;
+    issue?: CodeSkewIssue;
+    readOnly: boolean;
+    type: "access";
+} | {
+    doc: string;
+    type: "close" | "open";
+} | {
+    type: "history";
+};
+type ProjectSessionOptions = {
+    buildAt?: number;
+    cap?: number;
+    key?: KeyGen;
+    kinds: KindRegistry;
+    now?: () => number;
+    openDoc: OpenDoc;
+    origin: DocOrigin;
+    prefabWriter?: PrefabWriter;
+    project: ProjectId;
+    registry: Registry;
+    store?: ContentStore;
+};
+type SessionDoc = {
+    readonly awareness: AwarenessLike;
+    readonly doc: Y.Doc;
+    readonly issue?: CodeSkewIssue;
+    readonly key: AssetKey | null;
+    readonly kind: AssetKindName | null;
+    readonly layout?: DocLayout;
+    readonly name: string;
+    readonly readOnly: boolean;
+};
+declare function createProjectSession(opts: ProjectSessionOptions): Promise<ProjectSession>;
+declare function memoryDocHost(): MemoryDocHost;
+
 ## collab/revert.ts
+declare const CONTENT_KEY_PREFIX = "@content:";
+type ProjectRevertResult = {
+    docs: string[];
+    entry?: ProjectLogEntry;
+    keys: string[];
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+type RevertOptions = {
+    layout?: DocLayout;
+};
 type RevertResult = {
     issue: SceneIssue;
     ok: false;
@@ -1045,7 +1793,11 @@ type RevertResult = {
     keys: string[];
     ok: true;
 };
-declare function revertEntry(doc: Y.Doc, entry: LogEntry, origin: SceneOrigin): RevertResult;
+declare const contentLogKey: (field: string) => string;
+declare function revertEntry(doc: Y.Doc, entry: LogEntry, origin: SceneOrigin, opts?: RevertOptions): RevertResult;
+declare function revertOpenProjectEntry(session: ProjectSession, entryId: string, origin?: DocOrigin): ProjectRevertResult;
+declare function revertProblem(doc: Y.Doc, entry: LogEntry, opts?: RevertOptions): SceneIssue | null;
+declare function revertProjectEntry(session: ProjectSession, entryId: string, origin?: DocOrigin): Promise<ProjectRevertResult>;
 
 ## collab/types.ts
 type AwarenessLike = {
@@ -1057,14 +1809,32 @@ type AwarenessLike = {
     setLocalStateField(field: string, value: unknown): void;
 };
 declare const BULK_FIELD = "bulk";
+declare const COLLAB_LAYOUT_VERSION = 2;
 declare const DOC_MAPS: {
     readonly entities: "entities";
     readonly groups: "groups";
     readonly instances: "instances";
     readonly meta: "meta";
+    readonly prefab: "prefab";
     readonly prefabs: "prefabs";
     readonly scene: "scene";
     readonly settings: "settings";
+};
+type DocOrigin = {
+    agentId: string;
+    kind: "agent";
+    onBehalfOf?: string;
+} | {
+    kind: "disk";
+} | {
+    kind: "migration";
+} | {
+    kind: "repair";
+    reason: string;
+} | {
+    kind: "user";
+    name?: string;
+    userId: string;
 };
 type EntityRecord = {
     [field: string]: unknown;
@@ -1076,7 +1846,7 @@ declare const GROUP_KEY_PREFIX = "@group:";
 declare const INSTANCE_KEY_PREFIX = "@instance:";
 declare const LOG_ARRAY = "log";
 type LogEntry = {
-    actor: SceneOrigin;
+    actor: DocOrigin;
     after?: Record<string, null | string>;
     at: number;
     before?: Record<string, unknown>;
@@ -1085,32 +1855,50 @@ type LogEntry = {
     kind?: "batch" | "redo" | "revert" | "undo";
     label: string;
     ops?: SceneOp["op"][];
+    warnings?: LogWarning[];
+};
+type LogWarning = {
+    code: string;
+    ids?: string[];
+    message: string;
 };
 declare const NESTED_FIELDS: readonly string[];
 declare const OVERRIDES_FIELD = "overrides";
 declare const PATH_FIELD = "path";
 declare const PREFAB_KEY_PREFIX = "@prefab:";
 declare const PRESENCE_FIELD = "scene";
+declare const PROJECT_PRESENCE_FIELD = "project";
+type ProjectLogEntry = {
+    actor: DocOrigin;
+    at: number;
+    docs: {
+        doc: string;
+        entry: string;
+    }[];
+    id: string;
+    label: string;
+};
+type ProjectPresence = {
+    doc: null | string;
+    mode: "edit" | "play";
+    user: {
+        color: string;
+        id: string;
+        name: string;
+    };
+};
 declare const SCENE_KEY = "@scene";
 declare const SETTINGS_KEY = "@settings";
 type SceneDocMeta = {
     $schema?: string;
     game?: string;
+    key?: string;
+    kind?: string;
+    layout?: number;
+    project?: string;
     schemaVersion: number;
 };
-type SceneOrigin = {
-    agentId: string;
-    kind: "agent";
-    onBehalfOf?: string;
-} | {
-    kind: "disk";
-} | {
-    kind: "migration";
-} | {
-    kind: "user";
-    name?: string;
-    userId: string;
-};
+type SceneOrigin = DocOrigin;
 type ScenePresence = {
     cursor?: Pt;
     ghost?: {
@@ -1127,7 +1915,38 @@ type ScenePresence = {
     };
 };
 declare const Z_FIELD = "z";
-declare function actorLabel(origin: SceneOrigin): string;
+declare function actorLabel(origin: DocOrigin): string;
+
+## collab/undo-coordinator.ts
+type StepSelection = SelectionMeta & {
+    doc: string;
+};
+declare const UNDO_CAP = 100;
+type UndoCoordinator = {
+    attach(docName: string, doc: Y.Doc): void;
+    canRedo(): boolean;
+    canUndo(): boolean;
+    commit(step: {
+        docs: string[];
+        label: string;
+        selection?: StepSelection;
+    }): void;
+    destroy(): void;
+    detach(docName: string): void;
+    pinned(): readonly string[];
+    redo(): UndoneStep | null;
+    redoLabel(): string | undefined;
+    undo(): UndoneStep | null;
+    undoLabel(): string | undefined;
+};
+type UndoneStep = {
+    docs: string[];
+    label: string;
+    selection?: StepSelection;
+};
+declare function createUndoCoordinator(origin: DocOrigin, opts?: {
+    cap?: number;
+}): UndoCoordinator;
 
 ## collab/undo.ts
 type SceneUndo = {
@@ -1156,9 +1975,11 @@ type IssueWatch = {
 type WatchIssuesOptions = {
     clearTimer?: (handle: unknown) => void;
     debounceMs?: number;
+    parentBounds?: Bounds;
+    prefabs?: PrefabSource;
     setTimer?: (fn: () => void, ms: number) => unknown;
 };
-declare function validateDoc(doc: Y.Doc, registry: Registry): SceneIssue[];
+declare function validateDoc(doc: Y.Doc, registry: Registry, opts?: Pick<WatchIssuesOptions, "parentBounds" | "prefabs">): SceneIssue[];
 declare function watchIssues(doc: Y.Doc, registry: Registry, onIssues: (issues: SceneIssue[]) => void, opts?: WatchIssuesOptions): IssueWatch;
 
 ## collisions.ts
@@ -1730,12 +2551,15 @@ type PrefabIsolation = {
     session: EditorSession;
 };
 type PrefabIsolationOptions = {
+    awareness?: AwarenessLike;
+    history?: SessionHistory;
     issuesDebounceMs?: number;
     key?: KeyGen;
     onGone?: () => void;
+    user?: ScenePresence["user"];
 };
 declare function isolationBounds(prefab: Prefab, parent: Bounds, registry: EditorSession["registry"]): Bounds;
-declare function openPrefabIsolation(scene: EditorSession, prefab: string, opts?: PrefabIsolationOptions): PrefabIsolation | null;
+declare function openPrefabIsolation(scene: EditorSession, prefab: string, opts?: PrefabIsolationOptions): Promise<PrefabIsolation | null>;
 
 ## editor/keymap.ts
 type Direction = "down" | "left" | "right" | "up";
@@ -1845,12 +2669,13 @@ declare function placementEditorTool<T extends PlacementTemplate>(opts: Placemen
 
 ## editor/prefab-commands.ts
 declare function applyToPrefabBatch(def: SceneDefinition, ref: Ref): OpBatch | null;
+declare function asProjectBatch(scene: AssetId, batch: OpBatch): ProjectOpBatch;
 declare function childOverrides(def: SceneDefinition, ref: Ref): null | {
     child: string;
     fields: Map<string, string[]>;
     instance: string;
 };
-declare function createPrefabBatch(def: SceneDefinition, refs: readonly Ref[], prefabs: PrefabLibrary): OpBatch | null;
+declare function createPrefabBatch(def: SceneDefinition, refs: readonly Ref[], prefabs: PrefabLibrary, taken?: Iterable<string>): OpBatch | null;
 declare function instanceOfRef(def: SceneDefinition, ref: Ref): InstanceDef | undefined;
 declare function instancesOf(def: SceneDefinition, prefab: string): number;
 declare function revertAllBatch(def: SceneDefinition, ref: Ref): OpBatch | null;
@@ -1895,6 +2720,8 @@ type EditorSession = {
     getResolved(): SceneDefinition;
     keyOf(ref: Ref): string | undefined;
     origin: SceneOrigin;
+    parentBounds?: Bounds;
+    prefabs: PrefabSource;
     redo(): boolean;
     refOf(key: string): Ref | undefined;
     registry: Registry;
@@ -1922,18 +2749,24 @@ type EditorSessionOptions = {
     key?: KeyGen;
     name: string;
     origin: SceneOrigin;
+    parentBounds?: Bounds;
+    prefabs?: PrefabSource;
     registry: Registry;
     user?: ScenePresence["user"];
 };
 type SessionHistory = {
-    redo(): boolean;
+    commit?(selection: SelectionMeta): void;
+    redo(): SelectionMeta | boolean;
     revert(entryId: string): RevertResult;
     state(): Pick<EditorStoreState, "canRedo" | "canUndo" | "history" | "redoLabel" | "undoLabel">;
     subscribe(listener: () => void): () => void;
-    undo(): boolean;
+    undo(): SelectionMeta | boolean;
 };
-declare function createEditorSession({ doc, origin, name, registry, awareness, user, key, issuesDebounceMs, history }: EditorSessionOptions): EditorSession;
+declare function createEditorSession({ doc, origin, name, registry, awareness, user, key, issuesDebounceMs, history, prefabs, parentBounds }: EditorSessionOptions): EditorSession;
 declare function labelFor(batch: OpBatch): string;
+declare function projectHistory(project: ProjectSession, docName: string, opts?: {
+    onUndone?: (step: UndoneStep, how: "redo" | "undo") => void;
+}): SessionHistory;
 
 ## editor/snap.ts
 declare const SNAP_PX = 8;
@@ -2221,17 +3054,30 @@ type ToolPointerEvent = ToolModifiers & {
 declare function defineEditorTool<T extends EditorToolDef>(def: T): T;
 
 ## engine.ts
-declare function createGame(canvas: HTMLCanvasElement, config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier">): Promise<GameInstance>;
+declare function createGame(canvas: HTMLCanvasElement, config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier"> & ProjectOption): Promise<GameInstance>;
 
 ## game/define.ts
+type CreateRegistryOptions = {
+    materials?: Readonly<Record<string, ProjectMaterialDef>>;
+};
 type EntityOf<D extends EntityTypeDef> = D extends EntityTypeDef<infer F> ? RuntimeEntity<z.infer<z.ZodObject<F>>> : RuntimeEntity;
+type ProjectMaterialDef = {
+    description: string;
+    physics?: {
+        friction: number;
+        impulse?: Vec2;
+        restitution: number;
+    };
+    style?: Style;
+};
 declare class RegistryError extends Error {
     readonly problems: string[];
     constructor(id: string, problems: string[]);
 }
-declare function createRegistry(game?: GameDefinition | null): Registry;
+declare function createRegistry(game?: GameDefinition | null, opts?: CreateRegistryOptions): Registry;
 declare function defineEntityType<F extends z.ZodRawShape>(def: EntityTypeDef<F>): EntityTypeDef<F>;
 declare function defineGame<S, G = unknown>(def: GameDefinition<S, G>): GameDefinition<S, G>;
+declare function withProject(registry: Registry, view: ProjectView, values: ReadonlyMap<AssetId, unknown>): Registry;
 
 ## game/fields.ts
 declare const BASE_FIELDS: {
@@ -2496,6 +3342,7 @@ type EngineContext = {
     physics: PhysicsWorld;
     rapier: RapierModule;
     readonly play: PlayStart | null;
+    readonly project: ProjectRuntimeView | null;
     readonly tick: number;
     registry: Registry;
     settings: ResolvedSettings;
@@ -2543,6 +3390,7 @@ type GameAttachment = {
 };
 type GameDefinition<S = unknown, G = unknown> = {
     actions: readonly ActionDef[];
+    assetKinds?: readonly AssetKindDef[];
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
     checks?: Readonly<Record<string, CheckKindDef>>;
     collisionGroups?: Readonly<Record<string, {
@@ -2558,8 +3406,10 @@ type GameDefinition<S = unknown, G = unknown> = {
     physicalChecks?: readonly PhysicalCheck[];
     play?: GamePlayDef<S, G>;
     prefabContract?: z.ZodRawShape;
+    projectSettings?: z.ZodRawShape;
     settings?: z.ZodRawShape;
     spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
+    tables?: Readonly<Record<string, GameTableDef>>;
     template?: SceneTemplate;
     types: readonly EntityTypeDef[];
     validators?: readonly SceneValidator[];
@@ -2606,6 +3456,10 @@ type GameShell = {
     getMode: () => GameMode;
     router: ToolRouter;
     view: SceneView;
+};
+type GameTableDef = {
+    description: string;
+    row: z.ZodRawShape;
 };
 type InspectorWidgetDef = {
     format?: "json" | "text";
@@ -2776,9 +3630,36 @@ declare function defaultFuzzMacro(rng: MacroRandom, actions: readonly string[]):
 declare function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun;
 
 ## headless/headless.ts
-declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions): SceneRuntimeHandle;
+declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption): SceneRuntimeHandle;
 declare function runProbe<S = unknown>(opts: ProbeOptions<S>): ProbeReport<S>;
 declare function unknownActionError(action: string, actionNames: readonly string[]): null | string;
+
+## headless/load.ts
+type FilesLoadInput = LoadCommon & {
+    files: {
+        prefabs?: readonly unknown[];
+        scene: unknown;
+    };
+};
+type HeadlessLoad = {
+    prefabs: PrefabLibrary;
+    project: ProjectRuntimeView | null;
+    registry: Registry;
+    scene: SceneDefinition;
+    sceneHash: SceneHash;
+    snapshot: Sha256 | null;
+};
+type HeadlessLoadInput = FilesLoadInput | SnapshotLoadInput;
+type LoadCommon = {
+    project?: ProjectRuntimeView | null;
+    registry: Registry;
+};
+type SnapshotLoadInput = LoadCommon & {
+    scene: AssetId;
+    snapshot: ProjectSnapshot;
+    store: ContentStore;
+};
+declare function loadHeadless(input: HeadlessLoadInput): Promise<HeadlessLoad>;
 
 ## headless/play-loop.ts
 declare const STUCK_PX = 4;
@@ -2889,6 +3770,7 @@ type PlaytestOptions<S = unknown, G = unknown> = {
     maxEvents?: number;
     maxTrail?: number;
     prefabs?: PrefabLibrary;
+    project?: ProjectRuntimeView | null;
     rapier: RapierModule;
     registry?: Registry;
     scene: SceneDefinition;
@@ -3120,6 +4002,1391 @@ type PlacementToolOptions<T> = {
 };
 declare function createPlacementTool<T>(opts: PlacementToolOptions<T>): PlacementTool<T>;
 
+## project/asset-files.ts
+type AssetFile = {
+    blob: null | {
+        data: Uint8Array;
+        sha256: Sha256;
+    };
+    def: AssetKindDef;
+    id: AssetId;
+    path: AssetPath;
+    sidecar: AssetSidecar | null;
+};
+type GlobMatch = (path: string, glob: string) => boolean;
+type ProjectPathMatcher = {
+    isAsset: (path: AssetPath) => boolean;
+    isCode: (path: string) => boolean;
+};
+declare function assetFileEntries<F extends AssetFile>(files: readonly F[], created: AssetEntry["created"]): {
+    entry: AssetEntry;
+    file: F;
+    issue: SceneIssue | null;
+    key: AssetKey;
+}[];
+declare function assetFileEntry(file: AssetFile, key: AssetKey, created: AssetEntry["created"], idAt: (path: AssetPath) => AssetId | undefined): {
+    entry: AssetEntry;
+    issue: SceneIssue | null;
+};
+declare function idsAtPaths(entries: Iterable<Pick<AssetEntry, "deleted" | "id" | "path">>): (path: AssetPath) => AssetId | undefined;
+declare function orphanSidecarIssue(sidecarPath: AssetPath, assetPath: AssetPath): SceneIssue;
+declare function ownAssetId(def: AssetKindDef, path: AssetPath, json: unknown): AssetId | null;
+declare function projectPathMatcher(file: ProjectFile, match: GlobMatch): ProjectPathMatcher;
+
+## project/canonical.ts
+type MapLayout = Extract<DocLayout, {
+    as: "map";
+}>;
+declare function canonicalJson(value: unknown, layout: DocLayout): string;
+declare function fieldLayout(layout: MapLayout, key: string): DocLayout;
+declare function stableJson(value: unknown): string;
+
+## project/content-store.ts
+type ContentStore = {
+    get(hash: Sha256): Promise<Uint8Array | null>;
+    has(hash: Sha256): Promise<boolean>;
+    put(bytes: Uint8Array, expect?: Sha256): Promise<Sha256>;
+};
+declare class ContentStoreError extends Error {
+    readonly issue: SceneIssue;
+    constructor(issue: SceneIssue);
+}
+declare function hashForPut(bytes: Uint8Array, expect?: Sha256): Promise<Sha256>;
+declare function memoryContentStore(): ContentStore;
+
+## project/doc-names.ts
+declare const DOC_NAME_KINDS: readonly DocNameKind[];
+declare const DOC_NAME_MAX_LENGTH: Readonly<Record<DocNameKind, number>>;
+type DocName = {
+    key: AssetKey;
+    kind: "asset";
+    project: ProjectId;
+} | {
+    key: AssetKey;
+    kind: "scene";
+    project: ProjectId;
+} | {
+    kind: "project";
+    project: ProjectId;
+};
+type DocNameKind = DocName["kind"];
+declare function docNameOf(ref: DocName): string;
+declare function parseDocName(name: string): DocName | null;
+
+## project/hash.ts
+declare function isSha256(s: string): s is Sha256;
+declare function sha256(data: Uint8Array | string): Promise<Sha256>;
+
+## project/inspect/aseprite.ts
+declare function parseAsepriteJson(json: unknown): AtlasSheet | null;
+
+## project/inspect/atlas.ts
+type AtlasDirection = "forward" | "pingpong" | "reverse";
+type AtlasFrame = {
+    durationMs?: number;
+    h: number;
+    pivot?: [
+        number,
+        number
+    ];
+    w: number;
+    x: number;
+    y: number;
+};
+type AtlasSheet = {
+    frames: Record<string, AtlasFrame>;
+    order: string[];
+    slices: AtlasSlice[];
+    tags: AtlasTag[];
+};
+type AtlasSlice = {
+    center?: [
+        number,
+        number,
+        number,
+        number
+    ];
+    frame: string;
+    h: number;
+    name: string;
+    w: number;
+    x: number;
+    y: number;
+};
+type AtlasTag = {
+    direction: AtlasDirection;
+    from: number;
+    name: string;
+    to: number;
+};
+declare function atlasImage(json: unknown): null | string;
+declare function atlasTool(json: unknown): "aseprite" | "texturepacker" | null;
+
+## project/inspect/audio.ts
+type AudioFormat = "m4a" | "mp3" | "ogg" | "wav";
+
+## project/inspect/bmfont.ts
+declare function parseBmfont(text: string): null | {
+    lineHeight: number;
+    pages: string[];
+};
+
+## project/inspect/bytes.ts
+type ImageSize = {
+    height: number;
+    width: number;
+};
+
+## project/inspect/entry.ts
+declare function inspectEntry(def: BlobKindDef, entry: Pick<AssetEntry, "import" | "path">, bytes: Uint8Array, idAt: (path: AssetPath) => AssetId | undefined): InspectResult<unknown>;
+
+## project/inspect/font.ts
+type WebFontFormat = "otf" | "ttf" | "woff" | "woff2";
+
+## project/inspect/gif.ts
+declare function readGifSize(bytes: Uint8Array): ImageSize | null;
+
+## project/inspect/jpeg.ts
+declare function readJpegSize(bytes: Uint8Array): ImageSize | null;
+
+## project/inspect/png.ts
+declare function readPngSize(bytes: Uint8Array): ImageSize | null;
+
+## project/inspect/texturepacker.ts
+declare function parseTexturePackerJson(json: unknown): AtlasSheet | null;
+
+## project/inspect/webp.ts
+declare function readWebpSize(bytes: Uint8Array): ImageSize | null;
+
+## project/json-edit.ts
+type JsonEditResult = {
+    index: number;
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+    value: unknown;
+};
+type PointerRead = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    layout: DocLayout;
+    ok: true;
+    value: unknown;
+};
+declare function applyJsonEdits(value: unknown, layout: DocLayout, edits: readonly JsonEdit[]): JsonEditResult;
+declare function keyedItemPointer(collection: JsonPointer, id: string): JsonPointer;
+declare function parseJsonPointer(pointer: JsonPointer): null | string[];
+declare function readPointer(value: unknown, layout: DocLayout, pointer: JsonPointer): PointerRead;
+
+## project/kinds.ts
+type KindRegistry = {
+    detect(path: AssetPath, json?: unknown, sidecarKind?: string): AssetKindDef | null;
+    get(kind: AssetKindName): AssetKindDef | undefined;
+    list(): readonly AssetKindDef[];
+    schemaHashes(env: KindEnv): Promise<Readonly<Record<AssetKindName, Sha256>>>;
+};
+declare function createKindRegistry(game?: GameDefinition | null, base?: readonly AssetKindDef[]): KindRegistry;
+declare function detectImport(kinds: KindRegistry, path: AssetPath, json?: unknown): AssetKindDef | null;
+declare function docKindJsonSchema(def: DocKindDef, env: KindEnv): Record<string, unknown>;
+declare function formatAssetDoc<J>(kind: DocKindDef<J>, value: J): string;
+declare function isSkippedAssetPath(path: AssetPath): boolean;
+declare function parseAssetDoc<J>(kind: DocKindDef<J>, input: unknown, env: KindEnv): ParseAssetResult<J>;
+declare function validateAssetDoc(kind: DocKindDef, value: unknown, env: KindEnv): SceneIssue[];
+
+## project/kinds/atlas.ts
+declare const ATLAS_KIND = "atlas";
+declare const ATLAS_SUFFIX = ".atlas.json";
+type AtlasMeta = AtlasSheet & {
+    tool: AtlasTool;
+};
+type AtlasSettings = {
+    pivotDefault?: [
+        number,
+        number
+    ];
+    texture?: AssetId;
+};
+type AtlasTool = "aseprite" | "texturepacker";
+declare function atlasExportApp(json: unknown): AtlasTool | null;
+declare const atlasKind: {
+    contentTypes: string[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    inspect: (bytes: Uint8Array, settings: AtlasSettings, env: InspectEnv) => InspectResult<AtlasMeta>;
+    kind: string;
+    match: {
+        suffixes: string[];
+    };
+    maxBytes: number;
+    meta: z.ZodType<AtlasMeta, unknown, z.core.$ZodTypeInternals<AtlasMeta, unknown>>;
+    refs: (entry: AssetEntry) => RefSite[];
+    settings: z.ZodType<AtlasSettings, unknown, z.core.$ZodTypeInternals<AtlasSettings, unknown>>;
+    storage: "blob";
+    title: string;
+};
+declare const atlasMetaSchema: z.ZodType<AtlasMeta>;
+declare const atlasSettingsSchema: z.ZodType<AtlasSettings>;
+
+## project/kinds/audio.ts
+declare const AUDIO_KIND = "audio";
+type AudioMeta = {
+    format: AudioFormat;
+};
+type AudioSettings = Record<string, never>;
+declare const audioKind: {
+    contentTypes: string[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    inspect: (bytes: Uint8Array, settings: AudioSettings, env: InspectEnv) => InspectResult<AudioMeta>;
+    kind: string;
+    match: {
+        suffixes: string[];
+    };
+    maxBytes: number;
+    meta: z.ZodType<AudioMeta, unknown, z.core.$ZodTypeInternals<AudioMeta, unknown>>;
+    settings: z.ZodType<AudioSettings, unknown, z.core.$ZodTypeInternals<AudioSettings, unknown>>;
+    storage: "blob";
+    title: string;
+};
+declare const audioMetaSchema: z.ZodType<AudioMeta>;
+declare const audioSettingsSchema: z.ZodType<AudioSettings>;
+
+## project/kinds/checks.ts
+declare const checksKind: {
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: () => ChecksFile;
+    format: (file: ChecksFile) => string;
+    kind: string;
+    layout: {
+        readonly as: "map";
+        readonly fields: {
+            readonly checks: {
+                readonly as: "keyed";
+                readonly item: {
+                    readonly as: "map";
+                    readonly fields: {
+                        readonly kind: {
+                            as: "atomic";
+                        };
+                    };
+                    readonly rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        readonly rest: {
+            as: "atomic";
+        };
+    };
+    match: {
+        suffixes: string[];
+    };
+    refs: (file: ChecksFile) => RefSite[];
+    schema: (env: KindEnv) => z.ZodType<ChecksFile>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+
+## project/kinds/code.ts
+declare const codeKind: {
+    description: string;
+    kind: string;
+    match: {};
+    storage: "code";
+    title: string;
+};
+
+## project/kinds/data-table.ts
+declare const DATA_TABLE_KIND = "data-table";
+declare const DATA_TABLE_SCHEMA_ID = "urn:jams-engine:data-table:v1";
+declare const DATA_TABLE_VERSION = 1;
+type DataTableFile = {
+    $schema?: string;
+    kind: typeof DATA_TABLE_KIND;
+    rows: DataTableRow[];
+    table: string;
+    v: typeof DATA_TABLE_VERSION;
+};
+type DataTableRow = Record<string, unknown> & {
+    id: string;
+};
+declare function dataTableIssues(view: ProjectView, values: ReadonlyMap<AssetId, unknown>): SceneIssue[];
+declare const dataTableKind: {
+    defaultFolder: () => string;
+    description: string;
+    empty: (env: KindEnv, { id }: {
+        id: AssetId;
+    }) => DataTableFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            rows: {
+                as: "keyed";
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+            table: {
+                as: "atomic";
+            };
+        };
+    };
+    match: {
+        jsonKind: string;
+    };
+    schema: (env: KindEnv) => z.ZodType<DataTableFile, unknown, z.core.$ZodTypeInternals<DataTableFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+declare function rowSchemaOf(def: GameTableDef): z.ZodObject;
+declare function tableAssets(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, table: string): {
+    entry: AssetEntry;
+    rows: readonly unknown[];
+}[];
+
+## project/kinds/define.ts
+type AssetKindDef = BlobKindDef<any, any> | CodeKindDef | DocKindDef<any>;
+type AssetMatch = {
+    jsonKind?: string;
+    suffixes?: readonly string[];
+    test?: (json: unknown) => boolean;
+};
+type BlobKindDef<M = unknown, S = unknown> = KindBase & {
+    contentTypes: readonly string[];
+    inspect(bytes: Uint8Array, settings: S, env: InspectEnv): InspectResult<M>;
+    maxBytes: number;
+    meta: z.ZodType<M>;
+    refs?(entry: AssetEntry): readonly RefSite[];
+    settings: z.ZodType<S>;
+    storage: "blob";
+};
+type CodeKindDef = KindBase & {
+    storage: "code";
+};
+type DocKindDef<J = unknown> = KindBase & {
+    empty(env: KindEnv, init: {
+        id: AssetId;
+    }): J;
+    format?(value: J): string;
+    idField?: string;
+    layout: "custom" | DocLayout;
+    limits?: {
+        maxItems?: number;
+        maxStateBytes: number;
+    };
+    migrations?: Readonly<Record<number, Migration>>;
+    parse?(input: unknown, env: KindEnv): ParseAssetResult<J>;
+    prefix?: "asset" | "scene";
+    refs?(value: J, env: KindEnv): readonly RefSite[];
+    schema(env: KindEnv): z.ZodType<J>;
+    schemaId: string;
+    storage: "doc";
+    validate?(value: J, env: KindEnv): readonly SceneIssue[];
+    version: number;
+};
+type DocLayout = {
+    as: "atomic";
+} | {
+    as: "keyed";
+    id?: string;
+    item: Extract<DocLayout, {
+        as: "map";
+    }>;
+} | {
+    as: "list";
+    item: DocLayout;
+} | {
+    as: "map";
+    fields?: Readonly<Record<string, DocLayout>>;
+    rest?: DocLayout;
+} | {
+    as: "text";
+};
+type InspectEnv = {
+    idAt(path: AssetPath): AssetId | undefined;
+    path: AssetPath;
+};
+type InspectResult<M> = {
+    import?: Record<string, unknown>;
+    meta: M;
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+type KindBase = {
+    defaultFolder?: (env: KindEnv, near?: AssetPath) => string;
+    description: string;
+    kind: AssetKindName;
+    match: AssetMatch;
+    title: string;
+};
+type KindEnv = {
+    project: ProjectView | null;
+    registry: Registry;
+};
+type ParseAssetResult<J = unknown> = {
+    issues: SceneIssue[];
+    migratedFrom?: number;
+    ok: true;
+    value: J;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+declare const byCodeUnit: (a: string, b: string) => number;
+declare function defineAssetKind<K extends AssetKindDef>(def: K): K;
+
+## project/kinds/font.ts
+declare const FONT_KIND = "font";
+type FontFormat = "bmfont" | WebFontFormat;
+type FontMeta = {
+    format: FontFormat;
+    lineHeight?: number;
+    pages?: AssetPath[];
+};
+type FontSettings = {
+    pages?: AssetId[];
+};
+declare const fontKind: {
+    contentTypes: string[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    inspect: (bytes: Uint8Array, settings: FontSettings, env: InspectEnv) => InspectResult<FontMeta>;
+    kind: string;
+    match: {
+        suffixes: string[];
+    };
+    maxBytes: number;
+    meta: z.ZodType<FontMeta, unknown, z.core.$ZodTypeInternals<FontMeta, unknown>>;
+    refs: (entry: AssetEntry) => RefSite[];
+    settings: z.ZodType<FontSettings, unknown, z.core.$ZodTypeInternals<FontSettings, unknown>>;
+    storage: "blob";
+    title: string;
+};
+declare const fontMetaSchema: z.ZodType<FontMeta>;
+declare const fontSettingsSchema: z.ZodType<FontSettings>;
+
+## project/kinds/game-settings.ts
+declare const GAME_SETTINGS_KIND = "game-settings";
+declare const GAME_SETTINGS_SCHEMA_ID = "urn:jams-engine:game-settings:v1";
+declare const GAME_SETTINGS_VERSION = 1;
+type GameSettingsFile = {
+    $schema?: string;
+    engine: Record<string, never>;
+    game: Record<string, unknown>;
+    kind: typeof GAME_SETTINGS_KIND;
+    v: typeof GAME_SETTINGS_VERSION;
+};
+declare function gameSettingsEntries(view: ProjectView): AssetEntry[];
+declare function gameSettingsIssues(view: ProjectView): SceneIssue[];
+declare const gameSettingsKind: {
+    defaultFolder: () => string;
+    description: string;
+    empty: () => GameSettingsFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            engine: {
+                as: "map";
+                rest: {
+                    as: "atomic";
+                };
+            };
+            game: {
+                as: "map";
+                rest: {
+                    as: "atomic";
+                };
+            };
+        };
+    };
+    match: {
+        jsonKind: string;
+    };
+    schema: (env: KindEnv) => z.ZodType<GameSettingsFile, unknown, z.core.$ZodTypeInternals<GameSettingsFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+declare function gameSettingsValues(registry: Registry, game: Record<string, unknown> | undefined): Record<string, unknown>;
+
+## project/kinds/index.ts
+declare const ENGINE_ASSET_KINDS: readonly AssetKindDef[];
+
+## project/kinds/input-script.ts
+declare const INPUT_SCRIPT_SUFFIX = ".script.json";
+declare const inputScriptKind: {
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: () => InputScript;
+    format: (script: InputScript) => string;
+    kind: string;
+    layout: {
+        readonly as: "map";
+        readonly fields: {
+            readonly at: {
+                as: "atomic";
+            };
+            readonly game: {
+                as: "atomic";
+            };
+            readonly maxTicks: {
+                as: "atomic";
+            };
+            readonly scene: {
+                as: "atomic";
+            };
+            readonly steps: {
+                readonly as: "list";
+                readonly item: {
+                    as: "atomic";
+                };
+            };
+            readonly timeOffsetMs: {
+                as: "atomic";
+            };
+        };
+        readonly rest: {
+            as: "atomic";
+        };
+    };
+    match: {
+        suffixes: string[];
+    };
+    refs: (script: InputScript) => RefSite[];
+    schema: (env: KindEnv) => z.ZodType<InputScript>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+
+## project/kinds/material.ts
+declare const MATERIAL_KIND = "material";
+declare const MATERIAL_SCHEMA_ID = "urn:jams-engine:material:v1";
+declare const MATERIAL_VERSION = 1;
+type MaterialFile = z.infer<typeof materialSchema>;
+declare const materialKind: {
+    defaultFolder: () => string;
+    description: string;
+    empty: () => MaterialFile;
+    kind: string;
+    layout: {
+        as: "map";
+        rest: {
+            as: "atomic";
+        };
+    };
+    match: {
+        jsonKind: string;
+    };
+    schema: () => z.ZodObject<{
+        $schema: z.ZodOptional<z.ZodString>;
+        description: z.ZodString;
+        kind: z.ZodLiteral<"material">;
+        physics: z.ZodOptional<z.ZodObject<{
+            friction: z.ZodNumber;
+            impulse: z.ZodOptional<z.ZodObject<{
+                x: z.ZodNumber;
+                y: z.ZodNumber;
+            }, z.core.$strict>>;
+            restitution: z.ZodNumber;
+        }, z.core.$strict>>;
+        render: z.ZodOptional<z.ZodObject<{
+            style: z.ZodOptional<z.ZodObject<{
+                alpha: z.ZodOptional<z.ZodNumber>;
+                fill: z.ZodOptional<z.ZodString>;
+                stroke: z.ZodOptional<z.ZodString>;
+                strokeAlpha: z.ZodOptional<z.ZodNumber>;
+                strokeWidth: z.ZodOptional<z.ZodNumber>;
+            }, z.core.$strict>>;
+        }, z.core.$strict>>;
+        v: z.ZodLiteral<1>;
+    }, z.core.$strict>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+declare const materialSchema: z.ZodObject<{
+    $schema: z.ZodOptional<z.ZodString>;
+    description: z.ZodString;
+    kind: z.ZodLiteral<"material">;
+    physics: z.ZodOptional<z.ZodObject<{
+        friction: z.ZodNumber;
+        impulse: z.ZodOptional<z.ZodObject<{
+            x: z.ZodNumber;
+            y: z.ZodNumber;
+        }, z.core.$strict>>;
+        restitution: z.ZodNumber;
+    }, z.core.$strict>>;
+    render: z.ZodOptional<z.ZodObject<{
+        style: z.ZodOptional<z.ZodObject<{
+            alpha: z.ZodOptional<z.ZodNumber>;
+            fill: z.ZodOptional<z.ZodString>;
+            stroke: z.ZodOptional<z.ZodString>;
+            strokeAlpha: z.ZodOptional<z.ZodNumber>;
+            strokeWidth: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
+    }, z.core.$strict>>;
+    v: z.ZodLiteral<1>;
+}, z.core.$strict>;
+declare function projectMaterialOf(value: unknown): ProjectMaterialDef | null;
+
+## project/kinds/prefab.ts
+declare const prefabKind: {
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: (env: KindEnv, { id }: {
+        id: AssetId;
+    }) => Prefab;
+    format: (prefab: Prefab) => string;
+    idField: string;
+    kind: string;
+    layout: "custom";
+    match: {
+        jsonKind: string;
+    };
+    migrations: Readonly<Record<number, Migration>>;
+    parse(input: unknown, env: KindEnv): {
+        issues: SceneIssue[];
+        migratedFrom: number;
+        ok: true;
+        value: Prefab;
+    } | {
+        issues: SceneIssue[];
+        migratedFrom?: undefined;
+        ok: true;
+        value: Prefab;
+    } | {
+        issues: SceneIssue[];
+        ok: false;
+    };
+    refs(prefab: Prefab, env: KindEnv): RefSite[];
+    schema: (env: KindEnv) => z.ZodType<Prefab>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+
+## project/kinds/recording.ts
+declare const RECORDING_KIND = "recording";
+declare const RECORDING_SUFFIX = ".recording.json";
+type RecordingMeta = {
+    scene: string;
+    sceneHash: string;
+    ticks: number;
+};
+type RecordingSettings = Record<string, never>;
+declare const recordingKind: {
+    contentTypes: string[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    inspect: (bytes: Uint8Array, settings: RecordingSettings, env: InspectEnv) => InspectResult<RecordingMeta>;
+    kind: string;
+    match: {
+        suffixes: string[];
+    };
+    maxBytes: number;
+    meta: z.ZodType<RecordingMeta, unknown, z.core.$ZodTypeInternals<RecordingMeta, unknown>>;
+    refs: (entry: AssetEntry) => RefSite[];
+    settings: z.ZodType<RecordingSettings, unknown, z.core.$ZodTypeInternals<RecordingSettings, unknown>>;
+    storage: "blob";
+    title: string;
+};
+declare const recordingMetaSchema: z.ZodType<RecordingMeta>;
+declare const recordingSettingsSchema: z.ZodType<RecordingSettings>;
+
+## project/kinds/scene.ts
+declare const sceneKind: {
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: (env: KindEnv, { id }: {
+        id: AssetId;
+    }) => SceneDefinition;
+    format: (def: SceneDefinition) => string;
+    kind: string;
+    layout: "custom";
+    match: {
+        test: (json: unknown) => boolean;
+    };
+    migrations: Readonly<Record<number, Migration>>;
+    parse(input: unknown, env: KindEnv): {
+        issues: SceneIssue[];
+        migratedFrom: number;
+        ok: true;
+        value: SceneDefinition;
+    } | {
+        issues: SceneIssue[];
+        migratedFrom?: undefined;
+        ok: true;
+        value: SceneDefinition;
+    } | {
+        issues: SceneIssue[];
+        ok: false;
+    };
+    prefix: "scene";
+    refs(def: SceneDefinition, env: KindEnv): RefSite[];
+    schema: (env: KindEnv) => z.ZodType<SceneDefinition>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    version: number;
+};
+
+## project/kinds/texture.ts
+declare const TEXTURE_KIND = "texture";
+type TextureFormat = "gif" | "jpeg" | "png" | "webp";
+type TextureMeta = {
+    format: TextureFormat;
+    height: number;
+    width: number;
+};
+type TextureSettings = {
+    filter?: "linear" | "nearest";
+    nineSlice?: [
+        number,
+        number,
+        number,
+        number
+    ];
+    pivot?: [
+        number,
+        number
+    ];
+};
+declare const textureKind: {
+    contentTypes: string[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    inspect: (bytes: Uint8Array, settings: TextureSettings, env: InspectEnv) => InspectResult<TextureMeta>;
+    kind: string;
+    match: {
+        suffixes: string[];
+    };
+    maxBytes: number;
+    meta: z.ZodType<TextureMeta, unknown, z.core.$ZodTypeInternals<TextureMeta, unknown>>;
+    settings: z.ZodType<TextureSettings, unknown, z.core.$ZodTypeInternals<TextureSettings, unknown>>;
+    storage: "blob";
+    title: string;
+};
+declare const textureMetaSchema: z.ZodType<TextureMeta>;
+declare const textureSettingsSchema: z.ZodType<TextureSettings>;
+
+## project/ops.ts
+type BlobInspect = (kind: BlobKindDef, entry: AssetEntry) => InspectResult<unknown>;
+type EditSceneOp = Extract<ProjectOp, {
+    op: "editScene";
+}>;
+type JsonEdit = {
+    before?: number | string;
+    insert: JsonPointer;
+    value: unknown;
+} | {
+    remove: JsonPointer;
+} | {
+    set: JsonPointer;
+    value: unknown;
+} | {
+    unset: JsonPointer;
+};
+type JsonPointer = string;
+declare const PREFAB_SCENE_OPS: readonly SceneOp["op"][];
+declare const PROJECT_OPS_SCHEMA_ID = "urn:jams-engine:project-ops:v1";
+declare const PROJECT_OP_NAMES: readonly [
+    "createAsset",
+    "importAsset",
+    "renameAsset",
+    "moveAsset",
+    "deleteAsset",
+    "restoreAsset",
+    "changeAssetId",
+    "setImport",
+    "replaceContent",
+    "setLicence",
+    "editAsset",
+    "editScene"
+];
+type ProjectApplyResult = {
+    created: AssetId[];
+    docs: string[];
+    entry?: ProjectLogEntry;
+    issues: SceneIssue[];
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+    opIndex: number;
+};
+type ProjectBatchCheck = {
+    created: AssetId[];
+    delegated: number[];
+    issues: SceneIssue[];
+    ok: true;
+    registry: boolean;
+    scenes: ReadonlyMap<AssetKey, SceneWrite>;
+    state: ProjectState;
+    values: ReadonlyMap<AssetKey, unknown>;
+    written: AssetKey[];
+    writtenBy: ReadonlyMap<AssetKey, number>;
+} | {
+    issue: SceneIssue;
+    ok: false;
+    opIndex: number;
+};
+type ProjectBatchEnv = {
+    by: string;
+    inspect?: BlobInspect;
+    kinds: KindRegistry;
+    newKey: () => AssetKey;
+    now: number;
+    prefabEdit?: (op: EditSceneOp, ctx: {
+        entry: AssetEntry;
+        index: number;
+    }) => SceneIssue | null;
+    prefabsFor?: (scene: AssetId) => PrefabLibrary;
+    registry: Registry;
+};
+type ProjectOp = {
+    bytes: number;
+    id: AssetId;
+    op: "replaceContent";
+    sha256: Sha256;
+} | {
+    bytes: number;
+    id?: AssetId;
+    kind?: AssetKindName;
+    licence?: Licence;
+    op: "importAsset";
+    path: AssetPath;
+    settings?: Record<string, unknown>;
+    sha256: Sha256;
+} | {
+    content?: unknown;
+    id?: AssetId;
+    kind: AssetKindName;
+    licence?: Licence;
+    op: "createAsset";
+    path: AssetPath;
+} | {
+    edits: JsonEdit[];
+    id: AssetId;
+    op: "editAsset";
+} | {
+    file?: string;
+    id: AssetId;
+    name?: null | string;
+    op: "renameAsset";
+} | {
+    force?: boolean;
+    id: AssetId;
+    op: "deleteAsset";
+} | {
+    id: AssetId;
+    licence: Licence | null;
+    op: "setLicence";
+} | {
+    id: AssetId;
+    op: "changeAssetId";
+    to: AssetId;
+} | {
+    id: AssetId;
+    op: "editScene";
+    ops: SceneOp[];
+} | {
+    id: AssetId;
+    op: "restoreAsset";
+} | {
+    id: AssetId;
+    op: "setImport";
+    set: Record<string, unknown>;
+} | {
+    ids: AssetId[];
+    op: "moveAsset";
+    to: string;
+};
+type ProjectOpBatch = {
+    base?: Sha256;
+    label?: string;
+    ops: ProjectOp[];
+    v: 1;
+};
+type ProjectOpName = ProjectOp["op"];
+declare const SCENE_KIND_NAME = "scene";
+type SceneWrite = {
+    ops: SceneOp[];
+    prefabs?: PrefabLibrary;
+    registry: Registry;
+};
+declare function checkProjectBatch(state: ProjectState, docs: ReadonlyMap<AssetId, unknown>, batch: ProjectOpBatch, env: ProjectBatchEnv): ProjectBatchCheck;
+declare const projectOpBatchSchema: z.ZodObject<{
+    base: z.ZodOptional<z.ZodString>;
+    label: z.ZodOptional<z.ZodString>;
+    ops: z.ZodArray<z.ZodDiscriminatedUnion<readonly [
+        z.ZodObject<{
+            content: z.ZodOptional<z.ZodUnknown>;
+            id: z.ZodOptional<z.ZodString>;
+            kind: z.ZodString;
+            licence: z.ZodOptional<z.ZodObject<{
+                attribution: z.ZodOptional<z.ZodString>;
+                author: z.ZodOptional<z.ZodString>;
+                source: z.ZodOptional<z.ZodString>;
+                spdx: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>;
+            op: z.ZodLiteral<"createAsset">;
+            path: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            bytes: z.ZodNumber;
+            id: z.ZodOptional<z.ZodString>;
+            kind: z.ZodOptional<z.ZodString>;
+            licence: z.ZodOptional<z.ZodObject<{
+                attribution: z.ZodOptional<z.ZodString>;
+                author: z.ZodOptional<z.ZodString>;
+                source: z.ZodOptional<z.ZodString>;
+                spdx: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>;
+            op: z.ZodLiteral<"importAsset">;
+            path: z.ZodString;
+            settings: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            sha256: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            file: z.ZodOptional<z.ZodString>;
+            id: z.ZodString;
+            name: z.ZodOptional<z.ZodUnion<readonly [
+                z.ZodString,
+                z.ZodNull
+            ]>>;
+            op: z.ZodLiteral<"renameAsset">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            ids: z.ZodArray<z.ZodString>;
+            op: z.ZodLiteral<"moveAsset">;
+            to: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            force: z.ZodOptional<z.ZodBoolean>;
+            id: z.ZodString;
+            op: z.ZodLiteral<"deleteAsset">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"restoreAsset">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"changeAssetId">;
+            to: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"setImport">;
+            set: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            bytes: z.ZodNumber;
+            id: z.ZodString;
+            op: z.ZodLiteral<"replaceContent">;
+            sha256: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            licence: z.ZodUnion<readonly [
+                z.ZodObject<{
+                    attribution: z.ZodOptional<z.ZodString>;
+                    author: z.ZodOptional<z.ZodString>;
+                    source: z.ZodOptional<z.ZodString>;
+                    spdx: z.ZodOptional<z.ZodString>;
+                }, z.core.$strict>,
+                z.ZodNull
+            ]>;
+            op: z.ZodLiteral<"setLicence">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            edits: z.ZodArray<z.ZodUnion<readonly [
+                z.ZodObject<{
+                    set: z.ZodString;
+                    value: z.ZodUnknown;
+                }, z.core.$strict>,
+                z.ZodObject<{
+                    unset: z.ZodString;
+                }, z.core.$strict>,
+                z.ZodObject<{
+                    before: z.ZodOptional<z.ZodUnion<readonly [
+                        z.ZodString,
+                        z.ZodNumber
+                    ]>>;
+                    insert: z.ZodString;
+                    value: z.ZodUnknown;
+                }, z.core.$strict>,
+                z.ZodObject<{
+                    remove: z.ZodString;
+                }, z.core.$strict>
+            ]>>;
+            id: z.ZodString;
+            op: z.ZodLiteral<"editAsset">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"editScene">;
+            ops: z.ZodArray<z.ZodObject<{
+                op: z.ZodString;
+            }, z.core.$loose>>;
+        }, z.core.$strict>
+    ], "op">>;
+    v: z.ZodLiteral<1>;
+}, z.core.$strict>;
+declare function projectOpsJsonSchema(): Record<string, unknown>;
+declare function writesPrefabs(op: EditSceneOp, targetKind: AssetKindName | undefined): boolean;
+
+## project/project-file.ts
+declare const PROJECT_FILE_DEFAULTS: {
+    readonly assets: [
+        "**"
+    ];
+    readonly code: [
+        "**/*.ts",
+        "**/*.tsx"
+    ];
+};
+declare const PROJECT_FILE_VERSION = 1;
+declare const PROJECT_SCHEMA_ID = "urn:jams-engine:project:v1";
+type ParseProjectFileResult = {
+    file: ProjectFile;
+    ok: true;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+declare function formatProjectFile(file: ProjectFile): string;
+declare function parseProjectFile(input: unknown): ParseProjectFileResult;
+declare const projectFileSchema: z.ZodObject<{
+    $schema: z.ZodOptional<z.ZodString>;
+    assets: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    code: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    game: z.ZodNullable<z.ZodObject<{
+        export: z.ZodString;
+        module: z.ZodString;
+    }, z.core.$strict>>;
+    id: z.ZodString;
+    ignore: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    kind: z.ZodLiteral<"project">;
+    name: z.ZodString;
+    v: z.ZodLiteral<1>;
+}, z.core.$strict>;
+declare function projectGlobs(file: ProjectFile): {
+    assets: string[];
+    code: string[];
+    ignore: string[];
+};
+declare function projectJsonSchema(): Record<string, unknown>;
+
+## project/refs.ts
+type RefIndex = {
+    dangling(): readonly SceneIssue[];
+    referrers(id: AssetId): readonly Referrer[];
+    targets(id: AssetId): readonly RefSite[];
+};
+type RefSite = {
+    id: AssetId;
+    in?: "key";
+    kinds: readonly AssetKindName[];
+    pointer: JsonPointer;
+};
+type Referrer = {
+    id: AssetId;
+    kind: AssetKindName;
+    pointer: JsonPointer;
+};
+declare function buildRefIndex(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, kinds: KindRegistry, env: KindEnv): RefIndex;
+declare function referencedTrash(view: ProjectView, index: RefIndex): AssetKey[];
+declare function rewriteRefs<J>(value: J, sites: readonly RefSite[], from: AssetId, to: AssetId, layout?: DocLayout): J;
+
+## project/runtime-view.ts
+type ProjectRuntimeView = {
+    settings: Readonly<Record<string, unknown>>;
+    table(name: string): readonly Readonly<Record<string, unknown> & {
+        id: string;
+    }>[];
+};
+declare function runtimeView(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, registry: Registry): ProjectRuntimeView;
+
+## project/sidecar.ts
+type AssetSidecar = {
+    $schema?: string;
+    assetKind?: AssetKindName;
+    bytes?: number;
+    id: AssetId;
+    import?: Record<string, unknown>;
+    key: AssetKey;
+    kind: "asset-sidecar";
+    licence?: Licence;
+    meta?: Record<string, unknown>;
+    name?: string;
+    sha256?: Sha256;
+    v: 1;
+};
+type ParseSidecarResult = {
+    issues: SceneIssue[];
+    ok: false;
+} | {
+    ok: true;
+    sidecar: AssetSidecar;
+};
+declare const SIDECAR_SCHEMA_ID = "urn:jams-engine:asset-sidecar:v1";
+declare const SIDECAR_SUFFIX = ".asset.json";
+declare const SIDECAR_VERSION = 1;
+declare function formatSidecar(sidecar: Omit<AssetSidecar, "key"> & {
+    key?: AssetKey;
+}, options?: {
+    detectedKind?: AssetKindName | null;
+}): string;
+declare function parseSidecar(input: unknown): ParseSidecarResult;
+declare function sidecarJsonSchema(): Record<string, unknown>;
+declare const sidecarPathOf: (path: AssetPath) => AssetPath;
+declare const sidecarSchema: z.ZodObject<{
+    $schema: z.ZodOptional<z.ZodString>;
+    assetKind: z.ZodOptional<z.ZodString>;
+    bytes: z.ZodOptional<z.ZodNumber>;
+    id: z.ZodString;
+    import: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    key: z.ZodOptional<z.ZodString>;
+    kind: z.ZodLiteral<"asset-sidecar">;
+    licence: z.ZodOptional<z.ZodObject<{
+        attribution: z.ZodOptional<z.ZodString>;
+        author: z.ZodOptional<z.ZodString>;
+        source: z.ZodOptional<z.ZodString>;
+        spdx: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>;
+    meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    name: z.ZodOptional<z.ZodString>;
+    sha256: z.ZodOptional<z.ZodString>;
+    v: z.ZodLiteral<1>;
+}, z.core.$strict>;
+
+## project/snapshot.ts
+declare const PROJECT_SNAPSHOT_SCHEMA_ID = "urn:jams-engine:project-snapshot:v1";
+declare const PROJECT_SNAPSHOT_VERSION = 1;
+type ParseProjectSnapshotResult = {
+    issues: SceneIssue[];
+    ok: false;
+} | {
+    ok: true;
+    snapshot: ProjectSnapshot;
+};
+type ProjectBundle = {
+    blobs: Readonly<Record<AssetPath, Sha256>>;
+    project: ProjectFile;
+    sidecars: Readonly<Record<AssetPath, string>>;
+    texts: Readonly<Record<AssetPath, string>>;
+};
+type ProjectSnapshot = {
+    $schema?: string;
+    assets: Readonly<Record<AssetId, SnapshotAsset>>;
+    at: number;
+    build: Readonly<Record<AssetKindName, Sha256>>;
+    engine: string;
+    hash: Sha256;
+    kind: "project-snapshot";
+    project: ProjectId;
+    v: 1;
+};
+type SnapshotAsset = {
+    import?: Readonly<Record<string, unknown>>;
+    key: AssetKey;
+    kind: AssetKindName;
+    path: AssetPath;
+    sha256: Sha256;
+};
+declare class SnapshotError extends Error {
+    readonly issues: SceneIssue[];
+    constructor(issues: SceneIssue[]);
+}
+declare function checkSnapshot(snapshot: ProjectSnapshot, store: ContentStore, kinds: KindRegistry, env: KindEnv): Promise<SceneIssue[]>;
+declare function formatProjectSnapshot(snapshot: ProjectSnapshot): string;
+declare function parseProjectSnapshot(input: unknown): Promise<ParseProjectSnapshotResult>;
+declare function projectSnapshotJsonSchema(): Record<string, unknown>;
+declare const projectSnapshotSchema: z.ZodObject<{
+    $schema: z.ZodOptional<z.ZodString>;
+    assets: z.ZodRecord<z.ZodString, z.ZodObject<{
+        import: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+        key: z.ZodString;
+        kind: z.ZodString;
+        path: z.ZodString;
+        sha256: z.ZodString;
+    }, z.core.$strict>>;
+    at: z.ZodNumber;
+    build: z.ZodRecord<z.ZodString, z.ZodString>;
+    engine: z.ZodString;
+    hash: z.ZodString;
+    kind: z.ZodLiteral<"project-snapshot">;
+    project: z.ZodString;
+    v: z.ZodLiteral<1>;
+}, z.core.$strict>;
+declare function snapshotProject(view: ProjectView, texts: ReadonlyMap<AssetId, string>, build: ProjectState["build"]): Promise<ProjectSnapshot>;
+declare function snapshotScene(snapshot: ProjectSnapshot, sceneId: AssetId, store: ContentStore, registry: Registry): Promise<{
+    def: SceneDefinition;
+    prefabs: PrefabLibrary;
+    registry: Registry;
+}>;
+
+## project/types.ts
+type AssetEntry = {
+    bytes?: number;
+    created: {
+        at: number;
+        by: string;
+    };
+    deleted?: {
+        at: number;
+        by: string;
+    };
+    id: AssetId;
+    import?: Record<string, unknown>;
+    key: AssetKey;
+    kind: AssetKindName;
+    licence?: Licence;
+    meta?: Record<string, unknown>;
+    name?: string;
+    path: AssetPath;
+    sha256?: Sha256;
+};
+type AssetId = string;
+type AssetKey = string;
+type AssetKindName = string;
+type AssetPath = string;
+type BuildStamp = {
+    buildAt: number;
+    engine: string;
+    hash: Sha256;
+};
+type CodeModuleInfo = {
+    registers: {
+        kinds?: string[];
+        materials?: string[];
+        tables?: string[];
+        types?: string[];
+    };
+};
+type HashHistoryEntry = {
+    at: number;
+    by: string;
+    bytes: number;
+    sha256: Sha256;
+};
+type Licence = {
+    attribution?: string;
+    author?: string;
+    source?: string;
+    spdx?: string;
+};
+declare const PROJECT_FILE = "jams.project.json";
+type ProjectFile = {
+    $schema?: string;
+    assets?: string[];
+    code?: string[];
+    game: null | {
+        export: string;
+        module: string;
+    };
+    id: ProjectId;
+    ignore?: string[];
+    kind: "project";
+    name: string;
+    v: 1;
+};
+type ProjectId = string;
+type ProjectState = {
+    assets: Readonly<Record<AssetKey, AssetEntry>>;
+    build: Readonly<Record<AssetKindName, BuildStamp>>;
+    code: Readonly<Record<string, CodeModuleInfo>>;
+    history: Readonly<Record<AssetKey, readonly HashHistoryEntry[]>>;
+    meta: {
+        layout: number;
+        name: string;
+        projectId: ProjectId;
+    };
+};
+type ProjectTreeNode = {
+    children: ProjectTreeNode[];
+    path: string;
+    type: "folder";
+} | {
+    entry: AssetEntry;
+    type: "asset";
+} | {
+    info: CodeModuleInfo;
+    path: string;
+    type: "code";
+};
+type ProjectView = {
+    byId: ReadonlyMap<AssetId, AssetEntry>;
+    byKey: ReadonlyMap<AssetKey, AssetEntry>;
+    byPath: ReadonlyMap<AssetPath, AssetEntry>;
+    deleted: readonly AssetEntry[];
+    issues: readonly SceneIssue[];
+    repairs: ReadonlyMap<AssetKey, {
+        id?: AssetId;
+        path?: AssetPath;
+    }>;
+    state: ProjectState;
+    tree(): ProjectTreeNode[];
+};
+type Sha256 = string;
+
+## project/usage.ts
+type ProjectUsage = {
+    blobBytes: number;
+    blobs: number;
+    docBytes: number;
+    docs: number;
+    trashBytes: number;
+};
+type QuotaPolicy = {
+    check(usage: ProjectUsage, add: Partial<ProjectUsage>): QuotaVerdict;
+};
+type QuotaVerdict = {
+    limit: string;
+    max: number;
+    message: string;
+    ok: false;
+    used: number;
+} | {
+    ok: true;
+};
+declare const UNLIMITED_QUOTA: QuotaPolicy;
+declare function projectUsage(view: ProjectView, docBytes: ReadonlyMap<AssetKey, number>): ProjectUsage;
+declare function unreferencedBlobs(view: ProjectView, stored: readonly Sha256[], opts: {
+    graceMs: number;
+    now: number;
+    pinned: readonly ProjectSnapshot[];
+}): Sha256[];
+
+## project/view.ts
+declare function assetIdOfPath(path: AssetPath): AssetId | null;
+declare function assetPathProblem(path: string): null | string;
+declare function compareEntries(a: AssetEntry, b: AssetEntry): number;
+declare function projectView(state: ProjectState, kinds?: KindRegistry): ProjectView;
+declare function suffixedId(id: AssetId, n: number): AssetId;
+declare function suffixedPath(path: AssetPath, n: number): AssetPath;
+
 ## render/draw-shape.ts
 declare function drawShape(g: Graphics, shape: ShapeObj, style: Style): void;
 declare function traceShape(g: Graphics, shape: ShapeObj): void;
@@ -3231,7 +5498,7 @@ type StepResult = {
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 6;
+declare const AGENT_SURFACE_VERSION = 7;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -3355,7 +5622,60 @@ declare function expandScene(source: SceneDefinition, registry: Registry, opts?:
 declare function isExpandedScene(scene: ExpandedScene | SceneDefinition): scene is ExpandedScene;
 
 ## scene/format.ts
+declare const CHECKS_LAYOUT: {
+    readonly as: "map";
+    readonly fields: {
+        readonly checks: {
+            readonly as: "keyed";
+            readonly item: {
+                readonly as: "map";
+                readonly fields: {
+                    readonly kind: {
+                        as: "atomic";
+                    };
+                };
+                readonly rest: {
+                    as: "atomic";
+                };
+            };
+        };
+    };
+    readonly rest: {
+        as: "atomic";
+    };
+};
+declare const INPUT_SCRIPT_LAYOUT: {
+    readonly as: "map";
+    readonly fields: {
+        readonly at: {
+            as: "atomic";
+        };
+        readonly game: {
+            as: "atomic";
+        };
+        readonly maxTicks: {
+            as: "atomic";
+        };
+        readonly scene: {
+            as: "atomic";
+        };
+        readonly steps: {
+            readonly as: "list";
+            readonly item: {
+                as: "atomic";
+            };
+        };
+        readonly timeOffsetMs: {
+            as: "atomic";
+        };
+    };
+    readonly rest: {
+        as: "atomic";
+    };
+};
 declare function comparePointers(a: string | undefined, b: string | undefined): number;
+declare function formatChecks(file: ChecksFile): string;
+declare function formatInputScript(script: InputScript): string;
 declare function formatPrefab(prefab: Prefab): string;
 declare function formatScene(def: SceneDefinition): {
     lines: Map<string, number>;
@@ -4380,7 +6700,17 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "stale-base",
     "ref-not-found",
     "op-invalid",
-    "id-taken"
+    "id-taken",
+    "asset-missing",
+    "asset-kind",
+    "asset-in-use",
+    "asset-id-taken",
+    "path-taken",
+    "hash-mismatch",
+    "code-skew",
+    "asset-too-large",
+    "import-failed",
+    "quota-exceeded"
 ];
 type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 type EntityBase = {
@@ -4574,6 +6904,7 @@ type SceneHash = string;
 type SceneIssue = {
     at?: Pt;
     code: IssueCode;
+    detail?: Record<string, unknown>;
     entityIds: string[];
     expected?: string;
     fix?: OpBatch;
@@ -5092,28 +7423,49 @@ type Vec2 = {
 };
 
 ## version.ts
-declare const ENGINE_VERSION = "0.5.0";
+declare const ENGINE_VERSION = "0.6.0";
+
+## vite/apply-files.ts
+type FileApplyOptions = {
+    buildAt?: number;
+    dryRun?: boolean;
+    now?: () => number;
+    origin?: DocOrigin;
+    store?: ContentStore;
+};
+declare function applyProjectBatchToFiles(project: FileProject, batch: ProjectOpBatch, opts?: FileApplyOptions): Promise<ProjectApplyResult>;
+declare function snapshotFiles(project: FileProject): Promise<ProjectSnapshot>;
 
 ## vite/collab-server.ts
+declare const ASSET_CHANGED = "asset:changed";
+type AssetChangedMessage = AssetChange & {
+    project: ProjectId;
+    type: typeof ASSET_CHANGED;
+};
 type ListeningSceneCollab = SceneCollab & {
     close(): Promise<void>;
     httpUrl: string;
+    port: number;
     url: string;
 };
 type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void;
 declare const SCENE_COLLAB_PATH = "/__scene-collab";
 type SceneCollab = {
-    adapter: SceneFileAdapter;
+    adapters: ReadonlyMap<ProjectId, ProjectFileAdapter>;
+    buildAt: number;
     destroy(): Promise<void>;
     handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean;
     idle(): Promise<void>;
+    projectDoc(id: ProjectId): Promise<Y.Doc>;
     server: Server;
 };
 type SceneCollabOptions = {
+    buildAt?: number;
     debounceMs?: number;
     hocuspocus?: Pick<typeof _$_hocuspocus_server0, "Server">;
-    homes: readonly SceneHome[];
     path?: string;
+    projects: readonly FileProject[];
+    settleMs?: number;
     warn?: (message: string) => void;
     watchDelayMs?: number;
 };
@@ -5138,8 +7490,50 @@ declare function listenSceneCollab(options: SceneCollabOptions & {
 }): Promise<ListeningSceneCollab>;
 declare function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugin;
 
-## vite/file-adapter.ts
+## vite/content-store.ts
+declare const DEV_CACHE_ROOT = "node_modules/.cache/jams-engine";
+declare function defaultCacheDir(project: ProjectId, root?: string): string;
+declare function fileContentStore(cacheDir: string): ContentStore;
+
+## vite/handler.ts
+declare const PROJECT_ROUTE = "/__project";
+declare const SCENE_ROUTE = "/__scene";
+
+## vite/project-files.ts
+type AssetChange = {
+    bytes: number;
+    id: AssetId;
+    key: AssetKey;
+    kind: AssetKindName;
+    path: AssetPath;
+    previous: Sha256 | null;
+    sha256: Sha256;
+};
+type BlobRepair = {
+    from: Sha256;
+    id: AssetId;
+    key: AssetKey;
+    to: Sha256;
+};
 declare const DISK_ORIGIN: SceneOrigin;
+type DiskChange = {
+    event: DiskEvent;
+    type: "add";
+} | {
+    event: DiskEvent;
+    type: "unlink";
+} | {
+    from: DiskEvent;
+    to: DiskEvent;
+    type: "move";
+};
+type DiskEvent = {
+    at: number;
+    id?: AssetId;
+    key?: AssetKey;
+    path: AssetPath;
+    type: "add" | "unlink";
+};
 type DiskSync = {
     issues?: SceneIssue[];
     kind: "refused";
@@ -5150,27 +7544,16 @@ type DiskSync = {
 } | {
     kind: "unchanged";
 };
-declare const SCENE_DOC_PREFIX = "scene:";
-type SceneFileAdapter = {
-    forget(name: string): void;
-    homeOf(name: string): SceneHome | undefined;
-    list(): Promise<string[]>;
-    load(name: string, doc: Y.Doc): Promise<void>;
-    store(name: string, doc: Y.Doc): Promise<boolean>;
-    sync(name: string, doc: Y.Doc): Promise<DiskSync>;
-};
-type SceneHome = {
+type FileProject = {
+    cacheDir: string;
     dir: string;
+    file: ProjectFile;
+    game?: GameDefinition | null;
+    kinds: KindRegistry;
     registry: Registry;
 };
-declare function createSceneFileAdapter(homes: readonly SceneHome[]): SceneFileAdapter;
-declare const sceneDocName: (name: string) => string;
-declare function sceneOfDocName(docName: string): null | string;
-
-## vite/handler.ts
-declare const SCENE_ROUTE = "/__scene";
-
-## vite/prefab-files.ts
+declare const MOVE_SETTLE_MS = 300;
+declare const PERSISTED_ORIGIN: unique symbol;
 type PrefabFiles = {
     prefabs: PrefabLibrary;
     problems: {
@@ -5179,8 +7562,52 @@ type PrefabFiles = {
     }[];
     texts: Map<string, string>;
 };
+type ProjectDiskSync = ProjectSync | {
+    kind: "pending";
+};
+type ProjectFileAdapter = {
+    docNameOf(entry: Pick<AssetEntry, "key" | "kind">): string;
+    forget(name: string): void;
+    loadDoc(name: string, doc: Y.Doc): Promise<void>;
+    loadProject(doc: Y.Doc): Promise<ProjectProblem[]>;
+    persist(name: string, doc: Y.Doc): Promise<void>;
+    repairBlobs(doc: Y.Doc, origin: DocOrigin): Promise<BlobRepair[]>;
+    scan(): Promise<ProjectScan>;
+    settle(docs: (name: string) => Y.Doc | undefined, project: Y.Doc): Promise<ProjectSync[]>;
+    storeDoc(name: string, doc: Y.Doc): Promise<boolean>;
+    storeProject(doc: Y.Doc): Promise<boolean>;
+    syncPath(path: AssetPath, docs: (name: string) => Y.Doc | undefined, project: Y.Doc): Promise<ProjectDiskSync>;
+    valueOf(name: string, doc: Y.Doc): unknown;
+    watches(path: AssetPath): boolean;
+};
+type ProjectFileAdapterOptions = {
+    now?: () => number;
+    settleMs?: number;
+};
+type ProjectProblem = {
+    issues: SceneIssue[];
+    path: AssetPath;
+};
+type ProjectScan = {
+    problems: ProjectProblem[];
+    state: ProjectState;
+};
+type ProjectSync = DiskSync | {
+    changed: AssetChange;
+    kind: "applied";
+    ops: number;
+};
+declare function codeModules(project: FileProject): Promise<Record<string, CodeModuleInfo>>;
+declare function createProjectFileAdapter(project: FileProject, options?: ProjectFileAdapterOptions): ProjectFileAdapter;
+declare function gameRegisters(game: GameDefinition | null | undefined): CodeModuleInfo["registers"];
+declare function isCodePath(file: ProjectFile, path: string): boolean;
+declare function pairDiskEvents(events: readonly DiskEvent[], settleMs: number): DiskChange[];
 declare const prefabPath: (scenesDir: string, id: string) => string;
 declare const prefabsDirOf: (scenesDir: string) => string;
+declare function readFileProject(dir: string, opts?: {
+    cacheDir?: string;
+    game?: GameDefinition | null;
+}): Promise<FileProject>;
 declare function readPrefabFiles(scenesDir: string, registry: Registry): Promise<PrefabFiles>;
 declare function writePrefabFiles(scenesDir: string, texts: ReadonlyMap<string, string>, prefabs: PrefabLibrary): Promise<Map<string, string>>;
 

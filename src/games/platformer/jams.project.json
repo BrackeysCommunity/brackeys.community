@@ -1,0 +1,10 @@
+{
+  "$schema": "../../engine/project/project.schema.json",
+  "kind": "project",
+  "v": 1,
+  "id": "platformer",
+  "name": "Platformer",
+  "game": { "module": "./index.ts", "export": "platformerGame" },
+  "assets": ["scenes/**"],
+  "code": ["**/*.ts", "!**/__tests__/**"]
+}

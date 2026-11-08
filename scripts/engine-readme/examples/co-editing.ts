@@ -2,14 +2,15 @@ import { HocuspocusProvider } from "@hocuspocus/provider";
 import type { GameInstance } from "@jams/engine";
 import { bindSceneDoc } from "@jams/engine/collab";
 import { createEditorSession } from "@jams/engine/editor";
+import { docNameOf } from "@jams/engine/project";
 import * as Y from "yjs";
 
-/** Opens `scene:<name>` from the dev server, edits it as `userId`, and keeps the running game in step. */
-export function coEdit(game: GameInstance, name: string, userId: string) {
+/** Opens scene `name` of `project` from the dev server, edits it as `userId`, and keeps the running game in step. */
+export function coEdit(game: GameInstance, project: string, name: string, userId: string) {
   const doc = new Y.Doc();
   const provider = new HocuspocusProvider({
     url: "ws://localhost:3000/__scene-collab",
-    name: `scene:${name}`,
+    name: docNameOf({ kind: "scene", project, key: name }),
     document: doc,
   });
   const runtime = game.runtime();

@@ -5,6 +5,7 @@ import { bulkKeysOf, expandScene } from "../scene/expand";
 import { resolveScene } from "../scene/resolve";
 import {
   RESERVED_SCENE_KEYS,
+  type Bounds,
   type ExpandedScene,
   type PrefabLibrary,
   type RuntimeEntity,
@@ -12,6 +13,7 @@ import {
 } from "../scene/types";
 import { contentMaps, readDoc, touchesMaps } from "./convert";
 import { sameValue } from "./log";
+import { EMPTY_PREFAB_SOURCE, type PrefabSource } from "./prefab-source";
 
 /** The part of a `SceneRuntime` a binding drives. */
 export type BindableRuntime = {
@@ -39,6 +41,10 @@ export type BindOptions = {
   onChange?: (def: SceneDefinition, tr: Y.Transaction) => void;
   /** When some entries couldn't be expanded and were left out. */
   onSkipped?: (errors: string[]) => void;
+  /** Where instances' prefabs come from; default none. */
+  prefabs?: PrefabSource;
+  /** For a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
+  parentBounds?: Bounds;
 };
 
 /**
@@ -100,7 +106,8 @@ export function expandLenient(
  * Keeps an edit-mode runtime in step with a doc: after each transaction
  * that changed the scene (local or remote), the touched entities are
  * removed, added and updated, each at most once per transaction. A change
- * to settings or the header reloads the runtime.
+ * to settings or the header reloads the runtime. A transaction in a
+ * prefab the scene's instances use re-expands them, once per transaction.
  */
 export function bindSceneDoc(
   doc: Y.Doc,
@@ -109,12 +116,16 @@ export function bindSceneDoc(
   opts: BindOptions = {},
 ): SceneBinding {
   const tracked = contentMaps(doc);
+  const prefabs = opts.prefabs ?? EMPTY_PREFAB_SOURCE;
+  const read = () =>
+    readDoc(doc, { registry, ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}) });
   let paused = false;
-  let current = expand(readDoc(doc));
+  let current = expand(read().def);
   runtime.load(current);
 
-  function expand(view: { def: SceneDefinition; prefabs: PrefabLibrary }): ExpandedScene {
-    const { scene, errors } = expandLenient(view.def, registry, view.prefabs);
+  function expand(def: SceneDefinition): ExpandedScene {
+    const library: PrefabLibrary = prefabs.library();
+    const { scene, errors } = expandLenient(def, registry, library);
     if (errors.length > 0) opts.onSkipped?.(errors);
     return scene;
   }
@@ -144,11 +155,16 @@ export function bindSceneDoc(
 
   const onTransaction = (tr: Y.Transaction) => {
     if (!touchesMaps(tr, tracked)) return;
-    const view = readDoc(doc);
-    if (!paused) apply(expand(view));
-    opts.onChange?.(view.def, tr);
+    const def = read().def;
+    if (!paused) apply(expand(def));
+    opts.onChange?.(def, tr);
   };
   doc.on("afterTransaction", onTransaction);
+  const unsubscribe = prefabs.subscribe((changed) => {
+    const def = read().def;
+    if (!(def.instances ?? []).some((i) => changed.includes(i.prefab))) return;
+    if (!paused) apply(expand(def));
+  });
 
   return {
     scene: () => current,
@@ -156,14 +172,17 @@ export function bindSceneDoc(
       if (paused === next) return;
       paused = next;
       if (!paused) {
-        current = expand(readDoc(doc));
+        current = expand(read().def);
         runtime.load(current);
       }
     },
     reload() {
-      current = expand(readDoc(doc));
+      current = expand(read().def);
       runtime.load(current);
     },
-    destroy: () => doc.off("afterTransaction", onTransaction),
+    destroy() {
+      doc.off("afterTransaction", onTransaction);
+      unsubscribe();
+    },
   };
 }

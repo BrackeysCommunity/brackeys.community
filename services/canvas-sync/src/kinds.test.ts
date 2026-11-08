@@ -2,9 +2,18 @@ import { describe, expect, it } from "bun:test";
 
 import type { Extension, onAuthenticatePayload } from "@hocuspocus/server";
 
+import { SCENE_FORMAT_VERSION } from "../../../src/engine/scene/types.ts";
 import { SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
-import { signCanvasToken, type SyncTokenKind } from "../../../src/lib/canvas/token.ts";
+import {
+  signCanvasToken,
+  type SyncTokenKind,
+  type SyncTokenScope,
+} from "../../../src/lib/canvas/token.ts";
+import { COLLAB_LAYOUT_VERSION } from "../../../src/lib/scene/project-bytes.ts";
 import { createAuthenticate } from "./auth.ts";
+import { createAssetKind } from "./engine/asset-kind.ts";
+import { MemoryAssetDocStore } from "./engine/doc-store.ts";
+import { createProjectKind, MemoryProjectStore } from "./engine/project-kind.ts";
 import {
   type DocumentKind,
   type DocumentKindName,
@@ -13,8 +22,21 @@ import {
 } from "./kinds.ts";
 import { ConnectionCaps, localLedger, SyncRefusal } from "./limits.ts";
 import { RevocationList, type RevocationTombstones } from "./revoke.ts";
+import { createSceneKind } from "./scene/kind.ts";
+import { MemorySceneStore } from "./scene/store.ts";
+import { SyncMetrics } from "./telemetry.ts";
 
 const SECRET = "kinds-test-secret-1234";
+
+/** What a test token sets beyond its user; `c` defaults to the document it opens. */
+interface Claims {
+  c?: string;
+  k?: SyncTokenKind;
+  s?: SyncTokenScope;
+  f?: number;
+  l?: number;
+  a?: "read";
+}
 
 function fakeKind(
   name: DocumentKindName,
@@ -46,7 +68,7 @@ function setup(kinds: DocumentKind[], tombstones?: RevocationTombstones) {
     tombstones,
     now: Date.now,
   });
-  const attempt = async (name: string, claims: { k?: SyncTokenKind; f?: number; a?: "read" }) => {
+  const attempt = async (name: string, claims: Claims) => {
     const connectionConfig = { readOnly: false, isAuthenticated: false };
     const token = await signCanvasToken(
       { c: name, u: "alice", a: claims.a ?? "write", ...claims },
@@ -60,7 +82,7 @@ function setup(kinds: DocumentKind[], tombstones?: RevocationTombstones) {
     } as unknown as onAuthenticatePayload);
     return { context, connectionConfig };
   };
-  const refusal = async (name: string, claims: { k?: SyncTokenKind; f?: number } = {}) => {
+  const refusal = async (name: string, claims: Claims = {}) => {
     try {
       await attempt(name, claims);
     } catch (error) {
@@ -182,6 +204,170 @@ describe("onAuthenticate through the kinds", () => {
     revocations.record({ sceneId: "g.l", userId: "alice" }, Date.now());
     expect(await refusal("scene:g.l", { k: "scene", f: 1 })).toMatchObject({
       reason: expect.stringContaining("access revoked"),
+    });
+  });
+});
+
+describe("kinds an instance wasn't started with", () => {
+  it("resolve to nothing, so a well-formed project or asset name is refused like any unknown kind", async () => {
+    const kinds = new DocumentKinds([fakeKind("canvas"), fakeKind("scene")]);
+    expect(kinds.get("project")).toBeUndefined();
+    expect(kinds.resolve("project:jam")).toBeNull();
+    expect(kinds.resolve("asset:jam.k1")).toBeNull();
+    const routed = kinds.extension() as Required<Pick<Extension, "onLoadDocument">>;
+    await expect(
+      routed.onLoadDocument({ documentName: "asset:jam.k1" } as Parameters<
+        typeof routed.onLoadDocument
+      >[0]),
+    ).rejects.toBeInstanceOf(SyncRefusal);
+
+    const { refusal } = setup([fakeKind("canvas"), fakeKind("scene")]);
+    expect(await refusal("project:jam", { k: "project", l: 1 })).toMatchObject({
+      code: SYNC_CLOSE.revoked,
+      reason: expect.stringContaining("unsupported document"),
+    });
+    expect(await refusal("asset:jam.k1", { k: "asset", l: 1 })).toMatchObject({
+      code: SYNC_CLOSE.revoked,
+      reason: expect.stringContaining("unsupported document"),
+    });
+  });
+
+  it("resolve once an instance hosts them", () => {
+    const kinds = new DocumentKinds([fakeKind("project"), fakeKind("asset")]);
+    expect(kinds.resolve("project:jam")).toMatchObject({ id: "jam" });
+    expect(kinds.resolve("asset:jam.k1")?.kind.name).toBe("asset");
+    expect(kinds.resolve("asset:jam")).toBeNull();
+  });
+});
+
+describe("project-scoped tokens", () => {
+  const all = () => [fakeKind("canvas"), fakeKind("scene"), fakeKind("project"), fakeKind("asset")];
+  const scoped = { k: "project", s: "project", f: 1, l: 1 } as const;
+
+  it("admit every document of their project, each under its own kind and subject", async () => {
+    const { attempt } = setup(all());
+    for (const [name, kind] of [
+      ["project:jam", "project"],
+      ["scene:jam.level-1", "scene"],
+      ["asset:jam.k1", "asset"],
+    ] as const) {
+      const { context } = await attempt(name, { ...scoped, c: "project:jam" });
+      expect(context).toMatchObject({ kind, subject: `${kind}:${name.slice(kind.length + 1)}` });
+    }
+  });
+
+  it("admit nothing outside their project", async () => {
+    const { refusal } = setup(all());
+    for (const name of ["project:other", "scene:other.level-1", "asset:other.k1", "canvas:jam"]) {
+      expect(await refusal(name, { ...scoped, c: "project:jam" })).toMatchObject({
+        code: SYNC_CLOSE.unauthorized,
+        reason: expect.stringContaining("another document"),
+      });
+    }
+  });
+
+  it("leave an unscoped project token and an asset token to their one document", async () => {
+    const { refusal, attempt } = setup(all());
+    expect(
+      await refusal("scene:jam.level-1", { k: "project", l: 1, c: "project:jam" }),
+    ).toMatchObject({ code: SYNC_CLOSE.unauthorized });
+    expect(await refusal("asset:other.k1", { k: "asset", l: 1, c: "asset:jam.k1" })).toMatchObject({
+      code: SYNC_CLOSE.unauthorized,
+    });
+    expect(await refusal("asset:jam.k2", { k: "asset", l: 1, c: "asset:jam.k1" })).toMatchObject({
+      code: SYNC_CLOSE.unauthorized,
+    });
+    expect(await refusal("asset:jam.k1", { k: "scene", f: 1, c: "asset:jam.k1" })).toMatchObject({
+      reason: expect.stringContaining("another kind"),
+    });
+    expect((await attempt("asset:jam.k1", { k: "asset", l: 1 })).context.kind).toBe("asset");
+  });
+
+  it("are refused on every project document once the project is revoked", async () => {
+    const { refusal, revocations } = setup(all());
+    revocations.record({ projectId: "jam" }, Date.now());
+    for (const name of ["project:jam", "scene:jam.level-1", "asset:jam.k1"]) {
+      expect(await refusal(name, { ...scoped, c: "project:jam" })).toMatchObject({
+        code: SYNC_CLOSE.revoked,
+        reason: expect.stringContaining("access revoked"),
+      });
+    }
+    expect(await refusal("scene:other.level-1", { k: "scene", f: 1 })).toBeNull();
+  });
+});
+
+describe("the engine kinds", () => {
+  const scenes = new MemorySceneStore();
+  const assets = new MemoryAssetDocStore();
+  const projects = new MemoryProjectStore({ assets, scenes });
+  const common = { documents: () => new Map(), now: Date.now, metrics: new SyncMetrics() };
+  const project = createProjectKind({ store: projects, ...common });
+  const asset = createAssetKind({ store: assets, ...common });
+  const scene = createSceneKind({ store: scenes, ...common });
+  const kinds = () => [project, asset, scene];
+  projects.create("jam");
+  scenes.create("jam.level-1");
+  assets.create("jam.deck", "data-table");
+
+  const F = SCENE_FORMAT_VERSION;
+  const L = COLLAB_LAYOUT_VERSION;
+  const scoped = { k: "project", s: "project", c: "project:jam", f: F } as const;
+
+  it("name every document of a project under its own subject, so a project revoke covers it", () => {
+    expect(project.subject("jam")).toBe("project:jam");
+    expect(scene.subject("jam.level-1")).toBe("scene:jam.level-1");
+    expect(asset.subject("jam.deck")).toBe("asset:jam.deck");
+  });
+
+  it("admit a document only while its row exists", async () => {
+    const { attempt, refusal } = setup(kinds());
+    for (const name of ["project:jam", "scene:jam.level-1", "asset:jam.deck"]) {
+      expect((await attempt(name, { ...scoped, l: L })).context.readOnly).toBe(false);
+    }
+    for (const [name, reason] of [
+      ["project:gone", "project not found"],
+      ["scene:jam.gone", "scene not found"],
+      ["asset:jam.gone", "asset not found"],
+    ] as const) {
+      const c = name.startsWith("project:") ? name : "project:jam";
+      expect(await refusal(name, { ...scoped, c, l: L })).toMatchObject({
+        code: SYNC_CLOSE.revoked,
+        reason: expect.stringContaining(reason),
+      });
+    }
+  });
+
+  it("connect a client on an older collab layout read-only with a reload notice", async () => {
+    const { attempt } = setup(kinds());
+    const older = await attempt("scene:jam.level-1", { ...scoped, l: L - 1 });
+    expect(older.connectionConfig.readOnly).toBe(true);
+    expect(JSON.parse(older.context.notice!)).toEqual({
+      type: "scene-read-only",
+      reason: "engine-outdated",
+      schemaVersion: F,
+      layout: L,
+    });
+    const unstamped = await attempt("scene:jam.level-1", { k: "scene", f: F });
+    expect(JSON.parse(unstamped.context.notice!)).toMatchObject({ reason: "engine-outdated" });
+    const newer = await attempt("scene:jam.level-1", { ...scoped, l: L + 1 });
+    expect(JSON.parse(newer.context.notice!)).toMatchObject({ reason: "server-outdated" });
+
+    for (const name of ["project:jam", "asset:jam.deck"]) {
+      const { context } = await attempt(name, { ...scoped, l: L - 1 });
+      expect(context.readOnly).toBe(true);
+      expect(JSON.parse(context.notice!)).toEqual({
+        type: "layout-read-only",
+        reason: "engine-outdated",
+        layout: L,
+      });
+    }
+  });
+
+  it("refuse a scene token with no engine version", async () => {
+    const { refusal } = setup(kinds());
+    expect(await refusal("scene:jam.level-1", { k: "scene", l: L })).toMatchObject({
+      code: SYNC_CLOSE.unauthorized,
+      reason: expect.stringContaining("no engine version"),
     });
   });
 });

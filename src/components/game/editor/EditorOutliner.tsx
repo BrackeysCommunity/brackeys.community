@@ -28,7 +28,7 @@ import {
   type SceneIssue,
   type SceneOp,
 } from "@jams/engine/editor";
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -438,7 +438,10 @@ export function EditorOutliner({
   const [query, setQuery] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  const prefabs = session.getPrefabs();
+  const prefabs = useSyncExternalStore(
+    (changed) => session.prefabs.subscribe(changed),
+    () => session.getPrefabs(),
+  );
   const byType = useMemo(
     () => buildOutline(doc, session.registry, prefabs),
     [doc, session.registry, prefabs],

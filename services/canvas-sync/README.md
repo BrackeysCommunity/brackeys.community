@@ -15,11 +15,14 @@ browser ──getCanvasSyncToken──▶ web app (access check, mints a 60s tok
 
 ## What it does
 
-The service hosts document kinds by name prefix (`src/kinds.ts`): `canvas:<id>`
-and `scene:<id>`, each with its own access check, load, store, migration and
-limits. A token names its document and its kind; any other prefix is refused at
+The service hosts document kinds by name prefix (`src/kinds.ts`): `canvas:<id>`,
+`scene:<project>.<key>`, `project:<project>` and `asset:<project>.<key>`, each
+with its own access check, load, store, migration and limits; an instance hosts
+the kinds whose stores it was started with. A token names its document and its
+kind, or is project-scoped (below); any other prefix is refused at
 `onAuthenticate` with `4403`. Everything below is the canvas kind; scenes are in
-[Scenes](#scenes).
+[Scenes](#scenes), project registries and asset docs in
+[Projects and assets](#projects-and-assets).
 
 - **Auth.** `onAuthenticate` verifies the token from `src/lib/canvas/token.ts`
   (HMAC-SHA256, `CANVAS_SYNC_SECRET`, shared with the web app). The token names one
@@ -82,12 +85,16 @@ revoked, `4413` too large (stop), `4429` rate or caps (back off).
 
 Hosted scene documents for `@jams/engine` (`src/scene/`), co-edited the way
 canvases are. Rows live in `canvas.scene_docs`, keyed by the scene id
-(`<game>.<name>`, each part an engine id).
+`<project>.<key>` (each part an engine id; a scene hosted before projects is
+`<game>.<name>`, its game being its project), with `project_id` naming the
+`engine_projects` row.
 
-- **Tokens.** The canvas token with `k: "scene"` and `f`, the scene format version
-  of the engine the client runs (`SCENE_FORMAT_VERSION`), minted by
-  `getSceneSyncToken` for staff only. A canvas token can't open a scene, nor a
-  scene token a canvas (`4401`). The scene must exist (`4403` otherwise).
+- **Tokens.** The canvas token with `k: "scene"`, `f` (the scene format version
+  of the engine the client runs, `SCENE_FORMAT_VERSION`) and `l` (its collab
+  layout, `COLLAB_LAYOUT_VERSION`), minted by `getSceneSyncToken` for staff only,
+  or a project-scoped token of the scene's project. A canvas token can't open a
+  scene, nor a scene token a canvas (`4401`); a token without `f` is refused
+  (`4401`). The scene must exist (`4403` otherwise).
 - **Seeding.** Only the server fills a new doc, in `onLoadDocument`: from the
   row's `seed` (the JSON the web app stored at `createHostedScene`, migrated),
   else an empty scene of the id's name. The seed is written deterministically
@@ -96,11 +103,27 @@ canvases are. Rows live in `canvas.scene_docs`, keyed by the scene id
   merged doc holds one copy. The seeded state is stored at once.
 - **Versions.** A doc older than this instance's format is migrated in place at
   load (keys kept: named entities by id, bulk entries by position) and stored.
-  A client whose `f` differs from the doc's `meta.schemaVersion` connects
-  read-only and gets a stateless `{"type":"scene-read-only","reason":…}`:
-  `engine-outdated` (reload to update) or `server-outdated` (this instance
-  can't migrate the doc to the client's version yet). An instance older than a
-  stored doc serves it unchanged and leaves its snapshot alone.
+  A client whose `f` differs from the doc's `meta.schemaVersion`, or whose `l`
+  differs from its `meta.layout` (a token without `l` counts as layout 1),
+  connects read-only and gets a stateless
+  `{"type":"scene-read-only","reason":…,"schemaVersion":…,"layout"?:…}` (`layout`
+  only when that is what differs): `engine-outdated` (reload to update) or
+  `server-outdated` (this instance can't migrate the doc to the client's version
+  yet). An instance older than a stored doc serves it unchanged and leaves its
+  snapshot alone.
+- **Layout 1 → 2.** A doc stored at collab layout 1 holds its prefabs in its own
+  `prefabs` map; at load (`migrateLayout`, through
+  `src/lib/scene/project-bytes.ts`) each one the project has no live prefab
+  for becomes a prefab asset (key = id, at `<scene's folder>/prefabs/<id>.json`,
+  or `prefabs/<id>.json` for a scene the registry doesn't list), one the
+  project holds with the same body is kept, and one with another body keeps the
+  project's and logs `prefab-diverged` in the scene's migration entry. Writes run
+  in an order a crash can't lose: the registry first (its duties make the new
+  rows), then the prefab docs (seeded deterministically), then the scene with
+  its map cleared and `meta.layout` set. A prefab entry whose doc was never
+  seeded takes the scene's copy, so a migration cut short finishes on the next
+  load. A layout-1 scene with prefabs and no project row is refused (`4403`) and
+  left as stored; a quota that refuses the new prefabs closes it with `4413`.
 - **Store.** Same debounce as canvases. Every store merges the live doc into
   what's stored through a scratch `Y.Doc` under the row lock, then folds back
   into the live doc whatever was stored that it lacked. The canonical JSON
@@ -116,6 +139,48 @@ canvases are. Rows live in `canvas.scene_docs`, keyed by the scene id
 - **Not in 0.1.** Agent clients (`vp run scene apply --live`, MCP) get no hosted
   tokens and stay on the dev server; getting hosted edits back into git (an
   export or `scene pull` from the snapshot) comes later.
+
+## Projects and assets
+
+A hosted `@jams/engine` project is one registry doc and one doc per asset that
+isn't a blob (`src/engine/`): `project:<project>` (`engine_projects.state`),
+its scenes (`scene:<project>.<key>`, above) and every other doc kind
+(`asset:<project>.<key>`, `engine_asset_docs`, prefabs included). Blobs live in
+`engine_blobs` and the content store; the registry holds their hashes.
+
+- **Tokens.** `k: "project"` or `k: "asset"`, always with `l`. A project token
+  with `s: "project"` (what `getProjectSyncToken` and the agent token exchange
+  mint) opens every doc of its project, each under its own kind; one without it
+  opens only the registry, and an asset token only its one doc. Anything outside
+  the project is `4401` ("token is for another document"). A client whose `l`
+  differs from the docs' layout connects read-only with a stateless
+  `{"type":"layout-read-only","reason":…,"layout":…}` (scenes send their own
+  notice, above).
+- **Registry.** The `engine_projects` row must exist and not be deleted (`4403`).
+  A new doc is seeded with `meta` only (the web app writes a created project's
+  first state into the row). Every store merges into what's stored through a
+  scratch doc and then does the one writer's duties in one `repair`
+  transaction: path and id repairs, rows for new doc entries (checked against
+  the `QuotaPolicy`, unlimited by default; a refused one goes to the trash with
+  `quota-exceeded`), a live hash the project's blobs lack goes back to an
+  earlier one (`hash-mismatch`), and a trashed entry an open doc names comes
+  back (`asset-in-use`). The project's other docs ask for that last check after
+  they load or store.
+- **Asset docs.** The row comes first (the registry's duties, or the web app's
+  bundle import, make it, with the asset's file as its `seed`). Only the server
+  seeds a new doc: `meta` from the row and the content from the seed, laid out
+  by the kind (a prefab as the prefab doc codec writes one), deterministically.
+  Stores merge as scenes do. Docs of the engine's own kinds (prefabs and the
+  declarative ones) keep their canonical text in `snapshot` and its SHA-256 in
+  `content_sha256`; a game's kinds snapshot client-side.
+- **Caps** (`src/limits.ts`, `src/lib/scene/limits.ts`): the registry 2 MB of
+  state and 256 KB per message; an asset doc what its kind's `limits` name, else
+  1 MB and 256 KB, prefabs also 10,000 children; no kind past 5 MB, 1 MB a
+  message or 100,000 items. Over a cap: `4413`.
+- **Revoke.** `{"projectId":"<id>","userId"?:"<user>"}` closes that person's (or
+  everyone's) connections to every doc of the project; tombstones are kept under
+  `revoked:project:<id>:<user>`, and a token minted before it is refused on any
+  of the project's docs.
 
 ## Environment
 

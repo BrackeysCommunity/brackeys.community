@@ -6,12 +6,14 @@
  * doc.getMap("entities")  key → Y.Map   one per entity or bulk entry
  * doc.getMap("settings")  key → value   the scene's settings, one atomic value per top-level key
  * doc.getMap("scene")     name, bounds and any other header value a batch can change
- * doc.getMap("meta")      schemaVersion, game, $schema: fixed after seeding
+ * doc.getMap("meta")      schemaVersion, layout, game, $schema, project, key: fixed after seeding
  * doc.getMap("groups")    group id → Y.Map { at, name? }
  * doc.getMap("instances") key → Y.Map    one per prefab instance: id, prefab, at, z, overrides (Y.Map), …
- * doc.getMap("prefabs")   prefab id → Prefab, one atomic value each; the dev server writes them to prefabs/*.json
  * doc.getArray("log")     LogEntry[]    who changed what, capped, written with each batch
  * ```
+ *
+ * A prefab is a doc of its own (`./prefab-doc`): `meta` with kind "prefab",
+ * a `prefab` header map and `entities`, laid out exactly as a scene's.
  */
 import type { BulkKey, Pt, SceneOp } from "../scene/types";
 
@@ -22,7 +24,10 @@ export const DOC_MAPS = {
   meta: "meta",
   groups: "groups",
   instances: "instances",
+  /** Layout 1 only: the scene's prefabs, one atomic value each; `migrateLayout` moves them to prefab docs. */
   prefabs: "prefabs",
+  /** A prefab doc's header: id and contract. */
+  prefab: "prefab",
 } as const;
 export const LOG_ARRAY = "log";
 
@@ -57,24 +62,42 @@ export type EntityRecord = {
 export type SceneDocMeta = {
   /** The scene format `v` the doc holds, after any migration at load. */
   schemaVersion: number;
+  /** The collab layout it was seeded with; absent on a layout-1 doc. */
+  layout?: number;
+  /** "prefab" on a prefab doc; absent on a scene doc. */
+  kind?: string;
   game?: string;
   $schema?: string;
+  /** The project and registry key the doc belongs to, when its seeder knew them. */
+  project?: string;
+  key?: string;
 };
+
+/**
+ * The doc layout this engine writes, stored as `meta.layout`. A doc with no
+ * `meta.layout` is layout 1, and so is a sync token with no `l` claim.
+ * Layout 2 moved prefabs out of the scene doc into docs of their own.
+ */
+export const COLLAB_LAYOUT_VERSION = 2;
 
 /**
  * Who made a transaction. Yjs origins never leave the client, so the doc's
  * `log` records the actor for everyone else. Undo tracks one origin object
  * by identity: create it once per client and pass the same object to every
- * write.
+ * write. `repair` is the project's one writer (the dev server or the hosted
+ * service) fixing paths, ids, hashes or quota.
  */
-export type SceneOrigin =
+export type DocOrigin =
   | { kind: "user"; userId: string; name?: string }
   | { kind: "agent"; agentId: string; onBehalfOf?: string }
   | { kind: "disk" }
-  | { kind: "migration" };
+  | { kind: "migration" }
+  | { kind: "repair"; reason: string };
+
+export type SceneOrigin = DocOrigin;
 
 /** The actor as a history row names it. */
-export function actorLabel(origin: SceneOrigin): string {
+export function actorLabel(origin: DocOrigin): string {
   switch (origin.kind) {
     case "user":
       return origin.name ?? origin.userId;
@@ -84,6 +107,8 @@ export function actorLabel(origin: SceneOrigin): string {
       return "disk";
     case "migration":
       return "migration";
+    case "repair":
+      return `repair (${origin.reason})`;
   }
 }
 
@@ -104,7 +129,7 @@ export const PREFAB_KEY_PREFIX = "@prefab:";
  */
 export type LogEntry = {
   id: string;
-  actor: SceneOrigin;
+  actor: DocOrigin;
   label: string;
   /** ms since the epoch, the writer's clock. */
   at: number;
@@ -114,6 +139,21 @@ export type LogEntry = {
   after?: Record<string, string | null>;
   /** `undo`, `redo` or `revert` when the entry records one of those rather than a batch. */
   kind?: "batch" | "undo" | "redo" | "revert";
+  /** What a migration left as it was, and why. Notes, never issue codes. */
+  warnings?: LogWarning[];
+};
+
+/** A note on a log entry, such as `prefab-diverged` from a layout migration. */
+export type LogWarning = { code: string; message: string; ids?: string[] };
+
+/** One batch that wrote two or more docs, in the project doc's log: each doc keeps its own entry too. */
+export type ProjectLogEntry = {
+  id: string;
+  actor: DocOrigin;
+  label: string;
+  at: number;
+  /** Each doc's own log entry id for this batch, in write order. */
+  docs: { doc: string; entry: string }[];
 };
 
 /**
@@ -146,3 +186,14 @@ export type AwarenessLike = {
 
 /** The awareness field presence is published under. */
 export const PRESENCE_FIELD = "scene";
+
+/** What each client publishes through the project doc's awareness: where it is, not what it selects. */
+export type ProjectPresence = {
+  user: { id: string; name: string; color: string };
+  /** The doc this client is looking at, or null on the project overview. */
+  doc: string | null;
+  mode: "edit" | "play";
+};
+
+/** The awareness field project presence is published under. */
+export const PROJECT_PRESENCE_FIELD = "project";

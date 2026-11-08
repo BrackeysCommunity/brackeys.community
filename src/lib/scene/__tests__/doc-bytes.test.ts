@@ -1,4 +1,4 @@
-import { docToScene } from "@jams/engine/collab";
+import { COLLAB_LAYOUT_VERSION, docToScene } from "@jams/engine/collab";
 import {
   formatScene,
   sceneHash,
@@ -14,6 +14,7 @@ import {
   type SceneFormat,
   sceneSnapshot,
   seedState,
+  stateLayout,
   stateSchemaVersion,
 } from "../doc-bytes";
 
@@ -148,6 +149,18 @@ describe("loading a stored doc", () => {
       schemaVersion: V + 1,
       migratedFrom: null,
     });
+  });
+});
+
+describe("collab layout", () => {
+  it("seeds at the engine's layout, reads an older doc with no meta.layout as layout 1", () => {
+    expect(stateLayout(seedState("test.bytes", SCENE))).toBe(COLLAB_LAYOUT_VERSION);
+    expect(stateLayout(prepareLoadedState("engine.blank", null, null).state)).toBe(2);
+    const old = docOf(seedState("test.bytes", SCENE));
+    old.getMap("meta").delete("layout");
+    expect(stateLayout(Y.encodeStateAsUpdate(old))).toBe(1);
+    expect(stateLayout(null)).toBeNull();
+    expect(docOf(seedState("test.bytes", SCENE)).share.has("prefabs")).toBe(false);
   });
 });
 

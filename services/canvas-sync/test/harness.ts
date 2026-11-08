@@ -5,12 +5,35 @@ import { eq, sql } from "drizzle-orm";
 import * as encoding from "lib0/encoding";
 import * as Y from "yjs";
 
-import { canvasDocs, canvases, sceneDocs, user } from "../../../src/db/schema.ts";
-import { SCENE_FORMAT_VERSION } from "../../../src/engine/scene/types.ts";
+import {
+  canvasDocs,
+  canvases,
+  engineAssetDocs,
+  engineProjects,
+  sceneDocs,
+  user,
+} from "../../../src/db/schema.ts";
+import type { ProjectLogEntry } from "../../../src/engine/collab/types.ts";
+import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
+import {
+  SCENE_FORMAT_VERSION,
+  type Prefab,
+  type SceneDefinition,
+} from "../../../src/engine/scene/types.ts";
 import { documentName, SYNC_CLOSE, syncCloseCode } from "../../../src/lib/canvas/sync-channels.ts";
 import { signCanvasToken, type SyncAccess } from "../../../src/lib/canvas/token.ts";
-import { sceneSnapshot } from "../../../src/lib/scene/doc-bytes.ts";
+import { sceneSnapshot, seedState } from "../../../src/lib/scene/doc-bytes.ts";
+import {
+  assetSnapshot,
+  COLLAB_LAYOUT_VERSION,
+  prefabDocValue,
+  readProjectState,
+  seedProjectState,
+} from "../../../src/lib/scene/project-bytes.ts";
 import { createDb, type ServiceDb } from "../src/db.ts";
+import { MemoryAssetDocStore } from "../src/engine/doc-store.ts";
+import { MemoryProjectStore } from "../src/engine/project-kind.ts";
+import { MemorySceneStore } from "../src/scene/store.ts";
 
 export const TEST_DATABASE_URL = process.env.CANVAS_SYNC_TEST_DATABASE_URL;
 export const TEST_REDIS_URL = process.env.CANVAS_SYNC_TEST_REDIS_URL;
@@ -182,11 +205,13 @@ export function rawSocket(port: number) {
 
 export { SCENE_FORMAT_VERSION };
 
+/** A scene token; `layout: null` leaves out `l`, as a token from before collab layouts did. */
 export function sceneToken(
   sceneId: string,
   userId: string,
-  options: { access?: SyncAccess; format?: number } = {},
+  options: { access?: SyncAccess; format?: number; layout?: number | null } = {},
 ): Promise<string> {
+  const layout = options.layout === undefined ? COLLAB_LAYOUT_VERSION : options.layout;
   return signCanvasToken(
     {
       c: documentName("scene", sceneId),
@@ -194,15 +219,16 @@ export function sceneToken(
       a: options.access ?? "write",
       k: "scene",
       f: options.format ?? SCENE_FORMAT_VERSION,
+      ...(layout !== null ? { l: layout } : {}),
     },
     SECRET,
   );
 }
 
-export interface SceneClient {
+/** A client of an engine doc (scene, project or asset), behaving as the editor does. */
+export interface EngineClient {
   doc: Y.Doc;
   provider: HocuspocusProvider;
-  entities: Y.Map<Y.Map<unknown>>;
   closes: (number | null)[];
   authFailures: string[];
   /** Stateless messages from the server, in arrival order. */
@@ -216,6 +242,10 @@ export interface SceneClient {
   destroy(): void;
 }
 
+export interface SceneClient extends EngineClient {
+  entities: Y.Map<Y.Map<unknown>>;
+}
+
 export function connectScene(
   port: number,
   sceneId: string,
@@ -223,12 +253,29 @@ export function connectScene(
   options: {
     access?: SyncAccess;
     format?: number;
+    layout?: number | null;
     token?: () => Promise<string>;
     /** Reconnect an existing client's doc, as a provider does after a deploy. */
     doc?: Y.Doc;
   } = {},
 ): SceneClient {
-  const doc = options.doc ?? new Y.Doc();
+  const client = connectDoc(
+    port,
+    documentName("scene", sceneId),
+    options.token ?? (() => sceneToken(sceneId, userId, options)),
+    options.doc,
+  );
+  return { ...client, entities: client.doc.getMap("entities") };
+}
+
+/** Opens `name` with `token`, giving up on 4413 and 4403 as the editor does. */
+export function connectDoc(
+  port: number,
+  name: string,
+  token: () => Promise<string>,
+  existing?: Y.Doc,
+): EngineClient {
+  const doc = existing ?? new Y.Doc();
   const closes: (number | null)[] = [];
   const authFailures: string[] = [];
   const notices: string[] = [];
@@ -237,9 +284,9 @@ export function connectScene(
   let stopped: number | null = null;
   const provider: HocuspocusProvider = new HocuspocusProvider({
     url: `ws://127.0.0.1:${port}`,
-    name: documentName("scene", sceneId),
+    name,
     document: doc,
-    token: options.token ?? (() => sceneToken(sceneId, userId, options)),
+    token,
     onClose: ({ event }) => {
       const code = syncCloseCode(event);
       closes.push(code);
@@ -258,7 +305,6 @@ export function connectScene(
   return {
     doc,
     provider,
-    entities: doc.getMap("entities"),
     closes,
     authFailures,
     notices,
@@ -269,7 +315,7 @@ export function connectScene(
   };
 }
 
-export const sceneSynced = (client: SceneClient, ms = 5000) =>
+export const sceneSynced = (client: EngineClient, ms = 5000) =>
   until(() => client.provider.isSynced, ms);
 
 /** A bulk `solid` box, laid out as the engine writes one. */
@@ -314,3 +360,224 @@ export async function seedSceneRow(
 
 /** A fresh scene id, so suites sharing a database never meet. */
 export const newSceneId = (game = "test") => `${game}.s-${crypto.randomUUID().slice(0, 8)}`;
+
+// ─── Projects and assets ─────────────────────────────────
+
+export { COLLAB_LAYOUT_VERSION };
+
+/** A fresh project id, so suites sharing a database never meet. */
+export const newProjectId = () => `p-${crypto.randomUUID().slice(0, 8)}`;
+
+/** A project token, as the web app mints one: with the engine's format and layout. */
+export function projectToken(
+  projectId: string,
+  userId: string,
+  options: { access?: SyncAccess; layout?: number; scoped?: boolean; format?: number } = {},
+): Promise<string> {
+  return signCanvasToken(
+    {
+      c: documentName("project", projectId),
+      u: userId,
+      a: options.access ?? "write",
+      k: "project",
+      f: options.format ?? SCENE_FORMAT_VERSION,
+      l: options.layout ?? COLLAB_LAYOUT_VERSION,
+      ...(options.scoped ? { s: "project" as const } : {}),
+    },
+    SECRET,
+  );
+}
+
+/** A project-scoped token the web app mints for an agent token: `g` the agent, `o` the user it acts for. */
+export function agentSyncToken(
+  projectId: string,
+  agentId: string,
+  onBehalfOf: string,
+  options: { access?: SyncAccess; name?: string; now?: number; ttlMs?: number } = {},
+): Promise<string> {
+  return signCanvasToken(
+    {
+      c: documentName("project", projectId),
+      u: onBehalfOf,
+      a: options.access ?? "write",
+      k: "project",
+      s: "project",
+      f: SCENE_FORMAT_VERSION,
+      l: COLLAB_LAYOUT_VERSION,
+      g: agentId,
+      o: onBehalfOf,
+      ...(options.name !== undefined ? { n: options.name } : {}),
+    },
+    SECRET,
+    options.now,
+    options.ttlMs,
+  );
+}
+
+export function assetToken(
+  assetId: string,
+  userId: string,
+  options: { access?: SyncAccess; layout?: number } = {},
+): Promise<string> {
+  return signCanvasToken(
+    {
+      c: documentName("asset", assetId),
+      u: userId,
+      a: options.access ?? "write",
+      k: "asset",
+      l: options.layout ?? COLLAB_LAYOUT_VERSION,
+    },
+    SECRET,
+  );
+}
+
+export function connectProject(
+  port: number,
+  projectId: string,
+  userId: string,
+  options: { access?: SyncAccess; layout?: number; token?: () => Promise<string> } = {},
+): EngineClient {
+  return connectDoc(
+    port,
+    documentName("project", projectId),
+    options.token ?? (() => projectToken(projectId, userId, options)),
+  );
+}
+
+export function connectAsset(
+  port: number,
+  assetId: string,
+  userId: string,
+  options: { access?: SyncAccess; layout?: number; token?: () => Promise<string> } = {},
+): EngineClient {
+  return connectDoc(
+    port,
+    documentName("asset", assetId),
+    options.token ?? (() => assetToken(assetId, userId, options)),
+  );
+}
+
+/** The memory stores of one project-hosting deployment, shareable between instances. */
+export function memoryEngineStores() {
+  const scenes = new MemorySceneStore();
+  const assets = new MemoryAssetDocStore();
+  const projects = new MemoryProjectStore({ assets, scenes });
+  return {
+    scenes,
+    assets,
+    projects,
+    options: { sceneStore: scenes, assetStore: assets, projectStore: projects },
+  };
+}
+
+/** A project row holding `state`, with a row for each of its doc entries, as the web app creates one. */
+export function createMemoryProject(
+  stores: ReturnType<typeof memoryEngineStores>,
+  state: ProjectState,
+  seeds: Record<string, string> = {},
+): void {
+  const projectId = state.meta.projectId;
+  stores.projects.create(projectId, state.meta.name, seedProjectState(state));
+  for (const entry of Object.values(state.assets)) {
+    const id = `${projectId}.${entry.key}`;
+    if (entry.kind === "scene") stores.scenes.create(id, seeds[entry.key] ?? null);
+    else if (entry.sha256 === undefined)
+      stores.assets.create(id, entry.kind, seeds[entry.key] ?? null);
+  }
+}
+
+/** A scene doc as a layout-1 server stored it: its prefabs in its own `prefabs` map, no `meta.layout`. */
+export function layoutOneState(
+  sceneId: string,
+  def: SceneDefinition,
+  prefabs: readonly Prefab[],
+): Uint8Array {
+  const doc = new Y.Doc();
+  Y.applyUpdate(doc, seedState(sceneId, def));
+  doc.transact(() => {
+    doc.getMap("meta").delete("layout");
+    const map = doc.getMap<unknown>("prefabs");
+    for (const prefab of prefabs) map.set(prefab.id, structuredClone(prefab));
+  });
+  return Y.encodeStateAsUpdate(doc);
+}
+
+/** The prefab an asset doc's state holds, through the engine. */
+export const prefabOfState = (state: Uint8Array | null) => prefabDocValue(state);
+
+/** A registry entry as a client writes one: atomic fields, `import` and `licence` as nested maps. */
+export function putEntry(doc: Y.Doc, entry: AssetEntry): void {
+  doc.transact(() => {
+    const map = new Y.Map<unknown>();
+    for (const [field, value] of Object.entries(entry)) {
+      if (field === "key" || value === undefined) continue;
+      if (field === "import" || field === "licence") {
+        const nested = new Y.Map<unknown>();
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) nested.set(k, v);
+        map.set(field, nested);
+      } else map.set(field, value);
+    }
+    if (!entry.import) map.set("import", new Y.Map());
+    if (!entry.licence) map.set("licence", new Y.Map());
+    doc.getMap<Y.Map<unknown>>("assets").set(entry.key, map);
+  });
+}
+
+/** Sets (or, for undefined, removes) atomic fields of an existing entry, in one transaction. */
+export function editEntry(doc: Y.Doc, key: string, fields: Partial<AssetEntry>): void {
+  const map = doc.getMap<Y.Map<unknown>>("assets").get(key);
+  if (!map) return;
+  doc.transact(() => {
+    for (const [field, value] of Object.entries(fields)) {
+      if (value === undefined) map.delete(field);
+      else map.set(field, value);
+    }
+  });
+}
+
+/** An entry a user created just now. */
+export function newEntry(
+  key: string,
+  fields: Pick<AssetEntry, "id" | "kind" | "path"> & Partial<AssetEntry>,
+  by = "alice",
+): AssetEntry {
+  return { key, created: { at: Date.now(), by }, ...fields };
+}
+
+/** The registry a client's project doc holds, through the engine. */
+export const projectStateOf = (doc: Y.Doc): ProjectState =>
+  readProjectState(Y.encodeStateAsUpdate(doc));
+
+/** The project log a client's project doc holds. */
+export const projectLogOf = (doc: Y.Doc): ProjectLogEntry[] =>
+  doc.getArray<ProjectLogEntry>("log").toArray();
+
+/** The canonical text and SHA-256 an asset doc reads as, through the engine. */
+export const assetSnapshotOf = (doc: Y.Doc) => assetSnapshot(Y.encodeStateAsUpdate(doc));
+
+/** A hosted project row, as the web app creates one, with the registry's first state. */
+export async function seedProjectRow(
+  db: ServiceDb,
+  projectId: string,
+  state: Uint8Array | null = null,
+  name = projectId,
+): Promise<void> {
+  await db
+    .insert(engineProjects)
+    .values({ projectId, name, ...(state ? { state: Buffer.from(state) } : {}) })
+    .onConflictDoNothing();
+}
+
+/** An asset doc row, as the web app or the project kind creates one. */
+export async function seedAssetRow(
+  db: ServiceDb,
+  projectId: string,
+  key: string,
+  kind: string,
+  seed: string | null = null,
+): Promise<void> {
+  await db
+    .insert(engineAssetDocs)
+    .values({ projectId, assetKey: key, kind, seed })
+    .onConflictDoNothing();
+}

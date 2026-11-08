@@ -198,6 +198,17 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "ref-not-found",
   "op-invalid",
   "id-taken",
+  // project
+  "asset-missing",
+  "asset-kind",
+  "asset-in-use",
+  "asset-id-taken",
+  "path-taken",
+  "hash-mismatch",
+  "code-skew",
+  "asset-too-large",
+  "import-failed",
+  "quota-exceeded",
 ] as const;
 export type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 /** An engine code, or a game's `<game-id>/<code>`. */
@@ -219,6 +230,8 @@ export type SceneIssue = {
   got?: string;
   hint?: string;
   fix?: OpBatch;
+  /** Facts specific to the code, e.g. `code-skew`'s two schema hashes. */
+  detail?: Record<string, unknown>;
 };
 export type IssueCodeInfo = {
   severity: Severity;

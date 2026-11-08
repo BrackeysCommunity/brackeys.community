@@ -51,7 +51,7 @@ export function emptyScene(sceneId: string, version = SCENE_FORMAT_VERSION): Sce
   return {
     v: version,
     ...(game ? { game } : {}),
-    name: id.name,
+    name: id.key,
     ...structuredClone(EMPTY_SCENE_TEMPLATE),
   };
 }
@@ -69,9 +69,10 @@ export function seedDefinition(
 }
 
 /**
- * The seed as a Yjs update. Deterministic: the writing client id and every
- * key derive from the scene and its content, so two instances seeding one
- * new scene at once write the same items, which Yjs merges into one copy.
+ * The seed as a Yjs update, at this engine's collab layout (`meta.layout`).
+ * Deterministic: the writing client id and every key derive from the scene
+ * and its content, so two instances seeding one new scene at once write
+ * the same items, which Yjs merges into one copy.
  */
 export function seedState(sceneId: string, def: SceneDefinition): Uint8Array {
   const doc = new Y.Doc();
@@ -83,6 +84,12 @@ export function seedState(sceneId: string, def: SceneDefinition): Uint8Array {
 /** `meta.schemaVersion` of an encoded doc; null before it is seeded. */
 export function stateSchemaVersion(state: Uint8Array | null): number | null {
   return docMeta(docOf(state))?.schemaVersion ?? null;
+}
+
+/** The collab layout of an encoded doc (`meta.layout`, 1 when absent); null before it is seeded. */
+export function stateLayout(state: Uint8Array | null): number | null {
+  const meta = docMeta(docOf(state));
+  return meta ? (meta.layout ?? 1) : null;
 }
 
 export interface PreparedState {

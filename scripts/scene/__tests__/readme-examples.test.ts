@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { existsSync } from "node:fs";
 import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,20 +6,16 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { COMMANDS, runCli, type CommandName } from "../commands";
+import { platformerGame } from "../../../src/games/platformer";
+import { COMMAND_GROUPS, COMMANDS, runCli, type CommandName } from "../commands";
 import type { ToolContext } from "../context";
-import { GAMES } from "../games";
 import { loadCompatRapier } from "../rapier-compat";
+import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 
-const README = "scripts/scene/README.md";
-/** `.claude/` is gitignored, so the skill exists only in checkouts that have it, not in CI. */
-const SKILL = ".claude/skills/scene-editing/SKILL.md";
-const hasSkill = existsSync(repoFile(SKILL));
-
-/** Documents whose scene commands are checked: this CLI's README and, where present, the agent skill. */
-const DOCS = hasSkill ? [README, SKILL] : [README];
+/** Tracked documents whose scene commands are checked. */
+const DOCS = ["scripts/scene/README.md"];
 
 const INVOCATION = /(?:vp run scene|bun scripts\/scene\/cli\.ts) ([^`\n]+)/g;
 
@@ -40,8 +35,10 @@ function examples(doc: string, text: string): Example[] {
   const prose = text.replace(/^```[\s\S]*?^```/gm, "");
   for (const [, span] of prose.matchAll(/`([^`]+)`/g)) {
     const invocations = [...span!.matchAll(INVOCATION)].map((m) => m[1]!);
-    // `scene show`, as the skill writes them, and a bare `apply --dry-run`.
-    const bare = /^(?:scene )?([a-z]+)((?: --[a-z-]+(?: [^-\s][^\s]*)?)*)$/.exec(span!);
+    // Bare spans such as `scene diff`, `apply --dry-run` and `assets list`.
+    const bare = /^(?:scene )?([a-z]+(?: [a-z][a-z-]*)?)((?: --[a-z-]+(?: [^-\s][^\s]*)?)*)$/.exec(
+      span!,
+    );
     if (invocations.length === 0 && bare && Object.hasOwn(COMMANDS, bare[1]!))
       invocations.push(`${bare[1]}${bare[2]}`);
     for (const inv of invocations)
@@ -50,11 +47,23 @@ function examples(doc: string, text: string): Example[] {
   return out;
 }
 
-/** Commands that write nothing, as invoked. */
-function isPure([name, ...rest]: string[]): boolean {
+/** A command's name and the arguments after it: `assets import x` is `assets import`, then `x`. */
+function split(argv: readonly string[]): [string | undefined, string[]] {
+  const [first, second, ...more] = argv;
+  if (first && second && (COMMAND_GROUPS as readonly string[]).includes(first))
+    return [`${first} ${second}`, more];
+  return [first, argv.slice(1)];
+}
+
+/** Commands that write nothing and need no dev server, as invoked. */
+function isPure(argv: string[]): boolean {
+  const [name, rest] = split(argv);
+  if (rest.includes("--live") || name === "project pull" || name === "project push") return false;
   if (name === "fmt") return rest.includes("--check");
-  if (name === "apply") return rest.includes("--dry-run");
+  if (name === "apply" || name?.startsWith("assets "))
+    return name === "assets list" || rest.includes("--dry-run");
   if (name === "render") return !rest.includes("--out");
+  if (name === "project snapshot") return !rest.includes("--out") || rest.includes("-");
   return name !== "new";
 }
 
@@ -85,7 +94,13 @@ beforeAll(async () => {
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
   );
-  ctx = { games: GAMES, scenesDirs: dirs, loadRapier: loadCompatRapier };
+  ctx = {
+    projects: [
+      await tempProject(dirs.engine, { id: "engine" }),
+      await tempProject(dirs.platformer, { game: platformerGame }),
+    ],
+    loadRapier: loadCompatRapier,
+  };
 });
 
 afterAll(async () => {
@@ -97,14 +112,14 @@ const all = await Promise.all(
 );
 
 describe("scene commands in the docs", () => {
-  it("finds the README's fenced examples and the skill's commands", () => {
-    const [readme, skill] = all;
+  it("finds the README's fenced examples and its inline commands", () => {
+    const [readme] = all;
     expect(readme!.filter((e) => e.fenced).length).toBeGreaterThan(10);
-    if (hasSkill) expect(skill!.length).toBeGreaterThan(0);
+    expect(readme!.filter((e) => !e.fenced).length).toBeGreaterThan(0);
   });
 
   for (const example of all.flat()) {
-    const [name, ...rest] = example.argv;
+    const [name, rest] = split(example.argv);
     if (!name || placeholder(name)) continue;
 
     it(`${example.doc}: ${example.line} names a real command and real flags`, () => {

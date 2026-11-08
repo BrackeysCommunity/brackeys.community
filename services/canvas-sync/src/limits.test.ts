@@ -4,7 +4,12 @@ import * as encoding from "lib0/encoding";
 
 import { CANVAS_LIMITS, SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import { SYNC_CLOSE, syncCloseCode } from "../../../src/lib/canvas/sync-channels.ts";
+import { ASSET_DOC_LIMITS, PREFAB_DOC_LIMITS } from "../../../src/lib/scene/limits.ts";
+import { ENGINE_KINDS } from "../../../src/lib/scene/project-bytes.ts";
 import {
+  ASSET_DOC_CAPS,
+  assetDocLimits,
+  assetKindLimits,
   ConnectionCaps,
   createMessageLimiter,
   DocumentGrowth,
@@ -372,5 +377,56 @@ describe("DocumentGrowth", () => {
     expect(growth.exceeds("b", 20, tooBig)).toBe(true);
     growth.forget("b");
     expect(growth.exceeds("b", 20, tooBig)).toBe(false);
+  });
+});
+
+describe("assetDocLimits", () => {
+  it("gives a kind that names nothing the defaults", () => {
+    expect(assetDocLimits()).toEqual({ ...ASSET_DOC_LIMITS });
+    expect(assetDocLimits(undefined, { maxStateBytes: 9_000, maxMessageBytes: 4_000 })).toEqual({
+      maxStateBytes: 9_000,
+      maxMessageBytes: 4_000,
+    });
+  });
+
+  it("takes a kind's own state and item caps, and keeps a message within the state cap", () => {
+    expect(assetDocLimits({ maxStateBytes: 4 * 1024 * 1024, maxItems: 500 })).toEqual({
+      maxStateBytes: 4 * 1024 * 1024,
+      maxMessageBytes: ASSET_DOC_LIMITS.maxMessageBytes,
+      maxItems: 500,
+    });
+    expect(assetDocLimits({ maxStateBytes: 16_000 })).toEqual({
+      maxStateBytes: 16_000,
+      maxMessageBytes: 16_000,
+    });
+  });
+
+  it("clamps what a kind asks for to the service's caps", () => {
+    expect(assetDocLimits({ maxStateBytes: 1e12, maxItems: 1e9 })).toEqual({
+      maxStateBytes: ASSET_DOC_CAPS.maxStateBytes,
+      maxMessageBytes: ASSET_DOC_LIMITS.maxMessageBytes,
+      maxItems: ASSET_DOC_CAPS.maxItems,
+    });
+    expect(assetDocLimits(undefined, { maxStateBytes: 1e12, maxMessageBytes: 1e12 })).toEqual({
+      maxStateBytes: ASSET_DOC_CAPS.maxStateBytes,
+      maxMessageBytes: ASSET_DOC_CAPS.maxMessageBytes,
+    });
+  });
+
+  it("ignores caps that aren't positive numbers", () => {
+    expect(assetDocLimits({ maxStateBytes: 0, maxItems: -1 })).toEqual({ ...ASSET_DOC_LIMITS });
+    expect(assetDocLimits({ maxStateBytes: Number.NaN })).toEqual({ ...ASSET_DOC_LIMITS });
+  });
+});
+
+describe("assetKindLimits", () => {
+  it("gives prefabs a scene's entity cap, a kind's own limits to it, and the defaults to the rest", () => {
+    expect(assetKindLimits("prefab", ENGINE_KINDS)).toEqual({
+      ...ASSET_DOC_LIMITS,
+      maxItems: PREFAB_DOC_LIMITS.maxItems,
+    });
+    expect(assetKindLimits("data-table", ENGINE_KINDS)).toEqual({ ...ASSET_DOC_LIMITS });
+    expect(assetKindLimits("someone/else", ENGINE_KINDS)).toEqual({ ...ASSET_DOC_LIMITS });
+    expect(assetKindLimits("texture", ENGINE_KINDS)).toEqual({ ...ASSET_DOC_LIMITS });
   });
 });

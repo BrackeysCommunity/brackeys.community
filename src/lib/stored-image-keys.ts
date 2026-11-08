@@ -111,6 +111,25 @@ export function isTeamProjectImageKey(teamId: string, key: string) {
   return key.startsWith(`${TEAM_PROJECT_IMAGE_PREFIX}/${teamId}/`);
 }
 
+/**
+ * Engine project blobs are **project-scoped and content-addressed**: the
+ * last segment is the bytes' SHA-256, so one upload serves every asset of
+ * the project that holds those bytes. A non-image prefix: blobs are any
+ * asset kind (audio, fonts, atlases as well as textures), so the public
+ * `/images/` route never serves them; the engine blob route does, behind
+ * the project's access check. Keys are still described below, so the
+ * upload scan covers the image blobs.
+ */
+export const ENGINE_ASSET_PREFIX = "engine-assets";
+
+export function buildEngineAssetObjectKey(projectId: string, sha256: string) {
+  return `${ENGINE_ASSET_PREFIX}/${projectId}/${sha256}`;
+}
+
+export function isEngineAssetKey(projectId: string, key: string) {
+  return key.startsWith(`${ENGINE_ASSET_PREFIX}/${projectId}/`) && hasSafeSegments(key);
+}
+
 const SERVABLE_IMAGE_KEY_PREFIXES = [
   `${PROFILE_PROJECT_IMAGE_PREFIX}/`,
   `${TEAM_AVATAR_IMAGE_PREFIX}/`,
@@ -122,14 +141,16 @@ const SERVABLE_IMAGE_KEY_PREFIXES = [
   `${CANVAS_IMAGE_PREFIX}/`,
 ] as const;
 
+const hasSafeSegments = (key: string) =>
+  !key.split("/").some((segment) => segment === "" || segment === "." || segment === "..");
+
 /**
  * Gate for the public serving route: only keys minted by our upload
  * handlers resolve, so nothing else in the private bucket is reachable.
  */
 export function isServableImageKey(key: string) {
   return (
-    SERVABLE_IMAGE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) &&
-    !key.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+    SERVABLE_IMAGE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) && hasSafeSegments(key)
   );
 }
 
@@ -190,7 +211,8 @@ export type StoredImageOwnerType =
   | "profile_project_image"
   | "team_project_image"
   | "forum_post_image"
-  | "canvas_attachment";
+  | "canvas_attachment"
+  | "engine_blob";
 
 const OWNER_TYPE_BY_PREFIX: Record<string, StoredImageOwnerType> = {
   [PROFILE_PROJECT_IMAGE_PREFIX]: "profile_project_image",
@@ -201,6 +223,7 @@ const OWNER_TYPE_BY_PREFIX: Record<string, StoredImageOwnerType> = {
   [TEAM_PROJECT_IMAGE_PREFIX]: "team_project_image",
   [FORUM_POST_IMAGE_PREFIX]: "forum_post_image",
   [CANVAS_IMAGE_PREFIX]: "canvas_attachment",
+  [ENGINE_ASSET_PREFIX]: "engine_blob",
 };
 
 /**
@@ -212,7 +235,12 @@ const OWNER_TYPE_BY_PREFIX: Record<string, StoredImageOwnerType> = {
 export function describeImageKey(
   key: string,
 ): { ownerType: StoredImageOwnerType; ownerId: string } | null {
-  if (!isServableImageKey(key)) return null;
+  if (
+    !isServableImageKey(key) &&
+    !(key.startsWith(`${ENGINE_ASSET_PREFIX}/`) && hasSafeSegments(key))
+  ) {
+    return null;
+  }
   const [prefix, ownerId] = key.split("/");
   const ownerType = prefix ? OWNER_TYPE_BY_PREFIX[prefix] : undefined;
   if (!ownerType || !ownerId) return null;

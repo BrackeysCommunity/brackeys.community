@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
-import { access, readdir, readFile, rename, writeFile } from "node:fs/promises";
-import { basename, dirname } from "node:path";
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
-import type { GameDefinition } from "@jams/engine/game";
+import { ENGINE_REGISTRY_ID } from "@jams/engine/game";
 import type { RapierModule } from "@jams/engine/headless";
+import type { ProjectId } from "@jams/engine/project";
 import {
   closest,
   createRegistry,
@@ -16,28 +17,44 @@ import {
   type SceneDefinition,
   type SceneIssue,
 } from "@jams/engine/scene";
-import { readPrefabFiles, resolveScenePath, sceneNameOf, ScenePathError } from "@jams/engine/vite";
+import { readPrefabFiles, SCENE_NAME_PATTERN } from "@jams/engine/vite";
+
+import {
+  locateInProjects,
+  projectById,
+  scanProject,
+  unknownProjectMessage,
+  type ProjectHandle,
+} from "./projects";
 
 const run = promisify(execFile);
 
-export type GameTable = Readonly<Record<string, GameDefinition>>;
-
 export type ToolContext = {
-  /** The games a scene's `game` key may name, by id. */
-  games: GameTable;
-  /**
-   * Scenes directories by home: a game's id, or `engine` for scenes that
-   * name no game. Scene names resolve across all of them.
-   */
-  scenesDirs: Readonly<Record<string, string>>;
-  /** Each home's scene JSON Schema file, for the `$schema` that `new` writes; omitted, `new` writes none. */
-  schemaFiles?: Readonly<Record<string, string>>;
+  /** The projects scene and asset names resolve in; a scene's `game` key picks the registry of the project whose game it names. */
+  projects: readonly ProjectHandle[];
+  /** `--project`: names resolve in this project only. */
+  project?: ProjectId;
+  /** Each project's scene JSON Schema file, for the `$schema` that `new` writes; a project without one copies its other scenes'. */
+  schemaFiles?: Readonly<Record<ProjectId, string>>;
   loadRapier: () => Promise<RapierModule>;
   /** Reads `-` arguments; the CLI passes stdin. */
   readStdin?: () => Promise<string>;
   /** A file's text at a git revision; defaults to `git show <rev>:./<file>` beside the file. */
   gitShow?: (file: string, rev: string) => Promise<string>;
+  /** Where hosted calls read `JAMS_AGENT_TOKEN`; `process.env` by default. */
+  env?: Readonly<Record<string, string | undefined>>;
+  /** The HTTP client hosted calls use; the global `fetch` by default. */
+  fetch?: typeof fetch;
 };
+
+/** What a live call passes on to `openLiveProject` for a hosted project. */
+export function hostedOptions(ctx: Pick<ToolContext, "env" | "fetch">, token: string | undefined) {
+  return {
+    ...(token === undefined ? {} : { token }),
+    ...(ctx.env ? { env: ctx.env } : {}),
+    ...(ctx.fetch ? { fetch: ctx.fetch } : {}),
+  };
+}
 
 /** `git show <rev>:./<name>`, run in the file's own directory. */
 export async function gitShow(file: string, rev: string): Promise<string> {
@@ -74,22 +91,77 @@ export const failure = (message: string, extra: Record<string, unknown> = {}): T
   text: `error: ${message}`,
 });
 
-// ─── Registries ──────────────────────────────────────────
+export const isToolResult = (v: unknown): v is ToolResult =>
+  typeof v === "object" && v !== null && "exitCode" in v;
 
-const registries = new WeakMap<GameDefinition, Registry>();
-let engineRegistry: Registry | undefined;
+// ─── Projects in scope ───────────────────────────────────
 
-/** The registry for game `id`, or the engine's alone for `undefined`; null for a game not in the table. */
-export function registryOf(ctx: ToolContext, id: string | undefined): Registry | null {
-  if (id === undefined) return (engineRegistry ??= createRegistry());
-  const game = Object.hasOwn(ctx.games, id) ? ctx.games[id] : undefined;
-  if (!game) return null;
-  let registry = registries.get(game);
-  if (!registry) registries.set(game, (registry = createRegistry(game)));
-  return registry;
+/** The projects names resolve in: the `--project` one, else all of them. */
+export function inScope(ctx: Pick<ToolContext, "projects" | "project">): readonly ProjectHandle[] {
+  if (ctx.project === undefined) return ctx.projects;
+  const named = projectById(ctx.projects, ctx.project);
+  return named ? [named] : [];
 }
 
-const gameIds = (ctx: ToolContext) => Object.keys(ctx.games);
+/** A usage error when `--project` names no project; null otherwise. */
+export function scopeError(ctx: ToolContext): ToolResult | null {
+  if (ctx.project === undefined || projectById(ctx.projects, ctx.project)) return null;
+  const guess = closest(
+    ctx.project,
+    ctx.projects.map((p) => p.file.id),
+  );
+  return usage(
+    `${unknownProjectMessage(ctx.projects, ctx.project)}${guess ? `; did you mean "${guess}"?` : ""}`,
+  );
+}
+
+/** The project whose directory holds `file` (the innermost one); null for a file outside every project. */
+export function projectOfFile(ctx: ToolContext, file: string): ProjectHandle | null {
+  const abs = resolve(file);
+  let best: ProjectHandle | null = null;
+  for (const p of ctx.projects) {
+    const rel = relative(p.dir, abs);
+    if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) continue;
+    if (!best || p.dir.length > best.dir.length) best = p;
+  }
+  return best;
+}
+
+// ─── Registries ──────────────────────────────────────────
+
+let engineRegistry: Registry | undefined;
+
+/**
+ * What a scene without a `game` key is judged by: its project's primitives
+ * (the engine project's registry, materials included), else the engine
+ * project's, else the engine's alone.
+ */
+export function gamelessRegistry(ctx: ToolContext, project?: ProjectHandle | null): Registry {
+  if (project) return project.registry.primitives;
+  const engine = projectById(ctx.projects, ENGINE_REGISTRY_ID);
+  if (engine && !engine.game) return engine.registry;
+  return (engineRegistry ??= createRegistry());
+}
+
+/**
+ * The registry for game `id`: `project`'s when it is that project's game,
+ * else the registry of the project whose game it is; the gameless one for
+ * `undefined`; null for a game no project has.
+ */
+export function registryOf(
+  ctx: ToolContext,
+  id: string | undefined,
+  project?: ProjectHandle | null,
+): Registry | null {
+  if (id === undefined) return gamelessRegistry(ctx, project);
+  if (project?.game?.id === id) return project.registry;
+  return ctx.projects.find((p) => p.game?.id === id)?.registry ?? null;
+}
+
+/** The ids of the games the projects hold, in the projects' order. */
+export const gameIds = (ctx: ToolContext): string[] => [
+  ...new Set(ctx.projects.flatMap((p) => (p.game ? [p.game.id] : []))),
+];
 
 function knownGames(ctx: ToolContext, id: string): string {
   const guess = closest(id, gameIds(ctx));
@@ -114,9 +186,6 @@ export function gameFlag(ctx: ToolContext, id: string | undefined): Registry | T
   return registry ?? usage(`--game: no game ${JSON.stringify(id)}${knownGames(ctx, id!)}`);
 }
 
-export const isToolResult = (v: unknown): v is ToolResult =>
-  typeof v === "object" && v !== null && "exitCode" in v;
-
 /** The scene's `game` key, read from its text without validating it. */
 function declaredGame(text: string): string | undefined {
   try {
@@ -132,13 +201,19 @@ export type Judged =
 
 /**
  * The registry a scene is parsed, validated, edited and stepped with: its
- * game's, or the engine's alone without a `game` key. `under` picks a game
- * for a scene that names none.
+ * game's, or the gameless one without a `game` key. `under` picks a game
+ * for a scene that names none; `project` is the project the scene is in.
  */
-export function judgeScene(ctx: ToolContext, text: string, under?: Registry): Judged {
+export function judgeScene(
+  ctx: ToolContext,
+  text: string,
+  under?: Registry,
+  project?: ProjectHandle | null,
+): Judged {
   const game = declaredGame(text);
-  if (game === undefined) return { ok: true, game, registry: under ?? registryOf(ctx, undefined)! };
-  const registry = registryOf(ctx, game);
+  if (game === undefined)
+    return { ok: true, game, registry: under ?? gamelessRegistry(ctx, project) };
+  const registry = registryOf(ctx, game, project);
   return registry
     ? { ok: true, game, registry }
     : { ok: false, game, issue: unknownGame(ctx, game) };
@@ -146,25 +221,35 @@ export function judgeScene(ctx: ToolContext, text: string, under?: Registry): Ju
 
 // ─── Scene files ─────────────────────────────────────────
 
-/** A scene file and the game whose scenes directory holds it. */
-export type SceneFile = { name: string; home: string; file: string };
+/** A scene asset: its id, the project holding it (`home` is that project's id) and its file. */
+export type SceneFile = { name: string; home: ProjectId; file: string; project: ProjectHandle };
 
-export async function listSceneFiles(ctx: ToolContext): Promise<SceneFile[]> {
-  const found = await Promise.all(
-    Object.entries(ctx.scenesDirs).map(async ([home, dir]) => {
-      const files = await readdir(dir).catch(() => [] as string[]);
-      return files
-        .map(sceneNameOf)
-        .filter((n): n is string => n !== null)
-        .map((name) => ({ name, home, file: resolveScenePath(dir, name) }));
-    }),
-  );
-  return found
-    .flat()
-    .sort((a, b) => (a.name === b.name ? (a.home < b.home ? -1 : 1) : a.name < b.name ? -1 : 1));
+const SCENE_KIND = "scene";
+
+const byName = (a: SceneFile, b: SceneFile) =>
+  a.name === b.name ? (a.home < b.home ? -1 : 1) : a.name < b.name ? -1 : 1;
+
+/** A project's live scene assets, from a scan of its files. */
+export async function projectScenes(project: ProjectHandle): Promise<SceneFile[]> {
+  const { state } = await scanProject(project);
+  return Object.values(state.assets)
+    .filter((e) => e.kind === SCENE_KIND && e.deleted === undefined)
+    .map((e) => ({
+      name: e.id,
+      home: project.file.id,
+      file: join(project.dir, ...e.path.split("/")),
+      project,
+    }))
+    .sort(byName);
 }
 
-/** Names held by more than one game's scenes directory. */
+/** Every scene of the projects in scope, by name then project. */
+export async function listSceneFiles(ctx: ToolContext): Promise<SceneFile[]> {
+  const found = await Promise.all(inScope(ctx).map(projectScenes));
+  return found.flat().sort(byName);
+}
+
+/** Names more than one project, or file, holds. */
 export function clashes(files: readonly SceneFile[]): Map<string, string[]> {
   const homes = new Map<string, string[]>();
   for (const f of files) homes.set(f.name, [...(homes.get(f.name) ?? []), f.home]);
@@ -173,50 +258,55 @@ export function clashes(files: readonly SceneFile[]): Map<string, string[]> {
 
 export type Located = { ok: true; scene: SceneFile } | { ok: false; result: ToolResult };
 
-/** Finds scene `name` in the games' scenes directories, through the same guard as the dev sink. */
+/**
+ * Finds scene `name` in the projects in scope. A name two projects hold is
+ * a usage error unless `--project` picks one; the name follows the dev
+ * server's guard (lowercase letters, digits and dashes).
+ */
 export async function locateScene(ctx: ToolContext, name: string): Promise<Located> {
-  let candidates: SceneFile[];
-  try {
-    candidates = Object.entries(ctx.scenesDirs).map(([home, dir]) => ({
-      name,
-      home,
-      file: resolveScenePath(dir, name),
-    }));
-  } catch (e) {
-    if (e instanceof ScenePathError) return { ok: false, result: usage(e.message) };
-    throw e;
-  }
-  const found = await Promise.all(
-    candidates.map((c) =>
-      access(c.file).then(
-        () => c,
-        () => null,
-      ),
-    ),
+  if (!SCENE_NAME_PATTERN.test(name))
+    return {
+      ok: false,
+      result: usage(`scene name ${JSON.stringify(name)} must match ${SCENE_NAME_PATTERN}`),
+    };
+  const scenes = new Map<ProjectHandle, SceneFile[]>();
+  const found = await locateInProjects(
+    ctx.projects,
+    name,
+    async (p) => {
+      const hits = (await projectScenes(p)).filter((s) => s.name === name);
+      scenes.set(p, hits);
+      return hits.length > 0;
+    },
+    ctx.project,
   );
-  const hits = found.filter((c): c is SceneFile => c !== null);
-  if (hits.length === 0)
-    return { ok: false, result: failure(`No scene named ${JSON.stringify(name)}.`) };
-  if (hits.length > 1) {
-    const homes = hits.map((h) => h.home);
+  if (!found.ok) {
+    if (found.reason === "not-found")
+      return { ok: false, result: failure(`No scene named ${JSON.stringify(name)}.`) };
+    const projects = found.reason === "ambiguous" ? { projects: found.projects } : {};
+    return {
+      ok: false,
+      result: { ...usage(found.message), data: { ok: false, error: found.message, ...projects } },
+    };
+  }
+  const hits = scenes.get(found.project) ?? [];
+  if (hits.length > 1)
     return {
       ok: false,
       result: failure(
-        `Scene ${JSON.stringify(name)} is in more than one game's scenes: ${homes.join(", ")}.`,
-        { homes },
+        `Scene ${JSON.stringify(name)} is in more than one file of project "${found.project.file.id}": ${hits.map((h) => relative(found.project.dir, h.file)).join(", ")}.`,
       ),
     };
-  }
   return { ok: true, scene: hits[0]! };
 }
 
-export async function writeSceneText(scene: SceneFile, text: string): Promise<void> {
+export async function writeSceneText(scene: Pick<SceneFile, "file">, text: string): Promise<void> {
   const tmp = `${scene.file}.${process.pid}.tmp`;
   await writeFile(tmp, text, "utf8");
   await rename(tmp, scene.file);
 }
 
-/** A scene name reads from the scenes directories; anything with a slash or `.json` is a file path, read-only. */
+/** A scene name reads from the projects; anything with a slash or `.json` is a file path, read-only. */
 export function isFileArg(arg: string): boolean {
   return arg.includes("/") || arg.endsWith(".json");
 }
@@ -240,20 +330,24 @@ async function notFound(ctx: ToolContext, target: string): Promise<ToolResult> {
 }
 
 export type SceneSource =
-  | { ok: true; text: string; scene: SceneFile | null }
+  | { ok: true; text: string; scene: SceneFile | null; project: ProjectHandle | null }
   | { ok: false; result: ToolResult };
 
-/** The directory a read scene's prefabs live beside: its scenes directory, a file argument's own, none for stdin. */
+/** The directory a read scene's prefabs live beside: its file's own, none for stdin. */
 export function sceneDirOf(source: { scene: SceneFile | null }, arg: string): string | undefined {
   if (source.scene) return dirname(source.scene.file);
   return arg === "-" ? undefined : dirname(arg);
 }
 
-/** A scene name, or a file path or `-` (read-only: `scene` is null). */
+/**
+ * A scene name, or a file path or `-` (read-only: `scene` is null). A file
+ * inside a project is judged as that project's.
+ */
 export async function readSource(ctx: ToolContext, arg: string): Promise<SceneSource> {
   if (isFileArg(arg) || arg === "-") {
     try {
-      return { ok: true, text: await readArg(ctx, arg), scene: null };
+      const text = await readArg(ctx, arg);
+      return { ok: true, text, scene: null, project: arg === "-" ? null : projectOfFile(ctx, arg) };
     } catch (e) {
       if (e instanceof UsageError) return { ok: false, result: usage(e.message) };
       if ((e as { code?: string }).code === "ENOENT")
@@ -263,7 +357,12 @@ export async function readSource(ctx: ToolContext, arg: string): Promise<SceneSo
   }
   const located = await locateScene(ctx, arg);
   if (!located.ok) return located;
-  return { ok: true, text: await readFile(located.scene.file, "utf8"), scene: located.scene };
+  return {
+    ok: true,
+    text: await readFile(located.scene.file, "utf8"),
+    scene: located.scene,
+    project: located.scene.project,
+  };
 }
 
 type Parsed = {
@@ -273,6 +372,8 @@ type Parsed = {
   registry: Registry;
   /** The prefabs in `prefabs/` beside the scene's file; empty for stdin. */
   prefabs: PrefabLibrary;
+  /** The project the scene is in; null for stdin and files outside every project. */
+  project: ProjectHandle | null;
 };
 
 /**
@@ -299,8 +400,9 @@ async function parseWithGame(
   text: string,
   under: Registry | undefined,
   dir: string | undefined,
+  project: ProjectHandle | null,
 ): Promise<({ ok: true } & Parsed) | { ok: false; result: ToolResult }> {
-  const judged = judgeScene(ctx, text, under);
+  const judged = judgeScene(ctx, text, under, project);
   if (!judged.ok) return { ok: false, result: issuesFailure(name, [judged.issue]) };
   if (under && judged.game !== undefined && judged.game !== under.id) {
     return {
@@ -313,11 +415,11 @@ async function parseWithGame(
   const parsed = parseScene(text, judged.registry);
   if (!parsed.ok) return { ok: false, result: issuesFailure(name, parsed.issues) };
   const prefabs = await prefabsOf(dir, judged.registry);
-  return { ok: true, name, text, def: parsed.def, registry: judged.registry, prefabs };
+  return { ok: true, name, text, def: parsed.def, registry: judged.registry, prefabs, project };
 }
 
 /**
- * Parses scene text that came from somewhere other than a scenes directory
+ * Parses scene text that came from somewhere other than a project's files
  * (a git revision); `dir` is where its prefabs are read from.
  */
 export function parseSceneText(
@@ -325,8 +427,9 @@ export function parseSceneText(
   name: string,
   text: string,
   dir?: string,
+  project: ProjectHandle | null = null,
 ): Promise<({ ok: true } & Parsed) | { ok: false; result: ToolResult }> {
-  return parseWithGame(ctx, name, text, undefined, dir);
+  return parseWithGame(ctx, name, text, undefined, dir, project);
 }
 
 export type OpenedScene = ({ ok: true } & Parsed) | { ok: false; result: ToolResult };
@@ -341,7 +444,7 @@ export async function openScene(
   if (!arg) return { ok: false, result: usage(`scene ${cmd} <scene|file|->`) };
   const source = await readSource(ctx, arg);
   if (!source.ok) return source;
-  return parseWithGame(ctx, arg, source.text, under, sceneDirOf(source, arg));
+  return parseWithGame(ctx, arg, source.text, under, sceneDirOf(source, arg), source.project);
 }
 
 export type LoadedScene =
@@ -368,6 +471,7 @@ export async function loadScene(
     await readFile(located.scene.file, "utf8"),
     undefined,
     dirname(located.scene.file),
+    located.scene.project,
   );
   return parsed.ok ? { ...parsed, scene: located.scene } : parsed;
 }

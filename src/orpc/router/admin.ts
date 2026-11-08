@@ -2334,6 +2334,7 @@ const IMAGE_OWNER_TYPES = [
   "team_project_image",
   "forum_post_image",
   "canvas_attachment",
+  "engine_blob",
 ] as const satisfies readonly ImageOwnerType[];
 
 type ImageOwnerRef = { label: string; href: string | null };
@@ -2433,6 +2434,8 @@ function imageOwnerKey(row: { ownerType: ImageOwnerType; ownerId: string }): str
       return `forum:${row.ownerId}`;
     case "canvas_attachment":
       return `attachment:${row.ownerId}`;
+    case "engine_blob":
+      return `engine:${row.ownerId}`;
   }
 }
 
@@ -2445,6 +2448,7 @@ const IMAGE_OWNER_TYPE_LABEL: Record<ImageOwnerType, string> = {
   team_project_image: "Team showcase image",
   forum_post_image: "Forum image",
   canvas_attachment: "Canvas image",
+  engine_blob: "Engine asset",
 };
 
 /** The staff-only route that serves a key whether it is live or quarantined. */

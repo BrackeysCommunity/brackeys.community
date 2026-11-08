@@ -1,8 +1,8 @@
 import { visibilityOpenness } from "./access";
 
 /**
- * What each change to who can reach a canvas means for its open live
- * connections. Pure and free of `@/` imports, so canvas-sync's tests can import it.
+ * What each change to who can reach a canvas or a hosted project means for
+ * its open live connections. Pure and free of `@/` imports, so canvas-sync's tests can import it.
  */
 
 export type CanvasEventScope =
@@ -67,6 +67,25 @@ export function revokesFor(event: CanvasEvent): CanvasRevoke[] {
       return event.role === "viewer" ? [{ canvasId: event.canvasId, userId: event.userId }] : [];
     case "member_added":
     case "unhidden":
+    case "restored":
+      return [];
+  }
+}
+
+/** A change to a hosted engine project that may end its live connections. */
+export type ProjectEvent = { type: "deleted" | "restored"; projectId: string };
+
+/** Who should lose an open connection to any of a project's documents. */
+export type ProjectRevoke = { projectId: string; userId?: string };
+
+/**
+ * The open connections a project event should close: a deleted project's,
+ * every one on its registry, scenes and assets. A restore closes nothing.
+ */
+export function projectRevokesFor(event: ProjectEvent): ProjectRevoke[] {
+  switch (event.type) {
+    case "deleted":
+      return [{ projectId: event.projectId }];
     case "restored":
       return [];
   }

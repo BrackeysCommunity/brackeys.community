@@ -6,20 +6,20 @@ import { describe, expect, it } from "vite-plus/test";
 import { AGENT_SURFACE_VERSION } from "../agent-surface";
 
 /**
- * The agent lists of `public-api.json` (issue codes, op names, JSON Schema
+ * The agent lists of `public-api.json` (issue codes, scene and project op names, JSON Schema
  * ids, CLI commands and flags, check kinds, MCP tool names) as of
  * `AGENT_SURFACE_VERSION`. When the lists
  * change, bump the version, update `src/engine/CHANGELOG.md` under **Agent
  * surface**, and pin the new hash here.
  */
-const PINNED = { version: 6, hash: "41ec4c287248d325" };
+const PINNED = { version: 7, hash: "289cc9017d5c6748" };
 
 function agentLists() {
   const api = JSON.parse(
     readFileSync(new URL("../../__tests__/public-api.json", import.meta.url), "utf8"),
   ) as Record<string, unknown>;
-  const { issueCodes, opNames, schemaIds, cliCommands, checkKinds, mcpTools } = api;
-  return { issueCodes, opNames, schemaIds, cliCommands, checkKinds, mcpTools };
+  const { issueCodes, opNames, projectOpNames, schemaIds, cliCommands, checkKinds, mcpTools } = api;
+  return { issueCodes, opNames, projectOpNames, schemaIds, cliCommands, checkKinds, mcpTools };
 }
 
 describe("AGENT_SURFACE_VERSION", () => {

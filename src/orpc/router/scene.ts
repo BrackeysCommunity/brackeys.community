@@ -1,12 +1,12 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
-import { sceneDocs } from "@/db/schema";
+import { engineProjects, sceneDocs } from "@/db/schema";
 import { publishSceneRevoke } from "@/lib/canvas-sync-publish";
-import { documentName } from "@/lib/canvas/sync-channels";
+import { documentName, MAX_ID_LENGTH } from "@/lib/canvas/sync-channels";
 import { signCanvasToken } from "@/lib/canvas/token";
 import { isSceneId } from "@/lib/scene/ids";
 import { SCENE_LIMITS } from "@/lib/scene/limits";
@@ -21,22 +21,25 @@ import { requireStaff } from "@/orpc/middleware/auth";
 
 const sceneIdSchema = z
   .string()
-  .max(97)
-  .refine(isSceneId, "A scene id is <game>.<name>: lowercase letters, digits and dashes.");
+  .max(MAX_ID_LENGTH)
+  .refine(isSceneId, "A scene id is <project>.<key>: lowercase letters, digits and dashes.");
 
 const NOT_FOUND = () => new ORPCError("NOT_FOUND", { message: "No such scene." });
 
+/** A scene of a deleted project reads as gone, as the service reads it. */
 async function sceneExists(sceneId: string): Promise<boolean> {
   const [row] = await db
     .select({ sceneId: sceneDocs.sceneId })
     .from(sceneDocs)
-    .where(eq(sceneDocs.sceneId, sceneId));
+    .leftJoin(engineProjects, eq(engineProjects.projectId, sceneDocs.projectId))
+    .where(and(eq(sceneDocs.sceneId, sceneId), isNull(engineProjects.deletedAt)));
   return row !== undefined;
 }
 
 /**
  * A short-lived token for one hosted scene. `formatVersion` is the scene
- * format the caller's engine reads (`SCENE_FORMAT_VERSION`); the service
+ * format the caller's engine reads (`SCENE_FORMAT_VERSION`) and
+ * `layoutVersion` its collab layout (`COLLAB_LAYOUT_VERSION`); the service
  * connects a client on another version than the doc read-only.
  */
 export const getSceneSyncToken = os
@@ -45,6 +48,7 @@ export const getSceneSyncToken = os
     z.object({
       sceneId: sceneIdSchema,
       formatVersion: z.number().int().min(1),
+      layoutVersion: z.number().int().min(1),
       access: z.enum(["read", "write"]).default("write"),
     }),
   )
@@ -62,6 +66,7 @@ export const getSceneSyncToken = os
         a: input.access,
         k: "scene",
         f: input.formatVersion,
+        l: input.layoutVersion,
         n: context.user.name || "Member",
       },
       secret,
@@ -81,23 +86,42 @@ const seedSchema = z
 /**
  * Creates a hosted scene. The service fills the doc from `seed` the first
  * time anyone opens it (an empty scene of the id's name without one), since
- * the repo's scene files aren't in its image.
+ * the repo's scene files aren't in its image. The scene belongs to the
+ * engine project its id names, which is made, named after the id, if there
+ * isn't one; a deleted project takes no new scenes.
  */
 export const createHostedScene = os
   .use(requireStaff)
   .input(z.object({ sceneId: sceneIdSchema, seed: seedSchema.optional() }))
   .handler(async ({ context, input }) => {
-    const [row] = await db
-      .insert(sceneDocs)
-      .values({
-        sceneId: input.sceneId,
-        seed: input.seed ? JSON.stringify(input.seed) : null,
-        createdById: context.user.id,
-      })
-      .onConflictDoNothing()
-      .returning({ sceneId: sceneDocs.sceneId });
-    if (!row) throw new ORPCError("CONFLICT", { message: "That scene already exists." });
-    return { sceneId: row.sceneId };
+    const projectId = input.sceneId.slice(0, input.sceneId.indexOf("."));
+    const created = await db.transaction(async (tx) => {
+      await tx
+        .insert(engineProjects)
+        .values({ projectId, name: projectId, createdById: context.user.id })
+        .onConflictDoNothing();
+      const [project] = await tx
+        .select({ deletedAt: engineProjects.deletedAt })
+        .from(engineProjects)
+        .where(eq(engineProjects.projectId, projectId));
+      if (project?.deletedAt) return "deleted" as const;
+      const [row] = await tx
+        .insert(sceneDocs)
+        .values({
+          sceneId: input.sceneId,
+          projectId,
+          seed: input.seed ? JSON.stringify(input.seed) : null,
+          createdById: context.user.id,
+        })
+        .onConflictDoNothing()
+        .returning({ sceneId: sceneDocs.sceneId });
+      return row ?? null;
+    });
+    if (created === "deleted") {
+      throw new ORPCError("NOT_FOUND", { message: `Project ${projectId} was deleted.` });
+    }
+    if (!created) throw new ORPCError("CONFLICT", { message: "That scene already exists." });
+    return { sceneId: created.sceneId };
   });
 
 /** Deletes a hosted scene and closes everyone's sockets on it. */

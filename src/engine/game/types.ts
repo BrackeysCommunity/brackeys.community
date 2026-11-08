@@ -3,6 +3,8 @@ import type { z } from "zod";
 import type { SceneView } from "../context";
 import type { EditorToolDef } from "../editor/tools";
 import type { PhysicsWorld } from "../physics";
+import type { AssetKindDef } from "../project/kinds";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type {
   BulkForm,
@@ -143,6 +145,8 @@ export type EngineContext = {
    * cast it onto the first surface below.
    */
   readonly play: PlayStart | null;
+  /** The project's data as of load; null for a run with no project (bare scene tests). Frozen for the run. */
+  readonly project: ProjectRuntimeView | null;
 };
 
 /** The resolved start of a play world, as the game's `onLoad` reads it from `EngineContext.play`. */
@@ -480,6 +484,9 @@ export type GameAttachment = {
   destroy(): void;
 };
 
+/** A data table a game declares: what a row of that table holds beside its `id`. */
+export type GameTableDef = { description: string; row: z.ZodRawShape };
+
 export type GameDefinition<S = unknown, G = unknown> = {
   /** Matches the id pattern; `engine` is reserved. Prefixes the game's issue codes. */
   id: string;
@@ -528,6 +535,12 @@ export type GameDefinition<S = unknown, G = unknown> = {
   physicalChecks?: readonly PhysicalCheck[];
   /** `.checks.json` kinds, keyed `<id>/<kind>`. */
   checks?: Readonly<Record<string, CheckKindDef>>;
+  /** The game's own asset kinds; names are `<gameId>/<name>`, layouts declarative only. */
+  assetKinds?: readonly AssetKindDef[];
+  /** Data-table schemas by table name. */
+  tables?: Readonly<Record<string, GameTableDef>>;
+  /** Fields the game adds to the project's game-settings doc. */
+  projectSettings?: z.ZodRawShape;
 };
 
 // ─── Registry ────────────────────────────────────────────

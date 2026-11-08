@@ -2,20 +2,7 @@
   "v": 1,
   "checks": [
     { "id": "valid", "kind": "valid", "physical": true },
-    {
-      "id": "settles",
-      "kind": "reaches",
-      "script": { "v": 1, "scene": "kitchen-sink", "steps": [{ "wait": 60 }] },
-      "result": "script-end"
-    },
-    {
-      "id": "ball-in-zone",
-      "kind": "touches",
-      "entity": "zone",
-      "atLeast": 4,
-      "rollouts": 4,
-      "ticks": 120,
-      "skip": "needs a game whose props touch sensors; the engine's test game runs it"
-    }
+    { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "scene": "kitchen-sink", "steps": [{ "wait": 60 }], "v": 1 } },
+    { "id": "ball-in-zone", "kind": "touches", "atLeast": 4, "entity": "zone", "rollouts": 4, "skip": "needs a game whose props touch sensors; the engine's test game runs it", "ticks": 120 }
   ]
 }

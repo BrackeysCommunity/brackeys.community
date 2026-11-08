@@ -26,7 +26,7 @@ export class ProfileProjectImageUploadError extends Error {
 
 let minioClient: Client | null = null;
 
-function getMinioClient() {
+export function getMinioClient() {
   if (minioClient) {
     return minioClient;
   }
@@ -236,7 +236,7 @@ export async function removeProfileProjectImageFromStorage(objectKey: string | n
   await getMinioClient().removeObject(bucket, objectKey);
 }
 
-function isMissingObject(error: unknown): boolean {
+export function isMissingObject(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
   return code === "NoSuchKey" || code === "NotFound";
 }

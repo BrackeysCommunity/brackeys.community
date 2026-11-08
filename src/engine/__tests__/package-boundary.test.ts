@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -6,6 +7,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../game/define";
+import { docKindJsonSchema } from "../project/kinds";
+import { dataTableKind } from "../project/kinds/data-table";
+import { gameSettingsKind } from "../project/kinds/game-settings";
+import { materialKind } from "../project/kinds/material";
+import { PROJECT_OP_NAMES, projectOpsJsonSchema } from "../project/ops";
+import { projectJsonSchema } from "../project/project-file";
+import { sidecarJsonSchema } from "../project/sidecar";
+import { projectSnapshotJsonSchema } from "../project/snapshot";
 import { checksJsonSchema } from "../scene/checks";
 import { inputScriptJsonSchema } from "../scene/input-script";
 import { ISSUE_CODES } from "../scene/issues";
@@ -20,7 +29,8 @@ import { ENGINE_VERSION } from "../version";
  * public and agent surface in `public-api.json`. When an export, issue code or
  * CLI command changes on purpose, regenerate the snapshot with
  * `UPDATE_PUBLIC_API=1 vp test run src/engine/__tests__/package-boundary.test.ts`
- * and add a CHANGELOG entry for it.
+ * (it rewrites the file only when the surface changed, then runs `vp fmt` on
+ * it) and add a CHANGELOG entry for it.
  */
 
 const ENGINE = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -40,6 +50,7 @@ const ENTRIES = {
   "./debug": "debug/index.ts",
   "./sim-kit": "sim-kit/index.ts",
   "./vite": "vite/index.ts",
+  "./project": "project/index.ts",
 } as const;
 
 const PEERS = [
@@ -274,13 +285,31 @@ describe("package boundary", () => {
   it("keeps ./collab on yjs and the scene format, with no provider", () => {
     const { files, bare } = runtimeGraph(ENTRIES["./collab"]);
     expect([...bare.keys()].sort()).toEqual(["fractional-indexing", "yjs", "zod"]);
-    violations([...files].filter((f) => !/^(collab|scene|game)\//.test(f)));
+    violations(
+      [...files].filter((f) => !/^(collab|project|scene|game)\//.test(f) && f !== "version.ts"),
+    );
     const providers = sourceFiles.flatMap((f) =>
       importsOf(f)
         .filter((imp) => imp.spec.startsWith("@hocuspocus/") && !rel(f).startsWith("vite/"))
         .map((imp) => `${rel(f)}:${imp.line} imports ${imp.spec}`),
     );
     violations(providers);
+  });
+
+  it("leaves the shared provider socket to hosts", () => {
+    violations(
+      sourceFiles
+        .filter((f) =>
+          /\bHocuspocusProviderWebsocket\b/.test(stripComments(readFileSync(f, "utf8"))),
+        )
+        .map((f) => rel(f)),
+    );
+  });
+
+  it("keeps ./project on zod and the project, scene and game files", () => {
+    const { files, bare } = runtimeGraph(ENTRIES["./project"]);
+    expect([...bare.keys()].sort()).toEqual(["zod"]);
+    violations([...files].filter((f) => !/^(project|scene|game)\//.test(f) && f !== "version.ts"));
   });
 
   it("keeps ./headless free of pixi.js and @tanstack/store", () => {
@@ -380,6 +409,13 @@ describe("package boundary", () => {
       ...built,
       join(ENGINE, "scene/scene.schema.json"),
       join(ENGINE, "scene/ops.schema.json"),
+      join(ENGINE, "project/project.schema.json"),
+      join(ENGINE, "project/asset-sidecar.schema.json"),
+      join(ENGINE, "project/project-ops.schema.json"),
+      join(ENGINE, "project/material.schema.json"),
+      join(ENGINE, "project/game-settings.schema.json"),
+      join(ENGINE, "project/data-table.schema.json"),
+      join(ENGINE, "project/project-snapshot.schema.json"),
       ...walk(join(ENGINE, "scenes"), /\.json$/),
     ];
     const named = shipped
@@ -470,11 +506,13 @@ async function surface() {
     /* @vite-ignore */ pathToFileURL(join(SCRIPTS, "mcp-tools.ts")).href
   )) as { MCP_TOOL_NAMES: readonly string[] };
   const engine = createRegistry();
+  const kindEnv = { registry: engine, project: null };
   return {
     version: ENGINE_VERSION,
     entries,
     issueCodes: Object.keys(ISSUE_CODES).sort(),
     opNames: [...OP_NAMES].sort(),
+    projectOpNames: [...PROJECT_OP_NAMES].sort(),
     schemaIds: [
       sceneJsonSchema(engine).$id as string,
       opsJsonSchema(engine).$id as string,
@@ -483,6 +521,13 @@ async function surface() {
       recordingJsonSchema().$id as string,
       fragmentJsonSchema(engine).$id as string,
       prefabJsonSchema(engine).$id as string,
+      projectJsonSchema().$id as string,
+      sidecarJsonSchema().$id as string,
+      projectOpsJsonSchema().$id as string,
+      projectSnapshotJsonSchema().$id as string,
+      docKindJsonSchema(materialKind, kindEnv).$id as string,
+      docKindJsonSchema(gameSettingsKind, kindEnv).$id as string,
+      docKindJsonSchema(dataTableKind, kindEnv).$id as string,
     ],
     cliCommands: Object.fromEntries(
       Object.entries(cli.COMMANDS)
@@ -497,9 +542,12 @@ async function surface() {
 describe("public-api.json", () => {
   it("matches the regenerated surface", async () => {
     const current = await surface();
-    const text = `${JSON.stringify(current, null, 2)}\n`;
-    if (process.env.UPDATE_PUBLIC_API) writeFileSync(SNAPSHOT, text);
-    const committed = existsSync(SNAPSHOT) ? JSON.parse(readFileSync(SNAPSHOT, "utf8")) : null;
+    const read = () => (existsSync(SNAPSHOT) ? JSON.parse(readFileSync(SNAPSHOT, "utf8")) : null);
+    if (process.env.UPDATE_PUBLIC_API && JSON.stringify(read()) !== JSON.stringify(current)) {
+      writeFileSync(SNAPSHOT, `${JSON.stringify(current, null, 2)}\n`);
+      execFileSync("vp", ["fmt", SNAPSHOT], { stdio: "ignore" });
+    }
+    const committed = read();
     expect(
       current,
       "run UPDATE_PUBLIC_API=1 vp test run src/engine/__tests__/package-boundary.test.ts",

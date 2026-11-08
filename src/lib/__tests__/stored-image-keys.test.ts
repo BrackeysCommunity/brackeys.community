@@ -2,12 +2,14 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   buildCollabPostImageObjectKey,
+  buildEngineAssetObjectKey,
   buildProfileProjectImageObjectKey,
   buildProjectImageObjectKey,
   buildTeamAvatarObjectKey,
   buildTeamProjectImageObjectKey,
   describeImageKey,
   isCollabPostImageKey,
+  isEngineAssetKey,
   isServableImageKey,
   isTeamProjectImageKey,
 } from "@/lib/stored-image-keys";
@@ -109,5 +111,29 @@ describe("describeImageKey", () => {
     expect(describeImageKey("quarantine/team-avatars/team1/a.png")).toBeNull();
     expect(describeImageKey("backups/db.sql")).toBeNull();
     expect(describeImageKey("team-avatars/../a.png")).toBeNull();
+  });
+});
+
+describe("engine asset keys", () => {
+  const hash = "a".repeat(64);
+
+  it("are project-scoped and content-addressed", () => {
+    expect(buildEngineAssetObjectKey("kitchen", hash)).toBe(`engine-assets/kitchen/${hash}`);
+    expect(isEngineAssetKey("kitchen", buildEngineAssetObjectKey("kitchen", hash))).toBe(true);
+    expect(isEngineAssetKey("kitchen", buildEngineAssetObjectKey("kitchen-2", hash))).toBe(false);
+    expect(isEngineAssetKey("kitchen", "engine-assets/kitchen/../other/x")).toBe(false);
+  });
+
+  it("are never served by the public image route", () => {
+    expect(isServableImageKey(buildEngineAssetObjectKey("kitchen", hash))).toBe(false);
+  });
+
+  it("are described for the upload scan, by project", () => {
+    expect(describeImageKey(buildEngineAssetObjectKey("kitchen", hash))).toEqual({
+      ownerType: "engine_blob",
+      ownerId: "kitchen",
+    });
+    expect(describeImageKey("engine-assets/../profile-projects/x.png")).toBeNull();
+    expect(describeImageKey("quarantine/engine-assets/kitchen/x")).toBeNull();
   });
 });

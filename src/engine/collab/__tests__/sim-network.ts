@@ -1,5 +1,8 @@
 import * as Y from "yjs";
 
+import type { OpenDoc } from "../project-session";
+import type { AwarenessLike } from "../types";
+
 /** The origin updates arrive with from the simulated network. */
 export const NET = Symbol("net");
 
@@ -71,5 +74,97 @@ export class SimNetwork {
 
   get pending(): number {
     return this.inbox.length;
+  }
+}
+
+/** An awareness that holds only its own client's state. */
+function soloAwareness(doc: Y.Doc): AwarenessLike {
+  const states = new Map<number, Record<string, unknown>>();
+  return {
+    clientID: doc.clientID,
+    getLocalState: () => states.get(doc.clientID) ?? null,
+    setLocalStateField: (field, value) =>
+      void states.set(doc.clientID, { ...states.get(doc.clientID), [field]: value }),
+    getStates: () => states,
+    on() {},
+    off() {},
+  };
+}
+
+/**
+ * A project's docs on simulated networks: one `SimNetwork` per doc name,
+ * all drawing on one RNG, each with `count` copies. Copy `i` of every doc
+ * is client `i`'s; a partition cuts a client off on every doc, including
+ * docs first opened while it holds.
+ */
+export class SimProject {
+  private readonly nets = new Map<string, SimNetwork>();
+  private readonly groups: number[][] = [];
+  /** How many partitions there have been, so a test can tell its runs hit some. */
+  partitions = 0;
+
+  constructor(
+    readonly count: number,
+    readonly rand: () => number,
+    private readonly initial: Readonly<Record<string, Y.Doc>> = {},
+  ) {
+    for (const name of Object.keys(initial)) this.net(name);
+  }
+
+  /** The network of one doc, made on first use from its initial state (empty when there is none). */
+  net(name: string): SimNetwork {
+    let net = this.nets.get(name);
+    if (!net) {
+      net = new SimNetwork(this.count, this.rand, this.initial[name]);
+      for (const group of this.groups) net.partition(group);
+      this.nets.set(name, net);
+    }
+    return net;
+  }
+
+  /** Client `i`'s copy of a doc. */
+  doc(name: string, i: number): Y.Doc {
+    return this.net(name).docs[i]!;
+  }
+
+  /** Client `i`'s `openDoc`, for a project session. */
+  openDoc(i: number): OpenDoc {
+    return async (name) => {
+      const doc = this.doc(name, i);
+      return { doc, awareness: soloAwareness(doc), close() {} };
+    };
+  }
+
+  /** Delivers up to `n` queued messages on every doc's network. */
+  deliver(n = 1): void {
+    for (const net of this.nets.values()) net.deliver(n);
+  }
+
+  /** Cuts `group` off from the rest on every doc. */
+  partition(group: number[]): void {
+    this.groups.push(group);
+    this.partitions++;
+    for (const net of this.nets.values()) net.partition(group);
+  }
+
+  /** Restores every link on every doc and syncs each pair. */
+  heal(): void {
+    this.groups.length = 0;
+    for (const net of this.nets.values()) net.heal();
+  }
+
+  /** One step of network weather: a few random deliveries, now and then a partition or a heal. */
+  weather(partitionOdds = 0.1, healOdds = 0.1): void {
+    this.deliver(Math.floor(this.rand() * 4));
+    const roll = this.rand();
+    if (roll < partitionOdds) this.partition([Math.floor(this.rand() * this.count)]);
+    else if (roll < partitionOdds + healOdds) this.heal();
+  }
+
+  /** Delivers and heals until every copy of every doc holds every update, including writes the deliveries caused. */
+  settle(): void {
+    this.groups.length = 0;
+    do for (const net of this.nets.values()) net.settle();
+    while ([...this.nets.values()].some((net) => net.pending > 0));
   }
 }

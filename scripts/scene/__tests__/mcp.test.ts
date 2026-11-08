@@ -5,25 +5,27 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HocuspocusProvider } from "@hocuspocus/provider";
-import { docToScene, readLog } from "@jams/engine/collab";
-import { createRegistry } from "@jams/engine/scene";
-import { listenSceneCollab, sceneDocName, type ListeningSceneCollab } from "@jams/engine/vite";
+import { docToScene, readLog, readProject, readProjectLog } from "@jams/engine/collab";
+import { docNameOf } from "@jams/engine/project";
+import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
+import { platformerGame } from "../../../src/games/platformer";
 import type { ToolContext } from "../context";
-import { GAMES } from "../games";
 import { createSceneMcpServer, MCP_SERVER_NAME } from "../mcp";
 import { DEFAULT_MCP_AGENT_ID, MCP_TOOL_NAMES } from "../mcp-tools";
 import { loadCompatRapier } from "../rapier-compat";
+import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 const ENGINE_YARD = repoFile("src/engine/scenes/engine-yard.json");
 const ENGINE_YARD_CHECKS = repoFile("src/engine/scenes/engine-yard.checks.json");
 const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
 const HOP_LEFT = repoFile("scripts/scene/examples/hop-left.json");
+const DOT = repoFile("scripts/scene/examples/dot.png");
 
 type Called = {
   content: { type: string; text?: string; data?: string; mimeType?: string }[];
@@ -49,7 +51,13 @@ beforeAll(async () => {
   await copyFile(ENGINE_YARD, join(dirs.engine, "engine-yard.json"));
   await copyFile(ENGINE_YARD_CHECKS, join(dirs.engine, "engine-yard.checks.json"));
   await copyFile(TEST_YARD, join(dirs.platformer, "test-yard.json"));
-  const ctx: ToolContext = { games: GAMES, scenesDirs: dirs, loadRapier: loadCompatRapier };
+  const ctx: ToolContext = {
+    projects: [
+      await tempProject(dirs.engine, { id: "engine" }),
+      await tempProject(dirs.platformer, { game: platformerGame }),
+    ],
+    loadRapier: loadCompatRapier,
+  };
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await createSceneMcpServer(ctx).connect(serverSide);
   client = new Client({ name: "scene-mcp-test", version: "0" });
@@ -67,6 +75,10 @@ describe("scene MCP server", () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([...MCP_TOOL_NAMES]);
     expect(MCP_TOOL_NAMES).toEqual([
+      "asset_apply_ops",
+      "asset_import",
+      "asset_refs",
+      "project_tree",
       "scene_apply_ops",
       "scene_check",
       "scene_codes",
@@ -80,15 +92,21 @@ describe("scene MCP server", () => {
       "scene_show",
       "scene_validate",
     ]);
+    const writers: Record<string, boolean> = {
+      scene_apply_ops: false,
+      asset_import: false,
+      asset_apply_ops: true,
+    };
     for (const t of tools) {
-      if (t.name === "scene_apply_ops") {
-        expect(t.annotations).toMatchObject({
+      expect(t.inputSchema.properties, t.name).toHaveProperty("project");
+      if (t.name in writers) {
+        expect(t.annotations, t.name).toMatchObject({
           readOnlyHint: false,
-          destructiveHint: false,
+          destructiveHint: writers[t.name],
           idempotentHint: false,
           openWorldHint: false,
         });
-        expect(t.inputSchema.properties?.dryRun).toMatchObject({ default: true });
+        expect(t.inputSchema.properties?.dryRun, t.name).toMatchObject({ default: true });
       } else {
         expect(t.annotations, t.name).toMatchObject({ readOnlyHint: true, openWorldHint: false });
       }
@@ -190,6 +208,89 @@ describe("scene MCP server", () => {
     expect(ascii.content[0]!.type).toBe("text");
     expect(Array.isArray(ascii.structuredContent.lines)).toBe(true);
   });
+
+  it("scopes any tool to a project, refusing one that doesn't exist", async () => {
+    const listed = await call("scene_list", { project: "platformer" });
+    expect((listed.structuredContent.scenes as { name: string }[]).map((s) => s.name)).toEqual([
+      "test-yard",
+    ]);
+    const elsewhere = await call("scene_show", { scene: "engine-yard", project: "platformer" });
+    expect(elsewhere.isError).toBe(true);
+    const nope = await call("scene_codes", { project: "nope" });
+    expect(nope).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+    const ops = await call("scene_schema", { which: "project-ops" });
+    expect(ops.structuredContent.$id).toMatch(/^urn:jams-engine:project-ops:/);
+  });
+
+  it("shows a project's tree and an asset's references", async () => {
+    const ambiguous = await call("project_tree");
+    expect(ambiguous).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+    const tree = await call("project_tree", { project: "engine" });
+    expect(tree.structuredContent).toMatchObject({ exitCode: 0, project: "engine" });
+    expect(JSON.stringify(tree.structuredContent.tree)).toContain('"id":"engine-yard-checks"');
+
+    const refs = await call("asset_refs", { id: "engine-yard" });
+    expect(refs.structuredContent).toMatchObject({
+      exitCode: 0,
+      project: "engine",
+      asset: { id: "engine-yard", kind: "scene" },
+      referrers: [{ id: "engine-yard-checks", kind: "checks" }],
+    });
+    const none = await call("asset_refs", { project: "platformer" });
+    expect(none.structuredContent).toMatchObject({ exitCode: 0, dangling: [] });
+    const miss = await call("asset_refs", { id: "engine-yrd" });
+    expect(miss.isError).toBe(true);
+    expect(String(miss.structuredContent.error)).toContain('Did you mean "engine-yard"?');
+    const urlOnly = await call("asset_refs", { id: "engine-yard", url: "ws://localhost:1/x" });
+    expect(urlOnly).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+  });
+
+  it("imports a file and applies a project op batch, as dry runs by default", async () => {
+    const dry = await call("asset_import", { file: DOT, path: "art/", project: "engine" });
+    expect(dry.structuredContent).toMatchObject({
+      exitCode: 0,
+      dryRun: true,
+      written: false,
+      created: ["dot"],
+    });
+    await expect(readFile(join(dirs.engine, "art/dot.png"))).rejects.toThrow();
+
+    const imported = await call("asset_import", {
+      file: DOT,
+      path: "art/",
+      settings: { filter: "nearest" },
+      dryRun: false,
+      project: "engine",
+    });
+    expect(imported.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    expect(await readFile(join(dirs.engine, "art/dot.png"))).toEqual(await readFile(DOT));
+    const sidecar = JSON.parse(await readFile(join(dirs.engine, "art/dot.png.asset.json"), "utf8"));
+    expect(sidecar).toMatchObject({ id: "dot", import: { filter: "nearest" } });
+
+    const batch = { v: 1, ops: [{ op: "moveAsset", ids: ["dot"], to: "sprites/" }] };
+    const planned = await call("asset_apply_ops", { ops: batch });
+    expect(planned.structuredContent).toMatchObject({ exitCode: 0, dryRun: true, written: false });
+    const moved = await call("asset_apply_ops", { ops: batch, dryRun: false, agentId: "claude" });
+    expect(moved.structuredContent).toMatchObject({
+      exitCode: 0,
+      written: true,
+      actor: { kind: "agent", agentId: "claude" },
+    });
+    expect(await readFile(join(dirs.engine, "sprites/dot.png"))).toEqual(await readFile(DOT));
+
+    const refused = await call("asset_apply_ops", {
+      ops: { v: 1, ops: [{ op: "renameAsset", id: "nope", name: "x" }] },
+      dryRun: false,
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.structuredContent.exitCode).toBe(1);
+    const stale = await call("asset_apply_ops", {
+      ops: { v: 1, ops: [{ op: "renameAsset", id: "dot", name: "Dot" }] },
+      base: "0".repeat(64),
+      dryRun: false,
+    });
+    expect(stale).toMatchObject({ isError: true, structuredContent: { exitCode: 3 } });
+  });
 });
 
 describe("live docs", () => {
@@ -211,15 +312,20 @@ describe("live docs", () => {
     const liveDir = join(root, "live");
     await mkdir(liveDir);
     await copyFile(ENGINE_YARD, join(liveDir, "engine-yard.json"));
+    await copyFile(ENGINE_YARD_CHECKS, join(liveDir, "engine-yard.checks.json"));
+    await writeFile(
+      join(liveDir, "jams.project.json"),
+      JSON.stringify({ kind: "project", v: 1, id: "engine", name: "Engine", game: null }),
+    );
     server = await listenSceneCollab({
-      homes: [{ dir: liveDir, registry: createRegistry() }],
+      projects: [await readFileProject(liveDir, { cacheDir: join(root, "live-cache") })],
       debounceMs: 50,
       warn: () => undefined,
     });
     const doc = new Y.Doc();
     const provider = new HocuspocusProvider({
       url: server.url,
-      name: sceneDocName("engine-yard"),
+      name: docNameOf({ kind: "scene", project: "engine", key: "engine-yard" }),
       document: doc,
     });
     await until(() => provider.synced, "the human's first sync");
@@ -290,7 +396,92 @@ describe("live docs", () => {
     expect(entry.label).toBe("Slow the lift");
   });
 
+  it("reads the live tree and references", async () => {
+    const tree = await call("project_tree", { live: true, url: server.url });
+    expect(tree.structuredContent).toMatchObject({ exitCode: 0, project: "engine", live: true });
+    expect(JSON.stringify(tree.structuredContent.tree)).toContain('"id":"engine-yard-checks"');
+    const refs = await call("asset_refs", { id: "engine-yard", live: true, url: server.url });
+    expect(refs.structuredContent).toMatchObject({
+      exitCode: 0,
+      live: true,
+      asset: { id: "engine-yard", kind: "scene" },
+      referrers: [expect.objectContaining({ id: "engine-yard-checks", kind: "checks" })],
+    });
+    const dangling = await call("asset_refs", { live: true, url: server.url, project: "engine" });
+    expect(dangling.structuredContent).toMatchObject({ exitCode: 0, live: true, dangling: [] });
+  });
+
+  it("imports and applies project ops live, as the agent the human's project doc names", async () => {
+    const projectDoc = new Y.Doc();
+    const watcher = new HocuspocusProvider({
+      url: server.url,
+      name: docNameOf({ kind: "project", project: "engine" }),
+      document: projectDoc,
+    });
+    try {
+      await until(() => watcher.synced, "the project doc's first sync");
+      const live = { live: true, url: server.url };
+      const dry = await call("asset_import", { file: DOT, path: "art/", ...live });
+      expect(dry.structuredContent).toMatchObject({ dryRun: true, written: false, live: true });
+      expect(Object.values(readProject(projectDoc).assets).map((a) => a.id)).not.toContain("dot");
+
+      const imported = await call("asset_import", {
+        file: DOT,
+        path: "art/",
+        dryRun: false,
+        onBehalfOf: "ada",
+        ...live,
+      });
+      expect(imported.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      const actor = { kind: "agent", agentId: DEFAULT_MCP_AGENT_ID, onBehalfOf: "ada" };
+      await until(
+        () => Object.values(readProject(projectDoc).assets).some((a) => a.id === "dot"),
+        "the import to reach the project doc",
+      );
+      expect(readProjectLog(projectDoc).at(-1)!.actor).toEqual(actor);
+
+      const renamed = await call("asset_apply_ops", {
+        ops: { v: 1, label: "Name the dot", ops: [{ op: "renameAsset", id: "dot", name: "Dot" }] },
+        dryRun: false,
+        agentId: "claude",
+        ...live,
+      });
+      expect(renamed.structuredContent).toMatchObject({ exitCode: 0, written: true, live: true });
+      await until(
+        () => Object.values(readProject(projectDoc).assets).some((a) => a.name === "Dot"),
+        "the rename to reach the project doc",
+      );
+      expect(readProjectLog(projectDoc).at(-1)).toMatchObject({
+        label: "Name the dot",
+        actor: { kind: "agent", agentId: "claude" },
+      });
+      const based = await call("asset_apply_ops", {
+        ops: { v: 1, ops: [{ op: "renameAsset", id: "dot", name: "x" }] },
+        base: "0".repeat(64),
+        ...live,
+      });
+      expect(based).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+    } finally {
+      watcher.destroy();
+      projectDoc.destroy();
+    }
+  });
+
   it("refuses a collab server that isn't local", async () => {
+    for (const [name, args] of [
+      ["project_tree", {}],
+      ["asset_refs", { id: "engine-yard" }],
+      ["asset_import", { file: DOT }],
+      ["asset_apply_ops", { ops: { v: 1, ops: [] } }],
+    ] as const) {
+      const r = await call(name, {
+        ...args,
+        live: true,
+        url: "ws://192.0.2.1:3000/__scene-collab",
+      });
+      expect(r, name).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+    }
+
     const r = await call("scene_show", {
       scene: "engine-yard",
       live: true,

@@ -16,9 +16,10 @@ import { applyOps } from "../../scene/ops";
 import { formatPrefabs } from "../../scene/prefab";
 import type { OpBatch, SceneDefinition } from "../../scene/types";
 import { applyOpsToDoc } from "../apply";
-import { docPrefabs, docToScene, readDoc, sceneToDoc } from "../convert";
+import { docToScene, readDoc, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
 import { readLog } from "../log";
+import { localPrefabSource } from "../prefab-source";
 import type { SceneOrigin } from "../types";
 
 const text = (def: SceneDefinition) => formatScene(def).text;
@@ -31,15 +32,13 @@ describe("applyOpsToDoc", () => {
   ] as const) {
     it(`writes what applyOps computes, byte for byte, for random batches: ${label}`, () => {
       const rand = rng(0xd0c);
-      const doc = sceneToDoc(yard(), {
-        key: sequentialKeys("seed"),
-        prefabs: yardPrefabs(yard().game),
-      });
+      const doc = sceneToDoc(yard(), { key: sequentialKeys("seed") });
+      const source = localPrefabSource(yardPrefabs(yard().game), { key: sequentialKeys("pf") });
       const key = sequentialKeys("new");
       let applied = 0;
       for (let i = 0; i < 300; i++) {
         const before = docToScene(doc);
-        const prefabs = docPrefabs(doc);
+        const prefabs = source.library();
         const ops = Array.from({ length: 1 + Math.floor(rand() * 4) }, () =>
           randomOp(reg, before, rand, prefabs),
         );
@@ -52,7 +51,12 @@ describe("applyOpsToDoc", () => {
         let transactions = 0;
         const count = () => transactions++;
         doc.on("afterTransaction", count);
-        const got = applyOpsToDoc(doc, batch, user, reg, { validate: "none", key });
+        const got = applyOpsToDoc(doc, batch, user, reg, {
+          validate: "none",
+          key,
+          prefabs,
+          prefabWriter: source.writer!,
+        });
         doc.off("afterTransaction", count);
 
         expect(got.ok).toBe(expected.ok);
@@ -64,7 +68,7 @@ describe("applyOpsToDoc", () => {
         applied++;
         expect(transactions).toBe(1);
         expect(text(docToScene(doc))).toBe(text(expected.def));
-        expect(Object.fromEntries(formatPrefabs(docPrefabs(doc)))).toEqual(
+        expect(Object.fromEntries(formatPrefabs(source.library()))).toEqual(
           Object.fromEntries(formatPrefabs(expected.prefabs ?? prefabs)),
         );
         expect(got.hash).toBe(sceneHash(docToScene(doc)));

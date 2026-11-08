@@ -126,6 +126,16 @@ import {
 } from "./comments";
 import { getContributions } from "./contributions";
 import { listGuildEmojis } from "./emoji";
+import {
+  createAgentToken,
+  createHostedProject,
+  deleteHostedProject,
+  getProjectBundle,
+  getProjectSyncToken,
+  listAgentTokens,
+  createEmptyHostedProject,
+  revokeAgentToken,
+} from "./engine-project";
 import { getFeatureFlags } from "./flags";
 import {
   addForumPostImage,
@@ -552,4 +562,12 @@ export default {
   getSceneSyncToken,
   createHostedScene,
   deleteHostedScene,
+  getProjectSyncToken,
+  createEmptyHostedProject,
+  createHostedProject,
+  deleteHostedProject,
+  getProjectBundle,
+  createAgentToken,
+  revokeAgentToken,
+  listAgentTokens,
 };

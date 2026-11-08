@@ -1,12 +1,12 @@
 import type { GameDefinition, PlayState, ScriptPredicate } from "../game/types";
 import { TICK_RATE } from "../physics";
 import { createRunRecorder, trailPoint } from "../runtime/recorder";
-import { resolveGame } from "../runtime/runtime";
+import { createSceneRuntime, resolveGame } from "../runtime/runtime";
 import type { StepEvent } from "../runtime/types";
 import type { Pt } from "../scene/types";
 import { compileInputScript } from "./compile-input-script";
 import { probeConfigHash } from "./headless";
-import { blockedRun, prepareRun, runLoop, startRun, type InputSource } from "./play-loop";
+import { blockedRun, prepareRun, runLoop, type InputSource } from "./play-loop";
 import type {
   CompiledInputScript,
   EventMatch,
@@ -135,16 +135,19 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
 
   const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs);
   if (!prepared.ok) return prepared.blocked as PlaytestRun<S>;
-  const started = startRun({
+  const runtime = createSceneRuntime({
     rapier: opts.rapier,
+    view: null,
     game,
     registry,
-    scene: prepared.scene,
-    play: script.play,
     dev: opts.dev,
+    project: opts.project,
   });
-  if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
-  const { runtime } = started;
+  const load = runtime.load(prepared.scene, script.play);
+  if (!load.ok) {
+    runtime.destroy();
+    return blockedRun("load", name, prepared.issues, [], load);
+  }
 
   try {
     const maxEvents = opts.maxEvents ?? DEFAULT_MAX_EVENTS;

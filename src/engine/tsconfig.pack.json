@@ -13,6 +13,7 @@
     "headless/index.ts",
     "game/index.ts",
     "debug/index.ts",
-    "sim-kit/index.ts"
+    "sim-kit/index.ts",
+    "project/index.ts"
   ]
 }

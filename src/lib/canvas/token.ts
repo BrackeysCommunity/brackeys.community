@@ -9,14 +9,18 @@
  * with services, so no `@/` imports.
  */
 import { SYNC_LIMITS } from "./limits";
+import { documentProject, isSyncKind, type SyncKind } from "./sync-channels";
 
 export type SyncAccess = "read" | "write";
 
 /** The kind of document a token opens. */
-export type SyncTokenKind = "canvas" | "scene";
+export type SyncTokenKind = SyncKind;
+
+/** A token's scope beyond its own document: `project` admits every document of its project. */
+export type SyncTokenScope = "project";
 
 export interface CanvasTokenClaims {
-  /** The full document name, `canvas:<id>`, `scene:<id>` (or `note:<id>`). */
+  /** The full document name: `canvas:<id>`, `scene:<id>`, `project:<id>` or `asset:<id>`. */
   c: string;
   /** The user's id. */
   u: string;
@@ -34,10 +38,31 @@ export interface CanvasTokenClaims {
    * The service connects a client on another version read-only.
    */
   f?: number;
+  /** With `k: "project"`, the token admits every document of `c`'s project, not just `c`. */
+  s?: SyncTokenScope;
+  /** The client's collab layout version; required on `project` and `asset` tokens. */
+  l?: number;
+  /** The agent a project-scoped agent token was minted for, and the user it acts for. */
+  g?: string;
+  o?: string;
 }
 
 export function tokenKind(claims: Pick<CanvasTokenClaims, "k">): SyncTokenKind {
   return claims.k ?? "canvas";
+}
+
+/**
+ * Whether a token opens `documentName`: the document it names, or, for a
+ * project-scoped token, any document of that project.
+ */
+export function tokenAdmits(
+  claims: Pick<CanvasTokenClaims, "c" | "s">,
+  documentName: string,
+): boolean {
+  if (claims.c === documentName) return true;
+  if (claims.s !== "project") return false;
+  const project = documentProject(claims.c);
+  return project !== null && documentProject(documentName) === project;
 }
 
 const encoder = new TextEncoder();
@@ -96,6 +121,10 @@ export async function signCanvasToken(
     p?: string | null;
     k?: SyncTokenKind;
     f?: number;
+    s?: SyncTokenScope;
+    l?: number;
+    g?: string;
+    o?: string;
   },
   secret: string,
   now: number = Date.now(),
@@ -106,6 +135,10 @@ export async function signCanvasToken(
   if (claims.p) full.p = claims.p;
   if (claims.k && claims.k !== "canvas") full.k = claims.k;
   if (claims.f !== undefined) full.f = claims.f;
+  if (claims.s !== undefined) full.s = claims.s;
+  if (claims.l !== undefined) full.l = claims.l;
+  if (claims.g !== undefined) full.g = claims.g;
+  if (claims.o !== undefined) full.o = claims.o;
   const payload = toBase64Url(encoder.encode(JSON.stringify(full)));
   const signature = await crypto.subtle.sign(
     "HMAC",
@@ -115,23 +148,31 @@ export async function signCanvasToken(
   return `${payload}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
+const isVersion = (value: unknown) =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+const isName = (value: unknown) => typeof value === "string" && value.length > 0;
+
 function isClaims(value: unknown): value is CanvasTokenClaims {
   if (typeof value !== "object" || value === null) return false;
   const claims = value as Record<string, unknown>;
+  const kind = claims.k ?? "canvas";
+  const agent = claims.g !== undefined || claims.o !== undefined;
   return (
-    typeof claims.c === "string" &&
-    claims.c.length > 0 &&
-    typeof claims.u === "string" &&
-    claims.u.length > 0 &&
+    isName(claims.c) &&
+    isName(claims.u) &&
     (claims.a === "read" || claims.a === "write") &&
     typeof claims.e === "number" &&
     Number.isFinite(claims.e) &&
     claims.v === 1 &&
     (claims.n === undefined || typeof claims.n === "string") &&
     (claims.p === undefined || typeof claims.p === "string") &&
-    (claims.k === undefined || claims.k === "canvas" || claims.k === "scene") &&
-    (claims.f === undefined ||
-      (typeof claims.f === "number" && Number.isInteger(claims.f) && claims.f >= 0))
+    (claims.k === undefined || isSyncKind(claims.k)) &&
+    (claims.f === undefined || isVersion(claims.f)) &&
+    (claims.s === undefined || (claims.s === "project" && kind === "project")) &&
+    (claims.l === undefined ? kind !== "project" && kind !== "asset" : isVersion(claims.l)) &&
+    // Agent tokens name both the agent and the user it acts for, and are project-scoped.
+    (!agent || (isName(claims.g) && isName(claims.o) && claims.s === "project"))
   );
 }
 

@@ -6,16 +6,42 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import engineYard from "../../scenes/engine-yard.json";
-import { createFileSceneStore, handleSceneRequest, type SceneStore } from "../handler";
+import { fileContentStore } from "../content-store";
+import {
+  handleSceneRequest,
+  projectSceneStore,
+  type ProjectSource,
+  type SceneStore,
+} from "../handler";
 import { sceneCollabServer } from "../index";
+import { createProjectFileAdapter, readFileProject } from "../project-files";
 import { resolveScenePath, ScenePathError, sceneNameOf } from "../scene-paths";
 
 let dir: string;
 let store: SceneStore;
 
+/** Each directory as a project of its own, read by scanning its files. */
+async function storeOver(dirs: string[]): Promise<SceneStore> {
+  const sources: ProjectSource[] = [];
+  for (const [i, d] of dirs.entries()) {
+    await writeFile(
+      join(d, "jams.project.json"),
+      JSON.stringify({ kind: "project", v: 1, id: `p${i}`, name: "P", game: null }),
+    );
+    const project = await readFileProject(d, { cacheDir: join(d, "..", `cache-${i}`) });
+    const adapter = createProjectFileAdapter(project);
+    sources.push({
+      project,
+      store: fileContentStore(project.cacheDir),
+      state: async () => (await adapter.scan()).state,
+    });
+  }
+  return projectSceneStore(sources);
+}
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "scene-sink-"));
-  store = createFileSceneStore(dir);
+  store = await storeOver([dir]);
 });
 
 afterEach(async () => {
@@ -67,13 +93,13 @@ describe("handleSceneRequest", () => {
     expect((await send("GET", "/__scene/nope")).status).toBe(404);
   });
 
-  it("lists every directory once and reads from the first that has the scene", async () => {
+  it("lists every project's scenes once and reads from the first that has the scene", async () => {
     const other = await mkdtemp(join(tmpdir(), "scene-sink-"));
     try {
       await writeFile(join(dir, "a.json"), JSON.stringify(engineYard));
-      await writeFile(join(other, "a.json"), "{}");
-      await writeFile(join(other, "b.json"), "{}");
-      store = createFileSceneStore([dir, other]);
+      await writeFile(join(other, "a.json"), JSON.stringify(engineYard));
+      await writeFile(join(other, "b.json"), JSON.stringify(engineYard));
+      store = await storeOver([dir, other]);
       expect((await send("GET", "/__scene")).body).toEqual({ ok: true, scenes: ["a", "b"] });
       expect((await send("GET", "/__scene/a")).body).toEqual(engineYard);
     } finally {
@@ -89,7 +115,7 @@ describe("handleSceneRequest", () => {
 
 describe("sceneCollabServer", () => {
   it("is a serve-only plugin that registers one middleware and an upgrade listener", () => {
-    const plugin = sceneCollabServer({ homes: [] });
+    const plugin = sceneCollabServer({ projects: [] });
     expect(plugin.apply).toBe("serve");
     const used: unknown[] = [];
     const events: string[] = [];

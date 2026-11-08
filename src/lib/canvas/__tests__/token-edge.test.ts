@@ -48,6 +48,38 @@ describe("verifyCanvasToken with a valid signature over a bad payload", () => {
     expect(await verifyCanvasToken(await signed(payload), SECRET, NOW)).toBeNull();
   });
 
+  const project = { ...good, c: "project:jam", k: "project", s: "project", l: 1 };
+
+  it.each([
+    ["an unknown kind", { ...good, k: "note" }],
+    ["a scope on a single-document kind", { ...good, c: "scene:jam.l", k: "scene", s: "project" }],
+    ["a scope on a canvas token", { ...good, s: "project" }],
+    ["an unknown scope", { ...project, s: "team" }],
+    ["a project token without a layout", { ...project, l: undefined }],
+    ["an asset token without a layout", { ...good, c: "asset:jam.k1", k: "asset" }],
+    ["a negative layout", { ...project, l: -1 }],
+    ["a fractional layout", { ...project, l: 1.5 }],
+    ["a layout as a string", { ...project, l: "1" }],
+    ["an agent without its user", { ...project, g: "agent-1" }],
+    ["a user without its agent", { ...project, o: "alice" }],
+    ["an empty agent", { ...project, g: "", o: "alice" }],
+    ["an agent on an unscoped token", { ...project, s: undefined, g: "agent-1", o: "alice" }],
+  ])("refuses %s", async (_label, payload) => {
+    expect(await verifyCanvasToken(await signed(JSON.stringify(payload)), SECRET, NOW)).toBeNull();
+  });
+
+  it.each([
+    ["a project-scoped token", project],
+    ["an agent's project token", { ...project, g: "agent-1", o: "alice" }],
+    ["an unscoped project token", { ...project, s: undefined }],
+    ["a scene token without a layout", { ...good, c: "scene:jam.l", k: "scene", f: 1 }],
+    ["an explicit canvas kind", { ...good, k: "canvas" }],
+  ])("accepts %s", async (_label, payload) => {
+    expect(await verifyCanvasToken(await signed(JSON.stringify(payload)), SECRET, NOW)).toEqual(
+      JSON.parse(JSON.stringify(payload)),
+    );
+  });
+
   it("refuses invalid UTF-8 without throwing", async () => {
     const bytes = new Uint8Array([0x7b, 0xff, 0xfe, 0x7d]);
     expect(await verifyCanvasToken(await signed(bytes), SECRET, NOW)).toBeNull();

@@ -87,7 +87,15 @@ export {
   type ParsePrefabResult,
 } from "./prefab";
 export { createScene, EMPTY_SCENE_TEMPLATE } from "./create";
-export { comparePointers, formatPrefab, formatScene } from "./format";
+export {
+  CHECKS_LAYOUT,
+  comparePointers,
+  formatChecks,
+  formatInputScript,
+  formatPrefab,
+  formatScene,
+  INPUT_SCRIPT_LAYOUT,
+} from "./format";
 export { hashText, sceneHash } from "./hash";
 export { migrate, MIGRATIONS, type MigrateResult, type Migration } from "./migrate";
 export { closest } from "./did-you-mean";

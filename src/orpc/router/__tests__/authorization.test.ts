@@ -197,6 +197,15 @@ const STAFF_PROCEDURES = new Set([
   "getSceneSyncToken",
   "createHostedScene",
   "deleteHostedScene",
+  // Hosted engine projects and their agent tokens: staff only, behind the engine-projects flag.
+  "getProjectSyncToken",
+  "createAgentToken",
+  "revokeAgentToken",
+  "listAgentTokens",
+  "createEmptyHostedProject",
+  "createHostedProject",
+  "deleteHostedProject",
+  "getProjectBundle",
 ]);
 
 const AUTH_REQUIRING = new Set<unknown>([

@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "engine": { "version": "0.5.0", "physics": "rapier 0.19.3" },
+  "scene": "kitchen-sink",
+  "sceneHash": "3f1c9a2b",
+  "game": null,
+  "configHash": "9e07d1c4",
+  "tickRate": 60,
+  "start": {},
+  "actions": ["right", "jump"],
+  "inputs": [
+    [0, 0, 1],
+    [20, 1, 1],
+    [24, 1, 0],
+    [90, 0, 0]
+  ],
+  "ticks": 120,
+  "outcome": { "result": "timeout", "tick": 119, "at": null },
+  "markers": [],
+  "end": "c0ffee12"
+}

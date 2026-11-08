@@ -1,13 +1,16 @@
 import { ID_PATTERN } from "@jams/engine/scene";
 import { describe, expect, it } from "vite-plus/test";
 
-import { parseDocumentName } from "../../canvas/sync-channels";
+import { documentProject, MAX_ID_LENGTH, parseDocumentName } from "../../canvas/sync-channels";
 import { isSceneId, parseSceneId, sceneGame } from "../ids";
 
 describe("hosted scene ids", () => {
-  it("are <game>.<name>, each an engine id", () => {
-    expect(parseSceneId("platformer.level-1")).toEqual({ game: "platformer", name: "level-1" });
-    expect(parseSceneId("engine.yard")).toEqual({ game: "engine", name: "yard" });
+  it("are <project>.<key>, each an engine id", () => {
+    expect(parseSceneId("platformer.level-1")).toMatchObject({
+      project: "platformer",
+      key: "level-1",
+    });
+    expect(parseSceneId("engine.yard")).toMatchObject({ project: "engine", key: "yard" });
     for (const bad of [
       "level-1",
       "Platformer.level",
@@ -15,6 +18,7 @@ describe("hosted scene ids", () => {
       ".x",
       "x.",
       "a.-b",
+      "a:b.c",
       `a.${"x".repeat(49)}`,
       7,
     ]) {
@@ -24,11 +28,18 @@ describe("hosted scene ids", () => {
     expect(isSceneId(`${"g".repeat(48)}.${"n".repeat(48)}`)).toBe(true);
   });
 
-  it("make a document name the service parses", () => {
-    expect(parseDocumentName(`scene:${"g".repeat(48)}.${"n".repeat(48)}`)).toEqual({
-      kind: "scene",
-      id: `${"g".repeat(48)}.${"n".repeat(48)}`,
+  it("keep a scene hosted before projects under its name, with its game as the project", () => {
+    expect(parseSceneId("platformer.level-1")).toEqual({
+      project: "platformer",
+      key: "level-1",
     });
+  });
+
+  it("make a document name the service parses, of the scene's project", () => {
+    const id = `${"g".repeat(48)}.${"n".repeat(48)}`;
+    expect(id.length).toBeLessThanOrEqual(MAX_ID_LENGTH);
+    expect(parseDocumentName(`scene:${id}`)).toEqual({ kind: "scene", id });
+    expect(documentProject(`scene:${id}`)).toBe("g".repeat(48));
   });
 
   it("name no game for the engine's primitives", () => {

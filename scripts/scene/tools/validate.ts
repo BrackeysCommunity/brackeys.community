@@ -33,7 +33,7 @@ export const validate: Tool<ValidateInput> = async (input, ctx) => {
   if (!source.ok) return source.result;
   const { text } = source;
 
-  const judged = judgeScene(ctx, text);
+  const judged = judgeScene(ctx, text, undefined, source.project);
   const game = judged.game ?? null;
   let issues: SceneIssue[];
   let def: SceneDefinition | undefined;

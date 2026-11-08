@@ -1,12 +1,12 @@
 import { generateNKeysBetween } from "fractional-indexing";
 
+import { byCodeUnit } from "../project/kinds/define";
+
 /**
  * Fractional `z` order. On disk an entry's position is its index; in the doc
  * it is `(z, key)`, so concurrent inserts and moves never duplicate or lose
  * an entry, and two inserts at one spot (equal `z`) order by key.
  */
-
-const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Doc order: `z`, then key. */
 export function compareZ(a: { z: string; key: string }, b: { z: string; key: string }): number {

@@ -15,6 +15,15 @@ export type {
 } from "../runtime/types";
 export { SENSOR_ENTER, SENSOR_EXIT } from "../runtime/types";
 export type { RapierModule } from "../types";
+export type { ProjectRuntimeView } from "../project/runtime-view";
+export {
+  loadHeadless,
+  type FilesLoadInput,
+  type HeadlessLoad,
+  type HeadlessLoadInput,
+  type SnapshotLoadInput,
+} from "./load";
+export { SnapshotError, type ProjectSnapshot } from "../project/snapshot";
 export { compileInputScript, heldEdges } from "./compile-input-script";
 export { preparePlay, type PreparedPlay } from "../runtime/play-session";
 export { runPlaytest } from "./playtest";

@@ -15,8 +15,16 @@ import {
   prepareLoadedState,
   type SceneFormat,
 } from "../../../../src/lib/scene/doc-bytes.ts";
+import { parseSceneId } from "../../../../src/lib/scene/ids.ts";
 import { SCENE_LIMITS } from "../../../../src/lib/scene/limits.ts";
+import {
+  COLLAB_LAYOUT_VERSION,
+  migrateSceneLayoutState,
+  sceneLayoutNeeds,
+  type HostedPrefabDoc,
+} from "../../../../src/lib/scene/project-bytes.ts";
 import { SERVER_APPLY_ORIGIN } from "../apply.ts";
+import type { DocWriteOutcome } from "../engine/doc-store.ts";
 import type { DocumentKind } from "../kinds.ts";
 import { SyncRefusal } from "../limits.ts";
 import { SnapshotSchedule } from "../persistence.ts";
@@ -32,15 +40,30 @@ export interface SceneLimits {
 
 /**
  * Sent once connected to a client the scene kind connected read-only
- * because its engine reads another format version than the doc holds.
- * `engine-outdated`: reload to update. `server-outdated`: the doc is older
- * than the client's engine and this instance can't migrate it yet.
+ * because its engine reads another format version or collab layout than
+ * the doc holds. `engine-outdated`: reload to update. `server-outdated`:
+ * the doc is older than the client's engine and this instance can't
+ * migrate it yet.
  */
 export type SceneReadOnlyNotice = {
   type: "scene-read-only";
   reason: "engine-outdated" | "server-outdated";
   schemaVersion: number;
+  /** The doc's collab layout, when the client's differs. */
+  layout?: number;
 };
+
+/** What a layout-1 scene's migration at load reaches of its project. */
+export interface SceneProjects {
+  /** The project's registry, seeded; null with no project. */
+  registry(projectId: string): Promise<Uint8Array | null>;
+  /** Merges a registry state into the project with the duties done, so new doc entries have rows. */
+  updateRegistry(projectId: string, state: Uint8Array): Promise<DocWriteOutcome["kind"]>;
+  /** An asset doc (`<project>.<key>`) as it stands; null with no row. */
+  readAsset(docId: string): Promise<HostedPrefabDoc | null>;
+  /** Merges a state the server made into an asset doc. */
+  writeAsset(docId: string, state: Uint8Array): Promise<DocWriteOutcome["kind"]>;
+}
 
 export interface SceneKindOptions {
   store: SceneStore;
@@ -54,6 +77,8 @@ export interface SceneKindOptions {
   format?: SceneFormat;
   snapshots?: SnapshotRunner;
   snapshotIntervalMs?: number;
+  /** Where a layout-1 scene's prefabs go at load; without it only a scene holding none migrates. */
+  projects?: SceneProjects;
 }
 
 const liveVersion = (doc: Y.Doc | undefined): number | null => {
@@ -61,11 +86,18 @@ const liveVersion = (doc: Y.Doc | undefined): number | null => {
   return typeof v === "number" ? v : null;
 };
 
+const liveLayout = (doc: Y.Doc | undefined): number | null => {
+  const layout = doc?.getMap("meta").get("layout");
+  return typeof layout === "number" ? layout : null;
+};
+
 /**
- * `scene:<id>`: a hosted scene. Only the server fills a new doc (from the
- * row's seed), migrates an older one at load, and merges every store into
- * what's stored through a scratch doc. A client whose engine reads another
- * format than the doc holds connects read-only.
+ * `scene:<project>.<key>`: a hosted scene. Only the server fills a new doc
+ * (from the row's seed), migrates an older one at load (its format, and a
+ * layout-1 doc's prefabs out into prefab docs of its project), and merges
+ * every store into what's stored through a scratch doc. A client whose
+ * engine reads another format or collab layout than the doc holds
+ * connects read-only.
  */
 export function createSceneKind(options: SceneKindOptions): DocumentKind & {
   snapshots: SnapshotSchedule;
@@ -136,6 +168,64 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
     return { outcome, merged };
   }
 
+  /**
+   * Moves a layout-1 scene's prefabs into prefab docs of its project: the
+   * registry first (its duties make the rows), then the prefab docs, so the
+   * scene, stored last, never loses a prefab its project doesn't hold yet.
+   * The scene's new state; null when it needs nothing.
+   */
+  async function liftLayout(sceneId: string, state: Uint8Array): Promise<Uint8Array | null> {
+    const needs = sceneLayoutNeeds(state, null);
+    if (!needs) return null;
+    const { project, key } = parseSceneId(sceneId)!;
+    const projects = options.projects;
+    let registry: Uint8Array | null = null;
+    const prefabDocs = new Map<string, HostedPrefabDoc>();
+    if (needs.prefabs.length > 0) {
+      registry = (await projects?.registry(project)) ?? null;
+      if (!projects || !registry) {
+        throw new SyncRefusal(SYNC_CLOSE.revoked, "scene's project not found", "auth");
+      }
+      const keys = sceneLayoutNeeds(state, registry)?.keys ?? [];
+      for (const k of keys) {
+        const doc = await projects.readAsset(`${project}.${k}`);
+        if (doc) prefabDocs.set(k, doc);
+      }
+    }
+    const migration = migrateSceneLayoutState({
+      scene: state,
+      projectId: project,
+      sceneKey: key,
+      project: registry,
+      prefabDocs,
+      now: now(),
+    });
+    if (!migration) return null;
+    if (projects && registry && (migration.project || migration.prefabs.length > 0)) {
+      const written = await projects.updateRegistry(project, migration.project ?? registry);
+      if (written === "gone") {
+        throw new SyncRefusal(SYNC_CLOSE.revoked, "scene's project not found", "auth");
+      }
+      if (written === "refused")
+        throw new SyncRefusal(SYNC_CLOSE.tooLarge, "project too large", "size");
+      for (const prefab of migration.prefabs) {
+        const outcome = await projects.writeAsset(`${project}.${prefab.key}`, prefab.state);
+        // No row: the project's quota refused the prefab its entry.
+        if (outcome === "gone" || outcome === "refused") {
+          throw new SyncRefusal(
+            SYNC_CLOSE.tooLarge,
+            "scene's prefabs don't fit its project",
+            "size",
+          );
+        }
+      }
+    }
+    console.log(
+      `[load] scene ${sceneId} moved to layout ${COLLAB_LAYOUT_VERSION}: ${migration.created.length} prefab(s) created, ${migration.kept.length} kept, ${migration.diverged.length} diverged`,
+    );
+    return migration.scene;
+  }
+
   function closeAll(document: Document, event: { code: number; reason: string }): void {
     for (const connection of document.getConnections()) connection.close(event);
   }
@@ -148,9 +238,11 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
       const row = await store.load(sceneId);
       if (!row) throw new SyncRefusal(SYNC_CLOSE.revoked, "scene not found", "auth");
       const prepared = prepareLoadedState(sceneId, row.state, row.seed, format);
-      if (prepared.seeded || prepared.migratedFrom !== null) {
+      const lifted = await liftLayout(sceneId, prepared.state);
+      const state = lifted ?? prepared.state;
+      if (prepared.seeded || prepared.migratedFrom !== null || lifted) {
         // Stored at once, so every instance and the next load start from it.
-        const { outcome } = await persist(sceneId, prepared.state, {
+        const { outcome } = await persist(sceneId, state, {
           editorId: null,
           withSnapshot: true,
         });
@@ -162,7 +254,7 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
         }
         schedule.written(sceneId, now());
       }
-      return prepared.state;
+      return state;
     },
 
     async onChange({ documentName: name, transactionOrigin }: onChangePayload) {
@@ -248,16 +340,19 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
       }
       const head = await store.head(id);
       if (!head) throw new SyncRefusal(SYNC_CLOSE.revoked, "scene not found", "auth");
-      // A doc migrates to this instance's format at load, so once loaded it
-      // holds at least that, and more when a newer instance wrote it.
-      const version =
-        liveVersion(options.documents().get(documentName("scene", id))) ??
-        Math.max(format.version, head.schemaVersion ?? 0);
-      if (claims.f === version) return {};
+      // A doc migrates to this instance's format and layout at load, so once
+      // loaded it holds at least those, and more when a newer instance wrote it.
+      const live = options.documents().get(documentName("scene", id));
+      const version = liveVersion(live) ?? Math.max(format.version, head.schemaVersion ?? 0);
+      const layout = Math.max(liveLayout(live) ?? COLLAB_LAYOUT_VERSION, COLLAB_LAYOUT_VERSION);
+      // A token without `l` comes from an engine older than collab layouts.
+      const clientLayout = claims.l ?? 1;
+      if (claims.f === version && clientLayout === layout) return {};
       const notice: SceneReadOnlyNotice = {
         type: "scene-read-only",
-        reason: claims.f < version ? "engine-outdated" : "server-outdated",
+        reason: claims.f < version || clientLayout < layout ? "engine-outdated" : "server-outdated",
         schemaVersion: version,
+        ...(clientLayout !== layout ? { layout } : {}),
       };
       return { readOnly: true, notice: JSON.stringify(notice) };
     },

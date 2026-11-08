@@ -9,13 +9,17 @@ import {
 import { platformerGame } from "@/games/platformer";
 import testYard from "@/games/platformer/scenes/test-yard.json";
 
-/** The scene the game room plays, and the one `?edit=1` co-edits as `scene:<name>`. */
-export const SCENE_NAME = "test-yard";
+/**
+ * The scene the game room plays when nobody edits it, and the one `?edit=1`
+ * opens first when the project still holds it; the editor reads every
+ * scene from the project session instead.
+ */
+export const BUNDLED_SCENE_ID = "test-yard";
 
 /** The registry the site reads scenes with and hands to the game. */
 export const SCENE_REGISTRY = createRegistry(platformerGame);
 
-/** The scene as bundled; the editor reads the live one from the collab doc instead. */
+/** The scene as bundled; the editor reads the live one from the project instead. */
 export const BUNDLED_SCENE = parseSceneOrThrow(testYard, SCENE_REGISTRY);
 
 const prefabFiles = import.meta.glob<unknown>("@/games/platformer/scenes/prefabs/*.json", {
@@ -31,6 +35,6 @@ export const BUNDLED_PREFABS = prefabLibrary(
   }),
 );
 
-// The dev server writes the scene file as people edit; accepting the JSON
-// here stops that update before it reaches GameCanvas and remounts the game.
-if (import.meta.hot) import.meta.hot.accept("@/games/platformer/scenes/test-yard.json", () => {});
+// The dev server writes scene and prefab files as people edit; accepting
+// them here stops those updates before they reach GameCanvas and remount the game.
+if (import.meta.hot) import.meta.hot.accept(() => {});

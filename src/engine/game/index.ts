@@ -2,7 +2,15 @@
  * @experimental The game-authoring API: define a game's entity types,
  * materials, actions and hooks, and write the systems that spawn them.
  */
-export { createRegistry, defineEntityType, defineGame, RegistryError } from "./define";
+export {
+  createRegistry,
+  defineEntityType,
+  defineGame,
+  RegistryError,
+  withProject,
+  type CreateRegistryOptions,
+  type ProjectMaterialDef,
+} from "./define";
 export type { EntityOf } from "./define";
 export {
   BASE_FIELDS,
@@ -49,6 +57,7 @@ export type {
   GamePlayDef,
   GameRuntime,
   GameShell,
+  GameTableDef,
   EngineToolId,
   InspectorWidgetDef,
   IssueCodeDef,
@@ -72,6 +81,8 @@ export type {
   Style,
   SystemFactory,
 } from "./types";
+export type { AssetKindDef } from "../project/kinds";
+export type { ProjectRuntimeView } from "../project/runtime-view";
 
 // ─── System authoring ────────────────────────────────────
 export { DRAW_LAYERS } from "../context";

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { SYNC_LIMITS } from "../limits";
-import { signCanvasToken, verifyCanvasToken } from "../token";
+import { signCanvasToken, tokenAdmits, tokenKind, verifyCanvasToken } from "../token";
 
 const SECRET = "test-secret";
 const NOW = 1_800_000_000_000;
@@ -95,5 +95,48 @@ describe("canvas sync tokens", () => {
     for (const value of [undefined, null, 42, {}, ["a.b"]]) {
       await expect(verifyCanvasToken(value, SECRET, NOW)).resolves.toBeNull();
     }
+  });
+});
+
+describe("project-scoped tokens", () => {
+  const project = {
+    c: "project:jam",
+    u: "alice",
+    a: "write",
+    k: "project",
+    s: "project",
+    f: 2,
+    l: 1,
+  } as const;
+
+  it("round-trip the scope, the layout version and an agent's claims", async () => {
+    const agent = { ...project, g: "agent-1", o: "alice" };
+    const claims = await verifyCanvasToken(await signCanvasToken(agent, SECRET, NOW), SECRET, NOW);
+    expect(claims).toEqual({ ...agent, e: NOW + SYNC_LIMITS.tokenTtlMs, v: 1 });
+    expect(tokenKind(claims!)).toBe("project");
+  });
+
+  it("carry an asset token's kind and layout", async () => {
+    const asset = { c: "asset:jam.k1", u: "alice", a: "read", k: "asset", l: 1 } as const;
+    const claims = await verifyCanvasToken(await signCanvasToken(asset, SECRET, NOW), SECRET, NOW);
+    expect(claims).toMatchObject(asset);
+  });
+
+  it("admit every document of their project and nothing else", () => {
+    for (const name of ["project:jam", "scene:jam.level-1", "asset:jam.k1"]) {
+      expect(tokenAdmits(project, name)).toBe(true);
+    }
+    for (const name of ["project:other", "scene:other.level-1", "asset:other.k1", "canvas:jam"]) {
+      expect(tokenAdmits(project, name)).toBe(false);
+    }
+  });
+
+  it("leave single-document tokens to their own document", () => {
+    const asset = { c: "asset:jam.k1" };
+    expect(tokenAdmits(asset, "asset:jam.k1")).toBe(true);
+    expect(tokenAdmits(asset, "asset:jam.k2")).toBe(false);
+    expect(tokenAdmits(asset, "project:jam")).toBe(false);
+    expect(tokenAdmits({ c: "project:jam" }, "scene:jam.level-1")).toBe(false);
+    expect(tokenAdmits({ c: "canvas:c1" }, "canvas:c1")).toBe(true);
   });
 });

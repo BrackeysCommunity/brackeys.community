@@ -37,11 +37,14 @@ COPY src/lib/canvas/state-write.ts ./src/lib/canvas/state-write.ts
 COPY src/lib/scene/doc-bytes.ts ./src/lib/scene/doc-bytes.ts
 COPY src/lib/scene/ids.ts ./src/lib/scene/ids.ts
 COPY src/lib/scene/limits.ts ./src/lib/scene/limits.ts
-# The scene kind reads and seeds scene docs through the engine. Whole
+COPY src/lib/scene/project-bytes.ts ./src/lib/scene/project-bytes.ts
+# The scene, project and asset kinds read and seed their docs through the engine. Whole
 # directories, so a new file inside one of them ships without a new line.
 COPY src/engine/scene ./src/engine/scene
 COPY src/engine/collab ./src/engine/collab
 COPY src/engine/game ./src/engine/game
+COPY src/engine/project ./src/engine/project
+COPY src/engine/version.ts ./src/engine/version.ts
 
 # The copied root files import bare specifiers (yjs, drizzle-orm, zod,
 # fractional-indexing, posthog-node), which resolve up from /app — not from

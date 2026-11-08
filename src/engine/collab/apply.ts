@@ -1,6 +1,7 @@
 import * as Y from "yjs";
 
 import type { Registry } from "../game/types";
+import { PREFAB_SCENE_OPS } from "../project/ops";
 import { bulkKeysOf } from "../scene/expand";
 import { sceneHash } from "../scene/hash";
 import { makeIssue } from "../scene/issues";
@@ -10,11 +11,14 @@ import {
   RESERVED_SCENE_KEYS,
   type ApplyOptions,
   type ApplyResult,
+  type Bounds,
   type BulkKey,
   type OpBatch,
   type PrefabLibrary,
   type Ref,
   type SceneDefinition,
+  type SceneIssue,
+  type SceneOp,
 } from "../scene/types";
 import {
   bucketOf,
@@ -27,7 +31,6 @@ import {
   instanceRecord,
   instancesMap,
   patchRecord,
-  prefabsMap,
   readDoc,
   recordMap,
   sceneMap,
@@ -40,12 +43,40 @@ import { assignZ } from "./order";
 import {
   GROUP_KEY_PREFIX,
   INSTANCE_KEY_PREFIX,
-  PREFAB_KEY_PREFIX,
   SCENE_KEY,
   SETTINGS_KEY,
+  type DocOrigin,
   type EntityRecord,
+  type LogEntry,
   type SceneOrigin,
 } from "./types";
+
+/** One doc a batch wrote besides its own, with that doc's log entry id. */
+export type PrefabDocWrite = { doc: string; entry: string };
+
+/** The prefab library a batch read, the one it leaves, and the ids that differ. */
+export type PrefabChange = {
+  prev: PrefabLibrary;
+  next: PrefabLibrary;
+  changed: readonly string[];
+};
+
+export type PrefabDocPlan =
+  | {
+      ok: true;
+      /** Writes each changed prefab's doc (and the registry, for a new or removed prefab), one transaction each. */
+      write(origin: DocOrigin, ctx: { label: string; scene: LogEntry | null }): PrefabDocWrite[];
+    }
+  | { ok: false; issue: SceneIssue };
+
+/**
+ * Writes the prefab docs a scene batch changes (`definePrefab`,
+ * `createPrefab`, `applyToPrefab`): what a project's prefab source
+ * supplies. `plan` checks everything before the scene is written.
+ */
+export type PrefabDocWriter = {
+  plan(change: PrefabChange): PrefabDocPlan;
+};
 
 export type DocApplyOptions = ApplyOptions & {
   key?: KeyGen;
@@ -53,6 +84,10 @@ export type DocApplyOptions = ApplyOptions & {
   label?: string;
   /** Leave the batch out of the doc's `log`. */
   noLog?: boolean;
+  /** Writes prefab docs; without one, the ops that read or write prefabs are refused. */
+  prefabWriter?: PrefabDocWriter;
+  /** For a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
+  parentBounds?: Bounds;
 };
 
 /** What a batch did to the doc, in keys as well as refs. */
@@ -62,8 +97,21 @@ export type DocApplyResult =
       keys: string[];
       /** The key behind each ref of the new document the batch touched or created. */
       refKeys: Record<Ref, string>;
+      /** The prefab docs the batch wrote through `prefabWriter`, in write order. */
+      docs: PrefabDocWrite[];
     })
   | Extract<ApplyResult, { ok: false }>;
+
+/** Ops that only mean something in a scene, so a prefab doc refuses them. */
+export const SCENE_ONLY_OPS: readonly SceneOp["op"][] = [
+  "setScene",
+  "setSettings",
+  "instantiate",
+  "setGroup",
+  "override",
+  "revertOverride",
+  ...PREFAB_SCENE_OPS,
+];
 
 /** The ref each entry of a view goes by, by key; instances by their id. */
 export function refsOfView(view: DocView): Map<string, Ref> {
@@ -88,7 +136,10 @@ function tagsOf(view: DocView): EntryTags {
  * means the entry at that index now and a live batch needs no `base` (one
  * it brings is still checked). A failed batch writes nothing; a good one is
  * one `doc.transact(fn, origin)` that writes only the fields that changed,
- * plus its `log` entry.
+ * plus its `log` entry. Instances resolve against `opts.prefabs`; the ops
+ * that read or write prefabs go through `opts.prefabWriter` (one more
+ * transaction per prefab doc) and are refused without one. On a prefab doc
+ * the scene-only ops and grouped children are refused.
  */
 export function applyOpsToDoc(
   doc: Y.Doc,
@@ -97,20 +148,41 @@ export function applyOpsToDoc(
   registry: Registry,
   opts: DocApplyOptions = {},
 ): DocApplyResult {
-  const view = readDoc(doc);
+  const view = readDoc(doc, {
+    registry,
+    ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}),
+  });
+  const refuse = (at: number, message: string, hint?: string): DocApplyResult => ({
+    ok: false,
+    hash: sceneHash(view.def),
+    failedAt: at,
+    issue: makeIssue("op-invalid", {
+      message,
+      path: `/ops/${at}`,
+      ...(hint ? { hint } : {}),
+    }),
+  });
+  const ops: readonly SceneOp[] = Array.isArray(batch.ops) ? batch.ops : [];
+  if (view.kind === "prefab") {
+    const at = ops.findIndex((op) => SCENE_ONLY_OPS.includes(op?.op));
+    if (at >= 0) return refuse(at, `${ops[at]!.op} only works in a scene, not inside a prefab.`);
+  } else if (!opts.prefabWriter) {
+    const at = ops.findIndex((op) => PREFAB_SCENE_OPS.includes(op?.op));
+    if (at >= 0)
+      return refuse(
+        at,
+        `${ops[at]!.op} reads or writes prefab docs, which needs the project`,
+        "Edit through the project session, whose prefab source writes the prefab docs.",
+      );
+  }
+  const prefabs = opts.prefabs ?? new Map();
   const sent: OpBatch =
     batch.base === undefined && usesBulkRefs(batch)
       ? { ...batch, base: sceneHash(view.def) }
       : batch;
   let tracked: ReturnType<typeof applyOpsTracked>;
   try {
-    tracked = applyOpsTracked(
-      view.def,
-      sent,
-      registry,
-      { ...opts, prefabs: opts.prefabs ?? view.prefabs },
-      tagsOf(view),
-    );
+    tracked = applyOpsTracked(view.def, sent, registry, { ...opts, prefabs }, tagsOf(view));
   } catch (err) {
     // A merged doc can hold an entity no single client wrote (a field
     // missing while another client's update is still in flight); a batch
@@ -128,11 +200,37 @@ export function applyOpsToDoc(
   }
   const { result, tags } = tracked;
   if (!result.ok) return result;
+  if (view.kind === "prefab" && result.def.entities?.some((e) => e.group !== undefined))
+    return refuse(0, "A prefab's children can't join a group; an instance takes its group.");
 
+  let plan: Extract<PrefabDocPlan, { ok: true }> | null = null;
+  if (result.prefabsChanged && result.prefabs && opts.prefabWriter) {
+    const planned = opts.prefabWriter.plan({
+      prev: prefabs,
+      next: result.prefabs,
+      changed: result.prefabsChanged,
+    });
+    if (!planned.ok) {
+      const at = Math.max(
+        0,
+        ops.findIndex((op) => PREFAB_SCENE_OPS.includes(op?.op)),
+      );
+      return {
+        ok: false,
+        hash: sceneHash(view.def),
+        failedAt: at,
+        issue: { ...planned.issue, path: planned.issue.path ?? `/ops/${at}` },
+      };
+    }
+    plan = planned;
+  }
+
+  const label = opts.label ?? batch.label ?? defaultLabel(batch);
   let keys: string[] = [];
   let refKeys: Record<Ref, string> = {};
+  let logged: LogEntry | null = null;
   doc.transact(() => {
-    const written = writeScene(doc, view, result.def, tags!, opts.key ?? randomKey, result.prefabs);
+    const written = writeScene(doc, view, result.def, tags!, opts.key ?? randomKey);
     keys = written.keys;
     const refs = refsOfView({ ...written.view });
     const touched = new Set([...result.touched, ...result.created]);
@@ -140,16 +238,17 @@ export function applyOpsToDoc(
     if (!opts.noLog && keys.length > 0) {
       const entry: LogInput = {
         actor: origin,
-        label: opts.label ?? batch.label ?? defaultLabel(batch),
+        label,
         keys,
         before: written.before,
         after: written.after,
         ops: batch.ops.map((o) => o.op),
       };
-      appendLog(doc, entry);
+      logged = appendLog(doc, entry);
     }
   }, origin);
-  return { ...result, keys, refKeys };
+  const docs = plan ? plan.write(origin, { label, scene: logged }) : [];
+  return { ...result, keys, refKeys, docs };
 }
 
 /** The header values the `scene` map holds: everything but `meta`'s, settings and the entry arrays. */
@@ -177,9 +276,9 @@ type Written = {
 };
 
 /**
- * Writes `next` (and `prefabs`, when given) over the doc that `view` was
- * read from. `tags` names the key behind each entry of `next` that already
- * existed; others get new keys. Call inside a transaction.
+ * Writes `next` over the doc that `view` was read from. `tags` names the
+ * key behind each entry of `next` that already existed; others get new
+ * keys. A prefab doc gets its entities only. Call inside a transaction.
  */
 export function writeScene(
   doc: Y.Doc,
@@ -187,7 +286,6 @@ export function writeScene(
   next: SceneDefinition,
   tags: EntryTags,
   key: KeyGen,
-  prefabs?: PrefabLibrary,
 ): Written {
   const entities = entitiesMap(doc);
   const before: Record<string, unknown> = {};
@@ -220,13 +318,14 @@ export function writeScene(
 
   const live = new Set<string>();
   const nextView: DocView = {
+    kind: view.kind,
     def: next,
     entityKeys: [],
     bulkKeys: new Map(),
     records: new Map(),
     instanceKeys: [],
     instanceRecords: new Map(),
-    prefabs: prefabs ?? view.prefabs,
+    ...(view.prefab ? { prefab: view.prefab } : {}),
   };
   for (const [bucket, planned] of plannedBuckets) {
     const zs = assignZ(
@@ -269,6 +368,7 @@ export function writeScene(
     after[k] = null;
     keys.push(k);
   }
+  if (view.kind === "prefab") return { keys, before, after, view: nextView };
 
   const settings = settingsMap(doc);
   const prevSettings = view.def.settings ?? {};
@@ -284,7 +384,6 @@ export function writeScene(
 
   nextView.instanceKeys = writeInstances(doc, view, next, tags, key, { before, after, keys });
   writeGroups(doc, view.def, next, { before, after, keys });
-  if (prefabs) writePrefabs(doc, view.prefabs, prefabs, { before, after, keys });
 
   const scene = sceneMap(doc);
   const prevHeader = headerOf(view.def);
@@ -372,22 +471,6 @@ function writeGroups(
       if (b.name === undefined) ymap.delete("name");
       else if (a?.name !== b.name) ymap.set("name", b.name);
     }
-    log.before[logKey] = a ?? null;
-    log.after[logKey] = b ? fingerprint(b) : null;
-    log.keys.push(logKey);
-  }
-}
-
-/** Prefabs by id, each one atomic value. */
-function writePrefabs(doc: Y.Doc, prev: PrefabLibrary, next: PrefabLibrary, log: LogParts): void {
-  const map = prefabsMap(doc);
-  for (const id of new Set([...prev.keys(), ...next.keys()])) {
-    const a = prev.get(id);
-    const b = next.get(id);
-    if (same(a, b)) continue;
-    if (b) map.set(id, structuredClone(b));
-    else map.delete(id);
-    const logKey = `${PREFAB_KEY_PREFIX}${id}`;
     log.before[logKey] = a ?? null;
     log.after[logKey] = b ? fingerprint(b) : null;
     log.keys.push(logKey);

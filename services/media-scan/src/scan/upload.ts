@@ -242,6 +242,8 @@ async function describeOwner(
       return { label: "your profile", url: "/profile" };
     case "canvas_attachment":
       return { label: "a canvas", url: "/canvases" };
+    case "engine_blob":
+      return { label: "an engine project", url: null };
   }
 }
 

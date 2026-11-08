@@ -5,16 +5,28 @@ import { applyOpsToDoc, refsOfView, type DocApplyResult } from "../collab/apply"
 import { readDoc, type DocView } from "../collab/convert";
 import type { KeyGen } from "../collab/keys";
 import { observeLog, readLog } from "../collab/log";
+import { EMPTY_PREFAB_SOURCE, type PrefabSource } from "../collab/prefab-source";
 import { observePeers, setPresence, type PeerPresence } from "../collab/presence";
-import { revertEntry, type RevertResult } from "../collab/revert";
+import { observeProjectLog, historyRows, readProjectLog } from "../collab/project-log";
+import type { ProjectSession } from "../collab/project-session";
+import { revertEntry, revertOpenProjectEntry, type RevertResult } from "../collab/revert";
 import type { AwarenessLike, LogEntry, SceneOrigin, ScenePresence } from "../collab/types";
-import { createSceneUndo } from "../collab/undo";
+import { createSceneUndo, type SelectionMeta } from "../collab/undo";
+import type { UndoneStep } from "../collab/undo-coordinator";
 import { watchIssues } from "../collab/watch-issues";
 import type { Registry } from "../game/types";
 import { sceneHash } from "../scene/hash";
 import { toSourceBatch } from "../scene/ops";
 import { CHILD_SEPARATOR, parseChildRef, resolveScene } from "../scene/resolve";
-import type { OpBatch, PrefabLibrary, Pt, Ref, SceneDefinition, SceneHash } from "../scene/types";
+import type {
+  Bounds,
+  OpBatch,
+  PrefabLibrary,
+  Pt,
+  Ref,
+  SceneDefinition,
+  SceneHash,
+} from "../scene/types";
 import { select as nextSelection, type SelectMode } from "./selection";
 import { createEditorStore, type EditorMode, type EditorStoreState } from "./store";
 
@@ -44,6 +56,14 @@ export type EditorSessionOptions = {
   issuesDebounceMs?: number;
   /** Undo, redo, revert and the history list from elsewhere; the doc's own by default. */
   history?: SessionHistory;
+  /**
+   * Where instances' prefabs come from, and (when it has a writer) where
+   * Apply to prefab, Create prefab and Unpack write. Default none, which
+   * refuses those ops.
+   */
+  prefabs?: PrefabSource;
+  /** On a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
+  parentBounds?: Bounds;
 };
 
 /**
@@ -53,12 +73,125 @@ export type EditorSessionOptions = {
  */
 export type SessionHistory = {
   state(): Pick<EditorStoreState, "canUndo" | "canRedo" | "undoLabel" | "redoLabel" | "history">;
-  undo(): boolean;
-  redo(): boolean;
+  /** False when there was nothing to undo; the selection to restore when the step was this session's doc's. */
+  undo(): boolean | SelectionMeta;
+  redo(): boolean | SelectionMeta;
   revert(entryId: string): RevertResult;
+  /** Ends the step a batch this session wrote to its own doc made; the session calls it after each one. */
+  commit?(selection: SelectionMeta): void;
   /** Calls back whenever `state()` may have changed. */
   subscribe(listener: () => void): () => void;
 };
+
+/**
+ * History backed by the project session's undo coordinator, for an editor
+ * on one of its docs: undo steps back through this client's last step
+ * wherever it was (`onUndone` hears of each, to say where), and the rows
+ * are the doc's log merged with the project entries that name it. Open
+ * `docName` in the project session first, and give the editor session the
+ * project's origin. While subscribed, the docs those project entries wrote
+ * stay open, so Revert can write them all.
+ */
+export function projectHistory(
+  project: ProjectSession,
+  docName: string,
+  opts: { onUndone?: (step: UndoneStep, how: "undo" | "redo") => void } = {},
+): SessionHistory {
+  const open = project.get(docName);
+  if (!open) throw new Error(`projectHistory: open "${docName}" in the project session first`);
+  const { doc } = open;
+  const rows = () => historyRows(readLog(doc), readProjectLog(project.projectDoc), docName);
+  const step = (how: "undo" | "redo"): boolean | SelectionMeta => {
+    const done = how === "undo" ? project.undo() : project.redo();
+    if (!done) return false;
+    opts.onUndone?.(done, how);
+    return done.selection?.doc === docName ? done.selection : true;
+  };
+  return {
+    state() {
+      const undoLabel = project.undoLabel();
+      const redoLabel = project.redoLabel();
+      return {
+        canUndo: project.canUndo(),
+        canRedo: project.canRedo(),
+        ...(undoLabel === undefined ? {} : { undoLabel }),
+        ...(redoLabel === undefined ? {} : { redoLabel }),
+        history: rows(),
+      };
+    },
+    undo: () => step("undo"),
+    redo: () => step("redo"),
+    revert(entryId) {
+      const row = rows().find((r) => r.id === entryId);
+      if (!row) return missingEntry(entryId);
+      if (row.project) {
+        const result = revertOpenProjectEntry(project, row.project.entry);
+        return result.ok ? { ok: true, keys: result.keys } : result;
+      }
+      const result = revertEntry(
+        doc,
+        row,
+        project.origin,
+        open.layout ? { layout: open.layout } : {},
+      );
+      if (result.ok) project.commit({ docs: [docName], label: `Revert ${row.label}` });
+      return result;
+    },
+    commit(selection) {
+      project.commit({
+        docs: [docName],
+        label: selection.label ?? "Edit",
+        selection: { ...selection, doc: docName },
+      });
+    },
+    subscribe(listener) {
+      const held = new Set<string>();
+      let live = true;
+      const hold = () => {
+        for (const r of rows())
+          for (const name of r.project?.docs ?? []) {
+            if (name === docName || name === project.name || held.has(name)) continue;
+            held.add(name);
+            project.open(name).then(
+              () => {
+                if (!live) project.release(name);
+              },
+              () => held.delete(name),
+            );
+          }
+      };
+      const changed = () => {
+        hold();
+        listener();
+      };
+      hold();
+      const offs = [
+        project.subscribe((e) => {
+          if (e.type === "history") listener();
+        }),
+        observeLog(doc, changed),
+        observeProjectLog(project.projectDoc, changed),
+      ];
+      return () => {
+        live = false;
+        for (const off of offs) off();
+        for (const name of held) if (project.get(name)) project.release(name);
+      };
+    },
+  };
+}
+
+function missingEntry(entryId: string): RevertResult {
+  return {
+    ok: false,
+    issue: {
+      severity: "error",
+      code: "ref-not-found",
+      message: `No history entry ${entryId}; it may have aged out of the log.`,
+      entityIds: [],
+    },
+  };
+}
 
 export type DispatchOptions = {
   /** Default: the current selection, minus what the batch removed; renames and shifted indices are followed. */
@@ -79,8 +212,12 @@ export type EditorSession = {
   getDoc(): SceneDefinition;
   /** The document's resolved view: instances inlined, group offsets applied. What tools draw and pick. */
   getResolved(): SceneDefinition;
-  /** The prefabs the doc holds. */
+  /** The prefabs the session's source holds. */
   getPrefabs(): PrefabLibrary;
+  /** Where the session's prefabs come from. */
+  prefabs: PrefabSource;
+  /** Set on a session over a prefab doc: the scene size its view centres on. */
+  parentBounds?: Bounds;
   getHash(): SceneHash;
   /**
    * The doc key behind a ref, and back; keys stay put while bulk refs shift.
@@ -172,16 +309,20 @@ export function createEditorSession({
   key,
   issuesDebounceMs,
   history,
+  prefabs = EMPTY_PREFAB_SOURCE,
+  parentBounds,
 }: EditorSessionOptions): EditorSession {
   const listeners = new Set<(e: EditorSessionEvent) => void>();
   const undo = history ? null : createSceneUndo(doc, origin);
-  let view: DocView = readDoc(doc);
+  const read = () => readDoc(doc, { registry, ...(parentBounds ? { parentBounds } : {}) });
+  let view: DocView = read();
   let hash = sceneHash(view.def);
   let refByKey = refsOfView(view);
   let keyByRef = invert(refByKey);
   let resolved: SceneDefinition | null = null;
-  let prefabSig = librarySig(view.prefabs);
-  const getResolved = () => (resolved ??= resolveScene(view.def, registry, view.prefabs));
+  let library = prefabs.library();
+  let prefabSig = librarySig(library);
+  const getResolved = () => (resolved ??= resolveScene(view.def, registry, library));
   const keyOfRef = (ref: Ref): string | undefined => {
     const child = parseChildRef(ref);
     if (!child) return keyByRef.get(ref);
@@ -249,19 +390,22 @@ export function createEditorSession({
     (next) => store.setState((s) => ({ ...s, issues: next })),
     {
       debounceMs: issuesDebounceMs,
+      prefabs,
+      ...(parentBounds ? { parentBounds } : {}),
     },
   );
   store.setState((s) => ({ ...s, issues: issues.flush() }));
 
   const onTransaction = (tr: Y.Transaction) => {
-    const next = readDoc(doc);
+    const next = read();
     const changed = sceneHash(next.def);
     const log = readLog(doc);
     const logged = log.filter((e) => !seenLog.has(e.id));
     seenLog = new Set(log.map((e) => e.id));
-    const library = librarySig(next.prefabs);
-    if (changed === hash && library === prefabSig && logged.length === 0) return;
-    prefabSig = library;
+    library = prefabs.library();
+    const sig = librarySig(library);
+    if (changed === hash && sig === prefabSig && logged.length === 0) return;
+    prefabSig = sig;
     view = next;
     hash = changed;
     resolved = null;
@@ -276,6 +420,18 @@ export function createEditorSession({
     for (const l of listeners) l({ doc: view.def, touched: [], source: kind, logged });
   };
   doc.on("afterTransaction", onTransaction);
+  const unsubscribePrefabs = prefabs.subscribe(() => {
+    library = prefabs.library();
+    const sig = librarySig(library);
+    if (sig === prefabSig) return;
+    prefabSig = sig;
+    resolved = null;
+    selectedKeys = selectedKeys.filter(liveKey);
+    syncUndo();
+    if (source === "dispatch") return;
+    for (const l of listeners)
+      l({ doc: view.def, touched: [], source: source ?? "remote", logged: [] });
+  });
   const unobserveLog = history
     ? history.subscribe(() => syncUndo())
     : observeLog(doc, (log) => store.setState((s) => ({ ...s, history: log })));
@@ -294,7 +450,8 @@ export function createEditorSession({
     }
   }
 
-  function restore(meta: { before: string[]; after: string[] } | null, side: "before" | "after") {
+  function restore(meta: SelectionMeta | boolean | null, side: "before" | "after") {
+    if (typeof meta === "boolean") return meta;
     if (!meta) return false;
     selectedKeys = meta[side].filter(liveKey);
     syncUndo();
@@ -309,7 +466,9 @@ export function createEditorSession({
     origin,
     getDoc: () => view.def,
     getResolved,
-    getPrefabs: () => view.prefabs,
+    getPrefabs: () => library,
+    prefabs,
+    ...(parentBounds ? { parentBounds } : {}),
     getHash: () => hash,
     keyOf: keyOfRef,
     refOf: refOfKey,
@@ -317,7 +476,7 @@ export function createEditorSession({
     dispatch(given, opts = {}) {
       let batch = given;
       if (opts.resolved) {
-        const mapped = toSourceBatch(view.def, given, registry, view.prefabs);
+        const mapped = toSourceBatch(view.def, given, registry, library);
         if (!mapped.ok) return { ok: false, hash, failedAt: 0, issue: mapped.issue };
         batch = mapped.batch;
       }
@@ -327,12 +486,17 @@ export function createEditorSession({
         applyOpsToDoc(doc, batch, origin, registry, {
           ...(key ? { key } : {}),
           label: labelFor(given),
+          prefabs: library,
+          ...(prefabs.writer ? { prefabWriter: prefabs.writer } : {}),
+          ...(parentBounds ? { parentBounds } : {}),
         }),
       );
       if (!result.ok) return result;
       if (opts.selectionAfter) afterKeys = keysOf(opts.selectionAfter);
       selectedKeys = afterKeys ?? selectedKeys.filter(liveKey);
-      undo?.commit({ before, after: [...selectedKeys], label: labelFor(given) });
+      const step = { before, after: [...selectedKeys], label: labelFor(given) };
+      if (undo) undo.commit(step);
+      else history?.commit?.(step);
       syncUndo({ issues: result.issues, lastActor: origin });
       publish({});
       for (const l of listeners)
@@ -341,34 +505,20 @@ export function createEditorSession({
     },
 
     undo: () =>
-      history
-        ? history.undo()
-        : restore(
-            local("undo", () => undo!.undo()),
-            "before",
-          ),
+      restore(
+        local("undo", () => (history ? history.undo() : undo!.undo())),
+        "before",
+      ),
     redo: () =>
-      history
-        ? history.redo()
-        : restore(
-            local("redo", () => undo!.redo()),
-            "after",
-          ),
+      restore(
+        local("redo", () => (history ? history.redo() : undo!.redo())),
+        "after",
+      ),
 
     revert(entryId) {
       if (history) return history.revert(entryId);
       const entry = readLog(doc).find((e) => e.id === entryId);
-      if (!entry) {
-        return {
-          ok: false,
-          issue: {
-            severity: "error",
-            code: "ref-not-found",
-            message: `No history entry ${entryId}; it may have aged out of the log.`,
-            entityIds: [],
-          },
-        };
-      }
+      if (!entry) return missingEntry(entryId);
       const before = [...selectedKeys];
       const result = local("dispatch", () => revertEntry(doc, entry, origin));
       if (!result.ok) return result;
@@ -402,6 +552,7 @@ export function createEditorSession({
     destroy() {
       listeners.clear();
       doc.off("afterTransaction", onTransaction);
+      unsubscribePrefabs();
       unobserveLog();
       unobservePeers();
       issues.stop();

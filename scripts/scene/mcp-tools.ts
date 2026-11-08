@@ -2,32 +2,38 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { docToScene } from "@jams/engine/collab";
-import { checksPathOf, formatScene } from "@jams/engine/scene";
+import { checksPathOf } from "@jams/engine/scene";
 import { z } from "zod";
 
 import {
   failure,
+  hostedOptions,
   isFileArg,
   isToolResult,
   locateScene,
+  scopeError,
   usage,
   type ToolContext,
   type ToolResult,
 } from "./context";
-import { DEFAULT_LIVE_URL, LiveError, openLiveScene } from "./live";
+import { agentTokenFrom, AGENT_TOKEN_ENV, isHostedUrl } from "./hosted";
+import { DEFAULT_PROJECT_URL, ProjectClientError, readLiveScene } from "./project-client";
 import { rasterizeSvg } from "./raster";
 import { apply } from "./tools/apply";
 import { applyLive } from "./tools/apply-live";
+import { assetsApply, type WriterFlags } from "./tools/assets-apply";
+import { assetsImport } from "./tools/assets-import";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
 import { fuzz } from "./tools/fuzz";
 import { list } from "./tools/list";
 import { playtest } from "./tools/playtest";
+import { projectRefs } from "./tools/project-refs";
+import { projectTree } from "./tools/project-tree";
 import { render } from "./tools/render";
 import { replay } from "./tools/replay";
-import { schema } from "./tools/schema";
+import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
 import { validate } from "./tools/validate";
 
@@ -64,8 +70,21 @@ export type McpCallResult = {
 };
 
 const READ: McpAnnotations = { readOnlyHint: true, openWorldHint: false };
+const WRITE: McpAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+};
 
-const defineTool = <S extends z.ZodRawShape>(tool: McpTool<S>): McpTool => tool as never;
+const projectArg = z
+  .string()
+  .optional()
+  .describe("Names resolve in this project only; an id two projects hold needs it.");
+
+/** A tool with `project` added to its input, which `runMcpTool` scopes the call to. */
+const defineTool = <S extends z.ZodRawShape>(tool: McpTool<S>): McpTool =>
+  ({ ...tool, input: { ...tool.input, project: projectArg } }) as never;
 
 // ─── Inputs ──────────────────────────────────────────────
 
@@ -80,7 +99,18 @@ const liveFields = {
   url: z
     .string()
     .optional()
-    .describe(`Collab server URL, localhost only. Default ${DEFAULT_LIVE_URL}.`),
+    .describe(
+      `Collab server URL, localhost only, default ${DEFAULT_PROJECT_URL}; or, with ${AGENT_TOKEN_ENV} set in the server's environment, the https:// site hosting that token's project.`,
+    ),
+};
+const writerFields = {
+  dryRun: z.boolean().default(true).describe("Report what would change without writing."),
+  agentId: z
+    .string()
+    .optional()
+    .describe(`Live: the agent id the history entry names. Default \`${DEFAULT_MCP_AGENT_ID}\`.`),
+  onBehalfOf: z.string().optional().describe("The user the agent acts for."),
+  ...liveFields,
 };
 const opBatch = z
   .looseObject({
@@ -96,16 +126,27 @@ const jsonOrPath = (what: string) =>
 
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])$/;
 
-/** The collab URL for a live call; only the dev server's docs are reachable. */
-function liveUrl(url: string | undefined): string | ToolResult {
-  if (url === undefined) return DEFAULT_LIVE_URL;
+/**
+ * The collab URL for a live call: the local dev server's, or a hosted
+ * project's site when the server was started with an agent token in its
+ * environment. The token never travels as a tool argument.
+ */
+function liveUrl(url: string | undefined, ctx: ToolContext): string | ToolResult {
+  if (url === undefined) return DEFAULT_PROJECT_URL;
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return usage(`url: not a URL: ${url}`);
   }
-  if (!/^wss?:$/.test(parsed.protocol)) return usage("url: expected ws:// or wss://");
+  if (isHostedUrl(url)) {
+    if (!agentTokenFrom(undefined, ctx.env ?? process.env))
+      return usage(
+        `url: a hosted project needs ${AGENT_TOKEN_ENV} set in the MCP server's environment`,
+      );
+    return url;
+  }
+  if (!/^wss?:$/.test(parsed.protocol)) return usage("url: expected ws://, wss:// or https://");
   if (!LOCAL_HOST.test(parsed.hostname))
     return usage("url: only the local dev server's docs are reachable (localhost)");
   return url;
@@ -145,6 +186,29 @@ function relabel(value: unknown, from: string, to: string, depth = 0): void {
 
 type SourceInput = { scene: string; live?: boolean; url?: string };
 
+type LiveInput = { live?: boolean; url?: string };
+
+/** A project reader's live flags, the URL checked by `liveUrl`. */
+function liveRead(i: LiveInput, ctx: ToolContext): LiveInput | ToolResult {
+  if (!i.live) return i.url === undefined ? {} : usage("url needs live");
+  const url = liveUrl(i.url, ctx);
+  return isToolResult(url) ? url : { live: true, url };
+}
+
+type WriterInput = LiveInput & { dryRun?: boolean; agentId?: string; onBehalfOf?: string };
+
+/** A project writer's CLI flags: a dry run unless `dryRun` is false; a live agent defaults to `mcp`. */
+function writerFlags(i: WriterInput, ctx: ToolContext): WriterFlags | ToolResult {
+  const live = liveRead(i, ctx);
+  if (isToolResult(live)) return live;
+  return {
+    ...live,
+    dryRun: i.dryRun ?? true,
+    ...(i.agentId !== undefined || live.live ? { agent: i.agentId ?? DEFAULT_MCP_AGENT_ID } : {}),
+    ...(i.onBehalfOf === undefined ? {} : { onBehalfOf: i.onBehalfOf }),
+  };
+}
+
 /**
  * Runs a read tool on a scene by name or path, or with `live` on the dev
  * server's doc: read once as canonical JSON, then handed to the tool as `-`
@@ -165,18 +229,22 @@ async function withSource(
     }
     if (isFileArg(input.scene) || input.scene === "-")
       return usage("live takes a scene name; file paths are read-only");
-    const url = liveUrl(input.url);
+    const url = liveUrl(input.url, ctx);
     if (isToolResult(url)) return url;
     let text: string;
     try {
-      const live = await openLiveScene({ url, scene: input.scene });
-      try {
-        text = formatScene(docToScene(live.doc)).text;
-      } finally {
-        live.close();
-      }
+      ({ text } = await readLiveScene({
+        projects: ctx.projects,
+        project: ctx.project,
+        url,
+        scene: input.scene,
+        ...hostedOptions(ctx, undefined),
+      }));
     } catch (e) {
-      if (e instanceof LiveError) return failure(e.message, { scene: input.scene, url });
+      if (e instanceof ProjectClientError)
+        return e.exitCode === 2
+          ? usage(e.message)
+          : failure(e.message, { scene: input.scene, url });
       throw e;
     }
     const arg = opts.asFile ? await tmp.write(`${input.scene}.json`, text) : "-";
@@ -239,13 +307,15 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_schema",
     title: "JSON Schema",
     description:
-      "The JSON Schema of a scene, an op batch, an input script, a checks file, a run recording, a scene fragment (clipboard JSON) or a prefab file: a game's with `game`, the engine's without.",
+      "The JSON Schema of a scene, an op batch, an input script, a checks file, a run recording, a scene fragment (clipboard JSON), a prefab file, the project file, a sidecar, a project op batch, a project snapshot or any doc kind: a game's with `game` (or `project`), the engine's without.",
     annotations: READ,
     input: {
       which: z
-        .enum(["scene", "ops", "script", "checks", "recording", "fragment", "prefab"])
+        .string()
         .optional()
-        .describe("Default `scene`."),
+        .describe(
+          `One of ${SCHEMA_NAMES.join(", ")}, or another doc kind's name. Default \`scene\`.`,
+        ),
       game: z.string().optional().describe("A game id, as `scene_list` shows."),
     },
     run: (i, ctx) => schema({ which: i.which, game: i.game }, ctx),
@@ -305,7 +375,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_apply_ops",
     title: "Apply an op batch",
     description:
-      "Apply an OpBatch. A dry run unless dryRun is false. With live, edits the dev server's open doc as one undoable entry under an agent actor; otherwise rewrites the scene file. Never applies a batch that leaves error-severity issues.",
+      "Apply an OpBatch. A dry run unless dryRun is false. With live, edits the dev server's open doc (or a hosted project's, at a site url) as one undoable entry under an agent actor; otherwise rewrites the scene file. Never applies a batch that leaves error-severity issues.",
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -342,7 +412,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
           if (liveOnly) return usage(`${liveOnly} needs live`);
           return await apply(common, ctx);
         }
-        const url = liveUrl(i.url);
+        const url = liveUrl(i.url, ctx);
         if (isToolResult(url)) return url;
         return await applyLive(
           {
@@ -511,6 +581,99 @@ export const MCP_TOOLS: readonly McpTool[] = [
       };
     },
   }),
+  defineTool({
+    name: "project_tree",
+    title: "Project tree",
+    description:
+      "A project's folders, assets (kind, id, name) and read-only code modules, as the editor's tree shows them.",
+    annotations: READ,
+    input: { ...liveFields },
+    run: async (i, ctx) => {
+      const live = liveRead(i, ctx);
+      if (isToolResult(live)) return live;
+      return projectTree({ ...live, project: ctx.project }, ctx);
+    },
+  }),
+  defineTool({
+    name: "asset_refs",
+    title: "Asset references",
+    description:
+      "What an asset names and what names it, with the dangling references from or to it; without an id, every dangling reference in the project. exitCode 1 when one dangles.",
+    annotations: READ,
+    input: {
+      id: z.string().optional().describe("The asset id; leave out for every dangling reference."),
+      ...liveFields,
+    },
+    run: async (i, ctx) => {
+      const live = liveRead(i, ctx);
+      if (isToolResult(live)) return live;
+      return projectRefs({ ...live, id: i.id, project: ctx.project }, ctx);
+    },
+  }),
+  defineTool({
+    name: "asset_import",
+    title: "Import an asset",
+    description:
+      "Add a local file to a project. A binary's bytes go to the content store (with live, the server's) and importAsset names their hash; a JSON doc kind's file becomes createAsset. A dry run unless dryRun is false.",
+    annotations: WRITE,
+    input: {
+      file: z.string().describe("The local file to import."),
+      path: z
+        .string()
+        .optional()
+        .describe("Its asset path, or a folder ending in `/`; default the kind's folder."),
+      id: z.string().optional().describe("The asset id; default the file stem."),
+      kind: z.string().optional().describe("The asset kind; default told from the name or JSON."),
+      settings: z
+        .union([z.string(), z.record(z.string(), z.unknown())])
+        .optional()
+        .describe("A binary kind's import settings: an object, or `key=value` pairs."),
+      ...writerFields,
+    },
+    run: async (i, ctx) => {
+      const flags = writerFlags(i, ctx);
+      if (isToolResult(flags)) return flags;
+      return assetsImport(
+        {
+          ...flags,
+          file: i.file,
+          path: i.path,
+          id: i.id,
+          kind: i.kind,
+          settings: typeof i.settings === "object" ? JSON.stringify(i.settings) : i.settings,
+        },
+        ctx,
+      );
+    },
+  }),
+  defineTool({
+    name: "asset_apply_ops",
+    title: "Apply a project op batch",
+    description:
+      "Apply a project op batch (`scene_schema` with which `project-ops`), which may span docs. A dry run unless dryRun is false. With live, edits the dev server's docs (or a hosted project's) as one undoable entry under an agent actor; otherwise writes the files. A batch the engine refuses writes nothing.",
+    annotations: { ...WRITE, destructiveHint: true },
+    input: {
+      ops: z
+        .union([z.string(), z.looseObject({ ops: z.array(z.looseObject({ op: z.string() })) })])
+        .describe("A project op batch, or a path to one."),
+      base: z
+        .string()
+        .optional()
+        .describe("Files only: the `project snapshot` hash the batch was planned against."),
+      ...writerFields,
+    },
+    run: async (i, ctx) => {
+      const flags = writerFlags(i, ctx);
+      if (isToolResult(flags)) return flags;
+      const tmp = scratch();
+      try {
+        const ops = await tmp.payload("project-ops.json", i.ops);
+        return await assetsApply({ ...flags, base: i.base, ops }, ctx);
+      } finally {
+        await tmp.close();
+      }
+    },
+  }),
 ];
 
 /** The MCP tool names, sorted. A contract: renaming or removing one is breaking. */
@@ -541,15 +704,19 @@ export function toMcpResult(out: McpToolOutput): McpCallResult {
   };
 }
 
-/** Runs one tool by name with already-validated input, catching what it throws. */
+/**
+ * Runs one tool with already-validated input, catching what it throws. A
+ * `project` in the input scopes the call as `--project` does.
+ */
 export async function runMcpTool(
   tool: McpTool,
   input: Record<string, unknown>,
   ctx: ToolContext,
 ): Promise<McpCallResult> {
+  const scoped = typeof input.project === "string" ? { ...ctx, project: input.project } : ctx;
   let out: McpToolOutput;
   try {
-    out = await tool.run(input as never, ctx);
+    out = scopeError(scoped) ?? (await tool.run(input as never, scoped));
   } catch (e) {
     out = failure(e instanceof Error ? e.message : String(e));
   }

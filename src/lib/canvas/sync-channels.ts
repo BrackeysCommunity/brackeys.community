@@ -4,24 +4,78 @@
  * close codes a client acts on. Shared with services, so no `@/` imports.
  */
 
-export type SyncDocumentKind = "canvas" | "note" | "scene";
+/**
+ * The kinds of document `canvas-sync` can host, which are also the kinds a
+ * sync token opens. Every other list of kinds derives from this one.
+ */
+export const SYNC_KINDS = ["canvas", "scene", "project", "asset"] as const;
 
-const KINDS: readonly SyncDocumentKind[] = ["canvas", "note", "scene"];
-const MAX_ID_LENGTH = 100;
+export type SyncKind = (typeof SYNC_KINDS)[number];
+
+/** Every kind a document name may carry: the hosted ones, and notes, which are named but not hosted. */
+export type SyncDocumentKind = SyncKind | "note";
+
+const DOCUMENT_KINDS: readonly SyncDocumentKind[] = [...SYNC_KINDS, "note"];
+
+export const isSyncKind = (kind: unknown): kind is SyncKind =>
+  (SYNC_KINDS as readonly unknown[]).includes(kind);
+
+/**
+ * The longest id after a name's prefix. A `<project>.<key>` id is at most
+ * 48 + 1 + 48 = 97 characters; the slack is for canvas and note ids.
+ */
+export const MAX_ID_LENGTH = 100;
+
+/** A project id or asset key: the engine's ID_PATTERN, mirrored here so the web client needn't load the engine. */
+const ENGINE_ID = /^[a-z0-9][a-z0-9-]{0,47}$/;
+
+/** `<project>.<key>`, each part an engine id; null for anything else. */
+export function parseProjectKey(id: string): { project: string; key: string } | null {
+  const dot = id.indexOf(".");
+  if (dot < 0) return null;
+  const project = id.slice(0, dot);
+  const key = id.slice(dot + 1);
+  return ENGINE_ID.test(project) && ENGINE_ID.test(key) ? { project, key } : null;
+}
+
+/**
+ * Whether `id` fits the kind: an engine id for `project`, `<project>.<key>`
+ * for `scene` and `asset`, and any trimmed id without a colon for canvases
+ * and notes.
+ */
+function fitsKind(kind: SyncDocumentKind, id: string): boolean {
+  if (!id || id.length > MAX_ID_LENGTH || id.includes(":") || id.trim() !== id) return false;
+  if (kind === "project") return ENGINE_ID.test(id);
+  if (kind === "scene" || kind === "asset") return parseProjectKey(id) !== null;
+  return true;
+}
 
 export function documentName(kind: SyncDocumentKind, id: string): string {
   return `${kind}:${id}`;
 }
 
-/** `canvas:<id>`, `note:<id>` or `scene:<id>`; null for anything else, ids with a colon included. */
+/**
+ * `canvas:<id>`, `note:<id>`, `project:<project>`, `scene:<project>.<key>`
+ * or `asset:<project>.<key>`; null for anything else.
+ */
 export function parseDocumentName(name: string): { kind: SyncDocumentKind; id: string } | null {
   const colon = name.indexOf(":");
   if (colon < 0) return null;
   const kind = name.slice(0, colon) as SyncDocumentKind;
   const id = name.slice(colon + 1);
-  if (!KINDS.includes(kind)) return null;
-  if (!id || id.length > MAX_ID_LENGTH || id.includes(":") || id.trim() !== id) return null;
+  if (!DOCUMENT_KINDS.includes(kind) || !fitsKind(kind, id)) return null;
   return { kind, id };
+}
+
+/** The project a `project:`, `scene:` or `asset:` document belongs to; null for any other name. */
+export function documentProject(name: string): string | null {
+  const parsed = parseDocumentName(name);
+  if (!parsed) return null;
+  if (parsed.kind === "project") return parsed.id;
+  if (parsed.kind === "scene" || parsed.kind === "asset") {
+    return parseProjectKey(parsed.id)?.project ?? null;
+  }
+  return null;
 }
 
 /**
@@ -44,8 +98,8 @@ export const REVOKE_CLOCK_SKEW_MS = 2_000;
 /**
  * Where a revoke is remembered (its time, in ms), so an instance that boots
  * after the publish still refuses tokens minted before it. Kept for as long
- * as such a token could be valid. The subject is a canvas id or
- * `scene:<id>` (see `revokeSubject`); user ids never contain a colon.
+ * as such a token could be valid. The subject is a canvas id or a document
+ * name (see `revokeSubject`); user ids never contain a colon.
  */
 export const revokeTombstoneKey = (
   prefix: string,
@@ -53,10 +107,23 @@ export const revokeTombstoneKey = (
   userId: string | undefined,
 ) => `${prefix}:revoked:${subject ?? ""}:${userId ?? ""}`;
 
+/**
+ * The subjects whose revokes cover a document's subject: itself, and its
+ * project's (`project:<id>`) when it is a project's document.
+ */
+export function revokeSubjectsCovering(subject: string): string[] {
+  const project = documentProject(subject);
+  if (project === null) return [subject];
+  const projectSubject = documentName("project", project);
+  return projectSubject === subject ? [subject] : [subject, projectSubject];
+}
+
 /** The tombstones that cover one person's connection to one document. */
 export const revokeTombstoneKeys = (prefix: string, subject: string, userId: string) => [
-  revokeTombstoneKey(prefix, subject, userId),
-  revokeTombstoneKey(prefix, subject, undefined),
+  ...revokeSubjectsCovering(subject).flatMap((covering) => [
+    revokeTombstoneKey(prefix, covering, userId),
+    revokeTombstoneKey(prefix, covering, undefined),
+  ]),
   revokeTombstoneKey(prefix, undefined, userId),
 ];
 
@@ -64,24 +131,36 @@ export const revokeTombstoneKeys = (prefix: string, subject: string, userId: str
  * Close live connections after an access change. `{ canvasId, userId }`
  * closes one person's sockets on one canvas, `{ canvasId }` everyone's on it,
  * and `{ userId }` that person's sockets everywhere (a ban). `sceneId` names
- * a scene the same way.
+ * a scene the same way, and `projectId` every document of a project: its
+ * registry, its scenes and its assets.
  */
 export type RevokeMessage =
-  | { canvasId: string; sceneId?: never; userId?: string }
-  | { sceneId: string; canvasId?: never; userId?: string }
-  | { canvasId?: never; sceneId?: never; userId: string };
+  | { canvasId: string; sceneId?: never; projectId?: never; userId?: string }
+  | { sceneId: string; canvasId?: never; projectId?: never; userId?: string }
+  | { projectId: string; canvasId?: never; sceneId?: never; userId?: string }
+  | { canvasId?: never; sceneId?: never; projectId?: never; userId: string };
 
 /**
- * What a revoke is remembered under: a canvas's id, or `scene:<id>` (canvas
- * ids are UUIDs, so the two never collide); undefined for a revoke that
- * covers a person everywhere.
+ * What a revoke is remembered under: a canvas's id, `scene:<id>` or
+ * `project:<id>` (canvas ids are UUIDs, so they never collide); undefined
+ * for a revoke that covers a person everywhere.
  */
 export function revokeSubject(message: {
   canvasId?: string;
   sceneId?: string;
+  projectId?: string;
 }): string | undefined {
   if (message.canvasId) return message.canvasId;
-  return message.sceneId ? documentName("scene", message.sceneId) : undefined;
+  if (message.sceneId) return documentName("scene", message.sceneId);
+  return message.projectId ? documentName("project", message.projectId) : undefined;
+}
+
+/** Whether a revoke reaches the live document `name` (any user's connection to it). */
+export function revokeReaches(message: RevokeMessage, name: string): boolean {
+  if (message.canvasId) return name === documentName("canvas", message.canvasId);
+  if (message.sceneId) return name === documentName("scene", message.sceneId);
+  if (message.projectId) return documentProject(name) === message.projectId;
+  return true;
 }
 
 /** The two Redis calls a revoke needs; an ioredis client fits. */
@@ -213,13 +292,19 @@ export function parseRevokeMessage(raw: string): RevokeMessage | null {
   try {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null) return null;
-    const canvasId = optionalId((value as Record<string, unknown>).canvasId);
-    const sceneId = optionalId((value as Record<string, unknown>).sceneId);
-    const userId = optionalId((value as Record<string, unknown>).userId);
-    if (canvasId === null || sceneId === null || userId === null) return null;
-    if (canvasId && sceneId) return null;
-    if (canvasId) return userId ? { canvasId, userId } : { canvasId };
-    if (sceneId) return userId ? { sceneId, userId } : { sceneId };
+    const fields = value as Record<string, unknown>;
+    const canvasId = optionalId(fields.canvasId);
+    const sceneId = optionalId(fields.sceneId);
+    const projectId = optionalId(fields.projectId);
+    const userId = optionalId(fields.userId);
+    if (canvasId === null || sceneId === null || projectId === null || userId === null) {
+      return null;
+    }
+    if ([canvasId, sceneId, projectId].filter((id) => id !== undefined).length > 1) return null;
+    const user = userId ? { userId } : {};
+    if (canvasId) return { canvasId, ...user };
+    if (sceneId) return { sceneId, ...user };
+    if (projectId) return { projectId, ...user };
     return userId ? { userId } : null;
   } catch {
     return null;

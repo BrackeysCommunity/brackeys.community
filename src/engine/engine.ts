@@ -12,7 +12,7 @@ import { createGameLoop } from "./loop";
 import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { createSessionRecording, preparePlay, type SessionRecording } from "./runtime/play-session";
-import { createSceneRuntime, resolveGame } from "./runtime/runtime";
+import { createSceneRuntime, resolveGame, type ProjectOption } from "./runtime/runtime";
 import type { LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
 import { expandScene, isExpandedScene } from "./scene/expand";
 import type { RunRecording } from "./scene/recording-schema";
@@ -50,11 +50,13 @@ type LoadedScene = {
   attachment: GameAttachment | null;
 };
 
+/** `config.project` is what every scene's game reads as `EngineContext.project`; null without one. */
 export async function createGame(
   canvas: HTMLCanvasElement,
-  config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier">,
+  config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier"> & ProjectOption,
 ): Promise<GameInstance> {
-  const cfg: GameConfig = { ...DEFAULT_GAME_CONFIG, ...config };
+  const { project = null, ...rest } = config;
+  const cfg: GameConfig = { ...DEFAULT_GAME_CONFIG, ...rest };
   const { game } = cfg;
   // Resolved before any rendering, so a malformed game fails fast; every scene's runtime shares it.
   const { registry } = resolveGame({ game, registry: cfg.registry });
@@ -141,6 +143,7 @@ export async function createGame(
       registry,
       dev: cfg.dev,
       now: () => performance.now(),
+      project,
     });
     const report = runtime.load(scene, play);
     if (!report.ok) {

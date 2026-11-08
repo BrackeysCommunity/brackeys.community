@@ -48,7 +48,7 @@ The package is ESM only and has no side effects on import.
 | `@jams/engine/collab`   | the shared `Y.Doc` layout, `sceneToDoc`/`docToScene`, `applyOpsToDoc`, undo, revert, binding and presence                                                  | yjs, fractional-indexing, zod     |
 | `@jams/engine/editor`   | the editor without UI: `createEditorSession`, the keymap, `createToolHost` and its tools, picking, snapping, gizmos, the clipboard and the inspector model | yjs, @tanstack/store, zod         |
 | `@jams/engine/debug`    | `createDebugOverlay`, the F3 overlay; pass it only in dev builds                                                                                           | pixi.js                           |
-| `@jams/engine/vite`     | Node only: `sceneCollabServer`, a dev-server plugin that co-edits the scene files                                                                          | node builtins, @hocuspocus/server |
+| `@jams/engine/vite`     | Node only: `sceneCollabServer`, a dev-server plugin that co-edits a project's files                                                                        | node builtins, @hocuspocus/server |
 | `@jams/engine/sim-kit`  | the seeded `Rng`, `digest32` and fixed-point maths, with no dependencies                                                                                   | none                              |
 
 The JSON Schemas ship as files too: `@jams/engine/schemas/scene.schema.json`,
@@ -447,36 +447,132 @@ A scene can declare **groups** and place **prefabs**:
   runs and the renders. `resolveScene` gives the scene with instances
   inlined and groups applied; that view is what tools pick and draw, and
   `toSourceBatch` maps an edit made on it back onto the document.
-- To edit a prefab on its own, `openPrefabIsolation(session, "gate")`
-  (`./editor`) gives a session on the prefab as a scene at its local
-  coordinates; each of its batches lands in the scene's doc as one
-  `definePrefab`, so every instance follows and the scene's undo covers
-  it. Bind the edit world to `isolation.session.doc` while it's open and
-  call `close()` to go back.
+- Prefabs are docs of their own (`prefabToDoc`/`docToPrefab`, `./collab`);
+  a scene's session reads them through a `PrefabSource`
+  (`sessionPrefabSource(projectSession, { scene })` live,
+  `staticPrefabSource(library)` for files). To edit a prefab on its own,
+  `await openPrefabIsolation(session, "gate")` (`./editor`) gives a
+  session over the prefab's doc at its local coordinates. Every instance
+  follows its edits, collaborators in the prefab see each other, and the
+  project's one undo stack covers it. Bind the edit world to
+  `isolation.session.doc` while it's open and call `close()` to go back.
+  Without a project, Apply to prefab, Create prefab and Unpack are
+  refused.
 - `attach: "<follower id>"` on a solid or sensor puts its collider on that
   follower's body, so it rides along; riders on it move by the follower's
   `frameDelta` (`carrierDelta`).
+
+## Projects and assets
+
+A project is a directory holding a `jams.project.json` (`id`, `name`,
+`game` with the module and export that define it, and `assets`, `code` and
+`ignore` globs), and every file under it is an asset of one kind. The
+project's registry maps each asset's key to its id, path, kind, licence
+and, for binaries, its content hash, size and inspected meta. `./project`
+is the model as plain JSON (zod only): `parseProjectFile`, `projectView`
+(lookups, the trash, `tree()`, and the deterministic repairs for a
+duplicate id or path), `checkProjectBatch` for project ops, and
+`buildRefIndex` for who names what.
+
+- **Ids and keys.** An asset's id is what references use (`"prefab":
+"gate"`, `"material": "bouncy"`); its key never changes, so renames,
+  moves and id changes don't lose its doc or history. A file's id comes
+  from its sidecar, else the kind's id field, else its file name
+  (`assetIdOfPath`: `Hero Idle.png` is `hero-idle`).
+- **Sidecars.** `<file>.asset.json` holds what the file can't: a key that
+  differs from the id, a licence, a binary's import settings, hash and
+  meta. A text asset with nothing to add has none.
+- **Project ops** (`project-ops:v1`): `createAsset`, `importAsset`,
+  `renameAsset`, `moveAsset`, `deleteAsset` (refused with `asset-in-use`
+  while something names it, unless `force`), `restoreAsset`,
+  `changeAssetId` (rewrites every reference in one batch, a material's
+  bulk keys such as `solid:bouncy` and instance overrides included),
+  `setImport`, `replaceContent`, `setLicence`, `editAsset` (JSON pointer
+  edits, with `@<id>` for a keyed item) and `editScene` (scene ops). One
+  batch is one undo step across every doc it writes.
+- **Doc names.** `project:<id>` is the registry, `scene:<project>.<key>`
+  a scene and `asset:<project>.<key>` any other doc kind
+  (`docNameOf`, `parseDocName`).
+- **Runs read the project.** `EngineContext.project` gives a game its
+  `game-settings` (with the game's `projectSettings` defaults) and its data
+  tables (`ctx.project.table("card")`); a project's material assets
+  overlay the game's code materials by name (`withProject`).
+- **Snapshots.** `snapshotProject` pins every live asset by content hash,
+  and `loadHeadless({ snapshot, store, scene, registry })` replays a run
+  against exactly that version, its own materials included, without
+  fetching an image.
+
+| Kind            | Stored as | Matched by                            | Notes                                                                        |
+| --------------- | --------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| `scene`         | doc       | a `.json` with no other kind          | Entities, prefab instances and bulk geometry                                 |
+| `prefab`        | doc       | `"kind": "prefab"`                    | Its own doc; instances follow its edits                                      |
+| `material`      | doc       | `"kind": "material"`                  | Friction, bounce and a fallback look; overlays code materials                |
+| `game-settings` | doc       | `"kind": "game-settings"`             | The engine's and the game's settings; one per project                        |
+| `data-table`    | doc       | `"kind": "data-table"`                | Rows of one of the game's tables, merged in path order; ids unique per table |
+| `input-script`  | doc       | `.script.json`                        | A headless playtest's held actions                                           |
+| `checks`        | doc       | `.checks.json`                        | The checks for the scene beside it                                           |
+| `texture`       | blob      | `.png` `.jpg` `.jpeg` `.webp` `.gif`  | 8 MiB; size and format read from the header                                  |
+| `atlas`         | blob      | `.atlas.json`                         | 2 MiB; Aseprite or TexturePacker frames, tags and slices                     |
+| `font`          | blob      | `.fnt` `.woff2` `.woff` `.ttf` `.otf` | 4 MiB; a text BMFont names its page textures                                 |
+| `audio`         | blob      | `.ogg` `.mp3` `.wav` `.m4a`           | 16 MiB                                                                       |
+| `recording`     | blob      | `.recording.json`                     | 4 MiB; immutable once imported                                               |
+| `code`          | code      | the project file's `code` globs       | Edited in git; listed read-only with what each module registers              |
+
+A game adds kinds of its own as `<game>/<name>` (`GameDefinition.assetKinds`,
+declarative layouts only). Binaries live in a content store keyed by
+SHA-256 (`fileContentStore` in development, object storage when hosted);
+their bytes are never in a doc.
+
+### Storage limits
+
+Every limit is enforced on the server, and a refusal names the limit and
+what to do next:
+
+- **Per file:** the sizes in the table above, and 64 MiB for any upload.
+  A bigger file is refused with `asset-too-large`.
+- **Per hosted doc:** a scene's Yjs state up to 2 MiB with 10,000 entities,
+  another doc kind's 1 MiB unless the kind declares its own (at most
+  5 MiB), a prefab's 10,000 children, the project registry's 2 MiB, and
+  512 KiB (scenes) or 256 KiB (other docs) per message. A store that would
+  take a doc over its cap is refused.
+- **Per project:** a `QuotaPolicy` judges a project's `projectUsage` (docs,
+  doc bytes, blobs, blob bytes, trash); a write over it is refused with
+  `quota-exceeded`, naming the limit, what is used and the maximum. The
+  per-project numbers come with plan 55's publishing work; until then
+  hosted projects run under `UNLIMITED_QUOTA`.
+- **Cleanup:** deleted assets go to the trash and stay restorable.
+  `unreferencedBlobs` names the content-hash blobs nothing references: not
+  a live or trashed asset's bytes, not in an asset's hash history within
+  the grace period, and not pinned by a snapshot. Only those may be
+  collected.
 
 ## Co-editing
 
 A scene can live in a shared `Y.Doc` that any number of editors, agents and
 the disk write to; every client converges on the same canonical text.
 `./collab` is transport-agnostic: the host brings a provider (Hocuspocus,
-y-websocket, or none in a test).
+y-websocket, or none in a test). Every other doc kind co-edits the same
+way, laid out by its kind's `DocLayout` (`layoutToDoc`, `layoutPatch`), and
+a project session ties them together: `createProjectSession({ project,
+openDoc, origin, registry, kinds })` opens docs lazily through the host's
+`openDoc`, applies project batches across them (`applyProjectBatch`), and
+keeps one undo stack per client over every doc it wrote. A host serving
+many docs shares one websocket between their providers.
 
 ```ts co-editing.ts
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import type { GameInstance } from "@jams/engine";
 import { bindSceneDoc } from "@jams/engine/collab";
 import { createEditorSession } from "@jams/engine/editor";
+import { docNameOf } from "@jams/engine/project";
 import * as Y from "yjs";
 
-/** Opens `scene:<name>` from the dev server, edits it as `userId`, and keeps the running game in step. */
-export function coEdit(game: GameInstance, name: string, userId: string) {
+/** Opens scene `name` of `project` from the dev server, edits it as `userId`, and keeps the running game in step. */
+export function coEdit(game: GameInstance, project: string, name: string, userId: string) {
   const doc = new Y.Doc();
   const provider = new HocuspocusProvider({
     url: "ws://localhost:3000/__scene-collab",
-    name: `scene:${name}`,
+    name: docNameOf({ kind: "scene", project, key: name }),
     document: doc,
   });
   const runtime = game.runtime();
@@ -518,23 +614,41 @@ export function coEdit(game: GameInstance, name: string, userId: string) {
 - `watchIssues` validates the merged document, since two valid edits can
   merge into an invalid scene.
 
-In development, `./vite`'s plugin serves the scene files as shared docs on
-the Vite dev server, writes them back as canonical JSON, and turns outside
-edits to a file into one `disk` transaction:
+In development, `./vite`'s plugin serves each project's files as shared docs
+on the Vite dev server. A project is a directory holding a
+`jams.project.json`; `readFileProject` reads one, and the plugin takes
+`{ projects, buildAt?, settleMs? }`:
 
 ```ts dev-server.ts
-import { createRegistry } from "@jams/engine/game";
-import { sceneCollabServer } from "@jams/engine/vite";
+import { readFileProject, sceneCollabServer } from "@jams/engine/vite";
 import wasm from "vite-plugin-wasm";
 
 import { coinGame } from "./coin-game";
 
-/** The `plugins` of a host's `vite.config.ts`. */
+/** The `plugins` of a host's `vite.config.ts`; `scenes/` holds a `jams.project.json`. */
 export const devPlugins = [
   wasm(),
-  sceneCollabServer({ homes: [{ dir: "scenes", registry: createRegistry(coinGame) }] }),
+  sceneCollabServer({ projects: [await readFileProject("scenes", { game: coinGame })] }),
 ];
 ```
+
+- `/__scene-collab` is the websocket for every doc: `project:<id>` (the
+  registry), `scene:<project>.<key>` and `asset:<project>.<key>`. The
+  server writes each doc back as canonical text with its sidecars, moves and
+  trash, and turns outside edits into one `disk` transaction or registry op.
+  One watcher per project root pairs an unlink and an add within `settleMs`
+  into a move.
+- Each doc's Yjs state is kept in `<cacheDir>/docs` and reloaded on restart;
+  a file edited while the server was down is applied as one `disk`
+  transaction.
+- When a binary changes on disk the server rehashes it and sends an
+  `asset:changed` stateless message (`ASSET_CHANGED`,
+  `AssetChangedMessage`) on the project doc, so hot reload can refetch its
+  `sha256`.
+- HTTP routes, same-origin only: `/__scene` (scene files),
+  `GET /__project` (the projects served), `POST /__project/<id>/blob`
+  (store the body; with `x-expect-sha256`, bytes that hash otherwise are
+  refused with `hash-mismatch`) and `GET /__project/<id>/blob/<sha256>`.
 
 ## Versioning
 

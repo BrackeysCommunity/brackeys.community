@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:game-settings:v1",
+  "x-agent-surface": 7,
+  "title": "jams engine game settings, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The game-settings JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "game-settings",
+      "description": "Always \"game-settings\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Game-settings format version."
+    },
+    "engine": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "The engine's project-wide settings; none yet."
+    },
+    "game": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "The game's project-wide settings; a project with no game has none."
+    }
+  },
+  "required": ["kind", "v", "engine", "game"],
+  "additionalProperties": false,
+  "description": "Project-wide settings, at most one file per project. Game code reads `game` with defaults applied."
+}

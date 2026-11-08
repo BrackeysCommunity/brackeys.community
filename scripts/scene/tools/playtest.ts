@@ -19,6 +19,7 @@ import {
   type Tool,
   type ToolResult,
 } from "../context";
+import { projectRuntime } from "../projects";
 import { rounded } from "./step";
 
 export type PlaytestInput = {
@@ -111,6 +112,7 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
     registry,
     scene: loaded.def,
     prefabs: loaded.prefabs,
+    project: loaded.project ? await projectRuntime(loaded.project, registry) : null,
     script: script as InputScript,
   });
   const game = registry.game?.id ?? null;

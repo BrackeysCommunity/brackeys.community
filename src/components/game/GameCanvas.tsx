@@ -6,6 +6,7 @@ import {
   type GameInstance,
   type GameStoreState,
 } from "@jams/engine";
+import type { ProjectRuntimeView } from "@jams/engine/project";
 import { Link } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
@@ -16,7 +17,13 @@ import { ShellTitle, SiteIsland } from "@/components/canvas/shell/SiteIsland";
 import { MicroLabel } from "@/components/ui/typography";
 import { platformerGame } from "@/games/platformer";
 
-import { BUNDLED_PREFABS, BUNDLED_SCENE, SCENE_NAME, SCENE_REGISTRY } from "./platformer-scene";
+import {
+  BUNDLED_PREFABS,
+  BUNDLED_SCENE,
+  BUNDLED_SCENE_ID,
+  SCENE_REGISTRY,
+} from "./platformer-scene";
+import { SCENE_PROJECT } from "./scene-collab";
 import type { SceneDocStatus } from "./use-scene-doc";
 import { useSceneEditor } from "./use-scene-editor";
 
@@ -26,19 +33,36 @@ type GameCanvasProps = {
   roomId: string;
   /** Opens the scene editor; dev builds only. */
   edit?: boolean;
+  /** The project scene the editor opens, by id; default the bundled one. */
+  scene?: string;
 };
 
-export function GameCanvas({ roomId, edit = false }: GameCanvasProps) {
+export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [game, setGame] = useState<GameInstance | null>(null);
-  const { chrome: editor, status: connection } = useSceneEditor({
+  const [built, setBuilt] = useState<{
+    game: GameInstance;
+    projectData: ProjectRuntimeView | null;
+  } | null>(null);
+  const game = built?.game ?? null;
+  const {
+    chrome: editor,
+    status: connection,
+    scene: editing,
+    error,
+    registry,
+    projectData,
+  } = useSceneEditor({
     game,
-    name: SCENE_NAME,
+    builtWith: built?.projectData ?? null,
+    project: SCENE_PROJECT,
+    registry: SCENE_REGISTRY,
+    scene: scene ?? BUNDLED_SCENE_ID,
     enabled: edit,
     rapier: loadRapier,
     canvas: () => canvasRef.current,
   });
 
+  // Rebuilt when the editor's project overlays other materials on the code registry, or its settings or tables change.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -60,7 +84,8 @@ export function GameCanvas({ roomId, edit = false }: GameCanvasProps) {
       if (!mounted) return;
       instance = await createGame(canvas, {
         game: platformerGame,
-        registry: SCENE_REGISTRY,
+        registry,
+        project: projectData,
         displayWidth: window.innerWidth,
         displayHeight: window.innerHeight,
         dev: import.meta.env.DEV,
@@ -79,7 +104,7 @@ export function GameCanvas({ roomId, edit = false }: GameCanvasProps) {
         return;
       }
 
-      setGame(instance);
+      setBuilt({ game: instance, projectData });
       instance.start();
     }
 
@@ -99,9 +124,9 @@ export function GameCanvas({ roomId, edit = false }: GameCanvasProps) {
         instance.destroy();
         instance = null;
       }
-      setGame(null);
+      setBuilt(null);
     };
-  }, []);
+  }, [registry, projectData]);
 
   return (
     <CanvasShell
@@ -110,12 +135,12 @@ export function GameCanvas({ roomId, edit = false }: GameCanvasProps) {
           label="Game"
           site={{ back: { label: "lobby", link: <Link to="/game" /> }, signinSource: "game" }}
         >
-          <ShellTitle>{editor ? SCENE_NAME : roomId}</ShellTitle>
+          <ShellTitle>{editor && editing ? editing : roomId}</ShellTitle>
         </SiteIsland>
       }
       status={
         editor ? undefined : connection ? (
-          <EditorConnecting status={connection} />
+          <EditorConnecting status={connection} error={error} />
         ) : game ? (
           <GameHUD store={game.getStore()} />
         ) : undefined
@@ -136,12 +161,19 @@ const CONNECTING_LABEL: Record<SceneDocStatus, string> = {
   live: "Opening the editor",
   reconnecting: "Reconnecting to the scene server",
   offline: "Offline",
+  failed: "The editor couldn't open the project",
 };
 
-function EditorConnecting({ status }: { status: SceneDocStatus }) {
+function EditorConnecting({ status, error }: { status: SceneDocStatus; error: Error | null }) {
   return (
-    <Island role="status" className="px-2.5 py-1.5 text-xs text-muted-foreground">
-      {CONNECTING_LABEL[status]}
+    <Island
+      role="status"
+      className="flex-col items-start gap-0.5 px-2.5 py-1.5 text-xs text-muted-foreground"
+    >
+      <span>{CONNECTING_LABEL[status]}</span>
+      {status === "failed" && error ? (
+        <span className="text-destructive">{error.message}</span>
+      ) : null}
     </Island>
   );
 }

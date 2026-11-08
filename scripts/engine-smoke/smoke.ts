@@ -39,6 +39,7 @@ try {
     (f) =>
       !f.startsWith("dist/") &&
       !/^scene\/[a-z-]+\.schema\.json$/.test(f) &&
+      !/^project\/[a-z-]+\.schema\.json$/.test(f) &&
       !["package.json", "README.md", "CHANGELOG.md"].includes(f),
   );
   check(
@@ -65,6 +66,11 @@ try {
   forbid("scene", ["pixi.js", "@tanstack/store", "yjs"], "./scene loads on a server");
   forbid("headless", ["pixi.js", "@tanstack/store"], "./headless is DOM- and Pixi-free");
   forbid("collab", ["pixi.js", "@tanstack/store", "@hocuspocus/server"], "./collab is pure");
+  const project = [...reach("project")].filter((s) => s !== "zod");
+  check(
+    project.length === 0,
+    `dist/project.mjs reaches ${project.join(", ")} (./project needs only zod)`,
+  );
   const simKit = [...reach("sim-kit")];
   check(
     simKit.length === 0,
@@ -79,6 +85,7 @@ try {
     "game",
     "debug",
     "sim-kit",
+    "project",
   ]) {
     forbid(entry, ["@hocuspocus/server"], "only ./vite may load the dev server");
   }
@@ -115,7 +122,19 @@ try {
   const probe = `
     const vite = await import("@jams/engine/vite");
     if (typeof vite.sceneCollabServer !== "function") throw new Error("no sceneCollabServer");
-    for (const name of ["scene", "ops", "input-script", "recording"]) {
+    for (const name of [
+      "scene",
+      "ops",
+      "input-script",
+      "recording",
+      "project",
+      "asset-sidecar",
+      "project-ops",
+      "material",
+      "game-settings",
+      "data-table",
+      "project-snapshot",
+    ]) {
       const url = import.meta.resolve("@jams/engine/schemas/" + name + ".schema.json");
       const schema = await Bun.file(new URL(url)).json();
       if (!String(schema.$id).startsWith("urn:jams-engine:")) throw new Error(name + " has no $id");
@@ -152,7 +171,8 @@ function reachableSpecifiers(entry: string): Set<string> {
   const bare = new Set<string>();
   const seen = new Set<string>();
   const queue = [entry];
-  const pattern = /(?:\bfrom\s*|\bimport\s*\(?\s*)["']([^"']+)["']/g;
+  // No whitespace or `$` in a specifier, so message text like `from "${a.path}"` never matches.
+  const pattern = /(?<![\w$."'])(?:from\s*|import\s*\(?\s*)["']([^"'\s$]+)["']/g;
   while (queue.length) {
     const file = queue.pop()!;
     if (seen.has(file)) continue;

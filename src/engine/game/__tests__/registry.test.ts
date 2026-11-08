@@ -2,7 +2,16 @@
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-import { createRegistry, defineEntityType, defineGame, RegistryError } from "../define";
+import type { AssetEntry, ProjectView } from "../../project/types";
+import { parseScene } from "../../scene/parse";
+import {
+  createRegistry,
+  defineEntityType,
+  defineGame,
+  RegistryError,
+  withProject,
+  type ProjectMaterialDef,
+} from "../define";
 import { pointField, shapeField } from "../fields";
 import { PRIMITIVE_TYPES, type GameDefinition } from "../types";
 
@@ -245,5 +254,130 @@ describe("createRegistry", () => {
     expect(problems(() => createRegistry(game({ id: "Bad Id", issues: {} })))[0]).toMatch(
       /game id "Bad Id" must match/,
     );
+  });
+});
+
+const entry = (id: string, kind: string, path: string): AssetEntry => ({
+  key: id,
+  id,
+  kind,
+  path,
+  created: { at: 0, by: "test" },
+});
+
+function viewOf(entries: AssetEntry[]): ProjectView {
+  return {
+    state: {
+      meta: { projectId: "fake", layout: 1, name: "Fake" },
+      assets: Object.fromEntries(entries.map((e) => [e.key, e])),
+      history: {},
+      code: {},
+      build: {},
+    },
+    byId: new Map(entries.map((e) => [e.id, e])),
+    byPath: new Map(entries.map((e) => [e.path, e])),
+    byKey: new Map(entries.map((e) => [e.key, e])),
+    deleted: [],
+    issues: [],
+    repairs: new Map(),
+    tree: () => [],
+  };
+}
+
+describe("project materials", () => {
+  const rubber: ProjectMaterialDef = {
+    description: "Bouncy.",
+    physics: { friction: 0.4, restitution: 0.9, impulse: { x: 0, y: -500 } },
+    style: { fill: 0xe05a5a },
+  };
+  const paint: ProjectMaterialDef = { description: "Only a look.", style: { fill: 0x112233 } };
+
+  it("overlay the game's code materials by name, keeping their place", () => {
+    const registry = createRegistry(game(), {
+      materials: {
+        mud: { description: "Wetter.", physics: { friction: 3, restitution: 0.1 } },
+        rubber,
+      },
+    });
+    expect(registry.materialNames).toEqual(["mud", "rubber"]);
+    expect(registry.materials.get("mud")).toEqual({
+      friction: 3,
+      restitution: 0.1,
+      description: "Wetter.",
+    });
+    expect(registry.materials.get("rubber")).toEqual({
+      friction: 0.4,
+      restitution: 0.9,
+      impulse: { x: 0, y: -500 },
+      description: "Bouncy.",
+      style: { fill: 0xe05a5a },
+    });
+    expect(registry.bulkKeys.map((b) => b.key)).toContain("solid:rubber");
+    expect(createRegistry(game()).materialNames).toEqual(["mud"]);
+  });
+
+  it("overlay the engine's registry too, and refuse a bad name", () => {
+    expect(createRegistry(null, { materials: { rubber } }).materialNames).toEqual(["rubber"]);
+    expect(problems(() => createRegistry(null, { materials: { "Bad Name": rubber } }))).toEqual([
+      `material "Bad Name" must match ${/^[a-z0-9][a-z0-9-]{0,47}$/}`,
+    ]);
+  });
+
+  it("leave a material without physics out of the body choices, over a code one too", () => {
+    const registry = createRegistry(game(), { materials: { paint, mud: paint } });
+    expect(registry.materialNames).toEqual([]);
+    const scene = {
+      v: 2,
+      game: "fake",
+      name: "s",
+      bounds: [0, 0, 100, 100],
+      entities: [{ id: "floor", type: "solid", shape: ["box", 50, 90, 50, 10], material: "paint" }],
+    };
+    const physical = createRegistry(game(), { materials: { paint: rubber } });
+    expect(parseScene(scene, physical).ok).toBe(true);
+    const result = parseScene(scene, registry);
+    const unknown = parseScene(
+      { ...scene, entities: [{ ...scene.entities[0], material: "nope" }] },
+      createRegistry(game()),
+    );
+    expect(result.ok).toBe(false);
+    expect(unknown.ok).toBe(false);
+    const codes = (r: typeof result) => (r.ok ? [] : r.issues.map((i) => [i.code, i.path]));
+    expect(codes(result)).toEqual(codes(unknown));
+    expect(codes(result)).toEqual([["schema", "/entities/0/material"]]);
+  });
+
+  it("withProject builds the overlay from a project's material assets", () => {
+    const view = viewOf([
+      entry("rubber", "material", "materials/rubber.json"),
+      entry("mud", "material", "materials/mud.json"),
+      entry("broken", "material", "materials/broken.json"),
+      entry("deck", "data-table", "data/deck.json"),
+    ]);
+    const values = new Map<string, unknown>([
+      [
+        "rubber",
+        {
+          kind: "material",
+          v: 1,
+          description: "Bouncy.",
+          physics: { friction: 0.4, restitution: 0.9 },
+          render: { style: { fill: "#e05a5a" } },
+        },
+      ],
+      ["mud", { kind: "material", v: 1, description: "Paint over mud." }],
+      ["broken", { kind: "material", v: 1 }],
+      ["deck", { kind: "data-table", v: 1, table: "card", rows: [] }],
+    ]);
+    const base = createRegistry(game());
+    const registry = withProject(base, view, values);
+    expect(registry.game).toBe(base.game);
+    expect(registry.materialNames).toEqual(["rubber"]);
+    expect(registry.materials.get("rubber")).toEqual({
+      friction: 0.4,
+      restitution: 0.9,
+      description: "Bouncy.",
+      style: { fill: 0xe05a5a },
+    });
   });
 });

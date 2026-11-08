@@ -7,10 +7,11 @@ import { fileURLToPath } from "node:url";
 import type { RapierModule } from "@jams/engine/headless";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
+import { platformerGame } from "../../../src/games/platformer";
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
-import { GAMES } from "../games";
 import { rasterizeSvg } from "../raster";
+import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 
@@ -32,8 +33,10 @@ beforeAll(async () => {
     join(dirs.platformer, "test-yard.json"),
   );
   ctx = {
-    games: GAMES,
-    scenesDirs: dirs,
+    projects: [
+      await tempProject(dirs.engine, { id: "engine" }),
+      await tempProject(dirs.platformer, { game: platformerGame }),
+    ],
     loadRapier: () => import("@dimforge/rapier2d") as Promise<RapierModule>,
     readStdin: async () => stdin,
   };

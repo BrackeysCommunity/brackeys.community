@@ -238,6 +238,53 @@ engine-package:
         - bun.lock
     # No tag clause — see the note on `lint` above; `engine-pack` runs both on an engine tag.
 
+# The checks no other job runs: formatting, lint and types over the whole repo,
+# each service's own typecheck against its own dependencies, and the scene
+# CLI's validation of every engine and game scene.
+engine-verify:
+  stage: test
+  image: node:24
+  before_script:
+    - npm i -g bun
+    - bun install --frozen-lockfile
+  script:
+    - ./node_modules/.bin/vp check
+    - |
+      for dir in services/*/; do
+        if [ -f "$dir/tsconfig.json" ] && grep -q '"typecheck"' "$dir/package.json"; then
+          echo "== $dir"
+          (cd "$dir" && bun install --frozen-lockfile && bun run typecheck) || exit 1
+        fi
+      done
+    - |
+      for scene in $(bun scripts/scene/cli.ts list | awk '{print $1}'); do
+        bun scripts/scene/cli.ts validate "$scene" || exit 1
+      done
+  rules:
+    - !reference [.skip-version-bump, rules]
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - src/**/*
+        - services/**/*
+        - scripts/**/*
+        - package.json
+        - bun.lock
+        - tsconfig*.json
+        - vite.config.*
+        - "*.config.*"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - src/**/*
+        - services/**/*
+        - scripts/**/*
+        - package.json
+        - bun.lock
+        - tsconfig*.json
+        - vite.config.*
+        - "*.config.*"
+
 engine-browser-smoke:
   stage: test
   # The tag must match the exact `playwright` devDependency, whose browser

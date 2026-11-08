@@ -72,8 +72,8 @@ async function publish(channel: string, message: RevokeMessage | ApplyMessage): 
 const TOMBSTONE_TTL_MS = SYNC_LIMITS.tokenTtlMs + REVOKE_CLOCK_SKEW_MS;
 
 /**
- * Closes live sockets: one person's on a canvas, everyone's on it, or one
- * person's everywhere. The tombstone covers an instance that starts after
+ * Closes live sockets: one person's on a document (a canvas, a scene, or all
+ * of a project's), everyone's on it, or one person's everywhere. The tombstone covers an instance that starts after
  * the publish, which would otherwise accept a token minted before it.
  */
 export async function publishCanvasRevoke(message: RevokeMessage): Promise<void> {
@@ -90,6 +90,14 @@ export async function publishCanvasRevoke(message: RevokeMessage): Promise<void>
  */
 export async function publishSceneRevoke(sceneId: string, userId?: string): Promise<void> {
   await publishCanvasRevoke(userId ? { sceneId, userId } : { sceneId });
+}
+
+/**
+ * Closes live sockets on every document of a hosted project (its registry,
+ * scenes and assets): one person's, or everyone's.
+ */
+export async function publishProjectRevoke(projectId: string, userId?: string): Promise<void> {
+  await publishCanvasRevoke(userId ? { projectId, userId } : { projectId });
 }
 
 /** The stored state changed outside the service; connected editors should see it. */

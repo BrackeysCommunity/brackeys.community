@@ -20,6 +20,7 @@ import {
   type SceneIssue,
   type ToolHost,
 } from "@jams/engine/editor";
+import type { AssetKey } from "@jams/engine/project";
 import { useStore } from "@tanstack/react-store";
 import { Store } from "@tanstack/store";
 import { useEffect, useMemo } from "react";
@@ -37,11 +38,13 @@ import {
   useToolHostLifecycle,
   type ToolHostCell,
 } from "./canvas-layer/tool-host";
+import { CodeSkewNotice } from "./CodeSkewNotice";
 import { EditorCanvasOverlay } from "./EditorCanvasOverlay";
 import { EditorHistory } from "./EditorHistory";
 import { EditorInspector } from "./EditorInspector";
 import { EditorOutliner } from "./EditorOutliner";
 import { EditorPlayBar, nextTimeScale } from "./EditorPlayBar";
+import { EditorProject, useSelectedAsset, type EditorProjectLink } from "./EditorProject";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { EditorToolbar } from "./EditorToolbar";
 import { createLoadedRunStore, type LoadedRun } from "./loaded-run";
@@ -92,6 +95,8 @@ export type EditorShellProps = {
   onOpenPrefab?: (prefab: string, from: Ref) => void;
   /** The prefab `session` edits in isolation, and the way back to its scene. */
   prefab?: { id: string; scene: string; onBack: () => void };
+  /** The project the scene belongs to: its tree goes above the outliner. */
+  project?: EditorProjectLink;
 };
 
 /** What the dock, the keys and the panels share. */
@@ -123,6 +128,7 @@ export function editorChrome(props: EditorShellProps): EditorChrome {
     }
   }
   const physical = new Store<readonly SceneIssue[]>([]);
+  const pickedAsset = new Store<AssetKey | null>(null);
   const controls: EditorControls = {
     ...props,
     rapier: props.rapier ?? null,
@@ -150,22 +156,36 @@ export function editorChrome(props: EditorShellProps): EditorChrome {
   return {
     left: (
       <EditMode session={session}>
-        {props.prefab ? <PrefabBreadcrumb {...props.prefab} /> : null}
-        <Island className="w-full flex-col items-stretch overflow-hidden">
-          <OutlinerWithProblems
-            session={session}
-            physical={physical}
-            onOpenPrefab={props.onOpenPrefab}
-          />
-        </Island>
+        <div className="flex min-h-0 w-full flex-col">
+          <CodeSkewNotice host={host} />
+          {props.prefab ? <PrefabBreadcrumb {...props.prefab} /> : null}
+          {props.project ? (
+            <Island className="mb-2 max-h-[45%] min-h-24 w-full shrink-0 flex-col items-stretch overflow-hidden">
+              <EditorProject
+                project={props.project}
+                selected={pickedAsset}
+                prefab={props.prefab?.id}
+              />
+            </Island>
+          ) : null}
+          <Island className="min-h-0 w-full flex-1 flex-col items-stretch overflow-hidden">
+            <OutlinerWithProblems
+              session={session}
+              physical={physical}
+              onOpenPrefab={props.onOpenPrefab}
+            />
+          </Island>
+        </div>
       </EditMode>
     ),
     right: (
       <EditMode session={session}>
         <PhysicalWatch session={session} rapier={controls.rapier} store={physical} />
         <Island className="min-h-0 shrink flex-col items-stretch overflow-y-auto">
-          <EditorInspector
+          <InspectorWithAsset
             session={session}
+            project={props.project}
+            picked={pickedAsset}
             onOpenPrefab={props.onOpenPrefab}
             inPrefab={props.prefab !== undefined}
           />
@@ -233,6 +253,32 @@ function OutlinerWithProblems({
 }) {
   return (
     <EditorOutliner session={session} physical={useStore(physical)} onOpenPrefab={onOpenPrefab} />
+  );
+}
+
+/** The inspector, showing the asset picked in the project tree until something in the scene is picked. */
+function InspectorWithAsset({
+  session,
+  project,
+  picked,
+  onOpenPrefab,
+  inPrefab,
+}: {
+  session: EditorSession;
+  project?: EditorProjectLink;
+  picked: Store<AssetKey | null>;
+  onOpenPrefab?: (prefab: string, from: Ref) => void;
+  inPrefab: boolean;
+}) {
+  const selection = useEditorStore(session, (s) => s.selection);
+  const asset = useSelectedAsset(project, picked, selection);
+  return (
+    <EditorInspector
+      session={session}
+      onOpenPrefab={onOpenPrefab}
+      inPrefab={inPrefab}
+      {...(asset ? { asset } : {})}
+    />
   );
 }
 

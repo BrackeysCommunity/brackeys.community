@@ -19,6 +19,7 @@ import {
   timestamp,
   unique,
   uniqueIndex,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -2247,7 +2248,8 @@ export type ImageOwnerType =
   | "profile_project_image"
   | "team_project_image"
   | "forum_post_image"
-  | "canvas_attachment";
+  | "canvas_attachment"
+  | "engine_blob";
 
 /**
  * `pending` — row minted at upload, not yet scanned. `scanned` — fingerprinted
@@ -2430,6 +2432,10 @@ export const sceneDocs = canvasSchema.table(
   "scene_docs",
   {
     sceneId: text("scene_id").primaryKey(),
+    // The engine project the scene belongs to: the id's part before the dot.
+    projectId: text("project_id").references(() => engineProjects.projectId, {
+      onDelete: "cascade",
+    }),
     state: bytea("state"),
     seed: text("seed"),
     snapshot: text("snapshot"),
@@ -2449,6 +2455,111 @@ export const sceneDocs = canvasSchema.table(
       "scene_docs_id",
       sql`${t.sceneId} ~ '^[a-z0-9][a-z0-9-]{0,47}\\.[a-z0-9][a-z0-9-]{0,47}$'`,
     ),
+    index("scene_docs_project_idx").on(t.projectId),
+  ],
+);
+
+/**
+ * A hosted engine project: its registry doc (`project:<id>`) and the docs
+ * and blobs it owns. Apart from the `project` schema's showcase projects.
+ * The service creates `engine_asset_docs` rows as it sees new doc-kind
+ * entries in the registry; blobs live in object storage under `storage_key`.
+ */
+export const engineProjects = canvasSchema.table(
+  "engine_projects",
+  {
+    projectId: text("project_id").primaryKey(),
+    name: text("name").notNull(),
+    // The game whose registry judges the project; null for engine primitives only.
+    game: text("game"),
+    state: bytea("state"),
+    byteSize: integer("byte_size").notNull().default(0),
+    layout: integer("layout").notNull().default(1),
+    teamId: text("team_id").references(() => teams.id, { onDelete: "set null" }),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    deletedAt: timestamp("deleted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [check("engine_projects_id", sql`${t.projectId} ~ '^[a-z0-9][a-z0-9-]{0,47}$'`)],
+);
+
+/** Every doc of a project that isn't a scene or the registry (`asset:<project>.<key>`), by registry key. */
+export const engineAssetDocs = canvasSchema.table(
+  "engine_asset_docs",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    assetKey: text("asset_key").notNull(),
+    kind: text("kind").notNull(),
+    state: bytea("state"),
+    seed: text("seed"),
+    byteSize: integer("byte_size").notNull().default(0),
+    schemaVersion: integer("schema_version"),
+    // Canonical text and its SHA-256, for the engine's own kinds only.
+    snapshot: text("snapshot"),
+    contentSha256: text("content_sha256"),
+    lastEditedById: text("last_edited_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    lastEditedAt: timestamp("last_edited_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.assetKey] }),
+    check("engine_asset_docs_key", sql`${t.assetKey} ~ '^[a-z0-9][a-z0-9-]{0,47}$'`),
+  ],
+);
+
+/** A project's binary content, by hash. `last_referenced_at` is for a future collector. */
+export const engineBlobs = canvasSchema.table(
+  "engine_blobs",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    sha256: text("sha256").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    contentType: text("content_type").notNull(),
+    storageKey: text("storage_key").notNull(),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastReferencedAt: timestamp("last_referenced_at"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.sha256] }),
+    check("engine_blobs_sha256", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+/**
+ * A credential an agent exchanges for short-lived project sync tokens. Only
+ * the secret's SHA-256 is stored; the secret is shown once at creation.
+ */
+export const engineAgentTokens = canvasSchema.table(
+  "engine_agent_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    createdById: text("created_by_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    access: text("access").notNull(),
+    label: text("label").notNull(),
+    tokenSha256: text("token_sha256").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    lastUsedAt: timestamp("last_used_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("engine_agent_tokens_access", sql`${t.access} IN ('read', 'write')`),
+    check("engine_agent_tokens_sha256", sql`${t.tokenSha256} ~ '^[0-9a-f]{64}$'`),
+    index("engine_agent_tokens_project_idx").on(t.projectId),
   ],
 );
 

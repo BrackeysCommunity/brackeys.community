@@ -1,5 +1,5 @@
 /** @experimental The editor on a shared doc with no DOM or renderer: session, keymap, the tool host and its tools, picking, snapping, gizmos, the clipboard and the inspector model. The file-based `createHistory` remains for tools that edit files. */
-export { createEditorSession, labelFor } from "./session";
+export { createEditorSession, labelFor, projectHistory } from "./session";
 export type {
   DispatchOptions,
   EditorSession,
@@ -19,6 +19,7 @@ export { createEditorStore, type EditorMode, type EditorStoreState } from "./sto
 export { buildOutline, INSTANCES_ROW, outlineOrder, type OutlineRow } from "./outline";
 export {
   applyToPrefabBatch,
+  asProjectBatch,
   childOverrides,
   createPrefabBatch,
   instanceOfRef,

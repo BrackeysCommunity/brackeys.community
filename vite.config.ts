@@ -196,11 +196,19 @@ const publicFileRules = Object.fromEntries(
 );
 
 /**
- * The engine's scene collab server, dev server only: `GET /__scene` lists the
- * scenes and websockets on `/__scene-collab` co-edit them as `scene:<name>`
- * documents, written back to the scene files. Run through a module runner
- * with tsconfig paths, because the engine and games import each other by
- * `@jams/engine/*`, which the config bundler, lint and fmt can't resolve.
+ * When this build was made: the site's `VITE_BUILD_AT` and the collab
+ * server's build stamps. In dev it is when the server started.
+ */
+const buildAt = process.env.VITE_BUILD_AT ?? String(Date.now());
+
+/**
+ * The engine's collab server, dev server only: `GET /__scene` lists the
+ * scenes, `/__project` the projects and their blobs, and websockets on
+ * `/__scene-collab` co-edit every project's docs (`project:<id>`,
+ * `scene:<id>.<key>`, `asset:<id>.<key>`), written back to the project
+ * files. Run through a module runner with tsconfig paths, because the
+ * engine and games import each other by `@jams/engine/*`, which the config
+ * bundler, lint and fmt can't resolve.
  */
 function sceneCollab(): Plugin {
   return {
@@ -211,7 +219,7 @@ function sceneCollab(): Plugin {
         fileURLToPath(new URL("./scripts/scene/dev-sink.ts", import.meta.url)),
         { configFile: false, resolve: { tsconfigPaths: true } },
       );
-      module.devSceneCollab().configureServer(server);
+      module.devSceneCollab({ buildAt }).configureServer(server);
     },
   };
 }
@@ -377,6 +385,7 @@ const config = defineConfig({
   },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
+    "import.meta.env.VITE_BUILD_AT": JSON.stringify(buildAt),
   },
   resolve: {
     tsconfigPaths: true,

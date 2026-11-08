@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:material:v1",
+  "x-agent-surface": 7,
+  "title": "jams engine material, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The material JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "material",
+      "description": "Always \"material\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Material format version."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One sentence; the inspector and the scene schema list it beside the name."
+    },
+    "physics": {
+      "type": "object",
+      "properties": {
+        "friction": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Surface friction."
+        },
+        "restitution": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Bounciness: 0 doesn't bounce, 1 keeps all its speed."
+        },
+        "impulse": {
+          "description": "Launch velocity on contact, px/s.",
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number",
+              "description": "x, px/s."
+            },
+            "y": {
+              "type": "number",
+              "description": "y, px/s; y is down, so a bounce is negative."
+            }
+          },
+          "required": ["x", "y"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["friction", "restitution"],
+      "additionalProperties": false,
+      "description": "How bodies of this material collide. Required when a physics body uses the material; without it the material is render data only."
+    },
+    "render": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "object",
+          "properties": {
+            "fill": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+              "description": "Fill color, #rgb or #rrggbb."
+            },
+            "stroke": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+              "description": "Outline color, #rgb or #rrggbb."
+            },
+            "alpha": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Opacity of the whole shape, 0 to 1."
+            },
+            "strokeAlpha": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Opacity of the outline, 0 to 1; the shape's alpha when omitted."
+            },
+            "strokeWidth": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Outline width, px."
+            }
+          },
+          "additionalProperties": false,
+          "description": "A fallback look; wins over the entity type's style field by field."
+        }
+      },
+      "additionalProperties": false,
+      "description": "How bodies of this material are drawn."
+    }
+  },
+  "required": ["kind", "v", "description"],
+  "additionalProperties": false,
+  "description": "A surface material. Its asset id is its name in material fields, and it wins over a game's code material of that name."
+}

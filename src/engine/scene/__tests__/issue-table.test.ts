@@ -175,6 +175,17 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
   "op-invalid": () => opIssue(scene(), [{ op: "update", ref: "start" }]),
   "id-taken": () =>
     opIssue(scene(), [{ op: "add", entity: { id: "start", type: "marker", at: [1, 1] } }]),
+  // Project codes come from the project model, not the scene tools these fixtures run.
+  "asset-missing": null,
+  "asset-kind": null,
+  "asset-in-use": null,
+  "asset-id-taken": null,
+  "path-taken": null,
+  "hash-mismatch": null,
+  "code-skew": null,
+  "asset-too-large": null,
+  "import-failed": null,
+  "quota-exceeded": null,
 };
 
 /** `applyOps` codes point into the batch, which has no line map. */

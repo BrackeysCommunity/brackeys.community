@@ -1,0 +1,8 @@
+{
+  "$schema": "../../project/material.schema.json",
+  "kind": "material",
+  "v": 1,
+  "description": "Bouncy rubber.",
+  "physics": { "friction": 0.4, "restitution": 0.9 },
+  "render": { "style": { "fill": "#e05a5a" } }
+}

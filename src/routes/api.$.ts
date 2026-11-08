@@ -16,6 +16,8 @@ import { insertCanvasAttachment } from "@/lib/canvas-persistence";
 import { CANVAS_IMAGE_UPLOADS_PER_DAY } from "@/lib/canvas/limits";
 import { checkPath, repairPath } from "@/lib/canvas/paths";
 import { isStaffMember } from "@/lib/discord";
+import { ENGINE_BLOB_KINDS } from "@/lib/engine/limits";
+import { createEngineRoutes } from "@/lib/engine/routes";
 import { SITE } from "@/lib/legal-meta";
 import {
   bestEffort,
@@ -26,6 +28,7 @@ import {
 import {
   ProfileProjectImageUploadError,
   removeProfileProjectImageFromStorage,
+  streamStoredImage,
   uploadImageToStorage,
   uploadProfileProjectImageToStorage,
 } from "@/lib/profile-project-image-storage";
@@ -206,6 +209,10 @@ async function handle({ request }: { request: Request }) {
   }
   if (pathname === "/api/canvas/image") {
     return handleCanvasImageUpload(request);
+  }
+  if (pathname.startsWith("/api/engine/")) {
+    const engine = await handleEngineRoute(request);
+    if (engine) return engine;
   }
   if (isReferenceDocsPath(pathname) && !(await canViewReferenceDocs(request))) {
     return new Response("Not Found", { status: 404 });
@@ -540,6 +547,18 @@ const handleCanvasImageUpload = withImageUpload(
   },
   (userId) => checkRateLimit("canvas-image", userId, CANVAS_IMAGE_UPLOADS_PER_DAY, 86400),
 );
+
+/**
+ * Hosted engine projects: blob upload and read, bundle pull and push, and
+ * the agent token exchange. Gated like the `engine-project` procedures
+ * (staff and the `engine-projects` flag), or by a bearer agent token for
+ * its own project.
+ */
+const handleEngineRoute = createEngineRoutes({
+  readSession: readUploadSession,
+  kinds: ENGINE_BLOB_KINDS,
+  serve: streamStoredImage,
+});
 
 /** An import's own path for an image, or the nearest valid one. */
 function wantedImagePath(path: string): string {

@@ -4,13 +4,19 @@ import type * as Y from "yjs";
 
 import { canvases } from "../../../src/db/schema.ts";
 import { CANVAS_LIMITS } from "../../../src/lib/canvas/limits.ts";
-import { parseDocumentName, SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
+import {
+  isSyncKind,
+  parseDocumentName,
+  SYNC_CLOSE,
+  type SyncKind,
+} from "../../../src/lib/canvas/sync-channels.ts";
 import type { CanvasTokenClaims } from "../../../src/lib/canvas/token.ts";
 import { applyStoredState } from "./apply.ts";
 import type { ServiceDb } from "./db.ts";
 import { SyncRefusal } from "./limits.ts";
 
-export type DocumentKindName = "canvas" | "scene";
+/** A kind this service may host; an instance hosts the ones it was started with. */
+export type DocumentKindName = SyncKind;
 
 export interface KindLimits {
   /** Encoded state of one live doc. */
@@ -37,7 +43,10 @@ export interface DocumentKind {
   /** What close reasons call a doc of this kind: "canvas too large". */
   noun: string;
   limits: KindLimits;
-  /** What a revoke covering this document is remembered under. */
+  /**
+   * What a revoke covering this document is remembered under: a canvas's id,
+   * else the document's name, so a revoke of its project covers it too.
+   */
   subject(id: string): string;
   /** Checks a connect whose token names this document; throws a `SyncRefusal` to refuse. */
   admit(id: string, claims: CanvasTokenClaims): Promise<KindGrant>;
@@ -77,11 +86,16 @@ export class DocumentKinds {
     return this.byName.get(name);
   }
 
-  /** The kind hosting a document and the id after its prefix; null for anything this service doesn't host. */
+  /**
+   * The kind hosting a document and the id after its prefix; null for
+   * anything this instance doesn't host, a well-formed name of a kind it
+   * wasn't started with included.
+   */
   resolve(documentName: string): { kind: DocumentKind; id: string } | null {
     const parsed = parseDocumentName(documentName);
-    const kind = parsed ? this.byName.get(parsed.kind as DocumentKindName) : undefined;
-    return kind && parsed ? { kind, id: parsed.id } : null;
+    if (!parsed || !isSyncKind(parsed.kind)) return null;
+    const kind = this.byName.get(parsed.kind);
+    return kind ? { kind, id: parsed.id } : null;
   }
 
   /** One extension that hands each document hook to the kind of its document. */

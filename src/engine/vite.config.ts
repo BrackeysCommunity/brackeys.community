@@ -53,6 +53,7 @@ export default defineConfig({
         game: "./game/index.ts",
         debug: "./debug/index.ts",
         "sim-kit": "./sim-kit/index.ts",
+        project: "./project/index.ts",
       },
     },
     {

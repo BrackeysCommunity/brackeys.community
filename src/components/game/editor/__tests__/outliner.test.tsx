@@ -36,11 +36,14 @@ function scene(): SceneDefinition {
 
 function setup(def: SceneDefinition = scene(), prefabs?: PrefabLibrary) {
   const session = createEditorSession({
-    doc: sceneToDoc(def, { key: sequentialKeys("t"), ...(prefabs ? { prefabs } : {}) }),
+    doc: sceneToDoc(def, { key: sequentialKeys("t") }),
     origin: ada,
     name: "outline-yard",
     registry,
     issuesDebounceMs: 0,
+    ...(prefabs
+      ? { prefabs: { library: () => prefabs, subscribe: () => () => {}, open: async () => null } }
+      : {}),
   });
   const dispatch = vi.spyOn(session, "dispatch");
   const onHover = vi.fn();

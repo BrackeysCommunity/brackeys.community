@@ -8,12 +8,12 @@ import { formatPrefab, formatScene, type Prefab, type SceneDefinition } from "@j
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { ToolContext } from "../context";
-import { GAMES } from "../games";
 import { apply } from "../tools/apply";
 import { list } from "../tools/list";
 import { render } from "../tools/render";
 import { show } from "../tools/show";
 import { validate } from "../tools/validate";
+import { tempProject } from "./fixtures";
 
 const GATE: Prefab = {
   kind: "prefab",
@@ -60,8 +60,7 @@ beforeEach(async () => {
   await writeFile(join(root, "prefabs", "gate.json"), formatPrefab(GATE));
   await writeFile(join(root, "gates.json"), formatScene(SCENE).text);
   ctx = {
-    games: GAMES,
-    scenesDirs: { engine: root },
+    projects: [await tempProject(root, { id: "engine" })],
     loadRapier: () => import("@dimforge/rapier2d") as Promise<RapierModule>,
   };
 });

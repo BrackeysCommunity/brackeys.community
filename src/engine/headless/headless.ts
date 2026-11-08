@@ -1,7 +1,7 @@
 import type { GameOutcome } from "../game/types";
 import { TICK_RATE } from "../physics";
 import { inputAction, probeConfigHash } from "../runtime/recorder";
-import { createSceneRuntime, resolveGame } from "../runtime/runtime";
+import { createSceneRuntime, resolveGame, type ProjectOption } from "../runtime/runtime";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import { closest } from "../scene/did-you-mean";
 import type { InputAction } from "../types";
@@ -13,13 +13,16 @@ const TICK_MS = 1000 / TICK_RATE;
 const DEFAULT_MAX_EVENTS = 1000;
 
 /** A runtime with no view: nothing is drawn and nothing touches the DOM. */
-export function createHeadlessRuntime(opts: HeadlessRuntimeOptions): SceneRuntimeHandle {
+export function createHeadlessRuntime(
+  opts: HeadlessRuntimeOptions & ProjectOption,
+): SceneRuntimeHandle {
   const runtime = createSceneRuntime({
     rapier: opts.rapier,
     view: null,
     game: opts.game,
     registry: opts.registry,
     dev: opts.dev,
+    project: opts.project,
   });
   if (opts.scene) {
     const report = runtime.load(opts.scene);

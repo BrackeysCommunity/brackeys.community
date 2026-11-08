@@ -2,9 +2,10 @@ import type * as Y from "yjs";
 
 import type { Registry } from "../game/types";
 import { makeIssue } from "../scene/issues";
-import type { SceneIssue } from "../scene/types";
+import type { Bounds, SceneIssue } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import { contentMaps, readDoc, touchesMaps } from "./convert";
+import { EMPTY_PREFAB_SOURCE, type PrefabSource } from "./prefab-source";
 
 export type IssueWatch = {
   /** Validates now, skipping the wait. */
@@ -17,13 +18,25 @@ export type WatchIssuesOptions = {
   debounceMs?: number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+  /** Where instances' prefabs come from; a change to one the scene uses revalidates. Default none. */
+  prefabs?: PrefabSource;
+  /** For a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
+  parentBounds?: Bounds;
 };
 
-/** Validates a doc's scene, turning a validator that throws into an issue instead of an exception. */
-export function validateDoc(doc: Y.Doc, registry: Registry): SceneIssue[] {
+/** Validates a doc's scene (or a prefab doc's children), turning a validator that throws into an issue instead of an exception. */
+export function validateDoc(
+  doc: Y.Doc,
+  registry: Registry,
+  opts: Pick<WatchIssuesOptions, "prefabs" | "parentBounds"> = {},
+): SceneIssue[] {
   try {
-    const view = readDoc(doc);
-    return validateScene(view.def, registry, { prefabs: view.prefabs });
+    const view = readDoc(doc, {
+      registry,
+      ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}),
+    });
+    const prefabs = (opts.prefabs ?? EMPTY_PREFAB_SOURCE).library();
+    return validateScene(view.def, registry, { prefabs });
   } catch (err) {
     return [
       makeIssue("schema", {
@@ -53,16 +66,22 @@ export function watchIssues(
 
   const run = () => {
     timer = null;
-    const issues = validateDoc(doc, registry);
+    const issues = validateDoc(doc, registry, opts);
     onIssues(issues);
     return issues;
   };
-  const onTransaction = (tr: Y.Transaction) => {
-    if (!touchesMaps(tr, tracked)) return;
+  const schedule = () => {
     if (timer !== null) clearTimer(timer);
     timer = setTimer(run, debounceMs);
   };
+  const onTransaction = (tr: Y.Transaction) => {
+    if (touchesMaps(tr, tracked)) schedule();
+  };
   doc.on("afterTransaction", onTransaction);
+  const unsubscribe = (opts.prefabs ?? EMPTY_PREFAB_SOURCE).subscribe((changed) => {
+    const used = readDoc(doc).def.instances ?? [];
+    if (used.some((i) => changed.includes(i.prefab))) schedule();
+  });
   return {
     flush() {
       if (timer !== null) clearTimer(timer);
@@ -72,6 +91,7 @@ export function watchIssues(
       if (timer !== null) clearTimer(timer);
       timer = null;
       doc.off("afterTransaction", onTransaction);
+      unsubscribe();
     },
   };
 }

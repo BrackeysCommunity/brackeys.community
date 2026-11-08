@@ -1,4 +1,5 @@
 import type { GameDefinition, Registry, RunResult } from "../game/types";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { LoadReport, StepEvent } from "../runtime/types";
 import type { RunRecording } from "../scene/recording-schema";
 import type {
@@ -133,6 +134,8 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
   maxTrail?: number;
   /** Freeze the played definition, as the editor's Play does in dev. */
   dev?: boolean;
+  /** The project's data the game reads as `EngineContext.project`; null without one. */
+  project?: ProjectRuntimeView | null;
 };
 
 /** How one script step went. */

@@ -1,9 +1,12 @@
+import type { KindRegistry } from "../../../src/engine/project/index.ts";
+import { PREFAB_KIND } from "../../../src/engine/scene/index.ts";
 import { CANVAS_LIMITS, SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import {
   SYNC_CLOSE,
   syncClose,
   type SyncCloseCode,
 } from "../../../src/lib/canvas/sync-channels.ts";
+import { ASSET_DOC_LIMITS, PREFAB_DOC_LIMITS } from "../../../src/lib/scene/limits.ts";
 
 /**
  * A refusal Hocuspocus understands: thrown from `onAuthenticate` its
@@ -161,6 +164,67 @@ export class DocumentGrowth {
   forget(documentName: string): void {
     this.since.delete(documentName);
   }
+}
+
+/**
+ * The most any asset doc kind may ask for, whatever its `limits` say: a
+ * whole doc must fit the first sync step 2, which Bun receives as one frame.
+ */
+export const ASSET_DOC_CAPS = {
+  maxStateBytes: CANVAS_LIMITS.maxStateBytes,
+  maxMessageBytes: CANVAS_LIMITS.maxMessageBytes,
+  maxItems: 100_000,
+} as const;
+
+export interface AssetDocLimits extends MessageLimits {
+  /** Items across the content's keyed and list collections; unbounded when absent. */
+  maxItems?: number;
+}
+
+/**
+ * An asset doc kind's caps: what its `DocKindDef.limits` names, else
+ * `ASSET_DOC_LIMITS`, clamped to `ASSET_DOC_CAPS`. A message never carries
+ * more than the whole doc may hold.
+ */
+export function assetDocLimits(
+  declared?: { maxStateBytes: number; maxItems?: number },
+  defaults: MessageLimits = ASSET_DOC_LIMITS,
+): AssetDocLimits {
+  const positive = (n: number | undefined) =>
+    n !== undefined && Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+  const maxStateBytes = Math.min(
+    positive(declared?.maxStateBytes) ?? defaults.maxStateBytes,
+    ASSET_DOC_CAPS.maxStateBytes,
+  );
+  const maxMessageBytes = Math.min(
+    defaults.maxMessageBytes,
+    maxStateBytes,
+    ASSET_DOC_CAPS.maxMessageBytes,
+  );
+  const items = positive(declared?.maxItems);
+  return {
+    maxStateBytes,
+    maxMessageBytes,
+    ...(items !== undefined ? { maxItems: Math.min(items, ASSET_DOC_CAPS.maxItems) } : {}),
+  };
+}
+
+/**
+ * The caps of one asset doc kind: what its `DocKindDef.limits` names, else
+ * `PREFAB_DOC_LIMITS` for prefabs, else `defaults`, as `assetDocLimits`
+ * clamps them. A kind `kinds` doesn't have gets `defaults`.
+ */
+export function assetKindLimits(
+  kind: string,
+  kinds: KindRegistry,
+  defaults: MessageLimits = ASSET_DOC_LIMITS,
+): AssetDocLimits {
+  const def = kinds.get(kind);
+  if (def?.storage !== "doc") return assetDocLimits(undefined, defaults);
+  return assetDocLimits(
+    def.limits ?? (kind === PREFAB_KIND ? PREFAB_DOC_LIMITS : undefined),
+    defaults,
+  );
 }
 
 /** Other instances' connections for a user. Fails open: errors read as zero. */

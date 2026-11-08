@@ -11,6 +11,7 @@ import type {
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
 import { createPhysicsWorld } from "../physics";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { EntityTypeName, ExpandedScene, RuntimeEntity } from "../scene/types";
 import { createAttachmentHub } from "../systems/attachments";
 import type { InputAction } from "../types";
@@ -60,11 +61,14 @@ function sameValue(a: unknown, b: unknown): boolean {
 
 const errorOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** What a runtime's game reads of its project: `EngineContext.project`, null without one. */
+export type ProjectOption = { project?: ProjectRuntimeView | null };
+
 /**
  * A scene runtime for one registry: one system per loadable registered
  * type, built once and refilled on every load, plus the game's hooks.
  */
-export function createSceneRuntime(opts: SceneRuntimeOptions): SceneRuntimeHandle {
+export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): SceneRuntimeHandle {
   const { rapier, view } = opts;
   const now = opts.now ?? (() => 0);
   const { registry, game: gameDef } = resolveGame(opts);
@@ -104,6 +108,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions): SceneRuntimeHandl
     get play() {
       return play;
     },
+    project: opts.project ?? null,
   };
 
   for (const name of registry.spawnGroups.flat()) {

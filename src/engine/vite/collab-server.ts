@@ -1,36 +1,73 @@
-import { mkdirSync, watch, type FSWatcher } from "node:fs";
+import { watch, type FSWatcher } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { sep } from "node:path";
 import type { Duplex } from "node:stream";
 
-import type { Server as HocuspocusServer } from "@hocuspocus/server";
+import type { DirectConnection, Server as HocuspocusServer } from "@hocuspocus/server";
 import type * as Y from "yjs";
 
+import { buildAtFrom, stampWins } from "../collab/build-stamp";
+import { applyRepairs, reinspectBlobs } from "../collab/project-apply";
 import {
-  createSceneFileAdapter,
-  sceneDocName,
-  sceneOfDocName,
-  type DiskSync,
-  type SceneFileAdapter,
-  type SceneHome,
-} from "./file-adapter";
-import { createFileSceneStore, handleSceneRequest, type SceneStore } from "./handler";
-import { prefabsDirOf } from "./prefab-files";
-import { sceneNameOf } from "./scene-paths";
+  projectAssetsMap,
+  projectBuildMap,
+  projectCodeMap,
+  readEntry,
+  readProject,
+} from "../collab/project-doc";
+import { buildHashes } from "../collab/project-session";
+import type { DocOrigin } from "../collab/types";
+import type { ContentStore } from "../project/content-store";
+import { docNameOf, parseDocName } from "../project/doc-names";
+import type { KindEnv } from "../project/kinds";
+import { buildRefIndex, referencedTrash } from "../project/refs";
+import type { AssetId, AssetKey, ProjectId, ProjectState } from "../project/types";
+import { projectView } from "../project/view";
+import { ENGINE_VERSION } from "../version";
+import { fileContentStore } from "./content-store";
+import {
+  handleProjectRequest,
+  handleSceneRequest,
+  projectSceneStore,
+  sameOrigin,
+  type ProjectSource,
+  type SceneStore,
+} from "./handler";
+import {
+  codeModules,
+  createProjectFileAdapter,
+  isCodePath,
+  MOVE_SETTLE_MS,
+  type AssetChange,
+  type FileProject,
+  type ProjectDiskSync,
+  type ProjectFileAdapter,
+} from "./project-files";
 
-/** Where the dev server accepts collab websockets. */
+/** Where the dev server accepts collab websockets, for every doc: `project:`, `scene:` and `asset:`. */
 export const SCENE_COLLAB_PATH = "/__scene-collab";
 
+/** The stateless message type the server sends on a project doc when a binary's bytes change. */
+export const ASSET_CHANGED = "asset:changed";
+
+/** What an `asset:changed` stateless message holds, as JSON: hot reload refetches `sha256`. */
+export type AssetChangedMessage = AssetChange & { type: typeof ASSET_CHANGED; project: ProjectId };
+
 export type SceneCollabOptions = {
-  /** Scenes directories and their registries; a scene name resolves across all of them. */
-  homes: readonly SceneHome[];
+  /** The projects served; each doc name says which it belongs to. */
+  projects: readonly FileProject[];
   /** The websocket path; defaults to `SCENE_COLLAB_PATH`. */
   path?: string;
   /** How long after the last edit a doc is written back, in ms. */
   debounceMs?: number;
   /** How long a file must be quiet before its change is read, in ms. */
   watchDelayMs?: number;
-  /** Where refused disk changes and failed loads are reported; defaults to `console.warn`. */
+  /** How long an unlink and an add may be apart and still pair into a move, in ms; default `MOVE_SETTLE_MS`. */
+  settleMs?: number;
+  /** When this build was made, ms since the epoch: the build stamps the server writes. Default when the server starts. */
+  buildAt?: number;
+  /** Where refused disk changes, repairs and failed loads are reported; defaults to `console.warn`. */
   warn?: (message: string) => void;
   /**
    * The `@hocuspocus/server` module, for a host whose module loader is gone
@@ -43,7 +80,11 @@ export type SceneCollabOptions = {
 export type SceneCollab = {
   /** The in-process Hocuspocus server; it never listens on its own. */
   server: HocuspocusServer;
-  adapter: SceneFileAdapter;
+  /** Each project's file adapter, by project id. */
+  adapters: ReadonlyMap<ProjectId, ProjectFileAdapter>;
+  buildAt: number;
+  /** The server's copy of a project doc, loading it if needed; it stays loaded while the server lives. */
+  projectDoc(id: ProjectId): Promise<Y.Doc>;
   /** Takes an HTTP upgrade for the collab path; returns false for any other URL. */
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean;
   /** Resolves once every queued file read and write has finished. */
@@ -52,20 +93,6 @@ export type SceneCollab = {
 };
 
 const pathOf = (req: IncomingMessage) => new URL(req.url ?? "/", "http://localhost").pathname;
-
-/**
- * A browser sends `Origin` with every websocket; a page on another site
- * must not reach the dev server's scenes. Node and Bun clients send none.
- */
-function sameOrigin(req: IncomingMessage): boolean {
-  const origin = req.headers.origin;
-  if (origin === undefined) return true;
-  try {
-    return new URL(origin).host === req.headers.host;
-  } catch {
-    return false;
-  }
-}
 
 /** A client that already hung up resets the socket; without a listener that error would crash the host. */
 const ignoreErrors = (socket: Duplex) => {
@@ -78,121 +105,338 @@ function refuse(socket: Duplex, status: string): void {
   else socket.destroy();
 }
 
+const BUILD_REPAIR: DocOrigin = { kind: "repair", reason: "build" };
+const IN_USE_REPAIR = { kind: "repair", reason: "asset-in-use" } as const;
+const HASH_REPAIR: DocOrigin = { kind: "repair", reason: "hash-mismatch" };
+const REINSPECT_REPAIR = { kind: "repair", reason: "reinspect" } as const;
+
+type Served = {
+  project: FileProject;
+  adapter: ProjectFileAdapter;
+  store: ContentStore;
+  name: string;
+  env: KindEnv;
+  /** What `reinspectBlobs` last checked each binary at. */
+  checked: Map<AssetKey, string>;
+  hold?: Promise<DirectConnection>;
+};
+
 /**
- * Hocuspocus for the scene files in `homes`, in this process. A doc named
- * `scene:<name>` is seeded from `<dir>/<name>.json` when the first client
- * opens it (the server is the only seeder), written back as canonical JSON
- * when its text changes, and a change to the file from outside becomes one
- * `disk` transaction. Needs `@hocuspocus/server`, which is imported here
- * and only here, and Node: its websocket adapter refuses to run under Bun.
+ * Hocuspocus over the projects' files, in this process. The server is each
+ * project's one writer: it seeds `project:<id>` from a scan and each
+ * `scene:` and `asset:` doc from its file (or from the state persisted in
+ * the project's cache dir, with the file's difference applied as one
+ * `disk` transaction), writes back canonical text, sidecars, moves and the
+ * trash on store, persists every doc, and turns file changes under the
+ * project into `disk` transactions and registry ops. On each store of a
+ * project doc it repairs binaries whose bytes the content store lacks
+ * (`hash-mismatch`), restores trashed assets a loaded doc still names
+ * (`asset-in-use`), re-inspects binaries whose meta lags their bytes or
+ * merged settings, and repairs duplicate ids and paths. It writes the code
+ * map and this build's schema stamps when a project doc loads, and sends
+ * `asset:changed` on the project doc whenever a binary's hash changes: on
+ * disk, by a client's `replaceContent`, or by a repair. Needs
+ * `@hocuspocus/server`, imported here and only here, and Node: its
+ * websocket adapter refuses to run under Bun.
  */
 export async function createSceneCollab(options: SceneCollabOptions): Promise<SceneCollab> {
   const { Server } = options.hocuspocus ?? (await import("@hocuspocus/server"));
   const path = options.path ?? SCENE_COLLAB_PATH;
   const warn = options.warn ?? ((m: string) => console.warn(`[scene-collab] ${m}`));
-  const adapter = createSceneFileAdapter(options.homes);
+  const buildAt = options.buildAt === undefined ? Date.now() : buildAtFrom(options.buildAt);
+  const settleMs = options.settleMs ?? MOVE_SETTLE_MS;
+  const watchDelay = options.watchDelayMs ?? 30;
+
+  const served = new Map<ProjectId, Served>();
+  for (const project of options.projects) {
+    const id = project.file.id;
+    if (served.has(id)) throw new Error(`project "${id}" is served twice`);
+    served.set(id, {
+      project,
+      adapter: createProjectFileAdapter(project, { settleMs }),
+      store: fileContentStore(project.cacheDir),
+      name: docNameOf({ kind: "project", project: id }),
+      env: { registry: project.registry, project: null },
+      checked: new Map(),
+    });
+  }
 
   const queues = new Map<string, Promise<unknown>>();
-  function enqueue<T>(name: string, task: () => Promise<T>): Promise<T> {
-    const run = (queues.get(name) ?? Promise.resolve()).then(task, task);
+  function enqueue<T>(id: ProjectId, task: () => Promise<T>): Promise<T> {
+    const run = (queues.get(id) ?? Promise.resolve()).then(task, task);
     const settled = run.catch(() => undefined);
-    queues.set(name, settled);
+    queues.set(id, settled);
     settled.then(() => {
-      if (queues.get(name) === settled) queues.delete(name);
+      if (queues.get(id) === settled) queues.delete(id);
     });
     return run;
   }
 
-  const report = (name: string, result: DiskSync) => {
+  const report = (where: string, result: ProjectDiskSync) => {
     if (result.kind !== "refused") return;
     const first = result.issues?.[0];
-    warn(`${name}: ${result.reason}${first ? ` (${first.code}: ${first.message})` : ""}`);
+    warn(`${where}: ${result.reason}${first ? ` (${first.code}: ${first.message})` : ""}`);
   };
 
+  const docOf = (name: string): Y.Doc | undefined => server.hocuspocus.documents.get(name);
+
+  function servedOf(documentName: string) {
+    const ref = parseDocName(documentName);
+    const s = ref ? served.get(ref.project) : undefined;
+    if (!ref || !s)
+      throw new Error(
+        `${documentName} isn't a doc of a project this server holds (${[...served.keys()].join(", ")}); use project:<id>, scene:<id>.<key> or asset:<id>.<key>.`,
+      );
+    return { ref, s };
+  }
+
+  async function writeCode(s: Served, doc: Y.Doc): Promise<void> {
+    const code = await codeModules(s.project);
+    const map = projectCodeMap(doc);
+    const hashes = await buildHashes(s.project.kinds, s.project.registry);
+    const stamps = projectBuildMap(doc);
+    doc.transact(() => {
+      for (const [file, info] of Object.entries(code))
+        if (JSON.stringify(map.get(file)) !== JSON.stringify(info)) map.set(file, info);
+      for (const file of [...map.keys()]) if (!Object.hasOwn(code, file)) map.delete(file);
+      for (const [kind, hash] of Object.entries(hashes)) {
+        const stamp = stamps.get(kind);
+        if (stamp?.hash === hash) continue;
+        if (stamp && !stampWins(buildAt, hash, stamp)) continue;
+        stamps.set(kind, { hash, buildAt, engine: ENGINE_VERSION });
+      }
+    }, BUILD_REPAIR);
+  }
+
+  /** The store-time duties of the project's one writer. */
+  async function repair(s: Served, doc: Y.Doc): Promise<void> {
+    for (const r of await s.adapter.repairBlobs(doc, HASH_REPAIR))
+      warn(
+        `${s.name}: ${r.id}'s bytes (${r.from}) aren't in the content store; it points at ${r.to} again (hash-mismatch).`,
+      );
+    await reinspectBlobs(doc, {
+      kinds: s.project.kinds,
+      store: s.store,
+      origin: REINSPECT_REPAIR,
+      checked: s.checked,
+    });
+    const state = readProject(doc);
+    const values = new Map<AssetId, unknown>();
+    for (const [name, open] of server.hocuspocus.documents) {
+      const ref = parseDocName(name);
+      if (!ref || ref.kind === "project" || ref.project !== s.project.file.id) continue;
+      const entry = state.assets[ref.key];
+      if (!entry || entry.deleted) continue;
+      try {
+        const value = s.adapter.valueOf(name, open);
+        if (value !== undefined) values.set(entry.id, value);
+      } catch {
+        // A doc whose entry changed kind meanwhile is read again on its next store.
+      }
+    }
+    const view = projectView(state, s.project.kinds);
+    const restore = referencedTrash(view, buildRefIndex(view, values, s.project.kinds, s.env));
+    const fixed = applyRepairs(doc, restore.length > 0 ? { restore, origin: IN_USE_REPAIR } : {});
+    if (fixed.restored.length > 0)
+      warn(
+        `${s.name}: restored ${fixed.restored.map((k) => state.assets[k]?.id ?? k).join(", ")}, which a doc still names (asset-in-use).`,
+      );
+  }
+
+  function broadcast(s: Served, change: AssetChange): void {
+    const message: AssetChangedMessage = {
+      type: ASSET_CHANGED,
+      project: s.project.file.id,
+      ...change,
+    };
+    server.hocuspocus.documents.get(s.name)?.broadcastStateless(JSON.stringify(message));
+  }
+
+  /** Broadcasts every change of a live binary's hash, once per transaction, whoever wrote it. */
+  function watchContent(s: Served, doc: Y.Doc): void {
+    const assets = projectAssetsMap(doc);
+    assets.observeDeep((events) => {
+      for (const event of events) {
+        const [key] = event.path;
+        const change = event.changes.keys.get("sha256");
+        if (event.path.length !== 1 || typeof key !== "string" || !change) continue;
+        const map = assets.get(key);
+        const entry = map ? readEntry(key, map) : null;
+        if (!entry || entry.deleted || entry.sha256 === undefined) continue;
+        if (s.project.kinds.get(entry.kind)?.storage !== "blob") continue;
+        broadcast(s, {
+          key,
+          id: entry.id,
+          kind: entry.kind,
+          path: entry.path,
+          sha256: entry.sha256,
+          bytes: entry.bytes ?? 0,
+          previous: typeof change.oldValue === "string" ? change.oldValue : null,
+        });
+      }
+    });
+  }
+
   const server: HocuspocusServer = new Server({
-    name: "jams-engine scenes",
+    name: "jams-engine projects",
     quiet: true,
     stopOnSignals: false,
     debounce: options.debounceMs ?? 500,
     maxDebounce: Math.max(options.debounceMs ?? 500, 2_000),
     unloadImmediately: true,
     async onLoadDocument({ documentName, document }) {
-      const name = sceneOfDocName(documentName);
-      if (!name) throw new Error(`${documentName} isn't a scene document; use scene:<name>.`);
-      await enqueue(name, () => adapter.load(name, document)).catch((e: unknown) => {
+      try {
+        const { ref, s } = servedOf(documentName);
+        if (ref.kind === "project") {
+          await enqueue(s.project.file.id, async () => {
+            for (const p of await s.adapter.loadProject(document))
+              warn(`${s.project.file.id}/${p.path}: ${p.issues.map((i) => i.message).join("; ")}`);
+            await writeCode(s, document);
+            await repair(s, document);
+            watchContent(s, document);
+          });
+          return;
+        }
+        await holdProject(s);
+        await enqueue(s.project.file.id, () => s.adapter.loadDoc(documentName, document));
+      } catch (e) {
         warn(`${documentName}: ${(e as Error).message}`);
         throw e;
-      });
+      }
+    },
+    async afterLoadDocument({ documentName }) {
+      const ref = parseDocName(documentName);
+      const s = ref?.kind === "project" ? served.get(ref.project) : undefined;
+      if (s) void holdProject(s).catch((e: unknown) => warn(`${s.name}: ${(e as Error).message}`));
     },
     async onStoreDocument({ documentName, document }) {
-      const name = sceneOfDocName(documentName);
-      if (!name) return;
-      await enqueue(name, async () => {
+      const ref = parseDocName(documentName);
+      const s = ref ? served.get(ref.project) : undefined;
+      if (!ref || !s) return;
+      const id = s.project.file.id;
+      await enqueue(id, async () => {
+        if (ref.kind === "project") {
+          await repair(s, document);
+          await s.adapter.storeProject(document);
+          return;
+        }
+        const project = docOf(s.name);
+        const entry = project && readProject(project).assets[ref.key];
         // An outside change the watcher hasn't read yet goes in first, so the write can't clobber it.
-        report(name, await adapter.sync(name, document));
-        await adapter.store(name, document);
+        if (project && entry && !entry.deleted)
+          handle(s, entry.path, await s.adapter.syncPath(entry.path, docOf, project));
+        await s.adapter.storeDoc(documentName, document);
       });
     },
+    async beforeUnloadDocument({ documentName, document }) {
+      const ref = parseDocName(documentName);
+      const s = ref ? served.get(ref.project) : undefined;
+      if (s) await enqueue(s.project.file.id, () => s.adapter.persist(documentName, document));
+    },
     async afterUnloadDocument({ documentName }) {
-      const name = sceneOfDocName(documentName);
-      if (name) await enqueue(name, async () => adapter.forget(name));
+      const ref = parseDocName(documentName);
+      const s = ref ? served.get(ref.project) : undefined;
+      if (s) await enqueue(s.project.file.id, async () => s.adapter.forget(documentName));
     },
   });
 
-  const loadedDoc = (name: string): Y.Doc | undefined =>
-    server.hocuspocus.documents.get(sceneDocName(name));
+  function holdProject(s: Served): Promise<DirectConnection> {
+    s.hold ??= server.hocuspocus.openDirectConnection(s.name).catch((e: unknown) => {
+      delete s.hold;
+      throw e;
+    });
+    return s.hold;
+  }
+
+  // ─── Watching the files ────────────────────────────────
 
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const watchers: FSWatcher[] = [];
-  for (const home of options.homes) {
+  let closed = false;
+
+  function later(key: string, delay: number, run: () => Promise<void>): void {
+    if (closed) return;
+    clearTimeout(timers.get(key));
+    timers.set(
+      key,
+      setTimeout(() => {
+        timers.delete(key);
+        run().catch((e: unknown) => warn(`${key}: ${(e as Error).message}`));
+      }, delay),
+    );
+  }
+
+  /** Acts on a file event's result: waits to pair a pending add or unlink, reports a refusal. */
+  function handle(s: Served, where: string, result: ProjectDiskSync): void {
+    if (result.kind === "pending") {
+      later(`settle:${s.project.file.id}`, settleMs, () =>
+        enqueue(s.project.file.id, async () => {
+          const project = docOf(s.name);
+          if (!project) return;
+          for (const r of await s.adapter.settle(docOf, project)) handle(s, s.name, r);
+        }),
+      );
+      return;
+    }
+    report(where, result);
+  }
+
+  // An editor or a script may still be mid-write when the first event
+  // arrives; a file that doesn't parse is read once more before it's reported.
+  function schedule(s: Served, file: string, delay: number, retried: boolean): void {
+    const key = `${s.project.file.id}:${file}`;
+    later(key, delay, () =>
+      enqueue(s.project.file.id, async () => {
+        const project = docOf(s.name);
+        if (!project) return;
+        const result = await s.adapter.syncPath(file, docOf, project);
+        if (result.kind === "refused" && result.issues && !retried && !timers.has(key))
+          schedule(s, file, delay * 5, true);
+        else handle(s, `${s.project.file.id}/${file}`, result);
+      }),
+    );
+  }
+
+  for (const s of served.values()) {
     try {
-      const settle = options.watchDelayMs ?? 30;
-      // An editor or a script may still be mid-write when the first event
-      // arrives; a file that doesn't parse is read once more before it's reported.
-      const schedule = (name: string, delay: number, retried: boolean) => {
-        clearTimeout(timers.get(name));
-        timers.set(
-          name,
-          setTimeout(() => {
-            timers.delete(name);
-            enqueue(name, async () => {
-              const doc = loadedDoc(name);
-              if (!doc || !adapter.homeOf(name)) return;
-              const result = await adapter.sync(name, doc);
-              if (result.kind === "refused" && result.issues && !retried && !timers.has(name))
-                schedule(name, settle * 5, true);
-              else report(name, result);
-            }).catch((e: unknown) => warn(`${name}: ${(e as Error).message}`));
-          }, delay),
-        );
-      };
-      const watcher = watch(home.dir, (_event, file) => {
-        const name = file ? sceneNameOf(String(file)) : null;
-        if (name && loadedDoc(name)) schedule(name, settle, false);
+      const watcher = watch(s.project.dir, { recursive: true }, (_event, name) => {
+        if (!name || !docOf(s.name)) return;
+        const file = String(name).split(sep).join("/");
+        if (s.adapter.watches(file)) schedule(s, file, watchDelay, false);
+        if (isCodePath(s.project.file, file))
+          later(`code:${s.project.file.id}`, watchDelay, () =>
+            enqueue(s.project.file.id, async () => {
+              const project = docOf(s.name);
+              if (project) await writeCode(s, project);
+            }),
+          );
       });
-      watcher.on("error", (e) => warn(`watching ${home.dir}: ${e.message}`));
+      watcher.on("error", (e) => warn(`watching ${s.project.dir}: ${e.message}`));
       watchers.push(watcher);
-      // A prefab belongs to every scene in its home, so a change syncs each loaded one.
-      mkdirSync(prefabsDirOf(home.dir), { recursive: true });
-      const prefabWatcher = watch(prefabsDirOf(home.dir), () => {
-        for (const doc of server.hocuspocus.documents.keys()) {
-          const name = sceneOfDocName(doc);
-          if (name && adapter.homeOf(name)?.dir === home.dir) schedule(name, settle, false);
-        }
-      });
-      prefabWatcher.on("error", (e) => warn(`watching ${prefabsDirOf(home.dir)}: ${e.message}`));
-      watchers.push(prefabWatcher);
     } catch (e) {
-      warn(`can't watch ${home.dir}: ${(e as Error).message}`);
+      warn(`can't watch ${s.project.dir}: ${(e as Error).message}`);
     }
   }
 
   return {
     server,
-    adapter,
+    adapters: new Map([...served].map(([id, s]) => [id, s.adapter])),
+    buildAt,
+    async projectDoc(id) {
+      const s = served.get(id);
+      if (!s) throw new Error(`no project "${id}"`);
+      await holdProject(s);
+      const doc = docOf(s.name);
+      if (!doc) throw new Error(`${s.name} unloaded while it was held`);
+      return doc;
+    },
     handleUpgrade(req, socket, head) {
       if (pathOf(req) !== path) return false;
-      if (!sameOrigin(req)) {
+      if (closed) {
+        refuse(socket, "503 Service Unavailable");
+        return true;
+      }
+      if (!sameOrigin(req.headers)) {
         refuse(socket, "403 Forbidden");
         return true;
       }
@@ -207,29 +451,84 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       }
     },
     async destroy() {
+      closed = true;
       for (const w of watchers) w.close();
       for (const t of timers.values()) clearTimeout(t);
       timers.clear();
+      for (const s of served.values()) {
+        const held = await s.hold?.catch(() => undefined);
+        delete s.hold;
+        await held?.disconnect();
+      }
       await server.destroy();
       await Promise.all([...queues.values()]);
     },
   };
 }
 
-/** Answers `GET /__scene` (the scene names) and `GET /__scene/:name`; false for other URLs. */
-async function serveSceneRequest(
-  store: SceneStore,
+// ─── HTTP ────────────────────────────────────────────────
+
+/** The routes' view of the projects: the server's project docs once loaded, else scans of the files. */
+function projectSources(
+  projects: readonly FileProject[],
+  collab: () => SceneCollab | undefined,
+): ProjectSource[] {
+  return projects.map((project) => {
+    const lister = createProjectFileAdapter(project);
+    const id = project.file.id;
+    return {
+      project,
+      store: fileContentStore(project.cacheDir),
+      state: async (): Promise<ProjectState> => {
+        const doc = collab()?.server.hocuspocus.documents.get(
+          docNameOf({ kind: "project", project: id }),
+        );
+        return doc ? readProject(doc) : (await lister.scan()).state;
+      },
+    };
+  });
+}
+
+function readBody(req: IncomingMessage, limit: number): Promise<Uint8Array | null> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let over = false;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.byteLength;
+      if (size > limit) over = true;
+      else chunks.push(chunk);
+    });
+    req.on("end", () => resolve(over ? null : new Uint8Array(Buffer.concat(chunks))));
+    req.on("error", reject);
+  });
+}
+
+/** Answers `/__scene` and `/__project` requests; false for other URLs. */
+async function serveRequest(
+  scenes: SceneStore,
+  sources: readonly ProjectSource[],
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  const result = await handleSceneRequest(
-    { method: req.method ?? "GET", url: req.url ?? "" },
-    store,
-  );
+  const url = req.url ?? "";
+  const method = req.method ?? "GET";
+  const result =
+    (await handleSceneRequest({ method, url }, scenes)) ??
+    (await handleProjectRequest(
+      { method, url, headers: req.headers, body: (limit) => readBody(req, limit) },
+      sources,
+    ));
   if (!result) return false;
   res.statusCode = result.status;
-  res.setHeader("content-type", "application/json");
-  res.end(JSON.stringify(result.body));
+  const headers = "headers" in result ? result.headers : undefined;
+  if (result.body instanceof Uint8Array) {
+    for (const [k, v] of Object.entries(headers ?? {})) res.setHeader(k, v);
+    res.end(result.body);
+  } else {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify(result.body));
+  }
   return true;
 }
 
@@ -255,9 +554,10 @@ export type SceneCollabPlugin = {
 };
 
 /**
- * The dev server's scenes: `GET /__scene` lists them, `GET /__scene/:name`
- * reads one, and websockets on `/__scene-collab` co-edit them as
- * `scene:<name>` documents. Never part of a build.
+ * The dev server's projects: `GET /__scene` lists the scenes,
+ * `GET /__scene/:name` reads one, `/__project` lists the projects and holds
+ * their blobs, and websockets on `/__scene-collab` co-edit every project
+ * doc. Never part of a build.
  */
 export function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugin {
   const path = options.path ?? SCENE_COLLAB_PATH;
@@ -265,9 +565,12 @@ export function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugi
     name: "jams-engine:scene-collab",
     apply: "serve",
     configureServer(vite) {
-      const store = createFileSceneStore(options.homes.map((h) => h.dir));
+      let collab: Promise<SceneCollab> | undefined;
+      let ready: SceneCollab | undefined;
+      const sources = projectSources(options.projects, () => ready);
+      const scenes = projectSceneStore(sources);
       vite.middlewares.use((req, res, next) => {
-        serveSceneRequest(store, req, res)
+        serveRequest(scenes, sources, req, res)
           .then((handled) => {
             if (!handled) next();
           })
@@ -280,11 +583,12 @@ export function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugi
         );
         return;
       }
-      let collab: Promise<SceneCollab> | undefined;
+      // Fixed when the dev server starts, so the site's build stamp and the server's agree.
+      const buildAt = options.buildAt ?? Date.now();
       http.on("upgrade", (req, socket, head) => {
         if (pathOf(req) !== path) return;
         ignoreErrors(socket);
-        collab ??= createSceneCollab(options);
+        collab ??= createSceneCollab({ ...options, buildAt }).then((c) => (ready = c));
         collab
           .then((c) => c.handleUpgrade(req, socket, head))
           .catch((e: unknown) => {
@@ -302,8 +606,9 @@ export function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugi
 export type ListeningSceneCollab = SceneCollab & {
   /** `ws://host:port/__scene-collab`. */
   url: string;
-  /** `http://host:port`, which answers `GET /__scene`. */
+  /** `http://host:port`, which answers `/__scene` and `/__project`. */
   httpUrl: string;
+  port: number;
   close(): Promise<void>;
 };
 
@@ -312,9 +617,10 @@ export async function listenSceneCollab(
   options: SceneCollabOptions & { port?: number; host?: string },
 ): Promise<ListeningSceneCollab> {
   const collab = await createSceneCollab(options);
-  const store = createFileSceneStore(options.homes.map((h) => h.dir));
+  const sources = projectSources(options.projects, () => collab);
+  const scenes = projectSceneStore(sources);
   const http = createServer((req, res) => {
-    serveSceneRequest(store, req, res)
+    serveRequest(scenes, sources, req, res)
       .then((handled) => {
         if (handled) return;
         res.statusCode = 404;
@@ -325,23 +631,35 @@ export async function listenSceneCollab(
         res.end();
       });
   });
+  // Upgraded sockets leave the http server's bookkeeping, so `close` ends them itself.
+  const upgraded = new Set<Duplex>();
   http.on("upgrade", (req, socket, head) => {
+    upgraded.add(socket);
+    socket.once("close", () => upgraded.delete(socket));
     if (!collab.handleUpgrade(req, socket, head)) refuse(socket, "404 Not Found");
   });
   const host = options.host ?? "127.0.0.1";
-  await new Promise<void>((resolve, reject) => {
-    http.once("error", reject);
-    http.listen(options.port ?? 0, host, () => resolve());
-  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      http.once("error", reject);
+      http.listen(options.port ?? 0, host, () => resolve());
+    });
+  } catch (e) {
+    await collab.destroy();
+    throw e;
+  }
   const { port } = http.address() as AddressInfo;
   return {
     ...collab,
     url: `ws://${host}:${port}${options.path ?? SCENE_COLLAB_PATH}`,
     httpUrl: `http://${host}:${port}`,
+    port,
     async close() {
+      const closed = new Promise<void>((resolve) => http.close(() => resolve()));
       await collab.destroy();
       http.closeAllConnections();
-      await new Promise<void>((resolve) => http.close(() => resolve()));
+      for (const socket of upgraded) socket.destroy();
+      await closed;
     },
   };
 }

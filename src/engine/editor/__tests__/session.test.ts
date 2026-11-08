@@ -1,13 +1,34 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
+import { z } from "zod";
 
-import { sceneToDoc } from "../../collab/convert";
+import { readDoc, sceneToDoc } from "../../collab/convert";
 import { sequentialKeys } from "../../collab/keys";
+import { layoutFromDoc, layoutToDoc } from "../../collab/layout";
+import { readLog } from "../../collab/log";
+import { docToPrefab, prefabToDoc } from "../../collab/prefab-doc";
+import { sessionPrefabSource } from "../../collab/prefab-source";
+import { applyProjectBatch } from "../../collab/project-apply";
+import { seedProjectDoc } from "../../collab/project-doc";
+import { readProject } from "../../collab/project-doc";
+import { historyRows, readProjectLog, type HistoryRow } from "../../collab/project-log";
+import { createProjectSession, memoryDocHost } from "../../collab/project-session";
 import type { AwarenessLike, SceneOrigin } from "../../collab/types";
 import { createRegistry } from "../../game/define";
+import { createKindRegistry, defineAssetKind, type DocLayout } from "../../project/kinds";
+import { prefabKind } from "../../project/kinds/prefab";
+import { sceneKind } from "../../project/kinds/scene";
+import type { ProjectOpBatch } from "../../project/ops";
+import type { AssetEntry } from "../../project/types";
 import { formatScene } from "../../scene/format";
-import type { SceneDefinition, ShapeTuple } from "../../scene/types";
-import { createEditorSession, labelFor, type EditorSessionEvent } from "../session";
+import type { Prefab, SceneDefinition, ShapeTuple } from "../../scene/types";
+import {
+  applyToPrefabBatch,
+  asProjectBatch,
+  createPrefabBatch,
+  unpackBatch,
+} from "../prefab-commands";
+import { createEditorSession, labelFor, projectHistory, type EditorSessionEvent } from "../session";
 
 const registry = createRegistry();
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
@@ -231,5 +252,346 @@ describe("EditorSession on a shared doc", () => {
     expect(labelFor({ ops: [{ op: "remove", refs: ["a", "b"] }] })).toBe("Delete 2 entities");
     expect(labelFor({ ops: [{ op: "move", refs: ["a"], by: [1, 1] }] })).toBe("Move a");
     expect(labelFor({ label: "Mine", ops: [] })).toBe("Mine");
+  });
+});
+
+describe("project history", () => {
+  const layout: DocLayout = { as: "map", rest: { as: "atomic" } };
+  const card = defineAssetKind({
+    storage: "doc",
+    kind: "card",
+    title: "Card",
+    description: "A card.",
+    match: { suffixes: [".card.json"] },
+    version: 1,
+    schemaId: "urn:jams-engine:card:v1",
+    schema: () => z.looseObject({ v: z.literal(1) }),
+    layout,
+    empty: () => ({ v: 1 }),
+  });
+  const kinds = createKindRegistry(null, [sceneKind, card]);
+
+  async function project(origin = ada) {
+    const host = memoryDocHost();
+    const entry = (id: string, kind: string, path: string): AssetEntry => ({
+      key: id,
+      id,
+      kind,
+      path,
+      created: { at: 0, by: "seed" },
+    });
+    seedProjectDoc(
+      host.doc("project:p"),
+      {
+        meta: { projectId: "p", layout: 1, name: "P" },
+        assets: { s: entry("s", "scene", "s.json"), post: entry("post", "card", "post.card.json") },
+        history: {},
+        code: {},
+        build: {},
+      },
+      { kind: "migration" },
+    );
+    sceneToDoc(scene(), { doc: host.doc("scene:p.s"), key: sequentialKeys("srv") });
+    layoutToDoc(host.doc("asset:p.post"), layout, { v: 1, color: "grey" });
+    const join = (who: SceneOrigin) =>
+      createProjectSession({
+        project: "p",
+        openDoc: host.client().openDoc,
+        origin: who,
+        registry,
+        kinds,
+      });
+    const p = await join(origin);
+    await p.open("scene:p.s");
+    const session = createEditorSession({
+      doc: p.get("scene:p.s")!.doc,
+      origin,
+      name: "s",
+      registry,
+      history: projectHistory(p, "scene:p.s"),
+    });
+    return { host, p, session, join };
+  }
+
+  const both = (color: string): ProjectOpBatch => ({
+    v: 1,
+    label: `Paint ${color}`,
+    ops: [
+      { op: "editScene", id: "s", ops: [{ op: "move", refs: ["a"], by: [1, 0] }] },
+      { op: "editAsset", id: "post", edits: [{ set: "/color", value: color }] },
+    ],
+  });
+
+  it("shows the doc's log with the project entries that name it once, carrying their docs", async () => {
+    const { p, session, join } = await project();
+    session.dispatch({ ops: [{ op: "move", refs: ["b"], by: [1, 1] }] });
+    const other = await join(bo);
+    const r = await applyProjectBatch(other, both("red"), bo);
+    if (!r.ok) throw new Error(r.issue.message);
+    await applyProjectBatch(
+      other,
+      { v: 1, ops: [{ op: "editAsset", id: "post", edits: [{ set: "/n", value: 1 }] }] },
+      bo,
+    );
+
+    const rows = session.store.state.history as HistoryRow[];
+    expect(rows.map((row) => [row.label, row.project?.docs])).toEqual([
+      ["Move b", undefined],
+      ["Paint red", ["scene:p.s", "asset:p.post"]],
+    ]);
+    expect(rows[1]!.project!.entry).toBe(r.entry!.id);
+    expect(session.store.state.undoLabel).toBe("Move b");
+    other.destroy();
+    p.destroy();
+  });
+
+  it("reverts a project entry as one new cross-doc batch, or names the doc that changed since", async () => {
+    const { host, p, session, join } = await project();
+    const other = await join(bo);
+    const r = await applyProjectBatch(other, both("red"), bo);
+    if (!r.ok) throw new Error(r.issue.message);
+    await Promise.resolve();
+    expect(p.get("asset:p.post"), "Revert's docs are held open").toBeDefined();
+
+    const row = session.store.state.history.at(-1)!;
+    const reverted = session.revert(row.id);
+    expect(reverted.ok).toBe(true);
+    expect(session.getDoc().entities![0]!.at).toEqual([1, 1]);
+    expect(layoutFromDoc(host.doc("asset:p.post"), layout).color).toBe("grey");
+    const entry = readProjectLog(host.doc("project:p")).at(-1)!;
+    expect(entry).toMatchObject({ label: "Revert Paint red", actor: ada });
+    expect(entry.docs.map((d) => d.doc)).toEqual(["scene:p.s", "asset:p.post"]);
+    expect(readLog(host.doc("asset:p.post")).at(-1)).toMatchObject({ kind: "revert" });
+    expect(session.store.state.undoLabel).toBe("Revert Paint red");
+
+    expect(session.undo()).toBe(true);
+    expect(layoutFromDoc(host.doc("asset:p.post"), layout).color).toBe("red");
+    await applyProjectBatch(
+      other,
+      { v: 1, ops: [{ op: "editAsset", id: "post", edits: [{ set: "/color", value: "blue" }] }] },
+      bo,
+    );
+    const refused = session.revert(row.id);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) {
+      expect(refused.issue.message).toMatch(/^asset:p\.post has changed/);
+      expect(refused.issue.entityIds).toEqual(["asset:p.post"]);
+    }
+    expect(session.getDoc().entities![0]!.at).toEqual([2, 1]);
+    other.destroy();
+    p.destroy();
+  });
+
+  it("lists a project entry whose doc entry aged out as a row of its own", () => {
+    const at = (n: number) => ({ id: `e${n}`, actor: ada, label: `L${n}`, at: n, keys: [] });
+    const rows = historyRows(
+      [at(1), at(5)],
+      [
+        { id: "p1", actor: bo, label: "Both", at: 3, docs: [{ doc: "scene:p.s", entry: "gone" }] },
+        { id: "p2", actor: bo, label: "Other", at: 4, docs: [{ doc: "asset:p.x", entry: "x" }] },
+        { id: "p3", actor: bo, label: "Mine", at: 5, docs: [{ doc: "scene:p.s", entry: "e5" }] },
+      ],
+      "scene:p.s",
+    );
+    expect(rows.map((r) => [r.id, r.project?.entry])).toEqual([
+      ["e1", undefined],
+      ["p1", "p1"],
+      ["e5", "p3"],
+    ]);
+  });
+});
+
+describe("prefab commands across docs", () => {
+  const kinds = createKindRegistry(null, [sceneKind, prefabKind]);
+  const POST: Prefab = {
+    kind: "prefab",
+    v: 2,
+    id: "post",
+    entities: [{ id: "top", type: "marker", at: [0, -40] }],
+    bulk: { solid: [["box", 0, 0, 6, 40]] },
+  };
+  const yard = (): SceneDefinition => ({
+    v: 2,
+    name: "yard",
+    bounds: [0, 0, 2000, 1200],
+    entities: [{ id: "lamp", type: "marker", at: [500, 500] }],
+    instances: [
+      { id: "post-1", prefab: "post", at: [100, 900], overrides: { "top.at": [0, -60] } },
+      { id: "post-2", prefab: "post", at: [300, 900] },
+    ],
+  });
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  async function world() {
+    const host = memoryDocHost();
+    const entry = (key: string, kind: string, path: string): AssetEntry => ({
+      key,
+      id: key,
+      kind,
+      path,
+      created: { at: 0, by: "seed" },
+    });
+    seedProjectDoc(
+      host.doc("project:p"),
+      {
+        meta: { projectId: "p", layout: 1, name: "P" },
+        assets: {
+          yard: entry("yard", "scene", "levels/yard.json"),
+          post: entry("post", "prefab", "levels/prefabs/post.json"),
+        },
+        history: {},
+        code: {},
+        build: {},
+      },
+      { kind: "migration" },
+    );
+    sceneToDoc(yard(), { doc: host.doc("scene:p.yard"), key: sequentialKeys("srv") });
+    prefabToDoc(POST, { doc: host.doc("asset:p.post"), key: sequentialKeys("pre") });
+    const p = await createProjectSession({
+      project: "p",
+      openDoc: host.client().openDoc,
+      origin: ada,
+      registry,
+      kinds,
+      key: sequentialKeys("new"),
+    });
+    const prefabs = sessionPrefabSource(p, { scene: "yard" });
+    await prefabs.ready();
+    await p.open("scene:p.yard");
+    const session = createEditorSession({
+      doc: p.get("scene:p.yard")!.doc,
+      origin: ada,
+      name: "yard",
+      registry,
+      prefabs,
+      history: projectHistory(p, "scene:p.yard"),
+    });
+    const top = (instance: string) =>
+      session.getResolved().entities!.find((e) => e.id === `${instance}/top`)!.at;
+    return { host, p, prefabs, session, top };
+  }
+
+  it("refuses prefab commands in a session with no prefab writer", () => {
+    const doc = sceneToDoc(yard(), { key: sequentialKeys("t") });
+    const bare = createEditorSession({ doc, origin: ada, name: "yard", registry });
+    const r = bare.dispatch(applyToPrefabBatch(bare.getDoc(), "post-1")!);
+    expect(r.ok || [r.issue.code, r.issue.message]).toEqual([
+      "op-invalid",
+      expect.stringContaining("needs the project"),
+    ]);
+    bare.destroy();
+  });
+
+  it("Apply to prefab writes the scene and the prefab's doc, one transaction each, as one undo step", async () => {
+    const { host, p, session, top } = await world();
+    let sceneTx = 0;
+    let prefabTx = 0;
+    p.get("scene:p.yard")!.doc.on("afterTransaction", () => sceneTx++);
+    p.get("asset:p.post")!.doc.on("afterTransaction", () => prefabTx++);
+    const r = session.dispatch(applyToPrefabBatch(session.getDoc(), "post-1")!);
+    expect(r.ok).toBe(true);
+    expect([sceneTx, prefabTx]).toEqual([1, 1]);
+    expect(docToPrefab(host.doc("asset:p.post")).entities[0]!.at).toEqual([0, -60]);
+    expect(top("post-2")).toEqual([300, 840]);
+    expect(session.getDoc().instances![0]!.overrides).toBeUndefined();
+    const entry = readProjectLog(host.doc("project:p")).at(-1)!;
+    expect(entry.docs.map((d) => d.doc)).toEqual(["scene:p.yard", "asset:p.post"]);
+
+    expect(session.undo()).toBe(true);
+    expect(docToPrefab(host.doc("asset:p.post")).entities[0]!.at).toEqual([0, -40]);
+    expect(session.getDoc().instances![0]!.overrides).toEqual({ "top.at": [0, -60] });
+    expect(top("post-2")).toEqual([300, 860]);
+    expect(session.redo()).toBe(true);
+    expect(top("post-2")).toEqual([300, 840]);
+    p.destroy();
+  });
+
+  it("Create prefab adds a prefab asset beside the scene and seeds its doc; undo takes both back", async () => {
+    const { host, p, prefabs, session } = await world();
+    const batch = createPrefabBatch(session.getDoc(), ["lamp"], session.getPrefabs())!;
+    const r = session.dispatch(batch);
+    expect(r.ok).toBe(true);
+    const created = Object.values(readProject(host.doc("project:p")).assets).find(
+      (e) => e.id === "lamp",
+    )!;
+    expect(created).toMatchObject({
+      key: "lamp",
+      kind: "prefab",
+      path: "levels/prefabs/lamp.json",
+    });
+    expect(session.getPrefabs().get("lamp")!.entities).toEqual([
+      { id: "lamp", type: "marker", at: [0, 0] },
+    ]);
+    expect(session.getDoc().instances!.at(-1)).toEqual({
+      id: "lamp-1",
+      prefab: "lamp",
+      at: [500, 500],
+    });
+    await flush();
+    expect(docToPrefab(host.doc("asset:p.lamp")).entities).toEqual([
+      { id: "lamp", type: "marker", at: [0, 0] },
+    ]);
+    expect(prefabs.library().get("lamp")).toBeDefined();
+
+    expect(session.undo()).toBe(true);
+    await flush();
+    expect(readDoc(host.doc("scene:p.yard")).def.entities!.map((e) => e.id)).toEqual(["lamp"]);
+    expect(
+      Object.values(readProject(host.doc("project:p")).assets).some((e) => e.id === "lamp"),
+    ).toBe(false);
+    expect(session.getPrefabs().has("lamp")).toBe(false);
+    p.destroy();
+  });
+
+  it("Unpack reads the prefab and writes the scene only", async () => {
+    const { host, p, session } = await world();
+    const before = Y.encodeStateVector(host.doc("asset:p.post"));
+    const r = session.dispatch(unpackBatch(session.getDoc(), "post-2")!);
+    expect(r.ok && r.docs).toEqual([]);
+    expect(session.getDoc().instances!.map((i) => i.id)).toEqual(["post-1"]);
+    expect(
+      session
+        .getDoc()
+        .entities!.map((e) => e.id)
+        .sort(),
+    ).toEqual(["lamp", "top"]);
+    expect(Y.encodeStateVector(host.doc("asset:p.post"))).toEqual(before);
+    expect(session.undo()).toBe(true);
+    expect(session.getDoc().instances!.map((i) => i.id)).toEqual(["post-1", "post-2"]);
+    p.destroy();
+  });
+
+  it("applyProjectBatch writes editScene's prefab ops through the source's writer, as one step", async () => {
+    const { host, p, session } = await world();
+    const r = await applyProjectBatch(
+      p,
+      asProjectBatch("yard", applyToPrefabBatch(session.getDoc(), "post-1")!),
+      ada,
+    );
+    expect(r.ok && r.docs).toEqual(["scene:p.yard", "asset:p.post"]);
+    expect(docToPrefab(host.doc("asset:p.post")).entities[0]!.at).toEqual([0, -60]);
+    expect(readProjectLog(host.doc("project:p"))).toHaveLength(1);
+    expect(p.undo()?.docs).toEqual(["scene:p.yard", "asset:p.post"]);
+    expect(docToPrefab(host.doc("asset:p.post")).entities[0]!.at).toEqual([0, -40]);
+
+    const onPrefab = await applyProjectBatch(
+      p,
+      {
+        v: 1,
+        ops: [{ op: "editScene", id: "post", ops: [{ op: "move", refs: ["top"], by: [0, 5] }] }],
+      },
+      ada,
+    );
+    expect(onPrefab.ok && onPrefab.docs).toEqual(["asset:p.post"]);
+    const refused = await applyProjectBatch(
+      p,
+      {
+        v: 1,
+        ops: [{ op: "editScene", id: "post", ops: [{ op: "setScene", set: { name: "x" } }] }],
+      },
+      ada,
+    );
+    expect(refused.ok || refused.issue.code).toBe("op-invalid");
+    p.destroy();
   });
 });

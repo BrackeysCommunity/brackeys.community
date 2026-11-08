@@ -1,8 +1,17 @@
 import { closest } from "@jams/engine/scene";
 
-import { failure, usage, type ToolContext, type ToolResult } from "./context";
+import { failure, scopeError, usage, type ToolContext, type ToolResult } from "./context";
 import { apply } from "./tools/apply";
 import { applyLive } from "./tools/apply-live";
+import { assetsApply, type WriterFlags } from "./tools/assets-apply";
+import { assetsChangeId } from "./tools/assets-change-id";
+import { assetsDelete } from "./tools/assets-delete";
+import { assetsImport } from "./tools/assets-import";
+import { assetsList } from "./tools/assets-list";
+import { assetsMove } from "./tools/assets-move";
+import { assetsRename } from "./tools/assets-rename";
+import { assetsRestore } from "./tools/assets-restore";
+import { assetsSetImport } from "./tools/assets-set-import";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
@@ -11,9 +20,15 @@ import { fuzz } from "./tools/fuzz";
 import { list } from "./tools/list";
 import { newScene } from "./tools/new";
 import { playtest } from "./tools/playtest";
+import { projectPull } from "./tools/project-pull";
+import { projectPush } from "./tools/project-push";
+import { projectRefs } from "./tools/project-refs";
+import { projectShow } from "./tools/project-show";
+import { projectSnapshot } from "./tools/project-snapshot";
+import { projectTree } from "./tools/project-tree";
 import { render } from "./tools/render";
 import { replay } from "./tools/replay";
-import { schema } from "./tools/schema";
+import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
 import { step } from "./tools/step";
 import { textconv } from "./tools/textconv";
@@ -24,7 +39,7 @@ export type ParsedArgs = { positionals: string[]; flags: Record<string, string |
 type Command = {
   usage: string;
   summary: string;
-  /** Flags that take a value; the rest of `flags` are switches. `json` is accepted everywhere. */
+  /** Flags that take a value; the rest of `flags` are switches. `json` and `project` are accepted everywhere. */
   values: readonly string[];
   switches: readonly string[];
   maxPositionals: number;
@@ -33,7 +48,35 @@ type Command = {
 
 const str = (v: string | true | undefined) => (typeof v === "string" ? v : undefined);
 
-export const COMMANDS = {
+/** Every writer's flags: `--live` sends the batch to the dev server, or with a site `--url` to a hosted project, instead of the files. */
+const WRITER_VALUES = ["url", "token", "agent", "on-behalf-of", "base"] as const;
+const WRITER_SWITCHES = ["dry-run", "live"] as const;
+const WRITER_USAGE =
+  "[--dry-run] [--base hash] [--live [--url ws://…|https://site [--token t]]] [--agent id] [--on-behalf-of user]";
+
+function writerFlags(flags: ParsedArgs["flags"]): WriterFlags {
+  return {
+    live: flags.live === true,
+    dryRun: flags["dry-run"] === true,
+    url: str(flags.url),
+    token: str(flags.token),
+    agent: str(flags.agent),
+    onBehalfOf: str(flags["on-behalf-of"]),
+    base: str(flags.base),
+  };
+}
+
+/** A reader's live flags: `--live` reads the dev server's docs, or with a site `--url` a hosted project's. */
+const LIVE_READ_USAGE = "--live [--url ws://…|https://site [--token t]]";
+
+function liveReadFlags(flags: ParsedArgs["flags"]) {
+  return { live: flags.live === true, url: str(flags.url), token: str(flags.token) };
+}
+
+/** Commands named by two words: `project show`, `assets import`. */
+export const COMMAND_GROUPS = ["project", "assets"] as const;
+
+const DEFINITIONS = {
   list: {
     usage: "list",
     summary: "every scene with its game, hash, issue counts, entity counts and bounds",
@@ -52,9 +95,9 @@ export const COMMANDS = {
       show({ scene, ref: str(flags.ref), type: str(flags.type), near: str(flags.near) }, ctx),
   },
   schema: {
-    usage: "schema [scene|ops|script|checks|recording] [--game id]",
+    usage: `schema [${SCHEMA_NAMES.join("|")}|<doc kind>] [--game id]`,
     summary:
-      "a game's scene, op-batch, input-script or checks-file JSON Schema, or the recording schema; the engine's without --game",
+      "a JSON Schema the engine serves: a game's scene, op batch, script, checks, fragment, prefab or doc kind; the recording, project, sidecar, project-op and snapshot schemas",
     values: ["game"],
     switches: [],
     maxPositionals: 1,
@@ -79,8 +122,9 @@ export const COMMANDS = {
       validate({ target, physical: flags.physical === true }, ctx),
   },
   fmt: {
-    usage: "fmt <scene> [--check]",
-    summary: "rewrite a scene in canonical form; --check only reports",
+    usage: "fmt [asset] [--check]",
+    summary:
+      "rewrite a doc asset (scene, prefab, checks, input script, any doc kind) in canonical form, or every one; --check only reports",
     values: [],
     switches: ["check"],
     maxPositionals: 1,
@@ -88,10 +132,10 @@ export const COMMANDS = {
   },
   apply: {
     usage:
-      "apply <scene> --ops <file|-> [--dry-run] [--base hash] [--live [--url ws://…] [--agent id] [--on-behalf-of user]]",
+      "apply <scene> --ops <file|-> [--dry-run] [--base hash] [--live [--url ws://…|https://site [--token t]] [--agent id] [--on-behalf-of user]]",
     summary:
-      "apply an OpBatch; writes only when ok, error-free and not --dry-run; --live edits the dev server's doc",
-    values: ["ops", "base", "url", "agent", "on-behalf-of"],
+      "apply an OpBatch; writes only when ok, error-free and not --dry-run; --live edits the dev server's doc or a hosted project's",
+    values: ["ops", "base", "url", "token", "agent", "on-behalf-of"],
     switches: ["dry-run", "live"],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) => {
@@ -106,12 +150,13 @@ export const COMMANDS = {
           {
             ...common,
             url: str(flags.url),
+            token: str(flags.token),
             agent: str(flags.agent),
             onBehalfOf: str(flags["on-behalf-of"]),
           },
           ctx,
         );
-      const liveOnly = ["url", "agent", "on-behalf-of"].find((f) => f in flags);
+      const liveOnly = ["url", "token", "agent", "on-behalf-of"].find((f) => f in flags);
       if (liveOnly) return Promise.resolve(usage(`--${liveOnly} needs --live`));
       return apply(common, ctx);
     },
@@ -244,21 +289,213 @@ export const COMMANDS = {
     maxPositionals: 1,
     run: ({ positionals: [file] }, ctx) => textconv({ file }, ctx),
   },
+  "project show": {
+    usage: "project show [--project id]",
+    summary: "a project's id, game, assets by kind, code modules, problems and storage usage",
+    values: [],
+    switches: [],
+    maxPositionals: 0,
+    run: (_a, ctx) => projectShow({ project: ctx.project }, ctx),
+  },
+  "project tree": {
+    usage: `project tree [${LIVE_READ_USAGE}] [--project id]`,
+    summary:
+      "the project's folders, assets and read-only code modules, as the editor's tree shows them",
+    values: ["url", "token"],
+    switches: ["live"],
+    maxPositionals: 0,
+    run: ({ flags }, ctx) => projectTree({ ...liveReadFlags(flags), project: ctx.project }, ctx),
+  },
+  "project refs": {
+    usage: `project refs [id] [${LIVE_READ_USAGE}] [--project id]`,
+    summary:
+      "what an asset names and what names it; without an id, every dangling reference; exit 1 on dangling ones",
+    values: ["url", "token"],
+    switches: ["live"],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) =>
+      projectRefs({ ...liveReadFlags(flags), id, project: ctx.project }, ctx),
+  },
+  "project snapshot": {
+    usage: "project snapshot [--out file|-] [--project id]",
+    summary: "pins every live asset by content hash; the snapshot hash a file batch's base names",
+    values: ["out"],
+    switches: [],
+    maxPositionals: 0,
+    run: ({ flags }, ctx) => projectSnapshot({ project: ctx.project, out: str(flags.out) }, ctx),
+  },
+  "project pull": {
+    usage:
+      "project pull <project> --url https://site [--token t] [--out dir] [--check] [--project id]",
+    summary:
+      "a hosted project's docs and blobs as files and sidecars, formatted here; --check writes nothing and exits 1 on a difference",
+    values: ["url", "token", "out"],
+    switches: ["check"],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) =>
+      projectPull(
+        {
+          id,
+          url: str(flags.url),
+          token: str(flags.token),
+          out: str(flags.out),
+          check: flags.check === true,
+        },
+        ctx,
+      ),
+  },
+  "project push": {
+    usage: "project push <dir> --create --url https://site [--token t] [--dry-run]",
+    summary:
+      "seed the agent token's new hosted project from a project's files: blobs uploaded, then every doc; refused if it exists; --dry-run sends nothing",
+    values: ["url", "token"],
+    switches: ["create", "dry-run"],
+    maxPositionals: 1,
+    run: ({ positionals: [dir], flags }, ctx) =>
+      projectPush(
+        {
+          dir,
+          url: str(flags.url),
+          token: str(flags.token),
+          create: flags.create === true,
+          dryRun: flags["dry-run"] === true,
+        },
+        ctx,
+      ),
+  },
+  "assets list": {
+    usage: `assets list [--kind k] [--trash] [${LIVE_READ_USAGE}] [--project id]`,
+    summary: "every live asset (or trashed one) with its kind, path, id, name and size",
+    values: ["kind", "url", "token"],
+    switches: ["trash", "live"],
+    maxPositionals: 0,
+    run: ({ flags }, ctx) =>
+      assetsList(
+        {
+          kind: str(flags.kind),
+          trash: flags.trash === true,
+          live: flags.live === true,
+          url: str(flags.url),
+          token: str(flags.token),
+        },
+        ctx,
+      ),
+  },
+  "assets import": {
+    usage: `assets import <file> [--path p|folder/] [--id id] [--kind k] [--settings json] ${WRITER_USAGE}`,
+    summary:
+      "add a file: its bytes to the content store, then the file, its sidecar and registry entry",
+    values: ["path", "id", "kind", "settings", ...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 1,
+    run: ({ positionals: [file], flags }, ctx) =>
+      assetsImport(
+        {
+          ...writerFlags(flags),
+          file,
+          path: str(flags.path),
+          id: str(flags.id),
+          kind: str(flags.kind),
+          settings: str(flags.settings),
+        },
+        ctx,
+      ),
+  },
+  "assets rename": {
+    usage: `assets rename <id> [--name text] [--file name.ext] ${WRITER_USAGE}`,
+    summary: "change an asset's display name or file name in place; the id stays",
+    values: ["name", "file", ...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) =>
+      assetsRename(
+        { ...writerFlags(flags), id, name: str(flags.name), file: str(flags.file) },
+        ctx,
+      ),
+  },
+  "assets move": {
+    usage: `assets move <id...> --to <folder/> ${WRITER_USAGE}`,
+    summary: "move assets into a folder, sidecars included",
+    values: ["to", ...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 256,
+    run: ({ positionals: ids, flags }, ctx) =>
+      assetsMove({ ...writerFlags(flags), ids, to: str(flags.to) }, ctx),
+  },
+  "assets delete": {
+    usage: `assets delete <id> [--force] ${WRITER_USAGE}`,
+    summary: "move an asset to the trash; refused while something names it, unless --force",
+    values: [...WRITER_VALUES],
+    switches: ["force", ...WRITER_SWITCHES],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) =>
+      assetsDelete({ ...writerFlags(flags), id, force: flags.force === true }, ctx),
+  },
+  "assets restore": {
+    usage: `assets restore <id> ${WRITER_USAGE}`,
+    summary: "bring an asset back from the trash",
+    values: [...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) => assetsRestore({ ...writerFlags(flags), id }, ctx),
+  },
+  "assets change-id": {
+    usage: `assets change-id <id> <new-id> ${WRITER_USAGE}`,
+    summary: "give an asset a new id and rewrite every reference to it, across docs",
+    values: [...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 2,
+    run: ({ positionals: [id, to], flags }, ctx) =>
+      assetsChangeId({ ...writerFlags(flags), id, to }, ctx),
+  },
+  "assets set-import": {
+    usage: `assets set-import <id> --set <json|key=value,…> ${WRITER_USAGE}`,
+    summary:
+      "change a binary asset's import settings per field (null resets one); meta is re-inspected",
+    values: ["set", ...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) =>
+      assetsSetImport({ ...writerFlags(flags), id, set: str(flags.set) }, ctx),
+  },
+  "assets apply": {
+    usage: `assets apply --ops <file|-> ${WRITER_USAGE}`,
+    summary: "apply a project op batch (schema project-ops), which may span docs",
+    values: ["ops", ...WRITER_VALUES],
+    switches: [...WRITER_SWITCHES],
+    maxPositionals: 0,
+    run: ({ flags }, ctx) => assetsApply({ ...writerFlags(flags), ops: str(flags.ops) }, ctx),
+  },
 } satisfies Record<string, Command>;
 
-export type CommandName = keyof typeof COMMANDS;
+export type CommandName = keyof typeof DEFINITIONS;
+
+/** The command table; every command takes `--project`, which narrows the projects names resolve in. */
+export const COMMANDS = {} as Record<CommandName, Command>;
+for (const [name, c] of Object.entries(DEFINITIONS) as [CommandName, Command][])
+  COMMANDS[name] = { ...c, values: [...c.values, "project"] };
 export const COMMAND_NAMES = Object.keys(COMMANDS) as CommandName[];
 
+/** Usage lines longer than this put their summary on the next line. */
+const HELP_WIDTH = 64;
+
 export function helpText(): string {
-  const width = Math.max(...COMMAND_NAMES.map((n) => COMMANDS[n].usage.length));
-  const rows = COMMAND_NAMES.map(
-    (n) => `  ${COMMANDS[n].usage.padEnd(width)}  ${COMMANDS[n].summary}`,
+  const width = Math.min(
+    HELP_WIDTH,
+    Math.max(...COMMAND_NAMES.map((n) => COMMANDS[n].usage.length)),
   );
+  const rows = COMMAND_NAMES.map((n) => {
+    const { usage: line, summary } = COMMANDS[n];
+    return line.length > width
+      ? `  ${line}\n  ${" ".repeat(width)}  ${summary}`
+      : `  ${line.padEnd(width)}  ${summary}`;
+  });
   return [
     "usage: vp run scene <command> [args] [--json]",
     "",
     ...rows,
     "",
+    "every command takes --project <id>: names resolve in that project only (an id two projects hold needs it)",
     "exit codes: 0 ok, 1 error issues or failure, 2 usage, 3 stale base (file batches only)",
   ].join("\n");
 }
@@ -307,7 +544,14 @@ export async function runCli(
   argv: readonly string[],
   ctx: ToolContext,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const [name, ...rest] = argv;
+  const [first, ...after] = argv;
+  const grouped =
+    first !== undefined &&
+    (COMMAND_GROUPS as readonly string[]).includes(first) &&
+    after[0] !== undefined &&
+    !after[0].startsWith("-");
+  const name = grouped ? `${first} ${after[0]}` : first;
+  const rest = grouped ? after.slice(1) : after;
   if (!name || name === "help" || name === "--help" || name === "-h") {
     return {
       exitCode: name ? 0 : 2,
@@ -335,9 +579,11 @@ export async function runCli(
       ? { exitCode: 2, stdout: body, stderr: "" }
       : { exitCode: 2, stdout: "", stderr: body };
   }
+  const project = parsed.args.flags.project;
+  const scoped: ToolContext = typeof project === "string" ? { ...ctx, project } : ctx;
   let result: ToolResult;
   try {
-    result = await command.run(parsed.args, ctx);
+    result = scopeError(scoped) ?? (await command.run(parsed.args, scoped));
   } catch (e) {
     result = failure(e instanceof Error ? e.message : String(e));
   }

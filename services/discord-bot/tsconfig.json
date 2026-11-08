@@ -23,12 +23,15 @@
       // The router's own files import through the app's `@/` alias, and
       // their bare specifiers (drizzle-orm, pg, ioredis) have to resolve to
       // the root copies so TS sees one module identity — same rule the other
-      // services carry.
+      // services carry. `@jams/engine` resolves to the in-repo source the
+      // way the root tsconfig maps it.
       "@/*": ["../../src/*"],
       "drizzle-orm": ["../../node_modules/drizzle-orm"],
       "drizzle-orm/*": ["../../node_modules/drizzle-orm/*"],
       "pg": ["../../node_modules/@types/pg"],
-      "ioredis": ["../../node_modules/ioredis"]
+      "ioredis": ["../../node_modules/ioredis"],
+      "@jams/engine": ["../../src/engine/index.ts"],
+      "@jams/engine/*": ["../../src/engine/*/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]

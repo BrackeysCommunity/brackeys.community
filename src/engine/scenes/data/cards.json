@@ -1,0 +1,10 @@
+{
+  "$schema": "../../project/data-table.schema.json",
+  "kind": "data-table",
+  "v": 1,
+  "table": "card",
+  "rows": [
+    { "id": "fireball", "cost": 3, "damage": 5 },
+    { "id": "heal", "cost": 2 }
+  ]
+}
