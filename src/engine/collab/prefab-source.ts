@@ -354,9 +354,9 @@ type WriterOptions = SessionPrefabSourceOptions & {
  * one of them still names, over the docs the session holds open, with
  * `values` (by asset id) read in place of a doc's own; referrers `skip`
  * accepts don't count. Only the open docs are judged: a reference in a doc
- * this client hasn't opened is caught by the project's writer on store,
- * which reads every live doc, open or not, and restores a trashed asset
- * one still names.
+ * this client hasn't opened is caught by the project's writer, which
+ * restores a trashed asset that a doc it holds still names, on store and
+ * as such a doc loads.
  */
 function trashedInUse(
   session: ProjectSession,

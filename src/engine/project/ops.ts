@@ -570,8 +570,18 @@ class BatchWork {
       unread?: AssetId;
     }
   >();
-  /** What a delegated `editScene` leaves its scene and prefabs, by key: read only to find references. */
+  /** What the delegated `editScene`s leave their scenes and prefabs, by key: read only to find references. */
   private readonly leaves = new Map<AssetKey, unknown>();
+  /** Delegated `editScene`s in op order, with what they were judged with, for `settleDelegated`. */
+  private readonly deferred: {
+    entry: AssetEntry;
+    index: number;
+    ops: SceneOp[];
+    prefabs: PrefabLibrary | undefined;
+    registry: Registry;
+  }[] = [];
+  /** The op index of each `deleteAsset` the batch ran, by id, until a later op restores it. */
+  private readonly deletedAt = new Map<AssetId, number>();
   registry = false;
   private cached: ProjectView | null = null;
   private opIndex = 0;
@@ -684,6 +694,11 @@ class BatchWork {
     for (const e of this.view.byId.values())
       if (e.kind === DATA_TABLE_KIND) values.set(e.id, this.peek(e));
     return dataTableIssues(this.view, values).filter((i) => tables.has(i.detail?.table));
+  }
+
+  /** The op the last failure was at. */
+  get failedAt(): number {
+    return this.opIndex;
   }
 
   fail(code: IssueCode, message: string, field?: Field, extra: Partial<SceneIssue> = {}): never {
@@ -938,7 +953,13 @@ class BatchWork {
         this.fail(code, message, "ops", rest);
       }
       this.delegated.push(this.opIndex);
-      if (entry.kind === SCENE_KIND_NAME) this.leave(entry, op.ops);
+      this.deferred.push({
+        entry,
+        index: this.opIndex,
+        ops: op.ops,
+        prefabs: this.prefabsFor(entry),
+        registry: this.judge,
+      });
       return;
     }
     if (entry.kind !== SCENE_KIND_NAME)
@@ -964,7 +985,6 @@ class BatchWork {
     }
     this.warnings.push(...result.issues);
     this.wrote(entry.key, result.def);
-    if (this.leaves.has(entry.key)) this.leave(entry, op.ops);
     const write = this.scenes.get(entry.key);
     this.scenes.set(entry.key, {
       ops: [...(write?.ops ?? []), ...op.ops],
@@ -974,52 +994,82 @@ class BatchWork {
   }
 
   /**
-   * Runs scene ops on what the batch leaves a scene, for the references
-   * `trashedInUse` judges: the scene's value, each prefab they change, and
-   * each prefab they remove (to be judged as trashed); a prefab a later op
-   * defines again isn't trashed. The prefab writer applies delegated ops
-   * without that check, so when they don't run here each prefab they
-   * remove is still judged, against every referrer but the scene.
+   * Replays the delegated `editScene`s the way `applyProjectBatch` writes
+   * them: after every other write, in op order, each scene's ops on what
+   * the batch left it. Fails an op whose ops don't apply there, or that
+   * defines or changes a prefab an earlier op removed (the prefab writer
+   * would patch a trashed doc). Records what they leave each scene and
+   * prefab, and each prefab they remove, for `trashedInUse`; for a scene
+   * whose value wasn't given, its removed prefabs are still judged,
+   * against every referrer but that scene.
    */
-  private leave(entry: AssetEntry, ops: SceneOp[]): void {
-    const own = (this.leaves.has(entry.key) ? this.leaves.get(entry.key) : this.peek(entry)) as
-      | SceneDefinition
-      | undefined;
-    const unread = () => {
-      this.leaves.delete(entry.key);
-      const removes = new Map<AssetId, boolean>();
-      for (const op of ops) if (op.op === "definePrefab") removes.set(op.id, op.prefab === null);
-      for (const [id, removed] of removes) {
-        const prefab = removed ? this.view.byId.get(id) : undefined;
-        if (prefab?.kind === PREFAB_KIND)
-          this.trashing.set(id, {
-            entry: prefab,
-            index: this.opIndex,
-            by: "editScene",
-            unread: entry.id,
-          });
+  settleDelegated(): void {
+    const removedAt = new Map(this.deletedAt);
+    for (const d of this.deferred) {
+      this.opIndex = d.index;
+      const earlier = (id: AssetId) => {
+        const at = removedAt.get(id);
+        if (at === undefined || at >= d.index) return;
+        this.fail(
+          "op-invalid",
+          `prefab "${id}" is removed by op ${at} of this batch, so a later op can't define or change it; do both in one editScene, or in batches of their own`,
+          "ops",
+          { entityIds: [id] },
+        );
+      };
+      if (d.entry.kind !== SCENE_KIND_NAME) {
+        earlier(d.entry.id);
+        continue;
       }
-    };
-    if (own === undefined) return unread();
-    const prefabs = this.prefabsFor(entry);
-    let batch: OpBatch = { ops };
-    if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(own) };
-    const result = applyOps(own, batch, this.judge, {
-      ...(prefabs ? { prefabs } : {}),
-      validate: "none",
-    });
-    if (!result.ok) return unread();
-    this.leaves.set(entry.key, result.def);
-    if (!result.prefabsChanged || !result.prefabs) return;
-    for (const id of result.prefabsChanged) {
-      const prefab = this.view.byId.get(id);
-      if (prefab?.kind !== PREFAB_KIND) continue;
-      const next = result.prefabs.get(id);
-      if (next) {
-        this.leaves.set(prefab.key, next);
-        if (this.trashing.get(id)?.by === "editScene") this.trashing.delete(id);
-      } else if (prefabs?.has(id))
-        this.trashing.set(id, { entry: prefab, index: this.opIndex, by: "editScene" });
+      const key = d.entry.key;
+      const own = (this.leaves.has(key) ? this.leaves.get(key) : this.peek(d.entry)) as
+        | SceneDefinition
+        | undefined;
+      if (own === undefined) {
+        for (const op of d.ops) {
+          if (op.op !== "definePrefab") continue;
+          if (op.prefab !== null) {
+            earlier(op.id);
+            continue;
+          }
+          const prefab = this.view.byId.get(op.id);
+          if (prefab?.kind !== PREFAB_KIND) continue;
+          this.trashing.set(op.id, {
+            entry: prefab,
+            index: d.index,
+            by: "editScene",
+            unread: d.entry.id,
+          });
+          removedAt.set(op.id, d.index);
+        }
+        continue;
+      }
+      let batch: OpBatch = { ops: d.ops };
+      if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(own) };
+      const result = applyOps(own, batch, d.registry, {
+        ...(d.prefabs ? { prefabs: d.prefabs } : {}),
+        validate: "none",
+      });
+      if (!result.ok) {
+        const { code, message, path, ...rest } = result.issue;
+        this.fail(code, message, undefined, {
+          ...rest,
+          path: `${jsonPointer(["ops", d.index])}${path ?? ""}`,
+          entityIds: rest.entityIds.length > 0 ? rest.entityIds : [d.entry.id],
+        });
+      }
+      this.leaves.set(key, result.def);
+      if (!result.prefabsChanged || !result.prefabs) continue;
+      for (const id of result.prefabsChanged) {
+        const prefab = this.view.byId.get(id);
+        if (result.prefabs.has(id)) {
+          earlier(id);
+          if (prefab?.kind === PREFAB_KIND) this.leaves.set(prefab.key, result.prefabs.get(id));
+        } else if (prefab?.kind === PREFAB_KIND && d.prefabs?.has(id)) {
+          this.trashing.set(id, { entry: prefab, index: d.index, by: "editScene" });
+          removedAt.set(id, d.index);
+        }
+      }
     }
   }
 
@@ -1201,6 +1251,7 @@ class BatchWork {
     const entry = this.live(op.id);
     if (!op.force) this.trashing.set(entry.id, { entry, index: this.opIndex, by: "deleteAsset" });
     else if (inUseIssue(this.refIndex(), entry)) this.forced.add(op.id);
+    this.deletedAt.set(entry.id, this.opIndex);
     this.put({ ...entry, deleted: this.stamp() });
   }
 
@@ -1368,6 +1419,7 @@ class BatchWork {
     this.checkPath(trashed.path, "id", trashed.key);
     this.checkSingle(trashed.kind, "id");
     const { deleted: _deleted, ...restored } = trashed;
+    this.deletedAt.delete(restored.id);
     this.put(restored);
   }
 
@@ -1632,6 +1684,13 @@ export function checkProjectBatch(
       if (error instanceof OpFailure) return { ok: false, opIndex: index, issue: error.issue };
       throw error;
     }
+  }
+  try {
+    work.settleDelegated();
+  } catch (error) {
+    if (error instanceof OpFailure)
+      return { ok: false, opIndex: work.failedAt, issue: error.issue };
+    throw error;
   }
   const inUse = work.trashedInUse();
   if (inUse) return { ok: false, ...inUse };

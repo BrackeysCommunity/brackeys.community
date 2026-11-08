@@ -285,7 +285,7 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   `AssetChangedMessage`).
 - `./vite`: on store, the dev server repairs binaries whose bytes the
   content store lacks (`hash-mismatch`), restores trashed assets a loaded
-  doc still names (`asset-in-use`), and repairs duplicate ids and paths; it
+  doc still names (`asset-in-use`; also as such a doc loads), and repairs duplicate ids and paths; it
   writes the code map and this build's schema stamps.
 - `./vite`: `GET /__project`, `POST /__project/<id>/blob`
   (`x-expect-sha256`) and `GET /__project/<id>/blob/<sha256>`, same-origin
@@ -310,8 +310,9 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   than its own file holds (a file the scan doesn't list, a file where a
   folder goes, ignoring case); a path a trash or move in the same write
   frees isn't blocked. `applyProjectBatchToFiles` refuses such a batch with
-  it, dry run or not, and writes nothing; the dev server warns once and
-  leaves the entry unwritten until its path frees. `storeProject` trashes
+  it, dry run or not, and writes nothing; the dev server warns once,
+  leaves the entry unwritten, and writes it once a file event under the
+  project frees its path. `storeProject` trashes
   and stages moves before it creates, so a new entry can take a path the
   same write frees.
 - `./vite`: `readProjectPrefabFiles(project, state, registry)` reads a
@@ -379,14 +380,17 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   judges it, and a `deleteAsset` without `force`, once the whole batch has
   run, against what the batch leaves every referrer (a delegated
   `editScene`'s scene included): removing the last instances in the same
-  batch, here or in another scene, deleting the referrer, or defining the
-  prefab again in a later `editScene`, still works, and a reference
-  another op of the batch adds is refused before anything is written. In
+  batch, here or in another scene, or deleting the referrer still works,
+  and a reference another op of the batch adds is refused before anything
+  is written. A delegated `editScene` is judged the way it is written,
+  after the batch's other edits of its scene: ops that don't apply to what
+  they leave it fail the batch at that op, and so does one that defines or
+  changes a prefab an earlier op of the batch removed (`op-invalid`). In
   the editor, the scene's own prefab writer judges a removal against the
-  docs the browser holds open; a reference in a scene it hasn't opened is
-  caught by the dev server on store, which reads every scene that can
-  name it (open or not, from its persisted state or file) and restores the
-  prefab.
+  docs the browser holds open. The dev server restores a trashed asset
+  that a doc it holds still names, on store and when such a doc loads; it
+  doesn't read docs nobody has open, so a forced delete stays trashed
+  while its referrers are closed.
 - `scene apply` reports the unchanged file's `sceneHash` when the project
   refuses the batch, so a retry with `--base` that hash isn't stale.
 - A material's bulk keys (`solid:<material>`, a prefab's `bulk` too) and

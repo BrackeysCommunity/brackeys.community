@@ -308,10 +308,24 @@ describe("assets on files", { timeout: 60_000 }, () => {
     const applyOps = (ops: unknown[], ...flags: string[]) => applyTo("kitchen-sink", ops, ...flags);
     const hashOf = async (scene: string) => (await run("show", scene)).data.sceneHash as string;
 
-    /** A refusal reports the unchanged file's hash, so the corrected batch can be based on it. */
-    const retriesOn = async (hash: string, ops: unknown[]) => {
-      const r = await applyOps(ops, "--dry-run", "--base", hash);
-      expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    const nudge = { op: "move", refs: ["~solid:0"], by: [1, 0] };
+
+    /**
+     * A refusal reports the unchanged file's hash: the corrected batch applies, and a batch with a
+     * `~` ref (which checks `--base`) is current against that hash and stale against the one it
+     * leaves behind.
+     */
+    const retriesOn = async (scene: string, refused: Data, ops: unknown[]) => {
+      const hash = refused.sceneHash as string;
+      const fixed = await applyTo(scene, ops, "--dry-run", "--base", hash);
+      expect(fixed.exitCode, JSON.stringify(fixed.data)).toBe(0);
+      const bulk = await applyTo(scene, [nudge], "--dry-run", "--base", hash);
+      expect(bulk.exitCode, JSON.stringify(bulk.data)).toBe(0);
+      const after = bulk.data.sceneHash as string;
+      expect(after).not.toBe(hash);
+      const stale = await applyTo(scene, [nudge], "--dry-run", "--base", after);
+      expect(stale.exitCode, JSON.stringify(stale.data)).toBe(3);
+      expect(stale.data).toMatchObject({ written: false, issue: { code: "stale-base" } });
     };
 
     it("refuses a prefab id another asset holds and writes nothing", async () => {
@@ -323,9 +337,11 @@ describe("assets on files", { timeout: 60_000 }, () => {
         expect(r.exitCode, JSON.stringify(r.data)).toBe(1);
         expect(r.data).toMatchObject({ written: false, issue: { code: "asset-id-taken" } });
         expect(r.data.sceneHash).toBe(hash);
+        await retriesOn("kitchen-sink", r.data, [
+          { op: "definePrefab", id: "peg", prefab: { entities: [peg] } },
+        ]);
       }
       expect(await tree(deck)).toEqual(before);
-      await retriesOn(hash, [{ op: "definePrefab", id: "peg", prefab: { entities: [peg] } }]);
     });
 
     it("refuses removing a prefab another scene still uses, and writes nothing", async () => {
@@ -356,12 +372,13 @@ describe("assets on files", { timeout: 60_000 }, () => {
           id: "kitchen-sink",
           pointer: "/instances/@gate-1/prefab",
         });
+        await retriesOn("engine-yard", r.data, ops.slice(0, 1));
       }
       expect(await tree(deck)).toEqual(before);
       expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toContain("gate");
       expect((await run("assets", "list", "--trash")).data.assets).toEqual([]);
 
-      const kept = await applyTo("engine-yard", ops.slice(0, 1), "--base", hash);
+      const kept = await applyTo("engine-yard", [...ops.slice(0, 1), nudge], "--base", hash);
       expect(kept.exitCode, JSON.stringify(kept.data)).toBe(0);
     });
 
@@ -438,9 +455,9 @@ describe("assets on files", { timeout: 60_000 }, () => {
           sceneHash: hash,
           issue: { code: "path-taken", entityIds: ["peg", "rubber-peg"] },
         });
+        await retriesOn("kitchen-sink", r.data, ops.slice(0, 1));
       }
       expect(await tree(deck)).toEqual(before);
-      await retriesOn(hash, ops.slice(0, 1));
       expect(ids((await run("assets", "list", "--kind", "prefab")).data)).not.toContain("peg");
     });
 
@@ -459,9 +476,11 @@ describe("assets on files", { timeout: 60_000 }, () => {
           sceneHash: hash,
           issue: { code: "path-taken", entityIds: ["peg"], got: "prefabs/peg.json" },
         });
+        await retriesOn("kitchen-sink", r.data, [
+          { op: "definePrefab", id: "plug", prefab: { entities: [peg] } },
+        ]);
       }
       expect(await tree(deck)).toEqual(before);
-      await retriesOn(hash, [{ op: "definePrefab", id: "plug", prefab: { entities: [peg] } }]);
       expect(ids((await run("assets", "list", "--kind", "prefab")).data)).not.toContain("peg");
     });
 

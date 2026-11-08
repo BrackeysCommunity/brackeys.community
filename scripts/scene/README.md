@@ -691,7 +691,8 @@ Project batches add their own:
   a prefab another asset still places gets it too, live and on files; it
   has no force. In the editor, a removal is judged against the scenes the
   browser has open, and the dev server restores a prefab a scene still
-  places, open or not.
+  places once that scene is open. A later op of the same batch can't
+  define or change a prefab an earlier op removed (`op-invalid`).
 - `asset-id-taken` / `path-taken`: another live asset holds the id or the
   path.
 - `hash-mismatch`: uploaded bytes hash to something other than the hash

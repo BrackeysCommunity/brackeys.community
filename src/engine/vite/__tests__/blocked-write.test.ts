@@ -305,8 +305,6 @@ describe("the dev server's blocked writes", () => {
       expect(files.filter((f) => f.endsWith(".move") || f.endsWith(".tmp"))).toEqual([]);
 
       await rm(copy.file("stuff"));
-      writeEntry(project.doc, { ...prefab("peg", "stuff/peg.json"), name: "Peg" });
-      await pushed(project.provider);
       await until(async () => {
         const files = await listed();
         return files.includes("stuff/peg.json") && files.includes("stuff/post.json");

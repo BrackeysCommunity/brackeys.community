@@ -120,8 +120,6 @@ type Served = {
   checked: Map<AssetKey, string>;
   /** The last write `blockedWrite` reported, so a held path warns once. */
   blocked?: string;
-  /** What `repair` read of docs no client has open, by key; dropped on any file event or unload. */
-  closed: Map<AssetKey, unknown>;
   hold?: Promise<DirectConnection>;
 };
 
@@ -134,8 +132,8 @@ type Served = {
  * trash on store, persists every doc, and turns file changes under the
  * project into `disk` transactions and registry ops. On each store of a
  * project doc it repairs binaries whose bytes the content store lacks
- * (`hash-mismatch`), restores trashed assets a live doc still names, open or
- * not (`asset-in-use`), re-inspects binaries whose meta lags their bytes or
+ * (`hash-mismatch`), restores trashed assets a live doc it holds still
+ * names (`asset-in-use`; a doc it loads later is judged as it loads), re-inspects binaries whose meta lags their bytes or
  * merged settings, and repairs duplicate ids and paths. It writes the code
  * map and this build's schema stamps when a project doc loads, and sends
  * `asset:changed` on the project doc whenever a binary's hash changes: on
@@ -162,7 +160,6 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       name: docNameOf({ kind: "project", project: id }),
       env: { registry: project.registry, project: null },
       checked: new Map(),
-      closed: new Map(),
     });
   }
 
@@ -225,43 +222,38 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
   }
 
   /**
-   * A closed doc's value, read from its persisted state or file into a doc
-   * of its own and let go; undefined when it doesn't load.
+   * The registry's repairs, with each trashed asset that a live doc the
+   * server holds still names restored (`asset-in-use`). Docs it hasn't
+   * loaded aren't read: a forced delete stays trashed while its referrers
+   * are closed, and one is judged when it loads (`loading`, which the
+   * server doesn't list until its load hooks are done).
    */
-  async function closedValue(s: Served, name: string, key: AssetKey): Promise<unknown> {
-    if (s.closed.has(key)) return s.closed.get(key);
-    const scratch = new Y.Doc();
-    let value: unknown;
-    try {
-      await s.adapter.loadDoc(name, scratch);
-      value = s.adapter.valueOf(name, scratch);
-    } catch {
-      // A file that doesn't parse names nothing until it does; its file event drops this.
-    } finally {
-      s.adapter.forget(name);
-      scratch.destroy();
-    }
-    s.closed.set(key, value);
-    return value;
+  function restoreInUse(s: Served, doc: Y.Doc, loading?: { name: string; doc: Y.Doc }): void {
+    const state = readProject(doc);
+    const view = projectView(state, s.project.kinds);
+    const restore = view.deleted.some((e) => !view.byId.has(e.id))
+      ? inUse(s, state, view, loading)
+      : [];
+    const fixed = applyRepairs(doc, restore.length > 0 ? { restore, origin: IN_USE_REPAIR } : {});
+    if (fixed.restored.length > 0)
+      warn(
+        `${s.name}: restored ${fixed.restored.map((k) => state.assets[k]?.id ?? k).join(", ")}, which a doc still names (asset-in-use).`,
+      );
   }
 
-  /**
-   * Every live doc's value that can name a trashed asset: the open docs',
-   * and, while anything is in the trash, the closed ones' that hold
-   * references, so a trashed asset a scene nobody has open still places is
-   * restored too.
-   */
-  async function liveValues(
+  /** The trashed keys a held doc names. */
+  function inUse(
     s: Served,
     state: ProjectState,
     view: ProjectView,
-  ): Promise<Map<AssetId, unknown>> {
+    loading?: { name: string; doc: Y.Doc },
+  ): AssetKey[] {
     const values = new Map<AssetId, unknown>();
-    const open = new Set<AssetKey>();
-    for (const [name, doc] of server.hocuspocus.documents) {
+    const held = new Map(server.hocuspocus.documents as Map<string, Y.Doc>);
+    if (loading) held.set(loading.name, loading.doc);
+    for (const [name, doc] of held) {
       const ref = parseDocName(name);
       if (!ref || ref.kind === "project" || ref.project !== s.project.file.id) continue;
-      open.add(ref.key);
       const entry = state.assets[ref.key];
       if (!entry || entry.deleted) continue;
       try {
@@ -271,15 +263,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
         // A doc whose entry changed kind meanwhile is read again on its next store.
       }
     }
-    if (!view.deleted.some((e) => !view.byId.has(e.id))) return values;
-    for (const entry of view.byId.values()) {
-      if (open.has(entry.key) || values.has(entry.id)) continue;
-      const def = s.project.kinds.get(entry.kind);
-      if (def?.storage !== "doc" || !def.refs) continue;
-      const value = await closedValue(s, s.adapter.docNameOf(entry), entry.key);
-      if (value !== undefined) values.set(entry.id, value);
-    }
-    return values;
+    return referencedTrash(view, buildRefIndex(view, values, s.project.kinds, s.env));
   }
 
   /** The store-time duties of the project's one writer. */
@@ -294,15 +278,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       origin: REINSPECT_REPAIR,
       checked: s.checked,
     });
-    const state = readProject(doc);
-    const view = projectView(state, s.project.kinds);
-    const values = await liveValues(s, state, view);
-    const restore = referencedTrash(view, buildRefIndex(view, values, s.project.kinds, s.env));
-    const fixed = applyRepairs(doc, restore.length > 0 ? { restore, origin: IN_USE_REPAIR } : {});
-    if (fixed.restored.length > 0)
-      warn(
-        `${s.name}: restored ${fixed.restored.map((k) => state.assets[k]?.id ?? k).join(", ")}, which a doc still names (asset-in-use).`,
-      );
+    restoreInUse(s, doc);
   }
 
   function broadcast(s: Served, change: AssetChange): void {
@@ -366,10 +342,18 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
         throw e;
       }
     },
-    async afterLoadDocument({ documentName }) {
+    async afterLoadDocument({ documentName, document }) {
       const ref = parseDocName(documentName);
-      const s = ref?.kind === "project" ? served.get(ref.project) : undefined;
-      if (s) void holdProject(s).catch((e: unknown) => warn(`${s.name}: ${(e as Error).message}`));
+      const s = ref ? served.get(ref.project) : undefined;
+      if (!ref || !s) return;
+      if (ref.kind === "project") {
+        void holdProject(s).catch((e: unknown) => warn(`${s.name}: ${(e as Error).message}`));
+        return;
+      }
+      await enqueue(s.project.file.id, async () => {
+        const project = docOf(s.name);
+        if (project) restoreInUse(s, project, { name: documentName, doc: document });
+      });
     },
     async onStoreDocument({ documentName, document }) {
       const ref = parseDocName(documentName);
@@ -400,10 +384,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       const ref = parseDocName(documentName);
       const s = ref ? served.get(ref.project) : undefined;
       if (!ref || !s) return;
-      await enqueue(s.project.file.id, async () => {
-        s.adapter.forget(documentName);
-        if (ref.kind !== "project") s.closed.delete(ref.key);
-      });
+      await enqueue(s.project.file.id, async () => s.adapter.forget(documentName));
     },
   });
 
@@ -448,6 +429,22 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     report(where, result);
   }
 
+  /**
+   * Any file event while a write is held may be its path freeing: check
+   * again, and store the project once what blocks it has changed.
+   */
+  function recheckBlocked(s: Served): void {
+    later(`blocked:${s.project.file.id}`, watchDelay, () =>
+      enqueue(s.project.file.id, async () => {
+        const project = docOf(s.name);
+        if (!project || s.blocked === undefined) return;
+        const before = s.blocked;
+        await warnBlocked(s, project);
+        if (s.blocked !== before) await s.adapter.storeProject(project);
+      }),
+    );
+  }
+
   // An editor or a script may still be mid-write when the first event
   // arrives; a file that doesn't parse is read once more before it's reported.
   function schedule(s: Served, file: string, delay: number, retried: boolean): void {
@@ -468,9 +465,9 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     try {
       const watcher = watch(s.project.dir, { recursive: true }, (_event, name) => {
         if (!name || !docOf(s.name)) return;
-        s.closed.clear();
         const file = String(name).split(sep).join("/");
         if (s.adapter.watches(file)) schedule(s, file, watchDelay, false);
+        if (s.blocked !== undefined) recheckBlocked(s);
         if (isCodePath(s.project.file, file))
           later(`code:${s.project.file.id}`, watchDelay, () =>
             enqueue(s.project.file.id, async () => {

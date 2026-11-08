@@ -20,6 +20,8 @@ import { stableJson } from "../../project/canonical";
 import type { ContentStore } from "../../project/content-store";
 import { docNameOf } from "../../project/doc-names";
 import { inspectEntry } from "../../project/inspect/entry";
+import { buildRefIndex } from "../../project/refs";
+import { projectView } from "../../project/view";
 import { formatScene } from "../../scene/format";
 import { applyOps } from "../../scene/ops";
 import { parseSceneOrThrow } from "../../scene/parse";
@@ -281,10 +283,11 @@ describe("the dev collab server: the project doc", () => {
     expect(warnings.some((w) => w.includes("asset-in-use"))).toBe(true);
   });
 
-  it("restores a trashed prefab a scene nobody has open still names", async () => {
+  it("leaves a forced delete trashed while its referrers are closed, and restores it once one loads", async () => {
     await start(["kitchen-sink.json", "prefabs/post.json", "prefabs/gate.json"]);
     const project = await open(PROJECT);
     const sink = docNameOf({ kind: "scene", project: "engine", key: "kitchen-sink" });
+    const gateText = await copy.read("prefabs/gate.json");
     const result = applyRegistryBatch(
       project.doc,
       { v: 1, ops: [{ op: "deleteAsset", id: "gate", force: true }] },
@@ -294,43 +297,40 @@ describe("the dev collab server: the project doc", () => {
     expect(result.ok).toBe(true);
     await pushed(project.provider);
     await until(
-      () => readProjectLog(project.doc).some((e) => e.actor.kind === "repair"),
-      "the repair",
-    );
-    expect(server.server.hocuspocus.documents.has(sink)).toBe(false);
-    expect(readProject(project.doc).assets.gate!.deleted).toBeUndefined();
-    expect(readProjectLog(project.doc).at(-1)).toMatchObject({
-      actor: { kind: "repair", reason: "asset-in-use" },
-      label: "Restore gate",
-    });
-    await server.idle();
-    expect(await copy.read("prefabs/gate.json")).toContain('"id": "gate"');
-
-    // Nothing names post once the scene drops it on disk, so trashing it stays.
-    const sinkText = await copy.read("kitchen-sink.json");
-    const dropped = sinkText.replace(/^\s*\{ "id": "post-\d", "prefab": "post".*\n/gm, "");
-    expect(dropped).not.toContain('"post"');
-    await writeFile(copy.file("kitchen-sink.json"), dropped);
-    await new Promise((r) => setTimeout(r, 100));
-    await server.idle();
-    const trashed = applyRegistryBatch(
-      project.doc,
-      { v: 1, ops: [{ op: "deleteAsset", id: "post", force: true }] },
-      ada,
-      { registry: registry(), kinds: copy.project.kinds },
-    );
-    expect(trashed.ok).toBe(true);
-    await pushed(project.provider);
-    await until(
       () =>
-        copy.read("prefabs/post.json").then(
+        copy.read("prefabs/gate.json").then(
           () => false,
           () => true,
         ),
       "the trash",
     );
+    await new Promise((r) => setTimeout(r, 150));
     await server.idle();
-    expect(readProject(project.doc).assets.post!.deleted).toBeDefined();
+    expect(server.server.hocuspocus.documents.has(sink)).toBe(false);
+    expect(readProject(project.doc).assets.gate!.deleted).toBeDefined();
+    expect(readProjectLog(project.doc).some((e) => e.actor.kind === "repair")).toBe(false);
+    const view = projectView(readProject(project.doc), copy.project.kinds);
+    const values = new Map([["kitchen-sink", JSON.parse(await copy.read("kitchen-sink.json"))]]);
+    const missing = buildRefIndex(view, values, copy.project.kinds, {
+      registry: registry(),
+      project: view,
+    }).dangling();
+    expect(missing.map((i) => [i.code, i.got])).toContainEqual(["asset-missing", "gate"]);
+
+    await open(sink);
+    await until(() => !readProject(project.doc).assets.gate!.deleted, "the restore on load");
+    expect(readProjectLog(project.doc).at(-1)).toMatchObject({
+      actor: { kind: "repair", reason: "asset-in-use" },
+      label: "Restore gate",
+    });
+    await until(
+      () =>
+        copy.read("prefabs/gate.json").then(
+          (t) => t === gateText,
+          () => false,
+        ),
+      "the restored file",
+    );
   });
 
   it("points a binary whose bytes the store lacks back at its file's (hash-mismatch)", async () => {

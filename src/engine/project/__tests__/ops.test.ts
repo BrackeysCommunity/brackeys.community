@@ -829,34 +829,54 @@ describe("references", () => {
       expect(run([drop], shared({ field: { ...field, instances: [] } })).ok).toBe(true);
     });
 
-    it("lets it go when a later editScene defines it again", () => {
+    it("refuses a later editScene that defines it again, and judges a removal after a define", () => {
       const again: ProjectOp = {
         op: "editScene",
         id: "field",
         ops: [{ op: "definePrefab", id: "gate", prefab: { entities: gate.entities as never } }],
       };
       const r = run([drop, again]);
-      expect(r.ok).toBe(true);
-      if (r.ok) expect(r.delegated).toEqual([0, 1]);
+      if (r.ok) throw new Error("expected op-invalid");
+      expect([r.opIndex, r.issue.code, r.issue.path, r.issue.entityIds]).toEqual([
+        1,
+        "op-invalid",
+        "/ops/1/ops",
+        ["gate"],
+      ]);
+      expect(r.issue.message).toContain("removed by op 0");
+      const onPrefab: ProjectOp = {
+        op: "editScene",
+        id: "gate",
+        ops: [{ op: "update", ref: "slope", set: { at: [0, 0] } }],
+      };
+      expect(run([drop, onPrefab], shared({ field: { ...field, instances: [] } }))).toMatchObject({
+        ok: false,
+        opIndex: 1,
+        issue: { code: "op-invalid" },
+      });
       const r2 = run([again, drop]);
       expect(r2.ok ? undefined : r2.issue.code).toBe("asset-in-use");
     });
 
-    it("still judges the removal when the scene's ops don't run on what the batch leaves it", () => {
+    it("refuses scene ops that don't apply to what the batch's earlier ops leave the scene", () => {
       const first: ProjectOp = {
         op: "editScene",
         id: "yard",
         ops: [{ op: "remove", refs: ["g1"] }],
       };
       const r = run([first, drop]);
-      if (r.ok) throw new Error("expected asset-in-use");
-      expect([r.opIndex, r.issue.code, r.issue.detail]).toEqual([
-        1,
-        "asset-in-use",
-        { referrers: [{ id: "field", pointer: "/instances/@g1/prefab" }] },
-      ]);
-      // The scene whose value is unknown isn't counted, so with no other referrer it goes.
-      expect(run([first, drop], shared({ field: { ...field, instances: [] } })).ok).toBe(true);
+      if (r.ok) throw new Error("expected a refusal");
+      expect([r.opIndex, r.issue.code, r.issue.path]).toEqual([1, "ref-not-found", "/ops/1/ops/0"]);
+      expect(run([first, drop], shared({ field: { ...field, instances: [] } })).ok).toBe(false);
+      // Written after the batch's other edits of the scene, the delegated ops run on what they leave.
+      const later: ProjectOp = {
+        op: "editScene",
+        id: "yard",
+        ops: [{ op: "definePrefab", id: "gate", prefab: null }],
+      };
+      const freed = shared({ field: { ...field, instances: [] } });
+      expect(run([later, first], freed).ok).toBe(true);
+      expect(run([later], freed).ok).toBe(false);
     });
 
     it("still judges the removal when the batch isn't given the scene's value", () => {
