@@ -62,8 +62,9 @@ changes listed under **Changed**. Every other entry stays free of React.
   resolve in the rebuilt editor.
 - The viewer's own face shows the avatar the host's `identity` gives,
   where the site always drew the initial.
-- `isEditableTarget` treats a CodeMirror editor (`.cm-editor`) as typing,
-  so the game's input router and the editor share one rule.
+- The root entry's input router treats keys pressed inside a CodeMirror
+  editor (`.cm-editor`) or a select's options as typing and ignores them,
+  as the editor does; the two share one rule.
 - A file drop the import refuses entirely reports one error with the
   reasons and no longer plays the drop cue.
 

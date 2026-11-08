@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
 import { createEditorSession, type SceneDefinition } from "../../editor/index";
-import { createRegistry } from "../../game/index";
+import { createRegistry, defineGame } from "../../game/index";
 import { EditorFrame, editorChrome, Island } from "../frame/EditorFrame";
 import type { EditorHostState } from "../session/live-scene-editor";
 import { fakeWorldGame } from "./fake-world-game";
@@ -108,6 +108,52 @@ describe("the frame's regions", () => {
     expect(focused()).toBe("status");
     fireEvent.keyDown(window, { key: "F6", ctrlKey: true });
     expect(focused()).toBe("status");
+  });
+
+  it("stops at islands with nothing to press, as an empty inspector or a text-only status", () => {
+    render(
+      <EditorFrame
+        left={
+          <Island>
+            <button type="button" data-stop="left">
+              left
+            </button>
+          </Island>
+        }
+        right={
+          <>
+            <Island data-stop="inspector">Select something in the outliner.</Island>
+            <Island>
+              <button type="button" data-stop="history">
+                history
+              </button>
+            </Island>
+          </>
+        }
+        dock={
+          <Island>
+            <button type="button" data-stop="dock">
+              dock
+            </button>
+          </Island>
+        }
+        status={<Island data-stop="status">frame-yard · live</Island>}
+      >
+        <canvas />
+      </EditorFrame>,
+    );
+    for (const name of ["left", "inspector", "history", "dock", "status"]) {
+      f6();
+      expect(focused()).toBe(name);
+    }
+    f6();
+    expect(document.activeElement?.hasAttribute("data-je-document")).toBe(true);
+    f6(true);
+    expect(focused()).toBe("status");
+    f6(true);
+    expect(focused()).toBe("dock");
+    // Focusable for F6, but still out of the Tab order.
+    expect(document.querySelector('[data-stop="inspector"]')?.getAttribute("tabindex")).toBe("-1");
   });
 
   it("carries .je-root on the frame and on the kit's portal container", () => {
@@ -212,6 +258,64 @@ describe("the editor's chrome in the frame", () => {
     expect(new Set(regions())).toEqual(
       new Set(["host", "left", "right", "dock", "status", "canvas"]),
     );
+  });
+
+  it("reaches every region and the canvas with F6 when nothing is selected", () => {
+    editor();
+    const top = () => {
+      const all = [...document.querySelectorAll<HTMLElement>("[data-je-region]")];
+      return all.filter((r) => !all.some((o) => o !== r && o.contains(r)));
+    };
+    const stops = top();
+    expect(stops.length).toBeGreaterThan(5);
+    for (const region of stops) {
+      f6();
+      expect(region.contains(document.activeElement)).toBe(true);
+    }
+    expect(document.activeElement?.hasAttribute("data-je-document")).toBe(true);
+    for (const region of stops.slice(0, -1).reverse()) {
+      f6(true);
+      expect(region.contains(document.activeElement)).toBe(true);
+    }
+  });
+
+  it("warns once per game about keys the engine's shadow, and only in dev", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const registry = createRegistry(
+        defineGame({
+          id: "keys",
+          types: [],
+          actions: [],
+          createRuntime: () => ({ snapshot: () => null }),
+          editorKeys: [{ key: "Mod+s", scope: "edit", command: "stash", description: "Stash" }],
+        }),
+      );
+      const props = {
+        session: createEditorSession({
+          doc: sceneToDoc(scene, { key: sequentialKeys("k") }),
+          origin: { kind: "user" as const, userId: "ada", name: "Ada" },
+          name: "frame-yard",
+          registry,
+          issuesDebounceMs: 0,
+        }),
+        host: new Store<EditorHostState>({ connection: "live", sceneChanged: false }),
+        game: fakeWorldGame(registry).game,
+        notify,
+        onPlay: vi.fn(),
+        onReplay: vi.fn(),
+        onStop: vi.fn(),
+        onRestart: vi.fn(),
+      };
+      editorChrome(props);
+      expect(warn).not.toHaveBeenCalled();
+      editorChrome(props, { dev: true });
+      editorChrome(props, { dev: true });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toContain('"Mod+s" (stash)');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("leaves only the dock and the host's chrome in play mode", () => {

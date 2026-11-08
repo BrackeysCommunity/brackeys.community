@@ -163,7 +163,7 @@ export type EditorAssets = { project: ProjectId; view: () => ProjectView; kinds:
 type Build = { registry: Registry; projectData: ProjectRuntimeView | null };
 
 /** What a rebuild carries from the editor it replaces to the next one on the same doc. */
-type Carried = { doc: string; selection: Ref[]; tool: string };
+export type Carried = { doc: string; selection: Ref[]; tool: string };
 
 /**
  * The scene editor on the host's project connection, where everyone with
@@ -406,13 +406,16 @@ export function useSceneEditor({
   };
 }
 
-function carry(live: LiveEditor, doc: string): Carried {
+export function carry(live: LiveEditor, doc: string): Carried {
   const { selection = [], tool = "select" } = live.session.store.state;
   return { doc, selection: [...selection], tool };
 }
 
-/** Puts what `kept` carried on `live`'s session: the refs that still resolve, and the tool. */
-function restore(live: LiveEditor, kept: Carried): void {
+/**
+ * Puts what `kept` carried on `live`'s session: the refs that still resolve,
+ * and the tool, which the frame's tool host then starts on.
+ */
+export function restore(live: LiveEditor, kept: Carried): void {
   if (kept.selection.length > 0) live.session.select(kept.selection);
   if (kept.tool !== live.session.store.state.tool) {
     live.session.setTool(kept.tool);

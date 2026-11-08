@@ -1,3 +1,5 @@
+// Not public API, so it comes from the router's own module: the editor and the
+// game's input router share this one rule for what counts as typing.
 export { isEditableTarget } from "../../tool-router";
 
 /**

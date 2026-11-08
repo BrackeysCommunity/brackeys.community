@@ -118,6 +118,7 @@ export function useToolHostLifecycle(
         scale: () => viewScale(game.getStore().state.camera),
         runtime: previewRuntime(game),
         gameTools,
+        tool: session.store.state.tool,
         snap: readSnap(latest.current.storage),
         pan: ([x, y]) => game.panBy({ x, y }),
         zoomAt: ([x, y], factor) => game.zoomAt({ x, y }, factor),

@@ -5,6 +5,7 @@ import {
   createKeymap,
   selectionBounds,
   type EditorSession,
+  type Keymap,
   type Ref,
   type SceneIssue,
 } from "../../editor/index";
@@ -69,6 +70,19 @@ const REGION = "[data-je-region]";
 const TABBABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
 
+/**
+ * Focuses a region: the canvas itself, else its first tabbable control, else
+ * the island, made focusable for it, so a panel with nothing to press still
+ * takes focus.
+ */
+export function focusRegion(region: HTMLElement): void {
+  const target = region.hasAttribute("data-je-document")
+    ? region
+    : (region.querySelector<HTMLElement>(TABBABLE) ?? region);
+  if (target === region && !region.hasAttribute("tabindex")) region.tabIndex = -1;
+  target.focus({ preventScroll: true });
+}
+
 /** F6 and Shift+F6 move focus between the islands and the canvas, in document order. */
 function useRegionCycling(root: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
@@ -84,11 +98,7 @@ function useRegionCycling(root: RefObject<HTMLDivElement | null>) {
       const current = regions.findIndex((r) => r.contains(document.activeElement));
       const step = e.shiftKey ? -1 : 1;
       const next = regions[(current + step + regions.length) % regions.length];
-      if (!next) return;
-      const target = next.hasAttribute("data-je-document")
-        ? next
-        : (next.querySelector<HTMLElement>(TABBABLE) ?? next);
-      target.focus({ preventScroll: true });
+      if (next) focusRegion(next);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -193,12 +203,14 @@ export type EditorChrome = Pick<
  * The editor's islands for `EditorFrame`'s slots. In play mode only the dock
  * stays, as the play controls and the "scene changed" chip.
  */
-export function editorChrome(props: EditorChromeProps): EditorChrome {
+export function editorChrome(
+  props: EditorChromeProps,
+  { dev = false }: { dev?: boolean } = {},
+): EditorChrome {
   const { session, host, game, notify } = props;
-  const keymap = createKeymap(game.registry.game?.editorKeys);
-  for (const b of keymap.shadowed) {
-    console.warn(`[editor] the game's ${b.scope} key "${b.key}" (${b.command}) is the engine's`);
-  }
+  const editorKeys = game.registry.game?.editorKeys;
+  const keymap = createKeymap(editorKeys);
+  if (dev && editorKeys) warnShadowedKeys(editorKeys, keymap);
   const physical = new Store<readonly SceneIssue[]>([]);
   const pickedAsset = new Store<AssetKey | null>(null);
   const controls: EditorControls = {
@@ -305,6 +317,17 @@ export function editorChrome(props: EditorChromeProps): EditorChrome {
       </EditMode>
     ),
   };
+}
+
+const warnedKeys = new WeakSet<object>();
+
+/** Once per game's key list: the bindings the engine's own keys hide. */
+function warnShadowedKeys(editorKeys: object, keymap: Keymap): void {
+  if (warnedKeys.has(editorKeys)) return;
+  warnedKeys.add(editorKeys);
+  for (const b of keymap.shadowed) {
+    console.warn(`[editor] the game's ${b.scope} key "${b.key}" (${b.command}) is the engine's`);
+  }
 }
 
 /** Physical validation, run once for the panels that show it. */

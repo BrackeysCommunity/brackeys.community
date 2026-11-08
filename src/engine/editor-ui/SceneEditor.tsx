@@ -1,13 +1,5 @@
 import { Store } from "@tanstack/store";
-import {
-  createContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import type { DebugLayerFactory, DebugOverlayFactory } from "../debug/index";
@@ -21,12 +13,13 @@ import {
 } from "../index";
 import type { ProjectId, ProjectRuntimeView } from "../project/index";
 import type { SceneDocStatus } from "./connect/scene-doc";
-import { EditorFrame, editorChrome, Island } from "./frame/EditorFrame";
+import { EditorFrame, editorChrome, focusRegion, Island } from "./frame/EditorFrame";
 import { hostCue, type EditorHost, type EditorNotify } from "./host";
 import { createToaster, hostNotify, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { InspectorReadOnly } from "./panels/EditorInspector";
 import type { Pending, PendingTask } from "./pending/pending";
+import { PendingProvider } from "./pending/use-pending";
 import { useSceneEditor, type EditorAssets } from "./session/use-scene-editor";
 
 export type SceneEditorProps = {
@@ -52,12 +45,6 @@ export type SceneEditorHandle = {
 };
 
 // ─── Pending ─────────────────────────────────────────────
-
-const PendingContext = createContext<Pending | null>(null);
-
-function PendingProvider({ pending, children }: { pending: Pending; children: ReactNode }) {
-  return <PendingContext.Provider value={pending}>{children}</PendingContext.Provider>;
-}
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -120,9 +107,6 @@ const PANEL_ISLAND: Readonly<Record<string, string>> = {
   run: ".je-island-run",
   history: ".je-island-history",
 };
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
 
 /**
  * What the canvas is sized to: the box it sits in once laid out, else the
@@ -296,7 +280,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   }, [game, built, editorSession]);
 
   const chrome = useMemo(
-    () => (editing.editor ? editorChrome({ ...editing.editor, notify }) : null),
+    () => (editing.editor ? editorChrome({ ...editing.editor, notify }, { dev: true }) : null),
     [editing.editor, notify],
   );
 
@@ -311,9 +295,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
         const island = selector ? frame?.querySelector<HTMLElement>(selector) : null;
         if (!island) return;
         island.scrollIntoView?.({ block: "nearest" });
-        const target = island.querySelector<HTMLElement>(FOCUSABLE) ?? island;
-        if (target === island && !island.hasAttribute("tabindex")) island.tabIndex = -1;
-        target.focus({ preventScroll: true });
+        focusRegion(island);
       },
       // The columns are fixed, so there is no layout to put back.
       resetLayout() {},
