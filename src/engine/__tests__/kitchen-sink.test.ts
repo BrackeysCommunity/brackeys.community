@@ -160,7 +160,7 @@ const sprites = (): [RuntimeEntity, SpriteBlock][] =>
   });
 const atlasTool = (id: string) => (view.byId.get(id)?.meta as { tool?: string } | undefined)?.tool;
 
-/** A snapshot of the project, its doc texts in a memory store; blobs are pinned by hash only. */
+/** A snapshot of the project, its doc texts in a memory store; blobs are pinned by hash, size and meta, their bytes left out. */
 async function pinned() {
   const store = memoryContentStore();
   const texts = new Map<AssetId, string>();
@@ -583,6 +583,14 @@ describe("kitchen-sink.json", () => {
       const { snapshot, store } = await pinned();
       const loaded = await loadHeadless({ snapshot, store, scene: def.name, registry: game });
       expect(loaded.project?.asset("crates")?.kind).toBe(ATLAS_KIND);
+      let sized = 0;
+      for (const [e, b] of sprites()) {
+        if (b.asset === undefined) continue;
+        const want = assetInfo(view, b.asset, b.frame) ?? undefined;
+        if (want?.size) sized++;
+        expect(loaded.project?.asset(b.asset, b.frame), e.id).toEqual(want);
+      }
+      expect(sized).toBeGreaterThanOrEqual(2);
       const run = runPlaytest({
         rapier,
         game: testGame,

@@ -2,10 +2,11 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { SpriteVisual } from "../context";
-import { SPRITE, spriteGeometry } from "../game/behaviors/sprite";
+import { SPRITE, spriteAssets, spriteGeometry, spriteOffset } from "../game/behaviors/sprite";
 import { createRegistry, ENGINE_BEHAVIORS, type ProjectMaterialDef } from "../game/define";
 import { PRIMITIVES } from "../game/primitives";
 import type { Registry } from "../game/types";
+import { assetInfo } from "../project/asset-info";
 import { runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetEntry } from "../project/types";
 import { projectView } from "../project/view";
@@ -406,6 +407,48 @@ describe("spriteGeometry", () => {
     const rect = { x: 16, y: 0, w: 16, h: 24 };
     expect(spriteGeometry({}, { size: [16, 24], rect }).frame).toEqual(rect);
     expect(spriteGeometry({}, { size: [16, 24] }).frame).toBeUndefined();
+  });
+});
+
+describe("spriteAssets", () => {
+  const lookupOf = (v: typeof view) => (id: string, frame?: string) => assetInfo(v, id, frame);
+
+  it("gives a texture as both info and texture, an atlas its frame and its texture, and nothing without a frame", () => {
+    const lookup = lookupOf(view);
+    const pic = spriteAssets(lookup, { asset: "crate" });
+    expect(pic.info).toBe(pic.texture);
+    expect(pic.info?.size).toEqual([40, 20]);
+    const cut = spriteAssets(lookup, { asset: "hero", frame: "run-0" });
+    expect(cut.info).toMatchObject({ size: [16, 24], rect: { x: 16, y: 0, w: 16, h: 24 } });
+    expect(cut.texture?.id).toBe("sheet");
+    expect(spriteAssets(lookup, { asset: "hero" })).toEqual({});
+    expect(spriteAssets(lookup, { asset: "hero", frame: "nope" })).toEqual({});
+    expect(spriteAssets(undefined, { asset: "crate" })).toEqual({});
+  });
+
+  it("anchors an atlas frame at its pivot, else its texture's import pivot, else the centre", () => {
+    const lookup = lookupOf(viewOf({ sheet: { import: { pivot: [0, 1] } } }));
+    const anchor = (frame: string) =>
+      spriteGeometry({}, spriteAssets(lookup, { asset: "hero", frame }).info).anchor;
+    expect(anchor("idle-0")).toEqual([0.5, 1]);
+    expect(anchor("run-0")).toEqual([0, 1]);
+    const bare = (id: string, frame?: string) => assetInfo(view, id, frame);
+    expect(
+      spriteGeometry({}, spriteAssets(bare, { asset: "hero", frame: "run-0" }).info).anchor,
+    ).toEqual([0.5, 0.5]);
+  });
+});
+
+describe("spriteOffset", () => {
+  it("mirrors with the flip, then turns with the pose, else with the quarter turns only", () => {
+    expect(spriteOffset([3, 4], undefined, 0)).toEqual([3, 4]);
+    expect(spriteOffset([3, 4], { turn: 0, flip: true }, 0)).toEqual([-3, 4]);
+    expect(spriteOffset([3, 4], undefined, Math.PI / 2)).toEqual([-4, 3]);
+    expect(spriteOffset([3, 4], { turn: 1, flip: false }, null)).toEqual([-4, 3]);
+    expect(spriteOffset([3, 4], { turn: 2, flip: true }, null)).toEqual([3, -4]);
+    const [x, y] = spriteOffset([10, 0], undefined, Math.PI / 6);
+    expect(x).toBeCloseTo(10 * Math.cos(Math.PI / 6));
+    expect(y).toBeCloseTo(5);
   });
 });
 

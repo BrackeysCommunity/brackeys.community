@@ -1,5 +1,5 @@
 import type { GameStoreState } from "@jams/engine";
-import { dropBatch, type EditorSession, type Pt, type ToolHost } from "@jams/engine/editor";
+import { dropBatch, type EditorSession, type ToolHost } from "@jams/engine/editor";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
 import { useEffect, useMemo, useRef } from "react";
@@ -11,9 +11,9 @@ import { runOverlay, type LoadedRun } from "../loaded-run";
 import { carriesAsset, readAssetDrag } from "../project-tree/tree-rows";
 import { useEditorDoc, useEditorStore } from "../use-editor-store";
 import { RunMarks } from "./RunMarks";
-import { useHostChanges, useHostValue } from "./tool-host";
+import { hostToWorld, useHostChanges, useHostValue } from "./tool-host";
 import { ToolOverlayLabels, ToolOverlayMarks } from "./ToolOverlayLayer";
-import { num, toScreen, useView, worldTransform, type View } from "./view";
+import { num, toScreen, useView, worldTransform } from "./view";
 
 /** Screen px between the selection's bottom edge and the offer button. */
 const OFFER_GAP_PX = 16;
@@ -57,17 +57,17 @@ function useCanvasInput(host: ToolHost | null, canvas: (() => HTMLElement | null
 /**
  * The canvas as the project tree's drop target: an asset row dropped on it
  * is placed at the drop point, snapped as the tool host snaps, in one batch
- * (one undo step). A kind that can't be placed says so in a toast.
+ * (one undo step), through the same screen-to-world conversion as the
+ * host's pointer. A kind that can't be placed says so in a toast.
  */
 function useAssetDrop(
   session: EditorSession,
   host: ToolHost | null,
   canvas: (() => HTMLElement | null) | undefined,
-  view: View,
 ) {
-  const latest = useRef({ session, host, view });
+  const latest = useRef({ session, host });
   useEffect(() => {
-    latest.current = { session, host, view };
+    latest.current = { session, host };
   });
   useEffect(() => {
     const el = canvas?.();
@@ -82,18 +82,16 @@ function useAssetDrop(
       e.preventDefault();
       const drop = readAssetDrag(e.dataTransfer);
       if (!drop || !Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return;
-      const { session: s, host: h, view: v } = latest.current;
+      const { session: s, host: h } = latest.current;
+      const toWorld = h && hostToWorld(h);
+      if (!h || !toWorld) return;
       const rect = el.getBoundingClientRect();
-      const scale = v.scale || 1;
-      const at: Pt = [
-        (e.clientX - rect.left - v.tx) / scale,
-        (e.clientY - rect.top - v.ty) / scale,
-      ];
+      const at = toWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
       const result = dropBatch(drop, at, {
         def: s.getDoc(),
         registry: s.registry,
         prefabs: s.getPrefabs(),
-        ...(h ? { snap: h.snap() } : {}),
+        snap: h.snap(),
       });
       if (!result.ok) {
         toast(result.issues[0]?.message ?? `${drop.entry.id} can't be placed in a scene`);
@@ -140,7 +138,7 @@ export function CanvasLayer({
   useEditorStore(session, (s) => s.selection);
   useEditorDoc(session);
   useCanvasInput(host, canvas);
-  useAssetDrop(session, host, canvas, view);
+  useAssetDrop(session, host, canvas);
   const overlay = host?.overlay() ?? {};
   const transform = worldTransform(view);
 

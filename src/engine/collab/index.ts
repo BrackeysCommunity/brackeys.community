@@ -68,7 +68,7 @@ export {
   type ProjectWriter,
 } from "./migrate-layout";
 export { migrateDoc, type MigrateDocOptions } from "./migrate";
-export { ASSET_CHANGED, type AssetChangedMessage } from "./asset-changed";
+export { ASSET_CHANGED, type AssetChange, type AssetChangedMessage } from "./asset-changed";
 export { buildAtFrom, stampWins } from "./build-stamp";
 export { randomKey, sequentialKeys, type KeyGen } from "./keys";
 export { assignZ, compareZ } from "./order";

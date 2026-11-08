@@ -1,7 +1,7 @@
 import type { Registry } from "../game/types";
-import { shapePose } from "../physics";
+import { degToRad } from "../physics";
 import { geometryFields } from "../scene/schema";
-import { aabb, centroid } from "../scene/shape-geometry";
+import { geometryPose, shapeCentre, type GeometryPose } from "../scene/shape-geometry";
 import type { PathDef, Pt, RuntimeEntity, ShapeObj } from "../scene/types";
 
 export type Pose = {
@@ -73,28 +73,18 @@ export function createPoseIndex(tick: () => number): PoseIndex {
 /** Radians for an entity's quarter turns. */
 const turnRad = (transform: RuntimeEntity["transform"]) => ((transform?.turn ?? 0) * Math.PI) / 2;
 
+const poseOf = ({ at, rotDeg }: GeometryPose, transform: RuntimeEntity["transform"]): Pose => ({
+  x: at[0],
+  y: at[1],
+  rot: rotDeg === undefined ? turnRad(transform) : degToRad(rotDeg),
+});
+
 /**
  * A shape's pose in its own coordinates: its centre, and its angle from
  * `rotDeg`, else from the entity's quarter turns (circles, polygons, chains).
  */
 export function shapeSpawnPose(shape: ShapeObj, transform?: RuntimeEntity["transform"]): Pose {
-  switch (shape.type) {
-    case "box":
-    case "capsule": {
-      const { x, y, rotation } = shapePose(shape);
-      return { x, y, rot: rotation };
-    }
-    case "circle":
-      return { x: shape.cx, y: shape.cy, rot: turnRad(transform) };
-    case "poly": {
-      const [x, y] = centroid(shape.pts);
-      return { x, y, rot: turnRad(transform) };
-    }
-    case "chain": {
-      const b = aabb(shape);
-      return { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2, rot: turnRad(transform) };
-    }
-  }
+  return poseOf(shapeCentre(shape), transform);
 }
 
 /** `pose` in the frame `frame` is posed at: what a body-local offset is for a body placed at `frame`. */
@@ -134,13 +124,8 @@ export function spawnPoseOf(e: RuntimeEntity, fields: GeometryFields): Pose {
     else if (kind === "point") at ??= value as Pt;
     else if (kind === "path") path ??= value as PathDef;
   }
-  const origin = path?.pts[0];
-  if (shape) {
-    const local = shapeSpawnPose(shape, e.transform);
-    return origin ? { ...local, x: origin[0] + local.x, y: origin[1] + local.y } : local;
-  }
-  const point = at ?? origin;
-  return { x: point?.[0] ?? 0, y: point?.[1] ?? 0, rot: turnRad(e.transform) };
+  const pose = geometryPose({ shape, at, path });
+  return pose ? poseOf(pose, e.transform) : { x: 0, y: 0, rot: turnRad(e.transform) };
 }
 
 /**

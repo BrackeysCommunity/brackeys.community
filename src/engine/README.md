@@ -990,8 +990,8 @@ duplicate id or path), `checkProjectBatch` for project ops, and
   `game-settings` (with the game's `projectSettings` defaults) and its data
   tables (`ctx.project.table("card")`); a project's material assets
   overlay the game's code materials by name (`withProject`).
-- **Snapshots.** `snapshotProject` pins every live asset by content hash,
-  and `loadHeadless({ snapshot, store, scene, registry })` replays a run
+- **Snapshots.** `snapshotProject` pins every live asset by content hash
+  (a blob with its size, import settings and inspected meta), and `loadHeadless({ snapshot, store, scene, registry })` replays a run
   against exactly that version, its own materials included, without
   fetching an image.
 
@@ -1089,9 +1089,11 @@ type may carry it, unless the type forbids it. Its fields:
   `./headless`) gives a texture's pixel size, pivot, nine-slice and filter,
   or an atlas's frame names, tags, texture and, with `frame`, that frame's
   size, rectangle and pivot, from the asset's entry alone. A run reads the
-  same through `ctx.project.asset(id, frame?)`. `spriteGeometry` turns a
-  block and that info into the drawn box; the renders, picking and the
-  sprite system all use it.
+  same through `ctx.project.asset(id, frame?)`, loaded from files or from a
+  snapshot (which pins each blob's size and meta beside its hash).
+  `spriteGeometry` turns a block and that info into the drawn box; the
+  renders, picking and the sprite system all use it, and an atlas frame
+  without a pivot of its own anchors at its texture's import pivot.
 
 `decor` is the primitive for pictures: `{ id, type: "decor", at,
 behaviors: { sprite } }`, no bulk form, no body. It has a pose and is

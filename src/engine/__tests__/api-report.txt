@@ -2,13 +2,16 @@
 # Generated from the packed .d.mts files by scripts/engine-api-report.ts; regenerate with --write.
 
 ## @jams/engine
+AssetLoader
+AssetUrl
+BlendMode
 CameraMode
 CameraState
-DISPLAY_RESOLUTIONS
+DEFAULT_RESOLUTION
 Dihedral
-DisplayResolution
 ENGINE_VERSION
 ExpandedScene
+FrameRect
 GameConfig
 GameDefinition
 GameEventMap
@@ -19,37 +22,50 @@ GameStoreState
 IDENTITY_2D
 InputAction
 InputBinding
+LoadProgress
 LoadReport
 PixiView
+PixiViewOptions
 PlayOptions
 PlayOutcome
 PlayReport
 PlaySession
 RapierModule
 Registry
+ResolutionPolicy
+ResolutionViewport
 RunRecording
 RuntimeEntity
+SPRITE
+SPRITE_FALLBACK_SIZE
 SimState
+SpriteAssetInfo
+SpriteBlock
+SpriteGeometry
+SpriteVisual
 StepEvent
 StepResult
 TOOL_PRIORITY
+TextureSource
 ToolConsumer
 ToolEvent
 ToolRouter
 Transform2D
-VIRTUAL_HEIGHT
 Vec2
 applyPt
 applyVec
 compose
 composeDihedral
+createAssetLoader
 createGame
 createPixiView
 dihedral
 dihedralOf
+drawSprite
 flipWorld
 invert
 pixiContainer
+resolveResolution
 selectCamera
 selectDebugMode
 selectFPS
@@ -59,9 +75,14 @@ selectPhase
 selectSession
 selectSim
 selectTick
+spriteGeometry
+viewportFor
 
 ## @jams/engine/collab
 ASSETS_KEY
+ASSET_CHANGED
+AssetChange
+AssetChangedMessage
 AwarenessLike
 BEHAVIORS_FIELD
 BULK_FIELD
@@ -293,6 +314,7 @@ debugModes
 Aabb
 ApplyOptions
 ApplyResult
+AssetDrop
 BehaviorOption
 BehaviorSectionId
 BehaviorSectionInfo
@@ -470,6 +492,8 @@ dragVertex
 dragWaypoint
 drawBatch
 drawnShape
+dropBatch
+dropFragment
 duplicateSelection
 entityGeometry
 expandRefs
@@ -612,6 +636,7 @@ DEFAULT_GRAVITY
 DEFAULT_LAYERS
 DEFAULT_ROTATE_STEP
 DRAW_LAYERS
+DecorEntity
 DrawLayer
 ENGINE_CHECK_KINDS
 ENGINE_COLLISION_GROUPS
@@ -630,6 +655,7 @@ EntityTypeDef
 FieldEnv
 FollowerOptions
 FollowerSystem
+FrameRect
 GameAttachment
 GameDefinition
 GameEditorDef
@@ -661,6 +687,8 @@ PlacementTool
 PlacementToolOptions
 PlayStart
 PlayState
+Pose
+PoseIndex
 PrimitiveType
 ProjectMaterialDef
 ProjectRuntimeView
@@ -672,6 +700,8 @@ RegistryError
 RunResult
 SENSOR_ENTER
 SENSOR_EXIT
+SPRITE
+SPRITE_FALLBACK_SIZE
 SceneLayerDef
 SceneRuntimeHandle
 SceneSystem
@@ -683,6 +713,9 @@ SensorSystem
 SolidOptions
 SolidSystem
 SpawnShape
+SpriteAssetInfo
+SpriteBlock
+SpriteGeometry
 StepEvent
 StepResult
 Style
@@ -705,6 +738,7 @@ bodyShapeField
 carrierDelta
 clamp
 clampVec2
+createDecorSystem
 createFollowerSystem
 createMarkerSystem
 createPlacementTool
@@ -735,6 +769,8 @@ refField
 shapeColliderDesc
 shapeField
 shapePose
+spawnPose
+spriteGeometry
 styleOf
 tagsField
 traceShape
@@ -742,6 +778,7 @@ vectorField
 withProject
 
 ## @jams/engine/headless
+AssetInfo
 CheckEnv
 CheckResult
 CheckVerdict
@@ -806,6 +843,7 @@ StepEvent
 StepResult
 UntilClause
 ValidatePhysicalOptions
+assetInfo
 compileInputScript
 createHeadlessRuntime
 createRunRecorder
@@ -830,9 +868,11 @@ validatePhysical
 ATLAS_KIND
 ATLAS_SUFFIX
 AUDIO_KIND
+AssetBundle
 AssetEntry
 AssetFile
 AssetId
+AssetInfo
 AssetKey
 AssetKindDef
 AssetKindName
@@ -852,6 +892,7 @@ AudioSettings
 BlobInspect
 BlobKindDef
 BuildStamp
+BundleEntry
 CodeKindDef
 CodeModuleInfo
 ContentStore
@@ -949,6 +990,7 @@ applyJsonEdits
 assetFileEntries
 assetFileEntry
 assetIdOfPath
+assetInfo
 assetPathProblem
 atlasExportApp
 atlasImage
@@ -974,6 +1016,7 @@ defineAssetKind
 detectImport
 docKindJsonSchema
 docNameOf
+engineResolution
 fontKind
 fontMetaSchema
 fontSettingsSchema
@@ -1007,6 +1050,7 @@ parseProjectSnapshot
 parseSidecar
 parseTexturePackerJson
 prefabKind
+projectBundle
 projectFileSchema
 projectGlobs
 projectJsonSchema
@@ -1030,6 +1074,7 @@ referencedTrash
 rewriteRefs
 rowSchemaOf
 runtimeView
+sceneBundle
 sceneKind
 schemaRefSites
 sha256
@@ -1079,6 +1124,7 @@ DEFAULT_TOUCH_SEED
 DEFAULT_TOUCH_TICKS
 DEFAULT_UNTIL_MAX
 Dihedral
+DrawnSprite
 EMPTY_SCENE_TEMPLATE
 ENGINE_ISSUE_CODE_LIST
 ENGINE_REGISTRY_ID
@@ -1185,6 +1231,7 @@ SceneOverlay
 SceneParseError
 SceneRegionOptions
 SceneSettings
+SceneSprite
 SceneSvgOptions
 SceneVersionError
 SceneViewport
@@ -1196,6 +1243,8 @@ ShapeTuple
 ShapeTupleSchema
 ShapeType
 SpotAnchor
+SpriteAssetLookup
+SpritePoseSource
 TouchesCheck
 Transform2D
 ValidCheck
@@ -1308,6 +1357,7 @@ prefabOf
 prefabScene
 prefabSchemaFor
 prefabsUsedBy
+projectSpriteAssets
 readCell
 recordingJsonSchema
 renderSceneAscii
@@ -1327,6 +1377,7 @@ sceneJsonSchema
 sceneOpSchemaFor
 sceneRegistry
 sceneSchemaFor
+sceneSprites
 sceneViewport
 schemaIdFor
 shapeIsClosed
@@ -1336,6 +1387,7 @@ shapeVertices
 splitChildRef
 splitFieldPath
 splitOverridePath
+spriteBoxOf
 suggestType
 takenIds
 toSourceBatch
@@ -1472,6 +1524,22 @@ declare function applyOpsToDoc(doc: Y.Doc, batch: OpBatch, origin: SceneOrigin, 
 declare function headerOf(def: SceneDefinition): Record<string, unknown>;
 declare function patchGroup(ymap: Y.Map<unknown>, prev: GroupDef | undefined, next: GroupDef): void;
 declare function refsOfView(view: DocView): Map<string, Ref>;
+
+## collab/asset-changed.ts
+declare const ASSET_CHANGED = "asset:changed";
+type AssetChange = {
+    bytes: number;
+    id: AssetId;
+    key: AssetKey;
+    kind: AssetKindName;
+    path: AssetPath;
+    previous: Sha256 | null;
+    sha256: Sha256;
+};
+type AssetChangedMessage = AssetChange & {
+    project: ProjectId;
+    type: typeof ASSET_CHANGED;
+};
 
 ## collab/bind.ts
 type BindOptions = {
@@ -2169,6 +2237,7 @@ declare function watchIssues(doc: Y.Doc, registry: Registry, onIssues: (issues: 
 declare function createSensorCollider(ctx: Pick<EngineContext, "physics" | "rapier" | "registry">, body: RigidBody, desc: ColliderDesc): Collider;
 
 ## context.ts
+type BlendMode = "add" | "multiply" | "normal" | "screen";
 declare const DRAW_LAYERS: {
     readonly actor: 30;
     readonly body: 10;
@@ -2180,14 +2249,60 @@ declare const DRAW_LAYERS: {
 type DrawLayer = keyof typeof DRAW_LAYERS;
 interface SceneView {
     draw(id: string, shape: ShapeObj, style: Style, layer: ViewLayer): void;
-    pose(id: string, x: number, y: number, rot?: number): void;
+    pose(id: string, x: number, y: number, rot?: number, snap?: boolean): void;
     remove(id: string): void;
     layer(layer: ViewLayer): ViewLayerHandle;
+    sprite?(id: string, visual: SpriteVisual, layer: ViewLayer): void;
+    depth?(id: string, z: number): void;
+    commit?(tick: number): void;
+    frame?(f: {
+        alpha: number;
+        camera: {
+            x: number;
+            y: number;
+            zoom: number;
+        };
+    }): void;
 }
+type SpriteVisual = {
+    alpha?: number;
+    anchor: [
+        x: number,
+        y: number
+    ];
+    blend?: BlendMode;
+    fallback: {
+        shape: ShapeObj;
+        style: Style;
+    };
+    flipX?: boolean;
+    flipY?: boolean;
+    frame?: {
+        h: number;
+        w: number;
+        x: number;
+        y: number;
+    };
+    nineSlice?: [
+        left: number,
+        top: number,
+        right: number,
+        bottom: number
+    ];
+    sampling: "linear" | "nearest";
+    size: [
+        w: number,
+        h: number
+    ];
+    texture: Sha256 | null;
+    tile?: boolean;
+    tint?: number;
+};
 type ViewLayer = DrawLayer | number;
 type ViewLayerHandle = {
     readonly __viewLayer: true;
 };
+declare function drawSprite(view: SceneView, id: string, visual: SpriteVisual, layer: ViewLayer): void;
 
 ## debug/index.ts
 declare const DEBUG_OFF = "off";
@@ -2227,6 +2342,20 @@ type DebugTick = Omit<DebugFrame, "scene">;
 declare const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[];
 declare function createDebugOverlay(deps: DebugDeps): DebugOverlay;
 declare function debugModes(layers: readonly DebugLayerFactory[]): string[];
+
+## editor/asset-drop.ts
+type AssetDrop = {
+    entry: AssetEntry;
+    frame?: string;
+    info: AssetInfo;
+};
+declare function dropBatch(drop: AssetDrop, at: Pt, opts: {
+    def: SceneDefinition;
+    prefabs?: PrefabLibrary;
+    registry: Registry;
+    snap?: SnapSettings;
+}): PasteResult;
+declare function dropFragment(drop: AssetDrop, registry: Registry): SceneFragment | null;
 
 ## editor/attach.ts
 declare function attachBatch(def: SceneDefinition, ref: Ref, follower: Ref | null, registry: Registry, prefabs?: PrefabLibrary): OpBatch | null;
@@ -3100,6 +3229,7 @@ type EditableSpatialIndex = SpatialIndex & {
     update(def: SceneDefinition, registry: Registry, touched: readonly Ref[]): void;
 };
 type SpatialIndexOptions = {
+    asset?: SpriteAssetLookup;
     cell?: number;
     keyOf?: (ref: Ref) => string | undefined;
 };
@@ -3149,6 +3279,7 @@ type ToolHost = {
     overlay(): ToolOverlay;
     paste(text: string, at?: Pt): boolean;
     pointerWorld(): Pt | null;
+    reindex(): void;
     selectionBounds(): Aabb | null;
     setLayers(patch: {
         hidden?: Iterable<string>;
@@ -3162,6 +3293,7 @@ type ToolHost = {
     tools(): readonly EditorToolDef[];
 };
 type ToolHostOptions = {
+    asset?: SpriteAssetLookup;
     engineTools?: readonly EditorToolDef[];
     frame?: (rect: Aabb) => void;
     gameTools?: readonly EditorToolDef[];
@@ -3372,6 +3504,103 @@ type RegisteredBehavior = BehaviorDef & {
 };
 declare function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): BehaviorDef<F>;
 
+## game/behaviors/sprite.ts
+type FrameRect = {
+    h: number;
+    w: number;
+    x: number;
+    y: number;
+};
+declare const SPRITE: BehaviorDef<{
+    alpha: z.ZodOptional<z.ZodNumber>;
+    anchor: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    asset: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
+    blend: z.ZodOptional<z.ZodEnum<{
+        add: "add";
+        multiply: "multiply";
+        normal: "normal";
+        screen: "screen";
+    }>>;
+    flipX: z.ZodOptional<z.ZodBoolean>;
+    flipY: z.ZodOptional<z.ZodBoolean>;
+    frame: z.ZodOptional<z.ZodString>;
+    nineSlice: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber,
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    offset: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    scale: z.ZodOptional<z.ZodNumber>;
+    size: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    tile: z.ZodOptional<z.ZodBoolean>;
+    tint: z.ZodOptional<z.ZodNumber>;
+    turn: z.ZodOptional<z.ZodBoolean>;
+}>;
+declare const SPRITE_FALLBACK_SIZE: readonly [
+    w: number,
+    h: number
+];
+type SpriteAssetInfo = Pick<AssetInfo, "pivot" | "size"> & {
+    rect?: FrameRect;
+};
+type SpriteAssetLookup = (id: string, frame?: string) => AssetInfo | null | undefined;
+type SpriteBlock = z.infer<z.ZodObject<ReturnType<typeof spriteFields>>>;
+type SpriteGeometry = {
+    anchor: [
+        x: number,
+        y: number
+    ];
+    box: Extract<ShapeObj, {
+        type: "box";
+    }>;
+    frame?: FrameRect;
+    offset: Pt;
+    size: [
+        w: number,
+        h: number
+    ];
+};
+declare const spriteFields: (env: FieldEnv) => {
+    alpha: z.ZodOptional<z.ZodNumber>;
+    anchor: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    asset: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
+    blend: z.ZodOptional<z.ZodEnum<{
+        add: "add";
+        multiply: "multiply";
+        normal: "normal";
+        screen: "screen";
+    }>>;
+    flipX: z.ZodOptional<z.ZodBoolean>;
+    flipY: z.ZodOptional<z.ZodBoolean>;
+    frame: z.ZodOptional<z.ZodString>;
+    nineSlice: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber,
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    offset: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    scale: z.ZodOptional<z.ZodNumber>;
+    size: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    tile: z.ZodOptional<z.ZodBoolean>;
+    tint: z.ZodOptional<z.ZodNumber>;
+    turn: z.ZodOptional<z.ZodBoolean>;
+};
+declare function spriteGeometry(block: Partial<SpriteBlock>, info?: SpriteAssetInfo | null): SpriteGeometry;
+
 ## game/define.ts
 type CreateRegistryOptions = {
     assets?: FieldEnv["assets"];
@@ -3379,6 +3608,7 @@ type CreateRegistryOptions = {
 };
 type EntityOf<D extends EntityTypeDef> = D extends EntityTypeDef<infer F> ? RuntimeEntity<z.infer<z.ZodObject<F>>> : RuntimeEntity;
 type ProjectMaterialDef = {
+    blend?: BlendMode;
     description: string;
     physics?: {
         friction: number;
@@ -3386,6 +3616,7 @@ type ProjectMaterialDef = {
         restitution: number;
     };
     style?: Style;
+    tint?: number;
 };
 declare class RegistryError extends Error {
     readonly problems: string[];
@@ -3461,6 +3692,26 @@ declare const DEFAULT_GRAVITY: [
     number
 ];
 declare const PRIMITIVES: {
+    decor: {
+        ascii: string;
+        behaviors: {
+            required: {
+                sprite: {};
+            };
+        };
+        description: string;
+        fields: {
+            at: z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>;
+        };
+        style: {
+            alpha: number;
+            stroke: number;
+        };
+        type: string;
+    };
     follower: {
         ascii: string;
         description: string;
@@ -3670,14 +3921,17 @@ type EngineCheckKind = (typeof ENGINE_CHECK_KINDS)[number];
 type EngineCollisionGroup = (typeof ENGINE_COLLISION_GROUPS)[number];
 type EngineContext = {
     attachments: AttachmentHub;
+    behavior: <S extends BehaviorSystem = BehaviorSystem>(name: BehaviorName) => S | undefined;
     bounds: Bounds;
     dev: boolean;
     emit: (event: Omit<StepEvent, "tick">) => void;
     gravity: Vec2;
     physics: PhysicsWorld;
+    poses: PoseIndex;
     rapier: RapierModule;
     readonly play: PlayStart | null;
     readonly project: ProjectRuntimeView | null;
+    readonly sampling: "linear" | "nearest";
     readonly tick: number;
     registry: Registry;
     settings: ResolvedSettings;
@@ -3750,6 +4004,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     play?: GamePlayDef<S, G>;
     prefabContract?: z.ZodRawShape;
     projectSettings?: z.ZodRawShape;
+    resolution?: Partial<ResolutionPolicy>;
     settings?: z.ZodRawShape;
     spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
     tables?: Readonly<Record<string, GameTableDef>>;
@@ -3758,6 +4013,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     validators?: readonly SceneValidator[];
 };
 type GameEditorDef = {
+    assetDrop?: (drop: AssetDrop) => EntityInput | InstanceInput | null;
     tools?: () => Promise<readonly EditorToolDef[]>;
     widgets?: Readonly<Record<string, InspectorWidgetDef>>;
 };
@@ -3834,11 +4090,13 @@ type MacroRandom = {
     range(lo: number, hi: number): number;
 };
 type MaterialDef = {
+    blend?: BlendMode;
     description: string;
     friction: number;
     impulse?: Vec2;
     restitution: number;
     style?: Style;
+    tint?: number;
 };
 declare const PRIMITIVE_TYPES: readonly [
     "solid",
@@ -3846,6 +4104,7 @@ declare const PRIMITIVE_TYPES: readonly [
     "marker",
     "prop",
     "follower",
+    "decor",
     "note"
 ];
 type PhysicalCheck = {
@@ -4380,6 +4639,65 @@ declare function orphanSidecarIssue(sidecarPath: AssetPath, assetPath: AssetPath
 declare function ownAssetId(def: AssetKindDef, path: AssetPath, json: unknown): AssetId | null;
 declare function projectPathMatcher(file: ProjectFile, match: GlobMatch): ProjectPathMatcher;
 
+## project/asset-info.ts
+type AssetInfo = {
+    bytes?: number;
+    filter?: "linear" | "nearest";
+    frames?: readonly string[];
+    id: AssetId;
+    kind: AssetKindName;
+    nineSlice?: [
+        number,
+        number,
+        number,
+        number
+    ];
+    pivot?: [
+        x: number,
+        y: number
+    ];
+    rect?: {
+        h: number;
+        w: number;
+        x: number;
+        y: number;
+    };
+    sha256?: Sha256;
+    size?: [
+        w: number,
+        h: number
+    ];
+    tags?: readonly {
+        direction: string;
+        from: number;
+        name: string;
+        to: number;
+    }[];
+    texture?: AssetId;
+};
+declare function assetInfo(view: ProjectView, id: AssetId, frame?: string): AssetInfo | null;
+
+## project/bundle.ts
+type AssetBundle = {
+    bytes: number;
+    entries: readonly BundleEntry[];
+    name: string;
+};
+type BundleEntry = {
+    bytes: number;
+    id: AssetId;
+    kind: AssetKindName;
+    sha256: Sha256;
+};
+declare function projectBundle(view: ProjectView, settings: unknown, kinds: KindRegistry, registry: Registry): {
+    bundle: AssetBundle;
+    issues: SceneIssue[];
+};
+declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry): {
+    bundle: AssetBundle;
+    issues: SceneIssue[];
+};
+
 ## project/canonical.ts
 type MapLayout = Extract<DocLayout, {
     as: "map";
@@ -4833,11 +5151,14 @@ declare const GAME_SETTINGS_SCHEMA_ID = "urn:jams-engine:game-settings:v1";
 declare const GAME_SETTINGS_VERSION = 1;
 type GameSettingsFile = {
     $schema?: string;
-    engine: Record<string, never>;
+    engine: {
+        resolution?: Partial<ResolutionPolicy>;
+    };
     game: Record<string, unknown>;
     kind: typeof GAME_SETTINGS_KIND;
     v: typeof GAME_SETTINGS_VERSION;
 };
+declare function engineResolution(engine: Readonly<Record<string, unknown>>): Partial<ResolutionPolicy> | undefined;
 declare function gameSettingsEntries(view: ProjectView): AssetEntry[];
 declare function gameSettingsIssues(view: ProjectView): SceneIssue[];
 declare const gameSettingsKind: {
@@ -4934,9 +5255,18 @@ declare const materialKind: {
     defaultFolder: () => string;
     description: string;
     empty: () => MaterialFile;
+    format: (value: MaterialFile) => string;
     kind: string;
     layout: {
         as: "map";
+        fields: {
+            render: {
+                as: "map";
+                rest: {
+                    as: "atomic";
+                };
+            };
+        };
         rest: {
             as: "atomic";
         };
@@ -4957,6 +5287,12 @@ declare const materialKind: {
             restitution: z.ZodNumber;
         }, z.core.$strict>>;
         render: z.ZodOptional<z.ZodObject<{
+            blend: z.ZodOptional<z.ZodEnum<{
+                add: "add";
+                multiply: "multiply";
+                normal: "normal";
+                screen: "screen";
+            }>>;
             style: z.ZodOptional<z.ZodObject<{
                 alpha: z.ZodOptional<z.ZodNumber>;
                 fill: z.ZodOptional<z.ZodString>;
@@ -4964,6 +5300,7 @@ declare const materialKind: {
                 strokeAlpha: z.ZodOptional<z.ZodNumber>;
                 strokeWidth: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>>;
+            tint: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>>;
         v: z.ZodLiteral<1>;
     }, z.core.$strict>;
@@ -4985,6 +5322,12 @@ declare const materialSchema: z.ZodObject<{
         restitution: z.ZodNumber;
     }, z.core.$strict>>;
     render: z.ZodOptional<z.ZodObject<{
+        blend: z.ZodOptional<z.ZodEnum<{
+            add: "add";
+            multiply: "multiply";
+            normal: "normal";
+            screen: "screen";
+        }>>;
         style: z.ZodOptional<z.ZodObject<{
             alpha: z.ZodOptional<z.ZodNumber>;
             fill: z.ZodOptional<z.ZodString>;
@@ -4992,6 +5335,7 @@ declare const materialSchema: z.ZodObject<{
             strokeAlpha: z.ZodOptional<z.ZodNumber>;
             strokeWidth: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
+        tint: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     v: z.ZodLiteral<1>;
 }, z.core.$strict>;
@@ -5471,6 +5815,8 @@ declare function schemaRefSites(shape: z.ZodRawShape, value: unknown, pointer: J
 
 ## project/runtime-view.ts
 type ProjectRuntimeView = {
+    asset(id: AssetId, frame?: string): AssetInfo | undefined;
+    engine: Readonly<Record<string, unknown>>;
     settings: Readonly<Record<string, unknown>>;
     table(name: string): readonly Readonly<Record<string, unknown> & {
         id: string;
@@ -5559,9 +5905,11 @@ type ProjectSnapshot = {
     v: 1;
 };
 type SnapshotAsset = {
+    bytes?: number;
     import?: Readonly<Record<string, unknown>>;
     key: AssetKey;
     kind: AssetKindName;
+    meta?: Readonly<Record<string, unknown>>;
     path: AssetPath;
     sha256: Sha256;
 };
@@ -5576,9 +5924,11 @@ declare function projectSnapshotJsonSchema(): Record<string, unknown>;
 declare const projectSnapshotSchema: z.ZodObject<{
     $schema: z.ZodOptional<z.ZodString>;
     assets: z.ZodRecord<z.ZodString, z.ZodObject<{
+        bytes: z.ZodOptional<z.ZodNumber>;
         import: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         key: z.ZodString;
         kind: z.ZodString;
+        meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         path: z.ZodString;
         sha256: z.ZodString;
     }, z.core.$strict>>;
@@ -5737,6 +6087,34 @@ declare function projectView(state: ProjectState, kinds?: KindRegistry): Project
 declare function suffixedId(id: AssetId, n: number): AssetId;
 declare function suffixedPath(path: AssetPath, n: number): AssetPath;
 
+## render/asset-loader.ts
+type AssetLoader = TextureSource & {
+    destroy(): void;
+    load(bundle: AssetBundle, onProgress?: (p: LoadProgress) => void): Promise<{
+        failed: BundleEntry[];
+    }>;
+    release(bundle: AssetBundle): void;
+    retain(bundle: AssetBundle): void;
+    stats(): {
+        bytes: number;
+        resident: string[];
+        textures: number;
+    };
+    trim(): void;
+};
+type AssetUrl = (project: ProjectId, entry: BundleEntry) => string;
+type LoadProgress = {
+    bytes: number;
+    loaded: number;
+    total: number;
+    totalBytes: number;
+};
+declare function createAssetLoader(opts: {
+    budgetBytes?: number;
+    project: ProjectId;
+    url: AssetUrl;
+}): AssetLoader;
+
 ## render/draw-shape.ts
 declare function drawShape(g: Graphics, shape: ShapeObj, style: Style): void;
 declare function traceShape(g: Graphics, shape: ShapeObj): void;
@@ -5746,8 +6124,58 @@ type PixiView = SceneView & {
     destroy(): void;
     readonly container: Container;
 };
-declare function createPixiView(container: Container): PixiView;
+type PixiViewOptions = {
+    editing?: () => boolean;
+    layers?: readonly SceneLayerDef[];
+    pixelSnap?: boolean;
+    textures?: TextureSource;
+};
+type TextureSource = {
+    get(hash: Sha256): Texture | null;
+    onLoad(cb: (hash: Sha256) => void): () => void;
+};
+declare function createPixiView(container: Container, opts?: PixiViewOptions): PixiView;
 declare function pixiContainer(handle: ViewLayerHandle): Container;
+
+## resolution.ts
+declare const DEFAULT_RESOLUTION: ResolutionPolicy;
+type ResolutionPolicy = {
+    antialias?: boolean;
+    bars?: number;
+    fit: "crop" | "expand" | "letterbox";
+    integer?: boolean;
+    pixelSnap?: boolean;
+    sampling?: "linear" | "nearest";
+    virtual: {
+        height: number;
+        width: number;
+    } | {
+        height: number;
+    } | {
+        width: number;
+    };
+};
+type ResolutionViewport = {
+    bars: boolean;
+    offset: {
+        x: number;
+        y: number;
+    };
+    scale: number;
+    view: {
+        height: number;
+        width: number;
+    };
+};
+declare function resolveResolution(sources: {
+    game?: Partial<ResolutionPolicy>;
+    host?: Partial<ResolutionPolicy>;
+    project?: Partial<ResolutionPolicy>;
+}): ResolutionPolicy;
+declare function viewportFor(policy: ResolutionPolicy, canvas: {
+    height: number;
+    width: number;
+}): ResolutionViewport;
 
 ## runtime/play-session.ts
 type PreparedPlay = {
@@ -5764,6 +6192,25 @@ declare function preparePlay(doc: SceneDefinition, registry: Registry, opts?: {
     dev?: boolean;
     prefabs?: PrefabLibrary;
 }): PreparedPlay;
+
+## runtime/poses.ts
+type Pose = {
+    rot: number;
+    x: number;
+    y: number;
+};
+interface PoseIndex {
+    get(id: string): Readonly<Pose> | undefined;
+    prev(id: string): Readonly<Pose> | undefined;
+    set(id: string, x: number, y: number, rot?: number, opts?: {
+        snap?: boolean;
+    }): void;
+    remove(id: string): void;
+    has(id: string): boolean;
+    ids(): IterableIterator<string>;
+    readonly size: number;
+}
+declare function spawnPose(e: RuntimeEntity, registry: Registry): Pose;
 
 ## runtime/recorder.ts
 type RecorderOptions = {
@@ -5808,6 +6255,7 @@ type ReconcileReport = {
     ok: true;
 };
 type RuntimeStats = {
+    behaviors: Record<BehaviorName, number>;
     bodies: number;
     colliders: number;
     entities: number;
@@ -5831,6 +6279,8 @@ type SceneRuntime = {
 type SceneRuntimeHandle = SceneRuntime & {
     readonly ctx: EngineContext;
     readonly game: GameRuntime | null;
+    reloadAssets: (project: ProjectRuntimeView | null, changed: readonly AssetId[]) => void;
+    render: (alpha: number) => void;
     scene: () => ExpandedScene | null;
 };
 type StepEvent = {
@@ -5848,7 +6298,7 @@ type StepResult = {
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 8;
+declare const AGENT_SURFACE_VERSION = 9;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -7033,6 +7483,19 @@ declare const runRecordingSchema: z.ZodObject<{
 }, z.core.$strict>;
 
 ## scene/render-geometry.ts
+type DrawnSprite = {
+    asset?: string;
+    box: Aabb;
+    frame?: string;
+    label: string;
+    shape: Extract<ShapeObj, {
+        type: "box";
+    }>;
+    size: [
+        w: number,
+        h: number
+    ];
+};
 type OverlayPoint = Pt | {
     x: number;
     y: number;
@@ -7060,8 +7523,24 @@ type SceneRegionOptions = {
     around?: Ref;
     margin?: number;
     prefabs?: PrefabLibrary;
+    project?: ProjectView;
     region?: Bounds;
 };
+type SceneSprite = DrawnSprite & {
+    ref: string;
+    type: string;
+};
+type SpritePoseSource = {
+    at?: Pt;
+    path?: Pick<PathDef, "pts">;
+    shape?: ShapeObj;
+    transform?: RuntimeEntity["transform"];
+};
+declare const projectSpriteAssets: (view: ProjectView) => SpriteAssetLookup;
+declare function sceneSprites(scene: ExpandedScene | SceneDefinition, opts: Pick<SceneRegionOptions, "prefabs" | "project"> & {
+    registry: Registry;
+}): SceneSprite[];
+declare function spriteBoxOf(block: unknown, src: SpritePoseSource, assets?: SpriteAssetLookup): DrawnSprite | undefined;
 
 ## scene/resolve.ts
 type BulkPlacement = {
@@ -7400,6 +7879,8 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "id-taken",
     "asset-missing",
     "asset-kind",
+    "asset-frame-unknown",
+    "sprite-no-asset",
     "asset-in-use",
     "asset-id-taken",
     "path-taken",
@@ -7950,10 +8431,11 @@ type AttachmentHost = {
     type: string;
 };
 type AttachmentHub = {
-    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider): Attachment;
+    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider, moved?: (host: AttachmentHost, snap: boolean) => void): Attachment;
     attachedTo(hostId: string): string[];
     clear(): void;
     host(hostId: string, type: string, body: RigidBody, origin: Vec2): void;
+    moved(hostId: string, snap?: boolean): void;
     unhost(hostId: string): void;
 };
 
@@ -8001,10 +8483,19 @@ declare function createPropSystem(ctx: EngineContext, type: RegisteredType): Sce
 declare function createSensorSystem(ctx: EngineContext, type: RegisteredType): SensorSystem;
 declare function createSolidSystem(ctx: EngineContext, type: RegisteredType, opts?: SolidOptions): SolidSystem;
 declare function drawEntity(ctx: Pick<EngineContext, "registry" | "view">, type: RegisteredType, e: {
+    behaviors?: RuntimeEntity["behaviors"];
     id: string;
+    layer?: string;
     material?: string;
     shape: ShapeObj;
+    z?: number;
 }, layer: ViewLayer, shape?: ShapeObj): void;
+
+## systems/decor.ts
+type DecorEntity = RuntimeEntity<{
+    at: Pt;
+}>;
+declare function createDecorSystem(_ctx: EngineContext, _type: RegisteredType): SceneSystem<DecorEntity>;
 
 ## systems/marker.ts
 type MarkerEntity = RuntimeEntity<{
@@ -8095,15 +8586,15 @@ type CameraState = {
     };
     mode: CameraMode;
     position: Vec2;
+    scale: number;
     zoom: number;
 };
-declare const DISPLAY_RESOLUTIONS: DisplayResolution[];
-type DisplayResolution = {
-    height: number;
-    label: string;
-    width: number;
-};
 type GameConfig = {
+    assets?: {
+        kinds: KindRegistry;
+        loader: AssetLoader;
+        view: ProjectView;
+    };
     backgroundColor: number;
     bindings?: readonly InputBinding[];
     camera: CameraConfig;
@@ -8119,6 +8610,7 @@ type GameConfig = {
     prefabs?: PrefabLibrary;
     rapier: () => Promise<RapierModule>;
     registry?: Registry;
+    resolution?: Partial<ResolutionPolicy>;
     scene?: ExpandedScene | SceneDefinition;
     targetFPS: number;
 };
@@ -8147,8 +8639,18 @@ type GameInstance = {
     pause: () => void;
     play: (doc: SceneDefinition, opts?: PlayOptions) => PlayReport;
     pointerWorld: () => Vec2 | null;
+    preload: (scene: ExpandedScene | SceneDefinition, onProgress?: (p: LoadProgress) => void) => Promise<{
+        failed: BundleEntry[];
+    }>;
     recording: () => RunRecording | null;
     registry: Registry;
+    reloadAssets: (update: {
+        changed: readonly AssetId[];
+        project: ProjectRuntimeView | null;
+        view: ProjectView;
+    }) => Promise<{
+        failed: BundleEntry[];
+    }>;
     replay: (doc: SceneDefinition, recording: RunRecording) => PlayReport;
     resize: (width: number, height: number) => void;
     resume: () => void;
@@ -8208,7 +8710,6 @@ type SimState = {
     paused: boolean;
     timeScale: number;
 };
-declare const VIRTUAL_HEIGHT = 1080;
 type Vec2 = {
     x: number;
     y: number;
@@ -8229,11 +8730,6 @@ declare function applyProjectBatchToFiles(project: FileProject, batch: ProjectOp
 declare function snapshotFiles(project: FileProject): Promise<ProjectSnapshot>;
 
 ## vite/collab-server.ts
-declare const ASSET_CHANGED = "asset:changed";
-type AssetChangedMessage = AssetChange & {
-    project: ProjectId;
-    type: typeof ASSET_CHANGED;
-};
 type ListeningSceneCollab = SceneCollab & {
     close(): Promise<void>;
     httpUrl: string;
@@ -8292,15 +8788,6 @@ declare const PROJECT_ROUTE = "/__project";
 declare const SCENE_ROUTE = "/__scene";
 
 ## vite/project-files.ts
-type AssetChange = {
-    bytes: number;
-    id: AssetId;
-    key: AssetKey;
-    kind: AssetKindName;
-    path: AssetPath;
-    previous: Sha256 | null;
-    sha256: Sha256;
-};
 type BlobRepair = {
     from: Sha256;
     id: AssetId;

@@ -30,6 +30,7 @@ import {
   parseProjectSnapshot,
   snapshotProject,
   snapshotScene,
+  snapshotView,
   SnapshotError,
   type ProjectSnapshot,
 } from "../snapshot";
@@ -172,7 +173,7 @@ afterEach(() => {
 });
 
 describe("snapshotProject", () => {
-  it("pins docs by their canonical text's hash and blobs by their content hash", async () => {
+  it("pins docs by their canonical text's hash and blobs by their content hash, size and meta", async () => {
     const f = await fixture();
     const snap = await snapshotProject(f.view, f.texts, f.build);
     expect(snap).toMatchObject({ kind: "project-snapshot", v: 1, project: "engine" });
@@ -200,9 +201,15 @@ describe("snapshotProject", () => {
       kind: "texture",
       path: "art/hero.png",
       sha256: f.heroHash,
+      bytes: 11,
+      meta: { width: 16, height: 16 },
     });
     expect(snap.assets["hero-sheet"]!.import).toEqual({ texture: "hero", pivotDefault: [0.5, 1] });
+    expect(snap.assets["hero-sheet"]!.meta).toBeUndefined();
     expect(isSha256(snap.hash)).toBe(true);
+    const back = snapshotView(snap, kinds).byId.get("hero");
+    expect(back).toMatchObject({ bytes: 11, meta: { width: 16, height: 16 } });
+    expect(snapshotView(snap, kinds).byId.get("post")?.meta).toBeUndefined();
   });
 
   it("refuses a live doc with no text", async () => {
@@ -484,6 +491,8 @@ describe("snapshot pinning over the real texture kind", () => {
       kind: "texture",
       path: "art/hero.png",
       sha256: await sha256(png),
+      bytes: png.length,
+      meta: a.view.byId.get("hero")!.meta,
     });
     expect(snapA.assets["hero-sheet"]!.import).toMatchObject({ texture: "hero" });
     expect(await checkSnapshot(snapA, store, kinds, env)).toEqual([]);

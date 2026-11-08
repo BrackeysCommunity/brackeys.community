@@ -4,6 +4,7 @@ import { dirname, join, matchesGlob, relative, resolve, sep } from "node:path";
 import * as Y from "yjs";
 
 import { applyOpsToDoc } from "../collab/apply";
+import type { AssetChange } from "../collab/asset-changed";
 import {
   docLayout,
   docMeta,
@@ -77,7 +78,6 @@ import {
   type AssetEntry,
   type AssetId,
   type AssetKey,
-  type AssetKindName,
   type AssetPath,
   type CodeModuleInfo,
   type ProjectFile,
@@ -150,17 +150,7 @@ export type ProjectProblem = { path: AssetPath; issues: SceneIssue[] };
 
 export type ProjectScan = { state: ProjectState; problems: ProjectProblem[] };
 
-/** A binary asset whose bytes changed: what the dev server broadcasts as `asset:changed` for hot reload. */
-export type AssetChange = {
-  key: AssetKey;
-  id: AssetId;
-  kind: AssetKindName;
-  path: AssetPath;
-  sha256: Sha256;
-  bytes: number;
-  /** The hash it held before. */
-  previous: Sha256 | null;
-};
+export type { AssetChange };
 
 /** What a settled file event did; a binary's new bytes also name the changed asset. */
 export type ProjectSync = DiskSync | { kind: "applied"; ops: number; changed: AssetChange };

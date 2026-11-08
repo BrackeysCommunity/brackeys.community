@@ -1,13 +1,16 @@
 import { DRAW_LAYERS, drawSprite, type SceneView, type SpriteVisual } from "../../context";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
-import { SPRITE, spriteGeometry, type SpriteBlock } from "../../game/behaviors/sprite";
+import {
+  SPRITE,
+  spriteAssets,
+  spriteGeometry,
+  spriteOffset,
+  type SpriteBlock,
+} from "../../game/behaviors/sprite";
 import { styleOf } from "../../game/style";
 import type { EngineContext } from "../../game/types";
-import type { AssetInfo } from "../../project/asset-info";
-import { ATLAS_KIND } from "../../project/kinds/atlas";
 import { parseBulkId } from "../../scene/bulk-ref";
 import { defaultLayer } from "../../scene/layers";
-import { applyVec, dihedral } from "../../scene/transform";
 import type { Pt, RuntimeEntity } from "../../scene/types";
 import { spawnPose, type Pose } from "../poses";
 
@@ -16,7 +19,7 @@ export const spriteViewId = (entityId: string): string => `${entityId}#${SPRITE.
 
 type Attached = {
   entity: RuntimeEntity;
-  /** The block's offset with the entity's flip applied, before any turn. */
+  /** The block's offset as it writes it. */
   offset: Pt;
   turn: boolean;
   /** The pose-index pose the sprite was last posed from. */
@@ -36,25 +39,6 @@ function drawOrder(ctx: EngineContext, e: RuntimeEntity): number {
 }
 
 /**
- * The asset the block draws and the texture it cuts: a texture is both; an
- * atlas's frame info and its texture's. An atlas without a known frame
- * draws no texture.
- */
-function assetsOf(
-  ctx: EngineContext,
-  block: SpriteBlock,
-): { info?: AssetInfo; texture?: AssetInfo } {
-  const project = ctx.project;
-  if (!project || block.asset === undefined) return {};
-  const own = project.asset(block.asset);
-  if (!own) return {};
-  if (own.kind !== ATLAS_KIND) return { info: own, texture: own };
-  const info = block.frame === undefined ? undefined : project.asset(block.asset, block.frame);
-  const texture = own.texture === undefined ? undefined : project.asset(own.texture);
-  return info ? { info, ...(texture ? { texture } : {}) } : {};
-}
-
-/**
  * The visual a block draws for `e`, its flips toggled by the entity's
  * transform. Tint and blend are the block's, else the entity's material's
  * (`registry.materials`, so a project material without physics lends
@@ -64,7 +48,11 @@ function visualOf(ctx: EngineContext, e: RuntimeEntity, block: SpriteBlock): Spr
   const flipped = e.transform?.flip ?? false;
   const flipX = (block.flipX ?? false) !== flipped;
   const flipY = block.flipY ?? false;
-  const { info, texture } = assetsOf(ctx, block);
+  const project = ctx.project;
+  const { info, texture } = spriteAssets(
+    project ? (id, frame) => project.asset(id, frame) : undefined,
+    block,
+  );
   const geometry = spriteGeometry({ ...block, flipX, flipY }, info);
   const material = typeof e.material === "string" ? e.material : undefined;
   const materialDef = material === undefined ? undefined : ctx.registry.materials.get(material);
@@ -90,14 +78,6 @@ function visualOf(ctx: EngineContext, e: RuntimeEntity, block: SpriteBlock): Spr
   };
 }
 
-/** Rotates `v` by `rot` radians, clockwise on screen. */
-function rotate(v: Pt, rot: number): Pt {
-  if (rot === 0) return v;
-  const c = Math.cos(rot);
-  const s = Math.sin(rot);
-  return [v[0] * c - v[1] * s, v[0] * s + v[1] * c];
-}
-
 /**
  * The sprite system: one sprite per entity carrying a `sprite` block,
  * drawn on its layer's draw order and posed at its pose-index pose plus
@@ -113,9 +93,7 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
   const attached = new Map<string, Attached>();
 
   function place(id: string, a: Attached, pose: Readonly<Pose>, snap: boolean): void {
-    const [dx, dy] = a.turn
-      ? rotate(a.offset, pose.rot)
-      : applyVec(dihedral({ rot: a.entity.transform?.turn ?? 0, flip: false }, [0, 0]), a.offset);
+    const [dx, dy] = spriteOffset(a.offset, a.entity.transform, a.turn ? pose.rot : null);
     view.pose(spriteViewId(id), pose.x + dx, pose.y + dy, a.turn ? pose.rot : 0, snap);
     a.applied = pose;
   }
@@ -124,10 +102,9 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
     const sid = spriteViewId(id);
     drawSprite(view, sid, visualOf(ctx, entity, block), drawOrder(ctx, entity));
     view.depth?.(sid, entity.z ?? 0);
-    const offset = spriteGeometry(block).offset;
     const a: Attached = {
       entity,
-      offset: entity.transform?.flip ? [-offset[0] + 0, offset[1]] : offset,
+      offset: spriteGeometry(block).offset,
       turn: block.turn !== false,
       applied: null,
     };

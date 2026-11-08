@@ -78,8 +78,22 @@
             "pattern": "^[0-9a-f]{64}$",
             "description": "A doc's SHA-256 of its canonical UTF-8 text, a blob's SHA-256 of its bytes."
           },
+          "bytes": {
+            "description": "A blob's size in bytes, when its entry records one.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "import": {
             "description": "A blob's import settings, when it has any: with its bytes they give its meta, and they hold its references.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "meta": {
+            "description": "What a blob's kind inspected from its bytes and import (a texture's pixel size, an atlas's frames), when it has any.",
             "type": "object",
             "propertyNames": {
               "type": "string"

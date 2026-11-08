@@ -2,7 +2,13 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { RapierModule } from "../../types";
-import { loadFlavour, probeDigests, type Flavour, type ProbeDigests } from "./determinism-probe";
+import {
+  loadFlavour,
+  probeDigests,
+  scriptReport,
+  type Flavour,
+  type ProbeDigests,
+} from "./determinism-probe";
 
 /**
  * The digests every machine probed so far printed: macOS arm64 (Node and
@@ -13,14 +19,14 @@ import { loadFlavour, probeDigests, type Flavour, type ProbeDigests } from "./de
  * rerun the probe under Bun on another machine to keep the comparison.
  */
 const PINNED: Record<Flavour, ProbeDigests> = {
-  rapier2d: { script: "a9b8cef9b0bc5da2", fuzz: "cede7d80dbf9a1bb", pile: "0f9f997ba5e4ee6e" },
+  rapier2d: { script: "ec60f220d6590d0d", fuzz: "cede7d80dbf9a1bb", pile: "0f9f997ba5e4ee6e" },
   "rapier2d-compat": {
-    script: "a9b8cef9b0bc5da2",
+    script: "ec60f220d6590d0d",
     fuzz: "cede7d80dbf9a1bb",
     pile: "0f9f997ba5e4ee6e",
   },
   "rapier2d-deterministic-compat": {
-    script: "a9b8cef9b0bc5da2",
+    script: "ec60f220d6590d0d",
     fuzz: "cede7d80dbf9a1bb",
     pile: "2ca6d47ad105bbe5",
   },
@@ -47,6 +53,10 @@ describe("the determinism probe", () => {
     expect(probeDigests(loaded.get("rapier2d")!)).toStrictEqual(
       probeDigests(loaded.get("rapier2d-compat")!),
     );
+  });
+
+  it("the parity script runs no behaviors, so its digest leaves their stats out", () => {
+    expect(scriptReport(loaded.get("rapier2d")!).stats.behaviors).toStrictEqual({});
   });
 
   it.each(FLAVOURS)("%s matches the digests other machines printed", (flavour) => {

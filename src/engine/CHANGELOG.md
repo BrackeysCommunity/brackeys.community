@@ -26,7 +26,8 @@ unchanged.
   headless): draws a texture or an atlas frame at the entity's pose plus
   `offset` through `SceneView.sprite`, else its fallback box through
   `draw`. Size comes from the block, else the asset's times `scale`, else
-  32×32; the anchor from the block, else the pivot, else the centre; tint
+  32×32; the anchor from the block, else the frame's (or texture's) pivot,
+  else an atlas texture's import pivot, else the centre; tint
   and blend from the block, else the entity's material. `flipX` toggles
   under an instance flip; the sprite follows the pose's rotation unless
   `turn: false`, and snaps on a teleport. `SPRITE`, `spriteGeometry`,
@@ -92,9 +93,8 @@ unchanged.
   frames (file order), tags and texture, or with `frame` that frame's
   size, pivot and `rect` in its texture; null for an unknown or trashed id
   or an unknown frame. `ProjectRuntimeView.asset(id, frame?)` is
-  `assetInfo` of each live blob, frozen at load (by snapshot: kind, hash
-  and the import-derived fields only, because a snapshot pins no blob
-  meta). `ProjectRuntimeView.engine` is a frozen copy of the game-settings
+  `assetInfo` of each live blob, frozen at load, from files or from a
+  snapshot alike. `ProjectRuntimeView.engine` is a frozen copy of the game-settings
   doc's `engine` block.
 - Interpolation: `SceneView` gains optional `commit` and `frame`. The
   runtime calls `view.commit(tick)` after the game's `afterStep`; the
@@ -149,9 +149,10 @@ unchanged.
   behavior block names a changed id through its asset fields (or an atlas
   cut from a changed texture): `update` with the same block, else detach
   and attach. The scene isn't reloaded; the runtime and its tick survive.
-  `ASSET_CHANGED` and `AssetChangedMessage` are in `./collab`, so a
-  browser host reads the dev server's `asset:changed` message without
-  `./vite` (which still re-exports both).
+  `ASSET_CHANGED`, `AssetChange` and `AssetChangedMessage` are in
+  `./collab`, so a browser host reads the dev server's `asset:changed`
+  message without `./vite` (which still re-exports all three).
+  `AssetChangedMessage` is `AssetChange` plus `type` and `project`.
 - `validateScene` with `project` emits `asset-frame-unknown` (an atlas
   frame its meta lacks, or an atlas with no frame named) and
   `sprite-no-asset` (warn).
@@ -160,7 +161,10 @@ unchanged.
   and points. `SceneRegionOptions.project` (a ProjectView) sizes the boxes
   from `assetInfo`, else the block's size, else 32x32. New in `./scene`:
   `sceneSprites`, `spriteBoxOf`, `projectSpriteAssets`, `DrawnSprite`,
-  `SceneSprite`, `SpriteAssetLookup`, `SpritePoseSource`.
+  `SceneSprite`, `SpriteAssetLookup`, `SpritePoseSource`. The boxes take
+  their spawn pose, asset info and offset from the same helpers as the
+  runtime's pose index and sprite system, so the renders, picking and a
+  run place a sprite alike.
 - Editor: `createSpatialIndex({ asset })` (a
   `ProjectRuntimeView.asset`-shaped lookup) indexes sprite boxes.
   `pickAt` and Alt-marquee hit an entity's sprite box, and a point entity
@@ -171,6 +175,12 @@ unchanged.
 
 ### Changed
 
+- Project snapshots pin a blob's `bytes` and its kind's inspected `meta`
+  beside its hash and import settings (both optional in
+  `project-snapshot` v1, so older snapshots still parse), and
+  `snapshotView` carries them. A snapshot of a project with blobs hashes
+  differently from 0.7.0's for the same content. Headless runs loaded by
+  snapshot size sprites from it as runs loaded from files do.
 - `SceneView` gains optional `sprite` and `depth` (beside `commit` and
   `frame`), and `pose` an optional `snap`. Views that implement none of
   them keep working.

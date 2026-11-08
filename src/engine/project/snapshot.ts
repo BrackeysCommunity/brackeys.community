@@ -56,8 +56,12 @@ export type SnapshotAsset = {
   kind: AssetKindName;
   path: AssetPath;
   sha256: Sha256;
+  /** A blob's size in bytes, when its entry records one. */
+  bytes?: number;
   /** A blob's import settings, when it has any: with its bytes they give its meta, and they hold its references (an atlas's texture). */
   import?: Readonly<Record<string, unknown>>;
+  /** What a blob's kind inspected from its bytes and import (a texture's pixel size, an atlas's frames), when it has any. */
+  meta?: Readonly<Record<string, unknown>>;
 };
 
 /** A project pinned by content: reproducible from files, since it holds hashes of canonical texts and blobs, never doc states. */
@@ -71,7 +75,7 @@ export type ProjectSnapshot = {
   /** Wall clock; not part of `hash`. */
   at: number;
   build: Readonly<Record<AssetKindName, Sha256>>;
-  /** Every live asset: docs by the SHA-256 of their canonical text, blobs by their content hash and import settings. */
+  /** Every live asset: docs by the SHA-256 of their canonical text, blobs by their content hash, size, import settings and meta. */
   assets: Readonly<Record<AssetId, SnapshotAsset>>;
   /** sha256(stableJson(everything above except `at` and `$schema`)). */
   hash: Sha256;
@@ -107,11 +111,23 @@ const snapshotAssetSchema = z
     sha256: sha256Field(
       "A doc's SHA-256 of its canonical UTF-8 text, a blob's SHA-256 of its bytes.",
     ),
+    bytes: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe("A blob's size in bytes, when its entry records one."),
     import: z
       .record(z.string(), z.unknown())
       .optional()
       .describe(
         "A blob's import settings, when it has any: with its bytes they give its meta, and they hold its references.",
+      ),
+    meta: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe(
+        "What a blob's kind inspected from its bytes and import (a texture's pixel size, an atlas's frames), when it has any.",
       ),
   })
   .describe("One live asset, pinned by its content hash.");
@@ -188,8 +204,13 @@ export async function snapshotProject(
       path: entry.path,
       sha256: hash,
     };
-    if (entry.sha256 !== undefined && entry.import && Object.keys(entry.import).length > 0)
-      pinned.import = structuredClone(entry.import);
+    if (entry.sha256 !== undefined) {
+      if (entry.bytes !== undefined) pinned.bytes = entry.bytes;
+      if (entry.import && Object.keys(entry.import).length > 0)
+        pinned.import = structuredClone(entry.import);
+      if (entry.meta && Object.keys(entry.meta).length > 0)
+        pinned.meta = structuredClone(entry.meta);
+    }
     assets[id] = pinned;
   }
   const stamps: Record<AssetKindName, Sha256> = {};
@@ -245,10 +266,18 @@ export function formatProjectSnapshot(snapshot: ProjectSnapshot): string {
     Object.keys(snapshot.assets)
       .sort(byCodeUnit)
       .map((id) => {
-        const { key, kind, path, sha256, import: settings } = snapshot.assets[id]!;
+        const { key, kind, path, sha256, bytes, import: settings, meta } = snapshot.assets[id]!;
         return [
           id,
-          { key, kind, path, sha256, ...(settings ? { import: sortKeysDeep(settings) } : {}) },
+          {
+            key,
+            kind,
+            path,
+            sha256,
+            ...(bytes !== undefined ? { bytes } : {}),
+            ...(settings ? { import: sortKeysDeep(settings) } : {}),
+            ...(meta ? { meta: sortKeysDeep(meta) } : {}),
+          },
         ];
       }),
   );
@@ -296,7 +325,7 @@ async function readText(
   return { ok: true, text: new TextDecoder().decode(bytes) };
 }
 
-/** The snapshot as a project view: its assets live, nothing in the trash, blobs carrying their hash and import. */
+/** The snapshot as a project view: its assets live, nothing in the trash, blobs carrying their hash, size, import and meta. */
 export function snapshotView(snapshot: ProjectSnapshot, kinds: KindRegistry): ProjectView {
   const assets: Record<AssetKey, AssetEntry> = {};
   for (const [id, a] of Object.entries(snapshot.assets)) {
@@ -307,7 +336,9 @@ export function snapshotView(snapshot: ProjectSnapshot, kinds: KindRegistry): Pr
       kind: a.kind,
       path: a.path,
       ...(blob ? { sha256: a.sha256 } : {}),
+      ...(blob && a.bytes !== undefined ? { bytes: a.bytes } : {}),
       ...(blob && a.import ? { import: { ...a.import } } : {}),
+      ...(blob && a.meta ? { meta: structuredClone(a.meta) as Record<string, unknown> } : {}),
       created: { at: 0, by: "" },
     };
   }

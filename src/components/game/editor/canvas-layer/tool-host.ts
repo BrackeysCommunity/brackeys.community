@@ -1,4 +1,4 @@
-import type { GameInstance } from "@jams/engine";
+import type { GameInstance, Vec2 } from "@jams/engine";
 import type { ProjectSession } from "@jams/engine/collab";
 import {
   createToolHost,
@@ -7,6 +7,7 @@ import {
   type EditorSession,
   type EditorToolDef,
   type PreviewRuntime,
+  type Pt,
   type SnapSettings,
   type ToolHost,
 } from "@jams/engine/editor";
@@ -29,6 +30,16 @@ export type ToolHostGame = Pick<
 export type ToolHostCell = Store<ToolHost | null>;
 
 export const createToolHostCell = (): ToolHostCell => new Store<ToolHost | null>(null);
+
+const hostToWorlds = new WeakMap<ToolHost, (screen: Vec2) => Pt>();
+
+/**
+ * The screen-to-world conversion `host` routes its pointer through (the
+ * game's own `screenToWorld`), for canvas input that doesn't pass through
+ * the router, such as a drop. `screen` is in px from the canvas's top left.
+ */
+export const hostToWorld = (host: ToolHost): ((screen: Vec2) => Pt) | null =>
+  hostToWorlds.get(host) ?? null;
 
 const SNAP_KEY = "game-editor:snap";
 
@@ -92,13 +103,14 @@ export function useToolHostLifecycle(
 
     const start = (gameTools: readonly EditorToolDef[]) => {
       if (cancelled) return;
+      const toWorld = (screen: Vec2): Pt => {
+        const { x, y } = game.screenToWorld(screen);
+        return [x, y];
+      };
       const next = createToolHost({
         session,
         router: game.router,
-        toWorld: (screen) => {
-          const { x, y } = game.screenToWorld(screen);
-          return [x, y];
-        },
+        toWorld,
         scale: () => viewScale(game.getStore().state.camera),
         runtime: previewRuntime(game),
         gameTools,
@@ -110,6 +122,7 @@ export function useToolHostLifecycle(
           ? { asset: (id: string, frame?: string) => view && assetInfo(view, id, frame) }
           : {}),
       });
+      hostToWorlds.set(next, toWorld);
       let saved = next.snap();
       unsubscribe = next.subscribe(() => {
         const snap = next.snap();

@@ -89,11 +89,11 @@ export function runtimeView(
 /**
  * `runtimeView` of a snapshot: its game-settings and data-table docs, each
  * read from its canonical text in `store`, and its blobs as the snapshot
- * pins them. A pin holds a blob's hash and import settings but not its
- * meta, and no blob is read, so `asset` gives a blob's kind, hash, import
- * pivot, nine-slice and filter and an atlas's texture, without pixel sizes
- * or frames. Throws a `SnapshotError` when a doc has no text there or bytes
- * that don't hash to its pin; a text that isn't JSON is left out.
+ * pins them: hash, size, import settings and meta, so `asset` gives what
+ * `assetInfo` gives over the project (pixel sizes and frames included)
+ * while no blob is read. Throws a `SnapshotError` when a doc has no text
+ * there or bytes that don't hash to its pin; a text that isn't JSON is left
+ * out.
  */
 export async function snapshotRuntimeView(
   snapshot: ProjectSnapshot,

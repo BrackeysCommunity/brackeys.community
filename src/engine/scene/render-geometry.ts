@@ -1,13 +1,26 @@
-import { SPRITE, spriteGeometry, type SpriteBlock } from "../game/behaviors/sprite";
+import {
+  SPRITE,
+  spriteAssets,
+  spriteGeometry,
+  spriteOffset,
+  type SpriteAssetLookup,
+  type SpriteBlock,
+} from "../game/behaviors/sprite";
 import { PRIMITIVE_TYPES, type RegisteredType, type Registry } from "../game/types";
-import { assetInfo, type AssetInfo } from "../project/asset-info";
-import { ATLAS_KIND } from "../project/kinds/atlas";
+import { assetInfo } from "../project/asset-info";
 import type { ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
 import { expandScene, isExpandedScene } from "./expand";
 import { decodeRow, GRID_CHUNK, gridCellBounds, parseChunkKey, type GridCells } from "./grid";
 import { geometryFields } from "./schema";
-import { aabb, aabbUnion, centroid, translateShape } from "./shape-geometry";
+import {
+  aabb,
+  aabbUnion,
+  geometryPose,
+  shapeCentre,
+  translateShape,
+  turnBy,
+} from "./shape-geometry";
 import type {
   Aabb,
   Bounds,
@@ -354,8 +367,7 @@ export function gridCellsIn(
 
 // ─── Sprites ─────────────────────────────────────────────
 
-/** An asset's info by id, and with `frame` an atlas frame's: `assetInfo` over a project, or `ProjectRuntimeView.asset`. */
-export type SpriteAssetLookup = (id: string, frame?: string) => AssetInfo | null | undefined;
+export type { SpriteAssetLookup };
 
 /** `assetInfo` over `view`, as a sprite lookup. */
 export const projectSpriteAssets =
@@ -414,57 +426,12 @@ function readSpriteBlock(v: unknown): Partial<SpriteBlock> | null {
   return out;
 }
 
-/** The info a block sizes from, as the sprite system picks it: a texture's own, an atlas frame's; none for an atlas without a frame. */
-function spriteInfo(
-  block: Partial<SpriteBlock>,
-  assets?: SpriteAssetLookup,
-): AssetInfo | undefined {
-  if (!assets || block.asset === undefined) return undefined;
-  const own = assets(block.asset);
-  if (!own) return undefined;
-  if (own.kind !== ATLAS_KIND) return own;
-  return block.frame === undefined ? undefined : (assets(block.asset, block.frame) ?? undefined);
-}
+const DEG = Math.PI / 180;
 
-/** `v` turned `deg` degrees clockwise on screen; quarter turns are exact. */
-function turnVec([x, y]: Pt, deg: number): Pt {
-  switch (((deg % 360) + 360) % 360) {
-    case 0:
-      return [x, y];
-    case 90:
-      return [-y + 0, x];
-    case 180:
-      return [-x + 0, -y + 0];
-    case 270:
-      return [y, -x + 0];
-  }
-  const r = (deg * Math.PI) / 180;
-  const c = Math.cos(r);
-  const s = Math.sin(r);
-  return [x * c - y * s, x * s + y * c];
-}
-
-/** An entity's pose as the runtime spawns it: a shape's centre and angle, else its point, else its path's first point. */
+/** The pose the runtime spawns an entity at, from its world geometry: its angle in degrees. */
 function spritePose(src: SpritePoseSource): { at: Pt; deg: number } | null {
-  const turned = (src.transform?.turn ?? 0) * 90;
-  const s = src.shape;
-  if (s) {
-    switch (s.type) {
-      case "box":
-      case "capsule":
-        return { at: [s.cx, s.cy], deg: s.rotDeg };
-      case "circle":
-        return { at: [s.cx, s.cy], deg: turned };
-      case "poly":
-        return { at: centroid(s.pts), deg: turned };
-      case "chain": {
-        const b = aabb(s);
-        return { at: [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2], deg: turned };
-      }
-    }
-  }
-  const p = src.at ?? src.path?.pts[0];
-  return p ? { at: [p[0], p[1]], deg: turned } : null;
+  const pose = src.shape ? shapeCentre(src.shape) : geometryPose({ at: src.at, path: src.path });
+  return pose && { at: pose.at, deg: pose.rotDeg ?? (src.transform?.turn ?? 0) * 90 };
 }
 
 /**
@@ -486,15 +453,12 @@ export function spriteBoxOf(
   const flip = src.transform?.flip ?? false;
   const g = spriteGeometry(
     { ...read, flipX: (read.flipX ?? false) !== flip },
-    spriteInfo(read, assets),
+    spriteAssets(assets, read).info,
   );
   const turn = read.turn !== false;
   const deg = turn ? pose.deg : 0;
-  const offset = turnVec(
-    flip ? [-g.offset[0] + 0, g.offset[1]] : g.offset,
-    turn ? pose.deg : (src.transform?.turn ?? 0) * 90,
-  );
-  const centre = turnVec([g.box.cx, g.box.cy], deg);
+  const offset = spriteOffset(g.offset, src.transform, turn ? pose.deg * DEG : null);
+  const centre = turnBy([g.box.cx, g.box.cy], deg * DEG);
   const shape: DrawnSprite["shape"] = {
     type: "box",
     cx: pose.at[0] + offset[0] + centre[0],

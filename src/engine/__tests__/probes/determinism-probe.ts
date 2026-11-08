@@ -64,9 +64,20 @@ const def = parseSceneOrThrow(
 );
 const scene = expandScene(def, registry);
 
+/** The parity script's full report, for checks the digest leaves out. */
+export function scriptReport(rapier: RapierModule) {
+  return runProbe({ rapier, game: testGame, registry, scene, ...ENGINE_PARITY_SCRIPT });
+}
+
+/**
+ * `stats.behaviors` stays out of the digest: the test game attaches none, so
+ * it is always empty, and leaving it out keeps the pin comparable with
+ * engines that predate the key.
+ */
 function scriptDigest(rapier: RapierModule): string {
-  const report = runProbe({ rapier, game: testGame, registry, scene, ...ENGINE_PARITY_SCRIPT });
-  return hashText(JSON.stringify([report.final, report.events, report.stats]));
+  const report = scriptReport(rapier);
+  const { behaviors: _behaviors, ...stats } = report.stats;
+  return hashText(JSON.stringify([report.final, report.events, stats]));
 }
 
 function fuzzDigest(rapier: RapierModule): string {

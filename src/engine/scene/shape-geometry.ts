@@ -128,6 +128,73 @@ export function centroid(pts: readonly Pt[]): Pt {
   return [cx / (6 * area), cy / (6 * area)];
 }
 
+const QUARTER = Math.PI / 2;
+
+/** `[x, y]` turned `rad` radians clockwise on screen; within float error of a quarter turn, exact. */
+export function turnBy([x, y]: Pt, rad: number): Pt {
+  if (rad === 0) return [x, y];
+  const q = Math.round(rad / QUARTER);
+  if (Math.abs(rad - q * QUARTER) < 1e-12) {
+    switch (((q % 4) + 4) % 4) {
+      case 0:
+        return [x, y];
+      case 1:
+        return [0 - y, x + 0];
+      case 2:
+        return [0 - x, 0 - y];
+      case 3:
+        return [y + 0, 0 - x];
+    }
+  }
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  return [x * c - y * s, x * s + y * c];
+}
+
+/** Where geometry places an entity. */
+export type GeometryPose = {
+  at: Pt;
+  /** A box's or capsule's `rotDeg`; absent, the angle is the entity's quarter turns. */
+  rotDeg?: number;
+};
+
+/** A shape's centre and the angle it fixes: a box's or capsule's `rotDeg`; a circle, polygon or chain takes its entity's turns. */
+export function shapeCentre(shape: ShapeObj): GeometryPose {
+  switch (shape.type) {
+    case "box":
+    case "capsule":
+      return { at: [shape.cx, shape.cy], rotDeg: shape.rotDeg };
+    case "circle":
+      return { at: [shape.cx, shape.cy] };
+    case "poly":
+      return { at: centroid(shape.pts) };
+    case "chain": {
+      const b = aabb(shape);
+      return { at: [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2] };
+    }
+  }
+}
+
+/**
+ * Where an entity spawns from its geometry: its shape's centre (a path
+ * rider's shape placed at the path's first point), else its point, else its
+ * path's first point; null with none of them.
+ */
+export function geometryPose(g: {
+  shape?: ShapeObj;
+  at?: Pt;
+  path?: { pts: readonly Pt[] };
+}): GeometryPose | null {
+  const origin = g.path?.pts[0];
+  if (g.shape) {
+    const local = shapeCentre(g.shape);
+    if (!origin) return local;
+    return { ...local, at: [origin[0] + local.at[0], origin[1] + local.at[1]] };
+  }
+  const p = g.at ?? origin;
+  return p ? { at: [p[0], p[1]] } : null;
+}
+
 /**
  * True for a simple convex polygon in either winding: non-zero area, every
  * turn the same way (collinear points allowed), and one full revolution, so

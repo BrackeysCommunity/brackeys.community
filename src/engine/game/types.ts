@@ -171,7 +171,12 @@ export type EngineContext = {
    * cast it onto the first surface below.
    */
   readonly play: PlayStart | null;
-  /** The project's data as of load; null for a run with no project (bare scene tests). Frozen for the run. */
+  /**
+   * The project's data, a frozen view; null for a run with no project (bare
+   * scene tests). `GameInstance.reloadAssets` (art hot reload in the editor)
+   * can replace it with a new frozen view mid-run, so read `ctx.project` at
+   * use rather than caching it.
+   */
   readonly project: ProjectRuntimeView | null;
   /** Every loaded entity's pose, written by the system that moves it. */
   poses: PoseIndex;

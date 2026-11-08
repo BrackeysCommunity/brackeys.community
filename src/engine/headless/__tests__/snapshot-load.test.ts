@@ -290,7 +290,7 @@ describe("loadHeadless by snapshot, with a real texture", () => {
     return snapshotProject(view, texts, {});
   }
 
-  it("two snapshots that differ in the texture's bytes load the same scene side by side, reading no blob", async () => {
+  it("two snapshots that differ in the texture's bytes load the same scene side by side, sized from their pins, reading no blob", async () => {
     const inner = memoryContentStore();
     const reads: string[] = [];
     const store: ContentStore = {
@@ -314,12 +314,20 @@ describe("loadHeadless by snapshot, with a real texture", () => {
     expect(loadB.scene).toEqual(loadA.scene);
     const blobs = new Set([snapA.assets.hero!.sha256, snapB.assets.hero!.sha256]);
     expect(reads.filter((h) => blobs.has(h))).toEqual([]);
+    const sizeOf = (s: ProjectSnapshot) => {
+      const meta = s.assets.hero!.meta as { width: number; height: number };
+      return [meta.width, meta.height];
+    };
     expect(loadA.project?.asset("hero")).toEqual({
       id: "hero",
       kind: "texture",
       sha256: snapA.assets.hero!.sha256,
+      bytes: png("hero.png").length,
+      size: sizeOf(snapA),
     });
+    expect(sizeOf(snapA)[0]).toBeGreaterThan(0);
     expect(loadB.project?.asset("hero")?.sha256).toBe(snapB.assets.hero!.sha256);
+    expect(loadB.project?.asset("hero")?.size).toEqual(sizeOf(snapB));
 
     const script: InputScript = { v: 1, scene: "kitchen-sink", steps: [{ wait: 60 }] };
     const recA = play(loadA, script).recording;

@@ -9,15 +9,18 @@ import {
   closestOnSegment,
   containedInRect,
   containsPoint,
+  geometryPose,
   intersectsRect,
   isConvex,
   nearestSegment,
   nearestVertex,
   normDeg,
   rotateShape,
+  shapeCentre,
   shapeVertices,
   topSpan,
   translateShape,
+  turnBy,
 } from "../shape-geometry";
 import type { Aabb, Pt, ShapeObj } from "../types";
 
@@ -464,5 +467,60 @@ describe("rotateShape and shapeVertices", () => {
   it("lists box corners and outline points, none for round shapes", () => {
     expect(shapeVertices({ type: "box", cx: 0, cy: 0, hw: 1, hh: 1, rotDeg: 0 })).toHaveLength(4);
     expect(shapeVertices({ type: "circle", cx: 0, cy: 0, r: 1 })).toEqual([]);
+  });
+});
+
+describe("turnBy, shapeCentre and geometryPose", () => {
+  it("turns clockwise on screen, exact on quarter turns and never -0", () => {
+    expect(turnBy([3, 4], 0)).toEqual([3, 4]);
+    expect(turnBy([3, 4], Math.PI / 2)).toEqual([-4, 3]);
+    expect(turnBy([3, 4], (90 * Math.PI) / 180)).toEqual([-4, 3]);
+    expect(turnBy([3, 0], Math.PI)).toEqual([-3, 0]);
+    expect(Object.is(turnBy([3, 0], Math.PI)[1], -0)).toBe(false);
+    expect(turnBy([3, 4], -Math.PI / 2)).toEqual([4, -3]);
+    const [x, y] = turnBy([10, 0], Math.PI / 4);
+    expect(x).toBeCloseTo(Math.SQRT1_2 * 10);
+    expect(y).toBeCloseTo(Math.SQRT1_2 * 10);
+  });
+
+  it("centres each shape; only a box or capsule fixes its angle", () => {
+    expect(shapeCentre({ type: "box", cx: 1, cy: 2, hw: 3, hh: 4, rotDeg: 30 })).toEqual({
+      at: [1, 2],
+      rotDeg: 30,
+    });
+    expect(shapeCentre({ type: "capsule", cx: 1, cy: 2, r: 3, halfLen: 4, rotDeg: 0 })).toEqual({
+      at: [1, 2],
+      rotDeg: 0,
+    });
+    expect(shapeCentre({ type: "circle", cx: 5, cy: 6, r: 1 })).toEqual({ at: [5, 6] });
+    expect(
+      shapeCentre({
+        type: "poly",
+        pts: [
+          [0, 0],
+          [4, 0],
+          [4, 4],
+          [0, 4],
+        ],
+      }),
+    ).toEqual({ at: [2, 2] });
+    expect(
+      shapeCentre({
+        type: "chain",
+        pts: [
+          [0, 0],
+          [10, 2],
+        ],
+      }),
+    ).toEqual({ at: [5, 1] });
+  });
+
+  it("places a shape at its path's first point, else takes the point, else the path's start", () => {
+    const circle: ShapeObj = { type: "circle", cx: 1, cy: 2, r: 1 };
+    const path = { pts: [[100, 200] as Pt, [300, 200] as Pt] };
+    expect(geometryPose({ shape: circle, at: [9, 9], path })).toEqual({ at: [101, 202] });
+    expect(geometryPose({ at: [9, 8], path })).toEqual({ at: [9, 8] });
+    expect(geometryPose({ path })).toEqual({ at: [100, 200] });
+    expect(geometryPose({})).toBeNull();
   });
 });

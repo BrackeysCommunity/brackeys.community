@@ -7,7 +7,9 @@ import { z } from "zod";
 
 import type { BlendMode } from "../../context";
 import type { AssetInfo } from "../../project/asset-info";
-import type { Pt, ShapeObj } from "../../scene/types";
+import { ATLAS_KIND } from "../../project/kinds/atlas";
+import { turnBy } from "../../scene/shape-geometry";
+import type { Pt, RuntimeEntity, ShapeObj } from "../../scene/types";
 import { defineBehavior } from "../behaviors";
 import { assetField, mirrorField, vectorField } from "../fields";
 import type { FieldEnv } from "../types";
@@ -145,4 +147,46 @@ export function spriteGeometry(
       rotDeg: 0,
     },
   };
+}
+
+/** An asset's info by id, and with `frame` an atlas frame's: `assetInfo` over a project, or `ProjectRuntimeView.asset`. */
+export type SpriteAssetLookup = (id: string, frame?: string) => AssetInfo | null | undefined;
+
+/**
+ * The info a block sizes from and the texture it cuts, through `lookup`: a
+ * texture is both; an atlas gives its frame's info, whose pivot falls back
+ * to the texture's import pivot, and its texture's. An atlas without a
+ * known frame gives neither.
+ */
+export function spriteAssets(
+  lookup: SpriteAssetLookup | undefined,
+  block: Pick<Partial<SpriteBlock>, "asset" | "frame">,
+): { info?: AssetInfo; texture?: AssetInfo } {
+  if (!lookup || block.asset === undefined) return {};
+  const own = lookup(block.asset);
+  if (!own) return {};
+  if (own.kind !== ATLAS_KIND) return { info: own, texture: own };
+  const frame = block.frame === undefined ? undefined : lookup(block.asset, block.frame);
+  if (!frame) return {};
+  const texture = own.texture === undefined ? undefined : (lookup(own.texture) ?? undefined);
+  const pivot = frame.pivot ?? texture?.pivot;
+  return {
+    info: pivot ? { ...frame, pivot: [pivot[0], pivot[1]] } : frame,
+    ...(texture ? { texture } : {}),
+  };
+}
+
+/**
+ * Where a block's `offset` puts the anchor from the pose, world px:
+ * mirrored by the entity's flip, then turned `rot` radians for a sprite
+ * that turns with its pose, else (`rot` null) by the entity's quarter
+ * turns only.
+ */
+export function spriteOffset(
+  offset: Pt,
+  transform: RuntimeEntity["transform"],
+  rot: number | null,
+): Pt {
+  const mirrored: Pt = transform?.flip ? [0 - offset[0], offset[1]] : [offset[0], offset[1]];
+  return turnBy(mirrored, rot ?? ((transform?.turn ?? 0) * Math.PI) / 2);
 }
