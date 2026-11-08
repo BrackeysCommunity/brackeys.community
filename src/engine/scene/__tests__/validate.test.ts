@@ -1303,6 +1303,25 @@ describe("variants, params and child refs", () => {
       ),
     ).toEqual([]);
   });
+
+  it("an off override on a bulk child is used; another field of it isn't", () => {
+    const bulky = pf("bulky", { bulk: { solid: [["box", 0, 0, 10, 10]] } });
+    const def = scene({
+      instances: [
+        {
+          id: "b1",
+          prefab: "bulky",
+          at: [300, 300],
+          overrides: { "~solid:0.off": true, "~solid:0.layer": "fg" },
+        },
+      ],
+    });
+    expect(
+      validateScene(def, engine, { prefabs: lib(bulky) })
+        .filter((i) => i.code === "unused-override")
+        .map((i) => i.path),
+    ).toEqual(["/instances/0/overrides/~0solid:0.layer"]);
+  });
 });
 
 /** `expectFixClears` for a fake-game scene whose instances need the gate prefab. */

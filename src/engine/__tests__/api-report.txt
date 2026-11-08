@@ -6493,13 +6493,13 @@ declare function buildOpSchemas(registry: Registry): {
             }, z.core.$strict>,
             z.ZodObject<{
                 op: z.ZodLiteral<"override">;
-                ref: z.ZodString;
+                ref: z.ZodOptional<z.ZodString>;
                 set: z.ZodRecord<z.ZodString, z.ZodUnknown>;
             }, z.core.$strict>,
             z.ZodObject<{
                 op: z.ZodLiteral<"revertOverride">;
                 paths: z.ZodOptional<z.ZodArray<z.ZodString>>;
-                ref: z.ZodString;
+                ref: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>,
             z.ZodObject<{
                 op: z.ZodLiteral<"applyToPrefab">;
@@ -6778,13 +6778,13 @@ declare function buildOpSchemas(registry: Registry): {
         }, z.core.$strict>,
         z.ZodObject<{
             op: z.ZodLiteral<"override">;
-            ref: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
             set: z.ZodRecord<z.ZodString, z.ZodUnknown>;
         }, z.core.$strict>,
         z.ZodObject<{
             op: z.ZodLiteral<"revertOverride">;
             paths: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            ref: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>,
         z.ZodObject<{
             op: z.ZodLiteral<"applyToPrefab">;

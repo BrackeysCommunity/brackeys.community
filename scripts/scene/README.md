@@ -638,7 +638,8 @@ changes.
   `at`; its children show up as `gate-1/door` in `show`, renders and
   playtests. Edit one instance's children with `override` (keys
   `<child>.<field.path>`, values in the prefab's own frame) and
-  `revertOverride`; change the prefab for every instance with
+  `revertOverride` (with no `ref`, in a variant's own document, they
+  edit the variant's overrides of its base); change the prefab for every instance with
   `applyToPrefab` or `definePrefab`; turn an instance back into plain
   entities with `unpack`, or entries into a prefab with `createPrefab`.
   `schema prefab` is the prefab file's schema.
@@ -1066,6 +1067,45 @@ files, `definePrefab` writes one, and `setPrefabBase` in a prefab's own document
 }
 ```
 
+In a prefab's own document, `override` and `revertOverride` with no `ref`
+set and drop the variant's own overrides of its base's children (keys
+`<child>.<field.path>`, as on an instance; `revertOverride` with no
+`paths` drops them all). Here `one-way-latch`, a variant of `latch`, gets
+a wider bar and gives up its one-way override:
+
+```json project=engine
+{
+  "v": 1,
+  "label": "A wider latch bar that blocks both ways",
+  "ops": [
+    {
+      "op": "editScene",
+      "id": "one-way-latch",
+      "ops": [
+        { "op": "override", "set": { "bar.shape": ["box", 0, -10, 80, 10] } },
+        { "op": "revertOverride", "paths": ["bar.oneWay"] }
+      ]
+    }
+  ]
+}
+```
+
+Validated in the variant's own view, an override path naming no child of
+the base is `unused-override`, and one naming a grid field is
+`grid-invalid`. Each one's fix, applied in the variant's document, is the
+no-`ref` `revertOverride` of that path:
+
+```json
+{ "op": "revertOverride", "paths": ["door.off"] }
+```
+
+Sent to a scene, the no-`ref` form is refused with `op-invalid`, like the
+other header ops:
+
+```json scene=kitchen-sink expect=op-invalid
+{ "ops": [{ "op": "override", "set": { "bar.oneWay": true } }] }
+```
+
 A base that isn't a prefab in the project is `variant-base-unknown`, with
 a "did you mean":
 
@@ -1163,23 +1203,24 @@ it with `setParam`:
 
 ### New and changed ops
 
-| Op              | What it does in v3                                                                                                      |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `transform`     | turns and flips instances (`refs`) and groups (`groups`) in world terms, composing onto what they have                  |
-| `setZ`          | sets `z`, or shifts it `by`, on entities and instances; bulk entries refuse                                             |
-| `useAssets`     | adds and removes ids in the scene's or prefab's `assets` header                                                         |
-| `paintCells`    | paints `cells` and `rects` of an entity's grid field; 0 erases                                                          |
-| `setPrefabBase` | a prefab's document only: sets or (`null`) clears its variant base                                                      |
-| `exposeParam`   | a prefab's document only: declares, replaces or (`null`) removes a parameter                                            |
-| `setParam`      | sets or (`null`) clears one parameter on an instance                                                                    |
-| `setGroup`      | gains `rot` and `flip`, absolute (0 and `false` are written as absent)                                                  |
-| `instantiate`   | takes `rot`, `flip`, `z` and `params`; nests in a prefab's document; refuses a cycle                                    |
-| `override`      | the child part may be nested (`right/bar`) or a nested instance (`left.z`)                                              |
-| `applyToPrefab` | gains `to`: the prefab in the chain that receives the values                                                            |
-| `unpack`        | one level: nested instances become instances, transforms baked                                                          |
-| `createPrefab`  | `refs` may include instances, which become nested instances                                                             |
-| `definePrefab`  | the body takes `instances`, `base`, `overrides`, `params` and `assets`                                                  |
-| `update`        | addresses `behaviors.<name>.<field>`, `z`, an instance's `rot`, `flip`, `z` and `params.<name>`; not below a grid field |
+| Op               | What it does in v3                                                                                                                                                                                        |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transform`      | turns and flips instances (`refs`) and groups (`groups`) in world terms, composing onto what they have                                                                                                    |
+| `setZ`           | sets `z`, or shifts it `by`, on entities and instances; bulk entries refuse                                                                                                                               |
+| `useAssets`      | adds and removes ids in the scene's or prefab's `assets` header                                                                                                                                           |
+| `paintCells`     | paints `cells` and `rects` of an entity's grid field; 0 erases                                                                                                                                            |
+| `setPrefabBase`  | a prefab's document only: sets or (`null`) clears its variant base                                                                                                                                        |
+| `exposeParam`    | a prefab's document only: declares, replaces or (`null`) removes a parameter                                                                                                                              |
+| `setParam`       | sets or (`null`) clears one parameter on an instance                                                                                                                                                      |
+| `setGroup`       | gains `rot` and `flip`, absolute (0 and `false` are written as absent)                                                                                                                                    |
+| `instantiate`    | takes `rot`, `flip`, `z` and `params`; nests in a prefab's document; refuses a cycle                                                                                                                      |
+| `override`       | the child part may be nested (`right/bar`) or a nested instance (`left.z`); with no `ref`, in a prefab's own document, sets the prefab's own overrides of its base (a scene refuses it with `op-invalid`) |
+| `revertOverride` | the same paths as `override`; with no `ref`, in a prefab's own document, drops the prefab's own overrides of its base (a scene refuses it with `op-invalid`)                                              |
+| `applyToPrefab`  | gains `to`: the prefab in the chain that receives the values                                                                                                                                              |
+| `unpack`         | one level: nested instances become instances, transforms baked                                                                                                                                            |
+| `createPrefab`   | `refs` may include instances, which become nested instances                                                                                                                                               |
+| `definePrefab`   | the body takes `instances`, `base`, `overrides`, `params` and `assets`                                                                                                                                    |
+| `update`         | addresses `behaviors.<name>.<field>`, `z`, an instance's `rot`, `flip`, `z` and `params.<name>`; not below a grid field                                                                                   |
 
 ## Movement numbers come from tooling
 

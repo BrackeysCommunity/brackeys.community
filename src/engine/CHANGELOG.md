@@ -571,7 +571,11 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
 - A prefab validated on its own judges a turned or flipped nested instance
   over grid children against the grid `ValidateOptions.settings` (the
   project's engine block, the game's defaults) resolves; with none, each
-  scene that places the prefab judges it.
+  scene that places the prefab judges it. Neither source holds a grid yet,
+  so the editor and `scene validate` leave the check to the placing scenes
+  until a caller passes one.
+- An override of a bulk child's `off` (a variant hiding a base solid, or a
+  cut of an instance's bulk child) is no longer `unused-override`.
 - Generated JSON Schemas no longer carry the field builders' `kind` and
   `axis` meta, which aren't JSON Schema keywords.
 - Quarter-turn rotation is exact and writes no trailing `rotDeg: 0`; bulk

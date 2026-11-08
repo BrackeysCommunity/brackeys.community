@@ -87,7 +87,8 @@ export type ValidateOptions = {
    * `game-settings` engine block, the game's defaults). A prefab view has
    * no settings of its own, so it judges a turned or flipped nested
    * instance over grid children against the grid these resolve; with no
-   * grid there, each scene that places the prefab judges it.
+   * grid there, each scene that places the prefab judges it. No source
+   * holds a grid yet (the engine block and the game's defaults carry none).
    */
   settings?: SettingsSources;
 };
@@ -1107,7 +1108,7 @@ function judgeOverride(
   );
   const fields: (string | undefined)[] =
     child.kind === "bulk"
-      ? [registry.bulkKey(child.key)?.field]
+      ? [registry.bulkKey(child.key)?.field, "off"]
       : [...Object.keys(type?.shape ?? {}), "name", "layer", "off", "z", BEHAVIORS_FIELD];
   if (RESERVED_OVERRIDE_FIELDS.includes(top) || !fields.includes(top))
     return { kind: "unused", why: `names no field "${top}" ${split.child} can have` };

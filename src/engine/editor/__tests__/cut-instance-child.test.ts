@@ -6,6 +6,7 @@ import type { SceneOrigin } from "../../collab/types";
 import { fake, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
 import { resolveScene } from "../../scene/resolve";
 import type { SceneDefinition } from "../../scene/types";
+import { validateScene } from "../../scene/validate";
 import { createToolRouter } from "../../tool-router";
 import { createEditorSession } from "../session";
 import { createToolHost, type ToolHost } from "../tool-host";
@@ -67,5 +68,18 @@ describe("cutting through the tool host", () => {
     session.undo();
     expect(session.getDoc().instances![0]!.overrides).toBeUndefined();
     expect(session.getDoc().entities!.map((e) => e.id)).toEqual(["pull"]);
+  });
+
+  it("cuts an instance's bulk child into an off override that validates clean", () => {
+    const { session, host } = rig();
+    session.select(["gate-2/~solid:0"]);
+    host.cut();
+    const def = session.getDoc();
+    expect(def.instances![0]!.overrides).toEqual({ "~solid:0.off": true });
+    const solid = resolveScene(def, fake, prefabs).entities!.find(
+      (e) => e.id === "gate-2/~solid:0",
+    );
+    expect(solid?.off).toBe(true);
+    expect(validateScene(def, fake, { prefabs })).toEqual([]);
   });
 });

@@ -425,6 +425,18 @@ describe("variants: their own overrides, validated in the variant's view", () =>
     expect(issuesOf(lib, "red-holder").issues).toEqual([]);
   });
 
+  it("passes an off override on a base bulk child, as resolve hides it", () => {
+    const lib = library([
+      gate(),
+      redGate({ overrides: { "trigger.off": true, "~solid:0.off": true } }),
+    ]);
+    expect(issuesOf(lib, "red-gate").issues).toEqual([]);
+    const placed = scene([{ id: "r", prefab: "red-gate", at: [0, 0] }]);
+    expect(
+      validateScene(placed, engine, { prefabs: lib }).filter((i) => i.code === "unused-override"),
+    ).toEqual([]);
+  });
+
   it("reports a path naming no base child, or no field, with a fix that drops it", () => {
     const lib = library([
       gate(),
