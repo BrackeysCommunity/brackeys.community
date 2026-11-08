@@ -237,7 +237,9 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   step. For `changeAssetId` and `deleteAsset` it opens every doc that can
   hold a reference. A doc it only reads refuses the batch for code skew only
   when the batch writes it. The prefab writer is asked about every prefab
-  rewrite, and the batch is planned before anything is written.
+  rewrite, and the batch is planned before anything is written. A prefab
+  it creates gets the same path rule as `createAsset`: a path another live
+  asset holds, ignoring case, or a file where a folder goes is `path-taken`.
 - Breaking: `sceneToDoc` takes no `prefabs` and writes `meta.layout`, plus
   `project` and `assetKey` when given. `DocView` loses `prefabs` and gains
   `kind` and `prefab`. `readDoc(doc, { registry, parentBounds })` reads a
@@ -303,11 +305,15 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   (`createSceneFileAdapter`, `sceneDocName`, `sceneOfDocName`,
   `SCENE_DOC_PREFIX`, `SceneHome` and `SceneFileAdapter` removed; use
   `createProjectFileAdapter` and `docNameOf`/`parseDocName`).
-- `./vite`: `readProjectPrefabFiles(project, state, registry, near?)`
-  reads a project's live prefab assets at their registry paths
-  (`ProjectPrefabFiles`, with `pathOf(id)`, the file a prefab is written
-  to). `PrefabFiles` gains `files` (each read prefab's file), and
-  `writePrefabFiles` takes either a scenes directory or `pathOf`.
+- `./vite`: `ProjectFileAdapter.blockedWrite(doc)`, the `path-taken`
+  issue for a created or moved entry whose path something on disk other
+  than its own file holds (a file the scan doesn't list, ignoring case),
+  which `storeProject` would skip.
+- `./vite`: `readProjectPrefabFiles(project, state, registry)` reads a
+  project's live prefab assets at their registry paths. `PrefabFiles` gains
+  `files` (each read prefab's file). `writePrefabFiles` stays for a scenes
+  directory outside any project; a project's prefabs change through
+  `applyProjectBatchToFiles`.
 - `./vite`: `FileApplyOptions.store`: where `applyProjectBatchToFiles`
   inspects blob bytes from (a dry run's bytes stay out of the cache).
 - `reinspectBlobs` (`./collab`): the project's one writer re-derives a

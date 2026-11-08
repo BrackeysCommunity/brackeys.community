@@ -622,15 +622,24 @@ changes.
   of the scene's `groups` stores its geometry relative to that group's
   `at`; moving the group is one `setGroup` with a new `at`. A new group is
   declared with `setGroup` (at `[0, 0]` unless you say otherwise).
-- **Prefabs live in `prefabs/<id>.json`** beside the scene, and every
-  command reads them. An instance places one at `at`; its children show
-  up as `gate-1/door` in `show`, renders and playtests. Edit one
-  instance's children with `override` (keys `<child>.<field.path>`,
-  values in the prefab's own frame) and `revertOverride`; change the
-  prefab for every instance with `applyToPrefab` or `definePrefab`; turn
-  an instance back into plain entities with `unpack`, or entries into a
-  prefab with `createPrefab`. `apply` writes changed prefab files too.
+- **Prefabs are found by id.** In a project a prefab is a prefab asset at
+  whatever path the registry gives it (moved to `kit/` or renamed, it still
+  resolves); a new one goes to `prefabs/<id>.json` in the scene's folder.
+  Only a scene file outside every project reads `prefabs/<id>.json` beside
+  it by file name. Every command reads them. An instance places one at
+  `at`; its children show up as `gate-1/door` in `show`, renders and
+  playtests. Edit one instance's children with `override` (keys
+  `<child>.<field.path>`, values in the prefab's own frame) and
+  `revertOverride`; change the prefab for every instance with
+  `applyToPrefab` or `definePrefab`; turn an instance back into plain
+  entities with `unpack`, or entries into a prefab with `createPrefab`.
   `schema prefab` is the prefab file's schema.
+- **`apply` on files is a project op.** In a project it sends the batch as
+  one `editScene` project op, as `--live` does, and writes the prefab files,
+  sidecars, registry and dev cache the way `assets apply` does. An id
+  another asset holds (`asset-id-taken`) or a file another asset holds
+  (`path-taken`) is refused and nothing is written; a `definePrefab` with `"prefab": null`
+  sends the prefab to the trash, where `assets restore` brings it back.
 - **`attach` rides a follower.** A solid or sensor with `attach:
 "<follower id>"` moves with that follower; place its shape where it
   should be while the follower is at its first path point.

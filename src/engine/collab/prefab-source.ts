@@ -2,6 +2,7 @@ import * as Y from "yjs";
 
 import type { EditSceneOp } from "../project/ops";
 import type { AssetEntry, AssetId, AssetKey, AssetPath } from "../project/types";
+import { pathClash } from "../project/view";
 import { makeIssue } from "../scene/issues";
 import { applyOps } from "../scene/ops";
 import { PREFAB_KIND } from "../scene/prefab";
@@ -378,18 +379,26 @@ function docsWriter(session: ProjectSession, core: Core, opts: WriterOptions): P
             );
           patches.push({ held, prefab: { ...next, id } });
         } else if (next) {
-          const path = prefabPathNear(id, scene?.path);
-          if (view.byPath.has(path))
-            return fail(
-              makeIssue("path-taken", {
-                message: `${path} is taken by "${view.byPath.get(path)!.id}"`,
-                entityIds: [id],
-              }),
-            );
           let key = id;
           for (let n = 2; session.state().assets[key]; n++) key = `${id}-${n}`;
-          created.push({ key, id, path, prefab: { ...next, id } });
+          created.push({ key, id, path: prefabPathNear(id, scene?.path), prefab: { ...next, id } });
         } else if (entry) removed.push(entry);
+      }
+      const gone = new Set(removed.map((e) => e.key));
+      const holders: Pick<AssetEntry, "key" | "id" | "path">[] = Object.values(
+        session.state().assets,
+      ).filter((e) => !gone.has(e.key));
+      for (const c of created) {
+        const clash = pathClash(holders, c.path);
+        if (clash)
+          return fail(
+            makeIssue("path-taken", {
+              message: `prefab "${c.id}" goes to ${c.path}, but ${clash.message}`,
+              entityIds: [c.id, clash.entry.id],
+              got: c.path,
+            }),
+          );
+        holders.push(c);
       }
       return {
         ok: true,

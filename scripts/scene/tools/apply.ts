@@ -1,21 +1,19 @@
-import type { ProjectApplyResult, ProjectOpBatch } from "@jams/engine/project";
+import {
+  PREFAB_SCENE_OPS,
+  type ProjectApplyResult,
+  type ProjectOpBatch,
+} from "@jams/engine/project";
 import { applyOps, describeChange, type OpBatch, type SceneOp } from "@jams/engine/scene";
-import { applyProjectBatchToFiles, type FileProject } from "@jams/engine/vite";
+import { applyProjectBatchToFiles } from "@jams/engine/vite";
 
 import { failure, issueLine, loadScene, readArg, usage, UsageError, type Tool } from "../context";
-import { overlayMaterials, scanProject, type ProjectHandle } from "../projects";
+import { withLiveMaterials } from "../projects";
 
 export type ApplyInput = { scene?: string; ops?: string; dryRun?: boolean; base?: string };
 
 /** Reports name the scene hash `sceneHash`, as every other command does. */
 function renameHash<T extends { hash: string }>({ hash, ...rest }: T) {
   return { ...rest, sceneHash: hash };
-}
-
-/** The project as a file batch sees it: its material assets as their files hold them now. */
-async function fileProject(project: ProjectHandle): Promise<FileProject> {
-  const registry = await overlayMaterials(project, project.registry, await scanProject(project));
-  return { ...project, registry };
 }
 
 /**
@@ -65,9 +63,9 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
       ...(batch.label ? { label: batch.label } : {}),
       ops: [{ op: "editScene", id: loaded.name, ops: batch.ops as SceneOp[] }],
     };
-    const files = await fileProject(loaded.scene.project);
+    const files = await withLiveMaterials(loaded.scene.project);
     const applied = await applyProjectBatchToFiles(files, projectBatch, { dryRun: !write });
-    if (!applied.ok) return refused(loaded.name, rest.sceneHash, applied);
+    if (!applied.ok) return refused(loaded.name, rest.sceneHash, batch.ops as SceneOp[], applied);
   }
 
   const verb = input.dryRun ? "would change" : write ? "changed" : "not written (errors)";
@@ -84,15 +82,33 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
   };
 };
 
+/**
+ * The scene op a project refusal answers: the prefab op naming an asset the
+ * issue names, else the first prefab op, else the first op.
+ */
+function refusedAt(ops: readonly SceneOp[], issue: { entityIds?: readonly string[] }): number {
+  const prefabOps = ops.flatMap((op, i) => (PREFAB_SCENE_OPS.includes(op.op) ? [i] : []));
+  const named = prefabOps.find((i) => {
+    const op = ops[i]!;
+    return "id" in op && typeof op.id === "string" && (issue.entityIds ?? []).includes(op.id);
+  });
+  return named ?? prefabOps[0] ?? 0;
+}
+
 /** A batch the scene accepts but the project refuses (an id or path another asset holds). */
 function refused(
   scene: string,
   sceneHash: string,
+  ops: readonly SceneOp[],
   applied: Extract<ProjectApplyResult, { ok: false }>,
 ) {
+  const failedAt = refusedAt(ops, applied.issue);
   return {
     exitCode: 1 as const,
-    data: { ok: false, scene, sceneHash, issue: applied.issue, written: false },
-    text: [`${scene}: not applied`, issueLine(applied.issue)].join("\n"),
+    data: { ok: false, failedAt, issue: applied.issue, scene, sceneHash, written: false },
+    text: [
+      `${scene}: op ${failedAt} not applied (scene ${sceneHash})`,
+      issueLine(applied.issue),
+    ].join("\n"),
   };
 }

@@ -409,14 +409,7 @@ export async function readScenePrefabs(
   if ("dir" in home) return readPrefabFiles(home.dir, registry);
   const { project } = home;
   const { state } = scan ?? (await scanProject(project));
-  const near = relative(project.dir, home.scene).split(sep).join("/");
-  const { pathOf: _pathOf, ...files } = await readProjectPrefabFiles(
-    project,
-    state,
-    registry,
-    near,
-  );
-  return files;
+  return readProjectPrefabFiles(project, state, registry);
 }
 
 /** The prefab library of `home`; see `readScenePrefabs`. */

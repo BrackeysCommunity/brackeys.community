@@ -1245,7 +1245,6 @@ PrefabFiles
 ProjectDiskSync
 ProjectFileAdapter
 ProjectFileAdapterOptions
-ProjectPrefabFiles
 ProjectProblem
 ProjectScan
 ProjectSync
@@ -7569,6 +7568,7 @@ type ProjectDiskSync = ProjectSync | {
     kind: "pending";
 };
 type ProjectFileAdapter = {
+    blockedWrite(doc: Y.Doc): Promise<SceneIssue | null>;
     docNameOf(entry: Pick<AssetEntry, "key" | "kind">): string;
     forget(name: string): void;
     loadDoc(name: string, doc: Y.Doc): Promise<void>;
@@ -7586,9 +7586,6 @@ type ProjectFileAdapter = {
 type ProjectFileAdapterOptions = {
     now?: () => number;
     settleMs?: number;
-};
-type ProjectPrefabFiles = PrefabFiles & {
-    pathOf: (id: string) => string;
 };
 type ProjectProblem = {
     issues: SceneIssue[];
@@ -7615,8 +7612,8 @@ declare function readFileProject(dir: string, opts?: {
     game?: GameDefinition | null;
 }): Promise<FileProject>;
 declare function readPrefabFiles(scenesDir: string, registry: Registry): Promise<PrefabFiles>;
-declare function readProjectPrefabFiles(project: Pick<FileProject, "dir" | "kinds">, state: ProjectState, registry: Registry, near?: AssetPath): Promise<ProjectPrefabFiles>;
-declare function writePrefabFiles(where: ((id: string) => string) | string, texts: ReadonlyMap<string, string>, prefabs: PrefabLibrary): Promise<Map<string, string>>;
+declare function readProjectPrefabFiles(project: Pick<FileProject, "dir" | "kinds">, state: ProjectState, registry: Registry): Promise<PrefabFiles>;
+declare function writePrefabFiles(scenesDir: string, texts: ReadonlyMap<string, string>, prefabs: PrefabLibrary): Promise<Map<string, string>>;
 
 ## vite/scene-paths.ts
 declare const SCENE_NAME_PATTERN: RegExp;

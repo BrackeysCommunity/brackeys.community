@@ -249,6 +249,18 @@ describe("assets on files", { timeout: 60_000 }, () => {
     it("after a prefab's file is renamed away from its id", async () => {
       expect((await run("assets", "rename", "post", "--file", "pillar.json")).exitCode).toBe(0);
       await validates("kitchen-sink");
+
+      const ops = join(root, "define.json");
+      const bar = { id: "bar", type: "solid", shape: ["box", 0, -20, 8, 20] };
+      await writeFile(
+        ops,
+        JSON.stringify({ ops: [{ op: "definePrefab", id: "post", prefab: { entities: [bar] } }] }),
+      );
+      const applied = await run("apply", "kitchen-sink", "--ops", ops);
+      expect(applied.exitCode, JSON.stringify(applied.data)).toBe(0);
+      expect(Object.keys(await tree(deck))).not.toContain("prefabs/post.json");
+      const post = JSON.parse(await readFile(join(deck, "prefabs/pillar.json"), "utf8")) as Data;
+      expect(post).toMatchObject({ id: "post", entities: [bar] });
     });
 
     it("after a prefab moves out of prefabs/, and apply writes it back to its own file", async () => {
@@ -325,6 +337,39 @@ describe("assets on files", { timeout: 60_000 }, () => {
       expect(JSON.parse(await readFile(join(deck, "prefabs/peg.json"), "utf8"))).toMatchObject(
         RUBBER,
       );
+    });
+
+    it("refuses a new prefab whose path differs only in case from another asset's", async () => {
+      await writeFile(join(root, "Peg.json"), JSON.stringify(RUBBER));
+      const imported = await run(
+        "assets",
+        "import",
+        join(root, "Peg.json"),
+        "--path",
+        "prefabs/",
+        "--id",
+        "rubber-peg",
+      );
+      expect(imported.exitCode, JSON.stringify(imported.data)).toBe(0);
+      expect(Object.keys(await tree(deck))).toContain("prefabs/Peg.json");
+      const before = await tree(deck);
+      const ops = [
+        { op: "setScene", set: { name: "Kitchen sink" } },
+        { op: "definePrefab", id: "peg", prefab: { entities: [peg] } },
+      ];
+      for (const flags of [["--dry-run"], []]) {
+        const r = await applyOps(ops, ...flags);
+        expect(r.exitCode, JSON.stringify(r.data)).toBe(1);
+        expect(r.data).toMatchObject({
+          ok: false,
+          failedAt: 1,
+          written: false,
+          issue: { code: "path-taken", entityIds: ["peg", "rubber-peg"] },
+        });
+        expect(typeof r.data.sceneHash).toBe("string");
+      }
+      expect(await tree(deck)).toEqual(before);
+      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).not.toContain("peg");
     });
 
     it("sends a deleted prefab to the trash, and restore brings back its file and entry", async () => {

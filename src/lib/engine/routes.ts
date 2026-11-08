@@ -143,7 +143,7 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
     if (Number.isFinite(declared) && declared > maxBytes) return tooLarge();
 
     // Re-uploading a blob the project already holds isn't charged against the
-    // day's uploads, but its bytes are still read and must hash to it.
+    // day's uploads when its bytes hash to it; a mismatch is charged like any upload.
     const expect = request.headers.get("x-expect-sha256") ?? undefined;
     const heldRow =
       expect !== undefined && isSha256(expect) ? await blobRow(projectId, expect) : null;
@@ -159,8 +159,11 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
     try {
       hash = await hashForPut(bytes, expect);
     } catch (error) {
-      if (error instanceof ContentStoreError) return refuseIssue(422, error.issue);
-      throw error;
+      if (!(error instanceof ContentStoreError)) throw error;
+      if (heldRow && !(await engineBlobUploadAllowed(userId))) {
+        return refuse(429, "Too many uploads today — try again tomorrow.");
+      }
+      return refuseIssue(422, error.issue);
     }
 
     const reply = (status: number) =>

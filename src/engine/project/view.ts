@@ -62,6 +62,41 @@ export function folderCaseClash(path: AssetPath, other: AssetPath): [string, str
   return null;
 }
 
+/**
+ * The live entry of `entries` that `path` clashes with, ignoring case: one
+ * at the same path, a file where `path` needs a folder, a folder `path`
+ * would replace, or a folder spelled in another case. Entries keyed
+ * `except` and trashed ones don't count. Null when the path is free.
+ */
+export function pathClash<E extends Pick<AssetEntry, "key" | "id" | "path" | "deleted">>(
+  entries: Iterable<E>,
+  path: AssetPath,
+  except?: AssetKey,
+): { entry: E; message: string } | null {
+  const folded = path.toLowerCase();
+  for (const e of entries) {
+    if (e.key === except || e.deleted) continue;
+    const other = e.path.toLowerCase();
+    let message: string | undefined;
+    if (other === folded)
+      message =
+        e.path === path
+          ? `"${path}" is taken by "${e.id}"`
+          : `"${path}" differs only in case from "${e.path}" (${e.id})`;
+    else if (folded.startsWith(`${other}/`))
+      message = `"${path}" would put a folder where the file "${e.path}" (${e.id}) is`;
+    else if (other.startsWith(`${folded}/`))
+      message = `"${path}" is a folder that holds "${e.path}" (${e.id})`;
+    else {
+      const folders = folderCaseClash(path, e.path);
+      if (folders)
+        message = `the folder "${folders[0]}" differs only in case from "${folders[1]}", which holds "${e.path}" (${e.id})`;
+    }
+    if (message) return { entry: e, message };
+  }
+  return null;
+}
+
 export function fileNameOf(path: AssetPath): string {
   return path.slice(path.lastIndexOf("/") + 1);
 }

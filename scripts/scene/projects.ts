@@ -140,7 +140,8 @@ export async function projectRuntime(
   return runtimeView(projectView(files.state, project.kinds), values, registry);
 }
 
-async function withOverlay(handle: ProjectHandle): Promise<ProjectHandle> {
+/** `handle` with its material assets as their files hold them now. */
+export async function withLiveMaterials(handle: ProjectHandle): Promise<ProjectHandle> {
   const registry = await overlayMaterials(handle, handle.registry, await scanProject(handle));
   return { ...handle, registry };
 }
@@ -166,7 +167,7 @@ export async function openProject(
       },
     ]);
   const game = opts.game ?? null;
-  return withOverlay({
+  return withLiveMaterials({
     dir: root,
     file: parsed.file,
     game,
@@ -244,7 +245,7 @@ export async function discoverProjects(
       continue;
     }
     try {
-      handles.push(await withOverlay(handle));
+      handles.push(await withLiveMaterials(handle));
     } catch (error) {
       fail(`its files can't be read: ${messageOf(error)}`);
     }

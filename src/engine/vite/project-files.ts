@@ -9,7 +9,7 @@ import { randomKey } from "../collab/keys";
 import { contentMap, layoutFromDoc, layoutPatch, layoutToDoc } from "../collab/layout";
 import { sameValue } from "../collab/log";
 import { migrateLayout, projectDocWriter } from "../collab/migrate-layout";
-import { docToPrefab, prefabPatch, prefabPathNear, prefabToDoc } from "../collab/prefab-doc";
+import { docToPrefab, prefabPatch, prefabToDoc } from "../collab/prefab-doc";
 import { applyRegistryBatch } from "../collab/project-apply";
 import {
   appendHistory,
@@ -90,7 +90,7 @@ import {
   type SceneIssue,
 } from "../scene/types";
 import { defaultCacheDir, fileContentStore } from "./content-store";
-import { assertSceneName, resolveScenePath, sceneNameOf } from "./scene-paths";
+import { resolveScenePath, sceneNameOf } from "./scene-paths";
 
 /** The origin of every write the file adapter makes: seeding a doc and outside file changes. */
 export const DISK_ORIGIN: SceneOrigin = { kind: "disk" };
@@ -253,6 +253,14 @@ export type ProjectFileAdapter = {
    * every binary has one; true when it wrote.
    */
   storeProject(doc: Y.Doc): Promise<boolean>;
+  /**
+   * A `path-taken` issue for the first live entry `storeProject` would skip:
+   * one created or moved to a path that something on disk other than its
+   * own file already holds, ignoring case (a file the scan doesn't list, a
+   * folder, a file where a folder goes, a folder spelled in another case).
+   * Null when every write lands. Writes nothing.
+   */
+  blockedWrite(doc: Y.Doc): Promise<SceneIssue | null>;
   /** Writes the doc's canonical text when it changed, and a new file's sidecar when it carries something; true when it wrote. */
   storeDoc(name: string, doc: Y.Doc): Promise<boolean>;
   /**
@@ -1189,6 +1197,54 @@ export function createProjectFileAdapter(
     return wrote;
   }
 
+  /** What on disk holds `path`, ignoring case, as a project-relative path; null when it is free to write. */
+  async function diskHolder(path: AssetPath): Promise<AssetPath | null> {
+    const segments = path.split("/");
+    let at = "";
+    for (const [i, segment] of segments.entries()) {
+      const names = await readdir(at === "" ? dir : abs(at)).catch(() => null);
+      if (!names) return null;
+      const want = segment.toLowerCase();
+      const found = names.find((n) => n.toLowerCase() === want);
+      if (found === undefined) return null;
+      const next = at === "" ? found : `${at}/${found}`;
+      if (i === segments.length - 1 || found !== segment) return next;
+      const folder = await stat(abs(next)).then(
+        (st) => st.isDirectory(),
+        () => false,
+      );
+      if (!folder) return next;
+      at = next;
+    }
+    return null;
+  }
+
+  async function blockedWrite(doc: Y.Doc): Promise<SceneIssue | null> {
+    const state = readProject(doc);
+    const freed = new Set<AssetPath>();
+    for (const entry of Object.values(state.assets)) {
+      const disk = files.get(entry.key);
+      if (disk && (entry.deleted || disk.path !== entry.path)) freed.add(disk.path.toLowerCase());
+    }
+    for (const entry of Object.values(state.assets)) {
+      if (entry.deleted || !hasFile(kinds.get(entry.kind))) continue;
+      const disk = files.get(entry.key);
+      if (disk && disk.path === entry.path) continue;
+      const holder = await diskHolder(entry.path);
+      if (holder === null || (disk && freed.has(holder.toLowerCase()))) continue;
+      return makeIssue("path-taken", {
+        message:
+          holder === entry.path
+            ? `"${entry.path}" (${entry.id}) is already on disk and isn't that asset's file`
+            : `"${entry.path}" (${entry.id}) is blocked by "${holder}" on disk`,
+        entityIds: [entry.id],
+        got: entry.path,
+        hint: "Move or remove the file in the way, or give the asset another path.",
+      });
+    }
+    return null;
+  }
+
   // ─── File events ───────────────────────────────────────
 
   /**
@@ -1491,6 +1547,7 @@ export function createProjectFileAdapter(
     loadProject,
     loadDoc,
     storeProject,
+    blockedWrite,
     storeDoc,
     syncPath,
     settle,
@@ -1640,30 +1697,20 @@ export async function readPrefabFiles(scenesDir: string, registry: Registry): Pr
   return out;
 }
 
-export type ProjectPrefabFiles = PrefabFiles & {
-  /** Where prefab `id` is written: its asset's file, else a new file in `prefabs/` beside the scene (`prefabPathNear`). */
-  pathOf: (id: string) => string;
-};
-
 /**
  * Reads a project's live prefab assets from `state` (a scan of its files),
- * each at its registry path, judged by `registry`. `near` is the
- * project-relative path of the scene they are read for; a new prefab's
- * file goes where the live path puts it (`prefabPathNear`).
+ * each at its registry path, judged by `registry`.
  */
 export async function readProjectPrefabFiles(
   project: Pick<FileProject, "dir" | "kinds">,
   state: ProjectState,
   registry: Registry,
-  near?: AssetPath,
-): Promise<ProjectPrefabFiles> {
+): Promise<PrefabFiles> {
   const view = projectView(state, project.kinds);
   const out = emptyPrefabRead();
-  const assetFiles = new Map<string, string>();
   for (const entry of [...view.byId.values()].sort((a, b) => byCodeUnit(a.id, b.id))) {
     if (entry.kind !== prefabKind.kind) continue;
     const path = join(project.dir, ...entry.path.split("/"));
-    assetFiles.set(entry.id, path);
     const text = await readText(path);
     if (text === null) continue;
     const parsed = parsePrefab(text, registry);
@@ -1684,28 +1731,22 @@ export async function readProjectPrefabFiles(
     out.texts.set(entry.id, text);
     out.files.set(entry.id, path);
   }
-  const pathOf = (id: string) => {
-    const known = assetFiles.get(id);
-    if (known !== undefined) return known;
-    assertSceneName(id);
-    return join(project.dir, ...prefabPathNear(id, near).split("/"));
-  };
-  return { ...out, pathOf };
+  return out;
 }
 
 /**
  * Writes the prefabs whose canonical text differs from `texts` (the files as
- * last read or written) and deletes the files of ids that left the library.
- * `where` is a scenes directory outside any project (files in its
- * `prefabs/`) or each id's file (`ProjectPrefabFiles.pathOf`). Returns the
+ * last read or written) into `prefabs/` of a scenes directory outside any
+ * project, and deletes the files of ids that left the library. A project's
+ * prefabs change through `applyProjectBatchToFiles` instead. Returns the
  * texts now on disk.
  */
 export async function writePrefabFiles(
-  where: string | ((id: string) => string),
+  scenesDir: string,
   texts: ReadonlyMap<string, string>,
   prefabs: PrefabLibrary,
 ): Promise<Map<string, string>> {
-  const fileOf = typeof where === "string" ? (id: string) => prefabPath(where, id) : where;
+  const fileOf = (id: string) => prefabPath(scenesDir, id);
   const out = new Map(texts);
   for (const [id, prefab] of prefabs) {
     const text = formatPrefab(prefab);

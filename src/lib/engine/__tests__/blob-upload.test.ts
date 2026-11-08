@@ -239,7 +239,7 @@ describe("blob upload: the rate limit", () => {
     expect((await send(upload(bytes("new bytes")))).status).toBe(429);
   });
 
-  it("refuses same-length bytes that don't hash to a held blob, uncharged and storing nothing", async () => {
+  it("refuses and charges same-length bytes that don't hash to a held blob, storing nothing", async () => {
     expect((await send(upload(PNG))).status).toBe(201);
     const hash = await sha256(PNG);
     const forged = new Uint8Array(PNG).map((byte) => byte ^ 0xff);
@@ -251,7 +251,7 @@ describe("blob upload: the rate limit", () => {
       code: "hash-mismatch",
       issue: { code: "hash-mismatch", expected: hash, got: await sha256(forged) },
     });
-    expect(limiter.hits.get("engine-blob:staff")).toBe(1);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(2);
     expect(minio.objects.size).toBe(1);
     expect(await db.select().from(engineBlobs)).toHaveLength(1);
     expect(scans.requested).toHaveLength(1);
@@ -285,7 +285,7 @@ describe("blob upload: the rate limit", () => {
     expect(spent.pulls()).toBeLessThanOrEqual(1);
   });
 
-  it("refuses a body whose length differs from the held blob's, uncharged", async () => {
+  it("refuses and charges a body whose length differs from the held blob's", async () => {
     expect((await send(upload(PNG))).status).toBe(201);
     const hash = await sha256(PNG);
     const other = upload(bytes("not the png"), { expect: hash });
@@ -293,7 +293,18 @@ describe("blob upload: the rate limit", () => {
     const response = await send(other);
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ code: "hash-mismatch" });
-    expect(limiter.hits.get("engine-blob:staff")).toBe(1);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(2);
+  });
+
+  it("answers 429 to a mismatched held re-upload once the day's uploads are spent", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    limiter.hits.set("engine-blob:staff", ENGINE_BLOB_UPLOADS_PER_DAY);
+    const hash = await sha256(PNG);
+    const forged = new Uint8Array(PNG).map((byte) => byte ^ 0xff);
+    expect((await send(upload(forged, { expect: hash }))).status).toBe(429);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(ENGINE_BLOB_UPLOADS_PER_DAY + 1);
+    expect(minio.objects.size).toBe(1);
+    expect(await db.select().from(engineBlobs)).toHaveLength(1);
   });
 
   it("counts per member", async () => {

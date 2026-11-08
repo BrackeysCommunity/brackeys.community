@@ -61,8 +61,8 @@ import {
   assetPathProblem,
   compareEntries,
   fileNameOf,
-  folderCaseClash,
   folderPrefixOf,
+  pathClash,
   projectView,
 } from "./view";
 
@@ -720,27 +720,9 @@ class BatchWork {
     if (problem) this.fail("op-invalid", `"${path}": ${problem}`, field, { got: path });
     if (isSkippedAssetPath(path))
       this.fail("op-invalid", `"${path}" is a schema, sidecar or test path`, field, { got: path });
-    const folded = path.toLowerCase();
-    for (const e of Object.values(this.assets)) {
-      if (e.key === except || e.deleted) continue;
-      const other = e.path.toLowerCase();
-      let clash: string | undefined;
-      if (other === folded)
-        clash =
-          e.path === path
-            ? `"${path}" is taken by "${e.id}"`
-            : `"${path}" differs only in case from "${e.path}" (${e.id})`;
-      else if (folded.startsWith(`${other}/`))
-        clash = `"${path}" would put a folder where the file "${e.path}" (${e.id}) is`;
-      else if (other.startsWith(`${folded}/`))
-        clash = `"${path}" is a folder that holds "${e.path}" (${e.id})`;
-      else {
-        const folders = folderCaseClash(path, e.path);
-        if (folders)
-          clash = `the folder "${folders[0]}" differs only in case from "${folders[1]}", which holds "${e.path}" (${e.id})`;
-      }
-      if (clash) this.fail("path-taken", clash, field, { entityIds: [e.id], got: path });
-    }
+    const clash = pathClash(Object.values(this.assets), path, except);
+    if (clash)
+      this.fail("path-taken", clash.message, field, { entityIds: [clash.entry.id], got: path });
   }
 
   /** The file's name must give `def` (its suffix, or a `.json` file whose content or sidecar says so). */

@@ -40,7 +40,6 @@ export {
   type ProjectDiskSync,
   type ProjectFileAdapter,
   type ProjectFileAdapterOptions,
-  type ProjectPrefabFiles,
   type ProjectProblem,
   type ProjectScan,
   type ProjectSync,
