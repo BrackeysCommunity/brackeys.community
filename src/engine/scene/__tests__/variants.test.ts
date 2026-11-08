@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
+import { applyOps } from "../ops";
+import { prefabScene } from "../prefab";
 import {
   localChild,
   localChildren,
@@ -18,6 +20,7 @@ import {
   type PrefabLibrary,
   type SceneDefinition,
 } from "../types";
+import { validateScene } from "../validate";
 import { engine, fake } from "./fixtures/random-ops";
 
 /** A library tests can add to. */
@@ -396,5 +399,70 @@ describe("child refs at every level", () => {
       resolveScene(scene([{ id: "t", prefab: "top", at: [0, 0] }]), fake, l).entities,
     );
     expect(out.get("t/m/lever")?.target).toBe("i/gone");
+  });
+});
+
+describe("variants: their own overrides, validated in the variant's view", () => {
+  const issuesOf = (lib: PrefabLibrary, id: string) => {
+    const view = prefabScene(lib.get(id)!, [-512, -512, 512, 512]);
+    return { view, issues: validateScene(view, engine, { prefabs: lib, prefab: id }) };
+  };
+
+  it("passes overrides that name a base child's field, nested ones included", () => {
+    const holder = prefab("holder", {
+      instances: [{ id: "g", prefab: "gate", at: [0, 0] }],
+    });
+    const lib = library([
+      gate(),
+      redGate(),
+      holder,
+      prefab("red-holder", {
+        base: "holder",
+        overrides: { "g/door.path.speed": 9, "g.at": [4, 4] },
+      }),
+    ]);
+    expect(issuesOf(lib, "red-gate").issues).toEqual([]);
+    expect(issuesOf(lib, "red-holder").issues).toEqual([]);
+  });
+
+  it("reports a path naming no base child, or no field, with a fix that drops it", () => {
+    const lib = library([
+      gate(),
+      redGate({
+        overrides: { "door.path.speed": 120, "ghost.at": [1, 1], "door.color": "red" },
+      }),
+    ]);
+    const { view, issues } = issuesOf(lib, "red-gate");
+    expect(issues.map((i) => [i.code, i.path])).toEqual([
+      ["unused-override", "/overrides/door.color"],
+      ["unused-override", "/overrides/ghost.at"],
+    ]);
+    expect(issues[1]?.message).toContain('names no child of prefab "gate"');
+    const fixOnce = (lib: PrefabLibrary, def: SceneDefinition) => {
+      const [first] = validateScene(def, engine, { prefabs: lib, prefab: "red-gate" });
+      const r = applyOps(def, first!.fix!, engine, { prefabs: lib, prefab: "red-gate" });
+      if (!r.ok) throw new Error(r.issue.message);
+      return { lib: r.prefabs!, def: r.def };
+    };
+    const once = fixOnce(lib, view);
+    const { lib: lib2, def } = fixOnce(once.lib, once.def);
+    const after = lib2.get("red-gate")!;
+    expect(after.overrides).toEqual({ "door.path.speed": 120 });
+    expect(after.entities).toEqual(redGate().entities);
+    expect(after.bulk).toEqual(redGate().bulk);
+    expect(validateScene(def, engine, { prefabs: lib2, prefab: "red-gate" })).toEqual([]);
+  });
+
+  it("reports overrides on a prefab that has no base", () => {
+    const lib = library([{ ...gate(), overrides: { "door.path.speed": 1 } }]);
+    const { view, issues: all } = issuesOf(lib, "gate");
+    const issues = all.filter((i) => i.code === "unused-override");
+    expect(issues.map((i) => [i.code, i.path])).toEqual([
+      ["unused-override", "/overrides/door.path.speed"],
+    ]);
+    const r = applyOps(view, issues[0]!.fix!, engine, { prefabs: lib, prefab: "gate" });
+    if (!r.ok) throw new Error(r.issue.message);
+    expect(r.prefabs?.get("gate")?.overrides).toBeUndefined();
+    expect(r.prefabs?.get("gate")?.base).toBeUndefined();
   });
 });

@@ -135,11 +135,27 @@ describe("transformTuple", () => {
     expect(transformTuple(["box", 10, 0, 30, 5, 300], t)).toEqual(["box", 0, 10, 30, 5, 30]);
   });
 
-  it("negates rotDeg under a flip, and drops nothing it didn't add", () => {
+  it("negates rotDeg under a flip, and leaves no rotDeg of 0", () => {
     const flip = dihedral({ rot: 0, flip: true }, [0, 0]);
     expect(transformTuple(["box", 10, 0, 30, 5, 30], flip)).toEqual(["box", -10, 0, 30, 5, 330]);
     expect(transformTuple(["box", 10, 0, 30, 5], flip)).toEqual(["box", -10, 0, 30, 5]);
-    expect(transformTuple(["box", 10, 0, 30, 5, 0], flip)).toEqual(["box", -10, 0, 30, 5, 0]);
+    expect(transformTuple(["box", 10, 0, 30, 5, 0], flip)).toEqual(["box", -10, 0, 30, 5]);
+  });
+
+  it("drops rotDeg when a turn brings it back to 0", () => {
+    const quarter = dihedral({ rot: 1, flip: false }, [0, 0]);
+    expect(transformTuple(["box", 10, 0, 30, 5, 270], quarter)).toEqual(["box", 0, 10, 30, 5]);
+    expect(
+      transformTuple(["capsule", 0, 10, 20, 4, 90], dihedral({ rot: 1, flip: true }, [0, 0])),
+    ).toEqual(["capsule", -10, 0, 20, 4]);
+    const half = dihedral({ rot: 2, flip: false }, [0, 0]);
+    expect(transformTuple(["box", 0, 0, 30, 5, 180], half)).toEqual(["box", 0, 0, 30, 5]);
+  });
+
+  it("keeps an explicit rotDeg of 0 under a plain translation", () => {
+    expect(
+      transformTuple(["box", 1, 2, 3, 4, 0], dihedral({ rot: 0, flip: false }, [5, 5])),
+    ).toEqual(["box", 6, 7, 3, 4, 0]);
   });
 
   it("turns a capsule the same way", () => {

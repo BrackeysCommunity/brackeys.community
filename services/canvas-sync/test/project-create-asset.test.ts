@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
 import { openProjectClient, type ProjectClient } from "../../../scripts/scene/project-client.ts";
-import { docToScene, layoutFromDoc } from "../../../src/engine/collab/index.ts";
+import { docToPrefab, docToScene, layoutFromDoc } from "../../../src/engine/collab/index.ts";
 import type { QuotaPolicy } from "../../../src/engine/project/index.ts";
 import { createRegistry } from "../../../src/engine/scene/index.ts";
 import {
@@ -118,6 +118,45 @@ function createAssetSuite(label: string, make: () => Promise<Fixture>) {
       const two = await bo.session.open(scene);
       expect(docToScene(two.doc).name).toBe("two");
       expect(projectStateOf(bo.session.projectDoc).assets[key("two")]?.deleted).toBeUndefined();
+    });
+
+    it("creates a prefab and a variant of it in one batch, and both docs land", async () => {
+      const server = await serve();
+      const projectId = newProjectId();
+      await fixture.create(projectId);
+      const ada = await open(server, projectId);
+
+      const r = await ada.apply({
+        v: 1,
+        label: "Add posts",
+        ops: [
+          { op: "createAsset", kind: "prefab", path: "prefabs/post.json" },
+          {
+            op: "createAsset",
+            kind: "prefab",
+            path: "prefabs/",
+            id: "red-post",
+            content: { base: "post" },
+          },
+        ],
+      });
+      if (!r.ok) throw new Error(`${r.issue.code}: ${r.issue.message}`);
+      expect(r.created).toEqual(["post", "red-post"]);
+      const state = ada.session.state();
+      const key = (id: string) => Object.values(state.assets).find((e) => e.id === id)!.key;
+      expect(state.assets[key("red-post")]).toMatchObject({
+        kind: "prefab",
+        path: "prefabs/red-post.json",
+      });
+      expect(new Set(await fixture.rows(projectId))).toEqual(
+        new Set([key("post"), key("red-post")]),
+      );
+
+      const bo = await open(server, projectId, "bo");
+      const post = await bo.session.open(`asset:${projectId}.${key("post")}`);
+      expect(docToPrefab(post.doc)).toMatchObject({ kind: "prefab", id: "post", entities: [] });
+      const red = await bo.session.open(`asset:${projectId}.${key("red-post")}`);
+      expect(docToPrefab(red.doc)).toMatchObject({ id: "red-post", base: "post", entities: [] });
     });
 
     it("leaves a new doc the quota has no room for unopened, as one undo step", async () => {

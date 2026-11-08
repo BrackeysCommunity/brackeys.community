@@ -53,7 +53,7 @@ import {
 import { randomKey, type KeyGen } from "./keys";
 import { layoutFromDoc, layoutPatch } from "./layout";
 import { appendLog, fingerprint, LOG_CAP, logArray, readLog, sameValue } from "./log";
-import { docToPrefab, PREFAB_HEADER_KEY } from "./prefab-doc";
+import { docToPrefab, PREFAB_HEADER_KEY, prefabPatch, prefabToDoc } from "./prefab-doc";
 import { projectAssetsMap, readProject, writeEntry, writeProjectState } from "./project-doc";
 import { appendProjectLog } from "./project-log";
 import type { PrefabPlan, PrefabWriteRequest, ProjectSession, SessionDoc } from "./project-session";
@@ -61,8 +61,10 @@ import { contentLogKey } from "./revert";
 import {
   ASSETS_KEY,
   INSTANCE_KEY_PREFIX,
+  PARAM_KEY_PREFIX,
   SCENE_KEY,
   SETTINGS_KEY,
+  VARIANT_KEY,
   type DocOrigin,
   type LogEntry,
   type ProjectLogEntry,
@@ -428,6 +430,48 @@ function writeNewScene(doc: Y.Doc, def: SceneDefinition, key: KeyGen, origin: Do
   return { keys, before, after };
 }
 
+/**
+ * A new prefab's content, written into its doc as the prefab writer seeds
+ * one: into an empty doc, or over the bare `meta` a host seeds it with.
+ */
+function writeNewPrefab(
+  doc: Y.Doc,
+  prefab: Prefab,
+  session: ProjectSession,
+  assetKey: AssetKey,
+  origin: DocOrigin,
+): LogParts {
+  if (!docMeta(doc))
+    prefabToDoc(prefab, { doc, key: session.key, project: session.project, assetKey, origin });
+  else prefabPatch(doc, prefab, origin, { key: session.key, noLog: true });
+  return prefabCreation(doc);
+}
+
+/** Every key a freshly written prefab doc holds, as a creation's log parts. */
+function prefabCreation(doc: Y.Doc): LogParts {
+  const view = readDoc(doc);
+  const after: Record<string, string | null> = {};
+  for (const [k, rec] of view.records) after[k] = fingerprint(rec);
+  for (const [k, rec] of view.instanceRecords)
+    after[`${INSTANCE_KEY_PREFIX}${k}`] = fingerprint(rec);
+  const header = view.prefab;
+  after[PREFAB_HEADER_KEY] = fingerprint({
+    id: header?.id ?? "",
+    ...(header?.contract !== undefined ? { contract: header.contract } : {}),
+  });
+  if (header?.base !== undefined || header?.overrides !== undefined)
+    after[VARIANT_KEY] = fingerprint({
+      ...(header.base !== undefined ? { base: header.base } : {}),
+      ...(header.overrides !== undefined ? { overrides: header.overrides } : {}),
+    });
+  for (const [name, param] of Object.entries(header?.params ?? {}))
+    after[`${PARAM_KEY_PREFIX}${name}`] = fingerprint(param);
+  const assets = readAssets(doc);
+  if (assets.length > 0) after[ASSETS_KEY] = fingerprint(assets);
+  const keys = Object.keys(after);
+  return { keys, before: Object.fromEntries(keys.map((k) => [k, null])), after };
+}
+
 const NO_TAGS: EntryTags = { entities: [], buckets: new Map(), instances: [] };
 
 /** A detached copy of a doc's state, to try a write on. */
@@ -549,11 +593,12 @@ export async function applyProjectBatch(
       const skew = session.skewFor(op.kind);
       if (skew) return failAt(index, { ...skew, path: `/ops/${index}/kind` });
       const def = session.kinds.get(op.kind);
-      if (def?.storage === "doc" && def.layout === "custom" && def.kind !== SCENE_KIND_NAME)
+      const custom = def?.storage === "doc" && def.layout === "custom";
+      if (custom && def.kind !== SCENE_KIND_NAME && def.kind !== PREFAB_KIND)
         return failAt(
           index,
           makeIssue("op-invalid", {
-            message: `creating a ${def.kind} writes its doc through the project's prefab writer, which needs the project`,
+            message: `a ${def.kind} has a doc of its own make, which createAsset can't write`,
             path: `/ops/${index}/kind`,
           }),
         );
@@ -799,12 +844,15 @@ export async function applyProjectBatch(
         const open = await session.open(c.name);
         held.push(c.name);
         const value = check.values.get(c.key);
+        const kind = check.state.assets[c.key]?.kind;
         open.doc.transact(() => {
           let change: LogParts;
           if (open.layout) {
             layoutPatch(open.doc, open.layout, value, origin, { key: session.key });
             change = contentDiff({}, value as Record<string, unknown>);
-          } else change = writeNewScene(open.doc, value as SceneDefinition, session.key, origin);
+          } else if (kind === PREFAB_KIND)
+            change = writeNewPrefab(open.doc, value as Prefab, session, c.key, origin);
+          else change = writeNewScene(open.doc, value as SceneDefinition, session.key, origin);
           pushLog(open.doc, { id: c.id, actor: origin, label, at: now, ...change });
         }, origin);
         written.push({ doc: c.name, entry: c.id });

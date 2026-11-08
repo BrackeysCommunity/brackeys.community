@@ -2,8 +2,25 @@ import type { Aabb, Pt, ShapeObj } from "./types";
 
 const DEG = Math.PI / 180;
 
-function rotate([x, y]: Pt, rad: number): Pt {
-  if (rad === 0) return [x, y];
+/** An angle in degrees in [0, 360), never `-0`. */
+export const normDeg = (deg: number) => {
+  const r = deg % 360;
+  return r < 0 ? r + 360 : r + 0;
+};
+
+/** `[x, y]` turned `deg` degrees clockwise on screen; quarter turns are exact. */
+function rotate([x, y]: Pt, deg: number): Pt {
+  switch (normDeg(deg)) {
+    case 0:
+      return [x, y];
+    case 90:
+      return [0 - y, x + 0];
+    case 180:
+      return [0 - x, 0 - y];
+    case 270:
+      return [y + 0, 0 - x];
+  }
+  const rad = deg * DEG;
   const c = Math.cos(rad);
   const s = Math.sin(rad);
   return [x * c - y * s, x * s + y * c];
@@ -24,7 +41,7 @@ function boundsOf(pts: readonly Pt[], pad = 0): Aabb {
 }
 
 function capsuleEnds(s: Extract<ShapeObj, { type: "capsule" }>): [Pt, Pt] {
-  const [dx, dy] = rotate([0, s.halfLen], (s.rotDeg % 360) * DEG);
+  const [dx, dy] = rotate([0, s.halfLen], s.rotDeg);
   return [
     [s.cx - dx, s.cy - dy],
     [s.cx + dx, s.cy + dy],
@@ -32,7 +49,6 @@ function capsuleEnds(s: Extract<ShapeObj, { type: "capsule" }>): [Pt, Pt] {
 }
 
 export function boxCorners(s: Extract<ShapeObj, { type: "box" }>): Pt[] {
-  const rad = (s.rotDeg % 360) * DEG;
   const local: Pt[] = [
     [-s.hw, -s.hh],
     [s.hw, -s.hh],
@@ -40,7 +56,7 @@ export function boxCorners(s: Extract<ShapeObj, { type: "box" }>): Pt[] {
     [-s.hw, s.hh],
   ];
   return local.map((p) => {
-    const [x, y] = rotate(p, rad);
+    const [x, y] = rotate(p, s.rotDeg);
     return [s.cx + x, s.cy + y] as Pt;
   });
 }
@@ -196,7 +212,7 @@ function insidePolygon([px, py]: Pt, pts: readonly Pt[]): boolean {
 export function containsPoint(s: ShapeObj, p: Pt, tol = 0): boolean {
   switch (s.type) {
     case "box": {
-      const [lx, ly] = rotate([p[0] - s.cx, p[1] - s.cy], -(s.rotDeg % 360) * DEG);
+      const [lx, ly] = rotate([p[0] - s.cx, p[1] - s.cy], 0 - s.rotDeg);
       return Math.abs(lx) <= s.hw + tol && Math.abs(ly) <= s.hh + tol;
     }
     case "circle":
@@ -346,11 +362,14 @@ export function nearestSegment(
   return best;
 }
 
-/** `s` turned `deg` degrees clockwise on screen about `about`. Leaves fractions for the caller to round. */
+/**
+ * `s` turned `deg` degrees clockwise on screen about `about`, its `rotDeg`
+ * kept in [0, 360). Quarter turns are exact; other angles leave fractions
+ * for the caller to round.
+ */
 export function rotateShape(s: ShapeObj, about: Pt, deg: number): ShapeObj {
-  const rad = deg * DEG;
   const turn = ([x, y]: Pt): Pt => {
-    const [rx, ry] = rotate([x - about[0], y - about[1]], rad);
+    const [rx, ry] = rotate([x - about[0], y - about[1]], deg);
     return [about[0] + rx, about[1] + ry];
   };
   switch (s.type) {
@@ -363,7 +382,7 @@ export function rotateShape(s: ShapeObj, about: Pt, deg: number): ShapeObj {
     }
     default: {
       const [cx, cy] = turn([s.cx, s.cy]);
-      return { ...s, cx, cy, rotDeg: s.rotDeg + deg };
+      return { ...s, cx, cy, rotDeg: normDeg(s.rotDeg + deg) };
     }
   }
 }

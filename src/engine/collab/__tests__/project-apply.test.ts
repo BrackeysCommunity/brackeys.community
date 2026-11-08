@@ -22,11 +22,11 @@ import { engine, engineYard, yardPrefabs } from "../../scene/__tests__/fixtures/
 import { makeIssue } from "../../scene/issues";
 import type { Prefab, SceneDefinition } from "../../scene/types";
 import * as apply from "../apply";
-import { docToScene, sceneToDoc } from "../convert";
+import { docMeta, docToScene, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
 import { layoutFromDoc, layoutToDoc } from "../layout";
 import { readLog } from "../log";
-import { prefabToDoc } from "../prefab-doc";
+import { docToPrefab, prefabToDoc } from "../prefab-doc";
 import { sessionPrefabSource } from "../prefab-source";
 import { applyProjectBatch } from "../project-apply";
 import { readProject, seedProjectDoc } from "../project-doc";
@@ -454,12 +454,6 @@ describe("applyProjectBatch", () => {
     for (const { doc, entry } of r.entry!.docs.filter((x) => x.doc !== "project:p"))
       expect(readLog(host.doc(doc)).map((e) => e.id)).toContain(entry);
 
-    const prefab = await applyProjectBatch(
-      s,
-      { v: 1, ops: [{ op: "createAsset", kind: "prefab", path: "prefabs/p.json" }] },
-      ada,
-    );
-    expect(prefab.ok).toBe(false);
     s.destroy();
   });
 
@@ -919,6 +913,208 @@ describe("editScene on a prefab that nests instances", () => {
       opIndex: 1,
       issue: { code: "asset-in-use" },
     });
+    source.destroy();
+    session.destroy();
+  });
+});
+
+describe("prefabs created and edited in one live batch", () => {
+  const registry = createRegistry();
+  const GATE: Prefab = {
+    kind: "prefab",
+    v: 3,
+    id: "gate",
+    entities: [{ id: "pole", type: "marker", at: [0, -60] }],
+  };
+  const YARD: SceneDefinition = {
+    v: 3,
+    name: "yard",
+    bounds: [0, 0, 2000, 1200],
+    instances: [{ id: "gate-1", prefab: "gate", at: [100, 900] }],
+  };
+
+  async function project(opts: { hostSeedsMeta?: boolean } = {}) {
+    const host = memoryDocHost();
+    seedProjectDoc(
+      host.doc("project:p"),
+      {
+        meta: { projectId: "p", layout: 1, name: "P" },
+        assets: {
+          yard: { key: "yard", id: "yard", kind: "scene", path: "yard.json", created: at },
+          gate: { key: "gate", id: "gate", kind: "prefab", path: "prefabs/gate.json", created: at },
+        },
+        history: {},
+        code: {},
+        build: {},
+      },
+      { kind: "migration" },
+    );
+    sceneToDoc(YARD, { doc: host.doc("scene:p.yard"), key: sequentialKeys("y") });
+    prefabToDoc(GATE, { doc: host.doc("asset:p.gate"), key: sequentialKeys("g") });
+    const session = await createProjectSession({
+      project: "p",
+      openDoc: async (name) => {
+        const open = await host.client().openDoc(name);
+        if (opts.hostSeedsMeta && !docMeta(open.doc)) open.doc.getMap("meta").set("kind", "prefab");
+        return open;
+      },
+      origin: ada,
+      registry,
+      kinds: createKindRegistry(null, [sceneKind, prefabKind]),
+    });
+    const source = sessionPrefabSource(session);
+    await source.ready();
+    return { host, session, source };
+  }
+
+  const keyOf = (s: ProjectSession, id: string) =>
+    Object.values(s.state().assets).find((e) => e.id === id && !e.deleted)!.key;
+
+  it("creates a prefab and a variant whose base the batch created first", async () => {
+    const { host, session, source } = await project();
+    const r = ok(
+      await applyProjectBatch(
+        session,
+        {
+          v: 1,
+          label: "Add posts",
+          ops: [
+            { op: "createAsset", kind: "prefab", path: "prefabs/post.json" },
+            {
+              op: "createAsset",
+              kind: "prefab",
+              path: "prefabs/",
+              id: "red-post",
+              content: { base: "post" },
+            },
+            {
+              op: "createAsset",
+              kind: "prefab",
+              path: "prefabs/",
+              id: "red-gate",
+              content: { base: "gate" },
+            },
+          ],
+        },
+        ada,
+      ),
+    );
+    expect(r.created).toEqual(["post", "red-post", "red-gate"]);
+    const entry = (id: string) => session.view().byId.get(id)!;
+    expect(entry("red-post")).toMatchObject({ kind: "prefab", path: "prefabs/red-post.json" });
+    const doc = (id: string) => host.doc(`asset:p.${keyOf(session, id)}`);
+    expect(docToPrefab(doc("post"))).toEqual({ kind: "prefab", v: 3, id: "post", entities: [] });
+    expect(docToPrefab(doc("red-post"))).toEqual({
+      kind: "prefab",
+      v: 3,
+      id: "red-post",
+      base: "post",
+      entities: [],
+    });
+    expect(docToPrefab(doc("red-gate")).base).toBe("gate");
+    for (const id of ["post", "red-post"]) {
+      const name = `asset:p.${keyOf(session, id)}`;
+      expect(r.docs).toContain(name);
+      expect(readLog(host.doc(name)).at(-1)!.keys).toContain("@header");
+    }
+    expect(readLog(doc("red-post")).at(-1)!.keys).toContain("@variant");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(source.library().get("red-post")).toMatchObject({ base: "post" });
+    expect(source.library().get("red-gate")!.entities).toEqual([]);
+    expect(session.undoLabel()).toBe("Add posts");
+    source.destroy();
+    session.destroy();
+  });
+
+  it("writes a new prefab over the bare meta a host seeds its doc with", async () => {
+    const { host, session, source } = await project({ hostSeedsMeta: true });
+    ok(
+      await applyProjectBatch(
+        session,
+        {
+          v: 1,
+          ops: [
+            {
+              op: "createAsset",
+              kind: "prefab",
+              path: "prefabs/",
+              id: "red-gate",
+              content: { base: "gate" },
+            },
+          ],
+        },
+        ada,
+      ),
+    );
+    expect(docToPrefab(host.doc(`asset:p.${keyOf(session, "red-gate")}`))).toEqual({
+      kind: "prefab",
+      v: 3,
+      id: "red-gate",
+      base: "gate",
+      entities: [],
+    });
+    source.destroy();
+    session.destroy();
+  });
+
+  it("refuses a variant of an unknown prefab, writing nothing", async () => {
+    const { session, source } = await project();
+    const before = Y.encodeStateVector(session.projectDoc);
+    const r = await applyProjectBatch(
+      session,
+      {
+        v: 1,
+        ops: [
+          {
+            op: "createAsset",
+            kind: "prefab",
+            path: "prefabs/",
+            id: "red-gate",
+            content: { base: "gat" },
+          },
+        ],
+      },
+      ada,
+    );
+    expect(r.ok || [r.opIndex, r.issue.code, r.issue.path]).toEqual([
+      0,
+      "variant-base-unknown",
+      "/ops/0/content/base",
+    ]);
+    expect(Y.encodeStateVector(session.projectDoc)).toEqual(before);
+    source.destroy();
+    session.destroy();
+  });
+
+  it("lets a later editScene set a param an earlier one exposes", async () => {
+    const { host, session, source } = await project();
+    const lift = { description: "Where the pole stands.", targets: ["pole.at"] };
+    const r = ok(
+      await applyProjectBatch(
+        session,
+        {
+          v: 1,
+          ops: [
+            {
+              op: "editScene",
+              id: "gate",
+              ops: [{ op: "exposeParam", name: "lift", param: lift }],
+            },
+            {
+              op: "editScene",
+              id: "yard",
+              ops: [{ op: "setParam", ref: "gate-1", name: "lift", value: [0, -80] }],
+            },
+          ],
+        },
+        ada,
+      ),
+    );
+    expect(r.issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(docToPrefab(host.doc("asset:p.gate")).params).toEqual({ lift });
+    expect(docToScene(host.doc("scene:p.yard")).instances).toEqual([
+      { id: "gate-1", prefab: "gate", at: [100, 900], params: { lift: [0, -80] } },
+    ]);
     source.destroy();
     session.destroy();
   });

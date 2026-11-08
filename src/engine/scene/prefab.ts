@@ -419,7 +419,9 @@ export function sceneHashWith(def: SceneDefinition, prefabs?: PrefabLibrary): Sc
 
 /**
  * A prefab as a scene of its own, for editing it in isolation and for
- * validating it: its children at their local coordinates, around the origin.
+ * validating it: its children at their local coordinates, around the origin,
+ * and its `assets` header. Its variant base, overrides and params stay on
+ * the prefab, which the view's header ops change.
  */
 export function prefabScene(prefab: Prefab, bounds: SceneDefinition["bounds"]): SceneDefinition {
   return {
@@ -432,10 +434,11 @@ export function prefabScene(prefab: Prefab, bounds: SceneDefinition["bounds"]): 
       ? { instances: structuredClone(prefab.instances) }
       : {}),
     ...(prefab.entities.length > 0 ? { entities: structuredClone(prefab.entities) } : {}),
+    ...(prefab.assets && prefab.assets.length > 0 ? { assets: [...prefab.assets] } : {}),
   };
 }
 
-/** A scene's entities, bulk arrays and instances as a prefab body, the other way from `prefabScene`. */
+/** A scene's entities, bulk arrays, instances and `assets` as a prefab body, the other way from `prefabScene`. */
 export function sceneBody(
   def: SceneDefinition,
   registry: Registry,
@@ -452,6 +455,7 @@ export function sceneBody(
     ...(def.instances && def.instances.length > 0
       ? { instances: structuredClone(def.instances) }
       : {}),
+    ...(def.assets && def.assets.length > 0 ? { assets: [...def.assets] } : {}),
     ...(contract !== undefined ? { contract: structuredClone(contract) } : {}),
   };
 }

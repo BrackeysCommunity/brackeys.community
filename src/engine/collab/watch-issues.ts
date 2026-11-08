@@ -5,7 +5,7 @@ import type { ProjectView } from "../project/types";
 import { makeIssue } from "../scene/issues";
 import type { Bounds, SceneIssue } from "../scene/types";
 import { validateScene } from "../scene/validate";
-import { contentMaps, readDoc, touchesMaps } from "./convert";
+import { contentMaps, prefabsReachedBy, readDoc, touchesMaps } from "./convert";
 import { EMPTY_PREFAB_SOURCE, type PrefabSource } from "./prefab-source";
 import { projectAssetsMap } from "./project-doc";
 
@@ -27,7 +27,7 @@ export type WatchIssuesOptions = {
   debounceMs?: number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
-  /** Where instances' prefabs come from; a change to one the scene uses revalidates. Default none. */
+  /** Where instances' prefabs come from; a change to one the doc reaches (`prefabsReachedBy`) revalidates. Default none. */
   prefabs?: PrefabSource;
   /** For a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
   parentBounds?: Bounds;
@@ -95,9 +95,10 @@ export function watchIssues(
     if (touchesMaps(tr, tracked)) schedule();
   };
   doc.on("afterTransaction", onTransaction);
-  const unsubscribe = (opts.prefabs ?? EMPTY_PREFAB_SOURCE).subscribe((changed) => {
-    const used = readDoc(doc).def.instances ?? [];
-    if (used.some((i) => changed.includes(i.prefab))) schedule();
+  const prefabs = opts.prefabs ?? EMPTY_PREFAB_SOURCE;
+  const unsubscribe = prefabs.subscribe((changed) => {
+    const reached = prefabsReachedBy(readDoc(doc), prefabs.library());
+    if (changed.some((id) => reached.has(id))) schedule();
   });
   const projectDoc = opts.project?.projectDoc;
   const registryMaps = projectDoc ? [projectAssetsMap(projectDoc) as Y.Map<unknown>] : [];

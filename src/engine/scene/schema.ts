@@ -109,6 +109,24 @@ export function gridFieldsOf(t: RegisteredType | undefined): string[] {
 export const BEHAVIOR_SLOT_META = "x-behaviors";
 
 /**
+ * A block field without its default, so parsing keeps only what a file
+ * writes (`expandScene` fills the rest); the description and the
+ * default stay in its metadata for the JSON Schema.
+ */
+function withoutDefault(s: z.core.$ZodType): z.core.$ZodType {
+  let inner: z.core.$ZodType = s;
+  let meta: Record<string, unknown> = {};
+  let fallback: unknown;
+  while (inner instanceof z.ZodDefault || inner instanceof z.ZodPrefault) {
+    fallback ??= inner._zod.def.defaultValue;
+    meta = { ...z.globalRegistry.get(inner), ...meta };
+    inner = inner.unwrap();
+  }
+  if (inner === s) return s;
+  return (inner as z.ZodType).meta({ ...meta, default: fallback });
+}
+
+/**
  * One behavior's block on a type: its fields, each optional when `given`
  * (the behavior's defaults under the type's) fills it. `needed` tells
  * whether some field has no default, so a required behavior's block must
@@ -123,7 +141,9 @@ function blockSchema(
   for (const [field, s] of Object.entries(b.shape)) {
     const optional = s._zod.optin === "optional" || given[field] !== undefined;
     if (!optional) needed = true;
-    shape[field] = optional && s._zod.optout !== "optional" ? (s as z.ZodType).optional() : s;
+    const kept = withoutDefault(s);
+    shape[field] =
+      optional && kept._zod.optout !== "optional" ? (kept as z.ZodType).optional() : kept;
   }
   const schema = z
     .strictObject(shape)

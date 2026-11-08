@@ -1904,11 +1904,11 @@ describe("applyOps: prefab header and params", () => {
     const unknown = set("room", "dor");
     expect(unknown.code).toBe("variant-base-unknown");
     expect(unknown.message).toContain('did you mean "door"');
-    expect(unknown.path).toBe("/ops/0/base");
-    expect(set("room", "room").code).toBe("prefab-cycle");
+    expect(unknown.path).toBe("/ops/0");
+    expect(set("room", "room").code).toBe("variant-base-unknown");
     const through = set("door", "room");
     expect(through.code).toBe("prefab-cycle");
-    expect(through.message).toContain('editing prefab "door"');
+    expect(through.message).toContain('Prefab "door" would contain itself: door → room');
   });
 
   it("declares, replaces and removes params on a prefab's view, with exact inverses", () => {

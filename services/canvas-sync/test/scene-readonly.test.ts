@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
 import * as Y from "yjs";
 
+import { LEGACY_BULK_FIELD, LEGACY_Z_FIELD, Z_FIELD } from "../../../src/engine/collab/types.ts";
 import { seedState, type SceneFormat } from "../../../src/lib/scene/doc-bytes.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import type { SceneReadOnlyNotice } from "../src/scene/kind.ts";
@@ -10,6 +11,7 @@ import {
   addSolid,
   COLLAB_LAYOUT_VERSION,
   connectScene,
+  layoutTwoState,
   newSceneId,
   SCENE_FORMAT_VERSION as V,
   sceneSynced,
@@ -52,25 +54,6 @@ const keysOf = (state: Uint8Array) => {
   const doc = new Y.Doc();
   Y.applyUpdate(doc, state);
   return [...doc.getMap("entities").keys()].sort();
-};
-
-/** A state as a layout-2 instance stored it: records keep their order and bulk keys as `z` and `bulk`. */
-const layoutTwo = (state: Uint8Array) => {
-  const doc = new Y.Doc();
-  Y.applyUpdate(doc, state);
-  doc.transact(() => {
-    for (const rec of doc.getMap<Y.Map<unknown>>("entities").values())
-      for (const [from, to] of [
-        ["@z", "z"],
-        ["@bulk", "bulk"],
-      ] as const)
-        if (rec.has(from)) {
-          rec.set(to, rec.get(from));
-          rec.delete(from);
-        }
-    doc.getMap("meta").set("layout", 2);
-  });
-  return Y.encodeStateAsUpdate(doc);
 };
 
 const notice = (client: SceneClient): SceneReadOnlyNotice | null =>
@@ -182,7 +165,7 @@ describe("scene format versions", () => {
     const sceneId = stored(V);
     const row = store.rows.get(sceneId)!;
     const before = keysOf(row.state!);
-    row.state = layoutTwo(row.state!);
+    row.state = layoutTwoState(row.state!);
 
     const next = open(server.port, sceneId, "alice", { format: V + 1 });
     expect(await sceneSynced(next)).toBe(true);
@@ -191,9 +174,9 @@ describe("scene format versions", () => {
     expect(next.doc.getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
     expect([...next.entities.keys()].sort()).toEqual(before);
     for (const rec of next.entities.values()) {
-      expect(typeof rec.get("@z")).toBe("string");
-      expect(rec.has("z")).toBe(false);
-      expect(rec.has("bulk")).toBe(false);
+      expect(typeof rec.get(Z_FIELD)).toBe("string");
+      expect(rec.has(LEGACY_Z_FIELD)).toBe(false);
+      expect(rec.has(LEGACY_BULK_FIELD)).toBe(false);
     }
     expect(
       [...next.entities.values()].filter((e) => e.get("id") === "spawn").map((e) => e.get("tag")),

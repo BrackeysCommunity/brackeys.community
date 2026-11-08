@@ -8,7 +8,16 @@ import {
 } from "../scene/fragment";
 import { sceneHash } from "../scene/hash";
 import { makeIssue } from "../scene/issues";
-import type { OpBatch, PrefabLibrary, Pt, Ref, SceneDefinition, SceneIssue } from "../scene/types";
+import { parseChildRef } from "../scene/resolve";
+import type {
+  OpBatch,
+  PrefabLibrary,
+  Pt,
+  Ref,
+  SceneDefinition,
+  SceneIssue,
+  SceneOp,
+} from "../scene/types";
 import type { SnapSettings } from "./tools";
 
 export { nextFreeId } from "../scene/fragment";
@@ -115,20 +124,33 @@ export function duplicateSelection(
   return result.ok ? { ...result, batch: { ...result.batch, label: "Duplicate" } } : result;
 }
 
-/** The clipboard text for the selection and the batch that removes it, instances included. */
+/**
+ * The clipboard text for the selection and the batch that removes it,
+ * instances included. An instance's child (`gate-2/door`) can't be removed
+ * from its prefab, so the batch turns it off on that instance with an
+ * `<child>.off` override; one whose instance is cut as well is left to it.
+ */
 export function cutSelection(
   def: SceneDefinition,
   refs: readonly Ref[],
   registry: Registry,
   prefabs?: PrefabLibrary,
 ): { text: string; batch: OpBatch } {
-  const bulk = refs.some((r) => r.startsWith("~"));
+  const unique = [...new Set(refs)];
+  const own = unique.filter((r) => !parseChildRef(r));
+  const removed = new Set(own);
+  const offs = new Map<string, Record<string, unknown>>();
+  for (const ref of unique) {
+    const child = parseChildRef(ref);
+    if (!child || removed.has(child.instance)) continue;
+    offs.set(child.instance, { ...offs.get(child.instance), [`${child.child}.off`]: true });
+  }
+  const ops: SceneOp[] = [
+    ...(own.length > 0 ? [{ op: "remove", refs: own } satisfies SceneOp] : []),
+    ...[...offs].map(([ref, set]) => ({ op: "override", ref, set }) satisfies SceneOp),
+  ];
   return {
     text: copySelection(def, refs, registry, prefabs),
-    batch: {
-      label: "Cut",
-      ...(bulk ? { base: sceneHash(def) } : {}),
-      ops: refs.length > 0 ? [{ op: "remove", refs: [...new Set(refs)] }] : [],
-    },
+    batch: { label: "Cut", base: sceneHash(def), ops },
   };
 }

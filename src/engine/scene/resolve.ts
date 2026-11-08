@@ -837,8 +837,7 @@ export function resolveSceneDetailed(
     )) {
       entities.push(placed);
       const nested = child.child.split(CHILD_SEPARATOR).slice(0, -1);
-      const transform =
-        child.kind === "entity" && child.turn ? composeDihedral(outer, child.turn) : outer;
+      const transform = child.turn ? composeDihedral(outer, child.turn) : outer;
       origins.push({
         kind: "child",
         instance: i,

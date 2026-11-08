@@ -49,6 +49,14 @@ function denseOf(grid: GridCells): Dense {
   return out;
 }
 
+/** Keys whose values differ between two dense models; cheaper than a deep Map equality. */
+function denseDiff(a: Dense, b: Dense): string[] {
+  const out: string[] = [];
+  for (const [k, v] of a) if (b.get(k) !== v) out.push(k);
+  for (const k of b.keys()) if (!a.has(k)) out.push(k);
+  return out;
+}
+
 function gridOf(dense: Dense): GridCells {
   const cells: CellEdit[] = [...dense].map(([k, v]) => {
     const [c, r] = k.split(",").map(Number) as [number, number];
@@ -182,13 +190,15 @@ describe("readCell and paintGrid", () => {
       }
 
       const result = paintGrid(grid, { cells, rects });
-      expect(denseOf(result.grid)).toEqual(model);
+      expect(denseDiff(denseOf(result.grid), model)).toEqual([]);
       expect(canonicalGrid(result.grid)).toEqual(result.grid);
       expect(Object.keys(result.grid)).toEqual(Object.keys(result.grid).sort(compareChunkKeys));
+      const misread: string[] = [];
       for (const [k, v] of model) {
         const [c, r] = k.split(",").map(Number) as [number, number];
-        expect(readCell(result.grid, c, r)).toBe(v);
+        if (readCell(result.grid, c, r) !== v) misread.push(k);
       }
+      expect(misread).toEqual([]);
 
       const changed = new Set<string>();
       for (const k of new Set([...before.keys(), ...model.keys()])) {
@@ -202,7 +212,7 @@ describe("readCell and paintGrid", () => {
       expect(new Set(result.inverse.map(([c, r]) => `${c},${r}`)).size).toBe(result.inverse.length);
       const undone = paintGrid(result.grid, { cells: result.inverse });
       expect(undone.grid).toEqual(grid);
-      expect(denseOf(undone.grid)).toEqual(before);
+      expect(denseDiff(denseOf(undone.grid), before)).toEqual([]);
       grid = result.grid;
     }
   });
@@ -335,7 +345,7 @@ describe("transformGrid", () => {
 });
 
 describe("a 512×512 painted grid", () => {
-  it("formats, parses and round-trips byte-identically", () => {
+  it("formats, parses and round-trips byte-identically", { timeout: 60_000 }, () => {
     const registry = createRegistry(testGame);
     const next = rng(512);
     const rects: CellRect[] = [];

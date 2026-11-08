@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
 import * as Y from "yjs";
 
+import { KEYED_ITEM, KEYED_Z } from "../../../src/engine/collab/layout.ts";
 import {
   createKindRegistry,
   dataTableKind,
@@ -44,7 +45,7 @@ const KINDS = createKindRegistry(null, [...ENGINE_ASSET_KINDS, tinyKind]);
 const TINY_SEED = JSON.stringify({ kind: "tiny-table", v: 1, rows: [] });
 const MATERIAL = formatAssetDoc(materialKind, { kind: "material", v: 1, description: "Rubber." });
 
-/** A row as the keyed layout holds one: `z` and the item's own map. */
+/** A row as the keyed layout holds one: its order key and the item's own map. */
 function addRow(doc: Y.Doc, key: string, note: string): void {
   doc.transact(() => {
     const rows = doc.getMap("content").get("rows") as Y.Map<Y.Map<unknown>>;
@@ -52,8 +53,8 @@ function addRow(doc: Y.Doc, key: string, note: string): void {
     const item = new Y.Map<unknown>();
     item.set("id", key);
     item.set("note", note);
-    entry.set("z", `a${key}`);
-    entry.set("item", item);
+    entry.set(KEYED_Z, `a${key}`);
+    entry.set(KEYED_ITEM, item);
     rows.set(key, entry);
   });
 }

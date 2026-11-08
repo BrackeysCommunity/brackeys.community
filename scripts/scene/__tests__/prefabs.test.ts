@@ -191,10 +191,30 @@ describe("scenes with prefabs", () => {
             ],
           },
           { op: "editScene", id: "red-gate", ops: [{ op: "setPrefabBase", base: "gate" }] },
+          {
+            op: "editScene",
+            id: "gates",
+            ops: [{ op: "setParam", ref: "gate-1", name: "speed", value: 150 }],
+          },
+          { op: "createAsset", kind: "prefab", path: "prefabs/blue-gate.json" },
+          {
+            op: "createAsset",
+            kind: "prefab",
+            path: "prefabs/",
+            id: "dark-blue-gate",
+            content: { base: "blue-gate" },
+          },
         ],
       }),
     );
     expect(header.exitCode, JSON.stringify(header.data)).toBe(0);
+    expect(JSON.stringify(header.data)).not.toContain("param-unknown");
+    expect(
+      JSON.parse(await readFile(join(root, "prefabs", "dark-blue-gate.json"), "utf8")),
+    ).toEqual({ kind: "prefab", v: 3, id: "dark-blue-gate", base: "blue-gate", entities: [] });
+    expect(
+      (JSON.parse(await readFile(join(root, "prefabs", "blue-gate.json"), "utf8")) as Prefab).id,
+    ).toBe("blue-gate");
     const red = JSON.parse(
       await readFile(join(root, "prefabs", "red-gate.json"), "utf8"),
     ) as Prefab;
@@ -208,7 +228,6 @@ describe("scenes with prefabs", () => {
       "--ops",
       await opsFile("scene.json", {
         ops: [
-          { op: "setParam", ref: "gate-1", name: "speed", value: 150 },
           { op: "transform", refs: ["gate-1"], turn: 1 },
           { op: "setZ", refs: ["gate-1"], z: 2 },
           { op: "instantiate", instance: { id: "red-1", prefab: "red-gate", at: [700, 800] } },

@@ -4,6 +4,7 @@ import { gridFieldInfo, ID_PATTERN } from "../game/fields";
 import type { Registry } from "../game/types";
 import { closest } from "./did-you-mean";
 import { bulkId } from "./expand";
+import { withoutEmptyMaps } from "./format";
 import { GRID_MAX_VALUE, gridProblems } from "./grid";
 import { jsonPointer, lineAt, makeIssue } from "./issues";
 import { migrate } from "./migrate";
@@ -469,6 +470,15 @@ export type ParseSceneResult =
   | { ok: true; def: SceneDefinition; migratedFrom?: number; issues: SceneIssue[] }
   | { ok: false; issues: SceneIssue[] };
 
+/** A scene's entities and instances without their empty nested maps, so it reads as its canonical text does. */
+function withoutEmptyRowMaps(def: SceneDefinition): SceneDefinition {
+  return {
+    ...def,
+    ...(def.entities ? { entities: def.entities.map(withoutEmptyMaps) } : {}),
+    ...(def.instances ? { instances: def.instances.map(withoutEmptyMaps) } : {}),
+  };
+}
+
 /**
  * Parses a scene from JSON text or an already-parsed value: migrate, pick
  * the registry from the scene's `game` (`sceneRegistry`), then that
@@ -520,7 +530,7 @@ export function parseScene(input: unknown, registry: Registry): ParseSceneResult
     const issues = result.error.issues.flatMap((i) => mapZodIssue(i, ctx)).map(withLine);
     return { ok: false, issues };
   }
-  const def = result.data as SceneDefinition;
+  const def = withoutEmptyRowMaps(result.data as SceneDefinition);
   return migrated.from === SCENE_FORMAT_VERSION
     ? { ok: true, def, issues: [] }
     : { ok: true, def, migratedFrom: migrated.from, issues: [] };

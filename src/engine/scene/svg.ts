@@ -1,9 +1,11 @@
 import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
-import { decodeRow, GRID_CHUNK, gridCellBounds, parseChunkKey, type GridCells } from "./grid";
 import {
   drawnEntities,
+  type DrawnGridCell,
+  type DrawnGridCells,
   expandedOf,
+  gridCellsIn,
   num,
   overlaps,
   resolveRegion,
@@ -12,24 +14,14 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { geometryFields } from "./schema";
-import { aabb, aabbUnion, translateShape } from "./shape-geometry";
+import { aabb, translateShape } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline, type PathCommand } from "./shape-outline";
-import type {
-  Aabb,
-  Bounds,
-  ExpandedScene,
-  GridSettings,
-  Pt,
-  SceneDefinition,
-  ShapeObj,
-} from "./types";
+import type { Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
 
 /** The longest side of a rendered scene, in image px. */
 export const SCENE_SVG_MAX_SIZE = 1600;
 
-/** The most grid cells one render draws; a "…" stands where the rest begin. */
-export const SCENE_GRID_MAX_CELLS = 4096;
+export { SCENE_GRID_MAX_CELLS } from "./render-geometry";
 
 export type SceneLabels = "entities" | "all" | "none";
 
@@ -114,7 +106,7 @@ export function sceneViewport(
   opts: SceneSvgOptions,
 ): SceneViewport {
   const expanded = expandedOf(scene, opts.registry, opts.prefabs);
-  const all = withGridBoxes(drawnEntities(expanded, opts.registry), expanded.settings.grid);
+  const all = drawnEntities(expanded, opts.registry);
   return viewportOf(expanded, all, opts);
 }
 
@@ -153,164 +145,6 @@ export function svgPathData(cmds: readonly PathCommand[]): string {
   return out.join("");
 }
 
-// ─── Grid fields ─────────────────────────────────────────
-
-/** One filled cell of a grid field, placed in the world. */
-export type DrawnGridCell = {
-  entity: DrawnEntity;
-  field: string;
-  col: number;
-  row: number;
-  value: number;
-  /** World outline: a rectangle, or a hexagon on a hex grid. */
-  outline: Pt[];
-  box: Aabb;
-};
-
-/** The filled grid cells a render draws, in entity order and row-major within each field. */
-export type DrawnGridCells = {
-  cells: DrawnGridCell[];
-  /** Filled cells in the region past the cap, not drawn. */
-  more: number;
-  /** The centre of the first cell not drawn. */
-  moreAt: Pt | null;
-};
-
-const boxOfPts = (pts: readonly Pt[]): Aabb => {
-  let b: Aabb = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-  for (const [x, y] of pts)
-    b = {
-      minX: Math.min(b.minX, x),
-      minY: Math.min(b.minY, y),
-      maxX: Math.max(b.maxX, x),
-      maxY: Math.max(b.maxY, y),
-    };
-  return b;
-};
-
-/** A cell's outline with the grid's cell (0, 0) top-left corner at `origin`; hex grids stagger as Tiled's do. */
-export function gridCellOutline(grid: GridSettings, [ox, oy]: Pt, col: number, row: number): Pt[] {
-  const [w, h] = grid.cell;
-  if (grid.kind === "square") {
-    const x = ox + col * w;
-    const y = oy + row * h;
-    return [
-      [x, y],
-      [x + w, y],
-      [x + w, y + h],
-      [x, y + h],
-    ];
-  }
-  const { side } = grid;
-  const shifted = (n: number) => ((n & 1) === 1) === (grid.index === "odd");
-  if (grid.stagger === "y") {
-    const x = ox + col * w + (shifted(row) ? w / 2 : 0);
-    const y = oy + (row * (h + side)) / 2;
-    const t = (h - side) / 2;
-    return [
-      [x + w / 2, y],
-      [x + w, y + t],
-      [x + w, y + t + side],
-      [x + w / 2, y + h],
-      [x, y + t + side],
-      [x, y + t],
-    ];
-  }
-  const x = ox + (col * (w + side)) / 2;
-  const y = oy + row * h + (shifted(col) ? h / 2 : 0);
-  const t = (w - side) / 2;
-  return [
-    [x, y + h / 2],
-    [x + t, y],
-    [x + t + side, y],
-    [x + w, y + h / 2],
-    [x + t + side, y + h],
-    [x + t, y + h],
-  ];
-}
-
-/** An entity's grid fields that hold a grid value; none without an `at` to place them. */
-function gridValues(d: DrawnEntity): { field: string; value: GridCells }[] {
-  if (!d.at) return [];
-  const out: { field: string; value: GridCells }[] = [];
-  for (const { field, kind } of geometryFields(d.type)) {
-    const value = d.entity[field];
-    if (kind === "grid" && value !== null && typeof value === "object" && !Array.isArray(value))
-      out.push({ field, value: value as GridCells });
-  }
-  return out;
-}
-
-/** The entities with each one's box grown over its grid fields' filled cells. */
-export function withGridBoxes(
-  entities: readonly DrawnEntity[],
-  grid: GridSettings | null,
-): DrawnEntity[] {
-  if (!grid) return [...entities];
-  return entities.map((d) => {
-    let box = d.box;
-    for (const { value } of gridValues(d)) {
-      const b = gridCellBounds(value);
-      if (!b) continue;
-      // Both row and column parities at each edge, so a staggered hex row is covered.
-      const cols = [...new Set([b.c0, Math.min(b.c0 + 1, b.c1), Math.max(b.c1 - 1, b.c0), b.c1])];
-      const rows = [...new Set([b.r0, Math.min(b.r0 + 1, b.r1), Math.max(b.r1 - 1, b.r0), b.r1])];
-      for (const c of cols)
-        for (const r of rows) box = aabbUnion(box, boxOfPts(gridCellOutline(grid, d.at!, c, r)));
-    }
-    return box === d.box ? d : { ...d, box };
-  });
-}
-
-/**
- * The filled cells of every grid field that fall in `region`, at most `max`
- * of them; cells are local to their entity's `at` and sized by the scene's
- * grid. Nothing without a grid.
- */
-export function gridCellsIn(
-  entities: readonly DrawnEntity[],
-  grid: GridSettings | null,
-  [x0, y0, x1, y1]: Bounds,
-  max = SCENE_GRID_MAX_CELLS,
-): DrawnGridCells {
-  const out: DrawnGridCells = { cells: [], more: 0, moreAt: null };
-  if (!grid) return out;
-  for (const d of entities) {
-    for (const { field, value } of gridValues(d)) {
-      const found: DrawnGridCell[] = [];
-      for (const [key, rows] of Object.entries(value)) {
-        const chunk = parseChunkKey(key);
-        if (!chunk || !Array.isArray(rows)) continue;
-        rows.forEach((text, r) => {
-          const cells = typeof text === "string" ? decodeRow(text) : null;
-          if (!cells) return;
-          for (let i = 0; i < GRID_CHUNK; i++) {
-            const v = cells[i] ?? 0;
-            if (v === 0) continue;
-            const col = chunk[0] * GRID_CHUNK + i;
-            const row = chunk[1] * GRID_CHUNK + r;
-            const outline = gridCellOutline(grid, d.at!, col, row);
-            const box = boxOfPts(outline);
-            if (box.maxX <= x0 || box.minX >= x1 || box.maxY <= y0 || box.minY >= y1) continue;
-            found.push({ entity: d, field, col, row, value: v, outline, box });
-          }
-        });
-      }
-      found.sort((a, b) => a.row - b.row || a.col - b.col);
-      for (const c of found) {
-        if (out.cells.length < max) {
-          out.cells.push(c);
-          continue;
-        }
-        if (out.more === 0)
-          out.moreAt = [(c.box.minX + c.box.maxX) / 2, (c.box.minY + c.box.maxY) / 2];
-        out.more++;
-      }
-    }
-  }
-  return out;
-}
-
 const isSpawnLike = (d: DrawnEntity) => d.tags.includes("spawn") || d.type.type === "spawn";
 
 /**
@@ -326,7 +160,7 @@ export function renderSceneSvg(
 ): string {
   const { registry } = opts;
   const expanded = expandedOf(scene, registry, opts.prefabs);
-  const all = withGridBoxes(drawnEntities(expanded, registry), expanded.settings.grid);
+  const all = drawnEntities(expanded, registry);
   const vp = viewportOf(expanded, all, opts);
   const [x0, y0, x1, y1] = vp.region;
   const u = 1 / vp.scale;

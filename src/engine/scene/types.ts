@@ -117,7 +117,11 @@ export type InstanceDef = {
   z?: number;
   /** Values of the prefab's exposed parameters, by name. */
   params?: Record<string, unknown>;
-  /** Child fields that differ from the prefab, by `childId.field.path`. Values are in the prefab's frame. */
+  /**
+   * Child fields that differ from the prefab, by `childId.field.path`. Each
+   * value is in the frame of the prefab that owns the child: for a nested
+   * child (`door-1/panel`), its own prefab's frame.
+   */
   overrides?: Record<OverridePath, unknown>;
   name?: string;
   layer?: string;

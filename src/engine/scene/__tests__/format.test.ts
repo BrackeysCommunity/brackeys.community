@@ -10,6 +10,7 @@ import {
   formatInputScript,
   formatPrefab,
   formatScene,
+  withoutEmptyMaps,
 } from "../format";
 import { parseScene, parseSceneOrThrow, pointerLines } from "../parse";
 import { parsePrefab } from "../prefab";
@@ -180,6 +181,39 @@ describe("formatScene: v3 keys", () => {
     expect(text).toContain(
       '{ "id": "s", "type": "solid", "off": true, "z": -1, "shape": ["box", 0, 0, 1, 1] }',
     );
+  });
+});
+
+describe("formatScene: empty nested maps", () => {
+  const empties: SceneDefinition = {
+    v: 3,
+    name: "empties",
+    bounds: [0, 0, 640, 480],
+    instances: [{ id: "room-1", prefab: "room", at: [64, 64], params: {}, overrides: {} }],
+    entities: [
+      { id: "a", type: "marker", at: [0, 0], behaviors: {}, path: {} },
+      { id: "b", type: "marker", at: [0, 0], behaviors: { "fake/tint": {} } },
+    ],
+  };
+  const bare: SceneDefinition = {
+    ...empties,
+    instances: [{ id: "room-1", prefab: "room", at: [64, 64] }],
+    entities: [
+      { id: "a", type: "marker", at: [0, 0] },
+      { id: "b", type: "marker", at: [0, 0], behaviors: { "fake/tint": {} } },
+    ],
+  };
+
+  it("writes an empty behaviors, path, params or overrides as if absent", () => {
+    expect(formatScene(empties).text).toBe(formatScene(bare).text);
+    expect(formatScene(empties).text).toContain('"behaviors": { "fake/tint": {} }');
+    expect(formatScene(empties).lines.has("/entities/0/behaviors")).toBe(false);
+  });
+
+  it("leaves a row with none untouched", () => {
+    const row = bare.entities![1]!;
+    expect(withoutEmptyMaps(row)).toBe(row);
+    expect(withoutEmptyMaps(empties.entities![0]!)).toEqual(bare.entities![0]);
   });
 });
 
@@ -435,6 +469,22 @@ describe("formatPrefab", () => {
     ).toBe(
       '{\n  "kind": "prefab",\n  "v": 3,\n  "id": "red-door",\n  "base": "door",\n  "entities": []\n}\n',
     );
+  });
+
+  it("leaves a child's or nested instance's empty nested maps out, keeping an empty behavior block", () => {
+    const text = formatPrefab({
+      kind: "prefab",
+      v: 3,
+      id: "hall",
+      instances: [{ id: "in", prefab: "door", at: [0, 0], params: {}, overrides: {} }],
+      entities: [
+        { id: "a", type: "marker", at: [0, 0], behaviors: {}, path: {} },
+        { id: "b", type: "marker", at: [0, 0], behaviors: { "fake/tint": {} } },
+      ],
+    });
+    expect(text).toContain('{ "id": "in", "prefab": "door", "at": [0, 0] }');
+    expect(text).toContain('{ "id": "a", "type": "marker", "at": [0, 0] }');
+    expect(text).toContain('"behaviors": { "fake/tint": {} }');
   });
 
   it("writes the nested-prefab and variant fixtures exactly as committed", () => {

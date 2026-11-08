@@ -68,10 +68,10 @@ function renameKey(map: Y.Map<unknown>, from: string, to: string): void {
   if (from === to || !map.has(from)) return;
   const value = map.get(from);
   map.delete(from);
-  map.set(to, value instanceof Y.AbstractType ? value.toJSON() : value);
+  if (!map.has(to)) map.set(to, value instanceof Y.AbstractType ? value.toJSON() : value);
 }
 
-/** Layout 2 → 3 for entity and instance records: `z` → `@z`, `bulk` → `@bulk`. */
+/** Layout 2 → 3 for entity and instance records: `z` → `@z`, `bulk` → `@bulk`; a layout-3 key a client already wrote wins. */
 function liftRecords(doc: Y.Doc): void {
   for (const map of [entitiesMap(doc), instancesMap(doc)])
     for (const rec of map.values()) {

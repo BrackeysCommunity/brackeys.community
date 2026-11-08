@@ -143,15 +143,24 @@ function placements(def: SceneDefinition, registry: Registry) {
  * The layer view: every registry layer, bottom to top (empty ones too, so
  * they take drops), its groups with their entities, its bulk buckets, then
  * its ungrouped entities. Bulk entries have no fields, so they sit in their
- * type's default layer.
+ * type's default layer. An instance keeps the child and nested rows the
+ * type view puts under it, moved to sit under it here.
  */
 function layerOutline(def: SceneDefinition, registry: Registry, byType: OutlineRow[]): Row[] {
-  const rows = new Map(byType.flatMap((r) => (r.ref ? [[r.ref, r] as const] : [])));
+  const rows = new Map(byType.flatMap((r, i) => (r.ref ? [[r.ref, i] as const] : [])));
   const placed = placements(def, registry);
+  /** The row at `i` at `depth`, with the rows under it in the type view a level deeper each. */
+  const subtree = (i: number, depth: number): Row[] => {
+    const head = byType[i]!;
+    const out: Row[] = [{ ...head, depth }];
+    for (let j = i + 1; j < byType.length && byType[j]!.depth > head.depth; j++)
+      out.push({ ...byType[j]!, depth: byType[j]!.depth - head.depth + depth });
+    return out;
+  };
   const out: Row[] = [];
   for (const { name: layer, description } of registry.layers) {
-    const groups = new Map<string, EntityRow[]>();
-    const loose: EntityRow[] = [];
+    const groups = new Map<string, number[]>();
+    const loose: number[] = [];
     const buckets: Row[] = [];
     for (let i = 0; i < byType.length; i++) {
       const row = byType[i]!;
@@ -163,11 +172,11 @@ function layerOutline(def: SceneDefinition, registry: Registry, byType: OutlineR
       }
     }
     for (const [id, e] of placed) {
-      const row = rows.get(id);
-      if (e.layer !== layer || !row || !isEntityRow(row)) continue;
+      const at = rows.get(id);
+      if (e.layer !== layer || at === undefined || !isEntityRow(byType[at]!)) continue;
       if (typeof e.group === "string") {
-        groups.set(e.group, [...(groups.get(e.group) ?? []), row]);
-      } else loose.push(row);
+        groups.set(e.group, [...(groups.get(e.group) ?? []), at]);
+      } else loose.push(at);
     }
     const count =
       loose.length +
@@ -192,9 +201,9 @@ function layerOutline(def: SceneDefinition, registry: Registry, byType: OutlineR
         layer,
         group,
       });
-      out.push(...members.map((r) => ({ ...r, depth: 2 })));
+      out.push(...members.flatMap((at) => subtree(at, 2)));
     }
-    out.push(...buckets, ...loose);
+    out.push(...buckets, ...loose.flatMap((at) => subtree(at, 1)));
   }
   return out;
 }

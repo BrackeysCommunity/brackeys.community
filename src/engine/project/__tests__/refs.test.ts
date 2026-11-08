@@ -585,6 +585,29 @@ describe("over the engine's kinds", () => {
     expect(refs.dangling()).toEqual([]);
   });
 
+  it("counts a variant's own material overrides", () => {
+    const variant = {
+      kind: "prefab",
+      v: 3,
+      game: "surfaces",
+      id: "gate",
+      base: "post",
+      entities: [],
+      overrides: { "slope.material": "rubber", "slope.label": "rubber" },
+    };
+    const index = buildRefIndex(view, new Map([["gate", variant]]), engineKinds, {
+      registry,
+      project: view,
+    });
+    expect(index.referrers("rubber")).toEqual([
+      { id: "gate", kind: "prefab", pointer: "/overrides/slope.material" },
+    ]);
+    expect(rewriteRefs(variant, index.targets("gate"), "rubber", "bouncy").overrides).toEqual({
+      "slope.material": "bouncy",
+      "slope.label": "rubber",
+    });
+  });
+
   it("rewrites each kind's sites and leaves every other value alone", () => {
     const yard = values.yard as Record<string, any>;
     const scene = rewriteRefs(yard, refs.targets("yard"), "rubber", "bouncy");
@@ -781,6 +804,43 @@ describe("asset fields over the engine's kinds", () => {
       { id: "big-post", kind: "prefab", pointer: "/instances/@inner/prefab" },
     ]);
     expect(refs.dangling()).toEqual([]);
+  });
+
+  it("counts a variant's own overrides, and a rename rewrites them", () => {
+    const red = {
+      kind: "prefab",
+      v: 3,
+      game: "art",
+      id: "red-post",
+      base: "post",
+      entities: [],
+      overrides: { "board.skin": "tiles", "board.at": [1, 1] },
+    };
+    const withRed = projectView(
+      {
+        ...state,
+        assets: Object.fromEntries(
+          [...entries, entry("red-post", "prefab", { path: "levels/prefabs/red-post.json" })].map(
+            (e) => [e.key, e],
+          ),
+        ),
+      },
+      engineKinds,
+    );
+    const index = buildRefIndex(
+      withRed,
+      new Map([...Object.entries(values), ["red-post", red]]),
+      engineKinds,
+      { registry, project: withRed },
+    );
+    expect(index.referrers("tiles")).toContainEqual({
+      id: "red-post",
+      kind: "prefab",
+      pointer: "/overrides/board.skin",
+    });
+    const next = rewriteRefs(red, index.targets("red-post"), "tiles", "tileset");
+    expect(next.overrides).toEqual({ "board.skin": "tileset", "board.at": [1, 1] });
+    expect(next.base).toBe("post");
   });
 
   it("reports a dangling or wrong-kind asset field as asset-missing", () => {

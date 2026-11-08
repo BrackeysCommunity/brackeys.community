@@ -3,6 +3,7 @@ import type { z } from "zod";
 import type { Registry } from "../game/types";
 import { transformGrid, type GridCells } from "./grid";
 import { fieldKind, geometryFields } from "./schema";
+import { normDeg } from "./shape-geometry";
 import {
   applyPt,
   applyVec,
@@ -54,10 +55,7 @@ function quarterTurns(t: Transform2D): Dihedral {
 const turnAngle = (deg: number, d: Dihedral) => (d.flip ? 0 - deg : deg) + 90 * d.rot;
 
 /** A shape's `rotDeg` after `d`, kept in [0, 360). */
-const turnRotDeg = (deg: number, d: Dihedral) => {
-  const r = turnAngle(deg, d) % 360;
-  return r < 0 ? r + 360 : r + 0;
-};
+const turnRotDeg = (deg: number, d: Dihedral) => normDeg(turnAngle(deg, d));
 
 /**
  * A shape tuple under `t`. Boxes and capsules keep their extents and turn
@@ -80,10 +78,9 @@ export function transformTuple(tuple: ShapeTuple, t: Transform2D): ShapeTuple {
   if (tuple[0] === "box" || tuple[0] === "capsule") {
     const d = quarterTurns(t);
     if (!isIdentityTurn(d)) {
-      const had = out.length > 5;
-      const rotDeg = turnRotDeg(had ? (out[5] as number) : 0, d);
-      if (had) out[5] = rotDeg;
-      else if (rotDeg !== 0) out.push(rotDeg);
+      const rotDeg = turnRotDeg(out.length > 5 ? (out[5] as number) : 0, d);
+      if (rotDeg === 0) out.length = 5;
+      else out[5] = rotDeg;
     }
   }
   return out as ShapeTuple;

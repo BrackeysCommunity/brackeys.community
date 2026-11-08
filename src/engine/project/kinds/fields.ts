@@ -80,61 +80,75 @@ export function bulkMaterialRefs(
 }
 
 /**
- * Instance overrides that set a material: those whose field is a material
- * field of some registered type. The prefab, which knows each child's
- * type, isn't at hand, so the field's name decides.
+ * Overrides that set a material: those whose field is a material field of
+ * some registered type. The prefab, which knows each child's type, isn't at
+ * hand, so the field's name decides. `at` is the overrides' own pointer.
  */
-export function overrideMaterialRefs(
-  registry: Registry,
-  instances: readonly InstanceDef[] | undefined,
+function overridesMaterialSites(
+  overrides: Readonly<Record<string, unknown>> | undefined,
+  at: readonly string[],
+  fields: () => ReadonlySet<string>,
 ): RefSite[] {
-  if (!instances?.some((inst) => inst.overrides)) return [];
-  const fields = new Set(registry.typeNames.flatMap((t) => materialFieldsOf(registry, t)));
   const out: RefSite[] = [];
-  for (const inst of instances) {
-    for (const [path, value] of Object.entries(inst.overrides ?? {})) {
-      const split = splitOverridePath(path);
-      if (!split || !fields.has(split.field) || typeof value !== "string") continue;
-      out.push({
-        pointer: jsonPointer(["instances", `@${inst.id}`, "overrides", path]),
-        id: value,
-        kinds: [MATERIAL_KIND],
-      });
-    }
+  for (const [path, value] of Object.entries(overrides ?? {})) {
+    const split = splitOverridePath(path);
+    if (!split || typeof value !== "string" || !fields().has(split.field)) continue;
+    out.push({ pointer: jsonPointer([...at, path]), id: value, kinds: [MATERIAL_KIND] });
   }
   return out;
 }
 
+const materialFieldNames = (registry: Registry) => {
+  let fields: Set<string> | undefined;
+  return () =>
+    (fields ??= new Set(registry.typeNames.flatMap((t) => materialFieldsOf(registry, t))));
+};
+
+/** Instance overrides that set a material, as `overridesMaterialSites` judges them. */
+export function overrideMaterialRefs(
+  registry: Registry,
+  instances: readonly InstanceDef[] | undefined,
+): RefSite[] {
+  const fields = materialFieldNames(registry);
+  return (instances ?? []).flatMap((inst) =>
+    overridesMaterialSites(inst.overrides, ["instances", `@${inst.id}`, "overrides"], fields),
+  );
+}
+
 /**
- * The asset fields' references of a list of entities: each one's type
- * fields and each behavior block it carries, by `@<id>` pointer under `at`.
+ * The asset fields' references of one entity: its type's fields and each
+ * registered behavior block it carries, under pointer `base`, one per pointer.
  */
+export function entityRefSites(registry: Registry, e: EntityLike, base: string): RefSite[] {
+  const sites = new Map<string, RefSite>();
+  const add = (list: readonly RefSite[]) => {
+    for (const site of list) sites.set(site.pointer, site);
+  };
+  const type = typeof e.type === "string" ? registry.types.get(e.type) : undefined;
+  if (type) add(schemaRefSites(type.shape, e, base));
+  const blocks = e[BEHAVIORS_FIELD];
+  if (isPlainObject(blocks))
+    for (const [name, block] of Object.entries(blocks)) {
+      const behavior = registry.behaviors.get(name);
+      if (behavior)
+        add(
+          schemaRefSites(behavior.shape, block, `${base}${jsonPointer([BEHAVIORS_FIELD, name])}`),
+        );
+    }
+  return [...sites.values()];
+}
+
+/** The asset fields' references of a list of entities (`entityRefSites`), by `@<id>` pointer under `at`. */
 export function entityAssetRefs(
   registry: Registry,
   entities: readonly EntityLike[] | undefined,
   at: string,
 ): RefSite[] {
-  const out: RefSite[] = [];
-  for (const e of entities ?? []) {
-    if (typeof e.id !== "string" || typeof e.type !== "string") continue;
-    const base = `${at}/@${e.id}`;
-    const type = registry.types.get(e.type);
-    if (type) out.push(...schemaRefSites(type.shape, e, base));
-    const blocks = e[BEHAVIORS_FIELD];
-    if (!isPlainObject(blocks)) continue;
-    for (const [name, block] of Object.entries(blocks)) {
-      const behavior = registry.behaviors.get(name);
-      if (behavior)
-        out.push(
-          ...schemaRefSites(
-            behavior.shape,
-            block,
-            `${base}${jsonPointer([BEHAVIORS_FIELD, name])}`,
-          ),
-        );
-    }
-  }
-  return out;
+  return (entities ?? []).flatMap((e) =>
+    typeof e.id === "string" && typeof e.type === "string"
+      ? entityRefSites(registry, e, `${at}/@${e.id}`)
+      : [],
+  );
 }
 
 /** The asset fields some registered type (or behavior) has at an override's field path. */
@@ -161,23 +175,32 @@ function overrideSites(
 }
 
 /**
- * Instance overrides that set an asset field: those whose field path
- * reaches an `assetField` in some registered type or behavior. As with
- * materials, the prefab that knows each child's type isn't at hand.
+ * Overrides that set an asset field: those whose field path reaches an
+ * `assetField` in some registered type or behavior. As with materials, the
+ * prefab that knows each child's type isn't at hand.
  */
+function overridesAssetSites(
+  registry: Registry,
+  overrides: Readonly<Record<string, unknown>> | undefined,
+  at: readonly string[],
+): RefSite[] {
+  const pointer = jsonPointer(at);
+  const out: RefSite[] = [];
+  for (const [path, value] of Object.entries(overrides ?? {})) {
+    const split = splitOverridePath(path);
+    if (split) out.push(...overrideSites(registry, path, split.field, value, pointer));
+  }
+  return out;
+}
+
+/** Instance overrides that set an asset field, as `overridesAssetSites` judges them. */
 export function overrideAssetRefs(
   registry: Registry,
   instances: readonly InstanceDef[] | undefined,
 ): RefSite[] {
-  const out: RefSite[] = [];
-  for (const inst of instances ?? []) {
-    const at = jsonPointer(["instances", `@${inst.id}`, "overrides"]);
-    for (const [path, value] of Object.entries(inst.overrides ?? {})) {
-      const split = splitOverridePath(path);
-      if (split) out.push(...overrideSites(registry, path, split.field, value, at));
-    }
-  }
-  return out;
+  return (instances ?? []).flatMap((inst) =>
+    overridesAssetSites(registry, inst.overrides, ["instances", `@${inst.id}`, "overrides"]),
+  );
 }
 
 /** Each instance's prefab. */
@@ -201,12 +224,15 @@ export function headerAssetRefs(assets: readonly unknown[] | undefined): RefSite
 type BodyLike = {
   entities?: readonly EntityLike[];
   instances?: readonly InstanceDef[];
+  /** A variant's overrides of its base's children. */
+  overrides?: Readonly<Record<string, unknown>>;
   assets?: readonly unknown[];
 };
 
 /**
  * What a scene's or prefab's content names: the header, each instance's
- * prefab and overrides, and its entities' material and asset fields. Bulk
+ * prefab and overrides, a variant's overrides, and its entities' material
+ * and asset fields. Bulk
  * keys are the caller's, which knows where they sit. Without a registry
  * (a scene for another game) only the header and prefabs are known.
  */
@@ -217,6 +243,8 @@ export function bodyRefs(registry: Registry | null, body: BodyLike): RefSite[] {
     ...shared,
     ...overrideMaterialRefs(registry, body.instances),
     ...overrideAssetRefs(registry, body.instances),
+    ...overridesMaterialSites(body.overrides, ["overrides"], materialFieldNames(registry)),
+    ...overridesAssetSites(registry, body.overrides, ["overrides"]),
     ...entityMaterialRefs(registry, body.entities, "/entities"),
     ...entityAssetRefs(registry, body.entities, "/entities"),
   ];

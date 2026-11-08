@@ -11,7 +11,7 @@ import {
   type RuntimeEntity,
   type SceneDefinition,
 } from "../scene/types";
-import { contentMaps, readDoc, touchesMaps } from "./convert";
+import { contentMaps, prefabsReachedBy, readDoc, touchesMaps } from "./convert";
 import { sameValue } from "./log";
 import { EMPTY_PREFAB_SOURCE, type PrefabSource } from "./prefab-source";
 
@@ -107,7 +107,8 @@ export function expandLenient(
  * that changed the scene (local or remote), the touched entities are
  * removed, added and updated, each at most once per transaction. A change
  * to settings or the header reloads the runtime. A transaction in a
- * prefab the scene's instances use re-expands them, once per transaction.
+ * prefab the doc reaches (`prefabsReachedBy`: nested ones and a variant's
+ * base included) re-expands it, once per transaction.
  */
 export function bindSceneDoc(
   doc: Y.Doc,
@@ -165,9 +166,10 @@ export function bindSceneDoc(
   };
   doc.on("afterTransaction", onTransaction);
   const unsubscribe = prefabs.subscribe((changed) => {
-    const def = read().def;
-    if (!(def.instances ?? []).some((i) => changed.includes(i.prefab))) return;
-    if (!paused) apply(expand(def));
+    const view = read();
+    const reached = prefabsReachedBy(view, prefabs.library());
+    if (!changed.some((id) => reached.has(id))) return;
+    if (!paused) apply(expand(view.def));
   });
 
   return {

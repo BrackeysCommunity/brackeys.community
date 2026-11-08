@@ -13,7 +13,14 @@ import {
   sceneDocs,
   user,
 } from "../../../src/db/schema.ts";
-import { BULK_FIELD, Z_FIELD, type ProjectLogEntry } from "../../../src/engine/collab/types.ts";
+import {
+  BULK_FIELD,
+  DOC_MAPS,
+  LEGACY_BULK_FIELD,
+  LEGACY_Z_FIELD,
+  Z_FIELD,
+  type ProjectLogEntry,
+} from "../../../src/engine/collab/types.ts";
 import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
 import {
   SCENE_FORMAT_VERSION,
@@ -498,6 +505,34 @@ export function layoutOneState(
     doc.getMap("meta").delete("layout");
     const map = doc.getMap<unknown>("prefabs");
     for (const prefab of prefabs) map.set(prefab.id, structuredClone(prefab));
+  });
+  return Y.encodeStateAsUpdate(doc);
+}
+
+/**
+ * A scene state as a layout-2 instance stored it: every entity and instance
+ * record's order and bulk keys under their layout-2 names, `meta.layout` 2,
+ * and `meta.schemaVersion` set to `schemaVersion` when given.
+ */
+export function layoutTwoState(state: Uint8Array, schemaVersion?: number): Uint8Array {
+  const doc = new Y.Doc();
+  Y.applyUpdate(doc, state);
+  doc.transact(() => {
+    for (const name of [DOC_MAPS.entities, DOC_MAPS.instances])
+      for (const rec of doc.getMap(name).values()) {
+        if (!(rec instanceof Y.Map)) continue;
+        for (const [from, to] of [
+          [Z_FIELD, LEGACY_Z_FIELD],
+          [BULK_FIELD, LEGACY_BULK_FIELD],
+        ] as const)
+          if (rec.has(from)) {
+            rec.set(to, rec.get(from));
+            rec.delete(from);
+          }
+      }
+    const meta = doc.getMap(DOC_MAPS.meta);
+    meta.set("layout", 2);
+    if (schemaVersion !== undefined) meta.set("schemaVersion", schemaVersion);
   });
   return Y.encodeStateAsUpdate(doc);
 }

@@ -35,6 +35,7 @@ import {
   prefabsUsedBy,
   sceneBody,
 } from "./prefab";
+import { applyHeaderOp, sortedParams, type PrefabHeader } from "./prefab-header";
 import {
   CHILD_SEPARATOR,
   gridTurns,
@@ -104,7 +105,6 @@ import {
   type Prefab,
   type PrefabBody,
   type PrefabLibrary,
-  type PrefabParam,
   type Pt,
   type Ref,
   type SceneDefinition,
@@ -159,19 +159,13 @@ type Work = {
   headerTouched: boolean;
 };
 
-type ViewHeader = { base?: string; params: Record<string, PrefabParam> };
+type ViewHeader = PrefabHeader;
 
 function headerOf(prefab: Prefab | undefined): ViewHeader {
   return {
     ...(prefab?.base !== undefined ? { base: prefab.base } : {}),
     params: sortedParams(clone(prefab?.params ?? {})),
   };
-}
-
-function sortedParams(params: Record<string, PrefabParam>): Record<string, PrefabParam> {
-  const out: Record<string, PrefabParam> = {};
-  for (const name of Object.keys(params).sort()) out[name] = params[name]!;
-  return out;
 }
 
 /** Refuses a prefab-header op outside a prefab's own document. */
@@ -1488,42 +1482,12 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       paintCellsOp(w, op, i);
       return;
     }
-    case "setPrefabBase": {
-      viewOnly(w, op.op);
-      if (op.base === null) delete w.header.base;
-      else {
-        if (op.base === w.view)
-          fail("prefab-cycle", `Prefab "${op.base}" can't be a variant of itself.`, {
-            path: `/ops/${i}/base`,
-            got: op.base,
-          });
-        if (!w.prefabs.has(op.base)) {
-          const known = [...w.prefabs.keys()].filter((id) => id !== w.view);
-          const suggestion = closest(op.base, known);
-          fail(
-            "variant-base-unknown",
-            `No prefab "${op.base}" to be a variant of${suggestion ? `; did you mean "${suggestion}"?` : "."}`,
-            { path: `/ops/${i}/base`, got: op.base, expected: known.join(", ") },
-          );
-        }
-        w.header.base = op.base;
-      }
-      w.headerTouched = true;
-      return;
-    }
+    case "setPrefabBase":
     case "exposeParam": {
       viewOnly(w, op.op);
-      if (op.param === null) {
-        if (!(op.name in w.header.params)) {
-          const suggestion = closest(op.name, Object.keys(w.header.params));
-          fail(
-            "op-invalid",
-            `Prefab "${w.view}" declares no parameter "${op.name}"${suggestion ? `; did you mean "${suggestion}"?` : "."}`,
-            { path: `/ops/${i}/name`, got: op.name },
-          );
-        }
-        delete w.header.params[op.name];
-      } else w.header.params = sortedParams({ ...w.header.params, [op.name]: clone(op.param) });
+      const next = applyHeaderOp(w.header, op, w.view!, w.prefabs);
+      if (!next.ok) throw new OpFailure(next.issue);
+      w.header = next.header;
       w.headerTouched = true;
       return;
     }

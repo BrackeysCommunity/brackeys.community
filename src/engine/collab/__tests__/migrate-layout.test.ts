@@ -5,13 +5,19 @@ import { ID_PATTERN } from "../../game/fields";
 import type { AssetEntry, AssetKey } from "../../project/types";
 import { projectView } from "../../project/view";
 import type { Prefab, SceneDefinition } from "../../scene/types";
-import { docLayout, docPrefabs, metaMap, prefabsMap, sceneToDoc } from "../convert";
+import { docLayout, docPrefabs, instancesMap, metaMap, prefabsMap, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
 import { readLog } from "../log";
 import { migrateLayout, projectDocWriter } from "../migrate-layout";
 import { docToPrefab, prefabToDoc } from "../prefab-doc";
 import { readProject, seedProjectDoc, writeEntry } from "../project-doc";
-import { COLLAB_LAYOUT_VERSION } from "../types";
+import {
+  BULK_FIELD,
+  COLLAB_LAYOUT_VERSION,
+  LEGACY_BULK_FIELD,
+  LEGACY_Z_FIELD,
+  Z_FIELD,
+} from "../types";
 
 const prefab = (id: string, at: [number, number]): Prefab => ({
   kind: "prefab",
@@ -182,6 +188,34 @@ describe("migrateLayout", () => {
     const key = `${"a".repeat(46)}-2`;
     expect(readProject(doc).assets[key]).toMatchObject({ id, kind: "prefab" });
     expect(ID_PATTERN.test(key)).toBe(true);
+  });
+
+  it("lifts a layout-2 record's z and bulk, keeping an @z or @bulk a layout-3 client already wrote", () => {
+    const { writer } = project();
+    const scene = sceneToDoc(SCENE, { key: sequentialKeys("s") });
+    const [lifted, raced] = [...instancesMap(scene).values()] as Y.Map<unknown>[];
+    const liftedZ = lifted!.get(Z_FIELD);
+    scene.transact(() => {
+      metaMap(scene).set("layout", 2);
+      lifted!.delete(Z_FIELD);
+      lifted!.set(LEGACY_Z_FIELD, liftedZ);
+      lifted!.set(LEGACY_BULK_FIELD, "b1");
+      raced!.set(LEGACY_Z_FIELD, "stale");
+      raced!.set(Z_FIELD, "fresh");
+      raced!.set(LEGACY_BULK_FIELD, "old-bulk");
+      raced!.set(BULK_FIELD, "new-bulk");
+    });
+
+    expect(migrateLayout(scene, writer)).toMatchObject({ migrated: true, from: 2 });
+    expect(lifted!.get(Z_FIELD)).toBe(liftedZ);
+    expect(lifted!.get(BULK_FIELD)).toBe("b1");
+    expect(raced!.get(Z_FIELD)).toBe("fresh");
+    expect(raced!.get(BULK_FIELD)).toBe("new-bulk");
+    for (const rec of [lifted!, raced!]) {
+      expect(rec.has(LEGACY_Z_FIELD)).toBe(false);
+      expect(rec.has(LEGACY_BULK_FIELD)).toBe(false);
+    }
+    expect(docLayout(scene)).toBe(COLLAB_LAYOUT_VERSION);
   });
 
   it("leaves a doc at this layout, or one never seeded, alone", () => {

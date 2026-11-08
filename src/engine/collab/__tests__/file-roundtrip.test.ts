@@ -3,7 +3,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
+import { testGame } from "../../__tests__/fixtures/test-game";
+import { createRegistry } from "../../game/define";
 import { formatScene } from "../../scene/format";
+import { sceneHash } from "../../scene/hash";
+import { parseSceneOrThrow } from "../../scene/parse";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
 import { sceneNameOf } from "../../vite/scene-paths";
 import { docLayout, docPrefabs, docToScene, sceneToDoc } from "../convert";
@@ -56,4 +60,34 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
       expect([docLayout(remote), docPrefabs(remote).size]).toEqual([COLLAB_LAYOUT_VERSION, 0]);
     });
   }
+
+  it("reads empty nested maps as absent in the file, the doc and the hash alike", () => {
+    const written: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      game: "test-game",
+      name: "empties",
+      bounds: [0, 0, 640, 480],
+      instances: [{ id: "room-1", prefab: "room", at: [64, 64], params: {}, overrides: {} }],
+      entities: [
+        { id: "lamp", type: "lamp", at: [10, 10], behaviors: {} },
+        { id: "lit", type: "lamp", at: [20, 20], behaviors: { "test-game/glow": {} } },
+      ],
+    };
+    const parsed = parseSceneOrThrow(JSON.stringify(written, null, 2), createRegistry(testGame));
+    const text = formatScene(parsed).text;
+    expect(text).not.toMatch(/"(behaviors|params|overrides)": \{\}/);
+    expect(text).toContain('"behaviors": { "test-game/glow": {} }');
+    expect(formatScene(written).text).toBe(text);
+    for (const def of [parsed, written]) {
+      const doc = sceneToDoc(def);
+      const remote = new Y.Doc();
+      Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
+      for (const d of [doc, remote]) {
+        expect(formatScene(docToScene(d)).text).toBe(text);
+        expect(sceneHash(docToScene(d))).toBe(sceneHash(parsed));
+      }
+    }
+    expect(sceneHash(written)).toBe(sceneHash(parsed));
+    expect(docToScene(sceneToDoc(parsed))).toEqual(parsed);
+  });
 });

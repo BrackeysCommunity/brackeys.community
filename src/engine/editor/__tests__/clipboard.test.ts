@@ -3,8 +3,10 @@ import { describe, expect, it } from "vite-plus/test";
 import { fake } from "../../scene/__tests__/fixtures/fake-game";
 import { fake as yardFake, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
 import { fragmentBounds, type SceneFragment } from "../../scene/fragment";
+import { sceneHash } from "../../scene/hash";
 import { applyOps } from "../../scene/ops";
 import { prefabLibrary } from "../../scene/prefab";
+import { resolveScene } from "../../scene/resolve";
 import { SCENE_FORMAT_VERSION, type OpBatch, type SceneDefinition } from "../../scene/types";
 import {
   copySelection,
@@ -306,6 +308,39 @@ describe("instances on the clipboard", () => {
     const { text, batch } = cutSelection(yard, ["gate-2"], yardFake, prefabs);
     expect(JSON.parse(text).instances).toEqual(yard.instances);
     expect(applyYard(yard, batch).instances ?? []).toEqual([]);
+  });
+
+  it("cuts an instance's child by turning it off on that instance", () => {
+    const { text, batch } = cutSelection(
+      yard,
+      ["gate-2/door", "gate-2/~solid:0"],
+      yardFake,
+      prefabs,
+    );
+    expect(JSON.parse(text).entities).toMatchObject([
+      { id: "door", type: "follower" },
+      { id: "solid", type: "solid" },
+    ]);
+    expect(batch).toEqual({
+      label: "Cut",
+      base: sceneHash(yard),
+      ops: [{ op: "override", ref: "gate-2", set: { "door.off": true, "~solid:0.off": true } }],
+    });
+    const after = applyYard(yard, batch);
+    expect(after.instances![0]!.overrides).toEqual({
+      "door.path.speed": 120,
+      "door.off": true,
+      "~solid:0.off": true,
+    });
+    const resolved = resolveScene(after, yardFake, prefabs);
+    expect(resolved.entities!.find((e) => e.id === "gate-2/door")?.off).toBe(true);
+    expect(resolved.entities!.find((e) => e.id === "gate-2/trigger")?.off).toBeUndefined();
+  });
+
+  it("leaves a cut instance's children to the instance's removal", () => {
+    const { batch } = cutSelection(yard, ["gate-2/door", "gate-2", "pull"], yardFake, prefabs);
+    expect(batch.ops).toEqual([{ op: "remove", refs: ["gate-2", "pull"] }]);
+    expect(batch.base).toBe(sceneHash(yard));
   });
 });
 

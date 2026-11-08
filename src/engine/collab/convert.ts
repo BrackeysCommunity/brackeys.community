@@ -7,6 +7,7 @@ import { EMPTY_SCENE_TEMPLATE } from "../scene/create";
 import { bulkEntries, bulkKeysOf, bulkKeyType } from "../scene/expand";
 import { FRAGMENT_KIND, fragmentBounds } from "../scene/fragment";
 import { canonicalGrid, isGridValue, GRID_CHUNK, type GridCells } from "../scene/grid";
+import { prefabsUsedBy } from "../scene/prefab";
 import {
   PREFAB_KIND,
   RESERVED_SCENE_KEYS,
@@ -357,6 +358,24 @@ export type ReadDocOptions = {
   /** For a prefab doc, with `registry`: the prefabs its nested instances name, so the bounds hold their children too. */
   prefabs?: PrefabLibrary;
 };
+
+/**
+ * The prefabs a doc's view reaches (`prefabsUsedBy`), plus, for a variant's
+ * prefab doc, its base and all the base reaches: a change to any of them
+ * changes what the doc expands to.
+ */
+export function prefabsReachedBy(view: DocView, prefabs: PrefabLibrary): Set<string> {
+  const out = new Set(prefabsUsedBy(view.def, prefabs));
+  const base = view.prefab?.base;
+  if (base !== undefined) {
+    const root: SceneDefinition = {
+      ...view.def,
+      instances: [{ id: base, prefab: base, at: [0, 0] }],
+    };
+    for (const id of prefabsUsedBy(root, prefabs)) out.add(id);
+  }
+  return out;
+}
 
 /** Room around a prefab's children in the scene a prefab doc reads as. */
 const PREFAB_MARGIN = 64;

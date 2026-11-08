@@ -8,6 +8,7 @@ import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { primitiveFields } from "../../game/primitives";
 import { parseSceneOrThrow } from "../parse";
+import { drawnEntities, expandedOf } from "../render-geometry";
 import { shapeOutline } from "../shape-outline";
 import {
   renderSceneSvg,
@@ -308,6 +309,32 @@ describe("grid fields", () => {
     const scene = paintScene({ "0,0": ["1*4"] });
     const vp = sceneViewport(scene, { registry: game, around: "floor", margin: 0 });
     expect(vp.region).toEqual([64, 640, 192, 672]);
+  });
+
+  it("gives a painted entity a box over its filled cells, and none past its at without a grid", () => {
+    const boxOf = (scene: SceneDefinition) =>
+      drawnEntities(expandedOf(scene, game), game).find((d) => d.id === "floor")?.box;
+    expect(boxOf(paintScene({ "-1,0": ["0*31,1"], "0,0": ["", "", "1*3"] }))).toEqual({
+      minX: 32,
+      minY: 640,
+      maxX: 160,
+      maxY: 736,
+    });
+    const hexGrid: GridSettings = {
+      kind: "hex",
+      cell: [32, 32],
+      side: 16,
+      stagger: "y",
+      index: "odd",
+    };
+    expect(boxOf(paintScene({ "0,0": ["1", "1"] }, hexGrid))).toEqual({
+      minX: 64,
+      minY: 640,
+      maxX: 112,
+      maxY: 696,
+    });
+    const { settings: _, ...gridless } = paintScene({ "0,0": ["1*4"] });
+    expect(boxOf(gridless)).toEqual({ minX: 64, minY: 640, maxX: 64, maxY: 640 });
   });
 
   it("draws nothing for cells in a scene without a grid", () => {

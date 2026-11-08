@@ -406,4 +406,64 @@ describe("EditorOutliner attaching and nesting", () => {
     expect(levels().map(([n]) => n)).toEqual(["room-1", "floor", "door-1"]);
     expect(outliner().getByRole("button", { name: "Expand door-1", expanded: false })).toBeTruthy();
   });
+
+  it("keeps an instance's child and nested rows under it in the layer view", () => {
+    const library = prefabLibrary([
+      {
+        kind: "prefab",
+        v: SCENE_FORMAT_VERSION,
+        id: "door",
+        entities: [{ id: "panel", type: "marker", at: [0, 0], name: "Panel" }],
+      },
+      {
+        kind: "prefab",
+        v: SCENE_FORMAT_VERSION,
+        id: "room",
+        entities: [{ id: "floor", type: "solid", shape: ["box", 0, 0, 40, 4] }],
+        instances: [{ id: "door-1", prefab: "door", at: [10, 0] }],
+      },
+    ]);
+    const { session } = setup(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "rooms",
+        bounds: [0, 0, 100, 100],
+        groups: { hall: { at: [0, 0] } },
+        instances: [
+          { id: "room-1", prefab: "room", at: [50, 50], group: "hall" },
+          { id: "room-2", prefab: "room", at: [20, 20] },
+        ],
+      },
+      library,
+    );
+    fireEvent.click(outliner().getByRole("button", { name: "Layer" }));
+    const levels = () =>
+      outliner()
+        .getAllByRole("listitem")
+        .map((li) => [
+          li.querySelector("[aria-pressed] span")?.textContent ??
+            li.textContent?.replace(/\d+$/, ""),
+          li.ariaLevel,
+        ]);
+    const gameplay = levels().slice(levels().findIndex(([n]) => n === "Gameplay"));
+    expect(gameplay.slice(0, 11)).toEqual([
+      ["Gameplay", "1"],
+      ["hall", "2"],
+      ["room-1", "3"],
+      ["floor", "4"],
+      ["door-1", "4"],
+      ["Panel", "5"],
+      ["room-2", "2"],
+      ["floor", "3"],
+      ["door-1", "3"],
+      ["Panel", "4"],
+      ["Editor", "1"],
+    ]);
+
+    fireEvent.click(outliner().getAllByRole("button", { name: /^Panel/ })[1]!);
+    expect(session.store.state.selection).toEqual(["room-2/door-1/panel"]);
+    fireEvent.click(outliner().getByRole("button", { name: "Collapse room-1", expanded: true }));
+    expect(levels().map(([n]) => n)).toContain("room-2");
+    expect(levels().filter(([n]) => n === "floor")).toHaveLength(1);
+  });
 });

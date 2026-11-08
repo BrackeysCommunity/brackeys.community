@@ -162,6 +162,26 @@ function inline(value: unknown, plain = false): string {
 const member = (k: string, v: unknown, plain = false) =>
   `${JSON.stringify(k)}: ${inline(v, plain || k === BEHAVIORS_FIELD)}`;
 
+/** The nested maps a row holds only when they hold something. */
+const OMITTED_WHEN_EMPTY = [BEHAVIORS_FIELD, "path", "params", "overrides"];
+
+/**
+ * An entity or instance with its empty `behaviors`, `path`, `params` and
+ * `overrides` left out, since an empty one means the same as none; `row`
+ * itself when it has none.
+ */
+export function withoutEmptyMaps<T>(row: T): T {
+  if (!isPlainObject(row)) return row;
+  let out: Record<string, unknown> | undefined;
+  for (const k of OMITTED_WHEN_EMPTY) {
+    const v = row[k];
+    if (!isPlainObject(v) || Object.values(v).some((x) => x !== undefined)) continue;
+    out ??= { ...row };
+    delete out[k];
+  }
+  return (out ?? row) as T;
+}
+
 /**
  * One row of a row array (an entity, instance or bulk entry) as its lines,
  * each with `indent`: one line, except an object holding grids, whose grid
@@ -175,6 +195,7 @@ function rowLines(
   first: number,
   lines?: Map<string, number>,
 ): string[] {
+  row = withoutEmptyMaps(row);
   const grids = isPlainObject(row) ? gridKeys(row) : [];
   if (lines) addNested(lines, pointer, row, first);
   if (grids.length === 0) return [`${indent}${inline(row)}`];
@@ -220,7 +241,8 @@ function addNested(
  * `entities`; one tuple, instance, entity or group per line, the `assets`
  * header on one line, sorted and unique, two-space indent, trailing
  * newline. An entity holding grids spans lines: its grid fields last, one
- * chunk per line. Empty arrays and an empty `groups` are left out. `lines`
+ * chunk per line. Empty arrays, an empty `groups` and a row's empty
+ * nested maps (`withoutEmptyMaps`) are left out. `lines`
  * maps every JSON Pointer to its 1-based line; pointers inside a tuple or
  * entity map to that item's first line, except those inside a chunk (its
  * line) and a later grid field's key (the line it opens on).

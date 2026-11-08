@@ -2,6 +2,7 @@ import type { Registry } from "../game/types";
 import {
   drawnEntities,
   expandedOf,
+  gridCellsIn,
   num,
   overlaps,
   resolveRegion,
@@ -12,7 +13,6 @@ import {
 } from "./render-geometry";
 import { aabb, containsPoint } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline } from "./shape-outline";
-import { gridCellsIn, withGridBoxes } from "./svg";
 import type { Aabb, Bounds, ExpandedScene, Pt, SceneDefinition } from "./types";
 
 /** Tags that pick a map character over the type's own: a sensor tagged `goal` draws `G`. */
@@ -150,7 +150,7 @@ export function sceneAsciiMap(
 ): SceneAsciiMap {
   const { registry } = opts;
   const expanded = expandedOf(scene, registry, opts.prefabs);
-  const all = withGridBoxes(drawnEntities(expanded, registry), expanded.settings.grid);
+  const all = drawnEntities(expanded, registry);
   const wanted = resolveRegion(expanded, all, opts);
   const maxCells = opts.maxCells ?? 200;
   let cell = opts.cell ?? 64;

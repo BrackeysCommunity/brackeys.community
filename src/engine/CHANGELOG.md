@@ -539,6 +539,30 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
 - `changeAssetId` on a prefab that other prefabs nest or use as a base
   rewrites those prefabs' instances and `base` in the same batch, instead
   of refusing with "changed while the batch was being planned".
+- `bindSceneDoc` and `watchIssues` follow every prefab a scene reaches
+  (`prefabsUsedBy`), so editing a nested prefab or a variant's base
+  reaches the live runtime and the issue list.
+- An empty map (`behaviors: {}`, an empty `path`) and an absent one are the
+  same between file and doc, so both hash alike.
+- Behavior defaults are no longer written into files; one implementation
+  of `setPrefabBase` and `exposeParam` serves the scene and project paths;
+  `createAsset` of a prefab or variant writes through the prefab writer
+  on the live and file paths; a batch can expose a param in one
+  `editScene` and set it in a later one.
+- `prefabScene` and `sceneBody` carry a prefab's `assets` header, so a
+  prefab edited or validated on its own keeps it.
+- A variant's own `overrides` count as asset and material references (so
+  renames rewrite them) and are validated in its view: a path naming no
+  child of the base is `unused-override`, one naming a grid field is
+  `grid-invalid`, each with a fix that drops it.
+- Generated JSON Schemas no longer carry the field builders' `kind` and
+  `axis` meta, which aren't JSON Schema keywords.
+- Quarter-turn rotation is exact and writes no trailing `rotDeg: 0`; bulk
+  children of a turned nested instance carry the composed turn; grid
+  entities' render boxes cover their cells.
+- Editor: cutting an instance's child, `cutSelection` hashing the
+  document, a variant in isolation showing its base's children, and the
+  outliner's layer view showing nested rows.
 
 ### Agent surface
 

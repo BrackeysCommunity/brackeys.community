@@ -77,6 +77,9 @@ export function fieldMeta(schema: z.core.$ZodType, key: string): unknown {
   return undefined;
 }
 
+/** Meta keys the field builders set for the engine's own use, which aren't JSON Schema keywords. */
+export const FIELD_KIND_META_KEYS = ["kind", "axis"] as const;
+
 const VectorSchema = z
   .tuple([z.number().describe("dx, px."), z.number().describe("dy, px; y is down.")])
   .meta({ unit: "px" });

@@ -12,6 +12,7 @@ import {
   isConvex,
   nearestSegment,
   nearestVertex,
+  normDeg,
   rotateShape,
   shapeVertices,
   topSpan,
@@ -394,6 +395,60 @@ describe("rotateShape and shapeVertices", () => {
     if (r.type !== "box") throw new Error("box");
     expect(r.cx).toBeCloseTo(10 * Math.cos(Math.PI / 6));
     expect(r.cy).toBeCloseTo(5);
+  });
+
+  it("turns by quarter turns exactly, with no -0", () => {
+    const chain: ShapeObj = {
+      type: "chain",
+      pts: [
+        [10, 0],
+        [20, 5],
+      ],
+    };
+    expect(rotateShape(chain, [0, 0], 90)).toEqual({
+      type: "chain",
+      pts: [
+        [0, 10],
+        [-5, 20],
+      ],
+    });
+    expect(rotateShape(chain, [5, 5], 180)).toEqual({
+      type: "chain",
+      pts: [
+        [0, 10],
+        [-10, 5],
+      ],
+    });
+    expect(rotateShape(chain, [0, 0], -90)).toEqual(rotateShape(chain, [0, 0], 270));
+    const pt = rotateShape({ type: "poly", pts: [[0, 0]] }, [0, 0], 90);
+    expect(pt.type === "poly" && pt.pts[0]!.every((n) => !Object.is(n, -0))).toBe(true);
+  });
+
+  it("keeps a turned box's or capsule's rotDeg in [0, 360)", () => {
+    const box = { type: "box", cx: 10, cy: 0, hw: 5, hh: 2, rotDeg: 270 } as const;
+    expect(rotateShape(box, [0, 0], 90)).toEqual({ ...box, cx: 0, cy: 10, rotDeg: 0 });
+    expect(rotateShape(box, [0, 0], -300)).toMatchObject({ rotDeg: 330 });
+    const cap = { type: "capsule", cx: 0, cy: 0, halfLen: 20, r: 4, rotDeg: 350 } as const;
+    expect(rotateShape(cap, [0, 0], 30)).toMatchObject({ rotDeg: 20 });
+    expect([normDeg(-90), normDeg(720), normDeg(-0), normDeg(359.5)]).toEqual([270, 0, 0, 359.5]);
+  });
+
+  it("boxes a quarter-turned box or capsule exactly", () => {
+    expect(aabb({ type: "box", cx: 0, cy: 0, hw: 30, hh: 5, rotDeg: 90 })).toEqual({
+      minX: -5,
+      minY: -30,
+      maxX: 5,
+      maxY: 30,
+    });
+    expect(aabb({ type: "capsule", cx: 540, cy: 1140, halfLen: 40, r: 20, rotDeg: 90 })).toEqual({
+      minX: 480,
+      minY: 1120,
+      maxX: 600,
+      maxY: 1160,
+    });
+    expect(containsPoint({ type: "box", cx: 0, cy: 0, hw: 30, hh: 5, rotDeg: 270 }, [5, 30])).toBe(
+      true,
+    );
   });
 
   it("lists box corners and outline points, none for round shapes", () => {

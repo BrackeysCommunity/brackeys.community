@@ -2,6 +2,7 @@ import type { GameInstance, PlayOptions, PlayReport, RunRecording } from "@jams/
 import {
   actorLabel,
   bindSceneDoc,
+  expandLenient,
   layoutFromDoc,
   observeProjectPeers,
   PRESENCE_FIELD,
@@ -17,6 +18,7 @@ import {
   type ProjectPeer,
   type ProjectPresence,
   type ProjectSession,
+  type SceneBinding,
   type SceneOrigin,
   type ScenePresence,
   type SessionDoc,
@@ -50,6 +52,13 @@ import {
   type AssetId,
   type ProjectRuntimeView,
 } from "@jams/engine/project";
+import {
+  nextFreeId,
+  type InstanceDef,
+  type Prefab,
+  type RuntimeEntity,
+  type SceneDefinition,
+} from "@jams/engine/scene";
 import { Store } from "@tanstack/store";
 import type * as Y from "yjs";
 
@@ -330,6 +339,97 @@ export function projectRegistry(session: ProjectSession): ProjectRegistry {
 const isSessionSource = (source: PrefabSource): source is SessionPrefabSource =>
   "session" in source && "docName" in source;
 
+/**
+ * A variant's base children as the edit world draws them in isolation:
+ * resolved with the variant's overrides and params, under a placement
+ * named after the base (`post/top`) so they never clash with the variant's
+ * own. The variant's doc doesn't hold them, so nothing picks or edits them.
+ * Empty for a prefab that isn't a variant.
+ */
+function variantBaseEntities(
+  own: SceneDefinition,
+  prefabId: string,
+  library: ReadonlyMap<string, Prefab>,
+  registry: Registry,
+): RuntimeEntity[] {
+  const variant = library.get(prefabId);
+  if (variant?.base === undefined) return [];
+  const { bulk: _bulk, instances: _instances, ...header } = variant;
+  const baseOnly = new Map(library).set(prefabId, { ...header, entities: [] });
+  const taken = new Set([
+    ...(own.entities ?? []).map((e) => e.id),
+    ...(own.instances ?? []).map((i) => i.id),
+  ]);
+  const placement: InstanceDef = {
+    id: nextFreeId(variant.base, taken),
+    prefab: prefabId,
+    at: [0, 0],
+  };
+  const def: SceneDefinition = {
+    v: own.v,
+    ...(own.game !== undefined ? { game: own.game } : {}),
+    name: own.name,
+    bounds: own.bounds,
+    ...(own.settings ? { settings: own.settings } : {}),
+    instances: [placement],
+  };
+  return expandLenient(def, registry, baseOnly).scene.entities;
+}
+
+/**
+ * `runtime` with a variant's base children laid over what the binding
+ * loads, kept in step as the variant's overrides, its base or the prefabs
+ * under it change.
+ */
+function withVariantBase(
+  runtime: BindableRuntime,
+  target: EditorSession,
+  prefabId: string,
+): { runtime: BindableRuntime; setPaused(paused: boolean): void; destroy(): void } {
+  let held: RuntimeEntity[] = [];
+  let paused = false;
+  const compute = () =>
+    variantBaseEntities(target.getDoc(), prefabId, target.prefabs.library(), target.registry);
+
+  function refresh() {
+    if (paused) return;
+    const next = compute();
+    const before = new Map(held.map((e) => [e.id, e]));
+    const after = new Set(next.map((e) => e.id));
+    const removed = held.filter((e) => !after.has(e.id)).map((e) => e.id);
+    const added = next.filter((e) => !before.has(e.id));
+    const changed = next.filter((e) => {
+      const prev = before.get(e.id);
+      return prev !== undefined && stableJson(prev) !== stableJson(e);
+    });
+    held = next;
+    if (removed.length > 0) runtime.remove(removed);
+    if (added.length > 0) runtime.add(added);
+    if (changed.length > 0) runtime.update(changed);
+  }
+
+  const offPrefabs = target.prefabs.subscribe(refresh);
+  const offDoc = target.subscribe(refresh);
+  return {
+    runtime: {
+      load(scene) {
+        held = compute();
+        return runtime.load({ ...scene, entities: [...scene.entities, ...held] });
+      },
+      add: (entities) => runtime.add(entities),
+      update: (entities) => runtime.update(entities),
+      remove: (ids) => runtime.remove(ids),
+    },
+    setPaused(next) {
+      paused = next;
+    },
+    destroy() {
+      offPrefabs();
+      offDoc();
+    },
+  };
+}
+
 /** Scene ops that write prefab docs. */
 const PREFAB_WRITES = new Set<string>(["applyToPrefab", "createPrefab", "definePrefab"]);
 
@@ -473,8 +573,10 @@ export function openLiveEditor({
   let started: PlayOptions | undefined;
   let replayed: RunRecording | null = null;
   game.stop();
-  const bind = (target: EditorSession) =>
-    bindSceneDoc(target.doc, runtime, game.registry, {
+  /** Binds the edit world to `target`'s doc; in a prefab's isolation, a variant's base shows too. */
+  const bind = (target: EditorSession, isolated?: string): SceneBinding => {
+    const base = isolated === undefined ? null : withVariantBase(runtime, target, isolated);
+    const binding = bindSceneDoc(target.doc, base?.runtime ?? runtime, game.registry, {
       prefabs: target.prefabs,
       ...(target.parentBounds ? { parentBounds: target.parentBounds } : {}),
       onChange: () => {
@@ -487,15 +589,28 @@ export function openLiveEditor({
           description: errors[0],
         }),
     });
+    if (!base) return binding;
+    return {
+      ...binding,
+      setPaused(paused) {
+        base.setPaused(paused);
+        binding.setPaused(paused);
+      },
+      destroy() {
+        base.destroy();
+        binding.destroy();
+      },
+    };
+  };
   let binding = bind(session);
   const prefab = new Store<OpenPrefab | null>(null);
   /** Bumped by every open and close, so an isolation that opens late is dropped. */
   let opening = 0;
 
   /** Points the edit world at `target`'s doc, framing what `refs` cover in it. */
-  function show(target: EditorSession, refs: readonly Ref[]) {
+  function show(target: EditorSession, refs: readonly Ref[], isolated?: string) {
     binding.destroy();
-    binding = bind(target);
+    binding = bind(target, isolated);
     const box = selectionBounds(target.getResolved(), target.registry, refs);
     if (box) game.frame(box);
   }
@@ -563,7 +678,7 @@ export function openLiveEditor({
           isolation = { ...opened, session: guarded(opened.session, docName, false) };
           prefab.setState(() => ({ isolation: isolation!, ...(from ? { from } : {}) }));
           if (docName) showing(docName);
-          show(isolation.session, docRefs(isolation.session.getDoc()));
+          show(isolation.session, docRefs(isolation.session.getDoc()), id);
         }, failed),
       failed,
     );

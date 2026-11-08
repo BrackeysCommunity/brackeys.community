@@ -4,6 +4,8 @@ import { z } from "zod";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { materialField, shapeField } from "../../game/fields";
 import { makeIssue } from "../../scene/issues";
+import { applyOps } from "../../scene/ops";
+import { prefabScene } from "../../scene/prefab";
 import { createKindRegistry, defineAssetKind } from "../kinds";
 import {
   checkProjectBatch,
@@ -1126,6 +1128,158 @@ describe("references", () => {
         "asset-in-use",
         { referrers: [{ id: "field", pointer: "/instances/@g1/prefab" }] },
       ]);
+    });
+  });
+
+  describe("createAsset of a prefab", () => {
+    const create = (id: string, content?: Record<string, unknown>): ProjectOp => ({
+      op: "createAsset",
+      kind: "prefab",
+      path: "levels/prefabs/",
+      id,
+      ...(content ? { content: content as never } : {}),
+    });
+    const keyOf = (r: Extract<ProjectBatchCheck, { ok: true }>, id: string) =>
+      Object.values(r.state.assets).find((e) => e.id === id)!.key;
+
+    it("creates a plain prefab and a variant whose base the same batch creates", () => {
+      const r = good([create("post"), create("red-post", { base: "post" })]);
+      expect(r.created).toEqual(["post", "red-post"]);
+      expect(byId(r.state, "red-post")).toMatchObject({
+        kind: "prefab",
+        path: "levels/prefabs/red-post.json",
+      });
+      expect(valueOf(r, keyOf(r, "post"))).toEqual({
+        kind: "prefab",
+        v: 3,
+        game: "surfaces",
+        id: "post",
+        entities: [],
+      });
+      expect(valueOf(r, keyOf(r, "red-post"))).toEqual({
+        kind: "prefab",
+        v: 3,
+        game: "surfaces",
+        id: "red-post",
+        base: "post",
+        entities: [],
+      });
+      expect(good([create("red-gate", { base: "gate" })]).created).toEqual(["red-gate"]);
+    });
+
+    it("refuses an unknown base, its own id and a base that contains it", () => {
+      const refused = (ops: ProjectOp[], d = docs()) => {
+        const r = bad(ops, { docs: d });
+        return [r.opIndex, r.issue.code, r.issue.path];
+      };
+      expect(refused([create("red-gate", { base: "gat" })])).toEqual([
+        0,
+        "variant-base-unknown",
+        "/ops/0/content/base",
+      ]);
+      expect(bad([create("red-gate", { base: "gat" })]).issue.message).toContain(
+        'did you mean "gate"',
+      );
+      expect(refused([create("red-gate", { base: "red-gate" })])[1]).toBe("variant-base-unknown");
+      const holding = docs();
+      holding.set("gate", { ...gate, instances: [{ id: "r", prefab: "red-gate", at: [0, 0] }] });
+      expect(refused([create("red-gate", { base: "gate" })], holding)).toEqual([
+        0,
+        "prefab-cycle",
+        "/ops/0/content/base",
+      ]);
+      expect(refused([create("red-post", { base: "post" }), create("post")])[1]).toBe(
+        "variant-base-unknown",
+      );
+    });
+  });
+
+  describe("editScene across a batch's prefab header", () => {
+    const holder = {
+      ...gate,
+      id: "holder",
+      entities: [],
+      instances: [{ id: "g", prefab: "gate", at: [0, 0] }],
+    };
+    const library = () =>
+      new Map([
+        ["gate", structuredClone(gate) as never],
+        ["holder", structuredClone(holder) as never],
+      ]);
+    const delegated: Partial<ProjectBatchEnv> = { prefabsFor: library, prefabEdit: () => null };
+    const expose: ProjectOp = {
+      op: "editScene",
+      id: "gate",
+      ops: [
+        {
+          op: "exposeParam",
+          name: "surface",
+          param: { description: "What the slope is made of.", targets: ["slope.material"] },
+        },
+      ],
+    };
+    const set: ProjectOp = {
+      op: "editScene",
+      id: "yard",
+      ops: [{ op: "setParam", ref: "g1", name: "surface", value: "ice" }],
+    };
+
+    it("lets a later editScene set a param an earlier one exposes", () => {
+      const r = check([expose, set], { env: delegated });
+      if (!r.ok) throw new Error(`op ${r.opIndex}: ${r.issue.code} ${r.issue.message}`);
+      expect(r.issues.filter((i) => i.severity === "error")).toEqual([]);
+      expect(valueOf(r, "yard").instances).toEqual([
+        { id: "g1", prefab: "gate", at: [100, 100], params: { surface: "ice" } },
+      ]);
+      expect(r.delegated).toEqual([0]);
+      expect(r.scenes.get("yard")!.prefabs?.get("gate")?.params).toEqual({
+        surface: { description: "What the slope is made of.", targets: ["slope.material"] },
+      });
+    });
+
+    it("still reports the param unknown when the set comes first", () => {
+      const r = check([set, expose], { env: delegated });
+      if (!r.ok) throw new Error(`op ${r.opIndex}: ${r.issue.message}`);
+      expect(r.issues.map((i) => i.code)).toContain("param-unknown");
+    });
+
+    it("refuses the same header batches the scene ops refuse", () => {
+      const header = (ops: unknown[]) =>
+        check([{ op: "editScene", id: "gate", ops: ops as never }], { env: delegated });
+      const view = (ops: unknown[]) =>
+        applyOps(
+          { ...prefabScene(gate as never, [-1e6, -1e6, 1e6, 1e6]) },
+          { ops: ops as never },
+          game,
+          { prefabs: library(), prefab: "gate", validate: "none" },
+        );
+      const clear = [{ op: "setPrefabBase", base: null }];
+      for (const ops of [
+        [{ op: "setPrefabBase", base: "gat" }],
+        [{ op: "setPrefabBase", base: "gate" }],
+        [{ op: "setPrefabBase", base: "holder" }],
+        [{ op: "exposeParam", name: "surface", param: null }],
+        [
+          {
+            op: "exposeParam",
+            name: "surface",
+            param: { description: "x", targets: ["slope.material"] },
+          },
+          { op: "exposeParam", name: "surface", param: null },
+          { op: "exposeParam", name: "surface", param: null },
+        ],
+        clear,
+      ]) {
+        const a = header(ops);
+        const b = view(ops);
+        expect([a.ok, b.ok], JSON.stringify(ops)).toEqual([ops === clear, ops === clear]);
+        if (a.ok || b.ok) continue;
+        expect([a.issue.code, a.issue.message, a.issue.path]).toEqual([
+          b.issue.code,
+          b.issue.message,
+          `/ops/0${b.issue.path}`,
+        ]);
+      }
     });
   });
 

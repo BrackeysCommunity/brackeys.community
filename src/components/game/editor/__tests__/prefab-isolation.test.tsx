@@ -394,6 +394,65 @@ describe("Create variant", () => {
     fake.project.destroy();
   });
 
+  it("draws the base's children in the variant's isolation, with its overrides, as they change", async () => {
+    const fake = await setup();
+    const { live } = fake;
+    act(() => {
+      live.openPrefab("post");
+    });
+    await opened();
+    act(() => {
+      live.createVariant("post");
+    });
+    await opened();
+    expect(live.prefab.state?.isolation.prefab).toBe("post-variant");
+    const ids = () =>
+      fake
+        .world()!
+        .entities.map((e) => e.id)
+        .sort();
+    expect(ids()).toEqual(["post/top", "post/~solid:0"]);
+    expect(worldAt(fake, "post/top")).toEqual([0, -40]);
+    // The variant's doc holds none of them, so they stay out of its outline and picking.
+    expect(live.prefab.state!.isolation.session.getResolved().entities ?? []).toEqual([]);
+
+    const variant = live.prefab.state!.isolation.session;
+    act(() => {
+      variant.dispatch({
+        ops: [{ op: "add", entity: { id: "cap", type: "marker", at: [0, -80] } }],
+      });
+    });
+    expect(worldAt(fake, "cap")).toEqual([0, -80]);
+    expect(worldAt(fake, "post/top")).toEqual([0, -40]);
+
+    act(() => {
+      live.session.dispatch({
+        ops: [
+          {
+            op: "definePrefab",
+            id: "post-variant",
+            prefab: {
+              ...live.session.getPrefabs().get("post-variant")!,
+              overrides: { "top.at": [8, -40] },
+            },
+          },
+        ],
+      });
+    });
+    expect(worldAt(fake, "post/top")).toEqual([8, -40]);
+
+    act(() => {
+      live.session.dispatch({
+        ops: [{ op: "definePrefab", id: "post", prefab: { ...POST, bulk: {} } }],
+      });
+    });
+    expect(ids()).toEqual(["cap", "post/top"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(worldAt(fake, "post/top")).toBeUndefined();
+    fake.project.destroy();
+  });
+
   it("numbers a second variant", async () => {
     const fake = await setup();
     const { live } = fake;

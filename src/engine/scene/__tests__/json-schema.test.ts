@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { pointField } from "../../game/fields";
+import { angleField, gridField, mirrorField, pointField, vectorField } from "../../game/fields";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../agent-surface";
 import {
   fragmentJsonSchema,
@@ -86,6 +86,58 @@ describe("scene.schema.json", () => {
     expect((sceneJsonSchema(fake) as Schema).$defs.PadShape.oneOf?.map((o) => o.title)).toEqual([
       "box",
     ]);
+  });
+});
+
+describe("field kind meta", () => {
+  const turned = createRegistry(
+    defineGame({
+      id: "turned",
+      types: [
+        defineEntityType({
+          type: "vane",
+          description: "A vane with every field kind the engine turns.",
+          base: "marker",
+          fields: {
+            at: pointField("Where it stands."),
+            wind: vectorField("Which way it blows.").optional(),
+            heading: angleField("Which way it points.", "deg").optional(),
+            mirrored: mirrorField("x", "Whether it faces left.").optional(),
+            cells: gridField("Its painted cells.").optional(),
+          },
+        }),
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+
+  /** Every object key anywhere in a schema except property names. */
+  const keywords = (node: unknown, out = new Set<string>()): Set<string> => {
+    if (Array.isArray(node)) for (const n of node) keywords(n, out);
+    else if (node && typeof node === "object")
+      for (const [k, v] of Object.entries(node)) {
+        if (k === "properties" || k === "$defs" || k === "patternProperties") {
+          for (const child of Object.values(v as object)) keywords(child, out);
+          continue;
+        }
+        out.add(k);
+        keywords(v, out);
+      }
+    return out;
+  };
+
+  it("leaves the engine's kind and axis meta out, and keeps unit", () => {
+    for (const schema of [
+      sceneJsonSchema(turned),
+      prefabJsonSchema(turned),
+      fragmentJsonSchema(turned),
+    ]) {
+      const keys = keywords(schema);
+      expect(keys.has("kind")).toBe(false);
+      expect(keys.has("axis")).toBe(false);
+      expect(keys.has("unit")).toBe(true);
+    }
   });
 });
 

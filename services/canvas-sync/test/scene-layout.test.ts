@@ -2,7 +2,13 @@ import { afterAll, afterEach, describe, expect, it, setDefaultTimeout } from "bu
 
 import * as Y from "yjs";
 
-import type { LogEntry } from "../../../src/engine/collab/types.ts";
+import {
+  BULK_FIELD,
+  LEGACY_BULK_FIELD,
+  LEGACY_Z_FIELD,
+  Z_FIELD,
+  type LogEntry,
+} from "../../../src/engine/collab/types.ts";
 import type { AssetEntry } from "../../../src/engine/project/types.ts";
 import { formatPrefab } from "../../../src/engine/scene/format.ts";
 import type { Prefab, SceneDefinition } from "../../../src/engine/scene/types.ts";
@@ -25,6 +31,7 @@ import {
   createMemoryProject,
   type EngineClient,
   layoutOneState,
+  layoutTwoState,
   memoryEngineStores,
   newProjectId,
   prefabOfState,
@@ -80,30 +87,7 @@ const docOf = (state: Uint8Array | null) => {
   return doc;
 };
 
-/**
- * A state as a layout-2 instance stored it: the layout's own record keys
- * under their old names, at scene format v2.
- */
-function layoutTwoState(state: Uint8Array): Uint8Array {
-  const doc = docOf(state);
-  const rename = (map: Y.Map<unknown>, from: string, to: string) => {
-    if (!map.has(from)) return;
-    const value = map.get(from);
-    map.delete(from);
-    map.set(to, value);
-  };
-  doc.transact(() => {
-    for (const name of ["entities", "instances"])
-      for (const rec of doc.getMap(name).values())
-        if (rec instanceof Y.Map) {
-          rename(rec, "@z", "z");
-          rename(rec, "@bulk", "bulk");
-        }
-    doc.getMap("meta").set("layout", 2);
-    doc.getMap("meta").set("schemaVersion", 2);
-  });
-  return Y.encodeStateAsUpdate(doc);
-}
+const LAYOUT_KEYS = new Set([Z_FIELD, BULK_FIELD, LEGACY_Z_FIELD, LEGACY_BULK_FIELD]);
 
 /** Each record's key with the order and bulk keys it holds. */
 const recordKeys = (doc: Y.Doc, map: string) =>
@@ -111,7 +95,7 @@ const recordKeys = (doc: Y.Doc, map: string) =>
     .map(
       ([key, rec]) =>
         `${key}:${[...rec.keys()]
-          .filter((k) => /z|bulk/.test(k))
+          .filter((k) => LAYOUT_KEYS.has(k))
           .sort()
           .join(",")}`,
     )
@@ -343,8 +327,11 @@ describe("hosted scene layouts", () => {
       entities: [{ id: "spawn", type: "marker", at: [20, 880] }],
     };
     const current = docOf(seedState(sceneId, def));
-    const before = layoutTwoState(Y.encodeStateAsUpdate(current));
-    expect(recordKeys(docOf(before), "entities").every((k) => /:bulk,z$|:z$/.test(k))).toBe(true);
+    const before = layoutTwoState(Y.encodeStateAsUpdate(current), 2);
+    const legacy = [`:${LEGACY_BULK_FIELD},${LEGACY_Z_FIELD}`, `:${LEGACY_Z_FIELD}`];
+    expect(
+      recordKeys(docOf(before), "entities").every((k) => legacy.some((end) => k.endsWith(end))),
+    ).toBe(true);
     stores.scenes.rows.get(sceneId)!.state = before;
 
     const scene = track(connectScene(server.port, sceneId, "alice"));
@@ -370,7 +357,7 @@ describe("hosted scene layouts", () => {
     });
     const current = docOf(seedPrefabState({ project: projectId, key: "crate", prefab: CRATE }));
     const row = stores.assets.rows.get(`${projectId}.crate`)!;
-    row.state = layoutTwoState(Y.encodeStateAsUpdate(current));
+    row.state = layoutTwoState(Y.encodeStateAsUpdate(current), 2);
 
     const doc = track(
       connectDoc(server.port, documentName("asset", `${projectId}.crate`), scoped(projectId)),

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD } from "../game/behaviors";
-import { assetKindsOf, BASE_FIELDS } from "../game/fields";
+import { assetKindsOf, BASE_FIELDS, FIELD_KIND_META_KEYS } from "../game/fields";
 import { ENGINE_REGISTRY_ID, type Registry } from "../game/types";
 import type { AssetId, AssetKindName } from "../project/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
@@ -20,9 +20,14 @@ export function schemaIdFor(registry: Registry, name: string, version: number): 
   return `${SCHEMA_ID_BASE}${name}:${game}v${version}`;
 }
 
-/** Zod's `id` meta names `$defs` entries; it isn't a JSON Schema keyword, so it is dropped from the output. */
+/**
+ * Zod's `id` meta names `$defs` entries, and the field builders' `kind` and
+ * `axis` meta are the engine's; none is a JSON Schema keyword, so they are
+ * dropped from the output.
+ */
 export function stripMetaIds(ctx: { jsonSchema: Record<string, unknown> }): void {
   delete ctx.jsonSchema.id;
+  for (const key of FIELD_KIND_META_KEYS) delete ctx.jsonSchema[key];
 }
 
 export type JsonSchemaOptions = {

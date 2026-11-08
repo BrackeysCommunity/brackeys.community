@@ -868,6 +868,38 @@ describe("grid fields", () => {
     );
   });
 
+  it("a variant's override naming a grid field, judged in the variant's own view", () => {
+    const lib = new Map(prefabs);
+    lib.set("tiles-red", {
+      kind: "prefab",
+      v: 3,
+      id: "tiles-red",
+      game: "painter",
+      base: "tiles",
+      entities: [],
+      overrides: { "floor.cells": { "0,0": ["3"] }, "floor.at": [8, 8] },
+    });
+    const view = prefabScene(lib.get("tiles-red")!, [-512, -512, 512, 512]);
+    const issues = validateScene(view, painter, { prefabs: lib, prefab: "tiles-red" });
+    expect(issues.map((i) => [i.code, i.path])).toEqual([
+      ["grid-invalid", "/overrides/floor.cells"],
+    ]);
+    const fix = issues[0]!.fix!;
+    expect(fix.ops).toMatchObject([
+      {
+        op: "definePrefab",
+        id: "tiles-red",
+        prefab: { base: "tiles", overrides: { "floor.at": [8, 8] } },
+      },
+    ]);
+    const fixed = applyOps(view, fix, painter, { prefabs: lib, prefab: "tiles-red" });
+    if (!fixed.ok) throw new Error(fixed.issue.message);
+    expect(fixed.prefabs?.get("tiles-red")?.overrides).toEqual({ "floor.at": [8, 8] });
+    expect(
+      validateScene(fixed.def, painter, { prefabs: fixed.prefabs!, prefab: "tiles-red" }),
+    ).toEqual([]);
+  });
+
   it("a turned or flipped instance or group over a grid, unless its cells are square", () => {
     const tall = { kind: "square", cell: [32, 16] };
     const hex = { kind: "hex", cell: [32, 28], side: 16, stagger: "y", index: "odd" };

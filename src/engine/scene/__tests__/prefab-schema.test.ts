@@ -173,6 +173,22 @@ describe("nested instances in a prefab", () => {
   });
 });
 
+describe("a prefab as a scene of its own", () => {
+  it("carries its assets header there and back", () => {
+    const prefab = prefabOf("lamp", {
+      entities: [{ id: "bulb", type: "marker", at: [0, 0] }],
+      assets: ["glow", "hum"],
+    });
+    const scene = prefabScene(prefab, [-500, -500, 1000, 1000]);
+    expect(scene.assets).toEqual(["glow", "hum"]);
+    expect(scene.assets).not.toBe(prefab.assets);
+    expect(sceneBody(scene, engine).assets).toEqual(["glow", "hum"]);
+    const none = prefabScene(prefabOf("bare", { entities: [] }), [0, 0, 1, 1]);
+    expect("assets" in none).toBe(false);
+    expect("assets" in sceneBody(none, engine)).toBe(false);
+  });
+});
+
 describe("variants and exposed parameters in a prefab", () => {
   const text = readFileSync(new URL("./fixtures/prefabs/red-gate.json", import.meta.url), "utf8");
   const parsed = parsePrefab(text, engine);

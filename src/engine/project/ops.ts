@@ -14,13 +14,14 @@ import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import { applyOps } from "../scene/ops";
 import { opBatchSchemaFor, usesBulkRefs } from "../scene/ops-schema";
 import { prefabOf, prefabScene, sceneBody } from "../scene/prefab";
+import { applyHeaderOp, type PrefabHeader, type PrefabHeaderOp } from "../scene/prefab-header";
 import {
   PREFAB_KIND,
+  type ApplyResult,
   type IssueCode,
   type OpBatch,
   type Prefab,
   type PrefabLibrary,
-  type PrefabParam,
   type Pt,
   type SceneDefinition,
   type SceneIssue,
@@ -146,16 +147,14 @@ export const PREFAB_SCENE_OPS: readonly SceneOp["op"][] = [
 /** Scene ops that change the header of the prefab doc they are sent to; a scene refuses them. */
 export const PREFAB_HEADER_OPS: readonly SceneOp["op"][] = ["setPrefabBase", "exposeParam"];
 
-type HeaderOp = Extract<SceneOp, { op: "setPrefabBase" | "exposeParam" }>;
-
-const isHeaderOp = (op: unknown): op is HeaderOp =>
+const isHeaderOp = (op: unknown): op is PrefabHeaderOp =>
   isPlainObject(op) && PREFAB_HEADER_OPS.includes(op.op as SceneOp["op"]);
 
 /** A batch with its header ops taken out: `at` is each remaining op's index in the original. */
 export type SplitHeaderOps = {
   body: SceneOp[];
   at: number[];
-  header: { op: HeaderOp; index: number }[];
+  header: { op: PrefabHeaderOp; index: number }[];
 };
 
 export function splitHeaderOps(ops: readonly SceneOp[]): SplitHeaderOps {
@@ -207,105 +206,51 @@ export type HeaderOpsResult =
   | { ok: false; failedAt: number; issue: SceneIssue };
 
 /**
- * Runs `setPrefabBase` and `exposeParam` on `prefab` (its children and
- * nested instances as the batch's other ops leave them), in order. A base
- * must be a prefab in `library` other than `prefab` itself, and may not lead
- * back to it through bases or nested instances (`prefab-cycle`). Parameter
- * targets are judged by validation, as any override path is.
+ * Runs a batch's `setPrefabBase` and `exposeParam` ops on `prefab`, in
+ * order, by `applyHeaderOp`'s rules (the ones `applyOps` keeps on a
+ * prefab's view), each failure at the op's index in the batch.
  */
 export function applyHeaderOps(
   prefab: Prefab,
-  header: SplitHeaderOps["header"],
+  ops: SplitHeaderOps["header"],
   library: PrefabLibrary,
   registry: Registry,
 ): HeaderOpsResult {
-  const parsed = opBatchSchemaFor(registry).safeParse({ ops: header.map((h) => h.op) });
+  const parsed = opBatchSchemaFor(registry).safeParse({ ops: ops.map((h) => h.op) });
   if (!parsed.success) {
     const first = parsed.error.issues[0]!;
-    const index = header[typeof first.path[1] === "number" ? first.path[1] : 0]!.index;
+    const index = ops[typeof first.path[1] === "number" ? first.path[1] : 0]!.index;
     const rest = first.path.slice(2).map((p) => (typeof p === "symbol" ? String(p) : p));
     return {
       ok: false,
       failedAt: index,
       issue: makeIssue("op-invalid", {
-        message: `${header.find((h) => h.index === index)!.op.op}: ${first.message}`,
+        message: `${ops.find((h) => h.index === index)!.op.op}: ${first.message}`,
         path: jsonPointer(["ops", index, ...rest]),
       }),
     };
   }
-  let base = prefab.base;
-  const params: Record<string, PrefabParam> = cloneJson(prefab.params ?? {});
-  for (const { op, index } of header) {
-    const fail = (code: IssueCode, message: string, extra: Partial<SceneIssue> = {}) =>
-      ({
+  let header: PrefabHeader = {
+    ...(prefab.base !== undefined ? { base: prefab.base } : {}),
+    params: cloneJson(prefab.params ?? {}),
+  };
+  for (const { op, index } of ops) {
+    const next = applyHeaderOp(header, op, prefab.id, library);
+    if (!next.ok)
+      return {
         ok: false,
         failedAt: index,
-        issue: makeIssue(code, { message, path: jsonPointer(["ops", index]), ...extra }),
-      }) as const;
-    if (op.op === "exposeParam") {
-      if (op.param === null) delete params[op.name];
-      else params[op.name] = cloneJson(op.param);
-      continue;
-    }
-    if (op.base === null) {
-      base = undefined;
-      continue;
-    }
-    if (!library.has(op.base) || op.base === prefab.id) {
-      const known = [...library.keys()].filter((id) => id !== prefab.id);
-      const suggestion = closest(op.base, known);
-      return fail(
-        "variant-base-unknown",
-        op.base === prefab.id
-          ? `Prefab "${prefab.id}" can't be its own base.`
-          : `No prefab "${op.base}" to be the base of "${prefab.id}"${suggestion ? `; did you mean "${suggestion}"?` : ""}.`,
-        {
-          got: op.base,
-          entityIds: [prefab.id],
-          ...(suggestion
-            ? { hint: `{ "op": "setPrefabBase", "base": ${JSON.stringify(suggestion)} }` }
-            : {}),
-        },
-      );
-    }
-    const loop = baseLoop(prefab.id, op.base, library);
-    if (loop)
-      return fail(
-        "prefab-cycle",
-        `Prefab "${prefab.id}" would contain itself: ${[prefab.id, ...loop].join(" → ")}.`,
-        { got: op.base, entityIds: [prefab.id] },
-      );
-    base = op.base;
+        issue: { ...next.issue, path: jsonPointer(["ops", index]) },
+      };
+    header = next.header;
   }
   return {
     ok: true,
     header: {
-      ...(base !== undefined ? { base } : {}),
-      ...(Object.keys(params).length > 0 ? { params } : {}),
+      ...(header.base !== undefined ? { base: header.base } : {}),
+      ...(Object.keys(header.params).length > 0 ? { params: header.params } : {}),
     },
   };
-}
-
-/** The chain from `base` back to `id` through bases and nested instances, or null when there is none. */
-function baseLoop(id: string, base: string, library: PrefabLibrary): string[] | null {
-  const seen = new Set<string>();
-  const walk = (at: string, chain: string[]): string[] | null => {
-    if (at === id) return chain;
-    if (seen.has(at)) return null;
-    seen.add(at);
-    const p = library.get(at);
-    if (!p) return null;
-    const next = [
-      ...(typeof p.base === "string" ? [p.base] : []),
-      ...(p.instances ?? []).map((n) => n.prefab),
-    ];
-    for (const n of next) {
-      const found = walk(n, [...chain, n]);
-      if (found) return found;
-    }
-    return null;
-  };
-  return walk(base, [base]);
 }
 
 /** Whether an `editScene` writes prefab docs: it targets a prefab, or holds a prefab op. */
@@ -715,6 +660,15 @@ function valueAt(value: unknown, segs: readonly (string | number)[]): unknown {
   return at;
 }
 
+/** A delegated `editScene`, replayed once the batch's other ops have run. */
+type Deferred = {
+  entry: AssetEntry;
+  index: number;
+  ops: SceneOp[];
+  prefabs: PrefabLibrary | undefined;
+  registry: Registry;
+};
+
 /** The working state of one batch: entries are replaced, never mutated, so the input state stays as it was. */
 class BatchWork {
   readonly assets: Record<AssetKey, AssetEntry>;
@@ -747,13 +701,7 @@ class BatchWork {
    * with the batch's renames for a `changeAssetId` rewrite, which names the
    * new id; and the registry they were judged with.
    */
-  private readonly deferred: {
-    entry: AssetEntry;
-    index: number;
-    ops: SceneOp[];
-    prefabs: PrefabLibrary | undefined;
-    registry: Registry;
-  }[] = [];
+  private readonly deferred: Deferred[] = [];
   /** The op index of each `deleteAsset` the batch ran, by id, until a later op restores it. */
   private readonly deletedAt = new Map<AssetId, number>();
   /** True while a `changeAssetId` rewrites a referrer through `editScene`. */
@@ -1156,7 +1104,7 @@ class BatchWork {
     const current = this.contentOf(entry, op.op) as SceneDefinition;
     let batch: OpBatch = { ops: op.ops };
     if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(current) };
-    const prefabs = this.prefabsFor(entry);
+    const prefabs = this.libraryBefore(this.opIndex, this.prefabsFor(entry));
     const registry = this.judge;
     const result = applyOps(current, batch, registry, prefabs ? { prefabs } : {});
     if (!result.ok) {
@@ -1223,14 +1171,7 @@ class BatchWork {
       const key = d.entry.key;
       const isScene = d.entry.kind === SCENE_KIND_NAME;
       if (!isScene) earlier(d.entry.id);
-      const known = this.leaves.has(key) ? this.leaves.get(key) : this.peek(d.entry);
-      const ownPrefab = isScene ? undefined : isPrefab(known) ? known : library?.get(d.entry.id);
-      const own = isScene
-        ? (known as SceneDefinition | undefined)
-        : ownPrefab && {
-            ...prefabScene(ownPrefab, PREFAB_EDIT_BOUNDS),
-            ...(ownPrefab.instances?.length ? { instances: cloneJson(ownPrefab.instances) } : {}),
-          };
+      const { own, ownPrefab } = this.ownOf(d, library, this.leaves);
       if (own === undefined) {
         if (!isScene) {
           unknownBy ??= d.index;
@@ -1264,73 +1205,11 @@ class BatchWork {
         }
         continue;
       }
-      const split = splitHeaderOps(d.ops);
-      let batch: OpBatch = { ops: split.body };
-      if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(own) };
-      const applied = applyOps(own, batch, d.registry, {
-        ...(library ? { prefabs: library } : {}),
-        ...(isScene ? {} : { prefab: d.entry.id }),
-        validate: "none",
-      });
-      const result = applied.ok ? applied : remapBodyFailure(applied, split.at);
-      if (!result.ok) {
-        const { code, message, path, ...rest } = result.issue;
-        const renamed =
-          code === "prefab-unknown" && [...this.prefabIds.values()].some((to) => to === rest.got);
-        this.fail(
-          renamed ? "op-invalid" : code,
-          renamed
-            ? `prefab "${String(rest.got)}" is a new id this batch gives a prefab, and ops that write prefabs see it only once the batch is written; do them in a batch of their own`
-            : message,
-          undefined,
-          {
-            ...rest,
-            path: `${jsonPointer(["ops", d.index])}${path ?? ""}`,
-            entityIds: rest.entityIds.length > 0 ? rest.entityIds : [d.entry.id],
-          },
-        );
-      }
-      if (ownPrefab) {
-        if (result.def.entities?.some((e) => e.group !== undefined))
-          this.fail(
-            "op-invalid",
-            `"${d.entry.id}": a prefab's children can't join a group; an instance takes its group`,
-            "ops",
-            { entityIds: [d.entry.id] },
-          );
-        const {
-          entities: _e,
-          bulk: _b,
-          instances: _i,
-          base: _base,
-          params: _params,
-          contract,
-          ...head
-        } = ownPrefab;
-        const nested = result.def.instances?.length ? { instances: result.def.instances } : {};
-        const headed = applyHeaderOps(
-          { ...ownPrefab, ...nested },
-          split.header,
-          this.withRenamed(library) ?? new Map(),
-          d.registry,
-        );
-        if (!headed.ok) {
-          const { code, message, path, ...rest } = headed.issue;
-          this.fail(code, message, undefined, {
-            ...rest,
-            path: `${jsonPointer(["ops", d.index])}${path ?? ""}`,
-            entityIds: rest.entityIds.length > 0 ? rest.entityIds : [d.entry.id],
-          });
-        }
-        const next: Prefab = {
-          ...head,
-          ...headed.header,
-          ...sceneBody(result.def, d.registry, contract),
-          ...(result.def.instances?.length ? { instances: result.def.instances } : {}),
-        };
-        this.leaves.set(key, next);
-        changes.set(d.entry.id, next);
-      } else this.leaves.set(key, result.def);
+      const replayed = this.replay(d, own, ownPrefab, library);
+      if (!replayed.ok) this.fail(...replayed.fail);
+      const { result } = replayed;
+      this.leaves.set(key, replayed.prefab ?? result.def);
+      if (replayed.prefab) changes.set(d.entry.id, replayed.prefab);
       if (!result.prefabsChanged || !result.prefabs) continue;
       for (const id of result.prefabsChanged) {
         const prefab = this.view.byId.get(id);
@@ -1349,9 +1228,180 @@ class BatchWork {
     }
   }
 
+  /** A deferred op's own doc as `leaves` (else the batch) holds it: a scene, or a prefab and its children as a scene. */
+  private ownOf(
+    d: Deferred,
+    library: PrefabLibrary | undefined,
+    leaves: ReadonlyMap<AssetKey, unknown>,
+  ): { own: SceneDefinition | undefined; ownPrefab: Prefab | undefined } {
+    const known = leaves.has(d.entry.key) ? leaves.get(d.entry.key) : this.peek(d.entry);
+    if (d.entry.kind === SCENE_KIND_NAME)
+      return { own: known as SceneDefinition | undefined, ownPrefab: undefined };
+    const ownPrefab = isPrefab(known) ? known : library?.get(d.entry.id);
+    return {
+      ownPrefab,
+      own: ownPrefab && {
+        ...prefabScene(ownPrefab, PREFAB_EDIT_BOUNDS),
+        ...(ownPrefab.instances?.length ? { instances: cloneJson(ownPrefab.instances) } : {}),
+      },
+    };
+  }
+
+  /**
+   * Runs a deferred op's scene ops on `own`, and on a prefab its header
+   * ops, against `library`: the result, and the prefab it leaves; or the
+   * arguments `fail` refuses it with.
+   */
+  private replay(
+    d: Deferred,
+    own: SceneDefinition,
+    ownPrefab: Prefab | undefined,
+    library: PrefabLibrary | undefined,
+  ):
+    | { ok: true; result: Extract<ApplyResult, { ok: true }>; prefab?: Prefab }
+    | { ok: false; fail: [IssueCode, string, Field | undefined, Partial<SceneIssue>] } {
+    const at = jsonPointer(["ops", d.index]);
+    const split = splitHeaderOps(d.ops);
+    let batch: OpBatch = { ops: split.body };
+    if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(own) };
+    const applied = applyOps(own, batch, d.registry, {
+      ...(library ? { prefabs: library } : {}),
+      ...(ownPrefab ? { prefab: d.entry.id } : {}),
+      validate: "none",
+    });
+    const result = applied.ok ? applied : remapBodyFailure(applied, split.at);
+    if (!result.ok) {
+      const { code, message, path, ...rest } = result.issue;
+      const renamed =
+        code === "prefab-unknown" && [...this.prefabIds.values()].some((to) => to === rest.got);
+      return {
+        ok: false,
+        fail: [
+          renamed ? "op-invalid" : code,
+          renamed
+            ? `prefab "${String(rest.got)}" is a new id this batch gives a prefab, and ops that write prefabs see it only once the batch is written; do them in a batch of their own`
+            : message,
+          undefined,
+          {
+            ...rest,
+            path: `${at}${path ?? ""}`,
+            entityIds: rest.entityIds.length > 0 ? rest.entityIds : [d.entry.id],
+          },
+        ],
+      };
+    }
+    if (!ownPrefab) return { ok: true, result };
+    if (result.def.entities?.some((e) => e.group !== undefined))
+      return {
+        ok: false,
+        fail: [
+          "op-invalid",
+          `"${d.entry.id}": a prefab's children can't join a group; an instance takes its group`,
+          "ops",
+          { entityIds: [d.entry.id] },
+        ],
+      };
+    const {
+      entities: _e,
+      bulk: _b,
+      instances: _i,
+      base: _base,
+      params: _params,
+      contract,
+      ...head
+    } = ownPrefab;
+    const nested = result.def.instances?.length ? { instances: result.def.instances } : {};
+    const headed = applyHeaderOps(
+      { ...ownPrefab, ...nested },
+      split.header,
+      this.withRenamed(library) ?? new Map(),
+      d.registry,
+    );
+    if (!headed.ok) {
+      const { code, message, path, ...rest } = headed.issue;
+      return {
+        ok: false,
+        fail: [
+          code,
+          message,
+          undefined,
+          {
+            ...rest,
+            path: `${at}${path ?? ""}`,
+            entityIds: rest.entityIds.length > 0 ? rest.entityIds : [d.entry.id],
+          },
+        ],
+      };
+    }
+    return {
+      ok: true,
+      result,
+      prefab: {
+        ...head,
+        ...headed.header,
+        ...sceneBody(result.def, d.registry, contract),
+        ...nested,
+      },
+    };
+  }
+
+  /**
+   * `given` with what the delegated ops before op `index` do to the
+   * library, as far as they can be followed now: so a scene edit later in
+   * the batch sees a param or child an earlier `editScene` gives a prefab.
+   * An op that can't be followed or doesn't apply changes nothing here;
+   * `settleDelegated` judges it.
+   */
+  private libraryBefore(
+    index: number,
+    given: PrefabLibrary | undefined,
+  ): PrefabLibrary | undefined {
+    const changes = new Map<AssetId, Prefab | null>();
+    const leaves = new Map<AssetKey, unknown>();
+    for (const d of this.deferred) {
+      if (d.index >= index) break;
+      const library = withChanges(d.prefabs, changes);
+      const { own, ownPrefab } = this.ownOf(d, library, leaves);
+      if (own === undefined) continue;
+      const replayed = this.replay(d, own, ownPrefab, library);
+      if (!replayed.ok) continue;
+      const { result } = replayed;
+      leaves.set(d.entry.key, replayed.prefab ?? result.def);
+      if (replayed.prefab) changes.set(d.entry.id, replayed.prefab);
+      for (const id of result.prefabsChanged ?? []) {
+        const next = result.prefabs?.get(id);
+        if (next) changes.set(id, next);
+        else if (library?.has(id)) changes.set(id, null);
+      }
+    }
+    return withChanges(given, changes);
+  }
+
+  /**
+   * Every live prefab as the batch has left it so far, by id: its value
+   * when the batch knows it, else the library `prefabsFor(near)` gives,
+   * else an empty stand-in.
+   */
+  private liveLibrary(near: AssetId): PrefabLibrary {
+    const given = this.libraryBefore(this.opIndex, this.prefabsFor(near));
+    const out = new Map<string, Prefab>();
+    for (const entry of this.view.byId.values()) {
+      if (entry.kind !== PREFAB_KIND) continue;
+      const value = this.peek(entry);
+      out.set(
+        entry.id,
+        isPrefab(value)
+          ? { ...value, id: entry.id }
+          : (given?.get(entry.id) ?? prefabOf(entry.id, { entities: [] })),
+      );
+    }
+    return out;
+  }
+
   /** The prefabs a scene's instances resolve against, with each prefab this batch renamed also under its new id. */
-  private prefabsFor(scene: AssetEntry): PrefabLibrary | undefined {
-    return this.withRenamed(this.env.prefabsFor?.(this.givenId(scene)));
+  private prefabsFor(scene: AssetEntry | AssetId): PrefabLibrary | undefined {
+    const id = typeof scene === "string" ? scene : this.givenId(scene);
+    return this.withRenamed(this.env.prefabsFor?.(id));
   }
 
   /** `given` with each prefab this batch renamed also under its new id. */
@@ -1401,7 +1451,11 @@ class BatchWork {
     }
     this.checkId(id, "id");
 
-    const value = cloneJson(op.content) ?? doc.empty(env, { id });
+    // A prefab's content may be just its header (a variant is `{ base }`): the rest starts empty.
+    const value =
+      doc.kind === PREFAB_KIND && isPlainObject(op.content)
+        ? { ...(doc.empty(env, { id }) as Prefab), ...cloneJson(op.content) }
+        : (cloneJson(op.content) ?? doc.empty(env, { id }));
     if (doc.idField && isPlainObject(value)) {
       const own = value[doc.idField];
       if (own === undefined) value[doc.idField] = id;
@@ -1427,6 +1481,18 @@ class BatchWork {
       this.fail(first.code, first.message, undefined, inContent(first));
     }
     this.warnings.push(...parsed.issues.map(inContent));
+    if (doc.kind === PREFAB_KIND && isPrefab(parsed.value) && parsed.value.base !== undefined) {
+      const based = applyHeaderOp(
+        { params: {} },
+        { op: "setPrefabBase", base: parsed.value.base },
+        id,
+        this.liveLibrary(id),
+      );
+      if (!based.ok) {
+        const { code, message, ...rest } = based.issue;
+        this.fail(code, message, ["content", "base"], rest);
+      }
+    }
 
     const key = this.newKey();
     this.put(

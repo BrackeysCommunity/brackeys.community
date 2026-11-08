@@ -13,7 +13,10 @@ import {
 } from "../../game/define";
 import { pointField } from "../../game/fields";
 import type { EntityTypeDef, GameDefinition } from "../../game/types";
+import { expandScene } from "../expand";
+import { formatScene } from "../format";
 import { sceneJsonSchema } from "../json-schema";
+import { parseSceneOrThrow } from "../parse";
 import { fieldKind } from "../schema";
 import type { EntityDef, SceneDefinition } from "../types";
 import { validateScene } from "../validate";
@@ -393,5 +396,53 @@ describe("behavior blocks in the JSON Schema", () => {
     expect(block(r, "post", "fake/wobble").required).toEqual(["amount"]);
     expect(block(r, "still", "fake/wobble").required).toBeUndefined();
     expect(block(r, "post", "fake/tint").required).toBeUndefined();
+  });
+});
+
+describe("behavior defaults on parse", () => {
+  const r = createRegistry(testGame);
+  const scene = (behaviors: Record<string, unknown>): SceneDefinition => ({
+    v: 3,
+    game: "test-game",
+    name: "defaults",
+    bounds: [0, 0, 640, 480],
+    entities: [{ id: "m", type: "lamp", at: [0, 0], behaviors } as EntityDef],
+  });
+
+  it("keeps only the fields a file writes, so parse then format leaves `{}` as `{}`", () => {
+    const written = scene({ [GLOW.name]: {}, [SPIN.name]: { speed: 5 } });
+    const def = parseSceneOrThrow(formatScene(written).text, r);
+    expect(def.entities![0]!.behaviors).toEqual({ [GLOW.name]: {}, [SPIN.name]: { speed: 5 } });
+    expect(formatScene(def).text).toBe(formatScene(written).text);
+  });
+
+  it("still fills the defaults in the expanded entity, the type's over the behavior's", () => {
+    const def = parseSceneOrThrow(formatScene(scene({ [GLOW.name]: {}, [SPIN.name]: {} })).text, r);
+    const e = expandScene(def, r).entities.find((x) => x.id === "m")!;
+    expect(e.behaviors).toMatchObject({
+      [GLOW.name]: { color: "#ffcc00", intensity: 2 },
+      [SPIN.name]: { speed: 30 },
+    });
+  });
+
+  it("still refuses a written field that fails its schema", () => {
+    expect(() =>
+      parseSceneOrThrow(formatScene(scene({ [GLOW.name]: { intensity: -1 } })).text, r),
+    ).toThrow(/intensity/);
+  });
+
+  it("keeps each default and description in the JSON Schema", () => {
+    const entities = (
+      sceneJsonSchema(r) as {
+        $defs: { Entity: { oneOf: { properties: Record<string, any> }[] } };
+      }
+    ).$defs.Entity.oneOf;
+    const lamp = entities.find((e) => e.properties.type.const === "lamp")!;
+    const glow = lamp.properties.behaviors.properties[GLOW.name].properties;
+    expect(glow.color).toMatchObject({
+      default: "#ffcc00",
+      description: expect.stringContaining("color"),
+    });
+    expect(glow.intensity).toMatchObject({ default: 1, minimum: 0 });
   });
 });

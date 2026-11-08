@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
 import type { RegisteredType, Registry } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
+import { entityRefSites } from "../project/kinds/fields";
 import { schemaRefSites, type RefSite } from "../project/refs";
 import type { AssetKindName, ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
@@ -11,13 +12,14 @@ import { isInstanceOverrideField } from "./field-path";
 import { comparePointers } from "./format";
 import { sceneHash } from "./hash";
 import { jsonPointer, lineAt, makeIssue, pointerSegments } from "./issues";
-import { prefabsUsedBy } from "./prefab";
+import { prefabsUsedBy, sceneBody } from "./prefab";
 import {
   CHILD_SEPARATOR,
   childEntity,
   issueOnSource,
   localChild,
   localChildren,
+  type LocalChild,
   mapResolvedBatch,
   NO_CHILD_EDITS,
   parseChildRef,
@@ -47,6 +49,7 @@ import {
   type OpBatch,
   type PathDef,
   type Prefab,
+  type PrefabBody,
   type PrefabLibrary,
   type Pt,
   type Ref,
@@ -378,8 +381,8 @@ export function validateScene(
       }
     };
     entities.forEach((e, i) => {
-      const type = r.types.get(e.type);
-      if (type) check(entityAssetSites(r, type, e, jsonPointer(["entities", i])), e.id, [e.id]);
+      if (r.types.has(e.type))
+        check(entityRefSites(r, e, jsonPointer(["entities", i])), e.id, [e.id]);
     });
     check(schemaRefSites(r.settings, source.settings ?? {}, "/settings"), "", []);
     check(
@@ -570,28 +573,6 @@ export function validateScene(
 }
 
 type Push = (code: IssueCode, fields: Partial<SceneIssue> & { message: string }) => void;
-
-/** The asset ids an entity names: its type's fields and its registered behaviors' blocks. */
-function entityAssetSites(
-  registry: Registry,
-  type: RegisteredType,
-  entity: EntityDef,
-  at: string,
-): RefSite[] {
-  const sites = new Map<string, RefSite>();
-  for (const site of schemaRefSites(type.shape, entity, at)) sites.set(site.pointer, site);
-  const blocks = entity[BEHAVIORS_FIELD];
-  if (isPlainObject(blocks)) {
-    for (const [name, block] of Object.entries(blocks)) {
-      const behavior = registry.behaviors.get(name);
-      if (!behavior) continue;
-      const pointer = `${at}${jsonPointer([BEHAVIORS_FIELD, name])}`;
-      for (const site of schemaRefSites(behavior.shape, block, pointer))
-        sites.set(site.pointer, site);
-    }
-  }
-  return [...sites.values()];
-}
 
 const gridFields = (registry: Registry, type: string): string[] =>
   gridFieldsOf(registry.types.get(type));
@@ -1029,30 +1010,11 @@ function validateSource(
     const children = new Map<Ref, { path: string; what: string }>();
     const byOverrides = { path: jsonPointer(["instances", i, "overrides"]), what: "overrides" };
     for (const path of Object.keys(inst.overrides ?? {})) {
-      const split = splitOverridePath(path);
-      if (!split) continue;
-      const child = local.find((c) => c.child === split.child);
-      if (!child) {
-        if (nested.has(split.child) && isInstanceOverrideField(split.field)) continue;
-        unused(path, `names no child of prefab "${inst.prefab}"`);
-        continue;
-      }
-      const top = split.field.split(".")[0]!;
-      const type = registry.types.get(
-        child.kind === "entity" ? child.def.type : (registry.bulkKey(child.key)?.type ?? ""),
-      );
-      const fields: (string | undefined)[] =
-        child.kind === "bulk"
-          ? [registry.bulkKey(child.key)?.field]
-          : [...Object.keys(type?.shape ?? {}), "name", "layer", "off", "z", BEHAVIORS_FIELD];
-      if (RESERVED_OVERRIDE_FIELDS.includes(top) || !fields.includes(top)) {
-        unused(path, `names no field "${top}" ${split.child} can have`);
-        continue;
-      }
-      const schema = child.kind === "entity" ? type?.shape[top] : undefined;
-      if (schema && fieldKind(schema) === "grid") {
+      const verdict = judgeOverride(registry, local, nested, path, inst.prefab);
+      if (verdict.kind === "unused") unused(path, verdict.why);
+      else if (verdict.kind === "grid")
         push("grid-invalid", {
-          message: `${inst.id}'s override "${path}" names ${split.child}'s grid field ${top}; grid fields can't be overridden`,
+          message: `${inst.id}'s override "${path}" names ${verdict.child}'s grid field ${verdict.field}; grid fields can't be overridden`,
           path: jsonPointer(["instances", i, "overrides", path]),
           entityIds: [inst.id],
           hint: `Paint the cells in prefab "${inst.prefab}" instead, and drop the override.`,
@@ -1061,9 +1023,7 @@ function validateSource(
             ops: [{ op: "revertOverride", ref: inst.id, paths: [path] }],
           },
         });
-        continue;
-      }
-      children.set(split.child, byOverrides);
+      else if (verdict.kind === "child") children.set(verdict.child, byOverrides);
     }
     if (resolved.ok)
       for (const name of Object.keys(inst.params ?? {}))
@@ -1092,6 +1052,49 @@ function validateSource(
   });
 
   validateGridTransforms(def, registry, prefabs, push);
+}
+
+type OverrideVerdict =
+  | { kind: "skip" }
+  | { kind: "child"; child: Ref }
+  | { kind: "unused"; why: string }
+  | { kind: "grid"; child: Ref; field: string };
+
+/**
+ * What override `path` does to `children` (a prefab's, by refs relative to
+ * it): names one of them and a field it can have, names a field of a nested
+ * instance in `nested`, names nothing (`unused`), or names a grid field,
+ * which can't be overridden. A path that isn't `childId.field` is `skip`:
+ * the schema reports it.
+ */
+function judgeOverride(
+  registry: Registry,
+  children: readonly LocalChild[],
+  nested: ReadonlySet<Ref>,
+  path: string,
+  prefab: string,
+): OverrideVerdict {
+  const split = splitOverridePath(path);
+  if (!split) return { kind: "skip" };
+  const child = children.find((c) => c.child === split.child);
+  if (!child) {
+    if (nested.has(split.child) && isInstanceOverrideField(split.field)) return { kind: "skip" };
+    return { kind: "unused", why: `names no child of prefab "${prefab}"` };
+  }
+  const top = split.field.split(".")[0]!;
+  const type = registry.types.get(
+    child.kind === "entity" ? child.def.type : (registry.bulkKey(child.key)?.type ?? ""),
+  );
+  const fields: (string | undefined)[] =
+    child.kind === "bulk"
+      ? [registry.bulkKey(child.key)?.field]
+      : [...Object.keys(type?.shape ?? {}), "name", "layer", "off", "z", BEHAVIORS_FIELD];
+  if (RESERVED_OVERRIDE_FIELDS.includes(top) || !fields.includes(top))
+    return { kind: "unused", why: `names no field "${top}" ${split.child} can have` };
+  const schema = child.kind === "entity" ? type?.shape[top] : undefined;
+  if (schema && fieldKind(schema) === "grid")
+    return { kind: "grid", child: split.child, field: top };
+  return { kind: "child", child: split.child };
 }
 
 /** The nested instances a list of child refs passes through: `room-1/door-1/panel` gives `room-1` and `room-1/door-1`. */
@@ -1126,6 +1129,61 @@ function variantClashes(
 }
 
 /**
+ * A prefab's own overrides against its variant base's children:
+ * `unused-override` for a path that names none of them (every path, when it
+ * has no base), `grid-invalid` for a grid field. The fix redefines the
+ * prefab without the path.
+ */
+function validateVariantOverrides(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs: PrefabLibrary,
+  own: Prefab,
+  base: string | undefined,
+  push: Push,
+): void {
+  const paths = Object.keys(own.overrides ?? {});
+  if (paths.length === 0) return;
+  const resolved = base === undefined ? undefined : resolvePrefab(base, prefabs, registry);
+  if (resolved && !resolved.ok) return;
+  const children = resolved?.prefab.children ?? [];
+  const nested = nestedInstanceRefs(children.map((c) => c.child));
+  const drop = (path: string) => {
+    const { [path]: _gone, ...overrides } = own.overrides ?? {};
+    const body: PrefabBody = {
+      ...sceneBody(def, registry, own.contract),
+      ...(base !== undefined ? { base } : {}),
+      ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
+      ...(own.params && Object.keys(own.params).length > 0 ? { params: own.params } : {}),
+    };
+    return {
+      label: `Drop ${own.id}'s override ${path}`,
+      ops: [{ op: "definePrefab", id: own.id, prefab: body } satisfies SceneOp],
+    };
+  };
+  for (const path of paths) {
+    const verdict: OverrideVerdict =
+      base === undefined
+        ? { kind: "unused", why: "has no base to override: the prefab isn't a variant" }
+        : judgeOverride(registry, children, nested, path, base);
+    const at = jsonPointer(["overrides", path]);
+    if (verdict.kind === "unused")
+      push("unused-override", {
+        message: `prefab "${own.id}"'s override "${path}" ${verdict.why}`,
+        path: at,
+        fix: drop(path),
+      });
+    else if (verdict.kind === "grid")
+      push("grid-invalid", {
+        message: `prefab "${own.id}"'s override "${path}" names ${verdict.child}'s grid field ${verdict.field}; grid fields can't be overridden`,
+        path: at,
+        hint: `Paint the cells in prefab "${base ?? own.id}" instead, and drop the override.`,
+        fix: drop(path),
+      });
+  }
+}
+
+/**
  * A prefab view's header, read from the library's copy of `self`: its
  * variant base (a prefab in the library, resolvable, sharing no id with the
  * view's own children) and its params' targets, each naming a child of the
@@ -1142,6 +1200,7 @@ function validateView(
   if (!own) return;
   const baseRefs: Ref[] = [];
   const base = own.base;
+  if (base === undefined) validateVariantOverrides(def, registry, prefabs, own, undefined, push);
   if (base !== undefined && !prefabs.has(base)) {
     const known = [...prefabs.keys()].filter((id) => id !== self);
     const guess = closest(base, known);
@@ -1175,6 +1234,7 @@ function validateView(
       });
     if (!issue && lost.length === 0) {
       baseRefs.push(...prefabChildRefs(base, prefabs, registry));
+      validateVariantOverrides(def, registry, prefabs, own, base, push);
       const clashes = new Set(
         variantClashes(
           { base, entities: def.entities ?? [], instances: def.instances ?? [] },

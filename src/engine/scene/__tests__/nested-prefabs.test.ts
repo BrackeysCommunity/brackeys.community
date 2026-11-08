@@ -165,6 +165,22 @@ describe("nested prefabs: placement", () => {
     expect(pin?.transform).toEqual({ turn: 1, flip: true });
   });
 
+  it("records the composed transform on a bulk child of a turned nested instance", () => {
+    const lib = nest({ mid: { rot: 1 }, top: { flip: true } });
+    const def = scene([{ id: "t", prefab: "top", at: [10, 20], rot: 2 }]);
+    const view = resolveSceneDetailed(def, engine, lib);
+    const origin = (id: string) => view.origins[view.def.entities!.findIndex((e) => e.id === id)];
+    const pin = origin("t/m/l/pin");
+    expect(pin).toMatchObject({ kind: "child", transform: { rot: 1, flip: true } });
+    expect(origin("t/m/l/~solid:0")).toEqual({
+      kind: "child",
+      instance: 0,
+      child: "m/l/~solid:0",
+      path: ["t", "m", "l"],
+      transform: pin?.kind === "child" ? pin.transform : undefined,
+    });
+  });
+
   it("inherits layer and off from the nearest instance that sets them", () => {
     const e = resolved(nest({ mid: { layer: "inner", off: true }, top: { layer: "outer" } }));
     expect(e.get("t/m/l/pin")).toMatchObject({ layer: "inner", off: true });

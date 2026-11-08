@@ -396,13 +396,16 @@ describe("applyOpsToDoc: layout 3", () => {
   it("writes a behavior block field by field", () => {
     const doc = sceneToDoc(gameYard(), { key: sequentialKeys() });
     const key = keyOf(doc, "lamp")!;
+    const kept = entitiesMap(doc).get(key)!.get("behaviors");
+    expect(kept).toBeInstanceOf(Y.Map);
+    expect((kept as Y.Map<unknown>).size).toBe(0);
     expect(
       writes(entitiesMap(doc), () =>
         run(doc, {
           ops: [{ op: "update", ref: "lamp", set: { [`behaviors.${GLOW}.intensity`]: 3 } }],
         }),
       ),
-    ).toEqual([`${key}/behaviors`]);
+    ).toEqual([`${key}/behaviors/${GLOW}`]);
     expect(
       writes(entitiesMap(doc), () =>
         run(doc, {
