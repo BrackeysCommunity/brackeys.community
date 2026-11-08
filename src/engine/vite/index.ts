@@ -29,7 +29,6 @@ export {
   readFileProject,
   readPrefabFiles,
   readProjectPrefabFiles,
-  writePrefabFiles,
   type AssetChange,
   type BlobRepair,
   type DiskChange,

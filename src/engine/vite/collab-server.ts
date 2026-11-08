@@ -118,6 +118,8 @@ type Served = {
   env: KindEnv;
   /** What `reinspectBlobs` last checked each binary at. */
   checked: Map<AssetKey, string>;
+  /** The last write `blockedWrite` reported, so a held path warns once. */
+  blocked?: string;
   hold?: Promise<DirectConnection>;
 };
 
@@ -177,6 +179,17 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     const first = result.issues?.[0];
     warn(`${where}: ${result.reason}${first ? ` (${first.code}: ${first.message})` : ""}`);
   };
+
+  /**
+   * A live entry whose path something unlisted on disk holds stays unwritten,
+   * its content kept in the doc, until the path frees: say so once.
+   */
+  async function warnBlocked(s: Served, doc: Y.Doc): Promise<void> {
+    const issue = await s.adapter.blockedWrite(doc);
+    const message = issue ? `${s.project.file.id}: ${issue.code}: ${issue.message}` : undefined;
+    if (message !== undefined && message !== s.blocked) warn(`${message}; not written yet`);
+    s.blocked = message;
+  }
 
   const docOf = (name: string): Y.Doc | undefined => server.hocuspocus.documents.get(name);
 
@@ -317,6 +330,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       await enqueue(id, async () => {
         if (ref.kind === "project") {
           await repair(s, document);
+          await warnBlocked(s, document);
           await s.adapter.storeProject(document);
           return;
         }

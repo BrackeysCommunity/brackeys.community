@@ -1274,7 +1274,6 @@ resolveScenePath
 sceneCollabServer
 sceneNameOf
 snapshotFiles
-writePrefabFiles
 
 ## camera.ts
 type Viewport = {
@@ -7613,7 +7612,6 @@ declare function readFileProject(dir: string, opts?: {
 }): Promise<FileProject>;
 declare function readPrefabFiles(scenesDir: string, registry: Registry): Promise<PrefabFiles>;
 declare function readProjectPrefabFiles(project: Pick<FileProject, "dir" | "kinds">, state: ProjectState, registry: Registry): Promise<PrefabFiles>;
-declare function writePrefabFiles(scenesDir: string, texts: ReadonlyMap<string, string>, prefabs: PrefabLibrary): Promise<Map<string, string>>;
 
 ## vite/scene-paths.ts
 declare const SCENE_NAME_PATTERN: RegExp;

@@ -600,8 +600,7 @@
       "resolveScenePath",
       "sceneCollabServer",
       "sceneNameOf",
-      "snapshotFiles",
-      "writePrefabFiles"
+      "snapshotFiles"
     ],
     "./project": [
       "ATLAS_KIND",

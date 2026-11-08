@@ -232,6 +232,69 @@ describe("prefab docs", () => {
     theirs.destroy();
   });
 
+  it("gives prefabs created in one batch distinct keys when a suffixed key is free only in the registry", async () => {
+    const host = memoryDocHost();
+    const created = { at: 0, by: "seed" };
+    seedProjectDoc(
+      host.doc("project:p"),
+      {
+        meta: { projectId: "p", layout: 1, name: "P" },
+        assets: {
+          yard: { key: "yard", id: "yard", kind: "scene", path: "yard.json", created },
+          peg: { key: "peg", id: "old-peg", kind: "prefab", path: "prefabs/old-peg.json", created },
+        },
+        history: {},
+        code: {},
+        build: {},
+      },
+      { kind: "migration" },
+    );
+    sceneToDoc(
+      { v: 2, name: "yard", bounds: [0, 0, 500, 500] },
+      { doc: host.doc("scene:p.yard"), key: sequentialKeys("s") },
+    );
+    prefabToDoc(
+      { ...POST, id: "old-peg" },
+      { doc: host.doc("asset:p.peg"), key: sequentialKeys("o") },
+    );
+    const session = await createProjectSession({
+      project: "p",
+      openDoc: host.client().openDoc,
+      origin: ada,
+      registry,
+      kinds: createKindRegistry(null, [sceneKind, prefabKind]),
+    });
+    const source = sessionPrefabSource(session, { scene: "yard" });
+    await source.ready();
+    const doc = (await session.open("scene:p.yard")).doc;
+    const body = { entities: POST.entities };
+    const r = applyOpsToDoc(
+      doc,
+      {
+        ops: [
+          { op: "definePrefab", id: "peg", prefab: body },
+          { op: "definePrefab", id: "peg-2", prefab: body },
+        ],
+      },
+      ada,
+      registry,
+      { prefabs: source.library(), prefabWriter: source.writer },
+    );
+    expect(r.ok || r.issue).toBe(true);
+    const prefabs = Object.values(session.state().assets)
+      .filter((e) => e.kind === "prefab")
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map((e) => [e.key, e.id, e.path]);
+    expect(prefabs).toEqual([
+      ["peg", "old-peg", "prefabs/old-peg.json"],
+      ["peg-2", "peg", "prefabs/peg.json"],
+      ["peg-2-2", "peg-2", "prefabs/peg-2.json"],
+    ]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect([...source.library().keys()].sort()).toEqual(["old-peg", "peg", "peg-2"]);
+    session.destroy();
+  });
+
   it("a local source writes prefab ops to its own docs, one transaction each", () => {
     const source = localPrefabSource(new Map([["post", POST]]), { key: sequentialKeys("l") });
     const doc = sceneToDoc(

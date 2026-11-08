@@ -372,6 +372,24 @@ describe("assets on files", { timeout: 60_000 }, () => {
       expect(ids((await run("assets", "list", "--kind", "prefab")).data)).not.toContain("peg");
     });
 
+    it("refuses a new prefab whose path a file outside the registry holds", async () => {
+      await writeFile(join(deck, "prefabs/peg.json"), "{ not json");
+      const before = await tree(deck);
+      const ops = [{ op: "definePrefab", id: "peg", prefab: { entities: [peg] } }];
+      for (const flags of [["--dry-run"], []]) {
+        const r = await applyOps(ops, ...flags);
+        expect(r.exitCode, JSON.stringify(r.data)).toBe(1);
+        expect(r.data).toMatchObject({
+          ok: false,
+          failedAt: 0,
+          written: false,
+          issue: { code: "path-taken", entityIds: ["peg"], got: "prefabs/peg.json" },
+        });
+      }
+      expect(await tree(deck)).toEqual(before);
+      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).not.toContain("peg");
+    });
+
     it("sends a deleted prefab to the trash, and restore brings back its file and entry", async () => {
       const made = await applyOps([{ op: "definePrefab", id: "peg", prefab: { entities: [peg] } }]);
       expect(made.exitCode, JSON.stringify(made.data)).toBe(0);

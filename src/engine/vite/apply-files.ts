@@ -15,6 +15,7 @@ import { snapshotProject, type ProjectSnapshot } from "../project/snapshot";
 import type { AssetId, BuildStamp } from "../project/types";
 import { projectView } from "../project/view";
 import { makeIssue } from "../scene/issues";
+import type { SceneIssue } from "../scene/types";
 import { ENGINE_VERSION } from "../version";
 import { fileContentStore } from "./content-store";
 import { createProjectFileAdapter, DISK_ORIGIN, type FileProject } from "./project-files";
@@ -50,6 +51,20 @@ function localAwareness(doc: Y.Doc): AwarenessLike {
   };
 }
 
+/** The op that created or moved the blocked asset: the one naming its id, else the first scene edit. */
+function blockedAt(batch: ProjectOpBatch, issue: SceneIssue): number {
+  const id = issue.entityIds[0];
+  const named = batch.ops.findIndex(
+    (op) =>
+      ("id" in op && op.id === id) || ("ids" in op && id !== undefined && op.ids.includes(id)),
+  );
+  if (named >= 0) return named;
+  return Math.max(
+    0,
+    batch.ops.findIndex((op) => op.op === "editScene"),
+  );
+}
+
 /**
  * The project as its files are now, pinned by content: each live doc
  * asset by the hash of its canonical text (its raw text when it doesn't
@@ -80,7 +95,9 @@ export async function snapshotFiles(project: FileProject): Promise<ProjectSnapsh
  * applies one live: the docs it touches are loaded through the file
  * adapter into an in-memory session, `applyProjectBatch` checks and writes
  * them, and the adapter stores what changed (files, sidecars, moves, the
- * trash and the dev cache). A failing batch writes nothing. A batch whose
+ * trash and the dev cache). A failing batch writes nothing, and neither does
+ * one that would put an asset where something on disk the registry doesn't
+ * list already sits (`path-taken`), dry run or not. A batch whose
  * `base` isn't the files' snapshot hash (`snapshotFiles`) fails with
  * `stale-base` before anything is read.
  */
@@ -137,7 +154,10 @@ export async function applyProjectBatchToFiles(
   try {
     await prefabs.ready();
     const result = await applyProjectBatch(session, batch, origin);
-    if (result.ok && !opts.dryRun) {
+    if (!result.ok) return result;
+    const blocked = await adapter.blockedWrite(projectDoc);
+    if (blocked) return { ok: false, opIndex: blockedAt(batch, blocked), issue: blocked };
+    if (!opts.dryRun) {
       await adapter.storeProject(projectDoc);
       for (const [name, doc] of docs) await adapter.storeDoc(name, doc);
     }

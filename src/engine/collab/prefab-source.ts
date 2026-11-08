@@ -2,7 +2,7 @@ import * as Y from "yjs";
 
 import type { EditSceneOp } from "../project/ops";
 import type { AssetEntry, AssetId, AssetKey, AssetPath } from "../project/types";
-import { pathClash } from "../project/view";
+import { pathClash, suffixedId } from "../project/view";
 import { makeIssue } from "../scene/issues";
 import { applyOps } from "../scene/ops";
 import { PREFAB_KIND } from "../scene/prefab";
@@ -358,6 +358,7 @@ function docsWriter(session: ProjectSession, core: Core, opts: WriterOptions): P
       const created: { key: AssetKey; id: AssetId; path: AssetPath; prefab: Prefab }[] = [];
       const removed: AssetEntry[] = [];
       const fail = (issue: SceneIssue): PrefabDocPlan => ({ ok: false, issue });
+      const takenKeys = new Set<AssetKey>(Object.keys(session.state().assets));
       for (const id of change.changed) {
         const next = change.next.get(id);
         const entry = view.byId.get(id);
@@ -380,7 +381,8 @@ function docsWriter(session: ProjectSession, core: Core, opts: WriterOptions): P
           patches.push({ held, prefab: { ...next, id } });
         } else if (next) {
           let key = id;
-          for (let n = 2; session.state().assets[key]; n++) key = `${id}-${n}`;
+          for (let n = 2; takenKeys.has(key); n++) key = suffixedId(id, n);
+          takenKeys.add(key);
           created.push({ key, id, path: prefabPathNear(id, scene?.path), prefab: { ...next, id } });
         } else if (entry) removed.push(entry);
       }

@@ -307,6 +307,36 @@ describe("blob upload: the rate limit", () => {
     expect(await db.select().from(engineBlobs)).toHaveLength(1);
   });
 
+  it("charges a held-hash upload whose body is too large or empty", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    const hash = await sha256(PNG);
+    const oversized = new Request(`https://site.test/api/engine/projects/${PROJECT}/blobs`, {
+      method: "POST",
+      headers: { "x-test-user": "staff", "x-asset-kind": "texture", "x-expect-sha256": hash },
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(65).fill(7));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+    expect((await send(oversized)).status).toBe(413);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(2);
+    expect((await send(upload(new Uint8Array(0), { expect: hash }))).status).toBe(400);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(3);
+    expect(minio.objects.size).toBe(1);
+  });
+
+  it("answers 429 to a held-hash upload that reads too large once the day's uploads are spent", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    limiter.hits.set("engine-blob:staff", ENGINE_BLOB_UPLOADS_PER_DAY);
+    const hash = await sha256(PNG);
+    const { request } = endless({ "x-asset-kind": "texture", "x-expect-sha256": hash });
+    expect((await send(request)).status).toBe(429);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(ENGINE_BLOB_UPLOADS_PER_DAY + 1);
+  });
+
   it("counts per member", async () => {
     limiter.hits.set("engine-blob:someone-else", ENGINE_BLOB_UPLOADS_PER_DAY);
     expect((await send(upload(PNG))).status).toBe(201);

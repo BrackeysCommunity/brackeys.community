@@ -307,13 +307,19 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   `createProjectFileAdapter` and `docNameOf`/`parseDocName`).
 - `./vite`: `ProjectFileAdapter.blockedWrite(doc)`, the `path-taken`
   issue for a created or moved entry whose path something on disk other
-  than its own file holds (a file the scan doesn't list, ignoring case),
-  which `storeProject` would skip.
+  than its own file holds (a file the scan doesn't list, a file where a
+  folder goes, ignoring case); a path a trash or move in the same write
+  frees isn't blocked. `applyProjectBatchToFiles` refuses such a batch with
+  it, dry run or not, and writes nothing; the dev server warns once and
+  leaves the entry unwritten until its path frees. `storeProject` trashes
+  and stages moves before it creates, so a new entry can take a path the
+  same write frees.
 - `./vite`: `readProjectPrefabFiles(project, state, registry)` reads a
   project's live prefab assets at their registry paths. `PrefabFiles` gains
-  `files` (each read prefab's file). `writePrefabFiles` stays for a scenes
-  directory outside any project; a project's prefabs change through
+  `files` (each read prefab's file). A project's prefabs change through
   `applyProjectBatchToFiles`.
+- Breaking: `./vite`: `writePrefabFiles` removed; every scene home is a
+  project, whose prefabs change through `applyProjectBatchToFiles`.
 - `./vite`: `FileApplyOptions.store`: where `applyProjectBatchToFiles`
   inspects blob bytes from (a dry run's bytes stay out of the cache).
 - `reinspectBlobs` (`./collab`): the project's one writer re-derives a

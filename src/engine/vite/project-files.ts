@@ -79,7 +79,6 @@ import {
 } from "../project/types";
 import { fileNameOf, folderPrefixOf, projectView, splitExtension } from "../project/view";
 import { diffToOps } from "../scene/diff-to-ops";
-import { formatPrefab } from "../scene/format";
 import { makeIssue } from "../scene/issues";
 import { parsePrefab, PREFABS_DIR } from "../scene/prefab";
 import {
@@ -341,9 +340,11 @@ async function exists(file: string): Promise<boolean> {
   );
 }
 
-/** A path that isn't a file to read: gone, or a folder. */
-const notAFile = (error: unknown) =>
-  isMissing(error) || (error as { code?: unknown } | null)?.code === "EISDIR";
+/** A path that isn't a file to read: gone, a folder, or under a file. */
+const notAFile = (error: unknown) => {
+  const code = (error as { code?: unknown } | null)?.code;
+  return isMissing(error) || code === "EISDIR" || code === "ENOTDIR";
+};
 
 async function readText(file: string): Promise<string | null> {
   try {
@@ -1130,38 +1131,22 @@ export function createProjectFileAdapter(
     const state = readProject(doc);
     let wrote = false;
     const moves: { entry: AssetEntry; disk: OnDisk }[] = [];
+    const creates: { entry: AssetEntry; def: AssetKindDef }[] = [];
     for (const entry of Object.values(state.assets)) {
       const def = kinds.get(entry.kind);
-      if (!hasFile(def)) continue;
+      if (!def || !hasFile(def)) continue;
       const disk = files.get(entry.key);
       if (entry.deleted) {
         if (disk) {
           await moveToTrash(entry.key, disk);
           wrote = true;
         }
-        continue;
-      }
-      if (!disk) {
-        if (await exists(abs(entry.path))) continue;
-        let onDisk: OnDisk;
-        if (isBlobKind(def)) {
-          const data = await blobOf(entry);
-          if (data === null) continue;
-          await writeAtomic(abs(entry.path), data);
-          const blob = { sha256: entry.sha256 ?? (await sha256(data)), bytes: data.byteLength };
-          onDisk = { path: entry.path, text: null, blob, sidecar: null };
-        } else {
-          const text = await contentFor(entry);
-          if (text === null) continue;
-          await writeAtomic(abs(entry.path), text);
-          onDisk = { path: entry.path, text, blob: null, sidecar: null };
-        }
-        files.set(entry.key, onDisk);
-        await forgetTrashed(entry.key);
-        wrote = true;
-      } else if (disk.path !== entry.path) moves.push({ entry, disk });
+      } else if (!disk) creates.push({ entry, def });
+      else if (disk.path !== entry.path) moves.push({ entry, disk });
     }
 
+    // Trashed files are gone and moving files are staged aside before any
+    // create, so an entry can take a path this same write frees.
     const vacated = new Set(moves.map((m) => m.disk.path));
     const staged: { entry: AssetEntry; disk: OnDisk; tmp: string }[] = [];
     for (const move of moves) {
@@ -1171,6 +1156,28 @@ export function createProjectFileAdapter(
       if (move.disk.sidecar !== null) await rm(abs(sidecarPathOf(move.disk.path)), { force: true });
       staged.push({ ...move, tmp });
     }
+
+    for (const { entry, def } of creates) {
+      if (staged.some((m) => m.entry.path === entry.path)) continue;
+      if (await exists(abs(entry.path))) continue;
+      let onDisk: OnDisk;
+      if (isBlobKind(def)) {
+        const data = await blobOf(entry);
+        if (data === null) continue;
+        await writeAtomic(abs(entry.path), data);
+        const blob = { sha256: entry.sha256 ?? (await sha256(data)), bytes: data.byteLength };
+        onDisk = { path: entry.path, text: null, blob, sidecar: null };
+      } else {
+        const text = await contentFor(entry);
+        if (text === null) continue;
+        await writeAtomic(abs(entry.path), text);
+        onDisk = { path: entry.path, text, blob: null, sidecar: null };
+      }
+      files.set(entry.key, onDisk);
+      await forgetTrashed(entry.key);
+      wrote = true;
+    }
+
     for (const { entry, disk, tmp } of staged) {
       await mkdir(dirname(abs(entry.path)), { recursive: true });
       await rename(tmp, abs(entry.path));
@@ -1231,7 +1238,7 @@ export function createProjectFileAdapter(
       const disk = files.get(entry.key);
       if (disk && disk.path === entry.path) continue;
       const holder = await diskHolder(entry.path);
-      if (holder === null || (disk && freed.has(holder.toLowerCase()))) continue;
+      if (holder === null || freed.has(holder.toLowerCase())) continue;
       return makeIssue("path-taken", {
         message:
           holder === entry.path
@@ -1730,34 +1737,6 @@ export async function readProjectPrefabFiles(
     out.prefabs.set(entry.id, parsed.prefab);
     out.texts.set(entry.id, text);
     out.files.set(entry.id, path);
-  }
-  return out;
-}
-
-/**
- * Writes the prefabs whose canonical text differs from `texts` (the files as
- * last read or written) into `prefabs/` of a scenes directory outside any
- * project, and deletes the files of ids that left the library. A project's
- * prefabs change through `applyProjectBatchToFiles` instead. Returns the
- * texts now on disk.
- */
-export async function writePrefabFiles(
-  scenesDir: string,
-  texts: ReadonlyMap<string, string>,
-  prefabs: PrefabLibrary,
-): Promise<Map<string, string>> {
-  const fileOf = (id: string) => prefabPath(scenesDir, id);
-  const out = new Map(texts);
-  for (const [id, prefab] of prefabs) {
-    const text = formatPrefab(prefab);
-    if (texts.get(id) === text) continue;
-    await writeAtomic(fileOf(id), text);
-    out.set(id, text);
-  }
-  for (const id of texts.keys()) {
-    if (prefabs.has(id)) continue;
-    await rm(fileOf(id), { force: true });
-    out.delete(id);
   }
   return out;
 }

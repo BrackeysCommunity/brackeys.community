@@ -21,7 +21,6 @@ import {
   readPrefabFiles,
   readProjectPrefabFiles,
   SCENE_NAME_PATTERN,
-  type PrefabFiles,
   type ProjectScan,
 } from "@jams/engine/vite";
 
@@ -341,17 +340,14 @@ export type SceneSource =
 
 /**
  * Where a scene's prefabs come from: the prefab assets of the project the
- * scene's file is in (`scene` is that file), `prefabs/` beside a file
- * outside every project, or none for stdin.
+ * scene's file is in, `prefabs/` beside a file outside every project, or
+ * none for stdin.
  */
-export type PrefabHome = { project: ProjectHandle; scene: string } | { dir: string } | undefined;
+export type PrefabHome = { project: ProjectHandle } | { dir: string } | undefined;
 
 /** The prefab home of a scene read by `readSource` from `arg`. */
-export function prefabHomeOf(
-  source: { scene: SceneFile | null; project: ProjectHandle | null },
-  arg: string,
-): PrefabHome {
-  if (source.project) return { project: source.project, scene: source.scene?.file ?? resolve(arg) };
+export function prefabHomeOf(source: { project: ProjectHandle | null }, arg: string): PrefabHome {
+  if (source.project) return { project: source.project };
   return arg === "-" ? undefined : { dir: dirname(arg) };
 }
 
@@ -399,26 +395,15 @@ type Parsed = {
  * file that doesn't parse is left out; validating a scene that uses it then
  * reports `prefab-unknown`.
  */
-export async function readScenePrefabs(
-  home: PrefabHome,
-  registry: Registry,
-  scan?: ProjectScan,
-): Promise<PrefabFiles> {
-  if (home === undefined)
-    return { prefabs: new Map(), texts: new Map(), files: new Map(), problems: [] };
-  if ("dir" in home) return readPrefabFiles(home.dir, registry);
-  const { project } = home;
-  const { state } = scan ?? (await scanProject(project));
-  return readProjectPrefabFiles(project, state, registry);
-}
-
-/** The prefab library of `home`; see `readScenePrefabs`. */
 export async function prefabsOf(
   home: PrefabHome,
   registry: Registry,
   scan?: ProjectScan,
 ): Promise<PrefabLibrary> {
-  return (await readScenePrefabs(home, registry, scan)).prefabs;
+  if (home === undefined) return new Map();
+  if ("dir" in home) return (await readPrefabFiles(home.dir, registry)).prefabs;
+  const { state } = scan ?? (await scanProject(home.project));
+  return (await readProjectPrefabFiles(home.project, state, registry)).prefabs;
 }
 
 /**
@@ -503,7 +488,7 @@ export async function loadScene(
     name,
     await readFile(located.scene.file, "utf8"),
     undefined,
-    { project: located.scene.project, scene: located.scene.file },
+    { project: located.scene.project },
     located.scene.project,
   );
   return parsed.ok ? { ...parsed, scene: located.scene } : parsed;
