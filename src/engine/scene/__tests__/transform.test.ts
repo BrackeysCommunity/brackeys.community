@@ -10,6 +10,10 @@ import {
   flipWorld,
   IDENTITY_2D,
   invert,
+  inverseTurn,
+  isIdentityTurn,
+  translation,
+  turnOf,
   type Dihedral,
   type Transform2D,
 } from "../transform";
@@ -173,5 +177,26 @@ describe("flipWorld", () => {
       expect(flipWorld(flipWorld(d, "x"), "x")).toEqual(d);
       expect(flipWorld(flipWorld(d, "y"), "y")).toEqual(d);
     }
+  });
+});
+
+describe("turn helpers", () => {
+  it("turnOf reads rot and flip, treating anything but a quarter turn as none", () => {
+    expect(turnOf({})).toEqual({ rot: 0, flip: false });
+    expect(turnOf({ rot: 3, flip: true })).toEqual({ rot: 3, flip: true });
+    expect(turnOf({ rot: 4 })).toEqual({ rot: 0, flip: false });
+  });
+
+  it("inverseTurn undoes every element", () => {
+    for (const d of ELEMENTS) {
+      expect(isIdentityTurn(composeDihedral(inverseTurn(d), d))).toBe(true);
+      expect(isIdentityTurn(composeDihedral(d, inverseTurn(d)))).toBe(true);
+    }
+    expect(ELEMENTS.filter(isIdentityTurn)).toEqual([{ rot: 0, flip: false }]);
+  });
+
+  it("translation only moves", () => {
+    expect(translation([3, -4])).toEqual({ ...IDENTITY_2D, tx: 3, ty: -4 });
+    expect(applyPt(translation([3, -4]), [1, 1])).toEqual([4, -3]);
   });
 });

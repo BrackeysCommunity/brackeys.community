@@ -90,6 +90,21 @@ export function dihedralOf(t: Transform2D): Dihedral | null {
   return null;
 }
 
+/** The dihedral element an instance's or group's `rot` and `flip` spell. */
+export const turnOf = (d: { rot?: number; flip?: boolean }): Dihedral => ({
+  rot: d.rot === 1 || d.rot === 2 || d.rot === 3 ? d.rot : 0,
+  flip: d.flip === true,
+});
+
+/** The inverse element: what undoes `d`. */
+export const inverseTurn = (d: Dihedral): Dihedral =>
+  d.flip ? d : { rot: quarter(4 - d.rot), flip: false };
+
+export const isIdentityTurn = (d: Dihedral) => d.rot === 0 && !d.flip;
+
+/** A pure translation by `[dx, dy]`. */
+export const translation = ([dx, dy]: Pt): Transform2D => ({ ...IDENTITY_2D, tx: dx, ty: dy });
+
 /** `outer ∘ inner` on the dihedral group: composing turns and flips without matrices. */
 export function composeDihedral(outer: Dihedral, inner: Dihedral): Dihedral {
   // A mirror reverses the turn it is applied after: F·Rᵏ = R⁻ᵏ·F.

@@ -260,7 +260,7 @@ export function createAssetKind(options: AssetKindOptions): AssetKind {
       if (assetDocMeta(row.state)) {
         const lifted = migrateAssetLayoutState(row.state, kinds);
         if (!lifted) return row.state;
-        console.log(`[load] asset ${id} moved to layout ${COLLAB_LAYOUT_VERSION}`);
+        console.log(`[load] asset ${id} lifted to layout ${COLLAB_LAYOUT_VERSION}`);
         return storeLoaded(id, lifted);
       }
 

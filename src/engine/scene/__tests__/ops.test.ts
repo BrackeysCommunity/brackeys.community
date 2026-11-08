@@ -774,6 +774,36 @@ describe("applyOps: setZ", () => {
     expect(ok(applyOps(up.def, up.inverse, engine, { prefabs })).def).toEqual(def);
   });
 
+  it("update writes z 0 as absent too, matching setZ", () => {
+    const def = ok(
+      applyOps(engineYard(), { ops: [{ op: "setZ", refs: ["crate", "gate-1"], z: 3 }] }, engine, {
+        prefabs,
+      }),
+    ).def;
+    const viaSetZ = ok(
+      applyOps(def, { ops: [{ op: "setZ", refs: ["crate", "gate-1"], z: 0 }] }, engine, {
+        prefabs,
+      }),
+    );
+    const viaUpdate = ok(
+      applyOps(
+        def,
+        {
+          ops: [
+            { op: "update", ref: "crate", set: { z: 0 } },
+            { op: "update", ref: "gate-1", set: { z: 0 } },
+          ],
+        },
+        engine,
+        { prefabs },
+      ),
+    );
+    expect("z" in entity(viaUpdate.def, "crate")!).toBe(false);
+    expect("z" in viaUpdate.def.instances![0]!).toBe(false);
+    expect(viaUpdate.hash).toBe(viaSetZ.hash);
+    expect(ok(applyOps(viaUpdate.def, viaUpdate.inverse, engine, { prefabs })).def).toEqual(def);
+  });
+
   it("refuses bulk entries, child refs, both or neither of z and by, and z past ±10000", () => {
     const def = engineYard();
     const run = (op: SceneOp) => failed(applyOps(def, based(def, [op]), engine, { prefabs }));

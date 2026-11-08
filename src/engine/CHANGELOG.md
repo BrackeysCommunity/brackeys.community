@@ -216,7 +216,8 @@ cells. Every addition is optional with a default equal to v2's behaviour.
   behavior's `requires`, counting the type's required blocks; fix adds the
   block as `{}`), and `schema` inside a block at
   `/entities/<i>/behaviors/<name, / as ~1>/<field>`. Grid rules: a grid
-  field without `settings.grid`, an override naming a grid field (fix
+  field in a scene without `settings.grid` (a prefab view is exempt: the
+  scene placing it sizes the cells), an override naming a grid field (fix
   reverts it), and a turned or flipped instance or group over a grid
   unless the grid is square with square cells are `grid-invalid`.
   Overrides may name `z` and `behaviors`.
@@ -517,6 +518,12 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
 - `changeAssetId` on a prefab that other prefabs nest or use as a base
   rewrites those prefabs' instances and `base` in the same batch, instead
   of refusing with "changed while the batch was being planned".
+- `validateDoc` / `watchIssues` validate a prefab doc as a view of its
+  prefab (`ValidateOptions.prefab`), so a nested instance that reaches the
+  open prefab is `prefab-cycle` even while the library's copy of it is
+  stale, and `applyOps` with `prefab` validates its result the same way.
+- `update` writes an entity's or instance's `z` of 0 as absent, as `setZ`
+  does, so both give the same file and hash.
 
 ### Agent surface
 
@@ -524,7 +531,7 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   output below. MCP tool names are unchanged; `scene_apply_ops` takes the
   new ops through `ops:v3` and `scene_show` carries the new fields.
 - Ops `transform`, `setZ`, `useAssets`, `paintCells` (at most 65,536
-  cells), `setPrefabBase`, `exposeParam` and `setParam` in the ops schema;
+  cells; `rects` fill first and `cells` paint over them), `setPrefabBase`, `exposeParam` and `setParam` in the ops schema;
   `setGroup` takes `rot` and `flip`, `instantiate`'s instance takes `rot`,
   `flip`, `z` and `params`, `applyToPrefab` takes `to`, and
   `definePrefab`'s body takes `instances`, `base`, `overrides`, `params`

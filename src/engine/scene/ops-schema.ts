@@ -363,7 +363,7 @@ const PaintCellsOp = z
           .describe("[col, row, value]: one cell, local to the entity's `at`."),
       )
       .optional()
-      .describe("Cells to paint, in order."),
+      .describe("Cells to paint, in order, after `rects`."),
     rects: z
       .array(
         z
@@ -377,7 +377,7 @@ const PaintCellsOp = z
           .describe("[c0, r0, c1, r1, value]: every cell of the rectangle, corners inclusive."),
       )
       .optional()
-      .describe("Rectangles to fill, after `cells`."),
+      .describe("Rectangles to fill first; `cells` paint over them."),
   })
   .superRefine((op, ctx) => {
     let count = op.cells?.length ?? 0;

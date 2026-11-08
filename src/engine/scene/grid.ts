@@ -9,7 +9,7 @@
  * chunk `(floor(col/32), floor(row/32))` at row `row mod 32`, column
  * `col mod 32`.
  */
-import type { Dihedral } from "./transform";
+import { dihedral, type Dihedral } from "./transform";
 import type { CellEdit, CellRect } from "./types";
 
 export type { CellEdit, CellRect } from "./types";
@@ -325,21 +325,9 @@ export function gridCellBounds(
   return b;
 }
 
-/** The linear part of `d` as [a, b, c, d]: x' = a·x + c·y, y' = b·x + d·y. */
-function dihedralMatrix(d: Dihedral): [number, number, number, number] {
-  const turns: [number, number, number, number][] = [
-    [1, 0, 0, 1],
-    [0, 1, -1, 0],
-    [-1, 0, 0, -1],
-    [0, -1, 1, 0],
-  ];
-  const [a, b, c, dd] = turns[((d.rot % 4) + 4) % 4]!;
-  return d.flip ? [-a, -b, c, dd] : [a, b, c, dd];
-}
-
 /** Cells turned and flipped about cell (0, 0)'s top-left corner; square cells only. */
 export function transformGrid(grid: GridCells, d: Dihedral): GridCells {
-  const [a, b, c, dd] = dihedralMatrix(d);
+  const { a, b, c, d: dd } = dihedral(d, [0, 0]);
   const out = new Map<ChunkKey, Uint16Array>();
   for (const [key, rows] of Object.entries(grid)) {
     const at = parseChunkKey(key);

@@ -48,7 +48,11 @@ export function validateDoc(
     });
     const prefabs = (opts.prefabs ?? EMPTY_PREFAB_SOURCE).library();
     const project = opts.project?.view();
-    return validateScene(view.def, registry, { prefabs, ...(project ? { project } : {}) });
+    return validateScene(view.def, registry, {
+      prefabs,
+      ...(view.kind === "prefab" && view.prefab?.id ? { prefab: view.prefab.id } : {}),
+      ...(project ? { project } : {}),
+    });
   } catch (err) {
     return [
       makeIssue("schema", {

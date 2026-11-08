@@ -983,7 +983,7 @@
                 "description": "The grid field, e.g. `cells`."
               },
               "cells": {
-                "description": "Cells to paint, in order.",
+                "description": "Cells to paint, in order, after `rects`.",
                 "type": "array",
                 "items": {
                   "type": "array",
@@ -1011,7 +1011,7 @@
                 }
               },
               "rects": {
-                "description": "Rectangles to fill, after `cells`.",
+                "description": "Rectangles to fill first; `cells` paint over them.",
                 "type": "array",
                 "items": {
                   "type": "array",

@@ -1,10 +1,9 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import {
   createRegistry,
-  formatScene,
   parseScene,
   SCENE_FORMAT_VERSION,
   validateScene,
@@ -12,11 +11,10 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "..";
+import { migrationHarness } from "../../../engine/scene/__tests__/fixtures/migration-harness";
 
 const registry = createRegistry(platformerGame);
 const FIXTURES = new URL("./fixtures/", import.meta.url);
-
-const CURRENT = `v${SCENE_FORMAT_VERSION}`;
 
 /**
  * sha-256 of each frozen platformer scene; a new format version adds a `v<n>`
@@ -28,8 +26,6 @@ const FROZEN: Record<string, string> = {
 };
 
 const frozenText = (file: string) => readFileSync(new URL(file, FIXTURES), "utf8");
-const versionOf = (file: string) => Number(file.slice(1, file.indexOf("/")));
-const nameOf = (file: string) => file.slice(file.indexOf("/") + 1);
 
 describe("frozen platformer scenes", () => {
   it("are unchanged", () => {
@@ -41,25 +37,15 @@ describe("frozen platformer scenes", () => {
       expect(createHash("sha256").update(frozenText(file)).digest("hex"), file).toBe(sha);
   });
 
+  migrationHarness({ fixtures: FIXTURES, registryOf: () => registry });
+
   for (const file of Object.keys(FROZEN)) {
-    it(`${file} migrates to the current version, validates and round-trips`, () => {
+    it(`${file} validates once migrated`, () => {
       const parsed = parseScene(frozenText(file), registry);
       expect(parsed.ok, JSON.stringify(parsed.issues)).toBe(true);
       if (!parsed.ok) return;
-      const from = versionOf(file);
-      expect(parsed.migratedFrom).toBe(from === SCENE_FORMAT_VERSION ? undefined : from);
       expect(parsed.def.v).toBe(SCENE_FORMAT_VERSION);
       expect(validateScene(parsed.def, registry).filter((i) => i.severity === "error")).toEqual([]);
-      const { text } = formatScene(parsed.def);
-      const again = parseScene(text, registry);
-      expect(again.ok && formatScene(again.def).text).toBe(text);
-      if (from === SCENE_FORMAT_VERSION) expect(text).toBe(frozenText(file));
-      else {
-        // `UPDATE_FIXTURES=1` writes a missing migration output once; it never rewrites one.
-        const out = new URL(`${CURRENT}/${nameOf(file)}`, FIXTURES);
-        if (process.env.UPDATE_FIXTURES === "1" && !existsSync(out)) writeFileSync(out, text);
-        expect(text).toBe(frozenText(`${CURRENT}/${nameOf(file)}`));
-      }
     });
   }
 });

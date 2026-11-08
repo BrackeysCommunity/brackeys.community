@@ -41,10 +41,10 @@ const jsonIn = (rel: string) =>
     .filter((f) => sceneNameOf(f) !== null)
     .map((f) => [`${rel}${f}`, readFileSync(dir(`${rel}${f}`), "utf8")] as const);
 
-/** Every prefab file the engine owns; the scene files' prefabs are canonical text, the fixtures hand-formatted. */
+/** Every prefab file the engine owns, each written by formatPrefab. */
 const FILES = [
-  ...jsonIn("../../scenes/prefabs/").map(([n, t]) => [n, t, true] as const),
-  ...jsonIn("../../scene/__tests__/fixtures/prefabs/").map(([n, t]) => [n, t, false] as const),
+  ...jsonIn("../../scenes/prefabs/"),
+  ...jsonIn("../../scene/__tests__/fixtures/prefabs/"),
 ];
 
 const POST: Prefab = {
@@ -75,11 +75,11 @@ describe("prefab docs", () => {
     expect(FILES.length).toBeGreaterThanOrEqual(3);
   });
 
-  for (const [name, text, canonical] of FILES) {
+  for (const [name, text] of FILES) {
     it(`is byte-identical file → doc → file for ${name}, also after the doc crosses the wire`, () => {
       const prefab = JSON.parse(text) as Prefab;
       const expected = formatPrefab(prefab);
-      if (canonical) expect(expected).toBe(text);
+      expect(expected).toBe(text);
       const doc = prefabToDoc(prefab);
       expect(formatPrefab(docToPrefab(doc))).toBe(expected);
       const remote = new Y.Doc();

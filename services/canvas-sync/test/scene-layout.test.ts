@@ -80,7 +80,10 @@ const docOf = (state: Uint8Array | null) => {
   return doc;
 };
 
-/** A state as a layout-2 instance stored it: the layout's own record keys under their old names. */
+/**
+ * A state as a layout-2 instance stored it: the layout's own record keys
+ * under their old names, at scene format v2.
+ */
 function layoutTwoState(state: Uint8Array): Uint8Array {
   const doc = docOf(state);
   const rename = (map: Y.Map<unknown>, from: string, to: string) => {
@@ -97,6 +100,7 @@ function layoutTwoState(state: Uint8Array): Uint8Array {
           rename(rec, "@bulk", "bulk");
         }
     doc.getMap("meta").set("layout", 2);
+    doc.getMap("meta").set("schemaVersion", 2);
   });
   return Y.encodeStateAsUpdate(doc);
 }
@@ -347,6 +351,7 @@ describe("hosted scene layouts", () => {
     expect(await synced(scene)).toBe(true);
     expect(scene.scope()).toBe("read-write");
     expect(scene.doc.getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    expect(scene.doc.getMap("meta").get("schemaVersion")).toBe(SCENE_FORMAT_VERSION);
     for (const map of ["entities", "instances"])
       expect(recordKeys(scene.doc, map)).toEqual(recordKeys(current, map));
 
@@ -356,7 +361,7 @@ describe("hosted scene layouts", () => {
       expect(recordKeys(stored, map)).toEqual(recordKeys(current, map));
   });
 
-  it("a layout-2 prefab doc moves to layout 3 at load, keeping every key, with a fresh snapshot", async () => {
+  it("a layout-2, v2 prefab doc moves to layout 3 and v3 at load, keeping every key, with a fresh snapshot", async () => {
     const server = await instance("layout-two-prefab");
     const projectId = newProjectId();
     createMemoryProject(stores, {
@@ -373,11 +378,14 @@ describe("hosted scene layouts", () => {
     expect(await synced(doc)).toBe(true);
     expect(doc.scope()).toBe("read-write");
     expect(doc.doc.getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    expect(doc.doc.getMap("meta").get("schemaVersion")).toBe(SCENE_FORMAT_VERSION);
     expect(recordKeys(doc.doc, "entities")).toEqual(recordKeys(current, "entities"));
     expect(prefabOfState(Y.encodeStateAsUpdate(doc.doc))).toEqual(CRATE);
 
     const stored = stores.assets.rows.get(`${projectId}.crate`)!;
     expect(docOf(stored.state).getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    expect(docOf(stored.state).getMap("meta").get("schemaVersion")).toBe(SCENE_FORMAT_VERSION);
+    expect(stored.schemaVersion).toBe(SCENE_FORMAT_VERSION);
     expect(recordKeys(docOf(stored.state), "entities")).toEqual(recordKeys(current, "entities"));
     expect(stored.snapshot).toBe(formatPrefab(CRATE));
   });

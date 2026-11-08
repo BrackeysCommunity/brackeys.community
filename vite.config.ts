@@ -284,6 +284,7 @@ const config = defineConfig({
       "src/engine/scenes/**",
       "src/games/*/scenes/**",
       "src/engine/__tests__/fixtures/*.json",
+      "src/engine/scene/__tests__/fixtures/prefabs/**",
       // Frozen copies of each scene format version, compared byte for byte.
       "src/engine/scene/__tests__/fixtures/v*/**",
       "src/games/*/__tests__/fixtures/v*/**",

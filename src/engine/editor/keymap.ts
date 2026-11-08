@@ -151,6 +151,13 @@ export const ENGINE_KEYS: readonly EngineKeyBinding[] = [
   { key: "p", scope: "edit", command: "tool:pen", description: "Pen tool" },
   { key: "w", scope: "edit", command: "tool:waypoints", description: "Waypoints tool" },
   { key: "r", scope: "edit", command: "tool:rotate", description: "Rotate tool" },
+  {
+    key: "q",
+    scope: "edit",
+    command: "turn-ccw",
+    description: "Turn a quarter counterclockwise",
+    when: (c) => c.quarterTurns === true,
+  },
   { key: "q", scope: "edit", command: "rotate-ccw", description: "Rotate −15°" },
   {
     key: "e",

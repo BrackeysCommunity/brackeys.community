@@ -13,7 +13,10 @@ import {
 } from "../../game/define";
 import { pointField } from "../../game/fields";
 import type { EntityTypeDef, GameDefinition } from "../../game/types";
+import { sceneJsonSchema } from "../json-schema";
 import { fieldKind } from "../schema";
+import type { EntityDef, SceneDefinition } from "../types";
+import { validateScene } from "../validate";
 
 const tint = defineBehavior({
   name: "fake/tint",
@@ -325,5 +328,70 @@ describe("the test game's behaviors", () => {
       "gameplay",
       "editor",
     ]);
+  });
+});
+
+describe("behavior issue codes", () => {
+  const halo = defineBehavior({
+    name: "test-game/halo",
+    description: "A ring around the glow.",
+    fields: { radius: z.number().default(8).describe("Px.") },
+    requires: [GLOW.name],
+  });
+  const r = createRegistry(
+    defineGame({ ...testGame, behaviors: [...(testGame.behaviors ?? []), halo] }),
+  );
+  const codes = ["behavior-unknown", "behavior-forbidden", "behavior-missing"];
+  const issues = (entities: EntityDef[]) => {
+    const def: SceneDefinition = {
+      v: 1,
+      name: "t",
+      game: "test-game",
+      bounds: [0, 0, 1000, 1000],
+      entities,
+    };
+    return validateScene(def, r)
+      .filter((i) => codes.includes(i.code))
+      .map((i) => [i.code, i.path, i.entityIds]);
+  };
+  const at: [number, number] = [100, 100];
+
+  it("passes a lamp that leaves its required glow out", () => {
+    expect(issues([{ id: "lamp", type: "lamp", at }])).toEqual([]);
+  });
+
+  it("flags an unknown name, a forbidden block and a missing required behavior", () => {
+    expect(
+      issues([
+        { id: "a", type: "lamp", at, behaviors: { "test-game/spn": {} } },
+        { id: "b", type: "plain", at, behaviors: { [SPIN.name]: {} } },
+        { id: "c", type: "marker", at, behaviors: { [halo.name]: {} } },
+      ]),
+    ).toEqual([
+      ["behavior-unknown", "/entities/0/behaviors/test-game~1spn", ["a"]],
+      ["behavior-forbidden", "/entities/1/behaviors/test-game~1spin", ["b"]],
+      ["behavior-missing", "/entities/2/behaviors/test-game~1halo", ["c"]],
+    ]);
+  });
+});
+
+describe("behavior blocks in the JSON Schema", () => {
+  type Node = { properties?: Record<string, Node>; required?: string[] };
+  const block = (r: ReturnType<typeof createRegistry>, type: string, behavior: string) => {
+    const entities = (sceneJsonSchema(r) as { $defs: { Entity: { oneOf: Node[] } } }).$defs.Entity
+      .oneOf;
+    const entity = entities.find((e) => (e.properties!.type as { const?: string }).const === type)!;
+    return entity.properties!.behaviors!.properties![behavior]!;
+  };
+
+  it("requires a field only when neither the behavior nor the type defaults it", () => {
+    const r = createRegistry(
+      game({
+        types: [marker("post"), marker("still", { defaults: { "fake/wobble": { amount: 0 } } })],
+      }),
+    );
+    expect(block(r, "post", "fake/wobble").required).toEqual(["amount"]);
+    expect(block(r, "still", "fake/wobble").required).toBeUndefined();
+    expect(block(r, "post", "fake/tint").required).toBeUndefined();
   });
 });

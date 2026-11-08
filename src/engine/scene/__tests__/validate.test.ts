@@ -13,6 +13,7 @@ import { formatScene } from "../format";
 import { sceneHash } from "../hash";
 import { applyOps } from "../ops";
 import { parseScene, parseSceneOrThrow } from "../parse";
+import { prefabScene } from "../prefab";
 import type { EntityDef, IssueCode, OpBatch, Prefab, SceneDefinition, SceneIssue } from "../types";
 import { validateScene } from "../validate";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
@@ -835,6 +836,13 @@ describe("grid fields", () => {
       gridScene(undefined, { instances: [{ id: "t1", prefab: "tiles", at: [128, 128] }] }),
     );
     expect(child.map((i) => [i.path, i.entityIds])).toEqual([["/instances/0", ["t1/floor"]]]);
+  });
+
+  it("a prefab view's grid children need no settings.grid: the placing scene sizes them", () => {
+    for (const id of ["tiles", "nest"]) {
+      const view = prefabScene(prefabs.get(id)!, [-512, -512, 512, 512]);
+      expect(validateScene(view, painter, { prefabs, prefab: id })).toEqual([]);
+    }
   });
 
   it("an override naming a grid field, with a fix that drops it", () => {

@@ -7,7 +7,8 @@ import {
   applyPt,
   applyVec,
   dihedralOf,
-  IDENTITY_2D,
+  isIdentityTurn,
+  translation,
   type Dihedral,
   type Transform2D,
 } from "./transform";
@@ -35,7 +36,6 @@ export const addPt = (p: Pt, [dx, dy]: Pt): Pt => [p[0] + dx, p[1] + dy];
 export const subPt = (p: Pt, [dx, dy]: Pt): Pt => [p[0] - dx, p[1] - dy];
 export const isZeroPt = ([x, y]: Pt) => x === 0 && y === 0;
 
-const translation = ([dx, dy]: Pt): Transform2D => ({ ...IDENTITY_2D, tx: dx, ty: dy });
 const linearPart = (t: Transform2D): Transform2D => ({ ...t, tx: 0, ty: 0 });
 
 const isPt = (v: unknown): v is Pt =>
@@ -48,8 +48,6 @@ function quarterTurns(t: Transform2D): Dihedral {
   if (!d) throw new Error("a scene transform must be quarter turns and flips");
   return d;
 }
-
-const isIdentityTurn = (d: Dihedral) => d.rot === 0 && !d.flip;
 
 /** An angle in degrees after `d`: negated by a flip, then plus 90° per turn. */
 const turnAngle = (deg: number, d: Dihedral) => (d.flip ? 0 - deg : deg) + 90 * d.rot;

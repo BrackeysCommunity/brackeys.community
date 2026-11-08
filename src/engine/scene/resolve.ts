@@ -12,6 +12,9 @@ import {
   dihedralOf,
   IDENTITY_2D,
   invert,
+  inverseTurn,
+  isIdentityTurn,
+  turnOf,
   type Dihedral,
   type Transform2D,
 } from "./transform";
@@ -71,17 +74,7 @@ export function groupOrigin(def: SceneDefinition, group: string | undefined): Pt
   return at ? [at[0], at[1]] : [0, 0];
 }
 
-/** The dihedral element an instance's or group's `rot` and `flip` spell. */
-export const turnOf = (d: { rot?: number; flip?: boolean }): Dihedral => ({
-  rot: (d.rot === 1 || d.rot === 2 || d.rot === 3 ? d.rot : 0) as Dihedral["rot"],
-  flip: d.flip === true,
-});
-
-/** The inverse element: what undoes `d`. */
-export const inverseTurn = (d: Dihedral): Dihedral =>
-  d.flip ? d : { rot: ((4 - d.rot) % 4) as Dihedral["rot"], flip: false };
-
-const isIdentityTurn = (d: Dihedral) => d.rot === 0 && !d.flip;
+export { inverseTurn, turnOf };
 
 const isIdentity = (t: Transform2D) =>
   t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && t.tx === 0 && t.ty === 0;

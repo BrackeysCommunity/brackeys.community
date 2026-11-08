@@ -23,6 +23,7 @@ import {
   layoutToDoc,
   LOG_ARRAY,
   LOG_CAP,
+  migrateDoc,
   migrateDocLayout,
   migrateLayout,
   prefabHeaderMap,
@@ -66,6 +67,7 @@ import {
   formatPrefab,
   hashText,
   PREFAB_KIND,
+  SCENE_FORMAT_VERSION,
   type Prefab,
   type SceneDefinition,
 } from "../../engine/scene/index.ts";
@@ -393,18 +395,32 @@ function assetDocOf(state: Uint8Array | null, kinds: KindRegistry = ENGINE_KINDS
 }
 
 function liftAssetLayout(doc: Y.Doc, kinds: KindRegistry): boolean {
+  if (isPrefabDoc(doc)) {
+    const laidOut = docLayout(doc) < COLLAB_LAYOUT_VERSION && migrateDocLayout(doc).migrated;
+    return liftPrefabFormat(doc) || laidOut;
+  }
   if (docLayout(doc) >= COLLAB_LAYOUT_VERSION) return false;
-  if (isPrefabDoc(doc)) return migrateDocLayout(doc).migrated;
   const meta = metaOf(doc);
   const def = meta && declarativeKind(kinds, meta.kind);
   return def ? migrateDocLayout(doc, def.layout).migrated : false;
 }
 
 /**
+ * Lifts a prefab doc's `meta.schemaVersion` to this engine's scene format.
+ * A doc from a newer engine is left as stored rather than refused here.
+ */
+function liftPrefabFormat(doc: Y.Doc): boolean {
+  const v = doc.getMap<unknown>("meta").get("schemaVersion");
+  if (typeof v !== "number" || v >= SCENE_FORMAT_VERSION) return false;
+  return migrateDoc(doc, { target: SCENE_FORMAT_VERSION }) !== null;
+}
+
+/**
  * A stored prefab or declarative asset doc lifted to this engine's collab
- * layout, in one `migration` transaction that keeps every key: the doc's
- * whole state. Null when it needs nothing: unseeded, at this layout
- * already, or a kind `kinds` doesn't lay out (a game's).
+ * layout (and a prefab doc to its scene format version), in `migration`
+ * transactions that keep every key: the doc's whole state. Null when it
+ * needs nothing: unseeded, current already, or a kind `kinds` doesn't lay
+ * out (a game's).
  */
 export function migrateAssetLayoutState(
   state: Uint8Array | null,

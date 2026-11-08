@@ -34,7 +34,7 @@ import {
 } from "./schema";
 import { aabb, aabbUnion, convexHull, isConvex, translateShape } from "./shape-geometry";
 import { parseShape } from "./shapes";
-import { composeDihedral, type Dihedral } from "./transform";
+import { composeDihedral, isIdentityTurn, turnOf, type Dihedral } from "./transform";
 import {
   PREFAB_KIND,
   SCENE_FORMAT_VERSION,
@@ -67,7 +67,8 @@ export type ValidateOptions = {
   /**
    * The prefab this scene is a view of (`prefabScene`, a prefab doc's
    * `readDoc`). The view counts as one level of nesting, an instance that
-   * reaches it is `prefab-cycle`, and its variant base is checked too.
+   * reaches it is `prefab-cycle`, its variant base is checked too, and its
+   * grid fields need no `settings.grid`.
    */
   prefab?: string;
   /**
@@ -347,8 +348,9 @@ export function validateScene(
     if (type) checkBehaviors(r, type, e, jsonPointer(["entities", i]), push, batch);
   });
 
-  // grid fields need the scene's grid to size their cells
-  if (!isRecord(source.settings?.grid)) {
+  // grid fields need the scene's grid to size their cells; a prefab view has
+  // no settings, and the scene placing it sizes its cells instead
+  if (opts.prefab === undefined && !isRecord(source.settings?.grid)) {
     entities.forEach((e, i) => {
       for (const field of gridFields(r, e.type)) {
         if (e[field] === undefined) continue;
@@ -1276,11 +1278,6 @@ function viewHolder(
 }
 
 const IDENTITY: Dihedral = { rot: 0, flip: false };
-const dihedralOf = (t: { rot?: number; flip?: boolean } | undefined): Dihedral => ({
-  rot: (t?.rot ?? 0) as Dihedral["rot"],
-  flip: t?.flip === true,
-});
-const isTurned = (d: Dihedral) => d.rot !== 0 || d.flip;
 
 /**
  * The grid children of prefab `id` that end up turned or flipped under `d`
@@ -1298,11 +1295,11 @@ function turnedGridChildren(
   if (!prefab || seen.has(id)) return [];
   const inside = new Set([...seen, id]);
   const out: Ref[] = [];
-  if (isTurned(d))
+  if (!isIdentityTurn(d))
     for (const e of prefab.entities)
       if (gridFields(registry, e.type).some((f) => e[f] !== undefined)) out.push(e.id);
   for (const nested of prefab.instances ?? []) {
-    const inner = composeDihedral(d, dihedralOf(nested));
+    const inner = composeDihedral(d, turnOf(nested));
     for (const ref of turnedGridChildren(nested.prefab, inner, registry, prefabs, inside))
       out.push(`${nested.id}/${ref}`);
   }
@@ -1341,8 +1338,8 @@ function validateGridTransforms(
 
   const groups = def.groups ?? {};
   for (const [id, group] of Object.entries(groups)) {
-    const d = dihedralOf(group);
-    if (!isTurned(d)) continue;
+    const d = turnOf(group);
+    if (isIdentityTurn(d)) continue;
     const members = (def.entities ?? []).filter(
       (e) => e.group === id && gridFields(registry, e.type).some((f) => e[f] !== undefined),
     );
@@ -1355,13 +1352,15 @@ function validateGridTransforms(
   }
 
   (def.instances ?? []).forEach((inst, i) => {
-    const own = dihedralOf(inst);
-    const groupD = inst.group === undefined ? IDENTITY : dihedralOf(groups[inst.group]);
+    const own = turnOf(inst);
+    const groupD = inst.group === undefined ? IDENTITY : turnOf(groups[inst.group] ?? {});
     const total = composeDihedral(groupD, own);
     const children = turnedGridChildren(inst.prefab, total, registry, prefabs, new Set());
     if (children.length === 0) return;
     report(
-      isTurned(own) ? transformPointer(["instances", i], own) : jsonPointer(["instances", i]),
+      !isIdentityTurn(own)
+        ? transformPointer(["instances", i], own)
+        : jsonPointer(["instances", i]),
       inst.id,
       children.map((c) => `${inst.id}/${c}`),
     );

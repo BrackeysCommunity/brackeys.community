@@ -7127,7 +7127,6 @@ declare function groupTransform(def: SceneDefinition, group: string | undefined)
 declare function instanceOrigin(def: SceneDefinition, inst: InstanceDef): Pt;
 declare function instanceSteps(def: SceneDefinition, inst: InstanceDef): Transform2D[];
 declare function instanceTransform(def: SceneDefinition, inst: InstanceDef): Transform2D;
-declare const inverseTurn: (d: Dihedral) => Dihedral;
 declare function localChild(prefab: Prefab, inst: InstanceDef, child: Ref, registry: Registry, library?: PrefabLibrary, opts?: ResolveOptions): LocalChild | null;
 declare function localChildren(prefab: Prefab, inst: InstanceDef, registry: Registry, library?: PrefabLibrary, opts?: ResolveOptions): LocalChild[];
 declare function parseChildRef(ref: Ref): null | {
@@ -7138,10 +7137,6 @@ declare function placeChildren(prefab: Prefab, inst: InstanceDef, registry: Regi
 declare function resolvePrefab(id: string, library: PrefabLibrary, registry: Registry, opts?: ResolveOptions): PrefabResolution;
 declare function resolveScene(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): SceneDefinition;
 declare function resolveSceneDetailed(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): ResolvedScene;
-declare const turnOf: (d: {
-    flip?: boolean;
-    rot?: number;
-}) => Dihedral;
 
 ## scene/schema.ts
 type FieldKind = "angle" | "grid" | "mirror" | "path" | "point" | "shape" | "value" | "vector";
@@ -7301,7 +7296,12 @@ declare function composeDihedral(outer: Dihedral, inner: Dihedral): Dihedral;
 declare function dihedral(d: Dihedral, at: Pt): Transform2D;
 declare function dihedralOf(t: Transform2D): Dihedral | null;
 declare function flipWorld(d: Dihedral, axis: "x" | "y"): Dihedral;
+declare const inverseTurn: (d: Dihedral) => Dihedral;
 declare function invert(t: Transform2D): Transform2D;
+declare const turnOf: (d: {
+    flip?: boolean;
+    rot?: number;
+}) => Dihedral;
 
 ## scene/types.ts
 type Aabb = {

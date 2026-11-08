@@ -38,7 +38,6 @@ import {
 import {
   CHILD_SEPARATOR,
   gridTurns,
-  inverseTurn,
   localChild,
   localChildren,
   mapResolvedBatch,
@@ -46,7 +45,6 @@ import {
   placeChildren,
   resolvePrefab,
   splitOverridePath,
-  turnOf,
   type ChildApply,
   type SourceBatchResult,
 } from "./resolve";
@@ -68,6 +66,9 @@ import {
   flipWorld,
   IDENTITY_2D,
   invert,
+  inverseTurn,
+  translation,
+  turnOf,
   type Dihedral,
   type Transform2D,
 } from "./transform";
@@ -342,7 +343,13 @@ function run(
     created: w.created,
     remap: refRemap(start, w),
     diff: diffScenes(def, after),
-    issues: opts.validate === "none" ? [] : validateScene(after, given, { prefabs }),
+    issues:
+      opts.validate === "none"
+        ? []
+        : validateScene(after, given, {
+            prefabs,
+            ...(opts.prefab !== undefined ? { prefab: opts.prefab } : {}),
+          }),
     ...(w.prefabsChanged.size > 0
       ? { prefabs: w.prefabs, prefabsChanged: [...w.prefabsChanged].sort() }
       : {}),
@@ -1017,8 +1024,6 @@ function withDihedral<T extends { rot?: number; flip?: boolean }>(def: T, d: Dih
   return withKey(withKey(def, "rot", d.rot === 0 ? undefined : d.rot), "flip", d.flip || undefined);
 }
 
-const translation = ([tx, ty]: Pt): Transform2D => ({ ...IDENTITY_2D, tx, ty });
-
 /** A group's frame: what its members' stored geometry is relative to. */
 function groupFrame(w: Work, group: string | undefined): Transform2D {
   const g = group === undefined ? undefined : w.groups[group];
@@ -1091,6 +1096,7 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
         });
         if (next.rot === 0) delete next.rot;
         if (next.flip === false) delete next.flip;
+        if (next.z === 0) delete next.z;
         if (isObj(next.params) && Object.keys(next.params).length === 0) delete next.params;
         validateInstance(w, next as unknown as InstanceDef, inSet(i));
         t.rec.def = next as unknown as InstanceDef;
@@ -1137,6 +1143,7 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
         Object.keys(blocks).length === 0
       )
         delete next[BEHAVIORS_FIELD];
+      if (next.z === 0) delete next.z;
       validateEntity(w, next, inSet(i));
       t.rec.def = next;
       w.entitiesTouched = true;
