@@ -827,7 +827,8 @@ describe("fmt", () => {
 
   it("migrates a v2 prefab and a v2 scene to v3", async () => {
     await mkdir(join(avatarDir, "prefabs"));
-    const v2 = await readFile(join(PREFAB_FIXTURES, "gate.json"), "utf8");
+    const v3 = await readFile(join(PREFAB_FIXTURES, "gate.json"), "utf8");
+    const v2 = v3.replace('"v": 3,', '"v": 2,');
     expect(JSON.parse(v2)).toMatchObject({ kind: "prefab", v: 2 });
     await writeFile(join(avatarDir, "prefabs", "gate.json"), v2);
     const yard = JSON.parse(await engineYardText());

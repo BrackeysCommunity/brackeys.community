@@ -409,8 +409,10 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   path whose segment right after `behaviors` may be a behavior name.
 - The formatter's entity and instance key order ends with every other key
   by code unit, then `behaviors` (its blocks by name in code-unit order),
-  then grid-valued keys. A behavior block's fields are written by code
-  unit too, whatever their names. An entity that holds grids spans lines, one chunk
+  then grid-valued keys. Everything inside `behaviors` is written by code
+  unit, at every depth and whatever the names (a path-shaped field value
+  included), and `comparePointers` orders pointers there the same way. An
+  entity that holds grids spans lines, one chunk
   per line, chunk keys row-major by (cy, cx); `formatScene`'s `lines` maps
   each chunk pointer to its line. `formatPrefab` writes grid entities the
   same way. `comparePointers` takes an optional document to place grid

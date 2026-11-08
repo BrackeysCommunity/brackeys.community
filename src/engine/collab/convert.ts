@@ -324,6 +324,8 @@ export type ReadDocOptions = {
   registry?: Registry;
   /** For a prefab doc: the scene size its bounds centre on the origin; default the empty scene's. */
   parentBounds?: Bounds;
+  /** For a prefab doc, with `registry`: the prefabs its nested instances name, so the bounds hold their children too. */
+  prefabs?: PrefabLibrary;
 };
 
 /** Room around a prefab's children in the scene a prefab doc reads as. */
@@ -332,12 +334,14 @@ const PREFAB_MARGIN = 64;
 /**
  * The bounds a prefab is edited in: `parent`'s size centred on the
  * prefab's origin, grown to hold its children (with a margin) when a
- * registry can measure them, and its nested instances' origins.
+ * registry can measure them, and its nested instances' origins; with
+ * `prefabs` as well, the nested instances' resolved children.
  */
 export function prefabSceneBounds(
   prefab: Pick<Prefab, "v" | "entities" | "bulk" | "instances">,
   parent: Bounds = EMPTY_SCENE_TEMPLATE.bounds as Bounds,
   registry?: Registry,
+  prefabs?: PrefabLibrary,
 ): Bounds {
   const w = parent[2] - parent[0];
   const h = parent[3] - parent[1];
@@ -359,8 +363,10 @@ export function prefabSceneBounds(
       v: prefab.v,
       entities: prefab.entities,
       ...(prefab.bulk ? { bulk: prefab.bulk } : {}),
+      ...(prefab.instances?.length ? { instances: prefab.instances } : {}),
     },
     registry,
+    prefabs,
   );
   if (box) grow(box.minX, box.minY, box.maxX, box.maxY);
   return out;
@@ -497,6 +503,7 @@ export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
       },
       opts.parentBounds,
       opts.registry,
+      opts.prefabs,
     );
   }
   return {

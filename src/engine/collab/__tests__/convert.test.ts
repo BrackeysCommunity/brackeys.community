@@ -4,9 +4,16 @@ import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
 import { generateScene } from "../../__tests__/fixtures/generate-scene";
+import door from "../../scene/__tests__/fixtures/prefabs/door.json";
+import gate from "../../scene/__tests__/fixtures/prefabs/gate.json";
+import room from "../../scene/__tests__/fixtures/prefabs/room.json";
+import { engine } from "../../scene/__tests__/fixtures/random-ops";
 import { formatScene } from "../../scene/format";
+import { fragmentBounds } from "../../scene/fragment";
 import { sceneHash } from "../../scene/hash";
-import type { SceneDefinition } from "../../scene/types";
+import { prefabLibrary } from "../../scene/prefab";
+import { resolveScene } from "../../scene/resolve";
+import type { Bounds, Prefab, SceneDefinition } from "../../scene/types";
 import {
   assetsMap,
   contentMaps,
@@ -21,6 +28,7 @@ import {
   patchRecord,
   prefabHeaderMap,
   prefabOverridesMap,
+  prefabSceneBounds,
   prefabsMap,
   readDoc,
   recordMap,
@@ -446,5 +454,43 @@ describe("layout 3 prefab docs", () => {
     expect(view.def.assets).toEqual(["clang"]);
     for (const m of [paramsMap(doc), prefabOverridesMap(doc), instancesMap(doc), assetsMap(doc)])
       expect(contentMaps(doc)).toContain(m);
+  });
+});
+
+describe("prefabSceneBounds", () => {
+  const lib = prefabLibrary([room, door, gate] as unknown as Prefab[]);
+  const parent: Bounds = [0, 0, 20, 20];
+  const wrap: Prefab = {
+    kind: "prefab",
+    v: 3,
+    id: "wrap",
+    entities: [],
+    instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 1 }],
+  };
+
+  it("holds a nested instance's resolved children when given the library", () => {
+    const resolved = resolveScene(
+      { v: 3, name: "w", bounds: [0, 0, 1, 1], instances: wrap.instances },
+      engine,
+      lib,
+    );
+    const box = fragmentBounds(
+      { kind: "scene-fragment", v: 3, entities: resolved.entities ?? [] },
+      engine,
+    )!;
+    const atOnly: Bounds = [-10, -114, 364, 14];
+    const held: Bounds = [
+      Math.min(atOnly[0], Math.floor(box.minX) - 64),
+      Math.min(atOnly[1], Math.floor(box.minY) - 64),
+      Math.max(atOnly[2], Math.ceil(box.maxX) + 64),
+      Math.max(atOnly[3], Math.ceil(box.maxY) + 64),
+    ];
+    expect(held).not.toEqual(atOnly);
+    expect(prefabSceneBounds(wrap, parent, engine, lib)).toEqual(held);
+    expect(prefabSceneBounds(wrap, parent, engine)).toEqual(atOnly);
+    expect(
+      readDoc(prefabToDoc(wrap), { registry: engine, parentBounds: parent, prefabs: lib }).def
+        .bounds,
+    ).toEqual(held);
   });
 });

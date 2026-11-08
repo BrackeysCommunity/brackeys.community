@@ -39,9 +39,8 @@ import {
   CHILD_SEPARATOR,
   gridTurns,
   localChild,
-  localChildren,
   mapResolvedBatch,
-  paramOverrides as paramEntries,
+  paramOverrides,
   parseChildRef,
   placeChildren,
   resolvePrefab,
@@ -778,16 +777,17 @@ function translateTarget(w: Work, t: Target, by: Pt): void {
   }
 }
 
-/** An instance's children in the prefab's frame, as a fragment, for its extent. */
+/** An instance's children where the resolved view places them, as a fragment, for its extent. */
 function instanceFragment(w: Work, inst: InstanceDef): SceneFragment {
-  const prefab = prefabOf(w, inst.prefab);
-  const entities: EntityDef[] = [];
-  const bulk: Record<BulkKey, BulkEntry[]> = {};
-  for (const c of localChildren(prefab, inst, w.registry)) {
-    if (c.kind === "entity") entities.push(c.def);
-    else (bulk[c.key] ??= []).push(c.value);
-  }
-  return { kind: FRAGMENT_KIND, v: SCENE_FORMAT_VERSION, entities, bulk };
+  const entities = placeChildren(
+    prefabOf(w, inst.prefab),
+    inst,
+    w.registry,
+    dihedral(turnOf(inst), inst.at),
+    gridTurns({ settings: w.settings }),
+    w.prefabs,
+  ).map((c) => c.def);
+  return { kind: FRAGMENT_KIND, v: SCENE_FORMAT_VERSION, entities };
 }
 
 /** The shape a spot is measured on and the offset it is local to, a box, or a bare point. */
@@ -797,11 +797,7 @@ function spotGeometry(
 ): { tuple: ShapeTuple; offset: Pt } | { box: Aabb } | Pt | null {
   if (t.kind === "instance") {
     const box = fragmentBounds(instanceFragment(w, t.rec.def), w.registry);
-    if (!box) return null;
-    const [x, y] = t.rec.def.at;
-    return {
-      box: { minX: box.minX + x, minY: box.minY + y, maxX: box.maxX + x, maxY: box.maxY + y },
-    };
+    return box ? { box } : null;
   }
   if (t.kind === "bulk") {
     return t.info.form === "point"
@@ -1924,7 +1920,7 @@ function validateInstance(w: Work, def: InstanceDef, relocate: Relocate): void {
   }
   const prefab = prefabOf(w, def.prefab, relocate("/prefab"));
   // A param's value lands on each of its targets as an override, under the instance's own.
-  const overrides: Json = { ...paramOverrides(w, def), ...def.overrides };
+  const overrides: Json = { ...instanceParams(w, def), ...def.overrides };
   const checked: InstanceDef = { ...def, overrides };
   delete checked.params;
   const children = new Set<Ref>();
@@ -1967,19 +1963,13 @@ function validateInstance(w: Work, def: InstanceDef, relocate: Relocate): void {
   }
 }
 
-/** The overrides an instance's params make: each set param's value on every target its prefab declares for it. */
-function paramOverrides(w: Work, def: InstanceDef): Json {
-  const names = Object.keys(def.params ?? {});
-  if (names.length === 0) return {};
+/** The overrides an instance's params make, defaults included, as resolving lays them under its own. */
+function instanceParams(w: Work, def: InstanceDef): Json {
   const resolved = resolvePrefab(def.prefab, w.prefabs, w.registry);
   if (!resolved.ok) return {};
-  const out: Json = {};
-  for (const name of names) {
-    const value = def.params![name];
-    if (value === null || value === undefined) continue;
-    for (const target of resolved.prefab.params[name]?.targets ?? []) out[target] = clone(value);
-  }
-  return out;
+  return Object.fromEntries(
+    paramOverrides(resolved.prefab.params, def.params).map(([k, v]) => [k, clone(v)]),
+  );
 }
 
 /** The header values beyond `prefabBody`'s that a prefab's body carries: its base, variant overrides, parameters and assets. */
@@ -2166,12 +2156,8 @@ function retargetNested(
 function unpackOps(w: Work, inst: InstanceDef): SceneOp[] {
   const prefab = prefabOf(w, inst.prefab);
   const d = turnOf(inst);
-  // The nested instances take the outer params (defaults included) under its overrides, as resolving does.
-  const resolved = resolvePrefab(inst.prefab, w.prefabs, w.registry);
-  const overrides: Json = Object.fromEntries([
-    ...(resolved.ok ? paramEntries(resolved.prefab.params, inst.params) : []),
-    ...Object.entries(inst.overrides ?? {}),
-  ]);
+  // The nested instances take the outer params under its overrides, as resolving does.
+  const overrides: Json = { ...instanceParams(w, inst), ...inst.overrides };
   // Entities stay in the group's frame and `placeFragment` adds `at`, so they take only the turn.
   const children = placeChildren(
     prefab,
@@ -2179,6 +2165,7 @@ function unpackOps(w: Work, inst: InstanceDef): SceneOp[] {
     w.registry,
     [dihedral(d, [0, 0])],
     gridTurns({ settings: w.settings }),
+    w.prefabs,
   ).filter(({ child }) => !isNestedRef(child.child));
   // Bulk entries can't join a group, so they land in world coordinates, less the `at` placing adds.
   const toWorld = [

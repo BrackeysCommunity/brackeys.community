@@ -4,6 +4,7 @@ import { fake } from "../../scene/__tests__/fixtures/fake-game";
 import { fake as yardFake, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
 import { fragmentBounds, type SceneFragment } from "../../scene/fragment";
 import { applyOps } from "../../scene/ops";
+import { prefabLibrary } from "../../scene/prefab";
 import { SCENE_FORMAT_VERSION, type OpBatch, type SceneDefinition } from "../../scene/types";
 import {
   copySelection,
@@ -242,6 +243,46 @@ describe("instances on the clipboard", () => {
     expect(by).not.toEqual([700, 600]);
     expect(r.batch.ops).toMatchObject([
       { op: "instantiate", instance: { id: "gate-2", at: [300 + by[0]!, 400 + by[1]!] } },
+    ]);
+  });
+
+  it("centres a variant or nested-prefab instance on its resolved children", () => {
+    const lib = prefabLibrary([
+      ...prefabs.values(),
+      { kind: "prefab", v: 3, id: "tall-post", base: "post", entities: [] },
+      {
+        kind: "prefab",
+        v: 3,
+        id: "pair",
+        entities: [],
+        instances: [
+          { id: "p1", prefab: "post", at: [-100, 0] },
+          { id: "p2", prefab: "tall-post", at: [100, 0], rot: 1 },
+        ],
+      },
+    ]);
+    const from = scene({
+      instances: [
+        { id: "v-1", prefab: "tall-post", at: [300, 400] },
+        { id: "pair-1", prefab: "pair", at: [600, 900] },
+      ],
+    });
+    const pasteAt = (id: string) => {
+      const text = copySelection(from, [id], yardFake, lib);
+      const r = pasteFragment(text, {
+        def: scene(),
+        registry: yardFake,
+        prefabs: lib,
+        at: [1000, 1000],
+      });
+      if (!r.ok) throw new Error(JSON.stringify(r.issues));
+      return r.batch.ops;
+    };
+    expect(pasteAt("v-1")).toMatchObject([
+      { op: "instantiate", instance: { id: "v-1", at: [1000, 1000] } },
+    ]);
+    expect(pasteAt("pair-1")).toMatchObject([
+      { op: "instantiate", instance: { id: "pair-1", at: [983, 1000] } },
     ]);
   });
 

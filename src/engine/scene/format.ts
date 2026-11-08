@@ -107,10 +107,10 @@ function compareInnerKeys(
  * Orders two JSON Pointers by where they land in `formatScene`'s text: an
  * ancestor before what it holds, array items by index, keys in canonical
  * order, chunk keys row-major. A missing pointer sorts last. Inside an
- * object, a key under `path` is taken to be a path's; behavior names and
- * the fields of a behavior block sort by code unit. Pass the document to
- * place grid-valued keys,
- * which only their values tell apart.
+ * object, a key under `path` is taken to be a path's; every key under
+ * `behaviors` (names, fields, and keys nested in them) sorts by code unit.
+ * Pass the document to place grid-valued keys, which only their values tell
+ * apart.
  */
 export function comparePointers(
   a: string | undefined,
@@ -132,7 +132,7 @@ export function comparePointers(
       if (!Number.isNaN(nx) && !Number.isNaN(ny)) return nx - ny;
       if (i === 0) return compareTopKeys(x, y);
       if (parseChunkKey(x) && parseChunkKey(y)) return compareChunkKeys(x, y);
-      if (sa[i - 1] === BEHAVIORS_FIELD || sa[i - 2] === BEHAVIORS_FIELD) return byCodeUnit(x, y);
+      if (sa.slice(0, i).includes(BEHAVIORS_FIELD)) return byCodeUnit(x, y);
       const grids = isPlainObject(holder) ? gridKeys(holder) : [];
       return compareInnerKeys(x, y, sa[i - 1] === "path", grids);
     }
@@ -144,26 +144,23 @@ export function comparePointers(
   return sa.length - sb.length;
 }
 
-/** Single-line JSON with `, ` separators and spaced braces; `plain` sorts an object's keys by code unit only. */
+/**
+ * Single-line JSON with `, ` separators and spaced braces; `plain` sorts the
+ * keys of every object inside by code unit only.
+ */
 function inline(value: unknown, plain = false): string {
-  if (Array.isArray(value)) return `[${value.map((v) => inline(v)).join(", ")}]`;
+  if (Array.isArray(value)) return `[${value.map((v) => inline(v, plain)).join(", ")}]`;
   if (value !== null && typeof value === "object") {
     const entries = ordered(value as Record<string, unknown>, plain);
     if (entries.length === 0) return "{}";
-    return `{ ${entries.map(([k, v]) => member(k, v)).join(", ")} }`;
+    return `{ ${entries.map(([k, v]) => member(k, v, plain)).join(", ")} }`;
   }
   return JSON.stringify(value) ?? "null";
 }
 
-/** `"key": value`; behavior blocks are keyed by name, and hold their fields, in code-unit order. */
-const member = (k: string, v: unknown) =>
-  `${JSON.stringify(k)}: ${k === BEHAVIORS_FIELD && isPlainObject(v) ? behaviorsInline(v) : inline(v)}`;
-
-function behaviorsInline(blocks: Record<string, unknown>): string {
-  const entries = ordered(blocks, true);
-  if (entries.length === 0) return "{}";
-  return `{ ${entries.map(([name, block]) => `${JSON.stringify(name)}: ${inline(block, true)}`).join(", ")} }`;
-}
+/** `"key": value`; a `behaviors` value is written `plain` at every depth. */
+const member = (k: string, v: unknown, plain = false) =>
+  `${JSON.stringify(k)}: ${inline(v, plain || k === BEHAVIORS_FIELD)}`;
 
 /**
  * One row of a row array (an entity, instance or bulk entry) as its lines,

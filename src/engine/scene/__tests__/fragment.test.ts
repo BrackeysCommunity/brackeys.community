@@ -8,9 +8,13 @@ import {
   placeFragment,
   type SceneFragment,
 } from "../fragment";
+import { prefabLibrary } from "../prefab";
 import { resolveScene } from "../resolve";
-import type { Pt, SceneDefinition } from "../types";
+import type { InstanceDef, Prefab, Pt, SceneDefinition } from "../types";
 import { engine, fake } from "./fixtures/fake-game";
+import door from "./fixtures/prefabs/door.json";
+import gate from "./fixtures/prefabs/gate.json";
+import room from "./fixtures/prefabs/room.json";
 import { fake as yardFake, engine as yardEngine, yardPrefabs } from "./fixtures/random-ops";
 
 const def: SceneDefinition = {
@@ -175,6 +179,56 @@ describe("fragmentBounds", () => {
       prefabs,
     );
     expect(flipped).toEqual({ minX: -80, minY: -120, maxX: 40, maxY: 56 });
+  });
+
+  it("boxes a variant's base and nested instances' children", () => {
+    const lib = prefabLibrary([
+      ...yardPrefabs().values(),
+      { kind: "prefab", v: 3, id: "tall-post", base: "post", entities: [] },
+      {
+        kind: "prefab",
+        v: 3,
+        id: "pair",
+        entities: [],
+        instances: [
+          { id: "p1", prefab: "post", at: [-100, 0] },
+          { id: "p2", prefab: "tall-post", at: [100, 0], rot: 1 },
+        ],
+      },
+      ...([room, door, gate] as unknown as Prefab[]),
+    ]);
+    const boxOf = (inst: InstanceDef) =>
+      fragmentBounds(
+        { kind: "scene-fragment", v: 3, entities: [], instances: [inst] },
+        yardEngine,
+        lib,
+      );
+    const resolvedBox = (inst: InstanceDef) =>
+      fragmentBounds(
+        {
+          kind: "scene-fragment",
+          v: 3,
+          entities:
+            resolveScene(
+              { v: 3, name: "r", bounds: [0, 0, 1, 1], instances: [inst] },
+              yardEngine,
+              lib,
+            ).entities ?? [],
+        },
+        yardEngine,
+      );
+    const variant: InstanceDef = { id: "v", prefab: "tall-post", at: [100, 200] };
+    expect(boxOf(variant)).toEqual({ minX: 94, minY: 160, maxX: 106, maxY: 240 });
+    const pair: InstanceDef = { id: "n", prefab: "pair", at: [500, 500], flip: true };
+    expect(boxOf(pair)).toEqual({ minX: 360, minY: 460, maxX: 606, maxY: 540 });
+    const room1: InstanceDef = { id: "room-1", prefab: "room", at: [0, 0], rot: 3 };
+    const own = fragmentBounds(
+      { kind: "scene-fragment", v: 3, entities: [], instances: [room1] },
+      yardEngine,
+      prefabLibrary([{ ...(room as unknown as Prefab), instances: [] }]),
+    );
+    for (const inst of [variant, pair, room1]) expect(boxOf(inst)).toEqual(resolvedBox(inst));
+    expect(boxOf(room1)).not.toEqual(own);
   });
 
   it("skips an instance whose prefab isn't given", () => {

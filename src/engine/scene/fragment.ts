@@ -400,7 +400,8 @@ function transformBox(box: Aabb, t: Transform2D): Aabb {
 /**
  * The world box around everything in the fragment; `null` when nothing in
  * it has a position. Its instances count with `prefabs`: the box around
- * each one's children, turned and flipped with it; one whose prefab isn't
+ * each one's resolved children (a variant's base and nested instances'
+ * children included), turned and flipped with it; one whose prefab isn't
  * there is skipped.
  */
 export function fragmentBounds(
@@ -417,7 +418,7 @@ export function fragmentBounds(
     const prefab = prefabs?.get(inst.prefab);
     if (!prefab) continue;
     let local: Aabb | undefined;
-    for (const c of localChildren(prefab, inst, registry)) {
+    for (const c of localChildren(prefab, inst, registry, prefabs)) {
       const e = childEntity(c, registry);
       const b = e && entityBox(e, registry);
       if (b) local = local ? aabbUnion(local, b) : b;

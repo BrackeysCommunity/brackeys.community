@@ -278,3 +278,59 @@ describe("params: unpack", () => {
     });
   }
 });
+
+describe("params: unpack a variant", () => {
+  const lib = () =>
+    prefabLibrary([
+      prefab("base", {
+        entities: [
+          {
+            id: "a",
+            type: "follower",
+            shape: ["box", 0, 0, 10, 10],
+            path: { pts: [[0, 0]], mode: "loop", speed: 60 },
+          },
+          { id: "c", type: "solid", shape: ["box", 0, 20, 30, 5] },
+        ],
+        params: {
+          speed: { description: "The base's speed.", targets: ["a.path.speed"], default: 5 },
+        },
+      }),
+      prefab("var", {
+        base: "base",
+        entities: [{ id: "b", type: "marker", at: [40, 0] }],
+        overrides: { "c.shape": ["box", 0, 20, 50, 5] },
+      }),
+    ]);
+
+  const view = (def: SceneDefinition, prefabs: PrefabLibrary, prefix = "") =>
+    new Map(
+      (resolveScene(def, engine, prefabs).entities ?? []).map(({ id, group: _, ...rest }) => [
+        id.startsWith(prefix) ? id.slice(prefix.length) : id,
+        rest,
+      ]),
+    );
+
+  for (const [inst, label] of [
+    [{}, "defaulted, unturned"],
+    [{ params: { speed: 9 }, rot: 1, flip: true }, "set, turned and flipped"],
+  ] as const)
+    it(`keeps the base's children and params when ${label}`, () => {
+      const prefabs = lib();
+      const def: SceneDefinition = {
+        v: 3,
+        name: "variant",
+        bounds: [-500, -500, 500, 500],
+        instances: [{ id: "x", prefab: "var", at: [100, 5], ...structuredClone(inst) }],
+      };
+      const before = view(def, prefabs, "x/");
+      expect([...before.keys()].sort()).toEqual(["a", "b", "c"]);
+      expect((before.get("a")?.path as { speed?: number } | undefined)?.speed).toBe(
+        "params" in inst ? inst.params.speed : 5,
+      );
+      const r = applyOps(def, { ops: [{ op: "unpack", ref: "x" }] }, engine, { prefabs });
+      if (!r.ok) throw new Error(r.issue.message);
+      expect(r.def.instances ?? []).toEqual([]);
+      expect(view(r.def, prefabs)).toEqual(before);
+    });
+});

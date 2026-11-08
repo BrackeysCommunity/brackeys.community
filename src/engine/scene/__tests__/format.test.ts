@@ -239,6 +239,51 @@ describe("formatScene: behaviors and grids", () => {
     ]);
   });
 
+  it("writes objects nested in a behavior block by code unit too, as comparePointers orders them", () => {
+    const def: SceneDefinition = {
+      v: 3,
+      name: "x",
+      bounds: [0, 0, 1, 1],
+      entities: [
+        {
+          id: "m",
+          type: "marker",
+          behaviors: {
+            patrol: {
+              route: { speed: 1, pts: [0, 0, 4, 0], pauseMs: 5, mode: "loop" },
+              stops: [{ z: 1, id: "a" }],
+            },
+          },
+        },
+      ],
+    };
+    const { text, lines } = formatScene(def);
+    expect(text).toContain(
+      '"behaviors": { "patrol": { "route": { "mode": "loop", "pauseMs": 5, "pts": [0, 0, 4, 0], "speed": 1 }, "stops": [{ "id": "a", "z": 1 }] } }',
+    );
+    const pointers = [
+      "/entities/0/behaviors/patrol/route/speed",
+      "/entities/0/behaviors/patrol/route/pts",
+      "/entities/0/behaviors/patrol/route/pauseMs",
+      "/entities/0/behaviors/patrol/route/mode",
+      "/entities/0/behaviors/patrol/stops/0/z",
+      "/entities/0/behaviors/patrol/stops/0/id",
+    ];
+    const line = text.split("\n")[lines.get("/entities/0")! - 1]!;
+    const at = (p: string) =>
+      line.indexOf(`"${p.split("/").at(-1)}":`, line.indexOf('"behaviors"'));
+    const textOrder = [...pointers].sort((x, y) => at(x) - at(y));
+    expect([...pointers].sort((x, y) => comparePointers(x, y, def))).toEqual(textOrder);
+    expect(textOrder).toEqual([
+      "/entities/0/behaviors/patrol/route/mode",
+      "/entities/0/behaviors/patrol/route/pauseMs",
+      "/entities/0/behaviors/patrol/route/pts",
+      "/entities/0/behaviors/patrol/route/speed",
+      "/entities/0/behaviors/patrol/stops/0/id",
+      "/entities/0/behaviors/patrol/stops/0/z",
+    ]);
+  });
+
   const painted: SceneDefinition = {
     v: 3,
     name: "x",

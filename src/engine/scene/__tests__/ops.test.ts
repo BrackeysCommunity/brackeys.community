@@ -9,6 +9,8 @@ import { sceneHash } from "../hash";
 import { applyOps } from "../ops";
 import { formatPrefabs, prefabLibrary } from "../prefab";
 import { resolveScene } from "../resolve";
+import { aabb } from "../shape-geometry";
+import { parseShape } from "../shapes";
 import { applyPt, compose, dihedral, flipWorld, IDENTITY_2D, type Dihedral } from "../transform";
 import {
   OP_NAMES,
@@ -2137,4 +2139,70 @@ describe("applyOps: property", () => {
       );
     }, 30_000);
   }
+});
+
+describe("applyOps: place an instance", () => {
+  const prefabs = prefabLibrary([
+    {
+      kind: "prefab",
+      v: 3,
+      id: "ell",
+      entities: [
+        { id: "arm", type: "solid", shape: ["box", 0, 0, 100, 10] },
+        { id: "leg", type: "solid", shape: ["box", 90, 10, 10, 30] },
+      ],
+    },
+    { kind: "prefab", v: 3, id: "ell-red", base: "ell", entities: [] },
+  ]);
+  const scene = (inst: Partial<InstanceDef>): SceneDefinition => ({
+    v: 3,
+    name: "place",
+    bounds: [-1000, -1000, 1000, 1000],
+    instances: [{ id: "x", prefab: "ell", at: [7, 3], ...inst }],
+  });
+  /** The world box around the resolved children of instance `x`. */
+  const worldBox = (def: SceneDefinition) =>
+    resolveScene(def, engine, prefabs)
+      .entities!.filter((e) => e.id.startsWith("x/"))
+      .map((e) => {
+        const parsed = parseShape(e.shape as never);
+        if (!parsed.ok) throw new Error(parsed.issue.message);
+        return aabb(parsed.shape);
+      })
+      .reduce((a, b) => ({
+        minX: Math.min(a.minX, b.minX),
+        minY: Math.min(a.minY, b.minY),
+        maxX: Math.max(a.maxX, b.maxX),
+        maxY: Math.max(a.maxY, b.maxY),
+      }));
+  const anchorOf = (def: SceneDefinition, anchor: string): Pt => {
+    const b = worldBox(def);
+    const cx = (b.minX + b.maxX) / 2;
+    const cy = (b.minY + b.maxY) / 2;
+    if (anchor === "top") return [cx, b.minY];
+    if (anchor === "bottom") return [cx, b.maxY];
+    if (anchor === "left") return [b.minX, cy];
+    if (anchor === "right") return [b.maxX, cy];
+    return [cx, cy];
+  };
+
+  const ORIENTATIONS: Partial<InstanceDef>[] = [
+    {},
+    { rot: 1 },
+    { rot: 2 },
+    { flip: true },
+    { rot: 3, flip: true },
+    { prefab: "ell-red" },
+    { prefab: "ell-red", rot: 1, flip: true },
+  ];
+  for (const inst of ORIENTATIONS)
+    for (const anchor of ["top", "bottom", "left", "right", "center"] as const)
+      it(`puts the ${anchor} of a ${JSON.stringify(inst)} instance on the point`, () => {
+        const def = scene(inst);
+        const r = ok(
+          apply(def, based(def, [{ op: "place", ref: "x", at: [200, 300], anchor }]), { prefabs }),
+        );
+        expect(anchorOf(r.def, anchor)).toEqual([200, 300]);
+        expect(text(ok(apply(r.def, r.inverse, { prefabs })).def)).toBe(text(def));
+      });
 });
