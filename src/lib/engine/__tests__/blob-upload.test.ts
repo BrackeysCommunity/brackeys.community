@@ -56,6 +56,24 @@ beforeEach(async () => {
 const bytes = (text: string) => new TextEncoder().encode(text);
 const send = async (request: Request) => (await routes(request))!;
 
+/** An upload whose body never ends, counting the chunks the route pulls. */
+function endless(headers: Record<string, string> = {}) {
+  let pulls = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulls++;
+      controller.enqueue(new Uint8Array(16));
+    },
+  });
+  const request = new Request(`https://site.test/api/engine/projects/${PROJECT}/blobs`, {
+    method: "POST",
+    headers: { "x-test-user": "staff", "x-asset-kind": "audio", ...headers },
+    body,
+    duplex: "half",
+  } as RequestInit);
+  return { request, pulls: () => pulls };
+}
+
 describe("blob upload: the hash", () => {
   it("hashes on the server and answers the hash and size", async () => {
     const response = await send(upload(PNG));
@@ -186,22 +204,57 @@ describe("blob upload: the rate limit", () => {
     expect(minio.objects.size).toBe(1);
   });
 
-  it("counts only uploads that store a new blob", async () => {
+  it("charges every upload it reads, refusals included", async () => {
     expect((await send(upload(PNG))).status).toBe(201);
     expect((await send(upload(PNG))).status).toBe(200);
-    expect((await send(upload(PNG, { kind: "scene" }))).status).toBe(400);
-    expect((await send(upload(new Uint8Array(65).fill(7), { kind: "texture" }))).status).toBe(413);
     expect((await send(upload(new Uint8Array(0)))).status).toBe(400);
     const claimed = await sha256("the bytes the client meant to send");
     expect((await send(upload(bytes("other"), { expect: claimed }))).status).toBe(422);
-    expect(limiter.hits.get("engine-blob:staff")).toBe(1);
+    routes = engineRoutes(minio, {
+      quota: { check: () => ({ ok: false, limit: "blobs", used: 2, max: 1, message: "Full." }) },
+    });
+    expect((await send(upload(bytes("no room")))).status).toBe(403);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(5);
   });
 
-  it("answers a blob it already holds even when the day's uploads are spent", async () => {
+  it("doesn't charge a refusal it makes from the headers alone", async () => {
+    expect((await send(upload(PNG, { kind: "scene" }))).status).toBe(400);
+    const declared = upload(new Uint8Array(65).fill(7), { kind: "texture" });
+    declared.headers.set("content-length", "65");
+    expect((await send(declared)).status).toBe(413);
+    expect(limiter.hits.get("engine-blob:staff")).toBeUndefined();
+  });
+
+  it("answers a re-upload of a held blob unread and uncharged, even when the day's uploads are spent", async () => {
     expect((await send(upload(PNG))).status).toBe(201);
     limiter.hits.set("engine-blob:staff", ENGINE_BLOB_UPLOADS_PER_DAY);
-    expect((await send(upload(PNG))).status).toBe(200);
+    const hash = await sha256(PNG);
+    const again = endless({ "x-expect-sha256": hash });
+    const response = await send(again.request);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ sha256: hash, bytes: PNG.byteLength });
+    expect(again.pulls()).toBeLessThanOrEqual(1);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(ENGINE_BLOB_UPLOADS_PER_DAY);
+    expect((await send(upload(PNG))).status).toBe(429);
     expect((await send(upload(bytes("new bytes")))).status).toBe(429);
+  });
+
+  it("refuses a spent member before reading the body", async () => {
+    limiter.hits.set("engine-blob:staff", ENGINE_BLOB_UPLOADS_PER_DAY);
+    const spent = endless();
+    expect((await send(spent.request)).status).toBe(429);
+    expect(spent.pulls()).toBeLessThanOrEqual(1);
+  });
+
+  it("reads a body whose length differs from the held blob's, and charges it", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    const hash = await sha256(PNG);
+    const other = upload(bytes("not the png"), { expect: hash });
+    other.headers.set("content-length", String("not the png".length));
+    const response = await send(other);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "hash-mismatch" });
+    expect(limiter.hits.get("engine-blob:staff")).toBe(2);
   });
 
   it("counts per member", async () => {

@@ -138,15 +138,30 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
           expected: `≤ ${maxBytes}`,
         }),
       );
-    const declared = Number(request.headers.get("content-length"));
+    const length = request.headers.get("content-length");
+    const declared = Number(length);
     if (Number.isFinite(declared) && declared > maxBytes) return tooLarge();
+
+    // A re-upload of a blob the project holds is answered from its row,
+    // unread; any other upload is charged before its body is read.
+    const expect = request.headers.get("x-expect-sha256") ?? undefined;
+    const heldRow =
+      expect !== undefined && isSha256(expect) ? await blobRow(projectId, expect) : null;
+    if (heldRow && (length === null || declared === heldRow.byteSize)) {
+      await request.body?.cancel();
+      return Response.json({ sha256: expect, bytes: heldRow.byteSize }, { status: 200 });
+    }
+    if (!(await engineBlobUploadAllowed(userId))) {
+      return refuse(429, "Too many uploads today — try again tomorrow.");
+    }
+
     const bytes = await readBody(request, maxBytes);
     if (bytes === "too-large") return tooLarge();
     if (bytes.byteLength === 0) return refuse(400, "The upload is empty.");
 
     let hash: string;
     try {
-      hash = await hashForPut(bytes, request.headers.get("x-expect-sha256") ?? undefined);
+      hash = await hashForPut(bytes, expect);
     } catch (error) {
       if (error instanceof ContentStoreError) return refuseIssue(422, error.issue);
       throw error;
@@ -155,11 +170,6 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
     const reply = (status: number) =>
       Response.json({ sha256: hash, bytes: bytes.byteLength }, { status });
     if (await blobRow(projectId, hash)) return reply(200);
-
-    // Only an upload that stores a new blob counts against the day's limit.
-    if (!(await engineBlobUploadAllowed(userId))) {
-      return refuse(429, "Too many uploads today — try again tomorrow.");
-    }
 
     const refusal = checkQuota(quota, await storedProjectUsage(projectId), {
       blobs: 1,
@@ -342,7 +352,7 @@ function bearer(request: Request): string | null {
 
 async function blobRow(projectId: string, hash: string) {
   const [row] = await db
-    .select({ storageKey: engineBlobs.storageKey })
+    .select({ storageKey: engineBlobs.storageKey, byteSize: engineBlobs.byteSize })
     .from(engineBlobs)
     .where(and(eq(engineBlobs.projectId, projectId), eq(engineBlobs.sha256, hash)));
   return row ?? null;

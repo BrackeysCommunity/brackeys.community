@@ -596,6 +596,7 @@
       "prefabsDirOf",
       "readFileProject",
       "readPrefabFiles",
+      "readProjectPrefabFiles",
       "resolveScenePath",
       "sceneCollabServer",
       "sceneNameOf",

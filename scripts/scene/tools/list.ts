@@ -1,15 +1,22 @@
 import { readFile } from "node:fs/promises";
-import { dirname } from "node:path";
 
 import { expandScene, parseScene, sceneHash, validateScene } from "@jams/engine/scene";
+import type { ProjectScan } from "@jams/engine/vite";
 
 import { clashes, judgeScene, listSceneFiles, prefabsOf, type Tool } from "../context";
+import { scanProject, type ProjectHandle } from "../projects";
 import { countEntities } from "./show";
 
 export type ListInput = Record<string, never>;
 
 export const list: Tool<ListInput> = async (_input, ctx) => {
   const files = await listSceneFiles(ctx);
+  const scans = new Map<ProjectHandle, Promise<ProjectScan>>();
+  const scanOf = (project: ProjectHandle) => {
+    let scan = scans.get(project);
+    if (!scan) scans.set(project, (scan = scanProject(project)));
+    return scan;
+  };
   const scenes = await Promise.all(
     files.map(async ({ name, home, file, project }) => {
       const text = await readFile(file, "utf8");
@@ -20,7 +27,11 @@ export const list: Tool<ListInput> = async (_input, ctx) => {
       const parsed = parseScene(text, judged.registry);
       if (!parsed.ok) return failed(parsed.issues.length);
       const def = parsed.def;
-      const prefabs = await prefabsOf(dirname(file), judged.registry);
+      const prefabs = await prefabsOf(
+        { project, scene: file },
+        judged.registry,
+        await scanOf(project),
+      );
       const issues = { error: 0, warn: 0, info: 0 };
       for (const i of validateScene(def, judged.registry, { prefabs })) issues[i.severity]++;
       return {

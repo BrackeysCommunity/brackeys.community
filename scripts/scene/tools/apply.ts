@@ -1,13 +1,12 @@
-import { dirname } from "node:path";
-
 import { applyOps, describeChange, formatScene, type OpBatch } from "@jams/engine/scene";
-import { readPrefabFiles, writePrefabFiles } from "@jams/engine/vite";
+import { writePrefabFiles } from "@jams/engine/vite";
 
 import {
   failure,
   issueLine,
   loadScene,
   readArg,
+  readScenePrefabs,
   usage,
   UsageError,
   writeSceneText,
@@ -55,9 +54,8 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
   const write = !input.dryRun && errors.length === 0;
   if (write) {
     if (result.prefabs) {
-      const dir = dirname(loaded.scene.file);
-      const files = await readPrefabFiles(dir, loaded.registry);
-      await writePrefabFiles(dir, files.texts, result.prefabs);
+      const files = await readScenePrefabs(loaded.home, loaded.registry);
+      if (files.where) await writePrefabFiles(files.where, files.texts, result.prefabs);
     }
     await writeSceneText(loaded.scene, formatScene(def).text);
   }

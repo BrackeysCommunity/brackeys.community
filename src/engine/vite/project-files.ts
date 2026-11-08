@@ -9,7 +9,7 @@ import { randomKey } from "../collab/keys";
 import { contentMap, layoutFromDoc, layoutPatch, layoutToDoc } from "../collab/layout";
 import { sameValue } from "../collab/log";
 import { migrateLayout, projectDocWriter } from "../collab/migrate-layout";
-import { docToPrefab, prefabPatch, prefabToDoc } from "../collab/prefab-doc";
+import { docToPrefab, prefabPatch, prefabPathNear, prefabToDoc } from "../collab/prefab-doc";
 import { applyRegistryBatch } from "../collab/project-apply";
 import {
   appendHistory,
@@ -55,6 +55,7 @@ import { dataTableIssues } from "../project/kinds/data-table";
 import { byCodeUnit } from "../project/kinds/define";
 import { gameSettingsIssues } from "../project/kinds/game-settings";
 import { MATERIAL_KIND } from "../project/kinds/material";
+import { prefabKind } from "../project/kinds/prefab";
 import type { BlobInspect, ProjectOp } from "../project/ops";
 import { parseProjectFile, projectGlobs } from "../project/project-file";
 import {
@@ -89,7 +90,7 @@ import {
   type SceneIssue,
 } from "../scene/types";
 import { defaultCacheDir, fileContentStore } from "./content-store";
-import { resolveScenePath, sceneNameOf } from "./scene-paths";
+import { assertSceneName, resolveScenePath, sceneNameOf } from "./scene-paths";
 
 /** The origin of every write the file adapter makes: seeding a doc and outside file changes. */
 export const DISK_ORIGIN: SceneOrigin = { kind: "disk" };
@@ -1572,9 +1573,9 @@ export function isCodePath(file: ProjectFile, path: string): boolean {
   return projectPathMatcher(file, matchesGlob).isCode(path);
 }
 
-// ─── Prefab files, for the CLI's file paths ──────────────
+// ─── Prefab files, for the CLI ───────────────────────────
 
-/** `<scenes dir>/prefabs`: where a scenes directory keeps its prefab files. */
+/** `<scenes dir>/prefabs`: where a scenes directory outside any project keeps its prefab files. */
 export const prefabsDirOf = (scenesDir: string) => join(scenesDir, PREFABS_DIR);
 
 /** The file for prefab `id` in a scenes directory; ids follow scene names' rules. */
@@ -1585,67 +1586,136 @@ export type PrefabFiles = {
   prefabs: PrefabLibrary;
   /** Each prefab file's text as read, by id. */
   texts: Map<string, string>;
-  /** Files that didn't parse, or whose `id` isn't their file name; they are left out. */
+  /** Each read prefab's file, by id; absolute. */
+  files: Map<string, string>;
+  /** Files that didn't parse, or whose `id` isn't their asset's id; they are left out. */
   problems: { id: string; issues: SceneIssue[] }[];
 };
 
-/** Reads every prefab in a scenes directory; a missing `prefabs/` is an empty library. */
+type PrefabRead = PrefabFiles & { prefabs: Map<string, Prefab> };
+
+const emptyPrefabRead = (): PrefabRead => ({
+  prefabs: new Map(),
+  texts: new Map(),
+  files: new Map(),
+  problems: [],
+});
+
+const badPrefabId = (message: string): SceneIssue[] => [
+  { severity: "error", code: "bad-id", message, path: "/id", entityIds: [] },
+];
+
+/**
+ * Reads every prefab in `prefabs/` of a scenes directory outside any
+ * project, where a prefab's id is its file name; a missing `prefabs/` is an
+ * empty library.
+ */
 export async function readPrefabFiles(scenesDir: string, registry: Registry): Promise<PrefabFiles> {
   const dir = prefabsDirOf(scenesDir);
   const names = await readdir(dir).catch(() => [] as string[]);
-  const prefabs = new Map<string, Prefab>();
-  const texts = new Map<string, string>();
-  const problems: PrefabFiles["problems"] = [];
+  const out = emptyPrefabRead();
   for (const file of names.sort()) {
     const id = sceneNameOf(file);
     if (!id) continue;
-    const text = await readFile(join(dir, file), "utf8");
+    const path = join(dir, file);
+    const text = await readFile(path, "utf8");
     const parsed = parsePrefab(text, registry);
     if (!parsed.ok) {
-      problems.push({ id, issues: parsed.issues });
+      out.problems.push({ id, issues: parsed.issues });
       continue;
     }
     if (parsed.prefab.id !== id) {
-      problems.push({
+      out.problems.push({
         id,
-        issues: [
-          {
-            severity: "error",
-            code: "bad-id",
-            message: `prefabs/${file} has the id "${parsed.prefab.id}"; a prefab's id is its file name`,
-            path: "/id",
-            entityIds: [],
-          },
-        ],
+        issues: badPrefabId(
+          `prefabs/${file} has the id "${parsed.prefab.id}"; a prefab's id is its file name`,
+        ),
       });
       continue;
     }
-    prefabs.set(id, parsed.prefab);
-    texts.set(id, text);
+    out.prefabs.set(id, parsed.prefab);
+    out.texts.set(id, text);
+    out.files.set(id, path);
   }
-  return { prefabs, texts, problems };
+  return out;
+}
+
+export type ProjectPrefabFiles = PrefabFiles & {
+  /** Where prefab `id` is written: its asset's file, else a new file in `prefabs/` beside the scene (`prefabPathNear`). */
+  pathOf: (id: string) => string;
+};
+
+/**
+ * Reads a project's live prefab assets from `state` (a scan of its files),
+ * each at its registry path, judged by `registry`. `near` is the
+ * project-relative path of the scene they are read for; a new prefab's
+ * file goes where the live path puts it (`prefabPathNear`).
+ */
+export async function readProjectPrefabFiles(
+  project: Pick<FileProject, "dir" | "kinds">,
+  state: ProjectState,
+  registry: Registry,
+  near?: AssetPath,
+): Promise<ProjectPrefabFiles> {
+  const view = projectView(state, project.kinds);
+  const out = emptyPrefabRead();
+  const assetFiles = new Map<string, string>();
+  for (const entry of [...view.byId.values()].sort((a, b) => byCodeUnit(a.id, b.id))) {
+    if (entry.kind !== prefabKind.kind) continue;
+    const path = join(project.dir, ...entry.path.split("/"));
+    assetFiles.set(entry.id, path);
+    const text = await readText(path);
+    if (text === null) continue;
+    const parsed = parsePrefab(text, registry);
+    if (!parsed.ok) {
+      out.problems.push({ id: entry.id, issues: parsed.issues });
+      continue;
+    }
+    if (parsed.prefab.id !== entry.id) {
+      out.problems.push({
+        id: entry.id,
+        issues: badPrefabId(
+          `${entry.path} has the id "${parsed.prefab.id}"; its asset's id is "${entry.id}"`,
+        ),
+      });
+      continue;
+    }
+    out.prefabs.set(entry.id, parsed.prefab);
+    out.texts.set(entry.id, text);
+    out.files.set(entry.id, path);
+  }
+  const pathOf = (id: string) => {
+    const known = assetFiles.get(id);
+    if (known !== undefined) return known;
+    assertSceneName(id);
+    return join(project.dir, ...prefabPathNear(id, near).split("/"));
+  };
+  return { ...out, pathOf };
 }
 
 /**
  * Writes the prefabs whose canonical text differs from `texts` (the files as
  * last read or written) and deletes the files of ids that left the library.
- * Returns the texts now on disk.
+ * `where` is a scenes directory outside any project (files in its
+ * `prefabs/`) or each id's file (`ProjectPrefabFiles.pathOf`). Returns the
+ * texts now on disk.
  */
 export async function writePrefabFiles(
-  scenesDir: string,
+  where: string | ((id: string) => string),
   texts: ReadonlyMap<string, string>,
   prefabs: PrefabLibrary,
 ): Promise<Map<string, string>> {
+  const fileOf = typeof where === "string" ? (id: string) => prefabPath(where, id) : where;
   const out = new Map(texts);
   for (const [id, prefab] of prefabs) {
     const text = formatPrefab(prefab);
     if (texts.get(id) === text) continue;
-    await writeAtomic(prefabPath(scenesDir, id), text);
+    await writeAtomic(fileOf(id), text);
     out.set(id, text);
   }
   for (const id of texts.keys()) {
     if (prefabs.has(id)) continue;
-    await rm(prefabPath(scenesDir, id), { force: true });
+    await rm(fileOf(id), { force: true });
     out.delete(id);
   }
   return out;

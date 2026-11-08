@@ -11,9 +11,9 @@ import {
 import {
   issueLine,
   judgeScene,
+  prefabHomeOf,
   prefabsOf,
   readSource,
-  sceneDirOf,
   usage,
   type Tool,
 } from "../context";
@@ -43,7 +43,7 @@ export const validate: Tool<ValidateInput> = async (input, ctx) => {
     if (parsed.ok) {
       def = parsed.def;
       const lines = pointerLines(text);
-      const prefabs = await prefabsOf(sceneDirOf(source, target), judged.registry);
+      const prefabs = await prefabsOf(prefabHomeOf(source, target), judged.registry);
       issues = [...parsed.issues, ...validateScene(def, judged.registry, { lines, prefabs })];
       if (input.physical) {
         const rapier = await ctx.loadRapier();

@@ -17,7 +17,13 @@ import {
   type SceneDefinition,
   type SceneIssue,
 } from "@jams/engine/scene";
-import { readPrefabFiles, SCENE_NAME_PATTERN } from "@jams/engine/vite";
+import {
+  readPrefabFiles,
+  readProjectPrefabFiles,
+  SCENE_NAME_PATTERN,
+  type PrefabFiles,
+  type ProjectScan,
+} from "@jams/engine/vite";
 
 import {
   locateInProjects,
@@ -333,10 +339,20 @@ export type SceneSource =
   | { ok: true; text: string; scene: SceneFile | null; project: ProjectHandle | null }
   | { ok: false; result: ToolResult };
 
-/** The directory a read scene's prefabs live beside: its file's own, none for stdin. */
-export function sceneDirOf(source: { scene: SceneFile | null }, arg: string): string | undefined {
-  if (source.scene) return dirname(source.scene.file);
-  return arg === "-" ? undefined : dirname(arg);
+/**
+ * Where a scene's prefabs come from: the prefab assets of the project the
+ * scene's file is in (`scene` is that file), `prefabs/` beside a file
+ * outside every project, or none for stdin.
+ */
+export type PrefabHome = { project: ProjectHandle; scene: string } | { dir: string } | undefined;
+
+/** The prefab home of a scene read by `readSource` from `arg`. */
+export function prefabHomeOf(
+  source: { scene: SceneFile | null; project: ProjectHandle | null },
+  arg: string,
+): PrefabHome {
+  if (source.project) return { project: source.project, scene: source.scene?.file ?? resolve(arg) };
+  return arg === "-" ? undefined : { dir: dirname(arg) };
 }
 
 /**
@@ -370,23 +386,46 @@ type Parsed = {
   text: string;
   def: SceneDefinition;
   registry: Registry;
-  /** The prefabs in `prefabs/` beside the scene's file; empty for stdin. */
+  /** The scene's prefabs, read from `home`. */
   prefabs: PrefabLibrary;
+  home: PrefabHome;
   /** The project the scene is in; null for stdin and files outside every project. */
   project: ProjectHandle | null;
 };
 
+export type ScenePrefabs = PrefabFiles & {
+  /** What `writePrefabFiles` writes them back to; absent for stdin. */
+  where?: string | ((id: string) => string);
+};
+
 /**
- * The prefab library of the scenes directory `dir`, judged by `registry`. A
- * prefab file that doesn't parse is left out; validating a scene that uses
- * it then reports `prefab-unknown`.
+ * The prefabs of `home`, judged by `registry`. A project's are its live
+ * prefab assets at their registry paths, from `scan` when given. A prefab
+ * file that doesn't parse is left out; validating a scene that uses it then
+ * reports `prefab-unknown`.
  */
-export async function prefabsOf(
-  dir: string | undefined,
+export async function readScenePrefabs(
+  home: PrefabHome,
   registry: Registry,
+  scan?: ProjectScan,
+): Promise<ScenePrefabs> {
+  if (home === undefined)
+    return { prefabs: new Map(), texts: new Map(), files: new Map(), problems: [] };
+  if ("dir" in home) return { ...(await readPrefabFiles(home.dir, registry)), where: home.dir };
+  const { project } = home;
+  const { state } = scan ?? (await scanProject(project));
+  const near = relative(project.dir, home.scene).split(sep).join("/");
+  const files = await readProjectPrefabFiles(project, state, registry, near);
+  return { ...files, where: files.pathOf };
+}
+
+/** The prefab library of `home`; see `readScenePrefabs`. */
+export async function prefabsOf(
+  home: PrefabHome,
+  registry: Registry,
+  scan?: ProjectScan,
 ): Promise<PrefabLibrary> {
-  if (dir === undefined) return new Map();
-  return (await readPrefabFiles(dir, registry)).prefabs;
+  return (await readScenePrefabs(home, registry, scan)).prefabs;
 }
 
 /**
@@ -399,7 +438,7 @@ async function parseWithGame(
   name: string,
   text: string,
   under: Registry | undefined,
-  dir: string | undefined,
+  home: PrefabHome,
   project: ProjectHandle | null,
 ): Promise<({ ok: true } & Parsed) | { ok: false; result: ToolResult }> {
   const judged = judgeScene(ctx, text, under, project);
@@ -414,22 +453,23 @@ async function parseWithGame(
   }
   const parsed = parseScene(text, judged.registry);
   if (!parsed.ok) return { ok: false, result: issuesFailure(name, parsed.issues) };
-  const prefabs = await prefabsOf(dir, judged.registry);
-  return { ok: true, name, text, def: parsed.def, registry: judged.registry, prefabs, project };
+  const prefabs = await prefabsOf(home, judged.registry);
+  const registry = judged.registry;
+  return { ok: true, name, text, def: parsed.def, registry, prefabs, home, project };
 }
 
 /**
  * Parses scene text that came from somewhere other than a project's files
- * (a git revision); `dir` is where its prefabs are read from.
+ * (a git revision); `home` is where its prefabs are read from.
  */
 export function parseSceneText(
   ctx: ToolContext,
   name: string,
   text: string,
-  dir?: string,
+  home?: PrefabHome,
   project: ProjectHandle | null = null,
 ): Promise<({ ok: true } & Parsed) | { ok: false; result: ToolResult }> {
-  return parseWithGame(ctx, name, text, undefined, dir, project);
+  return parseWithGame(ctx, name, text, undefined, home, project);
 }
 
 export type OpenedScene = ({ ok: true } & Parsed) | { ok: false; result: ToolResult };
@@ -444,7 +484,7 @@ export async function openScene(
   if (!arg) return { ok: false, result: usage(`scene ${cmd} <scene|file|->`) };
   const source = await readSource(ctx, arg);
   if (!source.ok) return source;
-  return parseWithGame(ctx, arg, source.text, under, sceneDirOf(source, arg), source.project);
+  return parseWithGame(ctx, arg, source.text, under, prefabHomeOf(source, arg), source.project);
 }
 
 export type LoadedScene =
@@ -470,7 +510,7 @@ export async function loadScene(
     name,
     await readFile(located.scene.file, "utf8"),
     undefined,
-    dirname(located.scene.file),
+    { project: located.scene.project, scene: located.scene.file },
     located.scene.project,
   );
   return parsed.ok ? { ...parsed, scene: located.scene } : parsed;

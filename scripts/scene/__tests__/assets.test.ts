@@ -222,6 +222,68 @@ describe("assets on files", { timeout: 60_000 }, () => {
     ).toBe(0);
   });
 
+  describe("scene commands find prefabs through the registry", () => {
+    const validates = async (scene: string) => {
+      const r = await run("validate", scene);
+      expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+      const listed = await run("list");
+      expect(listed.data.scenes).toContainEqual(
+        expect.objectContaining({
+          name: scene,
+          ok: true,
+          issues: expect.objectContaining({ error: 0 }),
+        }),
+      );
+      expect((await run("show", scene)).exitCode).toBe(0);
+    };
+
+    it("after the scene moves to another folder", async () => {
+      expect((await run("assets", "move", "kitchen-sink", "--to", "levels/")).exitCode).toBe(0);
+      expect(Object.keys(await tree(deck))).toContain("levels/kitchen-sink.json");
+      await validates("kitchen-sink");
+      expect((await run("validate", join(deck, "levels/kitchen-sink.json"))).exitCode).toBe(0);
+    });
+
+    it("after a prefab's file is renamed away from its id", async () => {
+      expect((await run("assets", "rename", "post", "--file", "pillar.json")).exitCode).toBe(0);
+      await validates("kitchen-sink");
+    });
+
+    it("after a prefab moves out of prefabs/, and apply writes it back to its own file", async () => {
+      expect((await run("assets", "move", "gate", "--to", "kit/")).exitCode).toBe(0);
+      await validates("kitchen-sink");
+
+      const ops = join(root, "define.json");
+      const bar = { id: "bar", type: "solid", shape: ["box", 0, -12, 60, 12] };
+      await writeFile(
+        ops,
+        JSON.stringify({ ops: [{ op: "definePrefab", id: "gate", prefab: { entities: [bar] } }] }),
+      );
+      const applied = await run("apply", "kitchen-sink", "--ops", ops);
+      expect(applied.exitCode, JSON.stringify(applied.data)).toBe(0);
+      const files = Object.keys(await tree(deck));
+      expect(files).toContain("kit/gate.json");
+      expect(files).not.toContain("prefabs/gate.json");
+      const gate = JSON.parse(await readFile(join(deck, "kit/gate.json"), "utf8")) as Data;
+      expect(gate).toMatchObject({ id: "gate", entities: [bar] });
+      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toEqual(["gate", "post"]);
+    });
+
+    it("apply puts a new prefab in the prefab kind's folder near the scene", async () => {
+      expect((await run("assets", "move", "kitchen-sink", "--to", "levels/")).exitCode).toBe(0);
+      const ops = join(root, "define.json");
+      const peg = { id: "peg", type: "solid", shape: ["box", 0, -5, 5, 5] };
+      await writeFile(
+        ops,
+        JSON.stringify({ ops: [{ op: "definePrefab", id: "peg", prefab: { entities: [peg] } }] }),
+      );
+      const applied = await run("apply", "kitchen-sink", "--ops", ops);
+      expect(applied.exitCode, JSON.stringify(applied.data)).toBe(0);
+      expect(Object.keys(await tree(deck))).toContain("levels/prefabs/peg.json");
+      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toContain("peg");
+    });
+  });
+
   it("--dry-run reports what every writer would do and writes nothing", async () => {
     await run("assets", "import", join(root, "dot.png"), "--path", "art/");
     const before = await tree(root);

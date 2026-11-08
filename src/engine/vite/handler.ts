@@ -148,11 +148,15 @@ function uploadLimit(project: FileProject): number {
  *
  * - `GET /__project`: the projects, `{ ok, projects: [{ id, name, game }] }`.
  * - `POST /__project/<id>/blob`: stores the raw body in the project's
- *   content store and answers `{ sha256, bytes }`; with `x-expect-sha256`,
- *   bytes that hash otherwise are refused with `hash-mismatch` (422), an
- *   over-limit body with `asset-too-large` (413), an empty one with 400 and
- *   any upload to a project with no blob kinds with `asset-kind` (400), as
- *   the site's blob route answers.
+ *   content store and answers `{ sha256, bytes }` with 200. As on the
+ *   site's blob route, bytes that don't hash to `x-expect-sha256` are
+ *   refused with `hash-mismatch` (422), an over-limit body with
+ *   `asset-too-large` (413) and an empty one with 400. Unlike it, the route
+ *   ignores `x-asset-kind`: a body may be as large as the project's largest
+ *   blob kind allows (importing the asset applies its own kind's cap), a
+ *   project with no blob kinds is refused with `asset-kind` (400) before
+ *   its body is read, a new blob is 200 rather than 201, and there are no
+ *   quotas, rate limit or upload scan.
  * - `GET /__project/<id>/blob/<sha256>`: the bytes, cacheable forever.
  *
  * A request from another site's page is 403. Returns null for URLs outside

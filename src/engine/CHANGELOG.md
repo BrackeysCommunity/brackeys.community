@@ -289,7 +289,11 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   (`x-expect-sha256`) and `GET /__project/<id>/blob/<sha256>`, same-origin
   only (`PROJECT_ROUTE`). A body that doesn't hash to `x-expect-sha256` is
   refused with 422 and a `hash-mismatch` issue, the status the site's blob
-  route answers.
+  route answers. An upload to a project with no blob kinds is refused with
+  400 and an `asset-kind` issue before its body is read, and the project id
+  segment is percent-decoded. Unlike the site's route it ignores
+  `x-asset-kind` (the body is capped at the project's largest blob kind),
+  answers 200 for a new blob as well as a held one, and has no quotas.
 - `./vite`: `applyProjectBatchToFiles` and `snapshotFiles` apply a
   `ProjectOpBatch` to a project's files through the live path; a stale base
   fails with `stale-base`.
@@ -299,6 +303,11 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   (`createSceneFileAdapter`, `sceneDocName`, `sceneOfDocName`,
   `SCENE_DOC_PREFIX`, `SceneHome` and `SceneFileAdapter` removed; use
   `createProjectFileAdapter` and `docNameOf`/`parseDocName`).
+- `./vite`: `readProjectPrefabFiles(project, state, registry, near?)`
+  reads a project's live prefab assets at their registry paths
+  (`ProjectPrefabFiles`, with `pathOf(id)`, the file a prefab is written
+  to). `PrefabFiles` gains `files` (each read prefab's file), and
+  `writePrefabFiles` takes either a scenes directory or `pathOf`.
 - `./vite`: `FileApplyOptions.store`: where `applyProjectBatchToFiles`
   inspects blob bytes from (a dry run's bytes stay out of the cache).
 - `reinspectBlobs` (`./collab`): the project's one writer re-derives a
@@ -451,8 +460,15 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   lists fragment and prefab.
 - `apply --live` runs on the project client as one `editScene` op, so
   prefab ops write their prefab docs.
-- Hosted projects: every `--live` command (`apply`, `assets list` and the
-  `assets` writers) takes a site `--url https://…` (`http://` only on
+- On files, a scene in a project resolves its prefabs through the project's
+  registry: every live prefab asset under the project's globs, at its path,
+  whatever its file name (`validate`, `list`, `show`, `step`, `apply` and
+  the rest). `apply` writes a changed prefab back to its asset's file and a
+  new one to `prefabs/` beside the scene, where the live path puts it
+  (`prefabPathNear`). Only a scene file outside every project still reads
+  `prefabs/` beside it.
+- Hosted projects: every `--live` command (`apply`, `assets list`, the
+  `assets` writers, `project tree` and `project refs`) takes a site `--url https://…` (`http://` only on
   localhost, since the token travels with every request) and an agent token
   (`--token`, else `JAMS_AGENT_TOKEN`). The CLI exchanges the token at
   `POST /api/engine/agent-sync-token` for 60 s project sync tokens and
