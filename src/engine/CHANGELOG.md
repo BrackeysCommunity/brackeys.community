@@ -76,11 +76,14 @@ unchanged.
   w×h×4 bytes). Failures come back in `failed`, never thrown; progress
   is monotonic and counts settled blobs (failures included).
   `GameConfig.assets` (`{ loader, view, kinds }`; the runtime view stays
-  `createGame`'s `project`) hands the shell a loader, and `GameInstance.preload(scene, onProgress?)` loads the
-  scene's bundle (and the project bundle, once, retained for the
-  instance's life), resolving with the entries that failed. A definition
-  is expanded with the shell's prefabs and bundles its `assets` header and
-  its prefabs' headers; an `ExpandedScene` carries no header, so it
+  `createGame`'s `project`) hands the shell a loader, and
+  `GameInstance.preload(scene, onProgress?)` loads the scene's bundle,
+  resolving with the entries that failed. The project bundle is retained
+  for the instance's life and joined to every load until all of its
+  textures are in, so a project texture that failed is fetched again by
+  the next `preload` or `loadScene`. A definition is expanded with the
+  shell's prefabs and bundles its `assets` header and its prefabs'
+  headers; an `ExpandedScene` carries no header, so it
   bundles its entities and settings only. Without `config.assets` it
   resolves `{ failed: [] }` and nothing is retained.
 - Bundles: `sceneBundle`, `projectBundle`, `AssetBundle` and

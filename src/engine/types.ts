@@ -211,7 +211,11 @@ export type GameInstance = {
    * first; on failure the current scene keeps running.
    */
   loadScene: (scene: SceneDefinition | ExpandedScene) => LoadReport;
-  /** Loads the scene's bundle (and the project bundle once); resolves when its textures are in. */
+  /**
+   * Loads the scene's bundle, joined by the project bundle until all of the
+   * project's textures are in (a project texture that failed is fetched again
+   * by the next `preload` or `loadScene`); resolves when its textures are in.
+   */
   preload: (
     scene: SceneDefinition | ExpandedScene,
     onProgress?: (p: LoadProgress) => void,

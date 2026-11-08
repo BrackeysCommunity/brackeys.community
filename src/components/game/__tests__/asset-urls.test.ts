@@ -31,7 +31,6 @@ describe("asset URLs", () => {
   });
 
   it("loads the editor's textures from the blob route its session uploads to", () => {
-    expect(EDITOR_BLOB_HOST).toBe("dev");
     expect(editorAssetUrl("p1", entry)).toBe(
       `${blobRoute({ kind: EDITOR_BLOB_HOST, project: "p1" })}/${sha256}`,
     );

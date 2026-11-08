@@ -1212,9 +1212,10 @@ bundle <scene>` prints one.
   is `createGame`'s `project`): the host's loader,
   the project view bundles are computed over (read at each use, so a getter
   can follow a live project) and its kinds. `game.preload(scene,
-onProgress?)` loads the scene's bundle and, the first time, the project
-  bundle; `loadScene` retains the new scene's bundle and releases the
-  previous one. Without `assets` nothing is fetched and sprites draw as
+onProgress?)` loads the scene's bundle, joined by the project bundle until
+  all of its textures are in (a project texture that failed is fetched again
+  by the next `preload` or `loadScene`); `loadScene` retains the new
+  scene's bundle and releases the previous one. Without `assets` nothing is fetched and sprites draw as
   their boxes.
 - **URLs are the host's.** `AssetUrl` is `(project, entry) => string`:
   the dev server serves `/__project/<id>/blob/<sha256>`, the site

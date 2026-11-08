@@ -1,5 +1,3 @@
-export { shapeSpawnPose } from "./spawn-pose";
-
 export type Pose = {
   x: number;
   y: number;
