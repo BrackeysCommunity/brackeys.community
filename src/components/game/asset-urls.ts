@@ -12,3 +12,9 @@ export const devAssetUrl: AssetUrl = assetUrl("dev");
 
 /** The site's engine route: `/api/engine/projects/<id>/blobs/<sha256>`. */
 export const hostedAssetUrl: AssetUrl = assetUrl("hosted");
+
+/** The blob host of the editor's project session: the dev server's, the only one the editor connects to. */
+export const EDITOR_BLOB_HOST = "dev" satisfies BlobHost["kind"];
+
+/** The URL scheme textures of the editor's open project load from. */
+export const editorAssetUrl: AssetUrl = assetUrl(EDITOR_BLOB_HOST);

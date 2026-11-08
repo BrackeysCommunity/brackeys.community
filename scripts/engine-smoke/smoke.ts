@@ -171,13 +171,14 @@ function reachableSpecifiers(entry: string): Set<string> {
   const bare = new Set<string>();
   const seen = new Set<string>();
   const queue = [entry];
-  // No whitespace or `$` in a specifier, so message text like `from "${a.path}"` never matches.
-  const pattern = /(?<![\w$."'])(?:from\s*|import\s*\(?\s*)["']([^"'\s$]+)["']/g;
+  // No whitespace or `$` in a specifier and matching quotes around it, so message text like
+  // `from "${a.path}"` or `the import's."` never matches.
+  const pattern = /(?<![\w$."'])(?:from\s*|import\s*\(?\s*)(["'])([^"'\s$]+)\1/g;
   while (queue.length) {
     const file = queue.pop()!;
     if (seen.has(file)) continue;
     seen.add(file);
-    for (const [, spec] of readFileSync(file, "utf8").matchAll(pattern)) {
+    for (const [, , spec] of readFileSync(file, "utf8").matchAll(pattern)) {
       if (spec!.startsWith(".")) queue.push(join(dirname(file), spec!));
       else bare.add(spec!);
     }

@@ -1,4 +1,5 @@
 import { createColliderTags } from "../collider-tags";
+import { SPRITE } from "../game/behaviors/sprite";
 import { createRegistry } from "../game/define";
 import { DEFAULT_GRAVITY } from "../game/primitives";
 import type {
@@ -17,9 +18,11 @@ import type { EntityTypeName, ExpandedScene, RuntimeEntity } from "../scene/type
 import { createAttachmentHub } from "../systems/attachments";
 import type { InputAction } from "../types";
 import { createBehaviorHost, type BehaviorHost } from "./behaviors";
+import type { SpriteSystem } from "./behaviors/sprite";
 import { castSpawn } from "./cast";
-import { createPoseIndex, spawnPoseOf, type GeometryFields } from "./poses";
+import { createPoseIndex } from "./poses";
 import { systemFactoryOf } from "./primitives";
+import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
 import type {
   LoadReport,
   ReconcileReport,
@@ -135,6 +138,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const ordered = [...systems.values()];
   const behaviors = createBehaviorHost(ctx, registry);
   host = behaviors;
+  const sprites = behaviors.system<SpriteSystem>(SPRITE.name);
   const game: GameRuntime | null = gameDef ? gameDef.createRuntime(ctx) : null;
 
   /** Each loadable type's geometry fields, for spawn poses. */
@@ -403,6 +407,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     for (const system of ordered) system.afterStep?.(dtMs);
     behaviors.step(dtMs);
     inGame(() => game?.afterStep?.(dtMs, [...engineEvents, ...gameEvents]));
+    sprites?.settle();
     ctx.view?.commit?.(t);
 
     tick++;

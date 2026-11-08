@@ -1,5 +1,5 @@
 import { DRAW_LAYERS, drawSprite, type SceneView, type SpriteVisual } from "../../context";
-import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
+import type { BehaviorBlock, BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import {
   SPRITE,
   spriteAssets,
@@ -12,7 +12,18 @@ import type { EngineContext } from "../../game/types";
 import { parseBulkId } from "../../scene/bulk-ref";
 import { defaultLayer } from "../../scene/layers";
 import type { Pt, RuntimeEntity } from "../../scene/types";
-import { spawnPose, type Pose } from "../poses";
+import type { Pose } from "../poses";
+import { spawnPose } from "../spawn-pose";
+
+/**
+ * The sprite system has no `step`: the runtime calls `settle` after the
+ * game's `afterStep`, so a pose any system wrote this tick, a game's
+ * included, reaches the view before the tick is committed.
+ */
+export type SpriteSystem<B extends BehaviorBlock = BehaviorBlock> = BehaviorSystem<B> & {
+  /** Re-poses every sprite whose entity's pose changed since it was last posed. */
+  settle(): void;
+};
 
 /** The view id an entity's sprite draws under. */
 export const spriteViewId = (entityId: string): string => `${entityId}#${SPRITE.name}`;
@@ -117,11 +128,11 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
     view.remove(spriteViewId(id));
   }
 
-  const system: BehaviorSystem<SpriteBlock> = {
+  const system: SpriteSystem<SpriteBlock> = {
     attach: (id, block, entity) => show(id, block, entity),
     update: (id, block, _prev, entity) => show(id, block, entity),
     detach: hide,
-    step() {
+    settle() {
       for (const [id, a] of attached) {
         const pose = ctx.poses.get(id);
         if (!pose || (a.applied && samePose(pose, a.applied))) continue;
@@ -134,5 +145,5 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
     },
     size: () => attached.size,
   };
-  return system as BehaviorSystem;
+  return system as SpriteSystem;
 };

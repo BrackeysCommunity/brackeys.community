@@ -18,7 +18,7 @@ import { ShellTitle, SiteIsland } from "@/components/canvas/shell/SiteIsland";
 import { MicroLabel } from "@/components/ui/typography";
 import { platformerGame } from "@/games/platformer";
 
-import { devAssetUrl } from "./asset-urls";
+import { editorAssetUrl } from "./asset-urls";
 import {
   BUNDLED_PREFABS,
   BUNDLED_SCENE,
@@ -79,8 +79,9 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
     let instance: GameInstance | null = null;
     let mounted = true;
     // One loader per game instance, only while a project is open: the bundled room has no blobs to fetch.
+    // Its URL scheme is the editor session's blob host, so textures load from where its uploads went.
     const open = assetsRef.current;
-    const loader = open ? createAssetLoader({ project: open.project, url: devAssetUrl }) : null;
+    const loader = open ? createAssetLoader({ project: open.project, url: editorAssetUrl }) : null;
 
     async function init() {
       if (!canvas || !mounted) return;

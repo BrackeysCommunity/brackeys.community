@@ -163,20 +163,33 @@ export async function createGame(
     return sceneBundle(scene, source, library, assetView()!, assets.kinds, registry).bundle;
   }
 
-  /** `bundle`, joined by the project's entries the first time anything loads. */
-  function withProject(bundle: AssetBundle): AssetBundle {
+  /**
+   * Loads `bundle`, joined by the project's entries until a load brings them
+   * all in: a project texture that failed is asked for again by the next load.
+   */
+  async function loadBundle(
+    bundle: AssetBundle,
+    onProgress?: (p: LoadProgress) => void,
+  ): Promise<{ failed: BundleEntry[] }> {
+    const loader = assets?.loader;
+    if (!loader) return { failed: [] };
     const shared = heldProject();
-    if (!shared || projectRequested) return bundle;
+    if (!shared || projectRequested || shared.entries.length === 0) {
+      return loader.load(bundle, onProgress);
+    }
     projectRequested = true;
-    if (shared.entries.length === 0) return bundle;
     const byId = new Map<string, BundleEntry>();
     for (const e of [...shared.entries, ...bundle.entries]) byId.set(e.id, e);
     const entries = [...byId.values()].sort((a, b) => byCodeUnit(a.id, b.id));
-    return {
+    const joined = {
       name: bundle.name,
       entries,
       bytes: entries.reduce((sum, e) => sum + e.bytes, 0),
     };
+    const result = await loader.load(joined, onProgress);
+    const held = new Set(shared.entries.map((e) => e.sha256));
+    if (result.failed.some((e) => held.has(e.sha256))) projectRequested = false;
+    return result;
   }
 
   function syncGameSlice(): void {
@@ -237,7 +250,7 @@ export async function createGame(
     // Retained before the old scene releases, so textures both use stay resident.
     if (bundle) assets?.loader.retain(bundle);
     teardownScene();
-    if (bundle && assets) void assets.loader.load(withProject(bundle));
+    if (bundle && assets) void loadBundle(bundle);
     sceneLayer.addChild(container);
     const shell: GameShell = { view, router, dev: cfg.dev, getMode };
     loaded = { runtime, view, attachment: game.attach?.(shell, runtime) ?? null, bundle };
@@ -621,9 +634,7 @@ export async function createGame(
     if (!expanded.ok) return Promise.resolve({ failed: [] });
     const def = isExpandedScene(source) ? null : source;
     const bundle = bundleFor(expanded.scene, def);
-    return bundle
-      ? assets.loader.load(withProject(bundle), onProgress)
-      : Promise.resolve({ failed: [] });
+    return bundle ? loadBundle(bundle, onProgress) : Promise.resolve({ failed: [] });
   }
 
   /** `bundle` with each changed texture's entry at `view`'s hash; `bundle` itself when none changed. */

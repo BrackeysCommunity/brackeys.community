@@ -70,7 +70,7 @@ export type GameConfig = {
    * scheme), the project view bundles are computed over, and its kinds.
    * Without it nothing is fetched and sprites draw as their boxes. `view`
    * is read each time a bundle is computed, so a getter can follow a live
-   * project.
+   * project. The runtime view sprites size from is `createGame`'s `project`.
    */
   assets?: { loader: AssetLoader; view: ProjectView; kinds: KindRegistry };
   /** The host's resolution policy, over the project's and the game's. */

@@ -6210,7 +6210,6 @@ interface PoseIndex {
     ids(): IterableIterator<string>;
     readonly size: number;
 }
-declare function spawnPose(e: RuntimeEntity, registry: Registry): Pose;
 
 ## runtime/recorder.ts
 type RecorderOptions = {
@@ -6235,6 +6234,9 @@ type RunRecorder = {
 };
 declare function createRunRecorder(opts: RecorderOptions): RunRecorder;
 declare function probeConfigHash(game?: GameDefinition | null): string;
+
+## runtime/spawn-pose.ts
+declare function spawnPose(e: RuntimeEntity, registry: Registry): Pose;
 
 ## runtime/types.ts
 type LoadReport = {

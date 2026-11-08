@@ -116,7 +116,7 @@ export type {
 export type { AssetKindDef } from "../project/kinds";
 export type { ProjectRuntimeView } from "../project/runtime-view";
 export type { Pose, PoseIndex } from "../runtime/poses";
-export { spawnPose } from "../runtime/poses";
+export { spawnPose } from "../runtime/spawn-pose";
 
 // ─── System authoring ────────────────────────────────────
 export { DRAW_LAYERS } from "../context";

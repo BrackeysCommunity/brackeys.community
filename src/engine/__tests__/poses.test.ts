@@ -2,8 +2,9 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../game/define";
-import { composePose, createPoseIndex, spawnPose } from "../runtime/poses";
+import { composePose, createPoseIndex } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
+import { spawnPose } from "../runtime/spawn-pose";
 import type { ExpandedScene, PathDef, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { RapierModule } from "../types";
 import { engineYard } from "./fixtures/engine-yard.expanded";

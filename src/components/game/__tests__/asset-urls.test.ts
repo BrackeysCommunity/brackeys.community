@@ -1,7 +1,13 @@
 import type { BundleEntry } from "@jams/engine/project";
 import { describe, expect, it } from "vite-plus/test";
 
-import { assetUrl, devAssetUrl, hostedAssetUrl } from "../asset-urls";
+import {
+  assetUrl,
+  devAssetUrl,
+  EDITOR_BLOB_HOST,
+  editorAssetUrl,
+  hostedAssetUrl,
+} from "../asset-urls";
 import { blobRoute } from "../project-blobs";
 
 const sha256 = "ab".repeat(32);
@@ -22,5 +28,12 @@ describe("asset URLs", () => {
         `${blobRoute({ kind, project: "a b/c" })}/${sha256}`,
       );
     expect(devAssetUrl("a b/c", entry)).toContain("a%20b%2Fc");
+  });
+
+  it("loads the editor's textures from the blob route its session uploads to", () => {
+    expect(EDITOR_BLOB_HOST).toBe("dev");
+    expect(editorAssetUrl("p1", entry)).toBe(
+      `${blobRoute({ kind: EDITOR_BLOB_HOST, project: "p1" })}/${sha256}`,
+    );
   });
 });

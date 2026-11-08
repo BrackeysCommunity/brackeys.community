@@ -1208,7 +1208,8 @@ bundle <scene>` prints one.
   least-recently-used once the decoded bytes pass the budget (256 MiB by
   default). A re-imported file is a new hash, so it is a new key, never a
   cache bust.
-- **`GameConfig.assets`** is `{ loader, view, kinds }`: the host's loader,
+- **`GameConfig.assets`** is `{ loader, view, kinds }` (the runtime view
+  is `createGame`'s `project`): the host's loader,
   the project view bundles are computed over (read at each use, so a getter
   can follow a live project) and its kinds. `game.preload(scene,
 onProgress?)` loads the scene's bundle and, the first time, the project
@@ -1254,7 +1255,8 @@ art when a scene next loads.
   system's failed spawn does. Each tick runs the type systems'
   `beforeStep`, the game's `beforeStep`, the physics step, the type
   systems' `afterStep`, each behavior's `step`, then the game's
-  `afterStep` (so the game sees what behaviors did), then `view.commit`.
+  `afterStep` (so the game sees what behaviors did), then the sprites'
+  re-pose (so a pose the game wrote draws this tick), then `view.commit`.
   `reset` and `seek` reach behaviors as they reach type systems, and
   `stats().behaviors` counts attachments per behavior.
 - **`ctx.behavior(name)`** gives a behavior's system, as `system(type)`

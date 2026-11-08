@@ -403,3 +403,56 @@ describe("behavior host", () => {
     rt.destroy();
   });
 });
+
+describe("sprites and the game's afterStep", () => {
+  it("poses a sprite the game moved in afterStep in that same tick, before the commit", () => {
+    const { game: base } = loggingGame();
+    const order: string[] = [];
+    const game: GameDefinition<TestGameSnapshot> = {
+      ...base,
+      createRuntime(ctx) {
+        const inner = base.createRuntime(ctx);
+        return {
+          ...inner,
+          afterStep(dtMs, events) {
+            inner.afterStep?.(dtMs, events);
+            const pose = ctx.poses.get("a")!;
+            ctx.poses.set("a", pose.x + 5, pose.y, pose.rot);
+            order.push(`game moved a to ${pose.x + 5}`);
+          },
+        };
+      },
+    };
+    const { view, callsFor } = recordingView({ sprites: true });
+    view.commit = (tick) => void order.push(`commit ${tick}`);
+    const rt = createSceneRuntime({ rapier, view, game });
+    expect(rt.load(scene([probe("a", { sprite: {} }, [10, 0])])).ok).toBe(true);
+    const sid = "a#sprite";
+    view.pose = ((pose) => (id, x, y, rot, snap) => {
+      if (id === sid) order.push(`pose ${x}`);
+      pose(id, x, y, rot, snap);
+    })(view.pose.bind(view));
+
+    rt.step(DT, []);
+    rt.step(DT, []);
+    rt.step(DT, []);
+    expect(order).toEqual([
+      "game moved a to 15",
+      "pose 15",
+      "commit 0",
+      "game moved a to 20",
+      "pose 20",
+      "commit 1",
+      "game moved a to 25",
+      "pose 25",
+      "commit 2",
+    ]);
+    expect(callsFor(sid, "pose").map((c) => (c.op === "pose" ? c.snap : null))).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
+    rt.destroy();
+  });
+});

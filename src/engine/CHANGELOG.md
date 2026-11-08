@@ -30,7 +30,10 @@ unchanged.
   else an atlas texture's import pivot, else the centre; tint
   and blend from the block, else the entity's material. `flipX` toggles
   under an instance flip; the sprite follows the pose's rotation unless
-  `turn: false`, and snaps on a teleport. `SPRITE`, `spriteGeometry`,
+  `turn: false`, and snaps on a teleport. Its system re-poses after the
+  game's `afterStep`, just before `view.commit`, so a pose any system
+  wrote in a tick (a game system's in `afterStep` included) draws in that
+  tick. `SPRITE`, `spriteGeometry`,
   `SpriteBlock`, `SpriteGeometry`, `SpriteAssetInfo`, `FrameRect` and
   `SPRITE_FALLBACK_SIZE` are in `./game` and `.`; `SpriteVisual`,
   `BlendMode` and `drawSprite` (`.`) draw a sprite through any view, as
@@ -72,8 +75,8 @@ unchanged.
   least-recently-used past `budgetBytes` (default 256 MiB of decoded
   w×h×4 bytes). Failures come back in `failed`, never thrown; progress
   is monotonic and counts settled blobs (failures included).
-  `GameConfig.assets` (`{ loader, view, kinds }`) hands the shell a
-  loader, and `GameInstance.preload(scene, onProgress?)` loads the
+  `GameConfig.assets` (`{ loader, view, kinds }`; the runtime view stays
+  `createGame`'s `project`) hands the shell a loader, and `GameInstance.preload(scene, onProgress?)` loads the
   scene's bundle (and the project bundle, once, retained for the
   instance's life), resolving with the entries that failed. A definition
   is expanded with the shell's prefabs and bundles its `assets` header and
@@ -97,7 +100,8 @@ unchanged.
   snapshot alike. `ProjectRuntimeView.engine` is a frozen copy of the game-settings
   doc's `engine` block.
 - Interpolation: `SceneView` gains optional `commit` and `frame`. The
-  runtime calls `view.commit(tick)` after the game's `afterStep`; the
+  runtime calls `view.commit(tick)` after the game's `afterStep` and the
+  sprites' re-pose; the
   shell calls `view.frame({ alpha, camera })` and then
   `SceneRuntimeHandle.render(alpha)` on every rendered frame, with
   `alpha` 1 while paused or editing. The Pixi view keeps each visual's
@@ -184,8 +188,9 @@ unchanged.
 - `SceneView` gains optional `sprite` and `depth` (beside `commit` and
   `frame`), and `pose` an optional `snap`. Views that implement none of
   them keep working.
-- Materials' `render` takes `tint` (`"#rgb"`/`"#rrggbb"`, which
-  `projectMaterialOf` converts to a number) and `blend` (`normal`, `add`,
+- Materials' `render` takes `tint` (`"#rgb"`/`"#rrggbb"`, a colour
+  string like `style`'s, which `projectMaterialOf` converts to the number
+  a sprite's `tint` is) and `blend` (`normal`, `add`,
   `multiply`, `screen`), additive with no `v` change, and both reach
   `MaterialDef.tint` / `blend` and `ProjectMaterialDef`'s as a sprite's
   defaults on an entity of that material (only materials with `physics`

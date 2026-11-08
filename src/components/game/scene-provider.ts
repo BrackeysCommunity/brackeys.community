@@ -3,6 +3,7 @@ import type { DocOrigin } from "@jams/engine/collab";
 import { createKindRegistry } from "@jams/engine/project";
 import type { Registry } from "@jams/engine/scene";
 
+import { EDITOR_BLOB_HOST } from "./asset-urls";
 import { blobContentStore, projectBlobs, type ProjectBlobs } from "./project-blobs";
 import {
   connectProjectSession,
@@ -35,10 +36,10 @@ export function connectEditorProject({
   origin: DocOrigin;
   url?: string;
 }): EditorProjectConnection {
-  const blobs = projectBlobs({ kind: "dev", project });
+  const blobs = projectBlobs({ kind: EDITOR_BLOB_HOST, project });
   const link = connectProjectSession({
     project,
-    host: { kind: "dev", ...(url ? { url } : {}) },
+    host: { kind: EDITOR_BLOB_HOST, ...(url ? { url } : {}) },
     registry,
     kinds: createKindRegistry(registry.game),
     origin,
