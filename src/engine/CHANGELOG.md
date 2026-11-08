@@ -373,6 +373,14 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
 
 ### Fixed
 
+- An `editScene` that removes a prefab (`definePrefab` with `null`) is
+  refused with `asset-in-use` and `detail.referrers` while another live
+  asset still names the prefab, live and on files alike; the edited scene
+  is judged by what the batch leaves it, so removing its last instances
+  with the prefab still works. On files, a reference another op of the
+  same batch adds is refused too, before anything is written.
+- `scene apply` reports the unchanged file's `sceneHash` when the project
+  refuses the batch, so a retry with `--base` that hash isn't stale.
 - A material's bulk keys (`solid:<material>`, a prefab's `bulk` too) and
   instance overrides that set a material field are references: `deleteAsset`
   reports them as `asset-in-use`, a forced delete leaves them

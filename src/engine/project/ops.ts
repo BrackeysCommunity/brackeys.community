@@ -42,7 +42,15 @@ import { DATA_TABLE_KIND, dataTableIssues } from "./kinds/data-table";
 import { isPlainObject } from "./kinds/define";
 import { GAME_SETTINGS_KIND, gameSettingsEntries } from "./kinds/game-settings";
 import { MATERIAL_KIND } from "./kinds/material";
-import { buildRefIndex, namesAt, rewriteRefs, type RefIndex, type RefSite } from "./refs";
+import {
+  buildRefIndex,
+  inUseIssue,
+  namedBy,
+  namesAt,
+  rewriteRefs,
+  type RefIndex,
+  type RefSite,
+} from "./refs";
 import { sidecarSchema } from "./sidecar";
 import type {
   AssetEntry,
@@ -1084,37 +1092,19 @@ class BatchWork {
 
   /** The other live assets' sites that name `entry` as a kind it is, by referrer id, in id order. */
   private namedBy(entry: AssetEntry): Map<AssetId, RefSite[]> {
-    const index = this.refIndex();
-    const out = new Map<AssetId, RefSite[]>();
-    for (const r of index.referrers(entry.id)) {
-      if (r.id === entry.id || out.has(r.id)) continue;
-      const sites = index
-        .targets(r.id)
-        .filter((s) => s.id === entry.id && (s.kinds.length === 0 || s.kinds.includes(entry.kind)));
-      if (sites.length > 0) out.set(r.id, sites);
-    }
-    return out;
+    return namedBy(this.refIndex(), entry);
   }
 
   /** Refused while another live asset names it (`detail.referrers`), unless `force`. */
   private deleteAsset(op: Extract<ProjectOp, { op: "deleteAsset" }>): void {
     const entry = this.live(op.id);
-    const referrers = [...this.namedBy(entry)].flatMap(([id, sites]) =>
-      sites.map((s) => ({ id, pointer: s.pointer })),
-    );
-    if (referrers.length > 0) {
+    const inUse = inUseIssue(this.refIndex(), entry, {
+      remedy: "repoint or remove those references first, or delete with force",
+    });
+    if (inUse) {
       if (!op.force) {
-        const names = [...new Set(referrers.map((r) => `"${r.id}"`))];
-        this.fail(
-          "asset-in-use",
-          `"${op.id}" is referenced by ${names.join(", ")}; repoint or remove those references first, or delete with force`,
-          "id",
-          {
-            entityIds: [op.id],
-            got: op.id,
-            detail: { referrers },
-          },
-        );
+        const { code, message, ...rest } = inUse;
+        this.fail(code, message, "id", rest);
       }
       this.forced.add(op.id);
     }

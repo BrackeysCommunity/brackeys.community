@@ -114,6 +114,54 @@ describe("applyProjectBatchToFiles", () => {
     expect(await files()).toEqual(before);
   });
 
+  it("refuses removing a prefab another scene places, also when the batch places it", async () => {
+    const before = await files();
+    const dropGate: ProjectOp = {
+      op: "editScene",
+      id: "engine-yard",
+      ops: [{ op: "definePrefab", id: "gate", prefab: null }],
+    };
+    const placeGate: ProjectOp = {
+      op: "editScene",
+      id: "engine-yard",
+      ops: [{ op: "instantiate", instance: { id: "post-9", prefab: "post", at: [400, 400] } }],
+    };
+    for (const dryRun of [true, false]) {
+      const shared = await apply([dropGate], { dryRun });
+      expect(shared).toMatchObject({
+        ok: false,
+        opIndex: 0,
+        issue: { code: "asset-in-use", entityIds: ["gate"] },
+      });
+      const referrers = shared.ok
+        ? []
+        : (shared.issue.detail as { referrers: { id: string }[] }).referrers;
+      expect(new Set(referrers.map((r) => r.id))).toEqual(new Set(["kitchen-sink"]));
+    }
+
+    const dropPost: ProjectOp = {
+      op: "editScene",
+      id: "kitchen-sink",
+      ops: [
+        { op: "remove", refs: ["post-1", "post-2"] },
+        { op: "definePrefab", id: "post", prefab: null },
+      ],
+    };
+    const placedFirst = await apply([placeGate, dropPost]);
+    expect(placedFirst).toMatchObject({
+      ok: false,
+      opIndex: 1,
+      issue: {
+        code: "asset-in-use",
+        detail: { referrers: [{ id: "engine-yard", pointer: "/instances/@post-9/prefab" }] },
+      },
+    });
+    expect(await files()).toEqual(before);
+
+    expect((await apply([dropPost])).ok).toBe(true);
+    expect((await files())["prefabs/post.json"]).toBeUndefined();
+  });
+
   it("refuses a stale base with stale-base and applies against the current one", async () => {
     const { hash } = await snapshotFiles(copy.project);
     expect((await snapshotFiles(copy.project)).hash).toBe(hash);

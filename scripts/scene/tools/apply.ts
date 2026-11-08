@@ -3,7 +3,13 @@ import {
   type ProjectApplyResult,
   type ProjectOpBatch,
 } from "@jams/engine/project";
-import { applyOps, describeChange, type OpBatch, type SceneOp } from "@jams/engine/scene";
+import {
+  applyOps,
+  describeChange,
+  sceneHash,
+  type OpBatch,
+  type SceneOp,
+} from "@jams/engine/scene";
 import { applyProjectBatchToFiles } from "@jams/engine/vite";
 
 import { failure, issueLine, loadScene, readArg, usage, UsageError, type Tool } from "../context";
@@ -65,7 +71,8 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
     };
     const files = await withLiveMaterials(loaded.scene.project);
     const applied = await applyProjectBatchToFiles(files, projectBatch, { dryRun: !write });
-    if (!applied.ok) return refused(loaded.name, rest.sceneHash, batch.ops as SceneOp[], applied);
+    if (!applied.ok)
+      return refused(loaded.name, sceneHash(loaded.def), batch.ops as SceneOp[], applied);
   }
 
   const verb = input.dryRun ? "would change" : write ? "changed" : "not written (errors)";
@@ -95,7 +102,10 @@ function refusedAt(ops: readonly SceneOp[], issue: { entityIds?: readonly string
   return named ?? prefabOps[0] ?? 0;
 }
 
-/** A batch the scene accepts but the project refuses (an id or path another asset holds). */
+/**
+ * A batch the scene accepts but the project refuses (an id or path another
+ * asset holds, a prefab still in use): `sceneHash` is the unchanged file's.
+ */
 function refused(
   scene: string,
   sceneHash: string,

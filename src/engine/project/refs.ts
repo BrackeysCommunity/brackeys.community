@@ -279,3 +279,44 @@ export function namesAt(value: unknown, site: RefSite, layout?: DocLayout): bool
   }
   return node === site.id;
 }
+
+/**
+ * The live assets' sites that name `entry` as a kind it is, by referrer id
+ * in id order; `entry` itself and the referrers `skip` accepts are left out.
+ */
+export function namedBy(
+  index: RefIndex,
+  entry: AssetEntry,
+  skip?: (id: AssetId) => boolean,
+): Map<AssetId, RefSite[]> {
+  const out = new Map<AssetId, RefSite[]>();
+  for (const r of index.referrers(entry.id)) {
+    if (r.id === entry.id || out.has(r.id) || skip?.(r.id)) continue;
+    const sites = index.targets(r.id).filter((s) => s.id === entry.id && fits(entry, s));
+    if (sites.length > 0) out.set(r.id, sites);
+  }
+  return out;
+}
+
+/**
+ * `asset-in-use` for trashing `entry` while another live asset names it,
+ * with each naming site in `detail.referrers`; undefined when none does.
+ * `remedy` ends the message.
+ */
+export function inUseIssue(
+  index: RefIndex,
+  entry: AssetEntry,
+  opts: { skip?: (id: AssetId) => boolean; remedy?: string } = {},
+): SceneIssue | undefined {
+  const referrers = [...namedBy(index, entry, opts.skip)].flatMap(([id, sites]) =>
+    sites.map((s) => ({ id, pointer: s.pointer })),
+  );
+  if (referrers.length === 0) return undefined;
+  const names = [...new Set(referrers.map((r) => `"${r.id}"`))];
+  return makeIssue("asset-in-use", {
+    message: `"${entry.id}" is referenced by ${names.join(", ")}; ${opts.remedy ?? "repoint or remove those references first"}`,
+    entityIds: [entry.id],
+    got: entry.id,
+    detail: { referrers },
+  });
+}

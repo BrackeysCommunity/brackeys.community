@@ -2,23 +2,33 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 import { z } from "zod";
 
+import { createRegistry } from "../../game/define";
 import { memoryContentStore } from "../../project/content-store";
 import { sha256 } from "../../project/hash";
 import { createKindRegistry, defineAssetKind, type DocLayout } from "../../project/kinds";
+import { prefabKind } from "../../project/kinds/prefab";
 import { sceneKind } from "../../project/kinds/scene";
-import type { ProjectApplyResult, ProjectOp, ProjectOpBatch } from "../../project/ops";
+import type { EditSceneOp, ProjectApplyResult, ProjectOp, ProjectOpBatch } from "../../project/ops";
 import type { AssetEntry, ProjectState } from "../../project/types";
 import { engine, engineYard } from "../../scene/__tests__/fixtures/random-ops";
 import { makeIssue } from "../../scene/issues";
+import type { Prefab, SceneDefinition } from "../../scene/types";
 import * as apply from "../apply";
 import { docToScene, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
 import { layoutFromDoc, layoutToDoc } from "../layout";
 import { readLog } from "../log";
+import { prefabToDoc } from "../prefab-doc";
+import { sessionPrefabSource } from "../prefab-source";
 import { applyProjectBatch } from "../project-apply";
 import { readProject, seedProjectDoc } from "../project-doc";
 import { readProjectLog } from "../project-log";
-import { createProjectSession, memoryDocHost, type PrefabWriter } from "../project-session";
+import {
+  createProjectSession,
+  memoryDocHost,
+  type PrefabWriter,
+  type ProjectSession,
+} from "../project-session";
 import { ada, bo } from "./helpers";
 
 /** Set to make the doc refuse every scene batch, as if the doc and its plain JSON disagreed. */
@@ -482,5 +492,138 @@ describe("applyProjectBatch", () => {
     );
     expect(absent.ok || absent.issue.code).toBe("hash-mismatch");
     s.destroy();
+  });
+});
+
+describe("removing a prefab through editScene", () => {
+  const registry = createRegistry();
+  const POST: Prefab = {
+    kind: "prefab",
+    v: 2,
+    id: "post",
+    entities: [{ id: "pole", type: "solid", shape: ["box", 0, -60, 10, 60] }],
+  };
+  const scene = (name: string, ids: string[]): SceneDefinition => ({
+    v: 2,
+    name,
+    bounds: [0, 0, 2000, 1200],
+    instances: ids.map((id, i) => ({ id, prefab: "post", at: [100 + 200 * i, 900] })),
+  });
+
+  /** Two scenes, `yard` and `lot`, that both place the `post` prefab. */
+  async function shared() {
+    const host = memoryDocHost();
+    seedProjectDoc(
+      host.doc("project:p"),
+      {
+        meta: { projectId: "p", layout: 1, name: "P" },
+        assets: {
+          yard: { key: "yard", id: "yard", kind: "scene", path: "yard.json", created: at },
+          lot: { key: "lot", id: "lot", kind: "scene", path: "lot.json", created: at },
+          post: { key: "post", id: "post", kind: "prefab", path: "prefabs/post.json", created: at },
+        },
+        history: {},
+        code: {},
+        build: {},
+      },
+      { kind: "migration" },
+    );
+    sceneToDoc(scene("yard", ["post-1", "post-2"]), {
+      doc: host.doc("scene:p.yard"),
+      key: sequentialKeys("y"),
+    });
+    sceneToDoc(scene("lot", ["post-9"]), {
+      doc: host.doc("scene:p.lot"),
+      key: sequentialKeys("l"),
+    });
+    prefabToDoc(POST, { doc: host.doc("asset:p.post"), key: sequentialKeys("p") });
+    const session = await createProjectSession({
+      project: "p",
+      openDoc: host.client().openDoc,
+      origin: ada,
+      registry,
+      kinds: createKindRegistry(null, [sceneKind, prefabKind]),
+    });
+    const source = sessionPrefabSource(session);
+    await source.ready();
+    return { host, session, source };
+  }
+
+  const drop = (id: string, remove: string[]): ProjectOp => ({
+    op: "editScene",
+    id,
+    ops: [
+      { op: "remove", refs: remove },
+      { op: "definePrefab", id: "post", prefab: null },
+    ],
+  });
+  const live = (s: ProjectSession) => !s.state().assets.post!.deleted;
+
+  it("is refused while another scene places it, and writes nothing", async () => {
+    const { host, session, source } = await shared();
+    const yard = Y.encodeStateVector(host.doc("scene:p.yard"));
+    const r = await applyProjectBatch(
+      session,
+      { v: 1, ops: [drop("yard", ["post-1", "post-2"])] },
+      ada,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.opIndex).toBe(0);
+      expect(r.issue).toMatchObject({
+        code: "asset-in-use",
+        entityIds: ["post"],
+        detail: { referrers: [{ id: "lot", pointer: "/instances/@post-9/prefab" }] },
+      });
+    }
+    expect(live(session)).toBe(true);
+    expect(Y.encodeStateVector(host.doc("scene:p.yard"))).toEqual(yard);
+    source.destroy();
+    session.destroy();
+  });
+
+  it("judges the edited scene by what the batch leaves it", async () => {
+    const { session, source } = await shared();
+    const r = await applyProjectBatch(session, { v: 1, ops: [drop("yard", ["post-1"])] }, ada);
+    expect(r.ok || r.issue.detail).toEqual({
+      referrers: [
+        { id: "lot", pointer: "/instances/@post-9/prefab" },
+        { id: "yard", pointer: "/instances/@post-2/prefab" },
+      ],
+    });
+    expect(live(session)).toBe(true);
+
+    ok(
+      await applyProjectBatch(
+        session,
+        { v: 1, ops: [{ op: "editScene", id: "lot", ops: [{ op: "remove", refs: ["post-9"] }] }] },
+        ada,
+      ),
+    );
+    ok(await applyProjectBatch(session, { v: 1, ops: [drop("yard", ["post-1", "post-2"])] }, ada));
+    expect(live(session)).toBe(false);
+    source.destroy();
+    session.destroy();
+  });
+
+  it("is refused through the scene's own prefab writer while an open scene places it", async () => {
+    const { session } = await shared();
+    const source = sessionPrefabSource(session, { scene: "yard" });
+    await source.ready();
+    await session.open("scene:p.lot");
+    const doc = (await session.open("scene:p.yard")).doc;
+    const vector = Y.encodeStateVector(doc);
+    const r = apply.applyOpsToDoc(
+      doc,
+      { ops: (drop("yard", ["post-1", "post-2"]) as EditSceneOp).ops },
+      ada,
+      registry,
+      { prefabs: source.library(), prefabWriter: source.writer },
+    );
+    expect(r.ok || r.issue.code).toBe("asset-in-use");
+    expect(Y.encodeStateVector(doc)).toEqual(vector);
+    expect(live(session)).toBe(true);
+    source.destroy();
+    session.destroy();
   });
 });

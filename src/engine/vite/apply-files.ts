@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import * as Y from "yjs";
 
-import { sessionPrefabSource } from "../collab/prefab-source";
+import { holdReferrers, sessionPrefabSource, trashedInUse } from "../collab/prefab-source";
 import { applyProjectBatch } from "../collab/project-apply";
 import { buildHashes, createProjectSession, type OpenDoc } from "../collab/project-session";
 import type { AwarenessLike, DocOrigin } from "../collab/types";
@@ -12,7 +12,7 @@ import { docNameOf } from "../project/doc-names";
 import { formatAssetDoc, parseAssetDoc, type KindEnv } from "../project/kinds";
 import type { ProjectApplyResult, ProjectOpBatch } from "../project/ops";
 import { snapshotProject, type ProjectSnapshot } from "../project/snapshot";
-import type { AssetId, BuildStamp } from "../project/types";
+import type { AssetEntry, AssetId, BuildStamp, ProjectView } from "../project/types";
 import { projectView } from "../project/view";
 import { makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
@@ -62,6 +62,37 @@ function blockedAt(batch: ProjectOpBatch, issue: SceneIssue): number {
   return Math.max(
     0,
     batch.ops.findIndex((op) => op.op === "editScene"),
+  );
+}
+
+/** The `editScene` op that removes prefab `id`, else the first scene edit. */
+function removedAt(batch: ProjectOpBatch, id: AssetId): number {
+  const at = batch.ops.findIndex(
+    (op) =>
+      op.op === "editScene" &&
+      op.ops.some((o) => o.op === "definePrefab" && o.id === id && o.prefab === null),
+  );
+  return at >= 0
+    ? at
+    : Math.max(
+        0,
+        batch.ops.findIndex((op) => op.op === "editScene"),
+      );
+}
+
+/**
+ * Assets the batch trashed other than through `deleteAsset` (a prefab an
+ * `editScene` removed) whose id no live asset holds now.
+ */
+function trashedByEdits(
+  before: ProjectView,
+  after: ProjectView,
+  batch: ProjectOpBatch,
+): AssetEntry[] {
+  const deleted = new Set(batch.ops.flatMap((op) => (op.op === "deleteAsset" ? [op.id] : [])));
+  return [...before.byId.values()].filter(
+    (e) =>
+      !deleted.has(e.id) && !after.byId.has(e.id) && after.deleted.some((d) => d.key === e.key),
   );
 }
 
@@ -153,8 +184,22 @@ export async function applyProjectBatchToFiles(
   const prefabs = sessionPrefabSource(session);
   try {
     await prefabs.ready();
+    const before = session.view();
     const result = await applyProjectBatch(session, batch, origin);
     if (!result.ok) return result;
+    // The batch's own edits to other scenes land before its prefab removals, so a reference one of
+    // them added is only seen here, before anything is stored.
+    const trashed = trashedByEdits(before, session.view(), batch);
+    if (trashed.length > 0) {
+      const release = await holdReferrers(session);
+      try {
+        const inUse = trashedInUse(session, trashed);
+        if (inUse)
+          return { ok: false, opIndex: removedAt(batch, inUse.entityIds[0] ?? ""), issue: inUse };
+      } finally {
+        release();
+      }
+    }
     const blocked = await adapter.blockedWrite(projectDoc);
     if (blocked) return { ok: false, opIndex: blockedAt(batch, blocked), issue: blocked };
     if (!opts.dryRun) {

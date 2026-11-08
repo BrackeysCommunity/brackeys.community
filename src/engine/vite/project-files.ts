@@ -260,7 +260,11 @@ export type ProjectFileAdapter = {
    * Null when every write lands. Writes nothing.
    */
   blockedWrite(doc: Y.Doc): Promise<SceneIssue | null>;
-  /** Writes the doc's canonical text when it changed, and a new file's sidecar when it carries something; true when it wrote. */
+  /**
+   * Writes the doc's canonical text when it changed, and a new file's
+   * sidecar when it carries something; true when it wrote. A new file waits,
+   * its content kept in the doc, while something on disk holds its path.
+   */
   storeDoc(name: string, doc: Y.Doc): Promise<boolean>;
   /**
    * A file event under the project. An edit is one `disk` layoutPatch now; a
@@ -990,7 +994,9 @@ export function createProjectFileAdapter(
     const codec = codecOf(def);
     const disk = files.get(key);
     const path = disk?.path ?? entry.path;
-    const text = entry.deleted ? null : await readText(abs(path));
+    // A new entry's path may be held by a file that isn't its own: another case, or under a file.
+    const own = disk !== undefined || (await diskHolder(path)) === path;
+    const text = entry.deleted || !own ? null : await readText(abs(path));
     const fromFile = text === null ? null : parseOrThrow(def, text, path);
     const persisted = await persistedState(name);
     if (persisted && (text === null || (await takesFile(codec, persisted, fromFile, text, def))))
@@ -1023,7 +1029,7 @@ export function createProjectFileAdapter(
       disk.text = text;
       return true;
     }
-    if (await exists(abs(entry.path))) return false;
+    if ((await diskHolder(entry.path)) !== null) return false;
     await writeAtomic(abs(entry.path), text);
     const created: OnDisk = { path: entry.path, text, blob: null, sidecar: null };
     files.set(key, created);
@@ -1147,10 +1153,10 @@ export function createProjectFileAdapter(
 
     // Trashed files are gone and moving files are staged aside before any
     // create, so an entry can take a path this same write frees.
-    const vacated = new Set(moves.map((m) => m.disk.path));
+    const blocked = await blockedEntries(state);
     const staged: { entry: AssetEntry; disk: OnDisk; tmp: string }[] = [];
     for (const move of moves) {
-      if (!vacated.has(move.entry.path) && (await exists(abs(move.entry.path)))) continue;
+      if (blocked.has(move.entry.key)) continue;
       const tmp = `${abs(move.disk.path)}.${process.pid}.${randomKey()}.move`;
       await rename(abs(move.disk.path), tmp);
       if (move.disk.sidecar !== null) await rm(abs(sidecarPathOf(move.disk.path)), { force: true });
@@ -1158,8 +1164,9 @@ export function createProjectFileAdapter(
     }
 
     for (const { entry, def } of creates) {
-      if (staged.some((m) => m.entry.path === entry.path)) continue;
-      if (await exists(abs(entry.path))) continue;
+      if (blocked.has(entry.key)) continue;
+      const folded = entry.path.toLowerCase();
+      if (staged.some((m) => m.entry.path.toLowerCase() === folded)) continue;
       let onDisk: OnDisk;
       if (isBlobKind(def)) {
         const data = await blobOf(entry);
@@ -1226,19 +1233,48 @@ export function createProjectFileAdapter(
     return null;
   }
 
-  async function blockedWrite(doc: Y.Doc): Promise<SceneIssue | null> {
-    const state = readProject(doc);
-    const freed = new Set<AssetPath>();
+  /**
+   * The live entries a store would create or move onto a path something on
+   * disk already holds, with that holder. A path a trash or another move in
+   * the same store frees doesn't count, unless that move is held too.
+   */
+  async function blockedEntries(state: ProjectState): Promise<Map<AssetKey, AssetPath>> {
+    // Folded path → the key of the entry moving off it; null for a trash.
+    const freed = new Map<string, AssetKey | null>();
+    const held: { key: AssetKey; holder: AssetPath }[] = [];
     for (const entry of Object.values(state.assets)) {
       const disk = files.get(entry.key);
-      if (disk && (entry.deleted || disk.path !== entry.path)) freed.add(disk.path.toLowerCase());
+      if (disk && entry.deleted) freed.set(disk.path.toLowerCase(), null);
+      else if (disk && disk.path !== entry.path) freed.set(disk.path.toLowerCase(), entry.key);
     }
     for (const entry of Object.values(state.assets)) {
       if (entry.deleted || !hasFile(kinds.get(entry.kind))) continue;
       const disk = files.get(entry.key);
       if (disk && disk.path === entry.path) continue;
       const holder = await diskHolder(entry.path);
-      if (holder === null || freed.has(holder.toLowerCase())) continue;
+      if (holder !== null) held.push({ key: entry.key, holder });
+    }
+    const blocked = new Map<AssetKey, AssetPath>();
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const { key, holder } of held) {
+        if (blocked.has(key)) continue;
+        const folded = holder.toLowerCase();
+        const mover = freed.get(folded);
+        if (mover === null || (mover !== undefined && !blocked.has(mover))) continue;
+        blocked.set(key, holder);
+        changed = true;
+      }
+    }
+    return blocked;
+  }
+
+  async function blockedWrite(doc: Y.Doc): Promise<SceneIssue | null> {
+    const state = readProject(doc);
+    const blocked = await blockedEntries(state);
+    for (const entry of Object.values(state.assets)) {
+      const holder = blocked.get(entry.key);
+      if (holder === undefined) continue;
       return makeIssue("path-taken", {
         message:
           holder === entry.path

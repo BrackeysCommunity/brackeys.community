@@ -300,20 +300,90 @@ describe("assets on files", { timeout: 60_000 }, () => {
 
   describe("scene apply follows the project's asset rules", () => {
     const peg = { id: "peg", type: "solid", shape: ["box", 0, -5, 5, 5] };
-    const applyOps = async (ops: unknown[], ...flags: string[]) => {
+    const applyTo = async (scene: string, ops: unknown[], ...flags: string[]) => {
       const file = join(root, "scene-ops.json");
       await writeFile(file, JSON.stringify({ ops }));
-      return run("apply", "kitchen-sink", "--ops", file, ...flags);
+      return run("apply", scene, "--ops", file, ...flags);
+    };
+    const applyOps = (ops: unknown[], ...flags: string[]) => applyTo("kitchen-sink", ops, ...flags);
+    const hashOf = async (scene: string) => (await run("show", scene)).data.sceneHash as string;
+
+    /** A refusal reports the unchanged file's hash, so the corrected batch can be based on it. */
+    const retriesOn = async (hash: string, ops: unknown[]) => {
+      const r = await applyOps(ops, "--dry-run", "--base", hash);
+      expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
     };
 
     it("refuses a prefab id another asset holds and writes nothing", async () => {
       const before = await tree(deck);
+      const hash = await hashOf("kitchen-sink");
       const ops = [{ op: "definePrefab", id: "bouncy", prefab: { entities: [peg] } }];
       for (const flags of [["--dry-run"], []]) {
         const r = await applyOps(ops, ...flags);
         expect(r.exitCode, JSON.stringify(r.data)).toBe(1);
         expect(r.data).toMatchObject({ written: false, issue: { code: "asset-id-taken" } });
+        expect(r.data.sceneHash).toBe(hash);
       }
+      expect(await tree(deck)).toEqual(before);
+      await retriesOn(hash, [{ op: "definePrefab", id: "peg", prefab: { entities: [peg] } }]);
+    });
+
+    it("refuses removing a prefab another scene still uses, and writes nothing", async () => {
+      const placed = await applyTo("engine-yard", [
+        { op: "instantiate", instance: { id: "gate-9", prefab: "gate", at: [400, 400] } },
+      ]);
+      expect(placed.exitCode, JSON.stringify(placed.data)).toBe(0);
+      const before = await tree(deck);
+      const hash = await hashOf("engine-yard");
+      const ops = [
+        { op: "remove", refs: ["gate-9"] },
+        { op: "definePrefab", id: "gate", prefab: null },
+      ];
+      for (const flags of [["--dry-run"], []]) {
+        const r = await applyTo("engine-yard", ops, ...flags);
+        expect(r.exitCode, JSON.stringify(r.data)).toBe(1);
+        expect(r.data).toMatchObject({
+          ok: false,
+          failedAt: 1,
+          written: false,
+          sceneHash: hash,
+          issue: { code: "asset-in-use", entityIds: ["gate"] },
+        });
+        const referrers = (r.data.issue as { detail: { referrers: { id: string }[] } }).detail
+          .referrers;
+        expect(new Set(referrers.map((x) => x.id))).toEqual(new Set(["kitchen-sink"]));
+        expect(referrers).toContainEqual({
+          id: "kitchen-sink",
+          pointer: "/instances/@gate-1/prefab",
+        });
+      }
+      expect(await tree(deck)).toEqual(before);
+      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toContain("gate");
+      expect((await run("assets", "list", "--trash")).data.assets).toEqual([]);
+
+      const kept = await applyTo("engine-yard", ops.slice(0, 1), "--base", hash);
+      expect(kept.exitCode, JSON.stringify(kept.data)).toBe(0);
+    });
+
+    it("removes a prefab along with the scene's last instances of it", async () => {
+      const r = await applyOps([
+        { op: "remove", refs: ["post-1", "post-2"] },
+        { op: "definePrefab", id: "post", prefab: null },
+      ]);
+      expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+      expect(Object.keys(await tree(deck))).not.toContain("prefabs/post.json");
+      expect(ids((await run("assets", "list", "--trash")).data)).toEqual(["post"]);
+    });
+
+    it("refuses removing a prefab while the scene keeps an instance of it", async () => {
+      const before = await tree(deck);
+      const r = await applyOps([
+        { op: "remove", refs: ["post-1"] },
+        { op: "definePrefab", id: "post", prefab: null },
+      ]);
+      expect(r.exitCode, JSON.stringify(r.data)).toBe(1);
+      expect(r.data).toMatchObject({ written: false });
+      expect(JSON.stringify(r.data)).toContain("post-2");
       expect(await tree(deck)).toEqual(before);
     });
 
@@ -353,6 +423,7 @@ describe("assets on files", { timeout: 60_000 }, () => {
       expect(imported.exitCode, JSON.stringify(imported.data)).toBe(0);
       expect(Object.keys(await tree(deck))).toContain("prefabs/Peg.json");
       const before = await tree(deck);
+      const hash = await hashOf("kitchen-sink");
       const ops = [
         { op: "setScene", set: { name: "Kitchen sink" } },
         { op: "definePrefab", id: "peg", prefab: { entities: [peg] } },
@@ -364,17 +435,19 @@ describe("assets on files", { timeout: 60_000 }, () => {
           ok: false,
           failedAt: 1,
           written: false,
+          sceneHash: hash,
           issue: { code: "path-taken", entityIds: ["peg", "rubber-peg"] },
         });
-        expect(typeof r.data.sceneHash).toBe("string");
       }
       expect(await tree(deck)).toEqual(before);
+      await retriesOn(hash, ops.slice(0, 1));
       expect(ids((await run("assets", "list", "--kind", "prefab")).data)).not.toContain("peg");
     });
 
     it("refuses a new prefab whose path a file outside the registry holds", async () => {
       await writeFile(join(deck, "prefabs/peg.json"), "{ not json");
       const before = await tree(deck);
+      const hash = await hashOf("kitchen-sink");
       const ops = [{ op: "definePrefab", id: "peg", prefab: { entities: [peg] } }];
       for (const flags of [["--dry-run"], []]) {
         const r = await applyOps(ops, ...flags);
@@ -383,10 +456,12 @@ describe("assets on files", { timeout: 60_000 }, () => {
           ok: false,
           failedAt: 0,
           written: false,
+          sceneHash: hash,
           issue: { code: "path-taken", entityIds: ["peg"], got: "prefabs/peg.json" },
         });
       }
       expect(await tree(deck)).toEqual(before);
+      await retriesOn(hash, [{ op: "definePrefab", id: "plug", prefab: { entities: [peg] } }]);
       expect(ids((await run("assets", "list", "--kind", "prefab")).data)).not.toContain("peg");
     });
 
