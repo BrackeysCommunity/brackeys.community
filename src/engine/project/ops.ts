@@ -559,6 +559,13 @@ class BatchWork {
   readonly delegated: number[] = [];
   /** Ids trashed with `force` while referenced: their referrers' `asset-missing` is on the result. */
   readonly forced = new Set<AssetId>();
+  /** Assets the batch trashes without `force`, judged for references once every op has run. */
+  private readonly trashing = new Map<
+    AssetId,
+    { entry: AssetEntry; index: number; by: "deleteAsset" | "editScene" }
+  >();
+  /** What a delegated `editScene` leaves its scene and prefabs, by key: read only to find references. */
+  private readonly leaves = new Map<AssetKey, unknown>();
   registry = false;
   private cached: ProjectView | null = null;
   private opIndex = 0;
@@ -620,6 +627,39 @@ class BatchWork {
       if (value !== undefined) values.set(e.id, value);
     }
     return buildRefIndex(this.view, values, this.env.kinds, this.kindEnv());
+  }
+
+  /**
+   * `asset-in-use` for the first asset trashed without `force` (by op order)
+   * that a live asset still names once the whole batch has run, delegated
+   * `editScene`s included; the other trashed assets don't count as referrers.
+   */
+  trashedInUse(): { opIndex: number; issue: SceneIssue } | undefined {
+    if (this.trashing.size === 0) return undefined;
+    const values = new Map<AssetId, unknown>();
+    for (const e of this.view.byId.values()) {
+      const value = this.leaves.has(e.key) ? this.leaves.get(e.key) : this.peek(e);
+      if (value !== undefined) values.set(e.id, value);
+    }
+    const index = buildRefIndex(this.view, values, this.env.kinds, this.kindEnv());
+    const gone = (id: AssetId) => this.trashing.has(id);
+    const order = [...this.trashing.values()].sort((a, b) => a.index - b.index);
+    for (const { entry, index: opIndex, by } of order) {
+      // A later op of the batch restored it, or gave its id to another asset.
+      if (by === "deleteAsset" && this.view.byId.has(entry.id)) continue;
+      const issue = inUseIssue(index, entry, {
+        skip: gone,
+        remedy:
+          by === "deleteAsset"
+            ? "repoint or remove those references first, or delete with force"
+            : "repoint or remove those references before removing it",
+      });
+      if (issue) {
+        const field = by === "deleteAsset" ? "id" : "ops";
+        return { opIndex, issue: { ...issue, path: jsonPointer(["ops", opIndex, field]) } };
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -892,6 +932,7 @@ class BatchWork {
         this.fail(code, message, "ops", rest);
       }
       this.delegated.push(this.opIndex);
+      if (entry.kind === SCENE_KIND_NAME) this.leave(entry, op.ops);
       return;
     }
     if (entry.kind !== SCENE_KIND_NAME)
@@ -917,12 +958,47 @@ class BatchWork {
     }
     this.warnings.push(...result.issues);
     this.wrote(entry.key, result.def);
+    if (this.leaves.has(entry.key)) this.leave(entry, op.ops);
     const write = this.scenes.get(entry.key);
     this.scenes.set(entry.key, {
       ops: [...(write?.ops ?? []), ...op.ops],
       registry,
       ...(prefabs ? { prefabs } : {}),
     });
+  }
+
+  /**
+   * Runs scene ops on what the batch leaves a scene, for the references
+   * `trashedInUse` judges: the scene's value, each prefab they change, and
+   * each prefab they remove (to be judged as trashed). The prefab writer
+   * judges and writes delegated ops, so a refusal here only skips them.
+   */
+  private leave(entry: AssetEntry, ops: SceneOp[]): void {
+    const own = (this.leaves.has(entry.key) ? this.leaves.get(entry.key) : this.peek(entry)) as
+      | SceneDefinition
+      | undefined;
+    if (own === undefined) return;
+    const prefabs = this.prefabsFor(entry);
+    let batch: OpBatch = { ops };
+    if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(own) };
+    const result = applyOps(own, batch, this.judge, {
+      ...(prefabs ? { prefabs } : {}),
+      validate: "none",
+    });
+    if (!result.ok) {
+      this.leaves.delete(entry.key);
+      return;
+    }
+    this.leaves.set(entry.key, result.def);
+    if (!result.prefabsChanged || !result.prefabs) return;
+    for (const id of result.prefabsChanged) {
+      const prefab = this.view.byId.get(id);
+      if (prefab?.kind !== PREFAB_KIND) continue;
+      const next = result.prefabs.get(id);
+      if (next) this.leaves.set(prefab.key, next);
+      else if (prefabs?.has(id))
+        this.trashing.set(id, { entry: prefab, index: this.opIndex, by: "editScene" });
+    }
   }
 
   /** The prefabs a scene's instances resolve against, with each prefab this batch renamed also under its new id. */
@@ -1095,19 +1171,14 @@ class BatchWork {
     return namedBy(this.refIndex(), entry);
   }
 
-  /** Refused while another live asset names it (`detail.referrers`), unless `force`. */
+  /**
+   * Refused while another live asset names it (`detail.referrers`) once the
+   * whole batch has run, unless `force`.
+   */
   private deleteAsset(op: Extract<ProjectOp, { op: "deleteAsset" }>): void {
     const entry = this.live(op.id);
-    const inUse = inUseIssue(this.refIndex(), entry, {
-      remedy: "repoint or remove those references first, or delete with force",
-    });
-    if (inUse) {
-      if (!op.force) {
-        const { code, message, ...rest } = inUse;
-        this.fail(code, message, "id", rest);
-      }
-      this.forced.add(op.id);
-    }
+    if (!op.force) this.trashing.set(entry.id, { entry, index: this.opIndex, by: "deleteAsset" });
+    else if (inUseIssue(this.refIndex(), entry)) this.forced.add(op.id);
     this.put({ ...entry, deleted: this.stamp() });
   }
 
@@ -1516,8 +1587,10 @@ function sceneRewrites(
  * nothing anywhere is written. `editAsset` applies its edits through the
  * kind's layout and judges the result by the kind's schema; `editScene`
  * runs `applyOps` on a scene and hands ops that write prefabs to
- * `env.prefabEdit`. `deleteAsset` is refused with `asset-in-use` while a
- * live asset among those given names it, unless `force`. `changeAssetId`
+ * `env.prefabEdit`. `deleteAsset` without `force`, and an `editScene` whose
+ * `definePrefab` null removes a prefab, are refused with `asset-in-use`
+ * while a live asset among those given still names the asset once the
+ * whole batch has run. `changeAssetId`
  * rewrites every referrer (see `BatchWork.changeAssetId`), so it needs
  * every live doc that can hold a reference.
  */
@@ -1538,6 +1611,8 @@ export function checkProjectBatch(
       throw error;
     }
   }
+  const inUse = work.trashedInUse();
+  if (inUse) return { ok: false, ...inUse };
   const missing =
     work.forced.size > 0
       ? work

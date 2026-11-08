@@ -994,8 +994,10 @@ export function createProjectFileAdapter(
     const codec = codecOf(def);
     const disk = files.get(key);
     const path = disk?.path ?? entry.path;
-    // A new entry's path may be held by a file that isn't its own: another case, or under a file.
-    const own = disk !== undefined || (await diskHolder(path)) === path;
+    // Only a tracked file is the entry's own. Before the registry loads, every entry is one the
+    // scan listed at its path. A file holding a new entry's path is a blocker, so that doc loads
+    // from its persisted state or its seed.
+    const own = disk !== undefined || (!projectDoc && scanned.has(key));
     const text = entry.deleted || !own ? null : await readText(abs(path));
     const fromFile = text === null ? null : parseOrThrow(def, text, path);
     const persisted = await persistedState(name);

@@ -637,9 +637,13 @@ changes.
 - **`apply` on files is a project op.** In a project it sends the batch as
   one `editScene` project op, as `--live` does, and writes the prefab files,
   sidecars, registry and dev cache the way `assets apply` does. An id
-  another asset holds (`asset-id-taken`) or a file another asset holds
-  (`path-taken`) is refused and nothing is written; a `definePrefab` with `"prefab": null`
-  sends the prefab to the trash, where `assets restore` brings it back.
+  another asset holds (`asset-id-taken`), a file another asset holds
+  (`path-taken`), or a `definePrefab` with `"prefab": null` while another
+  asset still places the prefab (`asset-in-use`, with `detail.referrers`)
+  is refused and nothing is written; the refusal's `sceneHash` is the
+  unchanged file's, so it works as `--base` for a retry. Otherwise a
+  `definePrefab` with `"prefab": null` sends the prefab to the trash,
+  where `assets restore` brings it back.
 - **`attach` rides a follower.** A solid or sensor with `attach:
 "<follower id>"` moves with that follower; place its shape where it
   should be while the follower is at its first path point.
@@ -681,8 +685,13 @@ Project batches add their own:
   the trash; the message suggests the closest id.
 - `asset-kind`: an asset of the wrong kind for the op or the reference
   (`editAsset` on a texture, a prefab ref naming a material).
-- `asset-in-use`: `deleteAsset` on an asset something still names; pass
-  `--force` to delete it anyway.
+- `asset-in-use`: `deleteAsset` on an asset something still names once
+  the whole batch has run (`detail.referrers` lists each site); pass
+  `--force` to delete it anyway. A `definePrefab` with `"prefab": null` on
+  a prefab another asset still places gets it too, live and on files; it
+  has no force. In the editor, a removal is judged against the scenes the
+  browser has open, and the project's server restores a prefab a closed scene
+  still places.
 - `asset-id-taken` / `path-taken`: another live asset holds the id or the
   path.
 - `hash-mismatch`: uploaded bytes hash to something other than the hash

@@ -1,13 +1,13 @@
 import * as Y from "yjs";
 
-import { SCENE_KIND_NAME, type EditSceneOp } from "../project/ops";
+import type { EditSceneOp } from "../project/ops";
 import { buildRefIndex, inUseIssue } from "../project/refs";
 import type { AssetEntry, AssetId, AssetKey, AssetPath } from "../project/types";
 import { pathClash, suffixedId } from "../project/view";
 import { makeIssue } from "../scene/issues";
 import { applyOps } from "../scene/ops";
 import { PREFAB_KIND } from "../scene/prefab";
-import type { Prefab, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
+import type { Prefab, PrefabLibrary, SceneIssue } from "../scene/types";
 import {
   applyOpsToDoc,
   type PrefabChange,
@@ -15,12 +15,11 @@ import {
   type PrefabDocWrite,
   type PrefabDocWriter,
 } from "./apply";
-import { contentMaps, docMeta, docToScene, isPrefabDoc, readDoc, touchesMaps } from "./convert";
+import { contentMaps, docMeta, isPrefabDoc, readDoc, touchesMaps } from "./convert";
 import { randomKey, type KeyGen } from "./keys";
-import { layoutFromDoc } from "./layout";
 import { appendLog, readLog } from "./log";
 import { docToPrefab, prefabPatch, prefabPathNear, prefabToDoc } from "./prefab-doc";
-import { actorId } from "./project-apply";
+import { actorId, docValue } from "./project-apply";
 import { writeEntry } from "./project-doc";
 import { appendProjectLog } from "./project-log";
 import {
@@ -28,7 +27,6 @@ import {
   type PrefabPlan,
   type PrefabWriter,
   type ProjectSession,
-  type SessionDoc,
 } from "./project-session";
 import type { DocOrigin } from "./types";
 
@@ -345,30 +343,21 @@ type WriterOptions = SessionPrefabSourceOptions & {
   /** Append a project log entry when the batch wrote two or more docs; a caller that logs its own passes false. */
   projectLog?: boolean;
   /**
-   * How a removed prefab's referrers are found: `own` is the scene's content
-   * after the batch (without it the scene's own instances aren't judged here);
-   * false skips the check, for a writer whose plan was already judged.
+   * False skips the in-use check on removed prefabs, for a writer whose
+   * batch `checkProjectBatch` already judged against every referrer.
    */
-  inUse?: false | { own?: SceneDefinition };
+  inUse?: false;
 };
-
-/** A held doc's value as its kind's `refs` reads it; undefined for a doc that holds none. */
-function heldValue(handle: SessionDoc): unknown {
-  if (handle.layout) return layoutFromDoc(handle.doc, handle.layout);
-  if (handle.kind === SCENE_KIND_NAME)
-    return docMeta(handle.doc) ? docToScene(handle.doc) : undefined;
-  if (handle.kind === PREFAB_KIND && isPrefabDoc(handle.doc)) return docToPrefab(handle.doc);
-  return undefined;
-}
 
 /**
  * `asset-in-use` for the first of `trashed` that a live asset other than
  * one of them still names, over the docs the session holds open, with
  * `values` (by asset id) read in place of a doc's own; referrers `skip`
- * accepts don't count. Only the open docs are judged, so a caller that
- * must see every reference opens the docs that can hold one first.
+ * accepts don't count. Only the open docs are judged: a reference in a doc
+ * this client hasn't opened is caught by the project's writer on store,
+ * which restores a trashed asset a live value still names.
  */
-export function trashedInUse(
+function trashedInUse(
   session: ProjectSession,
   trashed: readonly AssetEntry[],
   opts: { values?: ReadonlyMap<AssetId, unknown>; skip?: (id: AssetId) => boolean } = {},
@@ -385,7 +374,7 @@ export function trashedInUse(
     }
     const name = session.docNameFor(entry);
     const handle = name ? session.get(name) : undefined;
-    const value = handle ? heldValue(handle) : undefined;
+    const value = handle ? docValue(handle) : undefined;
     if (value !== undefined) values.set(entry.id, value);
   }
   const index = buildRefIndex(view, values, session.kinds, {
@@ -403,29 +392,13 @@ export function trashedInUse(
   return undefined;
 }
 
-/** Opens and holds every live doc that can name another asset; the result lets go of them. */
-export async function holdReferrers(session: ProjectSession): Promise<() => void> {
-  const releases: (() => void)[] = [];
-  try {
-    for (const entry of session.view().byId.values()) {
-      const def = session.kinds.get(entry.kind);
-      const name = def?.storage === "doc" && def.refs ? session.docNameFor(entry) : null;
-      if (name) releases.push(await hold(session, name));
-    }
-  } catch (err) {
-    for (const r of releases) r();
-    throw err;
-  }
-  return () => {
-    for (const r of releases) r();
-  };
-}
-
 /**
  * The writer behind a session's prefab docs: each changed prefab's doc is
  * patched in a transaction of its own, a new prefab becomes a registry
  * entry under the scene's folder's `prefabs/` (its doc is seeded as soon as
- * it opens), and a removed one goes to the trash.
+ * it opens), and a removed one goes to the trash. A removal another live
+ * asset still names is refused with `asset-in-use`, judged over the docs
+ * the session holds open (see `trashedInUse`).
  */
 function docsWriter(session: ProjectSession, core: Core, opts: WriterOptions): PrefabDocWriter {
   return {
@@ -465,13 +438,9 @@ function docsWriter(session: ProjectSession, core: Core, opts: WriterOptions): P
         } else if (entry) removed.push(entry);
       }
       if (opts.inUse !== false && removed.length > 0) {
-        const own = opts.inUse?.own;
-        const values = new Map<AssetId, unknown>();
-        for (const [id, prefab] of change.next) values.set(id, prefab);
-        if (own && scene) values.set(scene.id, own);
         const inUse = trashedInUse(session, removed, {
-          values,
-          ...(scene && !own ? { skip: (id: AssetId) => id === scene.id } : {}),
+          values: change.next,
+          ...(scene ? { skip: (id: AssetId) => id === scene.id } : {}),
         });
         if (inUse) return fail(inUse);
       }
@@ -557,6 +526,8 @@ async function hold(session: ProjectSession, name: string): Promise<() => void> 
  * The session's slot filled: plans an `editScene` that holds prefab ops (on
  * a scene) or targets a prefab, against the docs as they are, and writes
  * them through `applyOpsToDoc` with the docs writer when the batch writes.
+ * Whether a removed prefab is still in use is `checkProjectBatch`'s to
+ * judge, once the whole batch has run.
  */
 function sessionWriter(core: Core): PrefabWriter {
   return {
@@ -571,7 +542,7 @@ function sessionWriter(core: Core): PrefabWriter {
             entityIds: [entry.id],
           }),
         };
-      let release = await hold(session, name);
+      const release = await hold(session, name);
       const doc = session.get(name)!.doc;
       const fail = (issue: SceneIssue): PrefabPlan => {
         release();
@@ -592,25 +563,7 @@ function sessionWriter(core: Core): PrefabWriter {
         });
         if (!dry.ok) return fail(dry.issue);
         if (dry.prefabsChanged && dry.prefabs) {
-          const next = dry.prefabs;
-          const removes = dry.prefabsChanged.some((id) => library.has(id) && !next.has(id));
-          if (removes) {
-            const releaseReferrers = await holdReferrers(session).catch((err: unknown) => {
-              release();
-              throw err;
-            });
-            const prev = release;
-            release = () => {
-              releaseReferrers();
-              prev();
-            };
-          }
-          const judge = docsWriter(session, core, {
-            scene: entry.id,
-            projectLog: false,
-            inUse: { own: dry.def },
-          });
-          const planned = judge.plan({
+          const planned = writer.plan({
             prev: library,
             next: dry.prefabs,
             changed: dry.prefabsChanged,

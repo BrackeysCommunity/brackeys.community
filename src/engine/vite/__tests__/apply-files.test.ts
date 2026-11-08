@@ -114,17 +114,23 @@ describe("applyProjectBatchToFiles", () => {
     expect(await files()).toEqual(before);
   });
 
+  const placePost: ProjectOp = {
+    op: "editScene",
+    id: "engine-yard",
+    ops: [{ op: "instantiate", instance: { id: "post-9", prefab: "post", at: [400, 400] } }],
+  };
+  const clearSink: ProjectOp = {
+    op: "editScene",
+    id: "kitchen-sink",
+    ops: [{ op: "remove", refs: ["post-1", "post-2"] }],
+  };
+
   it("refuses removing a prefab another scene places, also when the batch places it", async () => {
     const before = await files();
     const dropGate: ProjectOp = {
       op: "editScene",
       id: "engine-yard",
       ops: [{ op: "definePrefab", id: "gate", prefab: null }],
-    };
-    const placeGate: ProjectOp = {
-      op: "editScene",
-      id: "engine-yard",
-      ops: [{ op: "instantiate", instance: { id: "post-9", prefab: "post", at: [400, 400] } }],
     };
     for (const dryRun of [true, false]) {
       const shared = await apply([dropGate], { dryRun });
@@ -147,7 +153,7 @@ describe("applyProjectBatchToFiles", () => {
         { op: "definePrefab", id: "post", prefab: null },
       ],
     };
-    const placedFirst = await apply([placeGate, dropPost]);
+    const placedFirst = await apply([placePost, dropPost]);
     expect(placedFirst).toMatchObject({
       ok: false,
       opIndex: 1,
@@ -159,6 +165,39 @@ describe("applyProjectBatchToFiles", () => {
     expect(await files()).toEqual(before);
 
     expect((await apply([dropPost])).ok).toBe(true);
+    expect((await files())["prefabs/post.json"]).toBeUndefined();
+  });
+
+  it("refuses deleting a prefab the batch then places, and writes nothing", async () => {
+    expect((await apply([clearSink])).ok).toBe(true);
+    const before = await files();
+    const result = await apply([{ op: "deleteAsset", id: "post" }, placePost]);
+    expect(result).toMatchObject({
+      ok: false,
+      opIndex: 0,
+      issue: {
+        code: "asset-in-use",
+        entityIds: ["post"],
+        detail: { referrers: [{ id: "engine-yard", pointer: "/instances/@post-9/prefab" }] },
+      },
+    });
+    expect(await files()).toEqual(before);
+  });
+
+  it("removes a prefab once the batch clears its last referrer elsewhere", async () => {
+    expect((await apply([placePost])).ok).toBe(true);
+    const result = await apply([
+      { op: "editScene", id: "engine-yard", ops: [{ op: "remove", refs: ["post-9"] }] },
+      {
+        op: "editScene",
+        id: "kitchen-sink",
+        ops: [
+          { op: "remove", refs: ["post-1", "post-2"] },
+          { op: "definePrefab", id: "post", prefab: null },
+        ],
+      },
+    ]);
+    expect(result.ok || result.issue).toBe(true);
     expect((await files())["prefabs/post.json"]).toBeUndefined();
   });
 

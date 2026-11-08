@@ -627,6 +627,45 @@ describe("write-back: the registry", () => {
     expect(rescan.state.assets.k0rubber).toMatchObject({ id: "rubber", kind: "material" });
   });
 
+  it.each([
+    ["an unparseable", "{ not json\n"],
+    [
+      "a parseable",
+      formatAssetDoc(kindOf("material"), { kind: "material", v: 1, description: "Foreign." }),
+    ],
+  ])(
+    "create: %s untracked file at the new entry's exact path blocks it and doesn't seed its doc",
+    async (_, foreign) => {
+      const s = await session();
+      const result = applyRegistryBatch(
+        s.project,
+        { v: 1, ops: [{ op: "createAsset", kind: "material", path: "materials/rubber.json" }] },
+        user,
+        { registry, kinds, newKey: () => "k0rubber" },
+      );
+      expect(result.ok).toBe(true);
+      await put("materials/rubber.json", foreign);
+
+      const doc = await s.open("k0rubber");
+      expect(contentMap(doc).size).toBe(0);
+      layoutPatch(
+        doc,
+        layoutOf("material"),
+        { kind: "material", v: 1, description: "Rubber." },
+        user,
+      );
+      expect(await s.adapter.storeDoc("asset:demo.k0rubber", doc)).toBe(false);
+      expect(await read("materials/rubber.json")).toBe(foreign);
+      expect(await gone("materials/rubber.json.asset.json")).toBe(true);
+
+      await rm(join(dir, "materials/rubber.json"));
+      expect(await s.adapter.storeDoc("asset:demo.k0rubber", doc)).toBe(true);
+      expect(await read("materials/rubber.json")).toBe(
+        formatAssetDoc(kindOf("material"), { kind: "material", v: 1, description: "Rubber." }),
+      );
+    },
+  );
+
   it("move: a licence travels in the sidecar with the file", async () => {
     const s = await session();
     s.apply([

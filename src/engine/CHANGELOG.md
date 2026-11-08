@@ -375,10 +375,16 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
 
 - An `editScene` that removes a prefab (`definePrefab` with `null`) is
   refused with `asset-in-use` and `detail.referrers` while another live
-  asset still names the prefab, live and on files alike; the edited scene
-  is judged by what the batch leaves it, so removing its last instances
-  with the prefab still works. On files, a reference another op of the
-  same batch adds is refused too, before anything is written.
+  asset still names the prefab, live and on files alike. `checkProjectBatch`
+  judges it, and a `deleteAsset` without `force`, once the whole batch has
+  run, against what the batch leaves every referrer (a delegated
+  `editScene`'s scene included): removing the last instances in the same
+  batch, here or in another scene, or deleting the referrer, still works,
+  and a reference another op of the batch adds is refused before anything
+  is written. In the editor, the scene's own prefab writer judges a
+  removal against the docs the browser holds open; a reference in a scene
+  it hasn't opened is caught by the project's writer on store, which
+  restores the prefab.
 - `scene apply` reports the unchanged file's `sceneHash` when the project
   refuses the batch, so a retry with `--base` that hash isn't stale.
 - A material's bulk keys (`solid:<material>`, a prefab's `bulk` too) and
@@ -454,7 +460,9 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   `projectSnapshotSchema` by `projectSnapshotJsonSchema`).
 - `checkProjectBatch` and `applyProjectBatch` accept `editAsset`,
   `editScene` and `changeAssetId`. `deleteAsset` is refused with
-  `asset-in-use` while referenced, unless `force`.
+  `asset-in-use` while referenced once the whole batch has run, unless
+  `force`; so is an `editScene` whose `definePrefab` `null` removes a
+  prefab another live asset still names.
 - The scene CLI works on projects: every `jams.project.json` under `src/`
   (`discoverProjects`), with `--project <id>` on every command; a scene or
   asset id two projects hold exits 2 until `--project` picks one.
@@ -489,12 +497,14 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   files, sidecars, registry and dev cache the way `assets apply` does. A
   changed prefab goes back to its asset's file and a new one to `prefabs/`
   beside the scene (`prefabPathNear`). A prefab id another asset holds is
-  refused with `asset-id-taken`, and a path another asset or an unlisted
-  file holds with `path-taken`: exit 1 with `ok: false`, `failedAt`,
-  `issue`, `sceneHash` and `written: false` in the data, nothing written,
-  dry run included. A
-  `definePrefab` with `"prefab": null` sends the prefab to the trash, where
-  `assets restore` brings it back.
+  refused with `asset-id-taken`, a path another asset or an unlisted
+  file holds with `path-taken`, and a `definePrefab` with `"prefab": null`
+  while another live asset still places the prefab with `asset-in-use`
+  (and `detail.referrers`): exit 1 with `ok: false`, `failedAt`, `issue`,
+  `sceneHash` and `written: false` in the data, nothing written, dry run
+  included. That `sceneHash` is the unchanged file's, usable as `--base`
+  for a retry. Otherwise a `definePrefab` with `"prefab": null` sends the
+  prefab to the trash, where `assets restore` brings it back.
 - `new` creates the scene as a `createAsset` op through
   `applyProjectBatchToFiles` and refuses an id or path another asset holds
   (`asset-id-taken` / `path-taken`): exit 1, nothing written, the issue in

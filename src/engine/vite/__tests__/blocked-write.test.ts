@@ -278,10 +278,11 @@ describe("the dev server's blocked writes", () => {
         docNameOf({ kind: "project", project: copy.project.file.id }),
         clients,
       );
-      const post = entryOf(project.doc, "post");
       const postText = await copy.read("prefabs/post.json");
+      const gateText = await copy.read("prefabs/gate.json");
       writeEntry(project.doc, prefab("peg", "stuff/peg.json"));
-      writeEntry(project.doc, { ...post, path: "stuff/post.json" });
+      writeEntry(project.doc, { ...entryOf(project.doc, "post"), path: "stuff/post.json" });
+      writeEntry(project.doc, { ...entryOf(project.doc, "gate"), path: "kit/gate.json" });
       await pushed(project.provider);
       const peg = await connect(
         server.url,
@@ -291,10 +292,17 @@ describe("the dev server's blocked writes", () => {
       prefabToDoc(PEG, { doc: peg.doc, project: copy.project.file.id, assetKey: "peg" });
       await pushed(peg.provider);
       await until(() => warnings.some((w) => w.includes("path-taken")), "the path-taken warning");
+      await until(async () => {
+        const files = await listed();
+        return files.includes("kit/gate.json") && !files.includes("prefabs/gate.json");
+      }, "the unblocked move");
       await server.idle();
+      expect(await copy.read("kit/gate.json")).toBe(gateText);
       expect(await copy.read("stuff")).toBe("a file");
       expect(await copy.read("prefabs/post.json")).toBe(postText);
-      expect((await listed()).filter((f) => f.endsWith(".move") || f.endsWith(".tmp"))).toEqual([]);
+      const files = await listed();
+      expect(files.filter((f) => f.startsWith("stuff/"))).toEqual([]);
+      expect(files.filter((f) => f.endsWith(".move") || f.endsWith(".tmp"))).toEqual([]);
 
       await rm(copy.file("stuff"));
       writeEntry(project.doc, { ...prefab("peg", "stuff/peg.json"), name: "Peg" });

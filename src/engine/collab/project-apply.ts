@@ -342,11 +342,16 @@ const failAt = (
   issue: { ...issue, severity: "error", path: issue.path ?? `/ops/${opIndex}` },
 });
 
-/** The plain JSON a doc holds, the way `checkProjectBatch` reads it; undefined for kinds it doesn't read. */
-function valueOf(handle: SessionDoc, kind: AssetKindName): unknown {
+/**
+ * The plain JSON an open doc holds, the way `checkProjectBatch` and a kind's
+ * `refs` read it; undefined for kinds neither reads and for a scene doc not
+ * yet seeded.
+ */
+export function docValue(handle: SessionDoc): unknown {
   if (handle.layout) return layoutFromDoc(handle.doc, handle.layout);
-  if (kind === SCENE_KIND_NAME) return docToScene(handle.doc);
-  if (kind === PREFAB_KIND && isPrefabDoc(handle.doc)) return docToPrefab(handle.doc);
+  if (handle.kind === SCENE_KIND_NAME)
+    return docMeta(handle.doc) ? docToScene(handle.doc) : undefined;
+  if (handle.kind === PREFAB_KIND && isPrefabDoc(handle.doc)) return docToPrefab(handle.doc);
   return undefined;
 }
 
@@ -465,9 +470,13 @@ type PrefabRequest = { index: number; op: EditSceneOp; entry: AssetEntry };
 
 const planKey = (index: number, op: EditSceneOp) => `${index}:${stableJson(op)}`;
 
-/** Ops whose check reads every doc that can name another asset. */
+/** Ops whose check reads every doc that can name another asset: those that rename or trash one. */
 const readsReferrers = (op: Record<string, unknown>) =>
-  op.op === "changeAssetId" || op.op === "deleteAsset";
+  op.op === "changeAssetId" ||
+  op.op === "deleteAsset" ||
+  (op.op === "editScene" &&
+    Array.isArray(op.ops) &&
+    op.ops.some((o) => isPlainObject(o) && o.op === "definePrefab" && o.prefab === null));
 
 /**
  * Applies a project batch across docs. Every doc the batch touches is
@@ -559,8 +568,8 @@ export async function applyProjectBatch(
       now: number,
     ) => {
       const docs = new Map<AssetId, unknown>();
-      for (const [id, { name, kind }] of [...reads, ...scans]) {
-        const value = valueOf(session.get(name)!, kind);
+      for (const [id, { name }] of [...reads, ...scans]) {
+        const value = docValue(session.get(name)!);
         if (value !== undefined) docs.set(id, value);
       }
       const state = session.state();

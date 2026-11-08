@@ -592,16 +592,111 @@ describe("removing a prefab through editScene", () => {
       ],
     });
     expect(live(session)).toBe(true);
+    source.destroy();
+    session.destroy();
+  });
+
+  const clearLot: ProjectOp = {
+    op: "editScene",
+    id: "lot",
+    ops: [{ op: "remove", refs: ["post-9"] }],
+  };
+  const placeInLot: ProjectOp = {
+    op: "editScene",
+    id: "lot",
+    ops: [{ op: "instantiate", instance: { id: "post-8", prefab: "post", at: [500, 900] } }],
+  };
+
+  it("judges every referrer by what the whole batch leaves it", async () => {
+    for (const first of [clearLot, { op: "deleteAsset", id: "lot" } satisfies ProjectOp]) {
+      const { session, source } = await shared();
+      ok(
+        await applyProjectBatch(
+          session,
+          { v: 1, ops: [first, drop("yard", ["post-1", "post-2"])] },
+          ada,
+        ),
+      );
+      expect(live(session)).toBe(false);
+      source.destroy();
+      session.destroy();
+    }
+  });
+
+  it("judges a deleteAsset by a referrer a delegated edit clears", async () => {
+    const { session, source } = await shared();
+    const clearYard: ProjectOp = {
+      op: "editScene",
+      id: "yard",
+      ops: [
+        { op: "remove", refs: ["post-1", "post-2"] },
+        { op: "definePrefab", id: "peg", prefab: { entities: POST.entities } },
+      ],
+    };
+    ok(
+      await applyProjectBatch(
+        session,
+        { v: 1, ops: [clearYard, clearLot, { op: "deleteAsset", id: "post" }] },
+        ada,
+      ),
+    );
+    expect(live(session)).toBe(false);
+    source.destroy();
+    session.destroy();
+  });
+
+  it("refuses a reference another op of the batch adds, and writes nothing", async () => {
+    const { host, session, source } = await shared();
+    ok(await applyProjectBatch(session, { v: 1, ops: [clearLot] }, ada));
+    const vectors = () =>
+      ["scene:p.yard", "scene:p.lot", "project:p"].map((n) => Y.encodeStateVector(host.doc(n)));
+    const before = vectors();
+
+    const dropped = await applyProjectBatch(
+      session,
+      { v: 1, ops: [placeInLot, drop("yard", ["post-1", "post-2"])] },
+      ada,
+    );
+    expect(dropped).toMatchObject({
+      ok: false,
+      opIndex: 1,
+      issue: {
+        code: "asset-in-use",
+        path: "/ops/1/ops",
+        detail: { referrers: [{ id: "lot", pointer: "/instances/@post-8/prefab" }] },
+      },
+    });
+    expect(vectors()).toEqual(before);
 
     ok(
       await applyProjectBatch(
         session,
-        { v: 1, ops: [{ op: "editScene", id: "lot", ops: [{ op: "remove", refs: ["post-9"] }] }] },
+        {
+          v: 1,
+          ops: [
+            { op: "editScene", id: "yard", ops: [{ op: "remove", refs: ["post-1", "post-2"] }] },
+          ],
+        },
         ada,
       ),
     );
-    ok(await applyProjectBatch(session, { v: 1, ops: [drop("yard", ["post-1", "post-2"])] }, ada));
-    expect(live(session)).toBe(false);
+    const mid = vectors();
+    const deleted = await applyProjectBatch(
+      session,
+      { v: 1, ops: [{ op: "deleteAsset", id: "post" }, placeInLot] },
+      ada,
+    );
+    expect(deleted).toMatchObject({
+      ok: false,
+      opIndex: 0,
+      issue: {
+        code: "asset-in-use",
+        path: "/ops/0/id",
+        detail: { referrers: [{ id: "lot", pointer: "/instances/@post-8/prefab" }] },
+      },
+    });
+    expect(vectors()).toEqual(mid);
+    expect(live(session)).toBe(true);
     source.destroy();
     session.destroy();
   });
