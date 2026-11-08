@@ -94,6 +94,11 @@ export function geometryFields(
   return out;
 }
 
+/** A type's grid fields, in declaration order; none for an unregistered type. */
+export function gridFieldsOf(t: RegisteredType | undefined): string[] {
+  return t ? geometryFields(t).flatMap((f) => (f.kind === "grid" ? [f.field] : [])) : [];
+}
+
 // ─── Schemas ─────────────────────────────────────────────
 
 // ─── Behaviors ───────────────────────────────────────────

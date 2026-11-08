@@ -14,6 +14,12 @@ import {
 } from "./transform";
 import type { BulkEntry, EntityDef, PathDef, Pt, ShapeTuple } from "./types";
 
+export const isPt = (v: unknown): v is Pt =>
+  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number");
+
+/** `t` without its translation. */
+export const linearPart = (t: Transform2D): Transform2D => ({ ...t, tx: 0, ty: 0 });
+
 /** The kinds that carry a position: what a translation moves. */
 export type GeometryKind = "shape" | "point" | "path";
 
@@ -35,11 +41,6 @@ const clone = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(
 export const addPt = (p: Pt, [dx, dy]: Pt): Pt => [p[0] + dx, p[1] + dy];
 export const subPt = (p: Pt, [dx, dy]: Pt): Pt => [p[0] - dx, p[1] - dy];
 export const isZeroPt = ([x, y]: Pt) => x === 0 && y === 0;
-
-const linearPart = (t: Transform2D): Transform2D => ({ ...t, tx: 0, ty: 0 });
-
-const isPt = (v: unknown): v is Pt =>
-  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number");
 
 const isShapeTuple = (v: unknown): v is ShapeTuple => Array.isArray(v) && typeof v[0] === "string";
 

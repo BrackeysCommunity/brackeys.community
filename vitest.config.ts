@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: /^@jams\/engine$/, replacement: `${engineRoot}/index.ts` },
+      { find: /^@jams\/engine-testing$/, replacement: `${engineRoot}/__tests__/testing.ts` },
       { find: /^@jams\/engine\/(.+)$/, replacement: `${engineRoot}/$1/index.ts` },
       { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
       {

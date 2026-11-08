@@ -9,7 +9,7 @@
  * chunk `(floor(col/32), floor(row/32))` at row `row mod 32`, column
  * `col mod 32`.
  */
-import { dihedral, type Dihedral } from "./transform";
+import { dihedral, type Dihedral, type Transform2D } from "./transform";
 import type { CellEdit, CellRect } from "./types";
 
 export type { CellEdit, CellRect } from "./types";
@@ -325,9 +325,19 @@ export function gridCellBounds(
   return b;
 }
 
+/**
+ * A cell's column and row under the linear part of `t`, turned about cell
+ * (0, 0)'s top-left corner. Doubled cell centres keep the arithmetic in integers.
+ */
+export function transformCell(col: number, row: number, t: Transform2D): [number, number] {
+  const x = 2 * col + 1;
+  const y = 2 * row + 1;
+  return [(t.a * x + t.c * y - 1) / 2, (t.b * x + t.d * y - 1) / 2];
+}
+
 /** Cells turned and flipped about cell (0, 0)'s top-left corner; square cells only. */
 export function transformGrid(grid: GridCells, d: Dihedral): GridCells {
-  const { a, b, c, d: dd } = dihedral(d, [0, 0]);
+  const m = dihedral(d, [0, 0]);
   const out = new Map<ChunkKey, Uint16Array>();
   for (const [key, rows] of Object.entries(grid)) {
     const at = parseChunkKey(key);
@@ -336,11 +346,11 @@ export function transformGrid(grid: GridCells, d: Dihedral): GridCells {
     for (let i = 0; i < CELLS; i++) {
       const v = cells[i]!;
       if (v === 0) continue;
-      // Doubled cell centres keep the arithmetic in integers.
-      const x = 2 * (at[0] * GRID_CHUNK + (i % GRID_CHUNK)) + 1;
-      const y = 2 * (at[1] * GRID_CHUNK + Math.floor(i / GRID_CHUNK)) + 1;
-      const col = (a * x + c * y - 1) / 2;
-      const row = (b * x + dd * y - 1) / 2;
+      const [col, row] = transformCell(
+        at[0] * GRID_CHUNK + (i % GRID_CHUNK),
+        at[1] * GRID_CHUNK + Math.floor(i / GRID_CHUNK),
+        m,
+      );
       const k = keyOf(floorDiv(col), floorDiv(row));
       let target = out.get(k);
       if (!target) out.set(k, (target = new Uint16Array(CELLS)));

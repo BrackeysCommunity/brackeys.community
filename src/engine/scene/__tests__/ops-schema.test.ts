@@ -7,6 +7,7 @@ import { createRegistry, defineEntityType, defineGame } from "../../game/define"
 import { pointField } from "../../game/fields";
 import { applyOps } from "../ops";
 import { opBatchSchemaFor, opsJsonSchema, opsSchemaId, usesBulkRefs } from "../ops-schema";
+import { OVERRIDE_PATH } from "../schema";
 import type { OpBatch, Prefab, SceneDefinition } from "../types";
 
 const committed = new URL("../ops.schema.json", import.meta.url);
@@ -59,6 +60,23 @@ describe("ops JSON Schema", () => {
     for (const phrase of ["y is down", "half-extents", "integer degrees", "must carry `base`"]) {
       expect(text).toContain(phrase);
     }
+  });
+
+  it("describes the v3 prefab ops and addressing", () => {
+    const text = JSON.stringify(opsJsonSchema(engine));
+    for (const phrase of [
+      "instances become nested instances",
+      "its nested instances become instances",
+      "behaviors.test-game/glow.intensity",
+      "`params.<name>` (null clears a param)",
+      "paint its cells with paintCells",
+      "door-1/panel.path.speed",
+    ])
+      expect(text).toContain(phrase);
+    expect(text).not.toContain("not instances");
+    expect(text).not.toContain("children as plain entities");
+    for (const key of ["door-1/panel.path.speed", "door-1.rot", "door-1.params.speed"])
+      expect(key).toMatch(OVERRIDE_PATH);
   });
 
   it("builds a registry's schemas once", () => {

@@ -29,6 +29,7 @@ import {
   entitySchemaFor,
   fieldKind,
   geometryFields,
+  gridFieldsOf,
   sceneRegistry,
   unknownGameIssue,
 } from "./schema";
@@ -594,11 +595,8 @@ function entityAssetSites(
   return [...sites.values()];
 }
 
-/** A type's grid fields, in declaration order; none for an unregistered type. */
-function gridFields(registry: Registry, type: string): string[] {
-  const t = registry.types.get(type);
-  return t ? geometryFields(t).flatMap((f) => (f.kind === "grid" ? [f.field] : [])) : [];
-}
+const gridFields = (registry: Registry, type: string): string[] =>
+  gridFieldsOf(registry.types.get(type));
 
 const showValue = (v: unknown): string => (v === undefined ? "missing" : JSON.stringify(v));
 

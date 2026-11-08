@@ -41,8 +41,9 @@ cells. Every addition is optional with a default equal to v2's behaviour.
   integer: points, vectors, angles, mirrors, shapes and paths transform
   exactly.
 - `z` on entities and instances: an integer draw order in
-  [-10000, 10000], 0 by default; an instance's `z` is added to every
-  child's.
+  [-10000, 10000], 0 by default and written as absent (by `update` and
+  `setZ` alike, so both give the same file and hash); an instance's `z` is
+  added to every child's.
 - `params` on instances: values for the parameters the prefab exposes.
 - `behaviors` on entities: behavior blocks by name, each checked by its
   behavior's fields, with the type's required and default blocks filled
@@ -145,8 +146,11 @@ cells. Every addition is optional with a default equal to v2's behaviour.
   `settings` or the `assets` header that no live asset has is
   `asset-missing` (did-you-mean over the live ids of the field's kinds; a
   trashed id says so) and a live id of the wrong kind is `asset-kind`;
-  without it asset ids aren't checked. `vp run scene validate` passes the
-  scene's project.
+  without it asset ids aren't checked. `ValidateOptions.prefab` names the
+  prefab the scene is a view of: a nested instance that reaches it is
+  `prefab-cycle` even while the library's copy of it is stale, and its
+  variant base is checked too; `applyOps` with `prefab` validates its
+  result the same way. `vp run scene validate` passes the scene's project.
 - `setZ { refs, z | by }` sets or shifts `z` on entities and instances,
   within ±10000. A z of 0 is written as absent, bulk refs are refused
   (promote first), and the inverse is an exact `setZ`. On an instance child
@@ -462,7 +466,8 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
 - `./collab`: `watchIssues` / `validateDoc` take `project` (`IssueProject`:
   a `ProjectSession` fits); with it the scene's asset ids are checked
   (`asset-missing`, `asset-kind`) and a change to the project registry
-  revalidates.
+  revalidates. A prefab doc validates as a view of its prefab
+  (`ValidateOptions.prefab`).
 - `moveAsset` and `renameAsset` of a scene carry its checks file
   (`<stem>.checks.json` beside it) to the same folder and new stem in the
   same op, refused with `path-taken` when that path is taken; `deleteAsset`
@@ -518,12 +523,6 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
 - `changeAssetId` on a prefab that other prefabs nest or use as a base
   rewrites those prefabs' instances and `base` in the same batch, instead
   of refusing with "changed while the batch was being planned".
-- `validateDoc` / `watchIssues` validate a prefab doc as a view of its
-  prefab (`ValidateOptions.prefab`), so a nested instance that reaches the
-  open prefab is `prefab-cycle` even while the library's copy of it is
-  stale, and `applyOps` with `prefab` validates its result the same way.
-- `update` writes an entity's or instance's `z` of 0 as absent, as `setZ`
-  does, so both give the same file and hash.
 
 ### Agent surface
 
@@ -531,16 +530,16 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   output below. MCP tool names are unchanged; `scene_apply_ops` takes the
   new ops through `ops:v3` and `scene_show` carries the new fields.
 - Ops `transform`, `setZ`, `useAssets`, `paintCells` (at most 65,536
-  cells; `rects` fill first and `cells` paint over them), `setPrefabBase`, `exposeParam` and `setParam` in the ops schema;
-  `setGroup` takes `rot` and `flip`, `instantiate`'s instance takes `rot`,
-  `flip`, `z` and `params`, `applyToPrefab` takes `to`, and
-  `definePrefab`'s body takes `instances`, `base`, `overrides`, `params`
-  and `assets`.
+  cells; `rects` fill first and `cells` paint over them), `setPrefabBase`,
+  `exposeParam` and `setParam` in the ops schema; `setGroup` takes `rot`
+  and `flip`, `instantiate`'s instance takes `rot`, `flip`, `z` and
+  `params`, `applyToPrefab` takes `to`, and `definePrefab`'s body takes
+  `instances`, `base`, `overrides`, `params` and `assets`.
 - The prefab schema (`prefab:v3`) takes an optional `instances` array of
   the scene's `Instance`, and `base` (before `contract`), then `params`
   (`PrefabParam`: `description`, `targets`, `default`), `assets` and
-  `overrides`; `entities` stays required. The fragment schema
-  takes an optional `instances` array.
+  `overrides`; `entities` stays required. The fragment schema takes an
+  optional `instances` array.
 - An `attach` field's pattern is `CHILD_REF_PATTERN`, not `ID_PATTERN`, in
   the scene, prefab and fragment schemas.
 - Issue codes `prefab-cycle`, `prefab-depth`, `variant-base-unknown`,

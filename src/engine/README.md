@@ -1212,6 +1212,7 @@ primitives); a game's schema adds its types and settings.
 | `layer` | `"terrain"` \| `"decor"` \| `"gameplay"` \| `"editor"` |          | Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses. |
 | `group` | string                                                 |          | The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.                                                                                     |
 | `off`   | boolean                                                |          | When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.                                                                                                                                     |
+| `z`     | integer                                                |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.                                                                         |
 
 ### Entity types
 
@@ -1221,7 +1222,6 @@ Static ground, walls and platforms: collides from every side, or from above only
 
 | Field       | Type             | Required | Description                                                                                                                                                               |
 | ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `z`         | integer          |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
 | `shape`     | [shape](#shapes) | yes      | Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.                                                                                      |
 | `material`  | none registered  |          | Surface material.                                                                                                                                                         |
 | `oneWay`    | boolean          |          | When true, actors pass up through it and land on top.                                                                                                                     |
@@ -1234,7 +1234,6 @@ Trigger volume with no collision response; raises sensor:enter and sensor:exit w
 
 | Field       | Type             | Required | Description                                                                                                                                                               |
 | ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `z`         | integer          |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
 | `shape`     | [shape](#shapes) | yes      | Trigger shape. Absolute world px; y is down.                                                                                                                              |
 | `tags`      | string[]         |          | Labels a game reads off the sensor's events.                                                                                                                              |
 | `attach`    | string           |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
@@ -1246,7 +1245,6 @@ A named point with tags; what it means is up to the game.
 
 | Field       | Type             | Required | Description                                                                                                                                                               |
 | ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `z`         | integer          |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
 | `at`        | [point](#points) | yes      | Marker position. Absolute world px; y is down.                                                                                                                            |
 | `tags`      | string[]         |          | Labels a game reads, e.g. spawn or checkpoint.                                                                                                                            |
 | `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
@@ -1257,7 +1255,6 @@ Dynamic physics object that can be pushed and stood on.
 
 | Field         | Type                  | Required | Description                                                                                                                                                               |
 | ------------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `z`           | integer               |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
 | `shape`       | [body shape](#shapes) | yes      | Starting collider shape. Absolute world px; y is down. Not chain.                                                                                                         |
 | `density`     | number                | yes      | Density, mass per px²; heavier props are harder to push.                                                                                                                  |
 | `restitution` | number                | yes      | Bounciness: 0 doesn't bounce, 1 keeps all its speed.                                                                                                                      |
@@ -1271,7 +1268,6 @@ Kinematic body that follows a waypoint path.
 
 | Field       | Type                  | Required | Description                                                                                                                                                               |
 | ----------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `z`         | integer               |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
 | `shape`     | [body shape](#shapes) | yes      | Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. ["box", 0, 0, 40, 6]). Not chain.                                                           |
 | `path`      | [path](#paths)        | yes      |                                                                                                                                                                           |
 | `material`  | none registered       |          | Surface material.                                                                                                                                                         |
@@ -1281,11 +1277,10 @@ Kinematic body that follows a waypoint path.
 
 Editor note: text pinned to a point. Never loaded into the game.
 
-| Field  | Type             | Required | Description                                                                                                                                                     |
-| ------ | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `z`    | integer          |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0. |
-| `at`   | [point](#points) | yes      | Where the note shows, absolute world px.                                                                                                                        |
-| `text` | string           | yes      | The note, for whoever edits the scene next.                                                                                                                     |
+| Field  | Type             | Required | Description                                 |
+| ------ | ---------------- | -------- | ------------------------------------------- |
+| `at`   | [point](#points) | yes      | Where the note shows, absolute world px.    |
+| `text` | string           | yes      | The note, for whoever edits the scene next. |
 
 ### Shapes
 

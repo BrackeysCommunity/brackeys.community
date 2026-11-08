@@ -1,8 +1,9 @@
 import type { Registry } from "../game/types";
 import { bulkId } from "./bulk-ref";
 import { isInstanceOverrideField, splitChildRef, splitOverridePath } from "./field-path";
+import { transformCell } from "./grid";
 import { makeIssue } from "./issues";
-import { fieldKind } from "./schema";
+import { fieldKind, gridFieldsOf } from "./schema";
 import {
   applyPt,
   applyVec,
@@ -19,6 +20,8 @@ import {
   type Transform2D,
 } from "./transform";
 import {
+  isPt,
+  linearPart,
   presentGeometry,
   transformBulkEntry,
   transformEntityDef,
@@ -74,8 +77,6 @@ export function groupOrigin(def: SceneDefinition, group: string | undefined): Pt
   return at ? [at[0], at[1]] : [0, 0];
 }
 
-export { inverseTurn, turnOf };
-
 const isIdentity = (t: Transform2D) =>
   t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && t.tx === 0 && t.ty === 0;
 
@@ -123,14 +124,6 @@ export function gridTurns(def: Pick<SceneDefinition, "settings">): boolean {
   return grid?.kind === "square" && grid.cell[0] === grid.cell[1];
 }
 
-/** The grid fields `def` sets. */
-function gridFields(registry: Registry, def: EntityDef): string[] {
-  const shape = registry.types.get(def.type)?.shape ?? {};
-  return Object.entries(shape)
-    .filter(([field, schema]) => def[field] !== undefined && fieldKind(schema) === "grid")
-    .map(([field]) => field);
-}
-
 /** `def` under `t`, field by field; grid cells stay put when `cells` is false and `t` turns. */
 function transformEntity(
   registry: Registry,
@@ -139,7 +132,10 @@ function transformEntity(
   cells: boolean,
 ): EntityDef {
   if (isIdentity(t)) return def;
-  const held = !cells && turns(t) ? gridFields(registry, def) : [];
+  const held =
+    !cells && turns(t)
+      ? gridFieldsOf(registry.types.get(def.type)).filter((f) => def[f] !== undefined)
+      : [];
   if (held.length === 0) return transformEntityDef(registry, def, t) ?? def;
   const rest: EntityDef = { ...def };
   for (const field of held) delete rest[field];
@@ -1035,7 +1031,8 @@ function overrideOps(
   registry: Registry,
 ): SceneOp[] {
   const fieldsOf = (c: LocalChild): Record<string, unknown> => {
-    if (c.kind === "entity") return c.def;
+    // An entity stores a z of 0 as no z, so the two compare equal here.
+    if (c.kind === "entity") return { ...c.def, z: c.def.z ?? 0 };
     const info = registry.bulkKey(c.key);
     return info ? { [info.field]: c.value } : {};
   };
@@ -1063,9 +1060,6 @@ function overrideOps(
   if (Object.keys(set).length > 0) ops.push({ op: "override", ref: inst.id, set });
   return ops;
 }
-
-const isPt = (v: unknown): v is Pt =>
-  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number");
 
 /**
  * The value an update sets at `path` on `def`, taken through `t` by what
@@ -1148,8 +1142,6 @@ const turnedKind = (kind: string): boolean =>
   kind === "angle" ||
   kind === "mirror";
 
-const linearPart = (t: Transform2D): Transform2D => ({ ...t, tx: 0, ty: 0 });
-
 function transformBulkValue(value: unknown, t: Transform2D): unknown {
   return Array.isArray(value) && value.length > 0
     ? transformBulkEntry(value as BulkEntry, t)
@@ -1169,12 +1161,6 @@ function transformAnchor(anchor: SpotAnchor | undefined, t: Transform2D): SpotAn
   if (!dir || !turns(t)) return anchor;
   const [x, y] = applyVec(t, dir);
   return ANCHOR_DIRS.find(([, d]) => d[0] === x && d[1] === y)?.[0] ?? anchor;
-}
-
-/** A cell's column and row under the linear part of `t`, turned about cell (0, 0)'s top-left corner. */
-function transformCell(col: number, row: number, t: Transform2D): [number, number] {
-  const [x, y] = applyVec(t, [2 * col + 1, 2 * row + 1]);
-  return [(x - 1) / 2, (y - 1) / 2];
 }
 
 /** A paint of a group member's cells, taken from the world's cells into its own. */

@@ -386,9 +386,15 @@ export type SceneOp =
    * prefab, or into `to`, a deeper prefab in its chain.
    */
   | { op: "applyToPrefab"; ref: Ref; paths?: OverridePath[]; to?: string }
-  /** Replaces an instance with its children as plain entities and bulk entries. */
+  /**
+   * Replaces an instance with its own children, one level: entities and bulk
+   * entries become plain entries, nested instances become instances.
+   */
   | { op: "unpack"; ref: Ref }
-  /** Moves entities and bulk entries into a new prefab around `at` and puts one instance of it there. */
+  /**
+   * Moves entities, bulk entries and instances (which become nested instances)
+   * into a new prefab around `at` and puts one instance of it there.
+   */
   | { op: "createPrefab"; refs: Ref[]; id: string; at?: Pt; instance?: string }
   /** Sets a prefab in the library, or deletes it with `null`. */
   | { op: "definePrefab"; id: string; prefab: PrefabBody | null }

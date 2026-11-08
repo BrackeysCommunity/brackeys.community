@@ -110,12 +110,19 @@ const UpdateOp = z
       .describe(
         'Field path to new value, e.g. `{ "path.speed": 140 }` or `{ "shape": ["box", 0, 0, 40, 6] }`. ' +
           "Paths are dot-separated, with numeric segments for array items (`path.pts.1`); missing objects on the way are created. " +
+          "Behavior fields are `behaviors.<behavior>.<field>`, e.g. `behaviors.test-game/glow.intensity`; set `behaviors.<behavior>` to `{}` to add a block. " +
+          "On an instance, set `rot`, `flip`, `z` or `params.<name>` (null clears a param); its overrides change through override and revertOverride. " +
           "On a bulk reference only its bulk field (`shape`, or `at` for a point bulk key) can be set. " +
+          "A grid field is set whole, never below the field: paint its cells with paintCells. " +
           "`id` and `type` can't be set: use rename, or remove and add.",
       ),
-    unset: PathsSchema.optional().describe("Field paths to delete. An array item is spliced out."),
+    unset: PathsSchema.optional().describe(
+      "Field paths to delete, e.g. `behaviors.<behavior>` to remove a block. An array item is spliced out.",
+    ),
   })
-  .describe("Change fields of one entity. The result is checked against its type's schema.");
+  .describe(
+    "Change fields of one entity or instance. The result is checked against its type's schema, or the instance against its prefab.",
+  );
 
 const MoveOp = z
   .strictObject({
@@ -193,7 +200,8 @@ const OverridePathSchema = z
   .string()
   .regex(OVERRIDE_PATH)
   .describe(
-    "An override key: a child's id in the prefab (or `~<bulkKey>:<index>` for a bulk child), a dot, then a field path, e.g. `door.path.speed`.",
+    "An override key: a child's id in the prefab (or `~<bulkKey>:<index>` for a bulk child), a dot, then a field path, e.g. `door.path.speed`. " +
+      "A child of a nested instance is reached through it with `/`, e.g. `door-1/panel.path.speed`; a nested instance's own fields are `door-1.rot`, `door-1.flip`, `door-1.z` or `door-1.params.speed`.",
   );
 
 const ReorderOp = z
@@ -286,7 +294,7 @@ const UnpackOp = z
     ref: IdSchema.describe("The instance."),
   })
   .describe(
-    "Replace an instance with its children as plain entities and bulk entries where they stand. Ids that clash get a suffix.",
+    "Replace an instance with its own children where they stand, one level: its entities and bulk entries become plain entries, its nested instances become instances, and its turn and flip are baked in. Ids that clash get a suffix.",
   );
 
 const CreatePrefabOp = z
@@ -295,7 +303,9 @@ const CreatePrefabOp = z
     refs: z
       .array(RefSchema)
       .min(1)
-      .describe("Entities and bulk entries to move into the prefab; not instances."),
+      .describe(
+        "Entities, bulk entries and instances to move into the prefab; instances become nested instances.",
+      ),
     id: IdSchema.describe("The new prefab's id; it becomes prefabs/<id>.json."),
     at: IntPtSchema.optional().describe(
       "The prefab's origin in world px; omitted, the top-left of the entries' box.",

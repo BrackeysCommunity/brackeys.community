@@ -1272,6 +1272,7 @@ invert
 isConvex
 isExpandedScene
 isGridValue
+isIdentityTurn
 isInstanceOverrideField
 jsonPointer
 layerNames
@@ -1340,6 +1341,7 @@ toSourceBatch
 topSpan
 transformGrid
 translateShape
+translation
 turnOf
 undescribedProperties
 unknownGameIssue
@@ -7298,6 +7300,8 @@ declare function dihedralOf(t: Transform2D): Dihedral | null;
 declare function flipWorld(d: Dihedral, axis: "x" | "y"): Dihedral;
 declare const inverseTurn: (d: Dihedral) => Dihedral;
 declare function invert(t: Transform2D): Transform2D;
+declare const isIdentityTurn: (d: Dihedral) => boolean;
+declare const translation: ([dx, dy]: Pt) => Transform2D;
 declare const turnOf: (d: {
     flip?: boolean;
     rot?: number;

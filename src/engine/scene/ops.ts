@@ -51,6 +51,7 @@ import {
 import {
   entitySchemaFor,
   geometryFields,
+  gridFieldsOf,
   sceneRegistry,
   unknownGameIssue,
   InstanceSchema,
@@ -721,10 +722,7 @@ function shapeFields(w: Work, type: string): string[] {
 }
 
 /** A type's grid fields, which `update` sets whole and `paintCells` paints. */
-function gridFields(w: Work, type: string): string[] {
-  const t = w.registry.types.get(type);
-  return t ? geometryFields(t).flatMap((f) => (f.kind === "grid" ? [f.field] : [])) : [];
-}
+const gridFields = (w: Work, type: string): string[] => gridFieldsOf(w.registry.types.get(type));
 
 /** Any accepted shape form, stored as a tuple. Type-specific limits are the type schema's. */
 function storeShape(input: unknown): ShapeTuple {

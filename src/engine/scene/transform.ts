@@ -100,7 +100,7 @@ export const turnOf = (d: { rot?: number; flip?: boolean }): Dihedral => ({
 export const inverseTurn = (d: Dihedral): Dihedral =>
   d.flip ? d : { rot: quarter(4 - d.rot), flip: false };
 
-export const isIdentityTurn = (d: Dihedral) => d.rot === 0 && !d.flip;
+export const isIdentityTurn = (d: Dihedral): boolean => d.rot === 0 && !d.flip;
 
 /** A pure translation by `[dx, dy]`. */
 export const translation = ([dx, dy]: Pt): Transform2D => ({ ...IDENTITY_2D, tx: dx, ty: dy });

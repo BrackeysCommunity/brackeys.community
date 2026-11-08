@@ -71,6 +71,8 @@ const TEST_ONLY = [
   "@dimforge/rapier2d-deterministic-compat",
   "@hocuspocus/provider",
 ];
+/** The engine's shared test helpers, a tsconfig alias only games' tests may import. */
+const TEST_SUPPORT = "@jams/engine-testing";
 /**
  * Site files a service image copies (the Dockerfile's COPY list) or a script
  * runs under plain type stripping, which reach engine entries by relative path
@@ -486,6 +488,13 @@ describe("game boundary", () => {
     violations(bad);
   });
 
+  it("keeps the shared test helpers' alias inside the engine's tests", () => {
+    const tsconfig = readFileSync(join(REPO, "tsconfig.json"), "utf8");
+    const target = new RegExp(`"${TEST_SUPPORT}": \\["([^"]+)"\\]`).exec(tsconfig)?.[1];
+    expect(target).toBeDefined();
+    expect(isTest(resolve(REPO, target ?? ""))).toBe(true);
+  });
+
   it("lets games reach the engine only through its entries, and nothing else of the site", () => {
     const entries = entrySpecs();
     const bad: string[] = [];
@@ -498,6 +507,8 @@ describe("game boundary", () => {
         else if (spec.startsWith(".")) {
           const target = resolve(dirname(file), spec);
           if (!inside(target, GAMES)) bad.push(`${where} leaves src/games: ${spec}`);
+        } else if (spec === TEST_SUPPORT) {
+          if (!test) bad.push(`${where} imports ${spec} outside a test`);
         } else if (spec.startsWith("@jams/engine")) {
           if (!entries.has(spec)) bad.push(`${where} imports unknown entry ${spec}`);
         } else if (

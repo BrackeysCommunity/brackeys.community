@@ -3,7 +3,7 @@
  * engine registry's JSON Schema so the README can't drift from the format.
  * `readme.test.ts` checks it; `UPDATE_README=1` rewrites it.
  */
-import { createRegistry } from "@jams/engine/game";
+import { BASE_FIELDS, createRegistry } from "@jams/engine/game";
 import { sceneJsonSchema } from "@jams/engine/scene";
 
 type Node = {
@@ -38,7 +38,7 @@ const REF_NAMES: Record<string, string> = {
 };
 
 /** Fields the engine adds to every entity type. */
-const BASE = ["id", "type", "name", "layer", "group", "off"];
+const BASE = ["id", "type", ...Object.keys(BASE_FIELDS).filter((key) => key !== "id")];
 
 const cell = (s: string) => s.replace(/\|/g, "\\|").replace(/\n+/g, " ");
 const code = (v: unknown) => `\`${JSON.stringify(v)}\``;

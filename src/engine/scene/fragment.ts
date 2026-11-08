@@ -12,7 +12,6 @@ import {
   localChildren,
   parseChildRef,
   resolveScene,
-  turnOf,
 } from "./resolve";
 import {
   geometryFields,
@@ -23,7 +22,7 @@ import {
 } from "./schema";
 import { aabb, aabbUnion, translateShape } from "./shape-geometry";
 import { parseShape } from "./shapes";
-import { applyPt, composeDihedral, dihedral, type Transform2D } from "./transform";
+import { applyPt, composeDihedral, dihedral, turnOf, type Transform2D } from "./transform";
 import { isZeroPt, translateBulkEntry, translateEntityDef } from "./translate";
 import {
   RESERVED_SCENE_KEYS,

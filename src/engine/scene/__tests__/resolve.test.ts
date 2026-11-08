@@ -97,6 +97,36 @@ describe("toSourceBatch: setZ", () => {
     ).toEqual([{ op: "override", ref: "gate-1", set: { "trigger.z": 4 } }]);
   });
 
+  it("overrides a child's z to 0 when an update lands it on the instance's own z", () => {
+    const gate = structuredClone(prefabs.get("gate")!);
+    gate.entities = gate.entities!.map((e) => (e.id === "trigger" ? { ...e, z: 4 } : e));
+    const raised = prefabLibrary([gate, prefabs.get("post")!]);
+    const def = lifted(2);
+    const r = toSourceBatch(
+      def,
+      { ops: [{ op: "update", ref: "gate-1/trigger", set: { z: 2 } }] },
+      engine,
+      raised,
+    );
+    if (!r.ok) throw new Error(r.issue.message);
+    expect(r.batch.ops).toEqual([{ op: "override", ref: "gate-1", set: { "trigger.z": 0 } }]);
+    const after = applyOps(def, r.batch, engine, { prefabs: raised });
+    if (!after.ok) throw new Error(after.issue.message);
+    expect(after.def.instances![0]!.overrides).toEqual({ "trigger.z": 0 });
+    expect(
+      resolveScene(after.def, engine, raised).entities!.find((e) => e.id === "gate-1/trigger")!.z,
+    ).toBe(2);
+  });
+
+  it("reverts a child's z override when an update lands it back on the prefab's 0", () => {
+    const def = applied(lifted(2), {
+      ops: [{ op: "override", ref: "gate-1", set: { "trigger.z": 3 } }],
+    });
+    const back = source(def, { ops: [{ op: "update", ref: "gate-1/trigger", set: { z: 2 } }] });
+    expect(back.ops).toEqual([{ op: "revertOverride", ref: "gate-1", paths: ["trigger.z"] }]);
+    expect("overrides" in applied(def, back).instances![0]!).toBe(false);
+  });
+
   it("refuses a bulk child and a child past the z range", () => {
     const bulk = toSourceBatch(
       engineYard(),

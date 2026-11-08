@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 
+import { migrationHarness } from "@jams/engine-testing";
 import {
   createRegistry,
   parseScene,
@@ -11,7 +12,6 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "..";
-import { migrationHarness } from "../../../engine/scene/__tests__/fixtures/migration-harness";
 
 const registry = createRegistry(platformerGame);
 const FIXTURES = new URL("./fixtures/", import.meta.url);

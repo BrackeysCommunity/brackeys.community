@@ -10,6 +10,10 @@ export {
   flipWorld,
   IDENTITY_2D,
   invert,
+  inverseTurn,
+  isIdentityTurn,
+  translation,
+  turnOf,
   type Dihedral,
   type Transform2D,
 } from "./scene/transform";

@@ -1371,7 +1371,7 @@ describe("write-back: scenes and prefabs", () => {
 
   afterEach(() => copy.remove());
 
-  it("scene: seeds layout 2 from the file with no log, and a doc edit writes canonical text once", async () => {
+  it("scene: seeds the current layout from the file with no log, and a doc edit writes canonical text once", async () => {
     const s = await session();
     const doc = await s.open("engine-yard");
     expect(sceneText(doc)).toBe(await read("engine-yard.json"));
