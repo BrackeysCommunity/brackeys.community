@@ -387,7 +387,9 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   layers lack `terrain`, `gameplay` or `editor` gets the first layer
   (editor-only types the last).
 - **Breaking:** `BASE_FIELDS.layer` is any id (`ID_PATTERN`), not a fixed
-  enum; `RESERVED_FIELDS` gains `z` and `behaviors`.
+  enum; `RESERVED_FIELDS` gains `z`, `behaviors`, `params` and
+  `overrides`, and `createRegistry` refuses a type whose required `path`
+  field accepts `{}`, since an empty `path` is written as none.
 - `createRegistry` refuses a type field name that isn't
   `/^[A-Za-z_$][A-Za-z0-9_$]*$/`, a game settings field named `gravity`,
   `physics`, `grid` or `view`, and invalid game layers (none, duplicate or
@@ -546,8 +548,10 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
 - `bindSceneDoc` and `watchIssues` follow every prefab a scene reaches
   (`prefabsUsedBy`), so editing a nested prefab or a variant's base
   reaches the live runtime and the issue list.
-- An empty map (`behaviors: {}`, an empty `path`) and an absent one are the
-  same between file and doc, so both hash alike.
+- An empty map (`behaviors: {}`, an empty `path`, `settings: {}`) and an
+  absent one are the same between file and doc, so both hash alike.
+  `formatScene` leaves an empty `settings` out and `parseScene` reads it
+  as absent.
 - Behavior defaults are no longer written into files; one implementation
   of `setPrefabBase` and `exposeParam` serves the scene and project paths;
   `createAsset` of a prefab or variant writes through the prefab writer

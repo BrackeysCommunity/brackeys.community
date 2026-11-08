@@ -241,8 +241,8 @@ function addNested(
  * `entities`; one tuple, instance, entity or group per line, the `assets`
  * header on one line, sorted and unique, two-space indent, trailing
  * newline. An entity holding grids spans lines: its grid fields last, one
- * chunk per line. Empty arrays, an empty `groups` and a row's empty
- * nested maps (`withoutEmptyMaps`) are left out. `lines`
+ * chunk per line. Empty arrays, an empty `groups` or `settings` and a
+ * row's empty nested maps (`withoutEmptyMaps`) are left out. `lines`
  * maps every JSON Pointer to its 1-based line; pointers inside a tuple or
  * entity map to that item's first line, except those inside a chunk (its
  * line) and a later grid field's key (the line it opens on).
@@ -265,7 +265,7 @@ export function formatScene(def: SceneDefinition): { text: string; lines: Map<st
     if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
     members.push([key, value]);
   }
-  for (const key of ["assets", "groups", "instances"]) {
+  for (const key of ["assets", "groups", "instances", "settings"]) {
     const m = members.findIndex(([k]) => k === key);
     const value = m >= 0 ? members[m]![1] : undefined;
     const empty = Array.isArray(value)

@@ -470,13 +470,18 @@ export type ParseSceneResult =
   | { ok: true; def: SceneDefinition; migratedFrom?: number; issues: SceneIssue[] }
   | { ok: false; issues: SceneIssue[] };
 
-/** A scene's entities and instances without their empty nested maps, so it reads as its canonical text does. */
+/**
+ * A scene without an empty `settings` and without its rows' empty nested
+ * maps, so it reads as its canonical text does.
+ */
 function withoutEmptyRowMaps(def: SceneDefinition): SceneDefinition {
-  return {
+  const out: SceneDefinition = {
     ...def,
     ...(def.entities ? { entities: def.entities.map(withoutEmptyMaps) } : {}),
     ...(def.instances ? { instances: def.instances.map(withoutEmptyMaps) } : {}),
   };
+  if (def.settings && Object.keys(def.settings).length === 0) delete out.settings;
+  return out;
 }
 
 /**

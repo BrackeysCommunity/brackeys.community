@@ -453,6 +453,65 @@ describe("Create variant", () => {
     fake.project.destroy();
   });
 
+  it("reloads the variant's world when the edit world can't take its base's children", async () => {
+    const fake = await setup();
+    const { live } = fake;
+    act(() => {
+      live.openPrefab("post");
+    });
+    await opened();
+    act(() => {
+      live.createVariant("post");
+    });
+    await opened();
+    const variant = live.prefab.state!.isolation.session;
+    act(() => {
+      variant.dispatch({
+        ops: [{ op: "add", entity: { id: "cap", type: "marker", at: [0, -80] } }],
+      });
+    });
+    const loads = fake.loadScene.mock.calls.length;
+    const refused = { ok: false as const, errors: ["refused"] };
+    fake.runtime.update.mockImplementationOnce(() => refused as never);
+    fake.runtime.add.mockImplementationOnce(() => refused as never);
+
+    act(() => {
+      live.session.dispatch({
+        ops: [
+          {
+            op: "definePrefab",
+            id: "post",
+            prefab: {
+              ...POST,
+              entities: [...POST.entities!, { id: "foot", type: "marker", at: [0, 40] }],
+            },
+          },
+          {
+            op: "definePrefab",
+            id: "post-variant",
+            prefab: {
+              ...live.session.getPrefabs().get("post-variant")!,
+              overrides: { "top.at": [8, -40] },
+            },
+          },
+        ],
+      });
+    });
+
+    expect(fake.loadScene.mock.calls.length).toBeGreaterThan(loads);
+    const last = fake.loadScene.mock.calls.at(-1)![0] as { entities: { id: string }[] };
+    expect(last.entities.map((e) => e.id).sort()).toEqual([
+      "cap",
+      "post/foot",
+      "post/top",
+      "post/~solid:0",
+    ]);
+    expect(worldAt(fake, "post/top")).toEqual([8, -40]);
+    expect(worldAt(fake, "post/foot")).toEqual([0, 40]);
+    expect(worldAt(fake, "cap")).toEqual([0, -80]);
+    fake.project.destroy();
+  });
+
   it("numbers a second variant", async () => {
     const fake = await setup();
     const { live } = fake;

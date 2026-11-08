@@ -67,6 +67,7 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
       game: "test-game",
       name: "empties",
       bounds: [0, 0, 640, 480],
+      settings: {},
       instances: [{ id: "room-1", prefab: "room", at: [64, 64], params: {}, overrides: {} }],
       entities: [
         { id: "lamp", type: "lamp", at: [10, 10], behaviors: {} },
@@ -82,7 +83,8 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
     const registry = createRegistry(testGame);
     const parsed = parseSceneOrThrow(JSON.stringify(parseable, null, 2), registry);
     const text = formatScene({ ...parsed, entities: [...parsed.entities!, lift] }).text;
-    expect(text).not.toMatch(/"(behaviors|path|params|overrides)": \{\}/);
+    expect(text).not.toMatch(/"(settings|behaviors|path|params|overrides)": \{\}/);
+    expect(parsed.settings).toBeUndefined();
     expect(text).toContain('"behaviors": { "test-game/glow": {} }');
     expect(formatScene(written).text).toBe(text);
     const expected = JSON.parse(text) as SceneDefinition;

@@ -316,6 +316,39 @@ describe("createRegistry field names and settings", () => {
     ]);
   });
 
+  it("refuses the reserved fields and a required path that accepts {}", () => {
+    const odd = defineEntityType({
+      type: "odd",
+      description: "Clashing fields.",
+      base: "marker",
+      fields: {
+        at: pointField("Where."),
+        params: z.record(z.string(), z.number()).describe("An instance's key."),
+        overrides: z.record(z.string(), z.number()).describe("An instance's key."),
+        path: z.record(z.string(), z.number()).describe("Empty is valid."),
+      },
+    });
+    expect(problems(() => createRegistry(game({ types: [crate, flag, odd] })))).toEqual([
+      `type "odd" redefines the reserved field "params"`,
+      `type "odd" redefines the reserved field "overrides"`,
+      `type "odd" field "path" accepts {} but is required; an empty path is written as none, so make it optional or reject {}`,
+    ]);
+    const fine = (path: z.ZodType) =>
+      defineEntityType({
+        type: "fine",
+        description: "A path that formats safely.",
+        base: "marker",
+        fields: { at: pointField("Where."), path },
+      });
+    for (const path of [
+      z.record(z.string(), z.number()).optional().describe("Optional."),
+      z.object({ pts: z.array(z.number()) }).describe("Rejects {}."),
+    ])
+      expect(problems(() => createRegistry(game({ types: [crate, flag, fine(path)] })))).toEqual(
+        [],
+      );
+  });
+
   it("refuses a behavior field name that isn't an identifier", () => {
     const odd = defineBehavior({
       name: "fake/odd",

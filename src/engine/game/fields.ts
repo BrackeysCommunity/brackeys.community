@@ -322,9 +322,14 @@ export const BASE_FIELDS = {
     .meta({ title: "Z", group: "identity" }),
 } as const;
 
-/** Keys `BASE_FIELDS`, `type` and behavior blocks take; a type's own fields can't reuse them. */
+/**
+ * Keys `BASE_FIELDS`, `type`, behavior blocks and an instance's `params`
+ * and `overrides` take; a type's own fields can't reuse them.
+ */
 export const RESERVED_FIELDS: readonly string[] = [
   "type",
   ...Object.keys(BASE_FIELDS),
   BEHAVIORS_FIELD,
+  "params",
+  "overrides",
 ];

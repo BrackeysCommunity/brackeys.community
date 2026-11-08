@@ -336,10 +336,15 @@ export function createRegistry(
     const shape = resolveFields(def, env);
     for (const key of Object.keys(shape)) {
       if (RESERVED_FIELDS.includes(key))
-        problem(`type "${name}" redefines the base field "${key}"`);
+        problem(`type "${name}" redefines the reserved field "${key}"`);
       if (!FIELD_NAME_PATTERN.test(key))
         problem(`type "${name}" field "${key}" must match ${FIELD_NAME_PATTERN}`);
     }
+    const path = shape.path;
+    if (path && !z.safeParse(path, undefined).success && z.safeParse(path, {}).success)
+      problem(
+        `type "${name}" field "path" accepts {} but is required; an empty path is written as none, so make it optional or reject {}`,
+      );
     if (Object.values(shape).some((schema) => fieldKind(schema) === "grid")) {
       const at = shape.at;
       if (!at || fieldKind(at) !== "point")

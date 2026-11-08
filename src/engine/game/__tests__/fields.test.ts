@@ -137,7 +137,7 @@ describe("BASE_FIELDS", () => {
     expect(metaOf(zf)).toMatchObject({ title: "Z", group: "identity" });
   });
 
-  it("reserves type, the base fields and behaviors", () => {
+  it("reserves type, the base fields, behaviors and the instance maps", () => {
     expect(RESERVED_FIELDS).toEqual([
       "type",
       "id",
@@ -147,6 +147,8 @@ describe("BASE_FIELDS", () => {
       "off",
       "z",
       "behaviors",
+      "params",
+      "overrides",
     ]);
   });
 });
