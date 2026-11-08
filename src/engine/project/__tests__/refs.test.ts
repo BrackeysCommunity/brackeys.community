@@ -995,4 +995,95 @@ describe("a behavior's asset field", () => {
     });
     expect(r.issues).toEqual([]);
   });
+
+  describe.each([
+    ["a whole block", "board.behaviors.paint/skin", { texture: "tiles" }],
+    ["the whole behaviors map", "board.behaviors", { "paint/skin": { texture: "tiles" } }],
+  ])("an override that sets %s", (_, path, value) => {
+    const leaf = path.endsWith("paint/skin") ? "/texture" : "/paint~1skin/texture";
+    const base = path.replace("/", "~1");
+    const cases = [
+      {
+        where: "on an instance",
+        id: "yard" as const,
+        pointer: `/instances/@p1/overrides/${base}${leaf}`,
+        doc: {
+          v: 3,
+          game: "paint",
+          name: "yard",
+          bounds: [0, 0, 100, 100],
+          instances: [{ id: "p1", prefab: "post", at: [0, 0], overrides: { [path]: value } }],
+          entities: [],
+        },
+      },
+      {
+        where: "on a variant",
+        id: "red-post" as const,
+        pointer: `/overrides/${base}${leaf}`,
+        doc: {
+          kind: "prefab",
+          v: 3,
+          game: "paint",
+          id: "red-post",
+          base: "post",
+          entities: [],
+          overrides: { [path]: value },
+        },
+      },
+    ];
+    const post = {
+      kind: "prefab",
+      v: 3,
+      game: "paint",
+      id: "post",
+      entities: [{ id: "board", type: "sign", at: [0, 0] }],
+    };
+    const docEntries = {
+      yard: entry("yard", "scene", { path: "levels/yard.json" }),
+      "red-post": entry("red-post", "prefab", { path: "levels/prefabs/red-post.json" }),
+    };
+    const project = (id: keyof typeof docEntries) => {
+      const own = [
+        docEntries[id],
+        entry("post", "prefab", { path: "levels/prefabs/post.json" }),
+        entry("tiles", "texture", { path: "art/tiles.png", ...blob }),
+      ];
+      const ownState = { ...state, assets: Object.fromEntries(own.map((e) => [e.key, e])) };
+      return { ownState, ownView: projectView(ownState, engineKinds) };
+    };
+
+    it.each(cases)("is a site $where, and a rename rewrites it", ({ id, pointer, doc }) => {
+      const { ownView } = project(id);
+      const docs = new Map<AssetId, unknown>([
+        ["post", post],
+        [id, doc],
+      ]);
+      const refs = buildRefIndex(ownView, docs, engineKinds, { registry, project: ownView });
+      expect(refs.referrers("tiles")).toEqual([{ id, kind: docEntries[id].kind, pointer }]);
+      expect(refs.targets(id)).toContainEqual({ pointer, id: "tiles", kinds: ["texture"] });
+
+      const next = rewriteRefs(doc as Record<string, any>, refs.targets(id), "tiles", "tileset");
+      const overrides = id === "yard" ? next.instances[0].overrides : next.overrides;
+      expect(overrides[path]).toEqual(
+        JSON.parse(JSON.stringify(value).replace("tiles", "tileset")),
+      );
+    });
+
+    it.each(cases)("reports asset-missing $where once force-deleted", ({ id, pointer, doc }) => {
+      const { ownState } = project(id);
+      const r = checkProjectBatch(
+        ownState,
+        new Map<AssetId, unknown>([
+          ["post", structuredClone(post)],
+          [id, structuredClone(doc)],
+        ]),
+        { v: 1, ops: [{ op: "deleteAsset", id: "tiles", force: true }] },
+        { registry, kinds: engineKinds, now: 1, by: "test", newKey: sequentialKeys() },
+      );
+      if (!r.ok) throw new Error(r.issue.message);
+      expect(r.issues.map((i) => [i.code, i.got, i.entityIds, i.path])).toEqual([
+        ["asset-missing", "tiles", [id], pointer],
+      ]);
+    });
+  });
 });

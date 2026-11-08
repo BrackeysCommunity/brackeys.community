@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { BEHAVIORS_FIELD } from "../../game/behaviors";
 import type { Registry } from "../../game/types";
 import { jsonPointer } from "../../scene/issues";
@@ -151,6 +153,25 @@ export function entityAssetRefs(
   );
 }
 
+/**
+ * The schema a `behaviors` override's value is judged against: one block
+ * (`behaviors.<name>`) or the whole map (`behaviors`).
+ */
+function behaviorsOverrideSchema(
+  registry: Registry,
+  segments: readonly string[],
+): z.ZodType | undefined {
+  if (segments.length === 2) {
+    const behavior = registry.behaviors.get(segments[1]!);
+    return behavior && z.object(behavior.shape);
+  }
+  return z.object(
+    Object.fromEntries(
+      [...registry.behaviors.entries()].map(([name, b]) => [name, z.object(b.shape).optional()]),
+    ),
+  );
+}
+
 /** The asset fields some registered type (or behavior) has at an override's field path. */
 function overrideSites(
   registry: Registry,
@@ -160,8 +181,12 @@ function overrideSites(
   at: string,
 ) {
   const segments = field.split(".");
+  if (segments[0] === BEHAVIORS_FIELD && segments.length <= 2) {
+    const schema = behaviorsOverrideSchema(registry, segments);
+    return schema ? schemaRefSites({ [path]: schema }, { [path]: value }, at) : [];
+  }
   const shapes =
-    segments[0] === BEHAVIORS_FIELD && segments.length > 2
+    segments[0] === BEHAVIORS_FIELD
       ? [registry.behaviors.get(segments[1]!)?.shape].filter((s) => s !== undefined)
       : registry.typeNames.map((t) => registry.types.get(t)!.shape);
   const rest = segments[0] === BEHAVIORS_FIELD ? segments.slice(2) : segments;

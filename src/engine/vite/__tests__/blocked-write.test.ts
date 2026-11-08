@@ -56,13 +56,28 @@ const PEG: Prefab = {
 const entryOf = (doc: Y.Doc, id: string) =>
   Object.values(readProject(doc).assets).find((e) => e.id === id)!;
 
-/** Every file under the copy, as project-relative paths. */
+/**
+ * Every file under the copy, as project-relative paths. Walks one directory at a time and skips
+ * any that vanish mid-walk, since the dev server may be moving them; callers poll with until().
+ */
 async function listed(): Promise<string[]> {
-  const names = await readdir(copy.dir, { recursive: true, withFileTypes: true });
-  return names
-    .filter((d) => d.isFile())
-    .map((d) => `${d.parentPath}/${d.name}`.slice(copy.dir.length + 1).replaceAll("\\", "/"))
-    .sort();
+  const files: string[] = [];
+  const walk = async (rel: string) => {
+    let entries;
+    try {
+      entries = await readdir(rel ? `${copy.dir}/${rel}` : copy.dir, { withFileTypes: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const path = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.isFile()) files.push(path);
+    }
+  };
+  await walk("");
+  return files.sort();
 }
 
 /** A new `peg` prefab entry at `path`, its doc loaded and seeded the way a session creates one. */
