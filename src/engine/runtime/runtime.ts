@@ -96,7 +96,12 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     registry,
     dev: opts.dev ?? false,
     bounds: [0, 0, 0, 0],
-    settings: { gravity: [gx, gy] },
+    settings: {
+      gravity: [gx, gy],
+      physics: "rapier",
+      grid: null,
+      view: { projection: "orthogonal" },
+    },
     gravity: { x: gx, y: gy },
     get tick() {
       return tick;

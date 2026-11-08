@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { fragmentBounds, fragmentOf, fragmentSchemaFor, parseFragment } from "../fragment";
-import type { SceneDefinition } from "../types";
+import {
+  fragmentBounds,
+  fragmentOf,
+  fragmentSchemaFor,
+  parseFragment,
+  placeFragment,
+  type SceneFragment,
+} from "../fragment";
+import { resolveScene } from "../resolve";
+import type { Pt, SceneDefinition } from "../types";
 import { engine, fake } from "./fixtures/fake-game";
+import { fake as yardFake, engine as yardEngine, yardPrefabs } from "./fixtures/random-ops";
 
 const def: SceneDefinition = {
-  v: 2,
+  v: 3,
   game: "fake",
   name: "f",
   bounds: [0, 0, 1000, 1000],
@@ -41,7 +50,7 @@ describe("fragmentOf", () => {
     const f = fragmentOf(def, ["btn", "~solid:1", "door", "~flag:0", "nope", "~nope:0"], fake);
     expect(f).toEqual({
       kind: "scene-fragment",
-      v: 2,
+      v: 3,
       game: "fake",
       entities: [def.entities![0], def.entities![1]],
       bulk: { flag: [[10, 10]], solid: [["box", 300, 100, 50, 10]] },
@@ -53,7 +62,7 @@ describe("fragmentOf", () => {
   it("leaves out empty parts", () => {
     expect(fragmentOf({ ...def, game: undefined }, ["lift"], fake)).toEqual({
       kind: "scene-fragment",
-      v: 2,
+      v: 3,
       entities: [def.entities![2]],
     });
   });
@@ -62,7 +71,7 @@ describe("fragmentOf", () => {
 describe("fragmentSchemaFor", () => {
   it("checks entities and bulk entries against the registry", () => {
     const schema = fragmentSchemaFor(fake);
-    const base = { kind: "scene-fragment", v: 2 };
+    const base = { kind: "scene-fragment", v: 3 };
     expect(schema.safeParse({ ...base, entities: [] }).success).toBe(true);
     expect(schema.safeParse({ ...base, bulk: { pad: [["box", 0, 0, 1, 1]] } }).success).toBe(true);
     expect(schema.safeParse({ ...base, bulk: { pad: [["circle", 0, 0, 1]] } }).success).toBe(false);
@@ -96,7 +105,7 @@ describe("parseFragment", () => {
   it("maps schema problems to scene issues pointing into the fragment", () => {
     const bad = {
       kind: "scene-fragment",
-      v: 2,
+      v: 3,
       entities: [{ id: "door", type: "door", shape: ["box", 0, 0, 1, 1], speed: 1, sped: 2 }],
       bulk: { flag: [[1, "x"]] },
     };
@@ -130,5 +139,181 @@ describe("fragmentBounds", () => {
     const all = fragmentOf(def, ["~solid:0", "~flag:1", "lift"], fake);
     expect(fragmentBounds(all, fake)).toEqual({ minX: 20, minY: 20, maxX: 640, maxY: 306 });
     expect(fragmentBounds({ kind: "scene-fragment", v: 1, entities: [] }, fake)).toBeNull();
+  });
+
+  it("boxes an instance's children turned and flipped with it, exactly", () => {
+    const prefabs = yardPrefabs();
+    for (const flip of [false, true])
+      for (const rot of [0, 1, 2, 3] as const) {
+        const inst = { id: "gate-1", prefab: "gate", at: [100, 200] as Pt, ...turn(rot, flip) };
+        const box = fragmentBounds(
+          { kind: "scene-fragment", v: 3, entities: [], instances: [inst] },
+          yardEngine,
+          prefabs,
+        )!;
+        for (const n of Object.values(box)) expect(Number.isInteger(n)).toBe(true);
+        const resolved = resolveScene(
+          { v: 3, name: "g", bounds: [0, 0, 1000, 1000], instances: [inst] },
+          yardEngine,
+          prefabs,
+        );
+        const reference = fragmentBounds(
+          { kind: "scene-fragment", v: 3, entities: resolved.entities ?? [] },
+          yardEngine,
+        )!;
+        for (const k of ["minX", "minY", "maxX", "maxY"] as const)
+          expect(box[k]).toBeCloseTo(reference[k], 9);
+      }
+    const flipped = fragmentBounds(
+      {
+        kind: "scene-fragment",
+        v: 3,
+        entities: [],
+        instances: [{ id: "g", prefab: "gate", at: [0, 0], flip: true }],
+      },
+      yardEngine,
+      prefabs,
+    );
+    expect(flipped).toEqual({ minX: -80, minY: -120, maxX: 40, maxY: 56 });
+  });
+
+  it("skips an instance whose prefab isn't given", () => {
+    const f = {
+      kind: "scene-fragment" as const,
+      v: 3,
+      entities: [],
+      instances: [{ id: "g", prefab: "gate", at: [0, 0] as Pt }],
+    };
+    expect(fragmentBounds(f, yardEngine)).toBeNull();
+    expect(fragmentBounds(f, yardEngine, new Map())).toBeNull();
+  });
+});
+
+const turn = (rot: 0 | 1 | 2 | 3, flip: boolean) => ({
+  ...(rot !== 0 ? { rot } : {}),
+  ...(flip ? { flip: true as const } : {}),
+});
+
+describe("fragments with instances", () => {
+  const prefabs = yardPrefabs("fake");
+  const yard: SceneDefinition = {
+    v: 3,
+    game: "fake",
+    name: "y",
+    bounds: [0, 0, 2000, 1000],
+    groups: { raised: { at: [40, -20], rot: 1 } },
+    instances: [
+      {
+        id: "gate-2",
+        prefab: "gate",
+        at: [300, 400],
+        flip: true,
+        z: 3,
+        params: { speed: 90 },
+        overrides: { "door.path.speed": 120 },
+      },
+      { id: "post-1", prefab: "post", at: [600, 900], group: "raised" },
+    ],
+    entities: [{ id: "lever", type: "lever", at: [10, 20], target: "gate-2/door" }],
+  };
+
+  it("copies an instance as itself and an instance's child as a plain entity", () => {
+    const f = fragmentOf(yard, ["gate-2", "lever", "post-1/top"], yardFake, prefabs);
+    expect(f.instances).toEqual([yard.instances![0]]);
+    expect(f.entities.map((e) => e.id)).toEqual(["lever", "top"]);
+    expect(f.entities[1]).toMatchObject({ type: "marker" });
+    expect(fragmentSchemaFor(yardFake).safeParse(f).success).toBe(true);
+  });
+
+  it("names a copied child by its own id, refs to it following", () => {
+    const f = fragmentOf(yard, ["lever", "gate-2/door", "gate-2/~solid:0"], yardFake, prefabs);
+    expect(f.entities.map((e) => [e.id, e.type])).toEqual([
+      ["lever", "lever"],
+      ["door", "follower"],
+      ["solid", "solid"],
+    ]);
+    expect(f.entities[0]).toMatchObject({ target: "door" });
+    expect(parseFragment(f, yardFake).ok).toBe(true);
+  });
+
+  it("leaves out the child of an instance it copies", () => {
+    const f = fragmentOf(yard, ["gate-2", "gate-2/door"], yardFake, prefabs);
+    expect(f.entities).toEqual([]);
+    expect(f.instances?.map((i) => i.id)).toEqual(["gate-2"]);
+  });
+
+  it("copies a grouped instance where it stands in the world", () => {
+    const f = fragmentOf(yard, ["post-1"], yardFake, prefabs);
+    // A quarter turn takes (600, 900) to (-900, 600), then the group's origin adds (40, -20).
+    expect(f.instances).toEqual([
+      { id: "post-1", prefab: "post", at: [-860, 580], group: "raised", rot: 1 },
+    ]);
+  });
+
+  it("parses instances back and refuses one whose id an entity holds", () => {
+    const f = fragmentOf(yard, ["gate-2", "lever"], yardFake, prefabs);
+    expect(parseFragment(JSON.stringify(f), yardFake)).toEqual({
+      ok: true,
+      fragment: f,
+      issues: [],
+    });
+    const clash = { ...f, entities: [{ ...f.entities[0]!, id: "gate-2" }] };
+    const r = parseFragment(clash, yardFake);
+    expect(!r.ok && r.issues.map((i) => i.code)).toContain("dup-id");
+    const bad = parseFragment({ ...f, instances: [{ id: "g", prefab: "gate" }] }, yardFake);
+    expect(bad.ok).toBe(false);
+  });
+
+  it("renames a clashing instance and the child refs into it, instantiating after the adds", () => {
+    const f = fragmentOf(yard, ["gate-2", "lever"], yardFake, prefabs);
+    const placed = placeFragment(f, yard, yardFake, [5, 5], prefabs);
+    expect(placed.issues).toEqual([]);
+    expect(placed.ops).toEqual([
+      {
+        op: "add",
+        entity: { id: "lever-2", type: "lever", at: [15, 25], target: "gate-3/door" },
+      },
+      { op: "instantiate", instance: { ...yard.instances![0]!, id: "gate-3", at: [305, 405] } },
+    ]);
+    expect(placed.select).toEqual(["lever-2", "gate-3"]);
+  });
+
+  it("keeps a child ref into an instance the scene has, and drops one into nothing", () => {
+    const lever = (target: string): SceneFragment => ({
+      kind: "scene-fragment",
+      v: 3,
+      entities: [{ id: "l", type: "lever", at: [0, 0], target }],
+    });
+    const kept = placeFragment(lever("gate-2/door"), yard, yardFake, [0, 0], prefabs);
+    expect(kept.issues).toEqual([]);
+    expect(kept.ops[0]).toMatchObject({ entity: { target: "gate-2/door" } });
+    const dropped = placeFragment(lever("gate-9/door"), yard, yardFake, [0, 0], prefabs);
+    expect(dropped.issues.map((i) => i.code)).toEqual(["dangling-ref"]);
+    expect(dropped.ops[0]).toEqual({ op: "add", entity: { id: "l", type: "lever", at: [0, 0] } });
+  });
+
+  it("places nothing for an instance whose prefab the project lacks", () => {
+    const f: SceneFragment = {
+      kind: "scene-fragment",
+      v: 3,
+      entities: [{ id: "lever", type: "lever", at: [0, 0], target: "arch-1/door" }],
+      instances: [
+        { id: "arch-1", prefab: "arch", at: [0, 0] },
+        { id: "gate-9", prefab: "gate", at: [0, 0] },
+      ],
+    };
+    const placed = placeFragment(f, { ...yard, entities: [] }, yardFake, [0, 0], prefabs);
+    expect(placed.issues).toMatchObject([
+      {
+        code: "prefab-unknown",
+        severity: "warn",
+        path: "/instances/0/prefab",
+        entityIds: ["arch-1"],
+      },
+      { code: "dangling-ref", severity: "warn" },
+    ]);
+    expect(placed.ops.map((o) => o.op)).toEqual(["add", "instantiate"]);
+    expect(placed.select).toEqual(["lever", "gate-9"]);
+    expect(placeFragment(f, yard, yardFake, [0, 0]).select).toEqual(["lever-2"]);
   });
 });

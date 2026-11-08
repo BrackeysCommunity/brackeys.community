@@ -51,26 +51,43 @@ export {
   bulkEntries,
   bulkId,
   bulkKeysOf,
+  behaviorBlocks,
   bulkKeyType,
   expandScene,
   isExpandedScene,
   parseBulkId,
+  resolveSettings,
   type ExpandOptions,
+  type SettingsSources,
 } from "./expand";
 export {
   CHILD_SEPARATOR,
   childRef,
+  gridTurns,
   groupOrigin,
+  groupTransform,
   instanceOrigin,
+  instanceSteps,
+  instanceTransform,
+  inverseTurn,
   localChild,
   localChildren,
   parseChildRef,
+  placeChildren,
+  resolvePrefab,
   resolveScene,
   resolveSceneDetailed,
+  splitChildRef,
   splitOverridePath,
+  turnOf,
+  type BulkPlacement,
   type LocalChild,
+  type PlacedChild,
+  type PrefabResolution,
   type ResolvedOrigin,
+  type ResolvedPrefab,
   type ResolvedScene,
+  type ResolveOptions,
 } from "./resolve";
 export {
   formatPrefabs,
@@ -88,6 +105,42 @@ export {
 } from "./prefab";
 export { createScene, EMPTY_SCENE_TEMPLATE } from "./create";
 export {
+  applyPt,
+  applyVec,
+  compose,
+  composeDihedral,
+  dihedral,
+  dihedralOf,
+  flipWorld,
+  IDENTITY_2D,
+  invert,
+  type Dihedral,
+  type Transform2D,
+} from "./transform";
+export { DEFAULT_LAYERS, defaultLayer, type SceneLayerDef } from "./layers";
+export {
+  canonicalGrid,
+  CHUNK_KEY_PATTERN,
+  compareChunkKeys,
+  decodeRow,
+  encodeRow,
+  GRID_CHUNK,
+  GRID_MAX_VALUE,
+  GRID_ROW_PATTERN,
+  gridCellBounds,
+  gridProblems,
+  isGridValue,
+  paintGrid,
+  parseChunkKey,
+  readCell,
+  transformGrid,
+  type ChunkKey,
+  type GridCells,
+  type GridProblem,
+  type GridRow,
+} from "./grid";
+export { INSTANCE_OVERRIDE_FIELDS, isInstanceOverrideField, splitFieldPath } from "./field-path";
+export {
   CHECKS_LAYOUT,
   comparePointers,
   formatChecks,
@@ -103,12 +156,14 @@ export { validateScene, type ValidateOptions } from "./validate";
 export { ISSUE_CODES, jsonPointer, makeIssue } from "./issues";
 export {
   fragmentJsonSchema,
+  layerNames,
   prefabJsonSchema,
   sceneJsonSchema,
   SCHEMA_ID_BASE,
   schemaIdFor,
   undescribedProperties,
   untitledEntityFields,
+  type JsonSchemaOptions,
 } from "./json-schema";
 export { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 export { applyOps, toSourceBatch } from "./ops";
@@ -148,9 +203,10 @@ export {
   type TouchesCheck,
   type ValidCheck,
 } from "./checks";
-export { diffToOps } from "./diff-to-ops";
+export { diffPrefabToOps, diffToOps } from "./diff-to-ops";
 export {
   renderSceneSvg,
+  SCENE_GRID_MAX_CELLS,
   SCENE_SVG_MAX_SIZE,
   sceneViewport,
   type SceneLabels,

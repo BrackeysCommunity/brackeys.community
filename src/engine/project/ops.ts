@@ -6,12 +6,13 @@ import { ID_PATTERN } from "../game/fields";
 import type { Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { bulkKeyType, bulkId } from "../scene/bulk-ref";
+import { checksPathOf } from "../scene/checks";
 import { closest } from "../scene/did-you-mean";
 import { sceneHash } from "../scene/hash";
 import { jsonPointer, makeIssue, pointerSegments } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import { applyOps } from "../scene/ops";
-import { usesBulkRefs } from "../scene/ops-schema";
+import { opBatchSchemaFor, usesBulkRefs } from "../scene/ops-schema";
 import { prefabOf, prefabScene, sceneBody } from "../scene/prefab";
 import {
   PREFAB_KIND,
@@ -19,6 +20,7 @@ import {
   type OpBatch,
   type Prefab,
   type PrefabLibrary,
+  type PrefabParam,
   type Pt,
   type SceneDefinition,
   type SceneIssue,
@@ -39,6 +41,7 @@ import {
   type KindEnv,
   type KindRegistry,
 } from "./kinds";
+import { checksBeside } from "./kinds/checks";
 import { DATA_TABLE_KIND, dataTableIssues } from "./kinds/data-table";
 import { isPlainObject } from "./kinds/define";
 import { GAME_SETTINGS_KIND, gameSettingsEntries } from "./kinds/game-settings";
@@ -106,11 +109,11 @@ export type ProjectOp =
       settings?: Record<string, unknown>;
       licence?: Licence;
     }
-  /** The display name and/or the file name in place; the id never changes. */
+  /** The display name and/or the file name in place; the id never changes. A scene's checks file takes the new stem. */
   | { op: "renameAsset"; id: AssetId; name?: string | null; file?: string }
-  /** Into a folder; `to` ends with "/" or is "" for the root. */
+  /** Into a folder; `to` ends with "/" or is "" for the root. A scene's checks file moves with it. */
   | { op: "moveAsset"; ids: AssetId[]; to: string }
-  /** To the trash; refused with `asset-in-use` while referenced unless `force`. */
+  /** To the trash; refused with `asset-in-use` while referenced (a scene's checks file included) unless `force`. */
   | { op: "deleteAsset"; id: AssetId; force?: boolean }
   | { op: "restoreAsset"; id: AssetId }
   /** Changes the id and rewrites every reference in every doc, in one cross-doc batch. */
@@ -139,6 +142,171 @@ export const PREFAB_SCENE_OPS: readonly SceneOp["op"][] = [
   "applyToPrefab",
   "unpack",
 ];
+
+/** Scene ops that change the header of the prefab doc they are sent to; a scene refuses them. */
+export const PREFAB_HEADER_OPS: readonly SceneOp["op"][] = ["setPrefabBase", "exposeParam"];
+
+type HeaderOp = Extract<SceneOp, { op: "setPrefabBase" | "exposeParam" }>;
+
+const isHeaderOp = (op: unknown): op is HeaderOp =>
+  isPlainObject(op) && PREFAB_HEADER_OPS.includes(op.op as SceneOp["op"]);
+
+/** A batch with its header ops taken out: `at` is each remaining op's index in the original. */
+export type SplitHeaderOps = {
+  body: SceneOp[];
+  at: number[];
+  header: { op: HeaderOp; index: number }[];
+};
+
+export function splitHeaderOps(ops: readonly SceneOp[]): SplitHeaderOps {
+  const out: SplitHeaderOps = { body: [], at: [], header: [] };
+  ops.forEach((op, index) => {
+    if (isHeaderOp(op)) out.header.push({ op, index });
+    else {
+      out.body.push(op);
+      out.at.push(index);
+    }
+  });
+  return out;
+}
+
+/** The index of the first header op in `ops`, or -1. */
+export const headerOpAt = (ops: readonly unknown[]): number => ops.findIndex(isHeaderOp);
+
+/** The refusal of a header op sent to a scene. */
+export function headerOpOnScene(op: SceneOp, index: number, scene: string): SceneIssue {
+  return makeIssue("op-invalid", {
+    message: `${op.op} only works on a prefab doc, not on scene "${scene}": send it in an editScene with the prefab's id`,
+    path: jsonPointer(["ops", index]),
+    entityIds: [scene],
+  });
+}
+
+/** A failure of the body ops, its op index and pointer mapped back to the batch they came from. */
+export function remapBodyFailure<T extends { failedAt: number; issue: SceneIssue }>(
+  failure: T,
+  at: readonly number[],
+): T {
+  const index = at[failure.failedAt] ?? failure.failedAt;
+  const path = failure.issue.path?.replace(
+    /^\/ops\/(\d+)/,
+    (_, i: string) => `/ops/${at[Number(i)] ?? i}`,
+  );
+  return {
+    ...failure,
+    failedAt: index,
+    issue: { ...failure.issue, ...(path !== undefined ? { path } : {}) },
+  };
+}
+
+/** A prefab's variant base and parameters, as header ops leave them. */
+export type PrefabHeaderEdit = Pick<Prefab, "base" | "params">;
+
+export type HeaderOpsResult =
+  | { ok: true; header: PrefabHeaderEdit }
+  | { ok: false; failedAt: number; issue: SceneIssue };
+
+/**
+ * Runs `setPrefabBase` and `exposeParam` on `prefab` (its children and
+ * nested instances as the batch's other ops leave them), in order. A base
+ * must be a prefab in `library` other than `prefab` itself, and may not lead
+ * back to it through bases or nested instances (`prefab-cycle`). Parameter
+ * targets are judged by validation, as any override path is.
+ */
+export function applyHeaderOps(
+  prefab: Prefab,
+  header: SplitHeaderOps["header"],
+  library: PrefabLibrary,
+  registry: Registry,
+): HeaderOpsResult {
+  const parsed = opBatchSchemaFor(registry).safeParse({ ops: header.map((h) => h.op) });
+  if (!parsed.success) {
+    const first = parsed.error.issues[0]!;
+    const index = header[typeof first.path[1] === "number" ? first.path[1] : 0]!.index;
+    const rest = first.path.slice(2).map((p) => (typeof p === "symbol" ? String(p) : p));
+    return {
+      ok: false,
+      failedAt: index,
+      issue: makeIssue("op-invalid", {
+        message: `${header.find((h) => h.index === index)!.op.op}: ${first.message}`,
+        path: jsonPointer(["ops", index, ...rest]),
+      }),
+    };
+  }
+  let base = prefab.base;
+  const params: Record<string, PrefabParam> = cloneJson(prefab.params ?? {});
+  for (const { op, index } of header) {
+    const fail = (code: IssueCode, message: string, extra: Partial<SceneIssue> = {}) =>
+      ({
+        ok: false,
+        failedAt: index,
+        issue: makeIssue(code, { message, path: jsonPointer(["ops", index]), ...extra }),
+      }) as const;
+    if (op.op === "exposeParam") {
+      if (op.param === null) delete params[op.name];
+      else params[op.name] = cloneJson(op.param);
+      continue;
+    }
+    if (op.base === null) {
+      base = undefined;
+      continue;
+    }
+    if (!library.has(op.base) || op.base === prefab.id) {
+      const known = [...library.keys()].filter((id) => id !== prefab.id);
+      const suggestion = closest(op.base, known);
+      return fail(
+        "variant-base-unknown",
+        op.base === prefab.id
+          ? `Prefab "${prefab.id}" can't be its own base.`
+          : `No prefab "${op.base}" to be the base of "${prefab.id}"${suggestion ? `; did you mean "${suggestion}"?` : ""}.`,
+        {
+          got: op.base,
+          entityIds: [prefab.id],
+          ...(suggestion
+            ? { hint: `{ "op": "setPrefabBase", "base": ${JSON.stringify(suggestion)} }` }
+            : {}),
+        },
+      );
+    }
+    const loop = baseLoop(prefab.id, op.base, library);
+    if (loop)
+      return fail(
+        "prefab-cycle",
+        `Prefab "${prefab.id}" would contain itself: ${[prefab.id, ...loop].join(" → ")}.`,
+        { got: op.base, entityIds: [prefab.id] },
+      );
+    base = op.base;
+  }
+  return {
+    ok: true,
+    header: {
+      ...(base !== undefined ? { base } : {}),
+      ...(Object.keys(params).length > 0 ? { params } : {}),
+    },
+  };
+}
+
+/** The chain from `base` back to `id` through bases and nested instances, or null when there is none. */
+function baseLoop(id: string, base: string, library: PrefabLibrary): string[] | null {
+  const seen = new Set<string>();
+  const walk = (at: string, chain: string[]): string[] | null => {
+    if (at === id) return chain;
+    if (seen.has(at)) return null;
+    seen.add(at);
+    const p = library.get(at);
+    if (!p) return null;
+    const next = [
+      ...(typeof p.base === "string" ? [p.base] : []),
+      ...(p.instances ?? []).map((n) => n.prefab),
+    ];
+    for (const n of next) {
+      const found = walk(n, [...chain, n]);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(base, [base]);
+}
 
 /** Whether an `editScene` writes prefab docs: it targets a prefab, or holds a prefab op. */
 export function writesPrefabs(op: EditSceneOp, targetKind: AssetKindName | undefined): boolean {
@@ -575,8 +743,9 @@ class BatchWork {
   private readonly leaves = new Map<AssetKey, unknown>();
   /**
    * Delegated `editScene`s in op order, for `settleDelegated`: with the
-   * library as given (their writes land before the batch's renames do) and
-   * the registry they were judged with.
+   * library as given (their writes land before the batch's renames do), or
+   * with the batch's renames for a `changeAssetId` rewrite, which names the
+   * new id; and the registry they were judged with.
    */
   private readonly deferred: {
     entry: AssetEntry;
@@ -587,6 +756,8 @@ class BatchWork {
   }[] = [];
   /** The op index of each `deleteAsset` the batch ran, by id, until a later op restores it. */
   private readonly deletedAt = new Map<AssetId, number>();
+  /** True while a `changeAssetId` rewrites a referrer through `editScene`. */
+  private rewriting = false;
   registry = false;
   private cached: ProjectView | null = null;
   private opIndex = 0;
@@ -670,6 +841,7 @@ class BatchWork {
       if (by === "deleteAsset" && this.view.byId.has(entry.id)) continue;
       const issue = inUseIssue(index, entry, {
         skip: (id) => gone(id) || id === unread,
+        byPath: this.besideTrashed(entry),
         remedy:
           by === "deleteAsset"
             ? "repoint or remove those references first, or delete with force"
@@ -946,6 +1118,11 @@ class BatchWork {
 
   private editScene(op: EditSceneOp): void {
     const entry = this.live(op.id);
+    const header = entry.kind === PREFAB_KIND || !Array.isArray(op.ops) ? -1 : headerOpAt(op.ops);
+    if (header >= 0) {
+      const { code, message, path, ...rest } = headerOpOnScene(op.ops[header]!, header, entry.id);
+      this.fail(code, message, undefined, { ...rest, path: `/ops/${this.opIndex}${path ?? ""}` });
+    }
     if (writesPrefabs(op, entry.kind)) {
       const judged = this.env.prefabEdit
         ? this.env.prefabEdit(op, { entry, index: this.opIndex })
@@ -962,7 +1139,9 @@ class BatchWork {
         entry,
         index: this.opIndex,
         ops: op.ops,
-        prefabs: this.env.prefabsFor?.(this.givenId(entry)),
+        prefabs: this.rewriting
+          ? this.prefabsFor(entry)
+          : this.env.prefabsFor?.(this.givenId(entry)),
         registry: this.judge,
       });
       return;
@@ -1048,7 +1227,10 @@ class BatchWork {
       const ownPrefab = isScene ? undefined : isPrefab(known) ? known : library?.get(d.entry.id);
       const own = isScene
         ? (known as SceneDefinition | undefined)
-        : ownPrefab && prefabScene(ownPrefab, PREFAB_EDIT_BOUNDS);
+        : ownPrefab && {
+            ...prefabScene(ownPrefab, PREFAB_EDIT_BOUNDS),
+            ...(ownPrefab.instances?.length ? { instances: cloneJson(ownPrefab.instances) } : {}),
+          };
       if (own === undefined) {
         if (!isScene) {
           unknownBy ??= d.index;
@@ -1082,12 +1264,15 @@ class BatchWork {
         }
         continue;
       }
-      let batch: OpBatch = { ops: d.ops };
+      const split = splitHeaderOps(d.ops);
+      let batch: OpBatch = { ops: split.body };
       if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(own) };
-      const result = applyOps(own, batch, d.registry, {
+      const applied = applyOps(own, batch, d.registry, {
         ...(library ? { prefabs: library } : {}),
+        ...(isScene ? {} : { prefab: d.entry.id }),
         validate: "none",
       });
+      const result = applied.ok ? applied : remapBodyFailure(applied, split.at);
       if (!result.ok) {
         const { code, message, path, ...rest } = result.issue;
         const renamed =
@@ -1113,8 +1298,36 @@ class BatchWork {
             "ops",
             { entityIds: [d.entry.id] },
           );
-        const { entities: _e, bulk: _b, contract, ...head } = ownPrefab;
-        const next: Prefab = { ...head, ...sceneBody(result.def, d.registry, contract) };
+        const {
+          entities: _e,
+          bulk: _b,
+          instances: _i,
+          base: _base,
+          params: _params,
+          contract,
+          ...head
+        } = ownPrefab;
+        const nested = result.def.instances?.length ? { instances: result.def.instances } : {};
+        const headed = applyHeaderOps(
+          { ...ownPrefab, ...nested },
+          split.header,
+          this.withRenamed(library) ?? new Map(),
+          d.registry,
+        );
+        if (!headed.ok) {
+          const { code, message, path, ...rest } = headed.issue;
+          this.fail(code, message, undefined, {
+            ...rest,
+            path: `${jsonPointer(["ops", d.index])}${path ?? ""}`,
+            entityIds: rest.entityIds.length > 0 ? rest.entityIds : [d.entry.id],
+          });
+        }
+        const next: Prefab = {
+          ...head,
+          ...headed.header,
+          ...sceneBody(result.def, d.registry, contract),
+          ...(result.def.instances?.length ? { instances: result.def.instances } : {}),
+        };
         this.leaves.set(key, next);
         changes.set(d.entry.id, next);
       } else this.leaves.set(key, result.def);
@@ -1138,7 +1351,11 @@ class BatchWork {
 
   /** The prefabs a scene's instances resolve against, with each prefab this batch renamed also under its new id. */
   private prefabsFor(scene: AssetEntry): PrefabLibrary | undefined {
-    const given = this.env.prefabsFor?.(this.givenId(scene));
+    return this.withRenamed(this.env.prefabsFor?.(this.givenId(scene)));
+  }
+
+  /** `given` with each prefab this batch renamed also under its new id. */
+  private withRenamed(given: PrefabLibrary | undefined): PrefabLibrary | undefined {
     if (this.prefabIds.size === 0) return given;
     const library = new Map(given ?? []);
     for (const [from, to] of this.prefabIds) {
@@ -1287,7 +1504,9 @@ class BatchWork {
         next = { ...next, path };
       }
     }
+    const checks = checksBeside(this.view, entry);
     this.put(next);
+    if (checks) this.follow(checks, checksPathOf(next.path), "file");
   }
 
   private moveAsset(op: Extract<ProjectOp, { op: "moveAsset" }>): void {
@@ -1297,8 +1516,27 @@ class BatchWork {
       const path = `${op.to}${fileNameOf(entry.path)}`;
       if (path === entry.path) return;
       this.checkPath(path, "to", entry.key);
+      const checks = checksBeside(this.view, entry);
       this.put({ ...entry, path });
+      if (checks) this.follow(checks, checksPathOf(path), "to");
     });
+  }
+
+  /** A scene's checks file to `path` beside the scene's new one, in the same op. */
+  private follow(checks: AssetEntry, path: AssetPath, field: Field): void {
+    if (path === checks.path) return;
+    this.checkPath(path, field, checks.key);
+    this.put({ ...checks, path });
+  }
+
+  /**
+   * The checks file left beside a trashed scene's path, while no live scene
+   * has taken that path since.
+   */
+  private besideTrashed(entry: AssetEntry): AssetId[] {
+    if (this.view.byPath.get(entry.path)?.kind === entry.kind) return [];
+    const checks = checksBeside(this.view, entry);
+    return checks ? [checks.id] : [];
   }
 
   /** The other live assets' sites that name `entry` as a kind it is, by referrer id, in id order. */
@@ -1447,7 +1685,12 @@ class BatchWork {
     const ops = sceneRewrites(value, sites, to, this.judge);
     if (typeof ops === "string")
       this.fail("op-invalid", `the engine can't rewrite a reference at ${ops}`, "id");
-    this.editScene({ op: "editScene", id: entry.id, ops });
+    this.rewriting = true;
+    try {
+      this.editScene({ op: "editScene", id: entry.id, ops });
+    } finally {
+      this.rewriting = false;
+    }
     return entry.kind === SCENE_KIND_NAME ? this.values.get(entry.key) : next;
   }
 
@@ -1698,6 +1941,9 @@ function sceneRewrites(
   const overrides = new Map<string, Record<string, unknown>>();
   const bulk: SceneOp[] = [];
   const removed: string[] = [];
+  const settings: Record<string, unknown> = {};
+  const header = new Set<string>();
+  let base = false;
   const into = (map: Map<string, Record<string, unknown>>, ref: string, key: string) => {
     const set = map.get(ref) ?? {};
     set[key] = to;
@@ -1720,6 +1966,18 @@ function sceneRewrites(
       removed.push(...entries.map((_, i) => bulkId(key, i)));
       continue;
     }
+    if (segments[0] === "settings" && segments.length > 1) {
+      settings[segments.slice(1).join(".")] = to;
+      continue;
+    }
+    if (segments[0] === "assets" && segments.length === 2) {
+      header.add(site.id);
+      continue;
+    }
+    if (segments.length === 1 && segments[0] === "base") {
+      base = true;
+      continue;
+    }
     const [list, item, ...field] = segments;
     if ((list !== "entities" && list !== "instances") || !item?.startsWith("@") || !field.length)
       return site.pointer;
@@ -1730,6 +1988,13 @@ function sceneRewrites(
   return [
     ...[...updates].map(([ref, set]): SceneOp => ({ op: "update", ref, set })),
     ...[...overrides].map(([ref, set]): SceneOp => ({ op: "override", ref, set })),
+    ...(Object.keys(settings).length > 0
+      ? [{ op: "setSettings", set: settings } satisfies SceneOp]
+      : []),
+    ...(header.size > 0
+      ? [{ op: "useAssets", add: [to], remove: [...header] } satisfies SceneOp]
+      : []),
+    ...(base ? [{ op: "setPrefabBase", base: to } satisfies SceneOp] : []),
     ...bulk,
     ...(removed.length > 0 ? [{ op: "remove", refs: removed } satisfies SceneOp] : []),
   ];
@@ -1744,7 +2009,9 @@ function sceneRewrites(
  * `env.prefabEdit`. `deleteAsset` without `force`, and an `editScene` whose
  * `definePrefab` null removes a prefab, are refused with `asset-in-use`
  * while a live asset among those given still names the asset once the
- * whole batch has run. `changeAssetId`
+ * whole batch has run; a scene's checks file (`<stem>.checks.json` beside
+ * it) counts as naming it, and follows it through `moveAsset` and
+ * `renameAsset`. `changeAssetId`
  * rewrites every referrer (see `BatchWork.changeAssetId`), so it needs
  * every live doc that can hold a reference.
  */

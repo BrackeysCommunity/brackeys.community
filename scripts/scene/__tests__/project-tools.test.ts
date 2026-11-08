@@ -46,8 +46,12 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "kitchen-sink.checks.json",
       "engine-yard.json",
       "engine-yard.checks.json",
+      "prefabs/doorway.json",
       "prefabs/gate.json",
+      "prefabs/latch.json",
+      "prefabs/one-way-latch.json",
       "prefabs/post.json",
+      "prefabs/room.json",
       "data/cards.json",
       "materials/bouncy.json",
       "game-settings.json",
@@ -60,20 +64,20 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       name: "Engine",
       game: null,
       dir: join(ROOT, "src/engine/scenes"),
-      assets: 9,
+      assets: 13,
       counts: {
         checks: 2,
         "data-table": 1,
         "game-settings": 1,
         material: 1,
-        prefab: 2,
+        prefab: 6,
         scene: 2,
       },
       deleted: 0,
       code: 0,
       problems: [],
       issues: [],
-      usage: { docs: 9, docBytes: bytes, blobs: 0, blobBytes: 0, trashBytes: 0 },
+      usage: { docs: 13, docBytes: bytes, blobs: 0, blobBytes: 0, trashBytes: 0 },
     });
     expect(engine.text).toContain("problems: none");
 
@@ -101,15 +105,19 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "materials",
       "materials/bouncy.json",
       "prefabs",
+      "prefabs/doorway.json",
       "prefabs/gate.json",
+      "prefabs/latch.json",
+      "prefabs/one-way-latch.json",
       "prefabs/post.json",
+      "prefabs/room.json",
       "engine-yard.checks.json",
       "engine-yard.json",
       "game-settings.json",
       "kitchen-sink.checks.json",
       "kitchen-sink.json",
     ]);
-    expect(engine.text).toContain("  prefabs/\n    gate.json  prefab gate");
+    expect(engine.text).toContain("  prefabs/\n    doorway.json  prefab doorway");
 
     const platformer = await projectTree({ project: "platformer" }, ctx);
     const nodes = flatten(data(platformer).tree as ProjectTreeNode[]);
@@ -137,10 +145,15 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       dangling: [],
     });
     const targets = data(sink).targets as { id: string; target: { path: string } | null }[];
-    expect(new Set(targets.map((t) => t.id))).toEqual(new Set(["post", "gate", "bouncy"]));
+    expect(new Set(targets.map((t) => t.id))).toEqual(
+      new Set(["post", "gate", "room", "doorway", "one-way-latch", "bouncy", "cards"]),
+    );
     expect(targets.find((t) => t.id === "bouncy")?.target?.path).toBe("materials/bouncy.json");
+    expect(targets.find((t) => t.id === "cards")?.target?.path).toBe("data/cards.json");
     expect(
-      targets.filter((t) => t.id !== "bouncy").every((t) => t.target?.path.startsWith("prefabs/")),
+      targets
+        .filter((t) => t.id !== "bouncy" && t.id !== "cards")
+        .every((t) => t.target?.path.startsWith("prefabs/")),
     ).toBe(true);
 
     const post = await projectRefs({ id: "post" }, ctx);
@@ -178,13 +191,17 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     expect(Object.keys(snap.assets).sort()).toEqual([
       "bouncy",
       "cards",
+      "doorway",
       "engine-yard",
       "engine-yard-checks",
       "game-settings",
       "gate",
       "kitchen-sink",
       "kitchen-sink-checks",
+      "latch",
+      "one-way-latch",
       "post",
+      "room",
     ]);
     const loaded = await loadProject(ctx.projects.find((p) => p.file.id === "engine")!);
     for (const [id, asset] of Object.entries(snap.assets))
@@ -268,7 +285,7 @@ export const deckGame = {
 `;
 
   const arena = {
-    v: 2,
+    v: 3,
     name: "arena",
     game: "deck",
     bounds: [0, 0, 200, 100],

@@ -13,7 +13,7 @@ import { revertEntry, revertOpenProjectEntry, type RevertResult } from "../colla
 import type { AwarenessLike, LogEntry, SceneOrigin, ScenePresence } from "../collab/types";
 import { createSceneUndo, type SelectionMeta } from "../collab/undo";
 import type { UndoneStep } from "../collab/undo-coordinator";
-import { watchIssues } from "../collab/watch-issues";
+import { watchIssues, type IssueProject } from "../collab/watch-issues";
 import type { Registry } from "../game/types";
 import { sceneHash } from "../scene/hash";
 import { toSourceBatch } from "../scene/ops";
@@ -64,6 +64,8 @@ export type EditorSessionOptions = {
   prefabs?: PrefabSource;
   /** On a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
   parentBounds?: Bounds;
+  /** The project the doc belongs to (a `ProjectSession` fits); with it, issues include the doc's asset ids. */
+  project?: IssueProject;
 };
 
 /**
@@ -289,6 +291,23 @@ export function labelFor(batch: OpBatch): string {
       return `Create prefab ${op.id}`;
     case "definePrefab":
       return op.prefab ? `Edit prefab ${op.id}` : `Delete prefab ${op.id}`;
+    case "transform": {
+      const what = [...(op.refs ?? []), ...(op.groups ?? [])];
+      const verb = op.turn !== undefined ? "Turn" : "Flip";
+      return what.length === 1 ? `${verb} ${what[0]}` : `${verb} ${what.length} items`;
+    }
+    case "setZ":
+      return `Set z of ${many(op.refs.length, op.refs[0]!)}`;
+    case "useAssets":
+      return "Edit assets";
+    case "paintCells":
+      return `Paint ${op.ref}`;
+    case "setPrefabBase":
+      return op.base === null ? "Clear variant base" : `Make a variant of ${op.base}`;
+    case "exposeParam":
+      return op.param ? `Expose ${op.name}` : `Remove parameter ${op.name}`;
+    case "setParam":
+      return `Set ${op.ref}'s ${op.name}`;
   }
 }
 
@@ -311,6 +330,7 @@ export function createEditorSession({
   history,
   prefabs = EMPTY_PREFAB_SOURCE,
   parentBounds,
+  project,
 }: EditorSessionOptions): EditorSession {
   const listeners = new Set<(e: EditorSessionEvent) => void>();
   const undo = history ? null : createSceneUndo(doc, origin);
@@ -392,6 +412,7 @@ export function createEditorSession({
       debounceMs: issuesDebounceMs,
       prefabs,
       ...(parentBounds ? { parentBounds } : {}),
+      ...(project ? { project } : {}),
     },
   );
   store.setState((s) => ({ ...s, issues: issues.flush() }));

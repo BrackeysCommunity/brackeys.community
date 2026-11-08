@@ -5,6 +5,7 @@
 CameraMode
 CameraState
 DISPLAY_RESOLUTIONS
+Dihedral
 DisplayResolution
 ENGINE_VERSION
 ExpandedScene
@@ -15,6 +16,7 @@ GameInstance
 GameMode
 GamePhase
 GameStoreState
+IDENTITY_2D
 InputAction
 InputBinding
 LoadReport
@@ -34,10 +36,19 @@ TOOL_PRIORITY
 ToolConsumer
 ToolEvent
 ToolRouter
+Transform2D
 VIRTUAL_HEIGHT
 Vec2
+applyPt
+applyVec
+compose
+composeDihedral
 createGame
 createPixiView
+dihedral
+dihedralOf
+flipWorld
+invert
 pixiContainer
 selectCamera
 selectDebugMode
@@ -50,7 +61,9 @@ selectSim
 selectTick
 
 ## @jams/engine/collab
+ASSETS_KEY
 AwarenessLike
+BEHAVIORS_FIELD
 BULK_FIELD
 BindOptions
 BindableRuntime
@@ -61,19 +74,24 @@ CodeSkewIssue
 DOC_MAPS
 DocApplyOptions
 DocApplyResult
+DocLayoutMigration
 DocOrigin
 DocView
 EMPTY_PREFAB_SOURCE
 ENTITIES_BUCKET
 ENTRY_NESTED_FIELDS
 EntityRecord
+GRID_ROW_KEY
 GROUP_KEY_PREFIX
 HistoryRow
 INSTANCE_KEY_PREFIX
+IssueProject
 IssueWatch
 KEYED_ITEM
 KEYED_Z
 KeyGen
+LEGACY_BULK_FIELD
+LEGACY_Z_FIELD
 LOG_ARRAY
 LOG_CAP
 LayoutMigration
@@ -83,11 +101,14 @@ LogWarning
 MemoryDocClient
 MemoryDocHost
 MigrateDocOptions
+NESTED2_FIELDS
 NESTED_FIELDS
 NO_PREFAB_WRITER
 OVERRIDES_FIELD
 OpenDoc
 OpenedDoc
+PARAMS_FIELD
+PARAM_KEY_PREFIX
 PATH_FIELD
 PREFAB_HEADER_KEY
 PREFAB_KEY_PREFIX
@@ -97,6 +118,7 @@ PROJECT_MAPS
 PROJECT_PRESENCE_FIELD
 PeerPresence
 PrefabChange
+PrefabDocHeader
 PrefabDocPlan
 PrefabDocWrite
 PrefabDocWriter
@@ -141,6 +163,7 @@ StepSelection
 UNDO_CAP
 UndoCoordinator
 UndoneStep
+VARIANT_KEY
 WatchIssuesOptions
 Z_FIELD
 actorId
@@ -151,6 +174,7 @@ applyOpsToDoc
 applyProjectBatch
 applyRegistryBatch
 applyRepairs
+assetsMap
 assignZ
 bindSceneDoc
 bucketOf
@@ -173,11 +197,13 @@ entityRecord
 expandLenient
 fieldLayout
 fingerprint
+gridRowKey
 groupsMap
 headerOf
 historyRows
 instanceRecord
 instancesMap
+isLayoutKey
 isPrefabDoc
 layoutFromDoc
 layoutPatch
@@ -186,14 +212,19 @@ localPrefabSource
 memoryDocHost
 metaMap
 migrateDoc
+migrateDocLayout
 migrateLayout
 observeLog
 observePeers
 observeProjectLog
 observeProjectPeers
+paramsMap
+patchGroup
+patchMap
 patchRecord
 peers
 prefabHeaderMap
+prefabOverridesMap
 prefabPatch
 prefabPathNear
 prefabSceneBounds
@@ -209,11 +240,13 @@ projectMetaMap
 projectPeers
 projectPeersByDoc
 randomKey
+readAssets
 readDoc
 readEntry
 readLog
 readProject
 readProjectLog
+recordFields
 recordMap
 recordOf
 refsOfView
@@ -236,6 +269,7 @@ stampWins
 staticPrefabSource
 validateDoc
 watchIssues
+writeAssets
 writeEntry
 writeProjectState
 
@@ -258,10 +292,14 @@ debugModes
 Aabb
 ApplyOptions
 ApplyResult
+BehaviorOption
+BehaviorSectionId
+BehaviorSectionInfo
 BulkEntry
 BulkKey
 CLOSE_PX
 COARSE_NUDGE_STEPS
+CreateVariant
 DEFAULT_CELL
 DEFAULT_DRAW_TYPE
 DEFAULT_SNAP
@@ -311,11 +349,12 @@ InspectorModel
 InspectorSectionId
 InspectorSectionModel
 InspectorWidgetDef
+InstanceParamsModel
+InstanceTransformModel
 KeyContext
 KeyMatch
 KeyScope
 Keymap
-Layer
 LogEntry
 MIN_POINTS
 MIN_WAYPOINTS
@@ -323,12 +362,14 @@ MULTI_CLICK_MS
 MULTI_CLICK_PX
 ModelEdit
 ModelField
+ModelSectionId
 NumberBounds
 OpBatch
 OutlineRow
 OverlayTone
 PICK_TOL_PX
 POINT_PICK_PX
+ParamModel
 ParseFragmentResult
 PasteOptions
 PasteResult
@@ -344,6 +385,7 @@ PrefabIsolation
 PrefabIsolationOptions
 PreviewRuntime
 Pt
+QuarterTurnTargets
 RESIZE_DIRS
 Ref
 RefTarget
@@ -384,8 +426,11 @@ ToolModifiers
 ToolOverlay
 ToolPointerEvent
 WHEEL_ZOOM
+applyLevels
 applyToPrefabBatch
 asProjectBatch
+attachBatch
+attachFieldOf
 boxTool
 buildInspectorModel
 buildOutline
@@ -406,6 +451,7 @@ createPenTool
 createPrefabBatch
 createSpatialIndex
 createToolHost
+createVariantBatch
 cutSelection
 cycleHit
 defaultLayer
@@ -427,6 +473,7 @@ duplicateSelection
 entityGeometry
 expandRefs
 fieldOp
+flipBatch
 fragmentBounds
 fragmentOf
 geometryOfRef
@@ -438,8 +485,12 @@ hitHandle
 insertVertex
 inspectorFields
 instanceOfRef
+instanceParamsModel
+instanceTransformModel
+instanceZBatch
 instancesOf
 isBulkRef
+isFollowerType
 isolationBounds
 keyChord
 labelFor
@@ -451,6 +502,7 @@ modelOps
 moveBatch
 moveTarget
 moveVertex
+nestedInstanceOf
 nextFreeId
 nextGroupName
 normDeg
@@ -460,7 +512,9 @@ nudgeDelta
 numberBounds
 openPrefabIsolation
 outlineOrder
+overridePathsOf
 panTool
+paramBatch
 parseFragment
 parseRelative
 pasteFragment
@@ -472,6 +526,7 @@ placementEditorTool
 pointBatch
 projectHistory
 prune
+quarterTurnTargets
 radiusTo
 readAngle
 readDelta
@@ -482,6 +537,7 @@ readShapeSize
 readSize
 rebasePath
 refCandidates
+referableEntities
 remap
 removeVertices
 removeWaypoints
@@ -518,22 +574,33 @@ targetBox
 targetHandles
 targetsOf
 toolKeyEventOf
+turnBatch
 ungroupBatch
 unpackBatch
 vertexHandles
 waypointHandles
 waypointsTool
 withShapeSlot
+zOrderBatch
 
 ## @jams/engine/game
 ActionDef
+AssetIdSchema
 AssetKindDef
 Attachment
 AttachmentHub
 BASE_FIELDS
+BEHAVIOR_NAME_PATTERN
 BODY_SHAPE_TYPES
 BasePrimitive
+BehaviorBlock
+BehaviorDef
+BehaviorName
+BehaviorRules
+BehaviorSystem
+BehaviorSystemFactory
 BulkKeyInfo
+CHILD_REF_PATTERN
 CheckEnv
 CheckKindDef
 CheckVerdict
@@ -541,6 +608,7 @@ ColliderTag
 ColliderTags
 CreateRegistryOptions
 DEFAULT_GRAVITY
+DEFAULT_LAYERS
 DEFAULT_ROTATE_STEP
 DRAW_LAYERS
 DrawLayer
@@ -570,6 +638,7 @@ GamePlayDef
 GameRuntime
 GameShell
 GameTableDef
+GridFieldInfo
 ID_PATTERN
 InspectorWidgetDef
 IssueCodeDef
@@ -595,12 +664,14 @@ PrimitiveType
 ProjectMaterialDef
 ProjectRuntimeView
 PtSchema
+RegisteredBehavior
 RegisteredType
 Registry
 RegistryError
 RunResult
 SENSOR_ENTER
 SENSOR_EXIT
+SceneLayerDef
 SceneRuntimeHandle
 SceneSystem
 SceneTemplate
@@ -625,6 +696,9 @@ VisualOptions
 WaypointMode
 WaypointState
 advanceWaypoint
+angleField
+assetField
+assetKindsOf
 bodyLocalShape
 bodyShapeField
 carrierDelta
@@ -638,26 +712,32 @@ createRegistry
 createSensorCollider
 createSensorSystem
 createSolidSystem
+defineBehavior
 defineEntityType
 defineGame
 degToRad
 distanceVec2
 drawEntity
 drawShape
+gridField
+gridFieldInfo
 initialWaypointState
 interpolatePosition
 lerp
 lerpVec2
 materialField
+mirrorField
 pointField
 posedBodyDesc
 primitiveFields
+refField
 shapeColliderDesc
 shapeField
 shapePose
 styleOf
 tagsField
 traceShape
+vectorField
 withProject
 
 ## @jams/engine/headless
@@ -950,6 +1030,7 @@ rewriteRefs
 rowSchemaOf
 runtimeView
 sceneKind
+schemaRefSites
 sha256
 sidecarJsonSchema
 sidecarPathOf
@@ -973,22 +1054,30 @@ AGENT_SURFACE_VERSION
 Aabb
 ApplyOptions
 ApplyResult
+AssetId
 Bounds
 BulkEntry
 BulkForm
 BulkKey
+BulkPlacement
 CHECKS_FORMAT_VERSION
 CHECKS_LAYOUT
 CHECKS_SUFFIX
 CHILD_SEPARATOR
+CHUNK_KEY_PATTERN
+CellEdit
+CellRect
 ChecksFile
 ChecksIssue
+ChunkKey
 DEFAULT_ASCII_TAG_CHARS
+DEFAULT_LAYERS
 DEFAULT_SCRIPT_MAX_TICKS
 DEFAULT_TOUCH_ROLLOUTS
 DEFAULT_TOUCH_SEED
 DEFAULT_TOUCH_TICKS
 DEFAULT_UNTIL_MAX
+Dihedral
 EMPTY_SCENE_TEMPLATE
 ENGINE_ISSUE_CODE_LIST
 ENGINE_REGISTRY_ID
@@ -1002,12 +1091,21 @@ ExpandedScene
 FRAGMENT_KIND
 FieldKind
 FieldPath
+GRID_CHUNK
+GRID_MAX_VALUE
+GRID_ROW_PATTERN
 GameCheck
+GridCells
+GridProblem
+GridRow
+GridSettings
 GroupDef
 GroupSchema
+IDENTITY_2D
 ID_PATTERN
 INPUT_SCRIPT_LAYOUT
 INPUT_SCRIPT_VERSION
+INSTANCE_OVERRIDE_FIELDS
 ISSUE_CODES
 InputScriptSchemas
 InstanceDef
@@ -1015,8 +1113,7 @@ InstanceInput
 InstanceSchema
 IssueCode
 IssueCodeInfo
-LAYERS
-Layer
+JsonSchemaOptions
 LocalChild
 MAX_SCRIPT_TICKS
 MAX_TOUCH_ROLLOUTS
@@ -1030,6 +1127,7 @@ OverlayPoint
 OverridePath
 PREFABS_DIR
 PREFAB_KIND
+PREFAB_MAX_DEPTH
 ParseChecksResult
 ParseFragmentResult
 ParsePrefabResult
@@ -1038,10 +1136,13 @@ ParseSceneResult
 ParseShapeResult
 PathCommand
 PathDef
+PlacedChild
 PlacedFragment
 Prefab
 PrefabBody
 PrefabLibrary
+PrefabParam
+PrefabResolution
 Pt
 RECORDING_SCHEMA_ID
 RECORDING_TRAIL_EVERY
@@ -1054,7 +1155,9 @@ RectInput
 Ref
 Registry
 RegistryError
+ResolveOptions
 ResolvedOrigin
+ResolvedPrefab
 ResolvedScene
 ResolvedSettings
 RunRecording
@@ -1062,6 +1165,7 @@ RuntimeEntity
 RuntimeField
 RuntimeFields
 SCENE_FORMAT_VERSION
+SCENE_GRID_MAX_CELLS
 SCENE_HEADER_KEYS
 SCENE_SVG_MAX_SIZE
 SCHEMA_ID_BASE
@@ -1074,6 +1178,7 @@ SceneFragment
 SceneHash
 SceneIssue
 SceneLabels
+SceneLayerDef
 SceneOp
 SceneOverlay
 SceneParseError
@@ -1082,6 +1187,7 @@ SceneSettings
 SceneSvgOptions
 SceneVersionError
 SceneViewport
+SettingsSources
 Severity
 ShapeInput
 ShapeObj
@@ -1090,16 +1196,21 @@ ShapeTupleSchema
 ShapeType
 SpotAnchor
 TouchesCheck
+Transform2D
 ValidCheck
 ValidateOptions
 aabb
 aabbUnion
 applyOps
+applyPt
+applyVec
+behaviorBlocks
 boxCorners
 bulkEntries
 bulkId
 bulkKeyType
 bulkKeysOf
+canonicalGrid
 centroid
 checksJsonSchema
 checksPathOf
@@ -1108,19 +1219,29 @@ checksSchemaId
 childRef
 closest
 closestOnSegment
+compareChunkKeys
 comparePointers
+compose
+composeDihedral
 containedInRect
 containsPoint
 convexHull
 createRegistry
 createScene
+decodeRow
+defaultLayer
 describeChange
+diffPrefabToOps
 diffScenes
 diffToOps
+dihedral
+dihedralOf
+encodeRow
 entityIssues
 entitySchemaFor
 expandScene
 fieldKind
+flipWorld
 formatAsciiMap
 formatChecks
 formatInputScript
@@ -1132,17 +1253,28 @@ fragmentJsonSchema
 fragmentOf
 fragmentSchemaFor
 geometryFields
+gridCellBounds
+gridProblems
+gridTurns
 groupOrigin
+groupTransform
 hashText
 inputScriptJsonSchema
 inputScriptSchemaFor
 inputScriptSchemaId
 inputScriptSchemasFor
 instanceOrigin
+instanceSteps
+instanceTransform
 intersectsRect
+inverseTurn
+invert
 isConvex
 isExpandedScene
+isGridValue
+isInstanceOverrideField
 jsonPointer
+layerNames
 localChild
 localChildren
 makeIssue
@@ -1153,15 +1285,18 @@ nextFreeId
 opBatchSchemaFor
 opsJsonSchema
 opsSchemaId
+paintGrid
 parseBulkId
 parseChecks
 parseChildRef
+parseChunkKey
 parseFragment
 parsePrefab
 parseRecording
 parseScene
 parseSceneOrThrow
 parseShape
+placeChildren
 placeFragment
 pointerLines
 prefabBody
@@ -1171,11 +1306,14 @@ prefabOf
 prefabScene
 prefabSchemaFor
 prefabsUsedBy
+readCell
 recordingJsonSchema
 renderSceneAscii
 renderSceneSvg
+resolvePrefab
 resolveScene
 resolveSceneDetailed
+resolveSettings
 rotateShape
 runRecordingSchema
 sceneAsciiMap
@@ -1193,12 +1331,16 @@ shapeIsClosed
 shapeOutline
 shapeToTuple
 shapeVertices
+splitChildRef
+splitFieldPath
 splitOverridePath
 suggestType
 takenIds
 toSourceBatch
 topSpan
+transformGrid
 translateShape
+turnOf
 undescribedProperties
 unknownGameIssue
 untitledEntityFields
@@ -1325,6 +1467,7 @@ type PrefabDocWriter = {
 declare const SCENE_ONLY_OPS: readonly SceneOp["op"][];
 declare function applyOpsToDoc(doc: Y.Doc, batch: OpBatch, origin: SceneOrigin, registry: Registry, opts?: DocApplyOptions): DocApplyResult;
 declare function headerOf(def: SceneDefinition): Record<string, unknown>;
+declare function patchGroup(ymap: Y.Map<unknown>, prev: GroupDef | undefined, next: GroupDef): void;
 declare function refsOfView(view: DocView): Map<string, Ref>;
 
 ## collab/bind.ts
@@ -1370,13 +1513,17 @@ type DocView = {
     instanceKeys: string[];
     instanceRecords: Map<string, EntityRecord>;
     kind: "prefab" | "scene";
-    prefab?: {
-        contract?: unknown;
-        id: string;
-    };
+    prefab?: PrefabDocHeader;
     records: Map<string, EntityRecord>;
 };
 declare const ENTITIES_BUCKET = "entities";
+type PrefabDocHeader = {
+    base?: string;
+    contract?: unknown;
+    id: string;
+    overrides?: Record<OverridePath, unknown>;
+    params?: Record<string, PrefabParam>;
+};
 type ReadDocOptions = {
     parentBounds?: Bounds;
     registry?: Registry;
@@ -1388,6 +1535,7 @@ type SceneToDocOptions = {
     origin?: unknown;
     project?: string;
 };
+declare const assetsMap: (doc: Y.Doc) => Y.Map<unknown>;
 declare const bucketOf: (rec: EntityRecord) => string;
 declare function bulkRecord(key: BulkKey, value: BulkEntry, z: string): EntityRecord;
 declare function contentMaps(doc: Y.Doc): Y.Map<unknown>[];
@@ -1397,21 +1545,29 @@ declare function docPrefabs(doc: Y.Doc): PrefabLibrary;
 declare function docToScene(doc: Y.Doc): SceneDefinition;
 declare const entitiesMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
 declare function entityRecord(def: EntityDef, z: string): EntityRecord;
+declare const gridRowKey: (field: string, chunk: string, row: number) => string;
 declare const groupsMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
 declare function instanceRecord(def: InstanceDef, z: string): EntityRecord;
 declare const instancesMap: (doc: Y.Doc) => Y.Map<Y.Map<unknown>>;
+declare const isLayoutKey: (key: string) => boolean;
 declare const isPrefabDoc: (doc: Y.Doc) => boolean;
 declare const metaMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare const paramsMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function patchMap(map: Y.Map<unknown>, next: Readonly<Record<string, unknown>>): void;
 declare function patchRecord(map: Y.Map<unknown>, prev: EntityRecord, next: EntityRecord): void;
 declare const prefabHeaderMap: (doc: Y.Doc) => Y.Map<unknown>;
-declare function prefabSceneBounds(prefab: Pick<Prefab, "bulk" | "entities" | "v">, parent?: Bounds, registry?: Registry): Bounds;
+declare const prefabOverridesMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function prefabSceneBounds(prefab: Pick<Prefab, "bulk" | "entities" | "instances" | "v">, parent?: Bounds, registry?: Registry): Bounds;
 declare const prefabsMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function readAssets(doc: Y.Doc): AssetId[];
 declare function readDoc(doc: Y.Doc, opts?: ReadDocOptions): DocView;
+declare function recordFields(rec: EntityRecord): Record<string, unknown>;
 declare function recordMap(rec: EntityRecord): Y.Map<unknown>;
 declare function recordOf(map: Y.Map<unknown>): EntityRecord;
 declare const sceneMap: (doc: Y.Doc) => Y.Map<unknown>;
 declare function sceneToDoc(def: SceneDefinition, opts?: SceneToDocOptions): Y.Doc;
 declare const settingsMap: (doc: Y.Doc) => Y.Map<unknown>;
+declare function writeAssets(doc: Y.Doc, ids: readonly AssetId[]): void;
 
 ## collab/keys.ts
 type KeyGen = () => string;
@@ -1421,7 +1577,7 @@ declare function sequentialKeys(prefix?: string): KeyGen;
 ## collab/layout.ts
 declare const CONTENT_MAP = "content";
 declare const KEYED_ITEM = "item";
-declare const KEYED_Z = "z";
+declare const KEYED_Z = "@z";
 type LayoutWriteOptions = {
     key?: KeyGen;
 };
@@ -1437,6 +1593,11 @@ declare function observeLog(doc: Y.Doc, cb: (entries: LogEntry[]) => void): () =
 declare function readLog(doc: Y.Doc): LogEntry[];
 
 ## collab/migrate-layout.ts
+type DocLayoutMigration = {
+    from: number;
+    migrated: boolean;
+    to: number;
+};
 type LayoutMigration = {
     created: AssetId[];
     diverged: AssetId[];
@@ -1464,6 +1625,7 @@ type ProjectWriter = {
     };
     scenePath: AssetPath;
 };
+declare function migrateDocLayout(doc: Y.Doc, layout?: DocLayout): DocLayoutMigration;
 declare function migrateLayout(sceneDoc: Y.Doc, project: ProjectWriter): LayoutMigration;
 declare function projectDocWriter(projectDoc: Y.Doc, opts: ProjectDocWriterOptions): ProjectWriter;
 
@@ -1800,6 +1962,7 @@ declare function revertProblem(doc: Y.Doc, entry: LogEntry, opts?: RevertOptions
 declare function revertProjectEntry(session: ProjectSession, entryId: string, origin?: DocOrigin): Promise<ProjectRevertResult>;
 
 ## collab/types.ts
+declare const ASSETS_KEY = "@assets";
 type AwarenessLike = {
     clientID: number;
     getLocalState(): Record<string, unknown> | null;
@@ -1808,13 +1971,16 @@ type AwarenessLike = {
     on(event: "change", cb: (...args: unknown[]) => void): void;
     setLocalStateField(field: string, value: unknown): void;
 };
-declare const BULK_FIELD = "bulk";
-declare const COLLAB_LAYOUT_VERSION = 2;
+declare const BULK_FIELD = "@bulk";
+declare const COLLAB_LAYOUT_VERSION = 3;
 declare const DOC_MAPS: {
+    readonly assets: "assets";
     readonly entities: "entities";
     readonly groups: "groups";
     readonly instances: "instances";
     readonly meta: "meta";
+    readonly overrides: "overrides";
+    readonly params: "params";
     readonly prefab: "prefab";
     readonly prefabs: "prefabs";
     readonly scene: "scene";
@@ -1837,13 +2003,16 @@ type DocOrigin = {
     userId: string;
 };
 type EntityRecord = {
+    [BULK_FIELD]?: BulkKey;
+    [Z_FIELD]: string;
     [field: string]: unknown;
-    bulk?: BulkKey;
     type?: string;
-    z: string;
 };
+declare const GRID_ROW_KEY: RegExp;
 declare const GROUP_KEY_PREFIX = "@group:";
 declare const INSTANCE_KEY_PREFIX = "@instance:";
+declare const LEGACY_BULK_FIELD = "bulk";
+declare const LEGACY_Z_FIELD = "z";
 declare const LOG_ARRAY = "log";
 type LogEntry = {
     actor: DocOrigin;
@@ -1862,8 +2031,11 @@ type LogWarning = {
     ids?: string[];
     message: string;
 };
+declare const NESTED2_FIELDS: readonly string[];
 declare const NESTED_FIELDS: readonly string[];
 declare const OVERRIDES_FIELD = "overrides";
+declare const PARAMS_FIELD = "params";
+declare const PARAM_KEY_PREFIX = "@param:";
 declare const PATH_FIELD = "path";
 declare const PREFAB_KEY_PREFIX = "@prefab:";
 declare const PRESENCE_FIELD = "scene";
@@ -1914,7 +2086,8 @@ type ScenePresence = {
         name: string;
     };
 };
-declare const Z_FIELD = "z";
+declare const VARIANT_KEY = "@variant";
+declare const Z_FIELD = "@z";
 declare function actorLabel(origin: DocOrigin): string;
 
 ## collab/undo-coordinator.ts
@@ -1968,6 +2141,10 @@ type SelectionMeta = {
 declare function createSceneUndo(doc: Y.Doc, origin: SceneOrigin): SceneUndo;
 
 ## collab/watch-issues.ts
+type IssueProject = {
+    readonly projectDoc?: Y.Doc;
+    view(): ProjectView;
+};
 type IssueWatch = {
     flush(): SceneIssue[];
     stop(): void;
@@ -1977,9 +2154,10 @@ type WatchIssuesOptions = {
     debounceMs?: number;
     parentBounds?: Bounds;
     prefabs?: PrefabSource;
+    project?: IssueProject;
     setTimer?: (fn: () => void, ms: number) => unknown;
 };
-declare function validateDoc(doc: Y.Doc, registry: Registry, opts?: Pick<WatchIssuesOptions, "parentBounds" | "prefabs">): SceneIssue[];
+declare function validateDoc(doc: Y.Doc, registry: Registry, opts?: Pick<WatchIssuesOptions, "parentBounds" | "prefabs" | "project">): SceneIssue[];
 declare function watchIssues(doc: Y.Doc, registry: Registry, onIssues: (issues: SceneIssue[]) => void, opts?: WatchIssuesOptions): IssueWatch;
 
 ## collisions.ts
@@ -2044,6 +2222,14 @@ type DebugTick = Omit<DebugFrame, "scene">;
 declare const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[];
 declare function createDebugOverlay(deps: DebugDeps): DebugOverlay;
 declare function debugModes(layers: readonly DebugLayerFactory[]): string[];
+
+## editor/attach.ts
+declare function attachBatch(def: SceneDefinition, ref: Ref, follower: Ref | null, registry: Registry, prefabs?: PrefabLibrary): OpBatch | null;
+declare function attachFieldOf(registry: Registry, type: EntityTypeName): null | {
+    field: string;
+    targets: readonly EntityTypeName[];
+};
+declare function isFollowerType(registry: Registry, type: EntityTypeName): boolean;
 
 ## editor/builtin/draw.ts
 declare const DEFAULT_DRAW_TYPE = "solid";
@@ -2140,6 +2326,7 @@ type PasteOptions = {
     at?: Pt;
     def: SceneDefinition;
     offset?: Pt;
+    prefabs?: PrefabLibrary;
     registry: Registry;
     snap?: SnapSettings;
 };
@@ -2152,31 +2339,41 @@ type PasteResult = {
     issues: SceneIssue[];
     ok: false;
 };
-declare function copySelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry): string;
-declare function cutSelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry): {
+declare function copySelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry, prefabs?: PrefabLibrary): string;
+declare function cutSelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry, prefabs?: PrefabLibrary): {
     batch: OpBatch;
     text: string;
 };
 declare function duplicateSelection(def: SceneDefinition, refs: readonly Ref[], registry: Registry, step: number, opts?: {
     from?: SceneDefinition;
+    prefabs?: PrefabLibrary;
 }): PasteResult;
 declare function pasteFragment(input: SceneFragment | string, opts: PasteOptions): PasteResult;
 
 ## editor/commands.ts
 declare const COARSE_NUDGE_STEPS = 4;
+type QuarterTurnTargets = {
+    groups: string[];
+    instances: string[];
+    rest: Ref[];
+};
 declare function deleteBatch(refs: readonly Ref[]): OpBatch | null;
+declare function flipBatch(def: SceneDefinition, refs: readonly Ref[], axis: "x" | "y"): OpBatch | null;
 declare function groupBatch(def: SceneDefinition, refs: readonly Ref[], name?: string): OpBatch | null;
 declare function hierarchyDown(def: SceneDefinition, registry: Registry, sel: readonly Ref[]): Ref[] | null;
 declare function hierarchyUp(def: SceneDefinition, registry: Registry, sel: readonly Ref[]): Ref[] | null;
 declare function nextGroupName(def: SceneDefinition): string;
 declare function nudgeBatch(refs: readonly Ref[], delta: Pt): OpBatch | null;
 declare function nudgeDelta(command: string, step: number): Pt | null;
+declare function quarterTurnTargets(def: SceneDefinition, refs: readonly Ref[]): QuarterTurnTargets;
 declare function rotateSelectionBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], deg: number): OpBatch | null;
 declare function rotationPivot(targets: readonly GizmoTarget[]): Pt | null;
 declare function selectAllRefs(def: SceneDefinition, index: SpatialIndex, layers?: PickLayers): Ref[];
 declare function selectionBounds(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): Aabb | null;
 declare function targetsOf(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): GizmoTarget[];
+declare function turnBatch(def: SceneDefinition, refs: readonly Ref[], turn: -1 | 1): OpBatch | null;
 declare function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): OpBatch | null;
+declare function zOrderBatch(refs: readonly Ref[], by: -1 | 1): OpBatch | null;
 
 ## editor/gesture.ts
 type GesturePreview = {
@@ -2376,6 +2573,18 @@ type HistoryOptions = {
 declare function createHistory({ cap, coalesceMs, now }?: HistoryOptions): History;
 
 ## editor/inspector-model.ts
+type BehaviorOption = {
+    batch: OpBatch;
+    description: string;
+    label: string;
+    name: BehaviorName;
+};
+type BehaviorSectionId = `behaviors:${BehaviorName}`;
+type BehaviorSectionInfo = {
+    description?: string;
+    name: BehaviorName;
+    remove?: OpBatch;
+};
 type EnumOption = {
     label: string;
     value: number | string;
@@ -2439,20 +2648,37 @@ declare const INSPECTOR_SECTIONS: readonly [
     "transform",
     "shape",
     "behavior",
+    "assets",
     "path",
     "physics",
     "overrides"
 ];
 type InspectorModel = {
+    addBehaviors: BehaviorOption[];
     refs: Ref[];
     sections: InspectorSectionModel[];
     types: EntityTypeName[];
 };
 type InspectorSectionId = (typeof INSPECTOR_SECTIONS)[number];
 type InspectorSectionModel = {
+    behavior?: BehaviorSectionInfo;
     fields: ModelField[];
-    id: InspectorSectionId;
+    id: ModelSectionId;
     title: string;
+};
+type InstanceParamsModel = {
+    instance: string;
+    nested?: string;
+    params: ParamModel[];
+    ref: Ref;
+    target: RefTarget;
+};
+type InstanceTransformModel = {
+    editable: boolean;
+    flip: boolean;
+    ref: Ref;
+    rot: 0 | 1 | 2 | 3;
+    z: number;
 };
 type ModelEdit = {
     error: string;
@@ -2463,6 +2689,7 @@ type ModelEdit = {
 };
 type ModelField = {
     children?: ModelField[];
+    defaultValue?: unknown;
     description?: string;
     mixed: boolean;
     name: string;
@@ -2470,10 +2697,18 @@ type ModelField = {
     path: FieldPath;
     readonly: boolean;
     schema: z.ZodType;
-    section: InspectorSectionId;
+    section: ModelSectionId;
     title: string;
     value: unknown;
     widget: FieldWidget;
+};
+type ModelSectionId = BehaviorSectionId | InspectorSectionId;
+type ParamModel = {
+    description: string;
+    field: ModelField;
+    name: string;
+    set: boolean;
+    targets: readonly OverridePath[];
 };
 declare const SECTION_TITLES: Readonly<Record<InspectorSectionId, string>>;
 type ShapeConversion = {
@@ -2483,6 +2718,15 @@ type ShapeConversion = {
     tuple: ShapeTuple;
 };
 declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[]): InspectorModel;
+declare function instanceParamsModel(def: SceneDefinition, ref: Ref, registry: Registry, prefabs: PrefabLibrary): InstanceParamsModel | null;
+declare function instanceTransformModel(def: SceneDefinition, ref: Ref, prefabs: PrefabLibrary): InstanceTransformModel | null;
+declare function instanceZBatch(model: InstanceTransformModel, text: string): {
+    batch: OpBatch;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
 declare function modelBatch(field: ModelField, input: unknown, targets: readonly RefTarget[], def: SceneDefinition): {
     batch: OpBatch;
     ok: true;
@@ -2491,8 +2735,15 @@ declare function modelBatch(field: ModelField, input: unknown, targets: readonly
     ok: false;
 };
 declare function modelOps(field: ModelField, input: unknown, targets: readonly RefTarget[]): ModelEdit;
+declare function paramBatch(model: InstanceParamsModel, param: ParamModel, input: unknown, field?: ModelField): {
+    batch: OpBatch;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
 declare function parseRelative(text: string, current: unknown): number | undefined;
-declare function refCandidates(def: SceneDefinition, registry: Registry, accepts: readonly EntityTypeName[]): string[];
+declare function refCandidates(def: SceneDefinition, registry: Registry, accepts: readonly EntityTypeName[], prefabs?: PrefabLibrary): string[];
 declare function shapeConversions(tuple: ShapeTuple, types?: readonly ShapeType[]): ShapeConversion[];
 
 ## editor/inspector.ts
@@ -2564,7 +2815,7 @@ declare function openPrefabIsolation(scene: EditorSession, prefab: string, opts?
 ## editor/keymap.ts
 type Direction = "down" | "left" | "right" | "up";
 declare const ENGINE_KEYS: readonly EngineKeyBinding[];
-type EditorCommand = "cancel-gesture" | "clear-selection" | "clear-tool" | "copy" | "cut" | "debug" | "delete" | "delete-points" | "duplicate" | "faster" | "frame" | "group" | "hierarchy-down" | "hierarchy-up" | "leave-sub-object" | "pan-hold" | "paste" | "pause" | "play" | "play-here" | "redo" | "rotate-ccw" | "rotate-cw" | "save" | "select-all" | "slower" | "step" | "stop" | "toggle-snap" | "tool:box" | "tool:circle" | "tool:pan" | "tool:pen" | "tool:rotate" | "tool:select" | "tool:waypoints" | "undo" | "ungroup" | `nudge-${Direction}-coarse` | `nudge-${Direction}-fine` | `nudge-${Direction}`;
+type EditorCommand = "bring-forward" | "cancel-gesture" | "clear-selection" | "clear-tool" | "copy" | "cut" | "debug" | "delete" | "delete-points" | "duplicate" | "faster" | "flip-x" | "flip-y" | "frame" | "group" | "hierarchy-down" | "hierarchy-up" | "leave-prefab" | "leave-sub-object" | "pan-hold" | "paste" | "pause" | "play" | "play-here" | "redo" | "rotate-ccw" | "rotate-cw" | "save" | "select-all" | "send-backward" | "slower" | "step" | "stop" | "toggle-snap" | "tool:box" | "tool:circle" | "tool:pan" | "tool:pen" | "tool:rotate" | "tool:select" | "tool:waypoints" | "turn-ccw" | "turn-cw" | "undo" | "ungroup" | `nudge-${Direction}-coarse` | `nudge-${Direction}-fine` | `nudge-${Direction}`;
 type EditorKeyEvent = {
     altKey: boolean;
     ctrlKey: boolean;
@@ -2582,7 +2833,10 @@ type EngineKeyBinding = {
 type KeyContext = {
     editableTarget: boolean;
     gesture?: boolean;
+    hasSelection?: boolean;
+    inPrefab?: boolean;
     mode: EditorMode;
+    quarterTurns?: boolean;
     subObject?: boolean;
     tool?: string;
 };
@@ -2626,8 +2880,8 @@ declare function outlineOrder(rows: readonly OutlineRow[]): Ref[];
 ## editor/picking.ts
 declare const POINT_PICK_PX = 8;
 type PickLayers = {
-    hidden: ReadonlySet<Layer>;
-    locked: ReadonlySet<Layer>;
+    hidden: ReadonlySet<string>;
+    locked: ReadonlySet<string>;
 };
 type PickOptions = {
     layers?: PickLayers;
@@ -2668,7 +2922,16 @@ declare function placedShape(shape: ShapeObj, at: Pt, rotDeg: number): ShapeObj;
 declare function placementEditorTool<T extends PlacementTemplate>(opts: PlacementEditorToolOptions<T>): EditorToolDef;
 
 ## editor/prefab-commands.ts
-declare function applyToPrefabBatch(def: SceneDefinition, ref: Ref): OpBatch | null;
+type CreateVariant = {
+    id: AssetId;
+    project: ProjectOpBatch;
+    scene: OpBatch;
+};
+declare function applyLevels(def: SceneDefinition, ref: Ref, prefabs: PrefabLibrary): string[];
+declare function applyToPrefabBatch(def: SceneDefinition, ref: Ref, opts?: {
+    prefabs?: PrefabLibrary;
+    to?: string;
+}): OpBatch | null;
 declare function asProjectBatch(scene: AssetId, batch: OpBatch): ProjectOpBatch;
 declare function childOverrides(def: SceneDefinition, ref: Ref): null | {
     child: string;
@@ -2676,8 +2939,19 @@ declare function childOverrides(def: SceneDefinition, ref: Ref): null | {
     instance: string;
 };
 declare function createPrefabBatch(def: SceneDefinition, refs: readonly Ref[], prefabs: PrefabLibrary, taken?: Iterable<string>): OpBatch | null;
+declare function createVariantBatch(base: string, prefabs: PrefabLibrary, opts?: {
+    folder?: string;
+    taken?: Iterable<string>;
+}): CreateVariant | null;
 declare function instanceOfRef(def: SceneDefinition, ref: Ref): InstanceDef | undefined;
-declare function instancesOf(def: SceneDefinition, prefab: string): number;
+declare function instancesOf(def: SceneDefinition, prefab: string, prefabs?: PrefabLibrary): number;
+declare function nestedInstanceOf(def: SceneDefinition, ref: Ref, prefabs: PrefabLibrary): null | {
+    holder: string;
+    instance: InstanceDef;
+    path: string;
+    top: InstanceDef;
+};
+declare function overridePathsOf(def: SceneDefinition, ref: Ref): OverridePath[];
 declare function revertAllBatch(def: SceneDefinition, ref: Ref): OpBatch | null;
 declare function revertFieldBatch(def: SceneDefinition, ref: Ref, field: string): OpBatch | null;
 declare function unpackBatch(def: SceneDefinition, ref: Ref): OpBatch | null;
@@ -2698,6 +2972,7 @@ type RefTarget = {
 declare function docRefs(def: SceneDefinition): Ref[];
 declare function isBulkRef(ref: Ref): boolean;
 declare function lookupRef(def: SceneDefinition, ref: Ref): RefTarget | null;
+declare function referableEntities(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): EntityDef[];
 
 ## editor/selection.ts
 type SelectMode = "add" | "range" | "replace" | "toggle";
@@ -2751,6 +3026,7 @@ type EditorSessionOptions = {
     origin: SceneOrigin;
     parentBounds?: Bounds;
     prefabs?: PrefabSource;
+    project?: IssueProject;
     registry: Registry;
     user?: ScenePresence["user"];
 };
@@ -2762,7 +3038,7 @@ type SessionHistory = {
     subscribe(listener: () => void): () => void;
     undo(): SelectionMeta | boolean;
 };
-declare function createEditorSession({ doc, origin, name, registry, awareness, user, key, issuesDebounceMs, history, prefabs, parentBounds }: EditorSessionOptions): EditorSession;
+declare function createEditorSession({ doc, origin, name, registry, awareness, user, key, issuesDebounceMs, history, prefabs, parentBounds, project }: EditorSessionOptions): EditorSession;
 declare function labelFor(batch: OpBatch): string;
 declare function projectHistory(project: ProjectSession, docName: string, opts?: {
     onUndone?: (step: UndoneStep, how: "redo" | "undo") => void;
@@ -2824,7 +3100,6 @@ type SpatialIndexOptions = {
 };
 declare function bulkGeometry(registry: Registry, key: BulkKey, value: unknown): EditGeometry | undefined;
 declare function createSpatialIndex(opts?: SpatialIndexOptions): EditableSpatialIndex;
-declare function defaultLayer(type: RegisteredType | undefined, bulk: boolean): Layer;
 declare function entityGeometry(type: RegisteredType, e: EntityDef): EditGeometry;
 declare function geometryOfRef(def: SceneDefinition, registry: Registry, ref: Ref): (EditGeometry & {
     bulk: boolean;
@@ -2864,15 +3139,15 @@ type ToolHost = {
     duplicate(): boolean;
     index(): SpatialIndex;
     key(e: ToolKeyEvent): boolean;
-    keyContext(): Pick<KeyContext, "gesture" | "subObject" | "tool">;
+    keyContext(): Pick<KeyContext, "gesture" | "hasSelection" | "quarterTurns" | "subObject" | "tool">;
     layers(): ToolLayers;
     overlay(): ToolOverlay;
     paste(text: string, at?: Pt): boolean;
     pointerWorld(): Pt | null;
     selectionBounds(): Aabb | null;
     setLayers(patch: {
-        hidden?: Iterable<Layer>;
-        locked?: Iterable<Layer>;
+        hidden?: Iterable<string>;
+        locked?: Iterable<string>;
     }): void;
     setSnap(patch: Partial<SnapSettings>): void;
     setTool(id: string, arg?: string): boolean;
@@ -2886,8 +3161,8 @@ type ToolHostOptions = {
     frame?: (rect: Aabb) => void;
     gameTools?: readonly EditorToolDef[];
     layers?: {
-        hidden?: Iterable<Layer>;
-        locked?: Iterable<Layer>;
+        hidden?: Iterable<string>;
+        locked?: Iterable<string>;
     };
     now?: () => number;
     onChange?: () => void;
@@ -2902,8 +3177,8 @@ type ToolHostOptions = {
     zoomAt?: (screen: Pt, factor: number) => void;
 };
 type ToolLayers = {
-    hidden: ReadonlySet<Layer>;
-    locked: ReadonlySet<Layer>;
+    hidden: ReadonlySet<string>;
+    locked: ReadonlySet<string>;
 };
 declare const WHEEL_ZOOM = 1.15;
 declare function builtinTools(): EditorToolDef[];
@@ -2933,8 +3208,8 @@ type EditorToolContext = {
     index(): SpatialIndex;
     invalidate(): void;
     layers(): {
-        hidden: ReadonlySet<Layer>;
-        locked: ReadonlySet<Layer>;
+        hidden: ReadonlySet<string>;
+        locked: ReadonlySet<string>;
     };
     pan?(screenDelta: Pt): void;
     preview(batch: OpBatch | null): void;
@@ -2968,7 +3243,7 @@ type IndexEntry = {
     aabb: Aabb;
     geometry: Pt | ShapeObj;
     key: string;
-    layer: Layer;
+    layer: string;
     ref: Ref;
     type: string;
     z: number;
@@ -3056,8 +3331,45 @@ declare function defineEditorTool<T extends EditorToolDef>(def: T): T;
 ## engine.ts
 declare function createGame(canvas: HTMLCanvasElement, config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier"> & ProjectOption): Promise<GameInstance>;
 
+## game/behaviors.ts
+declare const BEHAVIORS_FIELD = "behaviors";
+declare const BEHAVIOR_NAME_PATTERN: RegExp;
+type BehaviorBlock = Readonly<Record<string, unknown>>;
+type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
+    description: string;
+    fields: ((env: FieldEnv) => F) | F;
+    inspector?: {
+        label?: string;
+        order?: readonly string[];
+    };
+    name: BehaviorName;
+    requires?: readonly BehaviorName[];
+    system?: BehaviorSystemFactory;
+    visualOnly?: boolean;
+};
+type BehaviorName = string;
+interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
+    attach(entityId: string, block: B, entity: RuntimeEntity): void;
+    detach(entityId: string): void;
+    update?(entityId: string, block: B, prev: B, entity: RuntimeEntity): void;
+    step?(dtMs: number): void;
+    render?(alpha: number): void;
+    reset?(): void;
+    seek?(ms: number): void;
+    clear(): void;
+    size(): number;
+}
+type BehaviorSystemFactory = (ctx: EngineContext, def: RegisteredBehavior) => BehaviorSystem;
+type RegisteredBehavior = BehaviorDef & {
+    index: number;
+    origin: string;
+    shape: z.ZodRawShape;
+};
+declare function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): BehaviorDef<F>;
+
 ## game/define.ts
 type CreateRegistryOptions = {
+    assets?: FieldEnv["assets"];
     materials?: Readonly<Record<string, ProjectMaterialDef>>;
 };
 type EntityOf<D extends EntityTypeDef> = D extends EntityTypeDef<infer F> ? RuntimeEntity<z.infer<z.ZodObject<F>>> : RuntimeEntity;
@@ -3080,19 +3392,21 @@ declare function defineGame<S, G = unknown>(def: GameDefinition<S, G>): GameDefi
 declare function withProject(registry: Registry, view: ProjectView, values: ReadonlyMap<AssetId, unknown>): Registry;
 
 ## game/fields.ts
+declare const AssetIdSchema: z.ZodString;
 declare const BASE_FIELDS: {
     readonly group: z.ZodOptional<z.ZodString>;
     readonly id: z.ZodString;
-    readonly layer: z.ZodOptional<z.ZodEnum<{
-        decor: "decor";
-        editor: "editor";
-        gameplay: "gameplay";
-        terrain: "terrain";
-    }>>;
+    readonly layer: z.ZodOptional<z.ZodString>;
     readonly name: z.ZodOptional<z.ZodString>;
     readonly off: z.ZodOptional<z.ZodBoolean>;
+    readonly z: z.ZodOptional<z.ZodNumber>;
 };
 declare const BODY_SHAPE_TYPES: readonly ShapeType[];
+declare const CHILD_REF_PATTERN: RegExp;
+type GridFieldInfo = {
+    max: number;
+    values: readonly string[];
+};
 declare const ID_PATTERN: RegExp;
 declare const PathSchema: z.ZodObject<{
     mode: z.ZodEnum<{
@@ -3110,20 +3424,31 @@ declare const PtSchema: z.ZodTuple<[
     z.ZodNumber,
     z.ZodNumber
 ], null>;
+declare function angleField(description: string, unit: "deg"): z.ZodNumber;
+declare function assetField(env: FieldEnv, kinds: AssetKindName | readonly AssetKindName[], description: string): z.ZodType<AssetId>;
+declare function assetKindsOf(schema: z.core.$ZodType): null | readonly AssetKindName[];
 declare function bodyShapeField(description: string): z.ZodType<ShapeTuple>;
+declare function gridField(description: string, opts?: {
+    max?: number;
+    values?: readonly string[];
+}): z.ZodType<GridCells>;
+declare function gridFieldInfo(schema: z.core.$ZodType): GridFieldInfo | null;
 declare function materialField(env: FieldEnv, description?: string): z.ZodOptional<z.ZodEnum<{
     [x: string]: string;
 }>> | z.ZodOptional<z.ZodNever>;
+declare function mirrorField(axis: "x", description: string): z.ZodBoolean;
 declare function pointField(description: string): z.ZodTuple<[
     z.ZodNumber,
     z.ZodNumber
 ], null>;
+declare function refField(description: string): z.ZodType<string>;
 declare function shapeField(description: string, only?: {
     id: string;
     owner: string;
     types: readonly ShapeType[];
 }): z.ZodType<ShapeTuple>;
 declare function tagsField(description: string): z.ZodOptional<z.ZodArray<z.ZodString>>;
+declare function vectorField(description: string): z.ZodType<Pt>;
 
 ## game/primitives.ts
 declare const DEFAULT_GRAVITY: [
@@ -3257,6 +3582,11 @@ type ActionDef = InputBinding & {
     description: string;
 };
 type BasePrimitive = Exclude<PrimitiveType, "note">;
+type BehaviorRules = {
+    allowed: readonly BehaviorName[];
+    defaults: ReadonlyMap<BehaviorName, BehaviorBlock>;
+    required: ReadonlyMap<BehaviorName, BehaviorBlock>;
+};
 type BulkKeyInfo = {
     field: "at" | "shape";
     form: BulkForm;
@@ -3355,6 +3685,11 @@ type EngineToolId = (typeof ENGINE_TOOL_IDS)[number];
 type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
     ascii?: string;
     base?: BasePrimitive;
+    behaviors?: {
+        defaults?: Readonly<Record<BehaviorName, Record<string, unknown>>>;
+        forbidden?: "all" | readonly BehaviorName[];
+        required?: Readonly<Record<BehaviorName, Record<string, unknown>>>;
+    };
     bulk?: {
         description: string;
         form: BulkForm;
@@ -3377,6 +3712,7 @@ type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
     type: EntityTypeName;
 };
 type FieldEnv = {
+    assets: (kinds: readonly AssetKindName[]) => readonly AssetId[];
     materialDefs: ReadonlyMap<string, MaterialDef>;
     materials: readonly string[];
     types: readonly string[];
@@ -3392,6 +3728,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     actions: readonly ActionDef[];
     assetKinds?: readonly AssetKindDef[];
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
+    behaviors?: readonly BehaviorDef[];
     checks?: Readonly<Record<string, CheckKindDef>>;
     collisionGroups?: Readonly<Record<string, {
         collidesWith: readonly string[];
@@ -3402,6 +3739,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     editorKeys?: readonly GameKeyBinding[];
     id: string;
     issues?: Readonly<Record<string, IssueCodeDef>>;
+    layers?: readonly SceneLayerDef[];
     materials?: Readonly<Record<string, MaterialDef>>;
     physicalChecks?: readonly PhysicalCheck[];
     play?: GamePlayDef<S, G>;
@@ -3549,6 +3887,9 @@ type RegisteredType = EntityTypeDef & {
 type Registry = {
     actionNames: readonly string[];
     actions: readonly ActionDef[];
+    behaviorNames: readonly BehaviorName[];
+    behaviorRules: (type: EntityTypeName) => BehaviorRules;
+    behaviors: ReadonlyMap<BehaviorName, RegisteredBehavior>;
     bulkKey: (key: BulkKey) => BulkKeyInfo | undefined;
     bulkKeys: readonly BulkKeyInfo[];
     checkKinds: readonly string[];
@@ -3557,6 +3898,7 @@ type Registry = {
     game: GameDefinition | null;
     id: string;
     issueCodes: Readonly<Record<string, IssueCodeInfo>>;
+    layers: readonly SceneLayerDef[];
     materialNames: readonly string[];
     materials: ReadonlyMap<string, MaterialDef>;
     physicalChecks: readonly PhysicalCheck[];
@@ -4344,6 +4686,7 @@ declare const dataTableKind: {
     match: {
         jsonKind: string;
     };
+    refs(file: DataTableFile, env: KindEnv): RefSite[];
     schema: (env: KindEnv) => z.ZodType<DataTableFile, unknown, z.core.$ZodTypeInternals<DataTableFile, unknown>>;
     schemaId: string;
     storage: "doc";
@@ -4517,6 +4860,7 @@ declare const gameSettingsKind: {
     match: {
         jsonKind: string;
     };
+    refs: (file: GameSettingsFile, env: KindEnv) => RefSite[];
     schema: (env: KindEnv) => z.ZodType<GameSettingsFile, unknown, z.core.$ZodTypeInternals<GameSettingsFile, unknown>>;
     schemaId: string;
     storage: "doc";
@@ -5118,6 +5462,7 @@ type Referrer = {
 declare function buildRefIndex(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, kinds: KindRegistry, env: KindEnv): RefIndex;
 declare function referencedTrash(view: ProjectView, index: RefIndex): AssetKey[];
 declare function rewriteRefs<J>(value: J, sites: readonly RefSite[], from: AssetId, to: AssetId, layout?: DocLayout): J;
+declare function schemaRefSites(shape: z.ZodRawShape, value: unknown, pointer: JsonPointer): RefSite[];
 
 ## project/runtime-view.ts
 type ProjectRuntimeView = {
@@ -5498,7 +5843,7 @@ type StepResult = {
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 7;
+declare const AGENT_SURFACE_VERSION = 8;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -5606,6 +5951,7 @@ declare function createScene(name: string, registry: Registry, opts?: {
 declare function closest(word: string, candidates: readonly string[]): string | undefined;
 
 ## scene/diff-to-ops.ts
+declare function diffPrefabToOps(view: SceneDefinition, next: Prefab, registry?: Registry, header?: Pick<Prefab, "base" | "params">): OpBatch;
 declare function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Registry): OpBatch;
 
 ## scene/diff.ts
@@ -5616,10 +5962,33 @@ declare function diffScenes(a: SceneDefinition, b: SceneDefinition): SceneChange
 type ExpandOptions = {
     prefabs?: PrefabLibrary;
 };
+type SettingsSources = {
+    game?: Partial<ResolvedSettings>;
+    project?: Record<string, unknown>;
+};
+declare function behaviorBlocks(registry: Registry, type: EntityTypeName, written?: unknown): Record<BehaviorName, BehaviorBlock>;
 declare function bulkEntries(def: SceneDefinition, k: BulkKey): BulkEntry[];
 declare function bulkKeysOf(def: SceneDefinition): BulkKey[];
 declare function expandScene(source: SceneDefinition, registry: Registry, opts?: ExpandOptions): ExpandedScene;
 declare function isExpandedScene(scene: ExpandedScene | SceneDefinition): scene is ExpandedScene;
+declare function resolveSettings(settings: SceneSettings | undefined, sources?: SettingsSources): ResolvedSettings;
+
+## scene/field-path.ts
+declare const INSTANCE_OVERRIDE_FIELDS: readonly [
+    "at",
+    "rot",
+    "flip",
+    "z",
+    "off",
+    "layer"
+];
+declare function isInstanceOverrideField(field: FieldPath): boolean;
+declare function splitChildRef(ref: Ref): null | string[];
+declare function splitFieldPath(path: FieldPath): null | string[];
+declare function splitOverridePath(path: OverridePath): null | {
+    child: Ref;
+    field: string;
+};
 
 ## scene/format.ts
 declare const CHECKS_LAYOUT: {
@@ -5673,7 +6042,7 @@ declare const INPUT_SCRIPT_LAYOUT: {
         as: "atomic";
     };
 };
-declare function comparePointers(a: string | undefined, b: string | undefined): number;
+declare function comparePointers(a: string | undefined, b: string | undefined, doc?: unknown): number;
 declare function formatChecks(file: ChecksFile): string;
 declare function formatInputScript(script: InputScript): string;
 declare function formatPrefab(prefab: Prefab): string;
@@ -5702,16 +6071,60 @@ type SceneFragment = {
     bulk?: Record<BulkKey, BulkEntry[]>;
     entities: EntityDef[];
     game?: string;
+    instances?: InstanceDef[];
     kind: typeof FRAGMENT_KIND;
     v: number;
 };
-declare function fragmentBounds(fragment: SceneFragment, registry: Registry): Aabb | null;
-declare function fragmentOf(def: SceneDefinition, refs: readonly Ref[], registry: Registry): SceneFragment;
+declare function fragmentBounds(fragment: SceneFragment, registry: Registry, prefabs?: PrefabLibrary): Aabb | null;
+declare function fragmentOf(def: SceneDefinition, refs: readonly Ref[], registry: Registry, prefabs?: PrefabLibrary): SceneFragment;
 declare function fragmentSchemaFor(registry: Registry): z.ZodObject;
 declare function nextFreeId(id: string, taken: ReadonlySet<string>): string;
 declare function parseFragment(input: unknown, registry: Registry): ParseFragmentResult;
-declare function placeFragment(fragment: SceneFragment, def: SceneDefinition, registry: Registry, by: Pt): PlacedFragment;
+declare function placeFragment(fragment: SceneFragment, def: SceneDefinition, registry: Registry, by: Pt, prefabs?: PrefabLibrary): PlacedFragment;
 declare function takenIds(def: SceneDefinition): Set<string>;
+
+## scene/grid.ts
+declare const CHUNK_KEY_PATTERN: RegExp;
+type ChunkKey = string;
+declare const GRID_CHUNK = 32;
+declare const GRID_MAX_VALUE = 65535;
+declare const GRID_ROW_PATTERN: RegExp;
+type GridCells = Readonly<Record<ChunkKey, readonly GridRow[]>>;
+type GridProblem = {
+    got?: string;
+    message: string;
+    path: (number | string)[];
+};
+type GridRow = string;
+declare function canonicalGrid(grid: GridCells): GridCells;
+declare function compareChunkKeys(a: ChunkKey, b: ChunkKey): number;
+declare function decodeRow(row: GridRow): Uint16Array | null;
+declare function encodeRow(cells: ArrayLike<number>): GridRow;
+declare function gridCellBounds(grid: GridCells): null | {
+    c0: number;
+    c1: number;
+    r0: number;
+    r1: number;
+};
+declare function gridProblems(value: unknown, max?: number): GridProblem[];
+declare function isGridValue(v: unknown): v is GridCells;
+declare function paintGrid(grid: GridCells, edit: {
+    cells?: readonly CellEdit[];
+    rects?: readonly CellRect[];
+}): {
+    grid: GridCells;
+    inverse: CellEdit[];
+    rows: {
+        chunk: ChunkKey;
+        row: number;
+    }[];
+};
+declare function parseChunkKey(key: string): [
+    cx: number,
+    cy: number
+] | null;
+declare function readCell(grid: GridCells, col: number, row: number): number;
+declare function transformGrid(grid: GridCells, d: Dihedral): GridCells;
 
 ## scene/hash.ts
 declare function hashText(text: string): string;
@@ -5862,13 +6275,33 @@ declare function makeIssue(code: IssueCode, fields: Partial<Omit<SceneIssue, "co
 }, codes?: Readonly<Record<string, IssueCodeInfo>>): SceneIssue;
 
 ## scene/json-schema.ts
+type JsonSchemaOptions = {
+    assets?: (kinds: readonly AssetKindName[]) => readonly AssetId[];
+    layers?: readonly string[];
+};
 declare const SCHEMA_ID_BASE = "urn:jams-engine:";
 declare function fragmentJsonSchema(registry: Registry): Record<string, unknown>;
+declare const layerNames: (registry: Registry) => string[];
 declare function prefabJsonSchema(registry: Registry): Record<string, unknown>;
 declare function sceneJsonSchema(registry: Registry): Record<string, unknown>;
 declare function schemaIdFor(registry: Registry, name: string, version: number): string;
 declare function undescribedProperties(schema: Record<string, unknown>): string[];
 declare function untitledEntityFields(schema: Record<string, unknown>): string[];
+
+## scene/layers.ts
+declare const DEFAULT_LAYERS: readonly SceneLayerDef[];
+type SceneLayerDef = {
+    description: string;
+    draw: number;
+    editorOnly?: boolean;
+    name: string;
+    scroll?: [
+        x: number,
+        y: number
+    ];
+    sort?: "y" | "z";
+};
+declare function defaultLayer(type: RegisteredType | undefined, bulk: boolean, layers?: readonly SceneLayerDef[]): string;
 
 ## scene/migrate.ts
 declare const MIGRATIONS: Readonly<Record<number, Migration>>;
@@ -6031,8 +6464,12 @@ declare function buildOpSchemas(registry: Registry): {
                         z.ZodNumber,
                         z.ZodNumber
                     ], null>;
+                    flip: z.ZodOptional<z.ZodLiteral<true>>;
                     id: z.ZodOptional<z.ZodString>;
+                    params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
                     prefab: z.ZodString;
+                    rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
+                    z: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$loose>;
                 op: z.ZodLiteral<"instantiate">;
             }, z.core.$strict>,
@@ -6041,6 +6478,7 @@ declare function buildOpSchemas(registry: Registry): {
                     z.ZodNumber,
                     z.ZodNumber
                 ], null>>;
+                flip: z.ZodOptional<z.ZodBoolean>;
                 id: z.ZodString;
                 name: z.ZodOptional<z.ZodUnion<readonly [
                     z.ZodString,
@@ -6048,6 +6486,7 @@ declare function buildOpSchemas(registry: Registry): {
                 ]>>;
                 op: z.ZodLiteral<"setGroup">;
                 remove: z.ZodOptional<z.ZodBoolean>;
+                rot: z.ZodOptional<z.ZodLiteral<0 | 1 | 2 | 3>>;
             }, z.core.$strict>,
             z.ZodObject<{
                 op: z.ZodLiteral<"override">;
@@ -6063,6 +6502,7 @@ declare function buildOpSchemas(registry: Registry): {
                 op: z.ZodLiteral<"applyToPrefab">;
                 paths: z.ZodOptional<z.ZodArray<z.ZodString>>;
                 ref: z.ZodString;
+                to: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>,
             z.ZodObject<{
                 op: z.ZodLiteral<"unpack">;
@@ -6083,12 +6523,88 @@ declare function buildOpSchemas(registry: Registry): {
                 op: z.ZodLiteral<"definePrefab">;
                 prefab: z.ZodUnion<readonly [
                     z.ZodObject<{
+                        assets: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                        base: z.ZodOptional<z.ZodString>;
                         bulk: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodArray<z.ZodUnknown>>>;
                         contract: z.ZodOptional<z.ZodUnknown>;
                         entities: z.ZodArray<z.ZodObject<{}, z.core.$loose>>;
+                        instances: z.ZodOptional<z.ZodArray<z.ZodObject<{}, z.core.$loose>>>;
+                        overrides: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                        params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
+                            default: z.ZodOptional<z.ZodUnknown>;
+                            description: z.ZodString;
+                            targets: z.ZodArray<z.ZodString>;
+                        }, z.core.$strict>>>;
                     }, z.core.$loose>,
                     z.ZodNull
                 ]>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                about: z.ZodOptional<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>;
+                flip: z.ZodOptional<z.ZodEnum<{
+                    x: "x";
+                    y: "y";
+                }>>;
+                groups: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                op: z.ZodLiteral<"transform">;
+                refs: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                turn: z.ZodOptional<z.ZodLiteral<-1 | 1 | 2 | 3>>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                by: z.ZodOptional<z.ZodNumber>;
+                op: z.ZodLiteral<"setZ">;
+                refs: z.ZodArray<z.ZodString>;
+                z: z.ZodOptional<z.ZodNumber>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                add: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                op: z.ZodLiteral<"useAssets">;
+                remove: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                cells: z.ZodOptional<z.ZodArray<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>>;
+                field: z.ZodString;
+                op: z.ZodLiteral<"paintCells">;
+                rects: z.ZodOptional<z.ZodArray<z.ZodTuple<[
+                    z.ZodNumber,
+                    z.ZodNumber,
+                    z.ZodNumber,
+                    z.ZodNumber,
+                    z.ZodNumber
+                ], null>>>;
+                ref: z.ZodString;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                base: z.ZodUnion<readonly [
+                    z.ZodString,
+                    z.ZodNull
+                ]>;
+                op: z.ZodLiteral<"setPrefabBase">;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                name: z.ZodString;
+                op: z.ZodLiteral<"exposeParam">;
+                param: z.ZodUnion<readonly [
+                    z.ZodObject<{
+                        default: z.ZodOptional<z.ZodUnknown>;
+                        description: z.ZodString;
+                        targets: z.ZodArray<z.ZodString>;
+                    }, z.core.$strict>,
+                    z.ZodNull
+                ]>;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                name: z.ZodString;
+                op: z.ZodLiteral<"setParam">;
+                ref: z.ZodString;
+                value: z.ZodUnknown;
             }, z.core.$strict>
         ], "op">>;
     }, z.core.$strict>;
@@ -6233,8 +6749,12 @@ declare function buildOpSchemas(registry: Registry): {
                     z.ZodNumber,
                     z.ZodNumber
                 ], null>;
+                flip: z.ZodOptional<z.ZodLiteral<true>>;
                 id: z.ZodOptional<z.ZodString>;
+                params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
                 prefab: z.ZodString;
+                rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
+                z: z.ZodOptional<z.ZodNumber>;
             }, z.core.$loose>;
             op: z.ZodLiteral<"instantiate">;
         }, z.core.$strict>,
@@ -6243,6 +6763,7 @@ declare function buildOpSchemas(registry: Registry): {
                 z.ZodNumber,
                 z.ZodNumber
             ], null>>;
+            flip: z.ZodOptional<z.ZodBoolean>;
             id: z.ZodString;
             name: z.ZodOptional<z.ZodUnion<readonly [
                 z.ZodString,
@@ -6250,6 +6771,7 @@ declare function buildOpSchemas(registry: Registry): {
             ]>>;
             op: z.ZodLiteral<"setGroup">;
             remove: z.ZodOptional<z.ZodBoolean>;
+            rot: z.ZodOptional<z.ZodLiteral<0 | 1 | 2 | 3>>;
         }, z.core.$strict>,
         z.ZodObject<{
             op: z.ZodLiteral<"override">;
@@ -6265,6 +6787,7 @@ declare function buildOpSchemas(registry: Registry): {
             op: z.ZodLiteral<"applyToPrefab">;
             paths: z.ZodOptional<z.ZodArray<z.ZodString>>;
             ref: z.ZodString;
+            to: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>,
         z.ZodObject<{
             op: z.ZodLiteral<"unpack">;
@@ -6285,12 +6808,88 @@ declare function buildOpSchemas(registry: Registry): {
             op: z.ZodLiteral<"definePrefab">;
             prefab: z.ZodUnion<readonly [
                 z.ZodObject<{
+                    assets: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                    base: z.ZodOptional<z.ZodString>;
                     bulk: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodArray<z.ZodUnknown>>>;
                     contract: z.ZodOptional<z.ZodUnknown>;
                     entities: z.ZodArray<z.ZodObject<{}, z.core.$loose>>;
+                    instances: z.ZodOptional<z.ZodArray<z.ZodObject<{}, z.core.$loose>>>;
+                    overrides: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                    params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
+                        default: z.ZodOptional<z.ZodUnknown>;
+                        description: z.ZodString;
+                        targets: z.ZodArray<z.ZodString>;
+                    }, z.core.$strict>>>;
                 }, z.core.$loose>,
                 z.ZodNull
             ]>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            about: z.ZodOptional<z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>>;
+            flip: z.ZodOptional<z.ZodEnum<{
+                x: "x";
+                y: "y";
+            }>>;
+            groups: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            op: z.ZodLiteral<"transform">;
+            refs: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            turn: z.ZodOptional<z.ZodLiteral<-1 | 1 | 2 | 3>>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            by: z.ZodOptional<z.ZodNumber>;
+            op: z.ZodLiteral<"setZ">;
+            refs: z.ZodArray<z.ZodString>;
+            z: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            add: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            op: z.ZodLiteral<"useAssets">;
+            remove: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            cells: z.ZodOptional<z.ZodArray<z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>>>;
+            field: z.ZodString;
+            op: z.ZodLiteral<"paintCells">;
+            rects: z.ZodOptional<z.ZodArray<z.ZodTuple<[
+                z.ZodNumber,
+                z.ZodNumber,
+                z.ZodNumber,
+                z.ZodNumber,
+                z.ZodNumber
+            ], null>>>;
+            ref: z.ZodString;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            base: z.ZodUnion<readonly [
+                z.ZodString,
+                z.ZodNull
+            ]>;
+            op: z.ZodLiteral<"setPrefabBase">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            name: z.ZodString;
+            op: z.ZodLiteral<"exposeParam">;
+            param: z.ZodUnion<readonly [
+                z.ZodObject<{
+                    default: z.ZodOptional<z.ZodUnknown>;
+                    description: z.ZodString;
+                    targets: z.ZodArray<z.ZodString>;
+                }, z.core.$strict>,
+                z.ZodNull
+            ]>;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            name: z.ZodString;
+            op: z.ZodLiteral<"setParam">;
+            ref: z.ZodString;
+            value: z.ZodUnknown;
         }, z.core.$strict>
     ], "op">;
 };
@@ -6344,7 +6943,7 @@ declare function prefabLibrary(prefabs: Iterable<Prefab>): PrefabLibrary;
 declare function prefabOf(id: string, body: PrefabBody, game?: string): Prefab;
 declare function prefabScene(prefab: Prefab, bounds: SceneDefinition["bounds"]): SceneDefinition;
 declare function prefabSchemaFor(registry: Registry): z.ZodObject;
-declare function prefabsUsedBy(def: SceneDefinition): string[];
+declare function prefabsUsedBy(def: SceneDefinition, prefabs?: PrefabLibrary): string[];
 declare function sceneBody(def: SceneDefinition, registry: Registry, contract?: unknown): PrefabBody;
 declare function sceneHashWith(def: SceneDefinition, prefabs?: PrefabLibrary): SceneHash;
 
@@ -6459,25 +7058,56 @@ type SceneRegionOptions = {
 };
 
 ## scene/resolve.ts
+type BulkPlacement = {
+    layer?: string;
+    off?: boolean;
+    z?: number;
+};
 declare const CHILD_SEPARATOR = "/";
 type LocalChild = {
     child: Ref;
     def: EntityDef;
     kind: "entity";
+    turn?: Dihedral;
 } | {
     child: Ref;
     index: number;
     key: string;
     kind: "bulk";
+    placed?: BulkPlacement;
+    turn?: Dihedral;
     value: BulkEntry;
+};
+type PlacedChild = {
+    child: LocalChild;
+    def: EntityDef;
+};
+type PrefabResolution = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+    prefab: ResolvedPrefab;
+};
+type ResolveOptions = {
+    cells?: boolean;
 };
 type ResolvedOrigin = {
     child: Ref;
     instance: number;
     kind: "child";
+    path: string[];
+    transform: Dihedral;
 } | {
     index: number;
     kind: "entity";
+    transform?: Dihedral;
+};
+type ResolvedPrefab = {
+    children: LocalChild[];
+    id: string;
+    params: Readonly<Record<string, PrefabParam>>;
+    uses: readonly string[];
 };
 type ResolvedScene = {
     def: SceneDefinition;
@@ -6491,47 +7121,55 @@ type SourceBatchResult = {
     ok: false;
 };
 declare const childRef: (instance: string, child: Ref) => Ref;
+declare function gridTurns(def: Pick<SceneDefinition, "settings">): boolean;
 declare function groupOrigin(def: SceneDefinition, group: string | undefined): Pt;
+declare function groupTransform(def: SceneDefinition, group: string | undefined): Transform2D;
 declare function instanceOrigin(def: SceneDefinition, inst: InstanceDef): Pt;
-declare function localChild(prefab: Prefab, inst: InstanceDef, child: Ref, registry: Registry): LocalChild | null;
-declare function localChildren(prefab: Prefab, inst: InstanceDef, registry: Registry): LocalChild[];
+declare function instanceSteps(def: SceneDefinition, inst: InstanceDef): Transform2D[];
+declare function instanceTransform(def: SceneDefinition, inst: InstanceDef): Transform2D;
+declare const inverseTurn: (d: Dihedral) => Dihedral;
+declare function localChild(prefab: Prefab, inst: InstanceDef, child: Ref, registry: Registry, library?: PrefabLibrary, opts?: ResolveOptions): LocalChild | null;
+declare function localChildren(prefab: Prefab, inst: InstanceDef, registry: Registry, library?: PrefabLibrary, opts?: ResolveOptions): LocalChild[];
 declare function parseChildRef(ref: Ref): null | {
     child: Ref;
     instance: string;
 };
+declare function placeChildren(prefab: Prefab, inst: InstanceDef, registry: Registry, steps: Transform2D | readonly Transform2D[], cells: boolean, library?: PrefabLibrary): PlacedChild[];
+declare function resolvePrefab(id: string, library: PrefabLibrary, registry: Registry, opts?: ResolveOptions): PrefabResolution;
 declare function resolveScene(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): SceneDefinition;
 declare function resolveSceneDetailed(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): ResolvedScene;
-declare function splitOverridePath(path: OverridePath): null | {
-    child: Ref;
-    field: string;
-};
+declare const turnOf: (d: {
+    flip?: boolean;
+    rot?: number;
+}) => Dihedral;
 
 ## scene/schema.ts
-type FieldKind = "path" | "point" | "shape" | "value";
+type FieldKind = "angle" | "grid" | "mirror" | "path" | "point" | "shape" | "value" | "vector";
 declare const GroupSchema: z.ZodObject<{
     at: z.ZodTuple<[
         z.ZodNumber,
         z.ZodNumber
     ], null>;
+    flip: z.ZodOptional<z.ZodLiteral<true>>;
     name: z.ZodOptional<z.ZodString>;
+    rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
 }, z.core.$strict>;
 declare const InstanceSchema: z.ZodObject<{
     at: z.ZodTuple<[
         z.ZodNumber,
         z.ZodNumber
     ], null>;
+    flip: z.ZodOptional<z.ZodLiteral<true>>;
     group: z.ZodOptional<z.ZodString>;
     id: z.ZodString;
-    layer: z.ZodOptional<z.ZodEnum<{
-        decor: "decor";
-        editor: "editor";
-        gameplay: "gameplay";
-        terrain: "terrain";
-    }>>;
+    layer: z.ZodOptional<z.ZodString>;
     name: z.ZodOptional<z.ZodString>;
     off: z.ZodOptional<z.ZodBoolean>;
     overrides: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     prefab: z.ZodString;
+    rot: z.ZodOptional<z.ZodLiteral<1 | 2 | 3>>;
+    z: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 declare const OVERRIDE_PATH: RegExp;
 declare function entitySchemaFor(registry: Registry, type: EntityTypeName): undefined | z.ZodObject;
@@ -6617,6 +7255,7 @@ declare function parseShape(input: unknown, path?: string): ParseShapeResult;
 declare function shapeToTuple(s: ShapeObj): ShapeTuple;
 
 ## scene/svg.ts
+declare const SCENE_GRID_MAX_CELLS = 4096;
 declare const SCENE_SVG_MAX_SIZE = 1600;
 type SceneLabels = "all" | "entities" | "none";
 type SceneSvgOptions = SceneRegionOptions & {
@@ -6637,6 +7276,33 @@ type SceneViewport = {
 declare function renderSceneSvg(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): string;
 declare function sceneViewport(scene: ExpandedScene | SceneDefinition, opts: SceneSvgOptions): SceneViewport;
 
+## scene/transform.ts
+type Dihedral = {
+    flip: boolean;
+    rot: 0 | 1 | 2 | 3;
+};
+declare const IDENTITY_2D: Transform2D;
+type Pt = [
+    x: number,
+    y: number
+];
+type Transform2D = {
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    tx: number;
+    ty: number;
+};
+declare function applyPt(t: Transform2D, p: Pt): Pt;
+declare function applyVec(t: Transform2D, v: Pt): Pt;
+declare function compose(outer: Transform2D, inner: Transform2D): Transform2D;
+declare function composeDihedral(outer: Dihedral, inner: Dihedral): Dihedral;
+declare function dihedral(d: Dihedral, at: Pt): Transform2D;
+declare function dihedralOf(t: Transform2D): Dihedral | null;
+declare function flipWorld(d: Dihedral, axis: "x" | "y"): Dihedral;
+declare function invert(t: Transform2D): Transform2D;
+
 ## scene/types.ts
 type Aabb = {
     maxX: number;
@@ -6645,6 +7311,7 @@ type Aabb = {
     minY: number;
 };
 type ApplyOptions = {
+    prefab?: string;
     prefabs?: PrefabLibrary;
     validate?: "none" | "structural";
 };
@@ -6666,6 +7333,7 @@ type ApplyResult = {
     issue: SceneIssue;
     ok: false;
 };
+type AssetId = string;
 type Bounds = [
     minX: number,
     minY: number,
@@ -6675,6 +7343,18 @@ type Bounds = [
 type BulkEntry = Pt | ShapeTuple;
 type BulkForm = "point" | "shape";
 type BulkKey = string;
+type CellEdit = [
+    col: number,
+    row: number,
+    value: number
+];
+type CellRect = [
+    c0: number,
+    r0: number,
+    c1: number,
+    r1: number,
+    value: number
+];
 declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "schema",
     "unknown-key",
@@ -6695,6 +7375,16 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "out-of-bounds",
     "hidden-layer",
     "unused-override",
+    "prefab-cycle",
+    "prefab-depth",
+    "variant-base-unknown",
+    "param-unknown",
+    "layer-unknown",
+    "behavior-unknown",
+    "behavior-forbidden",
+    "behavior-missing",
+    "grid-invalid",
+    "ref-child-unknown",
     "follower-hits-solid",
     "solid-overlap",
     "stale-base",
@@ -6716,10 +7406,11 @@ type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 type EntityBase = {
     group?: string;
     id: string;
-    layer?: Layer;
+    layer?: string;
     name?: string;
     off?: boolean;
     type: EntityTypeName;
+    z?: number;
 };
 type EntityDef = EntityBase & {
     [field: string]: unknown;
@@ -6737,19 +7428,43 @@ type ExpandedScene = {
     settings: ResolvedSettings;
 };
 type FieldPath = string;
+type GridSettings = {
+    cell: [
+        w: number,
+        h: number
+    ];
+    index: "even" | "odd";
+    kind: "hex";
+    origin?: Pt;
+    side: number;
+    stagger: "x" | "y";
+} | {
+    cell: [
+        w: number,
+        h: number
+    ];
+    kind: "square";
+    origin?: Pt;
+};
 type GroupDef = {
     at: Pt;
+    flip?: true;
     name?: string;
+    rot?: 1 | 2 | 3;
 };
 type InstanceDef = {
     at: Pt;
+    flip?: true;
     group?: string;
     id: string;
-    layer?: Layer;
+    layer?: string;
     name?: string;
     off?: boolean;
     overrides?: Record<OverridePath, unknown>;
+    params?: Record<string, unknown>;
     prefab: string;
+    rot?: 1 | 2 | 3;
+    z?: number;
 };
 type InstanceInput = Omit<InstanceDef, "id"> & {
     id?: string;
@@ -6761,13 +7476,6 @@ type IssueCodeInfo = {
     severity: Severity;
     summary: string;
 };
-declare const LAYERS: readonly [
-    "terrain",
-    "gameplay",
-    "decor",
-    "editor"
-];
-type Layer = (typeof LAYERS)[number];
 declare const OP_NAMES: readonly [
     "add",
     "addBulk",
@@ -6788,7 +7496,14 @@ declare const OP_NAMES: readonly [
     "applyToPrefab",
     "unpack",
     "createPrefab",
-    "definePrefab"
+    "definePrefab",
+    "transform",
+    "setZ",
+    "useAssets",
+    "paintCells",
+    "setPrefabBase",
+    "exposeParam",
+    "setParam"
 ];
 type OpBatch = {
     actor?: string;
@@ -6798,6 +7513,7 @@ type OpBatch = {
 };
 type OverridePath = string;
 declare const PREFAB_KIND = "prefab";
+declare const PREFAB_MAX_DEPTH = 8;
 type PathDef = {
     mode: "loop" | "ping_pong";
     pauseMs?: number;
@@ -6812,11 +7528,21 @@ type Prefab = PrefabBody & {
     v: number;
 };
 type PrefabBody = {
+    assets?: AssetId[];
+    base?: string;
     bulk?: Record<BulkKey, BulkEntry[]>;
     contract?: unknown;
     entities: EntityDef[];
+    instances?: InstanceDef[];
+    overrides?: Record<OverridePath, unknown>;
+    params?: Record<string, PrefabParam>;
 };
 type PrefabLibrary = ReadonlyMap<string, Prefab>;
+type PrefabParam = {
+    default?: unknown;
+    description: string;
+    targets: OverridePath[];
+};
 type Pt = [
     x: number,
     y: number
@@ -6833,18 +7559,30 @@ type Ref = string;
 type ResolvedSettings = {
     [key: string]: unknown;
     gravity: Pt;
+    grid: GridSettings | null;
+    physics: "none" | "rapier";
+    view: {
+        projection: "orthogonal";
+    };
 };
 type RuntimeEntity<F extends object = {
     [field: string]: unknown;
 }> = {
+    behaviors?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
     id: string;
+    layer?: string;
+    transform?: {
+        flip: boolean;
+        turn: 0 | 1 | 2 | 3;
+    };
     type: EntityTypeName;
+    z?: number;
 } & RuntimeFields<F>;
 type RuntimeField<T> = T extends ShapeTuple ? ShapeObj : T;
 type RuntimeFields<F> = {
     [K in keyof F]: RuntimeField<F[K]>;
 };
-declare const SCENE_FORMAT_VERSION = 2;
+declare const SCENE_FORMAT_VERSION = 3;
 declare const SCENE_HEADER_KEYS: readonly [
     "$schema",
     "v",
@@ -6852,6 +7590,7 @@ declare const SCENE_HEADER_KEYS: readonly [
     "name",
     "bounds",
     "settings",
+    "assets",
     "groups",
     "instances"
 ];
@@ -6860,7 +7599,7 @@ type SceneChange = {
     kind: "moved";
     ref: Ref;
 } | {
-    field: "bounds" | "game" | "name" | "v" | `groups.${string}` | `settings.${string}`;
+    field: "assets" | "bounds" | "game" | "name" | "v" | `groups.${string}` | `settings.${string}`;
     from: unknown;
     kind: "scene";
     to: unknown;
@@ -6891,6 +7630,7 @@ type SceneChange = {
 type SceneDefinition = {
     $schema?: string;
     [bulkKey: BulkKey]: unknown;
+    assets?: AssetId[];
     bounds: Bounds;
     entities?: EntityDef[];
     game?: string;
@@ -6916,10 +7656,29 @@ type SceneIssue = {
     severity: Severity;
 };
 type SceneOp = {
+    about?: Pt;
+    flip?: "x" | "y";
+    groups?: string[];
+    op: "transform";
+    refs?: string[];
+    turn?: -1 | 1 | 2 | 3;
+} | {
+    add?: AssetId[];
+    op: "useAssets";
+    remove?: AssetId[];
+} | {
     anchor?: SpotAnchor;
     at: Pt;
     op: "place";
     ref: Ref;
+} | {
+    at?: Pt;
+    flip?: boolean;
+    id: string;
+    name?: null | string;
+    op: "setGroup";
+    remove?: boolean;
+    rot?: 0 | 1 | 2 | 3;
 } | {
     at?: Pt;
     id: string;
@@ -6927,15 +7686,23 @@ type SceneOp = {
     op: "createPrefab";
     refs: Ref[];
 } | {
-    at?: Pt;
-    id: string;
-    name?: null | string;
-    op: "setGroup";
-    remove?: boolean;
+    base: null | string;
+    op: "setPrefabBase";
 } | {
     by: Pt;
     op: "move";
     refs: Ref[];
+} | {
+    by?: number;
+    op: "setZ";
+    refs: Ref[];
+    z?: number;
+} | {
+    cells?: CellEdit[];
+    field: string;
+    op: "paintCells";
+    rects?: CellRect[];
+    ref: Ref;
 } | {
     entity: EntityInput;
     index?: number;
@@ -6974,9 +7741,19 @@ type SceneOp = {
     op: "addBulk";
     shapes: ShapeInput[];
 } | {
+    name: string;
+    op: "exposeParam";
+    param: PrefabParam | null;
+} | {
+    name: string;
+    op: "setParam";
+    ref: string;
+    value: unknown;
+} | {
     op: "applyToPrefab";
     paths?: OverridePath[];
     ref: Ref;
+    to?: string;
 } | {
     op: "override";
     ref: Ref;
@@ -7010,6 +7787,11 @@ type SceneOp = {
 type SceneSettings = {
     [key: string]: unknown;
     gravity?: Pt;
+    grid?: GridSettings;
+    physics?: "none" | "rapier";
+    view?: {
+        projection: "orthogonal";
+    };
 };
 type Severity = "error" | "info" | "warn";
 type ShapeInput = RectInput | ShapeObj | ShapeTuple;
@@ -7083,7 +7865,9 @@ type SpotAnchor = "bottom" | "center" | "left" | "right" | "top";
 ## scene/validate.ts
 type ValidateOptions = {
     lines?: ReadonlyMap<string, number>;
+    prefab?: string;
     prefabs?: PrefabLibrary;
+    project?: ProjectView;
 };
 declare function validateScene(source: SceneDefinition, registry: Registry, opts?: ValidateOptions): SceneIssue[];
 
@@ -7423,7 +8207,7 @@ type Vec2 = {
 };
 
 ## version.ts
-declare const ENGINE_VERSION = "0.6.0";
+declare const ENGINE_VERSION = "0.7.0";
 
 ## vite/apply-files.ts
 type FileApplyOptions = {

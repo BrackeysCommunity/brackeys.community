@@ -3,28 +3,40 @@ import * as Y from "yjs";
 import type { DocLayout } from "../project/kinds";
 import { makeIssue } from "../scene/issues";
 import type { GroupDef, SceneIssue } from "../scene/types";
+import { patchGroup } from "./apply";
 import {
   entitiesMap,
   groupMap,
   groupsMap,
   instancesMap,
+  paramsMap,
+  patchMap,
   patchRecord,
+  prefabHeaderMap,
+  prefabOverridesMap,
   prefabsMap,
+  readAssets,
+  readDoc,
   recordMap,
   recordOf,
   sceneMap,
   settingsMap,
+  writeAssets,
 } from "./convert";
 import { layoutFromDoc, layoutPatch } from "./layout";
 import { appendLog, fingerprint, readLog, sameValue } from "./log";
+import { PREFAB_HEADER_KEY } from "./prefab-doc";
 import { appendProjectLog, readProjectLog } from "./project-log";
 import type { ProjectSession } from "./project-session";
 import {
+  ASSETS_KEY,
   GROUP_KEY_PREFIX,
   INSTANCE_KEY_PREFIX,
+  PARAM_KEY_PREFIX,
   PREFAB_KEY_PREFIX,
   SCENE_KEY,
   SETTINGS_KEY,
+  VARIANT_KEY,
   type DocOrigin,
   type EntityRecord,
   type LogEntry,
@@ -63,13 +75,36 @@ function slotOf(
     };
   if (key.startsWith(PREFAB_KEY_PREFIX))
     return { map: prefabsMap(doc), key: key.slice(PREFAB_KEY_PREFIX.length), kind: "value" };
+  if (key.startsWith(PARAM_KEY_PREFIX))
+    return { map: paramsMap(doc), key: key.slice(PARAM_KEY_PREFIX.length), kind: "value" };
   return { map: entitiesMap(doc) as Y.Map<unknown>, key, kind: "record" };
+}
+
+/** A prefab doc's header as its log records it: `id` and `contract`. */
+function prefabHeaderOf(doc: Y.Doc): Record<string, unknown> {
+  const { id, contract } = readDoc(doc).prefab ?? { id: "" };
+  return { id, ...(contract !== undefined ? { contract } : {}) };
+}
+
+/** A prefab doc's variant as its log records it: `base` and `overrides`, each absent when unset. */
+function variantOf(doc: Y.Doc): Record<string, unknown> {
+  const { base, overrides } = readDoc(doc).prefab ?? { id: "" };
+  return {
+    ...(base !== undefined ? { base } : {}),
+    ...(overrides !== undefined ? { overrides } : {}),
+  };
 }
 
 /** The state a log key is in now: a record, the settings, the header, a content field, or null when gone. */
 function currentOf(doc: Y.Doc, key: string, opts: RevertOptions): unknown {
   if (key === SETTINGS_KEY) return settingsMap(doc).toJSON();
   if (key === SCENE_KEY) return sceneMap(doc).toJSON();
+  if (key === ASSETS_KEY) {
+    const ids = readAssets(doc);
+    return ids.length > 0 ? ids : null;
+  }
+  if (key === VARIANT_KEY) return variantOf(doc);
+  if (key === PREFAB_HEADER_KEY) return prefabHeaderOf(doc);
   if (key.startsWith(CONTENT_KEY_PREFIX)) {
     if (!opts.layout) return null;
     return layoutFromDoc(doc, opts.layout)[key.slice(CONTENT_KEY_PREFIX.length)] ?? null;
@@ -85,6 +120,24 @@ function writeMap(map: Y.Map<unknown>, before: Record<string, unknown>): void {
   for (const k of [...map.keys()]) if (!(k in before)) map.delete(k);
   for (const [k, v] of Object.entries(before))
     if (!sameValue(map.get(k), v)) map.set(k, structuredClone(v));
+}
+
+type VariantBefore = { base?: string; overrides?: Record<string, unknown> };
+type HeaderBefore = { id: string; contract?: unknown };
+
+function writeVariant(doc: Y.Doc, prev: VariantBefore): void {
+  const header = prefabHeaderMap(doc);
+  if (prev.base === undefined) header.delete("base");
+  else if (header.get("base") !== prev.base) header.set("base", prev.base);
+  patchMap(prefabOverridesMap(doc), prev.overrides ?? {});
+}
+
+function writeHeader(doc: Y.Doc, prev: HeaderBefore): void {
+  const header = prefabHeaderMap(doc);
+  if (header.get("id") !== prev.id) header.set("id", prev.id);
+  if (prev.contract === undefined) header.delete("contract");
+  else if (!sameValue(header.get("contract"), prev.contract))
+    header.set("contract", structuredClone(prev.contract));
 }
 
 /** Why `entry` can't be reverted in `doc` now, or null when it can. */
@@ -142,10 +195,15 @@ function writeRevert(
       const prev = before[key] ?? null;
       if (key === SETTINGS_KEY) writeMap(settingsMap(doc), (prev ?? {}) as Record<string, unknown>);
       else if (key === SCENE_KEY) writeMap(sceneMap(doc), (prev ?? {}) as Record<string, unknown>);
+      else if (key === ASSETS_KEY) writeAssets(doc, (prev ?? []) as string[]);
+      else if (key === VARIANT_KEY) writeVariant(doc, (prev ?? {}) as VariantBefore);
+      else if (key === PREFAB_HEADER_KEY) writeHeader(doc, (prev ?? { id: "" }) as HeaderBefore);
       else {
         const slot = slotOf(doc, key);
         const current = slot.map.get(slot.key);
         if (prev === null) slot.map.delete(slot.key);
+        else if (slot.kind === "group" && current instanceof Y.Map)
+          patchGroup(current, currentOf(doc, key, opts) as GroupDef | undefined, prev as GroupDef);
         else if (slot.kind === "group") slot.map.set(slot.key, groupMap(prev as GroupDef));
         else if (slot.kind === "value") slot.map.set(slot.key, structuredClone(prev));
         else if (current instanceof Y.Map)

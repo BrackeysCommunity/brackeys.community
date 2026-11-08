@@ -1,19 +1,23 @@
 import { z } from "zod";
 
-import { ID_PATTERN } from "../game/fields";
+import { AssetIdSchema, ID_PATTERN } from "../game/fields";
 import { ENGINE_REGISTRY_ID, type Registry } from "../game/types";
 import { formatPrefab, formatScene } from "./format";
 import { FRAGMENT_KIND, fragmentSchemaFor, parseFragment } from "./fragment";
 import { hashText } from "./hash";
 import { jsonPointer, makeIssue } from "./issues";
+import { parseScene } from "./parse";
+import { InstanceSchema, OVERRIDE_PATH } from "./schema";
 import {
   PREFAB_KIND,
   SCENE_FORMAT_VERSION,
   type BulkEntry,
   type BulkKey,
+  type InstanceDef,
   type Prefab,
   type PrefabBody,
   type PrefabLibrary,
+  type PrefabParam,
   type SceneDefinition,
   type SceneHash,
   type SceneIssue,
@@ -41,9 +45,63 @@ function contractSchema(registry: Registry): z.ZodType {
         .describe("This game defines no prefab contract, so a prefab carries none.");
 }
 
+/** A parameter name: letters, digits, `_` and `$`, not starting with a digit. */
+const PARAM_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+const OverridePathSchema = z.string().regex(OVERRIDE_PATH, {
+  error: "an override key is `<childId>.<field.path>`, e.g. door.path.speed",
+});
+
+const PrefabParamSchema = z
+  .strictObject({
+    description: z.string().min(1).describe("One sentence for the inspector and agents."),
+    targets: z
+      .array(OverridePathSchema)
+      .min(1)
+      .describe("Override paths inside the prefab that the value feeds, e.g. `door.path.speed`."),
+    default: z
+      .unknown()
+      .optional()
+      .describe("Used when an instance sets none; omitted, the targets' own values stand."),
+  })
+  .describe("An exposed parameter: one value an instance sets that overrides every target.");
+
+/** The header keys a variant and its parameters add, in file order. */
+const variantHeader = {
+  base: z
+    .string()
+    .regex(ID_PATTERN)
+    .optional()
+    .describe(
+      "The prefab this one is a variant of: its children are the base's, with `overrides` applied, plus this file's own.",
+    )
+    .meta({ title: "Base" }),
+  params: z
+    .record(z.string().regex(PARAM_NAME), PrefabParamSchema)
+    .optional()
+    .describe(
+      "Exposed parameters by name. An instance's `params` value applies as an override of each target; a variant inherits its base's and may redeclare one.",
+    )
+    .meta({ title: "Parameters" }),
+  assets: z
+    .array(AssetIdSchema)
+    .optional()
+    .describe("Asset ids only game code names, so they count as used: sorted, each once.")
+    .meta({ title: "Assets" }),
+  overrides: z
+    .record(OverridePathSchema, z.unknown())
+    .optional()
+    .describe(
+      "A variant's changes to its base's children, keyed `<childId>.<field.path>`; `off: true` hides one.",
+    )
+    .meta({ title: "Overrides" }),
+};
+const VariantHeaderSchema = z.strictObject(variantHeader);
+
 /**
  * The schema of a prefab file judged by `registry`: a fragment's entities
- * and bulk entries around a local origin, its id, and the game's contract.
+ * and bulk entries around a local origin, nested instances of other
+ * prefabs, its id, and the game's contract.
  */
 export function prefabSchemaFor(registry: Registry): z.ZodObject {
   const fragment = fragmentSchemaFor(registry).shape;
@@ -63,12 +121,22 @@ export function prefabSchemaFor(registry: Registry): z.ZodObject {
         .regex(ID_PATTERN)
         .describe("The prefab's id; matches the file name without .json.")
         .meta({ title: "Id" }),
+      base: variantHeader.base,
       contract: contractSchema(registry),
-      entities: fragment.entities,
+      params: variantHeader.params,
+      assets: variantHeader.assets,
+      overrides: variantHeader.overrides,
       bulk: fragment.bulk,
+      instances: z
+        .array(InstanceSchema)
+        .optional()
+        .describe(
+          "Instances of other prefabs nested in this one, placed around its origin. Their children load with ids `<instance>/<child>` under this prefab's own instance.",
+        ),
+      entities: fragment.entities,
     })
     .describe(
-      "A prefab: entities and bulk entries around a local origin, placed in scenes by instances. Coordinates are relative to the origin, which an instance's `at` puts in the world.",
+      "A prefab: entities, bulk entries and nested instances around a local origin, placed in scenes by instances, optionally a variant of a base prefab. Coordinates are relative to the origin, which an instance's `at` puts in the world. `entities` is required and may be empty.",
     );
 }
 
@@ -76,13 +144,31 @@ export type ParsePrefabResult =
   | { ok: true; prefab: Prefab; migratedFrom?: number; issues: SceneIssue[] }
   | { ok: false; issues: SceneIssue[] };
 
-const PREFAB_KEYS = ["$schema", "kind", "v", "game", "id", "contract", "entities", "bulk"];
+const PREFAB_KEYS = [
+  "$schema",
+  "kind",
+  "v",
+  "game",
+  "id",
+  "base",
+  "contract",
+  "params",
+  "assets",
+  "overrides",
+  "bulk",
+  "instances",
+  "entities",
+];
+const SCRATCH_BOUNDS = [0, 0, 1, 1];
 
 /**
  * Parses a prefab file from text or a parsed value. Its entities and bulk
  * entries go through `parseFragment` (migrations, the registry's schemas,
- * duplicate ids), then the id and the game's contract are checked. Never
- * throws.
+ * duplicate entity ids), its instances through the scene's own instance
+ * schema, then the id, the game's contract and the variant header (`base`,
+ * `params`, `assets`, `overrides`) are checked. Which prefabs the instances
+ * and the base name, cycles, depth and whether overrides and param targets
+ * reach a child are `validateScene`'s. Never throws.
  */
 export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResult {
   let raw = input;
@@ -150,6 +236,8 @@ export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResu
     registry,
   );
   if (!fragment.ok) return fragment;
+  const instances = parseInstances(raw, registry);
+  if (!instances.ok) return instances;
   const contract = contractSchema(registry).safeParse(raw.contract);
   if (!contract.success) {
     const first = contract.error.issues[0]!;
@@ -163,6 +251,27 @@ export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResu
       ],
     };
   }
+  const header = VariantHeaderSchema.safeParse({
+    base: raw.base,
+    params: raw.params,
+    assets: raw.assets,
+    overrides: raw.overrides,
+  });
+  if (!header.success) {
+    const first = header.error.issues[0]!;
+    const path = first.path.map(String);
+    const what = path.length > 0 ? `${path.join(".")}: ` : "";
+    return {
+      ok: false,
+      issues: [
+        makeIssue(first.code === "unrecognized_keys" ? "unknown-key" : "schema", {
+          message: `${what}${first.message}`,
+          path: jsonPointer(path),
+        }),
+      ],
+    };
+  }
+  const { base, params, assets, overrides } = header.data;
   const f = fragment.fragment;
   const prefab: Prefab = {
     ...(typeof raw.$schema === "string" ? { $schema: raw.$schema } : {}),
@@ -170,13 +279,56 @@ export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResu
     v: f.v,
     ...(f.game !== undefined ? { game: f.game } : {}),
     id: raw.id,
+    ...(base !== undefined ? { base } : {}),
     ...(contract.data !== undefined ? { contract: contract.data } : {}),
-    entities: f.entities,
+    ...(params && Object.keys(params).length > 0 ? { params: paramsOf(params) } : {}),
+    ...(assets && assets.length > 0 ? { assets } : {}),
+    ...(overrides && Object.keys(overrides).length > 0 ? { overrides } : {}),
     ...(f.bulk ? { bulk: f.bulk } : {}),
+    ...(instances.instances ? { instances: instances.instances } : {}),
+    entities: f.entities,
   };
   return fragment.migratedFrom === undefined
     ? { ok: true, prefab, issues: [] }
     : { ok: true, prefab, migratedFrom: fragment.migratedFrom, issues: [] };
+}
+
+/** Parsed params with an absent `default` left out rather than kept as `undefined`. */
+function paramsOf(params: Record<string, PrefabParam>): Record<string, PrefabParam> {
+  const out: Record<string, PrefabParam> = {};
+  for (const [name, p] of Object.entries(params))
+    out[name] = {
+      description: p.description,
+      targets: p.targets,
+      ...(p.default !== undefined ? { default: p.default } : {}),
+    };
+  return out;
+}
+
+/**
+ * A prefab's `instances`, migrated and checked as a scene's are, with the
+ * same pointers (`/instances/0/at`) a scene's issues carry.
+ */
+function parseInstances(
+  raw: Record<string, unknown>,
+  registry: Registry,
+): { ok: true; instances?: InstanceDef[] } | { ok: false; issues: SceneIssue[] } {
+  if (raw.instances === undefined) return { ok: true };
+  const game =
+    raw.game ?? (registry.id === ENGINE_REGISTRY_ID ? undefined : (registry.id as unknown));
+  const parsed = parseScene(
+    {
+      v: raw.v,
+      ...(game !== undefined ? { game } : {}),
+      name: typeof raw.id === "string" ? raw.id : "prefab",
+      bounds: SCRATCH_BOUNDS,
+      instances: raw.instances,
+    },
+    registry,
+  );
+  if (!parsed.ok) return parsed;
+  const instances = parsed.def.instances ?? [];
+  return instances.length > 0 ? { ok: true, instances } : { ok: true };
 }
 
 /** A library from a list of prefabs; a later prefab with the same id wins. */
@@ -193,33 +345,69 @@ export function prefabOf(id: string, body: PrefabBody, game?: string): Prefab {
     v: SCENE_FORMAT_VERSION,
     ...(game !== undefined ? { game } : {}),
     id,
+    ...(body.base !== undefined ? { base: body.base } : {}),
     ...(body.contract !== undefined ? { contract: structuredClone(body.contract) } : {}),
+    ...headerOf(body),
     entities: structuredClone(body.entities),
     ...(body.bulk && Object.keys(body.bulk).length > 0 ? { bulk: structuredClone(body.bulk) } : {}),
+    ...(body.instances && body.instances.length > 0
+      ? { instances: structuredClone(body.instances) }
+      : {}),
   };
 }
 
-/** What `definePrefab` carries for a prefab: its body without the file's header. */
+/** A body's non-empty `params`, `assets` and `overrides`, copied. */
+function headerOf(body: PrefabBody): Partial<PrefabBody> {
+  return {
+    ...(body.params && Object.keys(body.params).length > 0
+      ? { params: structuredClone(body.params) }
+      : {}),
+    ...(body.assets && body.assets.length > 0 ? { assets: [...body.assets] } : {}),
+    ...(body.overrides && Object.keys(body.overrides).length > 0
+      ? { overrides: structuredClone(body.overrides) }
+      : {}),
+  };
+}
+
+/** What `definePrefab` carries for a prefab: its body, base, params, assets and overrides, without the file's identity. */
 export function prefabBody(prefab: Prefab): PrefabBody {
   return {
     entities: structuredClone(prefab.entities),
     ...(prefab.bulk ? { bulk: structuredClone(prefab.bulk) } : {}),
+    ...(prefab.instances ? { instances: structuredClone(prefab.instances) } : {}),
     ...(prefab.contract !== undefined ? { contract: structuredClone(prefab.contract) } : {}),
+    ...(prefab.base !== undefined ? { base: prefab.base } : {}),
+    ...headerOf(prefab),
   };
 }
 
-/** The prefab ids a scene's instances name, sorted, each once. */
-export function prefabsUsedBy(def: SceneDefinition): string[] {
-  return [...new Set((def.instances ?? []).map((i) => i.prefab))].sort();
+/**
+ * The prefab ids a scene reaches, sorted by code unit, each once: those its
+ * instances name and, with `prefabs`, every one those reach in turn through
+ * their nested instances and variant bases. A prefab missing from `prefabs`
+ * is listed and reaches nothing further; a cycle ends where it closes.
+ */
+export function prefabsUsedBy(def: SceneDefinition, prefabs?: PrefabLibrary): string[] {
+  const seen = new Set<string>();
+  const visit = (id: string) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    const prefab = prefabs?.get(id);
+    if (!prefab) return;
+    if (typeof prefab.base === "string") visit(prefab.base);
+    for (const nested of prefab.instances ?? []) visit(nested.prefab);
+  };
+  for (const instance of def.instances ?? []) visit(instance.prefab);
+  return [...seen].sort();
 }
 
 /**
- * The scene's hash with the prefabs it uses: what a recording or a cache
- * keys on, so editing a prefab marks it stale. A scene with no instances
- * hashes as `sceneHash` does.
+ * The scene's hash with every prefab it reaches (`prefabsUsedBy`): what a
+ * recording or a cache keys on, so editing a prefab, nested ones included,
+ * marks it stale. A scene with no instances hashes as `sceneHash` does.
  */
 export function sceneHashWith(def: SceneDefinition, prefabs?: PrefabLibrary): SceneHash {
-  const used = prefabsUsedBy(def);
+  const used = prefabsUsedBy(def, prefabs);
   const text = formatScene(def).text;
   if (used.length === 0) return hashText(text);
   const parts = used.map((id) => {
@@ -240,11 +428,14 @@ export function prefabScene(prefab: Prefab, bounds: SceneDefinition["bounds"]): 
     name: prefab.id,
     bounds: [bounds[0], bounds[1], bounds[2], bounds[3]],
     ...structuredClone(prefab.bulk ?? {}),
+    ...(prefab.instances && prefab.instances.length > 0
+      ? { instances: structuredClone(prefab.instances) }
+      : {}),
     ...(prefab.entities.length > 0 ? { entities: structuredClone(prefab.entities) } : {}),
   };
 }
 
-/** A scene's entities and bulk arrays as a prefab body, the other way from `prefabScene`. */
+/** A scene's entities, bulk arrays and instances as a prefab body, the other way from `prefabScene`. */
 export function sceneBody(
   def: SceneDefinition,
   registry: Registry,
@@ -258,6 +449,9 @@ export function sceneBody(
   return {
     entities: structuredClone(def.entities ?? []),
     ...(Object.keys(bulk).length > 0 ? { bulk } : {}),
+    ...(def.instances && def.instances.length > 0
+      ? { instances: structuredClone(def.instances) }
+      : {}),
     ...(contract !== undefined ? { contract: structuredClone(contract) } : {}),
   };
 }

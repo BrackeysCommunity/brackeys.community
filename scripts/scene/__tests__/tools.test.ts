@@ -12,6 +12,7 @@ import {
   AGENT_SURFACE_VERSION,
   createRegistry,
   ISSUE_CODES,
+  OP_NAMES,
   parseSceneOrThrow,
   sceneHash,
   type OpBatch,
@@ -43,6 +44,28 @@ const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
 const ENGINE_YARD = repoFile("src/engine/scenes/engine-yard.json");
 const ENGINE_YARD_CHECKS = repoFile("src/engine/scenes/engine-yard.checks.json");
 const ENGINE_SCENES = repoFile("src/engine/scenes");
+const PREFAB_FIXTURES = repoFile("src/engine/scene/__tests__/fixtures/prefabs");
+const NEW_OPS = [
+  "transform",
+  "setZ",
+  "useAssets",
+  "paintCells",
+  "setPrefabBase",
+  "exposeParam",
+  "setParam",
+];
+const NEW_CODES = [
+  "prefab-cycle",
+  "prefab-depth",
+  "variant-base-unknown",
+  "param-unknown",
+  "layer-unknown",
+  "behavior-unknown",
+  "behavior-forbidden",
+  "behavior-missing",
+  "grid-invalid",
+  "ref-child-unknown",
+];
 
 const WALK = 300;
 
@@ -260,6 +283,155 @@ describe("show", () => {
     expect(near).toEqual(["pin"]);
   });
 
+  it("shows a nested instance's children as a/b/c with z, turns, params and exposed params", async () => {
+    await cp(PREFAB_FIXTURES, join(avatarDir, "prefabs"), { recursive: true });
+    const yard = JSON.parse(await engineYardText());
+    yard.name = "rooms";
+    yard.instances = [
+      { id: "room-1", prefab: "room", at: [1000, 400], z: 1 },
+      { id: "red-1", prefab: "red-gate", at: [400, 400], flip: true, params: { speed: 120 } },
+    ];
+    await writeFile(join(avatarDir, "rooms.json"), JSON.stringify(yard));
+    const r = await show({ scene: "rooms" }, ctx);
+    expect(r.exitCode, r.text).toBe(0);
+    type Row = Record<string, unknown> & { ref: string };
+    const rows = (r.data as { entities: Row[] }).entities;
+    const byRef = (ref: string) => rows.find((row) => row.ref === ref);
+
+    expect(byRef("room-1")).toMatchObject({
+      type: "instance",
+      prefab: "room",
+      at: [1000, 400],
+      z: 1,
+      nested: ["gate-1", "gate-2", "door-1", "door-1/latch"],
+    });
+    expect(byRef("room-1")).not.toHaveProperty("transform");
+    expect(byRef("room-1/door-1/latch/door")).toMatchObject({
+      type: "follower",
+      instance: "room-1",
+      instancePath: ["room-1", "door-1", "latch"],
+      z: 3,
+      extra: expect.objectContaining({ path: expect.objectContaining({ speed: 30 }) }),
+    });
+    expect(byRef("room-1/door-1/panel")).toMatchObject({
+      instancePath: ["room-1", "door-1"],
+      z: 3,
+      extra: expect.objectContaining({ path: expect.objectContaining({ speed: 50 }) }),
+    });
+    expect(byRef("room-1/gate-2/door")).toMatchObject({
+      transform: { rot: 2, flip: true },
+      z: 1,
+      extra: expect.objectContaining({ path: expect.objectContaining({ speed: 90 }) }),
+    });
+    expect(byRef("room-1/lamp")).not.toHaveProperty("instancePath");
+
+    expect(byRef("red-1")).toMatchObject({
+      prefab: "red-gate",
+      transform: { rot: 0, flip: true },
+      params: { speed: 120 },
+      exposes: ["speed"],
+    });
+    expect(byRef("red-1")).not.toHaveProperty("extra");
+    expect(byRef("red-1/door")).toMatchObject({
+      transform: { rot: 0, flip: true },
+      z: 1,
+      extra: expect.objectContaining({ path: expect.objectContaining({ speed: 120 }) }),
+    });
+
+    const one = await show({ scene: "rooms", ref: "room-1/door-1/latch/door" }, ctx);
+    expect(refs(one.data)).toEqual(["room-1/door-1/latch/door"]);
+    expect(r.text).toContain("room-1  instance of room at 1000,400 z 1");
+    expect(r.text).toContain("nests gate-1,gate-2,door-1,door-1/latch");
+    expect(r.text).toMatch(
+      /^red-1 {2}instance of red-gate at 400,400 turn 0 flip .*exposes speed/m,
+    );
+    expect(r.text).toMatch(/^room-1\/gate-2\/door .* turn 2 flip z 1/m);
+  });
+
+  it("summarises grid fields and lists behaviors and z, after paintCells and setZ", async () => {
+    const dir = join(root, cardGame.id);
+    await mkdir(dir);
+    await writeFile(
+      join(dir, "card-sink.json"),
+      JSON.stringify({
+        v: 3,
+        game: cardGame.id,
+        name: "card-sink",
+        bounds: [0, 0, 2000, 1000],
+        settings: { grid: { cell: [32, 32], kind: "square" } },
+        entities: [
+          { id: "lamp", type: "lamp", at: [200, 900], behaviors: { "card-game/glow": {} } },
+          {
+            id: "spinner",
+            type: "lamp",
+            z: 1,
+            at: [400, 900],
+            behaviors: {
+              "card-game/glow": { color: "#00ccff" },
+              "card-game/flicker": { rate: 6 },
+            },
+          },
+          {
+            id: "floor",
+            type: "tiles",
+            layer: "decor",
+            at: [0, 640],
+            cells: { "-1,0": ["0*31,3"], "0,0": ["1*32", "1*32", "0*4,2*24"], "1,0": ["1*8"] },
+          },
+        ],
+      }),
+    );
+    const withGame: ToolContext = {
+      ...ctx,
+      projects: [...ctx.projects, await tempProject(dir, { game: cardGame })],
+    };
+    const shown = async () => {
+      const r = await show({ scene: "card-sink" }, withGame);
+      expect(r.exitCode, r.text).toBe(0);
+      const rows = (r.data as { entities: (Record<string, unknown> & { ref: string })[] }).entities;
+      return { text: r.text, row: (ref: string) => rows.find((e) => e.ref === ref) };
+    };
+    const before = await shown();
+    expect(before.row("floor")).toMatchObject({
+      type: "tiles",
+      at: [0, 640],
+      grids: { cells: { cells: 97, chunks: 3, bounds: { c0: -1, r0: 0, c1: 39, r1: 2 } } },
+      extra: { layer: "decor" },
+    });
+    expect(before.row("spinner")).toEqual({
+      ref: "spinner",
+      type: "lamp",
+      at: [400, 900],
+      z: 1,
+      behaviors: {
+        "card-game/glow": { color: "#00ccff" },
+        "card-game/flicker": { rate: 6 },
+      },
+    });
+    expect(before.text).toContain("floor  tiles at 0,640 cells 97 cells -1,0..39,2");
+    expect(before.text).toContain(
+      "spinner  lamp at 400,900 z 1 behaviors card-game/glow,card-game/flicker",
+    );
+
+    const ops = join(root, "paint.json");
+    await writeFile(
+      ops,
+      JSON.stringify({
+        ops: [
+          { op: "paintCells", ref: "floor", field: "cells", rects: [[0, 10, 3, 11, 2]] },
+          { op: "setZ", refs: ["lamp"], z: 4 },
+        ],
+      }),
+    );
+    const applied = await apply({ scene: "card-sink", ops }, withGame);
+    expect(applied.exitCode, applied.text).toBe(0);
+    const after = await shown();
+    expect(after.row("floor")).toMatchObject({
+      grids: { cells: { cells: 105, bounds: { c0: -1, r0: 0, c1: 39, r1: 11 } } },
+    });
+    expect(after.row("lamp")).toMatchObject({ z: 4 });
+  });
+
   it("caps its rows and says so", async () => {
     const yard = JSON.parse(await yardText());
     yard.name = "big";
@@ -307,15 +479,23 @@ describe("schema and codes", () => {
   });
 
   it("prints the engine's or a game's schemas and refuses others", async () => {
-    expect((await schema({}, ctx)).data).toMatchObject({ $id: "urn:jams-engine:scene:v2" });
+    expect((await schema({}, ctx)).data).toMatchObject({ $id: "urn:jams-engine:scene:v3" });
+    for (const which of ["prefab", "fragment"]) {
+      expect((await schema({ which }, ctx)).data, which).toMatchObject({
+        $id: `urn:jams-engine:${which}:v3`,
+      });
+      expect((await schema({ which, game: "platformer" }, ctx)).data, which).toMatchObject({
+        $id: `urn:jams-engine:${which}:platformer:v3`,
+      });
+    }
     expect((await schema({ which: "ops" }, ctx)).data).toMatchObject({
-      $id: "urn:jams-engine:ops:v2",
+      $id: "urn:jams-engine:ops:v3",
     });
     expect((await schema({ game: "platformer" }, ctx)).data).toMatchObject({
-      $id: "urn:jams-engine:scene:platformer:v2",
+      $id: "urn:jams-engine:scene:platformer:v3",
     });
     expect((await schema({ which: "ops", game: "platformer" }, ctx)).data).toMatchObject({
-      $id: "urn:jams-engine:ops:platformer:v2",
+      $id: "urn:jams-engine:ops:platformer:v3",
     });
     expect((await schema({ which: "scripts" }, ctx)).exitCode).toBe(2);
     const typo = await schema({ game: "platformr" }, ctx);
@@ -335,6 +515,19 @@ describe("schema and codes", () => {
     expect(Object.keys(data.platformer!)).toContain("platformer/no-goal");
     expect(Object.keys(data.platformer!).every((c) => c.startsWith("platformer/"))).toBe(true);
     expect(data[avatarGame.id]).toEqual({});
+    const listed = (await codes({}, ctx)).text;
+    for (const code of NEW_CODES) {
+      expect(data.engine, code).toHaveProperty(code);
+      expect(listed, code).toMatch(new RegExp(`^  ${code} +error `, "m"));
+    }
+  });
+
+  it("reaches every op the format adds through the ops schema", async () => {
+    const text = JSON.stringify((await schema({ which: "ops" }, ctx)).data);
+    for (const op of NEW_OPS) {
+      expect(OP_NAMES, op).toContain(op);
+      expect(text, op).toContain(`"const":"${op}"`);
+    }
   });
 
   it("schema carries the agent surface version", async () => {
@@ -425,7 +618,7 @@ describe("new", () => {
     expect(r.exitCode, r.text).toBe(0);
     const text = await readFile(join(platformerDir, "fresh.json"), "utf8");
     const def = parseSceneOrThrow(text, PLATFORMER);
-    expect(def).toMatchObject({ game: "platformer", name: "fresh", v: 2 });
+    expect(def).toMatchObject({ game: "platformer", name: "fresh", v: 3 });
     expect(join(platformerDir, def.$schema!)).toBe(
       repoFile("src/games/platformer/scene.schema.json"),
     );
@@ -459,7 +652,7 @@ describe("new", () => {
     expect(
       parseSceneOrThrow(await readFile(join(engineDir, "blank.json"), "utf8"), ENGINE),
     ).toEqual({
-      v: 2,
+      v: 3,
       name: "blank",
       bounds: [0, 0, 1920, 1080],
     });
@@ -520,7 +713,7 @@ describe("new in a project with other assets", { timeout: 60_000 }, () => {
     expect(r.exitCode, r.text).toBe(0);
     expect(
       parseSceneOrThrow(await readFile(join(deck, "annex.json"), "utf8"), ENGINE),
-    ).toMatchObject({ name: "annex", v: 2 });
+    ).toMatchObject({ name: "annex", v: 3 });
     const listed = await runCli(["assets", "list", "--kind", "scene", "--json"], deckCtx);
     expect(
       (JSON.parse(listed.stdout) as { assets: { id: string }[] }).assets.map((a) => a.id),
@@ -630,6 +823,45 @@ describe("fmt", () => {
     expect((await fmt({ check: true }, ctx)).exitCode).toBe(0);
     expect((await fmt({ scene: "hop-script", check: true }, ctx)).exitCode).toBe(0);
     expect((await fmt({ scene: "nope" }, ctx)).exitCode).toBe(1);
+  });
+
+  it("migrates a v2 prefab and a v2 scene to v3", async () => {
+    await mkdir(join(avatarDir, "prefabs"));
+    const v2 = await readFile(join(PREFAB_FIXTURES, "gate.json"), "utf8");
+    expect(JSON.parse(v2)).toMatchObject({ kind: "prefab", v: 2 });
+    await writeFile(join(avatarDir, "prefabs", "gate.json"), v2);
+    const yard = JSON.parse(await engineYardText());
+    await writeFile(
+      join(avatarDir, "old-yard.json"),
+      `${JSON.stringify({ ...yard, v: 2, name: "old-yard" }, null, 2)}\n`,
+    );
+
+    const checked = await fmt({ scene: "gate", check: true }, ctx);
+    expect(checked.exitCode).toBe(1);
+    expect(checked.data).toMatchObject({ asset: "gate", kind: "prefab", migratedFrom: 2 });
+    expect(checked.text).toContain("from v2 to v3");
+
+    const all = await fmt({ check: true }, ctx);
+    const rows = (all.data as { assets: { id: string; migratedFrom?: number }[]; migrated: number })
+      .assets;
+    expect(
+      rows
+        .filter((r) => r.migratedFrom === 2)
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(["gate", "old-yard"]);
+    expect((all.data as { migrated: number }).migrated).toBe(2);
+
+    const written = await fmt({}, ctx);
+    expect(written.exitCode, written.text).toBe(0);
+    expect(written.text).toContain("gate (prefab): formatted (from v2 to v3)");
+    const prefab = JSON.parse(await readFile(join(avatarDir, "prefabs", "gate.json"), "utf8"));
+    expect(prefab).toMatchObject({ kind: "prefab", v: 3, id: "gate" });
+    expect(prefab.entities).toEqual(JSON.parse(v2).entities);
+    expect(JSON.parse(await readFile(join(avatarDir, "old-yard.json"), "utf8")).v).toBe(3);
+    const again = await fmt({ scene: "gate", check: true }, ctx);
+    expect(again.exitCode, again.text).toBe(0);
+    expect(again.data).not.toHaveProperty("migratedFrom");
   });
 
   it("--check reports and fmt rewrites to canonical text in the scene's own directory", async () => {
@@ -1264,7 +1496,7 @@ describe("runCli", () => {
 
   it("passes --game and --type through", async () => {
     const s = await runCli(["schema", "scene", "--game", "platformer", "--json"], ctx);
-    expect(JSON.parse(s.stdout).$id).toBe("urn:jams-engine:scene:platformer:v2");
+    expect(JSON.parse(s.stdout).$id).toBe("urn:jams-engine:scene:platformer:v3");
     const shown = await runCli(["show", "engine-yard", "--type=prop", "--json"], ctx);
     expect(refs(JSON.parse(shown.stdout))).toEqual(["avatar", "crate"]);
     const stepped = await runCli(

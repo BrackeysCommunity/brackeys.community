@@ -1,13 +1,15 @@
 import { z } from "zod";
 
-import { ID_PATTERN } from "../game/fields";
+import { gridFieldInfo, ID_PATTERN } from "../game/fields";
 import type { Registry } from "../game/types";
 import { closest } from "./did-you-mean";
 import { bulkId } from "./expand";
+import { GRID_MAX_VALUE, gridProblems } from "./grid";
 import { jsonPointer, lineAt, makeIssue } from "./issues";
 import { migrate } from "./migrate";
 import {
   entitySchemaFor,
+  fieldKind,
   sceneGameOf,
   sceneRegistry,
   sceneSchemaFor,
@@ -182,7 +184,13 @@ export function suggestType(word: string, registry: Registry): EntityTypeName | 
   return closest(word, registry.typeNames);
 }
 
-type MapContext = { raw: unknown; registry: Registry; scene: () => z.ZodObject };
+type MapContext = {
+  raw: unknown;
+  registry: Registry;
+  scene: () => z.ZodObject;
+  /** Grid fields already reported, by pointer: one field's problems are reported together. */
+  grids?: Set<string>;
+};
 
 function at(raw: unknown, segments: readonly PropertyKey[]): unknown {
   let cur = raw;
@@ -289,11 +297,63 @@ function badIdHint(got: unknown): string | undefined {
   return `Try "${slug}".`;
 }
 
+/** The grid field of an entity that `segments` points into, with the largest value it takes. */
+function gridFieldAt(
+  ctx: MapContext,
+  segments: readonly PropertyKey[],
+): { field: (string | number)[]; max: number } | undefined {
+  const [entities, index, field] = segments;
+  if (entities !== "entities" || typeof index !== "number" || typeof field !== "string") return;
+  const type = at(ctx.raw, ["entities", index, "type"]);
+  const schema = typeof type === "string" ? entitySchemaFor(ctx.registry, type) : undefined;
+  const fieldSchema = schema?.shape[field] as z.core.$ZodType | undefined;
+  if (!fieldSchema || fieldKind(fieldSchema) !== "grid") return;
+  const max = gridFieldInfo(fieldSchema)?.max ?? GRID_MAX_VALUE;
+  return { field: ["entities", index, field], max };
+}
+
+/** Every problem with one grid field, as `grid-invalid`; once per field however many Zod issues it raised. */
+function gridIssues(
+  issue: z.core.$ZodIssue,
+  grid: { field: (string | number)[]; max: number },
+  ctx: MapContext,
+  entityIds: string[],
+): SceneIssue[] {
+  const fieldPath = jsonPointer(grid.field);
+  ctx.grids ??= new Set();
+  if (ctx.grids.has(fieldPath)) return [];
+  ctx.grids.add(fieldPath);
+  const owner = entityIds.length ? ` on ${entityIds[0]}` : "";
+  const problems = gridProblems(at(ctx.raw, grid.field), grid.max);
+  const found = problems.length
+    ? problems
+    : [
+        {
+          path: issue.path.slice(grid.field.length) as (string | number)[],
+          message: issue.message,
+        },
+      ];
+  return found.map((p) => {
+    const path = jsonPointer([...grid.field, ...p.path]);
+    return makeIssue("grid-invalid", {
+      message: `${p.message}${owner} (${path})`,
+      path,
+      entityIds,
+      got: "got" in p ? p.got : undefined,
+    });
+  });
+}
+
 function mapZodIssue(issue: z.core.$ZodIssue, ctx: MapContext): SceneIssue[] {
   const segments = issue.path;
   const path = jsonPointer(segments as (string | number)[]);
   const entityIds = entityIdsAt(ctx, segments);
   const where = path || "the document";
+
+  const grid = gridFieldAt(ctx, segments);
+  if (grid && segments.length > grid.field.length) return gridIssues(issue, grid, ctx, entityIds);
+  if (grid && issue.code === "custom" && issue.params?.sceneCode === "grid-invalid")
+    return gridIssues(issue, grid, ctx, entityIds);
 
   if (issue.code === "unrecognized_keys") {
     const known = knownKeysAt(ctx, segments);

@@ -3,20 +3,25 @@ import { describe, expect, it } from "vite-plus/test";
 import { createRegistry } from "../../game/define";
 import { applyOps } from "../../scene/ops";
 import { parseSceneOrThrow } from "../../scene/parse";
+import { prefabLibrary } from "../../scene/prefab";
 import type { OpBatch, SceneDefinition } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
 import {
   deleteBatch,
+  flipBatch,
   groupBatch,
   hierarchyDown,
   hierarchyUp,
   nextGroupName,
   nudgeBatch,
   nudgeDelta,
+  quarterTurnTargets,
   rotateSelectionBatch,
   selectAllRefs,
   selectionBounds,
+  turnBatch,
   ungroupBatch,
+  zOrderBatch,
 } from "../commands";
 import { createSpatialIndex } from "../spatial-index";
 
@@ -88,6 +93,124 @@ describe("groups", () => {
     ]);
     expect(hierarchyDown(doc, registry, ["ledge", "~solid:2", "~solid:1"])).toEqual(["~solid:1"]);
     expect(hierarchyDown(doc, registry, ["ledge"])).toBeNull();
+  });
+});
+
+describe("zOrderBatch", () => {
+  it("brings forward and sends backward by one setZ, skipping bulk entries", () => {
+    expect(zOrderBatch(["crate", "~solid:0", "ledge", "crate"], 1)).toEqual({
+      label: "Bring 2 entities forward",
+      ops: [{ op: "setZ", refs: ["crate", "ledge"], by: 1 }],
+    });
+    expect(zOrderBatch(["crate"], -1)).toEqual({
+      label: "Send crate backward",
+      ops: [{ op: "setZ", refs: ["crate"], by: -1 }],
+    });
+  });
+
+  it("is null when only bulk entries, or nothing, are selected", () => {
+    expect(zOrderBatch(["~solid:0", "~solid:1"], 1)).toBeNull();
+    expect(zOrderBatch([], -1)).toBeNull();
+  });
+
+  it("shifts z on entities and instances, and undoes exactly", () => {
+    const def: SceneDefinition = {
+      ...structuredClone(doc),
+      instances: [{ id: "post-1", prefab: "post", at: [100, 900] }],
+    };
+    const prefabs = prefabLibrary([
+      {
+        kind: "prefab",
+        v: doc.v,
+        id: "post",
+        entities: [{ id: "top", type: "marker", at: [0, 0] }],
+      },
+    ]);
+    const r = applyOps(def, zOrderBatch(["crate", "post-1"], 1)!, registry, { prefabs });
+    if (!r.ok) throw new Error(r.issue.message);
+    expect(entity(r.def, "crate").z).toBe(1);
+    expect(r.def.instances![0]!.z).toBe(1);
+    const back = applyOps(r.def, r.inverse, registry, { prefabs });
+    if (!back.ok) throw new Error(back.issue.message);
+    expect(back.def).toEqual(def);
+  });
+});
+
+describe("turn and flip", () => {
+  const prefabs = prefabLibrary([
+    {
+      kind: "prefab",
+      v: doc.v,
+      id: "post",
+      entities: [{ id: "top", type: "marker", at: [10, 0] }],
+    },
+  ]);
+  const placed: SceneDefinition = {
+    ...structuredClone(doc),
+    groups: { pair: { at: [400, 800] } },
+    instances: [
+      { id: "post-1", prefab: "post", at: [100, 900] },
+      { id: "post-2", prefab: "post", at: [200, 900], group: "pair" },
+    ],
+    entities: [
+      ...structuredClone(doc.entities!),
+      { id: "pin", type: "marker", at: [0, 0], group: "pair" },
+    ],
+  };
+
+  it("finds instances by id or child, whole groups, and what's left", () => {
+    expect(quarterTurnTargets(placed, ["post-1/top", "post-1", "crate"])).toEqual({
+      instances: ["post-1"],
+      groups: [],
+      rest: ["crate"],
+    });
+    expect(quarterTurnTargets(placed, ["pin", "post-2/top", "post-1"])).toEqual({
+      instances: ["post-1"],
+      groups: ["pair"],
+      rest: [],
+    });
+    expect(quarterTurnTargets(placed, ["pin", "~solid:0"])).toEqual({
+      instances: [],
+      groups: [],
+      rest: ["pin", "~solid:0"],
+    });
+  });
+
+  it("turns and flips through one transform op, leaving plain entities out", () => {
+    expect(turnBatch(placed, ["post-1/top", "crate"], 1)).toEqual({
+      label: "Turn post-1 clockwise",
+      ops: [{ op: "transform", refs: ["post-1"], turn: 1 }],
+    });
+    expect(turnBatch(placed, ["pin", "post-2", "post-1"], -1)).toEqual({
+      label: "Turn 2 items counter-clockwise",
+      ops: [{ op: "transform", refs: ["post-1"], groups: ["pair"], turn: -1 }],
+    });
+    expect(flipBatch(placed, ["pin", "post-2"], "x")).toEqual({
+      label: "Flip pair horizontally",
+      ops: [{ op: "transform", groups: ["pair"], flip: "x" }],
+    });
+    expect(flipBatch(placed, ["post-1"], "y")?.label).toBe("Flip post-1 vertically");
+    expect(turnBatch(placed, ["crate", "~solid:0"], 1)).toBeNull();
+    expect(flipBatch(placed, [], "x")).toBeNull();
+  });
+
+  it("composes onto the instance and undoes exactly", () => {
+    const turned = applyOps(placed, turnBatch(placed, ["post-1"], 1)!, registry, { prefabs });
+    if (!turned.ok) throw new Error(turned.issue.message);
+    expect(turned.def.instances![0]).toEqual({
+      id: "post-1",
+      prefab: "post",
+      at: [100, 900],
+      rot: 1,
+    });
+    const flipped = applyOps(turned.def, flipBatch(turned.def, ["post-1"], "x")!, registry, {
+      prefabs,
+    });
+    if (!flipped.ok) throw new Error(flipped.issue.message);
+    expect(flipped.def.instances![0]).toMatchObject({ rot: 3, flip: true });
+    const back = applyOps(turned.def, turned.inverse, registry, { prefabs });
+    if (!back.ok) throw new Error(back.issue.message);
+    expect(back.def).toEqual(placed);
   });
 });
 

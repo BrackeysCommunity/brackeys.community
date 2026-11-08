@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jams-engine:prefab:v2",
-  "x-agent-surface": 7,
-  "title": "jams engine prefab, format v2",
+  "$id": "urn:jams-engine:prefab:v3",
+  "x-agent-surface": 8,
+  "title": "jams engine prefab, format v3",
   "type": "object",
   "properties": {
     "$schema": {
@@ -15,7 +15,7 @@
     },
     "v": {
       "type": "number",
-      "const": 2,
+      "const": 3,
       "description": "The scene format version it was written at."
     },
     "id": {
@@ -24,17 +24,68 @@
       "description": "The prefab's id; matches the file name without .json.",
       "title": "Id"
     },
+    "base": {
+      "description": "The prefab this one is a variant of: its children are the base's, with `overrides` applied, plus this file's own.",
+      "title": "Base",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+    },
     "contract": {
       "description": "This game defines no prefab contract, so a prefab carries none.",
       "not": {}
     },
-    "entities": {
-      "default": [],
-      "description": "Entities with their ids, as a scene holds them; ids are renamed on paste if taken.",
+    "params": {
+      "description": "Exposed parameters by name. An instance's `params` value applies as an override of each target; a variant inherits its base's and may redeclare one.",
+      "title": "Parameters",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One sentence for the inspector and agents."
+          },
+          "targets": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(?:[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47})*(?:\\/~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))?|~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*)(?:\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*))*$"
+            },
+            "description": "Override paths inside the prefab that the value feeds, e.g. `door.path.speed`."
+          },
+          "default": {
+            "description": "Used when an instance sets none; omitted, the targets' own values stand."
+          }
+        },
+        "required": ["description", "targets"],
+        "additionalProperties": false,
+        "description": "An exposed parameter: one value an instance sets that overrides every target."
+      }
+    },
+    "assets": {
+      "description": "Asset ids only game code names, so they count as used: sorted, each once.",
+      "title": "Assets",
       "type": "array",
       "items": {
-        "$ref": "#/$defs/Entity"
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
       }
+    },
+    "overrides": {
+      "description": "A variant's changes to its base's children, keyed `<childId>.<field.path>`; `off: true` hides one.",
+      "title": "Overrides",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^(?:[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47})*(?:\\/~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))?|~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*)(?:\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*))*$"
+      },
+      "additionalProperties": {}
     },
     "bulk": {
       "description": "Id-less bulk entries by bulk key, as a scene holds them.",
@@ -52,433 +103,27 @@
         }
       },
       "additionalProperties": false
+    },
+    "instances": {
+      "description": "Instances of other prefabs nested in this one, placed around its origin. Their children load with ids `<instance>/<child>` under this prefab's own instance.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Instance"
+      }
+    },
+    "entities": {
+      "default": [],
+      "description": "Entities with their ids, as a scene holds them; ids are renamed on paste if taken.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Entity"
+      }
     }
   },
   "required": ["kind", "v", "id", "entities"],
   "additionalProperties": false,
-  "description": "A prefab: entities and bulk entries around a local origin, placed in scenes by instances. Coordinates are relative to the origin, which an instance's `at` puts in the world.",
+  "description": "A prefab: entities, bulk entries and nested instances around a local origin, placed in scenes by instances, optionally a variant of a base prefab. Coordinates are relative to the origin, which an instance's `at` puts in the world. `entities` is required and may be empty.",
   "$defs": {
-    "Entity": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
-              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
-              "title": "Id",
-              "group": "identity"
-            },
-            "type": {
-              "type": "string",
-              "const": "solid",
-              "description": "Static ground, walls and platforms: collides from every side, or from above only.",
-              "title": "Type",
-              "group": "identity"
-            },
-            "name": {
-              "description": "Display label for the editor's outliner. No runtime effect.",
-              "title": "Name",
-              "group": "identity",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            },
-            "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
-              "title": "Layer",
-              "group": "identity",
-              "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
-            },
-            "group": {
-              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
-              "title": "Group",
-              "group": "identity",
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-            },
-            "off": {
-              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
-              "title": "Disabled",
-              "group": "identity",
-              "type": "boolean"
-            },
-            "shape": {
-              "description": "Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.",
-              "title": "Shape",
-              "group": "geometry",
-              "$ref": "#/$defs/ShapeTuple"
-            },
-            "material": {
-              "description": "Surface material.",
-              "title": "Material",
-              "group": "surface",
-              "not": {}
-            },
-            "oneWay": {
-              "description": "When true, actors pass up through it and land on top.",
-              "title": "One-way",
-              "group": "surface",
-              "type": "boolean"
-            },
-            "attach": {
-              "description": "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
-              "title": "Attached to",
-              "group": "motion",
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-            }
-          },
-          "required": ["id", "type", "shape"],
-          "additionalProperties": false,
-          "description": "solid: Static ground, walls and platforms: collides from every side, or from above only."
-        },
-        {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
-              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
-              "title": "Id",
-              "group": "identity"
-            },
-            "type": {
-              "type": "string",
-              "const": "sensor",
-              "description": "Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it.",
-              "title": "Type",
-              "group": "identity"
-            },
-            "name": {
-              "description": "Display label for the editor's outliner. No runtime effect.",
-              "title": "Name",
-              "group": "identity",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            },
-            "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
-              "title": "Layer",
-              "group": "identity",
-              "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
-            },
-            "group": {
-              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
-              "title": "Group",
-              "group": "identity",
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-            },
-            "off": {
-              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
-              "title": "Disabled",
-              "group": "identity",
-              "type": "boolean"
-            },
-            "shape": {
-              "description": "Trigger shape. Absolute world px; y is down.",
-              "title": "Shape",
-              "group": "geometry",
-              "$ref": "#/$defs/ShapeTuple"
-            },
-            "tags": {
-              "description": "Labels a game reads off the sensor's events.",
-              "title": "Tags",
-              "type": "array",
-              "items": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-              }
-            },
-            "attach": {
-              "description": "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
-              "title": "Attached to",
-              "group": "motion",
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-            }
-          },
-          "required": ["id", "type", "shape"],
-          "additionalProperties": false,
-          "description": "sensor: Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it."
-        },
-        {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
-              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
-              "title": "Id",
-              "group": "identity"
-            },
-            "type": {
-              "type": "string",
-              "const": "marker",
-              "description": "A named point with tags; what it means is up to the game.",
-              "title": "Type",
-              "group": "identity"
-            },
-            "name": {
-              "description": "Display label for the editor's outliner. No runtime effect.",
-              "title": "Name",
-              "group": "identity",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            },
-            "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
-              "title": "Layer",
-              "group": "identity",
-              "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
-            },
-            "group": {
-              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
-              "title": "Group",
-              "group": "identity",
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-            },
-            "off": {
-              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
-              "title": "Disabled",
-              "group": "identity",
-              "type": "boolean"
-            },
-            "at": {
-              "description": "Marker position. Absolute world px; y is down.",
-              "title": "Position",
-              "$ref": "#/$defs/Pt"
-            },
-            "tags": {
-              "description": "Labels a game reads, e.g. spawn or checkpoint.",
-              "title": "Tags",
-              "type": "array",
-              "items": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-              }
-            }
-          },
-          "required": ["id", "type", "at"],
-          "additionalProperties": false,
-          "description": "marker: A named point with tags; what it means is up to the game."
-        },
-        {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
-              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
-              "title": "Id",
-              "group": "identity"
-            },
-            "type": {
-              "type": "string",
-              "const": "prop",
-              "description": "Dynamic physics object that can be pushed and stood on.",
-              "title": "Type",
-              "group": "identity"
-            },
-            "name": {
-              "description": "Display label for the editor's outliner. No runtime effect.",
-              "title": "Name",
-              "group": "identity",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            },
-            "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
-              "title": "Layer",
-              "group": "identity",
-              "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
-            },
-            "group": {
-              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
-              "title": "Group",
-              "group": "identity",
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-            },
-            "off": {
-              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
-              "title": "Disabled",
-              "group": "identity",
-              "type": "boolean"
-            },
-            "shape": {
-              "description": "Starting collider shape. Absolute world px; y is down. Not chain.",
-              "title": "Shape",
-              "group": "geometry",
-              "$ref": "#/$defs/BodyShape"
-            },
-            "density": {
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "description": "Density, mass per px²; heavier props are harder to push.",
-              "title": "Density"
-            },
-            "restitution": {
-              "type": "number",
-              "minimum": 0,
-              "description": "Bounciness: 0 doesn't bounce, 1 keeps all its speed.",
-              "title": "Restitution"
-            },
-            "friction": {
-              "description": "Surface friction; omitted uses the material's, else the physics default.",
-              "title": "Friction",
-              "type": "number",
-              "minimum": 0
-            },
-            "material": {
-              "description": "Surface material.",
-              "title": "Material",
-              "group": "surface",
-              "not": {}
-            }
-          },
-          "required": ["id", "type", "shape", "density", "restitution"],
-          "additionalProperties": false,
-          "description": "prop: Dynamic physics object that can be pushed and stood on."
-        },
-        {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
-              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
-              "title": "Id",
-              "group": "identity"
-            },
-            "type": {
-              "type": "string",
-              "const": "follower",
-              "description": "Kinematic body that follows a waypoint path.",
-              "title": "Type",
-              "group": "identity"
-            },
-            "name": {
-              "description": "Display label for the editor's outliner. No runtime effect.",
-              "title": "Name",
-              "group": "identity",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            },
-            "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
-              "title": "Layer",
-              "group": "identity",
-              "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
-            },
-            "group": {
-              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
-              "title": "Group",
-              "group": "identity",
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-            },
-            "off": {
-              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
-              "title": "Disabled",
-              "group": "identity",
-              "type": "boolean"
-            },
-            "shape": {
-              "description": "Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. [\"box\", 0, 0, 40, 6]). Not chain.",
-              "title": "Shape",
-              "group": "geometry",
-              "$ref": "#/$defs/BodyShape"
-            },
-            "path": {
-              "$ref": "#/$defs/Path"
-            },
-            "material": {
-              "description": "Surface material.",
-              "title": "Material",
-              "group": "surface",
-              "not": {}
-            }
-          },
-          "required": ["id", "type", "shape", "path"],
-          "additionalProperties": false,
-          "description": "follower: Kinematic body that follows a waypoint path."
-        },
-        {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
-              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
-              "title": "Id",
-              "group": "identity"
-            },
-            "type": {
-              "type": "string",
-              "const": "note",
-              "description": "Editor note: text pinned to a point. Never loaded into the game.",
-              "title": "Type",
-              "group": "identity"
-            },
-            "name": {
-              "description": "Display label for the editor's outliner. No runtime effect.",
-              "title": "Name",
-              "group": "identity",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            },
-            "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
-              "title": "Layer",
-              "group": "identity",
-              "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
-            },
-            "group": {
-              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
-              "title": "Group",
-              "group": "identity",
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
-            },
-            "off": {
-              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
-              "title": "Disabled",
-              "group": "identity",
-              "type": "boolean"
-            },
-            "at": {
-              "description": "Where the note shows, absolute world px.",
-              "title": "Position",
-              "$ref": "#/$defs/Pt"
-            },
-            "text": {
-              "type": "string",
-              "description": "The note, for whoever edits the scene next.",
-              "title": "Text"
-            }
-          },
-          "required": ["id", "type", "at", "text"],
-          "additionalProperties": false,
-          "description": "note: Editor note: text pinned to a point. Never loaded into the game."
-        }
-      ],
-      "description": "An entity with a stable id. `type` picks the registered type and which fields apply."
-    },
     "ShapeTuple": {
       "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...] | [\"chain\", x1, y1, x2, y2, ...]. Integer pixels, y is down.",
       "oneOf": [
@@ -622,6 +267,638 @@
           "minItems": 5
         }
       ]
+    },
+    "Instance": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+          "title": "Id",
+          "group": "identity"
+        },
+        "prefab": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "The prefab placed here: the file prefabs/<prefab>.json beside the scene.",
+          "title": "Prefab",
+          "group": "identity"
+        },
+        "name": {
+          "description": "Display label for the editor's outliner. No runtime effect.",
+          "title": "Name",
+          "group": "identity",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "layer": {
+          "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+          "title": "Layer",
+          "group": "identity",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "enum": ["terrain", "decor", "gameplay", "editor"]
+        },
+        "group": {
+          "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+          "title": "Group",
+          "group": "identity",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+        },
+        "off": {
+          "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+          "title": "Disabled",
+          "group": "identity",
+          "type": "boolean"
+        },
+        "z": {
+          "description": "Added to the z of every child, an integer in [-10000, 10000]. Omitted means 0.",
+          "title": "Z",
+          "group": "identity",
+          "type": "integer",
+          "minimum": -10000,
+          "maximum": 10000
+        },
+        "at": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "x, px.",
+              "unit": "px"
+            },
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "y, px; y is down.",
+              "unit": "px"
+            }
+          ],
+          "description": "Where the prefab's origin lands, in world px (relative to the group's origin when in a group).",
+          "title": "Position",
+          "unit": "px",
+          "group": "geometry"
+        },
+        "rot": {
+          "description": "Quarter turns clockwise (y down), applied after `flip`. Omitted means 0.",
+          "title": "Rotation",
+          "group": "geometry",
+          "type": "number",
+          "enum": [1, 2, 3]
+        },
+        "flip": {
+          "description": "Mirror x in the local frame, before `rot`. Omitted means not mirrored.",
+          "title": "Mirror",
+          "group": "geometry",
+          "type": "boolean",
+          "const": true
+        },
+        "params": {
+          "description": "Values of the prefab's exposed parameters, by name.",
+          "title": "Parameters",
+          "group": "overrides",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "overrides": {
+          "description": "Child fields that differ from the prefab, keyed `<childId>.<field.path>` (`door.path.speed`, `~solid:0.shape`). Values are in the prefab's own frame, before `at`.",
+          "title": "Overrides",
+          "group": "overrides",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^(?:[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47})*(?:\\/~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))?|~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*)(?:\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*))*$"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": ["id", "prefab", "at"],
+      "additionalProperties": false,
+      "description": "One placement of a prefab. Its children load with ids `<id>/<childId>`, mirrored by `flip`, turned by `rot` and moved by `at`."
+    },
+    "Entity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "solid",
+              "description": "Static ground, walls and platforms: collides from every side, or from above only.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/ShapeTuple"
+            },
+            "material": {
+              "description": "Surface material.",
+              "title": "Material",
+              "group": "surface",
+              "not": {}
+            },
+            "oneWay": {
+              "description": "When true, actors pass up through it and land on top.",
+              "title": "One-way",
+              "group": "surface",
+              "type": "boolean"
+            },
+            "attach": {
+              "description": "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
+              "title": "Attached to",
+              "group": "motion",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape"],
+          "additionalProperties": false,
+          "description": "solid: Static ground, walls and platforms: collides from every side, or from above only."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "sensor",
+              "description": "Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "Trigger shape. Absolute world px; y is down.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/ShapeTuple"
+            },
+            "tags": {
+              "description": "Labels a game reads off the sensor's events.",
+              "title": "Tags",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              }
+            },
+            "attach": {
+              "description": "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
+              "title": "Attached to",
+              "group": "motion",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape"],
+          "additionalProperties": false,
+          "description": "sensor: Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "marker",
+              "description": "A named point with tags; what it means is up to the game.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "at": {
+              "description": "Marker position. Absolute world px; y is down.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "tags": {
+              "description": "Labels a game reads, e.g. spawn or checkpoint.",
+              "title": "Tags",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              }
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "at"],
+          "additionalProperties": false,
+          "description": "marker: A named point with tags; what it means is up to the game."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "prop",
+              "description": "Dynamic physics object that can be pushed and stood on.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "Starting collider shape. Absolute world px; y is down. Not chain.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/BodyShape"
+            },
+            "density": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Density, mass per px²; heavier props are harder to push.",
+              "title": "Density"
+            },
+            "restitution": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Bounciness: 0 doesn't bounce, 1 keeps all its speed.",
+              "title": "Restitution"
+            },
+            "friction": {
+              "description": "Surface friction; omitted uses the material's, else the physics default.",
+              "title": "Friction",
+              "type": "number",
+              "minimum": 0
+            },
+            "material": {
+              "description": "Surface material.",
+              "title": "Material",
+              "group": "surface",
+              "not": {}
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape", "density", "restitution"],
+          "additionalProperties": false,
+          "description": "prop: Dynamic physics object that can be pushed and stood on."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "follower",
+              "description": "Kinematic body that follows a waypoint path.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. [\"box\", 0, 0, 40, 6]). Not chain.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/BodyShape"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            },
+            "material": {
+              "description": "Surface material.",
+              "title": "Material",
+              "group": "surface",
+              "not": {}
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape", "path"],
+          "additionalProperties": false,
+          "description": "follower: Kinematic body that follows a waypoint path."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "note",
+              "description": "Editor note: text pinned to a point. Never loaded into the game.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "at": {
+              "description": "Where the note shows, absolute world px.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "text": {
+              "type": "string",
+              "description": "The note, for whoever edits the scene next.",
+              "title": "Text"
+            }
+          },
+          "required": ["id", "type", "at", "text"],
+          "additionalProperties": false,
+          "description": "note: Editor note: text pinned to a point. Never loaded into the game."
+        }
+      ],
+      "description": "An entity with a stable id. `type` picks the registered type and which fields apply."
     },
     "Pt": {
       "type": "array",

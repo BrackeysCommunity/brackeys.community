@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
+import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { stableJson } from "../../project/canonical";
 import {
@@ -11,8 +12,13 @@ import {
   type KindEnv,
 } from "../../project/kinds";
 import { rng } from "../../scene/__tests__/fixtures/random-ops";
+import { readCell, type CellEdit, type GridCells } from "../../scene/grid";
+import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
+import { applyOpsToDoc } from "../apply";
+import { docToScene, entitiesMap, gridRowKey, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
 import { layoutFromDoc, layoutPatch, layoutToDoc } from "../layout";
+import { docToPrefab, prefabPatch, prefabToDoc } from "../prefab-doc";
 import type { DocOrigin } from "../types";
 import { deckGame, deckKind } from "./fixtures/deck-kind";
 import {
@@ -24,6 +30,7 @@ import {
   type MapLayout,
   type Rand,
 } from "./fixtures/layout-gen";
+import { must } from "./helpers";
 import { SimNetwork } from "./sim-network";
 
 type Obj = Record<string, unknown>;
@@ -468,5 +475,253 @@ describe("the engine's doc kinds and a game's converge", () => {
       { id: "bolt", cost: 2 },
       { id: "nova" },
     ]);
+  });
+});
+
+describe("prefab docs converge", () => {
+  const BASE_OVERRIDES = { "pole.off": true, "cap.at": [0, -140] };
+  const VARIANT: Prefab = {
+    kind: "prefab",
+    v: SCENE_FORMAT_VERSION,
+    id: "tall-post",
+    base: "post",
+    overrides: BASE_OVERRIDES,
+    params: { height: { description: "Pole height", targets: ["pole.shape"] } },
+    entities: [{ id: "lamp", type: "marker", at: [0, -150] }],
+  };
+
+  function variantNetwork(clients: number, rand: Rand) {
+    const seed = prefabToDoc(VARIANT, { key: sequentialKeys("s") });
+    const net = new SimNetwork(clients, rand, seed);
+    const keys = net.docs.map((_, i) => sequentialKeys(`c${i}-`));
+    const write = (i: number, change: (p: Prefab) => Prefab) => {
+      const doc = net.docs[i]!;
+      const next = change(docToPrefab(doc));
+      for (const k of ["overrides", "params"] as const)
+        if (next[k] && Object.keys(next[k]).length === 0) delete next[k];
+      prefabPatch(doc, next, origins[i]!, { key: keys[i] });
+      expect(docToPrefab(doc)).toEqual(JSON.parse(JSON.stringify(next)));
+    };
+    const values = () => net.docs.map((d) => docToPrefab(d) as unknown as Obj);
+    return { net, write, values };
+  }
+
+  it("a variant's overrides merge per key", () => {
+    const { net, write, values } = variantNetwork(3, rng(3));
+    net.partition([0]);
+    net.partition([1]);
+    write(0, (p) => ({ ...p, overrides: { ...p.overrides, "cap.at": [4, -150] } }));
+    write(1, (p) => ({ ...p, overrides: { ...p.overrides, "cap.tags": ["lit"] } }));
+    write(2, (p) => {
+      const { "pole.off": _off, ...rest } = p.overrides!;
+      return { ...p, overrides: { ...rest, "lamp.tags": ["on"] } };
+    });
+    net.settle();
+    const vs = values();
+    expectConverged(vs, "variant overrides");
+    expect(vs[0]!.overrides).toEqual({
+      "cap.at": [4, -150],
+      "cap.tags": ["lit"],
+      "lamp.tags": ["on"],
+    });
+    expect(vs[0]!.base).toBe("post");
+  });
+
+  it("a base change and an override edit both land; parameters merge per name", () => {
+    const { net, write, values } = variantNetwork(2, rng(5));
+    net.partition([0]);
+    write(0, (p) => ({
+      ...p,
+      base: "short-post",
+      params: { ...p.params, label: { description: "Cap tags", targets: ["cap.tags"] } },
+    }));
+    write(1, (p) => ({
+      ...p,
+      overrides: { ...p.overrides, "cap.tags": ["lit"] },
+      params: { height: { ...p.params!.height!, default: 90 } },
+    }));
+    net.settle();
+    const vs = values();
+    expectConverged(vs, "variant base and params");
+    expect(vs[0]!.base).toBe("short-post");
+    expect(vs[0]!.overrides).toEqual({ ...BASE_OVERRIDES, "cap.tags": ["lit"] });
+    expect(vs[0]!.params).toEqual({
+      height: { description: "Pole height", targets: ["pole.shape"], default: 90 },
+      label: { description: "Cap tags", targets: ["cap.tags"] },
+    });
+  });
+
+  it("random override, parameter and base edits converge", () => {
+    const paths = ["pole.off", "cap.at", "cap.tags", "lamp.tags", "lamp.at"];
+    for (let seed = 1; seed <= 10; seed++) {
+      const rand = rng(seed * 7919);
+      const clients = 2 + (seed % 3);
+      const { net, write, values } = variantNetwork(clients, rand);
+      for (let step = 0; step < 30; step++) {
+        const i = int(rand, clients);
+        const roll = rand();
+        write(i, (p) => {
+          if (roll < 0.6) {
+            const overrides = { ...p.overrides };
+            const path = pick(rand, paths);
+            if (rand() < 0.3) delete overrides[path];
+            else overrides[path] = int(rand, 100);
+            return { ...p, overrides };
+          }
+          if (roll < 0.9) {
+            const params = { ...p.params };
+            const name = pick(rand, ["height", "label", "tint"]);
+            if (rand() < 0.3) delete params[name];
+            else params[name] = { description: name, targets: [pick(rand, paths)] };
+            return { ...p, params };
+          }
+          return rand() < 0.5 ? { ...p, base: pick(rand, ["post", "short-post"]) } : p;
+        });
+        net.deliver(int(rand, 4));
+        const r = rand();
+        if (r < 0.1) net.partition([int(rand, clients)]);
+        else if (r < 0.2) net.heal();
+      }
+      net.settle();
+      expectConverged(values(), `variant seed ${seed}`);
+    }
+  });
+});
+
+describe("scene docs converge", () => {
+  const game = createRegistry(testGame);
+  const PAINTED: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    game: "test-game",
+    name: "paint-yard",
+    bounds: [0, 0, 4096, 4096],
+    settings: { grid: { kind: "square", cell: [16, 16] } },
+    entities: [
+      { id: "floor", type: "paint", at: [0, 0], cells: { "0,0": ["1*4"], "1,0": ["", "2*2"] } },
+    ],
+  };
+
+  function sceneNetwork(clients: number, rand: Rand) {
+    const net = new SimNetwork(clients, rand, sceneToDoc(PAINTED, { key: sequentialKeys("s") }));
+    const paint = (i: number, cells: CellEdit[]) =>
+      must(
+        applyOpsToDoc(
+          net.docs[i]!,
+          { ops: [{ op: "paintCells", ref: "floor", field: "cells", cells }] },
+          origins[i]!,
+          game,
+        ),
+      );
+    const cellsOf = (doc: Y.Doc) =>
+      (docToScene(doc).entities?.find((e) => e.id === "floor")?.cells ?? {}) as GridCells;
+    const values = () => net.docs.map((d) => docToScene(d) as unknown as Obj);
+    return { net, paint, cellsOf, values };
+  }
+
+  const floorKeys = (doc: Y.Doc) => {
+    const floor = [...entitiesMap(doc).values()].find((m) => m.get("id") === "floor")!;
+    return [...floor.keys()].filter((k) => k.startsWith("cells@"));
+  };
+
+  it("two clients painting different chunks converge, both paints kept", () => {
+    const { net, paint, cellsOf, values } = sceneNetwork(2, rng(11));
+    net.partition([0]);
+    paint(0, [
+      [3, 0, 3],
+      [5, 2, 1],
+    ]);
+    paint(1, [
+      [-1, 0, 2],
+      [40, 33, 3],
+    ]);
+    net.settle();
+    expectConverged(values(), "different chunks");
+    const cells = cellsOf(net.docs[0]!);
+    expect([0, 1, 2, 3].map((c) => readCell(cells, c, 0))).toEqual([1, 1, 1, 3]);
+    expect(readCell(cells, 5, 2)).toBe(1);
+    expect(readCell(cells, -1, 0)).toBe(2);
+    expect(readCell(cells, 40, 33)).toBe(3);
+    expect(readCell(cells, 33, 1)).toBe(2);
+    expect(floorKeys(net.docs[1]!).sort()).toEqual(
+      [
+        gridRowKey("cells", "0,0", 0),
+        gridRowKey("cells", "0,0", 2),
+        gridRowKey("cells", "1,0", 1),
+        gridRowKey("cells", "-1,0", 0),
+        gridRowKey("cells", "1,1", 1),
+      ].sort(),
+    );
+  });
+
+  it("two first paints into one empty chunk both land", () => {
+    const { net, paint, cellsOf, values } = sceneNetwork(2, rng(12));
+    net.partition([0]);
+    paint(0, [[64, 64, 1]]);
+    paint(1, [[65, 70, 2]]);
+    net.settle();
+    expectConverged(values(), "one empty chunk");
+    const cells = cellsOf(net.docs[0]!);
+    expect([readCell(cells, 64, 64), readCell(cells, 65, 70)]).toEqual([1, 2]);
+  });
+
+  it("different rows of one chunk merge", () => {
+    const { net, paint, cellsOf, values } = sceneNetwork(3, rng(13));
+    net.partition([0]);
+    net.partition([1]);
+    paint(0, [[2, 0, 3]]);
+    paint(1, [[7, 1, 2]]);
+    paint(2, [
+      [0, 31, 1],
+      [31, 31, 1],
+    ]);
+    net.settle();
+    expectConverged(values(), "different rows");
+    const cells = cellsOf(net.docs[0]!);
+    expect(cells["0,0"]).toEqual([
+      "1*2,3,1",
+      "0*7,2",
+      ...Array.from({ length: 29 }, () => ""),
+      "1,0*30,1",
+    ]);
+    expect(cells["1,0"]).toEqual(["", "2*2"]);
+  });
+
+  it("one row is last writer wins: both clients end on one of the two rows, whole", () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const { net, paint, cellsOf, values } = sceneNetwork(2, rng(seed * 101));
+      net.partition([0]);
+      paint(0, [[0, 0, 3]]);
+      paint(1, [[3, 0, 2]]);
+      net.settle();
+      expectConverged(values(), `one row, seed ${seed}`);
+      const row = cellsOf(net.docs[0]!)["0,0"];
+      expect([["3,1*3"], ["1*3,2"]], `seed ${seed}`).toContainEqual(row);
+    }
+  });
+
+  it("random paints across chunks and rows converge over delivery order, partitions and reconnects", () => {
+    let painted = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const rand = rng(seed * 6007);
+      const clients = 2 + (seed % 3);
+      const { net, paint, values } = sceneNetwork(clients, rand);
+      for (let step = 0; step < 40; step++) {
+        const i = int(rand, clients);
+        const edits: CellEdit[] = Array.from({ length: 1 + int(rand, 4) }, () => [
+          int(rand, 96) - 32,
+          int(rand, 64) - 16,
+          int(rand, 4),
+        ]);
+        paint(i, edits);
+        painted++;
+        net.deliver(int(rand, 4));
+        const roll = rand();
+        if (roll < 0.1) net.partition([int(rand, clients)]);
+        else if (roll < 0.2) net.heal();
+      }
+      net.settle();
+      expectConverged(values(), `paint seed ${seed}`);
+    }
+    expect(painted).toBe(480);
   });
 });

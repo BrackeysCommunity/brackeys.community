@@ -1,20 +1,52 @@
 import { z } from "zod";
 
+import { BEHAVIORS_FIELD } from "../game/behaviors";
 import { ID_PATTERN } from "../game/fields";
 import type { BulkKeyInfo, Registry } from "../game/types";
 import { closest } from "./did-you-mean";
 import { bulkOffset, diffScenes, isObj, isStructured } from "./diff";
+import { setGroupFields } from "./diff-to-ops";
 import { bulkEntries, bulkId, parseBulkId } from "./expand";
-import { FRAGMENT_KIND, fragmentBounds, placeFragment, type SceneFragment } from "./fragment";
+import { INSTANCE_OVERRIDE_FIELDS, isInstanceOverrideField, splitFieldPath } from "./field-path";
+import { compareEntityKeys, sortedAssets } from "./format";
+import {
+  FRAGMENT_KIND,
+  fragmentBounds,
+  nextFreeId,
+  placeFragment,
+  takenIds,
+  type SceneFragment,
+} from "./fragment";
+import { decodeRow, GRID_CHUNK, paintGrid, parseChunkKey, type GridCells } from "./grid";
 import { sceneHash } from "./hash";
 import { jsonPointer, makeIssue } from "./issues";
-import { opBatchSchemaFor, opRefs, sceneOpSchemaFor, usesBulkRefs } from "./ops-schema";
-import { entityIssues, suggestType } from "./parse";
-import { parsePrefab, prefabBody, prefabOf as prefabFile } from "./prefab";
 import {
+  MAX_PAINT_CELLS,
+  opBatchSchemaFor,
+  opRefs,
+  sceneOpSchemaFor,
+  usesBulkRefs,
+} from "./ops-schema";
+import { entityIssues, suggestType } from "./parse";
+import {
+  parsePrefab,
+  prefabBody,
+  prefabOf as prefabFile,
+  prefabsUsedBy,
+  sceneBody,
+} from "./prefab";
+import {
+  CHILD_SEPARATOR,
+  gridTurns,
+  inverseTurn,
+  localChild,
   localChildren,
   mapResolvedBatch,
   parseChildRef,
+  placeChildren,
+  resolvePrefab,
+  splitOverridePath,
+  turnOf,
   type ChildApply,
   type SourceBatchResult,
 } from "./resolve";
@@ -28,21 +60,37 @@ import {
 import { aabb } from "./shape-geometry";
 import { parseShape, shapeToTuple } from "./shapes";
 import {
+  applyPt,
+  compose,
+  composeDihedral,
+  dihedral,
+  dihedralOf,
+  flipWorld,
+  IDENTITY_2D,
+  invert,
+  type Dihedral,
+  type Transform2D,
+} from "./transform";
+import {
   addPt,
   movableGeometry,
   presentGeometry,
+  transformBulkEntry,
   translateBulkEntry,
   translateEntityDef,
   translateTuple,
   type GeometryKind,
 } from "./translate";
 import {
+  PREFAB_KIND,
+  PREFAB_MAX_DEPTH,
   SCENE_FORMAT_VERSION,
   type Aabb,
   type ApplyOptions,
   type ApplyResult,
   type BulkEntry,
   type BulkKey,
+  type CellEdit,
   type EntityDef,
   type EntityInput,
   type GroupDef,
@@ -54,6 +102,7 @@ import {
   type Prefab,
   type PrefabBody,
   type PrefabLibrary,
+  type PrefabParam,
   type Pt,
   type Ref,
   type SceneDefinition,
@@ -80,6 +129,9 @@ type Work = {
   bounds: SceneDefinition["bounds"];
   settings: Json;
   settingsTouched: boolean;
+  /** The `assets` header, sorted and unique. */
+  assets: string[];
+  assetsTouched: boolean;
   buckets: Map<BulkKey, Slot[]>;
   /** Each bucket's slots as the batch found them, for start-of-batch references. */
   start: Map<BulkKey, Slot[]>;
@@ -98,7 +150,39 @@ type Work = {
   promoted: Map<Ref, string>;
   /** The document the batch started from, for ops that read the whole current state. */
   startDef: SceneDefinition;
+  /** The prefab this document is a view of, when it is one. */
+  view?: string;
+  /** The viewed prefab's variant base and own exposed params, which header ops change. */
+  header: ViewHeader;
+  headerTouched: boolean;
 };
+
+type ViewHeader = { base?: string; params: Record<string, PrefabParam> };
+
+function headerOf(prefab: Prefab | undefined): ViewHeader {
+  return {
+    ...(prefab?.base !== undefined ? { base: prefab.base } : {}),
+    params: sortedParams(clone(prefab?.params ?? {})),
+  };
+}
+
+function sortedParams(params: Record<string, PrefabParam>): Record<string, PrefabParam> {
+  const out: Record<string, PrefabParam> = {};
+  for (const name of Object.keys(params).sort()) out[name] = params[name]!;
+  return out;
+}
+
+/** Refuses a prefab-header op outside a prefab's own document. */
+function viewOnly(w: Work, op: string): void {
+  if (w.view !== undefined) return;
+  fail(
+    "op-invalid",
+    `${op} changes a prefab's header, so it works only in that prefab's document, not in a scene.`,
+    {
+      hint: 'Send it through editScene with the prefab\'s id, or open the prefab and apply it there (applyOps with { prefab: "<id>" }).',
+    },
+  );
+}
 
 class OpFailure extends Error {
   constructor(readonly issue: SceneIssue) {
@@ -218,9 +302,16 @@ function run(
 
   const start = clone(def);
   const w = initWork(start, registry, tags, opts.prefabs);
+  if (opts.prefab !== undefined) {
+    w.view = opts.prefab;
+    w.header = headerOf(opts.prefabs?.get(opts.prefab));
+  }
   for (let i = 0; i < batch.ops.length; i++) {
     try {
-      applyOp(w, batch.ops[i]!, i);
+      const op = batch.ops[i]!;
+      const cycled = NESTING_OPS.includes(op.op) ? cycleIn(w) : null;
+      applyOp(w, op, i);
+      if (cycled === null && NESTING_OPS.includes(op.op)) refuseCycle(w);
     } catch (err) {
       if (err instanceof OpFailure) {
         const issue =
@@ -232,6 +323,10 @@ function run(
   }
 
   const after = materialize(start, w);
+  if (w.view !== undefined && headerChanged(w, opts.prefabs)) {
+    w.prefabs.set(w.view, viewedPrefab(w, start, after));
+    w.prefabsChanged.add(w.view);
+  }
   const hash = sceneHash(after);
   const prefabs = w.prefabsChanged.size > 0 ? (w.prefabs as PrefabLibrary) : opts.prefabs;
   const inverse: OpBatch = { ops: buildInverse(start, w, opts.prefabs ?? new Map()) };
@@ -277,6 +372,8 @@ function initWork(
     bounds: start.bounds,
     settings: clone(start.settings ?? {}),
     settingsTouched: false,
+    assets: sortedAssets(start.assets ?? []),
+    assetsTouched: false,
     buckets,
     start: startSlots,
     touchedBuckets: new Set(),
@@ -301,6 +398,8 @@ function initWork(
     created: [],
     promoted: new Map(),
     startDef: start,
+    header: headerOf(undefined),
+    headerTouched: false,
   };
 }
 
@@ -309,6 +408,10 @@ function materialize(start: SceneDefinition, w: Work): SceneDefinition {
   if (w.settingsTouched) {
     if (Object.keys(w.settings).length > 0) out.settings = w.settings;
     else delete out.settings;
+  }
+  if (w.assetsTouched) {
+    if (w.assets.length > 0) out.assets = [...w.assets];
+    else delete out.assets;
   }
   for (const key of w.touchedBuckets) {
     const values = w.buckets.get(key)!.map((s) => s.value);
@@ -610,6 +713,12 @@ function shapeFields(w: Work, type: string): string[] {
   return t ? geometryFields(t).flatMap((f) => (f.kind === "shape" ? [f.field] : [])) : [];
 }
 
+/** A type's grid fields, which `update` sets whole and `paintCells` paints. */
+function gridFields(w: Work, type: string): string[] {
+  const t = w.registry.types.get(type);
+  return t ? geometryFields(t).flatMap((f) => (f.kind === "grid" ? [f.field] : [])) : [];
+}
+
 /** Any accepted shape form, stored as a tuple. Type-specific limits are the type schema's. */
 function storeShape(input: unknown): ShapeTuple {
   const result = parseShape(input);
@@ -797,16 +906,20 @@ function getPath(root: unknown, segs: string[]): unknown {
   return cur;
 }
 
-/** Splits dotted paths, refusing empty segments and a path that overlaps another. */
+/** Splits field paths, refusing one outside the grammar and a path that overlaps another. */
 function splitPaths(paths: string[]): string[][] {
-  const split = paths.map((p) => p.split("."));
-  for (let i = 0; i < split.length; i++) {
-    const a = split[i]!;
-    if (a.some((s) => s === ""))
+  const split = paths.map((p) => {
+    const segs = splitFieldPath(p);
+    if (!segs)
       fail(
         "op-invalid",
-        `"${paths[i]}" isn't a field path; use dot-separated names like path.speed.`,
+        `"${p}" isn't a field path; use dot-separated names and indices like path.speed, path.pts.1 or behaviors.sprite.frame.`,
+        { got: p },
       );
+    return segs;
+  });
+  for (let i = 0; i < split.length; i++) {
+    const a = split[i]!;
     for (let j = 0; j < split.length; j++) {
       const b = split[j]!;
       if (i !== j && a.length <= b.length && a.every((s, k) => s === b[k])) {
@@ -877,6 +990,41 @@ function validateSettings(w: Work, settings: Json, i: number): void {
 
 // ─── Ops ─────────────────────────────────────────────────
 
+const Z_LIMIT = 10_000;
+
+/** `def` with `key` at its canonical place among the keys, or without it for `undefined`. */
+function withKey<T extends object>(def: T, key: string, value: unknown): T {
+  const out: Json = {};
+  let placed = value === undefined;
+  for (const [k, v] of Object.entries(def)) {
+    if (k === key) continue;
+    if (!placed && compareEntityKeys(key, k) < 0) {
+      out[key] = value;
+      placed = true;
+    }
+    out[k] = clone(v);
+  }
+  if (!placed) out[key] = value;
+  return out as T;
+}
+
+/** `def` with `z` at its canonical place among the keys, or without it for 0. */
+const withZ = <T extends { z?: number }>(def: T, z: number): T =>
+  withKey(def, "z", z === 0 ? undefined : z);
+
+/** `def` carrying `d`, the identity written as absent. */
+function withDihedral<T extends { rot?: number; flip?: boolean }>(def: T, d: Dihedral): T {
+  return withKey(withKey(def, "rot", d.rot === 0 ? undefined : d.rot), "flip", d.flip || undefined);
+}
+
+const translation = ([tx, ty]: Pt): Transform2D => ({ ...IDENTITY_2D, tx, ty });
+
+/** A group's frame: what its members' stored geometry is relative to. */
+function groupFrame(w: Work, group: string | undefined): Transform2D {
+  const g = group === undefined ? undefined : w.groups[group];
+  return g ? dihedral(turnOf(g), g.at) : IDENTITY_2D;
+}
+
 function applyOp(w: Work, op: SceneOp, i: number): void {
   switch (op.op) {
     case "add": {
@@ -934,14 +1082,18 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
               hint: `{ "op": "override", "ref": "${op.ref}", "set": { "<child>.<field>": ... } }`,
             },
           );
-        const next = patch(
-          t.rec.def as unknown as Json,
-          set,
-          unset,
-          split,
-        ) as unknown as InstanceDef;
-        validateInstance(w, next, inSet(i));
-        t.rec.def = next;
+        const next = patch(t.rec.def as unknown as Json, set, unset, split) as Json;
+        // A null param, as setParam takes it, clears the param.
+        setKeys.forEach((key, k) => {
+          const segs = split[k]!;
+          if (segs.length === 2 && segs[0] === "params" && set[key] === null && isObj(next.params))
+            delete next.params[segs[1]!];
+        });
+        if (next.rot === 0) delete next.rot;
+        if (next.flip === false) delete next.flip;
+        if (isObj(next.params) && Object.keys(next.params).length === 0) delete next.params;
+        validateInstance(w, next as unknown as InstanceDef, inSet(i));
+        t.rec.def = next as unknown as InstanceDef;
         w.instancesTouched = true;
         return;
       }
@@ -960,10 +1112,31 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
         w.touchedBuckets.add(t.info.key);
         return;
       }
+      const grids = gridFields(w, t.rec.def.type);
+      const below = split.findIndex((s) => s.length > 1 && grids.includes(s[0]!));
+      if (below >= 0) {
+        const [field] = split[below]!;
+        fail(
+          "op-invalid",
+          `${op.ref}: ${field} is a grid field; set the whole field, or paint its cells with paintCells.`,
+          {
+            entityIds: [t.rec.def.id],
+            got: [...setKeys, ...unset][below],
+            hint: `{ "op": "paintCells", "ref": "${op.ref}", "field": "${field}", "cells": [[col, row, value]] }`,
+          },
+        );
+      }
       const shapes = shapeFields(w, t.rec.def.type);
       const next = patch(t.rec.def, set, unset, split, (path, v) =>
         shapes.includes(path) ? storeShape(v) : clone(v),
       ) as EntityDef;
+      const blocks = next[BEHAVIORS_FIELD];
+      if (
+        split.some((s) => s[0] === BEHAVIORS_FIELD) &&
+        isObj(blocks) &&
+        Object.keys(blocks).length === 0
+      )
+        delete next[BEHAVIORS_FIELD];
       validateEntity(w, next, inSet(i));
       t.rec.def = next;
       w.entitiesTouched = true;
@@ -1136,6 +1309,7 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       const givenId = input.id as string | undefined;
       if (givenId !== undefined) checkNewId(w, givenId);
       delete input.id;
+      if (input.z === 0) delete input.z;
       const def = { id: givenId ?? freeId(w, String(input.prefab)), ...input } as InstanceDef;
       validateInstance(w, def, (rel) => `/ops/${i}/instance${rel}`);
       const index = insertIndex(op.index, w.instances.length, "instances");
@@ -1149,8 +1323,13 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
         fail("bad-id", `"${op.id}" isn't a valid group id.`, { got: op.id, path: `/ops/${i}/id` });
       const current = w.groups[op.id];
       if (op.remove) {
-        if (op.at !== undefined || op.name !== undefined)
-          fail("op-invalid", "setGroup with remove takes no at or name.");
+        if (
+          op.at !== undefined ||
+          op.name !== undefined ||
+          op.rot !== undefined ||
+          op.flip !== undefined
+        )
+          fail("op-invalid", "setGroup with remove takes no at, rot, flip or name.");
         if (!current) fail("ref-not-found", `No group "${op.id}" to remove.`, { got: op.id });
         const members = [
           ...w.entities.filter((r) => r.def.group === op.id),
@@ -1170,7 +1349,11 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       if (op.at !== undefined) next.at = [op.at[0], op.at[1]];
       if (op.name === null) delete next.name;
       else if (op.name !== undefined) next.name = op.name;
-      w.groups[op.id] = { at: next.at, ...(next.name !== undefined ? { name: next.name } : {}) };
+      const d = turnOf({
+        rot: op.rot ?? next.rot,
+        flip: op.flip ?? next.flip,
+      });
+      w.groups[op.id] = groupDef(next.at, d, next.name);
       w.groupsTouched = true;
       return;
     }
@@ -1178,13 +1361,9 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       const rec = resolveInstance(w, op.ref);
       const keys = Object.keys(op.set);
       if (keys.length === 0) fail("op-invalid", `override of ${op.ref} sets nothing.`);
+      refuseGridOverrides(w, rec.def, keys);
       const overrides = { ...clone(rec.def.overrides ?? {}) };
-      for (const key of keys) {
-        for (const other of Object.keys(overrides))
-          if (other !== key && (other.startsWith(`${key}.`) || key.startsWith(`${other}.`)))
-            delete overrides[other];
-        overrides[key] = clone(op.set[key]);
-      }
+      for (const key of keys) setOverride(overrides, key, op.set[key]);
       const next = { ...clone(rec.def), overrides };
       validateInstance(w, next, (rel) => `/ops/${i}/set${rel.replace(/^\/overrides/, "")}`);
       rec.def = next;
@@ -1215,9 +1394,14 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       if (missing.length > 0)
         fail("op-invalid", `${op.ref} has no override ${missing.map((p) => `"${p}"`).join(", ")}.`);
       if (paths.length === 0) fail("op-invalid", `${op.ref} has no overrides to apply.`);
-      const applied = { ...rec.def, overrides: Object.fromEntries(paths.map((p) => [p, all[p]])) };
-      const body = bodyWithOverrides(w, prefab, applied);
-      definePrefab(w, prefab.id, body, i);
+      applyIntoPrefab(
+        w,
+        rec.def,
+        prefab,
+        paths.map((p) => [p, all[p]] as const),
+        op.to,
+        i,
+      );
       const left = Object.fromEntries(Object.entries(all).filter(([p]) => !paths.includes(p)));
       const next = { ...clone(rec.def) };
       if (Object.keys(left).length > 0) next.overrides = left;
@@ -1246,6 +1430,112 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       definePrefab(w, op.id, op.prefab, i);
       return;
     }
+    case "setZ": {
+      if ((op.z === undefined) === (op.by === undefined))
+        fail("op-invalid", "setZ takes either z (the new value) or by (a shift), not both.", {
+          hint: `{ "op": "setZ", "refs": ${JSON.stringify(op.refs)}, "by": 1 }`,
+        });
+      const targets = [...new Set(op.refs)].map((ref) => [ref, resolve(w, ref)] as const);
+      for (const [ref, t] of targets) {
+        if (t.kind === "bulk")
+          fail(
+            "op-invalid",
+            `${ref} is a bulk entry, which has no z; promote it to an entity to give it one.`,
+            { got: ref, hint: `{ "op": "promote", "ref": "${ref}", "id": "..." }` },
+          );
+        const was = t.rec.def.z ?? 0;
+        const z = op.z ?? was + op.by!;
+        if (!Number.isInteger(z) || Math.abs(z) > Z_LIMIT)
+          fail("op-invalid", `${ref}'s z would be ${z}; z stays within [-10000, 10000].`, {
+            entityIds: [t.rec.def.id],
+            got: String(z),
+          });
+        if (t.kind === "instance") {
+          const next = withZ(t.rec.def, z);
+          validateInstance(w, next, () => `/ops/${i}`);
+          t.rec.def = next;
+        } else {
+          const next = withZ(t.rec.def, z);
+          validateEntity(w, next, () => `/ops/${i}`);
+          t.rec.def = next;
+        }
+        markTouched(w, t);
+      }
+      return;
+    }
+    case "useAssets": {
+      const add = op.add ?? [];
+      const remove = op.remove ?? [];
+      if (add.length === 0 && remove.length === 0)
+        fail("op-invalid", "useAssets has nothing to add or remove.");
+      const both = add.find((id) => remove.includes(id));
+      if (both !== undefined)
+        fail("op-invalid", `useAssets both adds and removes "${both}".`, { got: both });
+      const gone = new Set(remove);
+      w.assets = sortedAssets([...w.assets.filter((id) => !gone.has(id)), ...add]);
+      w.assetsTouched = true;
+      return;
+    }
+    case "transform": {
+      transformOp(w, op, i);
+      return;
+    }
+    case "paintCells": {
+      paintCellsOp(w, op, i);
+      return;
+    }
+    case "setPrefabBase": {
+      viewOnly(w, op.op);
+      if (op.base === null) delete w.header.base;
+      else {
+        if (op.base === w.view)
+          fail("prefab-cycle", `Prefab "${op.base}" can't be a variant of itself.`, {
+            path: `/ops/${i}/base`,
+            got: op.base,
+          });
+        if (!w.prefabs.has(op.base)) {
+          const known = [...w.prefabs.keys()].filter((id) => id !== w.view);
+          const suggestion = closest(op.base, known);
+          fail(
+            "variant-base-unknown",
+            `No prefab "${op.base}" to be a variant of${suggestion ? `; did you mean "${suggestion}"?` : "."}`,
+            { path: `/ops/${i}/base`, got: op.base, expected: known.join(", ") },
+          );
+        }
+        w.header.base = op.base;
+      }
+      w.headerTouched = true;
+      return;
+    }
+    case "exposeParam": {
+      viewOnly(w, op.op);
+      if (op.param === null) {
+        if (!(op.name in w.header.params)) {
+          const suggestion = closest(op.name, Object.keys(w.header.params));
+          fail(
+            "op-invalid",
+            `Prefab "${w.view}" declares no parameter "${op.name}"${suggestion ? `; did you mean "${suggestion}"?` : "."}`,
+            { path: `/ops/${i}/name`, got: op.name },
+          );
+        }
+        delete w.header.params[op.name];
+      } else w.header.params = sortedParams({ ...w.header.params, [op.name]: clone(op.param) });
+      w.headerTouched = true;
+      return;
+    }
+    case "setParam": {
+      const rec = resolveInstance(w, op.ref);
+      const params: Json = { ...rec.def.params };
+      if (op.value === null || op.value === undefined) delete params[op.name];
+      else params[op.name] = clone(op.value);
+      const next = clone(rec.def);
+      if (Object.keys(params).length > 0) next.params = params;
+      else delete next.params;
+      validateInstance(w, next, () => `/ops/${i}/value`);
+      rec.def = next;
+      w.instancesTouched = true;
+      return;
+    }
     default: {
       const unknown: never = op;
       fail("op-invalid", `Unknown op at index ${i}: ${JSON.stringify(unknown)}`);
@@ -1253,7 +1543,364 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
   }
 }
 
+function groupDef(at: Pt, d: Dihedral, name: string | undefined): GroupDef {
+  return {
+    at,
+    ...(d.rot !== 0 ? { rot: d.rot } : {}),
+    ...(d.flip ? { flip: true as const } : {}),
+    ...(name !== undefined ? { name } : {}),
+  };
+}
+
+/**
+ * Turns and flips instances and groups in world terms about `about` (each
+ * one's own origin by default): the world op `flip ∘ turn` composes onto
+ * what each has, and its origin moves about the point. An instance in a
+ * group keeps its group-local `at`, conjugated through the group's frame.
+ */
+function transformOp(w: Work, op: Extract<SceneOp, { op: "transform" }>, i: number): void {
+  const refs = [...new Set(op.refs ?? [])];
+  const groups = [...new Set(op.groups ?? [])];
+  if (refs.length === 0 && groups.length === 0)
+    fail("op-invalid", "transform names no instances (refs) and no groups.");
+  if (op.turn === undefined && op.flip === undefined)
+    fail("op-invalid", "transform has no turn and no flip, so it changes nothing.", {
+      hint: `{ "op": "transform", "refs": [...], "turn": 1 }`,
+    });
+  const turned: Dihedral = { rot: op.turn === -1 ? 3 : (op.turn ?? 0), flip: false };
+  const world = op.flip === undefined ? turned : flipWorld(turned, op.flip);
+  const about = (origin: Pt) => {
+    const p = op.about ?? origin;
+    return compose(dihedral(world, p), translation([-p[0], -p[1]]));
+  };
+  for (const id of groups) {
+    if (!w.groups[id]) {
+      const suggestion = closest(id, Object.keys(w.groups));
+      fail(
+        "ref-not-found",
+        `No group "${id}"${suggestion ? `; did you mean "${suggestion}"?` : "."}`,
+        {
+          got: id,
+        },
+      );
+    }
+  }
+  const recs = refs.map((ref) => resolveInstance(w, ref));
+  for (const rec of recs) {
+    if (rec.def.group !== undefined && groups.includes(rec.def.group))
+      fail(
+        "op-invalid",
+        `${rec.def.id} is in group "${rec.def.group}", which this op also transforms; transform the group alone to turn its members with it.`,
+        { entityIds: [rec.def.id] },
+      );
+  }
+  for (const rec of recs) {
+    const frame = groupFrame(w, rec.def.group);
+    const g = rec.def.group === undefined ? undefined : w.groups[rec.def.group];
+    const gd = turnOf(g ?? {});
+    const origin = applyPt(frame, rec.def.at);
+    const at = applyPt(invert(frame), applyPt(about(origin), origin));
+    const d = composeDihedral(
+      inverseTurn(gd),
+      composeDihedral(world, composeDihedral(gd, turnOf(rec.def))),
+    );
+    const next = withDihedral({ ...clone(rec.def), at }, d);
+    validateInstance(w, next, () => `/ops/${i}`);
+    rec.def = next;
+    w.instancesTouched = true;
+  }
+  for (const id of groups) {
+    const g = w.groups[id]!;
+    const at = applyPt(about(g.at), g.at);
+    w.groups[id] = groupDef(at, composeDihedral(world, turnOf(g)), g.name);
+    w.groupsTouched = true;
+  }
+}
+
+function paintCellsOp(w: Work, op: Extract<SceneOp, { op: "paintCells" }>, i: number): void {
+  const child = parseChildRef(op.ref);
+  if (child) {
+    const prefab = w.instances.find((r) => r.def.id === child.instance)?.def.prefab;
+    fail(
+      "op-invalid",
+      `${op.ref} is a child of instance ${child.instance}, and grid fields can't be overridden; open the prefab${prefab ? ` "${prefab}"` : ""} and paint ${child.child} there.`,
+      {
+        got: op.ref,
+        hint: `Paint ${child.child} in the prefab's own document.`,
+      },
+    );
+  }
+  const t = resolve(w, op.ref);
+  if (t.kind !== "entity")
+    fail(
+      "op-invalid",
+      `${op.ref} is ${t.kind === "bulk" ? "a bulk entry" : "an instance"}, which has no grid field.`,
+      { got: op.ref },
+    );
+  const def = t.rec.def;
+  const grids = gridFields(w, def.type);
+  if (!grids.includes(op.field)) {
+    const suggestion = closest(op.field, grids);
+    fail(
+      "op-invalid",
+      `${op.ref}: "${op.field}" isn't a grid field of ${def.type}${
+        grids.length === 0
+          ? ", which has none."
+          : suggestion
+            ? `; did you mean "${suggestion}"?`
+            : ` (grid fields: ${grids.join(", ")}).`
+      }`,
+      { entityIds: [def.id], got: op.field, path: `/ops/${i}/field` },
+    );
+  }
+  if ((op.cells?.length ?? 0) === 0 && (op.rects?.length ?? 0) === 0)
+    fail("op-invalid", `paintCells of ${op.ref} paints nothing.`);
+  const was = def[op.field];
+  const painted = paintGrid(isObj(was) ? (was as GridCells) : {}, {
+    cells: op.cells,
+    rects: op.rects,
+  }).grid;
+  const next = clone(def);
+  if (Object.keys(painted).length > 0) next[op.field] = painted;
+  else delete next[op.field];
+  validateEntity(w, next, () => `/ops/${i}`);
+  t.rec.def = next;
+  w.entitiesTouched = true;
+}
+
+/** The edits that turn grid `now` back into `was`, one per cell that differs. */
+function gridRestore(was: GridCells, now: GridCells): CellEdit[] {
+  const edits: CellEdit[] = [];
+  const empty = new Uint16Array(GRID_CHUNK);
+  for (const key of new Set([...Object.keys(was), ...Object.keys(now)])) {
+    const chunk = parseChunkKey(key);
+    if (!chunk) continue;
+    const [cx, cy] = chunk;
+    const a = was[key] ?? [];
+    const b = now[key] ?? [];
+    for (let r = 0; r < Math.max(a.length, b.length); r++) {
+      const ra = a[r] ?? "";
+      const rb = b[r] ?? "";
+      if (ra === rb) continue;
+      const ca = decodeRow(ra) ?? empty;
+      const cb = decodeRow(rb) ?? empty;
+      for (let c = 0; c < GRID_CHUNK; c++)
+        if (ca[c] !== cb[c]) edits.push([cx * GRID_CHUNK + c, cy * GRID_CHUNK + r, ca[c]!]);
+    }
+  }
+  return edits;
+}
+
+/** `paintCells` ops that write `edits`, split to stay within the per-op cap. */
+function paintOps(ref: Ref, field: string, edits: CellEdit[]): SceneOp[] {
+  const ops: SceneOp[] = [];
+  for (let k = 0; k < edits.length; k += MAX_PAINT_CELLS)
+    ops.push({ op: "paintCells", ref, field, cells: edits.slice(k, k + MAX_PAINT_CELLS) });
+  return ops;
+}
+
+/** Grid fields can't be overridden: a key naming one, or a path inside one, refuses. */
+function refuseGridOverrides(w: Work, inst: InstanceDef, keys: readonly string[]): void {
+  const prefab = w.prefabs.get(inst.prefab);
+  if (!prefab) return;
+  for (const key of keys) {
+    const split = splitOverridePath(key);
+    if (!split) continue;
+    const c = localChild(prefab, inst, split.child, w.registry, w.prefabs);
+    if (c?.kind !== "entity") continue;
+    const field = splitFieldPath(split.field)?.[0] ?? split.field;
+    if (gridFields(w, c.def.type).includes(field))
+      fail(
+        "grid-invalid",
+        `${inst.id}: ${split.child}.${field} is a grid field, and grid fields can't be overridden; open the prefab "${inst.prefab}" and paint it there, or unpack the instance.`,
+        { entityIds: [inst.id], got: key },
+      );
+  }
+}
+
+// ─── Nested prefabs ──────────────────────────────────────
+
+/** Ops that can make a prefab contain itself, through an instance or a prefab's body. */
+const NESTING_OPS: readonly SceneOp["op"][] = [
+  "instantiate",
+  "update",
+  "definePrefab",
+  "createPrefab",
+  "applyToPrefab",
+  "setPrefabBase",
+];
+
+/** Whether a child ref runs through a nested instance (`door-1/panel`). */
+const isNestedRef = (ref: Ref) => ref.includes(CHILD_SEPARATOR);
+
+/** Sets `key` in an override map, dropping the keys it contains or that contain it. */
+function setOverride(overrides: Json, key: string, value: unknown): void {
+  for (const other of Object.keys(overrides))
+    if (other !== key && (other.startsWith(`${key}.`) || key.startsWith(`${other}.`)))
+      delete overrides[other];
+  overrides[key] = clone(value);
+}
+
+/** Whether two override keys touch the same value: equal, or one inside the other. */
+const overlaps = (a: string, b: string) =>
+  a === b || a.startsWith(`${b}.`) || b.startsWith(`${a}.`);
+
+/** An instance without its identity values written as absent: rot 0, flip false, z 0, no params or overrides. */
+function tidyInstance(def: Json): InstanceDef {
+  if (def.rot === 0) delete def.rot;
+  if (def.flip === false) delete def.flip;
+  if (def.z === 0) delete def.z;
+  if (def.off === false) delete def.off;
+  if (isObj(def.params) && Object.keys(def.params).length === 0) delete def.params;
+  if (isObj(def.overrides) && Object.keys(def.overrides).length === 0) delete def.overrides;
+  return def as unknown as InstanceDef;
+}
+
+/**
+ * A nested instance with what an outer level's overrides say about it
+ * folded in: keys on the instance itself (`n.at`) set its fields, keys
+ * through it (`n/panel.path.speed`) become its own overrides and beat the
+ * ones it had. Override values are in the frame of the child's own
+ * prefab at every level, so they move down as they are.
+ */
+function overrideNested(n: InstanceDef, overrides: Readonly<Json>): InstanceDef {
+  const out = clone(n) as unknown as Json;
+  const inner: Json = { ...((out.overrides as Json | undefined) ?? {}) };
+  for (const [key, value] of Object.entries(overrides)) {
+    const split = splitOverridePath(key);
+    if (!split) continue;
+    if (split.child === n.id) setNestedField(out, split.field, value);
+    else if (split.child.startsWith(`${n.id}${CHILD_SEPARATOR}`))
+      setOverride(inner, `${split.child.slice(n.id.length + 1)}.${split.field}`, value);
+  }
+  out.overrides = inner;
+  return tidyInstance(out);
+}
+
+/** Sets a nested instance's own field from an override: `params.<name>` within its params, null clearing. */
+function setNestedField(n: Json, field: string, value: unknown): void {
+  if (field.startsWith("params.")) {
+    n.params = { ...((n.params as Json | undefined) ?? {}), [field.slice(7)]: clone(value) };
+    return;
+  }
+  if (value === undefined || value === null) delete n[field];
+  else n[field] = clone(value);
+}
+
+/** A prefab's own variant base, unless the chain is already too deep to follow. */
+function baseOf(w: Work, prefab: Prefab, depth: number): Prefab | undefined {
+  return prefab.base === undefined || depth >= PREFAB_MAX_DEPTH
+    ? undefined
+    : w.prefabs.get(prefab.base);
+}
+
+/** A prefab's nested instances in its own frame: its base's first, the variant's overrides folded in, then its own. */
+function nestedInstances(w: Work, prefab: Prefab, depth = 0): InstanceDef[] {
+  const own = clone(prefab.instances ?? []);
+  const base = baseOf(w, prefab, depth);
+  if (!base) return own;
+  const overrides = prefab.overrides ?? {};
+  return [...nestedInstances(w, base, depth + 1).map((n) => overrideNested(n, overrides)), ...own];
+}
+
+/** The nested instance `segs` names through the prefabs it passes (`door-1`, `room-1/door-1`), or undefined. */
+function nestedAlong(w: Work, prefab: Prefab, segs: readonly string[]): InstanceDef | undefined {
+  let at: Prefab | undefined = prefab;
+  for (let k = 0; k < segs.length && k <= PREFAB_MAX_DEPTH && at; k++) {
+    const n = nestedInstances(w, at).find((x) => x.id === segs[k]);
+    if (!n || k === segs.length - 1) return n;
+    at = w.prefabs.get(n.prefab);
+  }
+  return undefined;
+}
+
+/** Whether the batch left the viewed prefab's header other than `prefabs` holds it. */
+function headerChanged(w: Work, prefabs: PrefabLibrary | undefined): boolean {
+  return w.headerTouched && !same(w.header, headerOf(prefabs?.get(w.view!)));
+}
+
+/** The viewed prefab as the batch leaves it: the document's children and `assets` under its header. */
+function viewedPrefab(w: Work, start: SceneDefinition, after: SceneDefinition): Prefab {
+  const id = w.view!;
+  const was = w.prefabs.get(id);
+  const {
+    entities: _e,
+    bulk: _b,
+    instances: _i,
+    base: _base,
+    params: _p,
+    assets: wasAssets,
+    contract,
+    ...head
+  }: Prefab = was ?? {
+    kind: PREFAB_KIND,
+    v: SCENE_FORMAT_VERSION,
+    ...(after.game !== undefined ? { game: after.game } : {}),
+    id,
+    entities: [],
+  };
+  const assets = w.assetsTouched || start.assets !== undefined ? after.assets : wasAssets;
+  return {
+    ...head,
+    ...sceneBody(after, w.registry, contract),
+    ...(w.header.base !== undefined ? { base: w.header.base } : {}),
+    ...(Object.keys(w.header.params).length > 0 ? { params: clone(w.header.params) } : {}),
+    ...(assets && assets.length > 0 ? { assets: [...assets] } : {}),
+  };
+}
+
+/** The library as the batch has left it, the viewed prefab holding the instances the document holds now. */
+function nestingLibrary(w: Work): PrefabLibrary {
+  if (w.view === undefined) return w.prefabs;
+  const lib = new Map(w.prefabs);
+  const was = lib.get(w.view);
+  const viewed: Prefab = {
+    ...(was ?? { kind: PREFAB_KIND, v: SCENE_FORMAT_VERSION, id: w.view }),
+    entities: [],
+    instances: w.instances.map((r) => r.def),
+  };
+  delete viewed.bulk;
+  if (w.header.base !== undefined) viewed.base = w.header.base;
+  else delete viewed.base;
+  lib.set(w.view, viewed);
+  return lib;
+}
+
+/** The `prefab-cycle` issue of the viewed prefab or a prefab the batch changed, as `resolvePrefab` finds it. */
+function cycleIn(w: Work): SceneIssue | null {
+  const lib = nestingLibrary(w);
+  const ids = [...(w.view !== undefined ? [w.view] : []), ...[...w.prefabsChanged].sort()];
+  for (const id of new Set(ids)) {
+    if (!lib.has(id)) continue;
+    const resolved = resolvePrefab(id, lib, w.registry);
+    if (!resolved.ok && resolved.issue.code === "prefab-cycle") return resolved.issue;
+  }
+  return null;
+}
+
+/** Refuses the op that just ran when it made a prefab contain itself. */
+function refuseCycle(w: Work): void {
+  const issue = cycleIn(w);
+  if (!issue) return;
+  throw new OpFailure({
+    ...issue,
+    message: `${issue.message}${w.view !== undefined ? ` (editing prefab "${w.view}")` : ""}`,
+    path: undefined,
+  });
+}
+
 // ─── Instances and prefabs ───────────────────────────────
+
+/** Checks a nested instance with an outer level's overrides on it, as the instance it becomes. */
+function validateNested(n: InstanceDef, relocate: Relocate, label: string): void {
+  const result = InstanceSchema.safeParse(n);
+  if (result.success) return;
+  const first = result.error.issues[0]!;
+  fail("schema", `${label}: ${first.message}`, {
+    path: relocate(""),
+    entityIds: [label],
+  });
+}
 
 function validateInstance(w: Work, def: InstanceDef, relocate: Relocate): void {
   const result = InstanceSchema.safeParse(def);
@@ -1270,39 +1917,188 @@ function validateInstance(w: Work, def: InstanceDef, relocate: Relocate): void {
     );
   }
   const prefab = prefabOf(w, def.prefab, relocate("/prefab"));
+  // A param's value lands on each of its targets as an override, under the instance's own.
+  const overrides: Json = { ...paramOverrides(w, def), ...def.overrides };
+  const checked: InstanceDef = { ...def, overrides };
+  delete checked.params;
   const children = new Set<Ref>();
-  for (const key of Object.keys(def.overrides ?? {})) children.add(key.slice(0, key.indexOf(".")));
+  for (const [key, value] of Object.entries(overrides)) {
+    const split = splitOverridePath(key);
+    if (!split) continue;
+    const n = split.child.startsWith("~")
+      ? undefined
+      : nestedAlong(w, prefab, split.child.split(CHILD_SEPARATOR));
+    if (!n) {
+      children.add(split.child);
+      continue;
+    }
+    if (!isInstanceOverrideField(split.field))
+      fail(
+        "op-invalid",
+        `${def.id}: ${split.child} is a nested instance, whose overridable fields are ${[...INSTANCE_OVERRIDE_FIELDS, "params.<name>"].join(", ")}; "${split.field}" isn't one.`,
+        { path: relocate("/overrides"), entityIds: [def.id], got: key },
+      );
+    validateNested(
+      overrideNested(n, { [`${n.id}.${split.field}`]: value }),
+      () => relocate("/overrides"),
+      `${def.id}/${split.child}`,
+    );
+  }
   for (const ref of children) {
-    const c = localChildren(prefab, { ...def }, w.registry).find((x) => x.child === ref);
+    const c = localChild(prefab, checked, ref, w.registry, w.prefabs);
     if (!c) continue;
-    if (c.kind === "entity")
-      validateEntity(w, c.def, () => relocate("/overrides"), `${def.id}/${ref}`);
-    else {
+    if (c.kind === "entity") {
+      // A nested child's id is its relative ref (`door-1/panel`); its fields are what's checked.
+      const stem = ref.slice(ref.lastIndexOf(CHILD_SEPARATOR) + 1);
+      const own = isNestedRef(ref)
+        ? { ...c.def, id: ID_PATTERN.test(stem) ? stem : "child" }
+        : c.def;
+      validateEntity(w, own, () => relocate("/overrides"), `${def.id}/${ref}`);
+    } else {
       const info = w.registry.bulkKey(c.key);
       if (info) validateBulk(w, info, c.value, () => relocate("/overrides"), `${def.id}/${ref}`);
     }
   }
 }
 
-/** A prefab's body with an instance's overrides written into its children. */
-function bodyWithOverrides(w: Work, prefab: Prefab, inst: InstanceDef): PrefabBody {
-  const entities: EntityDef[] = [];
-  const bulk: Record<BulkKey, BulkEntry[]> = {};
-  for (const c of localChildren(prefab, inst, w.registry)) {
-    if (c.kind === "entity") entities.push(c.def);
-    else (bulk[c.key] ??= []).push(c.value);
+/** The overrides an instance's params make: each set param's value on every target its prefab declares for it. */
+function paramOverrides(w: Work, def: InstanceDef): Json {
+  const names = Object.keys(def.params ?? {});
+  if (names.length === 0) return {};
+  const resolved = resolvePrefab(def.prefab, w.prefabs, w.registry);
+  if (!resolved.ok) return {};
+  const out: Json = {};
+  for (const name of names) {
+    const value = def.params![name];
+    if (value === null || value === undefined) continue;
+    for (const target of resolved.prefab.params[name]?.targets ?? []) out[target] = clone(value);
   }
+  return out;
+}
+
+/** The header values beyond `prefabBody`'s that a prefab's body carries: its base, variant overrides, parameters and assets. */
+function bodyExtras(p: PrefabBody): Partial<PrefabBody> {
   return {
-    entities,
-    ...(Object.keys(bulk).length > 0 ? { bulk } : {}),
-    ...(prefab.contract !== undefined ? { contract: clone(prefab.contract) } : {}),
+    ...(p.base !== undefined ? { base: p.base } : {}),
+    ...(p.overrides && Object.keys(p.overrides).length > 0
+      ? { overrides: clone(p.overrides) }
+      : {}),
+    ...(p.params && Object.keys(p.params).length > 0 ? { params: clone(p.params) } : {}),
+    ...(p.assets && p.assets.length > 0 ? { assets: [...p.assets] } : {}),
   };
+}
+
+/** Everything `definePrefab` needs to put `prefab` back as it is. */
+const fullBody = (prefab: Prefab): PrefabBody => ({ ...prefabBody(prefab), ...bodyExtras(prefab) });
+
+/**
+ * `prefab`'s body with `writes` (each a child ref relative to it, a field
+ * path and a value) written in: into its own entities and bulk entries,
+ * onto its own nested instances (a field of one, or an override through
+ * one), and for a variant, into its overrides when the child is its base's.
+ * A child the prefab doesn't reach is left out.
+ */
+function foldIntoBody(
+  w: Work,
+  prefab: Prefab,
+  writes: readonly (readonly [Ref, string, unknown])[],
+): PrefabBody {
+  const body = fullBody(prefab);
+  const overrides: Json = { ...(body.overrides ?? {}) };
+  for (const [child, field, value] of writes) {
+    const slash = child.indexOf(CHILD_SEPARATOR);
+    if (slash < 0) {
+      const e = body.entities.find((x) => x.id === child);
+      if (e) {
+        setPath(e as Json, field.split("."), clone(value), `${child}.${field}`);
+        continue;
+      }
+      const bulk = parseBulkId(child);
+      const info = bulk ? w.registry.bulkKey(bulk.key) : undefined;
+      const list = bulk ? body.bulk?.[bulk.key] : undefined;
+      if (bulk && info && list && bulk.index < list.length) {
+        if (field === info.field) list[bulk.index] = storeBulk(info, value);
+        continue;
+      }
+    }
+    const head = slash < 0 ? child : child.slice(0, slash);
+    const at = (body.instances ?? []).findIndex((x) => x.id === head);
+    if (at >= 0) {
+      const n = clone(body.instances![at]!) as unknown as Json;
+      if (slash < 0) setNestedField(n, field, value);
+      else {
+        const inner: Json = { ...((n.overrides as Json | undefined) ?? {}) };
+        setOverride(inner, `${child.slice(slash + 1)}.${field}`, value);
+        n.overrides = inner;
+      }
+      body.instances![at] = tidyInstance(n);
+      continue;
+    }
+    if (prefab.base !== undefined) setOverride(overrides, `${child}.${field}`, value);
+  }
+  if (Object.keys(overrides).length > 0) body.overrides = overrides;
+  else delete body.overrides;
+  return body;
+}
+
+/**
+ * Writes an instance's override `entries` into a prefab of its chain: its
+ * own prefab, or `to`, the prefab of a nested instance every path runs
+ * through. A path that doesn't reach `to`, or one a level between
+ * overrides too (which would hide the value), refuses.
+ */
+function applyIntoPrefab(
+  w: Work,
+  inst: InstanceDef,
+  prefab: Prefab,
+  entries: readonly (readonly [string, unknown])[],
+  to: string | undefined,
+  i: number,
+): void {
+  const target = to ?? prefab.id;
+  let into: Prefab | undefined;
+  const writes: [Ref, string, unknown][] = [];
+  for (const [path, value] of entries) {
+    const split = splitOverridePath(path);
+    if (!split) continue;
+    const segs = split.child.startsWith("~") ? [split.child] : split.child.split(CHILD_SEPARATOR);
+    const chain: Prefab[] = [prefab];
+    const via: InstanceDef[] = [];
+    for (let j = 0; j < segs.length - 1 && chain.length <= PREFAB_MAX_DEPTH; j++) {
+      const n = nestedInstances(w, chain[j]!).find((x) => x.id === segs[j]);
+      const next = n && w.prefabs.get(n.prefab);
+      if (!n || !next) break;
+      via.push(n);
+      chain.push(next);
+    }
+    const k = chain.findIndex((p) => p.id === target);
+    if (k < 0)
+      fail(
+        "op-invalid",
+        `${inst.id}: "${path}" doesn't run through prefab "${target}"; its prefabs are ${chain.map((p) => `"${p.id}"`).join(", ")}.`,
+        { entityIds: [inst.id], got: target, path: `/ops/${i}/to` },
+      );
+    for (let j = 0; j < k; j++) {
+      const rest = `${segs.slice(j + 1).join(CHILD_SEPARATOR)}.${split.field}`;
+      const hiding = Object.keys(via[j]!.overrides ?? {}).find((key) => overlaps(key, rest));
+      if (hiding !== undefined)
+        fail(
+          "op-invalid",
+          `${inst.id}: ${via[j]!.id} in prefab "${chain[j]!.id}" overrides "${hiding}", which would hide "${path}" applied to "${target}"; apply it to "${chain[j]!.id}" instead, or revert that override first.`,
+          { entityIds: [inst.id], got: path, path: `/ops/${i}/to` },
+        );
+    }
+    into = chain[k]!;
+    writes.push([segs.slice(k).join(CHILD_SEPARATOR), split.field, value]);
+  }
+  if (!into) return;
+  definePrefab(w, into.id, foldIntoBody(w, into, writes), i);
 }
 
 function definePrefab(w: Work, id: string, body: PrefabBody, i: number): void {
   if (!ID_PATTERN.test(id))
     fail("bad-id", `"${id}" isn't a valid prefab id.`, { got: id, path: `/ops/${i}/id` });
-  const file = prefabFile(id, body, w.startDef.game);
+  const file = { ...prefabFile(id, body, w.startDef.game), ...bodyExtras(body) };
   const parsed = parsePrefab(file, w.registry);
   if (!parsed.ok) {
     const first = parsed.issues[0]!;
@@ -1327,45 +2123,127 @@ function current(w: Work): SceneDefinition {
   });
 }
 
-/** `remove` of the instance, then its children placed as plain entries where they stood. */
+/** Points `def`'s reference fields that named a child of a nested instance (`door-1/panel`, or resolved, `gate-1/door-1/panel`) at the instance it became. */
+function retargetNested(
+  w: Work,
+  def: EntityDef,
+  outer: string,
+  renamed: ReadonlyMap<string, string>,
+): Ref[] {
+  const named: Ref[] = [];
+  const map = (v: unknown) => {
+    if (typeof v !== "string") return v;
+    const local = v.startsWith(`${outer}${CHILD_SEPARATOR}`) ? v.slice(outer.length + 1) : v;
+    const slash = local.indexOf(CHILD_SEPARATOR);
+    const to = slash > 0 ? renamed.get(local.slice(0, slash)) : undefined;
+    if (to === undefined) return v;
+    const ref = `${to}${local.slice(slash)}`;
+    named.push(ref);
+    return ref;
+  };
+  for (const { field } of w.registry.types.get(def.type)?.refs ?? []) {
+    const segs = field.split(".");
+    const value = getPath(def, segs);
+    if (value === undefined) continue;
+    setPath(def as Json, segs, Array.isArray(value) ? value.map(map) : map(value), field);
+  }
+  return named;
+}
+
+/**
+ * `remove` of the instance, then one level of it placed where it stood:
+ * its own children as plain entries, the instance's turn and flip baked
+ * into their fields, and its nested instances as instances of the
+ * document, their `at`, turn, `z`, layer and `off` composed with the
+ * outer instance's and its overrides through them folded in.
+ */
 function unpackOps(w: Work, inst: InstanceDef): SceneOp[] {
   const prefab = prefabOf(w, inst.prefab);
-  const entities: EntityDef[] = [];
-  const bulk: Record<BulkKey, BulkEntry[]> = {};
-  const groupAt = inst.group === undefined ? undefined : w.groups[inst.group]?.at;
-  for (const c of localChildren(prefab, inst, w.registry)) {
-    if (c.kind === "entity") {
-      const e = clone(c.def);
-      delete e.group;
-      if (inst.group !== undefined) e.group = inst.group;
-      if (e.layer === undefined && inst.layer !== undefined) e.layer = inst.layer;
-      if (inst.off) e.off = true;
-      entities.push(e);
-    } else {
-      // Bulk entries can't join a group, so they land in world coordinates.
-      const value = groupAt ? translateBulkEntry(c.value, groupAt) : c.value;
-      (bulk[c.key] ??= []).push(value);
-    }
-  }
+  const d = turnOf(inst);
+  const overrides = inst.overrides ?? {};
+  // Entities stay in the group's frame and `placeFragment` adds `at`, so they take only the turn.
+  const children = placeChildren(
+    prefab,
+    inst,
+    w.registry,
+    [dihedral(d, [0, 0])],
+    gridTurns({ settings: w.settings }),
+  ).filter(({ child }) => !isNestedRef(child.child));
+  // Bulk entries can't join a group, so they land in world coordinates, less the `at` placing adds.
+  const toWorld = [
+    dihedral(d, inst.at),
+    groupFrame(w, inst.group),
+    translation([-inst.at[0], -inst.at[1]]),
+  ];
   const def = current(w);
   const without = {
     ...def,
     instances: (def.instances ?? []).filter((x) => x.id !== inst.id),
   };
+
+  const nested = nestedInstances(w, prefab).map((n) => overrideNested(n, overrides));
+  const taken = takenIds(without);
+  for (const { child } of children) if (child.kind === "entity") taken.add(child.child);
+  const renamed = new Map<string, string>();
+  for (const n of nested) {
+    const id = nextFreeId(n.id, taken);
+    taken.add(id);
+    renamed.set(n.id, id);
+  }
+
+  const entities: EntityDef[] = [];
+  const bulk: Record<BulkKey, BulkEntry[]> = {};
+  const targets: Ref[] = [];
+  for (const { child, def: placed } of children) {
+    if (child.kind === "entity") {
+      targets.push(...retargetNested(w, placed, inst.id, renamed));
+      entities.push(placed);
+    } else
+      (bulk[child.key] ??= []).push(
+        toWorld.reduce((v, t) => transformBulkEntry(v, t), child.value),
+      );
+  }
+  // The nested instances and their children count as present, so refs to them survive placing.
+  const placedInto: SceneDefinition = {
+    ...without,
+    instances: [
+      ...(without.instances ?? []),
+      ...nested.map((n) => ({ ...n, id: renamed.get(n.id)! })),
+    ],
+    entities: [
+      ...(without.entities ?? []),
+      ...targets.map((id) => ({ id, type: "marker" }) as EntityDef),
+    ],
+  };
   const placed = placeFragment(
     { kind: FRAGMENT_KIND, v: SCENE_FORMAT_VERSION, entities, bulk },
-    without,
+    placedInto,
     w.registry,
     inst.at,
   );
-  return [{ op: "remove", refs: [inst.id] }, ...placed.ops];
+
+  const outer = dihedral(d, inst.at);
+  const index = w.instances.findIndex((r) => r.def.id === inst.id);
+  const instantiates: SceneOp[] = nested.map((n, k) => {
+    let out = { ...clone(n), id: renamed.get(n.id)!, at: applyPt(outer, n.at) } as InstanceDef;
+    out = withDihedral(out, composeDihedral(d, turnOf(n)));
+    out = withZ(out, (inst.z ?? 0) + (n.z ?? 0));
+    if (out.layer === undefined && inst.layer !== undefined) out.layer = inst.layer;
+    if (inst.off) out.off = true;
+    delete out.group;
+    if (inst.group !== undefined) out.group = inst.group;
+    return { op: "instantiate", instance: out as InstanceInput, index: index + k };
+  });
+  return [{ op: "remove", refs: [inst.id] }, ...placed.ops, ...instantiates];
 }
 
 /**
  * `definePrefab` with the entries `refs` name around the origin, `remove`
  * of them, and one `instantiate` of the new prefab at the origin. Group
- * members leave their group (the instance takes no group); the origin is
- * `at`, or the top-left of the entries' box.
+ * members leave their group (the instance takes no group); instances among
+ * the refs become the prefab's nested instances, their group's transform
+ * baked in. The origin is `at`, or the top-left of the entries' box and
+ * the instances' `at`s.
  */
 function createPrefabOps(
   w: Work,
@@ -1376,12 +2254,22 @@ function createPrefabOps(
     fail("id-taken", `There is already a prefab "${op.id}".`, { got: op.id, path: `/ops/${i}/id` });
   const entities: EntityDef[] = [];
   const picked = new Map<BulkKey, { index: number; value: BulkEntry }[]>();
+  const nested: { index: number; def: InstanceDef }[] = [];
   for (const ref of [...new Set(op.refs)]) {
     const t = resolve(w, ref);
-    if (t.kind === "instance")
-      fail("op-invalid", `${ref} is an instance; prefabs can't hold instances.`, {
-        entityIds: [ref],
+    if (t.kind === "instance") {
+      const placed = compose(
+        groupFrame(w, t.rec.def.group),
+        dihedral(turnOf(t.rec.def), t.rec.def.at),
+      );
+      const n = { ...clone(t.rec.def), at: [placed.tx, placed.ty] as Pt };
+      delete n.group;
+      nested.push({
+        index: w.instances.indexOf(t.rec),
+        def: withDihedral(n, dihedralOf(placed) ?? { rot: 0, flip: false }),
       });
+      continue;
+    }
     if (t.kind === "bulk") {
       const list = picked.get(t.info.key) ?? [];
       list.push({ index: w.buckets.get(t.info.key)!.indexOf(t.slot), value: clone(t.slot.value) });
@@ -1401,14 +2289,15 @@ function createPrefabOps(
       w.entities.findIndex((r) => r.def.id === a.id) -
       w.entities.findIndex((r) => r.def.id === b.id),
   );
+  nested.sort((a, b) => a.index - b.index);
   const bulk: Record<BulkKey, BulkEntry[]> = {};
   for (const key of [...picked.keys()].sort())
     bulk[key] = picked
       .get(key)!
       .sort((a, b) => a.index - b.index)
       .map((x) => x.value);
-  if (entities.length === 0 && Object.keys(bulk).length === 0)
-    fail("op-invalid", "createPrefab needs at least one entity or bulk entry.");
+  if (entities.length === 0 && Object.keys(bulk).length === 0 && nested.length === 0)
+    fail("op-invalid", "createPrefab needs at least one entity, bulk entry or instance.");
   let origin: Pt;
   if (op.at) origin = [op.at[0], op.at[1]];
   else {
@@ -1416,9 +2305,11 @@ function createPrefabOps(
       { kind: FRAGMENT_KIND, v: SCENE_FORMAT_VERSION, entities, bulk },
       w.registry,
     );
-    if (!box)
+    const xs = [...(box ? [box.minX] : []), ...nested.map((n) => n.def.at[0])];
+    const ys = [...(box ? [box.minY] : []), ...nested.map((n) => n.def.at[1])];
+    if (xs.length === 0)
       fail("op-invalid", "None of those entries has a position to put the prefab's origin at.");
-    origin = [Math.floor(box.minX), Math.floor(box.minY)];
+    origin = [Math.floor(Math.min(...xs)), Math.floor(Math.min(...ys))];
   }
   const back: Pt = [-origin[0], -origin[1]];
   const body: PrefabBody = {
@@ -1429,6 +2320,9 @@ function createPrefabOps(
             Object.entries(bulk).map(([k, vs]) => [k, vs.map((v) => translateBulkEntry(v, back))]),
           ),
         }
+      : {}),
+    ...(nested.length > 0
+      ? { instances: nested.map(({ def }) => ({ ...def, at: addPt(def.at, back) })) }
       : {}),
   };
   const refs = [...new Set(op.refs)];
@@ -1517,15 +2411,61 @@ function settingsInverse(start: SceneDefinition, w: Work): SceneOp[] {
   return ops;
 }
 
+function assetsInverse(start: SceneDefinition, w: Work): SceneOp[] {
+  if (!w.assetsTouched) return [];
+  const was = sortedAssets(start.assets ?? []);
+  const add = was.filter((id) => !w.assets.includes(id));
+  const remove = w.assets.filter((id) => !was.includes(id));
+  if (add.length === 0 && remove.length === 0) return [];
+  return [
+    {
+      op: "useAssets",
+      ...(add.length > 0 ? { add } : {}),
+      ...(remove.length > 0 ? { remove } : {}),
+    },
+  ];
+}
+
+/** The header ops that put the viewed prefab's base and params back as `startPrefabs` holds them. */
+function headerInverse(w: Work, startPrefabs: PrefabLibrary): SceneOp[] {
+  if (w.view === undefined || !w.headerTouched) return [];
+  const was = headerOf(startPrefabs.get(w.view));
+  const ops: SceneOp[] = [];
+  if (was.base !== w.header.base) ops.push({ op: "setPrefabBase", base: was.base ?? null });
+  const names = new Set([...Object.keys(was.params), ...Object.keys(w.header.params)]);
+  for (const name of [...names].sort()) {
+    const param = was.params[name];
+    if (!same(param, w.header.params[name]))
+      ops.push({ op: "exposeParam", name, param: param ? clone(param) : null });
+  }
+  return ops;
+}
+
+/**
+ * The setParam ops that give an instance `was`'s params back, one per param
+ * that differs; null when a param it held is null, which setParam can't set.
+ */
+function paramsInverse(was: InstanceDef, now: InstanceDef): SceneOp[] | null {
+  const a = was.params ?? {};
+  const b = now.params ?? {};
+  if (Object.values(a).some((v) => v === null)) return null;
+  const ops: SceneOp[] = [];
+  for (const name of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort())
+    if (!same(a[name], b[name]))
+      ops.push({ op: "setParam", ref: was.id, name, value: name in a ? clone(a[name]) : null });
+  return ops;
+}
+
 function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibrary): SceneOp[] {
   const ops: SceneOp[] = [];
   const last: SceneOp[] = [];
 
   // Prefabs the batch changed or deleted come back first, so instances of them can return.
   for (const id of [...w.prefabsChanged].sort()) {
+    if (id === w.view) continue;
     const was = startPrefabs.get(id);
     const now = w.prefabs.get(id);
-    if (was && !same(was, now)) ops.push({ op: "definePrefab", id, prefab: prefabBody(was) });
+    if (was && !same(was, now)) ops.push({ op: "definePrefab", id, prefab: fullBody(was) });
     else if (!was && now) last.push({ op: "definePrefab", id, prefab: null });
   }
 
@@ -1536,7 +2476,7 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
       const g = was[id]!;
       const now = w.groups[id];
       if (same(g, now)) continue;
-      ops.push({ op: "setGroup", id, at: clone(g.at), name: g.name ?? null });
+      ops.push({ op: "setGroup", id, ...setGroupFields(g, now) });
     }
     for (const id of Object.keys(w.groups).sort())
       if (!(id in was)) last.push({ op: "setGroup", id, remove: true });
@@ -1547,6 +2487,8 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
   if (!same(w.bounds, start.bounds)) sceneSet.bounds = clone(start.bounds);
   if (Object.keys(sceneSet).length > 0) ops.push({ op: "setScene", set: sceneSet });
   ops.push(...settingsInverse(start, w));
+  ops.push(...assetsInverse(start, w));
+  last.unshift(...headerInverse(w, startPrefabs));
 
   const removeRefs: Ref[] = [];
   const moves = new Map<string, { by: Pt; refs: Ref[] }>();
@@ -1558,18 +2500,41 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
     group.refs.push(ref);
     moves.set(k, group);
   };
+  const zRestores = new Map<number, Ref[]>();
+  /** Whether `now` is `was` with only its z changed; if so the inverse is one setZ. */
+  const restoreZ = <T extends { z?: number }>(ref: Ref, was: T, now: T): boolean => {
+    if (same(was, now) || !same(withZ(now, was.z ?? 0), was)) return false;
+    const z = was.z ?? 0;
+    zRestores.set(z, [...(zRestores.get(z) ?? []), ref]);
+    return true;
+  };
 
   const startEnts = start.entities ?? [];
   const replaced = new Set<number>();
   const survivors = w.entities.filter((r) => r.orig !== null);
   for (const rec of w.entities) if (rec.orig === null) removeRefs.push(rec.def.id);
   for (const rec of survivors) {
-    const original = startEnts[rec.orig!]!;
-    const current = { ...clone(rec.def), id: original.id };
-    if (same(original, current)) continue;
+    const was = startEnts[rec.orig!]!;
+    const current: EntityDef = { ...clone(rec.def), id: was.id };
+    if (same(was, current)) continue;
+    // A grid present on both sides comes back cell by cell; the rest is restored as usual.
+    const original = { ...was };
+    const paints: SceneOp[] = [];
+    for (const field of gridFields(w, was.type)) {
+      const a = was[field];
+      const b = current[field];
+      if (!isObj(a) || !isObj(b) || same(a, b)) continue;
+      paints.push(...paintOps(was.id, field, gridRestore(a as GridCells, b as GridCells)));
+      original[field] = b;
+    }
+    if (same(original, current) || restoreZ(original.id, original, current)) {
+      updates.push(...paints);
+      continue;
+    }
     const d = entityTranslation(w, original, current);
     if (d) {
       addMove(original.id, d);
+      updates.push(...paints);
       continue;
     }
     const restore = restorePaths(original, current);
@@ -1578,7 +2543,7 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
       removeRefs.push(rec.def.id);
       continue;
     }
-    updates.push({ op: "update", ref: original.id, ...pathsOf(restore) });
+    updates.push(...paints, { op: "update", ref: original.id, ...pathsOf(restore) });
   }
 
   const startInsts = start.instances ?? [];
@@ -1586,8 +2551,14 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
   for (const rec of w.instances) if (rec.orig === null) removeRefs.push(rec.def.id);
   for (const rec of instSurvivors) {
     const original = startInsts[rec.orig!]!;
-    const now = rec.def as unknown as Json;
-    const was = original as unknown as Json;
+    if (restoreZ(original.id, original, { ...rec.def, id: original.id })) continue;
+    const now = { ...rec.def } as unknown as Json;
+    const was = { ...original } as unknown as Json;
+    const params = original.prefab === rec.def.prefab ? paramsInverse(original, rec.def) : null;
+    if (params) {
+      delete now.params;
+      delete was.params;
+    }
     const set: Json = {};
     const unset: string[] = [];
     for (const k of Object.keys(now)) if (k !== "id" && !(k in was)) unset.push(k);
@@ -1595,6 +2566,7 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
       if (k !== "id" && !same(was[k], now[k])) set[k] = clone(was[k]);
     if (Object.keys(set).length > 0 || unset.length > 0)
       updates.push({ op: "update", ref: original.id, ...pathsOf({ set, unset }) });
+    if (params) updates.push(...params);
   }
 
   const renames = [
@@ -1678,6 +2650,7 @@ function buildInverse(start: SceneDefinition, w: Work, startPrefabs: PrefabLibra
   if (removeRefs.length > 0) ops.push({ op: "remove", refs: removeRefs });
   ops.push(...renameOps);
   for (const { by, refs } of moves.values()) ops.push({ op: "move", refs, by });
+  for (const [z, refs] of zRestores) ops.push({ op: "setZ", refs, z });
   ops.push(...updates, ...readds);
   ops.push(
     ...orderInverse(
@@ -1765,12 +2738,13 @@ function touchedRefs(start: SceneDefinition, w: Work): Ref[] {
   }
   const startInsts = start.instances ?? [];
   const changedPrefabs = w.prefabsChanged;
+  const reachesChanged = (inst: InstanceDef) =>
+    changedPrefabs.size > 0 &&
+    prefabsUsedBy({ instances: [inst] } as SceneDefinition, w.prefabs).some((id) =>
+      changedPrefabs.has(id),
+    );
   for (const rec of w.instances) {
-    if (
-      rec.orig === null ||
-      !same(rec.def, startInsts[rec.orig]) ||
-      changedPrefabs.has(rec.def.prefab)
-    )
+    if (rec.orig === null || !same(rec.def, startInsts[rec.orig]) || reachesChanged(rec.def))
       out.push(rec.def.id);
   }
   for (const key of w.touchedBuckets) {

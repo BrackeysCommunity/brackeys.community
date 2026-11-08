@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jams-engine:scene:platformer:v2",
-  "x-agent-surface": 7,
-  "title": "jams engine scene for platformer, format v2",
+  "$id": "urn:jams-engine:scene:platformer:v3",
+  "x-agent-surface": 8,
+  "title": "jams engine scene for platformer, format v3",
   "type": "object",
   "properties": {
     "$schema": {
@@ -11,7 +11,7 @@
     },
     "v": {
       "type": "number",
-      "const": 2,
+      "const": 3,
       "description": "Scene format version. Files are migrated up on load and always saved at the current version."
     },
     "game": {
@@ -78,9 +78,138 @@
               "description": "y, px/s²; positive pulls down."
             }
           ]
+        },
+        "physics": {
+          "description": "The physics world: \"rapier\" simulates bodies, \"none\" runs without one. Omitted resolves through the project and game defaults to \"rapier\".",
+          "title": "Physics",
+          "type": "string",
+          "enum": ["rapier", "none"]
+        },
+        "grid": {
+          "description": "The scene's one cell grid, square or hex; the hex parameters match Tiled's.",
+          "title": "Grid",
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "square",
+                  "description": "Square (or rectangular) cells."
+                },
+                "cell": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "description": "w, px."
+                    },
+                    {
+                      "type": "number",
+                      "description": "h, px."
+                    }
+                  ],
+                  "description": "Cell size [w, h], px; positive integers."
+                },
+                "origin": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "description": "x, px."
+                    },
+                    {
+                      "type": "number",
+                      "description": "y, px."
+                    }
+                  ],
+                  "description": "Where cell 0, 0 starts, world px; integers. Omitted means 0, 0."
+                }
+              },
+              "required": ["kind", "cell"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "hex",
+                  "description": "Hexagonal cells, parameterized like Tiled's."
+                },
+                "cell": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "description": "w, px."
+                    },
+                    {
+                      "type": "number",
+                      "description": "h, px."
+                    }
+                  ],
+                  "description": "The hex's bounding box [w, h], px (Tiled's tilewidth, tileheight); positive integers."
+                },
+                "side": {
+                  "type": "number",
+                  "description": "The length of the flat sides, px (Tiled's hexsidelength): an integer from 0 to the cell's size on the stagger axis."
+                },
+                "stagger": {
+                  "type": "string",
+                  "enum": ["x", "y"],
+                  "description": "Which axis is staggered (Tiled's staggeraxis)."
+                },
+                "index": {
+                  "type": "string",
+                  "enum": ["odd", "even"],
+                  "description": "Whether odd or even rows (or columns) are shifted (Tiled's staggerindex)."
+                },
+                "origin": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "description": "x, px."
+                    },
+                    {
+                      "type": "number",
+                      "description": "y, px."
+                    }
+                  ],
+                  "description": "Where cell 0, 0 starts, world px; integers. Omitted means 0, 0."
+                }
+              },
+              "required": ["kind", "cell", "side", "stagger", "index"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "view": {
+          "description": "How the scene is projected to the screen; reserved, only orthogonal exists.",
+          "title": "View",
+          "type": "object",
+          "properties": {
+            "projection": {
+              "type": "string",
+              "const": "orthogonal",
+              "description": "The only projection there is so far."
+            }
+          },
+          "required": ["projection"],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
+    },
+    "assets": {
+      "description": "Asset ids only game code names, so they count as used: sorted, each once.",
+      "title": "Assets",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
     },
     "groups": {
       "description": "Groups by id. An entity or instance whose `group` names one stores its geometry relative to the group's `at`.",
@@ -206,6 +335,20 @@
           "unit": "px",
           "group": "geometry"
         },
+        "rot": {
+          "description": "Quarter turns clockwise (y down), applied after `flip`. Omitted means 0.",
+          "title": "Rotation",
+          "group": "geometry",
+          "type": "number",
+          "enum": [1, 2, 3]
+        },
+        "flip": {
+          "description": "Mirror x in the local frame, before `rot`. Omitted means not mirrored.",
+          "title": "Mirror",
+          "group": "geometry",
+          "type": "boolean",
+          "const": true
+        },
         "name": {
           "description": "Display label for the editor's outliner. No runtime effect.",
           "title": "Name",
@@ -245,11 +388,12 @@
           "maxLength": 80
         },
         "layer": {
-          "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+          "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
           "title": "Layer",
           "group": "identity",
           "type": "string",
-          "enum": ["terrain", "gameplay", "decor", "editor"]
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "enum": ["terrain", "decor", "gameplay", "editor"]
         },
         "group": {
           "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -263,6 +407,14 @@
           "title": "Disabled",
           "group": "identity",
           "type": "boolean"
+        },
+        "z": {
+          "description": "Added to the z of every child, an integer in [-10000, 10000]. Omitted means 0.",
+          "title": "Z",
+          "group": "identity",
+          "type": "integer",
+          "minimum": -10000,
+          "maximum": 10000
         },
         "at": {
           "type": "array",
@@ -287,6 +439,30 @@
           "unit": "px",
           "group": "geometry"
         },
+        "rot": {
+          "description": "Quarter turns clockwise (y down), applied after `flip`. Omitted means 0.",
+          "title": "Rotation",
+          "group": "geometry",
+          "type": "number",
+          "enum": [1, 2, 3]
+        },
+        "flip": {
+          "description": "Mirror x in the local frame, before `rot`. Omitted means not mirrored.",
+          "title": "Mirror",
+          "group": "geometry",
+          "type": "boolean",
+          "const": true
+        },
+        "params": {
+          "description": "Values of the prefab's exposed parameters, by name.",
+          "title": "Parameters",
+          "group": "overrides",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
         "overrides": {
           "description": "Child fields that differ from the prefab, keyed `<childId>.<field.path>` (`door.path.speed`, `~solid:0.shape`). Values are in the prefab's own frame, before `at`.",
           "title": "Overrides",
@@ -294,14 +470,14 @@
           "type": "object",
           "propertyNames": {
             "type": "string",
-            "pattern": "^(?:[a-z0-9][a-z0-9-]{0,47}|~[a-z0-9:-]+:\\d+)\\.[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)*$"
+            "pattern": "^(?:[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47})*(?:\\/~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))?|~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*)(?:\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*))*$"
           },
           "additionalProperties": {}
         }
       },
       "required": ["id", "prefab", "at"],
       "additionalProperties": false,
-      "description": "One placement of a prefab. Its children load with ids `<id>/<childId>`, moved by `at`."
+      "description": "One placement of a prefab. Its children load with ids `<id>/<childId>`, mirrored by `flip`, turned by `rot` and moved by `at`."
     },
     "Pt": {
       "type": "array",
@@ -537,11 +713,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -555,6 +732,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "shape": {
               "description": "Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.",
@@ -580,7 +765,15 @@
               "title": "Attached to",
               "group": "motion",
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape"],
@@ -613,11 +806,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -631,6 +825,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "shape": {
               "description": "Trigger shape. Absolute world px; y is down.",
@@ -652,7 +854,15 @@
               "title": "Attached to",
               "group": "motion",
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape"],
@@ -685,11 +895,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -704,6 +915,14 @@
               "group": "identity",
               "type": "boolean"
             },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
             "at": {
               "description": "Marker position. Absolute world px; y is down.",
               "title": "Position",
@@ -717,6 +936,14 @@
                 "type": "string",
                 "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
               }
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "at"],
@@ -749,11 +976,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -767,6 +995,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "shape": {
               "description": "Starting collider shape. Absolute world px; y is down. Not chain.",
@@ -798,6 +1034,14 @@
               "group": "surface",
               "type": "string",
               "enum": ["ice", "chocolate", "trampoline"]
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape", "density", "restitution"],
@@ -830,11 +1074,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -848,6 +1093,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "shape": {
               "description": "Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. [\"box\", 0, 0, 40, 6]). Not chain.",
@@ -864,6 +1117,14 @@
               "group": "surface",
               "type": "string",
               "enum": ["ice", "chocolate", "trampoline"]
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape", "path"],
@@ -896,11 +1157,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -914,6 +1176,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "at": {
               "description": "Where the note shows, absolute world px.",
@@ -956,11 +1226,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -975,11 +1246,27 @@
               "group": "identity",
               "type": "boolean"
             },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
             "shape": {
               "description": "Collider shape, box only. Absolute world px; y is down.",
               "title": "Shape",
               "group": "geometry",
               "$ref": "#/$defs/BoxShape"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape"],
@@ -1012,11 +1299,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -1030,6 +1318,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "shape": {
               "description": "Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. [\"box\", 0, 0, 40, 6]). Not chain.",
@@ -1046,6 +1342,14 @@
               "group": "surface",
               "type": "string",
               "enum": ["ice", "chocolate", "trampoline"]
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape", "path"],
@@ -1078,11 +1382,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -1096,6 +1401,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "shape": {
               "description": "Trigger shape. Absolute world px; y is down.",
@@ -1117,7 +1430,15 @@
               "title": "Attached to",
               "group": "motion",
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape"],
@@ -1150,11 +1471,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -1168,6 +1490,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "shape": {
               "description": "Trigger shape. Absolute world px; y is down.",
@@ -1189,7 +1519,15 @@
               "title": "Attached to",
               "group": "motion",
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape"],
@@ -1222,11 +1560,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -1240,6 +1579,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "shape": {
               "description": "Trigger shape. Absolute world px; y is down.",
@@ -1261,7 +1608,15 @@
               "title": "Attached to",
               "group": "motion",
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "shape"],
@@ -1294,11 +1649,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -1313,10 +1669,26 @@
               "group": "identity",
               "type": "boolean"
             },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
             "at": {
               "description": "Anchor position. Absolute world px; y is down.",
               "title": "Position",
               "$ref": "#/$defs/Pt"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "at"],
@@ -1349,11 +1721,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -1367,6 +1740,14 @@
               "title": "Disabled",
               "group": "identity",
               "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
             },
             "construct": {
               "type": "string",
@@ -1393,6 +1774,14 @@
               "type": "integer",
               "minimum": -9007199254740991,
               "maximum": 9007199254740991
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "construct", "at"],
@@ -1425,11 +1814,12 @@
               "maxLength": 80
             },
             "layer": {
-              "description": "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
               "title": "Layer",
               "group": "identity",
               "type": "string",
-              "enum": ["terrain", "gameplay", "decor", "editor"]
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
             },
             "group": {
               "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
@@ -1444,6 +1834,14 @@
               "group": "identity",
               "type": "boolean"
             },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
             "at": {
               "description": "The player's FEET, so put it on a floor's top edge. One per player; spawns 60px apart or more.",
               "title": "Position",
@@ -1457,6 +1855,14 @@
                 "type": "string",
                 "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
               }
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
             }
           },
           "required": ["id", "type", "at"],

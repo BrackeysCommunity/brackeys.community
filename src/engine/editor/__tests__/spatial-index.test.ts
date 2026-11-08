@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { createRegistry } from "../../game/define";
+import { createRegistry, defineGame } from "../../game/define";
 import { sceneHash } from "../../scene/hash";
 import { applyOps } from "../../scene/ops";
 import type { OpBatch, SceneDefinition, SceneOp } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
-import { createSpatialIndex, defaultLayer, type EditableSpatialIndex } from "../spatial-index";
+import { createSpatialIndex, type EditableSpatialIndex } from "../spatial-index";
 
 const registry = createRegistry();
 const engineYard = () => structuredClone(yard) as unknown as SceneDefinition;
@@ -80,10 +80,73 @@ describe("createSpatialIndex", () => {
     expect(z("readme")).toBeGreaterThan(z("zone"));
   });
 
-  it("defaults layers by kind", () => {
-    expect(defaultLayer(registry.types.get("note"), false)).toBe("editor");
-    expect(defaultLayer(registry.types.get("solid"), true)).toBe("terrain");
-    expect(defaultLayer(registry.types.get("solid"), false)).toBe("gameplay");
+  it("stacks decor under gameplay, as the registry's layers run", () => {
+    const def = engineYard();
+    def.entities!.find((e) => e.id === "zone")!.layer = "decor";
+    const index = createSpatialIndex();
+    index.rebuild(def, registry);
+    const z = (ref: string) => index.get(ref)!.z;
+    expect(z("zone")).toBeLessThan(z("avatar"));
+    expect(z("zone")).toBeGreaterThan(z("~solid:0"));
+  });
+
+  it("stacks by z within a layer, then document order, and updates with it", () => {
+    const def = engineYard();
+    const index = createSpatialIndex();
+    index.rebuild(def, registry);
+    const z = (ref: string) => index.get(ref)!.z;
+    expect(z("avatar")).toBeGreaterThan(z("ledge"));
+    const lowered = apply(def, [{ op: "update", ref: "avatar", set: { z: -1 } }]);
+    index.update(lowered.def, registry, lowered.touched);
+    expect(z("avatar")).toBeLessThan(z("ledge"));
+    expectSameAsRebuild(index, lowered.def);
+    const raised = apply(lowered.def, [{ op: "update", ref: "ledge", set: { z: 10000 } }]);
+    index.update(raised.def, registry, raised.touched);
+    expect(z("ledge")).toBeGreaterThan(z("avatar"));
+    expect(z("ledge")).toBeLessThan(z("readme"));
+  });
+
+  it("orders a game's own layers and defaults through them", () => {
+    const layered = createRegistry(
+      defineGame({
+        id: "layered",
+        types: [],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+        layers: [
+          { name: "back", description: "Behind.", draw: 0 },
+          { name: "front", description: "In front.", draw: 10 },
+          { name: "notes", description: "Helpers.", draw: 60, editorOnly: true },
+        ],
+      }),
+    );
+    const def: SceneDefinition = {
+      v: 2,
+      name: "layered",
+      bounds: [0, 0, 1000, 1000],
+      solid: [["box", 500, 500, 400, 400]],
+      entities: [
+        { id: "far", type: "solid", layer: "back", shape: ["box", 500, 500, 10, 10], z: 50 },
+        { id: "near", type: "solid", layer: "front", shape: ["box", 500, 500, 10, 10], z: -50 },
+        { id: "plain", type: "solid", shape: ["box", 500, 500, 10, 10] },
+        { id: "stray", type: "solid", layer: "terrain", shape: ["box", 500, 500, 10, 10] },
+        { id: "memo", type: "note", at: [500, 500], text: "hi" },
+      ],
+    };
+    const index = createSpatialIndex();
+    index.rebuild(def, layered);
+    expect(index.get("~solid:0")?.layer).toBe("back");
+    expect(index.get("plain")?.layer).toBe("back");
+    expect(index.get("stray")?.layer).toBe("back");
+    expect(index.get("memo")?.layer).toBe("notes");
+    expect(index.query({ minX: 499, minY: 499, maxX: 501, maxY: 501 }).map((e) => e.ref)).toEqual([
+      "memo",
+      "near",
+      "far",
+      "stray",
+      "plain",
+      "~solid:0",
+    ]);
   });
 
   it("keeps disabled entities and skips shapes that don't parse", () => {

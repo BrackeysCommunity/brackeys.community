@@ -18,7 +18,7 @@ import {
   type AssetEntry,
   type BuildStamp,
 } from "@jams/engine/project";
-import type { Prefab } from "@jams/engine/scene";
+import { SCENE_FORMAT_VERSION, type Prefab } from "@jams/engine/scene";
 import { useStore } from "@tanstack/react-store";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { useMemo } from "react";
@@ -45,13 +45,13 @@ const kinds = createKindRegistry(null, [sceneKind, prefabKind]);
 
 const POST: Prefab = {
   kind: "prefab",
-  v: 2,
+  v: SCENE_FORMAT_VERSION,
   id: "post",
   entities: [{ id: "top", type: "marker", at: [0, -40] }],
 };
 
 const SCENE: SceneDefinition = {
-  v: 2,
+  v: SCENE_FORMAT_VERSION,
   name: "posts",
   bounds: [0, 0, 2000, 1200],
   instances: [{ id: "post-1", prefab: "post", at: [100, 900] }],

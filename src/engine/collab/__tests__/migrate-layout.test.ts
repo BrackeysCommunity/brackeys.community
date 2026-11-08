@@ -107,7 +107,7 @@ describe("migrateLayout", () => {
     expect(docs.get("post")!.getMap("meta").toJSON()).toMatchObject({
       project: "p",
       key: "post",
-      layout: 2,
+      layout: COLLAB_LAYOUT_VERSION,
     });
     expect(docPrefabs(scene).size).toBe(0);
     expect(docLayout(scene)).toBe(COLLAB_LAYOUT_VERSION);

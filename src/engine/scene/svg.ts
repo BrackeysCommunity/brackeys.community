@@ -1,5 +1,6 @@
 import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
+import { decodeRow, GRID_CHUNK, gridCellBounds, parseChunkKey, type GridCells } from "./grid";
 import {
   drawnEntities,
   expandedOf,
@@ -11,12 +12,24 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { aabb, translateShape } from "./shape-geometry";
+import { geometryFields } from "./schema";
+import { aabb, aabbUnion, translateShape } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline, type PathCommand } from "./shape-outline";
-import type { Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
+import type {
+  Aabb,
+  Bounds,
+  ExpandedScene,
+  GridSettings,
+  Pt,
+  SceneDefinition,
+  ShapeObj,
+} from "./types";
 
 /** The longest side of a rendered scene, in image px. */
 export const SCENE_SVG_MAX_SIZE = 1600;
+
+/** The most grid cells one render draws; a "…" stands where the rest begin. */
+export const SCENE_GRID_MAX_CELLS = 4096;
 
 export type SceneLabels = "entities" | "all" | "none";
 
@@ -48,7 +61,15 @@ export type SceneViewport = {
 const FALLBACK_STYLE: Style = { fill: 0x888888, stroke: 0xcccccc, alpha: 0.5 };
 const POINT_COLOR = 0xffcc44;
 const SEVERITY_COLOR = { error: "#ff4d4f", warn: "#ffb020", info: "#4da3ff" } as const;
-const EVENT_COLORS = ["#4dd0e1", "#ffd54f", "#ba68c8", "#81c784", "#ff8a65", "#90caf9", "#f48fb1"];
+const CATEGORY_COLORS = [
+  "#4dd0e1",
+  "#ffd54f",
+  "#ba68c8",
+  "#81c784",
+  "#ff8a65",
+  "#90caf9",
+  "#f48fb1",
+];
 const BACKGROUND = "#101218";
 const SCENE_FILL = "#181b22";
 const INK = "#f2f4f8";
@@ -93,7 +114,8 @@ export function sceneViewport(
   opts: SceneSvgOptions,
 ): SceneViewport {
   const expanded = expandedOf(scene, opts.registry, opts.prefabs);
-  return viewportOf(expanded, drawnEntities(expanded, opts.registry), opts);
+  const all = withGridBoxes(drawnEntities(expanded, opts.registry), expanded.settings.grid);
+  return viewportOf(expanded, all, opts);
 }
 
 /** SVG path data for an outline; arcs are split into quarter turns so a full circle draws. */
@@ -131,6 +153,164 @@ export function svgPathData(cmds: readonly PathCommand[]): string {
   return out.join("");
 }
 
+// ─── Grid fields ─────────────────────────────────────────
+
+/** One filled cell of a grid field, placed in the world. */
+export type DrawnGridCell = {
+  entity: DrawnEntity;
+  field: string;
+  col: number;
+  row: number;
+  value: number;
+  /** World outline: a rectangle, or a hexagon on a hex grid. */
+  outline: Pt[];
+  box: Aabb;
+};
+
+/** The filled grid cells a render draws, in entity order and row-major within each field. */
+export type DrawnGridCells = {
+  cells: DrawnGridCell[];
+  /** Filled cells in the region past the cap, not drawn. */
+  more: number;
+  /** The centre of the first cell not drawn. */
+  moreAt: Pt | null;
+};
+
+const boxOfPts = (pts: readonly Pt[]): Aabb => {
+  let b: Aabb = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  for (const [x, y] of pts)
+    b = {
+      minX: Math.min(b.minX, x),
+      minY: Math.min(b.minY, y),
+      maxX: Math.max(b.maxX, x),
+      maxY: Math.max(b.maxY, y),
+    };
+  return b;
+};
+
+/** A cell's outline with the grid's cell (0, 0) top-left corner at `origin`; hex grids stagger as Tiled's do. */
+export function gridCellOutline(grid: GridSettings, [ox, oy]: Pt, col: number, row: number): Pt[] {
+  const [w, h] = grid.cell;
+  if (grid.kind === "square") {
+    const x = ox + col * w;
+    const y = oy + row * h;
+    return [
+      [x, y],
+      [x + w, y],
+      [x + w, y + h],
+      [x, y + h],
+    ];
+  }
+  const { side } = grid;
+  const shifted = (n: number) => ((n & 1) === 1) === (grid.index === "odd");
+  if (grid.stagger === "y") {
+    const x = ox + col * w + (shifted(row) ? w / 2 : 0);
+    const y = oy + (row * (h + side)) / 2;
+    const t = (h - side) / 2;
+    return [
+      [x + w / 2, y],
+      [x + w, y + t],
+      [x + w, y + t + side],
+      [x + w / 2, y + h],
+      [x, y + t + side],
+      [x, y + t],
+    ];
+  }
+  const x = ox + (col * (w + side)) / 2;
+  const y = oy + row * h + (shifted(col) ? h / 2 : 0);
+  const t = (w - side) / 2;
+  return [
+    [x, y + h / 2],
+    [x + t, y],
+    [x + t + side, y],
+    [x + w, y + h / 2],
+    [x + t + side, y + h],
+    [x + t, y + h],
+  ];
+}
+
+/** An entity's grid fields that hold a grid value; none without an `at` to place them. */
+function gridValues(d: DrawnEntity): { field: string; value: GridCells }[] {
+  if (!d.at) return [];
+  const out: { field: string; value: GridCells }[] = [];
+  for (const { field, kind } of geometryFields(d.type)) {
+    const value = d.entity[field];
+    if (kind === "grid" && value !== null && typeof value === "object" && !Array.isArray(value))
+      out.push({ field, value: value as GridCells });
+  }
+  return out;
+}
+
+/** The entities with each one's box grown over its grid fields' filled cells. */
+export function withGridBoxes(
+  entities: readonly DrawnEntity[],
+  grid: GridSettings | null,
+): DrawnEntity[] {
+  if (!grid) return [...entities];
+  return entities.map((d) => {
+    let box = d.box;
+    for (const { value } of gridValues(d)) {
+      const b = gridCellBounds(value);
+      if (!b) continue;
+      // Both row and column parities at each edge, so a staggered hex row is covered.
+      const cols = [...new Set([b.c0, Math.min(b.c0 + 1, b.c1), Math.max(b.c1 - 1, b.c0), b.c1])];
+      const rows = [...new Set([b.r0, Math.min(b.r0 + 1, b.r1), Math.max(b.r1 - 1, b.r0), b.r1])];
+      for (const c of cols)
+        for (const r of rows) box = aabbUnion(box, boxOfPts(gridCellOutline(grid, d.at!, c, r)));
+    }
+    return box === d.box ? d : { ...d, box };
+  });
+}
+
+/**
+ * The filled cells of every grid field that fall in `region`, at most `max`
+ * of them; cells are local to their entity's `at` and sized by the scene's
+ * grid. Nothing without a grid.
+ */
+export function gridCellsIn(
+  entities: readonly DrawnEntity[],
+  grid: GridSettings | null,
+  [x0, y0, x1, y1]: Bounds,
+  max = SCENE_GRID_MAX_CELLS,
+): DrawnGridCells {
+  const out: DrawnGridCells = { cells: [], more: 0, moreAt: null };
+  if (!grid) return out;
+  for (const d of entities) {
+    for (const { field, value } of gridValues(d)) {
+      const found: DrawnGridCell[] = [];
+      for (const [key, rows] of Object.entries(value)) {
+        const chunk = parseChunkKey(key);
+        if (!chunk || !Array.isArray(rows)) continue;
+        rows.forEach((text, r) => {
+          const cells = typeof text === "string" ? decodeRow(text) : null;
+          if (!cells) return;
+          for (let i = 0; i < GRID_CHUNK; i++) {
+            const v = cells[i] ?? 0;
+            if (v === 0) continue;
+            const col = chunk[0] * GRID_CHUNK + i;
+            const row = chunk[1] * GRID_CHUNK + r;
+            const outline = gridCellOutline(grid, d.at!, col, row);
+            const box = boxOfPts(outline);
+            if (box.maxX <= x0 || box.minX >= x1 || box.maxY <= y0 || box.minY >= y1) continue;
+            found.push({ entity: d, field, col, row, value: v, outline, box });
+          }
+        });
+      }
+      found.sort((a, b) => a.row - b.row || a.col - b.col);
+      for (const c of found) {
+        if (out.cells.length < max) {
+          out.cells.push(c);
+          continue;
+        }
+        if (out.more === 0)
+          out.moreAt = [(c.box.minX + c.box.maxX) / 2, (c.box.minY + c.box.maxY) / 2];
+        out.more++;
+      }
+    }
+  }
+  return out;
+}
+
 const isSpawnLike = (d: DrawnEntity) => d.tags.includes("spawn") || d.type.type === "spawn";
 
 /**
@@ -146,7 +326,7 @@ export function renderSceneSvg(
 ): string {
   const { registry } = opts;
   const expanded = expandedOf(scene, registry, opts.prefabs);
-  const all = drawnEntities(expanded, registry);
+  const all = withGridBoxes(drawnEntities(expanded, registry), expanded.settings.grid);
   const vp = viewportOf(expanded, all, opts);
   const [x0, y0, x1, y1] = vp.region;
   const u = 1 / vp.scale;
@@ -189,6 +369,11 @@ export function renderSceneSvg(
   if (grid.length) out.push(`<path d="${grid.join("")}" stroke="#ffffff" stroke-opacity="0.07"/>`);
   if (axis.length) out.push(`<path d="${axis.join("")}" stroke="#ffffff" stroke-opacity="0.25"/>`);
   out.push(`</g>`);
+
+  // Grid fields' cells, under the entities
+  const cells = gridCellsIn(visible, expanded.settings.grid, vp.region);
+  if (cells.cells.length > 0 || cells.more > 0)
+    out.push(...gridCellElements(cells, registry, px, u));
 
   // Entities
   out.push(`<g id="entities">`);
@@ -300,6 +485,47 @@ export function renderSceneSvg(
   return `${out.join("\n")}\n`;
 }
 
+function gridCellElements(
+  { cells, more, moreAt }: DrawnGridCells,
+  registry: Registry,
+  px: (n: number) => string,
+  u: number,
+): string[] {
+  const out: string[] = [`<g id="grid-cells" fill-opacity="0.7" stroke-width="${px(1)}">`];
+  let open: DrawnGridCell | null = null;
+  for (const c of cells) {
+    if (open?.entity !== c.entity || open.field !== c.field) {
+      if (open) out.push(`</g>`);
+      const d = c.entity;
+      const style = styleOf({ registry }, d.type, materialOf(d)) ?? FALLBACK_STYLE;
+      out.push(
+        `<g data-ref="${esc(d.id)}" data-type="${esc(d.type.type)}" data-field="${esc(c.field)}" ` +
+          `stroke="${hex(style.stroke ?? style.fill ?? POINT_COLOR)}" stroke-opacity="0.6">`,
+      );
+      open = c;
+    }
+    const fill = CATEGORY_COLORS[(c.value - 1) % CATEGORY_COLORS.length]!;
+    const attrs = `data-cell="${c.col},${c.row}" data-v="${c.value}" fill="${fill}"`;
+    if (c.outline.length === 4) {
+      const { minX, minY, maxX, maxY } = c.box;
+      out.push(
+        `<rect ${attrs} x="${num(minX)}" y="${num(minY)}" width="${num(maxX - minX)}" height="${num(maxY - minY)}"/>`,
+      );
+    } else {
+      const d = c.outline.map(([x, y], i) => `${i ? "L" : "M"}${num(x)} ${num(y)}`).join("");
+      out.push(`<path ${attrs} d="${d}Z"/>`);
+    }
+  }
+  if (open) out.push(`</g>`);
+  if (moreAt)
+    out.push(
+      `<text class="grid-more" data-more="${more}" x="${num(moreAt[0])}" y="${num(moreAt[1] + 4 * u)}" ` +
+        `font-size="${px(12)}" text-anchor="middle" fill="${INK}" fill-opacity="1" stroke="none">…</text>`,
+    );
+  out.push(`</g>`);
+  return out;
+}
+
 const materialOf = (d: DrawnEntity) =>
   typeof d.entity.material === "string" ? d.entity.material : undefined;
 
@@ -370,7 +596,7 @@ function overlayElements(
     const counts = new Map<string, number>();
     for (const e of events) counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
     const types = [...counts.keys()].sort();
-    const color = new Map(types.map((t, i) => [t, EVENT_COLORS[i % EVENT_COLORS.length]!]));
+    const color = new Map(types.map((t, i) => [t, CATEGORY_COLORS[i % CATEGORY_COLORS.length]!]));
     out.push(`<g id="events" stroke="#000000" stroke-width="${px(1)}">`);
     for (const e of events) {
       const [x, y] = toPt(e.at);

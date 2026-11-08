@@ -1,32 +1,13 @@
 import type { RegisteredType, Registry } from "../game/types";
 import { bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
+import { defaultLayer } from "../scene/layers";
 import { geometryFields } from "../scene/schema";
 import { aabb, translateShape } from "../scene/shape-geometry";
 import { parseShape } from "../scene/shapes";
-import {
-  LAYERS,
-  type Aabb,
-  type BulkKey,
-  type EntityDef,
-  type Layer,
-  type Pt,
-  type Ref,
-  type SceneDefinition,
-  type ShapeObj,
-} from "../scene/types";
+import type { Aabb, BulkKey, EntityDef, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
 import type { IndexEntry, SpatialIndex } from "./tools";
 
 export const DEFAULT_CELL = 256;
-
-/**
- * The layer an entity without `layer` sits on: types that never load
- * (notes) on `editor`, bulk entries on `terrain`, other entities on
- * `gameplay`.
- */
-export function defaultLayer(type: RegisteredType | undefined, bulk: boolean): Layer {
-  if (type?.loads === false) return "editor";
-  return bulk ? "terrain" : "gameplay";
-}
 
 /** Where an entity's geometry lives in the document, and what it is in the world. */
 export type EditGeometry = {
@@ -125,9 +106,17 @@ const pointBox = ([x, y]: Pt): Aabb => ({ minX: x, minY: y, maxX: x, maxY: y });
 const overlaps = (a: Aabb, b: Aabb) =>
   a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
 
-/** Layer order, bottom to top; document order within a layer. */
-const LAYER_STRIDE = 1e7;
-const zOf = (layer: Layer, order: number) => LAYERS.indexOf(layer) * LAYER_STRIDE + order;
+/**
+ * Stacking, bottom to top: the registry's layer order, then the entity's
+ * `z`, then document order. Every term stays an exact integer.
+ */
+const ORDER_STRIDE = 1e7;
+const Z_SPAN = 20001;
+const zOf = (layerIndex: number, z: number, order: number) =>
+  (layerIndex * Z_SPAN + z + 10000) * ORDER_STRIDE + order;
+
+const entityZ = (e: EntityDef | undefined) =>
+  typeof e?.z === "number" && Number.isInteger(e.z) ? Math.max(-10000, Math.min(10000, e.z)) : 0;
 
 /** An entry would cover more cells than this; it lives on a list every query scans. */
 const MAX_CELLS = 1024;
@@ -211,7 +200,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
   function entryOf(
     ref: Ref,
     type: string,
-    layer: Layer,
+    layer: string,
     g: EditGeometry | undefined,
   ): IndexEntry | undefined {
     const geometry = g?.shape ?? g?.at;
@@ -230,7 +219,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
   function indexBucket(def: SceneDefinition, registry: Registry, key: BulkKey) {
     const info = registry.bulkKey(key);
     if (!info) return;
-    const layer = defaultLayer(registry.types.get(info.type), true);
+    const layer = defaultLayer(registry.types.get(info.type), true, registry.layers);
     bulkEntries(def, key).forEach((value, i) => {
       const ref = bulkId(key, i);
       const e = entryOf(ref, info.type, layer, bulkGeometry(registry, key, value));
@@ -242,7 +231,9 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
     const t = registry.types.get(e.type);
     if (!t) return undefined;
     const layer =
-      e.layer && (LAYERS as readonly string[]).includes(e.layer) ? e.layer : defaultLayer(t, false);
+      e.layer && registry.layers.some((l) => l.name === e.layer)
+        ? e.layer
+        : defaultLayer(t, false, registry.layers);
     return entryOf(e.id, e.type, layer, entityGeometry(t, e));
   }
 
@@ -254,19 +245,20 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
   }
 
   /** Re-stamps `z` from document order: bulk keys in canonical order, then entities. */
-  function restack(def: SceneDefinition, ents: Map<string, EntityDef>) {
+  function restack(def: SceneDefinition, registry: Registry, ents: Map<string, EntityDef>) {
+    const layerIndex = new Map(registry.layers.map((l, i) => [l.name, i]));
     let order = 0;
-    const stamp = (ref: Ref) => {
+    const stamp = (ref: Ref, entityZOf = 0) => {
       const e = entries.get(ref);
       if (!e) return;
-      const z = zOf(e.layer, order++);
+      const z = zOf(layerIndex.get(e.layer) ?? 0, entityZOf, order++);
       if (e.z !== z) entries.set(ref, { ...e, z });
     };
     for (const key of bulkKeysOf(def)) {
       const n = bulkEntries(def, key).length;
       for (let i = 0; i < n; i++) stamp(bulkId(key, i));
     }
-    for (const id of ents.keys()) stamp(id);
+    for (const [id, e] of ents) stamp(id, entityZ(e));
   }
 
   const bucketSig = (def: SceneDefinition, key: BulkKey) => JSON.stringify(bulkEntries(def, key));
@@ -297,7 +289,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
         const entry = entityEntry(registry, e);
         if (entry) insert(entry);
       }
-      restack(def, ents);
+      restack(def, registry, ents);
     },
 
     update(def, registry, touched) {
@@ -328,7 +320,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
         const entry = e && entityEntry(registry, e);
         if (entry) insert(entry);
       }
-      restack(def, ents);
+      restack(def, registry, ents);
     },
 
     query(rect) {

@@ -73,7 +73,12 @@ const emptyRuntime = () =>
     scene: {
       name: "t",
       bounds: [0, 0, 1000, 1000],
-      settings: { gravity: [0, 1200] },
+      settings: {
+        gravity: [0, 1200],
+        physics: "rapier",
+        grid: null,
+        view: { projection: "orthogonal" },
+      },
       entities: [],
     },
   });

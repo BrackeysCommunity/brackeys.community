@@ -1,0 +1,12 @@
+{
+  "label": "Pave a stone path",
+  "ops": [
+    {
+      "op": "paintCells",
+      "ref": "floor",
+      "field": "cells",
+      "rects": [[0, 3, 15, 3, 3]],
+      "cells": [[7, 2, 0]]
+    }
+  ]
+}

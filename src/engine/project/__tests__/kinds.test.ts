@@ -5,8 +5,9 @@ import { z } from "zod";
 
 import { CARD_TABLE, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineGame } from "../../game/define";
-import { materialField, shapeField } from "../../game/fields";
-import type { GameDefinition } from "../../game/types";
+import { assetField, materialField, pointField, shapeField } from "../../game/fields";
+import type { FieldEnv, GameDefinition, Registry } from "../../game/types";
+import { SCENE_FORMAT_VERSION } from "../../scene/types";
 import {
   createKindRegistry,
   defineAssetKind,
@@ -243,6 +244,21 @@ describe("parse → format", () => {
     expect(result.ok && result.migratedFrom).toBe(1);
   });
 
+  it("scene and prefab: a v2 file migrates to the current format", () => {
+    const scene = parseAssetDoc(
+      sceneKind,
+      { v: 2, name: "old", bounds: [0, 0, 10, 10], entities: [] },
+      engineEnv,
+    );
+    expect(scene).toMatchObject({ ok: true, migratedFrom: 2, value: { v: SCENE_FORMAT_VERSION } });
+    const prefab = parseAssetDoc(
+      prefabKind,
+      { kind: "prefab", v: 2, id: "old", entities: [] },
+      engineEnv,
+    );
+    expect(prefab).toMatchObject({ ok: true, migratedFrom: 2, value: { v: SCENE_FORMAT_VERSION } });
+  });
+
   it("a declarative kind migrates through its own migrations", () => {
     const deck = defineAssetKind({
       kind: "deck",
@@ -463,6 +479,7 @@ describe("refs", () => {
   const surfaces = defineGame({
     ...(testGame as GameDefinition),
     id: "surfaces",
+    behaviors: [],
     materials: {
       ice: { friction: 0, restitution: 0, description: "Slippery." },
       rubber: { friction: 1, restitution: 0.9, description: "Bouncy." },
@@ -558,8 +575,194 @@ describe("refs", () => {
     ]);
   });
 
-  it("material, game-settings and data-table name no other asset", () => {
-    for (const kind of [materialKind, gameSettingsKind, dataTableKind] as DocKindDef[])
-      expect(refsOf(kind, kind.empty(gameEnv, { id: "x" }), gameEnv)).toBeUndefined();
+  it("a material names no other asset; empty game-settings and data-table name none", () => {
+    expect(
+      refsOf(
+        materialKind as DocKindDef,
+        (materialKind as DocKindDef).empty(gameEnv, { id: "x" }),
+        gameEnv,
+      ),
+    ).toBeUndefined();
+    for (const kind of [gameSettingsKind, dataTableKind] as DocKindDef[])
+      expect(refsOf(kind, kind.empty(gameEnv, { id: "x" }), gameEnv)).toEqual([]);
+  });
+});
+
+describe("refs through asset fields", () => {
+  const fieldEnv: FieldEnv = {
+    materials: [],
+    materialDefs: new Map(),
+    types: [],
+    assets: () => [],
+  };
+  const art = defineGame({
+    ...(testGame as GameDefinition),
+    id: "art",
+    behaviors: [],
+    types: [
+      {
+        type: "sign",
+        description: "A sign with a picture.",
+        base: "marker",
+        fields: (env) => ({
+          at: pointField("Where it stands."),
+          skin: assetField(env, "texture", "Its picture.").optional(),
+          frames: z
+            .array(assetField(env, ["texture", "atlas"], "A frame."))
+            .optional()
+            .describe("Its frames."),
+        }),
+      },
+    ],
+    settings: { backdrop: assetField(fieldEnv, "texture", "The backdrop.").optional() },
+    tables: {
+      card: {
+        description: "Cards.",
+        row: { art: assetField(fieldEnv, "texture", "Its art.").optional() },
+      },
+    },
+    projectSettings: { icon: assetField(fieldEnv, "texture", "The game's icon.").optional() },
+  });
+  const registry = createRegistry(art);
+  const env: KindEnv = { registry, project: null };
+
+  it("scene: the header, settings, type fields and asset overrides", () => {
+    const sites = refsOf(
+      sceneKind as DocKindDef,
+      {
+        v: 2,
+        game: "art",
+        name: "s",
+        bounds: [0, 0, 10, 10],
+        settings: { backdrop: "sky" },
+        assets: ["boom", "hud-font"],
+        instances: [
+          {
+            id: "i1",
+            prefab: "post",
+            at: [0, 0],
+            overrides: { "board.skin": "wood", "board.at": [1, 1] },
+          },
+        ],
+        entities: [
+          { id: "s1", type: "sign", at: [1, 1], skin: "tiles", frames: ["a", "b"] },
+          { id: "s2", type: "sign", at: [2, 2] },
+        ],
+      },
+      env,
+    );
+    expect(sites).toEqual([
+      { pointer: "/assets/0", id: "boom", kinds: [] },
+      { pointer: "/assets/1", id: "hud-font", kinds: [] },
+      { pointer: "/instances/@i1/prefab", id: "post", kinds: ["prefab"] },
+      { pointer: "/instances/@i1/overrides/board.skin", id: "wood", kinds: ["texture"] },
+      { pointer: "/entities/@s1/skin", id: "tiles", kinds: ["texture"] },
+      { pointer: "/entities/@s1/frames/0", id: "a", kinds: ["texture", "atlas"] },
+      { pointer: "/entities/@s1/frames/1", id: "b", kinds: ["texture", "atlas"] },
+      { pointer: "/settings/backdrop", id: "sky", kinds: ["texture"] },
+    ]);
+  });
+
+  it("scene: every behavior block an entity carries", () => {
+    const glow = {
+      name: "art/glow",
+      description: "A glow.",
+      fields: {},
+      origin: "art",
+      index: 0,
+      shape: { halo: assetField(fieldEnv, "texture", "Its halo.").optional() },
+    };
+    const withBehaviors: Registry = { ...registry, behaviors: new Map([[glow.name, glow]]) };
+    const sites = refsOf(
+      sceneKind as DocKindDef,
+      {
+        v: 2,
+        game: "art",
+        name: "s",
+        bounds: [0, 0, 10, 10],
+        entities: [
+          {
+            id: "s1",
+            type: "sign",
+            at: [1, 1],
+            behaviors: { "art/glow": { halo: "ring" }, "art/unknown": { halo: "x" } },
+          },
+        ],
+      },
+      { registry: withBehaviors, project: null },
+    );
+    expect(sites).toEqual([
+      { pointer: "/entities/@s1/behaviors/art~1glow/halo", id: "ring", kinds: ["texture"] },
+    ]);
+  });
+
+  it("prefab: its base, nested instances, header and children", () => {
+    const sites = refsOf(
+      prefabKind as DocKindDef,
+      {
+        kind: "prefab",
+        v: 2,
+        game: "art",
+        id: "big-post",
+        base: "post",
+        assets: ["boom"],
+        instances: [{ id: "inner", prefab: "lamp", at: [0, 0] }],
+        entities: [{ id: "board", type: "sign", at: [0, 0], skin: "wood" }],
+      },
+      env,
+    );
+    expect(sites).toEqual([
+      { pointer: "/base", id: "post", kinds: ["prefab"] },
+      { pointer: "/assets/0", id: "boom", kinds: [] },
+      { pointer: "/instances/@inner/prefab", id: "lamp", kinds: ["prefab"] },
+      { pointer: "/entities/@board/skin", id: "wood", kinds: ["texture"] },
+    ]);
+  });
+
+  it("a scene for another game names only its header and prefabs", () => {
+    const sites = refsOf(
+      sceneKind as DocKindDef,
+      {
+        v: 2,
+        game: "elsewhere",
+        name: "s",
+        bounds: [0, 0, 10, 10],
+        assets: ["boom"],
+        settings: { backdrop: "sky" },
+        entities: [{ id: "s1", type: "sign", at: [1, 1], skin: "tiles" }],
+      },
+      env,
+    );
+    expect(sites).toEqual([{ pointer: "/assets/0", id: "boom", kinds: [] }]);
+  });
+
+  it("data-table: each row by id; game-settings: the game block", () => {
+    expect(
+      refsOf(
+        dataTableKind as DocKindDef,
+        {
+          kind: "data-table",
+          v: 1,
+          table: "card",
+          rows: [{ id: "fireball", art: "flame" }, { id: "heal" }],
+        },
+        env,
+      ),
+    ).toEqual([{ pointer: "/rows/@fireball/art", id: "flame", kinds: ["texture"] }]);
+    expect(
+      refsOf(
+        dataTableKind as DocKindDef,
+        { kind: "data-table", v: 1, table: "nope", rows: [{ id: "a", art: "flame" }] },
+        env,
+      ),
+      "a table the game doesn't declare has no fields",
+    ).toEqual([]);
+    expect(
+      refsOf(
+        gameSettingsKind as DocKindDef,
+        { kind: "game-settings", v: 1, engine: {}, game: { icon: "logo", title: "x" } },
+        env,
+      ),
+    ).toEqual([{ pointer: "/game/icon", id: "logo", kinds: ["texture"] }]);
   });
 });

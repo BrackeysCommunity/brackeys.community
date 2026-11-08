@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type * as Y from "yjs";
 
 import { toolRegistry } from "../../__tests__/fixtures/test-tool";
@@ -9,9 +9,11 @@ import { readLog } from "../../collab/log";
 import type { SceneOrigin } from "../../collab/types";
 import { expandScene } from "../../scene/expand";
 import { parseSceneOrThrow } from "../../scene/parse";
+import { prefabLibrary } from "../../scene/prefab";
 import type {
   EntityDef,
   ExpandedScene,
+  PrefabLibrary,
   RuntimeEntity,
   SceneDefinition,
   ShapeTuple,
@@ -84,8 +86,12 @@ afterEach(() => {
   }
 });
 
-function rig(opts: Partial<ToolHostOptions> = {}, gameTools?: readonly EditorToolDef[]): Rig {
-  const base = parseSceneOrThrow(yard, registry);
+function rig(
+  opts: Partial<ToolHostOptions> = {},
+  gameTools?: readonly EditorToolDef[],
+  scene?: { def: SceneDefinition; prefabs: PrefabLibrary },
+): Rig {
+  const base = scene?.def ?? parseSceneOrThrow(yard, registry);
   const doc = sceneToDoc(base, { key: sequentialKeys("k") });
   const session = createEditorSession({
     doc,
@@ -93,6 +99,15 @@ function rig(opts: Partial<ToolHostOptions> = {}, gameTools?: readonly EditorToo
     name: "engine-yard",
     registry,
     issuesDebounceMs: 0,
+    ...(scene
+      ? {
+          prefabs: {
+            library: () => scene.prefabs,
+            subscribe: () => () => {},
+            open: async () => null,
+          },
+        }
+      : {}),
   });
   const runtime = fakeRuntime();
   bindSceneDoc(doc, runtime, registry);
@@ -251,6 +266,15 @@ describe("selection", () => {
     r.later();
     r.click(900, 958);
     expect(sel()).toEqual(["zone"]);
+  });
+
+  it("tells the keymap whether anything is selected", () => {
+    const r = rig();
+    expect(r.host.keyContext().hasSelection).toBe(false);
+    r.session.select(["crate"]);
+    expect(r.host.keyContext()).toMatchObject({ hasSelection: true, tool: "select" });
+    expect(r.host.cancel()).toBe(true);
+    expect(r.host.keyContext().hasSelection).toBe(false);
   });
 });
 
@@ -432,6 +456,103 @@ describe("host commands", () => {
     expect(r.writes()).toBe(6);
     expect(r.host.command("toggle-snap")).toBe(true);
     expect(r.host.snap().enabled).toBe(false);
+  });
+
+  it("brings forward and sends backward as one setZ, leaving bulk entries out", () => {
+    const r = rig();
+    const dispatch = vi.spyOn(r.session, "dispatch");
+    r.session.select(["crate", "~solid:0", "ledge"]);
+    r.host.command("bring-forward");
+    r.host.command("send-backward");
+    expect(dispatch.mock.calls.map(([batch]) => batch)).toEqual([
+      { label: "Bring 2 entities forward", ops: [{ op: "setZ", refs: ["crate", "ledge"], by: 1 }] },
+      {
+        label: "Send 2 entities backward",
+        ops: [{ op: "setZ", refs: ["crate", "ledge"], by: -1 }],
+      },
+    ]);
+    r.session.select(["~solid:0"]);
+    expect(r.host.command("bring-forward")).toBe(false);
+    expect(dispatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("turns and flips selected instances and whole groups by quarter turns", async () => {
+    const yardDef = parseSceneOrThrow(yard, registry);
+    const def: SceneDefinition = {
+      ...yardDef,
+      groups: { pair: { at: [0, 0] } },
+      instances: [{ id: "post-1", prefab: "post", at: [600, 600] }],
+      entities: [...yardDef.entities!, { id: "pin", type: "marker", at: [40, 40], group: "pair" }],
+    };
+    const prefabs = prefabLibrary([
+      {
+        kind: "prefab",
+        v: def.v,
+        id: "post",
+        entities: [{ id: "top", type: "marker", at: [10, 0] }],
+      },
+    ]);
+    const tools = await registry.game!.editor!.tools!();
+    const r = rig({}, tools, { def, prefabs });
+    const dispatch = vi.spyOn(r.session, "dispatch");
+
+    r.session.select(["post-1/top"]);
+    expect(r.host.keyContext().quarterTurns).toBe(true);
+    expect(r.host.command("turn-cw")).toBe(true);
+    expect(r.def().instances![0]).toMatchObject({ id: "post-1", rot: 1 });
+    expect(r.host.command("turn-ccw")).toBe(true);
+    expect(r.def().instances![0]!.rot).toBeUndefined();
+    expect(r.host.command("flip-x")).toBe(true);
+    expect(r.def().instances![0]!.flip).toBe(true);
+
+    r.session.select(["pin"]);
+    expect(r.host.keyContext().quarterTurns).toBe(true);
+    expect(r.host.command("flip-y")).toBe(true);
+    expect(dispatch.mock.calls.at(-1)![0].ops).toEqual([
+      { op: "transform", groups: ["pair"], flip: "y" },
+    ]);
+
+    r.session.select(["post-1", "crate"]);
+    expect(r.host.keyContext().quarterTurns).toBe(false);
+    r.session.select(["crate"]);
+    expect(r.host.keyContext().quarterTurns).toBe(false);
+    expect(r.host.command("turn-cw")).toBe(false);
+    expect(r.host.command("flip-x")).toBe(false);
+    expect(dispatch).toHaveBeenCalledTimes(4);
+
+    // A game's tool keeps e for its own ghost.
+    r.session.select(["post-1"]);
+    r.host.command("tool:test-crate:crate");
+    expect(r.host.keyContext().quarterTurns).toBe(false);
+  });
+
+  it("copies, pastes and duplicates prefab instances as instances", () => {
+    const def: SceneDefinition = {
+      ...parseSceneOrThrow(yard, registry),
+      instances: [{ id: "post-1", prefab: "post", at: [600, 600] }],
+    };
+    const prefabs = prefabLibrary([
+      {
+        kind: "prefab",
+        v: def.v,
+        id: "post",
+        entities: [{ id: "top", type: "marker", at: [10, 0] }],
+      },
+    ]);
+    const r = rig({}, undefined, { def, prefabs });
+    r.session.select(["post-1"]);
+    expect(r.host.duplicate()).toBe(true);
+    expect(r.def().instances?.map((i) => [i.id, i.prefab])).toEqual([
+      ["post-1", "post"],
+      ["post-2", "post"],
+    ]);
+    r.session.select(["post-1"]);
+    const text = r.host.copy();
+    expect(JSON.parse(text).instances).toEqual([
+      expect.objectContaining({ id: "post-1", prefab: "post" }),
+    ]);
+    expect(r.host.paste(text, [200, 200])).toBe(true);
+    expect(r.def().instances?.map((i) => i.id)).toEqual(["post-1", "post-2", "post-3"]);
   });
 
   it("holds the pan tool while Space is down and pans through the host", () => {

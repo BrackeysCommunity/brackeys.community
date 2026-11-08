@@ -33,7 +33,7 @@ function scene(entities: RuntimeEntity[], gravity: Pt = [0, 1200]): ExpandedScen
     name: "t",
     game: "platformer",
     bounds: [-1000, -1000, 1000, 1000],
-    settings: { gravity },
+    settings: { gravity, physics: "rapier", grid: null, view: { projection: "orthogonal" } },
     entities,
   };
 }

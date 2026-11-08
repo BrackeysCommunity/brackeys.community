@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../../game/define";
-import type { Layer, Pt, SceneDefinition } from "../../scene/types";
+import type { Pt, SceneDefinition } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
 import { cycleHit, marqueeSelect, pickAt } from "../picking";
 import { createSpatialIndex } from "../spatial-index";
@@ -29,7 +29,7 @@ const def: SceneDefinition = {
 const index = createSpatialIndex();
 index.rebuild(def, registry);
 
-const refsAt = (p: Pt, scale: number, layers?: { hidden: Layer[]; locked: Layer[] }) =>
+const refsAt = (p: Pt, scale: number, layers?: { hidden: string[]; locked: string[] }) =>
   pickAt(index, p, {
     tolPx: 4,
     scale,
@@ -103,7 +103,7 @@ describe("marqueeSelect", () => {
 
   it("selects points inside it and skips hidden and locked layers", () => {
     const all = { minX: 0, minY: 0, maxX: 2000, maxY: 1000 };
-    const layers = { hidden: new Set<Layer>(["terrain"]), locked: new Set<Layer>(["decor"]) };
+    const layers = { hidden: new Set<string>(["terrain"]), locked: new Set<string>(["decor"]) };
     const picked = marqueeSelect(index, all, { touch: false, layers });
     expect(picked).toContain("flag");
     expect(picked).not.toContain("~solid:0");

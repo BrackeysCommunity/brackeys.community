@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
+import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { engineHomeRegistry } from "../../project/__tests__/fixtures/engine-home";
 import {
@@ -24,12 +25,15 @@ import type { ProjectFile } from "../../project/types";
 import type { Prefab, SceneDefinition } from "../../scene/types";
 import { fileContentStore } from "../../vite/content-store";
 import { createProjectFileAdapter, type FileProject } from "../../vite/project-files";
-import { docToScene, sceneToDoc } from "../convert";
+import { applyOpsToDoc } from "../apply";
+import { docToScene, entitiesMap, gridRowKey, metaMap, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
-import { layoutFromDoc, layoutToDoc } from "../layout";
+import { KEYED_ITEM, KEYED_Z, contentMap, layoutFromDoc, layoutToDoc } from "../layout";
+import { migrateDocLayout } from "../migrate-layout";
 import { docToPrefab, prefabToDoc } from "../prefab-doc";
 import { applyRegistryBatch, reinspectBlobs } from "../project-apply";
 import { readProject } from "../project-doc";
+import { LEGACY_Z_FIELD } from "../types";
 import { deckGame, deckKind } from "./fixtures/deck-kind";
 
 const lines = (...rows: string[]) => `${rows.join("\n")}\n`;
@@ -115,6 +119,17 @@ const docKinds = kinds
   .list()
   .filter((k): k is DocKindDef => k.storage === "doc" && k.layout !== "custom");
 
+/** Every keyed entry under `held`, at any depth. */
+function keyedEntries(held: unknown): { key: string; entry: Y.Map<unknown> }[] {
+  if (held instanceof Y.Array) return held.toArray().flatMap(keyedEntries);
+  if (!(held instanceof Y.Map)) return [];
+  return [...held.entries()].flatMap(([key, v]) =>
+    v instanceof Y.Map && v.has(KEYED_ITEM)
+      ? [{ key, entry: v as Y.Map<unknown> }, ...keyedEntries(v.get(KEYED_ITEM))]
+      : keyedEntries(v),
+  );
+}
+
 /** Through a seeded doc and a second client's copy of its state. */
 function throughDocs(layout: DocLayout, value: unknown): Record<string, unknown>[] {
   const doc = layoutToDoc(
@@ -145,6 +160,30 @@ describe("file → doc → file, per kind", () => {
       expect(formatAssetDoc(kind, value)).toBe(text);
       for (const back of throughDocs(kind.layout as DocLayout, value))
         expect(formatAssetDoc(kind, back)).toBe(text);
+    });
+
+    it(`${kind.kind}: a layout-2 doc migrates byte-identical, every keyed item keeping its key`, () => {
+      const parsed = parseAssetDoc(kind, text, env);
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+      const layout = kind.layout as DocLayout;
+      const doc = layoutToDoc(new Y.Doc(), layout, parsed.value, "seed", {
+        key: sequentialKeys("s"),
+      });
+      const entries = keyedEntries(contentMap(doc));
+      const order = entries.map((e) => [e.key, e.entry.get(KEYED_Z)]);
+      doc.transact(() => {
+        metaMap(doc).set("kind", kind.kind);
+        metaMap(doc).set("schemaVersion", kind.version);
+        metaMap(doc).set("layout", 2);
+        for (const { entry } of entries) {
+          entry.set(LEGACY_Z_FIELD, entry.get(KEYED_Z));
+          entry.delete(KEYED_Z);
+        }
+      });
+      expect(migrateDocLayout(doc, layout)).toMatchObject({ migrated: true, from: 2 });
+      expect(entries.map((e) => [e.key, e.entry.get(KEYED_Z)])).toEqual(order);
+      expect(entries.every((e) => !e.entry.has(LEGACY_Z_FIELD))).toBe(true);
+      expect(formatAssetDoc(kind, layoutFromDoc(doc, layout))).toBe(text);
     });
 
     it(`${kind.kind}: its empty value survives the doc`, () => {
@@ -183,6 +222,72 @@ describe("file → doc → file, per kind", () => {
       expect(formatAssetDoc(sceneKind, docToScene(remote))).toBe(text);
     });
   }
+
+  const PAINTED = lines(
+    "{",
+    '  "v": 3,',
+    '  "game": "test-game",',
+    '  "name": "paint-yard",',
+    '  "bounds": [0, 0, 4096, 4096],',
+    '  "settings": { "grid": { "cell": [16, 16], "kind": "square" } },',
+    '  "entities": [',
+    '    { "id": "lamp", "type": "lamp", "at": [1, 2] },',
+    '    { "id": "floor", "type": "paint", "at": [0, 640], "cells": {',
+    '      "-1,0": ["0*31,3"],',
+    '      "0,0": ["1*32", "1*32", "0*4,2*24"],',
+    '      "1,0": ["1*8"],',
+    '      "0,1": ["", "", "3"]',
+    "    } }",
+    "  ]",
+    "}",
+  );
+  const gameEnv: KindEnv = { registry: createRegistry(testGame), project: null };
+  const paintedDoc = () => {
+    const parsed = parseAssetDoc(sceneKind, PAINTED, gameEnv);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    const remote = new Y.Doc();
+    Y.applyUpdate(remote, Y.encodeStateAsUpdate(sceneToDoc(parsed.value)));
+    return remote;
+  };
+  const floorMap = (doc: Y.Doc) =>
+    [...entitiesMap(doc).values()].find((m) => m.get("id") === "floor")!;
+
+  it("scene: a grid field round-trips byte-identical, one doc key per non-empty row", () => {
+    const doc = paintedDoc();
+    expect(formatAssetDoc(sceneKind, docToScene(doc))).toBe(PAINTED);
+    const floor = floorMap(doc);
+    expect(floor.has("cells")).toBe(false);
+    expect([...floor.keys()].filter((k) => k.startsWith("cells@")).sort()).toEqual(
+      [
+        gridRowKey("cells", "-1,0", 0),
+        gridRowKey("cells", "0,0", 0),
+        gridRowKey("cells", "0,0", 1),
+        gridRowKey("cells", "0,0", 2),
+        gridRowKey("cells", "1,0", 0),
+        gridRowKey("cells", "0,1", 2),
+      ].sort(),
+    );
+    expect(floor.get(gridRowKey("cells", "0,0", 2))).toBe("0*4,2*24");
+  });
+
+  it("scene: a paint writes one row key and changes only its chunk's line in the file", () => {
+    const doc = paintedDoc();
+    const changed: string[] = [];
+    floorMap(doc).observe((e) => changed.push(...e.keysChanged));
+    const r = applyOpsToDoc(
+      doc,
+      { ops: [{ op: "paintCells", ref: "floor", field: "cells", cells: [[40, 0, 2]] }] },
+      { kind: "user", userId: "ada" },
+      gameEnv.registry,
+    );
+    expect(r.ok || r.issue).toBe(true);
+    expect(changed).toEqual([gridRowKey("cells", "1,0", 0)]);
+    const before = PAINTED.split("\n");
+    const after = formatAssetDoc(sceneKind, docToScene(doc)).split("\n");
+    expect(after).toHaveLength(before.length);
+    const diff = after.flatMap((line, i) => (line === before[i] ? [] : [[before[i], line]]));
+    expect(diff).toEqual([['      "1,0": ["1*8"],', '      "1,0": ["1*8,2"],']]);
+  });
 
   const prefabKind = kinds.get("prefab") as DocKindDef<Prefab>;
   for (const path of ["../../scenes/prefabs/post.json", "../../scenes/prefabs/gate.json"]) {

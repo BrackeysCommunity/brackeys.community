@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { memoryContentStore } from "../../project/content-store";
 import { sha256 } from "../../project/hash";
 import type { ProjectOp } from "../../project/ops";
+import { SCENE_FORMAT_VERSION } from "../../scene/types";
 import { applyProjectBatchToFiles, snapshotFiles } from "../apply-files";
 import { engineProjectCopy, type ProjectCopy } from "./dev-server-fixture";
 
@@ -20,6 +21,10 @@ beforeEach(async () => {
     "kitchen-sink.json",
     "prefabs/post.json",
     "prefabs/gate.json",
+    "prefabs/doorway.json",
+    "prefabs/latch.json",
+    "prefabs/one-way-latch.json",
+    "prefabs/room.json",
   ]);
 });
 
@@ -78,12 +83,12 @@ describe("applyProjectBatchToFiles", () => {
   it("creates, deletes and restores files through the registry", async () => {
     const created = await apply([{ op: "createAsset", kind: "scene", path: "levels/fresh.json" }]);
     expect(created).toMatchObject({ ok: true, created: ["fresh"] });
-    expect(JSON.parse(await copy.read("levels/fresh.json")).v).toBe(2);
+    expect(JSON.parse(await copy.read("levels/fresh.json")).v).toBe(SCENE_FORMAT_VERSION);
 
     expect((await apply([{ op: "deleteAsset", id: "fresh" }])).ok).toBe(true);
     expect((await files())["levels/fresh.json"]).toBeUndefined();
     expect((await apply([{ op: "restoreAsset", id: "fresh" }])).ok).toBe(true);
-    expect(JSON.parse(await copy.read("levels/fresh.json")).v).toBe(2);
+    expect(JSON.parse(await copy.read("levels/fresh.json")).v).toBe(SCENE_FORMAT_VERSION);
   });
 
   it("changes an id across docs: the prefab's file and every scene that names it", async () => {
@@ -96,6 +101,9 @@ describe("applyProjectBatchToFiles", () => {
       "post",
       "door",
       "door",
+      "room",
+      "doorway",
+      "one-way-latch",
     ]);
   });
 

@@ -3,8 +3,8 @@ import { z } from "zod";
 import type { Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { closest } from "./did-you-mean";
-import { toJsonSchema } from "./json-schema";
-import { OVERRIDE_PATH } from "./schema";
+import { layerNames, toJsonSchema } from "./json-schema";
+import { ID_PATTERN, OVERRIDE_PATH } from "./schema";
 import { OP_NAMES, type OpBatch, type Ref, type SceneOp } from "./types";
 
 const SPOT_ANCHORS = ["center", "top", "bottom", "left", "right"] as const;
@@ -66,6 +66,36 @@ const ShapeInputSchema = z
   );
 
 const PathsSchema = z.array(z.string());
+
+/** Most cells one paintCells op may write, counting every cell of every rect. */
+export const MAX_PAINT_CELLS = 65_536;
+const FIELD_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+const ZSchema = z
+  .number()
+  .int()
+  .min(-10000)
+  .max(10000)
+  .describe(
+    "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top. On an instance it is added to every child's z.",
+  );
+
+const AssetIdSchema = z
+  .string()
+  .regex(ID_PATTERN)
+  .describe("A project asset's id: lowercase letters, digits and hyphens.");
+
+const ParamNameSchema = z
+  .string()
+  .regex(FIELD_NAME)
+  .describe("A prefab parameter's name: letters, digits, `_` and `$`, not starting with a digit.");
+
+const CellValueSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(65535)
+  .describe("The cell's value, 0 to 65535; 0 is empty.");
 
 const opName = <N extends (typeof OP_NAMES)[number]>(name: N) =>
   z.literal(name).describe(`The op: ${name}.`);
@@ -192,6 +222,14 @@ const SetGroupOp = z
     at: IntPtSchema.optional().describe(
       "The group's origin. Members store geometry relative to it, so changing it moves every member.",
     ),
+    rot: z
+      .literal([0, 1, 2, 3])
+      .optional()
+      .describe("Quarter turns clockwise (y down), absolute; 0 is written as absent."),
+    flip: z
+      .boolean()
+      .optional()
+      .describe("Mirror x before turning, absolute; false is written as absent."),
     name: z
       .union([z.string().min(1).max(80), z.null()])
       .optional()
@@ -234,6 +272,9 @@ const ApplyToPrefabOp = z
       .array(OverridePathSchema)
       .optional()
       .describe("Which overrides to apply; omitted applies all of them."),
+    to: IdSchema.optional().describe(
+      "The prefab in the instance's chain that receives the values; omitted, the instance's own prefab.",
+    ),
   })
   .describe(
     "Write an instance's overrides into its prefab, so every instance of it changes, and drop them from the instance.",
@@ -266,6 +307,142 @@ const CreatePrefabOp = z
   .describe(
     "Turn entries into a prefab: they leave the scene, the prefab holds them around the origin, and one instance puts them back where they were.",
   );
+
+const TransformOp = z
+  .strictObject({
+    op: opName("transform"),
+    refs: z.array(IdSchema).optional().describe("Instances to turn or flip, by id."),
+    groups: z.array(IdSchema).optional().describe("Groups to turn or flip, by id."),
+    turn: z
+      .literal([1, 2, 3, -1])
+      .optional()
+      .describe("Quarter turns clockwise on screen (y down); -1 turns one quarter anticlockwise."),
+    flip: z
+      .enum(["x", "y"])
+      .optional()
+      .describe("A mirror in world terms: `x` swaps left and right, `y` swaps up and down."),
+    about: IntPtSchema.optional().describe(
+      "The point to turn and flip about; omitted, each instance's or group's own `at`.",
+    ),
+  })
+  .describe(
+    "Turn and flip instances and groups, composing onto what they already have. Turns and flips keep integer geometry exact.",
+  );
+
+const SetZOp = z
+  .strictObject({
+    op: opName("setZ"),
+    refs: z.array(RefSchema).min(1).describe("Entities and instances; bulk entries refuse."),
+    z: ZSchema.optional().describe("The new z; give this or `by`."),
+    by: z.number().int().optional().describe("Shift z by this much; give this or `z`."),
+  })
+  .describe("Set or shift draw order (`z`) of entities and instances. Promote a bulk entry first.");
+
+const UseAssetsOp = z
+  .strictObject({
+    op: opName("useAssets"),
+    add: z.array(AssetIdSchema).optional().describe("Asset ids to add to the `assets` header."),
+    remove: z
+      .array(AssetIdSchema)
+      .optional()
+      .describe("Asset ids to drop from the `assets` header."),
+  })
+  .describe(
+    "Change the `assets` header: the assets only game code names, which load with the scene or prefab.",
+  );
+
+const PaintCellsOp = z
+  .strictObject({
+    op: opName("paintCells"),
+    ref: RefSchema.describe("The entity whose grid field to paint."),
+    field: z.string().regex(FIELD_NAME).describe("The grid field, e.g. `cells`."),
+    cells: z
+      .array(
+        z
+          .tuple([int("Column."), int("Row."), CellValueSchema])
+          .describe("[col, row, value]: one cell, local to the entity's `at`."),
+      )
+      .optional()
+      .describe("Cells to paint, in order."),
+    rects: z
+      .array(
+        z
+          .tuple([
+            int("First column."),
+            int("First row."),
+            int("Last column."),
+            int("Last row."),
+            CellValueSchema,
+          ])
+          .describe("[c0, r0, c1, r1, value]: every cell of the rectangle, corners inclusive."),
+      )
+      .optional()
+      .describe("Rectangles to fill, after `cells`."),
+  })
+  .superRefine((op, ctx) => {
+    let count = op.cells?.length ?? 0;
+    for (const [i, [c0, r0, c1, r1]] of (op.rects ?? []).entries()) {
+      if (c1 < c0 || r1 < r0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["rects", i],
+          message: "A rect's last column and row can't come before its first.",
+        });
+        return;
+      }
+      count += (c1 - c0 + 1) * (r1 - r0 + 1);
+    }
+    if (count > MAX_PAINT_CELLS)
+      ctx.addIssue({
+        code: "custom",
+        message: `paintCells writes ${count} cells; at most ${MAX_PAINT_CELLS} per op.`,
+      });
+  })
+  .describe(
+    `Paint cells of a grid field; value 0 erases. At most ${MAX_PAINT_CELLS} cells per op, counting every cell of every rect.`,
+  );
+
+const SetPrefabBaseOp = z
+  .strictObject({
+    op: opName("setPrefabBase"),
+    base: z
+      .union([IdSchema, z.null()])
+      .describe("The prefab this one becomes a variant of, or null to stop being a variant."),
+  })
+  .describe("Prefab docs only: set or clear the variant base.");
+
+const PrefabParamSchema = z
+  .strictObject({
+    description: z.string().min(1).describe("One sentence for the inspector and agents."),
+    targets: z
+      .array(OverridePathSchema)
+      .min(1)
+      .describe("Override paths inside the prefab that the value feeds, e.g. `door.path.speed`."),
+    default: z
+      .unknown()
+      .optional()
+      .describe("Used when an instance sets none; omitted, the targets' own values stand."),
+  })
+  .describe("An exposed parameter: one value an instance sets that overrides every target.");
+
+const ExposeParamOp = z
+  .strictObject({
+    op: opName("exposeParam"),
+    name: ParamNameSchema,
+    param: z
+      .union([PrefabParamSchema, z.null()])
+      .describe("The parameter, replacing any of that name, or null to remove it."),
+  })
+  .describe("Prefab docs only: declare, replace or remove an exposed parameter.");
+
+const SetParamOp = z
+  .strictObject({
+    op: opName("setParam"),
+    ref: IdSchema.describe("The instance."),
+    name: ParamNameSchema,
+    value: z.unknown().describe("The parameter's value, or null to clear it."),
+  })
+  .describe("Set or clear one exposed parameter on an instance.");
 
 function unknownValueMessage(what: string, got: unknown, known: readonly string[]): string {
   const expected = `Expected one of: ${known.join(", ")}.`;
@@ -374,9 +551,22 @@ function buildOpSchemas(registry: Registry) {
           prefab: IdSchema.describe("The prefab to place."),
           id: IdSchema.optional().describe("Optional; without one it is `<prefab>-<n>`."),
           at: IntPtSchema.describe("Where the prefab's origin lands."),
+          rot: z
+            .literal([1, 2, 3])
+            .optional()
+            .describe("Quarter turns clockwise (y down); omitted is 0."),
+          flip: z
+            .literal(true)
+            .optional()
+            .describe("Mirror x in the prefab's frame, before `rot`."),
+          z: ZSchema.optional(),
+          params: z
+            .record(z.string(), z.unknown())
+            .optional()
+            .describe("Values of the prefab's exposed parameters, by name."),
         })
         .describe(
-          "An instance as in the scene file: `prefab`, `at`, and optionally `id`, `overrides`, `name`, `layer`, `group`, `off`.",
+          "An instance as in the scene file: `prefab`, `at`, and optionally `id`, `rot`, `flip`, `z`, `params`, `overrides`, `name`, `layer`, `group`, `off`.",
         ),
       index: IndexSchema.optional(),
     })
@@ -390,6 +580,23 @@ function buildOpSchemas(registry: Registry) {
         .optional()
         .describe("Bulk entries by bulk key, around the origin."),
       contract: z.unknown().optional().describe("The game's contract for the prefab."),
+      instances: z
+        .array(z.looseObject({}))
+        .optional()
+        .describe("Nested instances as in a scene, around the origin."),
+      base: IdSchema.optional().describe("A variant's base prefab."),
+      overrides: z
+        .record(OverridePathSchema, z.unknown())
+        .optional()
+        .describe("A variant's overrides of its base's children."),
+      params: z
+        .record(z.string().regex(FIELD_NAME), PrefabParamSchema)
+        .optional()
+        .describe("Exposed parameters by name."),
+      assets: z
+        .array(AssetIdSchema)
+        .optional()
+        .describe("Assets only game code names, sorted and unique."),
     })
     .describe("A prefab's content; checked against the prefab schema when the op applies.");
 
@@ -427,6 +634,13 @@ function buildOpSchemas(registry: Registry) {
         UnpackOp,
         CreatePrefabOp,
         DefinePrefabOp,
+        TransformOp,
+        SetZOp,
+        UseAssetsOp,
+        PaintCellsOp,
+        SetPrefabBaseOp,
+        ExposeParamOp,
+        SetParamOp,
       ],
       { error: unionError("op", "op", OP_NAMES) },
     )
@@ -490,7 +704,9 @@ export function opsSchemaId(registry: Registry): string {
 }
 
 export function opsJsonSchema(registry: Registry): Record<string, unknown> {
-  const { $schema, ...rest } = toJsonSchema(opBatchSchemaFor(registry));
+  const { $schema, ...rest } = toJsonSchema(opBatchSchemaFor(registry), {
+    layers: layerNames(registry),
+  });
   return {
     $schema,
     $id: opsSchemaId(registry),
@@ -509,12 +725,17 @@ export function opRefs(op: SceneOp): Ref[] {
     case "revertOverride":
     case "applyToPrefab":
     case "unpack":
+    case "paintCells":
+    case "setParam":
       return [op.ref];
     case "move":
     case "remove":
     case "reorder":
     case "createPrefab":
+    case "setZ":
       return op.refs;
+    case "transform":
+      return op.refs ?? [];
     default:
       return [];
   }

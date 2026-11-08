@@ -49,13 +49,14 @@ export type HeadlessLoad = {
 function fromFiles(files: FilesLoadInput["files"], registry: Registry) {
   const parsed = parseScene(files.scene, registry);
   if (!parsed.ok) throw new SceneParseError(parsed.issues);
-  const used = new Set(prefabsUsedBy(parsed.def));
-  const prefabs = new Map<string, Prefab>();
+  const all = new Map<string, Prefab>();
   for (const file of files.prefabs ?? []) {
     const read = parsePrefab(file, registry);
     if (!read.ok) throw new SceneParseError(read.issues);
-    if (used.has(read.prefab.id)) prefabs.set(read.prefab.id, read.prefab);
+    all.set(read.prefab.id, read.prefab);
   }
+  const used = new Set(prefabsUsedBy(parsed.def, all));
+  const prefabs = new Map([...all].filter(([id]) => used.has(id)));
   return { def: parsed.def, prefabs, registry };
 }
 

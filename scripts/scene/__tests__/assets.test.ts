@@ -75,10 +75,14 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "kitchen-sink-checks",
       "kitchen-sink",
       "bouncy",
+      "doorway",
       "gate",
+      "latch",
+      "one-way-latch",
       "post",
+      "room",
     ]);
-    expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(2);
+    expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(6);
     expect((await run("assets", "list", "--trash")).data.assets).toEqual([]);
   });
 
@@ -175,7 +179,15 @@ describe("assets on files", { timeout: 60_000 }, () => {
     const sink = JSON.parse(await readFile(join(deck, "kitchen-sink.json"), "utf8")) as {
       instances: { prefab: string }[];
     };
-    expect(sink.instances.map((i) => i.prefab)).toEqual(["pillar", "pillar", "gate", "gate"]);
+    expect(sink.instances.map((i) => i.prefab)).toEqual([
+      "pillar",
+      "pillar",
+      "gate",
+      "gate",
+      "room",
+      "doorway",
+      "one-way-latch",
+    ]);
 
     const refused = await run("assets", "delete", "pillar");
     expect(refused.exitCode).toBe(1);
@@ -280,7 +292,14 @@ describe("assets on files", { timeout: 60_000 }, () => {
       expect(files).not.toContain("prefabs/gate.json");
       const gate = JSON.parse(await readFile(join(deck, "kit/gate.json"), "utf8")) as Data;
       expect(gate).toMatchObject({ id: "gate", entities: [bar] });
-      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toEqual(["gate", "post"]);
+      expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toEqual([
+        "gate",
+        "doorway",
+        "latch",
+        "one-way-latch",
+        "post",
+        "room",
+      ]);
     });
 
     it("apply puts a new prefab in the prefab kind's folder near the scene", async () => {

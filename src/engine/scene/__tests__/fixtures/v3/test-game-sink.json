@@ -1,0 +1,16 @@
+{
+  "v": 3,
+  "game": "test-game",
+  "name": "test-game-sink",
+  "bounds": [0, 0, 2000, 1000],
+  "settings": { "grid": { "cell": [32, 32], "kind": "square" } },
+  "entities": [
+    { "id": "lamp", "type": "lamp", "at": [200, 900], "behaviors": { "test-game/glow": { "color": "#ffcc00", "intensity": 2 } } },
+    { "id": "spinner", "type": "lamp", "z": 1, "at": [400, 900], "behaviors": { "test-game/glow": { "color": "#00ccff", "intensity": 3 }, "test-game/spin": { "speed": 45 } } },
+    { "id": "floor", "type": "paint", "layer": "backdrop", "at": [0, 640], "cells": {
+      "-1,0": ["0*31,3"],
+      "0,0": ["1*32", "1*32", "0*4,2*24"],
+      "1,0": ["1*8"]
+    } }
+  ]
+}

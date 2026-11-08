@@ -1,25 +1,44 @@
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import {
+  Cancel01Icon,
+  FlipHorizontalIcon,
+  FlipVerticalIcon,
+  RotateLeft01Icon,
+  RotateRight01Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  applyLevels,
   applyToPrefabBatch,
   buildInspectorModel,
   childOverrides,
   createPrefabBatch,
+  flipBatch,
   instanceOfRef,
+  instanceParamsModel,
+  instanceTransformModel,
+  instanceZBatch,
   instancesOf,
   lookupRef,
   modelBatch,
+  nestedInstanceOf,
+  overridePathsOf,
+  paramBatch,
   parseRelative,
   refCandidates,
   revertAllBatch,
   revertFieldBatch,
   shapeConversions,
   shapeSlots,
+  turnBatch,
   unpackBatch,
   withShapeSlot,
   type EditorSession,
   type FieldWidget,
+  type InspectorModel,
+  type InspectorSectionModel,
   type InspectorWidgetDef,
+  type InstanceParamsModel,
+  type InstanceTransformModel,
   type ModelField,
   type OpBatch,
   type Pt,
@@ -52,6 +71,12 @@ import {
   useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { Confirm } from "@/components/ui/confirm";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -87,12 +112,22 @@ type Ctx = {
   def: SceneDefinition;
   /** For one instance child: the fields its instance overrides, with the keys behind each. */
   overrides?: Map<string, string[]>;
+  /** Builds the batch for an edit instead of `modelBatch`; it's written against the document. */
+  edit?: (field: ModelField, input: unknown) => Edit;
 };
+
+type Edit = { ok: true; batch: OpBatch } | { ok: false; error: string };
 
 /** Why a draft can't become a value. */
 class EditError {
   constructor(readonly message: string) {}
 }
+
+/** An unset field's placeholder: its default when it has one. */
+const unsetText = (fallback: unknown) =>
+  fallback === undefined || fallback === ""
+    ? "unset"
+    : `${typeof fallback === "string" ? fallback : JSON.stringify(fallback)} (default)`;
 
 function valueAt(target: RefTarget, path: string): unknown {
   if (target.kind === "bulk") return path.includes(".") ? undefined : target.value;
@@ -106,7 +141,7 @@ function valueAt(target: RefTarget, path: string): unknown {
 
 function dispatch(ctx: Ctx, batch: OpBatch): string | null {
   if (batch.ops.length === 0) return null;
-  const result = ctx.session.dispatch(batch, { resolved: true });
+  const result = ctx.session.dispatch(batch, ctx.edit ? {} : { resolved: true });
   return result.ok ? null : result.issue.message;
 }
 
@@ -117,9 +152,13 @@ function dispatchSource(session: EditorSession, batch: OpBatch | null): string |
   return result.ok ? null : result.issue.message;
 }
 
+function batchFor(ctx: Ctx, field: ModelField, input: unknown, targets = ctx.targets): Edit {
+  return ctx.edit ? ctx.edit(field, input) : modelBatch(field, input, targets, ctx.def);
+}
+
 /** Sets `field` to `input` on every target, as one batch. */
 function commitField(ctx: Ctx, field: ModelField, input: unknown): string | null {
-  const edit = modelBatch(field, input, ctx.targets, ctx.def);
+  const edit = batchFor(ctx, field, input);
   return edit.ok ? dispatch(ctx, edit.batch) : edit.error;
 }
 
@@ -137,7 +176,7 @@ function commitEach(
   for (const t of ctx.targets) {
     const value = next(valueAt(t, field.path));
     if (value instanceof EditError) return value.message;
-    const edit = modelBatch(field, value, [t], ctx.def);
+    const edit = batchFor(ctx, field, value, [t]);
     if (!edit.ok) return edit.error;
     ops.push(...edit.batch.ops);
     base ??= edit.batch.base;
@@ -194,21 +233,27 @@ function Hinted({ hint, children }: { hint?: string; children: ReactElement }) {
 function FieldRow({
   field,
   label,
+  hint,
   children,
   error,
 }: {
-  field: ModelField;
+  field?: ModelField;
+  /** A string is drawn as the field's title, hinted; an element stands as it is. */
   label?: ReactNode;
+  hint?: string;
   children: ReactNode;
   error?: string | null;
 }) {
+  const text = label ?? field?.title;
   return (
     <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-start gap-x-2 text-xs">
       <div className="flex min-h-7 items-center">
-        {label ?? (
-          <Hinted hint={field.description}>
-            <span className="truncate text-muted-foreground">{field.title}</span>
+        {typeof text === "string" ? (
+          <Hinted hint={hint ?? field?.description}>
+            <span className="truncate text-muted-foreground">{text}</span>
           </Hinted>
+        ) : (
+          text
         )}
       </div>
       <div className="flex min-w-0 flex-col gap-1">
@@ -293,6 +338,7 @@ function ScrubLabel({
 function NumberInput({
   label,
   value,
+  fallback,
   mixed,
   step,
   bigStep,
@@ -302,6 +348,8 @@ function NumberInput({
 }: {
   label: string;
   value: number | undefined;
+  /** What an unset value takes, shown in its place. */
+  fallback?: unknown;
   mixed: boolean;
   step: number;
   bigStep: number;
@@ -324,7 +372,7 @@ function NumberInput({
           inputMode="decimal"
           aria-label={label}
           aria-invalid={error ? true : undefined}
-          placeholder={mixed ? MIXED : value === undefined ? "unset" : undefined}
+          placeholder={mixed ? MIXED : value === undefined ? unsetText(fallback) : undefined}
           value={shown}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => draft !== null && run(draft)}
@@ -365,7 +413,9 @@ function TextField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       <Input
         aria-label={field.path}
         aria-invalid={error ? true : undefined}
-        placeholder={field.mixed ? MIXED : field.optional ? "unset" : undefined}
+        placeholder={
+          field.mixed ? MIXED : field.optional ? unsetText(field.defaultValue) : undefined
+        }
         maxLength={field.widget.kind === "text" ? field.widget.maxLength : undefined}
         value={draft ?? (field.mixed ? "" : value)}
         onChange={(e) => setDraft(e.target.value)}
@@ -410,6 +460,7 @@ function NumberField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       <NumberInput
         label={field.path}
         value={value}
+        fallback={field.defaultValue}
         mixed={field.mixed}
         step={w.step}
         bigStep={w.bigStep}
@@ -477,6 +528,7 @@ function AngleField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         <NumberInput
           label={field.path}
           value={value}
+          fallback={field.defaultValue}
           mixed={field.mixed}
           step={1}
           bigStep={w.snapDeg}
@@ -765,7 +817,12 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget as Extract<FieldWidget, { kind: "entity-ref" }>;
   const [error, setError] = useState<string | null>(null);
   const anchor = useComboboxAnchor();
-  const candidates = refCandidates(ctx.def, ctx.session.registry, w.accepts);
+  const candidates = refCandidates(
+    ctx.def,
+    ctx.session.registry,
+    w.accepts,
+    ctx.session.getPrefabs(),
+  );
   const values = field.mixed
     ? []
     : Array.isArray(field.value)
@@ -876,7 +933,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       const conv = shapeConversions(tuple, w.types).find((c) => c.to === to);
       if (!conv) return setError(`A ${tuple[0]} can't become a ${to}.`);
       if (!conv.lossless && conv.note) notes.add(conv.note);
-      const edit = modelBatch(field, conv.tuple, [t], ctx.def);
+      const edit = batchFor(ctx, field, conv.tuple, [t]);
       if (!edit.ok) return setError(edit.error);
       ops.push(...edit.batch.ops);
       base ??= edit.batch.base;
@@ -1176,13 +1233,74 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   }
 }
 
+/** A behavior section's heading: its label, its description as the hint, and Remove unless the type requires it. */
+function BehaviorHeading({ section, ctx }: { section: InspectorSectionModel; ctx: Ctx }) {
+  const [error, setError] = useState<string | null>(null);
+  const remove = section.behavior?.remove;
+  return (
+    <>
+      <div className="flex min-h-7 items-center gap-1">
+        <Hinted hint={section.behavior?.description}>
+          <MicroLabel className="min-w-0 flex-1 truncate">{section.title}</MicroLabel>
+        </Hinted>
+        {remove ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            tooltip={`Remove ${section.title} from the selection`}
+            onClick={() => setError(dispatch(ctx, remove))}
+          >
+            Remove
+          </Button>
+        ) : null}
+      </div>
+      {section.fields.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No fields to set.</p>
+      ) : null}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </>
+  );
+}
+
+/** The behaviors the selection's types allow and it doesn't all carry yet; picking one adds it in one batch. */
+function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehaviors"]; ctx: Ctx }) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="flex flex-col gap-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button size="sm" variant="outline" tooltip="Give the selection another behavior">
+              Add behavior
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="start" className="min-w-48 p-1">
+          {options.map((o) => (
+            <DropdownMenuItem
+              key={o.name}
+              className="flex-col items-start gap-0.5"
+              onClick={() => setError(dispatch(ctx, o.batch))}
+            >
+              <span>{o.label}</span>
+              <span className="text-muted-foreground">{o.description}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
 /**
  * The selection's fields, from its types' schemas (`buildInspectorModel`):
  * a widget per field kind, `.describe()` text as tooltips, and drafts that
  * commit on Enter or blur as one batch. With several selected, only the
  * shared fields show; values that differ read "—", and `+=16` edits each
- * one relatively. An asset picked in the project tree shows instead, with
- * its licence fields.
+ * one relatively. Each behavior the selection carries has its own section
+ * with Remove, and Add behavior offers the rest. An asset picked in the
+ * project tree shows instead, with its licence fields.
  */
 export function EditorInspector({
   session,
@@ -1207,12 +1325,13 @@ export function EditorInspector({
     const t = lookupRef(view, ref);
     return t ? [t] : [];
   });
+  const only = selection.length === 1 ? selection[0] : undefined;
   const instance =
-    selection.length === 1 ? doc.instances?.find((i) => i.id === selection[0]) : undefined;
-  if (instance) {
-    return (
-      <InstancePanel session={session} doc={doc} id={instance.id} onOpenPrefab={onOpenPrefab} />
-    );
+    only !== undefined &&
+    (doc.instances?.some((i) => i.id === only) ||
+      nestedInstanceOf(doc, only, session.getPrefabs()) !== null);
+  if (only !== undefined && instance) {
+    return <InstancePanel session={session} doc={doc} id={only} onOpenPrefab={onOpenPrefab} />;
   }
   if (targets.length === 0) {
     return (
@@ -1263,17 +1382,171 @@ export function EditorInspector({
       ) : null}
       {model.sections.map((section) => (
         <section key={section.id} aria-label={section.title} className="flex flex-col gap-1.5">
-          <MicroLabel>{section.title}</MicroLabel>
+          {section.behavior ? (
+            <BehaviorHeading key={scope} section={section} ctx={ctx} />
+          ) : (
+            <MicroLabel>{section.title}</MicroLabel>
+          )}
           {section.fields.map((field) => (
             <FieldView key={`${scope}:${field.path}`} field={field} ctx={ctx} />
           ))}
         </section>
       ))}
+      {model.addBehaviors.length > 0 ? (
+        <AddBehaviorMenu key={scope} options={model.addBehaviors} ctx={ctx} />
+      ) : null}
     </div>
   );
 }
 
-/** An instance: its prefab, its overrides, and Apply to prefab, Revert all, Unpack and Open prefab. */
+/**
+ * The prefab's exposed parameters on an instance, each drawn by its first
+ * target's widget and set with `setParam` (an override of the nested
+ * instance's param when it sits inside another); a set one is bold, with Reset.
+ */
+function ParamsSection({
+  session,
+  doc,
+  model,
+}: {
+  session: EditorSession;
+  doc: SceneDefinition;
+  model: InstanceParamsModel;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const ctx: Ctx = {
+    session,
+    targets: [model.target],
+    def: doc,
+    edit: (field, input) => {
+      const param = model.params.find(
+        (p) => field.path === p.field.path || field.path.startsWith(`${p.field.path}.`),
+      );
+      return param
+        ? paramBatch(model, param, input, field)
+        : { ok: false, error: `${field.path} isn't a parameter` };
+    },
+  };
+  return (
+    <section aria-label="Parameters" className="flex flex-col gap-1.5">
+      <MicroLabel>Parameters</MicroLabel>
+      {model.params.map((p) =>
+        p.set ? (
+          <div
+            key={`${model.ref}:${p.name}`}
+            className="flex items-start gap-1 font-semibold"
+            data-overridden=""
+          >
+            <div className="min-w-0 flex-1">
+              <FieldWidgetView field={p.field} ctx={ctx} />
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              tooltip="Reset to the prefab's value"
+              onClick={() => setError(commitField(ctx, p.field, undefined))}
+            >
+              Reset
+            </Button>
+          </div>
+        ) : (
+          <FieldWidgetView key={`${model.ref}:${p.name}`} field={p.field} ctx={ctx} />
+        ),
+      )}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </section>
+  );
+}
+
+const placementText = ({ rot, flip }: InstanceTransformModel) =>
+  [rot > 0 ? `Turned ${rot * 90}°` : "Not turned", ...(flip ? ["flipped"] : [])].join(", ");
+
+/**
+ * How an instance sits: Turn and Flip, each one batch about its `at`, and
+ * its `z`. A nested instance shows its prefab's placement without editing it.
+ */
+function PlacementSection({
+  session,
+  doc,
+  model,
+}: {
+  session: EditorSession;
+  doc: SceneDefinition;
+  model: InstanceTransformModel;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const run = (batch: OpBatch | null) => setError(dispatchSource(session, batch));
+  const controls = [
+    {
+      label: "Turn counter-clockwise",
+      icon: RotateLeft01Icon,
+      batch: () => turnBatch(doc, [model.ref], -1),
+    },
+    {
+      label: "Turn clockwise",
+      icon: RotateRight01Icon,
+      batch: () => turnBatch(doc, [model.ref], 1),
+    },
+    {
+      label: "Flip horizontally",
+      icon: FlipHorizontalIcon,
+      batch: () => flipBatch(doc, [model.ref], "x"),
+    },
+    {
+      label: "Flip vertically",
+      icon: FlipVerticalIcon,
+      batch: () => flipBatch(doc, [model.ref], "y"),
+    },
+  ];
+  return (
+    <section aria-label="Placement" className="flex flex-col gap-1.5 text-xs">
+      <MicroLabel>Placement</MicroLabel>
+      <div className="flex items-center gap-1">
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+          {placementText(model)}
+        </span>
+        {model.editable
+          ? controls.map((c) => (
+              <Button
+                key={c.label}
+                size="icon-xs"
+                variant="ghost"
+                aria-label={c.label}
+                tooltip={c.label}
+                onClick={() => run(c.batch())}
+              >
+                <HugeiconsIcon icon={c.icon} />
+              </Button>
+            ))
+          : null}
+      </div>
+      <FieldRow label="z" hint="Added to the z of every child; higher draws in front.">
+        {model.editable ? (
+          <NumberInput
+            label="z"
+            value={model.z}
+            mixed={false}
+            step={1}
+            bigStep={10}
+            onCommit={(text) => {
+              const edit = instanceZBatch(model, text);
+              return edit.ok ? dispatchSource(session, edit.batch) : edit.error;
+            }}
+          />
+        ) : (
+          <span className="flex min-h-7 items-center">{model.z}</span>
+        )}
+      </FieldRow>
+      {error ? <p className="text-destructive">{error}</p> : null}
+    </section>
+  );
+}
+
+/**
+ * An instance, or an instance nested in one (`room-1/door-1`): its prefab,
+ * its placement, its exposed parameters, the overrides it carries in the scene, the prefab Apply writes them to,
+ * and Apply to prefab, Revert all, Unpack and Open prefab.
+ */
 function InstancePanel({
   session,
   doc,
@@ -1282,24 +1555,38 @@ function InstancePanel({
 }: {
   session: EditorSession;
   doc: SceneDefinition;
-  id: string;
+  id: Ref;
   onOpenPrefab?: (prefab: string, from: Ref) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inst = instanceOfRef(doc, id)!;
-  const keys = Object.keys(inst.overrides ?? {});
-  const count = instancesOf(doc, inst.prefab);
-  const missing = !session.getPrefabs().has(inst.prefab);
+  const [level, setLevel] = useState<string | null>(null);
+  const prefabs = session.getPrefabs();
+  const nested = nestedInstanceOf(doc, id, prefabs);
+  const inst = nested?.instance ?? instanceOfRef(doc, id)!;
+  const keys = overridePathsOf(doc, id);
+  const levels = applyLevels(doc, id, prefabs);
+  const target = level !== null && levels.includes(level) ? level : (levels[0] ?? inst.prefab);
+  const count = instancesOf(doc, target, prefabs);
+  const missing = !prefabs.has(inst.prefab);
+  const params = instanceParamsModel(doc, id, session.registry, prefabs);
+  const placement = instanceTransformModel(doc, id, prefabs);
   return (
     <div className="flex w-full flex-col gap-3 p-2" aria-label="Inspector">
       <header className="flex items-baseline gap-2 text-xs">
-        <span className="truncate font-medium">{inst.id}</span>
+        <span className="truncate font-medium">{id}</span>
         <span className="truncate text-muted-foreground">
           instance of {inst.prefab}
           {missing ? " (missing)" : ""}
+          {nested ? ` in ${nested.holder}` : ""}
         </span>
       </header>
+      {placement ? (
+        <PlacementSection key={id} session={session} doc={doc} model={placement} />
+      ) : null}
+      {params && params.params.length > 0 ? (
+        <ParamsSection key={id} session={session} doc={doc} model={params} />
+      ) : null}
       <section aria-label="Overrides" className="flex flex-col gap-1.5">
         <MicroLabel>Overrides</MicroLabel>
         {keys.length === 0 ? (
@@ -1314,12 +1601,38 @@ function InstancePanel({
           </ul>
         )}
       </section>
+      {levels.length > 1 ? (
+        <section aria-label="Apply to" className="flex flex-col gap-1.5">
+          <MicroLabel>Apply to</MicroLabel>
+          <SegmentedControl
+            size="xs"
+            aria-label="Apply to"
+            value={target}
+            onChange={setLevel}
+            className="flex-wrap"
+          >
+            {levels.map((p, i) => (
+              <SegmentedControl.Item
+                key={p}
+                value={p}
+                tooltip={
+                  i === 0
+                    ? `Write the overrides into ${p}, the prefab this instance places`
+                    : `Write the overrides into ${p}, nested inside ${levels[i - 1]}`
+                }
+              >
+                {p}
+              </SegmentedControl.Item>
+            ))}
+          </SegmentedControl>
+        </section>
+      ) : null}
       <div className="flex flex-wrap gap-1.5">
         <Button
           size="sm"
           variant="outline"
           disabled={keys.length === 0}
-          tooltip="Write these overrides into the prefab, for every instance"
+          tooltip={`Write these overrides into ${target}, for every instance of it`}
           onClick={() => setConfirming(true)}
         >
           Apply to prefab
@@ -1333,22 +1646,24 @@ function InstancePanel({
         >
           Revert all
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={missing}
-          tooltip="Turn the instance into plain entities"
-          onClick={() => setError(dispatchSource(session, unpackBatch(doc, id)))}
-        >
-          Unpack
-        </Button>
+        {nested ? null : (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={missing}
+            tooltip="Turn the instance into plain entities"
+            onClick={() => setError(dispatchSource(session, unpackBatch(doc, id)))}
+          >
+            Unpack
+          </Button>
+        )}
         {onOpenPrefab ? (
           <Button
             size="sm"
             variant="ghost"
             disabled={missing}
             tooltip="Edit the prefab on its own; every instance follows"
-            onClick={() => onOpenPrefab(inst.prefab, inst.id)}
+            onClick={() => onOpenPrefab(inst.prefab, id)}
           >
             Open prefab
           </Button>
@@ -1358,11 +1673,11 @@ function InstancePanel({
       <Confirm
         open={confirming}
         onOpenChange={(open) => !open && setConfirming(false)}
-        title={`Apply to ${inst.prefab}?`}
+        title={`Apply to ${target}?`}
         message={`This changes the prefab, so ${count === 1 ? "its one instance changes" : `all ${count} of its instances change`} (those that override the same fields keep theirs). Undo brings it back.`}
         confirmText="Apply"
         onConfirm={() => {
-          setError(dispatchSource(session, applyToPrefabBatch(doc, id)));
+          setError(dispatchSource(session, applyToPrefabBatch(doc, id, { to: target, prefabs })));
           setConfirming(false);
         }}
       />

@@ -6,17 +6,21 @@ import { isPlainObject } from "../project/kinds/define";
 import { EMPTY_SCENE_TEMPLATE } from "../scene/create";
 import { bulkEntries, bulkKeysOf, bulkKeyType } from "../scene/expand";
 import { FRAGMENT_KIND, fragmentBounds } from "../scene/fragment";
+import { canonicalGrid, isGridValue, GRID_CHUNK, type GridCells } from "../scene/grid";
 import {
   PREFAB_KIND,
   RESERVED_SCENE_KEYS,
+  type AssetId,
   type Bounds,
   type BulkEntry,
   type BulkKey,
   type EntityDef,
   type GroupDef,
   type InstanceDef,
+  type OverridePath,
   type Prefab,
   type PrefabLibrary,
+  type PrefabParam,
   type SceneDefinition,
 } from "../scene/types";
 import { randomKey, type KeyGen } from "./keys";
@@ -26,6 +30,8 @@ import {
   BULK_FIELD,
   COLLAB_LAYOUT_VERSION,
   DOC_MAPS,
+  GRID_ROW_KEY,
+  NESTED2_FIELDS,
   NESTED_FIELDS,
   Z_FIELD,
   type EntityRecord,
@@ -45,18 +51,32 @@ export const groupsMap = (doc: Y.Doc) => doc.getMap<Y.Map<unknown>>(DOC_MAPS.gro
 export const instancesMap = (doc: Y.Doc) => doc.getMap<Y.Map<unknown>>(DOC_MAPS.instances);
 /** Layout 1's prefabs, which `migrateLayout` moves into prefab docs; layout 2 never writes it. */
 export const prefabsMap = (doc: Y.Doc) => doc.getMap<unknown>(DOC_MAPS.prefabs);
-/** A prefab doc's header: `id` and `contract`. */
+/** A prefab doc's header: `id`, `base` and `contract`. */
 export const prefabHeaderMap = (doc: Y.Doc) => doc.getMap<unknown>(DOC_MAPS.prefab);
+/** The `assets` header as a set: AssetId → true. */
+export const assetsMap = (doc: Y.Doc) => doc.getMap<unknown>(DOC_MAPS.assets);
+/** A prefab doc's exposed parameters: name → PrefabParam. */
+export const paramsMap = (doc: Y.Doc) => doc.getMap<unknown>(DOC_MAPS.params);
+/** A prefab doc's variant overrides: override path → value. */
+export const prefabOverridesMap = (doc: Y.Doc) => doc.getMap<unknown>(DOC_MAPS.overrides);
 
-/** Every map that holds a scene's or a prefab's content: what undo, validation and bindings watch. */
+/**
+ * Every map that holds a scene's or a prefab's content: what undo,
+ * validation and bindings watch. The prefab doc's `params` and `overrides`
+ * are included for every doc (they stay empty on a scene's), so a binding
+ * made before the doc has synced still watches them.
+ */
 export function contentMaps(doc: Y.Doc): Y.Map<unknown>[] {
   return [
     entitiesMap(doc),
     settingsMap(doc),
     sceneMap(doc),
+    assetsMap(doc),
     groupsMap(doc),
     instancesMap(doc),
     prefabHeaderMap(doc),
+    paramsMap(doc),
+    prefabOverridesMap(doc),
   ] as Y.Map<unknown>[];
 }
 
@@ -70,66 +90,205 @@ export function touchesMaps(tr: Y.Transaction, maps: readonly Y.Map<unknown>[]):
 
 /** The bulk key a record is written under, or `entities` for a named entity. */
 export const bucketOf = (rec: EntityRecord): string =>
-  typeof rec.bulk === "string" ? rec.bulk : ENTITIES_BUCKET;
+  typeof rec[BULK_FIELD] === "string" ? rec[BULK_FIELD] : ENTITIES_BUCKET;
+
+/** Whether a record key belongs to the layout (`@z`, `@bulk`) rather than to the record's fields. */
+export const isLayoutKey = (key: string): boolean => key.startsWith("@");
+
+/** A record's fields: everything but the layout's own keys. */
+export function recordFields(rec: EntityRecord): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rec)) if (!isLayoutKey(k)) out[k] = v;
+  return out;
+}
 
 // ─── Records ─────────────────────────────────────────────
 
-/** An entity's `Y.Map` as plain JSON; values are copies. */
+/** The doc key of one grid row. */
+export const gridRowKey = (field: string, chunk: string, row: number): string =>
+  `${field}@${chunk}/${row}`;
+
+/**
+ * A grid value's rows as doc keys, or null when it can't be written as
+ * rows (a chunk past 32 rows, or no row with cells) and is kept whole.
+ */
+function gridRows(field: string, grid: GridCells): [string, string][] | null {
+  const out: [string, string][] = [];
+  for (const [chunk, rows] of Object.entries(grid)) {
+    if (rows.length > GRID_CHUNK) return null;
+    rows.forEach((row, r) => {
+      if (row !== "") out.push([gridRowKey(field, chunk, r), row]);
+    });
+  }
+  return out.length > 0 ? out : null;
+}
+
+const isNested = (k: string) => NESTED_FIELDS.includes(k) || NESTED2_FIELDS.includes(k);
+
+/** A field written as grid rows: every top-level field but the nested ones, the layout's keys and empty grids. */
+function rowsOf(k: string, v: unknown): [string, string][] | null {
+  if (isLayoutKey(k) || isNested(k) || !isGridValue(v)) return null;
+  return gridRows(k, v);
+}
+
+/** Row keys gathered into their grids: canonical when they decode, else as written, for validation to report. */
+function gatherRows(rows: Map<string, Map<string, string[]>>, out: Record<string, unknown>): void {
+  for (const [field, chunks] of rows) {
+    const grid: Record<string, string[]> = {};
+    for (const [chunk, list] of chunks) grid[chunk] = Array.from(list, (r) => r ?? "");
+    try {
+      out[field] = canonicalGrid(grid);
+    } catch {
+      out[field] = grid;
+    }
+  }
+}
+
+/** A record's `Y.Map` as plain JSON, grid rows gathered into their fields; values are copies. */
 export function recordOf(map: Y.Map<unknown>): EntityRecord {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of map.entries()) out[k] = v instanceof Y.Map ? v.toJSON() : cloneJson(v);
+  const rows = new Map<string, Map<string, string[]>>();
+  for (const [k, v] of map.entries()) {
+    const m = !isLayoutKey(k) && k.includes("@") ? GRID_ROW_KEY.exec(k) : null;
+    if (m && typeof v === "string") {
+      const [, field, cx, cy, r] = m as unknown as [string, string, string, string, string];
+      let chunks = rows.get(field);
+      if (!chunks) rows.set(field, (chunks = new Map()));
+      const chunk = `${cx},${cy}`;
+      let list = chunks.get(chunk);
+      if (!list) chunks.set(chunk, (list = []));
+      list[Number(r)] = v;
+      continue;
+    }
+    out[k] = v instanceof Y.Map ? v.toJSON() : cloneJson(v);
+  }
+  gatherRows(rows, out);
   if (typeof out[Z_FIELD] !== "string") out[Z_FIELD] = "";
   return out as EntityRecord;
 }
 
 /** The record a named entity is stored as. */
 export function entityRecord(def: EntityDef, z: string): EntityRecord {
-  return { ...cloneJson(def), z } as EntityRecord;
+  return { ...cloneJson(def), [Z_FIELD]: z } as EntityRecord;
 }
 
 /** The record a bulk entry is stored as: its key, its type and its one geometry field. */
 export function bulkRecord(key: BulkKey, value: BulkEntry, z: string): EntityRecord {
   const field = Array.isArray(value) && typeof value[0] === "number" ? "at" : "shape";
-  return { z, [BULK_FIELD]: key, type: bulkKeyType(key), [field]: cloneJson(value) };
+  return { [Z_FIELD]: z, [BULK_FIELD]: key, type: bulkKeyType(key), [field]: cloneJson(value) };
+}
+
+/** A nested field's value as a `Y.Map`; two levels for behaviors, a level whose value isn't an object kept atomic. */
+function nestedMap(k: string, v: Record<string, unknown>): Y.Map<unknown> {
+  const nested = new Y.Map<unknown>();
+  const deep = NESTED2_FIELDS.includes(k);
+  for (const [pk, pv] of Object.entries(v)) {
+    if (pv === undefined) continue;
+    nested.set(pk, deep && isPlainObject(pv) ? plainMap(pv) : cloneJson(pv));
+  }
+  return nested;
+}
+
+function plainMap(v: Record<string, unknown>): Y.Map<unknown> {
+  const map = new Y.Map<unknown>();
+  for (const [k, x] of Object.entries(v)) if (x !== undefined) map.set(k, cloneJson(x));
+  return map;
 }
 
 function setField(map: Y.Map<unknown>, k: string, v: unknown): void {
-  if (NESTED_FIELDS.includes(k) && isPlainObject(v)) {
-    const nested = new Y.Map<unknown>();
-    for (const [pk, pv] of Object.entries(v)) if (pv !== undefined) nested.set(pk, cloneJson(pv));
-    map.set(k, nested);
-  } else map.set(k, cloneJson(v));
+  if (isNested(k) && isPlainObject(v)) map.set(k, nestedMap(k, v));
+  else map.set(k, cloneJson(v));
 }
 
 /** A new `Y.Map` holding a record. */
 export function recordMap(rec: EntityRecord): Y.Map<unknown> {
   const map = new Y.Map<unknown>();
-  for (const [k, v] of Object.entries(rec)) if (v !== undefined) setField(map, k, v);
+  for (const [k, v] of Object.entries(rec)) {
+    if (v === undefined) continue;
+    const rows = rowsOf(k, v);
+    if (rows) for (const [rk, row] of rows) map.set(rk, row);
+    else setField(map, k, v);
+  }
   return map;
 }
 
+/** A record as its doc keys: grid fields as their rows, every other field under its own name. */
+function docEntries(rec: EntityRecord): Map<string, unknown> {
+  const out = new Map<string, unknown>();
+  for (const [k, v] of Object.entries(rec)) {
+    if (v === undefined) continue;
+    const rows = rowsOf(k, v);
+    if (rows) for (const [rk, row] of rows) out.set(rk, row);
+    else out.set(k, v);
+  }
+  return out;
+}
+
+/** Writes what differs between two plain objects into a nested map, key by key. */
+function patchPlain(
+  map: Y.Map<unknown>,
+  prev: Record<string, unknown>,
+  next: Record<string, unknown>,
+) {
+  for (const k of Object.keys(prev)) if (next[k] === undefined) map.delete(k);
+  for (const [k, v] of Object.entries(next))
+    if (v !== undefined && !same(prev[k], v)) map.set(k, cloneJson(v));
+}
+
 /**
- * Writes only what differs between two records into an entity's `Y.Map`,
- * so a concurrent edit to another field survives. `path` and `overrides`
- * are patched key by key; every other value is replaced whole.
+ * Writes only what differs between two records into a record's `Y.Map`, so
+ * a concurrent edit to another field survives. `path`, `overrides` and
+ * `params` are patched key by key, `behaviors` block by block and then
+ * field by field, and a grid field row by row; every other value is
+ * replaced whole. Removing a behavior deletes its block, so it wins over a
+ * concurrent edit inside it.
  */
 export function patchRecord(map: Y.Map<unknown>, prev: EntityRecord, next: EntityRecord): void {
-  for (const k of Object.keys(prev)) if (next[k] === undefined) map.delete(k);
-  for (const [k, v] of Object.entries(next)) {
-    if (v === undefined || same(prev[k], v)) continue;
+  const before = docEntries(prev);
+  const after = docEntries(next);
+  for (const k of before.keys()) if (!after.has(k)) map.delete(k);
+  for (const [k, v] of after) {
+    const old = before.get(k);
+    if (same(old, v)) continue;
     const current = map.get(k);
-    if (
-      NESTED_FIELDS.includes(k) &&
-      current instanceof Y.Map &&
-      isPlainObject(v) &&
-      isPlainObject(prev[k])
-    ) {
-      const before = prev[k] as Record<string, unknown>;
-      for (const pk of Object.keys(before)) if (v[pk] === undefined) current.delete(pk);
-      for (const [pk, pv] of Object.entries(v))
-        if (pv !== undefined && !same(before[pk], pv)) current.set(pk, cloneJson(pv));
-    } else setField(map, k, v);
+    if (!(isNested(k) && current instanceof Y.Map && isPlainObject(v) && isPlainObject(old))) {
+      setField(map, k, v);
+      continue;
+    }
+    if (!NESTED2_FIELDS.includes(k)) {
+      patchPlain(current, old, v);
+      continue;
+    }
+    for (const name of Object.keys(old)) if (v[name] === undefined) current.delete(name);
+    for (const [name, block] of Object.entries(v)) {
+      const was = old[name];
+      if (block === undefined || same(was, block)) continue;
+      const inner = current.get(name);
+      if (inner instanceof Y.Map && isPlainObject(block) && isPlainObject(was))
+        patchPlain(inner, was, block);
+      else current.set(name, isPlainObject(block) ? plainMap(block) : cloneJson(block));
+    }
   }
+}
+
+/** Brings an atomic-valued map to `next`: removes keys it lacks, writes the ones that differ. */
+export function patchMap(map: Y.Map<unknown>, next: Readonly<Record<string, unknown>>): void {
+  for (const k of [...map.keys()]) if (next[k] === undefined) map.delete(k);
+  for (const [k, v] of Object.entries(next))
+    if (v !== undefined && !same(map.get(k), v)) map.set(k, cloneJson(v));
+}
+
+/** The doc's `assets` header: its ids, sorted. */
+export function readAssets(doc: Y.Doc): AssetId[] {
+  return [...assetsMap(doc).entries()]
+    .filter(([, v]) => v === true)
+    .map(([id]) => id)
+    .sort();
+}
+
+/** Brings the doc's `assets` set to `ids`, adding and removing ids one by one so concurrent changes merge. */
+export function writeAssets(doc: Y.Doc, ids: readonly AssetId[]): void {
+  patchMap(assetsMap(doc), Object.fromEntries(ids.map((id) => [id, true])));
 }
 
 // ─── Doc to scene ────────────────────────────────────────
@@ -147,8 +306,17 @@ export type DocView = {
   /** The key of each of `def.instances`, in order. */
   instanceKeys: string[];
   instanceRecords: Map<string, EntityRecord>;
-  /** A prefab doc's header. */
-  prefab?: { id: string; contract?: unknown };
+  /** A prefab doc's header, parameters and variant overrides; its instances and assets are in `def`. */
+  prefab?: PrefabDocHeader;
+};
+
+/** What a prefab doc holds besides its children. */
+export type PrefabDocHeader = {
+  id: string;
+  base?: string;
+  contract?: unknown;
+  params?: Record<string, PrefabParam>;
+  overrides?: Record<OverridePath, unknown>;
 };
 
 export type ReadDocOptions = {
@@ -164,16 +332,26 @@ const PREFAB_MARGIN = 64;
 /**
  * The bounds a prefab is edited in: `parent`'s size centred on the
  * prefab's origin, grown to hold its children (with a margin) when a
- * registry can measure them.
+ * registry can measure them, and its nested instances' origins.
  */
 export function prefabSceneBounds(
-  prefab: Pick<Prefab, "v" | "entities" | "bulk">,
+  prefab: Pick<Prefab, "v" | "entities" | "bulk" | "instances">,
   parent: Bounds = EMPTY_SCENE_TEMPLATE.bounds as Bounds,
   registry?: Registry,
 ): Bounds {
   const w = parent[2] - parent[0];
   const h = parent[3] - parent[1];
   const out: Bounds = [-Math.floor(w / 2), -Math.floor(h / 2), Math.ceil(w / 2), Math.ceil(h / 2)];
+  const grow = (minX: number, minY: number, maxX: number, maxY: number) => {
+    out[0] = Math.min(out[0], Math.floor(minX) - PREFAB_MARGIN);
+    out[1] = Math.min(out[1], Math.floor(minY) - PREFAB_MARGIN);
+    out[2] = Math.max(out[2], Math.ceil(maxX) + PREFAB_MARGIN);
+    out[3] = Math.max(out[3], Math.ceil(maxY) + PREFAB_MARGIN);
+  };
+  for (const inst of prefab.instances ?? []) {
+    const [x, y] = inst.at;
+    if (Number.isFinite(x) && Number.isFinite(y)) grow(x, y, x, y);
+  }
   if (!registry) return out;
   const box = fragmentBounds(
     {
@@ -184,13 +362,8 @@ export function prefabSceneBounds(
     },
     registry,
   );
-  if (!box) return out;
-  return [
-    Math.min(out[0], Math.floor(box.minX) - PREFAB_MARGIN),
-    Math.min(out[1], Math.floor(box.minY) - PREFAB_MARGIN),
-    Math.max(out[2], Math.ceil(box.maxX) + PREFAB_MARGIN),
-    Math.max(out[3], Math.ceil(box.maxY) + PREFAB_MARGIN),
-  ];
+  if (box) grow(box.minX, box.minY, box.maxX, box.maxY);
+  return out;
 }
 
 /** The doc's groups by id; one without a usable `at` is skipped. */
@@ -202,7 +375,14 @@ function readGroups(doc: Y.Doc): Record<string, GroupDef> | undefined {
     const at = map.get("at");
     if (!Array.isArray(at) || at.length !== 2) continue;
     const name = map.get("name");
-    out[id] = { at: [at[0], at[1]], ...(typeof name === "string" ? { name } : {}) };
+    const rot = map.get("rot");
+    const flip = map.get("flip");
+    out[id] = {
+      at: [at[0], at[1]],
+      ...(rot === 1 || rot === 2 || rot === 3 ? { rot } : {}),
+      ...(flip === true ? { flip } : {}),
+      ...(typeof name === "string" ? { name } : {}),
+    };
   }
   return Object.keys(out).length > 0 ? out : undefined;
 }
@@ -220,10 +400,13 @@ export function docPrefabs(doc: Y.Doc): PrefabLibrary {
 /**
  * Reads a doc. Deterministic: two docs holding the same state give the same
  * definition, so converged clients agree on `formatScene` text and
- * `sceneHash`. Entries sort by bucket, then `z`, then key; a record with
- * no geometry or no id can't be written to disk and is skipped. A prefab
- * doc reads as a scene of its children (`kind: "prefab"`), named after the
- * prefab, with bounds from `prefabSceneBounds` that are never written.
+ * `sceneHash`. Entries sort by bucket, then `@z`, then key; a record with
+ * no geometry or no id can't be written to disk and is skipped. Grid
+ * fields come back from their rows, canonical, and only the layout's
+ * `@`-keys are dropped. A prefab doc reads as a scene of its children and
+ * instances (`kind: "prefab"`), named after the prefab, with bounds from
+ * `prefabSceneBounds` that are never written; its base, params and
+ * overrides are in `prefab`.
  */
 export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
   const meta = metaMap(doc);
@@ -238,7 +421,7 @@ export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
     const bucket = bucketOf(rec);
     let list = buckets.get(bucket);
     if (!list) buckets.set(bucket, (list = []));
-    list.push({ key, z: rec.z, rec });
+    list.push({ key, z: rec[Z_FIELD], rec });
   }
 
   const out: Record<string, unknown> = {};
@@ -249,26 +432,27 @@ export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
   if (typeof game === "string") out.game = game;
   const header = prefab ? readPrefabHeader(doc) : undefined;
   if (header) out.name = header.id;
-  else for (const [k, v] of scene.entries()) out[k] = cloneJson(v);
+  else for (const [k, v] of scene.entries()) if (k !== "assets") out[k] = cloneJson(v);
   if (!prefab && settingsMap(doc).size > 0) out.settings = settingsMap(doc).toJSON();
+  const assets = readAssets(doc);
+  if (assets.length > 0) out.assets = assets;
   const groups = prefab ? undefined : readGroups(doc);
   if (groups) out.groups = groups;
 
   const instanceRecords = new Map<string, EntityRecord>();
   const instanceList: { key: string; z: string; rec: EntityRecord }[] = [];
-  for (const [key, map] of prefab ? [] : instancesMap(doc).entries()) {
+  for (const [key, map] of instancesMap(doc).entries()) {
     if (!(map instanceof Y.Map)) continue;
     const rec = recordOf(map);
     instanceRecords.set(key, rec);
-    instanceList.push({ key, z: rec.z, rec });
+    instanceList.push({ key, z: rec[Z_FIELD], rec });
   }
   const instanceKeys: string[] = [];
   const instances: InstanceDef[] = [];
   for (const { key, rec } of instanceList.sort(compareZ)) {
     if (typeof rec.id !== "string" || typeof rec.prefab !== "string" || !Array.isArray(rec.at))
       continue;
-    const { z: _z, ...fields } = rec;
-    instances.push(fields as unknown as InstanceDef);
+    instances.push(recordFields(rec) as unknown as InstanceDef);
     instanceKeys.push(key);
   }
   if (instances.length > 0) out.instances = instances;
@@ -282,8 +466,7 @@ export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
       const entities: EntityDef[] = [];
       for (const { key, rec } of list) {
         if (typeof rec.id !== "string") continue;
-        const { z: _z, ...fields } = rec;
-        entities.push(fields as EntityDef);
+        entities.push(recordFields(rec) as EntityDef);
         entityKeys.push(key);
       }
       if (entities.length > 0) out.entities = entities;
@@ -310,6 +493,7 @@ export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
         v: typeof out.v === "number" ? out.v : 0,
         entities: (out.entities as EntityDef[] | undefined) ?? [],
         ...(bulkKeys.size > 0 ? { bulk } : {}),
+        ...(instances.length > 0 ? { instances } : {}),
       },
       opts.parentBounds,
       opts.registry,
@@ -327,14 +511,28 @@ export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
   };
 }
 
-/** A prefab doc's `id` and `contract`; the id is "" before the header is written. */
-function readPrefabHeader(doc: Y.Doc): { id: string; contract?: unknown } {
+/** A prefab doc's header, params and overrides; the id is "" before the header is written. */
+function readPrefabHeader(doc: Y.Doc): PrefabDocHeader {
   const map = prefabHeaderMap(doc);
   const id = map.get("id");
+  const base = map.get("base");
   const contract = map.get("contract");
+  const params: Record<string, PrefabParam> = {};
+  for (const name of [...paramsMap(doc).keys()].sort()) {
+    const p = paramsMap(doc).get(name);
+    if (isPlainObject(p)) params[name] = cloneJson(p) as PrefabParam;
+  }
+  const overrides: Record<OverridePath, unknown> = {};
+  for (const path of [...prefabOverridesMap(doc).keys()].sort()) {
+    const v = prefabOverridesMap(doc).get(path);
+    if (v !== undefined) overrides[path] = cloneJson(v);
+  }
   return {
     id: typeof id === "string" ? id : "",
+    ...(typeof base === "string" ? { base } : {}),
     ...(contract !== undefined ? { contract: cloneJson(contract) } : {}),
+    ...(Object.keys(params).length > 0 ? { params } : {}),
+    ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
   };
 }
 
@@ -394,13 +592,15 @@ export type SceneToDocOptions = {
 
 /** The record an instance is stored as. */
 export function instanceRecord(def: InstanceDef, z: string): EntityRecord {
-  return { ...cloneJson(def), z } as unknown as EntityRecord;
+  return { ...cloneJson(def), [Z_FIELD]: z } as unknown as EntityRecord;
 }
 
 /** A new `Y.Map` holding a group. */
 export function groupMap(group: GroupDef): Y.Map<unknown> {
   const map = new Y.Map<unknown>();
   map.set("at", cloneJson(group.at));
+  if (group.rot !== undefined) map.set("rot", group.rot);
+  if (group.flip !== undefined) map.set("flip", group.flip);
   if (group.name !== undefined) map.set("name", group.name);
   return map;
 }
@@ -427,13 +627,14 @@ export function sceneToDoc(def: SceneDefinition, opts: SceneToDocOptions = {}): 
     });
     for (const [k, v] of Object.entries(top)) {
       if (v === undefined || (META_HEADER as readonly string[]).includes(k)) continue;
-      if (k === "settings" || k === "entities" || k === "groups" || k === "instances") continue;
+      if (["settings", "assets", "entities", "groups", "instances"].includes(k)) continue;
       if (!RESERVED_SCENE_KEYS.includes(k) && Array.isArray(v)) continue;
       scene.set(k, cloneJson(v));
     }
     const settings = settingsMap(doc);
     for (const [k, v] of Object.entries(def.settings ?? {}))
       if (v !== undefined) settings.set(k, cloneJson(v));
+    writeAssets(doc, def.assets ?? []);
 
     seedEntities(
       doc,

@@ -7,11 +7,13 @@ import { createSceneRuntime } from "../runtime/runtime";
 import { SENSOR_ENTER } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import { parseScene } from "../scene/parse";
-import type { SceneDefinition } from "../scene/types";
+import { prefabLibrary } from "../scene/prefab";
+import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { SolidSystem } from "../systems/bodies";
 import { carrierDelta, type FollowerSystem } from "../systems/path-follower";
 import type { RapierModule } from "../types";
+import { testGame } from "./fixtures/test-game";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -34,7 +36,7 @@ const DT = 1000 / 60;
 /** A lift on a loop with a plank and a trigger attached, a prop riding the plank. */
 function yard(more: SceneDefinition["entities"] = []): SceneDefinition {
   return {
-    v: 2,
+    v: 3,
     name: "attached",
     bounds: [-500, -500, 2000, 1500],
     solid: [["box", 500, 1000, 1000, 20]],
@@ -182,7 +184,7 @@ describe("attachment to a path follower", () => {
   it("refuses an attach on props and markers, and one that names no follower", () => {
     const bad = parseScene(
       {
-        v: 2,
+        v: 3,
         name: "bad",
         bounds: [0, 0, 100, 100],
         entities: [
@@ -227,5 +229,72 @@ describe("attachment to a path follower", () => {
       [["lift", "plank", "wall"], "/entities/0/path/pts/2"],
     ]);
     expect(hits[0]!.message).toMatch(/^plank, riding lift, runs into wall on lift's segment 1/);
+  });
+});
+
+describe("attachment to a follower inside an instance", () => {
+  const game = createRegistry(testGame);
+  const GATE: Prefab = {
+    kind: "prefab",
+    v: SCENE_FORMAT_VERSION,
+    game: testGame.id,
+    id: "gate",
+    entities: [
+      {
+        id: "lift",
+        type: "follower",
+        shape: ["box", 0, 0, 40, 8],
+        path: {
+          pts: [
+            [0, 0],
+            [400, -300],
+          ],
+          mode: "ping_pong",
+          speed: 120,
+        },
+      },
+    ],
+  };
+  const prefabs = prefabLibrary([GATE]);
+  const scene: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    game: testGame.id,
+    name: "gated",
+    bounds: [-500, -500, 2000, 1500],
+    instances: [{ id: "gate-2", prefab: "gate", at: [400, 600] }],
+    entities: [
+      { id: "plank", type: "solid", attach: "gate-2/lift", shape: ["box", 500, 590, 60, 4] },
+    ],
+  };
+
+  it("validates a ref to gate-2/lift and rides that child's body", () => {
+    expect(parseScene(scene, game).ok).toBe(true);
+    expect(validateScene(scene, game, { prefabs }).filter((i) => i.severity === "error")).toEqual(
+      [],
+    );
+    const rt = createSceneRuntime({ rapier, view: null, registry: game });
+    expect(rt.load(expandScene(scene, game, { prefabs })).ok).toBe(true);
+    const lift = colliderOf(rt, "gate-2/lift");
+    const plank = colliderOf(rt, "plank");
+    expect(plank.parent()!.handle).toBe(lift.parent()!.handle);
+    expect(rt.ctx.tags.get(plank.handle)).toMatchObject({
+      entityId: "plank",
+      carrier: { entityId: "gate-2/lift", type: "follower" },
+    });
+    for (let i = 0; i < 240; i++) {
+      rt.step(DT, []);
+      const at = lift.parent()!.translation();
+      const p = colliderOf(rt, "plank").translation();
+      expect(p.x - at.x).toBeCloseTo(100, 3);
+      expect(p.y - at.y).toBeCloseTo(-10, 3);
+    }
+    expect(lift.parent()!.translation()).not.toEqual({ x: 400, y: 600 });
+    rt.destroy();
+  });
+
+  it("reports a ref to an instance that doesn't exist as dangling", () => {
+    const lost = { ...scene, entities: [{ ...scene.entities![0]!, attach: "gate-9/lift" }] };
+    const issues = validateScene(lost, game, { prefabs });
+    expect(issues.find((i) => i.entityIds.includes("plank"))?.code).toBe("dangling-ref");
   });
 });

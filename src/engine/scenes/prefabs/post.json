@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 2,
+  "v": 3,
   "id": "post",
   "entities": [
     { "id": "pole", "type": "solid", "shape": ["box", 0, -60, 10, 60] },

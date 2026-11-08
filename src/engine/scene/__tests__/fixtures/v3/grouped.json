@@ -1,0 +1,18 @@
+{
+  "v": 3,
+  "name": "grouped",
+  "bounds": [0, 0, 1000, 600],
+  "groups": {
+    "markers": { "at": [0, 0] },
+    "posts": { "at": [0, 0] }
+  },
+  "solid": [
+    ["box", 500, 580, 500, 20]
+  ],
+  "entities": [
+    { "id": "left-post", "type": "solid", "group": "posts", "shape": ["box", 100, 500, 10, 60] },
+    { "id": "right-post", "type": "solid", "group": "posts", "shape": ["box", 900, 500, 10, 60] },
+    { "id": "start", "type": "marker", "group": "markers", "at": [500, 540], "tags": ["spawn"] },
+    { "id": "lift", "type": "follower", "shape": ["box", 0, 0, 40, 6], "path": { "pts": [[300, 540], [300, 300]], "mode": "ping_pong", "speed": 80 } }
+  ]
+}

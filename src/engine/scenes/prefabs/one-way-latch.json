@@ -1,0 +1,10 @@
+{
+  "kind": "prefab",
+  "v": 3,
+  "id": "one-way-latch",
+  "base": "latch",
+  "overrides": {
+    "bar.oneWay": true
+  },
+  "entities": []
+}

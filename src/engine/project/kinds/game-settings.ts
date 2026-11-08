@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Registry } from "../../game/types";
 import { makeIssue } from "../../scene/issues";
 import type { SceneIssue } from "../../scene/types";
+import { schemaRefSites, type RefSite } from "../refs";
 import type { AssetEntry, ProjectView } from "../types";
 import { byPathThenKey, defineAssetKind, type KindEnv } from "./define";
 
@@ -97,6 +98,8 @@ export const gameSettingsKind = defineAssetKind({
       game: { as: "map", rest: { as: "atomic" } },
     },
   },
+  refs: (file: GameSettingsFile, env: KindEnv): RefSite[] =>
+    schemaRefSites(env.registry.game?.projectSettings ?? {}, file.game, "/game"),
   empty: (): GameSettingsFile => ({
     kind: GAME_SETTINGS_KIND,
     v: GAME_SETTINGS_VERSION,

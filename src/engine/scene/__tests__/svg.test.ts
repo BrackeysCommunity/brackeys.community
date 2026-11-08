@@ -4,12 +4,25 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { ENGINE_YARD_EXPANDED } from "../../__tests__/fixtures/engine-yard.expanded";
 import { generateScene } from "../../__tests__/fixtures/generate-scene";
+import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { primitiveFields } from "../../game/primitives";
 import { parseSceneOrThrow } from "../parse";
 import { shapeOutline } from "../shape-outline";
-import { renderSceneSvg, SCENE_SVG_MAX_SIZE, sceneViewport, svgPathData } from "../svg";
-import type { SceneDefinition } from "../types";
+import {
+  renderSceneSvg,
+  SCENE_GRID_MAX_CELLS,
+  SCENE_SVG_MAX_SIZE,
+  sceneViewport,
+  svgPathData,
+} from "../svg";
+import {
+  PREFAB_KIND,
+  SCENE_FORMAT_VERSION,
+  type GridSettings,
+  type Prefab,
+  type SceneDefinition,
+} from "../types";
 import { engine, engineYardText } from "./fixtures/fake-game";
 
 const yard = parseSceneOrThrow(engineYardText, engine);
@@ -199,5 +212,134 @@ describe("svgPathData", () => {
   it("splits a full circle into quarter arcs that close where they start", () => {
     const d = svgPathData(shapeOutline({ type: "circle", cx: 0, cy: 0, r: 10 }));
     expect(d).toBe("M10 0A10 10 0 0 1 0 10A10 10 0 0 1 -10 0A10 10 0 0 1 0 -10A10 10 0 0 1 10 0Z");
+  });
+});
+
+describe("grid fields", () => {
+  const game = createRegistry(testGame);
+  const square: GridSettings = { kind: "square", cell: [32, 32] };
+  const paintScene = (
+    cells: Record<string, string[]>,
+    grid: GridSettings = square,
+    extra: Partial<SceneDefinition> = {},
+  ): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    game: game.id,
+    name: "paint",
+    bounds: [0, 0, 1024, 768],
+    settings: { grid },
+    entities: [{ id: "floor", type: PAINT.type, at: [64, 640], cells }],
+    ...extra,
+  });
+  const cellsOf = (svg: string) =>
+    [...svg.matchAll(/data-cell="(-?\d+),(-?\d+)"/g)].map((m) => [Number(m[1]), Number(m[2])]);
+
+  it("draws a painted entity's filled cells one by one at its at, sized by the scene's grid", () => {
+    const svg = renderSceneSvg(paintScene({ "0,0": ["1*3", "", "0,2"] }), { registry: game });
+    expect(svg).toContain(`<g data-ref="floor" data-type="${PAINT.type}" data-field="cells"`);
+    expect(cellsOf(svg)).toEqual([
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [1, 2],
+    ]);
+    expect(svg).toMatch(
+      /data-cell="0,0" data-v="1" fill="#[0-9a-f]{6}" x="64" y="640" width="32" height="32"/,
+    );
+    expect(svg).toMatch(/data-cell="1,2" data-v="2" [^>]*x="96" y="704" width="32" height="32"/);
+    expect(svg).not.toContain("grid-more");
+  });
+
+  it("places negative chunks before the entity's at", () => {
+    const svg = renderSceneSvg(paintScene({ "-1,0": ["0*31,3"] }), { registry: game });
+    expect(cellsOf(svg)).toEqual([[-1, 0]]);
+    expect(svg).toMatch(/data-cell="-1,0" data-v="3" [^>]*x="32" y="640"/);
+  });
+
+  it("draws hex cells as hexagons, staggered as Tiled's", () => {
+    const hexGrid: GridSettings = {
+      kind: "hex",
+      cell: [32, 32],
+      side: 16,
+      stagger: "y",
+      index: "odd",
+    };
+    const svg = renderSceneSvg(
+      paintScene({ "0,0": ["", "1"] }, hexGrid, {
+        entities: [{ id: "floor", type: PAINT.type, at: [0, 0], cells: { "0,0": ["", "1"] } }],
+      }),
+      { registry: game },
+    );
+    expect(svg).toContain(
+      `data-cell="0,1" data-v="1" fill="#4dd0e1" d="M32 24L48 32L48 48L32 56L16 48L16 32Z"`,
+    );
+  });
+
+  it(`stops at ${SCENE_GRID_MAX_CELLS} cells and marks the rest with "…"`, () => {
+    // 100 × 100 cells, 10,000 in all.
+    const chunk = Array.from({ length: 32 }, () => "1*32");
+    const edge = Array.from({ length: 32 }, () => "1*4");
+    const cells: Record<string, string[]> = {};
+    for (let cy = 0; cy < 4; cy++)
+      for (let cx = 0; cx < 4; cx++) {
+        const rows = cx === 3 ? edge : chunk;
+        cells[`${cx},${cy}`] = cy === 3 ? rows.slice(0, 4) : rows;
+      }
+    const scene = paintScene(
+      cells,
+      { kind: "square", cell: [4, 4] },
+      {
+        entities: [{ id: "floor", type: PAINT.type, at: [0, 0], cells }],
+      },
+    );
+    const svg = renderSceneSvg(scene, { registry: game });
+    const drawn = cellsOf(svg);
+    expect(drawn).toHaveLength(SCENE_GRID_MAX_CELLS);
+    expect(drawn.at(-1)).toEqual([95, 40]);
+    expect(svg).toMatch(/<text class="grid-more" data-more="5904" x="386" y="166"[^>]*>…<\/text>/);
+
+    // A region draws only the cells in it, so a part of a big map is whole.
+    const part = renderSceneSvg(scene, { registry: game, region: [0, 0, 40, 40] });
+    expect(cellsOf(part)).toHaveLength(100);
+    expect(part).not.toContain("grid-more");
+  });
+
+  it("frames around a painted entity over its cells", () => {
+    const scene = paintScene({ "0,0": ["1*4"] });
+    const vp = sceneViewport(scene, { registry: game, around: "floor", margin: 0 });
+    expect(vp.region).toEqual([64, 640, 192, 672]);
+  });
+
+  it("draws nothing for cells in a scene without a grid", () => {
+    const { settings: _, ...scene } = paintScene({ "0,0": ["1*4"] });
+    expect(renderSceneSvg(scene, { registry: game })).not.toContain("grid-cells");
+  });
+
+  it("draws a turned or flipped instance's cells through the resolved view", () => {
+    const prefab: Prefab = {
+      kind: PREFAB_KIND,
+      v: SCENE_FORMAT_VERSION,
+      game: game.id,
+      id: "strip",
+      entities: [{ id: "floor", type: PAINT.type, at: [0, 0], cells: { "0,0": ["1*2"] } }],
+    };
+    const prefabs = new Map([[prefab.id, prefab]]);
+    const scene = (inst: { rot?: 1 | 2 | 3; flip?: true }): SceneDefinition =>
+      paintScene({}, square, {
+        entities: [],
+        instances: [{ id: "a", prefab: "strip", at: [320, 320], ...inst }],
+      });
+    const turned = renderSceneSvg(scene({ rot: 1 }), { registry: game, prefabs });
+    expect(turned).toContain(`data-ref="a/floor"`);
+    expect(cellsOf(turned)).toEqual([
+      [-1, 0],
+      [-1, 1],
+    ]);
+    expect(turned).toMatch(/data-cell="-1,1" [^>]*x="288" y="352"/);
+    const flipped = renderSceneSvg(scene({ flip: true }), { registry: game, prefabs });
+    expect(cellsOf(flipped)).toEqual([
+      [-2, 0],
+      [-1, 0],
+    ]);
   });
 });

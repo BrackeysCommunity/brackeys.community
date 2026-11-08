@@ -12,10 +12,21 @@ import {
   sessionPrefabSource,
   type SceneOrigin,
 } from "@jams/engine/collab";
-import { createEditorSession, projectHistory, type SceneDefinition } from "@jams/engine/editor";
+import {
+  applyLevels,
+  applyToPrefabBatch,
+  createEditorSession,
+  createPrefabBatch,
+  instancesOf,
+  nestedInstanceOf,
+  overridePathsOf,
+  projectHistory,
+  revertAllBatch,
+  type SceneDefinition,
+} from "@jams/engine/editor";
 import { createRegistry } from "@jams/engine/game";
 import { createKindRegistry, prefabKind, sceneKind, type AssetEntry } from "@jams/engine/project";
-import type { Prefab } from "@jams/engine/scene";
+import { SCENE_FORMAT_VERSION, type Prefab, type PrefabLibrary } from "@jams/engine/scene";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
@@ -30,7 +41,7 @@ const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 
 const POST: Prefab = {
   kind: "prefab",
-  v: 2,
+  v: SCENE_FORMAT_VERSION,
   id: "post",
   entities: [{ id: "top", type: "marker", at: [0, -40] }],
   bulk: { solid: [["box", 0, 0, 6, 40]] },
@@ -38,7 +49,7 @@ const POST: Prefab = {
 
 function scene(): SceneDefinition {
   return {
-    v: 2,
+    v: SCENE_FORMAT_VERSION,
     name: "posts",
     bounds: [0, 0, 2000, 1200],
     groups: { east: { at: [1000, 0] } },
@@ -230,6 +241,286 @@ describe("prefabs in the project editor", () => {
     expect(docToPrefab(host.doc("asset:p.post")).entities[0]!.at).toEqual([0, -40]);
     expect(live.session.getDoc().instances![0]!.overrides).toEqual({ "top.at": [0, -60] });
     live.destroy();
+    project.destroy();
+  });
+});
+
+const LOCK: Prefab = {
+  kind: "prefab",
+  v: SCENE_FORMAT_VERSION,
+  id: "lock",
+  entities: [{ id: "bolt", type: "marker", at: [0, 0] }],
+};
+const DOOR: Prefab = {
+  kind: "prefab",
+  v: SCENE_FORMAT_VERSION,
+  id: "door",
+  entities: [{ id: "panel", type: "marker", at: [0, -10] }],
+  instances: [{ id: "lock-1", prefab: "lock", at: [4, 0] }],
+};
+const ROOM: Prefab = {
+  kind: "prefab",
+  v: SCENE_FORMAT_VERSION,
+  id: "room",
+  entities: [{ id: "floor", type: "marker", at: [0, 0] }],
+  instances: [{ id: "door-1", prefab: "door", at: [100, 0] }],
+};
+const NESTED: PrefabLibrary = new Map([LOCK, DOOR, ROOM].map((p) => [p.id, p]));
+
+function rooms(): SceneDefinition {
+  return {
+    v: SCENE_FORMAT_VERSION,
+    name: "rooms",
+    bounds: [0, 0, 2000, 1200],
+    instances: [
+      {
+        id: "room-1",
+        prefab: "room",
+        at: [500, 500],
+        overrides: {
+          "floor.at": [0, 5],
+          "door-1/panel.at": [0, -20],
+          "door-1/lock-1/bolt.at": [1, 1],
+        },
+      },
+      { id: "room-2", prefab: "room", at: [900, 500] },
+    ],
+  };
+}
+
+/** A project holding `rooms` and its three nested prefabs, edited through one project session. */
+async function setupNested(selection: string[]) {
+  const host = memoryDocHost();
+  const entry = (key: string, kind: string, path: string): AssetEntry => ({
+    key,
+    id: key,
+    kind,
+    path,
+    created: { at: 0, by: "seed" },
+  });
+  seedProjectDoc(
+    host.doc("project:p"),
+    {
+      meta: { projectId: "p", layout: 1, name: "P" },
+      assets: {
+        rooms: entry("rooms", "scene", "rooms.json"),
+        ...Object.fromEntries(
+          [...NESTED.keys()].map((id) => [id, entry(id, "prefab", `prefabs/${id}.json`)]),
+        ),
+      },
+      history: {},
+      code: {},
+      build: {},
+    },
+    { kind: "migration" },
+  );
+  sceneToDoc(rooms(), { doc: host.doc("scene:p.rooms"), key: sequentialKeys("t") });
+  for (const p of NESTED.values())
+    prefabToDoc(p, { doc: host.doc(`asset:p.${p.id}`), key: sequentialKeys(p.id) });
+  const project = await createProjectSession({
+    project: "p",
+    openDoc: host.client().openDoc,
+    origin: ada,
+    registry,
+    kinds: createKindRegistry(null, [sceneKind, prefabKind]),
+  });
+  const prefabs = sessionPrefabSource(project, { scene: "rooms" });
+  await prefabs.ready();
+  const { doc } = await project.open("scene:p.rooms");
+  const session = createEditorSession({
+    doc,
+    origin: ada,
+    name: "rooms",
+    registry,
+    issuesDebounceMs: 0,
+    prefabs,
+    history: projectHistory(project, "scene:p.rooms"),
+  });
+  session.select(selection);
+  return { session, doc, host, project };
+}
+
+describe("prefab commands over nested prefabs", () => {
+  const def = rooms();
+
+  it("finds a nested instance by its resolved ref, and the override keys each ref covers", () => {
+    expect(nestedInstanceOf(def, "room-1/door-1", NESTED)).toMatchObject({
+      instance: { id: "door-1", prefab: "door" },
+      holder: "room",
+      path: "door-1",
+    });
+    expect(nestedInstanceOf(def, "room-1/door-1/lock-1", NESTED)).toMatchObject({
+      instance: { id: "lock-1" },
+      holder: "door",
+    });
+    expect(nestedInstanceOf(def, "room-1/floor", NESTED)).toBeNull();
+    expect(nestedInstanceOf(def, "room-1", NESTED)).toBeNull();
+    expect(overridePathsOf(def, "room-1")).toHaveLength(3);
+    expect(overridePathsOf(def, "room-1/door-1")).toEqual([
+      "door-1/panel.at",
+      "door-1/lock-1/bolt.at",
+    ]);
+    expect(overridePathsOf(def, "room-1/door-1/panel")).toEqual(["door-1/panel.at"]);
+  });
+
+  it("offers the levels every covered key reaches, outermost first", () => {
+    expect(applyLevels(def, "room-1", NESTED)).toEqual(["room"]);
+    expect(applyLevels(def, "room-1/door-1", NESTED)).toEqual(["room", "door"]);
+    expect(applyLevels(def, "room-1/door-1/lock-1", NESTED)).toEqual(["room", "door", "lock"]);
+    expect(applyLevels(def, "room-1/door-1/lock-1/bolt", NESTED)).toEqual(["room", "door", "lock"]);
+    expect(applyLevels(def, "room-2", NESTED)).toEqual([]);
+  });
+
+  it("applies a nested child's keys to the level `to` names, and refuses one they don't reach", () => {
+    expect(applyToPrefabBatch(def, "room-1/door-1", { to: "door", prefabs: NESTED })).toEqual({
+      label: "Apply room-1/door-1 to door",
+      ops: [
+        {
+          op: "applyToPrefab",
+          ref: "room-1",
+          paths: ["door-1/panel.at", "door-1/lock-1/bolt.at"],
+          to: "door",
+        },
+      ],
+    });
+    expect(applyToPrefabBatch(def, "room-1/door-1", { to: "room", prefabs: NESTED })).toEqual({
+      label: "Apply room-1/door-1 to room",
+      ops: [
+        {
+          op: "applyToPrefab",
+          ref: "room-1",
+          paths: ["door-1/panel.at", "door-1/lock-1/bolt.at"],
+        },
+      ],
+    });
+    expect(applyToPrefabBatch(def, "room-1", { to: "door", prefabs: NESTED })).toBeNull();
+    expect(applyToPrefabBatch(def, "room-1/door-1", { to: "door" })).toBeNull();
+    expect(applyToPrefabBatch(def, "room-1")).toEqual({
+      label: "Apply room-1 to room",
+      ops: [{ op: "applyToPrefab", ref: "room-1" }],
+    });
+  });
+
+  it("reverts only the keys a nested ref covers", () => {
+    expect(revertAllBatch(def, "room-1/door-1")).toEqual({
+      label: "Revert all of room-1/door-1",
+      ops: [
+        {
+          op: "revertOverride",
+          ref: "room-1",
+          paths: ["door-1/panel.at", "door-1/lock-1/bolt.at"],
+        },
+      ],
+    });
+    expect(revertAllBatch(def, "room-1/door-1/panel")!.ops).toEqual([
+      { op: "revertOverride", ref: "room-1", paths: ["door-1/panel.at"] },
+    ]);
+    expect(revertAllBatch(def, "room-1/floor")!.ops).toEqual([
+      { op: "revertOverride", ref: "room-1", paths: ["floor.at"] },
+    ]);
+    expect(revertAllBatch(def, "room-2")).toBeNull();
+  });
+
+  it("counts placements through nesting, and lets Create prefab take instances", () => {
+    expect(instancesOf(def, "room")).toBe(2);
+    expect(instancesOf(def, "door")).toBe(0);
+    expect(instancesOf(def, "door", NESTED)).toBe(2);
+    expect(instancesOf(def, "lock", NESTED)).toBe(2);
+    expect(createPrefabBatch(def, ["room-1", "room-2"], NESTED)!.ops).toEqual([
+      { op: "createPrefab", refs: ["room-1", "room-2"], id: "room-2" },
+    ]);
+    expect(createPrefabBatch(def, ["room-1/floor"], NESTED)).toBeNull();
+  });
+});
+
+describe("nested prefabs in the editor", () => {
+  it("applies a nested instance's overrides to the level picked, one undo step", async () => {
+    const { session, doc, host, project } = await setupNested(["room-1/door-1"]);
+    render(<EditorInspector session={session} />);
+    expect(screen.getByText("instance of door in room")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Unpack" })).toBeNull();
+    let transactions = 0;
+    doc.on("afterTransaction", () => transactions++);
+
+    fireEvent.click(screen.getByRole("button", { name: "door" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply to prefab" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText("Apply to door?")).toBeTruthy();
+    expect(within(dialog).getByText(/all 2 of its instances change/)).toBeTruthy();
+    act(() => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+    });
+
+    expect(transactions).toBe(1);
+    const door = docToPrefab(host.doc("asset:p.door"));
+    expect(door.entities[0]!.at).toEqual([0, -20]);
+    expect(door.instances![0]!.overrides).toEqual({ "bolt.at": [1, 1] });
+    expect(docToPrefab(host.doc("asset:p.room")).instances![0]!.overrides).toBeUndefined();
+    expect(session.getDoc().instances![0]!.overrides).toEqual({ "floor.at": [0, 5] });
+    expect(readLog(doc).at(-1)!.label).toBe("Apply room-1/door-1 to door");
+    const panel = (id: string) =>
+      session.getResolved().entities!.find((e) => e.id === `${id}/door-1/panel`)!.at;
+    expect(panel("room-2")).toEqual([1000, 480]);
+    expect(session.undo()).toBe(true);
+    expect(panel("room-2")).toEqual([1000, 490]);
+    expect(docToPrefab(host.doc("asset:p.door")).entities[0]!.at).toEqual([0, -10]);
+    project.destroy();
+  });
+
+  it("applies to the instance's own prefab by default, as an override of the nested instance", async () => {
+    const { session, host, project } = await setupNested(["room-1/door-1"]);
+    render(<EditorInspector session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apply to prefab" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText("Apply to room?")).toBeTruthy();
+    act(() => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+    });
+    expect(docToPrefab(host.doc("asset:p.room")).instances![0]!.overrides).toEqual({
+      "panel.at": [0, -20],
+      "lock-1/bolt.at": [1, 1],
+    });
+    expect(docToPrefab(host.doc("asset:p.door")).entities[0]!.at).toEqual([0, -10]);
+    project.destroy();
+  });
+
+  it("offers no level choice when the keys reach only the instance's own prefab", async () => {
+    const { session, project } = await setupNested(["room-1"]);
+    render(<EditorInspector session={session} />);
+    expect(screen.queryByRole("group", { name: "Apply to" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Unpack" })).toBeTruthy();
+    project.destroy();
+  });
+
+  it("Revert all on a nested instance drops only its keys", async () => {
+    const { session, project } = await setupNested(["room-1/door-1"]);
+    render(<EditorInspector session={session} />);
+    expect(screen.getByText("door-1/panel.at")).toBeTruthy();
+    expect(screen.queryByText("floor.at")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Revert all" }));
+    expect(session.getDoc().instances![0]!.overrides).toEqual({ "floor.at": [0, 5] });
+    project.destroy();
+  });
+
+  it("edits a nested child through the resolved view as an override with its a/b/c key", async () => {
+    const { session, project } = await setupNested(["room-2/door-1/panel"]);
+    render(<EditorInspector session={session} />);
+    const x = screen.getByLabelText("at.x") as HTMLInputElement;
+    expect(x.value).toBe("1000");
+    fireEvent.change(x, { target: { value: "1010" } });
+    fireEvent.keyDown(x, { key: "Enter" });
+    expect(session.getDoc().instances![1]!.overrides).toEqual({ "door-1/panel.at": [10, -10] });
+    fireEvent.click(screen.getByRole("button", { name: "Revert" }));
+    expect(session.getDoc().instances![1]!.overrides).toBeUndefined();
+    project.destroy();
+  });
+
+  it("lists nested instances and their children under their instance in the outliner", async () => {
+    const { session, project } = await setupNested([]);
+    render(<EditorOutliner session={session} />);
+    expect(screen.getAllByText("door-1").length).toBe(2);
+    expect(screen.getAllByText("lock-1").length).toBe(2);
+    expect(screen.getAllByText("bolt").length).toBe(2);
     project.destroy();
   });
 });

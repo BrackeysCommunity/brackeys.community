@@ -1,11 +1,17 @@
 import { readFileSync } from "node:fs";
 
 import {
+  applyOpsToDoc,
   createProjectSession,
+  docToScene,
   memoryDocHost,
+  readLog,
+  revertEntry,
   sceneToDoc,
   seedProjectDoc,
   sequentialKeys,
+  watchIssues,
+  writeEntry,
   type ProjectSession,
 } from "@jams/engine/collab";
 import { createRegistry } from "@jams/engine/game";
@@ -17,6 +23,7 @@ import {
   sceneKind,
   type AssetEntry,
 } from "@jams/engine/project";
+import { SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import * as engineVite from "@jams/engine/vite";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -80,7 +87,7 @@ function project(assets: AssetEntry[] = []) {
   for (const e of all) {
     if (e.kind !== "scene") continue;
     sceneToDoc(
-      { v: 2, name: e.id, bounds: [0, 0, 100, 100] },
+      { v: SCENE_FORMAT_VERSION, name: e.id, bounds: [0, 0, 100, 100] },
       { doc: host.doc(`scene:p.${e.key}`), key: sequentialKeys(e.key) },
     );
   }
@@ -248,6 +255,48 @@ describe("createSceneDocLink", () => {
     expect(link.getState().status).toBe("failed");
     expect(link.getState().error?.message).toMatch(/revoked/);
     link.destroy();
+    session.destroy();
+  });
+});
+
+describe("a project's scene doc at layout 3", () => {
+  it("writes the assets header through the session's doc and checks it against the project", async () => {
+    const { open } = project();
+    const session = await open();
+    const { doc } = await session.open("scene:p.yard");
+    const origin = session.origin;
+    const r = applyOpsToDoc(
+      doc,
+      { ops: [{ op: "useAssets", add: ["b-yard", "boom"] }] },
+      origin,
+      registry,
+    );
+    expect(r.ok).toBe(true);
+    expect(docToScene(doc).assets).toEqual(["b-yard", "boom"]);
+    expect(doc.getMap("assets").toJSON()).toEqual({ "b-yard": true, boom: true });
+
+    const timers: (() => void)[] = [];
+    const seen: string[][] = [];
+    const watch = watchIssues(doc, registry, (issues) => seen.push(issues.map((i) => i.code)), {
+      project: session,
+      setTimer: (fn) => timers.push(fn),
+      clearTimer: () => {},
+    });
+    expect(watch.flush()).toEqual([
+      expect.objectContaining({ code: "asset-missing", path: "/assets/1" }),
+    ]);
+    const unchecked = watchIssues(doc, registry, () => {});
+    expect(unchecked.flush()).toEqual([]);
+    unchecked.stop();
+
+    writeEntry(session.projectDoc, entry("boom", "prefab", "prefabs/boom.json"));
+    expect(timers).toHaveLength(1);
+    timers[0]!();
+    expect(seen.at(-1)).toEqual([]);
+    watch.stop();
+
+    expect(revertEntry(doc, readLog(doc).at(-1)!, origin).ok).toBe(true);
+    expect(docToScene(doc).assets).toBeUndefined();
     session.destroy();
   });
 });

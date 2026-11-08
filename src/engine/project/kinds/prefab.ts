@@ -8,7 +8,7 @@ import { sceneRegistry } from "../../scene/schema";
 import { PREFAB_KIND, SCENE_FORMAT_VERSION, type Prefab } from "../../scene/types";
 import type { RefSite } from "../refs";
 import { defineAssetKind, folderOf, joinFolder } from "./define";
-import { bulkMaterialRefs, entityMaterialRefs } from "./fields";
+import { bodyRefs, bulkMaterialRefs } from "./fields";
 
 /** A reusable piece of a level placed by instances, co-edited per child and field. */
 export const prefabKind = defineAssetKind({
@@ -46,10 +46,11 @@ export const prefabKind = defineAssetKind({
     ),
   refs(prefab: Prefab, env): RefSite[] {
     const registry = sceneRegistry(prefab.game, env.registry);
-    if (!registry) return [];
-    return [
-      ...entityMaterialRefs(registry, prefab.entities, "/entities"),
-      ...bulkMaterialRefs(registry, prefab.bulk, ["bulk"]),
-    ];
+    const base: RefSite[] =
+      typeof prefab.base === "string"
+        ? [{ pointer: "/base", id: prefab.base, kinds: ["prefab"] }]
+        : [];
+    const refs = [...base, ...bodyRefs(registry, prefab)];
+    return registry ? [...refs, ...bulkMaterialRefs(registry, prefab.bulk, ["bulk"])] : refs;
   },
 });

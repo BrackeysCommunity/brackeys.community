@@ -1,8 +1,10 @@
-import type { z } from "zod";
+import { z } from "zod";
 
 import { MATERIAL_KIND, projectMaterialOf } from "../project/kinds/material";
-import type { AssetId, ProjectView } from "../project/types";
+import type { AssetId, AssetKindName, ProjectView } from "../project/types";
 import { ISSUE_CODES } from "../scene/issues";
+import { DEFAULT_LAYERS, type SceneLayerDef } from "../scene/layers";
+import { fieldKind } from "../scene/schema";
 import {
   RESERVED_SCENE_KEYS,
   SCENE_FORMAT_VERSION,
@@ -11,8 +13,21 @@ import {
   type RuntimeEntity,
 } from "../scene/types";
 import type { Vec2 } from "../types";
+import {
+  BEHAVIOR_NAME_PATTERN,
+  type BehaviorBlock,
+  type BehaviorDef,
+  type BehaviorName,
+  type RegisteredBehavior,
+} from "./behaviors";
 import { ID_PATTERN, isAttachField, RESERVED_FIELDS } from "./fields";
-import { BASE_REQUIRED_FIELDS, ENGINE_SETTINGS, PRIMITIVES, resolveFields } from "./primitives";
+import {
+  BASE_REQUIRED_FIELDS,
+  ENGINE_SETTING_KEYS,
+  ENGINE_SETTINGS,
+  PRIMITIVES,
+  resolveFields,
+} from "./primitives";
 import {
   ENGINE_CHECK_KINDS,
   ENGINE_COLLISION_GROUPS,
@@ -21,6 +36,7 @@ import {
   ENGINE_RUN_RESULTS,
   PRIMITIVE_TYPES,
   type BasePrimitive,
+  type BehaviorRules,
   type BulkKeyInfo,
   type EntityTypeDef,
   type FieldEnv,
@@ -84,14 +100,141 @@ export type CreateRegistryOptions = {
    * no game run under one sees its project's materials.
    */
   materials?: Readonly<Record<string, ProjectMaterialDef>>;
+  /**
+   * The project's live asset ids of the asked kinds, sorted: what asset
+   * fields offer as JSON Schema choices. Omitted means no project, so
+   * every kind is empty. The `primitives` registry shares it.
+   */
+  assets?: FieldEnv["assets"];
 };
+
+/** What a type's field may be named: a JS identifier, so `@`-prefixed collab layout keys never collide. */
+const FIELD_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+const noAssets: FieldEnv["assets"] = () => [];
+
+/** The engine's own behaviors, registered before a game's. */
+export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([]);
+
+/** A behavior's own field defaults: each field whose schema parses `undefined` to a value. */
+function shapeDefaults(shape: z.ZodRawShape): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [field, schema] of Object.entries(shape)) {
+    const parsed = z.safeParse(schema, undefined);
+    if (parsed.success && parsed.data !== undefined) out[field] = parsed.data;
+  }
+  return out;
+}
+
+const noBehaviors: BehaviorRules = Object.freeze({
+  allowed: [],
+  required: new Map<BehaviorName, BehaviorBlock>(),
+  defaults: new Map<BehaviorName, BehaviorBlock>(),
+});
+
+/**
+ * A type's behavior rules. `required` holds each required behavior's block:
+ * the behavior's defaults under the type's `defaults` under its `required`
+ * values. `defaults` holds what an allowed behavior an entity carries
+ * starts from, the same merge (so a required one's equals its `required`
+ * block). Types that never load carry none.
+ */
+function typeBehaviorRules(
+  t: RegisteredType,
+  behaviors: ReadonlyMap<BehaviorName, RegisteredBehavior>,
+  own: ReadonlyMap<BehaviorName, BehaviorBlock>,
+): BehaviorRules {
+  if (t.loads === false) return noBehaviors;
+  const rules = t.behaviors ?? {};
+  const required = rules.required ?? {};
+  const forbidden = rules.forbidden ?? [];
+  const allowed = [...behaviors.keys()].filter((name) =>
+    forbidden === "all" ? name in required : !forbidden.includes(name),
+  );
+  const defaults = new Map<BehaviorName, BehaviorBlock>();
+  for (const name of allowed) {
+    defaults.set(
+      name,
+      Object.freeze({ ...own.get(name), ...rules.defaults?.[name], ...required[name] }),
+    );
+  }
+  const requiredBlocks = new Map<BehaviorName, BehaviorBlock>();
+  for (const name of allowed) if (name in required) requiredBlocks.set(name, defaults.get(name)!);
+  return Object.freeze({ allowed, required: requiredBlocks, defaults });
+}
+
+/** Refuses a type's behavior rules that name unknown behaviors, overlap or fail a schema. */
+function checkTypeBehaviors(
+  t: RegisteredType,
+  behaviors: ReadonlyMap<BehaviorName, RegisteredBehavior>,
+  problem: (msg: string) => void,
+): void {
+  const rules = t.behaviors;
+  if (!rules) return;
+  const name = t.type;
+  if (t.loads === false) {
+    problem(`type "${name}" never loads and can't carry behaviors`);
+    return;
+  }
+  const required = Object.keys(rules.required ?? {});
+  const forbidden = rules.forbidden === "all" ? [] : (rules.forbidden ?? []);
+  for (const b of forbidden)
+    if (!behaviors.has(b)) problem(`type "${name}" forbids unknown behavior "${b}"`);
+  for (const b of required) {
+    if (forbidden.includes(b)) problem(`type "${name}" both requires and forbids "${b}"`);
+    for (const dep of behaviors.get(b)?.requires ?? []) {
+      const refused = rules.forbidden === "all" ? !required.includes(dep) : forbidden.includes(dep);
+      if (refused)
+        problem(`type "${name}" requires "${b}", which requires "${dep}", but forbids "${dep}"`);
+    }
+  }
+  for (const [rule, blocks] of [
+    ["required", rules.required],
+    ["defaults", rules.defaults],
+  ] as const) {
+    for (const [b, block] of Object.entries(blocks ?? {})) {
+      const behavior = behaviors.get(b);
+      if (!behavior) {
+        problem(`type "${name}" ${rule} names unknown behavior "${b}"`);
+        continue;
+      }
+      if (
+        rule === "defaults" &&
+        (rules.forbidden === "all" ? !required.includes(b) : forbidden.includes(b))
+      )
+        problem(`type "${name}" gives defaults for "${b}", which it forbids`);
+      for (const [field, value] of Object.entries(block)) {
+        const schema = behavior.shape[field];
+        if (!schema) problem(`type "${name}" ${rule} "${b}" names unknown field "${field}"`);
+        else if (!z.safeParse(schema, value).success)
+          problem(`type "${name}" ${rule} "${b}" field "${field}" fails the behavior's schema`);
+      }
+    }
+  }
+}
+
+function checkLayers(layers: readonly SceneLayerDef[], problem: (msg: string) => void): void {
+  if (layers.length === 0) problem("layers must list at least one layer");
+  const seen = new Set<string>();
+  for (const layer of layers) {
+    if (!ID_PATTERN.test(layer.name)) problem(`layer "${layer.name}" must match ${ID_PATTERN}`);
+    if (seen.has(layer.name)) problem(`layer "${layer.name}" is declared twice`);
+    seen.add(layer.name);
+    if (!Number.isFinite(layer.draw)) problem(`layer "${layer.name}" draw must be a finite number`);
+    if (layer.scroll && !layer.scroll.every((n) => Number.isFinite(n)))
+      problem(`layer "${layer.name}" scroll must be two finite numbers`);
+  }
+}
 
 /**
  * Merges the engine's primitives with a game's types, materials, actions,
  * collision groups and issue codes, and the project's materials over the
- * game's. Throws `RegistryError` listing every problem: duplicate or
- * reserved names, bulk keys or codes, a type without a system, a spawn
- * order that misses or repeats a type, unknown groups.
+ * game's, and the engine's behaviors then the game's. Throws
+ * `RegistryError` listing every problem: duplicate or reserved names, bulk
+ * keys or codes, a type without a system, a spawn order that misses or
+ * repeats a type, unknown groups, a game behavior outside the game's
+ * namespace, behavior rules naming unknown behaviors or failing their
+ * schemas, a grid field without a point `at`.
  */
 export function createRegistry(
   game?: GameDefinition | null,
@@ -135,7 +278,45 @@ export function createRegistry(
     ...(game?.types ?? []).map((def) => ({ def, origin: id })),
   ];
   const typeNames = defs.map((d) => d.def.type);
-  const env: FieldEnv = { materials: materialNames, materialDefs: materials, types: typeNames };
+  const env: FieldEnv = {
+    materials: materialNames,
+    materialDefs: materials,
+    types: typeNames,
+    assets: opts.assets ?? noAssets,
+  };
+  // behaviors, the engine's first, then the game's in order
+  const behaviors = new Map<BehaviorName, RegisteredBehavior>();
+  const behaviorDefaults = new Map<BehaviorName, BehaviorBlock>();
+  const behaviorDefs: { def: BehaviorDef; origin: string }[] = [
+    ...ENGINE_BEHAVIORS.map((def) => ({ def, origin: ENGINE_REGISTRY_ID })),
+    ...(game?.behaviors ?? []).map((def) => ({ def, origin: id })),
+  ];
+  for (const { def, origin } of behaviorDefs) {
+    const name = def.name;
+    if (!BEHAVIOR_NAME_PATTERN.test(name))
+      problem(`behavior "${name}" must match ${BEHAVIOR_NAME_PATTERN}`);
+    if (origin === ENGINE_REGISTRY_ID) {
+      if (name.includes("/")) problem(`engine behavior "${name}" can't have a "/" prefix`);
+    } else if (!name.startsWith(`${id}/`)) problem(`behavior "${name}" must be "${id}/<name>"`);
+    if (behaviors.has(name)) {
+      problem(`behavior "${name}" is registered twice`);
+      continue;
+    }
+    const shape = typeof def.fields === "function" ? def.fields(env) : def.fields;
+    for (const key of Object.keys(shape)) {
+      if (!FIELD_NAME.test(key))
+        problem(`behavior "${name}" field "${key}" must match ${FIELD_NAME}`);
+    }
+    behaviors.set(name, { ...def, origin, shape, index: behaviors.size });
+    behaviorDefaults.set(name, Object.freeze(shapeDefaults(shape)));
+  }
+  for (const b of behaviors.values()) {
+    for (const dep of b.requires ?? []) {
+      if (!behaviors.has(dep)) problem(`behavior "${b.name}" requires unknown behavior "${dep}"`);
+    }
+  }
+  const behaviorNames = [...behaviors.keys()];
+
   const types = new Map<EntityTypeName, RegisteredType>();
 
   for (const { def, origin } of defs) {
@@ -156,6 +337,12 @@ export function createRegistry(
     for (const key of Object.keys(shape)) {
       if (RESERVED_FIELDS.includes(key))
         problem(`type "${name}" redefines the base field "${key}"`);
+      if (!FIELD_NAME.test(key)) problem(`type "${name}" field "${key}" must match ${FIELD_NAME}`);
+    }
+    if (Object.values(shape).some((schema) => fieldKind(schema) === "grid")) {
+      const at = shape.at;
+      if (!at || fieldKind(at) !== "point")
+        problem(`type "${name}" has a grid field but no point field "at"`);
     }
     const loads = def.loads !== false;
     if (origin !== ENGINE_REGISTRY_ID && loads && !def.system && !def.base) {
@@ -194,6 +381,7 @@ export function createRegistry(
   }
 
   for (const t of types.values()) {
+    checkTypeBehaviors(t, behaviors, problem);
     for (const ref of t.refs ?? []) {
       if (!(ref.field in t.shape))
         problem(`type "${t.type}" declares a ref on unknown field "${ref.field}"`);
@@ -286,8 +474,13 @@ export function createRegistry(
   }
 
   // settings
-  if (game?.settings && "gravity" in game.settings)
-    problem(`settings field "gravity" is the engine's`);
+  for (const key of ENGINE_SETTING_KEYS) {
+    if (game?.settings && key in game.settings) problem(`settings field "${key}" is the engine's`);
+  }
+
+  // layers
+  const layers = game?.layers ?? DEFAULT_LAYERS;
+  if (game?.layers) checkLayers(game.layers, problem);
 
   // play hooks
   const play = game?.play;
@@ -336,6 +529,10 @@ export function createRegistry(
 
   if (problems.length > 0) throw new RegistryError(id, problems);
 
+  const rulesByType = new Map<EntityTypeName, BehaviorRules>();
+  for (const t of types.values())
+    rulesByType.set(t.type, typeBehaviorRules(t, behaviors, behaviorDefaults));
+
   const groupOf = new Map<EntityTypeName, number>();
   spawnGroups.forEach((group, i) => group.forEach((type) => groupOf.set(type, i)));
 
@@ -367,6 +564,10 @@ export function createRegistry(
     checkKinds,
     physicalChecks,
     widgets,
+    behaviors,
+    behaviorNames,
+    behaviorRules: (type) => rulesByType.get(type) ?? noBehaviors,
+    layers,
     schemaId:
       id === ENGINE_REGISTRY_ID
         ? `urn:jams-engine:scene:v${SCENE_FORMAT_VERSION}`
@@ -375,14 +576,17 @@ export function createRegistry(
       return primitives;
     },
   };
-  const primitives = game ? createRegistry(null, { materials: opts.materials }) : registry;
+  const primitives = game
+    ? createRegistry(null, { materials: opts.materials, assets: opts.assets })
+    : registry;
   return registry;
 }
 
 /**
  * `registry`'s game with `view`'s live material assets overlaid by id
- * (`values` holds each asset's JSON); a material whose JSON isn't valid
- * is left out.
+ * (`values` holds each asset's JSON; a material whose JSON isn't valid
+ * is left out) and its live asset ids as the asset fields' choices.
+ * Schema hashes for skew checks use the project-free registry instead.
  */
 export function withProject(
   registry: Registry,
@@ -398,5 +602,11 @@ export function withProject(
     const def = projectMaterialOf(values.get(id));
     if (def) materials[id] = def;
   }
-  return createRegistry(registry.game, { materials });
+  const live = [...view.byId.values()];
+  const assets = (kinds: readonly AssetKindName[]): readonly AssetId[] =>
+    live
+      .filter((e) => kinds.includes(e.kind))
+      .map((e) => e.id)
+      .sort();
+  return createRegistry(registry.game, { materials, assets });
 }

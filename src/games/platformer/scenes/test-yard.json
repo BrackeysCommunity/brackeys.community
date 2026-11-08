@@ -1,6 +1,6 @@
 {
   "$schema": "../scene.schema.json",
-  "v": 2,
+  "v": 3,
   "game": "platformer",
   "name": "test-yard",
   "bounds": [-2000, -500, 4000, 1200],

@@ -1,6 +1,6 @@
 {
   "kind": "prefab",
-  "v": 2,
+  "v": 3,
   "id": "gate",
   "entities": [
     { "id": "bar", "type": "solid", "shape": ["box", 0, -10, 60, 10] },

@@ -3,7 +3,17 @@ import * as Y from "yjs";
 import { z } from "zod";
 
 import { createRegistry, defineGame } from "../../game/define";
-import { createKindRegistry, defineAssetKind, type DocLayout } from "../../project/kinds";
+import { assetField, pointField } from "../../game/fields";
+import type { FieldEnv } from "../../game/types";
+import {
+  createKindRegistry,
+  defineAssetKind,
+  parseAssetDoc,
+  type DocKindDef,
+  type DocLayout,
+} from "../../project/kinds";
+import { dataTableKind } from "../../project/kinds/data-table";
+import { gameSettingsKind } from "../../project/kinds/game-settings";
 import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
 import type { ProjectOp, ProjectOpBatch } from "../../project/ops";
 import { buildRefIndex, referencedTrash } from "../../project/refs";
@@ -590,6 +600,249 @@ describe("changeAssetId with prefab referrers", () => {
     expect(r.ok || [r.issue.code, r.issue.entityIds]).toEqual(["op-invalid", ["ramp"]]);
     expect(readProject(host.doc("project:p")).assets.rubber!.id).toBe("rubber");
     expect(readProjectLog(host.doc("project:p"))).toEqual([]);
+    s.destroy();
+  });
+});
+
+// ─── Asset fields ────────────────────────────────────────
+
+describe("references through asset fields", () => {
+  const fieldEnv: FieldEnv = {
+    materials: [],
+    materialDefs: new Map(),
+    types: [],
+    assets: () => [],
+  };
+  const art = createRegistry(
+    defineGame({
+      id: "art",
+      types: [
+        {
+          type: "sign",
+          description: "A sign with a picture.",
+          base: "marker",
+          fields: (env) => ({
+            at: pointField("Where it stands."),
+            skin: assetField(env, "texture", "Its picture.").optional(),
+          }),
+        },
+      ],
+      settings: { backdrop: assetField(fieldEnv, "texture", "The backdrop.").optional() },
+      tables: {
+        card: { description: "Cards.", row: { art: assetField(fieldEnv, "texture", "Its art.") } },
+      },
+      projectSettings: { icon: assetField(fieldEnv, "texture", "The game's icon.").optional() },
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+  const PAINTS = ["paint", "wall"] as const;
+  const TABLE_LAYOUT = dataTableKind.layout as DocLayout;
+  const SETTINGS_LAYOUT = gameSettingsKind.layout as DocLayout;
+  const sign = (id: string, skin: string) => ({ id, type: "sign", at: [10, 10], skin });
+  const court: SceneDefinition = {
+    v: 2,
+    game: "art",
+    name: "court",
+    bounds: [0, 0, 1000, 1000],
+    settings: { backdrop: "paint" },
+    assets: ["paint", "wall"],
+    entities: [sign("s0", "paint")],
+  };
+  const deck = { kind: "data-table", v: 1, table: "card", rows: [{ id: "fire", art: "paint" }] };
+  const settings = { kind: "game-settings", v: 1, engine: {}, game: { icon: "paint" } };
+  const state: ProjectState = {
+    meta: { projectId: "p", layout: 1, name: "P" },
+    assets: Object.fromEntries(
+      [
+        entry("court", "scene", "levels/court.json"),
+        entry("deck", "data-table", "data/deck.json"),
+        entry("settings", "game-settings", "settings.json"),
+        ...PAINTS.map((id) => entry(id, "texture", `art/${id}.png`, { sha256: H("a"), bytes: 4 })),
+        entry("boom", "audio", "sfx/boom.wav", { sha256: H("b"), bytes: 4 }),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  };
+
+  function seed(doc: (name: string) => Y.Doc): void {
+    seedProjectDoc(doc("project:p"), state, { kind: "migration" });
+    sceneToDoc(court, { doc: doc("scene:p.court"), key: sequentialKeys("srv") });
+    layoutToDoc(doc("asset:p.deck"), TABLE_LAYOUT, deck, { kind: "migration" });
+    layoutToDoc(doc("asset:p.settings"), SETTINGS_LAYOUT, settings, { kind: "migration" });
+  }
+
+  /** Every live referrer's value, as a client or the one writer holds it. */
+  function values(at: ProjectState, doc: (name: string) => Y.Doc): Map<AssetId, unknown> {
+    const out = new Map<AssetId, unknown>();
+    for (const e of Object.values(at.assets)) {
+      if (e.deleted) continue;
+      if (e.kind === "scene") out.set(e.id, docToScene(doc(`scene:p.${e.key}`)));
+      if (e.kind === "data-table")
+        out.set(e.id, layoutFromDoc(doc(`asset:p.${e.key}`), TABLE_LAYOUT));
+      if (e.kind === "game-settings")
+        out.set(e.id, layoutFromDoc(doc(`asset:p.${e.key}`), SETTINGS_LAYOUT));
+    }
+    return out;
+  }
+
+  function indexOf(at: ProjectState, doc: (name: string) => Y.Doc) {
+    const view = projectView(at, kinds);
+    return buildRefIndex(view, values(at, doc), kinds, { registry: art, project: view });
+  }
+
+  it(
+    "a rename or move during concurrent edits of a scene using the asset leaves nothing dangling",
+    { timeout: 30_000 },
+    async () => {
+      let partitions = 0;
+      for (const seedNo of [1, 2, 3, 4]) {
+        const initial: Record<string, Y.Doc> = {};
+        seed((name) => {
+          const doc = (initial[name] ??= new Y.Doc());
+          doc.clientID = 1;
+          return doc;
+        });
+        const sim = new SimProject(4, rng(seedNo), initial);
+        const join = (i: number, origin: DocOrigin) =>
+          createProjectSession({
+            project: "p",
+            openDoc: sim.openDoc(i),
+            origin,
+            registry: art,
+            kinds,
+          });
+        const [mover, b, c] = await Promise.all([join(0, ada), join(1, bo), join(2, cy)]);
+        for (const s of [b, c])
+          for (const name of ["scene:p.court", "asset:p.deck", "asset:p.settings"])
+            await s.open(name);
+        const pick = <T>(list: readonly T[]) => list[Math.floor(sim.rand() * list.length)]!;
+        let signs = 1;
+        for (let step = 0; step < 16; step++) {
+          const moving = pick(PAINTS);
+          const at = mover.view().byId.get(moving)!;
+          const name = at.path.slice(at.path.lastIndexOf("/") + 1);
+          await applied(
+            mover,
+            sim.rand() < 0.5
+              ? [{ op: "moveAsset", ids: [moving], to: `moved-${step}/` }]
+              : [{ op: "renameAsset", id: moving, file: `s${step}-${name}` }],
+          );
+          for (const [i, s] of [b, c].entries()) {
+            const ops =
+              sim.rand() < 0.5
+                ? [{ op: "add" as const, entity: sign(`c${i}-${step}`, pick(PAINTS)) }]
+                : [{ op: "update" as const, ref: "s0", set: { skin: pick(PAINTS) } }];
+            if (ops[0]!.op === "add") signs++;
+            await applied(s, [{ op: "editScene", id: "court", ops }]);
+          }
+          sim.deliver(Math.floor(sim.rand() * 3));
+          sim.weather(0.15, 0.2);
+        }
+        sim.settle();
+
+        const states = [mover, b, c].map((s) => readProject(s.projectDoc));
+        expect(states[1], `seed ${seedNo}`).toEqual(states[0]);
+        expect(states[2], `seed ${seedNo}`).toEqual(states[0]);
+        for (const s of [b, c]) {
+          const index = indexOf(readProject(s.projectDoc), sessionDoc(s));
+          expect(index.dangling(), `seed ${seedNo}`).toEqual([]);
+          const skins = PAINTS.flatMap((id) =>
+            index.referrers(id).filter((r) => r.id === "court" && r.pointer.endsWith("/skin")),
+          );
+          expect(skins, `seed ${seedNo}: every sign still names a live texture`).toHaveLength(
+            signs,
+          );
+        }
+        partitions += sim.partitions;
+        for (const s of [mover, b, c]) s.destroy();
+      }
+      expect(partitions, "the runs must cut clients off").toBeGreaterThan(3);
+    },
+  );
+
+  async function world() {
+    const host = memoryDocHost();
+    seed((name) => host.doc(name));
+    const s = await createProjectSession({
+      project: "p",
+      openDoc: host.client().openDoc,
+      origin: ada,
+      registry: art,
+      kinds,
+    });
+    return { host, s };
+  }
+
+  it("changeAssetId of a texture rewrites settings, the header, fields and rows in one batch", async () => {
+    const { host, s } = await world();
+    const r = await applied(s, [{ op: "changeAssetId", id: "paint", to: "pigment" }], "Rename");
+    expect(r.docs).toEqual(["scene:p.court", "asset:p.deck", "asset:p.settings", "project:p"]);
+    const after = docToScene(host.doc("scene:p.court"));
+    expect(after.settings).toEqual({ backdrop: "pigment" });
+    expect(after.assets).toEqual(["pigment", "wall"]);
+    expect(after.entities![0]!.skin).toBe("pigment");
+    expect(layoutFromDoc(host.doc("asset:p.deck"), TABLE_LAYOUT)).toMatchObject({
+      rows: [{ id: "fire", art: "pigment" }],
+    });
+    expect(layoutFromDoc(host.doc("asset:p.settings"), SETTINGS_LAYOUT)).toMatchObject({
+      game: { icon: "pigment" },
+    });
+    const index = indexOf(readProject(host.doc("project:p")), (name) => host.doc(name));
+    expect(index.dangling()).toEqual([]);
+    expect(index.referrers("paint")).toEqual([]);
+
+    expect(s.undo()?.docs).toEqual(r.docs);
+    expect(docToScene(host.doc("scene:p.court")).settings).toEqual({ backdrop: "paint" });
+    s.destroy();
+  });
+
+  it("refuses to delete a texture in use, and a forced delete leaves referrers parsing with asset-missing", async () => {
+    const { host, s } = await world();
+    const refused = await applyProjectBatch(
+      s,
+      { v: 1, ops: [{ op: "deleteAsset", id: "paint" }] },
+      ada,
+    );
+    expect(refused.ok || [refused.issue.code, refused.issue.detail]).toEqual([
+      "asset-in-use",
+      {
+        referrers: [
+          { id: "court", pointer: "/assets/0" },
+          { id: "court", pointer: "/entities/@s0/skin" },
+          { id: "court", pointer: "/settings/backdrop" },
+          { id: "deck", pointer: "/rows/@fire/art" },
+          { id: "settings", pointer: "/game/icon" },
+        ],
+      },
+    ]);
+
+    const forced = await applied(s, [{ op: "deleteAsset", id: "paint", force: true }]);
+    expect(forced.issues.map((i) => [i.code, i.entityIds, i.path])).toEqual([
+      ["asset-missing", ["court"], "/assets/0"],
+      ["asset-missing", ["court"], "/entities/@s0/skin"],
+      ["asset-missing", ["court"], "/settings/backdrop"],
+      ["asset-missing", ["deck"], "/rows/@fire/art"],
+      ["asset-missing", ["settings"], "/game/icon"],
+    ]);
+    const at = readProject(host.doc("project:p"));
+    expect(at.assets.paint!.deleted).toBeDefined();
+    const doc = (name: string) => host.doc(name);
+    const env = { registry: art, project: projectView(at, kinds) };
+    const scene = docToScene(doc("scene:p.court"));
+    expect(parseScene(scene, art).ok).toBe(true);
+    for (const [kind, name, layout] of [
+      [dataTableKind, "asset:p.deck", TABLE_LAYOUT],
+      [gameSettingsKind, "asset:p.settings", SETTINGS_LAYOUT],
+    ] as const)
+      expect(parseAssetDoc(kind as DocKindDef, layoutFromDoc(doc(name), layout), env).ok).toBe(
+        true,
+      );
+    const dangling = indexOf(at, doc).dangling();
+    expect(dangling.map((i) => i.code)).toEqual(Array(5).fill("asset-missing"));
+    expect(dangling[0]!.message).toContain("in the trash");
     s.destroy();
   });
 });

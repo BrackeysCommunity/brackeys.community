@@ -14,12 +14,15 @@ import {
   docLayout,
   docMeta,
   docToScene,
+  entitiesMap,
+  gridRowKey,
+  instancesMap,
   metaMap,
   prefabsMap,
   sceneToDoc,
 } from "../../collab/convert";
 import { contentMap, layoutFromDoc, layoutPatch } from "../../collab/layout";
-import { readLog } from "../../collab/log";
+import { logArray, readLog } from "../../collab/log";
 import { docToPrefab, prefabPatch } from "../../collab/prefab-doc";
 import { applyRegistryBatch } from "../../collab/project-apply";
 import { readProject } from "../../collab/project-doc";
@@ -29,15 +32,17 @@ import { inspectEntry } from "../../project/inspect/entry";
 import {
   createKindRegistry,
   formatAssetDoc,
+  parseAssetDoc,
   type DocKindDef,
   type DocLayout,
 } from "../../project/kinds";
 import type { ProjectOp } from "../../project/ops";
 import { parseProjectFile } from "../../project/project-file";
 import type { AssetEntry, ProjectFile } from "../../project/types";
+import { diffToOps } from "../../scene/diff-to-ops";
 import { formatPrefab, formatScene } from "../../scene/format";
 import { parseSceneOrThrow } from "../../scene/parse";
-import type { Prefab, SceneDefinition } from "../../scene/types";
+import { type Prefab, SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
 import { fileContentStore } from "../content-store";
 import {
   createProjectFileAdapter,
@@ -234,6 +239,47 @@ const kindOf = (name: string) => kinds.get(name) as DocKindDef;
 const layoutOf = (name: string) => kindOf(name).layout as DocLayout;
 const textOf = (name: string, doc: Y.Doc) =>
   formatAssetDoc(kindOf(name), layoutFromDoc(doc, layoutOf(name)));
+
+/** A doc's state as a layout-2 engine wrote it: the layout's own record keys under their old names. */
+function layoutTwo(doc: Y.Doc): Uint8Array {
+  const old = new Y.Doc();
+  Y.applyUpdate(old, Y.encodeStateAsUpdate(doc));
+  const rename = (map: Y.Map<unknown>, from: string, to: string) => {
+    if (!map.has(from)) return;
+    const value = map.get(from);
+    map.delete(from);
+    map.set(to, value);
+  };
+  const keyed = (value: unknown) => {
+    if (value instanceof Y.Map) {
+      if (value.has("item")) rename(value, "@z", "z");
+      for (const v of value.values()) keyed(v);
+    } else if (value instanceof Y.Array) for (const v of value.toArray()) keyed(v);
+  };
+  old.transact(() => {
+    for (const name of ["entities", "instances"])
+      for (const rec of old.getMap(name).values())
+        if (rec instanceof Y.Map) {
+          rename(rec, "@z", "z");
+          rename(rec, "@bulk", "bulk");
+        }
+    keyed(contentMap(old));
+    metaMap(old).set("layout", 2);
+  });
+  return Y.encodeStateAsUpdate(old);
+}
+
+/** Each record's key with the order and bulk keys it holds. */
+const recordKeys = (doc: Y.Doc, map: string) =>
+  [...doc.getMap<Y.Map<unknown>>(map).entries()]
+    .map(
+      ([key, rec]) =>
+        `${key}:${[...rec.keys()]
+          .filter((k) => /z|bulk/.test(k))
+          .sort()
+          .join(",")}`,
+    )
+    .sort();
 
 /** Transactions on `doc` while `run` runs, by origin. */
 async function transactions(doc: Y.Doc, run: () => Promise<unknown>): Promise<unknown[]> {
@@ -1197,6 +1243,29 @@ describe("dev persistence", () => {
     expect(Y.encodeStateVector(again)).toEqual(Y.encodeStateVector(doc));
   });
 
+  it("a persisted layout-2 keyed doc migrates at load, keeping each row's key", async () => {
+    const s = await session();
+    const doc = await s.open("cards");
+    await s.adapter.persist(docName, doc);
+    const old = layoutTwo(doc);
+    await writeFile(join(cacheDir, "docs", "asset", "demo.cards.bin"), old);
+    const restarted = createProjectFileAdapter(project);
+    await restarted.loadProject(new Y.Doc());
+    const again = new Y.Doc();
+    const origins = await transactions(again, () => restarted.loadDoc(docName, again));
+    expect(origins).toEqual([PERSISTED_ORIGIN, { kind: "migration" }]);
+    expect(docLayout(again)).toBe(COLLAB_LAYOUT_VERSION);
+    const rows = (d: Y.Doc) =>
+      [...(contentMap(d).get("rows") as Y.Map<Y.Map<unknown>>).entries()]
+        .map(([key, row]): [string, unknown, boolean] => [key, row.get("@z"), row.has("z")])
+        .sort((a, b) => a[0].localeCompare(b[0]));
+    const stored = new Y.Doc();
+    Y.applyUpdate(stored, old);
+    expect(rows(stored).every(([, z, legacy]) => z === undefined && legacy)).toBe(true);
+    expect(rows(again)).toEqual(rows(doc));
+    expect(textOf("data-table", again)).toBe(FILES["data-table"].text);
+  });
+
   it("a reconnecting client's undo stack still applies to the reloaded doc", async () => {
     const s = await session();
     const server = await s.open("cards");
@@ -1353,7 +1422,10 @@ describe("write-back: scenes and prefabs", () => {
     expect((await s.adapter.syncPath("engine-yard.json", s.lookup, s.project)).kind).toBe(
       "refused",
     );
-    await put("engine-yard.json", JSON.stringify({ ...JSON.parse(before), v: 3 }));
+    await put(
+      "engine-yard.json",
+      JSON.stringify({ ...JSON.parse(before), v: SCENE_FORMAT_VERSION + 1 }),
+    );
     expect((await s.adapter.syncPath("engine-yard.json", s.lookup, s.project)).kind).toBe(
       "refused",
     );
@@ -1489,6 +1561,198 @@ describe("write-back: scenes and prefabs", () => {
     expect(s.entry("lamp")).toMatchObject({ kind: "prefab", path: "prefabs/lamp.json" });
     expect(await s.adapter.storeProject(s.project)).toBe(true);
     expect(await read("prefabs/lamp.json")).toBe(formatPrefab(lamp));
+  });
+
+  it("a persisted layout-2 prefab doc migrates at load, keeping every key", async () => {
+    const first = await session();
+    const post = await first.open("post");
+    const state = join(cacheDir, "docs", "asset", "engine.post.bin");
+    await mkdir(dirname(state), { recursive: true });
+    const old = layoutTwo(post);
+    await writeFile(state, old);
+    const stored = new Y.Doc();
+    Y.applyUpdate(stored, old);
+    expect(recordKeys(stored, "entities").every((k) => k.endsWith(":z"))).toBe(true);
+
+    const s = await session();
+    const doc = new Y.Doc();
+    const origins = await transactions(doc, () => s.adapter.loadDoc(POST, doc));
+    expect(origins).toEqual([PERSISTED_ORIGIN, { kind: "migration" }]);
+    expect(docLayout(doc)).toBe(COLLAB_LAYOUT_VERSION);
+    expect(recordKeys(doc, "entities")).toEqual(recordKeys(post, "entities"));
+    expect(recordKeys(doc, "instances")).toEqual(recordKeys(post, "instances"));
+    expect(docToPrefab(doc)).toEqual(docToPrefab(post));
+    expect(await s.adapter.storeDoc(POST, doc)).toBe(false);
+  });
+
+  // engine-yard, since a layout-2 doc predates draw `z`, which the kitchen sink sets.
+  it("a persisted layout-2 scene migrates at load, keeping every key, before the project loads too", async () => {
+    const first = await session();
+    const yard = await first.open("engine-yard");
+    const state = join(cacheDir, "docs", "scene", "engine.engine-yard.bin");
+    await mkdir(dirname(state), { recursive: true });
+    await writeFile(state, layoutTwo(yard));
+
+    const adapter = createProjectFileAdapter(project);
+    const doc = new Y.Doc();
+    const origins = await transactions(doc, () => adapter.loadDoc(YARD, doc));
+    expect(origins).toEqual([PERSISTED_ORIGIN, { kind: "migration" }]);
+    expect(docLayout(doc)).toBe(COLLAB_LAYOUT_VERSION);
+    for (const map of ["entities", "instances"])
+      expect(recordKeys(doc, map)).toEqual(recordKeys(yard, map));
+    expect(sceneText(doc)).toBe(await read("engine-yard.json"));
+  });
+});
+
+describe("write-back: v3 grids and nested prefabs", () => {
+  const V3 = fileURLToPath(new URL("../../scene/__tests__/fixtures/", import.meta.url));
+  const SINK = "scene:demo.test-game-sink";
+  const ROOM = "asset:demo.room";
+  const sceneText = (doc: Y.Doc) => formatScene(docToScene(doc)).text;
+  const env = { registry, project: null };
+
+  /** A fixture's value in its kind's canonical text. */
+  async function canonicalFixture(kind: string, path: string): Promise<string> {
+    const parsed = parseAssetDoc(kindOf(kind), await readFile(join(V3, path), "utf8"), env);
+    if (!parsed.ok) throw new Error(parsed.issues.map((i) => i.message).join("; "));
+    return formatAssetDoc(kindOf(kind), parsed.value);
+  }
+
+  /** The keys each type changed in one transaction, the log aside. */
+  async function changedKeys(doc: Y.Doc, run: () => Promise<unknown>) {
+    const seen: Map<unknown, Set<string | null>>[] = [];
+    const on = (tr: Y.Transaction) => {
+      if (tr.changed.size === 0) return;
+      const changed = new Map<unknown, Set<string | null>>(tr.changed);
+      changed.delete(logArray(doc));
+      seen.push(changed);
+    };
+    doc.on("afterTransaction", on);
+    try {
+      await run();
+    } finally {
+      doc.off("afterTransaction", on);
+    }
+    return seen;
+  }
+
+  const recordOf = (doc: Y.Doc, id: string) =>
+    [...entitiesMap(doc).values()].find((rec) => rec.get("id") === id)!;
+
+  beforeEach(async () => {
+    await put("test-game-sink.json", await canonicalFixture("scene", "v3/test-game-sink.json"));
+    for (const id of ["room", "door", "gate"])
+      await put(`prefabs/${id}.json`, await canonicalFixture("prefab", `prefabs/${id}.json`));
+  });
+
+  it("a disk edit to a v3 scene's grid is one disk transaction writing only the changed rows", async () => {
+    const s = await session();
+    const doc = await s.open("test-game-sink");
+    expect(sceneText(doc)).toBe(await read("test-game-sink.json"));
+    const floor = recordOf(doc, "floor");
+    const keysBefore = new Map(
+      [...entitiesMap(doc).entries()].map(([k, rec]) => [k, [...rec.keys()].sort()]),
+    );
+
+    const def = JSON.parse(await read("test-game-sink.json")) as SceneDefinition;
+    const entity = def.entities!.find((e) => e.id === "floor")!;
+    entity.cells = { "-1,0": ["0*31,3"], "0,0": ["1*32", "1*32", "0*4,2*20"], "0,1": ["3"] };
+    await put("test-game-sink.json", formatScene(def).text);
+
+    const changes = await changedKeys(doc, async () => {
+      expect(await s.adapter.syncPath("test-game-sink.json", s.lookup, s.project)).toMatchObject({
+        kind: "applied",
+      });
+    });
+    expect(changes).toHaveLength(1);
+    expect([...changes[0]!.keys()]).toEqual([floor]);
+    expect(changes[0]!.get(floor)).toEqual(
+      new Set([
+        gridRowKey("cells", "0,0", 2),
+        gridRowKey("cells", "0,1", 0),
+        gridRowKey("cells", "1,0", 0),
+      ]),
+    );
+    expect(readLog(doc).map((e) => [e.actor, e.label])).toEqual([
+      [{ kind: "disk" }, "Changed on disk"],
+    ]);
+    expect(recordOf(doc, "floor")).toBe(floor);
+    for (const [k, keys] of keysBefore)
+      if (entitiesMap(doc).get(k) !== floor)
+        expect([...entitiesMap(doc).get(k)!.keys()].sort()).toEqual(keys);
+
+    expect(docToScene(doc).entities!.find((e) => e.id === "floor")!.cells).toEqual(entity.cells);
+    expect(sceneText(doc)).toBe(formatScene(def).text);
+    expect(await s.adapter.storeDoc(SINK, doc)).toBe(false);
+    expect(await s.adapter.syncPath("test-game-sink.json", s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+  });
+
+  it("a doc paint writes the scene file with the painted rows, and reads back unchanged", async () => {
+    const s = await session();
+    const doc = await s.open("test-game-sink");
+    const def = docToScene(doc);
+    const floor = def.entities!.find((e) => e.id === "floor")!;
+    const next = {
+      ...def,
+      entities: def.entities!.map((e) =>
+        e === floor ? { ...e, cells: { ...(e.cells as object), "2,0": ["2*3"] } } : e,
+      ),
+    };
+    const batch = diffToOps(def, next, registry);
+    expect(applyOpsToDoc(doc, batch, user, registry).ok).toBe(true);
+    expect(await s.adapter.storeDoc(SINK, doc)).toBe(true);
+    expect(await read("test-game-sink.json")).toBe(formatScene(next).text);
+    expect(await s.adapter.syncPath("test-game-sink.json", s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+  });
+
+  it("a prefab with nested instances round-trips disk → doc → disk", async () => {
+    const s = await session();
+    const room = await s.open("room");
+    const text = await read("prefabs/room.json");
+    const prefab = JSON.parse(text) as Prefab;
+    expect(prefab.instances!.some((i) => i.prefab === "door")).toBe(true);
+    expect(formatPrefab(docToPrefab(room))).toBe(text);
+    expect(await s.adapter.storeDoc(ROOM, room)).toBe(false);
+    expect(await read("prefabs/room.json")).toBe(text);
+
+    const instanceKeys = [...instancesMap(room).keys()].sort();
+    const edited: Prefab = {
+      ...prefab,
+      instances: prefab.instances!.map((i) =>
+        i.id === "door-1"
+          ? { ...i, overrides: { ...i.overrides, "latch/door.path.speed": 45 } }
+          : i,
+      ),
+    };
+    await put("prefabs/room.json", formatPrefab(edited));
+    const origins = await transactions(room, async () => {
+      expect(await s.adapter.syncPath("prefabs/room.json", s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect([...instancesMap(room).keys()].sort()).toEqual(instanceKeys);
+    expect(formatPrefab(docToPrefab(room))).toBe(formatPrefab(edited));
+    expect(await s.adapter.storeDoc(ROOM, room)).toBe(false);
+
+    const moved: Prefab = {
+      ...edited,
+      instances: edited.instances!.map((i) => (i.id === "door-1" ? { ...i, at: [10, 40] } : i)),
+    };
+    expect(prefabPatch(room, moved, user)).not.toBeNull();
+    expect(await s.adapter.storeDoc(ROOM, room)).toBe(true);
+    expect(await read("prefabs/room.json")).toBe(formatPrefab(moved));
+    expect(await s.adapter.syncPath("prefabs/room.json", s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+
+    const reloaded = await (await session()).open("room");
+    expect(docToPrefab(reloaded)).toEqual(docToPrefab(room));
   });
 });
 

@@ -7,7 +7,7 @@ import { createRegistry, defineEntityType, defineGame } from "../../game/define"
 import { pointField } from "../../game/fields";
 import { applyOps } from "../ops";
 import { opBatchSchemaFor, opsJsonSchema, opsSchemaId, usesBulkRefs } from "../ops-schema";
-import type { OpBatch, SceneDefinition } from "../types";
+import type { OpBatch, Prefab, SceneDefinition } from "../types";
 
 const committed = new URL("../ops.schema.json", import.meta.url);
 
@@ -43,8 +43,8 @@ describe("ops JSON Schema", () => {
   });
 
   it("carries a URN id beside the registry's scene schema and draft 2020-12", () => {
-    expect(opsJsonSchema(engine).$id).toBe("urn:jams-engine:ops:v2");
-    expect(opsSchemaId(game)).toBe("urn:jams-engine:ops:pegs:v2");
+    expect(opsJsonSchema(engine).$id).toBe("urn:jams-engine:ops:v3");
+    expect(opsSchemaId(game)).toBe("urn:jams-engine:ops:pegs:v3");
     expect(opsJsonSchema(engine).$schema).toBe("https://json-schema.org/draft/2020-12/schema");
   });
 
@@ -89,9 +89,133 @@ describe("opBatchSchemaFor", () => {
         { op: "demote", id: "ledge" },
         { op: "setScene", set: { name: "x", bounds: [0, 0, 10, 10] } },
         { op: "setSettings", set: { gravity: [0, 900] }, unset: ["wind"] },
+        { op: "reorder", refs: ["lift"], index: 0 },
+        {
+          op: "instantiate",
+          instance: { prefab: "gate", at: [8, 8], rot: 1, flip: true, z: 2, params: { speed: 3 } },
+        },
+        { op: "setGroup", id: "wing", at: [4, 4], rot: 2, flip: true, name: "Wing" },
+        { op: "override", ref: "gate-1", set: { "door.path.speed": 60 } },
+        { op: "revertOverride", ref: "gate-1", paths: ["door.path.speed"] },
+        { op: "applyToPrefab", ref: "gate-1", to: "gate" },
+        { op: "unpack", ref: "gate-1" },
+        { op: "createPrefab", refs: ["lift"], id: "lifty", at: [0, 0] },
+        {
+          op: "definePrefab",
+          id: "gate",
+          prefab: { entities: [], base: "door", assets: ["boom"] },
+        },
+        { op: "transform", refs: ["gate-1"], groups: ["wing"], turn: -1, flip: "x", about: [0, 0] },
+        { op: "setZ", refs: ["lift", "gate-1"], z: 5 },
+        { op: "setZ", refs: ["lift"], by: -1 },
+        { op: "useAssets", add: ["boom"], remove: ["hud-font"] },
+        {
+          op: "paintCells",
+          ref: "floor",
+          field: "cells",
+          cells: [[0, 0, 1]],
+          rects: [[0, 0, 31, 3, 2]],
+        },
+        { op: "setPrefabBase", base: "door" },
+        { op: "setPrefabBase", base: null },
+        {
+          op: "exposeParam",
+          name: "speed",
+          param: { description: "How fast.", targets: ["door.path.speed"], default: 100 },
+        },
+        { op: "exposeParam", name: "speed", param: null },
+        { op: "setParam", ref: "gate-1", name: "speed", value: 120 },
+        { op: "setParam", ref: "gate-1", name: "speed", value: null },
       ],
     };
     expect(opBatchSchemaFor(game).safeParse(asSchemaInput(batch)).success).toBe(true);
+  });
+
+  it("bounds the new ops' values", () => {
+    const schema = opBatchSchemaFor(engine);
+    const parses = (op: unknown) => schema.safeParse({ ops: [op] }).success;
+    expect(parses({ op: "transform", refs: ["a"], turn: 4 })).toBe(false);
+    expect(parses({ op: "transform", refs: ["a"], flip: "z" })).toBe(false);
+    expect(parses({ op: "setGroup", id: "g", rot: 4 })).toBe(false);
+    expect(parses({ op: "setZ", refs: ["a"], z: 10001 })).toBe(false);
+    expect(parses({ op: "setZ", refs: ["a"], z: 1.5 })).toBe(false);
+    expect(parses({ op: "useAssets", add: ["Not An Id"] })).toBe(false);
+    expect(parses({ op: "paintCells", ref: "a", field: "cells", cells: [[0, 0, 65536]] })).toBe(
+      false,
+    );
+    expect(
+      parses({ op: "paintCells", ref: "a", field: "cells", rects: [[0, 0, 255, 255, 1]] }),
+    ).toBe(true);
+    expect(
+      parses({
+        op: "paintCells",
+        ref: "a",
+        field: "cells",
+        cells: [[0, 0, 1]],
+        rects: [[0, 0, 255, 255, 1]],
+      }),
+    ).toBe(false);
+    expect(parses({ op: "paintCells", ref: "a", field: "cells", rects: [[5, 0, 4, 0, 1]] })).toBe(
+      false,
+    );
+    expect(
+      parses({ op: "exposeParam", name: "speed", param: { description: "x", targets: [] } }),
+    ).toBe(false);
+  });
+
+  it("refuses the header ops on a scene and setParam on an entity with op-invalid, and leaves the scene alone", () => {
+    const withLift: SceneDefinition = {
+      ...tiny,
+      entities: [{ id: "lift", type: "marker", at: [1, 1] }],
+    };
+    for (const op of [
+      { op: "setPrefabBase", base: null },
+      { op: "exposeParam", name: "speed", param: null },
+      { op: "setParam", ref: "lift", name: "speed", value: 1 },
+    ] as const) {
+      const result = applyOps(withLift, { ops: [op] } as OpBatch, engine);
+      expect(result.ok, op.op).toBe(false);
+      if (result.ok) continue;
+      expect(result.issue.code).toBe("op-invalid");
+      expect(result.issue.message).toMatch(/prefab's document|not a prefab instance/);
+    }
+  });
+
+  it("stores instantiate's rot, flip, z and params and setGroup's rot and flip", () => {
+    const gate: Prefab = {
+      kind: "prefab",
+      v: 3,
+      id: "gate",
+      entities: [{ id: "post", type: "marker", at: [0, 0] }],
+    };
+    const result = applyOps(
+      tiny,
+      {
+        ops: [
+          {
+            op: "instantiate",
+            instance: {
+              id: "g1",
+              prefab: "gate",
+              at: [10, 10],
+              rot: 1,
+              flip: true,
+              z: 3,
+              params: { a: 1 },
+            },
+          },
+          { op: "setGroup", id: "wing", at: [5, 5], rot: 2, flip: true },
+        ],
+      },
+      engine,
+      { prefabs: new Map([["gate", gate]]) },
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    expect(result.def.instances).toEqual([
+      { id: "g1", prefab: "gate", at: [10, 10], rot: 1, flip: true, z: 3, params: { a: 1 } },
+    ]);
+    expect(result.def.groups).toEqual({ wing: { at: [5, 5], rot: 2, flip: true } });
   });
 
   it("names an unknown op and suggests the nearest one", () => {
@@ -151,5 +275,6 @@ describe("opBatchSchemaFor", () => {
     expect(usesBulkRefs({ ops: [{ op: "move", refs: ["lift"], by: [1, 0] }] })).toBe(false);
     expect(usesBulkRefs({ ops: [{ op: "remove", refs: ["lift", "~solid:0"] }] })).toBe(true);
     expect(usesBulkRefs({ ops: [{ op: "promote", ref: "~peg:0", id: "c" }] })).toBe(true);
+    expect(usesBulkRefs({ ops: [{ op: "setZ", refs: ["~solid:0"], z: 1 }] })).toBe(true);
   });
 });

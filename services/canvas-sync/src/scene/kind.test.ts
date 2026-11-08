@@ -33,6 +33,27 @@ describe("the scene kind's layout check", () => {
     expect(await scene.admit("jam.level-1", await claims(COLLAB_LAYOUT_VERSION))).toEqual({});
   });
 
+  it("connects a client on the layout before this one read-only, told to reload", async () => {
+    expect(COLLAB_LAYOUT_VERSION).toBe(3);
+    const grant = await scene.admit("jam.level-1", await claims(COLLAB_LAYOUT_VERSION - 1));
+    expect(grant.readOnly).toBe(true);
+    expect(JSON.parse(grant.notice ?? "null")).toEqual({
+      type: "scene-read-only",
+      reason: "engine-outdated",
+      schemaVersion: SCENE_FORMAT_VERSION,
+      layout: COLLAB_LAYOUT_VERSION,
+    });
+  });
+
+  it("connects a client on a newer layout read-only until this instance can migrate", async () => {
+    const grant = await scene.admit("jam.level-1", await claims(COLLAB_LAYOUT_VERSION + 1));
+    expect(grant.readOnly).toBe(true);
+    expect(JSON.parse(grant.notice ?? "null")).toMatchObject({
+      reason: "server-outdated",
+      layout: COLLAB_LAYOUT_VERSION,
+    });
+  });
+
   it("reads a scene token without `l` as layout 1, so it connects read-only instead of being refused", async () => {
     const grant = await scene.admit("jam.level-1", await claims());
     expect(grant.readOnly).toBe(true);

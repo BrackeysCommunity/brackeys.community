@@ -5,6 +5,7 @@ import type { GameTableDef, Registry } from "../../game/types";
 import { closest } from "../../scene/did-you-mean";
 import { jsonPointer, makeIssue } from "../../scene/issues";
 import type { SceneIssue } from "../../scene/types";
+import { schemaRefSites, type RefSite } from "../refs";
 import type { AssetEntry, AssetId, ProjectView } from "../types";
 import { byCodeUnit, byPathThenKey, defineAssetKind, isPlainObject, type KindEnv } from "./define";
 
@@ -174,6 +175,14 @@ export const dataTableKind = defineAssetKind({
       table: { as: "atomic" },
       rows: { as: "keyed", item: { as: "map", rest: { as: "atomic" } } },
     },
+  },
+  refs(file: DataTableFile, env: KindEnv): RefSite[] {
+    const tables = tablesOf(env.registry);
+    if (!Object.hasOwn(tables, file.table) || !Array.isArray(file.rows)) return [];
+    const shape = rowSchemaOf(tables[file.table]!).shape;
+    return file.rows.flatMap((row, i) =>
+      schemaRefSites(shape, row, `/rows/${typeof row?.id === "string" ? `@${row.id}` : i}`),
+    );
   },
   empty: (env: KindEnv, { id }): DataTableFile => ({
     kind: DATA_TABLE_KIND,

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
+import { sequentialKeys } from "../../collab/keys";
+import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { materialField, shapeField } from "../../game/fields";
+import { assetField, materialField, pointField, shapeField } from "../../game/fields";
+import type { FieldEnv } from "../../game/types";
 import {
   createKindRegistry,
   defineAssetKind,
@@ -10,7 +13,16 @@ import {
   type KindEnv,
   type KindRegistry,
 } from "../kinds";
-import { buildRefIndex, namesAt, referencedTrash, rewriteRefs, type RefSite } from "../refs";
+import { checkProjectBatch } from "../ops";
+import {
+  buildRefIndex,
+  inUseIssue,
+  namesAt,
+  referencedTrash,
+  rewriteRefs,
+  schemaRefSites,
+  type RefSite,
+} from "../refs";
 import type { AssetEntry, AssetId, ProjectView } from "../types";
 import { projectView } from "../view";
 
@@ -301,6 +313,52 @@ describe("referencedTrash", () => {
   });
 });
 
+describe("inUseIssue", () => {
+  const entries = [
+    entry("world", "level"),
+    entry("cave", "level"),
+    entry("crate", "prefab"),
+    entry("notes", "material"),
+  ];
+  const crate = entries[2]!;
+
+  it('lists path referrers with the pointer "" among the value\'s sites, by referrer id', () => {
+    const { index: refs } = index(entries, {
+      world,
+      cave: { instances: [{ id: "c", prefab: "crate" }], entities: [] },
+    });
+    const issue = inUseIssue(refs, crate, { byPath: ["notes", "world"] });
+    expect([issue?.code, issue?.got, issue?.entityIds]).toEqual([
+      "asset-in-use",
+      "crate",
+      ["crate"],
+    ]);
+    expect(issue?.detail).toEqual({
+      referrers: [
+        { id: "cave", pointer: "/instances/@c/prefab" },
+        { id: "notes", pointer: "" },
+        { id: "world", pointer: "" },
+        { id: "world", pointer: "/instances/@a/prefab" },
+      ],
+    });
+    expect(issue?.message).toBe(
+      `"crate" is referenced by "cave", "notes", "world"; repoint or remove those references first`,
+    );
+  });
+
+  it("skips path referrers the caller skips, and the asset itself", () => {
+    const { index: refs } = index(entries, {});
+    expect(inUseIssue(refs, crate)).toBeUndefined();
+    expect(inUseIssue(refs, crate, { byPath: ["crate"] })).toBeUndefined();
+    expect(
+      inUseIssue(refs, crate, { byPath: ["notes"], skip: (id) => id === "notes" }),
+    ).toBeUndefined();
+    expect(inUseIssue(refs, crate, { byPath: ["notes"] })?.detail).toEqual({
+      referrers: [{ id: "notes", pointer: "" }],
+    });
+  });
+});
+
 describe("rewriteRefs", () => {
   const sites: RefSite[] = [
     { pointer: "/instances/@a/prefab", id: "crate", kinds: ["prefab"] },
@@ -560,5 +618,321 @@ describe("over the engine's kinds", () => {
     expect(rewriteRefs(take, refs.targets("take"), "yard", "court").meta).toEqual({
       scene: "court",
     });
+  });
+});
+
+describe("schemaRefSites", () => {
+  const env: FieldEnv = { materials: [], materialDefs: new Map(), types: [], assets: () => [] };
+  const tex = assetField(env, "texture", "A picture.");
+
+  it("follows objects, arrays, tuples, records, unions and wrappers alongside the value", () => {
+    const shape = {
+      skin: tex.optional(),
+      frames: z.array(tex).optional(),
+      pair: z.tuple([tex, z.number()]).optional(),
+      byState: z.record(z.string(), tex.nullable()).optional(),
+      look: z
+        .object({ icon: tex.default("dot"), size: z.number() })
+        .optional()
+        .describe("A look."),
+      either: z.union([z.number(), z.object({ sound: assetField(env, "audio", "A cue.") })]),
+      label: z.string().optional(),
+    };
+    const sites = schemaRefSites(
+      shape,
+      {
+        skin: "a",
+        frames: ["b", "c"],
+        pair: ["d", 3],
+        byState: { idle: "e", off: null },
+        look: { icon: "f", size: 2 },
+        either: { sound: "boom" },
+        label: "not-an-asset",
+        extra: "ignored",
+      },
+      "/entities/@x",
+    );
+    expect(sites).toEqual([
+      { pointer: "/entities/@x/skin", id: "a", kinds: ["texture"] },
+      { pointer: "/entities/@x/frames/0", id: "b", kinds: ["texture"] },
+      { pointer: "/entities/@x/frames/1", id: "c", kinds: ["texture"] },
+      { pointer: "/entities/@x/pair/0", id: "d", kinds: ["texture"] },
+      { pointer: "/entities/@x/byState/idle", id: "e", kinds: ["texture"] },
+      { pointer: "/entities/@x/look/icon", id: "f", kinds: ["texture"] },
+      { pointer: "/entities/@x/either/sound", id: "boom", kinds: ["audio"] },
+    ]);
+  });
+
+  it("finds nothing in a value that isn't an object, or where the value has no leaf", () => {
+    expect(schemaRefSites({ skin: tex }, "skin", "")).toEqual([]);
+    expect(schemaRefSites({ skin: tex }, { skin: 3 }, "")).toEqual([]);
+    expect(schemaRefSites({ frames: z.array(tex) }, { frames: "a" }, "")).toEqual([]);
+    expect(schemaRefSites({ skin: tex.optional() }, {}, "")).toEqual([]);
+  });
+
+  it("escapes keys into the pointer", () => {
+    expect(schemaRefSites({ "a/b": tex }, { "a/b": "x" }, "/s")).toEqual([
+      { pointer: "/s/a~1b", id: "x", kinds: ["texture"] },
+    ]);
+  });
+});
+
+describe("asset fields over the engine's kinds", () => {
+  const fieldEnv: FieldEnv = {
+    materials: [],
+    materialDefs: new Map(),
+    types: [],
+    assets: () => [],
+  };
+  const art = defineGame({
+    id: "art",
+    types: [
+      defineEntityType({
+        type: "sign",
+        description: "A sign with a picture.",
+        base: "marker",
+        fields: (env) => ({
+          at: pointField("Where it stands."),
+          skin: assetField(env, "texture", "Its picture.").optional(),
+        }),
+      }),
+    ],
+    settings: { backdrop: assetField(fieldEnv, "texture", "The backdrop.").optional() },
+    tables: {
+      card: {
+        description: "Cards.",
+        row: { art: assetField(fieldEnv, "texture", "Its art.").optional() },
+      },
+    },
+    projectSettings: { icon: assetField(fieldEnv, "texture", "The game's icon.").optional() },
+    actions: [],
+    createRuntime: () => ({ snapshot: () => null }),
+  });
+  const registry = createRegistry(art);
+  const engineKinds = createKindRegistry(art);
+  const blob = { sha256: "0".repeat(64), bytes: 1 };
+  const entries: AssetEntry[] = [
+    entry("yard", "scene", { path: "levels/yard.json" }),
+    entry("post", "prefab", { path: "levels/prefabs/post.json" }),
+    entry("big-post", "prefab", { path: "levels/prefabs/big-post.json" }),
+    entry("deck", "data-table", { path: "data/deck.json" }),
+    entry("settings", "game-settings", { path: "settings.json" }),
+    entry("tiles", "texture", { path: "art/tiles.png", ...blob }),
+    entry("boom", "audio", { path: "sfx/boom.wav", ...blob }),
+  ];
+  const values: Record<AssetId, unknown> = {
+    yard: {
+      v: 2,
+      game: "art",
+      name: "yard",
+      bounds: [0, 0, 100, 100],
+      settings: { backdrop: "tiles" },
+      assets: ["boom", "tiles"],
+      instances: [
+        { id: "p1", prefab: "big-post", at: [0, 0], overrides: { "board.skin": "tiles" } },
+      ],
+      entities: [{ id: "s1", type: "sign", at: [1, 1], skin: "tiles" }],
+    },
+    post: {
+      kind: "prefab",
+      v: 2,
+      game: "art",
+      id: "post",
+      entities: [{ id: "board", type: "sign", at: [0, 0], skin: "tiles" }],
+    },
+    "big-post": {
+      kind: "prefab",
+      v: 2,
+      game: "art",
+      id: "big-post",
+      base: "post",
+      instances: [{ id: "inner", prefab: "post", at: [0, 0] }],
+      entities: [],
+    },
+    deck: { kind: "data-table", v: 1, table: "card", rows: [{ id: "fire", art: "tiles" }] },
+    settings: { kind: "game-settings", v: 1, engine: {}, game: { icon: "tiles" } },
+  };
+  const state = {
+    meta: { projectId: "p", layout: 1, name: "P" },
+    assets: Object.fromEntries(entries.map((e) => [e.key, e])),
+    history: {},
+    code: {},
+    build: {},
+  };
+  const view = projectView(state, engineKinds);
+  const refs = buildRefIndex(view, new Map(Object.entries(values)), engineKinds, {
+    registry,
+    project: view,
+  });
+
+  it("finds each new source's sites", () => {
+    expect(refs.referrers("tiles")).toEqual([
+      { id: "deck", kind: "data-table", pointer: "/rows/@fire/art" },
+      { id: "post", kind: "prefab", pointer: "/entities/@board/skin" },
+      { id: "settings", kind: "game-settings", pointer: "/game/icon" },
+      { id: "yard", kind: "scene", pointer: "/assets/1" },
+      { id: "yard", kind: "scene", pointer: "/entities/@s1/skin" },
+      { id: "yard", kind: "scene", pointer: "/instances/@p1/overrides/board.skin" },
+      { id: "yard", kind: "scene", pointer: "/settings/backdrop" },
+    ]);
+    expect(refs.referrers("boom")).toEqual([{ id: "yard", kind: "scene", pointer: "/assets/0" }]);
+    expect(refs.referrers("post"), "a variant base and a nested instance count").toEqual([
+      { id: "big-post", kind: "prefab", pointer: "/base" },
+      { id: "big-post", kind: "prefab", pointer: "/instances/@inner/prefab" },
+    ]);
+    expect(refs.dangling()).toEqual([]);
+  });
+
+  it("reports a dangling or wrong-kind asset field as asset-missing", () => {
+    const binned = entries.map((e) => (e.id === "tiles" ? { ...e, ...trashed(4) } : e));
+    const gone = projectView(
+      { ...state, assets: Object.fromEntries(binned.map((e) => [e.key, e])) },
+      engineKinds,
+    );
+    const index = buildRefIndex(gone, new Map(Object.entries(values)), engineKinds, {
+      registry,
+      project: gone,
+    });
+    expect(new Set(index.dangling().map((i) => i.code))).toEqual(new Set(["asset-missing"]));
+    expect(index.dangling().map((i) => i.path)).toContain("/rows/@fire/art");
+
+    const misnamed = { ...(values.deck as object), rows: [{ id: "fire", art: "boom" }] };
+    const wrong = buildRefIndex(view, new Map([["deck", misnamed]]), engineKinds, {
+      registry,
+      project: view,
+    });
+    expect(wrong.dangling().map((i) => [i.code, i.got, i.message])).toEqual([
+      [
+        "asset-missing",
+        "boom",
+        `"deck" names texture "boom" at /rows/@fire/art, but "boom" is a audio.`,
+      ],
+    ]);
+  });
+
+  it("rewrites the new sites", () => {
+    const yard = values.yard as Record<string, any>;
+    const next = rewriteRefs(yard, refs.targets("yard"), "tiles", "tileset");
+    expect(next.settings).toEqual({ backdrop: "tileset" });
+    expect(next.assets).toEqual(["boom", "tileset"]);
+    expect(next.entities[0].skin).toBe("tileset");
+    expect(next.instances[0].overrides).toEqual({ "board.skin": "tileset" });
+    const deck = values.deck as Record<string, any>;
+    const layout = engineKinds.get("data-table");
+    expect(
+      rewriteRefs(
+        deck,
+        refs.targets("deck"),
+        "tiles",
+        "tileset",
+        layout?.storage === "doc" && layout.layout !== "custom" ? layout.layout : undefined,
+      ).rows,
+    ).toEqual([{ id: "fire", art: "tileset" }]);
+  });
+});
+
+describe("a behavior's asset field", () => {
+  const fieldEnv: FieldEnv = {
+    materials: [],
+    materialDefs: new Map(),
+    types: [],
+    assets: () => [],
+  };
+  const skin = defineBehavior({
+    name: "paint/skin",
+    description: "A picture drawn over the entity.",
+    fields: (env) => ({ texture: assetField(env, "texture", "The picture.") }),
+  });
+  const paint = defineGame({
+    id: "paint",
+    types: [
+      defineEntityType({
+        type: "sign",
+        description: "A sign.",
+        base: "marker",
+        fields: { at: pointField("Where it stands.") },
+      }),
+    ],
+    behaviors: [skin],
+    settings: { backdrop: assetField(fieldEnv, "texture", "The backdrop.").optional() },
+    tables: {
+      card: {
+        description: "Cards.",
+        row: { art: assetField(fieldEnv, "texture", "Its art.").optional() },
+      },
+    },
+    projectSettings: { icon: assetField(fieldEnv, "texture", "The game's icon.").optional() },
+    actions: [],
+    createRuntime: () => ({ snapshot: () => null }),
+  });
+  const registry = createRegistry(paint);
+  const engineKinds = createKindRegistry(paint);
+  const blob = { sha256: "0".repeat(64), bytes: 1 };
+  const entries: AssetEntry[] = [
+    entry("yard", "scene", { path: "levels/yard.json" }),
+    entry("deck", "data-table", { path: "data/deck.json" }),
+    entry("settings", "game-settings", { path: "settings.json" }),
+    entry("tiles", "texture", { path: "art/tiles.png", ...blob }),
+  ];
+  const values: Record<AssetId, unknown> = {
+    yard: {
+      v: 2,
+      game: "paint",
+      name: "yard",
+      bounds: [0, 0, 100, 100],
+      settings: { backdrop: "tiles" },
+      assets: ["tiles"],
+      entities: [
+        { id: "s1", type: "sign", at: [1, 1], behaviors: { "paint/skin": { texture: "tiles" } } },
+      ],
+    },
+    deck: { kind: "data-table", v: 1, table: "card", rows: [{ id: "fire", art: "tiles" }] },
+    settings: { kind: "game-settings", v: 1, engine: {}, game: { icon: "tiles" } },
+  };
+  const state = {
+    meta: { projectId: "p", layout: 1, name: "P" },
+    assets: Object.fromEntries(entries.map((e) => [e.key, e])),
+    history: {},
+    code: {},
+    build: {},
+  };
+  const view = projectView(state, engineKinds);
+
+  it("is a referrer site under the block's escaped pointer", () => {
+    const refs = buildRefIndex(view, new Map(Object.entries(values)), engineKinds, {
+      registry,
+      project: view,
+    });
+    expect(refs.referrers("tiles")).toContainEqual({
+      id: "yard",
+      kind: "scene",
+      pointer: "/entities/@s1/behaviors/paint~1skin/texture",
+    });
+    expect(refs.dangling()).toEqual([]);
+  });
+
+  it("follows a changeAssetId with the settings field, header id and table row in one batch", () => {
+    const docs = new Map(Object.entries(values).map(([k, v]) => [k, structuredClone(v)]));
+    const r = checkProjectBatch(
+      state,
+      docs,
+      { v: 1, ops: [{ op: "changeAssetId", id: "tiles", to: "tileset" }] },
+      { registry, kinds: engineKinds, now: 1, by: "test", newKey: sequentialKeys() },
+    );
+    if (!r.ok) throw new Error(r.issue.message);
+    const yard = r.values.get("yard") as Record<string, any>;
+    expect(yard.entities[0].behaviors).toEqual({ "paint/skin": { texture: "tileset" } });
+    expect(yard.settings).toEqual({ backdrop: "tileset" });
+    expect(yard.assets).toEqual(["tileset"]);
+    expect((r.values.get("deck") as Record<string, any>).rows).toEqual([
+      { id: "fire", art: "tileset" },
+    ]);
+    expect((r.values.get("settings") as Record<string, any>).game).toEqual({ icon: "tileset" });
+    expect(r.scenes.get("yard")?.ops).toContainEqual({
+      op: "update",
+      ref: "s1",
+      set: { "behaviors.paint/skin.texture": "tileset" },
+    });
+    expect(r.issues).toEqual([]);
   });
 });

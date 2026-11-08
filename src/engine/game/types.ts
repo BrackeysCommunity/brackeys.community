@@ -5,7 +5,9 @@ import type { EditorToolDef } from "../editor/tools";
 import type { PhysicsWorld } from "../physics";
 import type { AssetKindDef } from "../project/kinds";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetId, AssetKindName } from "../project/types";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
+import type { SceneLayerDef } from "../scene/layers";
 import type {
   BulkForm,
   BulkKey,
@@ -25,6 +27,7 @@ import type {
 import type { AttachmentHub } from "../systems/attachments";
 import type { ToolRouter } from "../tool-router";
 import type { GameMode, InputAction, InputBinding, RapierModule, Vec2 } from "../types";
+import type { BehaviorBlock, BehaviorDef, BehaviorName, RegisteredBehavior } from "./behaviors";
 
 // ─── Primitives ──────────────────────────────────────────
 
@@ -173,6 +176,8 @@ export type FieldEnv = {
   materialDefs: ReadonlyMap<string, MaterialDef>;
   /** Registered type names, in registration order. */
   types: readonly string[];
+  /** Live asset ids of these kinds in the project, for JSON Schema enums; empty without a project. */
+  assets: (kinds: readonly AssetKindName[]) => readonly AssetId[];
 };
 
 export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
@@ -203,6 +208,15 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   /** One character for the scene's ASCII map; omitted, the base primitive's, else the type's first letter. */
   ascii?: string;
   inspector?: { label?: string; group?: string; order?: readonly string[] };
+  /** Which behaviors this type always has, defaults, and refuses. */
+  behaviors?: {
+    /** Always present; a missing block loads as these defaults ({} for the behavior's own). */
+    required?: Readonly<Record<BehaviorName, Record<string, unknown>>>;
+    /** Field defaults for an optional behavior when an entity of this type carries it. */
+    defaults?: Readonly<Record<BehaviorName, Record<string, unknown>>>;
+    /** Refused on this type; "all" allows only `required`. */
+    forbidden?: readonly BehaviorName[] | "all";
+  };
 };
 
 export type RegisteredType = EntityTypeDef & {
@@ -541,6 +555,17 @@ export type GameDefinition<S = unknown, G = unknown> = {
   tables?: Readonly<Record<string, GameTableDef>>;
   /** Fields the game adds to the project's game-settings doc. */
   projectSettings?: z.ZodRawShape;
+  /** The game's behaviors, after the engine's in registration order; names are `<id>/<name>`. */
+  behaviors?: readonly BehaviorDef[];
+  /** Scene layers, bottom to top; replaces the engine's four defaults when given. */
+  layers?: readonly SceneLayerDef[];
+};
+
+/** What a type allows, requires and defaults among the registry's behaviors. */
+export type BehaviorRules = {
+  allowed: readonly BehaviorName[];
+  required: ReadonlyMap<BehaviorName, BehaviorBlock>;
+  defaults: ReadonlyMap<BehaviorName, BehaviorBlock>;
 };
 
 // ─── Registry ────────────────────────────────────────────
@@ -583,8 +608,15 @@ export type Registry = {
   physicalChecks: readonly PhysicalCheck[];
   /** The game's inspector widgets by id. */
   widgets: ReadonlyMap<string, InspectorWidgetDef>;
+  /** The engine's behaviors, then the game's. */
+  behaviors: ReadonlyMap<BehaviorName, RegisteredBehavior>;
+  /** Registration order: what attach, step and detach follow. */
+  behaviorNames: readonly BehaviorName[];
+  behaviorRules: (type: EntityTypeName) => BehaviorRules;
+  /** Scene layers, bottom to top: the game's, or `DEFAULT_LAYERS`. */
+  layers: readonly SceneLayerDef[];
   /** The primitives-only registry: itself without a game, else built once beside it. */
   primitives: Registry;
-  /** `urn:jams-engine:scene:v1`, or `urn:jams-engine:scene:<game>:v1`. */
+  /** `urn:jams-engine:scene:v<SCENE_FORMAT_VERSION>`, or `urn:jams-engine:scene:<game>:v<SCENE_FORMAT_VERSION>`. */
   schemaId: string;
 };

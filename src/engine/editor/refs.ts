@@ -1,5 +1,14 @@
+import type { Registry } from "../game/types";
 import { bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
-import type { BulkEntry, BulkKey, EntityDef, Ref, SceneDefinition } from "../scene/types";
+import { resolveScene } from "../scene/resolve";
+import type {
+  BulkEntry,
+  BulkKey,
+  EntityDef,
+  PrefabLibrary,
+  Ref,
+  SceneDefinition,
+} from "../scene/types";
 
 export type RefTarget =
   | { kind: "entity"; ref: Ref; index: number; entity: EntityDef }
@@ -12,6 +21,20 @@ export function docRefs(def: SceneDefinition): Ref[] {
     bulkEntries(def, key).forEach((_, i) => out.push(bulkId(key, i)));
   for (const e of def.entities ?? []) out.push(e.id);
   return out;
+}
+
+/**
+ * The entities a reference field may name: the document's own and, with
+ * `prefabs`, every instance's children by their resolved refs
+ * (`gate-2/door`, `room-1/door-1/panel`).
+ */
+export function referableEntities(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs?: PrefabLibrary,
+): EntityDef[] {
+  if (!prefabs || (def.instances ?? []).length === 0) return def.entities ?? [];
+  return resolveScene(def, registry, prefabs).entities ?? [];
 }
 
 export function lookupRef(def: SceneDefinition, ref: Ref): RefTarget | null {

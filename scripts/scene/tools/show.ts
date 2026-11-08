@@ -2,16 +2,24 @@ import {
   aabb,
   bulkEntries,
   closest,
+  decodeRow,
+  dihedralOf,
   geometryFields,
+  gridCellBounds,
   groupOrigin,
   instanceOrigin,
+  instanceTransform,
+  isGridValue,
   parseShape,
+  resolvePrefab,
   resolveSceneDetailed,
   sceneHash,
   topSpan,
   translateShape,
   type Aabb,
+  type Dihedral,
   type EntityDef,
+  type GridCells,
   type ExpandedScene,
   type PathDef,
   type PrefabLibrary,
@@ -46,10 +54,44 @@ export type ShownEntity = {
   prefab?: string;
   /** On an instance's child (`gate-3/door`, world coordinates): its instance. */
   instance?: string;
+  /** On a nested child (`room-1/door-1/panel`): the instance ids from the scene down, `["room-1", "door-1"]`. */
+  instancePath?: string[];
+  /** On an instance: the instances nested in it at any depth, by ref below it (`door-1`, `door-1/latch`). */
+  nested?: string[];
   /** On a group member: the group's origin; `shape` and `at` are relative to it, the AABB isn't. */
   origin?: Pt;
+  /** Draw order: an entity's own, a child's with its instances' added, an instance's offset. */
+  z?: number;
+  /** The world turn and flip its group and instances place it with; absent when there is none. */
+  transform?: Dihedral;
+  /** On an instance: the parameter values it sets. */
+  params?: Record<string, unknown>;
+  /** On an instance: the parameters its prefab exposes, sorted. */
+  exposes?: string[];
+  /** Behavior blocks by name. */
+  behaviors?: Record<string, unknown>;
+  /** Each grid field: filled cells, chunks, and the filled cells' bounds (inclusive). */
+  grids?: Record<string, GridSummary>;
   extra?: Record<string, unknown>;
 };
+
+export type GridSummary = {
+  cells: number;
+  chunks: number;
+  bounds: { c0: number; r0: number; c1: number; r1: number } | null;
+};
+
+/** World points of rows whose stored `at` plus `origin` isn't one (members of a turned group). */
+const WORLD_AT = new WeakMap<ShownEntity, Pt>();
+
+export function gridSummary(grid: GridCells): GridSummary {
+  let cells = 0;
+  for (const rows of Object.values(grid))
+    for (const row of rows) for (const c of decodeRow(row) ?? []) if (c !== 0) cells++;
+  return { cells, chunks: Object.keys(grid).length, bounds: gridCellBounds(grid) };
+}
+
+const isIdentity = (d: Dihedral | null | undefined): boolean => !d || (d.rot === 0 && !d.flip);
 
 export function countEntities(scene: ExpandedScene): Record<string, number> {
   const counts: Record<string, number> = {};
@@ -66,10 +108,13 @@ function geometry(tuple: ShapeTuple, offset?: Pt): Pick<ShownEntity, "aabb" | "t
 
 /** An entity's first shape, point and path fields come out as `shape`, `at` and the AABB; every other field is `extra`. */
 function entityRow(e: EntityDef, registry: Registry, origin?: Pt): ShownEntity {
-  const { id, type, material, ...fields } = e;
+  const { id, type, material, z, behaviors, ...fields } = e;
   const row: ShownEntity = { ref: id, type };
   if (typeof material === "string") row.material = material;
   if (origin) row.origin = origin;
+  if (typeof z === "number" && z !== 0) row.z = z;
+  if (behaviors && typeof behaviors === "object" && Object.keys(behaviors).length > 0)
+    row.behaviors = behaviors as Record<string, unknown>;
   const t = registry.types.get(type);
   let shapeField: string | undefined;
   let path: PathDef | undefined;
@@ -81,6 +126,10 @@ function entityRow(e: EntityDef, registry: Registry, origin?: Pt): ShownEntity {
       row.at = value as Pt;
       delete fields[field];
     } else if (kind === "path") path ??= value as PathDef;
+    else if (kind === "grid" && isGridValue(value)) {
+      (row.grids ??= {})[field] = gridSummary(value);
+      delete fields[field];
+    }
   }
   if (shapeField !== undefined) {
     row.shape = fields[shapeField] as ShapeTuple;
@@ -116,21 +165,47 @@ export function sceneRows(
       rows.push(row);
     });
   }
-  for (const e of def.entities ?? []) {
-    rows.push(entityRow(e, registry, e.group ? groupOrigin(def, e.group) : undefined));
-  }
-  if (!def.instances?.length) return rows;
   const resolved = resolveSceneDetailed(def, registry, prefabs);
+  (def.entities ?? []).forEach((e, i) => {
+    const row = entityRow(e, registry, e.group ? groupOrigin(def, e.group) : undefined);
+    const origin = resolved.origins[i];
+    if (origin?.kind === "entity" && !isIdentity(origin.transform)) {
+      row.transform = origin.transform;
+      const world = entityRow(resolved.def.entities![i]!, registry);
+      if (world.aabb) row.aabb = world.aabb;
+      if (world.top) row.top = world.top;
+      if (world.at) WORLD_AT.set(row, world.at);
+    }
+    rows.push(row);
+  });
+  if (!def.instances?.length) return rows;
   const children = new Map<number, ShownEntity[]>();
+  const nested = new Map<number, Set<string>>();
   resolved.origins.forEach((o, i) => {
     if (o.kind !== "child") return;
     const row = entityRow(resolved.def.entities![i]!, registry);
     row.instance = def.instances![o.instance]!.id;
+    if (o.path.length > 1) {
+      row.instancePath = o.path;
+      const ids = nested.get(o.instance) ?? new Set<string>();
+      for (let n = 2; n <= o.path.length; n++) ids.add(o.path.slice(1, n).join("/"));
+      nested.set(o.instance, ids);
+    }
+    if (!isIdentity(o.transform)) row.transform = o.transform;
     children.set(o.instance, [...(children.get(o.instance) ?? []), row]);
   });
   def.instances.forEach((inst, i) => {
-    const { id, prefab, at: _at, ...rest } = inst;
+    const { id, prefab, at: _at, rot: _rot, flip: _flip, z, params, ...rest } = inst;
     const row: ShownEntity = { ref: id, type: "instance", prefab, at: instanceOrigin(def, inst) };
+    if (typeof z === "number" && z !== 0) row.z = z;
+    const turn = dihedralOf(instanceTransform(def, inst));
+    if (!isIdentity(turn)) row.transform = turn!;
+    if (params && Object.keys(params).length > 0) row.params = params;
+    const resolvedPrefab = prefabs ? resolvePrefab(prefab, prefabs, registry) : null;
+    const exposed = resolvedPrefab?.ok ? Object.keys(resolvedPrefab.prefab.params) : [];
+    if (exposed.length > 0) row.exposes = exposed.sort();
+    const inside = nested.get(i);
+    if (inside) row.nested = [...inside];
     if (Object.keys(rest).length > 0) row.extra = rest;
     rows.push(row, ...(children.get(i) ?? []));
   });
@@ -149,6 +224,8 @@ function distanceTo(row: ShownEntity, [x, y]: Pt): number {
     const dy = Math.max(row.aabb.minY - y, 0, y - row.aabb.maxY);
     return Math.hypot(dx, dy);
   }
+  const world = WORLD_AT.get(row);
+  if (world) return Math.hypot(world[0] - x, world[1] - y);
   if (row.at) {
     const [ox, oy] = row.origin ?? [0, 0];
     return Math.hypot(row.at[0] + ox - x, row.at[1] + oy - y);
@@ -163,7 +240,20 @@ function rowLine(r: ShownEntity): string {
   const shape = r.shape ? ` ${JSON.stringify(r.shape)}` : "";
   const mat = r.material ? `:${r.material}` : "";
   const of = r.prefab ? ` of ${r.prefab}` : "";
-  return `${r.ref}  ${r.type}${of}${mat}${shape}${at}${box}${top}`;
+  const turn = r.transform ? ` turn ${r.transform.rot}${r.transform.flip ? " flip" : ""}` : "";
+  const z = r.z !== undefined ? ` z ${r.z}` : "";
+  const params = r.params ? ` params ${JSON.stringify(r.params)}` : "";
+  const exposes = r.exposes ? ` exposes ${r.exposes.join(",")}` : "";
+  const nested = r.nested ? ` nests ${r.nested.join(",")}` : "";
+  const behaviors = r.behaviors ? ` behaviors ${Object.keys(r.behaviors).join(",")}` : "";
+  const grids = Object.entries(r.grids ?? {})
+    .map(([field, { cells, bounds: b }]) => {
+      const span = b ? ` ${b.c0},${b.r0}..${b.c1},${b.r1}` : "";
+      return ` ${field} ${cells} cells${span}`;
+    })
+    .join("");
+  const geometry = `${shape}${at}${turn}${z}${box}${top}`;
+  return `${r.ref}  ${r.type}${of}${mat}${geometry}${params}${exposes}${nested}${behaviors}${grids}`;
 }
 
 export const show: Tool<ShowInput> = async (input, ctx) => {

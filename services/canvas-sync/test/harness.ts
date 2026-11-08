@@ -13,7 +13,7 @@ import {
   sceneDocs,
   user,
 } from "../../../src/db/schema.ts";
-import type { ProjectLogEntry } from "../../../src/engine/collab/types.ts";
+import { BULK_FIELD, Z_FIELD, type ProjectLogEntry } from "../../../src/engine/collab/types.ts";
 import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
 import {
   SCENE_FORMAT_VERSION,
@@ -322,8 +322,8 @@ export const sceneSynced = (client: EngineClient, ms = 5000) =>
 export function addSolid(doc: Y.Doc, key: string, x = 0, z = "a0"): void {
   doc.transact(() => {
     const map = new Y.Map<unknown>();
-    map.set("z", z);
-    map.set("bulk", "solid");
+    map.set(Z_FIELD, z);
+    map.set(BULK_FIELD, "solid");
     map.set("type", "solid");
     map.set("shape", ["box", x, 0, 16, 16]);
     doc.getMap<Y.Map<unknown>>("entities").set(key, map);
@@ -334,7 +334,7 @@ export function addSolid(doc: Y.Doc, key: string, x = 0, z = "a0"): void {
 export function addNamed(doc: Y.Doc, key: string, id: string, x = 0, z = "a0"): void {
   doc.transact(() => {
     const map = new Y.Map<unknown>();
-    map.set("z", z);
+    map.set(Z_FIELD, z);
     map.set("id", id);
     map.set("type", "marker");
     map.set("at", [x, 0]);

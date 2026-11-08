@@ -29,12 +29,15 @@ import { projectBuildMap, readProject } from "./project-doc";
 import { appendProjectLog } from "./project-log";
 import { contentLogKey } from "./revert";
 import {
+  ASSETS_KEY,
   DOC_MAPS,
   GROUP_KEY_PREFIX,
   INSTANCE_KEY_PREFIX,
+  PARAM_KEY_PREFIX,
   PREFAB_KEY_PREFIX,
   SCENE_KEY,
   SETTINGS_KEY,
+  VARIANT_KEY,
   type AwarenessLike,
   type DocOrigin,
   type LogEntry,
@@ -257,7 +260,13 @@ function logKeyOf(root: string, key: string): string | null {
     case DOC_MAPS.scene:
       return SCENE_KEY;
     case DOC_MAPS.prefab:
-      return PREFAB_HEADER_KEY;
+      return key === "base" ? VARIANT_KEY : PREFAB_HEADER_KEY;
+    case DOC_MAPS.assets:
+      return ASSETS_KEY;
+    case DOC_MAPS.params:
+      return `${PARAM_KEY_PREFIX}${key}`;
+    case DOC_MAPS.overrides:
+      return VARIANT_KEY;
     case CONTENT_MAP:
       return contentLogKey(key);
     default:

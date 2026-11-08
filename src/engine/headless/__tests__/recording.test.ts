@@ -6,6 +6,8 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { GOAL_EVENT, testGame, type TestGameSnapshot } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../../scene/agent-surface";
+import { formatScene } from "../../scene/format";
+import { hashText } from "../../scene/hash";
 import { undescribedProperties } from "../../scene/json-schema";
 import { parseSceneOrThrow } from "../../scene/parse";
 import {
@@ -120,6 +122,24 @@ describe("RunRecording", () => {
     expect(r.warnings[0]).toMatch(/^stale: the scene changed/);
     expect(r.matches).toBe(false);
     expect(r.divergence).toMatch(/ended as timeout, not won/);
+  });
+
+  it("replays a recording of a v2 scene stale once, since the migrated scene hashes as v3", () => {
+    const v2Text = text.replace(/"v": \d+/, '"v": 2');
+    expect(parseSceneOrThrow(v2Text, registry)).toEqual(yard);
+    const rec = played(toGoal).recording;
+    const old: RunRecording = {
+      ...rec,
+      sceneHash: hashText(formatScene({ ...yard, v: 2 } as SceneDefinition).text),
+    };
+    const r = replayed(old);
+    expect(r.stale).toBe(true);
+    expect(r.warnings).toEqual([expect.stringMatching(/^stale: the scene changed/)]);
+    expect(r.matches, r.divergence ?? "").toBe(true);
+    expect(r.recording.sceneHash).toBe(rec.sceneHash);
+    const again = replayed(r.recording);
+    expect(again.stale).toBe(false);
+    expect(again.warnings).toEqual([]);
   });
 
   it("refuses a recording that doesn't parse or names an action the game lacks", () => {

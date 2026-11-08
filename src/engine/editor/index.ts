@@ -18,15 +18,20 @@ export { prune, remap, select, type SelectMode } from "./selection";
 export { createEditorStore, type EditorMode, type EditorStoreState } from "./store";
 export { buildOutline, INSTANCES_ROW, outlineOrder, type OutlineRow } from "./outline";
 export {
+  applyLevels,
   applyToPrefabBatch,
   asProjectBatch,
   childOverrides,
   createPrefabBatch,
+  createVariantBatch,
   instanceOfRef,
   instancesOf,
+  nestedInstanceOf,
+  overridePathsOf,
   revertAllBatch,
   revertFieldBatch,
   unpackBatch,
+  type CreateVariant,
 } from "./prefab-commands";
 export {
   fieldOp,
@@ -41,19 +46,30 @@ export {
 export {
   buildInspectorModel,
   INSPECTOR_SECTIONS,
+  instanceParamsModel,
+  instanceTransformModel,
+  instanceZBatch,
   modelBatch,
   modelOps,
+  paramBatch,
   parseRelative,
   refCandidates,
   SECTION_TITLES,
   shapeConversions,
+  type BehaviorOption,
+  type BehaviorSectionId,
+  type BehaviorSectionInfo,
   type EnumOption,
   type FieldWidget,
   type InspectorModel,
+  type InstanceParamsModel,
+  type InstanceTransformModel,
   type InspectorSectionId,
   type InspectorSectionModel,
   type ModelEdit,
   type ModelField,
+  type ModelSectionId,
+  type ParamModel,
   type ShapeConversion,
 } from "./inspector-model";
 export {
@@ -79,13 +95,13 @@ export {
   bulkGeometry,
   createSpatialIndex,
   DEFAULT_CELL,
-  defaultLayer,
   entityGeometry,
   geometryOfRef,
   type EditableSpatialIndex,
   type EditGeometry,
   type SpatialIndexOptions,
 } from "./spatial-index";
+export { defaultLayer } from "../scene/layers";
 export {
   cycleHit,
   marqueeSelect,
@@ -138,7 +154,8 @@ export {
   type KeyScope,
 } from "./keymap";
 export type { GameEditorDef, GameKeyBinding, InspectorWidgetDef } from "../game/types";
-export { docRefs, isBulkRef, lookupRef, type RefTarget } from "./refs";
+export { attachBatch, attachFieldOf, isFollowerType } from "./attach";
+export { docRefs, isBulkRef, lookupRef, referableEntities, type RefTarget } from "./refs";
 export {
   fragmentBounds,
   fragmentOf,
@@ -162,7 +179,6 @@ export type {
   OpBatch,
   Pt,
   Aabb,
-  Layer,
   Ref,
   SceneChange,
   SceneDefinition,
@@ -193,18 +209,23 @@ export {
 export {
   COARSE_NUDGE_STEPS,
   deleteBatch,
+  flipBatch,
   groupBatch,
   hierarchyDown,
   hierarchyUp,
   nextGroupName,
   nudgeBatch,
   nudgeDelta,
+  quarterTurnTargets,
   rotateSelectionBatch,
   rotationPivot,
   selectAllRefs,
   selectionBounds,
   targetsOf,
+  turnBatch,
   ungroupBatch,
+  zOrderBatch,
+  type QuarterTurnTargets,
 } from "./commands";
 export {
   boxTool,

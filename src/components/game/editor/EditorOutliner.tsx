@@ -12,13 +12,15 @@ import { ArrowDown01Icon, ArrowRight01Icon, Cancel01Icon } from "@hugeicons/core
 import { HugeiconsIcon } from "@hugeicons/react";
 import { selectionsByKey } from "@jams/engine/collab";
 import {
+  attachBatch,
+  attachFieldOf,
   buildOutline,
-  defaultLayer,
   geometryOfRef,
   isBulkRef,
+  isFollowerType,
+  lookupRef,
   outlineOrder,
   type EditorSession,
-  type Layer,
   type OpBatch,
   type OutlineRow,
   type PeerPresence,
@@ -28,12 +30,14 @@ import {
   type SceneIssue,
   type SceneOp,
 } from "@jams/engine/editor";
+import { defaultLayer, type PrefabLibrary } from "@jams/engine/scene";
 import { useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { MicroLabel } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
@@ -43,13 +47,13 @@ import { useEditorDoc, useEditorStore } from "./use-editor-store";
 const COLLAPSE_KEY = "game-editor:outline-collapsed";
 const VIEW_KEY = "game-editor:outline-view";
 
-const LAYERS = ["terrain", "gameplay", "decor", "editor"] as const satisfies readonly Layer[];
-const LAYER_TITLES: Record<Layer, string> = {
-  terrain: "Terrain",
-  gameplay: "Gameplay",
-  decor: "Decor",
-  editor: "Editor",
-};
+/** A layer row's title: its name title-cased, `far-hills` as "Far Hills". */
+const layerTitle = (name: string) =>
+  name
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w) => w[0]!.toUpperCase() + w.slice(1))
+    .join(" ") || name;
 
 type View = "type" | "layer";
 
@@ -62,7 +66,9 @@ type Row =
       kind: "layer" | "group";
       label: string;
       count: number;
-      layer: Layer;
+      layer: string;
+      /** The layer's description, for a layer row. */
+      hint?: string;
       group?: string;
       ref?: undefined;
     };
@@ -92,38 +98,72 @@ function writeStored(key: string, value: unknown) {
 const isRecord = (v: unknown): v is Record<string, boolean> => !!v && typeof v === "object";
 const isView = (v: unknown): v is View => v === "type" || v === "layer";
 
-/** Buckets start closed, since one can hold hundreds of rows. */
+/** Buckets start closed, since one can hold hundreds of rows; instances start open. */
 const collapsedByDefault = (row: Row) => row.kind === "bucket";
 
+/** The keys of rows with deeper rows right under them: the ones that open and close. */
+function parentKeys(rows: readonly Row[]): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i + 1 < rows.length; i++) {
+    if (rows[i + 1]!.depth > rows[i]!.depth) out.add(rows[i]!.key);
+  }
+  return out;
+}
+
 /**
- * The layer view: every layer (empty ones too, so they take drops), its
- * groups with their entities, its bulk buckets, then its ungrouped entities.
- * Bulk entries have no fields, so they sit in their type's default layer.
+ * Where each entity and instance sits: its `layer` when the registry has
+ * it, else its default (an unknown name is a validation issue, not a reason
+ * to drop the row). Instances default as a loading, non-bulk entity does.
+ */
+function placements(def: SceneDefinition, registry: Registry) {
+  const known = new Set(registry.layers.map((l) => l.name));
+  const on = (layer: string | undefined, fallback: () => string) =>
+    layer !== undefined && known.has(layer) ? layer : fallback();
+  const out = new Map<Ref, { layer: string; stored?: string; group?: string }>();
+  for (const e of def.entities ?? []) {
+    if (out.has(e.id)) continue;
+    out.set(e.id, {
+      layer: on(e.layer, () => defaultLayer(registry.types.get(e.type), false, registry.layers)),
+      ...(e.layer !== undefined ? { stored: e.layer } : {}),
+      ...(typeof e.group === "string" ? { group: e.group } : {}),
+    });
+  }
+  for (const i of def.instances ?? []) {
+    if (out.has(i.id)) continue;
+    out.set(i.id, {
+      layer: on(i.layer, () => defaultLayer(undefined, false, registry.layers)),
+      ...(i.layer !== undefined ? { stored: i.layer } : {}),
+      ...(typeof i.group === "string" ? { group: i.group } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * The layer view: every registry layer, bottom to top (empty ones too, so
+ * they take drops), its groups with their entities, its bulk buckets, then
+ * its ungrouped entities. Bulk entries have no fields, so they sit in their
+ * type's default layer.
  */
 function layerOutline(def: SceneDefinition, registry: Registry, byType: OutlineRow[]): Row[] {
   const rows = new Map(byType.flatMap((r) => (r.ref ? [[r.ref, r] as const] : [])));
+  const placed = placements(def, registry);
   const out: Row[] = [];
-  for (const layer of LAYERS) {
+  for (const { name: layer, description } of registry.layers) {
     const groups = new Map<string, EntityRow[]>();
     const loose: EntityRow[] = [];
     const buckets: Row[] = [];
     for (let i = 0; i < byType.length; i++) {
       const row = byType[i]!;
       if (row.kind === "bucket") {
-        if (defaultLayer(registry.types.get(row.type ?? ""), true) !== layer) continue;
+        const home = defaultLayer(registry.types.get(row.type ?? ""), true, registry.layers);
+        if (home !== layer) continue;
         buckets.push({ ...row, depth: 1 });
         for (let j = i + 1; byType[j]?.depth === 2; j++) buckets.push(byType[j]!);
       }
     }
-    const placed = [
-      ...(def.entities ?? []).map((e) => ({
-        ...e,
-        layer: e.layer ?? defaultLayer(registry.types.get(e.type), false),
-      })),
-      ...(def.instances ?? []).map((i) => ({ ...i, layer: i.layer ?? "gameplay" })),
-    ];
-    for (const e of placed) {
-      const row = rows.get(e.id);
+    for (const [id, e] of placed) {
+      const row = rows.get(id);
       if (e.layer !== layer || !row || !isEntityRow(row)) continue;
       if (typeof e.group === "string") {
         groups.set(e.group, [...(groups.get(e.group) ?? []), row]);
@@ -137,9 +177,10 @@ function layerOutline(def: SceneDefinition, registry: Registry, byType: OutlineR
       key: `layer:${layer}`,
       depth: 0,
       kind: "layer",
-      label: LAYER_TITLES[layer],
+      label: layerTitle(layer),
       count,
       layer,
+      ...(description ? { hint: description } : {}),
     });
     for (const [group, members] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
       out.push({
@@ -165,8 +206,7 @@ function visibleRows(rows: Row[], collapsed: Record<string, boolean>): Row[] {
     if (hiddenBelow !== null && row.depth > hiddenBelow) continue;
     hiddenBelow = null;
     out.push(row);
-    const closed = collapsed[row.key] ?? collapsedByDefault(row);
-    if (!isEntityRow(row) && closed) hiddenBelow = row.depth;
+    if (collapsed[row.key] ?? collapsedByDefault(row)) hiddenBelow = row.depth;
   }
   return out;
 }
@@ -264,7 +304,13 @@ function peersByRow(
 
 // ─── Dropping ────────────────────────────────────────────
 
-type DropTarget = { layer: Layer; group?: string };
+type DropTarget = { layer: string; group?: string };
+
+/** What a row takes drops for: a layer or group move, attaching to a follower, or detaching from its type row. */
+type DropData =
+  | { kind: "place"; target: DropTarget }
+  | { kind: "attach"; follower: Ref }
+  | { kind: "detach"; type: string };
 
 /**
  * One batch moving entities and instances onto a layer row (their `layer`)
@@ -278,24 +324,15 @@ function dropBatch(
   refs: readonly Ref[],
   target: DropTarget,
 ): OpBatch | null {
-  const byId = new Map<Ref, { layer: Layer; group?: string }>();
-  for (const e of def.entities ?? []) {
-    byId.set(e.id, {
-      layer: e.layer ?? defaultLayer(registry.types.get(e.type), false),
-      ...(typeof e.group === "string" ? { group: e.group } : {}),
-    });
-  }
-  for (const i of def.instances ?? []) {
-    byId.set(i.id, { layer: i.layer ?? "gameplay", ...(i.group ? { group: i.group } : {}) });
-  }
+  const byId = placements(def, registry);
   const ops: SceneOp[] = [];
   const moved: Ref[] = [];
   for (const ref of refs) {
     const e = byId.get(ref);
     if (!e) continue;
     const set: Record<string, unknown> = {};
-    const layer = e.layer;
-    if (layer !== target.layer) set.layer = target.layer;
+    if (e.layer !== target.layer || (e.stored ?? target.layer) !== target.layer)
+      set.layer = target.layer;
     if (target.group !== undefined && e.group !== target.group) set.group = target.group;
     if (Object.keys(set).length === 0) continue;
     ops.push({ op: "update", ref, set });
@@ -306,26 +343,56 @@ function dropBatch(
   const label =
     target.group !== undefined
       ? `Group ${n} into ${target.group}`
-      : `Move ${n} to ${LAYER_TITLES[target.layer]}`;
+      : `Move ${n} to ${layerTitle(target.layer)}`;
   return { label, ops };
 }
 
+/**
+ * One batch attaching each of `refs` to `follower`, or detaching each of
+ * them of `type` when `follower` is null; null when nothing changes.
+ */
+function attachAll(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+  refs: readonly Ref[],
+  follower: Ref | null,
+  type?: string,
+): OpBatch | null {
+  const batches = refs.flatMap((ref) => {
+    const hit = lookupRef(def, ref);
+    if (follower === null && (hit?.kind !== "entity" || hit.entity.type !== type)) return [];
+    const b = attachBatch(def, ref, follower, registry, prefabs);
+    return b ? [b] : [];
+  });
+  const [first] = batches;
+  if (!first) return null;
+  if (batches.length === 1) return first;
+  const n = `${batches.length} entities`;
+  return {
+    label: follower === null ? `Detach ${n}` : `Attach ${n} to ${follower}`,
+    ops: batches.flatMap((b) => b.ops),
+  };
+}
+
+const DROP_OVER = "bg-primary/10 ring-1 ring-primary";
+
 function DropRow({
-  row,
+  id,
+  data,
   enabled,
+  level,
   children,
 }: {
-  row: Row & { kind: "layer" | "group" };
+  id: string;
+  data: DropData;
   enabled: boolean;
+  level: number;
   children: ReactNode;
 }) {
-  const target: DropTarget = { layer: row.layer, ...(row.group ? { group: row.group } : {}) };
-  const { setNodeRef, isOver } = useDroppable({ id: row.key, data: target, disabled: !enabled });
+  const { setNodeRef, isOver } = useDroppable({ id, data, disabled: !enabled });
   return (
-    <li
-      ref={setNodeRef}
-      className={cn("rounded-md", isOver && "bg-primary/10 ring-1 ring-primary")}
-    >
+    <li ref={setNodeRef} aria-level={level} className={cn("rounded-md", isOver && DROP_OVER)}>
       {children}
     </li>
   );
@@ -334,6 +401,9 @@ function DropRow({
 function EntityItem({
   row,
   draggable,
+  follower,
+  expanded,
+  onToggle,
   selected,
   selectedBy,
   indent,
@@ -343,6 +413,11 @@ function EntityItem({
 }: {
   row: EntityRow;
   draggable: boolean;
+  /** Whether rows can be dropped on this one to ride it. */
+  follower: boolean;
+  /** Set on a row with rows nested under it: whether they show. */
+  expanded?: boolean;
+  onToggle?: () => void;
   selected: boolean;
   selectedBy: PeerPresence[] | undefined;
   indent: CSSProperties;
@@ -356,9 +431,30 @@ function EntityItem({
     data: { ref },
     disabled: !draggable,
   });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `attach:${row.key}`,
+    data: ref ? ({ kind: "attach", follower: ref } satisfies DropData) : undefined,
+    disabled: !follower || !ref,
+  });
   const prefab = row.prefab;
   return (
-    <li className="group/row relative">
+    <li
+      ref={setDropRef}
+      aria-level={row.depth + 1}
+      className={cn("group/row relative rounded-md", isOver && DROP_OVER)}
+    >
+      {expanded !== undefined && onToggle ? (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Collapse" : "Expand"} ${row.label}`}
+          onClick={onToggle}
+          className="absolute top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted"
+          style={{ left: `${row.depth * 12 - 8}px` }}
+        >
+          <HugeiconsIcon icon={expanded ? ArrowDown01Icon : ArrowRight01Icon} className="size-3" />
+        </button>
+      ) : null}
       <button
         ref={setNodeRef}
         type="button"
@@ -411,8 +507,11 @@ function EntityItem({
 
 /**
  * The scene's rows by type or by layer, filtered by `type:`, `shape:`,
- * `has:problems` chips and free text. In the layer view, dragging entity
- * rows onto a layer or group row moves them there as one batch. `physical`
+ * `has:problems` chips and free text, with an instance's children nested
+ * under it as a tree. In the layer view, dragging entity rows onto a layer or
+ * group row moves them there as one batch. In either view, dragging rows
+ * whose type has an `attachField` onto a follower's row attaches them to it,
+ * and in the type view dropping them on their type's row detaches them. `physical`
  * adds physical issues to `has:problems`; `onHover` reports the row under
  * the pointer for the canvas to highlight.
  */
@@ -467,6 +566,15 @@ export function EditorOutliner({
     [rows, peers, session],
   );
   const order = useMemo(() => outlineOrder(shown.filter(isEntityRow)), [shown]);
+  const parents = useMemo(() => parentKeys(rows), [rows]);
+  const registry = session.registry;
+  const attachable = (row: EntityRow) =>
+    !!row.ref &&
+    !!row.type &&
+    lookupRef(doc, row.ref)?.kind === "entity" &&
+    attachFieldOf(registry, row.type) !== null;
+  const followerRow = (row: EntityRow) =>
+    !!row.ref && !isBulkRef(row.ref) && !!row.type && isFollowerType(registry, row.type);
   const selected = new Set(selection);
   const filtering = !isEmpty(filter);
 
@@ -486,10 +594,16 @@ export function EditorOutliner({
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     const ref = active.data.current?.ref as Ref | undefined;
-    const target = over?.data.current as DropTarget | undefined;
-    if (!ref || !target) return;
+    const drop = over?.data.current as DropData | undefined;
+    if (!ref || !drop) return;
     const dragged = selected.has(ref) ? selection.filter((r) => !isBulkRef(r)) : [ref];
-    const batch = dropBatch(session.getDoc(), session.registry, dragged, target);
+    const current = session.getDoc();
+    const batch =
+      drop.kind === "place"
+        ? dropBatch(current, registry, dragged, drop.target)
+        : drop.kind === "attach"
+          ? attachAll(current, registry, prefabs, dragged, drop.follower)
+          : attachAll(current, registry, prefabs, dragged, null, drop.type);
     if (batch) session.dispatch(batch);
   };
 
@@ -507,7 +621,10 @@ export function EditorOutliner({
             writeStored(VIEW_KEY, v);
           }}
         >
-          <SegmentedControl.Item value="type" tooltip="Rows by entity type">
+          <SegmentedControl.Item
+            value="type"
+            tooltip="Rows by entity type; drag a row onto a follower to attach it, or onto its type to detach it"
+          >
             Type
           </SegmentedControl.Item>
           <SegmentedControl.Item
@@ -559,11 +676,19 @@ export function EditorOutliner({
             const indent = { paddingLeft: `${row.depth * 12 + 8}px` };
             if (isEntityRow(row)) {
               const ref = row.ref;
+              const opens = !filtering && parents.has(row.key);
               return (
                 <EntityItem
                   key={row.key}
                   row={row}
-                  draggable={view === "layer" && !!ref && !isBulkRef(ref)}
+                  draggable={(view === "layer" && !!ref && !isBulkRef(ref)) || attachable(row)}
+                  follower={followerRow(row)}
+                  {...(opens
+                    ? {
+                        expanded: !(collapsed[row.key] ?? collapsedByDefault(row)),
+                        onToggle: () => toggle(row),
+                      }
+                    : {})}
                   selected={!!ref && selected.has(ref)}
                   selectedBy={peerMarks.get(row.key)}
                   indent={indent}
@@ -575,7 +700,7 @@ export function EditorOutliner({
             }
             const open = filtering || !(collapsed[row.key] ?? collapsedByDefault(row));
             const inside = open ? undefined : peerMarks.get(row.key);
-            const header = (
+            const button = (
               <button
                 type="button"
                 aria-expanded={open}
@@ -598,12 +723,39 @@ export function EditorOutliner({
                 </span>
               </button>
             );
-            return row.kind === "layer" || row.kind === "group" ? (
-              <DropRow key={row.key} row={row} enabled={view === "layer"}>
+            const header =
+              row.kind === "layer" && row.hint ? (
+                <SimpleTooltip content={row.hint} side="right">
+                  {button}
+                </SimpleTooltip>
+              ) : (
+                button
+              );
+            if (row.kind === "layer" || row.kind === "group") {
+              const target = { layer: row.layer, ...(row.group ? { group: row.group } : {}) };
+              return (
+                <DropRow
+                  key={row.key}
+                  id={row.key}
+                  data={{ kind: "place", target }}
+                  enabled={view === "layer"}
+                  level={row.depth + 1}
+                >
+                  {header}
+                </DropRow>
+              );
+            }
+            const type = row.kind === "type" ? row.type : undefined;
+            return (
+              <DropRow
+                key={row.key}
+                id={row.key}
+                data={{ kind: "detach", type: type ?? "" }}
+                enabled={!!type && attachFieldOf(registry, type) !== null}
+                level={row.depth + 1}
+              >
                 {header}
               </DropRow>
-            ) : (
-              <li key={row.key}>{header}</li>
             );
           })}
         </ul>

@@ -1,5 +1,5 @@
 import type { Registry, Style } from "../game/types";
-import type { Aabb, Layer, OpBatch, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
+import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
 import type { EditorCommand } from "./keymap";
 import type { SelectMode } from "./selection";
 
@@ -25,9 +25,10 @@ export type IndexEntry = {
   /** The doc key, which stays put while bulk refs shift; the ref for a plain definition. */
   key: string;
   type: string;
-  layer: Layer;
+  /** A registry layer's name. */
+  layer: string;
   aabb: Aabb;
-  /** Draw order: higher is on top. Layer order first, then document order. */
+  /** Draw order: higher is on top. The registry's layer order first, then `z`, then document order. */
   z: number;
   /** The entity's geometry: a shape, or a point for point entities. */
   geometry: ShapeObj | Pt;
@@ -133,7 +134,7 @@ export type EditorToolContext = {
   /** Kept current with the doc by the host. */
   index(): SpatialIndex;
   /** Layers hidden or locked in this editor; picking skips both. */
-  layers(): { hidden: ReadonlySet<Layer>; locked: ReadonlySet<Layer> };
+  layers(): { hidden: ReadonlySet<string>; locked: ReadonlySet<string> };
   /** Asks the host to draw the overlay again. */
   invalidate(): void;
   setTool(id: string): void;

@@ -25,6 +25,7 @@ import {
 } from "@jams/engine/collab";
 import {
   createEditorSession,
+  createVariantBatch,
   docRefs,
   openPrefabIsolation,
   projectHistory,
@@ -124,6 +125,8 @@ export type LiveEditor = {
   openPrefab: (prefab: string, from?: Ref) => boolean;
   /** Back to the scene from an open prefab. */
   closePrefab: () => void;
+  /** Creates a variant of `base` and opens it; false, with a toast, when it can't. */
+  createVariant: (base: string) => boolean;
   /** What the editor's chrome edits with `open` (from `prefab`): the scene, or that prefab with its way back. */
   editing: (
     open: OpenPrefab | null,
@@ -417,6 +420,7 @@ export function openLiveEditor({
       ...(issuesDebounceMs !== undefined ? { issuesDebounceMs } : {}),
       ...(source ? { prefabs: source } : {}),
       ...(sceneHistory ? { history: sceneHistory } : {}),
+      ...(project ? { project } : {}),
     }),
     sceneDoc,
     true,
@@ -566,6 +570,24 @@ export function openLiveEditor({
     return true;
   }
 
+  /** Live, the project's prefab writer creates the variant's doc, as it does for Create prefab. */
+  function createVariant(base: string): boolean {
+    if (playing) return false;
+    const made = createVariantBatch(base, session.getPrefabs(), {
+      taken: project ? project.view().byId.keys() : [],
+    });
+    if (!made) {
+      toast.error(`No prefab ${base} in this scene`);
+      return false;
+    }
+    const result = session.dispatch(made.scene);
+    if (!result.ok) {
+      toast.error(`Couldn't create a variant of ${base}`, { description: result.issue.message });
+      return false;
+    }
+    return openPrefab(made.id, prefab.state?.from);
+  }
+
   const unsubscribe = session.subscribe((e) => {
     if (e.source === "remote") for (const entry of e.logged) announce(entry);
   });
@@ -610,11 +632,18 @@ export function openLiveEditor({
     projectPeers: projectPeerStore,
     openPrefab,
     closePrefab,
+    createVariant,
     editing(open) {
       return open
         ? {
             session: open.isolation.session,
-            prefab: { id: open.isolation.prefab, scene: name, onBack: closePrefab },
+            prefab: {
+              id: open.isolation.prefab,
+              scene: name,
+              onBack: closePrefab,
+              onOpen: (id) => void openPrefab(id, open.from),
+              onCreateVariant: () => void createVariant(open.isolation.prefab),
+            },
           }
         : { session, onOpenPrefab: openPrefab };
     },

@@ -22,6 +22,7 @@ import {
   assetSnapshot,
   COLLAB_LAYOUT_VERSION,
   emptyProjectState,
+  migrateAssetLayoutState,
   migrateSceneLayoutState,
   prefabDocValue,
   projectSeeded,
@@ -437,5 +438,136 @@ describe("migrateSceneLayoutState", () => {
     expect(result.prefabs.map((p) => p.key)).toEqual([key]);
     expect(readProjectState(result.project).assets[key]).toMatchObject({ id, kind: "prefab" });
     expect(ID_PATTERN.test(key)).toBe(true);
+  });
+});
+
+/** A state as a layout-2 engine wrote it: the layout's own record keys under their old names. */
+function layoutTwo(state: Uint8Array): Uint8Array {
+  const doc = docOf(state);
+  const rename = (map: Y.Map<unknown>, from: string, to: string) => {
+    if (!map.has(from)) return;
+    const value = map.get(from);
+    map.delete(from);
+    map.set(to, value);
+  };
+  const keyed = (value: unknown) => {
+    if (value instanceof Y.Map) {
+      if (value.has("item")) rename(value, "@z", "z");
+      for (const v of value.values()) keyed(v);
+    } else if (value instanceof Y.Array) for (const v of value.toArray()) keyed(v);
+  };
+  doc.transact(() => {
+    for (const name of ["entities", "instances"])
+      for (const rec of doc.getMap(name).values())
+        if (rec instanceof Y.Map) {
+          rename(rec, "@z", "z");
+          rename(rec, "@bulk", "bulk");
+        }
+    keyed(doc.getMap("content"));
+    doc.getMap("meta").set("layout", 2);
+  });
+  return Y.encodeStateAsUpdate(doc);
+}
+
+const recordKeys = (state: Uint8Array, map: string) =>
+  [...docOf(state).getMap<Y.Map<unknown>>(map).entries()]
+    .map(
+      ([key, rec]) =>
+        `${key}:${[...rec.keys()]
+          .filter((k) => /z|bulk/.test(k))
+          .sort()
+          .join(",")}`,
+    )
+    .sort();
+
+describe("layout 2 → 3", () => {
+  const CRATE: Prefab = {
+    kind: "prefab",
+    v: SCENE_FORMAT_VERSION,
+    id: "crate",
+    entities: [
+      { id: "lid", type: "marker", at: [0, -8] },
+      { id: "base", type: "marker", at: [0, 0] },
+    ],
+  };
+  const SCENE: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    name: "yard",
+    bounds: [0, 0, 100, 100],
+    solid: [["box", 0, 90, 100, 10]],
+    entities: [{ id: "spawn", type: "marker", at: [10, 80] }],
+    instances: [{ id: "crate-1", prefab: "crate", at: [40, 80] }],
+  };
+
+  it("lifts a prefab doc at load, keeping every key, and reads one before that", async () => {
+    const current = seedPrefabState({ project: "demo", key: "crate", prefab: CRATE });
+    const old = layoutTwo(current);
+    expect(recordKeys(old, "entities").every((k) => k.endsWith(":z"))).toBe(true);
+    const lifted = migrateAssetLayoutState(old)!;
+    expect(assetDocMeta(lifted)?.layout).toBe(COLLAB_LAYOUT_VERSION);
+    expect(recordKeys(lifted, "entities")).toEqual(recordKeys(current, "entities"));
+    expect(prefabDocValue(lifted)).toEqual(CRATE);
+    expect(migrateAssetLayoutState(lifted)).toBeNull();
+    // Unloaded, a stored layout-2 doc still reads, counts and snapshots as its prefab.
+    expect(prefabDocValue(old)).toEqual(CRATE);
+    expect(assetItemCount(old)).toBe(2);
+    expect(await assetSnapshot(old)).toEqual(await assetSnapshot(current));
+  });
+
+  it("lifts a declarative doc's keyed rows at load, keeping each row's key and place", async () => {
+    const current = seedAssetState({
+      project: "demo",
+      key: "deck",
+      kind: "data-table",
+      seed: TABLE,
+    });
+    const old = layoutTwo(current);
+    const rows = (state: Uint8Array) =>
+      [...(docOf(state).getMap("content").get("rows") as Y.Map<Y.Map<unknown>>).entries()]
+        .map(([key, row]): [string, unknown, boolean] => [key, row.get("@z") ?? null, row.has("z")])
+        .sort((a, b) => a[0].localeCompare(b[0]));
+    expect(rows(old).every(([, z, legacy]) => z === null && legacy)).toBe(true);
+    const lifted = migrateAssetLayoutState(old)!;
+    expect(rows(lifted)).toEqual(rows(current));
+    expect(assetDocValue(lifted)).toEqual(JSON.parse(TABLE));
+    expect(assetDocValue(old)).toEqual(JSON.parse(TABLE));
+    expect(await assetSnapshot(old)).toEqual(await assetSnapshot(current));
+    expect(migrateAssetLayoutState(lifted)).toBeNull();
+  });
+
+  it("leaves unseeded docs, docs at this layout and kinds this side doesn't know alone", () => {
+    expect(migrateAssetLayoutState(null)).toBeNull();
+    expect(
+      migrateAssetLayoutState(seedPrefabState({ project: "demo", key: "crate", prefab: CRATE })),
+    ).toBeNull();
+    const game = seedAssetState({ project: "demo", key: "x", kind: "platformer/deck", seed: null });
+    expect(migrateAssetLayoutState(layoutTwo(game))).toBeNull();
+  });
+
+  it("a layout-2 scene needs the step without its project, and keeps every key", () => {
+    const current = seedState("demo.yard", SCENE);
+    const old = layoutTwo(current);
+    expect(sceneLayoutNeeds(old, null)).toEqual({ prefabs: [], keys: [] });
+    const result = migrateSceneLayoutState({
+      scene: old,
+      projectId: "demo",
+      sceneKey: "yard",
+      project: null,
+      prefabDocs: new Map(),
+      now: 1,
+    })!;
+    expect(result).toMatchObject({
+      project: null,
+      prefabs: [],
+      created: [],
+      kept: [],
+      diverged: [],
+    });
+    expect(docOf(result.scene).getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    for (const map of ["entities", "instances"])
+      expect(recordKeys(result.scene, map)).toEqual(recordKeys(current, map));
+    expect(sceneDocValue(result.scene)).toEqual(sceneDocValue(current));
+    expect(sceneDocValue(old)).toEqual(sceneDocValue(current));
+    expect(sceneLayoutNeeds(result.scene, null)).toBeNull();
   });
 });

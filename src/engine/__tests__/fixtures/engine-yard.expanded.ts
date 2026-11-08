@@ -13,7 +13,12 @@ const box = (cx: number, cy: number, hw: number, hh: number): ShapeObj => ({
 export const ENGINE_YARD_EXPANDED: ExpandedScene = {
   name: "engine-yard",
   bounds: [0, 0, 2000, 1000],
-  settings: { gravity: [0, 1200] },
+  settings: {
+    gravity: [0, 1200],
+    physics: "rapier",
+    grid: null,
+    view: { projection: "orthogonal" },
+  },
   entities: [
     { id: "~solid:0", type: "solid", shape: box(1000, 980, 1000, 20) },
     { id: "~solid:1", type: "solid", shape: box(20, 500, 20, 500) },

@@ -14,8 +14,9 @@ import {
   type DocOrigin,
   type SessionDoc,
 } from "@jams/engine/collab";
-import { defineGame } from "@jams/engine/game";
+import { defineEntityType, defineGame, gridField, pointField } from "@jams/engine/game";
 import type { AssetEntry, ProjectOpBatch, ProjectView } from "@jams/engine/project";
+import { readCell, type GridCells } from "@jams/engine/scene";
 import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -39,10 +40,20 @@ const HUMAN: DocOrigin = { kind: "user", userId: "ada", name: "Ada" };
 const CLI_AGENT = { kind: "agent", agentId: "cli-bot", onBehalfOf: "ada" };
 const MCP_AGENT = { kind: "agent", agentId: "claude", onBehalfOf: "ada" };
 
-/** A game with the card table and the settings the copied project's files use, and nothing to play. */
+const PAINT = defineEntityType({
+  type: "paint",
+  description: "Cells painted on the scene's grid.",
+  base: "marker",
+  fields: {
+    at: pointField("The grid's origin."),
+    cells: gridField("The painted cells.", { values: ["red", "green", "blue"] }),
+  },
+});
+
+/** A game with the card table and the settings the copied project's files use, a grid type, and nothing to play. */
 const deckGame = defineGame({
   id: "deck-game",
-  types: [],
+  types: [PAINT],
   actions: [{ action: "right", keys: ["d"], description: "Walk right." }],
   tables: {
     card: {
@@ -58,6 +69,19 @@ const deckGame = defineGame({
 });
 
 const SCRIPT_FILE = "kitchen-sink.script.json";
+/** A scene of the deck game, so its grid type is there to paint. */
+const TILES_ROOM = {
+  v: 3,
+  game: "deck-game",
+  name: "tiles-room",
+  bounds: [0, 0, 1200, 800],
+  settings: { grid: { kind: "square", cell: [32, 32] } },
+  instances: [
+    { id: "post-a", prefab: "post", at: [200, 700] },
+    { id: "post-b", prefab: "post", at: [400, 700] },
+  ],
+  entities: [{ id: "tiles", type: "paint", at: [600, 200], cells: {} }],
+};
 const SCRIPT = { v: 1, scene: "kitchen-sink", steps: [{ wait: 60 }] };
 
 type Called = {
@@ -199,6 +223,7 @@ beforeAll(async () => {
   deck = join(root, PROJECT);
   await cp(ENGINE_SCENES, deck, { recursive: true });
   await writeFile(join(deck, SCRIPT_FILE), `${JSON.stringify(SCRIPT)}\n`);
+  await writeFile(join(deck, "tiles-room.json"), `${JSON.stringify(TILES_ROOM)}\n`);
   for (const name of [
     "texture.png",
     "texture.webp",
@@ -238,6 +263,7 @@ beforeAll(async () => {
   const script = [...view().byId.values()].find((e) => e.path === SCRIPT_FILE)!;
   for (const id of [
     "kitchen-sink",
+    "tiles-room",
     "post",
     "bouncy",
     "game-settings",
@@ -311,6 +337,112 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
       MCP_AGENT,
       "the MCP prefab edit",
     );
+  });
+
+  it("scene: apply --live with paintCells and transform", { timeout: 60_000 }, async () => {
+    const room = () => valueOf("tiles-room");
+    const cell = (col: number, row: number) => {
+      const tiles = entity(room(), "tiles") as { cells?: GridCells } | undefined;
+      return tiles?.cells ? readCell(tiles.cells, col, row) : 0;
+    };
+    const instance = (id: string) =>
+      (room().instances as { id: string; rot?: number; flip?: boolean }[]).find((i) => i.id === id);
+
+    const viaCli = await cli(
+      "apply",
+      "tiles-room",
+      "--ops",
+      await jsonFile({
+        ops: [
+          { op: "paintCells", ref: "tiles", field: "cells", cells: [[0, 0, 1]] },
+          { op: "paintCells", ref: "tiles", field: "cells", rects: [[31, 0, 33, 1, 2]] },
+          { op: "transform", refs: ["post-a"], turn: 1 },
+        ],
+      }),
+    );
+    expect(viaCli.exitCode, JSON.stringify(viaCli.data)).toBe(0);
+    await landsInDoc(
+      "tiles-room",
+      () =>
+        cell(0, 0) === 1 && cell(31, 1) === 2 && cell(33, 0) === 2 && instance("post-a")?.rot === 1,
+      CLI_AGENT,
+      "the CLI's paintCells and transform",
+    );
+
+    const viaMcp = await mcp("scene_apply_ops", {
+      scene: "tiles-room",
+      ops: {
+        ops: [
+          {
+            op: "paintCells",
+            ref: "tiles",
+            field: "cells",
+            cells: [
+              [0, 0, 0],
+              [5, 40, 3],
+            ],
+          },
+          { op: "transform", refs: ["post-b"], flip: "x" },
+        ],
+      },
+    });
+    expect(viaMcp.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    await landsInDoc(
+      "tiles-room",
+      () => cell(0, 0) === 0 && cell(5, 40) === 3 && instance("post-b")?.flip === true,
+      MCP_AGENT,
+      "the MCP paintCells and transform",
+    );
+    expect(cell(32, 1)).toBe(2);
+    expect(instance("post-a")?.rot).toBe(1);
+  });
+
+  it("prefab: editScene with exposeParam", { timeout: 60_000 }, async () => {
+    const params = () =>
+      valueOf("post").params as Record<string, { targets: string[] }> | undefined;
+    const viaCli = await cli(
+      "assets",
+      "apply",
+      "--ops",
+      await jsonFile(
+        editScene("post", [
+          {
+            op: "exposeParam",
+            name: "oneWay",
+            param: {
+              description: "Whether things pass up through the pole.",
+              targets: ["pole.oneWay"],
+              default: false,
+            },
+          },
+        ]),
+      ),
+    );
+    expect(viaCli.exitCode, JSON.stringify(viaCli.data)).toBe(0);
+    await landsInDoc(
+      "post",
+      () => params()?.oneWay?.targets[0] === "pole.oneWay",
+      CLI_AGENT,
+      "the CLI's exposeParam",
+    );
+
+    const viaMcp = await mcp("asset_apply_ops", {
+      ops: editScene("post", [
+        {
+          op: "exposeParam",
+          name: "capTags",
+          param: { description: "The cap's tags.", targets: ["cap.tags"] },
+        },
+      ]),
+    });
+    expect(viaMcp.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    await landsInDoc(
+      "post",
+      () => params()?.capTags !== undefined,
+      MCP_AGENT,
+      "the MCP exposeParam",
+    );
+    expect(Object.keys(params() ?? {}).sort()).toEqual(["capTags", "oneWay"]);
   });
 
   it(

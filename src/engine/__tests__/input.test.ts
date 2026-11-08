@@ -237,7 +237,12 @@ describe("game actions reach the runtime", () => {
   const scene: ExpandedScene = {
     name: "empty",
     bounds: [0, 0, 100, 100],
-    settings: { gravity: [0, 0] },
+    settings: {
+      gravity: [0, 0],
+      physics: "rapier",
+      grid: null,
+      view: { projection: "orthogonal" },
+    },
     entities: [],
   };
 

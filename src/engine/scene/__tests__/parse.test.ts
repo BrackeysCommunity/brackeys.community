@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { testGame } from "../../__tests__/fixtures/test-game";
+import { createRegistry } from "../../game/define";
 import type { Registry } from "../../game/types";
 import { formatScene } from "../format";
 import {
@@ -13,7 +15,7 @@ import {
   suggestType,
 } from "../parse";
 import { entitySchemaFor } from "../schema";
-import type { SceneIssue } from "../types";
+import { SCENE_FORMAT_VERSION, type SceneIssue } from "../types";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
 
 function failIssues(input: unknown, registry: Registry = engine): [SceneIssue, ...SceneIssue[]] {
@@ -210,10 +212,11 @@ describe("parseScene", () => {
   });
 
   it("refuses a newer version", () => {
-    const [issue] = failIssues(engineYardText.replace('"v": 2', '"v": 3'));
+    const newer = SCENE_FORMAT_VERSION + 1;
+    const [issue] = failIssues(engineYardText.replace(/"v": \d+/, `"v": ${newer}`));
     expect(issue.code).toBe("version-newer");
     expect(issue.line).toBe(3);
-    expect(() => parseSceneOrThrow({ v: 3 }, engine)).toThrow(SceneVersionError);
+    expect(() => parseSceneOrThrow({ v: newer }, engine)).toThrow(SceneVersionError);
   });
 
   it("reports a JSON syntax error with its line", () => {
@@ -257,5 +260,63 @@ describe("JSON Pointer lines", () => {
     expect(locatePointer(text, "/entities/3/path/pts/1")).toBe(lines.get("/entities/3"));
     expect(locatePointer(text, "/entities/0/nope")).toBe(lines.get("/entities/0"));
     expect(locatePointer("{ bad", "/x")).toBeUndefined();
+  });
+});
+
+describe("parseScene: grid fields", () => {
+  const registry = createRegistry(testGame);
+  const sceneWith = (cells: unknown) => ({
+    v: SCENE_FORMAT_VERSION,
+    game: "test-game",
+    name: "g",
+    bounds: [0, 0, 100, 100],
+    settings: { grid: { kind: "square", cell: [16, 16] } },
+    entities: [{ id: "floor", type: "paint", at: [0, 0], cells }],
+  });
+
+  it("canonicalises a hand-written grid, so formatting fixes it", () => {
+    const r = parseScene(
+      sceneWith({ "0,0": ["1,1,1", "0*32", ""], "-1,0": ["0*30,2,2"] }),
+      registry,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.def.entities![0]!.cells).toEqual({ "-1,0": ["0*30,2*2"], "0,0": ["1*3"] });
+    const text = formatScene(r.def).text;
+    expect(text).toContain('"-1,0": ["0*30,2*2"],');
+    expect(text).toContain('"0,0": ["1*3"]');
+  });
+
+  it("reports bad rows, keys, counts and values as grid-invalid, once each, with lines", () => {
+    const text = formatScene(
+      sceneWith({
+        "0,0": ["1*33", "2"],
+        "01,0": ["1"],
+        "1,0": Array(33).fill(""),
+        "2,0": ["9"],
+      }) as never,
+    ).text;
+    const issues = failIssues(text, registry);
+    expect(issues.map((i) => [i.code, i.path])).toEqual([
+      ["grid-invalid", "/entities/0/cells/0,0/0"],
+      ["grid-invalid", "/entities/0/cells/01,0"],
+      ["grid-invalid", "/entities/0/cells/1,0"],
+      ["grid-invalid", "/entities/0/cells/2,0/0"],
+    ]);
+    expect(issues.every((i) => i.entityIds[0] === "floor")).toBe(true);
+    const lineOf = (needle: string) => text.split("\n").findIndex((l) => l.includes(needle)) + 1;
+    expect(issues[0].line).toBe(lineOf('"0,0"'));
+    expect(issues[3]?.line).toBe(lineOf('"2,0"'));
+    expect(issues[3]?.message).toMatch(/9 is past this field's largest, 3/);
+  });
+
+  it("reports a grid problem the regexes allow, a run past 32 cells", () => {
+    const [issue, ...rest] = failIssues(sceneWith({ "0,0": ["1*20,2*20"] }), registry);
+    expect(rest).toEqual([]);
+    expect(issue).toMatchObject({
+      code: "grid-invalid",
+      path: "/entities/0/cells/0,0/0",
+      got: '"1*20,2*20"',
+    });
   });
 });

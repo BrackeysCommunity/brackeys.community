@@ -4,13 +4,14 @@ import { ID_PATTERN } from "../game/fields";
 import type { GameDefinition } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { ISSUE_CODES, jsonPointer, makeIssue } from "../scene/issues";
-import { toJsonSchema } from "../scene/json-schema";
+import { layerNames, toJsonSchema } from "../scene/json-schema";
 import { locatePointer } from "../scene/parse";
 import type { IssueCode, SceneIssue } from "../scene/types";
 import { canonicalJson, fieldLayout, stableJson } from "./canonical";
 import { sha256 } from "./hash";
 import { ATLAS_KIND, atlasExportApp } from "./kinds/atlas";
 import {
+  byCodeUnit,
   isPlainObject,
   type AssetKindDef,
   type DocKindDef,
@@ -19,7 +20,14 @@ import {
   type ParseAssetResult,
 } from "./kinds/define";
 import { ENGINE_ASSET_KINDS } from "./kinds/index";
-import { PROJECT_FILE, type AssetKindName, type AssetPath, type Sha256 } from "./types";
+import {
+  PROJECT_FILE,
+  type AssetId,
+  type AssetKindName,
+  type AssetPath,
+  type ProjectView,
+  type Sha256,
+} from "./types";
 
 export {
   defineAssetKind,
@@ -162,11 +170,20 @@ export function detectImport(
   return kinds.get(ATLAS_KIND) ?? null;
 }
 
-/** The JSON Schema a kind's content is judged by; a blob kind's is its settings and meta. Null for code. */
+const noAssets = () => [];
+
+/**
+ * The JSON Schema a kind's content is judged by, for code skew; a blob
+ * kind's is its settings and meta. Null for code. Asset fields carry no
+ * ids, so a project's content never moves it.
+ */
 function kindJsonSchema(def: AssetKindDef, env: KindEnv): unknown {
   switch (def.storage) {
     case "doc":
-      return toJsonSchema(def.schema(env));
+      return toJsonSchema(def.schema(env), {
+        layers: layerNames(env.registry),
+        assets: noAssets,
+      });
     case "blob":
       return { settings: toJsonSchema(def.settings), meta: toJsonSchema(def.meta) };
     case "code":
@@ -174,9 +191,25 @@ function kindJsonSchema(def: AssetKindDef, env: KindEnv): unknown {
   }
 }
 
-/** A doc kind's draft 2020-12 JSON Schema as a file publishes it: `$id`, the agent surface and a title first. */
+/** The live ids of `kinds` in `view`, sorted. */
+const liveIds =
+  (view: ProjectView) =>
+  (kinds: readonly AssetKindName[]): AssetId[] =>
+    [...view.byId.values()]
+      .filter((e) => kinds.includes(e.kind))
+      .map((e) => e.id)
+      .sort(byCodeUnit);
+
+/**
+ * A doc kind's draft 2020-12 JSON Schema as a file publishes it: `$id`, the
+ * agent surface and a title first. With a project, each asset field's
+ * `enum` lists the live ids of its kinds.
+ */
 export function docKindJsonSchema(def: DocKindDef, env: KindEnv): Record<string, unknown> {
-  const { $schema, ...rest } = toJsonSchema(def.schema(env));
+  const { $schema, ...rest } = toJsonSchema(def.schema(env), {
+    layers: layerNames(env.registry),
+    ...(env.project ? { assets: liveIds(env.project) } : {}),
+  });
   const of = env.registry.game ? ` for ${env.registry.id}` : "";
   return {
     $schema,

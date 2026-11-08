@@ -13,7 +13,7 @@ import { createKindRegistry } from "../../project/kinds";
 import { prefabKind } from "../../project/kinds/prefab";
 import { sceneKind } from "../../project/kinds/scene";
 import type { AssetEntry } from "../../project/types";
-import type { Prefab, SceneDefinition } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
 import { isolationBounds, openPrefabIsolation } from "../isolation";
 import { createEditorSession, projectHistory } from "../session";
 
@@ -43,7 +43,7 @@ function scene(): SceneDefinition {
   };
 }
 
-function seed() {
+function seed(def: SceneDefinition = scene(), prefabs: readonly Prefab[] = [POST]) {
   const host = memoryDocHost();
   const entry = (key: string, kind: string, path: string): AssetEntry => ({
     key,
@@ -58,7 +58,9 @@ function seed() {
       meta: { projectId: "p", layout: 1, name: "P" },
       assets: {
         posts: entry("posts", "scene", "posts.json"),
-        post: entry("post", "prefab", "prefabs/post.json"),
+        ...Object.fromEntries(
+          prefabs.map((p) => [p.id, entry(p.id, "prefab", `prefabs/${p.id}.json`)]),
+        ),
       },
       history: {},
       code: {},
@@ -66,8 +68,9 @@ function seed() {
     },
     { kind: "migration" },
   );
-  sceneToDoc(scene(), { doc: host.doc("scene:p.posts"), key: sequentialKeys("t") });
-  prefabToDoc(POST, { doc: host.doc("asset:p.post"), key: sequentialKeys("p") });
+  sceneToDoc(def, { doc: host.doc("scene:p.posts"), key: sequentialKeys("t") });
+  for (const p of prefabs)
+    prefabToDoc(p, { doc: host.doc(`asset:p.${p.id}`), key: sequentialKeys(p.id) });
   return host;
 }
 
@@ -163,19 +166,22 @@ describe("openPrefabIsolation", () => {
     project.destroy();
   });
 
-  it("refuses scene-only ops, and grouped children, with op-invalid, leaving both docs as they were", async () => {
+  it("refuses scene-only ops, grouped children and an instance of itself, leaving both docs as they were", async () => {
     const { project, main, iso } = await setup();
     const before = main.getHash();
     for (const ops of [
       [{ op: "setScene", set: { name: "other" } }],
       [{ op: "setSettings", set: { gravity: 1 } }],
-      [{ op: "instantiate", instance: { prefab: "post", at: [0, 0] } }],
       [{ op: "definePrefab", id: "post", prefab: null }],
       [{ op: "add", entity: { id: "x", type: "marker", at: [0, 0], group: "walls" } }],
     ] as const) {
       const refused = iso.session.dispatch({ ops: [...ops] as never });
       expect(refused.ok || refused.issue.code, JSON.stringify(ops)).toBe("op-invalid");
     }
+    const itself = iso.session.dispatch({
+      ops: [{ op: "instantiate", instance: { prefab: "post", at: [0, 0] } }],
+    });
+    expect(itself.ok || itself.issue.code).toBe("prefab-cycle");
     expect(main.getHash()).toBe(before);
     expect(iso.session.getDoc().name).toBe("post");
     expect(main.getPrefabs().get("post")).toEqual(POST);
@@ -234,5 +240,106 @@ describe("openPrefabIsolation", () => {
   it("grows the bounds to hold children far from the origin", () => {
     const far: Prefab = { ...POST, entities: [{ id: "top", type: "marker", at: [3000, 0] }] };
     expect(isolationBounds(far, [0, 0, 200, 400], registry)).toEqual([-100, -200, 3064, 200]);
+  });
+});
+
+const LOCK: Prefab = {
+  kind: "prefab",
+  v: SCENE_FORMAT_VERSION,
+  id: "lock",
+  entities: [{ id: "bolt", type: "marker", at: [0, 0] }],
+};
+const DOOR: Prefab = {
+  kind: "prefab",
+  v: SCENE_FORMAT_VERSION,
+  id: "door",
+  entities: [{ id: "panel", type: "marker", at: [0, -10] }],
+  instances: [{ id: "lock-1", prefab: "lock", at: [4, 0] }],
+};
+const ROOM: Prefab = {
+  kind: "prefab",
+  v: SCENE_FORMAT_VERSION,
+  id: "room",
+  entities: [{ id: "floor", type: "marker", at: [0, 0] }],
+  instances: [{ id: "door-1", prefab: "door", at: [100, 0], overrides: { "lock-1.at": [6, 0] } }],
+};
+
+describe("openPrefabIsolation over nested prefabs", () => {
+  async function nested() {
+    const host = seed(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "posts",
+        bounds: [0, 0, 2000, 1200],
+        instances: [{ id: "room-1", prefab: "room", at: [500, 500] }],
+      },
+      [LOCK, DOOR, ROOM],
+    );
+    const ours = await client(host, ada);
+    const open = async (prefab: string) =>
+      (await openPrefabIsolation(ours.main, prefab, {
+        key: sequentialKeys(`iso-${prefab}`),
+        issuesDebounceMs: 0,
+      }))!;
+    return { host, ...ours, open };
+  }
+
+  it("shows the instances a prefab holds, resolved, in its own frame", async () => {
+    const { project, open } = await nested();
+    const room = await open("room");
+    expect(room.session.getDoc().instances!.map((i) => [i.id, i.prefab])).toEqual([
+      ["door-1", "door"],
+    ]);
+    expect(childAt(room.session, "floor")).toEqual([0, 0]);
+    expect(childAt(room.session, "door-1/panel")).toEqual([100, -10]);
+    expect(childAt(room.session, "door-1/lock-1/bolt")).toEqual([106, 0]);
+    project.destroy();
+  });
+
+  it("edits a nested child as an override in the prefab's doc, which every scene instance follows", async () => {
+    const { host, project, main, open } = await nested();
+    const room = await open("room");
+    const moved = room.session.dispatch(
+      { ops: [{ op: "move", refs: ["door-1/panel"], by: [5, 0] }] },
+      { resolved: true },
+    );
+    expect(moved.ok).toBe(true);
+    expect(docToPrefab(host.doc("asset:p.room")).instances![0]!.overrides).toEqual({
+      "lock-1.at": [6, 0],
+      "panel.at": [5, -10],
+    });
+    expect(docToPrefab(host.doc("asset:p.door"))).toEqual(DOOR);
+    expect(childAt(main, "room-1/door-1/panel")).toEqual([605, 490]);
+    expect(main.getDoc().instances![0]!.overrides).toBeUndefined();
+    project.destroy();
+  });
+
+  it("follows an edit to a nested prefab made in its own isolation", async () => {
+    const { project, open } = await nested();
+    const room = await open("room");
+    const door = await open("door");
+    door.session.dispatch({ ops: [{ op: "move", refs: ["panel"], by: [0, -30] }] });
+    expect(childAt(room.session, "door-1/panel")).toEqual([100, -40]);
+    project.destroy();
+  });
+
+  it("places an instance inside a prefab, and refuses one that would contain it", async () => {
+    const { host, project, open } = await nested();
+    const door = await open("door");
+    const placed = door.session.dispatch({
+      ops: [{ op: "instantiate", instance: { id: "lock-2", prefab: "lock", at: [-4, 0] } }],
+    });
+    expect(placed.ok).toBe(true);
+    expect(childAt(door.session, "lock-2/bolt")).toEqual([-4, 0]);
+    expect(docToPrefab(host.doc("asset:p.door")).instances!.map((i) => i.id)).toEqual([
+      "lock-1",
+      "lock-2",
+    ]);
+    const loop = door.session.dispatch({
+      ops: [{ op: "instantiate", instance: { prefab: "room", at: [0, 0] } }],
+    });
+    expect(loop.ok || loop.issue.code).toBe("prefab-cycle");
+    expect(docToPrefab(host.doc("asset:p.door")).instances).toHaveLength(2);
+    project.destroy();
   });
 });

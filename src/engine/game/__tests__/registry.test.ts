@@ -3,7 +3,9 @@ import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
 import type { AssetEntry, ProjectView } from "../../project/types";
+import { DEFAULT_LAYERS } from "../../scene/layers";
 import { parseScene } from "../../scene/parse";
+import { defineBehavior } from "../behaviors";
 import {
   createRegistry,
   defineEntityType,
@@ -94,7 +96,7 @@ describe("createRegistry", () => {
     const r = createRegistry();
     expect(r.id).toBe("engine");
     expect(r.typeNames).toEqual([...PRIMITIVE_TYPES]);
-    expect(r.schemaId).toBe("urn:jams-engine:scene:v2");
+    expect(r.schemaId).toBe("urn:jams-engine:scene:v3");
     expect(r.spawnGroups).toEqual([["solid"], ["sensor"], ["marker"], ["prop"], ["follower"]]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid"]);
     expect(r.actionNames).toEqual([]);
@@ -105,7 +107,7 @@ describe("createRegistry", () => {
     expect(r.typeNames).toEqual([...PRIMITIVE_TYPES, "crate", "flag"]);
     expect(r.types.get("crate")).toMatchObject({ origin: "fake", base: "prop" });
     expect(r.types.get("solid")?.origin).toBe("engine");
-    expect(r.schemaId).toBe("urn:jams-engine:scene:fake:v2");
+    expect(r.schemaId).toBe("urn:jams-engine:scene:fake:v3");
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid", "solid:mud", "flag"]);
     expect(r.bulkKey("solid:mud")).toEqual({
       key: "solid:mud",
@@ -257,6 +259,151 @@ describe("createRegistry", () => {
   });
 });
 
+describe("createRegistry layers", () => {
+  const layer = (name: string, draw = 0) => ({ name, description: `${name}.`, draw });
+
+  it("uses the game's layers, else the defaults", () => {
+    expect(createRegistry(game()).layers).toBe(DEFAULT_LAYERS);
+    expect(createRegistry().layers).toBe(DEFAULT_LAYERS);
+    const layers = [layer("back"), layer("front", 10)];
+    expect(createRegistry(game({ layers })).layers).toBe(layers);
+  });
+
+  it("refuses no layers, doubled or bad names and non-finite numbers", () => {
+    expect(problems(() => createRegistry(game({ layers: [] })))).toEqual([
+      "layers must list at least one layer",
+    ]);
+    expect(
+      problems(() =>
+        createRegistry(
+          game({
+            layers: [
+              layer("back"),
+              layer("back"),
+              layer("Front"),
+              layer("far", Number.NaN),
+              { ...layer("sky"), scroll: [0.5, Number.POSITIVE_INFINITY] },
+            ],
+          }),
+        ),
+      ),
+    ).toEqual([
+      'layer "back" is declared twice',
+      `layer "Front" must match ${/^[a-z0-9][a-z0-9-]{0,47}$/}`,
+      'layer "far" draw must be a finite number',
+      'layer "sky" scroll must be two finite numbers',
+    ]);
+  });
+});
+
+describe("createRegistry field names and settings", () => {
+  it("refuses a field name that isn't an identifier", () => {
+    const odd = defineEntityType({
+      type: "odd",
+      description: "Odd fields.",
+      base: "marker",
+      fields: {
+        at: pointField("Where."),
+        "@x": z.number().describe("Clashes with the layout."),
+        "two words": z.number().describe("Spaces."),
+        $ok: z.number().describe("Fine."),
+        _ok2: z.number().describe("Fine."),
+      },
+    });
+    expect(problems(() => createRegistry(game({ types: [crate, flag, odd] })))).toEqual([
+      `type "odd" field "@x" must match ${/^[A-Za-z_$][A-Za-z0-9_$]*$/}`,
+      `type "odd" field "two words" must match ${/^[A-Za-z_$][A-Za-z0-9_$]*$/}`,
+    ]);
+  });
+
+  it("refuses a behavior field name that isn't an identifier", () => {
+    const odd = defineBehavior({
+      name: "fake/odd",
+      description: "Odd fields.",
+      fields: { "@x": z.number().describe("Clashes."), ok: z.number().describe("Fine.") },
+    });
+    expect(problems(() => createRegistry(game({ behaviors: [odd] })))).toEqual([
+      `behavior "fake/odd" field "@x" must match ${/^[A-Za-z_$][A-Za-z0-9_$]*$/}`,
+    ]);
+  });
+
+  it("refuses a type with a grid field but no point field at", () => {
+    const cells = z.record(z.string(), z.array(z.string())).meta({ kind: "grid" });
+    const tiles = (fields: z.ZodRawShape) =>
+      defineEntityType({ type: "tiles", description: "Cells.", base: "marker", fields });
+    expect(
+      problems(() =>
+        createRegistry(game({ types: [crate, flag, tiles({ at: pointField("Where."), cells })] })),
+      ),
+    ).toEqual([]);
+    expect(
+      problems(() =>
+        createRegistry(
+          game({
+            types: [
+              crate,
+              flag,
+              defineEntityType({
+                type: "tiles",
+                description: "Cells.",
+                system: () => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 }),
+                fields: { where: pointField("Where."), cells },
+              }),
+            ],
+          }),
+        ),
+      ),
+    ).toEqual(['type "tiles" has a grid field but no point field "at"']);
+    expect(
+      problems(() =>
+        createRegistry(
+          game({
+            types: [
+              crate,
+              flag,
+              tiles({ at: pointField("Where."), cells }),
+              defineEntityType({
+                type: "rows",
+                description: "Cells at a number.",
+                base: "marker",
+                fields: { at: z.number().describe("Not a point."), cells },
+              }),
+            ],
+          }),
+        ),
+      ),
+    ).toContain('type "rows" has a grid field but no point field "at"');
+  });
+
+  it("refuses a game that redefines an engine setting", () => {
+    expect(
+      problems(() =>
+        createRegistry(
+          game({ settings: { grid: z.number().describe("Mine."), lives: z.number() } }),
+        ),
+      ),
+    ).toEqual(['settings field "grid" is the engine\'s']);
+    expect(
+      problems(() =>
+        createRegistry(
+          game({
+            settings: { gravity: z.number(), physics: z.number(), view: z.number() },
+          }),
+        ),
+      ),
+    ).toEqual([
+      'settings field "gravity" is the engine\'s',
+      'settings field "physics" is the engine\'s',
+      'settings field "view" is the engine\'s',
+    ]);
+  });
+
+  it("offers the engine's settings beside the game's", () => {
+    const registry = createRegistry(game({ settings: { lives: z.number().optional() } }));
+    expect(Object.keys(registry.settings)).toEqual(["gravity", "physics", "grid", "view", "lives"]);
+  });
+});
+
 const entry = (id: string, kind: string, path: string): AssetEntry => ({
   key: id,
   id,
@@ -327,7 +474,7 @@ describe("project materials", () => {
     const registry = createRegistry(game(), { materials: { paint, mud: paint } });
     expect(registry.materialNames).toEqual([]);
     const scene = {
-      v: 2,
+      v: 3,
       game: "fake",
       name: "s",
       bounds: [0, 0, 100, 100],
@@ -379,5 +526,39 @@ describe("project materials", () => {
       description: "Bouncy.",
       style: { fill: 0xe05a5a },
     });
+  });
+
+  it("withProject offers the project's live asset ids by kind, sorted", () => {
+    const deleted = {
+      ...entry("old", "material", "materials/old.json"),
+      deleted: { at: 1, by: "t" },
+    };
+    const view = {
+      ...viewOf([
+        entry("rubber", "material", "materials/rubber.json"),
+        entry("deck", "data-table", "data/deck.json"),
+        entry("ice", "material", "materials/ice.json"),
+        entry("cards", "data-table", "data/cards.json"),
+      ]),
+      deleted: [deleted],
+    };
+    const seen: (readonly string[])[] = [];
+    const probe = defineEntityType({
+      type: "probe",
+      description: "Reads the asset choices.",
+      base: "marker",
+      fields: (env) => {
+        seen.push(env.assets(["material"]), env.assets(["data-table", "material"]));
+        return { at: pointField("Where.") };
+      },
+    });
+    const base = createRegistry(game({ types: [crate, flag, probe] }));
+    expect(seen).toEqual([[], []]);
+    seen.length = 0;
+    withProject(base, view, new Map());
+    expect(seen).toEqual([
+      ["ice", "rubber"],
+      ["cards", "deck", "ice", "rubber"],
+    ]);
   });
 });

@@ -1,0 +1,22 @@
+{
+  "kind": "prefab",
+  "v": 3,
+  "id": "room",
+  "params": {
+    "doorSpeed": { "description": "How fast the doorway's panel slides, in px/s.", "targets": ["door-1/panel.path.speed"] }
+  },
+  "bulk": {
+    "solid": [
+      ["box", 0, 10, 300, 10],
+      ["box", -290, -100, 10, 100],
+      ["box", 290, -100, 10, 100]
+    ]
+  },
+  "instances": [
+    { "id": "door-1", "prefab": "doorway", "z": 2, "at": [-150, 0] },
+    { "id": "latch-1", "prefab": "latch", "at": [150, 0] }
+  ],
+  "entities": [
+    { "id": "lamp", "type": "marker", "z": 1, "at": [0, -200], "tags": ["light"] }
+  ]
+}

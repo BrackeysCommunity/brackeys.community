@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { engine, engineYard } from "../../scene/__tests__/fixtures/random-ops";
+import {
+  engine,
+  engineYard,
+  testGameRegistry as game,
+  testGameYard,
+  yardPrefabs,
+} from "../../scene/__tests__/fixtures/random-ops";
+import { readCell, type GridCells } from "../../scene/grid";
 import { createSceneUndo } from "../undo";
-import { ada, agent, apply, bo, entity, keyOf, link, pair, text } from "./helpers";
+import { ada, agent, apply, bo, entity, instance, keyOf, link, pair, text } from "./helpers";
+
+const withParams = { prefabs: yardPrefabs("test-game", { params: true }) };
+const cell = (doc: Parameters<typeof entity>[0], col: number, row: number) =>
+  readCell(entity(doc, "floor")!.cells as GridCells, col, row);
 
 describe("undo isolation", () => {
   it("undoes only your own batches, after someone edited another field of the same entity", () => {
@@ -78,4 +89,93 @@ describe("undo isolation", () => {
     expect(undoA.redo()).toEqual({ before: ["k-zone"], after: [] });
     expect(undoA.undo()).toEqual({ before: ["k-zone"], after: [] });
   });
+
+  it("paintCells, transform and setParam undo per client after someone else painted the same chunk", () => {
+    const [a, b] = pair(testGameYard());
+    const unlink = link(a, b);
+    const undoA = createSceneUndo(a, ada);
+    const undoB = createSceneUndo(b, bo);
+    const step = (
+      doc: typeof a,
+      undo: typeof undoA,
+      origin: typeof ada,
+      ops: Parameters<typeof apply>[1]["ops"],
+    ) => {
+      apply(doc, { ops }, origin, game, withParams);
+      undo.commit({ before: [], after: [] });
+    };
+
+    step(a, undoA, ada, [
+      {
+        op: "paintCells",
+        ref: "floor",
+        field: "cells",
+        cells: [
+          [1, 1, 3],
+          [2, 1, 3],
+        ],
+      },
+    ]);
+    step(b, undoB, bo, [{ op: "paintCells", ref: "floor", field: "cells", cells: [[1, 2, 2]] }]);
+    step(b, undoB, bo, [{ op: "setParam", ref: "gate-1", name: "pause", value: 200 }]);
+    step(a, undoA, ada, [{ op: "transform", refs: ["gate-1"], turn: 1 }]);
+    step(a, undoA, ada, [{ op: "setParam", ref: "gate-1", name: "speed", value: 150 }]);
+    step(b, undoB, bo, [
+      { op: "paintCells", ref: "floor", field: "cells", rects: [[4, 3, 6, 3, 1]] },
+      { op: "setParam", ref: "post-1", name: "top", value: [0, -70] },
+    ]);
+    expect(instance(a, "gate-1")).toMatchObject({ rot: 1, params: { pause: 200, speed: 150 } });
+
+    undoA.undo();
+    expect(instance(b, "gate-1")).toMatchObject({ rot: 1, params: { pause: 200 } });
+    undoA.undo();
+    expect(instance(b, "gate-1")).toEqual({
+      id: "gate-1",
+      prefab: "gate",
+      at: [1100, 900],
+      params: { pause: 200 },
+    });
+    undoA.undo();
+    expect(undoA.canUndo()).toBe(false);
+    for (const doc of [a, b]) {
+      expect([cell(doc, 1, 1), cell(doc, 2, 1)]).toEqual([0, 0]);
+      expect([cell(doc, 0, 0), cell(doc, 0, 2), cell(doc, 1, 2)]).toEqual([1, 2, 2]);
+      expect([cell(doc, 4, 3), cell(doc, 6, 3)]).toEqual([1, 1]);
+    }
+    expect(text(a)).toBe(text(b));
+
+    expect(undoB.manager.undoStack).toHaveLength(3);
+    undoB.undo();
+    expect(cell(a, 5, 3)).toBe(0);
+    expect(instance(a, "post-1")!.params).toBeUndefined();
+    expect(instance(a, "gate-1")!.params).toEqual({ pause: 200 });
+    expect(cell(a, 1, 2)).toBe(2);
+    expect(text(a)).toBe(text(b));
+    unlink();
+  }, 60_000);
+
+  it("undoing a paint leaves a later paint by someone else to the same row standing", () => {
+    const [a, b] = pair(testGameYard());
+    const unlink = link(a, b);
+    const undoA = createSceneUndo(a, ada);
+    apply(
+      a,
+      { ops: [{ op: "paintCells", ref: "floor", field: "cells", cells: [[3, 1, 3]] }] },
+      ada,
+      game,
+      withParams,
+    );
+    undoA.commit({ before: [], after: [] });
+    apply(
+      b,
+      { ops: [{ op: "paintCells", ref: "floor", field: "cells", cells: [[7, 1, 2]] }] },
+      bo,
+      game,
+      withParams,
+    );
+    undoA.undo();
+    expect([cell(a, 3, 1), cell(a, 7, 1)]).toEqual([3, 2]);
+    expect(text(a)).toBe(text(b));
+    unlink();
+  }, 60_000);
 });

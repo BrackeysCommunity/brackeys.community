@@ -1,4 +1,5 @@
 import { validatePhysical } from "@jams/engine/headless";
+import { projectView } from "@jams/engine/project";
 import {
   parseScene,
   pointerLines,
@@ -17,6 +18,7 @@ import {
   usage,
   type Tool,
 } from "../context";
+import { scanProject } from "../projects";
 
 export type ValidateInput = { target?: string; physical?: boolean };
 
@@ -43,8 +45,14 @@ export const validate: Tool<ValidateInput> = async (input, ctx) => {
     if (parsed.ok) {
       def = parsed.def;
       const lines = pointerLines(text);
-      const prefabs = await prefabsOf(prefabHomeOf(source, target), judged.registry);
-      issues = [...parsed.issues, ...validateScene(def, judged.registry, { lines, prefabs })];
+      const scan = source.project ? await scanProject(source.project) : undefined;
+      const project =
+        source.project && scan ? projectView(scan.state, source.project.kinds) : undefined;
+      const prefabs = await prefabsOf(prefabHomeOf(source, target), judged.registry, scan);
+      issues = [
+        ...parsed.issues,
+        ...validateScene(def, judged.registry, { lines, prefabs, project }),
+      ];
       if (input.physical) {
         const rapier = await ctx.loadRapier();
         issues.push(

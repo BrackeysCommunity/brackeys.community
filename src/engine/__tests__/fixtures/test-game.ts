@@ -1,10 +1,13 @@
 import type { RigidBody } from "@dimforge/rapier2d";
 import { z } from "zod";
 
-import { defineGame } from "../../game/define";
+import { defineBehavior, type BehaviorSystem } from "../../game/behaviors";
+import { defineEntityType, defineGame } from "../../game/define";
+import { gridField, pointField } from "../../game/fields";
 import type { EngineContext } from "../../game/types";
 import { SENSOR_ENTER } from "../../runtime/types";
 import { makeIssue } from "../../scene/issues";
+import { DEFAULT_LAYERS } from "../../scene/layers";
 import { aabb } from "../../scene/shape-geometry";
 import type { ShapeObj } from "../../scene/types";
 import type { Vec2 } from "../../types";
@@ -24,6 +27,87 @@ export const PUSH_IMPULSE = 400;
 /** The test game's data table: cards with a cost and an optional damage. */
 export const CARD_TABLE = "card";
 
+/** A data-only behavior: a color and an intensity game code reads. */
+export const GLOW = defineBehavior({
+  name: "test-game/glow",
+  description: "A colored glow around the entity.",
+  fields: {
+    color: z
+      .string()
+      .regex(/^#[0-9a-f]{6}$/)
+      .default("#ffcc00")
+      .describe("The glow's color, #rrggbb; default #ffcc00."),
+    intensity: z.number().min(0).default(1).describe("How bright it glows; default 1."),
+  },
+  inspector: { label: "Glow", order: ["intensity", "color"] },
+});
+
+/** The entities the spin behavior's stub system has attached, by id. */
+export type SpinSystem = BehaviorSystem & { spinning: Map<string, number> };
+
+/** A behavior with a stub system that records what it attached. */
+export const SPIN = defineBehavior({
+  name: "test-game/spin",
+  description: "Turns the entity at a steady rate.",
+  fields: {
+    speed: z.number().default(90).describe("Degrees per second; default 90."),
+  },
+  system: () => {
+    const spinning = new Map<string, number>();
+    const system: SpinSystem = {
+      spinning,
+      attach: (id, block) => void spinning.set(id, block.speed as number),
+      detach: (id) => void spinning.delete(id),
+      clear: () => spinning.clear(),
+      size: () => spinning.size,
+    };
+    return system;
+  },
+});
+
+/** A marker that always glows, a little brighter than the behavior's default, and spins slowly when it spins. */
+export const LAMP = defineEntityType({
+  type: "lamp",
+  description: "A light that always glows.",
+  base: "marker",
+  fields: { at: pointField("Where the lamp stands.") },
+  behaviors: {
+    required: { [GLOW.name]: { intensity: 2 } },
+    defaults: { [SPIN.name]: { speed: 30 } },
+  },
+});
+
+/** A marker that carries no behaviors. */
+export const PLAIN = defineEntityType({
+  type: "plain",
+  description: "A marker that refuses every behavior.",
+  base: "marker",
+  fields: { at: pointField("Where it stands.") },
+  behaviors: { forbidden: "all" },
+});
+
+/** A grid of painted cells on the scene's grid, local to `at`. */
+export const PAINT = defineEntityType({
+  type: "paint",
+  description: "Cells painted on the scene's grid.",
+  base: "marker",
+  fields: {
+    at: pointField("The grid's origin."),
+    cells: gridField("The painted cells.", { values: ["red", "green", "blue"] }),
+  },
+});
+
+/** The test game's layers: the engine's four and a parallax backdrop under them. */
+export const TEST_LAYERS = [
+  {
+    name: "backdrop",
+    description: "A far backdrop.",
+    draw: -5,
+    scroll: [0.5, 0.5] as [number, number],
+  },
+  ...DEFAULT_LAYERS,
+];
+
 function avatarBody(ctx: EngineContext): RigidBody | null {
   const [handle] = ctx.tags.handlesOf("avatar");
   if (handle === undefined) return null;
@@ -37,7 +121,9 @@ function avatarBody(ctx: EngineContext): RigidBody | null {
  */
 export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
   id: "test-game",
-  types: [],
+  types: [LAMP, PLAIN, PAINT],
+  behaviors: [GLOW, SPIN],
+  layers: TEST_LAYERS,
   actions: [
     { action: "left", keys: ["a"], description: "Walk left." },
     { action: "right", keys: ["d"], description: "Walk right." },

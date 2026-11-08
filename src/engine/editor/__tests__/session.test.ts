@@ -13,7 +13,7 @@ import { seedProjectDoc } from "../../collab/project-doc";
 import { readProject } from "../../collab/project-doc";
 import { historyRows, readProjectLog, type HistoryRow } from "../../collab/project-log";
 import { createProjectSession, memoryDocHost } from "../../collab/project-session";
-import type { AwarenessLike, SceneOrigin } from "../../collab/types";
+import { Z_FIELD, type AwarenessLike, type SceneOrigin } from "../../collab/types";
 import { createRegistry } from "../../game/define";
 import { createKindRegistry, defineAssetKind, type DocLayout } from "../../project/kinds";
 import { prefabKind } from "../../project/kinds/prefab";
@@ -227,7 +227,7 @@ describe("EditorSession on a shared doc", () => {
     // A second create with that id made before Bo heard of Ada's (Bo's own session would refuse it now).
     b.doc.transact(() => {
       const m = new Y.Map<unknown>();
-      m.set("z", "zz");
+      m.set(Z_FIELD, "zz");
       m.set("id", "dup");
       m.set("type", "marker");
       m.set("at", [8, 8]);

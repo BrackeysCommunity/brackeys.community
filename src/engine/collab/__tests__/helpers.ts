@@ -3,7 +3,7 @@ import * as Y from "yjs";
 import type { Registry } from "../../game/types";
 import { formatScene } from "../../scene/format";
 import type { OpBatch, SceneDefinition } from "../../scene/types";
-import { applyOpsToDoc, type DocApplyResult } from "../apply";
+import { applyOpsToDoc, type DocApplyOptions, type DocApplyResult } from "../apply";
 import { docToScene, readDoc, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
 import type { SceneOrigin } from "../types";
@@ -48,12 +48,19 @@ export function must(r: DocApplyResult): Extract<DocApplyResult, { ok: true }> {
   return r;
 }
 
-export const apply = (doc: Y.Doc, batch: OpBatch, origin: SceneOrigin, registry: Registry) =>
-  must(applyOpsToDoc(doc, batch, origin, registry));
+export const apply = (
+  doc: Y.Doc,
+  batch: OpBatch,
+  origin: SceneOrigin,
+  registry: Registry,
+  opts?: DocApplyOptions,
+) => must(applyOpsToDoc(doc, batch, origin, registry, opts));
 
 export const text = (doc: Y.Doc) => formatScene(docToScene(doc)).text;
 export const entity = (doc: Y.Doc, id: string) =>
   docToScene(doc).entities?.find((e) => e.id === id);
+export const instance = (doc: Y.Doc, id: string) =>
+  docToScene(doc).instances?.find((i) => i.id === id);
 export const ids = (doc: Y.Doc) => (docToScene(doc).entities ?? []).map((e) => e.id);
 
 /** The key behind an id or bulk ref in a doc. */

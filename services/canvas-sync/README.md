@@ -124,6 +124,20 @@ canvases are. Rows live in `canvas.scene_docs`, keyed by the scene id
   seeded takes the scene's copy, so a migration cut short finishes on the next
   load. A layout-1 scene with prefabs and no project row is refused (`4403`) and
   left as stored; a quota that refuses the new prefabs closes it with `4413`.
+- **Layout 2 → 3.** Layout 3 keeps the layout's own record keys under `@`
+  names: an entity's or instance's order key is `@z` (layout 2's `z`) and a
+  bulk entry's key `@bulk` (`bulk`), so a draw-order field `z` is the entity's
+  own; a `keyed` collection's entries in a declarative asset doc likewise hold
+  `@z`. Scene docs add an `assets` map; prefab docs add `params`, `overrides`,
+  `assets` and `instances`. At load the layout step runs before the format
+  migration: a layout-2 scene renames every record's keys in one `migration`
+  transaction, keeping every entity's and instance's key, and needs no project
+  (a layout-1 scene goes 1 → 3 in one step, its prefabs moved as above). A
+  prefab doc or an engine kind's declarative doc stored at layout 2 is lifted
+  the same way at load (`migrateAssetLayoutState`) and stored with a fresh
+  snapshot; a game's kinds are left to its clients. Snapshots and the
+  registry's reads lift a stored layout-2 doc in a scratch doc first. A client
+  with `l` below 3 connects read-only with `engine-outdated`.
 - **Store.** Same debounce as canvases. Every store merges the live doc into
   what's stored through a scratch `Y.Doc` under the row lock, then folds back
   into the live doc whatever was stored that it lacked. The canonical JSON

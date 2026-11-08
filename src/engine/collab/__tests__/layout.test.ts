@@ -238,7 +238,7 @@ describe("each layout form", () => {
       layoutPatch(doc, layout, rows({ id: "heal", cost: 2 }, { id: "fireball", cost: 3 }), "u");
       expect(keysInOrder(doc)).toEqual(["k0001", "k0000"]);
       expect(changed).toHaveLength(1);
-      expect(changed[0]).toMatch(/^rows\/k000[01]:z$/);
+      expect(changed[0]).toMatch(/^rows\/k000[01]:@z$/);
       expect(layoutFromDoc(doc, layout).rows).toEqual([
         { id: "heal", cost: 2 },
         { id: "fireball", cost: 3 },

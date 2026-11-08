@@ -4,7 +4,7 @@
  * comes from a registry (`game/define.ts`), not from this file.
  */
 
-export const SCENE_FORMAT_VERSION = 2;
+export const SCENE_FORMAT_VERSION = 3;
 
 export type Pt = [x: number, y: number];
 export type Bounds = [minX: number, minY: number, maxX: number, maxY: number];
@@ -19,9 +19,8 @@ export type FieldPath = string;
  * bulk child), a dot, then a field path: `door.path.speed`, `~solid:0.shape`.
  */
 export type OverridePath = string;
-
-export const LAYERS = ["terrain", "gameplay", "decor", "editor"] as const;
-export type Layer = (typeof LAYERS)[number];
+/** A project asset's id (`ID_PATTERN`). */
+export type AssetId = string;
 
 /**
  * Keys a scene document has besides its bulk arrays, in canonical order.
@@ -34,6 +33,7 @@ export const SCENE_HEADER_KEYS = [
   "name",
   "bounds",
   "settings",
+  "assets",
   "groups",
   "instances",
 ] as const;
@@ -71,7 +71,10 @@ export type EntityBase = {
   id: string;
   type: EntityTypeName;
   name?: string;
-  layer?: Layer;
+  /** A registry layer's name; omitted means `defaultLayer`'s. */
+  layer?: string;
+  /** Draw order within the layer: an integer, default 0. */
+  z?: number;
   group?: string;
   off?: boolean;
 };
@@ -92,9 +95,10 @@ export type BulkKey = string;
 
 /**
  * A group: members store their geometry relative to `at`, so moving the
- * group is one edit to `at`. Integer translation only; no rotation or scale.
+ * group is one edit to `at`. `rot` is quarter turns clockwise (y down) and
+ * `flip` mirrors x before turning; absent is the identity.
  */
-export type GroupDef = { at: Pt; name?: string };
+export type GroupDef = { at: Pt; rot?: 1 | 2 | 3; flip?: true; name?: string };
 
 /**
  * One placement of a prefab. Its children load as entities with ids
@@ -105,18 +109,45 @@ export type InstanceDef = {
   id: string;
   prefab: string;
   at: Pt;
+  /** Quarter turns clockwise (y down); absent is 0. */
+  rot?: 1 | 2 | 3;
+  /** Mirror x in the prefab's frame, before `rot`. */
+  flip?: true;
+  /** Added to every child's `z`. */
+  z?: number;
+  /** Values of the prefab's exposed parameters, by name. */
+  params?: Record<string, unknown>;
   /** Child fields that differ from the prefab, by `childId.field.path`. Values are in the prefab's frame. */
   overrides?: Record<OverridePath, unknown>;
   name?: string;
-  layer?: Layer;
+  layer?: string;
   group?: string;
   off?: boolean;
 };
+
+/** The scene's one cell grid; the hex parameters match Tiled's. */
+export type GridSettings =
+  | { kind: "square"; cell: [w: number, h: number]; origin?: Pt }
+  | {
+      kind: "hex";
+      /** The hex's bounding box, px (Tiled's tilewidth, tileheight). */
+      cell: [w: number, h: number];
+      /** The length of the flat sides, px (Tiled's hexsidelength). */
+      side: number;
+      stagger: "x" | "y";
+      index: "odd" | "even";
+      origin?: Pt;
+    };
 
 /** The engine's settings; a game's settings schema adds its own keys beside them. */
 export type SceneSettings = {
   /** World gravity, px/s²; y is down. Omitted means [0, 1200]. */
   gravity?: Pt;
+  /** "none" runs without Rapier; omitted resolves through the project and game defaults to "rapier". */
+  physics?: "rapier" | "none";
+  grid?: GridSettings;
+  /** Reserved for projections; only the default exists. */
+  view?: { projection: "orthogonal" };
   [key: string]: unknown;
 };
 
@@ -132,6 +163,8 @@ export type SceneDefinition = {
   name: string;
   bounds: Bounds;
   settings?: SceneSettings;
+  /** Assets only game code names, sorted and unique. */
+  assets?: AssetId[];
   /** Declared groups by id. A member of a group stores geometry local to the group's `at`. */
   groups?: Record<string, GroupDef>;
   instances?: InstanceDef[];
@@ -151,10 +184,24 @@ export type RuntimeFields<F> = { [K in keyof F]: RuntimeField<F[K]> };
 export type RuntimeEntity<F extends object = { [field: string]: unknown }> = {
   id: string;
   type: EntityTypeName;
+  /** Whole behavior blocks in registration order; present only when non-empty. */
+  behaviors?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  /** Draw order within the layer; present only when non-zero. */
+  z?: number;
+  /** The entity's layer after instance inheritance; present only when set. */
+  layer?: string;
+  /** The turns and flips of the instances and groups above it; present only when not the identity. */
+  transform?: { turn: 0 | 1 | 2 | 3; flip: boolean };
 } & RuntimeFields<F>;
 
 /** The engine's settings with defaults applied, plus the game's as given. */
-export type ResolvedSettings = { gravity: Pt; [key: string]: unknown };
+export type ResolvedSettings = {
+  gravity: Pt;
+  physics: "rapier" | "none";
+  grid: GridSettings | null;
+  view: { projection: "orthogonal" };
+  [key: string]: unknown;
+};
 
 export type ExpandedScene = {
   name: string;
@@ -190,6 +237,16 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "out-of-bounds",
   "hidden-layer",
   "unused-override",
+  "prefab-cycle",
+  "prefab-depth",
+  "variant-base-unknown",
+  "param-unknown",
+  "layer-unknown",
+  "behavior-unknown",
+  "behavior-forbidden",
+  "behavior-missing",
+  "grid-invalid",
+  "ref-child-unknown",
   // physical
   "follower-hits-solid",
   "solid-overlap",
@@ -246,12 +303,32 @@ export type IssueCodeInfo = {
 export type EntityInput = Omit<EntityBase, "id"> & { id?: string; [field: string]: unknown };
 /** An instance to add; without an id it gets `<prefab>-<n>`. */
 export type InstanceInput = Omit<InstanceDef, "id"> & { id?: string };
+/** One exposed parameter of a prefab. */
+export type PrefabParam = {
+  description: string;
+  /** Override paths inside the prefab that the value feeds, e.g. "door.path.speed". */
+  targets: OverridePath[];
+  /** Shown in the inspector and used when an instance sets none; omitted, the targets' own values stand. */
+  default?: unknown;
+};
 /** A prefab's content as a `definePrefab` op carries it: its children around a local origin. */
 export type PrefabBody = {
   entities: EntityDef[];
   bulk?: Record<BulkKey, BulkEntry[]>;
+  /** Nested instances. */
+  instances?: InstanceDef[];
   contract?: unknown;
+  /** A variant's base prefab. */
+  base?: string;
+  /** A variant's overrides of its base's children. */
+  overrides?: Record<OverridePath, unknown>;
+  /** Exposed parameters by name. */
+  params?: Record<string, PrefabParam>;
+  /** Assets only game code names. */
+  assets?: AssetId[];
 };
+/** How deep prefabs may nest, through instances and variant bases. */
+export const PREFAB_MAX_DEPTH = 8;
 export const PREFAB_KIND = "prefab";
 /** A prefab file, `<scenes dir>/prefabs/<id>.json`: a body plus who it is. */
 export type Prefab = PrefabBody & {
@@ -266,6 +343,10 @@ export type Prefab = PrefabBody & {
 /** Prefabs by id. */
 export type PrefabLibrary = ReadonlyMap<string, Prefab>;
 export type SpotAnchor = "center" | "top" | "bottom" | "left" | "right";
+/** One grid cell to paint: column, row, value (0 erases). */
+export type CellEdit = [col: number, row: number, value: number];
+/** A filled rectangle of cells, corners inclusive. */
+export type CellRect = [c0: number, r0: number, c1: number, r1: number, value: number];
 export type SceneOp =
   | { op: "add"; entity: EntityInput; index?: number }
   /** For a shape-form bulk key. */
@@ -286,18 +367,52 @@ export type SceneOp =
   | { op: "reorder"; refs: Ref[]; index: number }
   | { op: "instantiate"; instance: InstanceInput; index?: number }
   /** Declares a group or changes it; `remove` drops a group no entity or instance is in. */
-  | { op: "setGroup"; id: string; at?: Pt; name?: string | null; remove?: boolean }
+  | {
+      op: "setGroup";
+      id: string;
+      at?: Pt;
+      /** Absolute; 0 is written as absent. */
+      rot?: 0 | 1 | 2 | 3;
+      /** Absolute; false is written as absent. */
+      flip?: boolean;
+      name?: string | null;
+      remove?: boolean;
+    }
   | { op: "override"; ref: Ref; set: Record<OverridePath, unknown> }
   /** Drops overrides: the paths given, or every one. */
   | { op: "revertOverride"; ref: Ref; paths?: OverridePath[] }
-  /** Folds an instance's overrides (the paths given, or every one) into its prefab. */
-  | { op: "applyToPrefab"; ref: Ref; paths?: OverridePath[] }
+  /**
+   * Folds an instance's overrides (the paths given, or every one) into its
+   * prefab, or into `to`, a deeper prefab in its chain.
+   */
+  | { op: "applyToPrefab"; ref: Ref; paths?: OverridePath[]; to?: string }
   /** Replaces an instance with its children as plain entities and bulk entries. */
   | { op: "unpack"; ref: Ref }
   /** Moves entities and bulk entries into a new prefab around `at` and puts one instance of it there. */
   | { op: "createPrefab"; refs: Ref[]; id: string; at?: Pt; instance?: string }
   /** Sets a prefab in the library, or deletes it with `null`. */
-  | { op: "definePrefab"; id: string; prefab: PrefabBody | null };
+  | { op: "definePrefab"; id: string; prefab: PrefabBody | null }
+  /** Turns and flips instances (by id) and groups (by id), composing onto what they have, about `about` (default each one's `at`). */
+  | {
+      op: "transform";
+      refs?: string[];
+      groups?: string[];
+      turn?: 1 | 2 | 3 | -1;
+      flip?: "x" | "y";
+      about?: Pt;
+    }
+  /** Sets or shifts `z` on entities and instances; bulk entries refuse (promote first). */
+  | { op: "setZ"; refs: Ref[]; z?: number; by?: number }
+  /** Adds and removes ids in the scene's or prefab's `assets` header. */
+  | { op: "useAssets"; add?: AssetId[]; remove?: AssetId[] }
+  /** Paints cells of a grid field; value 0 erases. At most 65,536 cells per op. */
+  | { op: "paintCells"; ref: Ref; field: string; cells?: CellEdit[]; rects?: CellRect[] }
+  /** Prefab docs only: sets or clears the variant base. */
+  | { op: "setPrefabBase"; base: string | null }
+  /** Prefab docs only: declares, replaces or (null) removes a parameter. */
+  | { op: "exposeParam"; name: string; param: PrefabParam | null }
+  /** Sets (or with null, clears) one parameter on an instance. */
+  | { op: "setParam"; ref: string; name: string; value: unknown };
 export const OP_NAMES = [
   "add",
   "addBulk",
@@ -319,6 +434,13 @@ export const OP_NAMES = [
   "unpack",
   "createPrefab",
   "definePrefab",
+  "transform",
+  "setZ",
+  "useAssets",
+  "paintCells",
+  "setPrefabBase",
+  "exposeParam",
+  "setParam",
 ] as const;
 /** `actor` is "human", "agent", or a named agent. */
 export type OpBatch = { label?: string; base?: SceneHash; actor?: string; ops: SceneOp[] };
@@ -332,7 +454,14 @@ export type SceneChange =
   | { kind: "resized"; ref: Ref; from: BulkEntry; to: BulkEntry }
   | {
       kind: "scene";
-      field: "name" | "bounds" | "v" | "game" | `settings.${string}` | `groups.${string}`;
+      field:
+        | "name"
+        | "bounds"
+        | "v"
+        | "game"
+        | "assets"
+        | `settings.${string}`
+        | `groups.${string}`;
       from: unknown;
       to: unknown;
     };
@@ -358,4 +487,6 @@ export type ApplyOptions = {
   validate?: "structural" | "none";
   /** The prefabs instances name; prefab ops read and change it. */
   prefabs?: PrefabLibrary;
+  /** The prefab the document is a view of (a prefab doc read as a scene), so an op that nests instances refuses a cycle through it. */
+  prefab?: string;
 };

@@ -1,0 +1,15 @@
+{
+  "kind": "prefab",
+  "v": 3,
+  "id": "doorway",
+  "params": {
+    "speed": { "default": 40, "description": "How fast the panel slides, in px/s.", "targets": ["panel.path.speed"] }
+  },
+  "instances": [
+    { "id": "latch", "prefab": "latch", "at": [70, 0] }
+  ],
+  "entities": [
+    { "id": "panel", "type": "follower", "shape": ["box", 0, 0, 8, 40], "path": { "pts": [[0, -40], [0, -120]], "mode": "ping_pong", "speed": 40 } },
+    { "id": "frame", "type": "sensor", "shape": ["box", 0, -60, 30, 60], "tags": ["door"] }
+  ]
+}

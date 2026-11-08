@@ -7,12 +7,14 @@ import type { AssetEntry } from "../../../src/engine/project/types.ts";
 import { formatPrefab } from "../../../src/engine/scene/format.ts";
 import type { Prefab, SceneDefinition } from "../../../src/engine/scene/types.ts";
 import { documentName } from "../../../src/lib/canvas/sync-channels.ts";
+import { seedState } from "../../../src/lib/scene/doc-bytes.ts";
 import {
   emptyProjectState,
   readProjectState,
   seedPrefabState,
   seedProjectState,
 } from "../../../src/lib/scene/project-bytes.ts";
+import type { LayoutReadOnlyNotice } from "../src/engine/asset-kind.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import type { SceneReadOnlyNotice } from "../src/scene/kind.ts";
 import {
@@ -77,6 +79,39 @@ const docOf = (state: Uint8Array | null) => {
   if (state) Y.applyUpdate(doc, state);
   return doc;
 };
+
+/** A state as a layout-2 instance stored it: the layout's own record keys under their old names. */
+function layoutTwoState(state: Uint8Array): Uint8Array {
+  const doc = docOf(state);
+  const rename = (map: Y.Map<unknown>, from: string, to: string) => {
+    if (!map.has(from)) return;
+    const value = map.get(from);
+    map.delete(from);
+    map.set(to, value);
+  };
+  doc.transact(() => {
+    for (const name of ["entities", "instances"])
+      for (const rec of doc.getMap(name).values())
+        if (rec instanceof Y.Map) {
+          rename(rec, "@z", "z");
+          rename(rec, "@bulk", "bulk");
+        }
+    doc.getMap("meta").set("layout", 2);
+  });
+  return Y.encodeStateAsUpdate(doc);
+}
+
+/** Each record's key with the order and bulk keys it holds. */
+const recordKeys = (doc: Y.Doc, map: string) =>
+  [...doc.getMap<Y.Map<unknown>>(map).entries()]
+    .map(
+      ([key, rec]) =>
+        `${key}:${[...rec.keys()]
+          .filter((k) => /z|bulk/.test(k))
+          .sort()
+          .join(",")}`,
+    )
+    .sort();
 
 const notice = (client: EngineClient): SceneReadOnlyNotice | null =>
   client.notices.length > 0 ? (JSON.parse(client.notices[0]!) as SceneReadOnlyNotice) : null;
@@ -289,6 +324,90 @@ describe("hosted scene layouts", () => {
     );
     expect(scene.provider.isSynced).toBe(false);
     expect(stores.scenes.rows.get(sceneId)!.state).toBe(before);
+  });
+
+  it("a layout-2 scene moves to layout 3 at load without its project, keeping every key", async () => {
+    const server = await instance("layout-two-scene");
+    const sceneId = `${newProjectId()}.yard`;
+    stores.scenes.create(sceneId);
+    const def: SceneDefinition = {
+      ...YARD,
+      solid: [
+        ["box", 0, 900, 1000, 100],
+        ["circle", 500, 500, 20],
+      ],
+      entities: [{ id: "spawn", type: "marker", at: [20, 880] }],
+    };
+    const current = docOf(seedState(sceneId, def));
+    const before = layoutTwoState(Y.encodeStateAsUpdate(current));
+    expect(recordKeys(docOf(before), "entities").every((k) => /:bulk,z$|:z$/.test(k))).toBe(true);
+    stores.scenes.rows.get(sceneId)!.state = before;
+
+    const scene = track(connectScene(server.port, sceneId, "alice"));
+    expect(await synced(scene)).toBe(true);
+    expect(scene.scope()).toBe("read-write");
+    expect(scene.doc.getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    for (const map of ["entities", "instances"])
+      expect(recordKeys(scene.doc, map)).toEqual(recordKeys(current, map));
+
+    const stored = docOf(stores.scenes.rows.get(sceneId)!.state);
+    expect(stored.getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    for (const map of ["entities", "instances"])
+      expect(recordKeys(stored, map)).toEqual(recordKeys(current, map));
+  });
+
+  it("a layout-2 prefab doc moves to layout 3 at load, keeping every key, with a fresh snapshot", async () => {
+    const server = await instance("layout-two-prefab");
+    const projectId = newProjectId();
+    createMemoryProject(stores, {
+      ...emptyProjectState(projectId, projectId),
+      assets: { crate: entry("crate", "prefab", "prefabs/crate.json") },
+    });
+    const current = docOf(seedPrefabState({ project: projectId, key: "crate", prefab: CRATE }));
+    const row = stores.assets.rows.get(`${projectId}.crate`)!;
+    row.state = layoutTwoState(Y.encodeStateAsUpdate(current));
+
+    const doc = track(
+      connectDoc(server.port, documentName("asset", `${projectId}.crate`), scoped(projectId)),
+    );
+    expect(await synced(doc)).toBe(true);
+    expect(doc.scope()).toBe("read-write");
+    expect(doc.doc.getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    expect(recordKeys(doc.doc, "entities")).toEqual(recordKeys(current, "entities"));
+    expect(prefabOfState(Y.encodeStateAsUpdate(doc.doc))).toEqual(CRATE);
+
+    const stored = stores.assets.rows.get(`${projectId}.crate`)!;
+    expect(docOf(stored.state).getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    expect(recordKeys(docOf(stored.state), "entities")).toEqual(recordKeys(current, "entities"));
+    expect(stored.snapshot).toBe(formatPrefab(CRATE));
+  });
+
+  it("a layout-2 client is read-only on a layout-3 scene and asset doc", async () => {
+    const server = await instance("layout-two-client");
+    const { projectId, sceneId } = layoutOneProject();
+    const older = COLLAB_LAYOUT_VERSION - 1;
+    const scene = track(connectScene(server.port, sceneId, "bob", { layout: older }));
+    const asset = track(
+      connectDoc(server.port, documentName("asset", `${projectId}.post`), () =>
+        projectToken(projectId, "bob", { scoped: true, layout: older }),
+      ),
+    );
+    for (const client of [scene, asset]) {
+      expect(await synced(client)).toBe(true);
+      expect(client.scope()).toBe("readonly");
+      expect(await until(() => client.notices.length > 0, 2000)).toBe(true);
+    }
+    expect(notice(scene)).toEqual({
+      type: "scene-read-only",
+      reason: "engine-outdated",
+      schemaVersion: SCENE_FORMAT_VERSION,
+      layout: COLLAB_LAYOUT_VERSION,
+    });
+    expect(JSON.parse(asset.notices[0]!) as LayoutReadOnlyNotice).toEqual({
+      type: "layout-read-only",
+      reason: "engine-outdated",
+      layout: COLLAB_LAYOUT_VERSION,
+    });
   });
 
   it("an older-layout client connects read-only and is told to reload", async () => {

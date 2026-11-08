@@ -30,7 +30,18 @@ function v1ToV2(raw: unknown): unknown {
   return out;
 }
 
-export const MIGRATIONS: Readonly<Record<number, Migration>> = Object.freeze({ 1: v1ToV2 });
+/**
+ * v2 → v3: only `v` changes. Every v3 addition is optional and defaults to
+ * v2's behaviour, so scenes, prefabs and fragments carry over as they are.
+ */
+function v2ToV3(raw: unknown): unknown {
+  return { ...(raw as Record<string, unknown>), v: 3 };
+}
+
+export const MIGRATIONS: Readonly<Record<number, Migration>> = Object.freeze({
+  1: v1ToV2,
+  2: v2ToV3,
+});
 
 export type MigrateResult =
   | { ok: true; raw: unknown; from: number }

@@ -8,6 +8,7 @@ import type { SceneReadOnlyNotice } from "../src/scene/kind.ts";
 import { MemorySceneStore } from "../src/scene/store.ts";
 import {
   addSolid,
+  COLLAB_LAYOUT_VERSION,
   connectScene,
   newSceneId,
   SCENE_FORMAT_VERSION as V,
@@ -51,6 +52,25 @@ const keysOf = (state: Uint8Array) => {
   const doc = new Y.Doc();
   Y.applyUpdate(doc, state);
   return [...doc.getMap("entities").keys()].sort();
+};
+
+/** A state as a layout-2 instance stored it: records keep their order and bulk keys as `z` and `bulk`. */
+const layoutTwo = (state: Uint8Array) => {
+  const doc = new Y.Doc();
+  Y.applyUpdate(doc, state);
+  doc.transact(() => {
+    for (const rec of doc.getMap<Y.Map<unknown>>("entities").values())
+      for (const [from, to] of [
+        ["@z", "z"],
+        ["@bulk", "bulk"],
+      ] as const)
+        if (rec.has(from)) {
+          rec.set(to, rec.get(from));
+          rec.delete(from);
+        }
+    doc.getMap("meta").set("layout", 2);
+  });
+  return Y.encodeStateAsUpdate(doc);
 };
 
 const notice = (client: SceneClient): SceneReadOnlyNotice | null =>
@@ -139,6 +159,45 @@ describe("scene format versions", () => {
     ).toEqual(["lifted"]);
     // Stored at once, so the next load and other instances start migrated.
     expect(store.rows.get(sceneId)!.schemaVersion).toBe(V + 1);
+    expect(keysOf(store.rows.get(sceneId)!.state!)).toEqual(before);
+  });
+
+  it("a client on an older layout connects read-only though its format matches", async () => {
+    const server = await instance("ro-layout");
+    const sceneId = stored(V);
+    const older = open(server.port, sceneId, "bob", { layout: COLLAB_LAYOUT_VERSION - 1 });
+    expect(await sceneSynced(older)).toBe(true);
+    expect(older.scope()).toBe("readonly");
+    expect(await until(() => older.notices.length > 0, 2000)).toBe(true);
+    expect(notice(older)).toEqual({
+      type: "scene-read-only",
+      reason: "engine-outdated",
+      schemaVersion: V,
+      layout: COLLAB_LAYOUT_VERSION,
+    });
+  });
+
+  it("lifts a layout-2 doc's layout before its format, so the migration reads every record", async () => {
+    const server = await instance("ro-layout-next", NEXT);
+    const sceneId = stored(V);
+    const row = store.rows.get(sceneId)!;
+    const before = keysOf(row.state!);
+    row.state = layoutTwo(row.state!);
+
+    const next = open(server.port, sceneId, "alice", { format: V + 1 });
+    expect(await sceneSynced(next)).toBe(true);
+    expect(next.scope()).toBe("read-write");
+    expect(next.doc.getMap("meta").get("schemaVersion")).toBe(V + 1);
+    expect(next.doc.getMap("meta").get("layout")).toBe(COLLAB_LAYOUT_VERSION);
+    expect([...next.entities.keys()].sort()).toEqual(before);
+    for (const rec of next.entities.values()) {
+      expect(typeof rec.get("@z")).toBe("string");
+      expect(rec.has("z")).toBe(false);
+      expect(rec.has("bulk")).toBe(false);
+    }
+    expect(
+      [...next.entities.values()].filter((e) => e.get("id") === "spawn").map((e) => e.get("tag")),
+    ).toEqual(["lifted"]);
     expect(keysOf(store.rows.get(sceneId)!.state!)).toEqual(before);
   });
 

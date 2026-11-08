@@ -28,11 +28,13 @@ import type { AssetEntry, AssetId, ProjectView } from "../project/types";
 import { projectView } from "../project/view";
 import { SENSOR_ENTER } from "../runtime/types";
 import { parseChecks, type ChecksFile } from "../scene/checks";
+import { expandScene } from "../scene/expand";
 import { formatPrefab, formatScene } from "../scene/format";
 import { parseScene } from "../scene/parse";
 import { prefabsUsedBy } from "../scene/prefab";
+import { resolvePrefab, valueAtPath } from "../scene/resolve";
 import { SHAPE_TYPES } from "../scene/shapes";
-import type { PrefabLibrary, SceneDefinition } from "../scene/types";
+import type { PrefabLibrary, Pt, RuntimeEntity, SceneDefinition } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { RapierModule } from "../types";
 import {
@@ -51,7 +53,18 @@ const text = readFileSync(new URL("kitchen-sink.json", scenesDir), "utf8");
 const checksText = readFileSync(new URL("kitchen-sink.checks.json", scenesDir), "utf8");
 
 type Body = [id: string, x: number, y: number, rot: number];
-const MOVING = ["ball", "crate", "shelf-box", "carrier", "deck", "deck-zone", "orbit"];
+const MOVING = [
+  "ball",
+  "crate",
+  "shelf-box",
+  "carrier",
+  "deck",
+  "deck-zone",
+  "orbit",
+  "room-1/door-1/panel",
+  "rider",
+  "door-2/panel",
+];
 
 /** A game with no actor whose snapshot is every moving body's pose, so a replay's digest covers the world. */
 const watcher = defineGame<Body[]>({
@@ -119,6 +132,15 @@ beforeAll(async () => {
 afterAll(() => rm(cacheDir, { recursive: true, force: true }));
 
 const entities = () => def.entities ?? [];
+const expanded = (scene: SceneDefinition = def) => expandScene(scene, engine, { prefabs });
+/** The world x of an expanded entity: its point, its shape's centre, or that centre at a path's first point. */
+function centreX(e: RuntimeEntity): number {
+  const at = e.at as Pt | undefined;
+  if (at) return at[0];
+  const cx = (e.shape as { cx: number }).cx;
+  const path = e.path as { pts: Pt[] } | undefined;
+  return (path?.pts[0]?.[0] ?? 0) + cx;
+}
 const entriesOf = (kind: string): AssetEntry[] =>
   [...view.byId.values()].filter((e) => e.kind === kind);
 
@@ -152,13 +174,132 @@ describe("kitchen-sink.json", () => {
     });
 
     it("two prefabs placed twice each, one instance overriding a child field", () => {
-      const used = prefabsUsedBy(def);
-      expect(used.length).toBeGreaterThanOrEqual(2);
-      for (const id of used) {
-        expect(prefabs.has(id)).toBe(true);
-        expect(def.instances!.filter((i) => i.prefab === id).length).toBeGreaterThanOrEqual(2);
-      }
+      for (const id of prefabsUsedBy(def, prefabs)) expect(prefabs.has(id), id).toBe(true);
+      const twice = prefabsUsedBy(def).filter(
+        (id) => def.instances!.filter((i) => i.prefab === id).length >= 2,
+      );
+      expect(twice.length).toBeGreaterThanOrEqual(2);
       expect(def.instances!.some((i) => Object.keys(i.overrides ?? {}).length > 0)).toBe(true);
+    });
+
+    it("a turned and flipped group whose members expand turned and flipped", () => {
+      const [id, group] =
+        Object.entries(def.groups ?? {}).find(([, g]) => g.rot !== undefined && g.flip) ?? [];
+      expect(group).toBeDefined();
+      const members = entities().filter((e) => e.group === id);
+      expect(members.length).toBeGreaterThanOrEqual(3);
+      const byId = new Map(expanded().entities.map((e) => [e.id, e]));
+      for (const m of members)
+        expect(byId.get(m.id)?.transform ?? null, m.id).toEqual(
+          m.type === "note" ? null : { turn: group!.rot, flip: true },
+        );
+    });
+
+    it("a flipped instance of an asymmetric prefab, its children mirrored about its x", () => {
+      const flipped = def.instances!.find((i) => i.flip && i.rot === undefined)!;
+      expect(flipped).toBeDefined();
+      const { flip: _, ...unturned } = flipped;
+      const plain: SceneDefinition = {
+        ...def,
+        instances: def.instances!.map((i) => (i === flipped ? unturned : i)),
+      };
+      const xs = (scene: SceneDefinition) =>
+        new Map(
+          expanded(scene)
+            .entities.filter((e) => e.id.startsWith(`${flipped.id}/`))
+            .map((e) => [e.id, centreX(e)]),
+        );
+      const mirrored = xs(def);
+      const unflipped = xs(plain);
+      expect(mirrored.size).toBeGreaterThanOrEqual(3);
+      const ax = flipped.at[0];
+      for (const [child, x] of mirrored) expect(x, child).toBe(2 * ax - unflipped.get(child)!);
+      expect([...unflipped.values()].some((x) => x !== ax)).toBe(true);
+      for (const e of expanded().entities.filter((e) => e.id.startsWith(`${flipped.id}/`)))
+        expect(e.transform, e.id).toEqual({ turn: 0, flip: true });
+    });
+
+    it("a three-level prefab from the project's prefab assets, expanding to the doc's ids", () => {
+      const assets = new Set(entriesOf("prefab").map((e) => e.id));
+      const deep = def.instances!.filter((i) => {
+        const r = resolvePrefab(i.prefab, prefabs, engine);
+        return r.ok && r.prefab.children.some((c) => c.child.split("/").length >= 3);
+      });
+      expect(deep.length).toBeGreaterThanOrEqual(1);
+      const fileIds = expanded().entities.map((e) => e.id);
+      const fromDoc = docToScene(sceneToDoc(JSON.parse(text) as SceneDefinition));
+      expect(expanded(fromDoc).entities.map((e) => e.id)).toEqual(fileIds);
+      for (const inst of deep) {
+        const r = resolvePrefab(inst.prefab, prefabs, engine);
+        if (!r.ok) throw new Error(r.issue.message);
+        for (const id of r.prefab.uses) expect(assets.has(id), id).toBe(true);
+        const ids = r.prefab.children
+          .filter((c) => c.kind === "entity")
+          .map((c) => `${inst.id}/${c.child}`);
+        expect(fileIds).toEqual(expect.arrayContaining(ids));
+      }
+    });
+
+    it("a variant placed, its base's children with its overrides", () => {
+      const variants = prefabsUsedBy(def).filter((id) => typeof prefabs.get(id)?.base === "string");
+      expect(variants.length).toBeGreaterThanOrEqual(1);
+      for (const id of variants) {
+        const variant = prefabs.get(id)!;
+        expect(Object.keys(variant.overrides ?? {}).length, id).toBeGreaterThan(0);
+        const r = resolvePrefab(id, prefabs, engine);
+        const base = resolvePrefab(variant.base!, prefabs, engine);
+        if (!r.ok || !base.ok) throw new Error(`${id} doesn't resolve`);
+        expect(r.prefab.children.map((c) => c.child)).toEqual(
+          expect.arrayContaining(base.prefab.children.map((c) => c.child)),
+        );
+        expect(r.prefab.uses).toContain(variant.base);
+      }
+    });
+
+    it("an instance setting params its prefab exposes, which reach the targets", () => {
+      const withParams = def.instances!.filter((i) => Object.keys(i.params ?? {}).length > 0);
+      expect(withParams.length).toBeGreaterThanOrEqual(1);
+      const byId = new Map(expanded().entities.map((e) => [e.id, e]));
+      for (const inst of withParams) {
+        const r = resolvePrefab(inst.prefab, prefabs, engine);
+        if (!r.ok) throw new Error(r.issue.message);
+        for (const [name, value] of Object.entries(inst.params!)) {
+          const param = r.prefab.params[name];
+          expect(param, name).toBeDefined();
+          for (const target of param!.targets) {
+            const dot = target.indexOf(".");
+            const child = byId.get(`${inst.id}/${target.slice(0, dot)}`);
+            expect(valueAtPath(child, target.slice(dot + 1)), target).toBe(value);
+          }
+        }
+      }
+    });
+
+    it("a child ref: an entity attached to a follower inside a nested instance", () => {
+      const byId = new Map(expanded().entities.map((e) => [e.id, e]));
+      const refs = entities().filter((e) => typeof e.attach === "string" && e.attach.includes("/"));
+      expect(refs.length).toBeGreaterThanOrEqual(1);
+      for (const e of refs) {
+        const target = e.attach as string;
+        expect(target.split("/").length, target).toBeGreaterThanOrEqual(3);
+        expect(byId.get(target)?.type, target).toBe("follower");
+      }
+    });
+
+    it("z on entities, on instances and inside a prefab, summed down the levels", () => {
+      expect(entities().some((e) => typeof e.z === "number" && e.z !== 0)).toBe(true);
+      expect(def.instances!.some((i) => typeof i.z === "number" && i.z !== 0)).toBe(true);
+      const nested = [...prefabs.values()].flatMap((p) => p.instances ?? []);
+      expect(nested.some((i) => typeof i.z === "number" && i.z !== 0)).toBe(true);
+      const zOf = new Map(expanded().entities.map((e) => [e.id, e.z ?? 0]));
+      for (const inst of def.instances!.filter((i) => i.z !== undefined))
+        for (const [id, z] of zOf) if (id.startsWith(`${inst.id}/`)) expect(z, id).toBe(inst.z);
+    });
+
+    it("an assets header naming live project assets", () => {
+      expect(def.assets?.length ?? 0).toBeGreaterThanOrEqual(1);
+      for (const id of def.assets!) expect(view.byId.has(id), id).toBe(true);
+      expect(def.assets).toEqual([...new Set(def.assets)].sort());
     });
 
     it("a solid and a sensor attached to a follower", () => {

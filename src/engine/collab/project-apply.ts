@@ -31,13 +31,20 @@ import type {
 import { projectView } from "../project/view";
 import { makeIssue } from "../scene/issues";
 import type { EntryTags } from "../scene/ops";
-import { PREFAB_KIND, type Prefab, type SceneDefinition, type SceneIssue } from "../scene/types";
+import {
+  PREFAB_KIND,
+  type Prefab,
+  type PrefabLibrary,
+  type SceneDefinition,
+  type SceneIssue,
+} from "../scene/types";
 import { applyOpsToDoc, writeScene } from "./apply";
 import {
   docMeta,
   docToScene,
   isPrefabDoc,
   prefabHeaderMap,
+  readAssets,
   readDoc,
   sceneMap,
   sceneToDoc,
@@ -49,9 +56,10 @@ import { appendLog, fingerprint, LOG_CAP, logArray, readLog, sameValue } from ".
 import { docToPrefab, PREFAB_HEADER_KEY } from "./prefab-doc";
 import { projectAssetsMap, readProject, writeEntry, writeProjectState } from "./project-doc";
 import { appendProjectLog } from "./project-log";
-import type { PrefabPlan, ProjectSession, SessionDoc } from "./project-session";
+import type { PrefabPlan, PrefabWriteRequest, ProjectSession, SessionDoc } from "./project-session";
 import { contentLogKey } from "./revert";
 import {
+  ASSETS_KEY,
   INSTANCE_KEY_PREFIX,
   SCENE_KEY,
   SETTINGS_KEY,
@@ -399,6 +407,11 @@ function sceneCreation(doc: Y.Doc): LogParts {
     keys.push(k);
     after[k] = fingerprint(value);
   }
+  const assets = readAssets(doc);
+  if (assets.length > 0) {
+    keys.push(ASSETS_KEY);
+    after[ASSETS_KEY] = fingerprint(assets);
+  }
   return { keys, before: Object.fromEntries(keys.map((k) => [k, null])), after };
 }
 
@@ -465,6 +478,27 @@ function storeInspect(bytes: ReadonlyMap<Sha256, Uint8Array>, view: ProjectView)
   };
 }
 
+/**
+ * What `applyProjectBatch` hands the prefab writer: the request, plus the
+ * prefabs the batch gives new ids (old → new), whose referrers the request
+ * may already name by the new id.
+ */
+export type BatchPrefabRequest = PrefabWriteRequest & { renamed?: ReadonlyMap<AssetId, AssetId> };
+
+/** `library` with each prefab in `renamed` also under its new id. */
+export function withRenamedPrefabs(
+  library: PrefabLibrary,
+  renamed: ReadonlyMap<AssetId, AssetId> | undefined,
+): PrefabLibrary {
+  if (!renamed || renamed.size === 0) return library;
+  const out = new Map(library);
+  for (const [from, to] of renamed) {
+    const prefab = library.get(from);
+    if (prefab && !out.has(to)) out.set(to, { ...prefab, id: to });
+  }
+  return out;
+}
+
 /** A request for a prefab write the batch's check asked about, keyed by where it came from. */
 type PrefabRequest = { index: number; op: EditSceneOp; entry: AssetEntry };
 
@@ -506,6 +540,7 @@ export async function applyProjectBatch(
   /** Docs read only to find references; one refuses the batch only when the batch writes it. */
   const scans = new Map<AssetId, { name: string; kind: AssetKindName }>();
   const prefabOps: PrefabRequest[] = [];
+  const renamed = new Map<AssetId, AssetId>();
   let renames = false;
   let scanAll = false;
   for (const [index, op] of ops.entries()) {
@@ -527,6 +562,7 @@ export async function applyProjectBatch(
     if (op.op === "changeAssetId" && typeof op.id === "string") {
       renames = true;
       const entry = first.byId.get(op.id);
+      if (entry?.kind === PREFAB_KIND && typeof op.to === "string") renamed.set(op.id, op.to);
       const name = entry && session.docNameFor(entry);
       if (entry && name) scans.set(entry.id, { name, kind: entry.kind });
     }
@@ -556,10 +592,11 @@ export async function applyProjectBatch(
       await session.open(name);
       held.push(name);
     }
+    const request = (r: PrefabRequest): BatchPrefabRequest => ({ session, ...r, renamed });
     const plan = async (r: PrefabRequest) =>
       plans.set(planKey(r.index, r.op), {
         index: r.index,
-        plan: await session.prefabWriter.plan({ session, ...r }),
+        plan: await session.prefabWriter.plan(request(r)),
       });
     for (const p of prefabOps) await plan(p);
     const bytes = await blobBytes(session, batch, first);

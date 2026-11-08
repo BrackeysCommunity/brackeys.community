@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bu
 
 import * as Y from "yjs";
 
+import { Z_FIELD } from "../../../src/engine/collab/types.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import { MemorySceneStore } from "../src/scene/store.ts";
 import {
@@ -61,7 +62,7 @@ function randomBatch(client: SceneClient, random: () => number, tag: string): vo
         if (entity?.has("shape")) entity.set("shape", ["box", Math.round(random() * 600), 0, 8, 8]);
         else entity?.set("at", [Math.round(random() * 600), Math.round(random() * 300)]);
       } else if (roll < 0.8) {
-        client.entities.get(key)?.set("z", z());
+        client.entities.get(key)?.set(Z_FIELD, z());
       } else if (roll < 0.92) {
         client.entities.delete(key);
       } else {

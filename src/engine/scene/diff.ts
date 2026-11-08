@@ -1,4 +1,5 @@
 import { bulkEntries, bulkId, bulkKeysOf, bulkKeyType } from "./expand";
+import { sortedAssets } from "./format";
 import {
   type BulkEntry,
   type BulkKey,
@@ -18,8 +19,8 @@ export const isObj = (v: unknown): v is Json =>
 export const isStructured = (v: unknown) => v !== null && typeof v === "object";
 
 /**
- * What changed from `a` to `b`: scene fields, settings and groups by key,
- * entities and then instances by id, then bulk entries per bulk key. Types come from the entities and the
+ * What changed from `a` to `b`: scene fields, settings by key, the `assets`
+ * header as a set, groups by key, entities and then instances by id, then bulk entries per bulk key. Types come from the entities and the
  * bulk keys, so no registry is needed.
  */
 export function diffScenes(a: SceneDefinition, b: SceneDefinition): SceneChange[] {
@@ -34,6 +35,10 @@ export function diffScenes(a: SceneDefinition, b: SceneDefinition): SceneChange[
     if (key(sa[k]) !== key(sb[k]))
       out.push({ kind: "scene", field: `settings.${k}`, from: sa[k], to: sb[k] });
   }
+  const assetsA = sortedAssets(a.assets ?? []);
+  const assetsB = sortedAssets(b.assets ?? []);
+  if (key(assetsA) !== key(assetsB))
+    out.push({ kind: "scene", field: "assets", from: a.assets, to: b.assets });
   const ga = a.groups ?? {};
   const gb = b.groups ?? {};
   for (const k of [...new Set([...Object.keys(ga), ...Object.keys(gb)])].sort()) {

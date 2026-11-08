@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { BEHAVIORS_FIELD } from "../../game/behaviors";
 import { PREFAB_SCENE_OPS } from "../../project/ops";
 import {
   engine,
@@ -8,6 +9,8 @@ import {
   fakeYard,
   randomOp,
   rng,
+  testGameRegistry,
+  testGameYard,
   yardPrefabs,
 } from "../../scene/__tests__/fixtures/random-ops";
 import { formatScene } from "../../scene/format";
@@ -16,25 +19,36 @@ import type { SceneOp } from "../../scene/types";
 import { applyOpsToDoc } from "../apply";
 import { docLayout, docPrefabs, docToScene, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
-import type { SceneOrigin } from "../types";
+import { COLLAB_LAYOUT_VERSION, type SceneOrigin } from "../types";
 import { SimNetwork } from "./sim-network";
 
+/** What a counted op is: its name, or `behavior` for an update that writes a behavior block. */
+function opKind(op: SceneOp): string {
+  if (op.op !== "update") return op.op;
+  const paths = [...Object.keys(op.set ?? {}), ...(op.unset ?? [])];
+  return paths.some((p) => p.startsWith(`${BEHAVIORS_FIELD}.`)) ? "behavior" : "update";
+}
+
+const V3_KINDS = ["transform", "setZ", "useAssets", "paintCells", "behavior", "setParam"];
+
 describe("convergence fuzz", () => {
-  for (const [label, reg, yard] of [
-    ["engine-yard", engine, engineYard],
-    ["the fake game's yard", fake, fakeYard],
+  for (const [label, reg, yard, kinds] of [
+    ["engine-yard", engine, engineYard, ["transform", "setZ", "useAssets", "setParam"]],
+    ["the fake game's yard", fake, fakeYard, ["transform", "setZ", "useAssets", "setParam"]],
+    ["the test game's yard", testGameRegistry, testGameYard, V3_KINDS],
   ] as const) {
     // Prefab ops write prefab docs of their own; prefab-doc.test.ts covers how those merge.
     it(`random batches, delivery order, partitions and reconnects converge: ${label}`, () => {
       let batches = 0;
+      const landed = new Map<string, number>();
       for (let seed = 1; seed <= 24; seed++) {
         const rand = rng(seed * 7919);
         const clients = 2 + (seed % 4);
         const seed0 = sceneToDoc(yard(), { key: sequentialKeys("s") });
-        const prefabs = yardPrefabs(yard().game);
+        const prefabs = yardPrefabs(yard().game, { params: true });
         const sceneOp = (def: ReturnType<typeof docToScene>): SceneOp => {
           for (;;) {
-            const op = randomOp(reg, def, rand, prefabs);
+            const op = randomOp(reg, def, rand, prefabs, { v3: true });
             if (!PREFAB_SCENE_OPS.includes(op.op)) return op;
           }
         };
@@ -53,7 +67,10 @@ describe("convergence fuzz", () => {
             key: keys[i],
             prefabs,
           });
-          if (r.ok) batches++;
+          if (r.ok) {
+            batches++;
+            for (const op of ops) landed.set(opKind(op), (landed.get(opKind(op)) ?? 0) + 1);
+          }
           net.deliver(Math.floor(rand() * 4));
           const roll = rand();
           if (roll < 0.05) net.partition([Math.floor(rand() * clients)]);
@@ -62,8 +79,8 @@ describe("convergence fuzz", () => {
         net.settle();
 
         for (const doc of net.docs) {
-          expect(docLayout(doc), `seed ${seed}: layout 2`).toBe(2);
-          expect(docPrefabs(doc).size, "layout 2 holds no prefabs").toBe(0);
+          expect(docLayout(doc), `seed ${seed}: layout 3`).toBe(COLLAB_LAYOUT_VERSION);
+          expect(docPrefabs(doc).size, "layout 3 holds no prefabs").toBe(0);
         }
         const texts = net.docs.map((d) => formatScene(docToScene(d)).text);
         const hashes = net.docs.map((d) => sceneHash(docToScene(d)));
@@ -73,6 +90,8 @@ describe("convergence fuzz", () => {
         }
       }
       expect(batches).toBeGreaterThan(400);
-    }, 120_000);
+      for (const kind of kinds)
+        expect(landed.get(kind) ?? 0, `${kind} ops that landed`).toBeGreaterThan(10);
+    }, 300_000);
   }
 });

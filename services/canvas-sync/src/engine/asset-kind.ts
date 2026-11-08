@@ -21,6 +21,7 @@ import {
   assetSchemaVersion,
   assetSnapshot,
   ENGINE_KINDS,
+  migrateAssetLayoutState,
   seedAssetState,
 } from "../../../../src/lib/scene/project-bytes.ts";
 import { SERVER_APPLY_ORIGIN } from "../apply.ts";
@@ -233,6 +234,19 @@ export function createAssetKind(options: AssetKindOptions): AssetKind {
     return { outcome, merged };
   }
 
+  /** Stores a state made at load (seeded or migrated) at once, so every instance and the next load start from it. */
+  async function storeLoaded(id: string, state: Uint8Array): Promise<Uint8Array> {
+    const { outcome, merged } = await persist(id, state, { editorId: null, withSnapshot: true });
+    if (outcome.kind === "refused") {
+      throw new SyncRefusal(SYNC_CLOSE.tooLarge, "asset too large", "size");
+    }
+    if (outcome.kind === "gone") {
+      throw new SyncRefusal(SYNC_CLOSE.revoked, "asset not found", "auth");
+    }
+    schedule.written(id, now());
+    return merged ?? state;
+  }
+
   const persistence: Extension = {
     extensionName: "asset-persistence",
 
@@ -243,7 +257,12 @@ export function createAssetKind(options: AssetKindOptions): AssetKind {
         [row, head] = await Promise.all([store.load(id), store.head(id)]);
       if (!row || !head) throw new SyncRefusal(SYNC_CLOSE.revoked, "asset not found", "auth");
       limitsByDoc.set(id, limitsOfKind(head.kind));
-      if (assetDocMeta(row.state)) return row.state;
+      if (assetDocMeta(row.state)) {
+        const lifted = migrateAssetLayoutState(row.state, kinds);
+        if (!lifted) return row.state;
+        console.log(`[load] asset ${id} moved to layout ${COLLAB_LAYOUT_VERSION}`);
+        return storeLoaded(id, lifted);
+      }
 
       const parts = splitDocId(id)!;
       let seeded: Uint8Array;
@@ -260,19 +279,7 @@ export function createAssetKind(options: AssetKindOptions): AssetKind {
         options.telemetry?.captureException(error, { asset_id: id, during: "seed" });
         throw new SyncRefusal(SYNC_CLOSE.revoked, "asset can't be seeded", "auth");
       }
-      // Stored at once, so every instance and the next load start from it.
-      const { outcome, merged } = await persist(id, seeded, {
-        editorId: null,
-        withSnapshot: true,
-      });
-      if (outcome.kind === "refused") {
-        throw new SyncRefusal(SYNC_CLOSE.tooLarge, "asset too large", "size");
-      }
-      if (outcome.kind === "gone") {
-        throw new SyncRefusal(SYNC_CLOSE.revoked, "asset not found", "auth");
-      }
-      schedule.written(id, now());
-      return merged ?? seeded;
+      return storeLoaded(id, seeded);
     },
 
     async onChange(payload: onChangePayload) {

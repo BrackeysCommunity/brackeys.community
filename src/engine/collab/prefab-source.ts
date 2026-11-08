@@ -19,7 +19,7 @@ import { contentMaps, docMeta, isPrefabDoc, readDoc, touchesMaps } from "./conve
 import { randomKey, type KeyGen } from "./keys";
 import { appendLog, readLog } from "./log";
 import { docToPrefab, prefabPatch, prefabPathNear, prefabToDoc } from "./prefab-doc";
-import { actorId, docValue } from "./project-apply";
+import { actorId, docValue, withRenamedPrefabs, type BatchPrefabRequest } from "./project-apply";
 import { writeEntry } from "./project-doc";
 import { appendProjectLog } from "./project-log";
 import {
@@ -532,7 +532,9 @@ async function hold(session: ProjectSession, name: string): Promise<() => void> 
  */
 function sessionWriter(core: Core): PrefabWriter {
   return {
-    async plan({ session, op, entry }): Promise<PrefabPlan> {
+    async plan(request: BatchPrefabRequest): Promise<PrefabPlan> {
+      const { session, op, entry } = request;
+      const libraryNow = () => withRenamedPrefabs(core.library(), request.renamed);
       await core.ready();
       const name = session.docNameFor(entry);
       if (!name)
@@ -556,8 +558,8 @@ function sessionWriter(core: Core): PrefabWriter {
         inUse: false,
       });
       const view = readDoc(doc, { registry: session.registry });
+      const library = libraryNow();
       if (view.kind === "scene") {
-        const library = core.library();
         const dry = applyOps(view.def, batch, session.registry, {
           prefabs: library,
           validate: "none",
@@ -572,10 +574,20 @@ function sessionWriter(core: Core): PrefabWriter {
           if (!planned.ok) return fail(planned.issue);
         }
       } else {
-        // A prefab doc's own refusals (scene-only ops, grouped children) are applyOpsToDoc's; try it on a copy.
+        // A prefab doc's own refusals (scene-only ops, grouped children, nesting) are applyOpsToDoc's;
+        // try it on a copy, planning the nested prefabs it writes without writing them.
         const copy = new Y.Doc();
         Y.applyUpdate(copy, Y.encodeStateAsUpdate(doc));
-        const dry = applyOpsToDoc(copy, batch, session.origin, session.registry, { noLog: true });
+        const dry = applyOpsToDoc(copy, batch, session.origin, session.registry, {
+          noLog: true,
+          prefabs: library,
+          prefabWriter: {
+            plan(change) {
+              const planned = writer.plan(change);
+              return planned.ok ? { ok: true, write: () => [] } : planned;
+            },
+          },
+        });
         copy.destroy();
         if (!dry.ok) return fail(dry.issue);
       }
@@ -586,7 +598,7 @@ function sessionWriter(core: Core): PrefabWriter {
         write(origin) {
           const result = applyOpsToDoc(doc, batch, origin, session.registry, {
             key: session.key,
-            prefabs: core.library(),
+            prefabs: libraryNow(),
             prefabWriter: writer,
           });
           if (!result.ok)

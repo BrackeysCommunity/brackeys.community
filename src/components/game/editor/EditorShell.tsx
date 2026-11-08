@@ -23,7 +23,7 @@ import {
 import type { AssetKey } from "@jams/engine/project";
 import { useStore } from "@tanstack/react-store";
 import { Store } from "@tanstack/store";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { Island, type CanvasShellSlots } from "@/components/canvas/shell/CanvasShell";
 import type { EditorHostState } from "@/components/game/live-scene-editor";
@@ -94,9 +94,20 @@ export type EditorShellProps = {
   /** Opens a prefab on its own; absent while one is open. */
   onOpenPrefab?: (prefab: string, from: Ref) => void;
   /** The prefab `session` edits in isolation, and the way back to its scene. */
-  prefab?: { id: string; scene: string; onBack: () => void };
+  prefab?: OpenPrefabLink;
   /** The project the scene belongs to: its tree goes above the outliner. */
   project?: EditorProjectLink;
+};
+
+/** The prefab open in isolation, as its header shows it. */
+export type OpenPrefabLink = {
+  id: string;
+  scene: string;
+  onBack: () => void;
+  /** Opens another prefab in its place, such as this variant's base. */
+  onOpen?: (prefab: string) => void;
+  /** Creates a variant of this prefab and opens it. */
+  onCreateVariant?: () => void;
 };
 
 /** What the dock, the keys and the panels share. */
@@ -158,7 +169,7 @@ export function editorChrome(props: EditorShellProps): EditorChrome {
       <EditMode session={session}>
         <div className="flex min-h-0 w-full flex-col">
           <CodeSkewNotice host={host} />
-          {props.prefab ? <PrefabBreadcrumb {...props.prefab} /> : null}
+          {props.prefab ? <PrefabHeader session={session} {...props.prefab} /> : null}
           {props.project ? (
             <Island className="mb-2 max-h-[45%] min-h-24 w-full shrink-0 flex-col items-stretch overflow-hidden">
               <EditorProject
@@ -282,27 +293,62 @@ function InspectorWithAsset({
   );
 }
 
-/** Where the editor is while a prefab is open on its own, and the way back. */
-function PrefabBreadcrumb({
+/** Where the editor is while a prefab is open on its own: the way back, the variant's base, and Create variant. */
+function PrefabHeader({
+  session,
   id,
   scene,
   onBack,
-}: {
-  id: string;
-  scene: string;
-  onBack: () => void;
-}) {
+  onOpen,
+  onCreateVariant,
+}: OpenPrefabLink & { session: EditorSession }) {
+  const base = useSyncExternalStore(
+    (changed) => session.prefabs.subscribe(changed),
+    () => session.getPrefabs().get(id)?.base,
+  );
   return (
-    <Island className="mb-2 w-full items-center gap-2 px-2">
-      <Button size="xs" variant="ghost" tooltip={`Back to ${scene}`} onClick={onBack}>
-        <HugeiconsIcon icon={ArrowLeft01Icon} data-icon="inline-start" />
-        Back
-      </Button>
-      <nav aria-label="Breadcrumb" className="min-w-0 truncate text-xs">
-        <span className="text-muted-foreground">{scene}</span>
-        <span className="px-1 text-muted-foreground">›</span>
-        <span className="font-medium">{id}</span>
-      </nav>
+    <Island className="mb-2 w-full flex-col items-stretch gap-1 px-2 py-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <Button size="xs" variant="ghost" tooltip={`Back to ${scene}`} onClick={onBack}>
+          <HugeiconsIcon icon={ArrowLeft01Icon} data-icon="inline-start" />
+          Back
+        </Button>
+        <nav aria-label="Breadcrumb" className="min-w-0 truncate text-xs">
+          <span className="text-muted-foreground">{scene}</span>
+          <span className="px-1 text-muted-foreground">›</span>
+          <span className="font-medium">{id}</span>
+        </nav>
+      </div>
+      {base !== undefined || onCreateVariant ? (
+        <div className="flex min-w-0 items-center gap-1 text-xs">
+          {base !== undefined ? (
+            <>
+              <span className="shrink-0 text-muted-foreground">Variant of</span>
+              <Button
+                size="xs"
+                variant="link"
+                className="min-w-0 truncate px-1"
+                tooltip={`Open ${base}`}
+                disabled={!onOpen}
+                onClick={() => onOpen?.(base)}
+              >
+                {base}
+              </Button>
+            </>
+          ) : null}
+          {onCreateVariant ? (
+            <Button
+              size="xs"
+              variant="outline"
+              className="ml-auto"
+              tooltip={`A new prefab based on ${id}, which keeps following it`}
+              onClick={onCreateVariant}
+            >
+              Create variant
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </Island>
   );
 }
@@ -347,6 +393,7 @@ const SHELL_COMMANDS = new Set<EditorCommand>([
   "step",
   "slower",
   "faster",
+  "leave-prefab",
 ]);
 
 /** Left to the browser: its copy, cut and paste events carry the clipboard, and the game's debug overlay takes F3. */
@@ -392,9 +439,10 @@ type KeyEvent = Extract<ToolEvent, { kind: "key" }>;
  */
 function useEditorKeys(controls: EditorControls, host: ToolHost | null) {
   const { session, game, keymap, onPlay, onStop, playHere } = controls;
+  const leavePrefab = controls.prefab?.onBack;
   const run = useMemo(
-    () => commandRunner({ session, game, onPlay, onStop, playHere }, host),
-    [session, game, onPlay, onStop, playHere, host],
+    () => commandRunner({ session, game, onPlay, onStop, playHere, leavePrefab }, host),
+    [session, game, onPlay, onStop, playHere, leavePrefab, host],
   );
 
   useEffect(() => {
@@ -420,12 +468,13 @@ function useEditorKeys(controls: EditorControls, host: ToolHost | null) {
       if (e.native.defaultPrevented || inOverlay(e.native.target)) return null;
       const editableTarget = e.editable === true || isEditableTarget(e.native.target);
       if (!editableTarget && pressesControl(e.native)) return null;
-      const { mode, tool } = session.store.state;
+      const { mode, tool, selection } = session.store.state;
       const live = editing() ? host : null;
       const match = keymap.resolve(e.native, {
         mode,
         editableTarget,
-        ...(live ? live.keyContext() : { tool }),
+        inPrefab: leavePrefab !== undefined,
+        ...(live ? live.keyContext() : { tool, hasSelection: selection.length > 0 }),
       });
       if (!match) return null;
       if (match.source === "engine") {
@@ -461,7 +510,7 @@ function useEditorKeys(controls: EditorControls, host: ToolHost | null) {
         if (run(match) && match.source === "game") e.native.preventDefault();
       },
     });
-  }, [session, game, keymap, run, host]);
+  }, [session, game, keymap, run, host, leavePrefab]);
 }
 
 /** Copy, cut and paste through the browser's clipboard events, as `SceneFragment` text in edit mode. */
@@ -504,7 +553,10 @@ function commandRunner(
     onPlay,
     onStop,
     playHere,
-  }: Pick<EditorControls, "session" | "game" | "onPlay" | "onStop" | "playHere">,
+    leavePrefab,
+  }: Pick<EditorControls, "session" | "game" | "onPlay" | "onStop" | "playHere"> & {
+    leavePrefab?: () => void;
+  },
   host: ToolHost | null,
 ): (match: KeyMatch) => boolean {
   return (match) => {
@@ -536,6 +588,10 @@ function commandRunner(
       case "slower":
       case "faster":
         game.setTimeScale(nextTimeScale(sim().timeScale, match.command === "faster" ? 1 : -1));
+        return true;
+      case "leave-prefab":
+        if (!leavePrefab) return false;
+        leavePrefab();
         return true;
       case "save":
         // Every edit is already in the shared doc; this only keeps the browser's save dialog shut.

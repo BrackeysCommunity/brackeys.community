@@ -27,7 +27,7 @@ export type FmtInput = { scene?: string; check?: boolean };
 type DocAsset = { project: ProjectHandle; entry: AssetEntry; def: DocKindDef; file: string };
 
 type Formatted =
-  | { asset: DocAsset; ok: true; text: string; changed: boolean }
+  | { asset: DocAsset; ok: true; text: string; changed: boolean; migratedFrom?: number }
   | { asset: DocAsset; ok: false; issues: SceneIssue[] };
 
 /** A project's live doc assets: scenes, prefabs, checks, input scripts and every declarative kind. */
@@ -49,7 +49,17 @@ async function format(asset: DocAsset): Promise<Formatted> {
   const parsed = parseAssetDoc(asset.def, text, env);
   if (!parsed.ok) return { asset, ok: false, issues: parsed.issues };
   const canonical = formatAssetDoc(asset.def, parsed.value);
-  return { asset, ok: true, text: canonical, changed: canonical !== text };
+  const changed = canonical !== text;
+  const { migratedFrom } = parsed;
+  return migratedFrom === undefined
+    ? { asset, ok: true, text: canonical, changed }
+    : { asset, ok: true, text: canonical, changed, migratedFrom };
+}
+
+/** ` (from v2 to v3)` when the file is at an older format version that formatting migrates. */
+function fromNote(result: Formatted): string {
+  if (!result.ok || result.migratedFrom === undefined) return "";
+  return ` (from v${result.migratedFrom} to v${result.asset.def.version})`;
 }
 
 const nameKey = (asset: DocAsset) => (asset.def.kind === "scene" ? "scene" : "asset");
@@ -64,25 +74,29 @@ function one(result: Formatted, check: boolean): ToolResult {
       text: [`${entry.id}: failed to parse`, ...result.issues.map(issueLine)].join("\n"),
     };
   const { changed } = result;
+  const migrated = result.migratedFrom === undefined ? {} : { migratedFrom: result.migratedFrom };
+  const from = fromNote(result);
   if (check)
     return {
       exitCode: changed ? 1 : 0,
-      data: { ok: !changed, ...head, changed },
+      data: { ok: !changed, ...head, changed, ...migrated },
       text: changed
-        ? `${entry.id}: not canonical; run vp run scene fmt ${entry.id}`
+        ? `${entry.id}: not canonical${from}; run vp run scene fmt ${entry.id}`
         : `${entry.id}: canonical`,
     };
   return {
     exitCode: 0,
-    data: { ok: true, ...head, changed },
-    text: changed ? `${entry.id}: formatted` : `${entry.id}: already canonical`,
+    data: { ok: true, ...head, changed, ...migrated },
+    text: changed ? `${entry.id}: formatted${from}` : `${entry.id}: already canonical`,
   };
 }
 
 /**
  * Rewrites a doc asset (a scene, prefab, checks file, input script or any
  * declarative kind) in its kind's canonical form, found by id across the
- * projects; without an id, every doc asset of the projects in scope.
+ * projects; without an id, every doc asset of the projects in scope. A file
+ * at an older format version (a v2 scene or prefab) is migrated to the
+ * current one, and the result says `migratedFrom`.
  * `--check` only reports, exit 1 when something isn't canonical.
  */
 export const fmt: Tool<FmtInput> = async (input, ctx) => {
@@ -129,19 +143,21 @@ export const fmt: Tool<FmtInput> = async (input, ctx) => {
     kind: r.asset.def.kind,
     path: r.asset.entry.path,
     ...(r.ok ? { changed: r.changed } : { issues: r.issues }),
+    ...(r.ok && r.migratedFrom !== undefined ? { migratedFrom: r.migratedFrom } : {}),
   }));
+  const migrated = results.filter((r) => r.ok && r.migratedFrom !== undefined).length;
   const verb = check ? "not canonical" : "formatted";
   const lines = [
-    ...changed.map((r) => `${r.asset.entry.id} (${r.asset.def.kind}): ${verb}`),
+    ...changed.map((r) => `${r.asset.entry.id} (${r.asset.def.kind}): ${verb}${fromNote(r)}`),
     ...failed.flatMap((r) =>
       r.ok ? [] : [`${r.asset.entry.id}: failed to parse`, ...r.issues.map(issueLine)],
     ),
-    `${results.length} doc assets, ${changed.length} ${verb}, ${failed.length} failed to parse`,
+    `${results.length} doc assets, ${changed.length} ${verb}, ${migrated} at an older format version, ${failed.length} failed to parse`,
   ];
   const bad = failed.length > 0 || (check && changed.length > 0);
   return {
     exitCode: bad ? 1 : 0,
-    data: { ok: !bad, assets: rows, changed: changed.length, failed: failed.length },
+    data: { ok: !bad, assets: rows, changed: changed.length, migrated, failed: failed.length },
     text: lines.join("\n"),
   };
 };

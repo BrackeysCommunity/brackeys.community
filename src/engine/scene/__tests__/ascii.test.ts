@@ -4,11 +4,13 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { ENGINE_YARD_EXPANDED } from "../../__tests__/fixtures/engine-yard.expanded";
 import { generateScene } from "../../__tests__/fixtures/generate-scene";
+import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineEntityType, defineGame, RegistryError } from "../../game/define";
 import { primitiveFields } from "../../game/primitives";
 import { renderSceneAscii, sceneAsciiMap } from "../ascii";
 import { parseSceneOrThrow } from "../parse";
-import type { SceneDefinition } from "../types";
+import { SCENE_GRID_MAX_CELLS } from "../svg";
+import { SCENE_FORMAT_VERSION, type GridSettings, type SceneDefinition } from "../types";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
 
 const yard = parseSceneOrThrow(engineYardText, engine);
@@ -153,5 +155,72 @@ describe("renderSceneAscii", () => {
     });
     expect(map.lines[10]).toBe("#...******!...............~...##");
     expect(legendOf(map)).toMatchObject({ "*": "trail", "!": "outcome won" });
+  });
+});
+
+describe("grid fields", () => {
+  const game = createRegistry(testGame);
+  const paintScene = (
+    cells: Record<string, string[]>,
+    grid: GridSettings,
+    at: [number, number],
+    bounds: [number, number, number, number] = [0, 0, 1024, 768],
+  ): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    game: game.id,
+    name: "paint",
+    bounds,
+    settings: { grid },
+    entities: [{ id: "floor", type: PAINT.type, at, cells }],
+  });
+  const charOf = (map: { legend: { char: string; label: string }[] }) =>
+    map.legend.find((l) => l.label.startsWith(PAINT.type))!.char;
+
+  it("draws a painted entity's filled cells in its character, at its at", () => {
+    const map = sceneAsciiMap(
+      paintScene({ "0,0": ["1*3", "", "0,2"] }, { kind: "square", cell: [64, 64] }, [64, 576]),
+      { registry: game },
+    );
+    const t = charOf(map);
+    expect(map.lines[9]!.slice(0, 5)).toBe(`.${t.repeat(3)}.`);
+    expect(map.lines[10]!.slice(0, 5)).toBe(".....");
+    expect(map.lines[11]!.slice(0, 5)).toBe(`..${t}..`);
+  });
+
+  it("marks the map cell under each grid cell smaller than a map cell", () => {
+    const map = sceneAsciiMap(
+      paintScene({ "0,0": ["0*5,1"] }, { kind: "square", cell: [16, 16] }, [0, 0]),
+      { registry: game },
+    );
+    const t = charOf(map);
+    // The point at [0, 0] and the cell at x 80..96.
+    expect(map.lines[0]!.slice(0, 3)).toBe(`${t}${t}.`);
+  });
+
+  it(`stops at ${SCENE_GRID_MAX_CELLS} cells and marks the rest with "…"`, () => {
+    const chunk = Array.from({ length: 32 }, () => "1*32");
+    const edge = Array.from({ length: 32 }, () => "1*4");
+    const cells: Record<string, string[]> = {};
+    for (let cy = 0; cy < 4; cy++)
+      for (let cx = 0; cx < 4; cx++) {
+        const rows = cx === 3 ? edge : chunk;
+        cells[`${cx},${cy}`] = cy === 3 ? rows.slice(0, 4) : rows;
+      }
+    const map = sceneAsciiMap(
+      paintScene(cells, { kind: "square", cell: [8, 8] }, [0, 0], [0, 0, 800, 800]),
+      { registry: game, cell: 8 },
+    );
+    const t = charOf(map);
+    expect([map.cols, map.rows]).toEqual([100, 100]);
+    const count = map.lines.join("").split(t).length - 1;
+    expect(count).toBe(SCENE_GRID_MAX_CELLS);
+    expect(map.lines[39]).toBe(t.repeat(100));
+    expect(map.lines[40]).toBe(`${t.repeat(96)}…...`);
+    expect(map.lines[41]).toBe(".".repeat(100));
+    expect(legendOf(map)["…"]).toBe("5904 more grid cells, not drawn");
+  });
+
+  it("leaves the goldens alone: a scene without grid fields draws as before", () => {
+    expect(renderSceneAscii(yard, { registry: engine })).toBe(readFileSync(golden, "utf8"));
   });
 });

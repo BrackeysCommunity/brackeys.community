@@ -1,10 +1,20 @@
 import { z } from "zod";
 
+import { testGame } from "../../../__tests__/fixtures/test-game";
+import { BEHAVIORS_FIELD } from "../../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../../game/define";
 import { pointField, shapeField, tagsField } from "../../../game/fields";
 import type { Registry } from "../../../game/types";
 import { prefabLibrary } from "../../prefab";
-import type { PrefabLibrary, SceneDefinition, SceneOp } from "../../types";
+import { geometryFields } from "../../schema";
+import type {
+  CellEdit,
+  CellRect,
+  PrefabLibrary,
+  PrefabParam,
+  SceneDefinition,
+  SceneOp,
+} from "../../types";
 
 /**
  * Registries, scenes and a seeded op generator shared by the property tests
@@ -52,15 +62,31 @@ export const fake = createRegistry(
   }),
 );
 
+export type YardPrefabOptions = {
+  /** Expose parameters: the gate's door `speed` and `pause`, the post's `top`. */
+  params?: boolean;
+};
+
+const YARD_PARAMS: Record<string, Record<string, PrefabParam>> = {
+  gate: {
+    pause: { description: "Door pause, ms.", targets: ["door.path.pauseMs"] },
+    speed: { description: "Door speed, px/s.", targets: ["door.path.speed"], default: 60 },
+  },
+  post: { top: { description: "Where the top sits.", targets: ["top.at"], default: [0, -40] } },
+};
+
 /** The prefabs the yards place: a gate (a follower door, a sensor, a bulk sill) and a post. */
-export function yardPrefabs(game?: string): PrefabLibrary {
+export function yardPrefabs(game?: string, options: YardPrefabOptions = {}): PrefabLibrary {
   const home = game !== undefined ? { game } : {};
+  const params = (id: string) =>
+    options.params ? { params: structuredClone(YARD_PARAMS[id]) } : {};
   return prefabLibrary([
     {
       kind: "prefab",
-      v: 2,
+      v: 3,
       ...home,
       id: "gate",
+      ...params("gate"),
       entities: [
         {
           id: "door",
@@ -81,9 +107,10 @@ export function yardPrefabs(game?: string): PrefabLibrary {
     },
     {
       kind: "prefab",
-      v: 2,
+      v: 3,
       ...home,
       id: "post",
+      ...params("post"),
       entities: [{ id: "top", type: "marker", at: [0, -40] }],
       bulk: { solid: [["box", 0, 0, 6, 40]] },
     },
@@ -94,7 +121,7 @@ export function yardPrefabs(game?: string): PrefabLibrary {
 export function engineYard(): SceneDefinition {
   return {
     $schema: "../../scene/scene.schema.json",
-    v: 2,
+    v: 3,
     name: "engine-yard",
     bounds: [0, 0, 2000, 1000],
     settings: { gravity: [0, 1200] },
@@ -155,6 +182,33 @@ export function fakeYard(): SceneDefinition {
   };
 }
 
+/** The test game's registry: its glow and spin behaviors, the lamp and plain markers, the paint grid type. */
+export const testGameRegistry = createRegistry(testGame);
+
+/** The engine fixture on the test game: a cell grid, an assets header, lamps with behaviors and two painted grids. */
+export function testGameYard(): SceneDefinition {
+  const def = engineYard();
+  return {
+    ...def,
+    game: "test-game",
+    settings: { ...def.settings, grid: { kind: "square", cell: [32, 32] } },
+    assets: ["boom", "tiles"],
+    entities: [
+      ...def.entities!,
+      {
+        id: "lamp",
+        type: "lamp",
+        at: [400, 400],
+        behaviors: { "test-game/glow": { intensity: 3 }, "test-game/spin": { speed: 45 } },
+      },
+      { id: "lamp-2", type: "lamp", at: [800, 400], group: "pens" },
+      { id: "still", type: "plain", at: [900, 300] },
+      { id: "floor", type: "paint", at: [0, 640], cells: { "0,0": ["1*4", "", "2"] } },
+      { id: "wall", type: "paint", at: [1200, 0], z: 2, cells: { "1,0": ["3*8"] } },
+    ],
+  };
+}
+
 export function rng(seed: number) {
   let a = seed >>> 0;
   return () => {
@@ -166,11 +220,34 @@ export function rng(seed: number) {
   };
 }
 
+/** The asset ids `useAssets` draws from. */
+const ASSET_POOL = ["boom", "hud", "music", "sky", "tiles"];
+
+/** A value a behavior field's schema takes: a number, a #rrggbb string, or a boolean. */
+function behaviorValue(schema: unknown, int: (lo: number, hi: number) => number): unknown {
+  let s = schema as { _zod: { def: { type: string; innerType?: unknown } } };
+  while (s._zod.def.innerType !== undefined) s = s._zod.def.innerType as typeof s;
+  switch (s._zod.def.type) {
+    case "string":
+      return `#${int(0, 0xffffff).toString(16).padStart(6, "0")}`;
+    case "boolean":
+      return int(0, 1) === 1;
+    default:
+      return int(0, 120);
+  }
+}
+
+export type RandomOpOptions = {
+  /** Also draw the v3 ops: `transform`, `setZ`, `useAssets`, `paintCells`, behavior `update`s and `setParam`. */
+  v3?: boolean;
+};
+
 export function randomOp(
   reg: Registry,
   def: SceneDefinition,
   rand: () => number,
   prefabs: PrefabLibrary = yardPrefabs(),
+  options: RandomOpOptions = {},
 ): SceneOp {
   const int = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
   const pick = <T>(xs: readonly T[]): T | undefined => xs[Math.floor(rand() * xs.length)];
@@ -187,7 +264,107 @@ export function randomOp(
   const by = (): [number, number] => [int(-64, 64), int(-64, 64)];
   const settings = Object.keys(reg.settings);
 
-  switch (int(0, 21)) {
+  const roll = options.v3 ? int(0, 27) : int(0, 21);
+  if (roll > 21) {
+    const entities = def.entities ?? [];
+    switch (roll) {
+      case 22: {
+        const groupRoll = rand();
+        const turn = pick([1, 2, 3, -1] as const)!;
+        const flip = pick(["x", "y"] as const)!;
+        return {
+          op: "transform",
+          ...(groupRoll < 0.6 || groupIds.length === 0
+            ? { refs: [pick(instances) ?? "missing"] }
+            : { groups: [pick(groupIds)!] }),
+          ...(rand() < 0.5 ? { turn } : rand() < 0.5 ? { flip } : { turn, flip }),
+          ...(rand() < 0.3 ? { about: pt() } : {}),
+        };
+      }
+      case 23: {
+        const targets = [...new Set([pick([...ids, ...instances]) ?? "missing", any()])];
+        return rand() < 0.5
+          ? { op: "setZ", refs: targets, z: int(-5, 5) }
+          : { op: "setZ", refs: targets, by: int(-2, 2) };
+      }
+      case 24: {
+        const used = def.assets ?? [];
+        const remove = rand() < 0.4 && used.length > 0 ? [pick(used)!] : [];
+        const add = ASSET_POOL.filter((id) => !remove.includes(id) && rand() < 0.3);
+        return add.length === 0 && remove.length === 0
+          ? { op: "useAssets", add: [pick(ASSET_POOL)!] }
+          : {
+              op: "useAssets",
+              ...(add.length > 0 ? { add } : {}),
+              ...(remove.length > 0 ? { remove } : {}),
+            };
+      }
+      case 25: {
+        const painted = entities.flatMap((e) => {
+          const t = reg.types.get(e.type);
+          const fields = t ? geometryFields(t).filter((f) => f.kind === "grid") : [];
+          return fields.map((f) => [e.id, f.field] as const);
+        });
+        const target = pick(painted);
+        if (!target) return { op: "setScene", set: { name: `yard-${int(0, 9)}` } };
+        const cell = (): CellEdit => [int(0, 80), int(0, 40), int(0, 3)];
+        const rect = (): CellRect => {
+          const [c, r] = [int(0, 70), int(0, 35)];
+          return [c, r, c + int(0, 8), r + int(0, 4), int(0, 3)];
+        };
+        return {
+          op: "paintCells",
+          ref: target[0],
+          field: target[1],
+          ...(rand() < 0.7 ? { cells: Array.from({ length: int(1, 6) }, cell) } : {}),
+          ...(rand() < 0.4 ? { rects: [rect()] } : { cells: [cell()] }),
+        };
+      }
+      case 27: {
+        const ref = pick(instances) ?? "missing";
+        const inst = def.instances?.find((x) => x.id === ref);
+        const exposed = (inst && prefabs.get(inst.prefab)?.params) ?? {};
+        const held = Object.keys(inst?.params ?? {});
+        if (rand() < 0.25 && held.length > 0)
+          return { op: "setParam", ref, name: pick(held)!, value: null };
+        const name = pick(Object.keys(exposed)) ?? "speed";
+        const value = Array.isArray(exposed[name]?.default)
+          ? [int(-20, 20), int(-80, 0)]
+          : int(20, 300);
+        return { op: "setParam", ref, name, value };
+      }
+      default: {
+        const hosts = entities.flatMap((e) =>
+          reg.types.has(e.type)
+            ? reg.behaviorRules(e.type).allowed.map((name) => [e, name] as const)
+            : [],
+        );
+        const host = pick(hosts);
+        if (!host) return { op: "setScene", set: { name: `yard-${int(0, 9)}` } };
+        const [e, name] = host;
+        const path = `${BEHAVIORS_FIELD}.${name}`;
+        const shape = reg.behaviors.get(name)?.shape ?? {};
+        const fields = Object.keys(shape);
+        const required = reg.behaviorRules(e.type).required.has(name);
+        const has = (e[BEHAVIORS_FIELD] as Record<string, unknown> | undefined)?.[name];
+        const r = rand();
+        if (r < 0.2 && has !== undefined && !required)
+          return { op: "update", ref: e.id, unset: [path] };
+        if (r < 0.3) return { op: "update", ref: e.id, set: { [path]: {} } };
+        const field = pick(fields);
+        if (field === undefined) return { op: "update", ref: e.id, set: { [path]: {} } };
+        return rand() < 0.15 && has !== undefined
+          ? { op: "update", ref: e.id, unset: [`${path}.${field}`] }
+          : {
+              op: "update",
+              ref: e.id,
+              set: { [`${path}.${field}`]: behaviorValue(shape[field], int) },
+            };
+      }
+    }
+  }
+
+  switch (roll) {
     case 0:
       return {
         op: "add",

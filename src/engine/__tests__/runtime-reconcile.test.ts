@@ -396,6 +396,8 @@ describe("SceneRuntime add, update and remove", () => {
     const game = defineGame({
       ...testGame,
       id: "counted",
+      types: [],
+      behaviors: [],
       createRuntime: (ctx) => ({ ...testGame.createRuntime(ctx), onLoad }),
     });
     const rt = runtime(game);

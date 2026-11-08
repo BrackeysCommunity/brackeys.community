@@ -148,6 +148,7 @@ export {
   buildRefIndex,
   referencedTrash,
   rewriteRefs,
+  schemaRefSites,
   type Referrer,
   type RefIndex,
   type RefSite,

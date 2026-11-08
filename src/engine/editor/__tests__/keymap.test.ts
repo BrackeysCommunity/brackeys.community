@@ -62,6 +62,31 @@ describe("edit scope", () => {
     expect(command(key("e"), edit)).toBe("rotate-cw");
   });
 
+  it("brings forward on Mod+] and sends backward on Mod+[, leaving bare brackets to the hierarchy", () => {
+    expect(command(key("]", { ctrlKey: true }), edit)).toBe("bring-forward");
+    expect(command(key("[", { metaKey: true }), edit)).toBe("send-backward");
+    expect(command(key("]"), edit)).toBe("hierarchy-down");
+    expect(command(key("["), edit)).toBe("hierarchy-up");
+    expect(command(key("]", { ctrlKey: true }), play)).toBeNull();
+    expect(keymap.chordOf("bring-forward")).toBe("Mod+]");
+    expect(keymap.chordOf("send-backward")).toBe("Mod+[");
+  });
+
+  it("turns instances a quarter on e, rotates anything else 15°, and flips on Shift+H and Shift+V", () => {
+    expect(command(key("e"), { ...edit, quarterTurns: true })).toBe("turn-cw");
+    expect(command(key("e"), { ...edit, quarterTurns: false })).toBe("rotate-cw");
+    expect(command(key("q"), { ...edit, quarterTurns: true })).toBe("rotate-ccw");
+    expect(command(key("H", { shiftKey: true }), edit)).toBe("flip-x");
+    expect(command(key("V", { shiftKey: true }), edit)).toBe("flip-y");
+    expect(command(key("h"), edit)).toBe("tool:pan");
+    expect(command(key("v"), edit)).toBe("tool:select");
+    expect(command(key("H", { shiftKey: true }), play)).toBeNull();
+    const at = (c: string) => ENGINE_KEYS.findIndex((b) => b.command === c);
+    expect(at("turn-cw")).toBeLessThan(at("rotate-cw"));
+    expect(keymap.chordOf("turn-cw")).toBe("e");
+    expect(keymap.chordOf("flip-x")).toBe("Shift+h");
+  });
+
   it("nudges by a grid step, four with Shift, a pixel with Alt", () => {
     expect(command(key("ArrowLeft"), edit)).toBe("nudge-left");
     expect(command(key("ArrowLeft", { shiftKey: true }), edit)).toBe("nudge-left-coarse");
@@ -83,6 +108,29 @@ describe("edit scope", () => {
     expect(command(esc, { ...edit, tool: "box" })).toBe("clear-tool");
     expect(command(esc, { ...edit, tool: "select" })).toBe("clear-selection");
     expect(command(esc, edit)).toBe("clear-selection");
+  });
+
+  it("leaves a prefab on Escape once the gesture, tool and selection are cleared", () => {
+    const esc = key("Escape");
+    const prefab: KeyContext = { ...edit, inPrefab: true, tool: "select" };
+    expect(command(esc, { ...prefab, gesture: true, hasSelection: true })).toBe("cancel-gesture");
+    expect(command(esc, { ...prefab, subObject: true, hasSelection: true })).toBe(
+      "leave-sub-object",
+    );
+    expect(command(esc, { ...prefab, tool: "box" })).toBe("clear-tool");
+    expect(command(esc, { ...prefab, hasSelection: true })).toBe("clear-selection");
+    expect(command(esc, { ...prefab, hasSelection: false })).toBe("leave-prefab");
+    expect(command(esc, { ...edit, inPrefab: true })).toBe("leave-prefab");
+    // Outside a prefab the cascade ends at clearing the selection.
+    expect(command(esc, { ...edit, tool: "select", hasSelection: false })).toBe("clear-selection");
+    expect(command(esc, { ...edit, inPrefab: false })).toBe("clear-selection");
+    expect(command(esc, { ...play, inPrefab: true })).toBe("stop");
+  });
+
+  it("binds leave-prefab before clear-selection", () => {
+    const at = (c: string) => ENGINE_KEYS.findIndex((b) => b.scope === "edit" && b.command === c);
+    expect(at("leave-prefab")).toBeGreaterThan(-1);
+    expect(at("leave-prefab")).toBeLessThan(at("clear-selection"));
   });
 
   it("ignores unbound chords and Alt or Shift on a plain shortcut", () => {
@@ -177,6 +225,39 @@ describe("game bindings", () => {
     expect(map.resolve(key("z", { ctrlKey: true }), edit)).toMatchObject({ command: "undo" });
     expect(map.resolve(key("F3"), play)).toMatchObject({ command: "debug" });
     expect(map.bindings.filter((b) => "command" in b && b.command.startsWith("game:"))).toEqual([]);
+  });
+
+  it("shadows a game binding on the z-order chords in edit, not in play", () => {
+    const z = createKeymap([
+      { key: "Mod+]", scope: "edit", command: "game:raise", description: "Collides with forward" },
+      { key: "mod+[", scope: "edit", command: "game:lower", description: "Collides with backward" },
+      { key: "Mod+]", scope: "play", command: "game:zoom", description: "Play is free" },
+    ]);
+    expect(z.shadowed.map((b) => b.command)).toEqual(["game:raise", "game:lower"]);
+    expect(z.resolve(key("]", { ctrlKey: true }), edit)).toMatchObject({
+      source: "engine",
+      command: "bring-forward",
+    });
+    expect(z.resolve(key("]", { ctrlKey: true }), play)).toMatchObject({
+      source: "game",
+      command: "game:zoom",
+    });
+  });
+
+  it("shadows a game binding on the turn and flip chords in edit", () => {
+    const t = createKeymap([
+      { key: "e", scope: "edit", command: "game:e", description: "Collides with turn" },
+      { key: "shift+H", scope: "edit", command: "game:flip", description: "Collides with flip" },
+      { key: "Shift+v", scope: "edit", command: "game:v", description: "Collides with flip" },
+      { key: "Shift+h", scope: "play", command: "game:hop", description: "Play is free" },
+    ]);
+    expect(t.shadowed.map((b) => b.command)).toEqual(["game:e", "game:flip", "game:v"]);
+    for (const quarterTurns of [true, false])
+      expect(t.resolve(key("e"), { ...edit, quarterTurns })?.source).toBe("engine");
+    expect(t.resolve(key("H", { shiftKey: true }), play)).toMatchObject({
+      source: "game",
+      command: "game:hop",
+    });
   });
 
   it("names a chord for an engine command's hint", () => {

@@ -38,7 +38,12 @@ const box = (cx: number, cy: number, hw: number, hh: number): ShapeObj => ({
 });
 
 function scene(entities: RuntimeEntity[], gravity: [number, number] = [0, 1200]): ExpandedScene {
-  return { name: "t", bounds: [-1000, -1000, 1000, 1000], settings: { gravity }, entities };
+  return {
+    name: "t",
+    bounds: [-1000, -1000, 1000, 1000],
+    settings: { gravity, physics: "rapier", grid: null, view: { projection: "orthogonal" } },
+    entities,
+  };
 }
 
 const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 20, 500, 20) };

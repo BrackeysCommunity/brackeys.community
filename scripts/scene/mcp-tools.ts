@@ -125,7 +125,7 @@ const opBatch = z
     label: z.string().optional(),
     base: z.string().optional(),
   })
-  .describe("An OpBatch; `scene_schema` with which `ops` gives its full schema.");
+  .describe("An OpBatch at format v3; `scene_schema` with which `ops` gives its full schema.");
 const jsonOrPath = (what: string) =>
   z.union([z.string(), z.record(z.string(), z.unknown())]).describe(`${what}, or a path to one.`);
 
@@ -300,7 +300,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_show",
     title: "Show a scene",
     description:
-      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash. Filter by ref, type or a circle.",
+      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash: instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world turn and flip, behavior blocks, an instance's params and the params its prefab exposes, and each grid field's filled cells and bounds. Filter by ref, type or a circle.",
     annotations: READ,
     input: {
       scene: sceneArg,

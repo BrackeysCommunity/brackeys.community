@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
@@ -47,6 +47,11 @@ const sinkDef = (): SceneDefinition => {
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
   return parsed.def;
 };
+/** Every prefab of the engine's home, which the kitchen sink reaches through instances, nesting and bases. */
+const PREFAB_IDS = readdirSync(new URL("prefabs/", scenes))
+  .filter((f) => f.endsWith(".json"))
+  .map((f) => f.slice(0, -".json".length))
+  .sort();
 const prefabDef = (id: string): Prefab => {
   const parsed = parsePrefab(read(`prefabs/${id}.json`), registry);
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
@@ -104,8 +109,8 @@ async function fixture(
   const created = { at: opts.created ?? 1, by: "test" };
   const entries = [
     entry("kitchen-sink", "scene", "scenes/kitchen-sink.json", { created }),
-    entry("post", "prefab", "scenes/prefabs/post.json", { created }),
-    entry("gate", "prefab", "scenes/prefabs/gate.json", { created }),
+    ...PREFAB_IDS.map((id) => entry(id, "prefab", `scenes/prefabs/${id}.json`, { created })),
+    entry("cards", "data-table", "scenes/data/cards.json", { created }),
     entry("hero", "texture", "art/hero.png", {
       created,
       sha256: heroHash,
@@ -133,8 +138,14 @@ async function fixture(
   );
   const texts = new Map<AssetId, string>([
     ["kitchen-sink", formatScene(sinkDef()).text],
-    ["post", formatPrefab(opts.post ?? prefabDef("post"))],
-    ["gate", formatPrefab(prefabDef("gate"))],
+    ...PREFAB_IDS.map((id): [AssetId, string] => [
+      id,
+      formatPrefab((id === "post" ? opts.post : undefined) ?? prefabDef(id)),
+    ]),
+    [
+      "cards",
+      formatAssetDoc(kinds.get("data-table") as DocKindDef, JSON.parse(read("data/cards.json"))),
+    ],
     ["hero-skin", skinText("hero")],
     ...[...materials.values].map(([id, value]): [AssetId, string] => [
       id,
@@ -168,12 +179,12 @@ describe("snapshotProject", () => {
     expect(snap.build).toEqual({ scene: f.build.scene!.hash });
     expect(Object.keys(snap.assets).sort()).toEqual(
       [
-        "gate",
+        "cards",
         "hero",
         "hero-sheet",
         "hero-skin",
         "kitchen-sink",
-        "post",
+        ...PREFAB_IDS,
         ...materials.values.keys(),
       ].sort(),
     );
@@ -227,7 +238,8 @@ describe("snapshotProject", () => {
     for (const site of sites) {
       const target = snap.assets[site.id];
       expect(target, site.id).toBeDefined();
-      expect(site.kinds).toContain(target!.kind);
+      // An `assets` header names an id of any kind, so its sites list none.
+      if (site.kinds.length > 0) expect(site.kinds).toContain(target!.kind);
       expect(isSha256(target!.sha256)).toBe(true);
     }
     expect(await checkSnapshot(snap, store, kinds, env)).toEqual([]);
@@ -339,7 +351,7 @@ describe("snapshotScene", () => {
       registry,
     );
     expect(def).toEqual(sinkDef());
-    expect([...prefabs.keys()].sort()).toEqual(["gate", "post"]);
+    expect([...prefabs.keys()].sort()).toEqual(PREFAB_IDS);
     expect(prefabs.get("post")).toEqual(prefabDef("post"));
   });
 

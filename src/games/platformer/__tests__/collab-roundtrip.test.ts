@@ -4,7 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { docToScene, sceneToDoc } from "@jams/engine/collab";
+import {
+  BULK_FIELD,
+  docToScene,
+  entitiesMap,
+  instancesMap,
+  LEGACY_BULK_FIELD,
+  LEGACY_Z_FIELD,
+  sceneToDoc,
+  Z_FIELD,
+} from "@jams/engine/collab";
 import { formatAssetDoc, type DocKindDef } from "@jams/engine/project";
 import { formatScene, type SceneDefinition } from "@jams/engine/scene";
 import {
@@ -81,5 +90,35 @@ describe("platformer scenes through the shared doc", () => {
     const remote = new Y.Doc();
     Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
     expect(formatScene(docToScene(remote)).text).toBe(text);
+  });
+});
+
+describe("platformer scenes at layout 3", () => {
+  const text = readFileSync(new URL("../scenes/test-yard.json", import.meta.url), "utf8");
+
+  it("keep every record's order under @z and bulk keys under @bulk", () => {
+    const doc = sceneToDoc(JSON.parse(text) as SceneDefinition);
+    const records = [...entitiesMap(doc).values(), ...instancesMap(doc).values()];
+    expect(records.length).toBeGreaterThan(0);
+    for (const map of records) {
+      expect(typeof map.get(Z_FIELD)).toBe("string");
+      expect(map.has(LEGACY_Z_FIELD)).toBe(false);
+      expect(map.has(LEGACY_BULK_FIELD)).toBe(false);
+    }
+    expect([...entitiesMap(doc).values()].some((m) => typeof m.get(BULK_FIELD) === "string")).toBe(
+      true,
+    );
+  });
+
+  it("round-trip draw z and an assets header byte for byte, across the wire", () => {
+    const def = JSON.parse(text) as SceneDefinition;
+    def.assets = ["boom", "hud-font"];
+    def.entities = def.entities!.map((e, i) => ({ ...e, z: i - 2 }));
+    const expected = formatScene(def).text;
+    const remote = new Y.Doc();
+    Y.applyUpdate(remote, Y.encodeStateAsUpdate(sceneToDoc(def)));
+    const back = docToScene(remote);
+    expect(back.entities!.map((e) => e.z)).toEqual(def.entities.map((e) => e.z));
+    expect(formatScene(back).text).toBe(expected);
   });
 });

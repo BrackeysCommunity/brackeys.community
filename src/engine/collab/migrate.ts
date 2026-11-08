@@ -5,6 +5,7 @@ import { SCENE_FORMAT_VERSION, type BulkKey, type SceneDefinition } from "../sce
 import { writeScene } from "./apply";
 import { metaMap, readDoc } from "./convert";
 import { randomKey, type KeyGen } from "./keys";
+import { sameValue } from "./log";
 import type { SceneOrigin } from "./types";
 
 export type MigrateDocOptions = {
@@ -20,6 +21,8 @@ const MIGRATION: SceneOrigin = { kind: "migration" };
  * Lifts a doc to `target` in place, in one `migration` transaction, keeping
  * each entry's key so an edit made against the old version still lands on
  * the same entity: named entities match by id, bulk entries by position.
+ * A step that changes only `v` writes only `meta.schemaVersion`, so it
+ * suits prefab docs too and leaves every record untouched.
  * Returns the versions, or null when the doc was already at `target`.
  * Throws when a migration step is missing or the doc is newer than `target`.
  */
@@ -33,6 +36,10 @@ export function migrateDoc(
   if (!migrated.ok) throw new Error(`can't migrate scene: ${migrated.issue.message}`);
   if (migrated.from === target) return null;
   const next = migrated.raw as SceneDefinition;
+  if (sameValue({ ...next, v: target }, { ...view.def, v: target })) {
+    doc.transact(() => metaMap(doc).set("schemaVersion", target), MIGRATION);
+    return { from: migrated.from, to: target };
+  }
 
   const byId = new Map<string, string>();
   view.entityKeys.forEach((key, i) => {

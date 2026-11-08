@@ -150,6 +150,12 @@ export const BASE_REQUIRED_FIELDS: Record<Exclude<PrimitiveType, "note">, readon
   follower: ["shape", "path"],
 };
 
+function px2(description: string, [a, b]: [string, string] = ["x", "y"]) {
+  return z
+    .tuple([z.number().describe(`${a}, px.`), z.number().describe(`${b}, px.`)])
+    .describe(description);
+}
+
 /** The engine's settings fields; a game's sit beside them. */
 export const ENGINE_SETTINGS = {
   gravity: z
@@ -160,6 +166,53 @@ export const ENGINE_SETTINGS = {
     .optional()
     .describe("World gravity [x, y] in px/s²; y is down. Omitted means [0, 1200].")
     .meta({ title: "Gravity", unit: "px/s²" }),
+  physics: z
+    .enum(["rapier", "none"])
+    .optional()
+    .describe(
+      'The physics world: "rapier" simulates bodies, "none" runs without one. Omitted resolves through the project and game defaults to "rapier".',
+    )
+    .meta({ title: "Physics" }),
+  grid: z
+    .discriminatedUnion("kind", [
+      z.strictObject({
+        kind: z.literal("square").describe("Square (or rectangular) cells."),
+        cell: px2("Cell size [w, h], px; positive integers.", ["w", "h"]),
+        origin: px2("Where cell 0, 0 starts, world px; integers. Omitted means 0, 0.").optional(),
+      }),
+      z.strictObject({
+        kind: z.literal("hex").describe("Hexagonal cells, parameterized like Tiled's."),
+        cell: px2(
+          "The hex's bounding box [w, h], px (Tiled's tilewidth, tileheight); positive integers.",
+          ["w", "h"],
+        ),
+        side: z
+          .number()
+          .describe(
+            "The length of the flat sides, px (Tiled's hexsidelength): an integer from 0 to the cell's size on the stagger axis.",
+          ),
+        stagger: z.enum(["x", "y"]).describe("Which axis is staggered (Tiled's staggeraxis)."),
+        index: z
+          .enum(["odd", "even"])
+          .describe("Whether odd or even rows (or columns) are shifted (Tiled's staggerindex)."),
+        origin: px2("Where cell 0, 0 starts, world px; integers. Omitted means 0, 0.").optional(),
+      }),
+    ])
+    .optional()
+    .describe("The scene's one cell grid, square or hex; the hex parameters match Tiled's.")
+    .meta({ title: "Grid" }),
+  view: z
+    .strictObject({
+      projection: z.literal("orthogonal").describe("The only projection there is so far."),
+    })
+    .optional()
+    .describe("How the scene is projected to the screen; reserved, only orthogonal exists.")
+    .meta({ title: "View" }),
 } satisfies z.ZodRawShape;
+
+/** The keys `ENGINE_SETTINGS` holds; a game's settings may not redefine them. */
+export const ENGINE_SETTING_KEYS = Object.keys(
+  ENGINE_SETTINGS,
+) as readonly (keyof typeof ENGINE_SETTINGS)[];
 
 export const DEFAULT_GRAVITY: [number, number] = [0, 1200];

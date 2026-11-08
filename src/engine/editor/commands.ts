@@ -1,5 +1,6 @@
 import type { Registry } from "../game/types";
 import { parseBulkId } from "../scene/expand";
+import { parseChildRef } from "../scene/resolve";
 import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, SceneOp } from "../scene/types";
 import { moveBatch } from "./gizmos/batch";
 import { shapePivot } from "./gizmos/handles";
@@ -100,6 +101,125 @@ export function deleteBatch(refs: readonly Ref[]): OpBatch | null {
     label: `Delete ${unique.length === 1 ? unique[0] : `${unique.length} entities`}`,
     ops: [{ op: "remove", refs: unique }],
   };
+}
+
+/**
+ * One batch raising (`by` 1, bring forward) or lowering (`by` -1, send
+ * backward) the `z` of the selected entities and instances. Bulk entries
+ * carry no `z` and are left out; `null` when nothing is left.
+ */
+export function zOrderBatch(refs: readonly Ref[], by: 1 | -1): OpBatch | null {
+  const placed = [...new Set(refs)].filter((r) => !parseBulkId(r));
+  if (placed.length === 0) return null;
+  const n = placed.length === 1 ? placed[0]! : `${placed.length} entities`;
+  return {
+    label: by > 0 ? `Bring ${n} forward` : `Send ${n} backward`,
+    ops: [{ op: "setZ", refs: placed, by }],
+  };
+}
+
+export type QuarterTurnTargets = {
+  /** Selected instances (by id, or through a child) outside the groups below, in selection order. */
+  instances: string[];
+  /** Declared groups every member of which is selected, in declaration order. */
+  groups: string[];
+  /** What neither covers: plain entities and bulk entries. */
+  rest: Ref[];
+};
+
+/**
+ * What a turn or flip of `refs` acts on in `def` (the document, not the
+ * resolved view): instances and whole groups, which turn by quarter turns
+ * and flip exactly.
+ */
+export function quarterTurnTargets(def: SceneDefinition, refs: readonly Ref[]): QuarterTurnTargets {
+  const instances = def.instances ?? [];
+  const known = new Set(instances.map((i) => i.id));
+  const instanceOf = (r: Ref) => {
+    const id = parseChildRef(r)?.instance ?? r;
+    return known.has(id) ? id : undefined;
+  };
+  const picked = new Set(refs.flatMap((r) => instanceOf(r) ?? []));
+  const sel = new Set(refs);
+  const entities = def.entities ?? [];
+  const groups = Object.keys(def.groups ?? {}).filter((g) => {
+    const ents = entities.filter((e) => e.group === g);
+    const insts = instances.filter((i) => i.group === g);
+    return (
+      ents.length + insts.length > 0 &&
+      ents.every((e) => sel.has(e.id)) &&
+      insts.every((i) => picked.has(i.id))
+    );
+  });
+  const whole = new Set(groups);
+  const groupOf = new Map<string, string | undefined>([
+    ...entities.map((e): [string, string | undefined] => [e.id, e.group]),
+    ...instances.map((i): [string, string | undefined] => [i.id, i.group]),
+  ]);
+  const inWhole = (id: string) => {
+    const g = groupOf.get(id);
+    return g !== undefined && whole.has(g);
+  };
+  const out: QuarterTurnTargets = { instances: [], groups, rest: [] };
+  for (const r of new Set(refs)) {
+    const inst = instanceOf(r);
+    if (inst !== undefined) {
+      if (!inWhole(inst) && !out.instances.includes(inst)) out.instances.push(inst);
+    } else if (!inWhole(r)) out.rest.push(r);
+  }
+  return out;
+}
+
+function transformBatch(
+  def: SceneDefinition,
+  refs: readonly Ref[],
+  label: (what: string) => string,
+  change: { turn: 1 | -1 } | { flip: "x" | "y" },
+): OpBatch | null {
+  const t = quarterTurnTargets(def, refs);
+  const n = t.instances.length + t.groups.length;
+  if (n === 0) return null;
+  const what = n === 1 ? (t.instances[0] ?? t.groups[0]!) : `${n} items`;
+  return {
+    label: label(what),
+    ops: [
+      {
+        op: "transform",
+        ...(t.instances.length > 0 ? { refs: t.instances } : {}),
+        ...(t.groups.length > 0 ? { groups: t.groups } : {}),
+        ...change,
+      },
+    ],
+  };
+}
+
+/**
+ * One batch turning the selected instances and whole groups a quarter turn
+ * (`turn` 1 clockwise on screen, -1 counter-clockwise), each about its own
+ * `at`. Plain entities in the selection are left out; `null` when nothing
+ * is left.
+ */
+export function turnBatch(
+  def: SceneDefinition,
+  refs: readonly Ref[],
+  turn: 1 | -1,
+): OpBatch | null {
+  const dir = turn > 0 ? "clockwise" : "counter-clockwise";
+  return transformBatch(def, refs, (w) => `Turn ${w} ${dir}`, { turn });
+}
+
+/**
+ * One batch mirroring the selected instances and whole groups across the
+ * world axis: `x` flips left and right, `y` up and down, each about its own
+ * `at`. `null` when the selection holds neither.
+ */
+export function flipBatch(
+  def: SceneDefinition,
+  refs: readonly Ref[],
+  axis: "x" | "y",
+): OpBatch | null {
+  const dir = axis === "x" ? "horizontally" : "vertically";
+  return transformBatch(def, refs, (w) => `Flip ${w} ${dir}`, { flip: axis });
 }
 
 const groupsOf = (def: SceneDefinition) =>

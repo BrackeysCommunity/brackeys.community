@@ -1,17 +1,19 @@
 import type { Registry } from "../game/types";
 import { bulkEntries, bulkId, bulkKeysOf, bulkKeyType } from "../scene/expand";
-import { childRef, localChildren } from "../scene/resolve";
-import type {
-  BulkEntry,
-  BulkKey,
-  EntityDef,
-  EntityTypeName,
-  InstanceDef,
-  Prefab,
-  PrefabLibrary,
-  Ref,
-  SceneDefinition,
+import { CHILD_SEPARATOR, childRef, localChildren, type LocalChild } from "../scene/resolve";
+import {
+  PREFAB_MAX_DEPTH,
+  type BulkEntry,
+  type BulkKey,
+  type EntityDef,
+  type EntityTypeName,
+  type InstanceDef,
+  type Prefab,
+  type PrefabLibrary,
+  type Ref,
+  type SceneDefinition,
 } from "../scene/types";
+import { prefabInstances } from "./prefab-commands";
 
 export type OutlineRow = {
   /** Unique within one outline; stable across edits that keep the row. */
@@ -24,9 +26,9 @@ export type OutlineRow = {
   ref?: Ref;
   type?: EntityTypeName;
   count?: number;
-  /** On an instance's row: the prefab it places. */
+  /** On an instance's row, a nested one's too: the prefab it places. */
   prefab?: string;
-  /** On an instance's row, how many overrides it holds; on a child's, whether any of its fields is overridden. */
+  /** On an instance's row, how many overrides it holds (a nested one's: the scene's keys on it and below); on a child's, whether any of its fields is overridden. */
   overrides?: number;
 };
 
@@ -70,13 +72,26 @@ function bucketRows(key: BulkKey, values: BulkEntry[]): OutlineRow[] {
   ];
 }
 
-/** An instance's row and one row per child, its resolved ref and whether it is overridden. */
+const parentOf = (rel: Ref): string => {
+  const i = rel.lastIndexOf(CHILD_SEPARATOR);
+  return i < 0 ? "" : rel.slice(0, i);
+};
+
+/**
+ * An instance's row and, under it, a row per child of its prefab with its
+ * resolved ref and whether it is overridden, then a row per instance nested
+ * in that prefab (`room-1/door-1`) holding its own children
+ * (`room-1/door-1/panel`) the same way, at every level.
+ */
 function instanceRows(
   inst: InstanceDef,
-  prefab: Prefab | undefined,
+  prefabs: PrefabLibrary | undefined,
   registry: Registry,
 ): OutlineRow[] {
   const keys = Object.keys(inst.overrides ?? {});
+  const covering = (rel: string) =>
+    keys.filter((k) => k.startsWith(`${rel}.`) || k.startsWith(`${rel}${CHILD_SEPARATOR}`)).length;
+  const prefab = prefabs?.get(inst.prefab);
   const head: OutlineRow = {
     key: `ref:${inst.id}`,
     depth: 1,
@@ -89,25 +104,52 @@ function instanceRows(
     prefab: inst.prefab,
     overrides: keys.length,
   };
-  if (!prefab) return [head];
-  return [
-    head,
-    ...localChildren(prefab, inst, registry).map((c): OutlineRow => {
+  if (!prefab || !prefabs) return [head];
+
+  const byParent = new Map<string, LocalChild[]>();
+  for (const c of localChildren(prefab, inst, registry, prefabs)) {
+    const parent = parentOf(c.child);
+    byParent.set(parent, [...(byParent.get(parent) ?? []), c]);
+  }
+  const rows: OutlineRow[] = [head];
+  const walk = (holder: Prefab, path: string, depth: number, stack: ReadonlySet<string>) => {
+    for (const c of byParent.get(path) ?? []) {
       const ref = childRef(inst.id, c.child);
       const type = c.kind === "entity" ? c.def.type : bulkKeyType(c.key);
-      const overridden = keys.filter((k) => k.startsWith(`${c.child}.`)).length;
-      return {
+      const own = c.child.slice(path ? path.length + 1 : 0);
+      rows.push({
         key: `ref:${ref}`,
-        depth: 2,
+        depth,
         kind: "entity",
-        label: c.kind === "entity" ? (c.def.name ?? c.child) : c.child,
+        label: c.kind === "entity" ? (c.def.name ?? own) : own,
         detail: describeEntry(c.kind === "entity" ? (c.def.shape ?? c.def.at) : c.value) ?? type,
         ref,
         type,
-        overrides: overridden,
-      };
-    }),
-  ];
+        overrides: keys.filter((k) => k.startsWith(`${c.child}.`)).length,
+      });
+    }
+    for (const n of prefabInstances(holder, prefabs)) {
+      const rel = path ? `${path}${CHILD_SEPARATOR}${n.id}` : n.id;
+      const ref = childRef(inst.id, rel);
+      const nested = prefabs.get(n.prefab);
+      const loops = stack.has(n.prefab) || stack.size >= PREFAB_MAX_DEPTH;
+      rows.push({
+        key: `ref:${ref}`,
+        depth,
+        kind: "entity",
+        label: n.name ?? n.id,
+        detail: [nested ? n.prefab : `${n.prefab} (missing)`, n.off ? "off" : undefined]
+          .filter((s) => s !== undefined)
+          .join(" · "),
+        ref,
+        prefab: n.prefab,
+        overrides: covering(rel),
+      });
+      if (nested && !loops) walk(nested, rel, depth + 1, new Set([...stack, n.prefab]));
+    }
+  };
+  walk(prefab, "", 2, new Set([prefab.id]));
+  return rows;
 }
 
 /**
@@ -115,7 +157,8 @@ function instanceRows(
  * scene uses, in registration order, holding its bulk keys (each with a child
  * row per entry) and then its entities in file order. Types the registry
  * doesn't know come last, under their own names. Instances follow under one
- * `instances` row, each with a row per child of its prefab.
+ * `instances` row, each with a row per child of its prefab and per
+ * instance nested in it, a level deeper each time.
  */
 export function buildOutline(
   def: SceneDefinition,
@@ -152,8 +195,7 @@ export function buildOutline(
       label: "Prefab instances",
       count: instances.length,
     });
-    for (const inst of instances)
-      rows.push(...instanceRows(inst, prefabs?.get(inst.prefab), registry));
+    for (const inst of instances) rows.push(...instanceRows(inst, prefabs, registry));
   }
   return rows;
 }

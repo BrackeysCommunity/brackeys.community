@@ -4,11 +4,18 @@ import { dirname, join, matchesGlob, relative, resolve, sep } from "node:path";
 import * as Y from "yjs";
 
 import { applyOpsToDoc } from "../collab/apply";
-import { docLayout, docMeta, docToScene, isPrefabDoc, sceneToDoc } from "../collab/convert";
+import {
+  docLayout,
+  docMeta,
+  docPrefabs,
+  docToScene,
+  isPrefabDoc,
+  sceneToDoc,
+} from "../collab/convert";
 import { randomKey } from "../collab/keys";
 import { contentMap, layoutFromDoc, layoutPatch, layoutToDoc } from "../collab/layout";
 import { sameValue } from "../collab/log";
-import { migrateLayout, projectDocWriter } from "../collab/migrate-layout";
+import { migrateDocLayout, migrateLayout, projectDocWriter } from "../collab/migrate-layout";
 import { docToPrefab, prefabPatch, prefabToDoc } from "../collab/prefab-doc";
 import { applyRegistryBatch } from "../collab/project-apply";
 import {
@@ -813,6 +820,7 @@ export function createProjectFileAdapter(
     if (cached !== null) return cached;
     if (!isDocKind(def)) return null;
     const persisted = await persistedDoc(nameOf(entry));
+    if (persisted) liftLayout(def, persisted);
     return persisted && codecOf(def).seeded(persisted) ? canonical(def, persisted) : null;
   }
 
@@ -963,8 +971,19 @@ export function createProjectFileAdapter(
   ): Promise<boolean> {
     const trial = new Y.Doc();
     Y.applyUpdate(trial, state, PERSISTED_ORIGIN);
+    liftLayout(def, trial);
     if (!codec.seeded(trial) || canonical(def, trial) === text) return true;
     return (await codec.patch(trial, fromFile)).kind !== "refused";
+  }
+
+  /**
+   * Lifts a persisted doc to this engine's layout where that needs no
+   * project: every doc but a layout-1 scene that still holds prefabs.
+   */
+  function liftLayout(def: DocKindDef, doc: Y.Doc): void {
+    if (!docMeta(doc) || docLayout(doc) >= COLLAB_LAYOUT_VERSION) return;
+    if (def.layout !== "custom") migrateDocLayout(doc, def.layout as DocLayout);
+    else if (def.kind === PREFAB_KIND || docPrefabs(doc).size === 0) migrateDocLayout(doc);
   }
 
   /** Lifts a persisted layout-1 scene: its prefabs become prefab assets of their own. */
@@ -1003,6 +1022,7 @@ export function createProjectFileAdapter(
     const persisted = await persistedState(name);
     if (persisted && (text === null || (await takesFile(codec, persisted, fromFile, text, def))))
       Y.applyUpdate(doc, persisted, PERSISTED_ORIGIN);
+    liftLayout(def, doc);
     if (codec.seeded(doc)) {
       if (def.kind !== PREFAB_KIND && def.layout === "custom") await migrateScene(key, doc);
       if (fromFile && text !== canonical(def, doc)) await codec.patch(doc, fromFile);
@@ -1262,8 +1282,8 @@ export function createProjectFileAdapter(
       for (const { key, holder } of held) {
         if (blocked.has(key)) continue;
         const folded = holder.toLowerCase();
-        const mover = freed.get(folded);
-        if (mover === null || (mover !== undefined && !blocked.has(mover))) continue;
+        const freer = freed.get(folded);
+        if (freer === null || (freer !== undefined && !blocked.has(freer))) continue;
         blocked.set(key, holder);
         changed = true;
       }

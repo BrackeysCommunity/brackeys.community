@@ -1,9 +1,9 @@
 import { containedInRect, containsPoint, intersectsRect } from "../scene/shape-geometry";
-import type { Aabb, Layer, Pt, Ref } from "../scene/types";
+import type { Aabb, Pt, Ref } from "../scene/types";
 import type { IndexEntry, SpatialIndex } from "./tools";
 
 /** Layers picking skips. */
-export type PickLayers = { hidden: ReadonlySet<Layer>; locked: ReadonlySet<Layer> };
+export type PickLayers = { hidden: ReadonlySet<string>; locked: ReadonlySet<string> };
 
 /** Screen px around a point entity that still picks it. */
 export const POINT_PICK_PX = 8;

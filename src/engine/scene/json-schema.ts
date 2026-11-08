@@ -1,11 +1,14 @@
 import { z } from "zod";
 
+import { BEHAVIORS_FIELD } from "../game/behaviors";
+import { assetKindsOf, BASE_FIELDS } from "../game/fields";
 import { ENGINE_REGISTRY_ID, type Registry } from "../game/types";
+import type { AssetId, AssetKindName } from "../project/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { fragmentSchemaFor } from "./fragment";
 import { jsonPointer } from "./issues";
 import { prefabSchemaFor } from "./prefab";
-import { sceneSchemaFor } from "./schema";
+import { BEHAVIOR_SLOT_META, sceneSchemaFor, unwrapSchema } from "./schema";
 import { SCENE_FORMAT_VERSION } from "./types";
 
 /** Prefix of every JSON Schema `$id` the engine publishes: `urn:jams-engine:<name>:v<n>`. */
@@ -22,17 +25,64 @@ export function stripMetaIds(ctx: { jsonSchema: Record<string, unknown> }): void
   delete ctx.jsonSchema.id;
 }
 
-/** Draft 2020-12 JSON Schema of a Zod schema, `$defs` named by `meta({ id })`. */
-export function toJsonSchema(schema: z.ZodType): Record<string, unknown> {
+export type JsonSchemaOptions = {
+  /** The registry's layer names, the `enum` of every `layer` field; omitted, layers are any id. */
+  layers?: readonly string[];
+  /**
+   * Live asset ids of some kinds, the `enum` of every asset field naming
+   * them (none when empty). Omitted, an asset field keeps the ids its
+   * builder was given, if any.
+   */
+  assets?: (kinds: readonly AssetKindName[]) => readonly AssetId[];
+};
+
+type JsonNode = Record<string, unknown>;
+
+const isNode = (v: unknown): v is JsonNode => v !== null && typeof v === "object";
+
+const LAYER_NAME = unwrapSchema(BASE_FIELDS.layer);
+
+/** The layer names `registry` declares, bottom to top. */
+export const layerNames = (registry: Registry): string[] => registry.layers.map((l) => l.name);
+
+/**
+ * Draft 2020-12 JSON Schema of a Zod schema, `$defs` named by `meta({ id })`.
+ * An asset field carries an `enum` of live ids only when there are some. An
+ * entity's `behaviors` lists only its type's allowed behaviors (validation
+ * accepts any name, to report it by name), and types that don't load have none.
+ */
+export function toJsonSchema(
+  schema: z.ZodType,
+  opts: JsonSchemaOptions = {},
+): Record<string, unknown> {
+  const { layers, assets } = opts;
   return z.toJSONSchema(schema, {
     target: "draft-2020-12",
-    override: stripMetaIds,
+    override: (ctx) => {
+      stripMetaIds(ctx);
+      const node = ctx.jsonSchema as Record<string, unknown>;
+      const kinds = assetKindsOf(ctx.zodSchema);
+      if (kinds) {
+        const ids = assets ? assets(kinds) : Array.isArray(node.enum) ? node.enum : [];
+        if (ids.length > 0) node.enum = [...ids];
+        else delete node.enum;
+      }
+      if (layers && layers.length > 0 && unwrapSchema(ctx.zodSchema) === LAYER_NAME)
+        node.enum = [...layers];
+      const slot = node[BEHAVIOR_SLOT_META];
+      delete node[BEHAVIOR_SLOT_META];
+      if (slot === "slot") node.additionalProperties = false;
+      if (slot === "none" && isNode(node.properties))
+        delete (node.properties as JsonNode)[BEHAVIORS_FIELD];
+    },
   }) as Record<string, unknown>;
 }
 
 /** The JSON Schema of scenes judged by `registry`, with `$id` `registry.schemaId` and the agent surface version. */
 export function sceneJsonSchema(registry: Registry): Record<string, unknown> {
-  const { $schema, ...rest } = toJsonSchema(sceneSchemaFor(registry));
+  const { $schema, ...rest } = toJsonSchema(sceneSchemaFor(registry), {
+    layers: layerNames(registry),
+  });
   const of = registry.id === ENGINE_REGISTRY_ID ? "" : ` for ${registry.id}`;
   return {
     $schema,
@@ -49,7 +99,7 @@ function documentSchema(
   title: string,
   schema: z.ZodType,
 ): Record<string, unknown> {
-  const { $schema, ...rest } = toJsonSchema(schema);
+  const { $schema, ...rest } = toJsonSchema(schema, { layers: layerNames(registry) });
   const of = registry.id === ENGINE_REGISTRY_ID ? "" : ` for ${registry.id}`;
   return {
     $schema,
@@ -69,10 +119,6 @@ export function fragmentJsonSchema(registry: Registry): Record<string, unknown> 
 export function prefabJsonSchema(registry: Registry): Record<string, unknown> {
   return documentSchema(registry, "prefab", "prefab", prefabSchemaFor(registry));
 }
-
-type JsonNode = Record<string, unknown>;
-
-const isNode = (v: unknown): v is JsonNode => v !== null && typeof v === "object";
 
 /**
  * JSON Pointers of every object property and tuple item in a JSON Schema

@@ -37,7 +37,7 @@ export type PrefabIsolation = {
 
 /**
  * The scene a prefab is edited in: the parent scene's size centred on the
- * prefab's origin, grown to hold its children.
+ * prefab's origin, grown to hold its children and its instances' origins.
  */
 export function isolationBounds(
   prefab: Prefab,
@@ -54,9 +54,12 @@ const isSessionSource = (source: PrefabSource): source is SessionPrefabSource =>
  * Opens `prefab` for editing on its own: a session over the prefab's doc,
  * from the scene session's prefab source, read at its local coordinates
  * around the origin. Every edit lands in that doc, so each instance
- * follows and collaborators in the prefab see each other. Ops that only
- * mean something in a scene, and children joining a group, are refused
- * with `op-invalid`. Null when the source has no such prefab to open.
+ * follows and collaborators in the prefab see each other. The instances
+ * it holds show resolved like a scene's, their children by `door-1/panel`;
+ * an edit to one is an override in this prefab, and an instance that
+ * would contain the prefab itself is refused with `prefab-cycle`. Ops that
+ * only mean something in a scene, and children joining a group, are
+ * refused with `op-invalid`. Null when the source has no such prefab to open.
  */
 export async function openPrefabIsolation(
   scene: EditorSession,
@@ -84,6 +87,7 @@ export async function openPrefabIsolation(
     registry,
     prefabs: source,
     parentBounds,
+    ...(project ? { project } : {}),
     ...(history ? { history } : {}),
     ...(awareness ? { awareness } : {}),
     ...(opts.user ? { user: opts.user } : {}),

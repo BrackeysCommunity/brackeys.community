@@ -1,13 +1,17 @@
 /**
  * A prefab as a doc of its own, laid out as a scene's entities are, so
  * concurrent edits to different children, or to different fields of one
- * child, merge.
+ * child, merge. Parameters, overrides and assets merge per key too.
  *
  * ```
- * doc.getMap("meta")      kind "prefab", schemaVersion, layout, game?, $schema?, project?, key?   seeder only
- * doc.getMap("prefab")    id, contract?   one atomic value each
- * doc.getMap("entities")  key → Y.Map     the children, exactly the scene's entity layout (bulk entries included)
- * doc.getArray("log")     LogEntry[]
+ * doc.getMap("meta")       kind "prefab", schemaVersion, layout, game?, $schema?, project?, key?   seeder only
+ * doc.getMap("prefab")     id, base?, contract?   one atomic value each
+ * doc.getMap("params")     name → PrefabParam     one atomic value each
+ * doc.getMap("overrides")  path → value           a variant's overrides of its base's children
+ * doc.getMap("assets")     AssetId → true         assets only game code names
+ * doc.getMap("instances")  key → Y.Map            nested instances, exactly the scene's instance layout
+ * doc.getMap("entities")   key → Y.Map            the children, exactly the scene's entity layout (bulk entries included)
+ * doc.getArray("log")      LogEntry[]
  * ```
  */
 import * as Y from "yjs";
@@ -15,6 +19,7 @@ import * as Y from "yjs";
 import { cloneJson } from "../project/canonical";
 import { folderOf, joinFolder } from "../project/kinds/define";
 import type { AssetPath } from "../project/types";
+import { sortedAssets } from "../scene/format";
 import { PREFABS_DIR } from "../scene/prefab";
 import {
   PREFAB_KIND,
@@ -24,20 +29,28 @@ import {
   type Prefab,
   type SceneDefinition,
 } from "../scene/types";
-import { writeScene } from "./apply";
+import { writeScene, writeVariantAndParams } from "./apply";
 import {
   docMeta,
   entitiesMap,
+  instanceRecord,
+  instancesMap,
   isPrefabDoc,
   metaMap,
+  paramsMap,
+  patchMap,
   prefabHeaderMap,
+  prefabOverridesMap,
   readDoc,
+  recordMap,
   seedDocMeta,
   seedEntities,
+  writeAssets,
   type DocView,
 } from "./convert";
 import { randomKey, type KeyGen } from "./keys";
 import { appendLog, fingerprint, sameValue, type LogInput } from "./log";
+import { initialZ } from "./order";
 import type { DocOrigin, LogEntry } from "./types";
 
 /** The log key a change to a prefab doc's header (`id`, `contract`) is recorded under. */
@@ -78,6 +91,7 @@ export function prefabToDoc(prefab: Prefab, opts: PrefabToDocOptions = {}): Y.Do
   const doc = opts.doc ?? new Y.Doc();
   if (entitiesMap(doc).size > 0 || docMeta(doc))
     throw new Error("prefabToDoc: the doc isn't empty");
+  const key = opts.key ?? randomKey;
   doc.transact(() => {
     seedDocMeta(doc, {
       kind: PREFAB_KIND,
@@ -89,8 +103,17 @@ export function prefabToDoc(prefab: Prefab, opts: PrefabToDocOptions = {}): Y.Do
     });
     const header = prefabHeaderMap(doc);
     header.set("id", prefab.id);
+    if (prefab.base !== undefined) header.set("base", prefab.base);
     if (prefab.contract !== undefined) header.set("contract", cloneJson(prefab.contract));
-    seedEntities(doc, { entities: prefab.entities, bulk: bulkOf(prefab) }, opts.key ?? randomKey);
+    patchMap(paramsMap(doc), prefab.params ?? {});
+    patchMap(prefabOverridesMap(doc), prefab.overrides ?? {});
+    writeAssets(doc, sortedAssets(prefab.assets ?? []));
+    seedEntities(doc, { entities: prefab.entities, bulk: bulkOf(prefab) }, key);
+    const placed = prefab.instances ?? [];
+    const zs = initialZ(placed.length);
+    placed.forEach((inst, i) =>
+      instancesMap(doc).set(key(), recordMap(instanceRecord(inst, zs[i]!))),
+    );
   }, opts.origin);
   return doc;
 }
@@ -102,15 +125,21 @@ function viewToPrefab(doc: Y.Doc, view: DocView): Prefab {
   const game = meta.get("game");
   const bulk: Record<BulkKey, BulkEntry[]> = {};
   for (const k of view.bulkKeys.keys()) bulk[k] = cloneJson(view.def[k] as BulkEntry[]);
+  const header = view.prefab;
   return {
     ...(typeof schema === "string" ? { $schema: schema } : {}),
     kind: PREFAB_KIND,
     v: view.def.v,
     ...(typeof game === "string" ? { game } : {}),
-    id: view.prefab?.id ?? "",
-    ...(view.prefab?.contract !== undefined ? { contract: cloneJson(view.prefab.contract) } : {}),
+    id: header?.id ?? "",
+    ...(header?.base !== undefined ? { base: header.base } : {}),
+    ...(header?.contract !== undefined ? { contract: cloneJson(header.contract) } : {}),
+    ...(view.def.assets?.length ? { assets: [...view.def.assets] } : {}),
+    ...(header?.params ? { params: cloneJson(header.params) } : {}),
+    ...(header?.overrides ? { overrides: cloneJson(header.overrides) } : {}),
     entities: cloneJson(view.def.entities ?? []) as EntityDef[],
     ...(Object.keys(bulk).length > 0 ? { bulk } : {}),
+    ...(view.def.instances?.length ? { instances: cloneJson(view.def.instances) } : {}),
   };
 }
 
@@ -128,12 +157,31 @@ export type PrefabPatchOptions = {
   noLog?: boolean;
 };
 
+/** Each of `next`'s key in `keys`/`ids`, matched by id; undefined for one with no match. */
+function keysById(
+  keys: readonly string[],
+  ids: readonly string[],
+  next: readonly { id: string }[],
+): (string | undefined)[] {
+  const byId = new Map<string, string>();
+  keys.forEach((k, i) => {
+    const id = ids[i]!;
+    if (!byId.has(id)) byId.set(id, k);
+  });
+  return next.map(({ id }) => {
+    const k = byId.get(id);
+    byId.delete(id);
+    return k;
+  });
+}
+
 /**
  * Brings a prefab doc to `next` in one transaction with `origin`, writing
- * only what changed: named children keep their keys by id, bulk entries by
- * position, and each child's map is patched field by field, so a
- * concurrent edit to another child or field survives. Returns the log
- * entry, or null when nothing changed.
+ * only what changed: named children and nested instances keep their keys by
+ * id, bulk entries by position, and each child's or instance's map is
+ * patched field by field; parameters, overrides and assets are written per
+ * key. A concurrent edit to another child, field or key survives. Returns
+ * the log entry, or null when nothing changed.
  */
 export function prefabPatch(
   doc: Y.Doc,
@@ -148,21 +196,23 @@ export function prefabPatch(
     ...(next.game !== undefined ? { game: next.game } : {}),
   };
   if (next.game === undefined) delete target.game;
-  delete target.entities;
-  for (const k of view.bulkKeys.keys()) delete target[k];
+  for (const k of ["entities", "instances", "assets", ...view.bulkKeys.keys()]) delete target[k];
   for (const [k, values] of bulkOf(next)) if (values.length > 0) target[k] = cloneJson(values);
   if (next.entities.length > 0) target.entities = cloneJson(next.entities);
+  if (next.instances?.length) target.instances = cloneJson(next.instances);
+  if (next.assets?.length) target.assets = sortedAssets(next.assets);
 
-  const byId = new Map<string, string>();
-  view.entityKeys.forEach((key, i) => {
-    const id = view.def.entities![i]!.id;
-    if (!byId.has(id)) byId.set(id, key);
-  });
-  const entities = next.entities.map((e) => {
-    const key = byId.get(e.id);
-    byId.delete(e.id);
-    return key;
-  });
+  const prevEntities = view.def.entities ?? [];
+  const entities = keysById(
+    view.entityKeys,
+    prevEntities.map((e) => e.id),
+    next.entities,
+  );
+  const instances = keysById(
+    view.instanceKeys,
+    (view.def.instances ?? []).map((i) => i.id),
+    next.instances ?? [],
+  );
   const buckets = new Map<BulkKey, (string | undefined)[]>();
   for (const [bulk, keys] of view.bulkKeys) buckets.set(bulk, [...keys]);
 
@@ -182,7 +232,7 @@ export function prefabPatch(
       doc,
       view,
       target,
-      { entities, buckets, instances: [] },
+      { entities, buckets, instances },
       opts.key ?? randomKey,
     );
     for (const [k, v] of metaChanges) {
@@ -198,6 +248,7 @@ export function prefabPatch(
       written.before[PREFAB_HEADER_KEY] = cloneJson(prevHeader);
       written.after[PREFAB_HEADER_KEY] = fingerprint(nextHeader);
     }
+    writeVariantAndParams(doc, view.prefab, next, written);
     if (opts.noLog || written.keys.length === 0) return;
     const input: LogInput = {
       actor: origin,

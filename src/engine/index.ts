@@ -20,6 +20,19 @@ export type {
   Vec2,
 } from "./types";
 export { DISPLAY_RESOLUTIONS, VIRTUAL_HEIGHT } from "./types";
+export {
+  applyPt,
+  applyVec,
+  compose,
+  composeDihedral,
+  dihedral,
+  dihedralOf,
+  flipWorld,
+  IDENTITY_2D,
+  invert,
+  type Dihedral,
+  type Transform2D,
+} from "./math";
 export type { LoadReport, StepEvent, StepResult } from "./runtime/types";
 export type { ExpandedScene, RuntimeEntity } from "./scene/types";
 export type { GameDefinition, Registry } from "./game/types";

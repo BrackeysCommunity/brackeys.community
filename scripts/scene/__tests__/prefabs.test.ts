@@ -7,6 +7,7 @@ import type { RapierModule } from "@jams/engine/headless";
 import { formatPrefab, formatScene, type Prefab, type SceneDefinition } from "@jams/engine/scene";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
+import { runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { apply } from "../tools/apply";
 import { list } from "../tools/list";
@@ -17,7 +18,7 @@ import { tempProject } from "./fixtures";
 
 const GATE: Prefab = {
   kind: "prefab",
-  v: 2,
+  v: 3,
   id: "gate",
   entities: [
     {
@@ -39,7 +40,7 @@ const GATE: Prefab = {
 };
 
 const SCENE: SceneDefinition = {
-  v: 2,
+  v: 3,
   name: "gates",
   bounds: [0, 0, 2000, 1000],
   groups: { east: { at: [1000, 0] } },
@@ -155,5 +156,84 @@ describe("scenes with prefabs", () => {
     expect((await apply({ scene: "gates", ops }, ctx)).exitCode).toBe(0);
     const back = JSON.parse(await readFile(join(root, "gates.json"), "utf8")) as SceneDefinition;
     expect(back.entities).toEqual([{ id: "start", type: "marker", at: [1100, 900] }]);
+  });
+
+  it("reaches the v3 prefab ops from the CLI: params, variants, turns and z", async () => {
+    const cli = async (...argv: string[]) => {
+      const r = await runCli([...argv, "--json"], ctx);
+      return { exitCode: r.exitCode, data: JSON.parse(r.stdout) as Record<string, unknown> };
+    };
+    const opsFile = async (name: string, batch: unknown) => {
+      const file = join(tmp, name);
+      await writeFile(file, JSON.stringify(batch));
+      return file;
+    };
+    await writeFile(
+      join(root, "prefabs", "red-gate.json"),
+      formatPrefab({ kind: "prefab", v: 3, id: "red-gate", entities: [] }),
+    );
+    const header = await cli(
+      "assets",
+      "apply",
+      "--ops",
+      await opsFile("header.json", {
+        v: 1,
+        ops: [
+          {
+            op: "editScene",
+            id: "gate",
+            ops: [
+              {
+                op: "exposeParam",
+                name: "speed",
+                param: { description: "How fast the door moves.", targets: ["door.path.speed"] },
+              },
+            ],
+          },
+          { op: "editScene", id: "red-gate", ops: [{ op: "setPrefabBase", base: "gate" }] },
+        ],
+      }),
+    );
+    expect(header.exitCode, JSON.stringify(header.data)).toBe(0);
+    const red = JSON.parse(
+      await readFile(join(root, "prefabs", "red-gate.json"), "utf8"),
+    ) as Prefab;
+    expect(red.base).toBe("gate");
+    const gate = JSON.parse(await readFile(join(root, "prefabs", "gate.json"), "utf8")) as Prefab;
+    expect(Object.keys(gate.params ?? {})).toEqual(["speed"]);
+
+    const scene = await cli(
+      "apply",
+      "gates",
+      "--ops",
+      await opsFile("scene.json", {
+        ops: [
+          { op: "setParam", ref: "gate-1", name: "speed", value: 150 },
+          { op: "transform", refs: ["gate-1"], turn: 1 },
+          { op: "setZ", refs: ["gate-1"], z: 2 },
+          { op: "instantiate", instance: { id: "red-1", prefab: "red-gate", at: [700, 800] } },
+        ],
+      }),
+    );
+    expect(scene.exitCode, JSON.stringify(scene.data)).toBe(0);
+    expect((await validate({ target: "gates" }, ctx)).exitCode).toBe(0);
+
+    const rows = (await cli("show", "gates")).data.entities as (Record<string, unknown> & {
+      ref: string;
+    })[];
+    const row = (ref: string) => rows.find((r) => r.ref === ref);
+    expect(row("gate-1")).toMatchObject({
+      params: { speed: 150 },
+      exposes: ["speed"],
+      transform: { rot: 1, flip: false },
+      z: 2,
+    });
+    expect(row("gate-1/door")).toMatchObject({
+      transform: { rot: 1, flip: false },
+      z: 2,
+      extra: expect.objectContaining({ path: expect.objectContaining({ speed: 150 }) }),
+    });
+    expect(row("red-1")).toMatchObject({ prefab: "red-gate", exposes: ["speed"] });
+    expect(row("red-1/door")).toMatchObject({ instance: "red-1", type: "follower" });
   });
 });

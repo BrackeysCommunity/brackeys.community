@@ -24,6 +24,8 @@ export type EditorCommand =
   | "select-all"
   | "group"
   | "ungroup"
+  | "bring-forward"
+  | "send-backward"
   | "frame"
   | "toggle-snap"
   | "hierarchy-up"
@@ -38,6 +40,10 @@ export type EditorCommand =
   | "pan-hold"
   | "rotate-ccw"
   | "rotate-cw"
+  | "turn-cw"
+  | "turn-ccw"
+  | "flip-x"
+  | "flip-y"
   | `nudge-${Direction}`
   | `nudge-${Direction}-coarse`
   | `nudge-${Direction}-fine`
@@ -46,6 +52,7 @@ export type EditorCommand =
   | "cancel-gesture"
   | "leave-sub-object"
   | "clear-tool"
+  | "leave-prefab"
   | "clear-selection"
   // sub-object
   | "delete-points"
@@ -75,6 +82,12 @@ export type KeyContext = {
   gesture?: boolean;
   /** The active tool; anything but `select` is cleared by Escape. */
   tool?: string;
+  /** Everything selected is prefab instances or whole groups, which turn by quarter turns. */
+  quarterTurns?: boolean;
+  /** A prefab is open on its own, so Escape can leave it. */
+  inPrefab?: boolean;
+  /** Something is selected; Escape clears it before leaving a prefab. */
+  hasSelection?: boolean;
 };
 
 export type EngineKeyBinding = {
@@ -139,7 +152,16 @@ export const ENGINE_KEYS: readonly EngineKeyBinding[] = [
   { key: "w", scope: "edit", command: "tool:waypoints", description: "Waypoints tool" },
   { key: "r", scope: "edit", command: "tool:rotate", description: "Rotate tool" },
   { key: "q", scope: "edit", command: "rotate-ccw", description: "Rotate −15°" },
+  {
+    key: "e",
+    scope: "edit",
+    command: "turn-cw",
+    description: "Turn a quarter clockwise",
+    when: (c) => c.quarterTurns === true,
+  },
   { key: "e", scope: "edit", command: "rotate-cw", description: "Rotate +15°" },
+  { key: "Shift+h", scope: "edit", command: "flip-x", description: "Flip horizontally" },
+  { key: "Shift+v", scope: "edit", command: "flip-y", description: "Flip vertically" },
   ...arrows.flatMap((d): EngineKeyBinding[] => [
     {
       key: arrowKey(d),
@@ -172,6 +194,8 @@ export const ENGINE_KEYS: readonly EngineKeyBinding[] = [
   { key: "Mod+a", scope: "edit", command: "select-all", description: "Select all" },
   { key: "Mod+g", scope: "edit", command: "group", description: "Group" },
   { key: "Shift+Mod+g", scope: "edit", command: "ungroup", description: "Ungroup" },
+  { key: "Mod+]", scope: "edit", command: "bring-forward", description: "Bring forward" },
+  { key: "Mod+[", scope: "edit", command: "send-backward", description: "Send backward" },
   { key: "f", scope: "edit", command: "frame", description: "Frame the selection" },
   { key: "g", scope: "edit", command: "toggle-snap", description: "Toggle snapping" },
   { key: "[", scope: "edit", command: "hierarchy-up", description: "Select the parent" },
@@ -196,6 +220,16 @@ export const ENGINE_KEYS: readonly EngineKeyBinding[] = [
     command: "clear-tool",
     description: "Back to the select tool",
     when: (c) => c.tool !== undefined && c.tool !== "select",
+  },
+  {
+    key: "Escape",
+    scope: "edit",
+    command: "leave-prefab",
+    description: "Back to the scene",
+    when: (c) =>
+      c.inPrefab === true &&
+      c.hasSelection !== true &&
+      (c.tool === undefined || c.tool === "select"),
   },
   { key: "Escape", scope: "edit", command: "clear-selection", description: "Clear the selection" },
 

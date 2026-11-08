@@ -1,24 +1,32 @@
 import { z } from "zod";
 
-import type { InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
+import { BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
+import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
+import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
-import { entitySchemaFor, fieldKind, unwrapSchema } from "../scene/schema";
+import { childEntity, resolvePrefab, splitOverridePath } from "../scene/resolve";
+import { entitySchemaFor, fieldKind, InstanceSchema, unwrapSchema } from "../scene/schema";
 import { aabb, boxCorners, convexHull, isConvex } from "../scene/shape-geometry";
 import { parseShape, SHAPE_TYPES, shapeToTuple } from "../scene/shapes";
-import type {
-  EntityTypeName,
-  FieldPath,
-  OpBatch,
-  Pt,
-  Ref,
-  SceneDefinition,
-  SceneOp,
-  ShapeObj,
-  ShapeTuple,
-  ShapeType,
+import {
+  PREFAB_MAX_DEPTH,
+  type EntityTypeName,
+  type FieldPath,
+  type InstanceDef,
+  type OpBatch,
+  type OverridePath,
+  type PrefabLibrary,
+  type Pt,
+  type Ref,
+  type SceneDefinition,
+  type SceneOp,
+  type ShapeObj,
+  type ShapeTuple,
+  type ShapeType,
 } from "../scene/types";
 import { numberBounds } from "./inspector";
-import type { RefTarget } from "./refs";
+import { nestedInstanceOf, prefabInstances } from "./prefab-commands";
+import { referableEntities, type RefTarget } from "./refs";
 
 // ─── Sections ────────────────────────────────────────────
 
@@ -27,6 +35,7 @@ export const INSPECTOR_SECTIONS = [
   "transform",
   "shape",
   "behavior",
+  "assets",
   "path",
   "physics",
   "overrides",
@@ -37,11 +46,18 @@ export const SECTION_TITLES: Readonly<Record<InspectorSectionId, string>> = {
   identity: "Identity",
   transform: "Transform",
   shape: "Shape",
-  behavior: "Behavior",
+  behavior: "Gameplay",
+  assets: "Assets",
   path: "Path",
   physics: "Physics",
   overrides: "Overrides",
 };
+
+/** A carried behavior's own section. */
+export type BehaviorSectionId = `behaviors:${BehaviorName}`;
+export type ModelSectionId = InspectorSectionId | BehaviorSectionId;
+
+const behaviorSectionId = (name: BehaviorName): BehaviorSectionId => `behaviors:${name}`;
 
 /** `meta.group` values and the section each lands in; the field-builder names map onto the sections. */
 const GROUP_SECTIONS: Readonly<Record<string, InspectorSectionId>> = {
@@ -101,9 +117,11 @@ export type ModelField = {
   title: string;
   /** The field's `.describe()` text: the tooltip, and what an agent reads in the JSON Schema. */
   description?: string;
-  section: InspectorSectionId;
+  section: ModelSectionId;
   widget: FieldWidget;
   optional: boolean;
+  /** What an unset behavior field takes: the type's or the behavior's default. */
+  defaultValue?: unknown;
   /** Shown, not edited here: the id (renamed with the `rename` op), the type, computed values. */
   readonly: boolean;
   /** The value every target shares; undefined when unset or `mixed`. */
@@ -116,10 +134,29 @@ export type ModelField = {
   children?: ModelField[];
 };
 
+/** A behavior section's block, and the batch that drops it. */
+export type BehaviorSectionInfo = {
+  name: BehaviorName;
+  description?: string;
+  /** One update per target removing the block; absent when a target's type requires it. */
+  remove?: OpBatch;
+};
+
 export type InspectorSectionModel = {
-  id: InspectorSectionId;
+  id: ModelSectionId;
   title: string;
   fields: ModelField[];
+  /** Set on a `behaviors:<name>` section. */
+  behavior?: BehaviorSectionInfo;
+};
+
+/** A behavior the Add behavior menu offers, with the batch that adds it. */
+export type BehaviorOption = {
+  name: BehaviorName;
+  label: string;
+  description: string;
+  /** One update per target that lacks the block. */
+  batch: OpBatch;
 };
 
 export type InspectorModel = {
@@ -127,6 +164,8 @@ export type InspectorModel = {
   /** The selection's types, in first-seen order. */
   types: EntityTypeName[];
   sections: InspectorSectionModel[];
+  /** What Add behavior lists: behaviors every target's type allows and not every target carries. */
+  addBehaviors: BehaviorOption[];
 };
 
 // ─── Reading schemas ─────────────────────────────────────
@@ -165,6 +204,12 @@ function shapeTypesOf(schema: z.ZodType): ShapeType[] {
 const optionLabel = (v: string | number) =>
   typeof v === "number" ? String(v) : v.replace(/[_-]+/g, " ");
 
+/** A choice among `values`: segmented for up to four, else a select. */
+function choice(values: readonly (string | number)[]): FieldWidget {
+  const options = values.map((value) => ({ value, label: optionLabel(value) }));
+  return options.length <= 4 ? { kind: "segmented", options } : { kind: "select", options };
+}
+
 type Ctx = { registry: Registry; type: RegisteredType | undefined };
 
 function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): FieldWidget {
@@ -173,6 +218,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
     const widget = ctx.registry.widgets.get(meta.widget);
     if (widget) return { kind: "custom", id: meta.widget, widget };
   }
+  if (top && name === "layer") return choice(ctx.registry.layers.map((l) => l.name));
   const kind = fieldKind(schema);
   if (kind === "shape") return { kind: "shape", types: shapeTypesOf(schema) };
   if (kind === "point")
@@ -210,11 +256,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
     };
   }
   if (inner instanceof z.ZodEnum) {
-    const options = (inner.options as (string | number)[]).map((value) => ({
-      value,
-      label: optionLabel(value),
-    }));
-    return options.length <= 4 ? { kind: "segmented", options } : { kind: "select", options };
+    return choice(inner.options as (string | number)[]);
   }
   if (inner instanceof z.ZodBoolean) return { kind: "switch" };
   if (inner instanceof z.ZodLiteral) return { kind: "readonly", format: "text" };
@@ -261,18 +303,21 @@ function valueAt(root: unknown, path: FieldPath): unknown {
   return cur;
 }
 
+/** Where a field lands: `forced` always (a behavior's block), else its group, `inherited`, or its kind's. */
+type Placement = { inherited?: ModelSectionId; forced?: ModelSectionId };
+
 function describeField(
   path: FieldPath,
   schema: z.ZodType,
   root: unknown,
   ctx: Ctx,
-  inherited?: InspectorSectionId,
+  place: Placement = {},
 ): ModelField {
   const name = path.slice(path.lastIndexOf(".") + 1);
   const meta = fieldMeta(schema);
   const widget = widgetFor(schema, name, !path.includes("."), ctx);
   const group = typeof meta.group === "string" ? GROUP_SECTIONS[meta.group] : undefined;
-  const section = group ?? inherited ?? defaultSection(widget);
+  const section = place.forced ?? group ?? place.inherited ?? defaultSection(widget);
   const field: ModelField = {
     path,
     name,
@@ -292,7 +337,7 @@ function describeField(
   const inner = unwrapSchema(schema);
   if ((widget.kind === "path" || widget.kind === "object") && inner instanceof z.ZodObject) {
     field.children = Object.entries(inner.shape).map(([k, s]) =>
-      describeField(`${path}.${k}`, s as z.ZodType, root, ctx, section),
+      describeField(`${path}.${k}`, s as z.ZodType, root, ctx, { ...place, inherited: section }),
     );
   }
   return field;
@@ -329,10 +374,144 @@ function targetFields(
   const schema = entitySchemaFor(registry, target.entity.type);
   if (!type || !schema) return { fields: [] };
   const ctx = { registry, type };
-  const fields = orderedFields(schema.shape, type.inspector?.order ?? []).map(([n, s]) =>
-    describeField(n, s, target.entity, ctx),
-  );
+  const fields = orderedFields(schema.shape, type.inspector?.order ?? [])
+    .filter(([n]) => n !== BEHAVIORS_FIELD)
+    .map(([n, s]) => describeField(n, s, target.entity, ctx));
   return { type: type.type, fields };
+}
+
+// ─── Behaviors ───────────────────────────────────────────
+
+type BehaviorState = {
+  target: Extract<RefTarget, { kind: "entity" }>;
+  rules: BehaviorRules;
+  /** The names the entity's file writes. */
+  written: string[];
+  /** Required and written, registered ones in registration order, then unknown ones. */
+  carried: BehaviorName[];
+};
+
+function writtenBlocks(entity: Record<string, unknown>): Record<string, unknown> {
+  const blocks = entity[BEHAVIORS_FIELD];
+  return blocks !== null && typeof blocks === "object" && !Array.isArray(blocks)
+    ? (blocks as Record<string, unknown>)
+    : {};
+}
+
+function behaviorState(registry: Registry, target: RefTarget): BehaviorState | null {
+  if (target.kind !== "entity") return null;
+  const rules = registry.behaviorRules(target.entity.type);
+  const written = Object.keys(writtenBlocks(target.entity));
+  const has = new Set([...rules.required.keys(), ...written]);
+  const carried = [
+    ...registry.behaviorNames.filter((n) => has.has(n)),
+    ...written.filter((n) => !registry.behaviors.has(n)).sort(),
+  ];
+  return { target, rules, written, carried };
+}
+
+/** A block's fields as the entity schema validates them (optional where a default exists), else the behavior's own. */
+function blockShape(registry: Registry, type: EntityTypeName, name: BehaviorName): z.ZodRawShape {
+  const slot = entitySchemaFor(registry, type)?.shape[BEHAVIORS_FIELD];
+  const slotObj = slot && unwrapSchema(slot);
+  const block = slotObj instanceof z.ZodObject ? slotObj.shape[name] : undefined;
+  const blockObj = block && unwrapSchema(block);
+  if (blockObj instanceof z.ZodObject) return blockObj.shape;
+  return registry.behaviors.get(name)?.shape ?? {};
+}
+
+function behaviorFields(registry: Registry, s: BehaviorState, name: BehaviorName): ModelField[] {
+  const entity = s.target.entity;
+  const ctx: Ctx = { registry, type: registry.types.get(entity.type) };
+  const forced = behaviorSectionId(name);
+  const b = registry.behaviors.get(name);
+  if (!b)
+    return [describeField(`${BEHAVIORS_FIELD}.${name}`, z.unknown(), entity, ctx, { forced })];
+  const defaults = s.rules.defaults.get(name) ?? {};
+  return orderedFields(blockShape(registry, entity.type, name), b.inspector?.order ?? []).map(
+    ([k, schema]) => {
+      const f = describeField(`${BEHAVIORS_FIELD}.${name}.${k}`, schema, entity, ctx, { forced });
+      const d = defaults[k];
+      if (d !== undefined) {
+        f.defaultValue = d;
+        f.optional = true;
+      }
+      return f;
+    },
+  );
+}
+
+/** A value `schema` accepts for a field with no default, so an added block validates; undefined when none is found. */
+function seedValue(schema: z.ZodType): unknown {
+  const inner = unwrapSchema(schema);
+  let v: unknown;
+  if (inner instanceof z.ZodEnum) v = (inner.options as unknown[])[0];
+  else if (inner instanceof z.ZodLiteral) v = [...inner.values][0];
+  else if (inner instanceof z.ZodBoolean) v = false;
+  else if (inner instanceof z.ZodNumber) {
+    const b = numberBounds(inner);
+    let n = 0;
+    if (b.min !== undefined && (b.exclusive ? n <= b.min : n < b.min))
+      n = b.exclusive ? b.min + 1 : b.min;
+    if (b.max !== undefined && n > b.max) n = b.max;
+    v = n;
+  } else if (inner instanceof z.ZodString) v = "";
+  else if (inner instanceof z.ZodArray) v = [];
+  else if (inner instanceof z.ZodObject) v = seedBlock(inner.shape, {});
+  return v !== undefined && schema.safeParse(v).success ? v : undefined;
+}
+
+function seedBlock(shape: z.ZodRawShape, defaults: Readonly<Record<string, unknown>>) {
+  const out: Record<string, unknown> = {};
+  for (const [k, s] of Object.entries(shape)) {
+    if (s._zod.optin === "optional" || defaults[k] !== undefined) continue;
+    const v = seedValue(s as z.ZodType);
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+function removeBatch(states: readonly BehaviorState[], name: BehaviorName, title: string) {
+  if (states.some((s) => s.rules.required.has(name))) return undefined;
+  const ops: SceneOp[] = states.map(({ target, written }) => ({
+    op: "update",
+    ref: target.ref,
+    // The last block takes the empty `behaviors` object with it.
+    unset: [written.length === 1 ? BEHAVIORS_FIELD : `${BEHAVIORS_FIELD}.${name}`],
+  }));
+  const who = states.length === 1 ? states[0]!.target.ref : `${states.length} entities`;
+  return { label: `Remove ${title} from ${who}`, ops };
+}
+
+function addOptions(registry: Registry, states: readonly BehaviorState[]): BehaviorOption[] {
+  const [first, ...rest] = states;
+  if (!first) return [];
+  const out: BehaviorOption[] = [];
+  for (const name of first.rules.allowed) {
+    const b = registry.behaviors.get(name);
+    if (!b || !rest.every((s) => s.rules.allowed.includes(name))) continue;
+    const lacking = states.filter((s) => !s.carried.includes(name));
+    if (lacking.length === 0) continue;
+    const label = b.inspector?.label ?? name;
+    const ops: SceneOp[] = lacking.map((s) => ({
+      op: "update",
+      ref: s.target.ref,
+      set: {
+        [`${BEHAVIORS_FIELD}.${name}`]: seedBlock(
+          blockShape(registry, s.target.entity.type, name),
+          s.rules.defaults.get(name) ?? {},
+        ),
+      },
+    }));
+    const who = lacking.length === 1 ? lacking[0]!.target.ref : `${lacking.length} entities`;
+    out.push({
+      name,
+      label,
+      description: b.description,
+      batch: { label: `Add ${label} to ${who}`, ops },
+    });
+  }
+  return out;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -354,6 +533,7 @@ function shared(lists: readonly ModelField[][]): ModelField[] {
     const all = [f, ...(others as ModelField[])];
     const mixed = all.some((g) => g.mixed || !same(g.value, f.value));
     const merged: ModelField = { ...f, value: mixed ? undefined : f.value, mixed };
+    if (all.some((g) => !same(g.defaultValue, f.defaultValue))) delete merged.defaultValue;
     if (f.children) merged.children = shared(all.map((g) => g.children ?? []));
     out.push(merged);
   }
@@ -365,22 +545,57 @@ function shared(lists: readonly ModelField[][]): ModelField[] {
  * walked into field descriptors, titled by `meta.title`, explained by
  * `.describe()`, drawn by the widget its Zod kind (or a game's
  * `meta.widget`) calls for, and sectioned by `meta.group` or, without one,
- * by kind. With several targets only the fields they share are shown, and a
- * field whose values differ is `mixed`. Pure: the site renders it.
+ * by kind. Each behavior every target carries gets its own section,
+ * `behaviors:<name>`, with its fields in `inspector.order` and a Remove
+ * batch; `addBehaviors` lists the rest the types allow. With several
+ * targets only the fields they share are shown, and a field whose values
+ * differ is `mixed`. Pure: the site renders it.
  */
 export function buildInspectorModel(
   registry: Registry,
   targets: readonly RefTarget[],
 ): InspectorModel {
+  const maybe = targets.map((t) => behaviorState(registry, t));
+  const states = maybe.every((s) => s !== null) ? maybe : [];
+  const common = states[0]?.carried.filter((n) => states.every((s) => s.carried.includes(n))) ?? [];
   const per = targets.map((t) => targetFields(registry, t));
   const types = [...new Set(per.flatMap((p) => (p.type ? [p.type] : [])))];
-  const fields = shared(per.map((p) => p.fields));
-  const sections = INSPECTOR_SECTIONS.map((id) => ({
+  const fields = shared(
+    per.map((p, i) => {
+      const s = states[i];
+      return s ? [...p.fields, ...common.flatMap((n) => behaviorFields(registry, s, n))] : p.fields;
+    }),
+  );
+  const fixed: InspectorSectionModel[] = INSPECTOR_SECTIONS.map((id) => ({
     id,
     title: SECTION_TITLES[id],
     fields: fields.filter((f) => f.section === id),
   })).filter((s) => s.fields.length > 0);
-  return { refs: targets.map((t) => t.ref), types, sections };
+  const behaviors = common.map((name): InspectorSectionModel => {
+    const id = behaviorSectionId(name);
+    const b = registry.behaviors.get(name);
+    const title = b?.inspector?.label ?? name;
+    const remove = removeBatch(states, name, title);
+    return {
+      id,
+      title,
+      fields: fields.filter((f) => f.section === id),
+      behavior: {
+        name,
+        description: b?.description ?? `"${name}" isn't a behavior this game registers.`,
+        ...(remove ? { remove } : {}),
+      },
+    };
+  });
+  const at = fixed.findIndex((s) => s.id === "overrides");
+  const sections =
+    at < 0 ? [...fixed, ...behaviors] : [...fixed.slice(0, at), ...behaviors, ...fixed.slice(at)];
+  return {
+    refs: targets.map((t) => t.ref),
+    types,
+    sections,
+    addBehaviors: addOptions(registry, states),
+  };
 }
 
 // ─── Edits ───────────────────────────────────────────────
@@ -416,8 +631,8 @@ const numeric = (w: FieldWidget) => w.kind === "number" || w.kind === "angle";
 /**
  * The update ops that set `field` to `input` on each target, one per
  * target whose value changes. On a number field a string is parsed by
- * `parseRelative` against each target's own value, so `+=16` moves every
- * one. `undefined` unsets an optional field. Fails without ops when any
+ * `parseRelative` against each target's own value (or the field's default
+ * when unset), so `+=16` moves every one. `undefined` unsets an optional field. Fails without ops when any
  * target's new value doesn't pass the field's schema.
  */
 export function modelOps(
@@ -435,7 +650,7 @@ export function modelOps(
         : valueAt(t.entity, field.path);
     let next = input;
     if (typeof input === "string" && numeric(field.widget)) {
-      next = parseRelative(input, current);
+      next = parseRelative(input, current ?? field.defaultValue);
       if (next === undefined)
         return { ok: false, error: `"${input}" isn't a number or a relative edit like +=16` };
       if (field.widget.kind !== "number" || field.widget.integer) next = Math.round(next as number);
@@ -475,18 +690,321 @@ export function modelBatch(
   };
 }
 
-/** Ids an entity-ref field may name: entities whose type, or its base, is in `accepts`. */
+/**
+ * Refs an entity-ref field may name: entities whose type, or its base, is
+ * in `accepts`. With `prefabs`, instances' children count too, by their
+ * resolved refs (`gate-2/door`) at any depth.
+ */
 export function refCandidates(
   def: SceneDefinition,
   registry: Registry,
   accepts: readonly EntityTypeName[],
+  prefabs?: PrefabLibrary,
 ): string[] {
-  return (def.entities ?? [])
+  return referableEntities(def, registry, prefabs)
     .filter((e) => {
       const base = registry.types.get(e.type)?.base;
       return accepts.includes(e.type) || (base !== undefined && accepts.includes(base));
     })
     .map((e) => e.id);
+}
+
+// ─── Instance parameters ─────────────────────────────────
+
+/** One exposed parameter of an instance's prefab, as the instance panel edits it. */
+export type ParamModel = {
+  name: string;
+  description: string;
+  targets: readonly OverridePath[];
+  /**
+   * Its value as a field at `params.<name>`, drawn by its first target's
+   * schema; `defaultValue` is the param's default, else what that target
+   * holds without it.
+   */
+  field: ModelField;
+  /** The instance sets it (for a nested instance: an override on the scene instance does). */
+  set: boolean;
+};
+
+export type InstanceParamsModel = {
+  ref: Ref;
+  /** The scene instance the values are written on. */
+  instance: string;
+  /** For a nested instance, its path inside `instance` (`door-1`). */
+  nested?: string;
+  /** The instance as a target `modelOps` reads `params.<name>` from. */
+  target: RefTarget;
+  params: ParamModel[];
+};
+
+/** The schema `segments` reach below `shape`, through objects, records, arrays and tuples. */
+function schemaAtPath(shape: z.ZodRawShape, segments: readonly string[]): z.ZodType | undefined {
+  const [first, ...rest] = segments;
+  let s =
+    first !== undefined && Object.hasOwn(shape, first) ? (shape[first] as z.ZodType) : undefined;
+  for (const seg of rest) {
+    const inner = s && unwrapSchema(s);
+    if (inner instanceof z.ZodObject) s = inner.shape[seg] as z.ZodType | undefined;
+    else if (inner instanceof z.ZodRecord) s = inner.valueType as z.ZodType;
+    else if (inner instanceof z.ZodArray && /^\d+$/.test(seg)) s = inner.element as z.ZodType;
+    else if (inner instanceof z.ZodTuple && /^\d+$/.test(seg))
+      s = inner.def.items[Number(seg)] as z.ZodType | undefined;
+    else return undefined;
+  }
+  return s;
+}
+
+type TargetInfo = { schema: z.ZodType; root: unknown; field: string; type?: RegisteredType };
+
+/** The nested instance at `path` (`a/b`) inside prefab `holder`. */
+function instanceIn(prefabs: PrefabLibrary, holder: string, path: string): InstanceDef | null {
+  let found: InstanceDef | undefined;
+  for (const seg of path.split("/")) {
+    const p = prefabs.get(found ? found.prefab : holder);
+    found = p ? prefabInstances(p, prefabs).find((i) => i.id === seg) : undefined;
+    if (!found) return null;
+  }
+  return found ?? null;
+}
+
+/** The schema an override path inside `prefab` reaches, with the value it has there. */
+function targetInfo(
+  registry: Registry,
+  prefabs: PrefabLibrary,
+  prefab: string,
+  target: OverridePath,
+  depth = 0,
+): TargetInfo | null {
+  const split = splitOverridePath(target);
+  const segments = split && splitFieldPath(split.field);
+  if (!split || !segments || depth > PREFAB_MAX_DEPTH) return null;
+  const resolved = resolvePrefab(prefab, prefabs, registry);
+  if (!resolved.ok) return null;
+  const child = resolved.prefab.children.find((c) => c.child === split.child);
+  if (child) {
+    const def = childEntity(child, registry);
+    const shape = def && entitySchemaFor(registry, def.type)?.shape;
+    const schema = shape && schemaAtPath(shape, segments);
+    return def && schema
+      ? { schema, root: def, field: split.field, type: registry.types.get(def.type) }
+      : null;
+  }
+  const inst = instanceIn(prefabs, prefab, split.child);
+  if (!inst) return null;
+  if (segments[0] === "params" && segments.length === 2) {
+    const name = segments[1]!;
+    const inner = resolvePrefab(inst.prefab, prefabs, registry);
+    const param = inner.ok ? inner.prefab.params[name] : undefined;
+    const first = param?.targets[0];
+    const info = first && targetInfo(registry, prefabs, inst.prefab, first, depth + 1);
+    if (!info) return null;
+    const own = inst.params?.[name] ?? param.default;
+    return own === undefined ? info : { ...info, root: { v: own }, field: "v" };
+  }
+  const schema = schemaAtPath(InstanceSchema.shape, segments);
+  return schema ? { schema, root: inst, field: split.field } : null;
+}
+
+/** `f` moved from `from` to `to`, its children's values read from `root`. */
+function moveField(f: ModelField, from: string, to: string, root: unknown): ModelField {
+  const path = `${to}${f.path.slice(from.length)}`;
+  const out: ModelField = { ...f, path, value: valueAt(root, path) };
+  if (f.children) out.children = f.children.map((c) => moveField(c, from, to, root));
+  return out;
+}
+
+function paramField(
+  registry: Registry,
+  name: string,
+  param: { description: string; default?: unknown },
+  info: TargetInfo | null,
+  values: Record<string, unknown>,
+): ModelField {
+  const path = `params.${name}`;
+  const root = { params: values };
+  const base = info
+    ? describeField(info.field, info.schema, info.root, { registry, type: info.type })
+    : describeField(path, z.unknown(), root, { registry, type: undefined });
+  const field = moveField(base, info?.field ?? path, path, root);
+  const fallback = param.default ?? (info ? valueAt(info.root, info.field) : undefined);
+  field.name = name;
+  field.title = name;
+  field.description = param.description;
+  field.section = "overrides";
+  field.optional = true;
+  field.mixed = false;
+  delete field.defaultValue;
+  if (fallback !== undefined) field.defaultValue = fallback;
+  return field;
+}
+
+/**
+ * The exposed parameters of the instance `ref` names (a scene instance, or
+ * one nested in it, `room-1/door-1`): its prefab's params (`resolvePrefab`,
+ * a variant's base's included), each typed by its first target's schema,
+ * with the value the instance sets. Null when `ref` names no instance or
+ * its prefab doesn't resolve.
+ */
+export function instanceParamsModel(
+  def: SceneDefinition,
+  ref: Ref,
+  registry: Registry,
+  prefabs: PrefabLibrary,
+): InstanceParamsModel | null {
+  const own = def.instances?.find((i) => i.id === ref);
+  const nested = own ? null : nestedInstanceOf(def, ref, prefabs);
+  const inst = own ?? nested?.instance;
+  if (!inst) return null;
+  const resolved = resolvePrefab(inst.prefab, prefabs, registry);
+  if (!resolved.ok) return null;
+  const overrides = nested?.top.overrides ?? {};
+  const values: Record<string, unknown> = {};
+  const set = new Set<string>();
+  for (const name of Object.keys(resolved.prefab.params)) {
+    const key = nested ? `${nested.path}.params.${name}` : undefined;
+    if (key !== undefined && Object.hasOwn(overrides, key)) {
+      values[name] = overrides[key];
+      set.add(name);
+    } else if (inst.params && Object.hasOwn(inst.params, name)) {
+      values[name] = inst.params[name];
+      if (!nested) set.add(name);
+    }
+  }
+  const params = Object.entries(resolved.prefab.params).map(([name, p]): ParamModel => {
+    const first = p.targets[0];
+    const info = first === undefined ? null : targetInfo(registry, prefabs, inst.prefab, first);
+    return {
+      name,
+      description: p.description,
+      targets: p.targets,
+      field: paramField(registry, name, p, info, values),
+      set: set.has(name),
+    };
+  });
+  return {
+    ref,
+    instance: nested ? nested.top.id : inst.id,
+    ...(nested ? { nested: nested.path } : {}),
+    target: {
+      kind: "entity",
+      ref,
+      index: -1,
+      entity: { id: inst.id, type: inst.prefab, params: values },
+    },
+    params,
+  };
+}
+
+function setAt(root: Record<string, unknown>, path: FieldPath, value: unknown): void {
+  const segs = path.split(".");
+  let cur = root;
+  for (const seg of segs.slice(0, -1)) {
+    const next = cur[seg];
+    if (next === null || typeof next !== "object") cur[seg] = {};
+    cur = cur[seg] as Record<string, unknown>;
+  }
+  const last = segs.at(-1)!;
+  if (value === undefined) delete cur[last];
+  else cur[last] = value;
+}
+
+/**
+ * The batch that sets `param` (or one field inside it) to `input` on the
+ * instance, parsed and checked as `modelOps` does: `setParam` on a scene
+ * instance (undefined clears it), an override of `<nested>.params.<name>`
+ * on the scene instance for a nested one. Written against the document.
+ */
+export function paramBatch(
+  model: InstanceParamsModel,
+  param: ParamModel,
+  input: unknown,
+  field: ModelField = param.field,
+): { ok: true; batch: OpBatch } | { ok: false; error: string } {
+  const edit = modelOps(field, input, [model.target]);
+  if (!edit.ok) return edit;
+  const label = `Set ${model.ref}'s ${param.name}`;
+  const [op] = edit.ops;
+  if (!op || op.op !== "update") return { ok: true, batch: { label, ops: [] } };
+  const top = `params.${param.name}`;
+  const entity = model.target.kind === "entity" ? model.target.entity : undefined;
+  const whole = valueAt(entity, top) ?? param.field.defaultValue;
+  const root: Record<string, unknown> = { params: { [param.name]: structuredClone(whole) } };
+  if (op.set) for (const [k, v] of Object.entries(op.set)) setAt(root, k, v);
+  for (const k of op.unset ?? []) setAt(root, k, undefined);
+  const value = valueAt(root, top);
+  if (model.nested === undefined) {
+    const ops: SceneOp[] = [
+      { op: "setParam", ref: model.instance, name: param.name, value: value ?? null },
+    ];
+    return { ok: true, batch: { label, ops } };
+  }
+  const key = `${model.nested}.${top}`;
+  if (value !== undefined)
+    return {
+      ok: true,
+      batch: { label, ops: [{ op: "override", ref: model.instance, set: { [key]: value } }] },
+    };
+  return {
+    ok: true,
+    batch: {
+      label,
+      ops: param.set ? [{ op: "revertOverride", ref: model.instance, paths: [key] }] : [],
+    },
+  };
+}
+
+// ─── Instance placement ──────────────────────────────────
+
+/** How an instance sits: its quarter turns, mirror and `z`, as the instance panel shows them. */
+export type InstanceTransformModel = {
+  ref: Ref;
+  /** Quarter turns clockwise, 0–3. */
+  rot: 0 | 1 | 2 | 3;
+  flip: boolean;
+  /** The instance's `z`; 0 when it sets none. */
+  z: number;
+  /** A scene instance turns, flips and takes a `z`; one nested in another shows its prefab's. */
+  editable: boolean;
+};
+
+/** The placement of the instance `ref` names (a scene instance, or one nested in it); null for anything else. */
+export function instanceTransformModel(
+  def: SceneDefinition,
+  ref: Ref,
+  prefabs: PrefabLibrary,
+): InstanceTransformModel | null {
+  const own = def.instances?.find((i) => i.id === ref);
+  const inst = own ?? nestedInstanceOf(def, ref, prefabs)?.instance;
+  if (!inst) return null;
+  return {
+    ref,
+    rot: inst.rot ?? 0,
+    flip: inst.flip === true,
+    z: inst.z ?? 0,
+    editable: own !== undefined,
+  };
+}
+
+/**
+ * The batch setting a scene instance's `z` from a typed number or a
+ * relative edit (`+=1`), checked against the instance schema. No ops when
+ * the value doesn't change.
+ */
+export function instanceZBatch(
+  model: InstanceTransformModel,
+  text: string,
+): { ok: true; batch: OpBatch } | { ok: false; error: string } {
+  if (!model.editable) return { ok: false, error: `${model.ref}'s z comes from its prefab` };
+  const n = parseRelative(text, model.z);
+  if (n === undefined)
+    return { ok: false, error: `"${text}" isn't a number or a relative edit like +=1` };
+  const next = Math.round(n);
+  const parsed = InstanceSchema.shape.z.safeParse(next);
+  if (!parsed.success)
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "invalid value" };
+  const label = `Set ${model.ref}'s z`;
+  const ops: SceneOp[] = next === model.z ? [] : [{ op: "setZ", refs: [model.ref], z: next }];
+  return { ok: true, batch: { label, ops } };
 }
 
 // ─── Shape conversions ───────────────────────────────────

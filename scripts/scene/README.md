@@ -106,7 +106,13 @@ the group's `origin`: its `shape` and `at` stay as stored, relative to it,
 while its AABB and `--near` are in world px. Each prefab instance is a row of
 type `instance` (its `prefab`, its world `at`, the rest in `extra`) followed by
 its children as `gate-3/door` rows in world coordinates, each naming its
-`instance`; edit those with `override`, not `update`.
+`instance`; edit those with `override`, not `update`. A nested child's row
+is `room-1/door-1/panel` with its `instancePath` (`["room-1", "door-1"]`),
+and an instance's row lists the instances `nested` in it, the `params` it
+sets and the ones its prefab `exposes`. Rows also carry `z`, `transform`
+(the world `rot` and `flip` their groups and instances give them, when not
+the identity), `behaviors`, and for each grid field a `grids` summary:
+filled cells, chunks and the filled cells' bounds.
 
 `diff` reports `{ from, to, changed, changes }`, each change a
 `SceneChange`: `added`, `removed`, `renamed` (an entity whose content is the
@@ -126,7 +132,9 @@ nothing when the name is taken in any project or the result has errors.
 
 `fmt` formats any doc asset through its kind's own format (a scene, a
 prefab, a `.checks.json`, a `.script.json`, a material, a table), by id;
-without one it formats every doc asset of the projects in scope.
+without one it formats every doc asset of the projects in scope. A scene or
+prefab at an older format version is migrated to the current one (v3), and
+the result says `migratedFrom`.
 `schema` serves every schema the engine publishes; `schema <doc kind>`
 also gives a game's own doc kinds.
 
@@ -651,6 +659,528 @@ changes.
   editors validate and autocomplete scene files. Scene directories are left
   out of `vp fmt`; `fmt --check` is their formatter gate.
 
+## Format v3
+
+Scenes, prefabs and fragments are `"v": 3`. Everything v3 added is
+optional and defaults to what a v2 file meant, so the v2 → v3 migration
+changes only `v`; `fmt` migrates every scene and prefab it formats. The
+blocks below are op batches you can dry-run as they are: the ones on
+`engine-yard` and `kitchen-sink` (the engine project's scenes) go to
+`apply <scene> --ops <file> --dry-run`, the ones that touch a prefab's own
+document to `assets apply --ops <file> --project engine --dry-run`. No repo
+game has behaviors or a grid type yet, so the `card-table` batches run
+against the CLI tests' card game (`__tests__/card-game.ts`), whose
+`card-table` scene the README test writes: a square 32 px grid, a `tiles`
+floor, a `lamp` and a `marker` called `spot`.
+
+| Key or field                               | Where                       | Meaning                                                 | Absent                 |
+| ------------------------------------------ | --------------------------- | ------------------------------------------------------- | ---------------------- |
+| `behaviors`                                | entities                    | behavior blocks by name                                 | none, or the type's    |
+| `layer`                                    | entities, instances         | one of the registry's layers                            | the type's default     |
+| `z`                                        | entities, instances         | integer draw order; an offset on instances              | 0                      |
+| `assets`                                   | scene and prefab header     | sorted ids of assets only game code names               | none                   |
+| `settings.physics`                         | scene settings              | `"rapier"` or `"none"`                                  | `"rapier"`             |
+| `settings.grid`                            | scene settings              | the scene's one cell grid, square or hex                | no grid                |
+| `settings.view`                            | scene settings              | `{ "projection": "orthogonal" }`, reserved              | orthogonal             |
+| `rot`, `flip`                              | instances, groups           | quarter turns clockwise, and a mirror of x before them  | not turned, not mirror |
+| `params`                                   | instances                   | values of the prefab's exposed parameters               | the prefab's defaults  |
+| `instances`, `base`, `params`, `overrides` | prefab files                | nested instances, a variant's base, exposed parameters  | none                   |
+| `instances`                                | fragments                   | copied instances, their prefabs by id                   | none                   |
+| grid fields                                | entities of a type with one | run-length cells in 32 × 32 chunks                      | empty                  |
+| ref fields (`attach`, a game's `refField`) | entities                    | an id, or a child of an instance at any depth (`a/b/c`) | —                      |
+
+`schema scene`, `schema prefab`, `schema fragment` and `schema ops` serve
+`urn:jams-engine:scene:v3` and its kin, with a game's types, behaviors,
+layers and asset ids filled in under `--game`.
+
+### Behaviors
+
+A behavior is a block of fields any entity can carry, defined in code with
+`defineBehavior`; the engine's are bare names, a game's are
+`<game>/<name>`. An entity holds them under `behaviors`, by name, and an
+empty block `{}` means "carry it, all defaults":
+
+```text
+{ "id": "lamp", "type": "lamp", "at": [200, 100], "behaviors": { "card-game/glow": { "color": "#ff8800" } } }
+```
+
+A type may require a behavior (an entity of it always has the block, at
+the type's defaults when the file has none), give defaults for an optional
+one, or forbid some or all. A behavior may require another on the same
+entity. Field paths reach into a block as `behaviors.<name>.<field>`
+(`behaviors.card-game/glow.color`); `update` with `set` on a block's path
+adds it, setting a field inside an absent block creates it, and `unset`
+removes it. No repo game defines behaviors yet; the CLI tests' card game
+has `card-game/glow`, which its `lamp` type requires, and
+`card-game/flicker`, which requires `card-game/glow`:
+
+```json scene=card-table
+{
+  "label": "Make the spot flicker",
+  "ops": [
+    {
+      "op": "update",
+      "ref": "spot",
+      "set": { "behaviors.card-game/glow": {}, "behaviors.card-game/flicker.rate": 2 }
+    },
+    { "op": "update", "ref": "lamp", "set": { "behaviors.card-game/glow.color": "#ff8800" } }
+  ]
+}
+```
+
+A block the registry doesn't know is `behavior-unknown`, with a "did you
+mean":
+
+```json scene=engine-yard expect=behavior-unknown
+{ "ops": [{ "op": "update", "ref": "crate", "set": { "behaviors.wobble": {} } }] }
+```
+
+One the type refuses is `behavior-forbidden` (the card game's `tiles`
+forbids every behavior):
+
+```json scene=card-table expect=behavior-forbidden
+{ "ops": [{ "op": "update", "ref": "floor", "set": { "behaviors.card-game/glow": {} } }] }
+```
+
+One whose `requires` isn't on the entity is `behavior-missing`, fixed by
+adding the required block:
+
+```json scene=card-table expect=behavior-missing
+{ "ops": [{ "op": "update", "ref": "spot", "set": { "behaviors.card-game/flicker": {} } }] }
+```
+
+### Layers and `z`
+
+An entity's or instance's `layer` names one of the registry's layers: a
+game's `layers`, else the engine's `terrain`, `decor`, `gameplay` and
+`editor` (shown only in the editor). Without one, an entity sits on its
+type's default. `z` is an integer in [-10000, 10000] that orders drawing
+within a layer, 0 when absent; on an instance it is added to every child's
+`z`. Bulk entries have no `z`: promote one first. `setZ` sets `z` or
+shifts it `by` an amount, and `update` can set either field:
+
+```json scene=engine-yard
+{
+  "label": "Lift the props",
+  "ops": [
+    { "op": "setZ", "refs": ["crate", "avatar"], "by": 1 },
+    { "op": "setZ", "refs": ["ledge"], "z": -1 },
+    { "op": "update", "ref": "zone", "set": { "layer": "decor", "z": 5 } }
+  ]
+}
+```
+
+A layer the registry doesn't have is `layer-unknown`; its fix unsets it:
+
+```json scene=engine-yard expect=layer-unknown
+{ "ops": [{ "op": "update", "ref": "ledge", "set": { "layer": "terain" } }] }
+```
+
+### Assets
+
+A game's fields that name an asset (`assetField`) hold its id; with a
+project, an id that isn't there is `asset-missing` and one of the wrong
+kind `asset-kind`, and `assets change-id` rewrites them like every other
+reference. The `assets` header lists the assets only game code names, so
+the loader bundles them; `useAssets` adds and removes ids:
+
+```json scene=engine-yard
+{ "label": "Bundle the bouncy material", "ops": [{ "op": "useAssets", "add": ["bouncy"] }] }
+```
+
+### Grids
+
+`settings.grid` is the scene's one grid: `{ "kind": "square", "cell": [w,
+h], "origin"?: [x, y] }`, or a hex grid with Tiled's parameters (`cell`,
+`side`, `stagger` `"x"` or `"y"`, `index` `"odd"` or `"even"`). A type's
+grid field (`gridField`) holds cells on it, local to the entity's `at`:
+chunks of 32 × 32 cells keyed `"cx,cy"`, each a list of run-length rows
+(`"1*4,2*8"` is four 1s then eight 2s; 0 is empty, values go to 65535).
+On disk a grid entity spans lines, one chunk per line, and `fmt`
+canonicalises the rows:
+
+```text
+{ "id": "floor", "type": "tiles", "at": [0, 0], "cells": {
+  "0,0": ["1*16", "1*16", "1*4,2*8,1*4"]
+} },
+```
+
+`paintCells` paints cells (`[col, row, value]`) and rectangles (`[c0, r0,
+c1, r1, value]`, inclusive), at most 65,536 cells per op; value 0 erases.
+No repo game has a grid type yet; on the CLI tests' card game
+(`examples/paint-cells.json` paves a row of stone and erases one cell):
+
+```sh
+vp run scene apply card-table --ops scripts/scene/examples/paint-cells.json --dry-run
+```
+
+A grid field can't be overridden per instance (paint the prefab) or
+addressed below the field by `update`. A grid setting or value that is
+wrong, a grid field in a scene without `settings.grid`, or a turned
+instance over a grid that isn't square with square cells is
+`grid-invalid`:
+
+```json scene=card-table expect=grid-invalid
+{ "ops": [{ "op": "setSettings", "unset": ["grid"] }] }
+```
+
+### Transforms
+
+Instances and groups take `rot` (1, 2 or 3 quarter turns, clockwise with
+y down) and `flip: true` (mirror x in their own frame, before turning).
+The eight combinations each have one spelling, and integer geometry stays
+integer. A transform moves shapes, points and paths, turns direction and
+angle fields, and remaps grid cells. `transform` speaks world terms and
+composes onto what is there: `turn` (1, 2, 3 or -1), `flip` (`"x"` or
+`"y"`) and `about` (each one's own `at` by default).
+`examples/turn-instance.json` turns `gate-2` a quarter turn about a point
+60 px above its foot, so it stands on the floor:
+
+```sh
+vp run scene apply kitchen-sink --ops scripts/scene/examples/turn-instance.json --dry-run
+```
+
+`setGroup` sets a group's `rot` and `flip` absolutely; `instantiate` and
+`update` take them on an instance, with `z`:
+
+```json scene=kitchen-sink
+{
+  "label": "Mirror the shelf and stand a gate on its side",
+  "ops": [
+    { "op": "transform", "groups": ["shelf"], "flip": "x" },
+    { "op": "setGroup", "id": "shelf", "rot": 2 },
+    {
+      "op": "instantiate",
+      "instance": {
+        "id": "gate-9",
+        "prefab": "gate",
+        "at": [1300, 1100],
+        "rot": 1,
+        "flip": true,
+        "z": 2
+      }
+    },
+    { "op": "update", "ref": "gate-1", "set": { "flip": true, "z": -1 } }
+  ]
+}
+```
+
+### Nested prefabs
+
+A prefab may hold `instances` of other prefabs. A nested child's id is its
+path, `pair-1/right/bar`: in `show`, renders, playtests and at runtime.
+An override key's child part may be a nested path (`right/bar.oneWay`) or
+a nested instance itself (`left.z`, `left.rot`, `left.params.<name>`); the
+outermost override wins. `applyToPrefab` folds overrides into the
+instance's own prefab, or with `to` into a deeper one in its chain:
+
+```json scene=kitchen-sink
+{
+  "label": "Two gates as one prefab",
+  "ops": [
+    {
+      "op": "definePrefab",
+      "id": "gate-pair",
+      "prefab": {
+        "entities": [],
+        "instances": [
+          { "id": "left", "prefab": "gate", "at": [-80, 0] },
+          { "id": "right", "prefab": "gate", "at": [80, 0], "flip": true }
+        ]
+      }
+    },
+    {
+      "op": "instantiate",
+      "instance": { "id": "pair-1", "prefab": "gate-pair", "at": [1300, 1160] }
+    },
+    { "op": "override", "ref": "pair-1", "set": { "right/bar.oneWay": true, "left.z": 2 } },
+    { "op": "applyToPrefab", "ref": "pair-1", "paths": ["right/bar.oneWay"], "to": "gate" }
+  ]
+}
+```
+
+`unpack` is one level: the instance's own children become entities, its
+nested instances become instances in the scene, transforms baked in.
+`createPrefab` takes instances among its `refs`, which move into the new
+prefab as nested instances:
+
+```json scene=kitchen-sink
+{
+  "label": "Fold the gates into a prefab, and unpack it again",
+  "ops": [
+    {
+      "op": "createPrefab",
+      "refs": ["gate-1", "gate-2"],
+      "id": "gate-row",
+      "at": [2090, 1160],
+      "instance": "gates"
+    },
+    { "op": "unpack", "ref": "gates" }
+  ]
+}
+```
+
+In a prefab's own document (an `editScene` with the prefab's id),
+`instantiate` nests an instance:
+
+```json project=engine
+{
+  "v": 1,
+  "label": "A gate on top of the post",
+  "ops": [
+    {
+      "op": "editScene",
+      "id": "post",
+      "ops": [
+        { "op": "instantiate", "instance": { "id": "top", "prefab": "gate", "at": [0, -140] } }
+      ]
+    }
+  ]
+}
+```
+
+A prefab that contains itself, through instances or variant bases, is
+`prefab-cycle`; `instantiate` refuses one:
+
+```json project=engine expect=prefab-cycle
+{
+  "v": 1,
+  "ops": [
+    {
+      "op": "editScene",
+      "id": "gate",
+      "ops": [
+        { "op": "instantiate", "instance": { "id": "inner", "prefab": "gate", "at": [0, 0] } }
+      ]
+    }
+  ]
+}
+```
+
+Prefabs nest at most 8 levels deep; a ninth is `prefab-depth`:
+
+```json scene=engine-yard expect=prefab-depth
+{
+  "ops": [
+    {
+      "op": "definePrefab",
+      "id": "n2",
+      "prefab": { "entities": [], "instances": [{ "id": "a", "prefab": "gate", "at": [0, 0] }] }
+    },
+    {
+      "op": "definePrefab",
+      "id": "n3",
+      "prefab": { "entities": [], "instances": [{ "id": "a", "prefab": "n2", "at": [0, 0] }] }
+    },
+    {
+      "op": "definePrefab",
+      "id": "n4",
+      "prefab": { "entities": [], "instances": [{ "id": "a", "prefab": "n3", "at": [0, 0] }] }
+    },
+    {
+      "op": "definePrefab",
+      "id": "n5",
+      "prefab": { "entities": [], "instances": [{ "id": "a", "prefab": "n4", "at": [0, 0] }] }
+    },
+    {
+      "op": "definePrefab",
+      "id": "n6",
+      "prefab": { "entities": [], "instances": [{ "id": "a", "prefab": "n5", "at": [0, 0] }] }
+    },
+    {
+      "op": "definePrefab",
+      "id": "n7",
+      "prefab": { "entities": [], "instances": [{ "id": "a", "prefab": "n6", "at": [0, 0] }] }
+    },
+    {
+      "op": "definePrefab",
+      "id": "n8",
+      "prefab": { "entities": [], "instances": [{ "id": "a", "prefab": "n7", "at": [0, 0] }] }
+    },
+    {
+      "op": "definePrefab",
+      "id": "n9",
+      "prefab": { "entities": [], "instances": [{ "id": "a", "prefab": "n8", "at": [0, 0] }] }
+    },
+    { "op": "instantiate", "instance": { "id": "deep", "prefab": "n9", "at": [1000, 900] } }
+  ]
+}
+```
+
+A ref field (`attach`, or a game's `refField`) may name a child at any
+depth (`gate-1/bar`, `room-1/door-1/panel`). A missing instance is
+`dangling-ref`; an instance whose prefab has no such child is
+`ref-child-unknown`, with a "did you mean":
+
+```json scene=kitchen-sink expect=ref-child-unknown
+{
+  "ops": [
+    {
+      "op": "add",
+      "entity": {
+        "id": "hanger",
+        "type": "solid",
+        "shape": ["box", 1980, 1100, 20, 4],
+        "attach": "gate-1/door"
+      }
+    }
+  ]
+}
+```
+
+### Variants
+
+A variant is a prefab with a `base`: its children are the base's with the
+variant's `overrides` applied, plus its own entities and instances. It
+can't remove a base child; it overrides `off: true`. The editor's Create
+variant is a `createAsset` of a prefab whose content names its `base`; on
+files, `definePrefab` writes one, and `setPrefabBase` in a prefab's own document sets or (with
+`null`) clears its base:
+
+```json scene=kitchen-sink
+{
+  "label": "A wide gate",
+  "ops": [
+    {
+      "op": "definePrefab",
+      "id": "wide-gate",
+      "prefab": {
+        "base": "gate",
+        "overrides": { "bar.shape": ["box", 0, -10, 120, 10] },
+        "entities": []
+      }
+    },
+    {
+      "op": "instantiate",
+      "instance": { "id": "wide-1", "prefab": "wide-gate", "at": [1300, 1160] }
+    }
+  ]
+}
+```
+
+```json project=engine
+{
+  "v": 1,
+  "label": "The post becomes a gate with a pole",
+  "ops": [{ "op": "editScene", "id": "post", "ops": [{ "op": "setPrefabBase", "base": "gate" }] }]
+}
+```
+
+A base that isn't a prefab in the project is `variant-base-unknown`, with
+a "did you mean":
+
+```json project=engine expect=variant-base-unknown
+{
+  "v": 1,
+  "ops": [{ "op": "editScene", "id": "post", "ops": [{ "op": "setPrefabBase", "base": "gat" }] }]
+}
+```
+
+### Parameters
+
+A prefab exposes parameters: each has a `description`, the override
+`targets` inside the prefab its value feeds, and an optional `default`. An
+instance's `params` apply as overrides of every target; its own
+`overrides` still win. A variant inherits its base's parameters and may
+redeclare one. `exposeParam` declares, replaces or (with `null`) removes
+one in the prefab's own document; `setParam` sets (or with `null` clears)
+one on an instance, as do `instantiate` and `update` on `params.<name>`.
+Exposing one on `gate`:
+
+```json project=engine
+{
+  "v": 1,
+  "label": "A one-way switch on the gate",
+  "ops": [
+    {
+      "op": "editScene",
+      "id": "gate",
+      "ops": [
+        {
+          "op": "exposeParam",
+          "name": "oneWay",
+          "param": {
+            "description": "Whether things pass up through the bar.",
+            "targets": ["bar.oneWay"],
+            "default": false
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+A scene batch can't use a parameter another doc's `editScene` exposes in
+the same project batch: the scene is judged against the prefabs as they
+were. `definePrefab` in the scene's own batch can, so here a variant of
+`gate` declares the parameter and three instances set it:
+
+```json scene=kitchen-sink
+{
+  "label": "Gates with a one-way switch",
+  "ops": [
+    {
+      "op": "definePrefab",
+      "id": "switch-gate",
+      "prefab": {
+        "base": "gate",
+        "params": {
+          "oneWay": {
+            "description": "Whether things pass up through the bar.",
+            "targets": ["bar.oneWay"],
+            "default": false
+          }
+        },
+        "entities": []
+      }
+    },
+    {
+      "op": "instantiate",
+      "instance": {
+        "id": "switch-1",
+        "prefab": "switch-gate",
+        "at": [1300, 1160],
+        "params": { "oneWay": true }
+      }
+    },
+    {
+      "op": "instantiate",
+      "instance": { "id": "switch-2", "prefab": "switch-gate", "at": [1440, 1160] }
+    },
+    { "op": "setParam", "ref": "switch-2", "name": "oneWay", "value": true },
+    { "op": "update", "ref": "switch-1", "set": { "params.oneWay": false } }
+  ]
+}
+```
+
+A parameter the prefab doesn't expose is `param-unknown`; its fix clears
+it with `setParam`:
+
+```json scene=kitchen-sink expect=param-unknown
+{ "ops": [{ "op": "setParam", "ref": "gate-1", "name": "speed", "value": 120 }] }
+```
+
+### New and changed ops
+
+| Op              | What it does in v3                                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `transform`     | turns and flips instances (`refs`) and groups (`groups`) in world terms, composing onto what they have                  |
+| `setZ`          | sets `z`, or shifts it `by`, on entities and instances; bulk entries refuse                                             |
+| `useAssets`     | adds and removes ids in the scene's or prefab's `assets` header                                                         |
+| `paintCells`    | paints `cells` and `rects` of an entity's grid field; 0 erases                                                          |
+| `setPrefabBase` | a prefab's document only: sets or (`null`) clears its variant base                                                      |
+| `exposeParam`   | a prefab's document only: declares, replaces or (`null`) removes a parameter                                            |
+| `setParam`      | sets or (`null`) clears one parameter on an instance                                                                    |
+| `setGroup`      | gains `rot` and `flip`, absolute (0 and `false` are written as absent)                                                  |
+| `instantiate`   | takes `rot`, `flip`, `z` and `params`; nests in a prefab's document; refuses a cycle                                    |
+| `override`      | the child part may be nested (`right/bar`) or a nested instance (`left.z`)                                              |
+| `applyToPrefab` | gains `to`: the prefab in the chain that receives the values                                                            |
+| `unpack`        | one level: nested instances become instances, transforms baked                                                          |
+| `createPrefab`  | `refs` may include instances, which become nested instances                                                             |
+| `definePrefab`  | the body takes `instances`, `base`, `overrides`, `params` and `assets`                                                  |
+| `update`        | addresses `behaviors.<name>.<field>`, `z`, an instance's `rot`, `flip`, `z` and `params.<name>`; not below a grid field |
+
 ## Movement numbers come from tooling
 
 Jump height, gap distances, dash length and grapple range are not written
@@ -704,6 +1234,25 @@ Project batches add their own:
 - `import-failed`: a binary's header couldn't be read with its import
   settings.
 
+Format v3 adds these; [Format v3](#format-v3) has a batch that reports each:
+
+| Code                   | Severity | Meaning                                                        | Fix                                          |
+| ---------------------- | -------- | -------------------------------------------------------------- | -------------------------------------------- |
+| `prefab-cycle`         | error    | A prefab contains itself through instances or variant bases.   | —                                            |
+| `prefab-depth`         | error    | Prefabs nest deeper than 8 levels.                             | —                                            |
+| `variant-base-unknown` | error    | A variant's base isn't a prefab in the project.                | did-you-mean, `setPrefabBase`                |
+| `param-unknown`        | error    | An instance sets a parameter its prefab doesn't expose.        | `setParam` to `null`                         |
+| `layer-unknown`        | error    | An entity or instance names a layer the registry doesn't have. | `update` unsetting `layer`                   |
+| `behavior-unknown`     | error    | An entity carries a behavior that isn't registered.            | did-you-mean, or unset the block             |
+| `behavior-forbidden`   | error    | An entity's type doesn't allow this behavior.                  | unset the block                              |
+| `behavior-missing`     | error    | A behavior's `requires` isn't on the same entity.              | add the required block with defaults         |
+| `grid-invalid`         | error    | A grid setting, grid value or grid placement is invalid.       | `fmt` for non-canonical rows; otherwise none |
+| `ref-child-unknown`    | error    | A child ref names an instance whose prefab has no such child.  | did-you-mean                                 |
+
+Asset fields reuse `asset-missing` and `asset-kind`; a variant's child
+whose id its base already has is `dup-id`, and a nested or pasted instance
+of a missing prefab is `prefab-unknown`.
+
 ## The agent surface version
 
 Issue codes, op names, the JSON Schema `$id`s, these commands and their
@@ -744,8 +1293,7 @@ trusting codes or flags.
   README uses.
 - `__tests__/`: the tools against temp projects (`fixtures.ts`), with the
   platformer and a small inline game; the asset commands on files and live;
-  the repo's own projects; and every example in this README and in the
-  `scene-editing` skill.
+  the repo's own projects; and every command and op batch in this README.
 
 Adding or renaming a command, flag, op, issue code or schema id is an agent
 surface change: bump `AGENT_SURFACE_VERSION`, update

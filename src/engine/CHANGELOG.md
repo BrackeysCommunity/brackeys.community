@@ -7,6 +7,552 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.7.0] — unreleased
+
+Scene format v3: every format change the roadmap knows about in one bump
+with one migration, so v3 is the format 1.0 freezes. Behaviors attach to
+any entity, prefabs nest and have variants and exposed parameters,
+instances and groups turn and flip, entities gain `z` and registry layers,
+asset fields and the `assets` header reference project assets, scenes
+carry `physics`, `grid` and `view` settings, and grid fields hold tile
+cells. Every addition is optional with a default equal to v2's behaviour.
+
+### Format
+
+- Scene format v3. `SCENE_FORMAT_VERSION` is 3 and `MIGRATIONS[2]` lifts
+  v2 scenes, prefabs and fragments by setting `v: 3` and nothing else;
+  every v3 addition defaults to v2's behaviour, so `scene fmt` rewrites a
+  v2 file by changing only `"v"`. Schema ids are `scene:v3`, `prefab:v3`,
+  `fragment:v3` and `ops:v3` (and their `<game>:` forms); checks files,
+  input scripts, recordings and the project kinds keep theirs. A
+  recording made against a v2 file replays once with the existing `stale`
+  warning, because `sceneHash` covers the canonical text (which now says
+  `"v": 3`); re-recording clears it.
+- `assets` on the scene and prefab header (after `settings`): the asset
+  ids only game code names, sorted and unique, on one line. Dangling ids
+  are `asset-missing`, duplicates `schema`.
+- `settings.physics` (`"rapier"` or `"none"`, resolved `"rapier"`),
+  `settings.grid` (the scene's one cell grid: `square` with `cell` and
+  `origin`, or `hex` with `cell`, `side`, `stagger` and `index`, as Tiled
+  parameterizes it; none by default) and
+  `settings.view` (`{ projection: "orthogonal" }`, reserved).
+- `rot` (1, 2 or 3 quarter turns clockwise) and `flip` (mirror x before
+  turning) on instances and groups; identity when absent. Geometry stays
+  integer: points, vectors, angles, mirrors, shapes and paths transform
+  exactly.
+- `z` on entities and instances: an integer draw order in
+  [-10000, 10000], 0 by default; an instance's `z` is added to every
+  child's.
+- `params` on instances: values for the parameters the prefab exposes.
+- `behaviors` on entities: behavior blocks by name, each checked by its
+  behavior's fields, with the type's required and default blocks filled
+  in on load.
+- `layer` on entities and instances names one of the registry's layers
+  (the game's, else `terrain`, `decor`, `gameplay`, `editor`); the type's
+  default when absent.
+- Prefab files take `instances` (nesting, at most `PREFAB_MAX_DEPTH`
+  levels, no cycles), `base` (a variant of another prefab), `params`
+  (`{ description, targets, default? }` per name) and `overrides` (a
+  variant's overrides of its base), written in the order `$schema`,
+  `kind`, `v`, `game`, `id`, `base`, `contract`, `params`, `assets`,
+  `overrides`, bulk keys, `instances`, `entities`.
+- Fragments take `instances`, so copying an instance pastes an instance.
+- Grid fields on types that declare one (`gridField`): chunked
+  run-length cells keyed `"cx,cy"`, 32×32 cells a chunk, one chunk per
+  line, empty by default.
+- Ref fields (`refField`, `attachField`) may name an instance's child at
+  any depth (`room-1/door-1/panel`); one the prefab lacks is
+  `ref-child-unknown`.
+- Entity and instance keys are written `id`, `type`, `prefab`, `name`,
+  `layer`, `group`, `off`, `z`, `shape`, `at`, `rot`, `flip`, `path`,
+  `params`, `overrides`, the other keys by code unit, `behaviors`, then
+  grid-valued keys.
+
+### Added
+
+- `./scene`: the v3 contract types. `SCENE_HEADER_KEYS` gains `assets`
+  (after `settings`); `GroupDef` gains `rot` and `flip`; `InstanceDef`
+  gains `rot`, `flip`, `z` and `params`; `GridSettings` and
+  `SceneSettings.physics`, `grid` and `view`; `PrefabParam`,
+  `PrefabBody.instances`, `base`, `overrides`, `params` and `assets`,
+  `PREFAB_MAX_DEPTH`; `SceneFragment.instances`; `RuntimeEntity.behaviors`,
+  `z`, `layer` and `transform`; `AssetId`, `CellEdit` and `CellRect`.
+- `./scene`: `Transform2D`, `IDENTITY_2D`, `Dihedral` and the transform
+  functions (`scene/transform.ts`); `SceneLayerDef`, `DEFAULT_LAYERS` and
+  `defaultLayer` (`scene/layers.ts`); the grid codec's `GRID_CHUNK`,
+  `ChunkKey`, `GridRow`, `GridCells` and functions (`scene/grid.ts`);
+  `splitFieldPath` (`scene/field-path.ts`).
+- `./game`: `defineBehavior`, `BehaviorDef`, `BehaviorSystem`,
+  `RegisteredBehavior`, `BEHAVIOR_NAME_PATTERN` and the other behavior
+  types; `GameDefinition.behaviors` and `layers`;
+  `EntityTypeDef.behaviors`; `FieldEnv.assets`; `Registry.behaviors`,
+  `behaviorNames`, `behaviorRules` (`BehaviorRules`) and `layers`.
+- `./collab`: `LEGACY_Z_FIELD`, `LEGACY_BULK_FIELD`, `BEHAVIORS_FIELD`,
+  `PARAMS_FIELD`, `NESTED2_FIELDS`, `GRID_ROW_KEY`, `ASSETS_KEY`,
+  `PARAM_KEY_PREFIX` and `VARIANT_KEY`.
+- `./scene` and `.` (through `math.ts`): `Transform2D`, `IDENTITY_2D`,
+  `Dihedral` and `dihedral`, `compose`, `invert`, `applyPt`, `applyVec`,
+  `dihedralOf`, `composeDihedral` and `flipWorld`. Quarter turns and flips
+  are exact on integers.
+- `transformEntityDef`, `transformBulkEntry` and `transformFieldValue` act
+  on fields by kind: shapes, points and paths move; vectors turn and flip;
+  angles gain 90° per turn and negate under a flip; mirror booleans toggle
+  under a flip; grids go through `transformGrid`. Boxes and capsules turn
+  by `rotDeg`, and flipped polygons and chains keep their winding. The
+  translate forms are now wrappers with unchanged behavior.
+- `./game`: `vectorField`, `angleField` and `mirrorField`, field builders
+  whose values turn and mirror with their entity; `fieldKind` reports
+  `vector`, `angle`, `mirror` and `grid` from a field's `meta.kind`.
+- `./game`: `assetField(env, kinds, description)`, `AssetIdSchema` and
+  `assetKindsOf`. Asset references parse as any id (a dangling one is
+  reported by validation, not parsing). `DEFAULT_LAYERS` and
+  `SceneLayerDef` are re-exported from `./game`.
+- Entity and instance `z`: an integer draw order in [-10000, 10000] (an
+  offset on instances); instance `rot`, `flip` and `params`; group `rot`
+  and `flip`; the scene `assets` header.
+- Scene settings `physics` (`"rapier"` | `"none"`), `grid` (square or
+  Tiled-style hex) and the reserved `view: { projection: "orthogonal" }`.
+  `resolveSettings(settings, { project?, game? })` (`./scene`, with
+  `SettingsSources`) resolves each engine key scene → project engine block
+  → game default → engine default (gravity `[0, 1200]`, rapier, no grid,
+  orthogonal), and expanded scenes always carry all four.
+- `./editor`: bring forward (Mod+]) and send backward (Mod+[) commands,
+  one `setZ` by ±1 over the selected entities and instances (`zOrderBatch`
+  in `editor/commands`). The spatial index stacks by the registry's layer
+  order, then `z`, then document order. The outliner's layer view and the
+  inspector's layer choice come from the registry's layers.
+- `./project`: `schemaRefSites(shape, value, pointer)` finds asset
+  references at every `assetField` leaf, following objects, records,
+  arrays, tuples, unions and wrappers. Scene and prefab `refs` now cover
+  type fields, behavior blocks, `settings`, the `assets` header (any
+  kind), asset-field instance overrides, a prefab's `base` and its nested
+  instances' prefabs; `data-table` refs cover rows (`/rows/@<id>/…`) and
+  `game-settings` the `game` block. `changeAssetId` rewrites references
+  in a scene's settings, `assets` header and a prefab's `base` too.
+- `toJsonSchema(schema, { layers?, assets? })` (`JsonSchemaOptions`, with
+  `layerNames` on `./scene`): `layer` fields get the registry's layer names
+  as `enum` in scene, prefab, fragment, ops and doc-kind schemas; an asset
+  field's `enum` lists live ids only when there are some.
+  `docKindJsonSchema` with a project fills them from the view; code-skew
+  `schemaHashes` never carry asset ids.
+- `validateScene` reports `layer-unknown` for an entity or instance whose
+  `layer` isn't one of the registry's layers (did-you-mean; fix: `update`
+  unsetting `layer`), `grid-invalid` for `settings.grid` values (cells
+  positive integers, a hex `side` an integer in [0, cell width for stagger
+  x / cell height for stagger y], origin integers), and `schema` for a
+  repeated id in the `assets` header. `ValidateOptions.project` (a
+  `ProjectView`): with it, an asset id in a type field, a behavior block,
+  `settings` or the `assets` header that no live asset has is
+  `asset-missing` (did-you-mean over the live ids of the field's kinds; a
+  trashed id says so) and a live id of the wrong kind is `asset-kind`;
+  without it asset ids aren't checked. `vp run scene validate` passes the
+  scene's project.
+- `setZ { refs, z | by }` sets or shifts `z` on entities and instances,
+  within ±10000. A z of 0 is written as absent, bulk refs are refused
+  (promote first), and the inverse is an exact `setZ`. On an instance child
+  in the resolved view it becomes an override of `<child>.z`.
+- `useAssets { add?, remove? }` edits the `assets` header, which stays
+  sorted and unique, with an exact inverse. `diffToOps` turns header
+  changes into `useAssets` and z-only changes into `setZ`. `diffScenes`
+  reports `scene.assets`.
+- Behaviors register: the engine's (none yet), then
+  `GameDefinition.behaviors` in order; `registry.behaviors`,
+  `behaviorNames` and `behaviorRules(type)` (allowed, required blocks,
+  defaults). `createRegistry` refuses a game behavior without its
+  `<gameId>/` prefix, a bad or duplicate name, `requires` or type rules
+  naming unknown behaviors, a behavior both required and forbidden,
+  defaults failing a behavior's schema, behavior field names that aren't
+  identifiers, and a type with a grid field but no point field `at`.
+- `splitFieldPath` parses the field-path grammar (names, indices, behavior
+  names right after `behaviors`).
+- `behaviorBlocks(registry, type, written?)` (`./scene`): an entity's
+  behavior blocks in registration order, merged as behavior defaults, then
+  the type's, then the entity's. `expandScene` puts them on
+  `RuntimeEntity.behaviors` (bulk entries get their type's required
+  blocks), keeps `layer` and a non-zero `z`, and records
+  `transform { turn, flip }` for turned or flipped entities.
+- `gridField(description, { values?, max? })`: cells in 32×32 chunks of
+  run-length rows, local to the entity's `at`; parsing rewrites the value
+  canonically. `gridFieldInfo` reads a grid field's values and max. The
+  grid codec in `scene/grid.ts` is real: `decodeRow`/`encodeRow`,
+  `readCell`, `paintGrid` (rects, then cells; changed rows and the exact
+  inverse), `canonicalGrid`, `isGridValue`, `gridCellBounds`,
+  `parseChunkKey`, `compareChunkKeys`, `gridProblems`, `transformGrid`.
+- `renderSceneSvg` and `renderSceneAscii` draw grid fields' filled cells
+  one by one, local to the entity's `at` and sized by
+  `settings.grid.cell` (hex grids staggered as Tiled's), at most 4,096
+  cells per render (`SCENE_GRID_MAX_CELLS`), with a `…` where the rest
+  begin; a grid entity's render box and `around` framing cover its cells.
+- `./scene`: `resolveSceneDetailed` places each instance child through its
+  instance's turn and flip at its `at` and then its group's
+  (`instanceSteps`; composed: `instanceTransform`), and group members
+  through their group's (`groupTransform`). `ResolvedOrigin`'s child form
+  gains `path: string[]` (instance ids from the scene down) and
+  `transform: Dihedral`; the entity form gains an optional `transform`
+  when its group turns or flips. `instanceOrigin` applies the group's
+  turn. Grid fields turn only on a square grid with equal cells
+  (`gridTurns`). `toSourceBatch` maps edits back through the inverse: a
+  world `move` of a flipped child becomes a mirrored override; point,
+  vector, angle (exact inverse), mirror, shape and path updates, `place`
+  (anchor mapped), `add`, `instantiate` (rot/flip into the group's frame)
+  and `paintCells` on members of a turned group follow. Updating one
+  coordinate of a turned point and painting an instance child are
+  `op-invalid`. New: `placeChildren`, `PlacedChild`, `turnOf`,
+  `inverseTurn`. `fragmentBounds(fragment, registry, prefabs?)` boxes a
+  fragment's instances, turned and flipped, with exact integer bounds.
+- The `transform` and `paintCells` ops apply. `transform` turns and flips
+  instances and whole groups in world terms about `about` (each one's own
+  origin by default); an instance in a group keeps a group-local `at`, and
+  naming an instance together with its group is `op-invalid`. `paintCells`
+  paints a grid field of an entity (an instance child, bulk entry or
+  instance is `op-invalid`) and its inverse restores the exact cells, split
+  into ops of at most `MAX_PAINT_CELLS` (now exported from
+  `ops-schema.ts`). `instantiate` stores `rot`, `flip` and `params`, and
+  `setGroup` stores `rot` and `flip`. `update` and override keys reach
+  into behavior blocks (`<child>.behaviors.<name>.<field>`).
+- `validateScene` checks behavior blocks: `behavior-unknown`
+  (did-you-mean, fix unsets the block), `behavior-forbidden` (the type
+  forbids it or never loads; fix unsets), `behavior-missing` (a carried
+  behavior's `requires`, counting the type's required blocks; fix adds the
+  block as `{}`), and `schema` inside a block at
+  `/entities/<i>/behaviors/<name, / as ~1>/<field>`. Grid rules: a grid
+  field without `settings.grid`, an override naming a grid field (fix
+  reverts it), and a turned or flipped instance or group over a grid
+  unless the grid is square with square cells are `grid-invalid`.
+  Overrides may name `z` and `behaviors`.
+- Inspector: one `behaviors:<name>` section per carried behavior (titled
+  `inspector.label`, fields in `inspector.order`, a Remove batch unless
+  the type requires it) and `InspectorModel.addBehaviors` for the Add
+  behavior menu; each add or remove is one update per target.
+  `ModelField.defaultValue` carries a behavior field's default. A new
+  `assets` section holds fields grouped `assets`.
+- Editor commands `turn-cw`, `turn-ccw`, `flip-x`, `flip-y` (`turnBatch`,
+  `flipBatch`, `quarterTurnTargets`): one `transform` op over the selected
+  instances and whole groups. `e` turns a selection of instances or groups
+  a quarter (`KeyContext.quarterTurns`), and still rotates anything else
+  15°; Shift+H and Shift+V flip.
+- `./scene`: `resolvePrefab(id, library, registry, opts?)` returns a
+  `PrefabResolution`: a `ResolvedPrefab` (its children with relative ids
+  such as `door-1/panel`, its params, and the prefabs it uses, outermost
+  first), or a failure: `prefab-unknown`, `prefab-cycle` (the chain starts
+  at its least id) or `prefab-depth` (more than `PREFAB_MAX_DEPTH` = 8
+  levels). It is memoised per library and registry object. Also new:
+  `splitChildRef`, `INSTANCE_OVERRIDE_FIELDS`, `isInstanceOverrideField`,
+  `ResolveOptions` (`{ cells }`) and `BulkPlacement`.
+- Prefab files can hold nested `instances` (the scene's instance schema).
+  `prefabsUsedBy(def, prefabs?)` takes an optional library and then returns
+  every prefab the scene reaches through nested instances and variant
+  bases, sorted; `sceneHashWith` hashes all of them. `formatPrefab` writes
+  the full v3 prefab header order: `$schema`, `kind`, `v`, `game`, `id`,
+  `base`, `contract`, `params` (one per line), `assets`, `overrides` (one
+  per line), `bulk`, `instances` (one per line), `entities` (one per line,
+  always written, `[]` when empty). `prefabOf`, `prefabBody`,
+  `prefabScene` and `sceneBody` carry instances.
+- `instantiate` works in a prefab's view (pass `prefab`, the viewed
+  prefab's id, in `ApplyOptions`) and refuses with `prefab-cycle` an
+  instance, an `update` of an instance's `prefab`, a `definePrefab`, a
+  `createPrefab` or an `applyToPrefab` that would make a prefab contain
+  itself. `override` takes nested child keys (`door-1/panel.path.speed`)
+  and a nested instance's own fields (`door-1.at`, `.rot`, `.flip`, `.z`,
+  `.off`, `.layer`, `.params.<name>`; any other field is `op-invalid`).
+  `applyToPrefab` takes `to`, a prefab in the instance's chain that
+  receives the values (default its own prefab; a nested child's override
+  lands on the nested instance there); a path that doesn't run through
+  `to`, or one a level between overrides too, refuses with `op-invalid`.
+  `unpack` is one level: the outer instance's nested instances become
+  instances of the document, their `at`, turn, `z`, layer, `off` and group
+  composed with it and its overrides through them folded in.
+  `createPrefab` takes instance refs, which move into the new prefab as
+  nested instances (their group's transform baked in). `definePrefab`
+  carries `instances`, `base`, `overrides`, `params` and `assets`, and
+  every inverse restores them. `diffPrefabToOps(view, next, registry?)`
+  turns a prefab doc's view into a prefab's children, nested instances and
+  assets.
+- `./editor`: prefab commands work on nested instances. `applyLevels`
+  lists the prefabs Apply to prefab can write a ref's overrides into, and
+  `applyToPrefabBatch(def, ref, { to, prefabs })` writes to the chosen
+  one. `revertAllBatch` on a nested ref (`room-1/door-1`) drops only the
+  keys that ref covers (`overridePathsOf`). `nestedInstanceOf` finds a
+  nested instance by its resolved ref. `instancesOf` counts placements
+  through nesting when given the library. `createPrefabBatch` accepts
+  instances, which become nested instances of the new prefab.
+  `buildOutline` adds a row for each nested instance and its children
+  (`room-1/door-1/panel`), one level deeper each time.
+- Variants: a prefab with `base` resolves its base's children (the
+  variant's `overrides` applied, `off: true` hides one) ahead of its own
+  entities, bulk entries and instances; a base counts toward
+  `PREFAB_MAX_DEPTH`; a cycle through bases is `prefab-cycle`, a missing
+  base `variant-base-unknown`. Exposed params: an instance's `params`
+  apply as overrides of every target (prefab < param < override at each
+  level), a param's `default` applies when the instance sets none, and a
+  variant inherits its base's params (a redeclared name replaces it).
+- Prefab files take a variant header: `base` (a prefab id), `overrides`
+  (override path to value) and `params` (name to
+  `{ description, targets, default? }`), plus the `assets` header;
+  `parsePrefab`, `prefabSchemaFor`, `prefabOf` and `prefabBody` carry all
+  four, and `entities` stays required (it may be empty).
+- `setPrefabBase` and `exposeParam` apply on a prefab's view (`applyOps`
+  with `{ prefab }`) and are refused with `op-invalid` on a scene. An
+  unknown base is `variant-base-unknown` with did-you-mean; the prefab
+  itself, or a base that contains it, is `prefab-cycle`. When the header
+  changes, `result.prefabs` holds the viewed prefab, with its new base and
+  params plus the view's children and `assets`, and `prefabsChanged` lists
+  its id. Inverses are header ops.
+- `setParam` sets or (null) clears one param on an instance, and `update`
+  with `params.<name>: null` clears it too. A param's value is checked
+  against every target as an override, and the instance's own overrides
+  still win. A param the prefab doesn't expose isn't refused; validation
+  reports it as `param-unknown`. Instance params come back in an inverse
+  as one `setParam` per param.
+- `diffToOps` writes each changed instance param as a `setParam`.
+  `diffPrefabToOps` takes an optional fourth argument, `header` (the
+  prefab's current base and params), and writes `setPrefabBase` and
+  `exposeParam` for whatever differs.
+- `./collab`: `setPrefabBase` and `exposeParam` in an `editScene` of a
+  prefab write that prefab doc's header through the session's prefab
+  writer: the base on its own and overrides per path (logged under
+  `VARIANT_KEY`), parameters per name (`@param:<name>`). An unknown base,
+  or the prefab itself, is `variant-base-unknown` (with a did-you-mean); a
+  base that leads back through bases or nested instances is
+  `prefab-cycle`. Sent to a scene, either op is refused with `op-invalid`.
+  `changeAssetId` of a base prefab repoints its variants' `base`.
+- `./game`: `CHILD_REF_PATTERN` and `refField(description)`: a reference
+  field may name an instance's child by its resolved ref (`gate-2/door`,
+  `room-1/door-1/panel`); every other id keeps `ID_PATTERN`.
+- `./editor`: `instanceParamsModel` and `paramBatch` (`InstanceParamsModel`,
+  `ParamModel`): an instance's exposed params, each typed by its first
+  target's schema, set with `setParam` (a nested instance's as an override
+  of `<nested>.params.<name>`); the inspector's instance panel lists and
+  edits them. `referableEntities` (`./editor`).
+- Scene fragments carry prefab instances: `fragmentOf(def, refs, registry,
+prefabs?)` copies instance refs as instances (world `at`/turn, prefab by
+  id) and an instance's child as a plain entity under its own id;
+  `fragmentSchemaFor` gains `instances`; `placeFragment(fragment, def,
+registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
+  renames clashing instance ids (`gate-2` → `gate-3`) and rewrites child
+  refs into them (`gate-2/door` → `gate-3/door`); an instance whose prefab
+  is missing from `prefabs` places nothing and warns `prefab-unknown`.
+  `copySelection` and `cutSelection` take `prefabs`, as do
+  `PasteOptions.prefabs` and `duplicateSelection`'s options; the editor's
+  copy, cut, paste and duplicate pass the session's prefabs.
+- `./editor`: `createVariantBatch(base, prefabs, { taken?, folder? })`
+  (`CreateVariant`): Create variant. Returns `{ id, project, scene }`.
+  `project` is one `createAsset` (kind `prefab`, content
+  `{ kind: "prefab", v, base, entities: [] }`), for agents, the CLI and
+  the dev file adapter. `scene` is the same prefab as a `definePrefab`,
+  for a session that writes prefab docs through its prefab source. The id
+  is `<base>-variant`, numbered when taken. Returns null when the library
+  has no such base.
+
+- `./editor`: Escape leaves a prefab open on its own once the gesture,
+  tool and selection are cleared (`leave-prefab`, bound in edit scope
+  before `clear-selection`). `KeyContext` gains `inPrefab` and
+  `hasSelection`; `ToolHost.keyContext()` supplies `hasSelection`.
+- `./editor`: `attachBatch(def, ref, follower | null, registry, prefabs?)`:
+  one `update` that points an entity's `attachField` at a follower, an
+  instance's child follower (`gate-2/lift`) included, or clears it. It
+  returns null when the type has no `attachField`, the follower's type
+  isn't one the field's refs allow, or nothing would change.
+  `attachFieldOf` and `isFollowerType` tell which types can attach and
+  which can be ridden. In the outliner, dragging a row onto a follower's
+  row attaches it, dropping it on its type's row detaches it, and an
+  instance's nested children show as a tree that opens and closes.
+- `./editor`: the instance inspector turns (clockwise / counter-clockwise)
+  and flips (horizontally / vertically) a scene instance as one batch
+  each, and shows and sets its `z`; `instanceTransformModel` and
+  `instanceZBatch`.
+- `README.md` covers format v3: behaviors, layers and `z`, assets and the
+  `assets` header, scene settings, grids, transforms, nested prefabs,
+  variants and parameters.
+
+### Changed
+
+- **Breaking:** `LAYERS` and `Layer` are gone from the scene types:
+  `EntityBase.layer` and `InstanceDef.layer` are plain strings naming one
+  of the registry's layers, and `ResolvedSettings` is
+  `{ gravity, physics, grid: GridSettings | null, view, ...game keys }`.
+  `defaultLayer` moved from `editor/spatial-index` to `scene/layers` and
+  takes an optional third argument, the registry's layers: a game whose
+  layers lack `terrain`, `gameplay` or `editor` gets the first layer
+  (editor-only types the last).
+- **Breaking:** `BASE_FIELDS.layer` is any id (`ID_PATTERN`), not a fixed
+  enum; `RESERVED_FIELDS` gains `z` and `behaviors`.
+- `createRegistry` refuses a type field name that isn't
+  `/^[A-Za-z_$][A-Za-z0-9_$]*$/`, a game settings field named `gravity`,
+  `physics`, `grid` or `view`, and invalid game layers (none, duplicate or
+  non-`ID_PATTERN` names, non-finite draw or scroll). `registry.layers` is
+  the game's layers or `DEFAULT_LAYERS`; `withProject` fills
+  `FieldEnv.assets` with the project's live ids per kind, sorted, and
+  `CreateRegistryOptions` gains `assets`.
+- A prefab for another game (or no registry) still reports its header,
+  base and nested-instance prefab references.
+- `formatScene` writes `assets` on one line after `settings`, sorted and
+  unique, and leaves it out when empty. `formatPrefab` writes `assets`
+  after `contract`. The entity and instance key order adds `z` (after
+  `off`), `rot`, `flip` (after `at`) and `params` (before `overrides`).
+  The resolved view adds an instance's `z` to each child's, `unpack` bakes
+  it into the children, and `instantiate` keeps `z`.
+- Each loadable type's entity schema has a `behaviors` object. A known
+  block is checked by its behavior's fields, and a field is required only
+  when neither the behavior nor the type gives it a default. Any other
+  name parses, so validation can report it by name. The JSON Schema lists
+  only the type's allowed behaviors (`additionalProperties: false`), and
+  types that don't load have no `behaviors`.
+- `OVERRIDE_PATH` follows the override-path grammar: a child ref (ids
+  joined by `/`, optionally ending in a bulk ref), a dot, then a field
+  path whose segment right after `behaviors` may be a behavior name.
+- The formatter's entity and instance key order ends with every other key
+  by code unit, then `behaviors` (its blocks by name in code-unit order),
+  then grid-valued keys. An entity that holds grids spans lines, one chunk
+  per line, chunk keys row-major by (cy, cx); `formatScene`'s `lines` maps
+  each chunk pointer to its line. `formatPrefab` writes grid entities the
+  same way. `comparePointers` takes an optional document to place grid
+  keys, and orders chunk keys and behavior names as the text does.
+  `parseScene` reports bad grid keys, rows, row counts and values past a
+  field's max as `grid-invalid`, once per problem.
+- The inspector's `behavior` section is titled Gameplay (its id is
+  unchanged). `ModelField.section` and `InspectorSectionModel.id` are
+  `ModelSectionId` (`InspectorSectionId | behaviors:<name>`).
+- `./collab`: collab layout 3 (`COLLAB_LAYOUT_VERSION = 3`). Record keys
+  are `Z_FIELD = "@z"` and `BULK_FIELD = "@bulk"`: every `@`-key belongs to
+  the layout and `readDoc` strips only those, so a draw `z` field survives.
+  `behaviors` is a two-level nested map (`NESTED2_FIELDS`; removing a
+  behavior wins over a concurrent field set) and `params` joins
+  `NESTED_FIELDS`. Grid-valued fields are stored one row per key
+  (`<field>@<cx>,<cy>/<row>`, `GRID_ROW_KEY`): `patchRecord` writes only
+  changed rows and `recordOf` gathers them back canonical. The `assets`
+  header is the `assets` map (AssetId → true; `readAssets`,
+  `writeAssets`). `contentMaps` adds `assets` and the prefab doc's `params`
+  and `overrides`. `readDoc` reads a prefab doc's instances, and its base,
+  params and overrides into `DocView.prefab` (`PrefabDocHeader`). Groups
+  carry `rot` and `flip`. New helpers: `assetsMap`, `paramsMap`,
+  `prefabOverridesMap`, `patchMap`, `recordFields`, `isLayoutKey`,
+  `gridRowKey`.
+- `./collab`: `migrateLayout` lifts a layout-2 scene doc to layout 3 (every
+  entity and instance record's `z` → `@z`, `bulk` → `@bulk`, keys kept, one
+  `migration` transaction), and takes a layout-1 scene through the prefab
+  move and then the rename in the same scene transaction. New
+  `migrateDocLayout(doc, layout?)` (`DocLayoutMigration`) does the same for
+  a prefab doc (records) or a declarative asset doc (every `keyed` entry's
+  order key, at any depth) at load. Keyed entries keep their order under
+  `KEYED_Z = "@z"`. `migrateDoc` writes only `meta.schemaVersion` for a
+  step that changes nothing but `v`.
+- Dev and hosted loads lift layout-2 scene, prefab and declarative asset
+  docs to collab layout 3 (`@z`, `@bulk`), keeping every key; the layout
+  step runs before the format migration, and a client whose token carries
+  `l` below 3 connects read-only with `engine-outdated`.
+- `./collab`: `writeScene` writes the `assets` map one id per key (log key
+  `@assets`), a group's `rot` and `flip` as their own keys (`patchGroup`),
+  and an instance's `rot`, `flip`, `z` and per-key `params` through
+  `patchRecord`, so `paintCells` writes only the grid rows it changed. A
+  prefab doc's `writeScene` also writes its `assets` and nested
+  `instances`.
+- `./collab`: `prefabToDoc`, `docToPrefab` and `prefabPatch` write and read
+  the layout-3 prefab maps: `base` in the `prefab` header beside `id` and
+  `contract`, `params` (name → PrefabParam, atomic each), `overrides` (a
+  variant's, path → value), `assets` (AssetId → true) and nested
+  `instances` (key → Y.Map, the scene's instance layout). `prefabPatch`
+  keeps nested instances' keys by id and logs each parameter under
+  `@param:<name>`, base and overrides under `@variant`, and the assets set
+  under `@assets`, so concurrent edits to different keys merge and each
+  entry reverts.
+- `./collab`: `revertEntry` reverts `@assets`, `@param:<name>`, `@variant`
+  and a prefab doc's `@header`; a group reverts key by key.
+- `./collab`: `watchIssues` / `validateDoc` take `project` (`IssueProject`:
+  a `ProjectSession` fits); with it the scene's asset ids are checked
+  (`asset-missing`, `asset-kind`) and a change to the project registry
+  revalidates.
+- `moveAsset` and `renameAsset` of a scene carry its checks file
+  (`<stem>.checks.json` beside it) to the same folder and new stem in the
+  same op, refused with `path-taken` when that path is taken; `deleteAsset`
+  of a scene names its checks file as an `asset-in-use` referrer at
+  pointer "" (by path), unless the batch trashes or moves the checks file
+  too, or a new scene takes the path.
+- `localChild`, `localChildren` and `placeChildren` take an optional
+  trailing `library` (and `opts` for `localChild` and `localChildren`).
+  With a library, nested instances resolve; without one, only the prefab's
+  own children come back, and a prefab that doesn't resolve has no
+  children. `LocalChild` gains `turn?` and, on bulk children, `placed?`. A
+  nested child's `def.id` is its id in its own prefab, while `child` is its
+  relative ref. `childEntity` returns the relative ref as the id and
+  applies `placed`. `ResolvedOrigin.path` carries the whole instance
+  chain, and its transform composes nested turns.
+- `splitOverridePath` returns null when the child part is not a child ref
+  or the field part is not a field path. Nested override keys
+  (`door-1/panel.path.speed`) and nested-instance keys
+  (`door-1.at|rot|flip|z|off|layer|params.<name>`) resolve so that an
+  outer level beats every inner one. Override values are in the frame of
+  the child's own prefab.
+- `diffToOps` removes and re-instantiates an instance whose `prefab`
+  changed instead of updating it.
+- `ApplyOptions` gains `prefab`, the prefab the document is a view of.
+- `prefabsUsedBy(def, prefabs?)` takes the library as an optional second
+  argument. `prefabSceneBounds` takes
+  `Pick<Prefab, "bulk" | "entities" | "instances" | "v">`.
+- `./collab`: a prefab doc takes `instantiate`, `override`,
+  `revertOverride`, `applyToPrefab` (with `to`) and `unpack`, so prefabs
+  can nest; `setScene`, `setSettings`, `setGroup`, `definePrefab` and
+  `createPrefab` stay scene-only (`SCENE_ONLY_OPS`). An `instantiate` that
+  would make the prefab contain itself is refused with `prefab-cycle`, both
+  live and in `checkProjectBatch`. The bounds a prefab doc is edited in
+  also hold its nested instances' origins.
+- `./editor`: `applyToPrefabBatch(def, ref, opts?: { to?, prefabs? })` and
+  `instancesOf(def, prefab, prefabs?)`.
+- `attachField` takes child refs (`gate-2/lift`), so an entity can ride a
+  follower inside an instance.
+- `refCandidates(def, registry, accepts, prefabs?)` takes an optional
+  `PrefabLibrary` and then lists instances' children at any depth.
+- `duplicateSelection` reads the selection through `fragmentOf`, which
+  resolves the document itself, so the editor no longer passes `from`.
+
+### Fixed
+
+- Copying an instance's child no longer produces a fragment paste refuses
+  with `bad-id`: the child takes its own id (`gate-2/door` → `door`, a
+  bulk child its type), and refs to it in the fragment follow.
+- `snapshotScene` and `loadHeadless({ files })` load every prefab a scene
+  reaches (nested instances' prefabs and variant bases), not only the ones
+  it places, so a scene with nested prefabs or variants loads instead of
+  failing with `prefab-unknown` or `variant-base-unknown`.
+- `changeAssetId` on a prefab that other prefabs nest or use as a base
+  rewrites those prefabs' instances and `base` in the same batch, instead
+  of refusing with "changed while the batch was being planned".
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 8: the ops, issue codes, schema ids and CLI
+  output below. MCP tool names are unchanged; `scene_apply_ops` takes the
+  new ops through `ops:v3` and `scene_show` carries the new fields.
+- Ops `transform`, `setZ`, `useAssets`, `paintCells` (at most 65,536
+  cells), `setPrefabBase`, `exposeParam` and `setParam` in the ops schema;
+  `setGroup` takes `rot` and `flip`, `instantiate`'s instance takes `rot`,
+  `flip`, `z` and `params`, `applyToPrefab` takes `to`, and
+  `definePrefab`'s body takes `instances`, `base`, `overrides`, `params`
+  and `assets`.
+- The prefab schema (`prefab:v3`) takes an optional `instances` array of
+  the scene's `Instance`, and `base` (before `contract`), then `params`
+  (`PrefabParam`: `description`, `targets`, `default`), `assets` and
+  `overrides`; `entities` stays required. The fragment schema
+  takes an optional `instances` array.
+- An `attach` field's pattern is `CHILD_REF_PATTERN`, not `ID_PATTERN`, in
+  the scene, prefab and fragment schemas.
+- Issue codes `prefab-cycle`, `prefab-depth`, `variant-base-unknown`,
+  `param-unknown`, `layer-unknown`, `behavior-unknown`,
+  `behavior-forbidden`, `behavior-missing`, `grid-invalid` and
+  `ref-child-unknown`.
+- `scene show` lists nested instance children as `a/b/c` with
+  `instancePath`, an instance's `nested` ids, `z`, the world `transform`
+  (turn and flip), behavior blocks, an instance's `params` and the params
+  its prefab `exposes`, and each grid field's summary (`grids.<field>`:
+  filled `cells`, `chunks`, cell `bounds`); a turned group member's AABB is
+  in world space. `scene fmt` reports `migratedFrom` for scenes and
+  prefabs it migrates to v3.
+- `scripts/scene/README.md` §Format v3: behaviors, layers and `z`, assets,
+  grids, transforms, nested prefabs, variants and parameters, with a
+  dry-runnable batch for every new and changed op and one that reports
+  each new issue code; `examples/paint-cells.json` and
+  `examples/turn-instance.json`.
+
 ## [0.6.0] — unreleased
 
 The collaborative project and asset model: a project is a set of typed

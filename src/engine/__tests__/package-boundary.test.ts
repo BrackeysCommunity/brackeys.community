@@ -274,6 +274,33 @@ describe("package boundary", () => {
     expect([...bare.keys()].sort()).toEqual(["zod"]);
   });
 
+  it("keeps the transform math import-free and the scene's pure modules on zod", () => {
+    expect(importsOf(join(ENGINE, "scene/transform.ts"))).toEqual([]);
+    const { files } = runtimeGraph(ENTRIES["./scene"]);
+    for (const file of [
+      "scene/transform.ts",
+      "scene/layers.ts",
+      "scene/grid.ts",
+      "scene/field-path.ts",
+    ]) {
+      expect(files.has(file), file).toBe(true);
+      const own = runtimeGraph(file);
+      expect(
+        [...own.bare.keys()].filter((s) => s !== "zod"),
+        file,
+      ).toEqual([]);
+      violations(
+        [...own.files].filter((f) => !f.startsWith("scene/") && f !== "game/behaviors.ts"),
+      );
+    }
+  });
+
+  it("loads game/behaviors.ts on a server: zod and the game and scene files only", () => {
+    const { files, bare } = runtimeGraph("game/behaviors.ts");
+    expect([...bare.keys()].filter((s) => s !== "zod")).toEqual([]);
+    violations([...files].filter((f) => !/^(game|scene)\//.test(f)));
+  });
+
   it("keeps ./vite on node builtins, ./scene, ./collab and the dev sync server", () => {
     const { bare } = runtimeGraph(ENTRIES["./vite"]);
     const allowed = ["zod", "yjs", "fractional-indexing", ...VITE_ONLY];

@@ -13,17 +13,39 @@ export {
 } from "./define";
 export type { EntityOf } from "./define";
 export {
+  BEHAVIOR_NAME_PATTERN,
+  defineBehavior,
+  type BehaviorBlock,
+  type BehaviorDef,
+  type BehaviorName,
+  type BehaviorSystem,
+  type BehaviorSystemFactory,
+  type RegisteredBehavior,
+} from "./behaviors";
+export {
+  angleField,
+  assetField,
+  AssetIdSchema,
+  assetKindsOf,
   BASE_FIELDS,
   BODY_SHAPE_TYPES,
   bodyShapeField,
+  CHILD_REF_PATTERN,
+  gridField,
+  gridFieldInfo,
   ID_PATTERN,
   materialField,
+  mirrorField,
   PathSchema,
   pointField,
   PtSchema,
+  refField,
   shapeField,
   tagsField,
+  vectorField,
+  type GridFieldInfo,
 } from "./fields";
+export { DEFAULT_LAYERS, type SceneLayerDef } from "../scene/layers";
 export { DEFAULT_GRAVITY, primitiveFields } from "./primitives";
 export {
   ENGINE_CHECK_KINDS,
@@ -37,6 +59,7 @@ export {
 export type {
   ActionDef,
   BasePrimitive,
+  BehaviorRules,
   BulkKeyInfo,
   CheckEnv,
   CheckKindDef,

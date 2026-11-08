@@ -23,8 +23,10 @@ import {
   layoutToDoc,
   LOG_ARRAY,
   LOG_CAP,
+  migrateDocLayout,
   migrateLayout,
   prefabHeaderMap,
+  prefabsMap,
   prefabToDoc,
   PROJECT_LAYOUT_VERSION,
   randomKey,
@@ -379,9 +381,42 @@ export function seedPrefabState(input: {
   return Y.encodeStateAsUpdate(doc);
 }
 
+/**
+ * An encoded asset doc read at this engine's layout: a stored doc of an
+ * older layout is lifted in the scratch doc, so its records read by their
+ * current keys. Kinds `kinds` doesn't lay out are left as stored.
+ */
+function assetDocOf(state: Uint8Array | null, kinds: KindRegistry = ENGINE_KINDS): Y.Doc {
+  const doc = docOf(state);
+  liftAssetLayout(doc, kinds);
+  return doc;
+}
+
+function liftAssetLayout(doc: Y.Doc, kinds: KindRegistry): boolean {
+  if (docLayout(doc) >= COLLAB_LAYOUT_VERSION) return false;
+  if (isPrefabDoc(doc)) return migrateDocLayout(doc).migrated;
+  const meta = metaOf(doc);
+  const def = meta && declarativeKind(kinds, meta.kind);
+  return def ? migrateDocLayout(doc, def.layout).migrated : false;
+}
+
+/**
+ * A stored prefab or declarative asset doc lifted to this engine's collab
+ * layout, in one `migration` transaction that keeps every key: the doc's
+ * whole state. Null when it needs nothing: unseeded, at this layout
+ * already, or a kind `kinds` doesn't lay out (a game's).
+ */
+export function migrateAssetLayoutState(
+  state: Uint8Array | null,
+  kinds: KindRegistry = ENGINE_KINDS,
+): Uint8Array | null {
+  const doc = docOf(state);
+  return liftAssetLayout(doc, kinds) ? Y.encodeStateAsUpdate(doc) : null;
+}
+
 /** The prefab an encoded prefab doc holds; null before its header is written or for another kind. */
 export function prefabDocValue(state: Uint8Array | null): Prefab | null {
-  const doc = docOf(state);
+  const doc = assetDocOf(state);
   if (!isPrefabDoc(doc) || typeof prefabHeaderMap(doc).get("id") !== "string") return null;
   return docToPrefab(doc);
 }
@@ -429,7 +464,7 @@ export function assetDocValue(
 ): Record<string, unknown> | undefined {
   const prefab = prefabDocValue(state);
   if (prefab) return prefab as unknown as Record<string, unknown>;
-  const doc = docOf(state);
+  const doc = assetDocOf(state, kinds);
   const meta = metaOf(doc);
   const def = meta && declarativeKind(kinds, meta.kind);
   if (!def || contentMap(doc).size === 0) return undefined;
@@ -439,7 +474,16 @@ export function assetDocValue(
 /** The scene an encoded scene doc holds; undefined before it is seeded. */
 export function sceneDocValue(state: Uint8Array): SceneDefinition | undefined {
   const doc = docOf(state);
-  return docMeta(doc) ? readDoc(doc).def : undefined;
+  if (!docMeta(doc)) return undefined;
+  if (docLayout(doc) < COLLAB_LAYOUT_VERSION) {
+    // A read only: a layout-1 scene's own prefabs aren't part of its value.
+    if (docLayout(doc) < 2) {
+      const prefabs = prefabsMap(doc);
+      for (const id of [...prefabs.keys()]) prefabs.delete(id);
+    }
+    migrateDocLayout(doc);
+  }
+  return readDoc(doc).def;
 }
 
 /** Items in every `keyed` and `list` collection of a value laid out by `layout`. */
@@ -469,7 +513,7 @@ export function layoutItemCount(layout: DocLayout, value: unknown): number {
 
 /** Items an encoded asset doc's content holds, for `DocKindDef.limits.maxItems`: a prefab's are its children. */
 export function assetItemCount(state: Uint8Array, kinds: KindRegistry = ENGINE_KINDS): number {
-  const doc = docOf(state);
+  const doc = assetDocOf(state, kinds);
   if (isPrefabDoc(doc)) return entitiesMap(doc).size;
   const meta = metaOf(doc);
   const def = meta && declarativeKind(kinds, meta.kind);
@@ -491,7 +535,7 @@ export async function assetSnapshot(
     const text = formatPrefab(prefab);
     return { text, sha256: await sha256(text) };
   }
-  const doc = docOf(state);
+  const doc = assetDocOf(state, kinds);
   const meta = metaOf(doc);
   const def = meta && declarativeKind(kinds, meta.kind);
   if (!def || contentMap(doc).size === 0) return null;
@@ -516,7 +560,8 @@ export function sceneLayoutNeeds(
 ): { prefabs: AssetId[]; keys: AssetKey[] } | null {
   const doc = docOf(scene);
   if (!docMeta(doc) || docLayout(doc) >= COLLAB_LAYOUT_VERSION) return null;
-  const prefabs = [...docPrefabs(doc).keys()];
+  // Only layout 1 kept prefabs in the scene; from layout 2 the step is the scene's own.
+  const prefabs = docLayout(doc) < 2 ? [...docPrefabs(doc).keys()] : [];
   if (prefabs.length === 0) return { prefabs, keys: [] };
   const view = projectView(readProjectState(project));
   const keys = prefabs.flatMap((id) => {

@@ -12,6 +12,7 @@ import {
 } from "./render-geometry";
 import { aabb, containsPoint } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline } from "./shape-outline";
+import { gridCellsIn, withGridBoxes } from "./svg";
 import type { Aabb, Bounds, ExpandedScene, Pt, SceneDefinition } from "./types";
 
 /** Tags that pick a map character over the type's own: a sensor tagged `goal` draws `G`. */
@@ -53,10 +54,20 @@ const OUTSIDE = " ";
 const PATH = "~";
 const TRAIL = "*";
 const OUTCOME = "!";
+const MORE = "…";
 const RULER_EVERY = 8;
 
 /** Which character wins a cell: points over sensors over moving bodies over static shapes over lines. */
-const PRIORITY = { path: 0, trail: 1, static: 2, moving: 3, sensor: 4, point: 5, outcome: 6 };
+const PRIORITY = {
+  path: 0,
+  trail: 1,
+  static: 2,
+  moving: 3,
+  sensor: 4,
+  point: 5,
+  more: 5,
+  outcome: 6,
+};
 
 type Mark = { char: string; label: string; priority: number };
 /** Inclusive column and row ranges: `[c0, c1, r0, r1]`. */
@@ -130,7 +141,8 @@ function* sampleLine(pts: readonly Pt[], step: number): Generator<Pt> {
  * The scene as a character map, one character per `cell` world px: each
  * entity in its type's character (`EntityTypeDef.ascii`, else its base
  * primitive's), `=` for one-way solids, tag characters for tagged ones,
- * `~` along paths. Pure; region and `around` work as in `renderSceneSvg`.
+ * `~` along paths, grid fields' filled cells in their entity's character
+ * (at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
  */
 export function sceneAsciiMap(
   scene: SceneDefinition | ExpandedScene,
@@ -138,7 +150,7 @@ export function sceneAsciiMap(
 ): SceneAsciiMap {
   const { registry } = opts;
   const expanded = expandedOf(scene, registry, opts.prefabs);
-  const all = drawnEntities(expanded, registry);
+  const all = withGridBoxes(drawnEntities(expanded, registry), expanded.settings.grid);
   const wanted = resolveRegion(expanded, all, opts);
   const maxCells = opts.maxCells ?? 200;
   let cell = opts.cell ?? 64;
@@ -195,8 +207,39 @@ export function sceneAsciiMap(
   for (const p of sampleLine(trailPts, step))
     put(p, { char: TRAIL, label: "trail", priority: PRIORITY.trail });
 
+  const tagChars = opts.tagChars ?? DEFAULT_ASCII_TAG_CHARS;
+  const grid = gridCellsIn(visible, expanded.settings.grid, region);
+  const cellMarks = new Map<DrawnEntity, Mark>();
+  for (const g of grid.cells) {
+    let m = cellMarks.get(g.entity);
+    if (!m) {
+      m = { ...markOf(g.entity, registry, tagChars), priority: PRIORITY.static };
+      cellMarks.set(g.entity, m);
+    }
+    // Every map cell whose centre the grid cell covers; a grid cell smaller than a map cell marks its own centre's.
+    const [c0, c1, r0, r1] = spanOf(g.box);
+    let marked = false;
+    for (let r = Math.max(0, r0); r <= Math.min(rows - 1, r1); r++) {
+      for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) {
+        const centre: Pt = [x0 + (c + 0.5) * cell, y0 + (r + 0.5) * cell];
+        const { minX, minY, maxX, maxY } = g.box;
+        if (centre[0] < minX || centre[0] >= maxX || centre[1] < minY || centre[1] >= maxY)
+          continue;
+        put(centre, m);
+        marked = true;
+      }
+    }
+    if (!marked) put([(g.box.minX + g.box.maxX) / 2, (g.box.minY + g.box.maxY) / 2], m);
+  }
+  if (grid.moreAt)
+    put(grid.moreAt, {
+      char: MORE,
+      label: `${grid.more} more grid cells, not drawn`,
+      priority: PRIORITY.more,
+    });
+
   for (const d of visible) {
-    const m = markOf(d, registry, opts.tagChars ?? DEFAULT_ASCII_TAG_CHARS);
+    const m = markOf(d, registry, tagChars);
     if (d.shape) {
       const span = spanOf(aabb(d.shape));
       if (shapeIsClosed(d.shape)) {

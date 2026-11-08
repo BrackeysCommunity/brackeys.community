@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
+import { GLOW, SPIN, testGame } from "../../__tests__/fixtures/test-game";
+import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { shapeField, tagsField } from "../../game/fields";
-import type { SceneDefinition } from "../../scene/types";
+import { pointField, shapeField, tagsField } from "../../game/fields";
+import { applyOps } from "../../scene/ops";
+import { prefabLibrary } from "../../scene/prefab";
+import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
 import {
   buildInspectorModel,
+  instanceParamsModel,
+  instanceTransformModel,
+  instanceZBatch,
   modelBatch,
   modelOps,
+  paramBatch,
   parseRelative,
   refCandidates,
   shapeConversions,
@@ -108,14 +116,68 @@ const field = (m: InspectorModel, path: string): ModelField => {
 };
 
 describe("buildInspectorModel", () => {
+  it("offers the registry's layers as the layer field's choices", () => {
+    const names = ["sky", "far-hills", "ground", "actors", "fx", "notes"];
+    const layered = createRegistry(
+      defineGame({
+        id: "layered",
+        types: [],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+        layers: names.map((name, i) => ({ name, description: `${name}.`, draw: i })),
+      }),
+    );
+    const doc: SceneDefinition = {
+      v: 1,
+      game: "layered",
+      name: "l",
+      bounds: [0, 0, 100, 100],
+      entities: [{ id: "s", type: "sensor", layer: "ground", shape: ["circle", 5, 5, 2] }],
+    };
+    const m = buildInspectorModel(layered, [lookupRef(doc, "s")!]);
+    expect(field(m, "layer")).toMatchObject({
+      value: "ground",
+      widget: {
+        kind: "select",
+        options: [
+          { value: "sky", label: "sky" },
+          { value: "far-hills", label: "far hills" },
+          { value: "ground", label: "ground" },
+          { value: "actors", label: "actors" },
+          { value: "fx", label: "fx" },
+          { value: "notes", label: "notes" },
+        ],
+      },
+    });
+    const two = createRegistry(
+      defineGame({
+        id: "two",
+        types: [],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+        layers: [
+          { name: "back", description: "", draw: 0 },
+          { name: "front", description: "", draw: 1 },
+        ],
+      }),
+    );
+    expect(field(buildInspectorModel(two, [lookupRef(doc, "s")!]), "layer").widget).toEqual({
+      kind: "segmented",
+      options: [
+        { value: "back", label: "back" },
+        { value: "front", label: "front" },
+      ],
+    });
+  });
+
   const m = model("a");
 
   it("sections fields by meta.group, else by kind, in the fixed section order", () => {
     expect(m.sections.map((s) => [s.title, s.fields.map((f) => f.path)])).toEqual([
-      ["Identity", ["id", "type", "name", "layer", "group", "off"]],
+      ["Identity", ["id", "type", "name", "layer", "group", "off", "z"]],
       ["Transform", ["turn"]],
       ["Shape", ["shape"]],
-      ["Behavior", ["mode", "power", "ratio", "color", "armed", "target", "tags"]],
+      ["Gameplay", ["mode", "power", "ratio", "color", "armed", "target", "tags"]],
       ["Physics", ["glow"]],
     ]);
     expect(m.types).toEqual(["gadget"]);
@@ -153,7 +215,16 @@ describe("buildInspectorModel", () => {
       ],
     });
     expect(field(m, "color").widget.kind).toBe("select");
-    expect(field(m, "layer").widget.kind).toBe("segmented");
+    expect(field(m, "layer").widget).toEqual({
+      kind: "segmented",
+      options: ["terrain", "decor", "gameplay", "editor"].map((v) => ({ value: v, label: v })),
+    });
+    expect(field(m, "z").widget).toMatchObject({
+      kind: "number",
+      integer: true,
+      min: -10000,
+      max: 10000,
+    });
     expect(field(m, "armed")).toMatchObject({ widget: { kind: "switch" }, optional: true });
     expect(field(m, "turn")).toMatchObject({
       widget: { kind: "angle", integer: true, snapDeg: 15 },
@@ -228,6 +299,7 @@ describe("buildInspectorModel", () => {
       "layer",
       "group",
       "off",
+      "z",
       "shape",
       "tags",
     ]);
@@ -306,10 +378,206 @@ describe("modelOps", () => {
   });
 });
 
+const GATE: Prefab = {
+  kind: "prefab",
+  v: SCENE_FORMAT_VERSION,
+  game: "gizmo",
+  id: "gate",
+  entities: [
+    def.entities![3]!,
+    { id: "door", type: "sensor", shape: ["circle", 0, 0, 3] },
+    gadget("knob"),
+  ],
+  params: {
+    speed: { description: "How fast the lift goes.", targets: ["lift.path.speed"] },
+    mode: { description: "The knob's mode.", targets: ["knob.mode"], default: "off" },
+  },
+};
+const ROOM: Prefab = {
+  kind: "prefab",
+  v: SCENE_FORMAT_VERSION,
+  game: "gizmo",
+  id: "room",
+  entities: [],
+  instances: [{ id: "gate-1", prefab: "gate", at: [0, 0] }],
+  params: { pace: { description: "Its gate's pace.", targets: ["gate-1.params.speed"] } },
+};
+const prefabs = prefabLibrary([GATE, ROOM]);
+const placed: SceneDefinition = {
+  ...def,
+  instances: [
+    { id: "gate-2", prefab: "gate", at: [50, 50], params: { speed: 40 } },
+    { id: "room-1", prefab: "room", at: [0, 0], overrides: { "gate-1.params.mode": "on" } },
+  ],
+};
+
 describe("refCandidates", () => {
   it("lists entities whose type or base is accepted", () => {
     expect(refCandidates(def, registry, ["sensor"])).toEqual(["a", "b", "s1"]);
     expect(refCandidates(def, registry, ["follower"])).toEqual(["lift"]);
+  });
+
+  it("includes instances' children of the accepted types by their resolved refs, at any depth", () => {
+    expect(refCandidates(placed, registry, ["follower"], prefabs)).toEqual([
+      "lift",
+      "gate-2/lift",
+      "room-1/gate-1/lift",
+    ]);
+    expect(refCandidates(placed, registry, ["sensor"], prefabs)).toEqual([
+      "a",
+      "b",
+      "s1",
+      "gate-2/door",
+      "gate-2/knob",
+      "room-1/gate-1/door",
+      "room-1/gate-1/knob",
+    ]);
+    expect(refCandidates(placed, registry, ["follower"])).toEqual(["lift"]);
+  });
+});
+
+describe("instance parameters", () => {
+  const params = (ref: string) => instanceParamsModel(placed, ref, registry, prefabs)!;
+  const param = (ref: string, name: string) => params(ref).params.find((p) => p.name === name)!;
+
+  it("lists the prefab's params, each typed by its first target's schema", () => {
+    const m = params("gate-2");
+    expect(m).toMatchObject({ ref: "gate-2", instance: "gate-2" });
+    expect(m.nested).toBeUndefined();
+    expect(m.params.map((p) => [p.name, p.set])).toEqual([
+      ["speed", true],
+      ["mode", false],
+    ]);
+    expect(param("gate-2", "speed")).toMatchObject({
+      description: "How fast the lift goes.",
+      targets: ["lift.path.speed"],
+      field: {
+        path: "params.speed",
+        name: "speed",
+        title: "speed",
+        description: "How fast the lift goes.",
+        widget: { kind: "number", unit: "px/s" },
+        value: 40,
+        defaultValue: 20,
+        optional: true,
+        readonly: false,
+      },
+    });
+    expect(param("gate-2", "mode").field).toMatchObject({
+      widget: {
+        kind: "segmented",
+        options: [{ value: "idle" }, { value: "on" }, { value: "off" }],
+      },
+      defaultValue: "off",
+    });
+    expect(param("gate-2", "mode").field.value).toBeUndefined();
+  });
+
+  it("sets a param with setParam, relative edits against its value, and clears it with null", () => {
+    const m = params("gate-2");
+    const speed = param("gate-2", "speed");
+    expect(paramBatch(m, speed, "*=2")).toEqual({
+      ok: true,
+      batch: {
+        label: "Set gate-2's speed",
+        ops: [{ op: "setParam", ref: "gate-2", name: "speed", value: 80 }],
+      },
+    });
+    expect(paramBatch(m, speed, undefined)).toMatchObject({
+      ok: true,
+      batch: { ops: [{ op: "setParam", ref: "gate-2", name: "speed", value: null }] },
+    });
+    expect(paramBatch(m, speed, 40)).toMatchObject({ ok: true, batch: { ops: [] } });
+    const mode = param("gate-2", "mode");
+    expect(paramBatch(m, mode, "on")).toMatchObject({
+      ok: true,
+      batch: { ops: [{ op: "setParam", ref: "gate-2", name: "mode", value: "on" }] },
+    });
+    expect(paramBatch(m, mode, "sideways").ok).toBe(false);
+  });
+
+  it("writes a nested instance's param as an override on its scene instance", () => {
+    const m = params("room-1/gate-1");
+    expect(m).toMatchObject({ ref: "room-1/gate-1", instance: "room-1", nested: "gate-1" });
+    const mode = param("room-1/gate-1", "mode");
+    expect(mode).toMatchObject({ set: true, field: { value: "on" } });
+    expect(paramBatch(m, mode, "idle")).toMatchObject({
+      ok: true,
+      batch: { ops: [{ op: "override", ref: "room-1", set: { "gate-1.params.mode": "idle" } }] },
+    });
+    expect(paramBatch(m, mode, undefined)).toMatchObject({
+      ok: true,
+      batch: { ops: [{ op: "revertOverride", ref: "room-1", paths: ["gate-1.params.mode"] }] },
+    });
+    const speed = param("room-1/gate-1", "speed");
+    expect(speed.set).toBe(false);
+    expect(paramBatch(m, speed, undefined)).toMatchObject({ ok: true, batch: { ops: [] } });
+  });
+
+  it("types a param that feeds a nested instance's param by that param's first target", () => {
+    expect(param("room-1", "pace").field).toMatchObject({
+      path: "params.pace",
+      widget: { kind: "number", unit: "px/s" },
+      defaultValue: 20,
+    });
+  });
+
+  it("is null for a ref that names no instance or a missing prefab", () => {
+    expect(instanceParamsModel(placed, "a", registry, prefabs)).toBeNull();
+    expect(instanceParamsModel(placed, "gate-2", registry, new Map())).toBeNull();
+  });
+});
+
+describe("instance placement", () => {
+  const turned: SceneDefinition = {
+    ...placed,
+    instances: [{ ...placed.instances![0]!, rot: 1, flip: true, z: 3 }, placed.instances![1]!],
+  };
+
+  it("reads a scene instance's turns, mirror and z, and a nested one's without editing", () => {
+    expect(instanceTransformModel(turned, "gate-2", prefabs)).toEqual({
+      ref: "gate-2",
+      rot: 1,
+      flip: true,
+      z: 3,
+      editable: true,
+    });
+    expect(instanceTransformModel(placed, "gate-2", prefabs)).toMatchObject({
+      rot: 0,
+      flip: false,
+      z: 0,
+    });
+    expect(instanceTransformModel(placed, "room-1/gate-1", prefabs)).toMatchObject({
+      ref: "room-1/gate-1",
+      editable: false,
+    });
+    expect(instanceTransformModel(placed, "a", prefabs)).toBeNull();
+  });
+
+  it("sets z with one setZ, relative edits against the current z, and checks the bounds", () => {
+    const m = instanceTransformModel(turned, "gate-2", prefabs)!;
+    expect(instanceZBatch(m, "+=2")).toEqual({
+      ok: true,
+      batch: { label: "Set gate-2's z", ops: [{ op: "setZ", refs: ["gate-2"], z: 5 }] },
+    });
+    expect(instanceZBatch(m, "-4")).toMatchObject({
+      ok: true,
+      batch: { ops: [{ op: "setZ", refs: ["gate-2"], z: -4 }] },
+    });
+    expect(instanceZBatch(m, "3")).toMatchObject({ ok: true, batch: { ops: [] } });
+    expect(instanceZBatch(m, "1.6")).toMatchObject({ ok: true, batch: { ops: [{ z: 2 }] } });
+    expect(instanceZBatch(m, "20000").ok).toBe(false);
+    expect(instanceZBatch(m, "high").ok).toBe(false);
+    const nested = instanceTransformModel(placed, "room-1/gate-1", prefabs)!;
+    expect(instanceZBatch(nested, "1").ok).toBe(false);
+  });
+
+  it("writes a z the scene keeps", () => {
+    const m = instanceTransformModel(placed, "gate-2", prefabs)!;
+    const r = instanceZBatch(m, "7");
+    if (!r.ok) throw new Error(r.error);
+    const out = applyOps(placed, r.batch, registry, { prefabs });
+    expect(out.ok && out.def.instances![0]!.z).toBe(7);
   });
 });
 
@@ -343,5 +611,189 @@ describe("shapeConversions", () => {
       2,
       90,
     ]);
+  });
+});
+
+describe("behavior sections", () => {
+  const BADGE = defineBehavior({
+    name: "badges/badge",
+    description: "A badge with a rank and a kind.",
+    fields: {
+      rank: z.number().int().min(1).max(9).describe("Its rank."),
+      kind: z.enum(["gold", "silver"]).describe("Its kind."),
+      note: z.string().optional().describe("A note."),
+      art: z.string().optional().describe("Its art.").meta({ title: "Art", group: "assets" }),
+    },
+  });
+  const badges = createRegistry(
+    defineGame({
+      id: "badges",
+      types: [
+        defineEntityType({
+          type: "medal",
+          description: "A medal.",
+          base: "marker",
+          fields: {
+            at: pointField("Where it hangs."),
+            art: z.string().optional().describe("Its art.").meta({ group: "assets" }),
+          },
+        }),
+      ],
+      behaviors: [BADGE],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+  const games = createRegistry(testGame);
+  const doc: SceneDefinition = {
+    v: 2,
+    game: "test-game",
+    name: "b",
+    bounds: [0, 0, 100, 100],
+    entities: [
+      { id: "lamp", type: "lamp", at: [10, 10] },
+      {
+        id: "lamp-2",
+        type: "lamp",
+        at: [20, 10],
+        behaviors: { [SPIN.name]: {}, [GLOW.name]: { color: "#00ff00" } },
+      },
+      { id: "spot", type: "marker", at: [30, 10], behaviors: { [SPIN.name]: { speed: 45 } } },
+      { id: "dull", type: "plain", at: [40, 10] },
+    ],
+  };
+  const of = (reg: typeof games, def: SceneDefinition, ...refs: string[]) =>
+    buildInspectorModel(
+      reg,
+      refs.map((r) => lookupRef(def, r)!),
+    );
+  const sectionOf = (m: InspectorModel, id: string) => m.sections.find((s) => s.id === id);
+
+  it("gives each carried behavior a section titled by its label, fields in its order", () => {
+    const m = of(games, doc, "lamp");
+    expect(m.sections.map((s) => s.id)).toEqual([
+      "identity",
+      "transform",
+      `behaviors:${GLOW.name}`,
+    ]);
+    const glow = sectionOf(m, `behaviors:${GLOW.name}`)!;
+    expect(glow.title).toBe("Glow");
+    expect(glow.fields.map((f) => [f.path, f.defaultValue, f.optional])).toEqual([
+      [`behaviors.${GLOW.name}.intensity`, 2, true],
+      [`behaviors.${GLOW.name}.color`, "#ffcc00", true],
+    ]);
+    expect(glow.behavior).toEqual({ name: GLOW.name, description: GLOW.description });
+    expect(m.addBehaviors.map((o) => [o.name, o.label])).toEqual([[SPIN.name, SPIN.name]]);
+  });
+
+  it("reads written values, and keeps the type's own fields out of the behaviors key", () => {
+    const m = of(games, doc, "lamp-2");
+    expect(m.sections.map((s) => s.title)).toEqual(["Identity", "Transform", "Glow", SPIN.name]);
+    expect(field(m, `behaviors.${GLOW.name}.color`).value).toBe("#00ff00");
+    expect(field(m, `behaviors.${SPIN.name}.speed`)).toMatchObject({
+      value: undefined,
+      defaultValue: 30,
+    });
+    expect(fields(m).some((f) => f.path === "behaviors")).toBe(false);
+    expect(m.addBehaviors).toEqual([]);
+    expect(of(games, doc, "spot").sections.at(-1)!.fields[0]).toMatchObject({
+      value: 45,
+      defaultValue: 90,
+    });
+  });
+
+  it("removes an optional behavior with one update per target, a required one never", () => {
+    const m = of(games, doc, "lamp-2", "spot");
+    expect(m.sections.map((s) => s.id)).toEqual([
+      "identity",
+      "transform",
+      `behaviors:${SPIN.name}`,
+    ]);
+    const remove = m.sections.at(-1)!.behavior!.remove!;
+    expect(remove).toEqual({
+      label: `Remove ${SPIN.name} from 2 entities`,
+      ops: [
+        { op: "update", ref: "lamp-2", unset: [`behaviors.${SPIN.name}`] },
+        { op: "update", ref: "spot", unset: ["behaviors"] },
+      ],
+    });
+    const r = applyOps(doc, remove, games);
+    if (!r.ok) throw new Error(r.issue.message);
+    expect(r.def.entities![1]!.behaviors).toEqual({ [GLOW.name]: { color: "#00ff00" } });
+    expect(r.def.entities![2]!.behaviors).toBeUndefined();
+    expect(sectionOf(of(games, doc, "lamp"), `behaviors:${GLOW.name}`)!.behavior!.remove).toBe(
+      undefined,
+    );
+  });
+
+  it("adds a behavior the types allow with one update per target lacking it", () => {
+    const m = of(games, doc, "lamp", "spot");
+    expect(m.sections.some((s) => s.id.startsWith("behaviors:"))).toBe(false);
+    expect(m.addBehaviors.map((o) => o.name)).toEqual([GLOW.name, SPIN.name]);
+    expect(m.addBehaviors[0]!.batch).toEqual({
+      label: "Add Glow to spot",
+      ops: [{ op: "update", ref: "spot", set: { [`behaviors.${GLOW.name}`]: {} } }],
+    });
+    const add = m.addBehaviors[1]!.batch;
+    expect(add).toEqual({
+      label: `Add ${SPIN.name} to lamp`,
+      ops: [{ op: "update", ref: "lamp", set: { [`behaviors.${SPIN.name}`]: {} } }],
+    });
+    const r = applyOps(doc, add, games);
+    if (!r.ok) throw new Error(r.issue.message);
+    expect(r.def.entities![0]!.behaviors).toEqual({ [SPIN.name]: {} });
+    // `plain` forbids every behavior, so nothing is offered alongside it.
+    expect(of(games, doc, "dull").addBehaviors).toEqual([]);
+    expect(of(games, doc, "spot", "dull").addBehaviors).toEqual([]);
+  });
+
+  it("seeds the fields with no default so an added block validates, and edits by dot path", () => {
+    const medals: SceneDefinition = {
+      v: 2,
+      game: "badges",
+      name: "m",
+      bounds: [0, 0, 100, 100],
+      entities: [{ id: "m1", type: "medal", at: [5, 5] }],
+    };
+    const m = of(badges, medals, "m1");
+    expect(sectionOf(m, "assets")).toMatchObject({ title: "Assets", fields: [{ path: "art" }] });
+    const add = m.addBehaviors[0]!;
+    expect(add).toMatchObject({ name: BADGE.name, label: BADGE.name });
+    expect(add.batch.ops).toEqual([
+      { op: "update", ref: "m1", set: { [`behaviors.${BADGE.name}`]: { rank: 1, kind: "gold" } } },
+    ]);
+    const added = applyOps(medals, add.batch, badges);
+    if (!added.ok) throw new Error(added.issue.message);
+    const after = of(badges, added.def, "m1");
+    const badge = sectionOf(after, `behaviors:${BADGE.name}`)!;
+    // A behavior's asset field stays in the behavior's section.
+    expect(badge.fields.map((f) => f.name)).toEqual(["rank", "kind", "note", "art"]);
+    expect(badge.fields.map((f) => f.optional)).toEqual([false, false, true, true]);
+    const rank = field(after, `behaviors.${BADGE.name}.rank`);
+    const edit = modelBatch(rank, "+=2", [lookupRef(added.def, "m1")!], added.def);
+    if (!edit.ok) throw new Error(edit.error);
+    expect(edit.batch.ops).toEqual([
+      { op: "update", ref: "m1", set: { [`behaviors.${BADGE.name}.rank`]: 3 } },
+    ]);
+    expect(modelOps(rank, 12, [lookupRef(added.def, "m1")!]).ok).toBe(false);
+  });
+
+  it("shows a block no registered behavior owns, so it can be removed", () => {
+    const odd: SceneDefinition = {
+      ...doc,
+      entities: [{ id: "spot", type: "marker", at: [0, 0], behaviors: { "test-game/gone": {} } }],
+    };
+    const s = of(games, odd, "spot").sections.at(-1)!;
+    expect(s).toMatchObject({
+      id: "behaviors:test-game/gone",
+      title: "test-game/gone",
+      fields: [{ path: "behaviors.test-game/gone", readonly: true }],
+      behavior: { remove: { ops: [{ op: "update", ref: "spot", unset: ["behaviors"] }] } },
+    });
+  });
+
+  it("carries no behavior sections for a bulk entry", () => {
+    expect(model("~tile:0").addBehaviors).toEqual([]);
+    expect(model("~tile:0").sections.every((s) => !s.behavior)).toBe(true);
   });
 });

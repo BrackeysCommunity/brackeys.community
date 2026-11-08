@@ -1,18 +1,69 @@
 import type { RigidBody } from "@dimforge/rapier2d";
-import { defineGame } from "@jams/engine/game";
+import {
+  defineBehavior,
+  defineEntityType,
+  defineGame,
+  gridField,
+  pointField,
+} from "@jams/engine/game";
 import { z } from "zod";
 
 export const CARD_TABLE = "card";
 export const CARD_SPEED = 300;
 
+/** A data-only behavior: a glow color game code reads. */
+export const GLOW = defineBehavior({
+  name: "card-game/glow",
+  description: "A colored glow around the entity.",
+  fields: {
+    color: z
+      .string()
+      .regex(/^#[0-9a-f]{6}$/)
+      .default("#ffcc00")
+      .describe("The glow's color, #rrggbb; default #ffcc00."),
+  },
+});
+
+/** A behavior that only makes sense on an entity that glows. */
+export const FLICKER = defineBehavior({
+  name: "card-game/flicker",
+  description: "Flickers the entity's glow.",
+  fields: { rate: z.number().positive().default(4).describe("Flickers per second; default 4.") },
+  requires: [GLOW.name],
+});
+
+/** Cells painted on the scene's grid, local to `at`; carries no behaviors. */
+export const TILES = defineEntityType({
+  type: "tiles",
+  description: "Floor tiles on the scene's grid.",
+  base: "marker",
+  fields: {
+    at: pointField("The grid's origin."),
+    cells: gridField("The tiles.", { values: ["grass", "water", "stone"] }),
+  },
+  behaviors: { forbidden: "all" },
+});
+
+/** A marker that always glows. */
+export const LAMP = defineEntityType({
+  type: "lamp",
+  description: "A light that always glows.",
+  base: "marker",
+  fields: { at: pointField("Where the lamp stands.") },
+  behaviors: { required: { [GLOW.name]: {} } },
+});
+
 /**
- * A game for tests of project data: the prop `avatar` walks at the
- * project's `avatarSpeed`, and the first step raises a `card` event per row
- * of its card table.
+ * A game for tests of project data and of format features no repo game
+ * uses: the prop `avatar` walks at the project's `avatarSpeed`, and the
+ * first step raises a `card` event per row of its card table. It has a grid
+ * type (`tiles`), a type with a required behavior (`lamp`) and a behavior
+ * that requires another (`card-game/flicker`).
  */
 export const cardGame = defineGame({
   id: "card-game",
-  types: [],
+  types: [TILES, LAMP],
+  behaviors: [GLOW, FLICKER],
   actions: [
     { action: "left", keys: ["a"], description: "Walk left." },
     { action: "right", keys: ["d"], description: "Walk right." },

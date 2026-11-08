@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { GLOW, LAMP, PLAIN, testGame } from "../../__tests__/fixtures/test-game";
+import { defineBehavior } from "../../game/behaviors";
+import { createRegistry, defineGame } from "../../game/define";
 import type { Registry } from "../../game/types";
 import { applyOps } from "../ops";
 import { parseSceneOrThrow } from "../parse";
@@ -53,6 +56,10 @@ const MUTATIONS: Record<string, Mutation> = {
     const x = 100 + r.int(800);
     solids(def).push(["poly", x, 800, x + 200, 800, x + 100, 850, x + 200, 900, x, 900]);
   },
+  unknownLayer(def, r) {
+    const target = r.pick(entities(def));
+    target.layer = r.pick(["gamplay", "sky", "terrian"]) as never;
+  },
   concaveProp(def, r) {
     const x = 100 + r.int(800);
     const shape = ["poly", x, 700, x + 60, 700, x + 30, 720, x + 60, 760, x, 760];
@@ -99,7 +106,14 @@ describe("validator fixes", () => {
         if (issue.fix) fixed.add(issue.code);
     }
     expect([...fixed].sort()).toEqual(
-      ["chain-invalid", "non-integer", "out-of-bounds", "path-degenerate", "poly-invalid"].sort(),
+      [
+        "chain-invalid",
+        "layer-unknown",
+        "non-integer",
+        "out-of-bounds",
+        "path-degenerate",
+        "poly-invalid",
+      ].sort(),
     );
   });
 
@@ -118,5 +132,62 @@ describe("validator fixes", () => {
     };
     const codes = checkFixes(def, fake, "refs").map((i) => i.code);
     expect(codes).toEqual(expect.arrayContaining(["dangling-ref", "ref-type"]));
+  });
+
+  it("clear behavior issues in a game's scene", () => {
+    const behaving = createRegistry(
+      defineGame({
+        ...testGame,
+        behaviors: [
+          ...(testGame.behaviors ?? []),
+          defineBehavior({
+            name: "test-game/halo",
+            description: "A ring around the glow.",
+            fields: {},
+            requires: [GLOW.name],
+          }),
+        ],
+      }),
+    );
+    const base: SceneDefinition = {
+      v: 3,
+      game: "test-game",
+      name: "behaviors",
+      bounds: [0, 0, 1000, 1000],
+      entities: [
+        { id: "lamp", type: LAMP.type, at: [100, 100] },
+        { id: "plain", type: PLAIN.type, at: [200, 100] },
+        { id: "spot", type: "marker", at: [300, 100] },
+      ],
+    };
+    const BREAKS: Mutation[] = [
+      (def, r) => {
+        const e = r.pick(entities(def).filter((x) => x.type !== PLAIN.type));
+        e.behaviors = {
+          ...(e.behaviors as object),
+          [r.pick(["test-game/spn", "test-game/glw", "nope"])]: {},
+        };
+      },
+      (def) => {
+        const e = entities(def).find((x) => x.id === "plain")!;
+        e.behaviors = { ...(e.behaviors as object), "test-game/spin": { speed: 5 } };
+      },
+      (def, r) => {
+        const e = entities(def).find((x) => x.id === "spot")!;
+        e.behaviors = { ...(e.behaviors as object), "test-game/halo": {} };
+        if (r.int(2) === 0) (e.behaviors as Record<string, unknown>)["test-game/spin"] = {};
+      },
+    ];
+    const fixed = new Set<string>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const r = rng(seed);
+      const def = structuredClone(base);
+      for (let k = 0; k < 1 + r.int(3); k++) r.pick(BREAKS)(def, r);
+      for (const issue of checkFixes(def, behaving, `behaviors seed ${seed}`))
+        if (issue.fix) fixed.add(issue.code);
+    }
+    expect([...fixed].sort()).toEqual(
+      ["behavior-forbidden", "behavior-missing", "behavior-unknown"].sort(),
+    );
   });
 });

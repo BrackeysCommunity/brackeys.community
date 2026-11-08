@@ -238,4 +238,30 @@ describe("file batches whose scene ops write prefabs", () => {
     expect(after["kitchen-sink.json"]).toContain('"prefab": "door"');
     expect(after["kitchen-sink.json"]).not.toContain('"post-1"');
   });
+
+  it("points nested instances and variant bases at a prefab another prefab nests, when it is renamed", async () => {
+    await copy.remove();
+    copy = await engineProjectCopy([
+      "kitchen-sink.json",
+      "prefabs/post.json",
+      "prefabs/gate.json",
+      "prefabs/latch.json",
+      "prefabs/doorway.json",
+      "prefabs/room.json",
+      "prefabs/one-way-latch.json",
+    ]);
+    expect(await apply([{ op: "changeAssetId", id: "latch", to: "bolt" }])).toMatchObject({
+      ok: true,
+    });
+    const after = await files();
+    expect(JSON.parse(after["prefabs/latch.json"]!).id).toBe("bolt");
+    expect(JSON.parse(after["prefabs/doorway.json"]!).instances).toEqual([
+      { id: "latch", prefab: "bolt", at: [70, 0] },
+    ]);
+    expect(JSON.parse(after["prefabs/room.json"]!).instances[1]).toMatchObject({
+      id: "latch-1",
+      prefab: "bolt",
+    });
+    expect(JSON.parse(after["prefabs/one-way-latch.json"]!).base).toBe("bolt");
+  });
 });

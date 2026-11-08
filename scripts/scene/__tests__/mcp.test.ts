@@ -292,6 +292,42 @@ describe("scene MCP server", () => {
     });
     expect(stale).toMatchObject({ isError: true, structuredContent: { exitCode: 3 } });
   });
+
+  it("takes v3 ops in scene_apply_ops and shows the fields they set", async () => {
+    const file = join(dirs.engine, "z-yard.json");
+    const def = JSON.parse(await readFile(ENGINE_YARD, "utf8"));
+    await writeFile(file, JSON.stringify({ ...def, name: "z-yard" }));
+    try {
+      const ops = await call("scene_schema", { which: "ops" });
+      expect(ops.structuredContent.$id).toBe("urn:jams-engine:ops:v3");
+      const batch = {
+        ops: [
+          { op: "useAssets", add: ["dot"] },
+          { op: "setZ", refs: ["zone"], z: 3 },
+          { op: "setGroup", id: "west", at: [200, 0] },
+          { op: "update", ref: "start", set: { group: "west" } },
+          { op: "transform", groups: ["west"], flip: "x" },
+        ],
+      };
+      const wrote = await call("scene_apply_ops", { scene: "z-yard", ops: batch, dryRun: false });
+      expect(wrote.structuredContent, JSON.stringify(wrote.structuredContent)).toMatchObject({
+        exitCode: 0,
+        written: true,
+      });
+      const saved = JSON.parse(await readFile(file, "utf8"));
+      expect(saved.assets).toEqual(["dot"]);
+      expect(saved.groups.west).toMatchObject({ at: [200, 0], flip: true });
+
+      const zone = await call("scene_show", { scene: "z-yard", ref: "zone" });
+      expect(zone.structuredContent.entities).toEqual([expect.objectContaining({ z: 3 })]);
+      const start = await call("scene_show", { scene: "z-yard", ref: "start" });
+      expect(start.structuredContent.entities).toEqual([
+        expect.objectContaining({ origin: [200, 0], transform: { rot: 0, flip: true } }),
+      ]);
+    } finally {
+      await rm(file, { force: true });
+    }
+  });
 });
 
 describe("hosted URLs", () => {

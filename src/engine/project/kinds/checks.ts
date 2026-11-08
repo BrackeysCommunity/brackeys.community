@@ -3,12 +3,15 @@ import type { z } from "zod";
 import {
   CHECKS_FORMAT_VERSION,
   CHECKS_SUFFIX,
+  checksPathOf,
   checksSchemaFor,
   type ChecksFile,
 } from "../../scene/checks";
 import { CHECKS_LAYOUT, formatChecks } from "../../scene/format";
 import type { RefSite } from "../refs";
+import type { AssetEntry, ProjectView } from "../types";
 import { defineAssetKind, folderOf, isPlainObject } from "./define";
+import { sceneKind } from "./scene";
 
 /** Checks for the scene beside the file, co-edited per check and field. */
 export const checksKind = defineAssetKind({
@@ -24,7 +27,10 @@ export const checksKind = defineAssetKind({
   layout: CHECKS_LAYOUT,
   format: (file: ChecksFile) => formatChecks(file),
   empty: (): ChecksFile => ({ v: CHECKS_FORMAT_VERSION, checks: [] }),
-  /** Inline scripts' `scene`; a script given by path and the scene the file sits beside are paths, not ids. */
+  /**
+   * Inline scripts' `scene`. A script given by path and the scene the file
+   * sits beside are paths, not ids: `checksBeside` pairs a scene with its file.
+   */
   refs: (file: ChecksFile): RefSite[] =>
     file.checks.flatMap((check) => {
       const script = (check as Record<string, unknown>).script;
@@ -32,3 +38,14 @@ export const checksKind = defineAssetKind({
       return [{ pointer: `/checks/@${check.id}/script/scene`, id: script.scene, kinds: ["scene"] }];
     }),
 });
+
+/**
+ * The live checks file beside `scene` (`<stem>.checks.json` in its folder),
+ * the one that checks it. Undefined for another kind, or while no live
+ * checks file holds that path.
+ */
+export function checksBeside(view: ProjectView, scene: AssetEntry): AssetEntry | undefined {
+  if (scene.kind !== sceneKind.kind) return undefined;
+  const beside = view.byPath.get(checksPathOf(scene.path));
+  return beside?.kind === checksKind.kind ? beside : undefined;
+}

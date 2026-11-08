@@ -9,11 +9,13 @@ import {
 import {
   sceneToDoc,
   sequentialKeys,
+  staticPrefabSource,
   type AwarenessLike,
   type SceneOrigin,
 } from "@jams/engine/collab";
 import { createEditorSession, type SceneDefinition } from "@jams/engine/editor";
 import { createRegistry, defineGame } from "@jams/engine/game";
+import { SCENE_FORMAT_VERSION, type Prefab } from "@jams/engine/scene";
 import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import {
@@ -304,6 +306,73 @@ describe("editorChrome", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onStop).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the prefab header", () => {
+  const prefab = (id: string, base?: string): Prefab => ({
+    kind: "prefab",
+    v: SCENE_FORMAT_VERSION,
+    id,
+    entities: base ? [] : [{ id: "top", type: "marker", at: [0, 0] }],
+    ...(base ? { base } : {}),
+  });
+
+  /** The chrome on a prefab open in isolation, from a library holding `gate` and its variant `red-gate`. */
+  function inPrefab(id: string) {
+    const library = new Map([
+      ["gate", prefab("gate")],
+      ["red-gate", prefab("red-gate", "gate")],
+    ]);
+    const session = createEditorSession({
+      doc: sceneToDoc(scene(), { key: sequentialKeys("t") }),
+      origin: ada,
+      name: "shell-yard",
+      registry,
+      issuesDebounceMs: 0,
+      prefabs: staticPrefabSource(library),
+    });
+    const link = { onBack: vi.fn(), onOpen: vi.fn(), onCreateVariant: vi.fn() };
+    const host = new Store<EditorHostState>({ connection: "live", sceneChanged: false });
+    render(
+      <CanvasShell
+        topLeft={null}
+        {...editorChrome({
+          session,
+          host,
+          game: fakeGame(),
+          onPlay: vi.fn(),
+          onReplay: vi.fn(),
+          onStop: vi.fn(),
+          onRestart: vi.fn(),
+          prefab: { id, scene: "shell-yard", ...link },
+        })}
+      >
+        <canvas tabIndex={0} />
+      </CanvasShell>,
+    );
+    return link;
+  }
+
+  it("shows a variant's base and opens it", () => {
+    const { onOpen, onCreateVariant, onBack } = inPrefab("red-gate");
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" }).textContent).toBe(
+      "shell-yard›red-gate",
+    );
+    expect(screen.getByText("Variant of")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "gate" }));
+    expect(onOpen).toHaveBeenCalledWith("gate");
+
+    fireEvent.click(screen.getByRole("button", { name: "Create variant" }));
+    expect(onCreateVariant).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("names no base for a prefab that isn't a variant, and still offers Create variant", () => {
+    inPrefab("gate");
+    expect(screen.queryByText("Variant of")).toBeNull();
+    expect(screen.getByRole("button", { name: "Create variant" })).toBeTruthy();
   });
 });
 

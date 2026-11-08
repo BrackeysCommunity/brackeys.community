@@ -1,15 +1,17 @@
 // @vitest-environment node
-import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { formatScene, type SceneDefinition } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "../../../src/games/platformer";
 import { COMMAND_GROUPS, COMMANDS, runCli, type CommandName } from "../commands";
 import type { ToolContext } from "../context";
 import { loadCompatRapier } from "../rapier-compat";
+import { cardGame } from "./card-game";
 import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
@@ -74,22 +76,111 @@ const SCRATCH_FLAGS = new Set(["--record", "--run"]);
 const inRoot = (argv: readonly string[]) =>
   argv.map((arg, i) => (i > 0 && SCRATCH_FLAGS.has(argv[i - 1]!) ? join(root, arg) : arg));
 
+/**
+ * An op batch in a document: a `json` fence whose info string names what it
+ * runs against, `scene=<id>` (`apply --dry-run`) or `project=<id>` (`assets
+ * apply --dry-run`), and with `expect=<code>` the issue code it reports.
+ */
+type Batch = {
+  doc: string;
+  line: number;
+  target: { scene: string } | { project: string };
+  expect?: string;
+  text: string;
+};
+
+function batches(doc: string, text: string): Batch[] {
+  const out: Batch[] = [];
+  for (const m of text.matchAll(/^```json ([^\n]*)\n([\s\S]*?)^```/gm)) {
+    const attrs = Object.fromEntries(
+      m[1]!
+        .trim()
+        .split(/\s+/)
+        .map((kv) => kv.split("=") as [string, string]),
+    );
+    const target = attrs.scene
+      ? { scene: attrs.scene }
+      : attrs.project
+        ? { project: attrs.project }
+        : null;
+    if (!target) continue;
+    const line = text.slice(0, m.index).split("\n").length;
+    out.push({ doc, line, target, expect: attrs.expect, text: m[2]! });
+  }
+  return out;
+}
+
+/** Every `code` an apply report carries: its refusal's, its issues' and a project batch's. */
+function codesIn(value: unknown, out = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) for (const v of value) codesIn(v, out);
+  else if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) {
+      if (k === "code" && typeof v === "string") out.add(v);
+      else codesIn(v, out);
+    }
+  }
+  return out;
+}
+
+/** The ops and codes the format-v3 agent surface added or changed: each has a doc example that runs. */
+const V3_OPS = [
+  "transform",
+  "setZ",
+  "useAssets",
+  "paintCells",
+  "setPrefabBase",
+  "exposeParam",
+  "setParam",
+  "setGroup",
+  "instantiate",
+  "override",
+  "applyToPrefab",
+  "unpack",
+  "createPrefab",
+  "definePrefab",
+  "update",
+];
+const V3_CODES = [
+  "prefab-cycle",
+  "prefab-depth",
+  "variant-base-unknown",
+  "param-unknown",
+  "layer-unknown",
+  "behavior-unknown",
+  "behavior-forbidden",
+  "behavior-missing",
+  "grid-invalid",
+  "ref-child-unknown",
+];
+
+/** The card game's scene: a square grid, a painted floor, a lamp and a plain marker. */
+const CARD_TABLE: SceneDefinition = {
+  v: 3,
+  game: cardGame.id,
+  name: "card-table",
+  bounds: [0, 0, 1024, 768],
+  settings: { grid: { kind: "square", cell: [32, 32] } },
+  entities: [
+    { id: "floor", type: "tiles", at: [0, 0], cells: { "0,0": ["1*16", "1*16", "1*4,2*8,1*4"] } },
+    { id: "lamp", type: "lamp", at: [200, 100] },
+    { id: "spot", type: "marker", at: [400, 100] },
+  ],
+};
+
 let root: string;
 let ctx: ToolContext;
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "scene-readme-"));
-  const dirs = { engine: join(root, "engine"), platformer: join(root, "platformer") };
-  await mkdir(dirs.engine);
+  const dirs = {
+    engine: join(root, "engine"),
+    platformer: join(root, "platformer"),
+    card: join(root, cardGame.id),
+  };
+  await cp(repoFile("src/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
-  await copyFile(
-    repoFile("src/engine/scenes/engine-yard.json"),
-    join(dirs.engine, "engine-yard.json"),
-  );
-  await copyFile(
-    repoFile("src/engine/scenes/engine-yard.checks.json"),
-    join(dirs.engine, "engine-yard.checks.json"),
-  );
+  await mkdir(dirs.card);
+  await writeFile(join(dirs.card, "card-table.json"), formatScene(CARD_TABLE).text);
   await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
@@ -98,6 +189,7 @@ beforeAll(async () => {
     projects: [
       await tempProject(dirs.engine, { id: "engine" }),
       await tempProject(dirs.platformer, { game: platformerGame }),
+      await tempProject(dirs.card, { game: cardGame }),
     ],
     loadRapier: loadCompatRapier,
   };
@@ -107,9 +199,9 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const all = await Promise.all(
-  DOCS.map(async (doc) => examples(doc, await readFile(repoFile(doc), "utf8"))),
-);
+const texts = await Promise.all(DOCS.map((doc) => readFile(repoFile(doc), "utf8")));
+const all = DOCS.map((doc, i) => examples(doc, texts[i]!));
+const allBatches = DOCS.flatMap((doc, i) => batches(doc, texts[i]!));
 
 describe("scene commands in the docs", () => {
   it("finds the README's fenced examples and its inline commands", () => {
@@ -142,4 +234,62 @@ describe("scene commands in the docs", () => {
       });
     }
   }
+});
+
+describe("op batches in the docs", () => {
+  it("finds the README's batches", () => {
+    expect(allBatches.filter((b) => b.doc === DOCS[0]).length).toBeGreaterThan(10);
+  });
+
+  for (const [n, b] of allBatches.entries()) {
+    const on = "scene" in b.target ? b.target.scene : `project ${b.target.project}`;
+    it(`${b.doc}:${b.line}: the batch on ${on} ${b.expect ? `reports ${b.expect}` : "applies"}`, async () => {
+      const file = join(root, `batch-${n}.json`);
+      await writeFile(file, b.text);
+      const argv =
+        "scene" in b.target
+          ? ["apply", b.target.scene, "--ops", file, "--dry-run", "--json"]
+          : [
+              "assets",
+              "apply",
+              "--ops",
+              file,
+              "--project",
+              b.target.project,
+              "--dry-run",
+              "--json",
+            ];
+      const r = await runCli(argv, ctx);
+      const codes = codesIn(JSON.parse(r.stdout));
+      if (b.expect) expect([...codes], r.stdout).toContain(b.expect);
+      else expect(r.exitCode, r.stdout + r.stderr).toBe(0);
+    });
+  }
+
+  /** The ops a runnable example uses: its batches', and those of the example files its commands apply. */
+  async function opsInRunnableExamples(): Promise<Set<string>> {
+    const texts = allBatches.filter((b) => !b.expect).map((b) => b.text);
+    for (const e of all.flat()) {
+      if (!e.fenced || !isPure(e.argv)) continue;
+      const i = e.argv.indexOf("--ops");
+      const file = i >= 0 ? e.argv[i + 1] : undefined;
+      if (file?.startsWith("scripts/scene/examples/"))
+        texts.push(await readFile(repoFile(file), "utf8"));
+    }
+    return new Set(
+      texts.flatMap((t) => [...t.matchAll(/"op":\s*"([A-Za-z]+)"/g)].map((m) => m[1]!)),
+    );
+  }
+
+  it("shows every op format v3 added or changed in an example that runs", async () => {
+    const used = await opsInRunnableExamples();
+    expect(V3_OPS.filter((op) => !used.has(op))).toEqual([]);
+  });
+
+  it("reproduces every issue code format v3 added, and lists each in the issue table", () => {
+    const expected = new Set(allBatches.map((b) => b.expect));
+    expect(V3_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    const readme = texts[0]!;
+    for (const code of V3_CODES) expect(readme).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
 });

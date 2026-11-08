@@ -236,7 +236,7 @@ export const ${name} = {
   });
 
   it("the CLI refuses a scene two projects hold (exit 2) until --project picks one", async () => {
-    const scene = JSON.stringify({ v: 2, name: "shared", bounds: [0, 0, 100, 100] });
+    const scene = JSON.stringify({ v: 3, name: "shared", bounds: [0, 0, 100, 100] });
     await put("src/games/alpha/jams.project.json", projectFile("alpha"));
     await put("src/games/alpha/scenes/shared.json", scene);
     await put("src/tools/beta/jams.project.json", projectFile("beta"));

@@ -215,3 +215,28 @@ describe("diffScenes: scene fields", () => {
     expect(describeChange(changes[5]!)).toBe("scene.settings.wind: (unset) -> 4");
   });
 });
+
+describe("diffScenes: assets and z", () => {
+  it("reports the assets header as a set, ignoring order and repeats", () => {
+    expect(diffScenes(scene({ assets: ["a", "b"] }), scene({ assets: ["b", "a", "a"] }))).toEqual(
+      [],
+    );
+    const changes = diffScenes(scene({ assets: ["a"] }), scene({ assets: ["a", "b"] }));
+    expect(changes).toEqual([{ kind: "scene", field: "assets", from: ["a"], to: ["a", "b"] }]);
+    expect(describeChange(changes[0]!)).toBe('scene.assets: ["a"] -> ["a","b"]');
+    expect(diffScenes(scene({ assets: ["a"] }), scene()).map(describeChange)).toEqual([
+      'scene.assets: ["a"] -> (unset)',
+    ]);
+  });
+
+  it("reports a z change on an entity and an instance", () => {
+    const inst = { id: "g-1", prefab: "g", at: [0, 0] as [number, number] };
+    const a = scene({ instances: [inst] });
+    const b = scene({ instances: [{ ...inst, z: -2 }] });
+    b.entities![1] = { ...b.entities![1]!, z: 4 };
+    expect(diffScenes(a, b).map(describeChange)).toEqual([
+      "zone.z: (unset) -> 4",
+      "g-1.z: (unset) -> -2",
+    ]);
+  });
+});

@@ -1,0 +1,9 @@
+{
+  "kind": "prefab",
+  "v": 3,
+  "id": "latch",
+  "entities": [
+    { "id": "bar", "type": "solid", "shape": ["box", 0, -10, 40, 10] },
+    { "id": "trigger", "type": "sensor", "shape": ["box", 0, -50, 40, 20], "tags": ["latch"] }
+  ]
+}

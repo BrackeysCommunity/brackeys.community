@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import * as math from "../math";
 import { addVec2, clamp, clampVec2, distanceVec2, lerp, lerpVec2, scaleVec2 } from "../math";
+import * as transform from "../scene/transform";
 
 describe("lerp", () => {
   it("returns a when t=0", () => {
@@ -90,5 +92,15 @@ describe("scaleVec2", () => {
 
   it("handles zero scalar", () => {
     expect(scaleVec2({ x: 3, y: 4 }, 0)).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("transform re-exports", () => {
+  it("re-exports the scene's transform math", () => {
+    for (const name of Object.keys(transform)) {
+      expect(math[name as keyof typeof math], name).toBe(transform[name as keyof typeof transform]);
+    }
+    expect(math.applyPt(math.dihedral({ rot: 1, flip: false }, [10, 0]), [1, 0])).toEqual([10, 1]);
+    expect(math.IDENTITY_2D).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
   });
 });

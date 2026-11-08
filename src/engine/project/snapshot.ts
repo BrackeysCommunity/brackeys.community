@@ -489,11 +489,15 @@ export async function snapshotScene(
   if (!parsed.ok) throw new SnapshotError(withId(sceneId, parsed.issues));
   const def = parsed.def;
   const prefabs = new Map<string, Prefab>();
-  for (const id of prefabsUsedBy(def)) {
-    const asset = assetOf(snapshot, id, PREFAB_KIND, `scene "${sceneId}" places prefab`);
+  const pending = prefabsUsedBy(def);
+  for (let id = pending.shift(); id !== undefined; id = pending.shift()) {
+    if (prefabs.has(id)) continue;
+    const asset = assetOf(snapshot, id, PREFAB_KIND, `scene "${sceneId}" reaches prefab`);
     const read = parsePrefab(await textOf(store, id, asset), pinned);
     if (!read.ok) throw new SnapshotError(withId(id, read.issues));
     prefabs.set(id, read.prefab);
+    if (typeof read.prefab.base === "string") pending.push(read.prefab.base);
+    for (const nested of read.prefab.instances ?? []) pending.push(nested.prefab);
   }
   return { def, prefabs, registry: pinned };
 }

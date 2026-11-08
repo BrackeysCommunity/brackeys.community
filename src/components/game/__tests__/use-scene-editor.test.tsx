@@ -19,6 +19,8 @@ const fakes = vi.hoisted(() => ({
   overlay: null as unknown,
   overlayListeners: new Set<() => void>(),
   editorStores: [] as { setState: (fn: (s: { mode: string }) => { mode: string }) => void }[],
+  prefabs: [] as { setState: (fn: () => OpenPrefab | null) => void }[],
+  closePrefab: vi.fn(),
 }));
 
 vi.mock("@/lib/active-user-store", () => ({ activeUserStore: { state: { profile: null } } }));
@@ -46,11 +48,21 @@ vi.mock("../live-scene-editor", async () => {
     openLiveEditor: vi.fn((): Partial<LiveEditor> => {
       const store = new Store({ mode: "edit" });
       fakes.editorStores.push(store);
+      const prefab = new Store<OpenPrefab | null>(null);
+      fakes.prefabs.push(prefab);
+      const closePrefab = () => {
+        fakes.closePrefab();
+        prefab.setState(() => null);
+      };
       return {
         session: { store } as unknown as LiveEditor["session"],
         host: new Store({}) as unknown as LiveEditor["host"],
-        prefab: new Store<OpenPrefab | null>(null),
-        editing: () => ({}) as ReturnType<LiveEditor["editing"]>,
+        prefab,
+        closePrefab,
+        editing: (open) =>
+          (open
+            ? { prefab: { id: "post", scene: "yard", onBack: closePrefab } }
+            : {}) as ReturnType<LiveEditor["editing"]>,
         play: () => true,
         replay: () => true,
         replaying: () => fakes.replaying,
@@ -110,6 +122,8 @@ afterEach(() => {
   fakes.overlay = REGISTRY;
   fakes.overlayListeners.clear();
   fakes.editorStores.length = 0;
+  fakes.prefabs.length = 0;
+  fakes.closePrefab.mockClear();
 });
 
 describe("useSceneEditor's Play-to-loaded-run", () => {
@@ -200,5 +214,22 @@ describe("useSceneEditor's project registry", () => {
     expect(hook.result.current.registry).toBe(NEWER);
     await waitFor(() => expect(fakes.destroy).toHaveBeenCalled());
     expect(hook.result.current.chrome).toBeNull();
+  });
+});
+
+describe("useSceneEditor's open prefab", () => {
+  type Chrome = { prefab?: { id: string; onBack: () => void } };
+  const lastChrome = () => fakes.editorChrome.mock.lastCall![0] as unknown as Chrome;
+
+  it("hands the shell the live editor's closePrefab as the prefab's way back, which Escape runs", async () => {
+    await mount();
+    expect(lastChrome().prefab).toBeUndefined();
+
+    act(() => fakes.prefabs.at(-1)!.setState(() => ({}) as OpenPrefab));
+    expect(lastChrome().prefab?.id).toBe("post");
+
+    act(() => lastChrome().prefab!.onBack());
+    expect(fakes.closePrefab).toHaveBeenCalledTimes(1);
+    expect(lastChrome().prefab).toBeUndefined();
   });
 });

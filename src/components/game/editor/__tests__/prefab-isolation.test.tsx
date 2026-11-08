@@ -9,10 +9,17 @@ import {
   projectPeersByDoc,
   sequentialKeys,
 } from "@jams/engine/collab";
-import type { SceneDefinition } from "@jams/engine/editor";
+import { createVariantBatch, type SceneDefinition } from "@jams/engine/editor";
 import { createRegistry } from "@jams/engine/game";
-import { createKindRegistry, prefabKind, sceneKind, type AssetEntry } from "@jams/engine/project";
-import type { Prefab } from "@jams/engine/scene";
+import type { ToolConsumer, ToolEvent } from "@jams/engine/game";
+import {
+  checkProjectBatch,
+  createKindRegistry,
+  prefabKind,
+  sceneKind,
+  type AssetEntry,
+} from "@jams/engine/project";
+import { SCENE_FORMAT_VERSION, type Prefab } from "@jams/engine/scene";
 import { useStore } from "@tanstack/react-store";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useMemo } from "react";
@@ -38,7 +45,7 @@ const registry = createRegistry();
 
 const POST: Prefab = {
   kind: "prefab",
-  v: 2,
+  v: SCENE_FORMAT_VERSION,
   id: "post",
   entities: [{ id: "top", type: "marker", at: [0, -40] }],
   bulk: { solid: [["box", 0, 0, 6, 40]] },
@@ -46,7 +53,7 @@ const POST: Prefab = {
 
 function scene(): SceneDefinition {
   return {
-    v: 2,
+    v: SCENE_FORMAT_VERSION,
     name: "posts",
     bounds: [0, 0, 2000, 1200],
     groups: { east: { at: [1000, 0] } },
@@ -146,6 +153,30 @@ async function setup(host = seed()) {
   return { ...ada, host };
 }
 
+/** Ada's editor on a router that takes key presses, as the game's router hands them to the editor. */
+async function setupWithKeys() {
+  const host = seed();
+  const ada = await join(host, "Ada");
+  const consumers: ToolConsumer[] = [];
+  (ada.game as { router: unknown }).router = {
+    register(c: ToolConsumer) {
+      consumers.push(c);
+      consumers.sort((a, b) => b.priority - a.priority);
+      return () => void consumers.splice(consumers.indexOf(c), 1);
+    },
+  };
+  render(<Editor live={ada.live} game={ada.game} />);
+  const press = (key: string) => {
+    const native = new KeyboardEvent("keydown", { key, cancelable: true });
+    const e: ToolEvent = { kind: "key", type: "down", key, native };
+    act(() => {
+      const c = consumers.find((c) => c.accepts(e));
+      c?.handle(e);
+    });
+  };
+  return { ...ada, host, press };
+}
+
 /** Lets an isolation's doc open. */
 const opened = () => act(() => new Promise((r) => setTimeout(r, 0)));
 
@@ -241,6 +272,52 @@ describe("Open prefab", () => {
     fake.project.destroy();
   });
 
+  it("leaves on Escape once nothing is selected, as Back does", async () => {
+    const fake = await setupWithKeys();
+    const { live, doc, prefabDoc, press } = fake;
+    act(() => {
+      live.openPrefab("post", "post-1");
+    });
+    await opened();
+    fireEvent.click(outliner().getByRole("button", { name: /^top/ }));
+    expect(live.prefab.state?.isolation.session.store.state.selection).toEqual(["top"]);
+    const logs = () => [readLog(doc).length, readLog(prefabDoc).length];
+    const before = logs();
+
+    // The first Escape clears the selection and stays in the prefab.
+    press("Escape");
+    expect(live.prefab.state?.isolation.prefab).toBe("post");
+    expect(live.prefab.state?.isolation.session.store.state.selection).toEqual([]);
+
+    press("Escape");
+    expect(live.prefab.state).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    expect(worldAt(fake, "post-1/top")).toEqual([100, 860]);
+    // Leaving edits nothing, so it adds no history row.
+    expect(logs()).toEqual(before);
+
+    // In the scene, Escape with nothing selected stays.
+    press("Escape");
+    expect(live.prefab.state).toBeNull();
+    expect(worldAt(fake, "post-1/top")).toEqual([100, 860]);
+    fake.project.destroy();
+  });
+
+  it("keeps the prefab open on Escape while a drawing tool is active", async () => {
+    const fake = await setupWithKeys();
+    const { live, press } = fake;
+    act(() => {
+      live.openPrefab("post");
+    });
+    await opened();
+    press("b");
+    press("Escape");
+    expect(live.prefab.state?.isolation.prefab).toBe("post");
+    press("Escape");
+    expect(live.prefab.state).toBeNull();
+    fake.project.destroy();
+  });
+
   it("refuses a prefab the project doesn't hold, with a toast", async () => {
     const fake = await setup();
     let result = true;
@@ -278,6 +355,104 @@ describe("Open prefab", () => {
     expect(live.prefab.state).toBeNull();
     expect(toast).toHaveBeenCalledWith("The prefab was deleted", expect.anything());
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    fake.project.destroy();
+  });
+});
+
+describe("Create variant", () => {
+  it("creates a variant of the open prefab, opens it with its base shown, and opens the base", async () => {
+    const fake = await setup();
+    const { live, project } = fake;
+    act(() => {
+      live.openPrefab("post", "post-1");
+    });
+    await opened();
+    expect(screen.queryByText("Variant of")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create variant" }));
+    await opened();
+
+    expect(live.prefab.state?.isolation.prefab).toBe("post-variant");
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" }).textContent).toBe(
+      "posts›post-variant",
+    );
+    expect(screen.getByText("Variant of")).toBeTruthy();
+    expect(project.view().byId.get("post-variant")?.kind).toBe("prefab");
+    expect(live.session.getPrefabs().get("post-variant")).toMatchObject({
+      base: "post",
+      entities: [],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "post" }));
+    await opened();
+    expect(live.prefab.state?.isolation.prefab).toBe("post");
+    expect(screen.queryByText("Variant of")).toBeNull();
+
+    // Back still frames the instance the first prefab was opened from.
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(live.prefab.state).toBeNull();
+    fake.project.destroy();
+  });
+
+  it("numbers a second variant", async () => {
+    const fake = await setup();
+    const { live } = fake;
+    act(() => {
+      live.openPrefab("post");
+    });
+    await opened();
+    act(() => {
+      live.createVariant("post");
+    });
+    await opened();
+    act(() => {
+      live.createVariant("post");
+    });
+    await opened();
+    expect(live.prefab.state?.isolation.prefab).toBe("post-variant-2");
+    expect(live.session.getPrefabs().get("post-variant-2")?.base).toBe("post");
+    fake.project.destroy();
+  });
+
+  it("is one createAsset for agents and the CLI, which takes the variant's id", async () => {
+    const fake = await setup();
+    const { project } = fake;
+    const made = createVariantBatch("post", fake.live.session.getPrefabs(), {
+      taken: project.view().byId.keys(),
+      folder: "prefabs",
+    })!;
+    expect(made.project.ops).toEqual([
+      {
+        op: "createAsset",
+        kind: "prefab",
+        path: "prefabs/",
+        id: "post-variant",
+        content: { kind: "prefab", v: SCENE_FORMAT_VERSION, base: "post", entities: [] },
+      },
+    ]);
+    const checked = checkProjectBatch(project.state(), new Map([["post", POST]]), made.project, {
+      registry,
+      kinds: project.kinds,
+      now: 0,
+      by: "ada",
+      newKey: sequentialKeys("k"),
+    });
+    if (!checked.ok) throw new Error(checked.issue.message);
+    expect(checked.created).toEqual(["post-variant"]);
+    const entry = Object.values(checked.state.assets).find((e) => e.id === "post-variant")!;
+    expect(entry).toMatchObject({ kind: "prefab", path: "prefabs/post-variant.json" });
+    expect(checked.values.get(entry.key)).toMatchObject({ id: "post-variant", base: "post" });
+    fake.project.destroy();
+  });
+
+  it("refuses a base the project doesn't hold, with a toast", async () => {
+    const fake = await setup();
+    let result = true;
+    act(() => {
+      result = fake.live.createVariant("nope");
+    });
+    expect(result).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith("No prefab nope in this scene");
     fake.project.destroy();
   });
 });

@@ -23,6 +23,7 @@ import {
   type AssetKey,
   type ProjectState,
 } from "@jams/engine/project";
+import { SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
@@ -88,7 +89,7 @@ function state(): ProjectState {
 
 function scene(): SceneDefinition {
   return {
-    v: 2,
+    v: SCENE_FORMAT_VERSION,
     name: "level-1",
     bounds: [0, 0, 1000, 600],
     entities: [{ id: "pad", type: "marker", at: [100, 500] }],

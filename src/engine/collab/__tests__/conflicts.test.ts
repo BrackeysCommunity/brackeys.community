@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { engine, engineYard, fake, fakeYard } from "../../scene/__tests__/fixtures/random-ops";
+import {
+  engine,
+  engineYard,
+  fake,
+  fakeYard,
+  testGameRegistry as game,
+  testGameYard,
+  yardPrefabs,
+} from "../../scene/__tests__/fixtures/random-ops";
+import { readCell, type GridCells } from "../../scene/grid";
 import { createSceneUndo } from "../undo";
 import { validateDoc } from "../watch-issues";
-import { ada, apply, bo, entity, ids, pair, sync, text } from "./helpers";
+import { ada, apply, bo, entity, ids, instance, pair, sync, text } from "./helpers";
 
 describe("conflicts", () => {
   it("update against delete: the delete wins, and only undo brings it back", () => {
@@ -145,5 +154,138 @@ describe("conflicts", () => {
     apply(b, { ops: [{ op: "update", ref: "crate", set: { restitution: 0.9 } }] }, bo, engine);
     sync(a, b);
     expect(entity(a, "crate")).toMatchObject({ density: 5, restitution: 0.9 });
+  });
+
+  const prefabs = yardPrefabs("test-game");
+  const SPIN = "test-game/spin";
+  const GLOW = "test-game/glow";
+
+  it("removing a behavior against setting a field in it: the remove wins, other blocks merge", () => {
+    const [a, b] = pair(testGameYard());
+    apply(a, { ops: [{ op: "update", ref: "lamp", unset: [`behaviors.${SPIN}`] }] }, ada, game, {
+      prefabs,
+    });
+    apply(
+      b,
+      {
+        ops: [
+          {
+            op: "update",
+            ref: "lamp",
+            set: { [`behaviors.${SPIN}.speed`]: 10, [`behaviors.${GLOW}.color`]: "#00ff00" },
+          },
+        ],
+      },
+      bo,
+      game,
+      { prefabs },
+    );
+    sync(a, b);
+    expect(text(a)).toBe(text(b));
+    expect(entity(a, "lamp")!.behaviors).toEqual({
+      [GLOW]: { intensity: 3, color: "#00ff00" },
+    });
+  });
+
+  it("removing an entity's last behavior against setting a field in it: the remove wins", () => {
+    const [a, b] = pair(testGameYard());
+    apply(
+      a,
+      { ops: [{ op: "update", ref: "lamp-2", set: { [`behaviors.${SPIN}`]: { speed: 5 } } }] },
+      ada,
+      game,
+      { prefabs },
+    );
+    sync(a, b);
+    apply(a, { ops: [{ op: "update", ref: "lamp-2", unset: [`behaviors.${SPIN}`] }] }, ada, game, {
+      prefabs,
+    });
+    apply(
+      b,
+      { ops: [{ op: "update", ref: "lamp-2", set: { [`behaviors.${SPIN}.speed`]: 70 } }] },
+      bo,
+      game,
+      { prefabs },
+    );
+    sync(a, b);
+    expect(text(a)).toBe(text(b));
+    expect("behaviors" in entity(a, "lamp-2")!).toBe(false);
+  });
+
+  it("deleting a grid entity against painting it: the delete wins, and undo brings it back", () => {
+    const [a, b] = pair(testGameYard());
+    const undo = createSceneUndo(a, ada);
+    apply(a, { ops: [{ op: "remove", refs: ["floor"] }] }, ada, game, { prefabs });
+    undo.commit({ before: [], after: [] });
+    apply(
+      b,
+      {
+        ops: [
+          {
+            op: "paintCells",
+            ref: "floor",
+            field: "cells",
+            cells: [
+              [1, 1, 3],
+              [40, 2, 2],
+            ],
+            rects: [[0, 5, 6, 6, 1]],
+          },
+        ],
+      },
+      bo,
+      game,
+      { prefabs },
+    );
+    apply(
+      b,
+      { ops: [{ op: "paintCells", ref: "wall", field: "cells", cells: [[33, 0, 0]] }] },
+      bo,
+      game,
+      { prefabs },
+    );
+    sync(a, b);
+    expect(entity(a, "floor")).toBeUndefined();
+    expect(entity(b, "floor")).toBeUndefined();
+    expect(text(a)).toBe(text(b));
+    expect(readCell(entity(a, "wall")!.cells as GridCells, 33, 0)).toBe(0);
+    expect(validateDoc(a, game)).toEqual(validateDoc(b, game));
+
+    undo.undo();
+    sync(a, b);
+    const floor = entity(a, "floor")!;
+    expect(floor).toMatchObject({ id: "floor", type: "paint" });
+    expect(readCell(floor.cells as GridCells, 0, 0)).toBe(1);
+    expect(text(a)).toBe(text(b));
+  });
+
+  it("setting a param against removing the instance: the remove wins, and undo brings it back", () => {
+    const withParams = { prefabs: yardPrefabs("test-game", { params: true }) };
+    const [a, b] = pair(testGameYard());
+    const undo = createSceneUndo(a, ada);
+    apply(a, { ops: [{ op: "remove", refs: ["gate-1"] }] }, ada, game, withParams);
+    undo.commit({ before: [], after: [] });
+    apply(
+      b,
+      {
+        ops: [
+          { op: "setParam", ref: "gate-1", name: "speed", value: 120 },
+          { op: "setParam", ref: "post-1", name: "top", value: [0, -70] },
+        ],
+      },
+      bo,
+      game,
+      withParams,
+    );
+    sync(a, b);
+    expect(instance(a, "gate-1")).toBeUndefined();
+    expect(instance(b, "gate-1")).toBeUndefined();
+    expect(instance(a, "post-1")!.params).toEqual({ top: [0, -70] });
+    expect(text(a)).toBe(text(b));
+
+    undo.undo();
+    sync(a, b);
+    expect(instance(a, "gate-1")).toEqual({ id: "gate-1", prefab: "gate", at: [1100, 900] });
+    expect(text(a)).toBe(text(b));
   });
 });

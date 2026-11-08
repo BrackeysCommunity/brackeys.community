@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 import { z } from "zod";
@@ -8,7 +10,13 @@ import { sha256 } from "../../project/hash";
 import { createKindRegistry, defineAssetKind, type DocLayout } from "../../project/kinds";
 import { prefabKind } from "../../project/kinds/prefab";
 import { sceneKind } from "../../project/kinds/scene";
-import type { EditSceneOp, ProjectApplyResult, ProjectOp, ProjectOpBatch } from "../../project/ops";
+import {
+  checkProjectBatch,
+  type EditSceneOp,
+  type ProjectApplyResult,
+  type ProjectOp,
+  type ProjectOpBatch,
+} from "../../project/ops";
 import type { AssetEntry, ProjectState } from "../../project/types";
 import { engine, engineYard, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
 import { makeIssue } from "../../scene/issues";
@@ -764,6 +772,153 @@ describe("removing a prefab through editScene", () => {
     expect(r.ok || r.issue.code).toBe("asset-in-use");
     expect(Y.encodeStateVector(doc)).toEqual(vector);
     expect(live(session)).toBe(true);
+    source.destroy();
+    session.destroy();
+  });
+});
+
+describe("editScene on a prefab that nests instances", () => {
+  const registry = createRegistry();
+  const fixture = (name: string): Prefab =>
+    JSON.parse(
+      readFileSync(
+        new URL(`../../scene/__tests__/fixtures/prefabs/${name}.json`, import.meta.url),
+        "utf8",
+      ),
+    ) as Prefab;
+  const POST: Prefab = {
+    kind: "prefab",
+    v: 2,
+    id: "post",
+    entities: [{ id: "pole", type: "solid", shape: ["box", 0, -60, 10, 60] }],
+  };
+  const NAMES = ["gate", "door", "room", "post"] as const;
+
+  /** room holds gates and a door, the door a gate; post is placed nowhere. */
+  async function nested() {
+    const host = memoryDocHost();
+    const assets: Record<string, AssetEntry> = {};
+    for (const id of NAMES)
+      assets[id] = { key: id, id, kind: "prefab", path: `prefabs/${id}.json`, created: at };
+    seedProjectDoc(
+      host.doc("project:p"),
+      { meta: { projectId: "p", layout: 1, name: "P" }, assets, history: {}, code: {}, build: {} },
+      { kind: "migration" },
+    );
+    for (const id of NAMES)
+      prefabToDoc(id === "post" ? POST : fixture(id), {
+        doc: host.doc(`asset:p.${id}`),
+        key: sequentialKeys(id),
+      });
+    const kinds = createKindRegistry(null, [sceneKind, prefabKind]);
+    const session = await createProjectSession({
+      project: "p",
+      openDoc: host.client().openDoc,
+      origin: ada,
+      registry,
+      kinds,
+    });
+    const source = sessionPrefabSource(session);
+    await source.ready();
+    const vectors = () => NAMES.map((id) => Y.encodeStateVector(host.doc(`asset:p.${id}`)));
+    return { host, session, source, kinds, vectors };
+  }
+
+  it("writes applyToPrefab's `to` prefab through the session's prefab writer, logging both docs", async () => {
+    const { session, source } = await nested();
+    const r = ok(
+      await applyProjectBatch(
+        session,
+        {
+          v: 1,
+          ops: [
+            {
+              op: "editScene",
+              id: "room",
+              ops: [
+                {
+                  op: "applyToPrefab",
+                  ref: "door-1",
+                  paths: ["latch/door.path.speed"],
+                  to: "gate",
+                },
+              ],
+            },
+          ],
+        },
+        ada,
+      ),
+    );
+    expect([...r.docs].sort()).toEqual(["asset:p.gate", "asset:p.room"]);
+    const library = source.library();
+    const door = library.get("gate")!.entities.find((e) => e.id === "door")!;
+    expect((door.path as { speed: number }).speed).toBe(30);
+    expect(library.get("room")!.instances!.find((i) => i.id === "door-1")!.overrides).toEqual({
+      "panel.path.speed": 50,
+    });
+    expect(r.entry!.docs.map((d) => d.doc).sort()).toEqual(["asset:p.gate", "asset:p.room"]);
+    source.destroy();
+    session.destroy();
+  });
+
+  it("refuses an instance that would nest a prefab in itself, and writes nothing", async () => {
+    const { session, source, vectors } = await nested();
+    const before = vectors();
+    const r = await applyProjectBatch(
+      session,
+      {
+        v: 1,
+        ops: [
+          {
+            op: "editScene",
+            id: "gate",
+            ops: [{ op: "instantiate", instance: { id: "room-1", prefab: "room", at: [0, 0] } }],
+          },
+        ],
+      },
+      ada,
+    );
+    expect(r).toMatchObject({ ok: false, opIndex: 0, issue: { code: "prefab-cycle" } });
+    expect(vectors()).toEqual(before);
+    source.destroy();
+    session.destroy();
+  });
+
+  it("checkProjectBatch replays a prefab's instance ops: it refuses a cycle and sees the instances a batch adds", async () => {
+    const { session, source, kinds } = await nested();
+    const library = source.library();
+    const docs = new Map<string, unknown>([...library].map(([id, p]) => [id, p]));
+    const check = (ops: ProjectOp[]) =>
+      checkProjectBatch(
+        session.state(),
+        docs,
+        { v: 1, ops },
+        {
+          registry,
+          kinds,
+          now: 1,
+          by: "ada",
+          newKey: sequentialKeys("k"),
+          prefabsFor: () => library,
+          prefabEdit: () => null,
+        },
+      );
+    const instantiate = (id: string, prefab: string): ProjectOp => ({
+      op: "editScene",
+      id,
+      ops: [{ op: "instantiate", instance: { id: `${prefab}-9`, prefab, at: [0, 0] } }],
+    });
+    expect(check([instantiate("gate", "door")])).toMatchObject({
+      ok: false,
+      opIndex: 0,
+      issue: { code: "prefab-cycle" },
+    });
+    expect(check([instantiate("door", "post")]).ok).toBe(true);
+    expect(check([instantiate("door", "post"), { op: "deleteAsset", id: "post" }])).toMatchObject({
+      ok: false,
+      opIndex: 1,
+      issue: { code: "asset-in-use" },
+    });
     source.destroy();
     session.destroy();
   });

@@ -1,13 +1,18 @@
 import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
+import { testGame } from "../../__tests__/fixtures/test-game";
+import { createRegistry } from "../../game/define";
 import { createSceneRuntime } from "../../runtime/runtime";
 import { engine, engineYard } from "../../scene/__tests__/fixtures/random-ops";
 import { expandScene } from "../../scene/expand";
-import type { ExpandedScene, RuntimeEntity } from "../../scene/types";
+import { prefabLibrary } from "../../scene/prefab";
+import type { ExpandedScene, OpBatch, RuntimeEntity } from "../../scene/types";
 import type { RapierModule } from "../../types";
+import { applyOpsToDoc } from "../apply";
 import { bindSceneDoc, expandLenient, type BindableRuntime } from "../bind";
 import { docToScene } from "../convert";
-import { ada, apply, bo, link, pair } from "./helpers";
+import { localPrefabSource } from "../prefab-source";
+import { ada, apply, bo, link, must, pair } from "./helpers";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -138,5 +143,62 @@ describe("bindSceneDoc", () => {
     expect(scene.entities.filter((e) => e.id === "crate")).toHaveLength(1);
     expect(scene.entities.some((e) => e.id === "~solid:3")).toBe(false);
     expect(scene.entities.some((e) => e.id === "~solid:2")).toBe(true);
+  });
+
+  it("follows remote writes to the layout 3 maps: assets, group turns, instance transforms, params and paint", () => {
+    const game = createRegistry(testGame);
+    const [a, b] = pair({
+      v: 2,
+      game: "test-game",
+      name: "game-yard",
+      bounds: [0, 0, 1000, 1000],
+      settings: { grid: { kind: "square", cell: [32, 32] } },
+      groups: { g: { at: [100, 100] } },
+      instances: [{ id: "room-1", prefab: "room", at: [200, 200] }],
+      entities: [
+        { id: "lamp", type: "lamp", at: [10, 0], group: "g" },
+        { id: "floor", type: "paint", at: [0, 640], cells: { "0,0": ["1*4"] } },
+      ],
+    });
+    const prefabs = localPrefabSource(
+      prefabLibrary([
+        {
+          kind: "prefab",
+          v: 2,
+          game: "test-game",
+          id: "room",
+          entities: [{ id: "light", type: "lamp", at: [10, 0] }],
+        },
+      ]),
+    );
+    const unlink = link(a, b);
+    const rt = spyRuntime();
+    const onChange = vi.fn();
+    const binding = bindSceneDoc(a, rt, game, { prefabs, onChange });
+    const updated = () => rt.update.mock.calls.at(-1)![0].map((e) => e.id);
+    const remote = (batch: OpBatch) =>
+      must(applyOpsToDoc(b, batch, bo, game, { prefabs: prefabs.library() }));
+
+    remote({ ops: [{ op: "useAssets", add: ["hud"] }] });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0]![0].assets).toEqual(["hud"]);
+
+    remote({ ops: [{ op: "paintCells", ref: "floor", field: "cells", cells: [[2, 3, 2]] }] });
+    expect(updated()).toEqual(["floor"]);
+
+    remote({ ops: [{ op: "setGroup", id: "g", rot: 1 }] });
+    expect(updated()).toEqual(["lamp"]);
+    expect(binding.scene().entities.find((e) => e.id === "lamp")!.at).toEqual([100, 110]);
+
+    const updates = rt.update.mock.calls.length;
+    remote({ ops: [{ op: "transform", refs: ["room-1"], flip: "x" }] });
+    expect(rt.update.mock.calls.length).toBe(updates + 1);
+    expect(updated()).toEqual(["room-1/light"]);
+
+    expect(rt.load).toHaveBeenCalledTimes(1);
+    expect(rt.add).not.toHaveBeenCalled();
+    expect(rt.remove).not.toHaveBeenCalled();
+    binding.destroy();
+    unlink();
   });
 });

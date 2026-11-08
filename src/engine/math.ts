@@ -1,5 +1,19 @@
 import type { Vec2 } from "./types";
 
+export {
+  applyPt,
+  applyVec,
+  compose,
+  composeDihedral,
+  dihedral,
+  dihedralOf,
+  flipWorld,
+  IDENTITY_2D,
+  invert,
+  type Dihedral,
+  type Transform2D,
+} from "./scene/transform";
+
 /** Linearly interpolate between two numbers */
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;

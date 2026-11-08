@@ -1,8 +1,19 @@
 import { z } from "zod";
 
+import type { AssetId, AssetKindName } from "../project/types";
 import { closest } from "../scene/did-you-mean";
+import {
+  canonicalGrid,
+  CHUNK_KEY_PATTERN,
+  GRID_CHUNK,
+  GRID_MAX_VALUE,
+  GRID_ROW_PATTERN,
+  gridProblems,
+  type GridCells,
+} from "../scene/grid";
 import { derivesFrom, SHAPE_TYPES, ShapeTupleSchema, shapeTupleSchemaOf } from "../scene/shapes";
-import type { ShapeTuple, ShapeType } from "../scene/types";
+import type { Pt, ShapeTuple, ShapeType } from "../scene/types";
+import { BEHAVIORS_FIELD } from "./behaviors";
 import type { FieldEnv } from "./types";
 
 /**
@@ -12,6 +23,9 @@ import type { FieldEnv } from "./types";
 
 /** Ids, scene names and game ids. `~` can never match, so a bulk reference is never a real id. */
 export const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}$/;
+
+/** An id, or `<instance>/<child>` at any depth: what a reference field may name. */
+export const CHILD_REF_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}(?:\/[a-z0-9][a-z0-9-]{0,47}){0,8}$/;
 
 const coord = (description: string) => z.number().describe(description).meta({ unit: "px" });
 
@@ -51,6 +65,125 @@ export const PathSchema = z
 /** A point field, absolute world px. */
 export function pointField(description: string) {
   return PtSchema.meta({ title: "Position", unit: "px", description });
+}
+
+/** A meta key of `schema`, looking through its optional, nullable, default and other wrappers. */
+export function fieldMeta(schema: z.core.$ZodType, key: string): unknown {
+  for (let s: z.core.$ZodType | undefined = schema; s; ) {
+    const value = z.globalRegistry.get(s)?.[key];
+    if (value !== undefined) return value;
+    s = (s._zod.def as { innerType?: z.core.$ZodType }).innerType;
+  }
+  return undefined;
+}
+
+const VectorSchema = z
+  .tuple([z.number().describe("dx, px."), z.number().describe("dy, px; y is down.")])
+  .meta({ unit: "px" });
+
+/** A direction or offset [dx, dy]: turned and mirrored with its entity, never translated. */
+export function vectorField(description: string): z.ZodType<Pt> {
+  return VectorSchema.describe(description).meta({ kind: "vector" });
+}
+
+/** An angle, clockwise (y down): turned and mirrored with its entity. */
+export function angleField(description: string, unit: "deg") {
+  return z.number().describe(description).meta({ kind: "angle", unit });
+}
+
+/** Whether the entity is mirrored along `axis`: toggled when its entity is flipped across that axis. */
+export function mirrorField(axis: "x", description: string) {
+  return z.boolean().describe(description).meta({ kind: "mirror", axis });
+}
+
+const GRID_META = "x-grid";
+
+/** What a gridField's cells may hold: `values` names cells 1..n, `max` is the largest value. */
+export type GridFieldInfo = { values: readonly string[]; max: number };
+
+/**
+ * Cells on the scene's grid, local to the entity's `at`. `values` names
+ * cells 1..n for the schema and inspector; `max` defaults to
+ * `values.length`, or 65535 without `values`. Parsing rewrites the value
+ * canonically (`canonicalGrid`), so a hand-written row comes out as the
+ * formatter writes it.
+ */
+export function gridField(
+  description: string,
+  opts: { values?: readonly string[]; max?: number } = {},
+): z.ZodType<GridCells> {
+  const values = opts.values ?? [];
+  const max = opts.max ?? (values.length > 0 ? values.length : GRID_MAX_VALUE);
+  if (!Number.isInteger(max) || max < 1 || max > GRID_MAX_VALUE)
+    throw new RangeError(`gridField: max ${max} isn't an integer in [1, ${GRID_MAX_VALUE}]`);
+  const named = values.map((v, i) => `${i + 1}: ${v}.`).join(" ");
+  const info: GridFieldInfo = { values: [...values], max };
+  return z
+    .record(
+      z.string().regex(CHUNK_KEY_PATTERN),
+      z.array(z.string().regex(GRID_ROW_PATTERN)).max(GRID_CHUNK),
+    )
+    .superRefine((value, ctx) => {
+      for (const p of gridProblems(value, max))
+        ctx.addIssue({
+          code: "custom",
+          message: p.message,
+          path: p.path,
+          params: { sceneCode: "grid-invalid", got: p.got },
+        });
+    })
+    .overwrite((value) => {
+      try {
+        return canonicalGrid(value) as Record<string, string[]>;
+      } catch {
+        return value;
+      }
+    })
+    .describe(
+      `${description} Cells in 32x32 chunks keyed "cx,cy", each chunk up to 32 run-length rows ("0*4,3*6,7"); 0 is empty${named ? `. ${named}` : "."}`,
+    )
+    .meta({
+      title: "Cells",
+      group: "geometry",
+      kind: "grid",
+      [GRID_META]: info,
+    }) as unknown as z.ZodType<GridCells>;
+}
+
+/** The values and largest value a gridField takes, or null for any other schema. */
+export function gridFieldInfo(schema: z.core.$ZodType): GridFieldInfo | null {
+  const info = fieldMeta(schema, GRID_META);
+  return info !== null && typeof info === "object" ? (info as GridFieldInfo) : null;
+}
+
+/** An asset id; parses as a string so a dangling id is `asset-missing`, not a parse failure. */
+export const AssetIdSchema = z.string().regex(ID_PATTERN);
+
+const ASSET_KIND_META = "x-asset-kind";
+
+/**
+ * A reference to a project asset of one of `kinds`. Parsing takes any id;
+ * the JSON Schema's enum of the project's live ids comes from `env`.
+ */
+export function assetField(
+  env: FieldEnv,
+  kinds: AssetKindName | readonly AssetKindName[],
+  description: string,
+): z.ZodType<AssetId> {
+  const list = typeof kinds === "string" ? [kinds] : [...kinds];
+  const ids = env.assets(list);
+  return AssetIdSchema.describe(description).meta({
+    title: "Asset",
+    group: "assets",
+    [ASSET_KIND_META]: list,
+    ...(ids.length > 0 ? { enum: [...ids] } : {}),
+  });
+}
+
+/** The kinds an assetField names, or null for any other schema. */
+export function assetKindsOf(schema: z.core.$ZodType): readonly AssetKindName[] | null {
+  const kinds = fieldMeta(schema, ASSET_KIND_META);
+  return Array.isArray(kinds) ? (kinds as AssetKindName[]) : null;
 }
 
 const SHAPE_META = { title: "Shape", group: "geometry" } as const;
@@ -97,11 +230,20 @@ export function materialField(env: FieldEnv, description = "Surface material.") 
   return schema.optional().describe(text).meta({ title: "Material", group: "surface" });
 }
 
-const AttachSchema = z.string().regex(ID_PATTERN);
+/**
+ * A reference to another entity by id, or to an instance's child by its
+ * resolved ref (`gate-2/door`, `room-1/door-1/panel`). The type's `refs`
+ * say which types it may name.
+ */
+export function refField(description: string): z.ZodType<string> {
+  return z.string().regex(CHILD_REF_PATTERN).describe(description).meta({ title: "Reference" });
+}
+
+const AttachSchema = z.string().regex(CHILD_REF_PATTERN);
 
 /**
  * `attach`: the id of a path follower whose body this entity's collider
- * rides, at its offset from the follower's first path point. Its shape
+ * rides (an instance's child by its resolved ref, `gate-2/lift`), at its offset from the follower's first path point. Its shape
  * stays in world px, as placed with the follower at that point. A type
  * with this field gets the reference to `follower` without declaring it.
  */
@@ -140,10 +282,11 @@ export const BASE_FIELDS = {
     .describe("Display label for the editor's outliner. No runtime effect.")
     .meta({ title: "Name", group: "identity" }),
   layer: z
-    .enum(["terrain", "gameplay", "decor", "editor"])
+    .string()
+    .regex(ID_PATTERN)
     .optional()
     .describe(
-      "Editor layer, for showing, hiding and locking groups of entities. No runtime effect.",
+      "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
     )
     .meta({ title: "Layer", group: "identity" }),
   group: z
@@ -161,7 +304,21 @@ export const BASE_FIELDS = {
       "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
     )
     .meta({ title: "Disabled", group: "identity" }),
+  z: z
+    .number()
+    .int()
+    .min(-10000)
+    .max(10000)
+    .optional()
+    .describe(
+      "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+    )
+    .meta({ title: "Z", group: "identity" }),
 } as const;
 
-/** Keys `BASE_FIELDS` and `type` take; a type's own fields can't reuse them. */
-export const RESERVED_FIELDS: readonly string[] = ["type", ...Object.keys(BASE_FIELDS)];
+/** Keys `BASE_FIELDS`, `type` and behavior blocks take; a type's own fields can't reuse them. */
+export const RESERVED_FIELDS: readonly string[] = [
+  "type",
+  ...Object.keys(BASE_FIELDS),
+  BEHAVIORS_FIELD,
+];

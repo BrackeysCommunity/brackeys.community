@@ -1,6 +1,7 @@
 /** The shared scene document: the `Y.Doc` layout, conversions, live writes, binding, undo and presence, plus the project-wide undo, log and presence and the declarative kinds' layout codecs. Transport-agnostic; the host supplies a provider. */
 export * from "./types";
 export {
+  assetsMap,
   bucketOf,
   bulkRecord,
   contentMaps,
@@ -11,22 +12,31 @@ export {
   ENTITIES_BUCKET,
   entitiesMap,
   entityRecord,
+  gridRowKey,
   groupsMap,
   instanceRecord,
   instancesMap,
+  isLayoutKey,
   isPrefabDoc,
   metaMap,
+  paramsMap,
+  patchMap,
   patchRecord,
   prefabHeaderMap,
+  prefabOverridesMap,
   prefabSceneBounds,
   prefabsMap,
+  readAssets,
   readDoc,
+  recordFields,
   recordMap,
   recordOf,
   sceneMap,
   sceneToDoc,
   settingsMap,
+  writeAssets,
   type DocView,
+  type PrefabDocHeader,
   type ReadDocOptions,
   type SceneToDocOptions,
 } from "./convert";
@@ -49,8 +59,10 @@ export {
   type SessionPrefabSourceOptions,
 } from "./prefab-source";
 export {
+  migrateDocLayout,
   migrateLayout,
   projectDocWriter,
+  type DocLayoutMigration,
   type LayoutMigration,
   type ProjectDocWriterOptions,
   type ProjectWriter,
@@ -62,6 +74,7 @@ export { assignZ, compareZ } from "./order";
 export {
   applyOpsToDoc,
   headerOf,
+  patchGroup,
   refsOfView,
   SCENE_ONLY_OPS,
   type DocApplyOptions,
@@ -152,7 +165,13 @@ export {
   type BindOptions,
   type SceneBinding,
 } from "./bind";
-export { validateDoc, watchIssues, type IssueWatch, type WatchIssuesOptions } from "./watch-issues";
+export {
+  validateDoc,
+  watchIssues,
+  type IssueProject,
+  type IssueWatch,
+  type WatchIssuesOptions,
+} from "./watch-issues";
 export { observePeers, peers, selectionsByKey, setPresence, type PeerPresence } from "./presence";
 export {
   observeProjectPeers,

@@ -6,9 +6,9 @@ import { MIGRATIONS } from "../../scene/migrate";
 import { parseScene } from "../../scene/parse";
 import { sceneGameOf, sceneRegistry, sceneSchemaFor } from "../../scene/schema";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
-import type { RefSite } from "../refs";
+import { schemaRefSites, type RefSite } from "../refs";
 import { defineAssetKind, folderOf, isPlainObject } from "./define";
-import { bulkMaterialRefs, entityMaterialRefs, overrideMaterialRefs } from "./fields";
+import { bodyRefs, bulkMaterialRefs } from "./fields";
 
 /** A level: entities, instances and bulk geometry, co-edited per entity and field through the scene codec. */
 export const sceneKind = defineAssetKind({
@@ -36,16 +36,11 @@ export const sceneKind = defineAssetKind({
   empty: (env, { id }) => createScene(id, env.registry),
   refs(def: SceneDefinition, env): RefSite[] {
     const registry = sceneRegistry(sceneGameOf(def), env.registry);
-    const instances: RefSite[] = (def.instances ?? []).map((inst) => ({
-      pointer: `/instances/@${inst.id}/prefab`,
-      id: inst.prefab,
-      kinds: ["prefab"],
-    }));
-    if (!registry) return instances;
+    const refs = bodyRefs(registry, def);
+    if (!registry) return refs;
     return [
-      ...instances,
-      ...overrideMaterialRefs(registry, def.instances),
-      ...entityMaterialRefs(registry, def.entities, "/entities"),
+      ...refs,
+      ...schemaRefSites(registry.settings, def.settings, "/settings"),
       ...bulkMaterialRefs(registry, def, []),
     ];
   },

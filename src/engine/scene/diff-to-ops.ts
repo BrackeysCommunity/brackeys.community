@@ -1,6 +1,7 @@
 import type { Registry } from "../game/types";
 import { bulkOffset, lcsPairs, pairBulk } from "./diff";
 import { bulkEntries, bulkId, bulkKeysOf } from "./expand";
+import { sortedAssets } from "./format";
 import { sceneHash } from "./hash";
 import { usesBulkRefs } from "./ops-schema";
 import type {
@@ -8,8 +9,11 @@ import type {
   BulkKey,
   EntityDef,
   EntityInput,
+  GroupDef,
+  InstanceDef,
   InstanceInput,
   OpBatch,
+  Prefab,
   Pt,
   Ref,
   SceneDefinition,
@@ -115,7 +119,31 @@ function alignBucket(va: readonly BulkEntry[], vb: readonly BulkEntry[]) {
   return { pairs, removed, added };
 }
 
+/** The `setGroup` fields that make a group `to` from `from`; rot and flip only when either turns. */
+export function setGroupFields(
+  to: GroupDef,
+  from: GroupDef | undefined,
+): Omit<Extract<SceneOp, { op: "setGroup" }>, "op" | "id"> {
+  const turns = to.rot !== undefined || to.flip || from?.rot !== undefined || from?.flip;
+  return {
+    at: clone(to.at),
+    ...(turns ? { rot: to.rot ?? 0, flip: to.flip === true } : {}),
+    name: to.name ?? null,
+  };
+}
+
 const HEADER_FIXED = ["$schema", "v", "game"] as const;
+
+/**
+ * A `setZ` when `b` is `a` with only its `z` changed (and not to an explicit
+ * 0, which `setZ` writes as absent), else the `update` that turns `a` into `b`.
+ */
+function namedUpdate(a: EntityDef, b: EntityDef): SceneOp | null {
+  const update = entityUpdate(a, b);
+  if (update?.op !== "update" || b.z === 0) return update;
+  const keys = [...Object.keys(update.set ?? {}), ...(update.unset ?? [])];
+  return keys.length === 1 && keys[0] === "z" ? { op: "setZ", refs: [a.id], z: b.z ?? 0 } : update;
+}
 
 function entityUpdate(a: EntityDef, b: EntityDef): SceneOp | null {
   const set: Record<string, unknown> = {};
@@ -144,6 +172,28 @@ function bulkForm(
 }
 
 /**
+ * The ops that turn instance `a` into `b`: a `setParam` per param that
+ * changed, then the rest as `namedUpdate` writes it. A null param, which
+ * `setParam` reads as a clear, stays in the `update`.
+ */
+function instanceChange(a: InstanceDef, b: InstanceDef): SceneOp[] {
+  const pa = a.params ?? {};
+  const pb = b.params ?? {};
+  if (Object.values(pb).some((v) => v === null)) {
+    const update = namedUpdate(a as unknown as EntityDef, b as unknown as EntityDef);
+    return update ? [update] : [];
+  }
+  const { params: _a, ...restA } = a;
+  const { params: _b, ...restB } = b;
+  const update = namedUpdate(restA as unknown as EntityDef, restB as unknown as EntityDef);
+  const ops: SceneOp[] = update ? [update] : [];
+  for (const name of [...new Set([...Object.keys(pa), ...Object.keys(pb)])].sort())
+    if (!same(pa[name], pb[name]))
+      ops.push({ op: "setParam", ref: a.id, name, value: name in pb ? clone(pb[name]) : null });
+  return ops;
+}
+
+/**
  * Aligns two lists of things with ids (entities, instances): one on both
  * sides that `matches` stays and gets an `update` of its top-level fields,
  * survivors that changed places get `reorder`s, and the rest is removed or
@@ -154,6 +204,10 @@ function alignNamed<T extends { id: string }>(
   bs: readonly T[],
   matches: (a: T, b: T) => boolean,
   add: (item: T, index: { index?: number }) => SceneOp,
+  change: (a: T, b: T) => SceneOp[] = (a, b) => {
+    const update = namedUpdate(a as unknown as EntityDef, b as unknown as EntityDef);
+    return update ? [update] : [];
+  },
 ) {
   const inA = new Map<string, T>();
   for (const x of as) if (!inA.has(x.id)) inA.set(x.id, x);
@@ -166,8 +220,7 @@ function alignNamed<T extends { id: string }>(
   const updates: SceneOp[] = [];
   for (const y of bs) {
     if (!kept.has(y.id)) continue;
-    const update = entityUpdate(inA.get(y.id)! as unknown as EntityDef, y as unknown as EntityDef);
-    if (update) updates.push(update);
+    updates.push(...change(inA.get(y.id)!, y));
   }
   const list = as.filter((x) => kept.has(x.id) && inA.get(x.id) === x).map((x) => x.id);
   const target = bs.filter((y) => kept.has(y.id)).map((y) => y.id);
@@ -203,9 +256,13 @@ function alignNamed<T extends { id: string }>(
  * added at their index. Bulk arrays keep the entries they share in order (LCS); an entry
  * that only moved becomes a `move` (one per offset), one resized or
  * otherwise changed in place an `update` of its shape or point, and the
- * rest is removed or added. The header goes through `setScene` and settings
- * through `setSettings`, groups through `setGroup`. Instances match by id
- * like named entities.
+ * rest is removed or added. The header goes through `setScene`, settings
+ * through `setSettings`, the `assets` header through `useAssets`, groups
+ * through `setGroup` (its turn and flip included). Instances match by id
+ * like named entities, their `rot`, `flip` and `overrides` through
+ * `update`, each changed param through `setParam`; a change of only `z` is a `setZ`, and one placing
+ * another prefab is removed and instantiated again. A grid field that
+ * changed is one `update` of the whole field.
  *
  * `registry` tells point-form bulk keys from shape-form ones; without it the
  * values decide. Throws when `$schema`, `v` or `game` differ, or when `b` has
@@ -241,6 +298,18 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
     });
   }
 
+  const assetsA = new Set(a.assets ?? []);
+  const assetsB = new Set(b.assets ?? []);
+  const assetAdds = sortedAssets([...assetsB].filter((id) => !assetsA.has(id)));
+  const assetRemoves = sortedAssets([...assetsA].filter((id) => !assetsB.has(id)));
+  if (assetAdds.length > 0 || assetRemoves.length > 0) {
+    ops.push({
+      op: "useAssets",
+      ...(assetAdds.length > 0 ? { add: assetAdds } : {}),
+      ...(assetRemoves.length > 0 ? { remove: assetRemoves } : {}),
+    });
+  }
+
   // ─── Groups ────────────────────────────────────────────
   const ga = a.groups ?? {};
   const gb = b.groups ?? {};
@@ -248,7 +317,7 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
   for (const id of Object.keys(gb).sort()) {
     const g = gb[id]!;
     if (same(ga[id], g)) continue;
-    ops.push({ op: "setGroup", id, at: clone(g.at), name: g.name ?? null });
+    ops.push({ op: "setGroup", id, ...setGroupFields(g, ga[id]) });
   }
   for (const id of Object.keys(ga).sort())
     if (!(id in gb)) groupRemovals.push({ op: "setGroup", id, remove: true });
@@ -266,8 +335,9 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
   const instances = alignNamed(
     a.instances ?? [],
     b.instances ?? [],
-    () => true,
+    (x, y) => x.prefab === y.prefab,
     (x, index) => ({ op: "instantiate", instance: clone(x) as InstanceInput, ...index }),
+    instanceChange,
   );
   for (const n of [named, instances]) {
     removeRefs.push(...n.removeRefs);
@@ -324,4 +394,49 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
   const batch: OpBatch = { ops };
   if (usesBulkRefs(batch)) batch.base = sceneHash(a);
   return batch;
+}
+
+/**
+ * A batch that turns a prefab doc's view (`readDoc` of a prefab doc: a
+ * scene named after the prefab, its bounds synthesised) into `next`'s
+ * children, nested instances and `assets`, as `diffToOps` writes them; the
+ * view's name and bounds stay. Given `header`, the prefab's base and params
+ * as they are now (`readDoc`'s `prefab`), a changed base is a
+ * `setPrefabBase` and each changed param an `exposeParam`, for `applyOps`
+ * with `{ prefab }`. Its id, variant overrides and contract are left to the
+ * caller.
+ */
+export function diffPrefabToOps(
+  view: SceneDefinition,
+  next: Prefab,
+  registry?: Registry,
+  header?: Pick<Prefab, "base" | "params">,
+): OpBatch {
+  const target: Record<string, unknown> = {};
+  for (const k of [...HEADER_FIXED, "name", "bounds", "settings", "groups"] as const)
+    if (view[k] !== undefined) target[k] = clone(view[k]);
+  for (const [key, entries] of Object.entries(next.bulk ?? {}))
+    if (entries.length > 0) target[key] = clone(entries);
+  if (next.instances && next.instances.length > 0) target.instances = clone(next.instances);
+  if (next.assets && next.assets.length > 0) target.assets = [...next.assets];
+  target.entities = clone(next.entities);
+  const batch = diffToOps(view, target as SceneDefinition, registry);
+  if (header) batch.ops.unshift(...headerOps(header, next));
+  return batch;
+}
+
+function headerOps(
+  from: Pick<Prefab, "base" | "params">,
+  to: Pick<Prefab, "base" | "params">,
+): SceneOp[] {
+  const ops: SceneOp[] = [];
+  if (from.base !== to.base) ops.push({ op: "setPrefabBase", base: to.base ?? null });
+  const a = from.params ?? {};
+  const b = to.params ?? {};
+  for (const name of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
+    const param = b[name];
+    if (!same(a[name], param))
+      ops.push({ op: "exposeParam", name, param: param ? clone(param) : null });
+  }
+  return ops;
 }

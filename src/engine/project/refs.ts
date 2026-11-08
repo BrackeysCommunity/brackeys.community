@@ -1,5 +1,8 @@
+import type { z } from "zod";
+
+import { assetKindsOf } from "../game/fields";
 import { closest } from "../scene/did-you-mean";
-import { makeIssue, pointerSegments } from "../scene/issues";
+import { jsonPointer, makeIssue, pointerSegments } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import { fieldLayout } from "./canonical";
 import type { DocLayout, KindEnv, KindRegistry } from "./kinds";
@@ -20,6 +23,147 @@ export type RefSite = {
   in?: "key";
 };
 export type Referrer = { id: AssetId; kind: AssetKindName; pointer: JsonPointer };
+
+type SchemaDef = {
+  type: string;
+  innerType?: z.core.$ZodType;
+  in?: z.core.$ZodType;
+  getter?: () => z.core.$ZodType;
+  shape?: Record<string, z.core.$ZodType>;
+  catchall?: z.core.$ZodType;
+  element?: z.core.$ZodType;
+  items?: readonly z.core.$ZodType[];
+  rest?: z.core.$ZodType | null;
+  valueType?: z.core.$ZodType;
+  options?: readonly z.core.$ZodType[];
+  left?: z.core.$ZodType;
+  right?: z.core.$ZodType;
+};
+
+const parses = (schema: z.core.$ZodType, value: unknown): boolean =>
+  (schema as z.ZodType).safeParse(value).success;
+
+function walkSchema(
+  schema: z.core.$ZodType,
+  value: unknown,
+  pointer: JsonPointer,
+  out: RefSite[],
+): void {
+  if (value === undefined || value === null) return;
+  const kinds = assetKindsOf(schema);
+  if (kinds) {
+    if (typeof value === "string") out.push({ pointer, id: value, kinds: [...kinds] });
+    return;
+  }
+  const def = schema._zod.def as SchemaDef;
+  if (def.innerType) return walkSchema(def.innerType, value, pointer, out);
+  const at = (segment: string | number) => `${pointer}${jsonPointer([segment])}`;
+  switch (def.type) {
+    case "pipe":
+      if (def.in) walkSchema(def.in, value, pointer, out);
+      return;
+    case "lazy":
+      if (def.getter) walkSchema(def.getter(), value, pointer, out);
+      return;
+    case "object":
+      if (!isPlainObject(value)) return;
+      for (const [key, v] of Object.entries(value)) {
+        const field = def.shape && Object.hasOwn(def.shape, key) ? def.shape[key] : def.catchall;
+        if (field) walkSchema(field, v, at(key), out);
+      }
+      return;
+    case "record":
+      if (!isPlainObject(value) || !def.valueType) return;
+      for (const [key, v] of Object.entries(value)) walkSchema(def.valueType, v, at(key), out);
+      return;
+    case "array":
+      if (!Array.isArray(value) || !def.element) return;
+      value.forEach((v, i) => walkSchema(def.element!, v, at(i), out));
+      return;
+    case "tuple":
+      if (!Array.isArray(value)) return;
+      value.forEach((v, i) => {
+        const item = def.items?.[i] ?? def.rest ?? undefined;
+        if (item) walkSchema(item, v, at(i), out);
+      });
+      return;
+    case "union": {
+      const options = def.options ?? [];
+      const fit = options.find((o) => parses(o, value));
+      if (fit) return walkSchema(fit, value, pointer, out);
+      const seen = new Set<string>();
+      for (const option of options) {
+        const sites: RefSite[] = [];
+        walkSchema(option, value, pointer, sites);
+        for (const site of sites)
+          if (!seen.has(site.pointer)) {
+            seen.add(site.pointer);
+            out.push(site);
+          }
+      }
+      return;
+    }
+    case "intersection": {
+      const sites: RefSite[] = [];
+      if (def.left) walkSchema(def.left, value, pointer, sites);
+      if (def.right) walkSchema(def.right, value, pointer, sites);
+      const seen = new Set<string>();
+      for (const site of sites)
+        if (!seen.has(site.pointer)) {
+          seen.add(site.pointer);
+          out.push(site);
+        }
+      return;
+    }
+  }
+}
+
+/**
+ * The asset references in `value` that `shape` declares: a site at every
+ * leaf whose schema is an `assetField`, found by following objects,
+ * records, arrays, tuples, unions and their optional, nullable and default
+ * wrappers alongside the value. Pointers start at `pointer` (the value's
+ * own); keys the shape doesn't declare are skipped.
+ */
+export function schemaRefSites(
+  shape: z.ZodRawShape,
+  value: unknown,
+  pointer: JsonPointer,
+): RefSite[] {
+  if (!isPlainObject(value)) return [];
+  const out: RefSite[] = [];
+  for (const [key, schema] of Object.entries(shape))
+    if (Object.hasOwn(value, key))
+      walkSchema(schema, value[key], `${pointer}${jsonPointer([key])}`, out);
+  return out;
+}
+
+/**
+ * The schema `segments` reach below `shape`, through objects, records,
+ * arrays, tuples and wrappers; undefined where the shape doesn't say.
+ */
+export function schemaAtPath(
+  shape: z.ZodRawShape,
+  segments: readonly string[],
+): z.core.$ZodType | undefined {
+  const [first, ...rest] = segments;
+  if (first === undefined || !Object.hasOwn(shape, first)) return undefined;
+  let schema: z.core.$ZodType | undefined = shape[first];
+  for (const segment of rest) {
+    if (!schema) return undefined;
+    let def = schema._zod.def as SchemaDef;
+    while (def.innerType) def = def.innerType._zod.def as SchemaDef;
+    const index = INDEX.test(segment) ? Number(segment) : undefined;
+    if (def.type === "object")
+      schema = def.shape && Object.hasOwn(def.shape, segment) ? def.shape[segment] : def.catchall;
+    else if (def.type === "record") schema = def.valueType;
+    else if (def.type === "array") schema = index === undefined ? undefined : def.element;
+    else if (def.type === "tuple")
+      schema = index === undefined ? undefined : (def.items?.[index] ?? def.rest ?? undefined);
+    else return undefined;
+  }
+  return schema;
+}
 
 export type RefIndex = {
   /** Who names `id`. */
@@ -301,16 +445,27 @@ export function namedBy(
 /**
  * `asset-in-use` for trashing `entry` while another live asset names it,
  * with each naming site in `detail.referrers`; undefined when none does.
+ * `byPath` adds referrers tied to `entry` by where their file sits rather
+ * than by a site in their value, each with the pointer "" (the whole doc).
  * `remedy` ends the message.
  */
 export function inUseIssue(
   index: RefIndex,
   entry: AssetEntry,
-  opts: { skip?: (id: AssetId) => boolean; remedy?: string } = {},
+  opts: {
+    skip?: (id: AssetId) => boolean;
+    byPath?: readonly AssetId[];
+    remedy?: string;
+  } = {},
 ): SceneIssue | undefined {
-  const referrers = [...namedBy(index, entry, opts.skip)].flatMap(([id, sites]) =>
-    sites.map((s) => ({ id, pointer: s.pointer })),
-  );
+  const referrers = [
+    ...(opts.byPath ?? [])
+      .filter((id) => id !== entry.id && !opts.skip?.(id))
+      .map((id) => ({ id, pointer: "" })),
+    ...[...namedBy(index, entry, opts.skip)].flatMap(([id, sites]) =>
+      sites.map((s) => ({ id, pointer: s.pointer })),
+    ),
+  ].sort((a, b) => byCodeUnit(a.id, b.id));
   if (referrers.length === 0) return undefined;
   const names = [...new Set(referrers.map((r) => `"${r.id}"`))];
   return makeIssue("asset-in-use", {

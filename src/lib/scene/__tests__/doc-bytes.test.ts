@@ -155,12 +155,27 @@ describe("loading a stored doc", () => {
 describe("collab layout", () => {
   it("seeds at the engine's layout, reads an older doc with no meta.layout as layout 1", () => {
     expect(stateLayout(seedState("test.bytes", SCENE))).toBe(COLLAB_LAYOUT_VERSION);
-    expect(stateLayout(prepareLoadedState("engine.blank", null, null).state)).toBe(2);
+    expect(stateLayout(prepareLoadedState("engine.blank", null, null).state)).toBe(
+      COLLAB_LAYOUT_VERSION,
+    );
     const old = docOf(seedState("test.bytes", SCENE));
     old.getMap("meta").delete("layout");
     expect(stateLayout(Y.encodeStateAsUpdate(old))).toBe(1);
     expect(stateLayout(null)).toBeNull();
     expect(docOf(seedState("test.bytes", SCENE)).share.has("prefabs")).toBe(false);
+  });
+
+  it("seeds every record's order and bulk keys under the layout's own names", () => {
+    const records = [
+      ...docOf(seedState("test.bytes", SCENE)).getMap<Y.Map<unknown>>("entities").values(),
+    ];
+    expect(records).toHaveLength(4);
+    for (const rec of records) {
+      expect(typeof rec.get("@z")).toBe("string");
+      expect(rec.has("z")).toBe(false);
+      expect(rec.has("bulk")).toBe(false);
+    }
+    expect(records.filter((rec) => typeof rec.get("@bulk") === "string")).toHaveLength(2);
   });
 });
 

@@ -784,6 +784,202 @@ describe("references", () => {
     });
   });
 
+  describe("a scene's checks file", () => {
+    const plain = { v: 1, checks: [{ id: "valid", kind: "valid" }] };
+    const pairState = (extra: Record<string, AssetEntry> = {}): ProjectState => ({
+      ...refState,
+      assets: {
+        yard: refState.assets.yard!,
+        checks: refState.assets.checks!,
+        field: entry("field", { id: "field", kind: "scene", path: "levels/field.json" }),
+        ...extra,
+      },
+    });
+    const pairDocs = (checks: unknown = plain) =>
+      new Map<string, unknown>([
+        ["yard", structuredClone(yard)],
+        ["field", { ...structuredClone(yard), name: "field", instances: [], entities: [] }],
+        ["checks", structuredClone(checks)],
+      ]);
+    const paths = (r: Extract<ProjectBatchCheck, { ok: true }>) =>
+      Object.fromEntries(Object.values(r.state.assets).map((e) => [e.id, e.path]));
+    const lost = entry("lost", { id: "lost", kind: "checks", path: "levels/lost.checks.json" });
+
+    it("moves with its scene, whichever of the two the op lists first", () => {
+      for (const ids of [["yard"], ["yard", "checks"], ["checks", "yard"]]) {
+        const r = good([{ op: "moveAsset", ids, to: "arena/" }], {
+          state: pairState(),
+          docs: pairDocs(),
+        });
+        expect(paths(r)).toMatchObject({
+          yard: "arena/yard.json",
+          checks: "arena/yard.checks.json",
+          field: "levels/field.json",
+        });
+      }
+    });
+
+    it("takes the scene's new stem on a rename, and stays put for a display name", () => {
+      const r = good([{ op: "renameAsset", id: "yard", file: "court.json" }], {
+        state: pairState(),
+        docs: pairDocs(),
+      });
+      expect(paths(r)).toMatchObject({
+        yard: "levels/court.json",
+        checks: "levels/court.checks.json",
+      });
+      const named = good([{ op: "renameAsset", id: "yard", name: "The yard" }], {
+        state: pairState(),
+        docs: pairDocs(),
+      });
+      expect(paths(named).checks).toBe("levels/yard.checks.json");
+    });
+
+    it("leaves other assets alone when a scene has no checks file", () => {
+      const state = pairState();
+      const moved = good([{ op: "moveAsset", ids: ["field"], to: "arena/" }], {
+        state,
+        docs: pairDocs(),
+      });
+      expect(paths(moved)).toEqual({ ...paths(good([], { state })), field: "arena/field.json" });
+      const renamed = good([{ op: "renameAsset", id: "field", file: "meadow.json" }], {
+        state,
+        docs: pairDocs(),
+      });
+      expect(paths(renamed)).toMatchObject({
+        field: "levels/meadow.json",
+        checks: "levels/yard.checks.json",
+      });
+    });
+
+    it("refuses the op when the checks file's new path is taken", () => {
+      const taken = entry("other", { id: "other", kind: "checks", path: "arena/yard.checks.json" });
+      const moved = bad([{ op: "moveAsset", ids: ["yard"], to: "arena/" }], {
+        state: pairState({ other: taken }),
+        docs: pairDocs(),
+      });
+      expect([moved.issue.code, moved.issue.path, moved.issue.got]).toEqual([
+        "path-taken",
+        "/ops/0/to",
+        "arena/yard.checks.json",
+      ]);
+      const renamed = bad([{ op: "renameAsset", id: "yard", file: "field.json" }], {
+        state: pairState(),
+        docs: pairDocs(),
+      });
+      expect([renamed.issue.code, renamed.issue.got]).toEqual(["path-taken", "levels/field.json"]);
+      const beside = entry("court", {
+        id: "court",
+        kind: "checks",
+        path: "levels/court.checks.json",
+      });
+      const onto = bad([{ op: "renameAsset", id: "yard", file: "court.json" }], {
+        state: pairState({ court: beside }),
+        docs: pairDocs(),
+      });
+      expect([onto.issue.code, onto.issue.path, onto.issue.got]).toEqual([
+        "path-taken",
+        "/ops/0/file",
+        "levels/court.checks.json",
+      ]);
+    });
+
+    it("names the checks file as a referrer of its scene's delete, by path", () => {
+      const r = bad([{ op: "deleteAsset", id: "yard" }], {
+        state: pairState(),
+        docs: pairDocs(),
+      });
+      expect([r.issue.code, r.issue.path, r.issue.detail]).toEqual([
+        "asset-in-use",
+        "/ops/0/id",
+        { referrers: [{ id: "checks", pointer: "" }] },
+      ]);
+      expect(r.issue.message).toContain('"checks"');
+      const scripted = bad([{ op: "deleteAsset", id: "yard" }], {
+        state: pairState(),
+        docs: pairDocs(checks),
+      });
+      expect(scripted.issue.detail).toEqual({
+        referrers: [
+          { id: "checks", pointer: "" },
+          { id: "checks", pointer: "/checks/@settles/script/scene" },
+        ],
+      });
+      expect(
+        bad([{ op: "deleteAsset", id: "yard" }], { state: pairState(), docs: new Map() }).issue
+          .detail,
+        "the pairing needs no doc values",
+      ).toEqual({ referrers: [{ id: "checks", pointer: "" }] });
+    });
+
+    it("lets the scene go with force, with its checks file, or once nothing sits beside it", () => {
+      const opts = () => ({ state: pairState(), docs: pairDocs() });
+      const forced = good([{ op: "deleteAsset", id: "yard", force: true }], opts());
+      expect(forced.state.assets.yard!.deleted).toBeDefined();
+      expect(forced.state.assets.checks!.deleted).toBeUndefined();
+      const both = good(
+        [
+          { op: "deleteAsset", id: "yard" },
+          { op: "deleteAsset", id: "checks" },
+        ],
+        opts(),
+      );
+      expect(both.state.assets.checks!.deleted).toBeDefined();
+      const away = good(
+        [
+          { op: "deleteAsset", id: "yard" },
+          { op: "moveAsset", ids: ["checks"], to: "spare/" },
+        ],
+        opts(),
+      );
+      expect(paths(away).checks).toBe("spare/yard.checks.json");
+      const replaced = good(
+        [
+          { op: "deleteAsset", id: "yard" },
+          {
+            op: "createAsset",
+            kind: "scene",
+            path: "levels/yard.json",
+            id: "yard2",
+            content: yard,
+          },
+        ],
+        opts(),
+      );
+      expect(replaced.state.assets.yard!.deleted).toBeDefined();
+      expect(good([{ op: "deleteAsset", id: "field" }], opts()).ok).toBe(true);
+    });
+
+    it("leaves a checks file whose scene is missing alone, and lets it move and go", () => {
+      const state = pairState({ lost });
+      const opts = () => ({ state, docs: pairDocs() });
+      const moved = good([{ op: "moveAsset", ids: ["yard", "field"], to: "arena/" }], opts());
+      expect(paths(moved).lost).toBe("levels/lost.checks.json");
+      expect(
+        good([{ op: "moveAsset", ids: ["lost"], to: "arena/" }], opts()).state.assets.lost!.path,
+      ).toBe("arena/lost.checks.json");
+      expect(
+        good([{ op: "renameAsset", id: "lost", file: "found.checks.json" }], opts()).state.assets
+          .lost!.path,
+      ).toBe("levels/found.checks.json");
+      expect(good([{ op: "deleteAsset", id: "field" }], opts()).ok).toBe(true);
+      expect(
+        good([{ op: "deleteAsset", id: "lost" }], opts()).state.assets.lost!.deleted,
+      ).toBeDefined();
+    });
+
+    it("moves the checks file alone, leaving its scene where it is", () => {
+      const r = good([{ op: "moveAsset", ids: ["checks"], to: "spare/" }], {
+        state: pairState(),
+        docs: pairDocs(),
+      });
+      expect(paths(r)).toMatchObject({
+        yard: "levels/yard.json",
+        checks: "spare/yard.checks.json",
+      });
+    });
+  });
+
   describe("editScene removing a prefab", () => {
     const field = { ...yard, name: "field", entities: [] };
     const sharedState: ProjectState = {

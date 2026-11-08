@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
@@ -52,6 +52,13 @@ function prefab(id: string): Prefab {
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
   return parsed.prefab;
 }
+
+/** Every prefab of the engine's home: the kitchen sink reaches all of them through instances, nesting and bases. */
+const homePrefabs = (): Prefab[] =>
+  readdirSync(new URL("prefabs/", scenes))
+    .filter((f) => f.endsWith(".json"))
+    .sort()
+    .map((f) => prefab(f.slice(0, -".json".length)));
 
 const entry = (id: AssetId, kind: string, path: string): AssetEntry => ({
   key: id,
@@ -131,7 +138,7 @@ const CASES: Case[] = [
   },
   {
     name: "kitchen-sink, its post prefab taller",
-    before: () => ({ def: scene("kitchen-sink"), prefabs: [prefab("post"), prefab("gate")] }),
+    before: () => ({ def: scene("kitchen-sink"), prefabs: homePrefabs() }),
     edit: ({ prefabs }) => {
       prefabs.find((p) => p.id === "post")!.entities[0]!.shape = ["box", 0, -80, 10, 80];
     },
@@ -255,7 +262,7 @@ describe("loadHeadless by snapshot, with a real texture", () => {
 
   /** The kitchen sink's snapshot beside a texture pinned by `bytes`, inspected by the engine's texture kind. */
   async function withTexture(store: ContentStore, bytes: Uint8Array) {
-    const snap = await snapshotOf(store, scene("kitchen-sink"), [prefab("post"), prefab("gate")]);
+    const snap = await snapshotOf(store, scene("kitchen-sink"), homePrefabs());
     const hero = entry("hero", "texture", "art/hero.png");
     const inspected = textureKind.inspect(bytes, {}, { path: hero.path, idAt: () => undefined });
     if (!inspected.ok) throw new Error(inspected.issue.message);
@@ -322,7 +329,7 @@ describe("loadHeadless by snapshot, with a material edited between two", () => {
 
   it("pins each snapshot's own material, and each replays its own recording", async () => {
     const store = memoryContentStore();
-    const a = { def: scene("kitchen-sink"), prefabs: [prefab("post"), prefab("gate")] };
+    const a = { def: scene("kitchen-sink"), prefabs: homePrefabs() };
     const snapA = await snapshotOf(store, a.def, a.prefabs);
     const snapB = await snapshotOf(store, a.def, a.prefabs, { bouncy: slick });
     expect(snapB.hash).not.toBe(snapA.hash);
@@ -351,7 +358,7 @@ describe("loadHeadless by snapshot, with a material edited between two", () => {
   it("never takes a material from the caller's registry over the snapshot's", async () => {
     const store = memoryContentStore();
     const def = scene("kitchen-sink");
-    const snapA = await snapshotOf(store, def, [prefab("post"), prefab("gate")]);
+    const snapA = await snapshotOf(store, def, homePrefabs());
     const edited = withProject(
       plain,
       projectView({

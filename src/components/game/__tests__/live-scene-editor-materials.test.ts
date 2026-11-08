@@ -19,6 +19,7 @@ import {
   type AssetEntry,
   type DocLayout,
 } from "@jams/engine/project";
+import { SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { fakeWorldGame } from "@/components/game/editor/__tests__/fake-world-game";
@@ -47,7 +48,7 @@ const BOUNCY = {
 };
 
 const SCENE: SceneDefinition = {
-  v: 2,
+  v: SCENE_FORMAT_VERSION,
   name: "yard",
   bounds: [0, 0, 2000, 1200],
   entities: [{ id: "ledge", type: "solid", shape: ["box", 820, 900, 80, 10], material: "bouncy" }],

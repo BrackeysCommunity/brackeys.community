@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { fake } from "../../scene/__tests__/fixtures/fake-game";
+import { fake as yardFake, yardPrefabs } from "../../scene/__tests__/fixtures/random-ops";
+import { fragmentBounds, type SceneFragment } from "../../scene/fragment";
 import { applyOps } from "../../scene/ops";
-import type { OpBatch, SceneDefinition } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type OpBatch, type SceneDefinition } from "../../scene/types";
 import {
   copySelection,
   cutSelection,
@@ -41,7 +43,7 @@ describe("copySelection", () => {
     expect(text).toContain('\n  "kind": "scene-fragment"');
     expect(JSON.parse(text)).toEqual({
       kind: "scene-fragment",
-      v: 2,
+      v: SCENE_FORMAT_VERSION,
       game: "fake",
       entities: [def.entities![1]],
     });
@@ -144,6 +146,125 @@ describe("cutSelection", () => {
     const after = apply(def, batch).def;
     expect(after.entities!.map((e) => e.id)).toEqual(["door"]);
     expect(after.solid ?? []).toEqual([]);
+  });
+});
+
+describe("instances on the clipboard", () => {
+  const prefabs = yardPrefabs("fake");
+  const yard = scene({
+    v: 3,
+    instances: [
+      {
+        id: "gate-2",
+        prefab: "gate",
+        at: [300, 400],
+        rot: 1,
+        z: 3,
+        params: { speed: 90 },
+        overrides: { "door.path.speed": 120 },
+      },
+    ],
+    entities: [{ id: "pull", type: "lever", at: [10, 20], target: "gate-2/door" }],
+  });
+  const applyYard = (to: SceneDefinition, batch: OpBatch) => {
+    const r = applyOps(to, batch, yardFake, { prefabs });
+    if (!r.ok) throw new Error(r.issue.message);
+    return r.def;
+  };
+  /** A fragment with its ids replaced by their order of appearance, refs following. */
+  const upToIds = (text: string) => {
+    const f = JSON.parse(text) as { entities: { id: string }[]; instances?: { id: string }[] };
+    const names = new Map<string, string>();
+    [...(f.instances ?? []), ...f.entities].forEach((x, i) => names.set(x.id, `#${i}`));
+    return JSON.parse(
+      JSON.stringify(f, (_, v: unknown) => {
+        if (typeof v !== "string") return v;
+        const [head, ...rest] = v.split("/");
+        const to = names.get(head!);
+        return to === undefined ? v : [to, ...rest].join("/");
+      }),
+    ) as unknown;
+  };
+
+  it("pastes an instance with the same prefab, params, overrides and transform under a fresh id", () => {
+    const text = copySelection(yard, ["gate-2"], yardFake, prefabs);
+    const r = pasteFragment(text, { def: yard, registry: yardFake, prefabs });
+    if (!r.ok) throw new Error(JSON.stringify(r.issues));
+    expect(r.select).toEqual(["gate-3"]);
+    expect(r.batch.label).toBe("Paste");
+    const after = applyYard(yard, r.batch);
+    expect(after.instances![1]).toEqual({ ...yard.instances![0], id: "gate-3" });
+  });
+
+  it("copy, paste, copy gives the same fragment up to ids", () => {
+    const first = copySelection(yard, ["pull", "gate-2"], yardFake, prefabs);
+    const r = pasteFragment(first, { def: yard, registry: yardFake, prefabs });
+    if (!r.ok) throw new Error(JSON.stringify(r.issues));
+    expect(r.issues).toEqual([]);
+    expect(r.batch.ops.map((o) => o.op)).toEqual(["add", "instantiate"]);
+    const after = applyYard(yard, r.batch);
+    const second = copySelection(after, r.select, yardFake, prefabs);
+    expect(JSON.parse(second)).not.toEqual(JSON.parse(first));
+    expect(upToIds(second)).toEqual(upToIds(first));
+  });
+
+  it("points a child ref into a pasted instance at its new id", () => {
+    const r = duplicateSelection(yard, ["pull", "gate-2"], yardFake, 64, { prefabs });
+    if (!r.ok) throw new Error(JSON.stringify(r.issues));
+    expect(r.select).toEqual(["pull-2", "gate-3"]);
+    const after = applyYard(yard, r.batch);
+    expect(after.entities![1]).toEqual({
+      id: "pull-2",
+      type: "lever",
+      at: [74, 84],
+      target: "gate-3/door",
+    });
+    expect(after.instances![1]).toMatchObject({ id: "gate-3", at: [364, 464] });
+  });
+
+  it("copies an instance's child as a plain entity", () => {
+    const r = duplicateSelection(yard, ["gate-2/trigger"], yardFake, 0, { prefabs });
+    if (!r.ok) throw new Error(JSON.stringify(r.issues));
+    expect(r.batch.ops).toMatchObject([
+      { op: "add", entity: { id: "trigger", type: "sensor", tags: ["gate"] } },
+    ]);
+  });
+
+  it("centres on the instance's own box", () => {
+    const text = copySelection(yard, ["gate-2"], yardFake, prefabs);
+    const r = pasteFragment(text, { def: scene(), registry: yardFake, prefabs, at: [1000, 1000] });
+    if (!r.ok) throw new Error(JSON.stringify(r.issues));
+    const box = fragmentBounds(JSON.parse(text) as SceneFragment, yardFake, prefabs)!;
+    const by = [
+      Math.round(1000 - (box.minX + box.maxX) / 2),
+      Math.round(1000 - (box.minY + box.maxY) / 2),
+    ];
+    expect(by).not.toEqual([700, 600]);
+    expect(r.batch.ops).toMatchObject([
+      { op: "instantiate", instance: { id: "gate-2", at: [300 + by[0]!, 400 + by[1]!] } },
+    ]);
+  });
+
+  it("warns and places nothing for an instance whose prefab the project lacks", () => {
+    const text = copySelection(yard, ["pull", "gate-2"], yardFake, prefabs);
+    const r = pasteFragment(text, { def: scene(), registry: yardFake, prefabs: new Map() });
+    if (!r.ok) throw new Error(JSON.stringify(r.issues));
+    expect(r.issues.map((i) => [i.code, i.severity])).toEqual([
+      ["prefab-unknown", "warn"],
+      ["dangling-ref", "warn"],
+    ]);
+    expect(r.batch.ops).toEqual([
+      { op: "add", entity: { id: "pull", type: "lever", at: [10, 20] } },
+    ]);
+    const only = copySelection(yard, ["gate-2"], yardFake, prefabs);
+    const none = pasteFragment(only, { def: scene(), registry: yardFake });
+    expect(!none.ok && none.issues.map((i) => i.code)).toEqual(["prefab-unknown"]);
+  });
+
+  it("cuts an instance", () => {
+    const { text, batch } = cutSelection(yard, ["gate-2"], yardFake, prefabs);
+    expect(JSON.parse(text).instances).toEqual(yard.instances);
+    expect(applyYard(yard, batch).instances ?? []).toEqual([]);
   });
 });
 

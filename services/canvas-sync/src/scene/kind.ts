@@ -174,7 +174,8 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
    * scene, stored last, never loses a prefab its project doesn't hold yet.
    * The scene's new state; null when it needs nothing.
    */
-  async function liftLayout(sceneId: string, state: Uint8Array): Promise<Uint8Array | null> {
+  async function liftLayout(sceneId: string, state: Uint8Array | null): Promise<Uint8Array | null> {
+    if (!state) return null;
     const needs = sceneLayoutNeeds(state, null);
     if (!needs) return null;
     const { project, key } = parseSceneId(sceneId)!;
@@ -237,9 +238,10 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
       const sceneId = name.slice("scene:".length);
       const row = await store.load(sceneId);
       if (!row) throw new SyncRefusal(SYNC_CLOSE.revoked, "scene not found", "auth");
-      const prepared = prepareLoadedState(sceneId, row.state, row.seed, format);
-      const lifted = await liftLayout(sceneId, prepared.state);
-      const state = lifted ?? prepared.state;
+      // The layout first: the format migration reads the doc at this engine's layout.
+      const lifted = await liftLayout(sceneId, row.state);
+      const prepared = prepareLoadedState(sceneId, lifted ?? row.state, row.seed, format);
+      const state = prepared.state;
       if (prepared.seeded || prepared.migratedFrom !== null || lifted) {
         // Stored at once, so every instance and the next load start from it.
         const { outcome } = await persist(sceneId, state, {

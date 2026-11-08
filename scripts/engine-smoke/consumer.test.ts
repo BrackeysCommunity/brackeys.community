@@ -61,20 +61,20 @@ afterEach(() => {
 describe("the packed @jams/engine", () => {
   it("is the version its package.json says", () => {
     expect(ENGINE_VERSION).toBe(pkg.version);
-    expect(SCENE_FORMAT_VERSION).toBe(2);
+    expect(SCENE_FORMAT_VERSION).toBe(3);
     expect(sceneJsonSchema(registry)).toHaveProperty("$id");
   });
 
   it("expands prefab instances and group offsets from dist", () => {
     const parsed = parsePrefab(
-      { kind: "prefab", v: 2, id: "pad", entities: [{ id: "top", type: "marker", at: [0, -10] }] },
+      { kind: "prefab", v: 3, id: "pad", entities: [{ id: "top", type: "marker", at: [0, -10] }] },
       registry,
     );
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     const scene = expandScene(
       {
-        v: 2,
+        v: 3,
         game: registry.id,
         name: "pads",
         bounds: [0, 0, 100, 100],

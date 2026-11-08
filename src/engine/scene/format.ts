@@ -1,14 +1,17 @@
+import { BEHAVIORS_FIELD } from "../game/behaviors";
 import type { InputScript } from "../headless/playtest-types";
 import { canonicalJson } from "../project/canonical";
 import type { DocLayout } from "../project/kinds/define";
 import type { ChecksFile } from "./checks";
+import { compareChunkKeys, isGridValue, parseChunkKey, type GridCells } from "./grid";
 import { jsonPointer, pointerSegments } from "./issues";
 import { RESERVED_SCENE_KEYS, SCENE_HEADER_KEYS, type Prefab, type SceneDefinition } from "./types";
 
 /**
- * Keys that lead an object, in this order: an entity's identity, then its
- * geometry; in a path (an object with `pts`), the path's own keys. Every
- * other key follows, sorted by code unit, so the text never depends on a
+ * Keys that lead an object, in this order: an entity's or instance's
+ * identity, its draw order, then its geometry; in a path (an object with
+ * `pts`), the path's own keys. Every other key follows, sorted by code unit,
+ * then `behaviors`, then grid-valued keys, so the text never depends on a
  * registry.
  */
 const ENTITY_KEY_ORDER = [
@@ -19,23 +22,43 @@ const ENTITY_KEY_ORDER = [
   "layer",
   "group",
   "off",
+  "z",
   "shape",
   "at",
+  "rot",
+  "flip",
   "path",
+  "params",
   "overrides",
 ];
 const PATH_KEY_ORDER = ["pts", "mode", "speed", "pauseMs"];
 
 const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-function ordered(obj: Record<string, unknown>): [string, unknown][] {
-  const order = "pts" in obj ? PATH_KEY_ORDER : ENTITY_KEY_ORDER;
-  const present = (k: string) => obj[k] !== undefined;
-  const known = order.filter(present);
-  const rest = Object.keys(obj)
-    .filter((k) => present(k) && !order.includes(k))
+/** Keys of `obj` that hold a grid, sorted by code unit; never one of the leading keys or `behaviors`. */
+function gridKeys(obj: Record<string, unknown>): string[] {
+  return Object.keys(obj)
+    .filter((k) => k !== BEHAVIORS_FIELD && !ENTITY_KEY_ORDER.includes(k) && isGridValue(obj[k]))
     .sort(byCodeUnit);
-  return [...known, ...rest].map((k) => [k, obj[k]]);
+}
+
+function ordered(obj: Record<string, unknown>, plain = false): [string, unknown][] {
+  const present = (k: string) => obj[k] !== undefined;
+  if (isGridValue(obj))
+    return Object.keys(obj)
+      .sort(compareChunkKeys)
+      .map((k) => [k, obj[k]]);
+  if (plain)
+    return Object.keys(obj)
+      .filter(present)
+      .sort(byCodeUnit)
+      .map((k) => [k, obj[k]]);
+  const inPath = "pts" in obj;
+  const grids = inPath ? [] : gridKeys(obj);
+  return Object.keys(obj)
+    .filter(present)
+    .sort((a, b) => compareInnerKeys(a, b, inPath, grids))
+    .map((k) => [k, obj[k]]);
 }
 
 /** Top-level keys written one item per line: the bulk arrays, `instances` and `entities`; `groups` one group per line. */
@@ -52,49 +75,130 @@ function compareTopKeys(a: string, b: string): number {
   return rank(a) - rank(b) || byCodeUnit(a, b);
 }
 
-/** Where a key inside an entity or path sorts, as `ordered` writes it. */
-function compareInnerKeys(a: string, b: string, inPath: boolean): number {
+/**
+ * Where a key inside an entity or instance sorts, as `formatScene` writes it.
+ * Pass the entity to place its grid-valued keys, which go last.
+ */
+export const compareEntityKeys = (a: string, b: string, entity?: Record<string, unknown>): number =>
+  compareInnerKeys(a, b, false, entity ? gridKeys(entity) : []);
+
+/** An `assets` header as written: sorted by code unit, each id once. */
+export function sortedAssets(ids: readonly string[]): string[] {
+  return [...new Set(ids)].sort(byCodeUnit);
+}
+
+/** Where a key inside an entity or path sorts, as `ordered` writes it; `grids` are the object's grid-valued keys. */
+function compareInnerKeys(
+  a: string,
+  b: string,
+  inPath: boolean,
+  grids: readonly string[] = [],
+): number {
   const order = inPath ? PATH_KEY_ORDER : ENTITY_KEY_ORDER;
   const rank = (k: string) => {
     const i = order.indexOf(k);
-    return i < 0 ? order.length : i;
+    if (i >= 0) return i;
+    if (inPath) return order.length;
+    if (grids.includes(k)) return order.length + 2;
+    return k === BEHAVIORS_FIELD ? order.length + 1 : order.length;
   };
   return rank(a) - rank(b) || byCodeUnit(a, b);
 }
 
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+
 /**
  * Orders two JSON Pointers by where they land in `formatScene`'s text: an
  * ancestor before what it holds, array items by index, keys in canonical
- * order. A missing pointer sorts last. Inside an object, a key under `path`
- * is taken to be a path's.
+ * order, chunk keys row-major. A missing pointer sorts last. Inside an
+ * object, a key under `path` is taken to be a path's and a key under
+ * `behaviors` a behavior's. Pass the document to place grid-valued keys,
+ * which only their values tell apart.
  */
-export function comparePointers(a: string | undefined, b: string | undefined): number {
+export function comparePointers(
+  a: string | undefined,
+  b: string | undefined,
+  doc?: unknown,
+): number {
   if (a === b) return 0;
   if (a === undefined) return 1;
   if (b === undefined) return -1;
   const sa = pointerSegments(a);
   const sb = pointerSegments(b);
+  let holder: unknown = doc;
   for (let i = 0; i < Math.min(sa.length, sb.length); i++) {
     const x = sa[i]!;
     const y = sb[i]!;
-    if (x === y) continue;
-    const nx = /^\d+$/.test(x) ? Number(x) : NaN;
-    const ny = /^\d+$/.test(y) ? Number(y) : NaN;
-    if (!Number.isNaN(nx) && !Number.isNaN(ny)) return nx - ny;
-    return i === 0 ? compareTopKeys(x, y) : compareInnerKeys(x, y, sa[i - 1] === "path");
+    if (x !== y) {
+      const nx = /^\d+$/.test(x) ? Number(x) : NaN;
+      const ny = /^\d+$/.test(y) ? Number(y) : NaN;
+      if (!Number.isNaN(nx) && !Number.isNaN(ny)) return nx - ny;
+      if (i === 0) return compareTopKeys(x, y);
+      if (parseChunkKey(x) && parseChunkKey(y)) return compareChunkKeys(x, y);
+      if (sa[i - 1] === BEHAVIORS_FIELD) return byCodeUnit(x, y);
+      const grids = isObject(holder) ? gridKeys(holder) : [];
+      return compareInnerKeys(x, y, sa[i - 1] === "path", grids);
+    }
+    holder =
+      isObject(holder) || Array.isArray(holder)
+        ? (holder as Record<string, unknown>)[x]
+        : undefined;
   }
   return sa.length - sb.length;
 }
 
-/** Single-line JSON with `, ` separators and spaced braces. */
-function inline(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(inline).join(", ")}]`;
+/** Single-line JSON with `, ` separators and spaced braces; `plain` sorts an object's keys by code unit only. */
+function inline(value: unknown, plain = false): string {
+  if (Array.isArray(value)) return `[${value.map((v) => inline(v)).join(", ")}]`;
   if (value !== null && typeof value === "object") {
-    const entries = ordered(value as Record<string, unknown>);
+    const entries = ordered(value as Record<string, unknown>, plain);
     if (entries.length === 0) return "{}";
-    return `{ ${entries.map(([k, v]) => `${JSON.stringify(k)}: ${inline(v)}`).join(", ")} }`;
+    return `{ ${entries.map(([k, v]) => member(k, v)).join(", ")} }`;
   }
   return JSON.stringify(value) ?? "null";
+}
+
+/** `"key": value`; behavior blocks are keyed by name in code-unit order. */
+const member = (k: string, v: unknown) =>
+  `${JSON.stringify(k)}: ${inline(v, k === BEHAVIORS_FIELD && isObject(v))}`;
+
+/**
+ * One row of a row array (an entity, instance or bulk entry) as its lines,
+ * each with `indent`: one line, except an object holding grids, whose grid
+ * fields come last with one chunk per line. Records each pointer in the row
+ * at its line, numbered from `first`.
+ */
+function rowLines(
+  row: unknown,
+  indent: string,
+  pointer: string,
+  first: number,
+  lines?: Map<string, number>,
+): string[] {
+  const grids = isObject(row) ? gridKeys(row) : [];
+  if (lines) addNested(lines, pointer, row, first);
+  if (grids.length === 0) return [`${indent}${inline(row)}`];
+  const entries = ordered(row as Record<string, unknown>).filter(([k]) => !grids.includes(k));
+  const out: string[] = [];
+  let head = `${indent}{ ${entries.map(([k, v]) => `${member(k, v)}, `).join("")}`;
+  grids.forEach((field, g) => {
+    const grid = (row as Record<string, GridCells>)[field]!;
+    const fieldPointer = `${pointer}${jsonPointer([field])}`;
+    if (lines && g > 0) lines.set(fieldPointer, first + out.length);
+    out.push(`${head}${JSON.stringify(field)}: {`);
+    const keys = Object.keys(grid).sort(compareChunkKeys);
+    keys.forEach((key, i) => {
+      if (lines)
+        addNested(lines, `${fieldPointer}${jsonPointer([key])}`, grid[key], first + out.length);
+      out.push(
+        `${indent}  ${JSON.stringify(key)}: ${inline(grid[key])}${i < keys.length - 1 ? "," : ""}`,
+      );
+    });
+    head = `${indent}}, `;
+  });
+  out.push(`${indent}} }`);
+  return out;
 }
 
 function addNested(
@@ -114,17 +218,24 @@ function addNested(
 /**
  * The canonical text of a scene, without a registry: header keys in
  * `SCENE_HEADER_KEYS` order, then bulk keys sorted by code unit, then
- * `entities`; one tuple, instance, entity or group per line, two-space
- * indent, trailing newline. Empty arrays and an empty `groups` are left out. `lines`
+ * `entities`; one tuple, instance, entity or group per line, the `assets`
+ * header on one line, sorted and unique, two-space indent, trailing
+ * newline. An entity holding grids spans lines: its grid fields last, one
+ * chunk per line. Empty arrays and an empty `groups` are left out. `lines`
  * maps every JSON Pointer to its 1-based line; pointers inside a tuple or
- * entity map to that item's line.
+ * entity map to that item's first line, except those inside a chunk (its
+ * line) and a later grid field's key (the line it opens on).
  */
 export function formatScene(def: SceneDefinition): { text: string; lines: Map<string, number> } {
   const out: string[] = ["{"];
   const lines = new Map<string, number>([["", 1]]);
   const doc = def as Record<string, unknown>;
   const members: [string, unknown][] = [];
-  for (const key of SCENE_HEADER_KEYS) if (doc[key] !== undefined) members.push([key, doc[key]]);
+  for (const key of SCENE_HEADER_KEYS) {
+    const value = doc[key];
+    if (value === undefined) continue;
+    members.push([key, key === "assets" && Array.isArray(value) ? sortedAssets(value) : value]);
+  }
   const bulkKeys = Object.keys(doc)
     .filter((k) => !RESERVED_SCENE_KEYS.includes(k) && doc[k] !== undefined)
     .sort(byCodeUnit);
@@ -133,7 +244,7 @@ export function formatScene(def: SceneDefinition): { text: string; lines: Map<st
     if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
     members.push([key, value]);
   }
-  for (const key of ["groups", "instances"]) {
+  for (const key of ["assets", "groups", "instances"]) {
     const m = members.findIndex(([k]) => k === key);
     const value = m >= 0 ? members[m]![1] : undefined;
     const empty = Array.isArray(value)
@@ -166,8 +277,9 @@ export function formatScene(def: SceneDefinition): { text: string; lines: Map<st
     lines.set(pointer, out.length + 1);
     out.push(`${keyText}[`);
     value.forEach((row, i) => {
-      addNested(lines, `${pointer}/${i}`, row, out.length + 1);
-      out.push(`    ${inline(row)}${i < value.length - 1 ? "," : ""}`);
+      const rows = rowLines(row, "    ", `${pointer}/${i}`, out.length + 1, lines);
+      if (i < value.length - 1) rows[rows.length - 1] += ",";
+      out.push(...rows);
     });
     out.push(`  ]${comma}`);
   });
@@ -175,22 +287,51 @@ export function formatScene(def: SceneDefinition): { text: string; lines: Map<st
   return { text: `${out.join("\n")}\n`, lines };
 }
 
-const PREFAB_HEADER_KEYS = ["$schema", "kind", "v", "game", "id", "contract"] as const;
+/** A prefab's leading keys, each written on one line. */
+const PREFAB_INLINE_KEYS = ["$schema", "kind", "v", "game", "id", "base", "contract"] as const;
 
 /**
- * The canonical text of a prefab file: its header keys inline, then
- * `entities` one per line, then `bulk` one array per key with one entry per
- * line, keys sorted by code unit.
+ * The canonical text of a prefab file, two-space indent, trailing newline:
+ * `$schema`, `kind`, `v`, `game`, `id`, `base` and `contract` one per line;
+ * `params` one param per line; `assets` on one line, sorted and unique;
+ * `overrides` one per line; `bulk` one array per key with one entry per
+ * line; `instances` and then `entities` one per line. Params and overrides
+ * are keyed in code-unit order; empty `params`, `assets`, `overrides`,
+ * `bulk` and `instances` are left out, and `entities` is always written.
  */
 export function formatPrefab(prefab: Prefab): string {
   const doc = prefab as Record<string, unknown>;
   const parts: string[][] = [];
-  for (const key of PREFAB_HEADER_KEYS)
-    if (doc[key] !== undefined) parts.push([`  ${JSON.stringify(key)}: ${inline(doc[key])}`]);
   const rows = (indent: string, items: readonly unknown[]) =>
-    items.map((row, i) => `${indent}${inline(row)}${i < items.length - 1 ? "," : ""}`);
-  if (prefab.entities.length > 0)
-    parts.push(['  "entities": [', ...rows("    ", prefab.entities), "  ]"]);
+    items.flatMap((row, i) => {
+      const text = rowLines(row, indent, "", 0);
+      if (i < items.length - 1) text[text.length - 1] += ",";
+      return text;
+    });
+  const keyed = (key: string) => {
+    const value = doc[key];
+    if (!isObject(value)) return;
+    const ids = Object.keys(value)
+      .filter((k) => value[k] !== undefined)
+      .sort(byCodeUnit);
+    if (ids.length === 0) return;
+    parts.push([
+      `  ${JSON.stringify(key)}: {`,
+      ...ids.map((id, i) => `    ${member(id, value[id])}${i < ids.length - 1 ? "," : ""}`),
+      "  }",
+    ]);
+  };
+  const list = (key: string, items: readonly unknown[] | undefined) => {
+    if (items && items.length > 0)
+      parts.push([`  ${JSON.stringify(key)}: [`, ...rows("    ", items), "  ]"]);
+  };
+
+  for (const key of PREFAB_INLINE_KEYS)
+    if (doc[key] !== undefined) parts.push([`  ${JSON.stringify(key)}: ${inline(doc[key])}`]);
+  keyed("params");
+  if (Array.isArray(prefab.assets) && prefab.assets.length > 0)
+    parts.push([`  "assets": ${inline(sortedAssets(prefab.assets))}`]);
+  keyed("overrides");
   const bulk = Object.keys(prefab.bulk ?? {})
     .filter((k) => prefab.bulk![k]!.length > 0)
     .sort(byCodeUnit);
@@ -203,6 +344,9 @@ export function formatPrefab(prefab: Prefab): string {
     lines.push("  }");
     parts.push(lines);
   }
+  list("instances", prefab.instances);
+  if (prefab.entities.length > 0) list("entities", prefab.entities);
+  else parts.push(['  "entities": []']);
   const body = parts.map((p, i) => {
     if (i < parts.length - 1) p[p.length - 1] += ",";
     return p.join("\n");

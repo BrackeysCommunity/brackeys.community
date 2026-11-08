@@ -5,6 +5,7 @@ import type { DocLayout } from "../project/kinds";
 import { isPlainObject } from "../project/kinds/define";
 import { randomKey, type KeyGen } from "./keys";
 import { assignZ, compareZ, initialZ } from "./order";
+import { LEGACY_Z_FIELD } from "./types";
 
 /**
  * Declarative kinds' docs: a value laid out by its kind's `DocLayout` under
@@ -15,7 +16,7 @@ import { assignZ, compareZ, initialZ } from "./order";
  * text     Y.Text                                  merges by character
  * map      Y.Map, one entry per key                keys merge independently
  * list     Y.Array of items                        inserts merge; an edited item is replaced whole
- * keyed    Y.Map key → Y.Map { z, item }           items and their fields merge; order is (z, key)
+ * keyed    Y.Map key → Y.Map { @z, item }          items and their fields merge; order is (@z, key)
  * ```
  *
  * A value that doesn't fit its slot's layout (a number where `text` is
@@ -23,8 +24,8 @@ import { assignZ, compareZ, initialZ } from "./order";
  * schema reports it.
  */
 export const CONTENT_MAP = "content";
-/** A keyed entry's fractional order key. */
-export const KEYED_Z = "z";
+/** A keyed entry's fractional order key; layout 2 named it `z`. */
+export const KEYED_Z = "@z";
 /** A keyed entry's item, laid out by the collection's `item` layout. */
 export const KEYED_ITEM = "item";
 
@@ -387,6 +388,38 @@ function patchKeyed(
     }
     patchSlot(ctx, match.entry, KEYED_ITEM, layout.item, items[i]);
   });
+}
+
+// ─── Layout 2 → 3 ────────────────────────────────────────
+
+function liftKeyedOrder(held: unknown, layout: DocLayout): boolean {
+  let wrote = false;
+  if (layout.as === "map" && held instanceof Y.Map) {
+    for (const [k, v] of held.entries()) wrote = liftKeyedOrder(v, fieldLayout(layout, k)) || wrote;
+  } else if (layout.as === "list" && held instanceof Y.Array) {
+    for (const v of held.toArray()) wrote = liftKeyedOrder(v, layout.item) || wrote;
+  } else if (layout.as === "keyed" && held instanceof Y.Map) {
+    for (const entry of held.values()) {
+      if (!(entry instanceof Y.Map)) continue;
+      if (entry.has(LEGACY_Z_FIELD)) {
+        const z = entry.get(LEGACY_Z_FIELD);
+        entry.delete(LEGACY_Z_FIELD);
+        if (!entry.has(KEYED_Z)) entry.set(KEYED_Z, typeof z === "string" ? z : "");
+        wrote = true;
+      }
+      wrote = liftKeyedOrder(entry.get(KEYED_ITEM), layout.item) || wrote;
+    }
+  }
+  return wrote;
+}
+
+/**
+ * Renames every keyed entry's layout-2 order key `z` to `KEYED_Z`, at any
+ * depth, keeping its value, so each item keeps its key and its place. Call
+ * inside the migration's transaction. Returns whether anything was written.
+ */
+export function liftKeyedLayout(doc: Y.Doc, layout: DocLayout): boolean {
+  return liftKeyedOrder(contentMap(doc), rootLayout(layout));
 }
 
 // ─── Entry points ────────────────────────────────────────

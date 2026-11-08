@@ -1,17 +1,26 @@
 import type * as Y from "yjs";
 
 import type { Registry } from "../game/types";
+import type { ProjectView } from "../project/types";
 import { makeIssue } from "../scene/issues";
 import type { Bounds, SceneIssue } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import { contentMaps, readDoc, touchesMaps } from "./convert";
 import { EMPTY_PREFAB_SOURCE, type PrefabSource } from "./prefab-source";
+import { projectAssetsMap } from "./project-doc";
 
 export type IssueWatch = {
   /** Validates now, skipping the wait. */
   flush(): SceneIssue[];
   stop(): void;
 };
+
+/**
+ * The project a doc belongs to, as validation reads it: a `ProjectSession`
+ * fits. A change to `projectDoc`'s registry (an asset added, renamed or
+ * trashed) revalidates.
+ */
+export type IssueProject = { view(): ProjectView; readonly projectDoc?: Y.Doc };
 
 export type WatchIssuesOptions = {
   /** Default 150ms. */
@@ -22,13 +31,15 @@ export type WatchIssuesOptions = {
   prefabs?: PrefabSource;
   /** For a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
   parentBounds?: Bounds;
+  /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`). */
+  project?: IssueProject;
 };
 
 /** Validates a doc's scene (or a prefab doc's children), turning a validator that throws into an issue instead of an exception. */
 export function validateDoc(
   doc: Y.Doc,
   registry: Registry,
-  opts: Pick<WatchIssuesOptions, "prefabs" | "parentBounds"> = {},
+  opts: Pick<WatchIssuesOptions, "prefabs" | "parentBounds" | "project"> = {},
 ): SceneIssue[] {
   try {
     const view = readDoc(doc, {
@@ -36,7 +47,8 @@ export function validateDoc(
       ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}),
     });
     const prefabs = (opts.prefabs ?? EMPTY_PREFAB_SOURCE).library();
-    return validateScene(view.def, registry, { prefabs });
+    const project = opts.project?.view();
+    return validateScene(view.def, registry, { prefabs, ...(project ? { project } : {}) });
   } catch (err) {
     return [
       makeIssue("schema", {
@@ -82,6 +94,12 @@ export function watchIssues(
     const used = readDoc(doc).def.instances ?? [];
     if (used.some((i) => changed.includes(i.prefab))) schedule();
   });
+  const projectDoc = opts.project?.projectDoc;
+  const registryMaps = projectDoc ? [projectAssetsMap(projectDoc) as Y.Map<unknown>] : [];
+  const onProject = (tr: Y.Transaction) => {
+    if (touchesMaps(tr, registryMaps)) schedule();
+  };
+  projectDoc?.on("afterTransaction", onProject);
   return {
     flush() {
       if (timer !== null) clearTimer(timer);
@@ -91,6 +109,7 @@ export function watchIssues(
       if (timer !== null) clearTimer(timer);
       timer = null;
       doc.off("afterTransaction", onTransaction);
+      projectDoc?.off("afterTransaction", onProject);
       unsubscribe();
     },
   };

@@ -8,8 +8,8 @@ in a browser or headless, validates them with machine-readable issue codes,
 and edits them through a small command language (`SceneOp`) that also runs on
 a shared [Yjs](https://yjs.dev) document.
 
-This is 0.1. `./editor`, `./game` and `./headless` are `@experimental`: they
-may change in any 0.x minor. The scene format (`v: 1`), the issue codes, the
+This is 0.x. `./editor`, `./game` and `./headless` are `@experimental`: they
+may change in any 0.x minor. The scene format (`v: 3`), the issue codes, the
 ops and the JSON Schemas are versioned contracts (see
 [Versioning](#versioning)).
 
@@ -52,9 +52,10 @@ The package is ESM only and has no side effects on import.
 | `@jams/engine/sim-kit`  | the seeded `Rng`, `digest32` and fixed-point maths, with no dependencies                                                                                   | none                              |
 
 The JSON Schemas ship as files too: `@jams/engine/schemas/scene.schema.json`,
-`@jams/engine/schemas/ops.schema.json`,
-`@jams/engine/schemas/input-script.schema.json` and
-`@jams/engine/schemas/recording.schema.json`.
+`prefab.schema.json`, `fragment.schema.json`, `ops.schema.json`,
+`input-script.schema.json` and `recording.schema.json`, and the project's
+(`project`, `asset-sidecar`, `project-ops`, `material`, `game-settings`,
+`data-table`, `project-snapshot`), all under `@jams/engine/schemas/`.
 
 ## Rapier is injected
 
@@ -408,20 +409,23 @@ A scene can declare **groups** and place **prefabs**:
 
 ```json
 {
-  "v": 2,
+  "v": 3,
   "name": "gates",
   "bounds": [0, 0, 2000, 1000],
   "groups": {
-    "east": { "at": [1200, 0] }
+    "east": { "at": [1200, 0], "rot": 2, "flip": true }
   },
   "instances": [
     { "id": "gate-1", "prefab": "gate", "at": [600, 900] },
     {
       "id": "gate-2",
-      "prefab": "gate",
+      "prefab": "red-gate",
       "group": "east",
+      "z": 5,
       "at": [200, 900],
-      "overrides": { "door.path.speed": 140 }
+      "rot": 1,
+      "params": { "speed": 120 },
+      "overrides": { "trigger.tags": ["gate", "east"] }
     }
   ],
   "entities": [
@@ -431,12 +435,14 @@ A scene can declare **groups** and place **prefabs**:
 ```
 
 - A group's members store their geometry relative to its `at`, so moving
-  the group is one integer edit. There is no rotation or scale.
-- A prefab is `prefabs/<id>.json` beside the scene: `{ "kind": "prefab",
-"v": 2, "id", "entities", "bulk"? }` around a local origin. An instance
-  puts that origin at `at` (inside its group's frame); its children load
-  as `gate-1/door` (bulk children `gate-1/~solid:0`), and references
-  between them follow.
+  the group is one integer edit. A group may turn and flip its members
+  ([Transforms](#transforms)); there is no scale.
+- A prefab is an asset of kind `prefab` (a `.json` with `"kind": "prefab"`
+  anywhere in the project): `{ "kind": "prefab", "v": 3, "id",
+"entities", "bulk"?, "instances"? }` around a local origin. An instance
+  puts that origin at `at` (inside its group's frame), turned and flipped
+  by its own `rot` and `flip`; its children load as `gate-1/door` (bulk
+  children `gate-1/~solid:0`), and references between them follow.
 - `overrides` hold the fields one instance changes, keyed
   `<child>.<field.path>`, in the prefab's frame. Ops edit them
   (`override`, `revertOverride`), fold them into the prefab
@@ -446,7 +452,8 @@ A scene can declare **groups** and place **prefabs**:
   the same `prefabs` option on `validateScene`, `applyOps`, the headless
   runs and the renders. `resolveScene` gives the scene with instances
   inlined and groups applied; that view is what tools pick and draw, and
-  `toSourceBatch` maps an edit made on it back onto the document.
+  `toSourceBatch` maps an edit made on it back onto the document, through
+  the inverse of any turn or flip above it.
 - Prefabs are docs of their own (`prefabToDoc`/`docToPrefab`, `./collab`);
   a scene's session reads them through a `PrefabSource`
   (`sessionPrefabSource(projectSession, { scene })` live,
@@ -455,12 +462,477 @@ A scene can declare **groups** and place **prefabs**:
   session over the prefab's doc at its local coordinates. Every instance
   follows its edits, collaborators in the prefab see each other, and the
   project's one undo stack covers it. Bind the edit world to
-  `isolation.session.doc` while it's open and call `close()` to go back.
-  Without a project, Apply to prefab, Create prefab and Unpack are
-  refused.
+  `isolation.session.doc` while it's open and call `close()` (or press
+  Escape with nothing selected) to go back. Without a project, Apply to
+  prefab, Create prefab and Unpack are refused.
 - `attach: "<follower id>"` on a solid or sensor puts its collider on that
   follower's body, so it rides along; riders on it move by the follower's
-  `frameDelta` (`carrierDelta`).
+  `frameDelta` (`carrierDelta`). The follower may be an instance's child
+  (`"attach": "lift-1/car"`).
+
+## Scene format v3
+
+Format v3 is every format change the engine plans before 1.0, in one bump.
+Each addition is optional, and leaving it out keeps v2's behaviour:
+
+| Key or field                               | Where                      | Meaning                                                                         | Default             |
+| ------------------------------------------ | -------------------------- | ------------------------------------------------------------------------------- | ------------------- |
+| `assets`                                   | scene, prefab header       | asset ids only game code names, sorted, each once                               | none                |
+| `settings.physics`                         | scene settings             | `"rapier"` or `"none"`                                                          | resolved, `rapier`  |
+| `settings.grid`                            | scene settings             | the scene's one cell grid                                                       | none                |
+| `settings.view`                            | scene settings             | `{ "projection": "orthogonal" }`, reserved for other projections                | orthogonal          |
+| `rot`, `flip`                              | instances, groups          | quarter turns clockwise, and a mirror in x before turning                       | identity            |
+| `z`                                        | entities, instances        | integer draw order within the layer; on an instance, an offset for its children | 0                   |
+| `params`                                   | instances                  | values for the prefab's exposed parameters                                      | none                |
+| `behaviors`                                | entities                   | behavior blocks by name                                                         | the type's required |
+| `layer`                                    | entities, instances        | one of the registry's layers                                                    | the type's default  |
+| `instances`, `base`, `params`, `overrides` | prefab files               | nested instances, a variant's base and its overrides, exposed parameters        | none                |
+| `instances`                                | fragments                  | copied instances; their prefabs travel by id                                    | none                |
+| grid fields                                | entities of types with one | cells in chunks of run-length rows                                              | empty               |
+| ref fields                                 | `refField`, `attachField`  | an id, or `<instance>/<child>` at any depth                                     | —                   |
+
+```json
+{
+  "$schema": "../scene/scene.schema.json",
+  "v": 3,
+  "name": "yard",
+  "bounds": [0, 0, 4000, 2000],
+  "settings": {
+    "gravity": [0, 1200],
+    "grid": { "kind": "square", "cell": [32, 32] },
+    "physics": "rapier"
+  },
+  "assets": ["boom"],
+  "groups": {
+    "left-wing": { "name": "Left wing", "at": [400, 0], "rot": 2, "flip": true }
+  },
+  "instances": [
+    { "id": "gate-1", "prefab": "gate", "at": [800, 900] },
+    {
+      "id": "gate-2",
+      "prefab": "red-gate",
+      "z": 5,
+      "at": [1600, 900],
+      "rot": 1,
+      "flip": true,
+      "params": { "speed": 120 }
+    },
+    {
+      "id": "room-1",
+      "prefab": "room",
+      "at": [2400, 600],
+      "overrides": { "door-1/panel.path.speed": 60 }
+    }
+  ],
+  "solid": [["box", 2000, 1980, 2000, 20]],
+  "entities": [
+    {
+      "id": "lever",
+      "type": "sensor",
+      "z": 2,
+      "shape": ["box", 700, 950, 10, 20],
+      "tags": ["switch"]
+    },
+    {
+      "id": "lift",
+      "type": "solid",
+      "shape": ["box", 2400, 640, 40, 8],
+      "attach": "room-1/door-1/panel"
+    }
+  ]
+}
+```
+
+The schemas' `$id`s are `urn:jams-engine:scene:v3`, `prefab:v3`,
+`fragment:v3` and `ops:v3` (and `<game>:scene:v3` for a game's).
+
+**The migration.** v2 → v3 changes only `v`, on scenes, prefabs and
+fragments alike; `parseScene` and `parsePrefab` run it on load and `vp run
+scene fmt` writes it back. A recording made against a v2 file replays with
+the `stale` warning once, because the scene's hash is over its canonical
+text, which now says `"v": 3`.
+
+**Asset fields.** `assetField(env, kinds, description)` is an asset id of
+one or more kinds (`"texture"`, `["texture", "atlas"]`). It parses as a
+plain id, so a deleted asset leaves its referrers loadable; with a project
+loaded, validation reports a dangling id as `asset-missing` and one of
+another kind as `asset-kind`, and the JSON Schema lists the project's live
+ids as an `enum`. The `assets` header names assets nothing else
+references (a sound game code plays), so they count as used and travel
+with the scene. Renames, id changes and the in-use check see every asset
+field, behavior blocks and settings included. Op: `useAssets { add?,
+remove? }`.
+
+### Behaviors
+
+A behavior is a typed block of fields any entity type may carry, with an
+optional runtime half. Engine behaviors have bare names; a game's are
+`<gameId>/<name>`, so a name the engine adds later never collides.
+
+```ts coin-behaviors.ts
+import {
+  DEFAULT_LAYERS,
+  defineBehavior,
+  defineEntityType,
+  defineGame,
+  gridField,
+  pointField,
+  primitiveFields,
+} from "@jams/engine/game";
+import { z } from "zod";
+
+import { coinGame } from "./coin-game";
+
+/** Data only: game code reads it off `entity.behaviors["coin-game/loot"]`. */
+export const loot = defineBehavior({
+  name: "coin-game/loot",
+  description: "What the entity drops when it's collected.",
+  fields: {
+    table: z.string().default("common").describe("The loot table it rolls on; default common."),
+    rolls: z.number().int().min(1).default(1).describe("How many times it rolls; default 1."),
+  },
+  inspector: { label: "Loot", order: ["rolls", "table"] },
+});
+
+/** A chest always carries loot: three rolls unless a scene says otherwise. */
+const chest = defineEntityType({
+  type: "chest",
+  description: "A chest: entering it opens it.",
+  base: "sensor",
+  fields: (env) => primitiveFields("sensor", env),
+  behaviors: { required: { [loot.name]: { rolls: 3 } } },
+});
+
+/** Floor tiles on the scene's grid, local to `at`. */
+const floor = defineEntityType({
+  type: "floor",
+  description: "Painted floor tiles.",
+  base: "marker",
+  fields: {
+    at: pointField("The grid's origin."),
+    tiles: gridField("The tiles.", { values: ["stone", "grass", "water"] }),
+  },
+  behaviors: { forbidden: "all" },
+});
+
+export const lootGame = defineGame({
+  ...coinGame,
+  types: [...coinGame.types, chest, floor],
+  behaviors: [loot],
+  // Bottom to top: a backdrop that scrolls at half speed, then the engine's four.
+  layers: [
+    { name: "sky", description: "The far backdrop.", draw: -5, scroll: [0.5, 0.5] },
+    ...DEFAULT_LAYERS,
+  ],
+});
+```
+
+```json
+{
+  "id": "chest-1",
+  "type": "chest",
+  "shape": ["box", 900, 940, 20, 20],
+  "behaviors": { "coin-game/loot": { "table": "rare" } }
+}
+```
+
+- **`defineBehavior({ name, description, fields, system?, requires?,
+visualOnly?, inspector? })`** lives in `./game` and needs only zod.
+  `fields` is a Zod shape, or a function of the registry's `FieldEnv` when
+  a field depends on it (an asset enum). Without `system` the block is
+  data that game code reads; with one, `system(ctx, def)` returns a
+  `BehaviorSystem` (`attach`, `detach`, optional `update`, `step`,
+  `render`, `reset`, `seek`, plus `clear` and `size`). `requires` names
+  behaviors the same entity must also carry; `visualOnly` ones never
+  change simulation state and are built only with a view.
+- **A type's rules:** `EntityTypeDef.behaviors` is `{ required?,
+defaults?, forbidden? }`. A required behavior is always there: a missing
+  block loads as the type's defaults. `defaults` fill fields of an
+  optional behavior when an entity carries it. `forbidden` lists refused
+  names, or `"all"` to allow only the required ones. Notes carry none, and
+  bulk entries carry only their type's required behaviors, at the type's
+  defaults. `registry.behaviorRules(type)` says what a type allows.
+- **Defaults merge once**, in `expandScene`: the behavior's field
+  defaults, then the type's, then the entity's block. The runtime sees
+  whole blocks on `RuntimeEntity.behaviors`; the file keeps only what was
+  written, and `{}` means "carry it, all defaults".
+- **Order** is registration order: the engine's behaviors, then the game's
+  in `GameDefinition.behaviors` order. Each tick runs the type systems'
+  `beforeStep`, the game's `beforeStep`, the physics step, the type
+  systems' `afterStep`, then each behavior's `step`, then the game's
+  `afterStep`, so the game sees behavior events. A behavior attaches after
+  its entity's type system spawns it and detaches, in reverse order,
+  before it despawns.
+- **Registry checks.** `createRegistry` throws on a game behavior without
+  its `<id>/` prefix, a duplicate name, a `requires` or type rule naming an
+  unknown behavior, a behavior both required and forbidden, a default that
+  fails the behavior's schema, and a field name that isn't
+  `/^[A-Za-z_$][A-Za-z0-9_$]*$/`. `z` and `behaviors` are reserved field
+  names.
+- **Validation:** `behavior-unknown` (with a did-you-mean),
+  `behavior-forbidden`, `behavior-missing` (a `requires` unmet once
+  required blocks are added), and `schema` issues inside a block at
+  `/entities/<i>/behaviors/<name>/<field>`.
+- **The inspector** shows one section per carried behavior, titled by
+  `inspector.label`, fields in `inspector.order`, with Remove, and an Add
+  behavior menu of what the type allows. The section of fields marked
+  `meta({ group: "behavior" })` is titled Gameplay.
+
+**Field paths** address fields in ops, overrides and params:
+
+```text
+FieldPath     := Segment ("." Segment)*
+Segment       := Name | Index | BehaviorName      ; BehaviorName only right after "behaviors"
+Name          := [A-Za-z_$][A-Za-z0-9_$]*
+Index         := 0 | [1-9][0-9]*
+OverridePath  := ChildRef "." FieldPath
+ChildRef      := Id ("/" Id)* ("/" BulkRef)? | BulkRef
+```
+
+`path.speed`, `behaviors.coin-game/loot.rolls`,
+`door-1/panel.behaviors.sprite.tint`. In a JSON Pointer the `/` of a
+behavior name is `~1` (`/entities/3/behaviors/coin-game~1loot/rolls`).
+`splitFieldPath` parses one. `update { set: { "behaviors.coin-game/loot":
+{} } }` adds a behavior, `unset: ["behaviors.coin-game/loot"]` removes it,
+and setting a field inside a missing block creates the block. A path may
+not go below a grid field.
+
+### Layers and `z`
+
+A game's scene layers come from code: `GameDefinition.layers`, bottom to
+top, replaces the engine's four (`DEFAULT_LAYERS`: `terrain`, `decor`,
+`gameplay`, `editor`) when given, and `registry.layers` holds them. A
+`SceneLayerDef` is `{ name, description, draw, sort?, scroll?,
+editorOnly? }`: `draw` is the draw order its visuals use, `sort` is `"z"`
+(default) or `"y"`, `scroll` is its parallax (`[1, 1]` by default, `[0, 0]`
+fixed to the screen), and an `editorOnly` layer never draws in play.
+`createRegistry` refuses duplicate or malformed names, an empty list and a
+non-finite `draw` or `scroll`.
+
+- An entity's or instance's `layer` names one of them; omitted, it is the
+  type's default (`defaultLayer`: notes on `editor`, bulk entries on
+  `terrain`, everything else on `gameplay`; a game whose layers lack one of
+  those falls back to its first layer, or its last for editor-only types).
+  An unknown name is `layer-unknown`, whose fix unsets it. The editor
+  shows, hides and locks by layer, and the engine's own visuals draw on
+  it; a type system's shape visuals keep the draw layer they choose.
+- `z` is an integer in `[-10000, 10000]` on entities and instances,
+  default 0. Within a layer, visuals draw in `(z, spawn order)`; on a
+  y-sorted layer in `(z, y, spawn order)`, so a roof can still sit above
+  y-sorted actors. An instance's `z` is added to each child's. Bulk entries
+  have none: promote one to set it. Op: `setZ { refs, z? | by? }`.
+
+### Transforms
+
+Instances and groups turn and flip: `rot` is 1, 2 or 3 quarter turns
+clockwise on screen (absent is 0), and `flip: true` mirrors x in the
+prefab's or group's frame before turning. The eight combinations are every
+rotation and reflection that keeps a square grid on itself, each with one
+spelling, so integer geometry stays exact and diffs stay clean. A child's
+world transform is its group's, then its instance's, then each nested
+instance's, down to its own fields.
+
+What a transform does depends on what a field is, so a game declares its
+fields with the builders:
+
+| Field                     | Under a turn                  | Under a flip                  |
+| ------------------------- | ----------------------------- | ----------------------------- |
+| shapes, points, paths     | positions turn about the `at` | positions mirror              |
+| `box`, `capsule`          | `rotDeg` gains 90° per turn   | `rotDeg` negated              |
+| `poly`, `chain`           | points turn                   | points mirror, order reversed |
+| `vectorField`             | turns (never translated)      | mirrors                       |
+| `angleField(desc, "deg")` | gains 90° per turn            | negated                       |
+| `mirrorField("x", desc)`  | unchanged                     | toggled                       |
+| grid fields               | cells remap (square only)     | cells remap (square only)     |
+| any other value           | unchanged                     | unchanged                     |
+
+A one-way solid stays screen-up inside a turned instance. The resolved
+entity carries the transform it ended up with
+(`RuntimeEntity.transform: { turn, flip }`). `Transform2D`, `dihedral`,
+`compose`, `invert`, `applyPt`, `applyVec`, `composeDihedral` and
+`flipWorld` are in `./scene` and the root entry.
+
+- `transform { refs?, groups?, turn?: 1 | 2 | 3 | -1, flip?: "x" | "y",
+about? }` turns and flips instances and groups in world terms, composed
+  onto what they have, about each one's `at` unless `about` is given.
+- `setGroup` takes absolute `rot` and `flip`; `instantiate` takes `rot`,
+  `flip`, `z` and `params`.
+- `unpack` bakes the transform into the entities it writes. An edit made
+  on a turned child in the resolved view maps back through the inverse (a
+  world `move` of a flipped child becomes a mirrored override).
+
+### Grids
+
+`settings.grid` gives a scene one cell grid, Tiled-compatible:
+`{ "kind": "square", "cell": [w, h], "origin"? }` or `{ "kind": "hex",
+"cell": [w, h], "side", "stagger": "x" | "y", "index": "odd" | "even",
+"origin"? }` (`side` is the length of the flat sides). Cells and origins
+are integers, `cell` positive.
+
+A type holds cells with `gridField(description, { values?, max? })`;
+values are integers up to 65535 (or `values.length`), 0 is empty, and
+`values` names 1..n for the schema and the inspector. The type must also
+have a point field `at`: cells are local to it and sized by
+`settings.grid.cell`, so moving `at` (a group, an instance, `move`)
+moves the whole tilemap exactly.
+
+```json
+    { "id": "floor", "type": "floor", "at": [0, 640], "tiles": {
+      "-1,0": ["0*31,3"],
+      "0,0": ["1*32", "1*32", "0*4,2*24"],
+      "1,0": ["1*8"]
+    } },
+```
+
+- Cells live in 32×32 chunks keyed `"cx,cy"`, rows top to bottom, each a
+  run-length string: runs `v` or `v*n` joined by `,`, missing cells 0.
+  Canonical text has maximal runs, no trailing zeros or empty rows, and
+  chunks in `(cy, cx)` order; `parseScene` canonicalises, so `scene fmt`
+  fixes a hand-written row. A grid entity is the one entity that spans
+  lines: one chunk per line, its grid fields last.
+- `paintCells { ref, field, cells?: [col, row, value][], rects?: [c0, r0,
+c1, r1, value][] }` paints (value 0 erases), at most 65,536 cells per
+  op; its inverse is the cells it overwrote. `./scene`'s `grid` helpers
+  (`paintGrid`, `readCell`, `encodeRow`, `decodeRow`, `canonicalGrid`,
+  `transformGrid`) are what it runs.
+- `grid-invalid` covers a bad setting, row, key, count or value, a grid
+  field in a scene without `settings.grid`, an override naming a grid
+  field (paint the prefab instead), and a turned or flipped instance or
+  group over a grid whose cells aren't square.
+
+### Settings
+
+The engine's scene settings are `gravity`, `physics` (`"rapier"` or
+`"none"`), `grid` and `view` (`{ "projection": "orthogonal" }`, the only
+projection so far). A game's `settings` add their own keys and may not
+redefine these. Each engine setting resolves, first match wins, from:
+
+1. the scene's `settings`;
+2. the project's `game-settings` `engine` block;
+3. the game's `GameDefinition` default;
+4. the engine's: gravity `[0, 1200]`, `rapier`, no grid, orthogonal.
+
+`resolveSettings(settings, { project?, game? })` applies the order;
+`expandScene` resolves with the scene's values and the engine defaults.
+
+### Prefabs: nesting, variants and parameters
+
+A prefab may hold instances of other prefabs, may be a variant of another,
+and may expose parameters:
+
+```json
+{
+  "kind": "prefab",
+  "v": 3,
+  "id": "room",
+  "instances": [
+    { "id": "gate-1", "prefab": "gate", "at": [-200, 0] },
+    {
+      "id": "gate-2",
+      "prefab": "gate",
+      "at": [200, 0],
+      "rot": 2,
+      "flip": true,
+      "overrides": { "door.path.speed": 90 }
+    },
+    {
+      "id": "door-1",
+      "prefab": "door",
+      "z": 2,
+      "at": [0, 40],
+      "overrides": { "latch/door.path.speed": 30 }
+    }
+  ],
+  "entities": [{ "id": "lamp", "type": "marker", "at": [0, -100], "tags": ["light"] }]
+}
+```
+
+```json
+{
+  "kind": "prefab",
+  "v": 3,
+  "id": "red-gate",
+  "base": "gate",
+  "params": {
+    "speed": {
+      "description": "How fast the door opens, in px per second.",
+      "targets": ["door.path.speed"],
+      "default": 90
+    }
+  },
+  "overrides": {
+    "trigger.tags": ["gate", "red"]
+  },
+  "entities": [{ "id": "lamp", "type": "marker", "at": [20, -90], "tags": ["light"] }]
+}
+```
+
+- **Nesting.** A nested child's id is its path of instance ids:
+  `room-1/door-1/latch/door`. An override's child part may be a nested
+  child (`door-1/panel.path.speed`) or a nested instance's own field
+  (`door-1.at`, `.rot`, `.flip`, `.z`, `.off`, `.layer`,
+  `.params.<name>`). At each level the prefab's value comes first, then
+  that level's params, then its overrides, and an outer level beats every
+  inner one. Nesting is at most 8 deep (`prefab-depth`), and a prefab that
+  reaches itself through instances or bases is `prefab-cycle`; ops that
+  would close a loop are refused. `unpack` opens one level, so the nested
+  instances become the scene's. `applyToPrefab { to? }` writes into the
+  instance's own prefab unless `to` names a deeper one.
+- **Variants.** A prefab with `base` has its base's children, with its
+  `overrides` applied, plus its own entities, bulk entries and instances.
+  It can't remove a base child, only override `off: true`, and an id it
+  shares with a base child is `dup-id`. A variant of a variant counts
+  toward the depth; an unknown base is `variant-base-unknown`. Make one
+  with the project op `createAsset` (kind `prefab`, content `{ "base":
+"gate" }`); `setPrefabBase { base }` changes or clears it.
+- **Parameters.** `params` declares `{ description, targets, default? }`
+  by name; each target is an override path inside the prefab. An
+  instance's `params: { speed: 120 }` applies as an override of every
+  target, so the precedence is prefab < param < override. A variant
+  inherits its base's params and may redeclare one. An instance setting
+  one its prefab lacks is `param-unknown`. Ops: `exposeParam { name,
+param | null }` (prefab docs only) and `setParam { ref, name, value |
+null }`.
+- **Child refs.** Reference fields (`refField`, `attachField`) accept
+  `<instance>/<child>` at any depth (`room-1/door-1/panel`), matching
+  `CHILD_REF_PATTERN`; every other id keeps `ID_PATTERN`. A missing
+  instance is `dangling-ref`, a missing child `ref-child-unknown` (with a
+  did-you-mean), the wrong type `ref-type`. At runtime the resolved ids
+  are the same strings.
+- **Fragments.** A `scene-fragment` carries `instances`, so copy, cut,
+  duplicate and paste keep instances (a child copied on its own pastes as
+  a plain entity). `placeFragment` renames a taken instance id (`gate-2`
+  becomes `gate-3`) and rewrites child refs inside the fragment to match.
+  Prefab bodies don't travel: a pasted instance whose prefab the project
+  lacks reports `prefab-unknown` and places nothing.
+- `resolvePrefab(id, library, registry)` resolves one prefab into its
+  children in its own frame, nested instances expanded and its base folded
+  in; load, the doc, the editor and checks share it. A scene's hash
+  covers every prefab it reaches, through nesting and bases.
+
+In the editor, the outliner shows nested children as a tree, dragging an
+entity row onto a follower row attaches it (dropping it on its type's row
+detaches), and the inspector has Turn and Flip on an instance.
+
+### Issue codes added in v3
+
+All are errors; `ISSUE_CODES` has each one's hint.
+
+| Code                   | When                                                           | Fix                                  |
+| ---------------------- | -------------------------------------------------------------- | ------------------------------------ |
+| `prefab-cycle`         | A prefab contains itself through instances or variant bases.   | —                                    |
+| `prefab-depth`         | Prefabs nest deeper than 8 levels.                             | —                                    |
+| `variant-base-unknown` | A variant's base isn't a prefab in the project.                | did-you-mean `setPrefabBase`         |
+| `param-unknown`        | An instance sets a parameter its prefab doesn't expose.        | `setParam` to null                   |
+| `layer-unknown`        | An entity or instance names a layer the registry doesn't have. | `update` unsetting `layer`           |
+| `behavior-unknown`     | An entity carries a behavior that isn't registered.            | did-you-mean, or unset the block     |
+| `behavior-forbidden`   | An entity's type doesn't allow this behavior.                  | unset the block                      |
+| `behavior-missing`     | A behavior's `requires` isn't on the same entity.              | add the required block with defaults |
+| `grid-invalid`         | A grid setting, grid value or grid placement is invalid.       | `scene fmt` for non-canonical rows   |
+| `ref-child-unknown`    | A child ref names an instance whose prefab has no such child.  | did-you-mean                         |
+
+`asset-missing` and `asset-kind` cover asset fields, `dup-id` a variant's
+id clash, and `prefab-unknown` nested and pasted instances.
 
 ## Projects and assets
 
@@ -488,8 +960,10 @@ duplicate id or path), `checkProjectBatch` for project ops, and
   `changeAssetId` (rewrites every reference in one batch, a material's
   bulk keys such as `solid:bouncy` and instance overrides included),
   `setImport`, `replaceContent`, `setLicence`, `editAsset` (JSON pointer
-  edits, with `@<id>` for a keyed item) and `editScene` (scene ops). One
-  batch is one undo step across every doc it writes.
+  edits, with `@<id>` for a keyed item) and `editScene` (scene ops). A
+  scene's checks file follows it through `moveAsset` and `renameAsset`,
+  and counts as a referrer when the scene is deleted. One batch is one
+  undo step across every doc it writes.
 - **Doc names.** `project:<id>` is the registry, `scene:<project>.<key>`
   a scene and `asset:<project>.<key>` any other doc kind
   (`docNameOf`, `parseDocName`).
@@ -614,6 +1088,45 @@ export function coEdit(game: GameInstance, project: string, name: string, userId
 - `watchIssues` validates the merged document, since two valid edits can
   merge into an invalid scene.
 
+### Doc layout 3
+
+Format v3 comes with collab layout 3 (`COLLAB_LAYOUT_VERSION`), laid out so
+concurrent v3 edits merge:
+
+```text
+Scene doc
+meta        kind, schemaVersion 3, layout 3, project, key, game?, $schema?
+scene       name, bounds
+settings    one atomic value per top-level key: gravity, physics, grid, view, the game's
+assets      asset id → true
+groups      id → { at, rot?, flip?, name? }
+instances   key → { @z, id, prefab, at, rot?, flip?, z?, params: map, overrides: map, … }
+entities    key → { @z, @bulk?, id, type, …fields, path: map, behaviors: map of maps, "<grid>@<cx>,<cy>/<row>": row }
+log
+
+Prefab doc
+meta, prefab (id, base?, contract?), params (name → param), overrides (a variant's),
+assets, instances, entities, log
+```
+
+- Keys the layout owns start with `@`: a record's fractional order is
+  `@z` and a bulk entry's key `@bulk`, so a field may be called `z`.
+  `createRegistry` refuses field names that could clash.
+- `behaviors` is two levels deep (name → field → value, each field
+  atomic): different fields or behaviors merge, and removing a behavior
+  while someone edits inside it removes it. `params` and `overrides` merge
+  per key.
+- Each non-empty grid row is its own key (`tiles@-1,0/0`), so painters in
+  different chunks or rows merge and a paint writes only the rows it
+  changed; one row is last-writer-wins.
+- `assets` is a set, so two people adding different ids keep both.
+- Loading a layout-2 doc lifts it in one `migration` transaction
+  (`migrateLayout` for scenes, `migrateDocLayout` for prefabs and keyed
+  layouts): `z` → `@z`, `bulk` → `@bulk`, `layout: 3`, then
+  `schemaVersion` 3 (`migrateDoc`). A
+  hosted client whose token claims an older layout opens docs read-only
+  with `engine-outdated`.
+
 In development, `./vite`'s plugin serves each project's files as shared docs
 on the Vite dev server. A project is a directory holding a
 `jams.project.json`; `readFileProject` reads one, and the plugin takes
@@ -679,10 +1192,11 @@ primitives); a game's schema adds its types and settings.
 | Field       | Type                                      | Required | Description                                                                                                                    |
 | ----------- | ----------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `$schema`   | string                                    |          | Path or URI of this file's JSON Schema, for editors. Ignored by the engine.                                                    |
-| `v`         | `2`                                       | yes      | Scene format version. Files are migrated up on load and always saved at the current version.                                   |
+| `v`         | `3`                                       | yes      | Scene format version. Files are migrated up on load and always saved at the current version.                                   |
 | `name`      | string                                    | yes      | Scene name, same rules as an id; matches the file name without .json.                                                          |
 | `bounds`    | [integer, integer, integer, integer] (px) | yes      | World rectangle [minX, minY, maxX, maxY] in px; y is down. Limits the camera; anything outside it is flagged.                  |
 | `settings`  | object                                    |          | Scene-wide settings: the engine's, then the game's.                                                                            |
+| `assets`    | string[]                                  |          | Asset ids only game code names, so they count as used: sorted, each once.                                                      |
 | `groups`    | { id: [group](#groups-and-prefabs) }      |          | Groups by id. An entity or instance whose `group` names one stores its geometry relative to the group's `at`.                  |
 | `instances` | [instance](#groups-and-prefabs)[]         |          | Prefab instances, each a copy of a prefab file placed at `at`.                                                                 |
 | `solid`     | [shape](#shapes)[]                        |          | Static ground shapes, absolute px; `solid:<material>` for a material. Entries have no id; ops refer to them as ~solid:<index>. |
@@ -690,14 +1204,14 @@ primitives); a game's schema adds its types and settings.
 
 ### Fields every entity has
 
-| Field   | Type                                                   | Required | Description                                                                                                                                                            |
-| ------- | ------------------------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`    | string                                                 | yes      | Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it. |
-| `type`  | string                                                 | yes      | The entity's type: one of the types below.                                                                                                                             |
-| `name`  | string                                                 |          | Display label for the editor's outliner. No runtime effect.                                                                                                            |
-| `layer` | `"terrain"` \| `"gameplay"` \| `"decor"` \| `"editor"` |          | Editor layer, for showing, hiding and locking groups of entities. No runtime effect.                                                                                   |
-| `group` | string                                                 |          | The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.                    |
-| `off`   | boolean                                                |          | When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.                                                                    |
+| Field   | Type                                                   | Required | Description                                                                                                                                                                                                                             |
+| ------- | ------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`    | string                                                 | yes      | Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.                                                                  |
+| `type`  | string                                                 | yes      | The entity's type: one of the types below.                                                                                                                                                                                              |
+| `name`  | string                                                 |          | Display label for the editor's outliner. No runtime effect.                                                                                                                                                                             |
+| `layer` | `"terrain"` \| `"decor"` \| `"gameplay"` \| `"editor"` |          | Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses. |
+| `group` | string                                                 |          | The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.                                                                                     |
+| `off`   | boolean                                                |          | When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.                                                                                                                                     |
 
 ### Entity types
 
@@ -705,62 +1219,73 @@ primitives); a game's schema adds its types and settings.
 
 Static ground, walls and platforms: collides from every side, or from above only.
 
-| Field      | Type             | Required | Description                                                                                                             |
-| ---------- | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `shape`    | [shape](#shapes) | yes      | Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.                                    |
-| `material` | none registered  |          | Surface material.                                                                                                       |
-| `oneWay`   | boolean          |          | When true, actors pass up through it and land on top.                                                                   |
-| `attach`   | string           |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point. |
+| Field       | Type             | Required | Description                                                                                                                                                               |
+| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `z`         | integer          |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
+| `shape`     | [shape](#shapes) | yes      | Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.                                                                                      |
+| `material`  | none registered  |          | Surface material.                                                                                                                                                         |
+| `oneWay`    | boolean          |          | When true, actors pass up through it and land on top.                                                                                                                     |
+| `attach`    | string           |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
+| `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `sensor`
 
 Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it.
 
-| Field    | Type             | Required | Description                                                                                                             |
-| -------- | ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `shape`  | [shape](#shapes) | yes      | Trigger shape. Absolute world px; y is down.                                                                            |
-| `tags`   | string[]         |          | Labels a game reads off the sensor's events.                                                                            |
-| `attach` | string           |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point. |
+| Field       | Type             | Required | Description                                                                                                                                                               |
+| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `z`         | integer          |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
+| `shape`     | [shape](#shapes) | yes      | Trigger shape. Absolute world px; y is down.                                                                                                                              |
+| `tags`      | string[]         |          | Labels a game reads off the sensor's events.                                                                                                                              |
+| `attach`    | string           |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
+| `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `marker`
 
 A named point with tags; what it means is up to the game.
 
-| Field  | Type             | Required | Description                                    |
-| ------ | ---------------- | -------- | ---------------------------------------------- |
-| `at`   | [point](#points) | yes      | Marker position. Absolute world px; y is down. |
-| `tags` | string[]         |          | Labels a game reads, e.g. spawn or checkpoint. |
+| Field       | Type             | Required | Description                                                                                                                                                               |
+| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `z`         | integer          |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
+| `at`        | [point](#points) | yes      | Marker position. Absolute world px; y is down.                                                                                                                            |
+| `tags`      | string[]         |          | Labels a game reads, e.g. spawn or checkpoint.                                                                                                                            |
+| `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `prop`
 
 Dynamic physics object that can be pushed and stood on.
 
-| Field         | Type                  | Required | Description                                                              |
-| ------------- | --------------------- | -------- | ------------------------------------------------------------------------ |
-| `shape`       | [body shape](#shapes) | yes      | Starting collider shape. Absolute world px; y is down. Not chain.        |
-| `density`     | number                | yes      | Density, mass per px²; heavier props are harder to push.                 |
-| `restitution` | number                | yes      | Bounciness: 0 doesn't bounce, 1 keeps all its speed.                     |
-| `friction`    | number                |          | Surface friction; omitted uses the material's, else the physics default. |
-| `material`    | none registered       |          | Surface material.                                                        |
+| Field         | Type                  | Required | Description                                                                                                                                                               |
+| ------------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `z`           | integer               |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
+| `shape`       | [body shape](#shapes) | yes      | Starting collider shape. Absolute world px; y is down. Not chain.                                                                                                         |
+| `density`     | number                | yes      | Density, mass per px²; heavier props are harder to push.                                                                                                                  |
+| `restitution` | number                | yes      | Bounciness: 0 doesn't bounce, 1 keeps all its speed.                                                                                                                      |
+| `friction`    | number                |          | Surface friction; omitted uses the material's, else the physics default.                                                                                                  |
+| `material`    | none registered       |          | Surface material.                                                                                                                                                         |
+| `behaviors`   | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `follower`
 
 Kinematic body that follows a waypoint path.
 
-| Field      | Type                  | Required | Description                                                                                                     |
-| ---------- | --------------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
-| `shape`    | [body shape](#shapes) | yes      | Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. ["box", 0, 0, 40, 6]). Not chain. |
-| `path`     | [path](#paths)        | yes      |                                                                                                                 |
-| `material` | none registered       |          | Surface material.                                                                                               |
+| Field       | Type                  | Required | Description                                                                                                                                                               |
+| ----------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `z`         | integer               |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.           |
+| `shape`     | [body shape](#shapes) | yes      | Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. ["box", 0, 0, 40, 6]). Not chain.                                                           |
+| `path`      | [path](#paths)        | yes      |                                                                                                                                                                           |
+| `material`  | none registered       |          | Surface material.                                                                                                                                                         |
+| `behaviors` | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `note`
 
 Editor note: text pinned to a point. Never loaded into the game.
 
-| Field  | Type             | Required | Description                                 |
-| ------ | ---------------- | -------- | ------------------------------------------- |
-| `at`   | [point](#points) | yes      | Where the note shows, absolute world px.    |
-| `text` | string           | yes      | The note, for whoever edits the scene next. |
+| Field  | Type             | Required | Description                                                                                                                                                     |
+| ------ | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `z`    | integer          |          | Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0. |
+| `at`   | [point](#points) | yes      | Where the note shows, absolute world px.                                                                                                                        |
+| `text` | string           | yes      | The note, for whoever edits the scene next.                                                                                                                     |
 
 ### Shapes
 

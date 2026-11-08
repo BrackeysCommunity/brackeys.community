@@ -1,5 +1,5 @@
 import { ENGINE_TOOL_IDS } from "../game/types";
-import type { Aabb, Layer, OpBatch, Pt, Ref } from "../scene/types";
+import type { Aabb, OpBatch, Pt, Ref } from "../scene/types";
 import { TOOL_PRIORITY, type ToolEvent, type ToolRouter } from "../tool-router";
 import type { Vec2 } from "../types";
 import { boxTool, circleTool } from "./builtin/draw";
@@ -9,15 +9,19 @@ import { panTool, rotateTool } from "./builtin/transform";
 import { copySelection, cutSelection, duplicateSelection, pasteFragment } from "./clipboard";
 import {
   deleteBatch,
+  flipBatch,
   groupBatch,
   hierarchyDown,
   hierarchyUp,
   nudgeBatch,
   nudgeDelta,
+  quarterTurnTargets,
   rotateSelectionBatch,
   selectAllRefs,
   selectionBounds,
+  turnBatch,
   ungroupBatch,
+  zOrderBatch,
 } from "./commands";
 import { createGesturePreview, type PreviewRuntime } from "./gesture";
 import type { KeyContext } from "./keymap";
@@ -49,7 +53,7 @@ export function builtinTools(): EditorToolDef[] {
   return [selectTool, panTool, boxTool, circleTool, penTool, waypointsTool, rotateTool];
 }
 
-export type ToolLayers = { hidden: ReadonlySet<Layer>; locked: ReadonlySet<Layer> };
+export type ToolLayers = { hidden: ReadonlySet<string>; locked: ReadonlySet<string> };
 
 export type ToolHostOptions = {
   session: EditorSession;
@@ -66,7 +70,7 @@ export type ToolHostOptions = {
   /** Replacements for built-in tools, by their engine id (a box tool drawing another type). */
   engineTools?: readonly EditorToolDef[];
   snap?: SnapSettings;
-  layers?: { hidden?: Iterable<Layer>; locked?: Iterable<Layer> };
+  layers?: { hidden?: Iterable<string>; locked?: Iterable<string> };
   /** Pans the camera by a screen-px drag (the pan tool, Space, the middle button). */
   pan?: (screenDelta: Pt) => void;
   /** Zooms about a screen point, for wheel turns no tool takes. */
@@ -93,7 +97,10 @@ export type ToolHost = {
   /** The canvas cursor the active tool asks for. */
   cursor(): string | undefined;
   /** The parts of the keymap's context the host knows. */
-  keyContext(): Pick<KeyContext, "gesture" | "subObject" | "tool">;
+  keyContext(): Pick<
+    KeyContext,
+    "gesture" | "subObject" | "tool" | "quarterTurns" | "hasSelection"
+  >;
   /**
    * A key press or release for the active tool (the pen's Enter and
    * Backspace); call it before resolving the keymap and stop when it returns
@@ -104,7 +111,8 @@ export type ToolHost = {
   /**
    * A keymap command or a host button: `tool:<id>[:<arg>]` picks a tool;
    * anything else goes to the active tool first, then the host's defaults
-   * (nudge, rotate, select-all, group, ungroup, hierarchy, delete,
+   * (nudge, rotate, turn, flip, select-all, group, ungroup, bring-forward,
+   * send-backward, hierarchy, delete,
    * duplicate, toggle-snap, frame, undo, redo, pan-hold and Escape's
    * commands). True when it applied.
    */
@@ -114,7 +122,7 @@ export type ToolHost = {
   snap(): SnapSettings;
   setSnap(patch: Partial<SnapSettings>): void;
   layers(): ToolLayers;
-  setLayers(patch: { hidden?: Iterable<Layer>; locked?: Iterable<Layer> }): void;
+  setLayers(patch: { hidden?: Iterable<string>; locked?: Iterable<string> }): void;
   /** The spatial index the tools pick from, kept current with the session. */
   index(): SpatialIndex;
   /** The selection as clipboard text; empty with nothing selected. */
@@ -401,12 +409,22 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
         const deg = (command === "rotate-cw" ? 1 : -1) * (snap.angleDeg > 0 ? snap.angleDeg : 15);
         return apply(rotateSelectionBatch(def, registry, sel, deg));
       }
+      case "turn-cw":
+      case "turn-ccw":
+        return apply(turnBatch(session.getDoc(), sel, command === "turn-cw" ? 1 : -1));
+      case "flip-x":
+      case "flip-y":
+        return apply(flipBatch(session.getDoc(), sel, command === "flip-x" ? "x" : "y"));
       case "select-all":
         return selectRefs(selectAllRefs(def, index, layers));
       case "group":
         return apply(groupBatch(def, sel));
       case "ungroup":
         return apply(ungroupBatch(def, sel));
+      case "bring-forward":
+        return apply(zOrderBatch(sel, 1));
+      case "send-backward":
+        return apply(zOrderBatch(sel, -1));
       case "hierarchy-up":
         return selectRefs(hierarchyUp(def, registry, sel));
       case "hierarchy-down":
@@ -445,6 +463,14 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     }
   }
 
+  /** A game's tool (a placement ghost) keeps `e` for itself, so only the engine's tools turn instances. */
+  function quarterTurns(): boolean {
+    const sel = selection();
+    if (sel.length === 0 || gameIds.has(activeId)) return false;
+    const t = quarterTurnTargets(session.getDoc(), sel);
+    return t.rest.length === 0 && t.instances.length + t.groups.length > 0;
+  }
+
   function selectionOverlay(): ToolOverlay {
     const def = gesture.def() ?? session.getResolved();
     const outlines: NonNullable<ToolOverlay["outlines"]> = [];
@@ -477,6 +503,8 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       gesture: active?.gesture?.() ?? false,
       subObject: subObject || (active?.subObject?.() ?? false),
       tool: activeId,
+      quarterTurns: quarterTurns(),
+      hasSelection: selection().length > 0,
     }),
     key(e) {
       if (active?.key?.(e)) return true;
@@ -518,17 +546,20 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     },
     index: () => index,
     copy: () =>
-      selection().length > 0 ? copySelection(session.getResolved(), selection(), registry) : "",
+      selection().length > 0
+        ? copySelection(session.getDoc(), selection(), registry, session.getPrefabs())
+        : "",
     cut() {
       const sel = selection();
       if (sel.length === 0) return "";
-      const { text, batch } = cutSelection(session.getResolved(), sel, registry);
+      const { text, batch } = cutSelection(session.getDoc(), sel, registry, session.getPrefabs());
       return commit(batch) ? text : "";
     },
     paste(text, at) {
       const result = pasteFragment(text, {
         def: session.getDoc(),
         registry,
+        prefabs: session.getPrefabs(),
         snap,
         ...((at ?? cursorWorld) ? { at: at ?? cursorWorld! } : {}),
       });
@@ -538,7 +569,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       const sel = selection();
       if (sel.length === 0) return false;
       const result = duplicateSelection(session.getDoc(), sel, registry, snap.step, {
-        from: session.getResolved(),
+        prefabs: session.getPrefabs(),
       });
       return result.ok && commit(result.batch, { selectionAfter: result.select });
     },
