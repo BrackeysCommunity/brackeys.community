@@ -9,7 +9,7 @@ import type { ProjectRuntimeView } from "./project/runtime-view";
 import type { AssetId, ProjectView } from "./project/types";
 import type { AssetLoader, LoadProgress } from "./render/asset-loader";
 import type { ResolutionPolicy } from "./resolution";
-import type { LoadReport, SceneRuntime, StepResult } from "./runtime/types";
+import type { AssetReloadError, LoadReport, SceneRuntime, StepResult } from "./runtime/types";
 import type { RunRecording } from "./scene/recording-schema";
 import type {
   Aabb,
@@ -222,13 +222,17 @@ export type GameInstance = {
   ) => Promise<{ failed: BundleEntry[] }>;
   /**
    * Re-imported art: loads the `changed` assets' new bytes, then redraws the
-   * loaded scene's visuals that use them, without reloading the scene.
+   * loaded scene's visuals that use them, without reloading the scene. A new
+   * `project` also re-resolves the project bundle from its game settings, so
+   * a settings asset field moved to another id is loaded and kept resident.
+   * `failed` lists textures that did not load; `errors` the entities whose
+   * redraw threw (every other entity still redraws). Never rejects for those.
    */
   reloadAssets: (update: {
     project: ProjectRuntimeView | null;
     view: ProjectView;
     changed: readonly AssetId[];
-  }) => Promise<{ failed: BundleEntry[] }>;
+  }) => Promise<{ failed: BundleEntry[]; errors: AssetReloadError[] }>;
   unloadScene: () => void;
   /**
    * The loaded scene's runtime, for entity-level edits (`add`, `update`,

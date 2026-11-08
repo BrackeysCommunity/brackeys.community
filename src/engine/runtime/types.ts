@@ -9,6 +9,14 @@ import type { InputAction, RapierModule, Vec2 } from "../types";
 
 export type ReconcileReport = { ok: true } | { ok: false; error: string; entityId?: string };
 
+/**
+ * An entity whose behavior blocks threw while redrawing for changed assets.
+ * It was detached from every behavior system and attached afresh; when that
+ * threw too (`reattached` false) it stays loaded with no behaviors until an
+ * edit or reload replaces it.
+ */
+export type AssetReloadError = { entityId: string; error: string; reattached: boolean };
+
 export type LoadReport =
   | { ok: true; counts: Record<EntityTypeName, number>; ms: number }
   | {
@@ -111,6 +119,12 @@ export type SceneRuntimeHandle = SceneRuntime & {
   scene: () => ExpandedScene | null;
   /** Each rendered frame, after the view's `frame`: the visual behaviors' render hooks. */
   render: (alpha: number) => void;
-  /** Swaps in the project's new view and redraws what uses the `changed` assets. */
-  reloadAssets: (project: ProjectRuntimeView | null, changed: readonly AssetId[]) => void;
+  /**
+   * Swaps in the project's new view and redraws what uses the `changed`
+   * assets; returns the entities whose redraw threw, the rest redrawn.
+   */
+  reloadAssets: (
+    project: ProjectRuntimeView | null,
+    changed: readonly AssetId[],
+  ) => AssetReloadError[];
 };

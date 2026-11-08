@@ -31,6 +31,13 @@ import { useSceneEditor, type EditorAssets } from "./use-scene-editor";
 
 const loadRapier = () => import("@dimforge/rapier2d");
 
+/** Textures that didn't load draw as the fallback box; the console says which. */
+export function warnFailedTextures(scene: string, failed: readonly { id: string }[]): void {
+  if (failed.length === 0) return;
+  const ids = failed.map((e) => e.id).join(", ");
+  console.warn(`[assets] ${scene}: ${failed.length} texture(s) failed to load: ${ids}`);
+}
+
 type GameCanvasProps = {
   roomId: string;
   /** Opens the scene editor; dev builds only. */
@@ -123,7 +130,8 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
       });
 
       if (mounted && loader) {
-        await created.preload(BUNDLED_SCENE);
+        const { failed } = await created.preload(BUNDLED_SCENE);
+        warnFailedTextures(BUNDLED_SCENE.name, failed);
         if (mounted) {
           const report = created.loadScene(BUNDLED_SCENE);
           if (!report.ok) console.warn(`[scene] ${BUNDLED_SCENE.name}: ${report.error}`);

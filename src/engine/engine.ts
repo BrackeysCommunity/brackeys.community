@@ -8,8 +8,13 @@ import type { GameAttachment, GameOutcome, GameShell } from "./game/types";
 import type { PlayOptions } from "./headless/playtest-types";
 import { createInputSystem } from "./input";
 import { createGameLoop } from "./loop";
-import { projectBundle, sceneBundle, type AssetBundle, type BundleEntry } from "./project/bundle";
-import { byCodeUnit } from "./project/kinds/define";
+import {
+  bundleOf,
+  projectBundle,
+  sceneBundle,
+  type AssetBundle,
+  type BundleEntry,
+} from "./project/bundle";
 import { engineResolution } from "./project/kinds/game-settings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
 import type { ProjectRuntimeView } from "./project/runtime-view";
@@ -20,7 +25,7 @@ import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import { createSessionRecording, preparePlay, type SessionRecording } from "./runtime/play-session";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "./runtime/runtime";
-import type { LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
+import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
 import { expandScene, isExpandedScene } from "./scene/expand";
 import type { RunRecording } from "./scene/recording-schema";
 import type { Aabb, ExpandedScene, PrefabLibrary, SceneDefinition } from "./scene/types";
@@ -141,12 +146,16 @@ export async function createGame(
     return own;
   }
 
+  function resolveProject(view: ProjectView): AssetBundle {
+    const settings = project ? { game: project.settings } : undefined;
+    return projectBundle(view, settings, assets!.kinds, registry).bundle;
+  }
+
   /** The project bundle, retained for the instance's life from its first use. */
   function heldProject(): AssetBundle | null {
     if (!assets) return null;
     if (!projectAssets) {
-      const settings = project ? { game: project.settings } : undefined;
-      projectAssets = projectBundle(assetView()!, settings, assets.kinds, registry).bundle;
+      projectAssets = resolveProject(assetView()!);
       assets.loader.retain(projectAssets);
     }
     return projectAssets;
@@ -178,14 +187,7 @@ export async function createGame(
       return loader.load(bundle, onProgress);
     }
     projectRequested = true;
-    const byId = new Map<string, BundleEntry>();
-    for (const e of [...shared.entries, ...bundle.entries]) byId.set(e.id, e);
-    const entries = [...byId.values()].sort((a, b) => byCodeUnit(a.id, b.id));
-    const joined = {
-      name: bundle.name,
-      entries,
-      bytes: entries.reduce((sum, e) => sum + e.bytes, 0),
-    };
+    const joined = bundleOf(bundle.name, [...shared.entries, ...bundle.entries]);
     const result = await loader.load(joined, onProgress);
     const held = new Set(shared.entries.map((e) => e.sha256));
     if (result.failed.some((e) => held.has(e.sha256))) projectRequested = false;
@@ -650,8 +652,7 @@ export async function createGame(
       moved = true;
       return { ...e, sha256: live.sha256, bytes: live.bytes ?? e.bytes };
     });
-    if (!moved) return bundle;
-    return { name: bundle.name, entries, bytes: entries.reduce((sum, e) => sum + e.bytes, 0) };
+    return moved ? bundleOf(bundle.name, entries) : bundle;
   }
 
   /** Swaps each held bundle for its rehashed copy, so the new textures stay resident and the old may go. */
@@ -671,32 +672,55 @@ export async function createGame(
   }
 
   /** The changed textures' entries at `view`'s hashes. */
-  function changedTextures(view: ProjectView, changed: readonly AssetId[]): AssetBundle {
+  function changedTextures(view: ProjectView, changed: readonly AssetId[]): BundleEntry[] {
     const entries: BundleEntry[] = [];
-    for (const id of [...new Set(changed)].sort(byCodeUnit)) {
+    for (const id of new Set(changed)) {
       const live = view.byId.get(id);
       if (live?.kind !== TEXTURE_KIND || live.sha256 === undefined) continue;
       entries.push({ id, kind: live.kind, sha256: live.sha256, bytes: live.bytes ?? 0 });
     }
-    return { name: "reload", entries, bytes: entries.reduce((sum, e) => sum + e.bytes, 0) };
+    return entries;
+  }
+
+  /**
+   * Re-resolves the held project bundle from the current project's settings
+   * at `view`: swaps it in when it differs, and returns the entries it gained.
+   */
+  function refreshProject(view: ProjectView): BundleEntry[] {
+    if (!assets || !projectAssets) return [];
+    const next = resolveProject(view);
+    const had = new Set(projectAssets.entries.map((e) => `${e.id}\0${e.sha256}`));
+    const gained = next.entries.filter((e) => !had.has(`${e.id}\0${e.sha256}`));
+    if (gained.length === 0 && next.entries.length === projectAssets.entries.length) return [];
+    assets.loader.retain(next);
+    assets.loader.release(projectAssets);
+    projectAssets = next;
+    return gained;
   }
 
   async function reloadAssets(update: {
     project: ProjectRuntimeView | null;
     view: ProjectView;
     changed: readonly AssetId[];
-  }): Promise<{ failed: BundleEntry[] }> {
-    if (destroyed) return { failed: [] };
+  }): Promise<{ failed: BundleEntry[]; errors: AssetReloadError[] }> {
+    if (destroyed) return { failed: [], errors: [] };
+    const projectMoved = update.project !== project;
     project = update.project;
     if (assets) reloaded = { view: update.view, over: assets.view };
     let failed: BundleEntry[] = [];
     if (assets) {
       rehashHeld(update.view, new Set(update.changed));
-      const bundle = changedTextures(update.view, update.changed);
+      const gained = projectMoved ? refreshProject(update.view) : [];
+      const bundle = bundleOf("reload", [
+        ...changedTextures(update.view, update.changed),
+        ...gained,
+      ]);
       if (bundle.entries.length > 0) failed = (await assets.loader.load(bundle)).failed;
+      const fresh = new Set(gained.map((e) => e.sha256));
+      if (failed.some((e) => fresh.has(e.sha256))) projectRequested = false;
     }
-    if (!destroyed) loaded?.runtime.reloadAssets(project, update.changed);
-    return { failed };
+    const errors = destroyed ? [] : (loaded?.runtime.reloadAssets(project, update.changed) ?? []);
+    return { failed, errors };
   }
 
   function destroy(): void {

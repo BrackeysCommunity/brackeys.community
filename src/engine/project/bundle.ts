@@ -24,6 +24,17 @@ export type AssetBundle = {
   bytes: number;
 };
 
+/**
+ * The bundle named `name` over `entries`: one entry per id (a later entry
+ * replaces an earlier one), sorted by id, `bytes` their total.
+ */
+export function bundleOf(name: string, entries: Iterable<BundleEntry>): AssetBundle {
+  const byId = new Map<AssetId, BundleEntry>();
+  for (const e of entries) byId.set(e.id, e);
+  const sorted = [...byId.values()].sort((a, b) => byCodeUnit(a.id, b.id));
+  return { name, entries: sorted, bytes: sorted.reduce((sum, e) => sum + e.bytes, 0) };
+}
+
 /** A reference to resolve: `where` names its field for a message, `entityIds` its owner. */
 type Source = { site: RefSite; where: string; entityIds: string[] };
 
@@ -99,11 +110,7 @@ function resolve(
     for (const own of def.refs?.(live) ?? [])
       sources.push({ site: own, where: `"${live.id}" ${fieldOf(own, 0)}`, entityIds: [live.id] });
   }
-  const sorted = [...entries.values()].sort((a, b) => byCodeUnit(a.id, b.id));
-  return {
-    bundle: { name, entries: sorted, bytes: sorted.reduce((sum, e) => sum + e.bytes, 0) },
-    issues,
-  };
+  return { bundle: bundleOf(name, entries.values()), issues };
 }
 
 /** The header's sites, each named `<label>.assets.<i>`. */

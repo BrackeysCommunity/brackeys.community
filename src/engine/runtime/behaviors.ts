@@ -41,8 +41,13 @@ export type BehaviorHost = {
    * Redraws each attached entity's blocks that name one of `changed` (or an
    * atlas cut from one) through the block's asset fields: `update` with the
    * same block, else detach and attach. Systems read the project's new info.
+   * An entity whose redraw throws is detached from every system and attached
+   * afresh; if that throws too it stays detached. Either way it is reported
+   * and the remaining entities still redraw.
    */
-  reloadAssets(changed: readonly AssetId[]): void;
+  reloadAssets(
+    changed: readonly AssetId[],
+  ): { entityId: string; error: unknown; reattached: boolean }[];
 };
 
 type Built = { name: BehaviorName; system: BehaviorSystem };
@@ -170,10 +175,11 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     system: <S extends BehaviorSystem = BehaviorSystem>(name: BehaviorName) =>
       byName.get(name) as S | undefined,
     reloadAssets(changed) {
-      if (changed.length === 0) return;
+      if (changed.length === 0) return [];
       const ids = new Set(changed);
+      const errors: { entityId: string; error: unknown; reattached: boolean }[] = [];
       for (const e of [...carriers.values()]) {
-        attached(e, () => {
+        try {
           for (const { name, system } of built) {
             const block = blockOf(e, name);
             if (!block || !namesChanged(name, block, ids)) continue;
@@ -183,8 +189,23 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
               system.attach(e.id, block, e);
             }
           }
-        });
+        } catch (err) {
+          detachEverywhere(e.id);
+          let reattached = true;
+          try {
+            for (const { name, system } of built) {
+              const block = blockOf(e, name);
+              if (block) system.attach(e.id, block, e);
+            }
+          } catch {
+            detachEverywhere(e.id);
+            carriers.delete(e.id);
+            reattached = false;
+          }
+          errors.push({ entityId: e.id, error: err, reattached });
+        }
       }
+      return errors;
     },
   };
 }

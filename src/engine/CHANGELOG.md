@@ -74,7 +74,9 @@ unchanged.
   object, a shared hash loaded once; `release` trims released textures
   least-recently-used past `budgetBytes` (default 256 MiB of decoded
   w×h×4 bytes). Failures come back in `failed`, never thrown; progress
-  is monotonic and counts settled blobs (failures included).
+  is monotonic and counts settled blobs (failures included). A load of a
+  URL whose eviction is still settling waits for it, so it never gets the
+  texture being destroyed.
   `GameConfig.assets` (`{ loader, view, kinds }`; the runtime view stays
   `createGame`'s `project`) hands the shell a loader, and
   `GameInstance.preload(scene, onProgress?)` loads the scene's bundle,
@@ -156,6 +158,16 @@ unchanged.
   behavior block names a changed id through its asset fields (or an atlas
   cut from a changed texture): `update` with the same block, else detach
   and attach. The scene isn't reloaded; the runtime and its tick survive.
+  A new `project` also re-resolves the project bundle from its game
+  settings: a settings asset field moved to another id is loaded with the
+  changed textures and retained in place of the old bundle (fetched again
+  by the next `preload` if that load failed). An entity whose redraw
+  throws is detached from every behavior system and attached afresh (left
+  detached if that throws too), the other entities still redraw, and it
+  comes back in the result's `errors` as an `AssetReloadError`
+  (`{ entityId, error, reattached }`); `SceneRuntimeHandle.reloadAssets`
+  returns those, and `GameInstance.reloadAssets` resolves
+  `{ failed, errors }` without rejecting for them.
   `ASSET_CHANGED`, `AssetChange` and `AssetChangedMessage` are in
   `./collab`, so a browser host reads the dev server's `asset:changed`
   message without `./vite` (which still re-exports all three).

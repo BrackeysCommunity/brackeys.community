@@ -228,6 +228,10 @@ export type AssetChangeSource = {
   onAssetChanged(listener: (message: AssetChangedMessage) => void): () => void;
 };
 
+function warnReload(message: string): void {
+  if (import.meta.env.DEV) console.warn(`[assets] hot reload: ${message}`);
+}
+
 const WATCHED_KINDS: ReadonlySet<string> = new Set([
   MATERIAL_KIND,
   GAME_SETTINGS_KIND,
@@ -357,7 +361,12 @@ export function projectRegistry(session: ProjectSession): ProjectRegistry {
         }
         if (changed.length === 0) return;
         project = runtimeView(view, dataValues(watched()), session.registry);
-        void game.reloadAssets({ project, view, changed: changed.sort() });
+        game
+          .reloadAssets({ project, view, changed: changed.sort() })
+          .then(({ errors }) => {
+            for (const { entityId, error } of errors) warnReload(`${entityId}: ${error}`);
+          })
+          .catch((err: unknown) => warnReload(err instanceof Error ? err.message : String(err)));
       };
       const off = changes.onAssetChanged((message) => {
         pending.set(message.id, message.sha256);

@@ -458,7 +458,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     render: (alpha) => behaviors.render(alpha),
     reloadAssets(next, changed) {
       project = next;
-      behaviors.reloadAssets(changed);
+      return behaviors.reloadAssets(changed).map(({ entityId, error, reattached }) => ({
+        entityId,
+        error: errorOf(error),
+        reattached,
+      }));
     },
     scene() {
       if (!loadedScene) return null;

@@ -172,6 +172,22 @@ describe("spawnPose", () => {
     });
   });
 
+  it("puts a decor at its point, turned by its transform", () => {
+    expect(pose({ type: "decor", at: [7, 9], behaviors: { sprite: {} } })).toEqual({
+      x: 7,
+      y: 9,
+      rot: 0,
+    });
+    expect(
+      pose({
+        type: "decor",
+        at: [7, 9],
+        behaviors: { sprite: {} },
+        transform: { turn: 1, flip: false },
+      }),
+    ).toEqual({ x: 7, y: 9, rot: Math.PI / 2 });
+  });
+
   it("puts a follower at its first path point plus its shape's offset", () => {
     expect(
       pose({ type: "follower", shape: box(10, -4, 30, 8, 30), path: path([400, 600], [800, 600]) }),

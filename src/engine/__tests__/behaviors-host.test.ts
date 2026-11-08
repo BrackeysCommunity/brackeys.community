@@ -25,14 +25,17 @@ const BOOM = "test-game/boom";
 const TICKED = "test-game/ticked";
 const SKIN = "test-game/skin";
 const DECAL = "test-game/decal";
+const BRITTLE = "test-game/brittle";
 
 /**
  * The test game plus logging behaviors and a logging `probe` type, all
  * writing to one log: a stepping behavior with every hook, one with no
- * `update`, a visual-only one, and one that throws on attach when asked.
+ * `update`, a visual-only one, one that throws on attach when asked, and
+ * one naming a texture that throws when `breaks` says so.
  */
 function loggingGame() {
   const log: string[] = [];
+  const breaks = { update: false, attach: false };
 
   const probe = defineEntityType({
     type: "probe",
@@ -142,10 +145,30 @@ function loggingGame() {
     system: (ctx) => logging(DECAL, ctx, false),
   });
 
+  const brittle = defineBehavior({
+    name: BRITTLE,
+    description: "Names a texture; throws on update or attach as `breaks` says.",
+    fields: art,
+    system: (ctx) => {
+      const inner = logging(BRITTLE, ctx, false);
+      return {
+        ...inner,
+        attach(id, block, e) {
+          if (breaks.attach) throw new Error(`attach broke on ${id}`);
+          inner.attach(id, block, e);
+        },
+        update(id) {
+          if (breaks.update) throw new Error(`update broke on ${id}`);
+          log.push(`update brittle ${id}`);
+        },
+      };
+    },
+  });
+
   const game: GameDefinition<TestGameSnapshot> = defineGame<TestGameSnapshot>({
     ...(testGame as GameDefinition<TestGameSnapshot>),
     types: [...testGame.types, probe],
-    behaviors: [GLOW, SPIN, tick, plain, shade, boom, skin, decal],
+    behaviors: [GLOW, SPIN, tick, plain, shade, boom, skin, decal, brittle],
     createRuntime(ctx) {
       const inner = testGame.createRuntime(ctx);
       return {
@@ -161,7 +184,7 @@ function loggingGame() {
       };
     },
   });
-  return { game, log };
+  return { game, log, breaks };
 }
 
 function scene(entities: RuntimeEntity[]): ExpandedScene {
@@ -185,10 +208,10 @@ const probe = (
 ): RuntimeEntity => ({ id, type: "probe", at, behaviors });
 
 function setup(withView = false) {
-  const { game, log } = loggingGame();
+  const { game, log, breaks } = loggingGame();
   const view = withView ? recordingView().view : null;
   const rt = createSceneRuntime({ rapier, view, game });
-  return { rt, log };
+  return { rt, log, breaks };
 }
 
 describe("behavior host", () => {
@@ -400,6 +423,48 @@ describe("behavior host", () => {
     rt.reloadAssets(null, ["crate"]);
     expect(log.some((l) => l.includes(" a "))).toBe(false);
     expect(rt.ctx.tick).toBe(tick);
+    rt.destroy();
+  });
+
+  it("keeps redrawing past an entity whose reload throws, reattaching it and reporting it", () => {
+    const { rt, log, breaks } = setup();
+    rt.load(
+      scene([
+        probe("a", { [SKIN]: { art: "crate" } }),
+        probe("b", { [BRITTLE]: { art: "crate" }, [TICK]: { n: 1 } }),
+        probe("c", { [DECAL]: { art: "crate" } }),
+      ]),
+    );
+    log.length = 0;
+    breaks.update = true;
+    expect(rt.reloadAssets(null, ["crate"])).toEqual([
+      { entityId: "b", error: "update broke on b", reattached: true },
+    ]);
+    expect(log).toEqual([
+      'update skin a {"art":"crate"}->{"art":"crate"}',
+      "detach brittle b",
+      "detach tick b",
+      'attach tick b {"n":1} pose=1,2',
+      'attach brittle b {"art":"crate"} pose=1,2',
+      "detach decal c",
+      'attach decal c {"art":"crate"} pose=1,2',
+    ]);
+    expect(rt.stats().behaviors).toEqual({ [SKIN]: 1, [BRITTLE]: 1, [TICK]: 1, [DECAL]: 1 });
+
+    breaks.attach = true;
+    log.length = 0;
+    expect(rt.reloadAssets(null, ["crate"])).toEqual([
+      { entityId: "b", error: "update broke on b", reattached: false },
+    ]);
+    expect(log.at(-1)).toBe('attach decal c {"art":"crate"} pose=1,2');
+    expect(rt.stats().behaviors).toEqual({ [SKIN]: 1, [DECAL]: 1 });
+    expect(rt.get("b")).toBeDefined();
+
+    breaks.update = false;
+    breaks.attach = false;
+    log.length = 0;
+    expect(rt.reloadAssets(null, ["crate"])).toEqual([]);
+    expect(log.some((l) => l.includes(" b"))).toBe(false);
     rt.destroy();
   });
 });

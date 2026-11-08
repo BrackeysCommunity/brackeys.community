@@ -32,6 +32,13 @@ export type AssetLoader = TextureSource & {
 
 const DEFAULT_BUDGET_BYTES = 256 * 1024 * 1024;
 
+/**
+ * Unloads still settling, by URL. Pixi keeps a URL's cached load until its
+ * unload has awaited it, so a load issued in that window would get the
+ * texture about to be destroyed. Module-wide because `Assets` is.
+ */
+const unloading = new Map<string, Promise<void>>();
+
 type Resident = { texture: Texture; url: string; bytes: number; used: number };
 
 /** Decoded RGBA bytes: what a texture costs the GPU, whatever its file weighed. */
@@ -71,7 +78,13 @@ export function createAssetLoader(opts: {
   let destroyed = false;
 
   function unload(resident: Resident): void {
-    void Assets.unload(resident.url).catch(() => {});
+    const { url } = resident;
+    const done: Promise<void> = Assets.unload(url)
+      .catch(() => {})
+      .finally(() => {
+        if (unloading.get(url) === done) unloading.delete(url);
+      });
+    unloading.set(url, done);
   }
 
   function fetchOne(hash: Sha256, entry: BundleEntry): Promise<boolean> {
@@ -81,6 +94,7 @@ export function createAssetLoader(opts: {
     const job = (async () => {
       let texture: Texture;
       try {
+        await unloading.get(url);
         texture = await Assets.load<Texture>({ src: url, parser: "texture" });
       } catch {
         return false;

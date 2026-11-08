@@ -1235,8 +1235,12 @@ runtime view, and calls `game.reloadAssets({ project, view, changed })`:
 the loader fetches the new hash and each sprite naming the asset (or an
 atlas cut from it) redraws through its system's `update`. The scene isn't
 reloaded and the world isn't rebuilt, so the runtime and its tick carry
-on. Only the dev server sends the message; a hosted project picks up new
-art when a scene next loads.
+on. A new `project` re-resolves the project bundle from its game settings,
+so a settings asset field pointed at another texture loads it too. An
+entity whose redraw throws is detached and attached afresh (left detached
+if that throws again) while the rest still redraw; it comes back in the
+result's `errors`, which the editor logs in dev. Only the dev server sends
+the message; a hosted project picks up new art when a scene next loads.
 
 ## Behaviors at runtime
 

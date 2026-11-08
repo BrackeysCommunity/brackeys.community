@@ -22,7 +22,7 @@ type FakeTexture = {
 
 const pixi = vi.hoisted(() => ({
   load: vi.fn(),
-  unload: vi.fn(async () => {}),
+  unload: vi.fn(async (_src: string) => {}),
 }));
 
 vi.mock("pixi.js", () => ({ Assets: pixi }));
@@ -226,6 +226,43 @@ describe("createAssetLoader", () => {
     expect(loader.get(hash(2))).toBeNull();
     expect(pixi.unload).toHaveBeenCalledWith(`/blobs/${hash(2)}`);
     expect(await loader.load(a)).toEqual({ failed: [entry("x", 1)] });
+  });
+
+  it("reloads an evicted hash only after its unload settles, getting a fresh texture", async () => {
+    serve(1);
+    // Pixi's cache: a URL's load promise stays cached until its unload has awaited it.
+    const cache = new Map<string, Promise<FakeTexture & { destroyed?: boolean }>>();
+    const fresh = pixi.load.getMockImplementation()!;
+    pixi.load.mockImplementation((asset: { src: string; parser?: string }) => {
+      let cached = cache.get(asset.src);
+      if (!cached) cache.set(asset.src, (cached = fresh(asset)));
+      return cached;
+    });
+    let finishUnload!: () => void;
+    pixi.unload.mockImplementationOnce(async (src: string) => {
+      const texture = await cache.get(src)!;
+      await new Promise<void>((r) => (finishUnload = r));
+      cache.delete(src);
+      texture.destroyed = true;
+    });
+    const loader = createAssetLoader({ project: "p", url, budgetBytes: 0 });
+    const level = bundle("level", [entry("a", 1)]);
+    await loader.load(level);
+    const old = loader.get(hash(1));
+    loader.retain(level);
+
+    loader.release(level);
+    const reload = loader.load(level);
+    await vi.waitFor(() => expect(finishUnload).toBeTypeOf("function"));
+    expect(pixi.load).toHaveBeenCalledTimes(1);
+    finishUnload();
+    expect(await reload).toEqual({ failed: [] });
+
+    const resident = loader.get(hash(1)) as (FakeTexture & { destroyed?: boolean }) | null;
+    expect(resident).not.toBeNull();
+    expect(resident).not.toBe(old);
+    expect(resident!.destroyed).toBeUndefined();
+    expect((old as { destroyed?: boolean }).destroyed).toBe(true);
   });
 
   it("keeps its state per loader", async () => {

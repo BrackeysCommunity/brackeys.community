@@ -6239,6 +6239,11 @@ declare function probeConfigHash(game?: GameDefinition | null): string;
 declare function spawnPose(e: RuntimeEntity, registry: Registry): Pose;
 
 ## runtime/types.ts
+type AssetReloadError = {
+    entityId: string;
+    error: string;
+    reattached: boolean;
+};
 type LoadReport = {
     counts: Record<EntityTypeName, number>;
     ms: number;
@@ -6281,7 +6286,7 @@ type SceneRuntime = {
 type SceneRuntimeHandle = SceneRuntime & {
     readonly ctx: EngineContext;
     readonly game: GameRuntime | null;
-    reloadAssets: (project: ProjectRuntimeView | null, changed: readonly AssetId[]) => void;
+    reloadAssets: (project: ProjectRuntimeView | null, changed: readonly AssetId[]) => AssetReloadError[];
     render: (alpha: number) => void;
     scene: () => ExpandedScene | null;
 };
@@ -8651,6 +8656,7 @@ type GameInstance = {
         project: ProjectRuntimeView | null;
         view: ProjectView;
     }) => Promise<{
+        errors: AssetReloadError[];
         failed: BundleEntry[];
     }>;
     replay: (doc: SceneDefinition, recording: RunRecording) => PlayReport;
