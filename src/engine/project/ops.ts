@@ -562,7 +562,13 @@ class BatchWork {
   /** Assets the batch trashes without `force`, judged for references once every op has run. */
   private readonly trashing = new Map<
     AssetId,
-    { entry: AssetEntry; index: number; by: "deleteAsset" | "editScene" }
+    {
+      entry: AssetEntry;
+      index: number;
+      by: "deleteAsset" | "editScene";
+      /** A scene whose own value the batch couldn't work out, so it isn't judged as a referrer. */
+      unread?: AssetId;
+    }
   >();
   /** What a delegated `editScene` leaves its scene and prefabs, by key: read only to find references. */
   private readonly leaves = new Map<AssetKey, unknown>();
@@ -644,11 +650,11 @@ class BatchWork {
     const index = buildRefIndex(this.view, values, this.env.kinds, this.kindEnv());
     const gone = (id: AssetId) => this.trashing.has(id);
     const order = [...this.trashing.values()].sort((a, b) => a.index - b.index);
-    for (const { entry, index: opIndex, by } of order) {
+    for (const { entry, index: opIndex, by, unread } of order) {
       // A later op of the batch restored it, or gave its id to another asset.
       if (by === "deleteAsset" && this.view.byId.has(entry.id)) continue;
       const issue = inUseIssue(index, entry, {
-        skip: gone,
+        skip: (id) => gone(id) || id === unread,
         remedy:
           by === "deleteAsset"
             ? "repoint or remove those references first, or delete with force"
@@ -970,14 +976,31 @@ class BatchWork {
   /**
    * Runs scene ops on what the batch leaves a scene, for the references
    * `trashedInUse` judges: the scene's value, each prefab they change, and
-   * each prefab they remove (to be judged as trashed). The prefab writer
-   * judges and writes delegated ops, so a refusal here only skips them.
+   * each prefab they remove (to be judged as trashed); a prefab a later op
+   * defines again isn't trashed. The prefab writer applies delegated ops
+   * without that check, so when they don't run here each prefab they
+   * remove is still judged, against every referrer but the scene.
    */
   private leave(entry: AssetEntry, ops: SceneOp[]): void {
     const own = (this.leaves.has(entry.key) ? this.leaves.get(entry.key) : this.peek(entry)) as
       | SceneDefinition
       | undefined;
-    if (own === undefined) return;
+    const unread = () => {
+      this.leaves.delete(entry.key);
+      const removes = new Map<AssetId, boolean>();
+      for (const op of ops) if (op.op === "definePrefab") removes.set(op.id, op.prefab === null);
+      for (const [id, removed] of removes) {
+        const prefab = removed ? this.view.byId.get(id) : undefined;
+        if (prefab?.kind === PREFAB_KIND)
+          this.trashing.set(id, {
+            entry: prefab,
+            index: this.opIndex,
+            by: "editScene",
+            unread: entry.id,
+          });
+      }
+    };
+    if (own === undefined) return unread();
     const prefabs = this.prefabsFor(entry);
     let batch: OpBatch = { ops };
     if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(own) };
@@ -985,18 +1008,17 @@ class BatchWork {
       ...(prefabs ? { prefabs } : {}),
       validate: "none",
     });
-    if (!result.ok) {
-      this.leaves.delete(entry.key);
-      return;
-    }
+    if (!result.ok) return unread();
     this.leaves.set(entry.key, result.def);
     if (!result.prefabsChanged || !result.prefabs) return;
     for (const id of result.prefabsChanged) {
       const prefab = this.view.byId.get(id);
       if (prefab?.kind !== PREFAB_KIND) continue;
       const next = result.prefabs.get(id);
-      if (next) this.leaves.set(prefab.key, next);
-      else if (prefabs?.has(id))
+      if (next) {
+        this.leaves.set(prefab.key, next);
+        if (this.trashing.get(id)?.by === "editScene") this.trashing.delete(id);
+      } else if (prefabs?.has(id))
         this.trashing.set(id, { entry: prefab, index: this.opIndex, by: "editScene" });
     }
   }

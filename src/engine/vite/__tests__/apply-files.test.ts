@@ -88,7 +88,7 @@ describe("applyProjectBatchToFiles", () => {
 
   it("changes an id across docs: the prefab's file and every scene that names it", async () => {
     const result = await apply([{ op: "changeAssetId", id: "gate", to: "door" }]);
-    expect(result.ok || result.issue).toBe(true);
+    expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
     expect(JSON.parse(await copy.read("prefabs/gate.json")).id).toBe("door");
     const sink = JSON.parse(await copy.read("kitchen-sink.json"));
     expect(sink.instances.map((i: { prefab: string }) => i.prefab)).toEqual([
@@ -197,7 +197,7 @@ describe("applyProjectBatchToFiles", () => {
         ],
       },
     ]);
-    expect(result.ok || result.issue).toBe(true);
+    expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
     expect((await files())["prefabs/post.json"]).toBeUndefined();
   });
 

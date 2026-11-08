@@ -379,12 +379,14 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   judges it, and a `deleteAsset` without `force`, once the whole batch has
   run, against what the batch leaves every referrer (a delegated
   `editScene`'s scene included): removing the last instances in the same
-  batch, here or in another scene, or deleting the referrer, still works,
-  and a reference another op of the batch adds is refused before anything
-  is written. In the editor, the scene's own prefab writer judges a
-  removal against the docs the browser holds open; a reference in a scene
-  it hasn't opened is caught by the project's writer on store, which
-  restores the prefab.
+  batch, here or in another scene, deleting the referrer, or defining the
+  prefab again in a later `editScene`, still works, and a reference
+  another op of the batch adds is refused before anything is written. In
+  the editor, the scene's own prefab writer judges a removal against the
+  docs the browser holds open; a reference in a scene it hasn't opened is
+  caught by the dev server on store, which reads every scene that can
+  name it (open or not, from its persisted state or file) and restores the
+  prefab.
 - `scene apply` reports the unchanged file's `sceneHash` when the project
   refuses the batch, so a retry with `--base` that hash isn't stale.
 - A material's bulk keys (`solid:<material>`, a prefab's `bulk` too) and

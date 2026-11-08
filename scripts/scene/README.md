@@ -690,8 +690,8 @@ Project batches add their own:
   `--force` to delete it anyway. A `definePrefab` with `"prefab": null` on
   a prefab another asset still places gets it too, live and on files; it
   has no force. In the editor, a removal is judged against the scenes the
-  browser has open, and the project's server restores a prefab a closed scene
-  still places.
+  browser has open, and the dev server restores a prefab a scene still
+  places, open or not.
 - `asset-id-taken` / `path-taken`: another live asset holds the id or the
   path.
 - `hash-mismatch`: uploaded bytes hash to something other than the hash

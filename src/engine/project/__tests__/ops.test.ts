@@ -784,6 +784,91 @@ describe("references", () => {
     });
   });
 
+  describe("editScene removing a prefab", () => {
+    const field = { ...yard, name: "field", entities: [] };
+    const sharedState: ProjectState = {
+      ...refState,
+      assets: {
+        ...refState.assets,
+        field: entry("field", { id: "field", kind: "scene", path: "levels/field.json" }),
+      },
+    };
+    const shared = (over: Record<string, unknown> = {}) => {
+      const d = docs();
+      d.set("field", structuredClone(field));
+      for (const [k, v] of Object.entries(over)) {
+        if (v === undefined) d.delete(k);
+        else d.set(k, v);
+      }
+      return d;
+    };
+    const delegated: Partial<ProjectBatchEnv> = {
+      prefabsFor: () => new Map([["gate", structuredClone(gate) as never]]),
+      prefabEdit: () => null,
+    };
+    const drop: ProjectOp = {
+      op: "editScene",
+      id: "yard",
+      ops: [
+        { op: "remove", refs: ["g1"] },
+        { op: "definePrefab", id: "gate", prefab: null },
+      ],
+    };
+    const run = (ops: ProjectOp[], d = shared()) =>
+      check(ops, { state: sharedState, docs: d, env: delegated });
+
+    it("refuses one another scene still places, naming it", () => {
+      const r = run([drop]);
+      if (r.ok) throw new Error("expected asset-in-use");
+      expect([r.opIndex, r.issue.code, r.issue.path, r.issue.detail]).toEqual([
+        0,
+        "asset-in-use",
+        "/ops/0/ops",
+        { referrers: [{ id: "field", pointer: "/instances/@g1/prefab" }] },
+      ]);
+      expect(run([drop], shared({ field: { ...field, instances: [] } })).ok).toBe(true);
+    });
+
+    it("lets it go when a later editScene defines it again", () => {
+      const again: ProjectOp = {
+        op: "editScene",
+        id: "field",
+        ops: [{ op: "definePrefab", id: "gate", prefab: { entities: gate.entities as never } }],
+      };
+      const r = run([drop, again]);
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.delegated).toEqual([0, 1]);
+      const r2 = run([again, drop]);
+      expect(r2.ok ? undefined : r2.issue.code).toBe("asset-in-use");
+    });
+
+    it("still judges the removal when the scene's ops don't run on what the batch leaves it", () => {
+      const first: ProjectOp = {
+        op: "editScene",
+        id: "yard",
+        ops: [{ op: "remove", refs: ["g1"] }],
+      };
+      const r = run([first, drop]);
+      if (r.ok) throw new Error("expected asset-in-use");
+      expect([r.opIndex, r.issue.code, r.issue.detail]).toEqual([
+        1,
+        "asset-in-use",
+        { referrers: [{ id: "field", pointer: "/instances/@g1/prefab" }] },
+      ]);
+      // The scene whose value is unknown isn't counted, so with no other referrer it goes.
+      expect(run([first, drop], shared({ field: { ...field, instances: [] } })).ok).toBe(true);
+    });
+
+    it("still judges the removal when the batch isn't given the scene's value", () => {
+      const r = run([drop], shared({ yard: undefined }));
+      if (r.ok) throw new Error("expected asset-in-use");
+      expect([r.issue.code, r.issue.detail]).toEqual([
+        "asset-in-use",
+        { referrers: [{ id: "field", pointer: "/instances/@g1/prefab" }] },
+      ]);
+    });
+  });
+
   describe("changeAssetId", () => {
     it("rewrites a scene's references in its docs that name it, at the atomic value that holds them", () => {
       const r = good([{ op: "changeAssetId", id: "yard", to: "court" }]);

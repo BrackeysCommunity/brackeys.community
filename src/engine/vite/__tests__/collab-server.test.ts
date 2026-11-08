@@ -281,6 +281,58 @@ describe("the dev collab server: the project doc", () => {
     expect(warnings.some((w) => w.includes("asset-in-use"))).toBe(true);
   });
 
+  it("restores a trashed prefab a scene nobody has open still names", async () => {
+    await start(["kitchen-sink.json", "prefabs/post.json", "prefabs/gate.json"]);
+    const project = await open(PROJECT);
+    const sink = docNameOf({ kind: "scene", project: "engine", key: "kitchen-sink" });
+    const result = applyRegistryBatch(
+      project.doc,
+      { v: 1, ops: [{ op: "deleteAsset", id: "gate", force: true }] },
+      ada,
+      { registry: registry(), kinds: copy.project.kinds },
+    );
+    expect(result.ok).toBe(true);
+    await pushed(project.provider);
+    await until(
+      () => readProjectLog(project.doc).some((e) => e.actor.kind === "repair"),
+      "the repair",
+    );
+    expect(server.server.hocuspocus.documents.has(sink)).toBe(false);
+    expect(readProject(project.doc).assets.gate!.deleted).toBeUndefined();
+    expect(readProjectLog(project.doc).at(-1)).toMatchObject({
+      actor: { kind: "repair", reason: "asset-in-use" },
+      label: "Restore gate",
+    });
+    await server.idle();
+    expect(await copy.read("prefabs/gate.json")).toContain('"id": "gate"');
+
+    // Nothing names post once the scene drops it on disk, so trashing it stays.
+    const sinkText = await copy.read("kitchen-sink.json");
+    const dropped = sinkText.replace(/^\s*\{ "id": "post-\d", "prefab": "post".*\n/gm, "");
+    expect(dropped).not.toContain('"post"');
+    await writeFile(copy.file("kitchen-sink.json"), dropped);
+    await new Promise((r) => setTimeout(r, 100));
+    await server.idle();
+    const trashed = applyRegistryBatch(
+      project.doc,
+      { v: 1, ops: [{ op: "deleteAsset", id: "post", force: true }] },
+      ada,
+      { registry: registry(), kinds: copy.project.kinds },
+    );
+    expect(trashed.ok).toBe(true);
+    await pushed(project.provider);
+    await until(
+      () =>
+        copy.read("prefabs/post.json").then(
+          () => false,
+          () => true,
+        ),
+      "the trash",
+    );
+    await server.idle();
+    expect(readProject(project.doc).assets.post!.deleted).toBeDefined();
+  });
+
   it("points a binary whose bytes the store lacks back at its file's (hash-mismatch)", async () => {
     await start();
     const png = await fixture("texture.png");

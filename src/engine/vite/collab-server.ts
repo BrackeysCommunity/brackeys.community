@@ -5,7 +5,7 @@ import { sep } from "node:path";
 import type { Duplex } from "node:stream";
 
 import type { DirectConnection, Server as HocuspocusServer } from "@hocuspocus/server";
-import type * as Y from "yjs";
+import * as Y from "yjs";
 
 import { buildAtFrom, stampWins } from "../collab/build-stamp";
 import { applyRepairs, reinspectBlobs } from "../collab/project-apply";
@@ -22,7 +22,7 @@ import type { ContentStore } from "../project/content-store";
 import { docNameOf, parseDocName } from "../project/doc-names";
 import type { KindEnv } from "../project/kinds";
 import { buildRefIndex, referencedTrash } from "../project/refs";
-import type { AssetId, AssetKey, ProjectId, ProjectState } from "../project/types";
+import type { AssetId, AssetKey, ProjectId, ProjectState, ProjectView } from "../project/types";
 import { projectView } from "../project/view";
 import { ENGINE_VERSION } from "../version";
 import { fileContentStore } from "./content-store";
@@ -120,6 +120,8 @@ type Served = {
   checked: Map<AssetKey, string>;
   /** The last write `blockedWrite` reported, so a held path warns once. */
   blocked?: string;
+  /** What `repair` read of docs no client has open, by key; dropped on any file event or unload. */
+  closed: Map<AssetKey, unknown>;
   hold?: Promise<DirectConnection>;
 };
 
@@ -132,8 +134,8 @@ type Served = {
  * trash on store, persists every doc, and turns file changes under the
  * project into `disk` transactions and registry ops. On each store of a
  * project doc it repairs binaries whose bytes the content store lacks
- * (`hash-mismatch`), restores trashed assets a loaded doc still names
- * (`asset-in-use`), re-inspects binaries whose meta lags their bytes or
+ * (`hash-mismatch`), restores trashed assets a live doc still names, open or
+ * not (`asset-in-use`), re-inspects binaries whose meta lags their bytes or
  * merged settings, and repairs duplicate ids and paths. It writes the code
  * map and this build's schema stamps when a project doc loads, and sends
  * `asset:changed` on the project doc whenever a binary's hash changes: on
@@ -160,6 +162,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       name: docNameOf({ kind: "project", project: id }),
       env: { registry: project.registry, project: null },
       checked: new Map(),
+      closed: new Map(),
     });
   }
 
@@ -221,6 +224,64 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     }, BUILD_REPAIR);
   }
 
+  /**
+   * A closed doc's value, read from its persisted state or file into a doc
+   * of its own and let go; undefined when it doesn't load.
+   */
+  async function closedValue(s: Served, name: string, key: AssetKey): Promise<unknown> {
+    if (s.closed.has(key)) return s.closed.get(key);
+    const scratch = new Y.Doc();
+    let value: unknown;
+    try {
+      await s.adapter.loadDoc(name, scratch);
+      value = s.adapter.valueOf(name, scratch);
+    } catch {
+      // A file that doesn't parse names nothing until it does; its file event drops this.
+    } finally {
+      s.adapter.forget(name);
+      scratch.destroy();
+    }
+    s.closed.set(key, value);
+    return value;
+  }
+
+  /**
+   * Every live doc's value that can name a trashed asset: the open docs',
+   * and, while anything is in the trash, the closed ones' that hold
+   * references, so a trashed asset a scene nobody has open still places is
+   * restored too.
+   */
+  async function liveValues(
+    s: Served,
+    state: ProjectState,
+    view: ProjectView,
+  ): Promise<Map<AssetId, unknown>> {
+    const values = new Map<AssetId, unknown>();
+    const open = new Set<AssetKey>();
+    for (const [name, doc] of server.hocuspocus.documents) {
+      const ref = parseDocName(name);
+      if (!ref || ref.kind === "project" || ref.project !== s.project.file.id) continue;
+      open.add(ref.key);
+      const entry = state.assets[ref.key];
+      if (!entry || entry.deleted) continue;
+      try {
+        const value = s.adapter.valueOf(name, doc);
+        if (value !== undefined) values.set(entry.id, value);
+      } catch {
+        // A doc whose entry changed kind meanwhile is read again on its next store.
+      }
+    }
+    if (!view.deleted.some((e) => !view.byId.has(e.id))) return values;
+    for (const entry of view.byId.values()) {
+      if (open.has(entry.key) || values.has(entry.id)) continue;
+      const def = s.project.kinds.get(entry.kind);
+      if (def?.storage !== "doc" || !def.refs) continue;
+      const value = await closedValue(s, s.adapter.docNameOf(entry), entry.key);
+      if (value !== undefined) values.set(entry.id, value);
+    }
+    return values;
+  }
+
   /** The store-time duties of the project's one writer. */
   async function repair(s: Served, doc: Y.Doc): Promise<void> {
     for (const r of await s.adapter.repairBlobs(doc, HASH_REPAIR))
@@ -234,20 +295,8 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       checked: s.checked,
     });
     const state = readProject(doc);
-    const values = new Map<AssetId, unknown>();
-    for (const [name, open] of server.hocuspocus.documents) {
-      const ref = parseDocName(name);
-      if (!ref || ref.kind === "project" || ref.project !== s.project.file.id) continue;
-      const entry = state.assets[ref.key];
-      if (!entry || entry.deleted) continue;
-      try {
-        const value = s.adapter.valueOf(name, open);
-        if (value !== undefined) values.set(entry.id, value);
-      } catch {
-        // A doc whose entry changed kind meanwhile is read again on its next store.
-      }
-    }
     const view = projectView(state, s.project.kinds);
+    const values = await liveValues(s, state, view);
     const restore = referencedTrash(view, buildRefIndex(view, values, s.project.kinds, s.env));
     const fixed = applyRepairs(doc, restore.length > 0 ? { restore, origin: IN_USE_REPAIR } : {});
     if (fixed.restored.length > 0)
@@ -350,7 +399,11 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     async afterUnloadDocument({ documentName }) {
       const ref = parseDocName(documentName);
       const s = ref ? served.get(ref.project) : undefined;
-      if (s) await enqueue(s.project.file.id, async () => s.adapter.forget(documentName));
+      if (!ref || !s) return;
+      await enqueue(s.project.file.id, async () => {
+        s.adapter.forget(documentName);
+        if (ref.kind !== "project") s.closed.delete(ref.key);
+      });
     },
   });
 
@@ -415,6 +468,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     try {
       const watcher = watch(s.project.dir, { recursive: true }, (_event, name) => {
         if (!name || !docOf(s.name)) return;
+        s.closed.clear();
         const file = String(name).split(sep).join("/");
         if (s.adapter.watches(file)) schedule(s, file, watchDelay, false);
         if (isCodePath(s.project.file, file))
