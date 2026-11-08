@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { MATERIAL_KIND, projectMaterialOf } from "../project/kinds/material";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
+import { FIELD_NAME_PATTERN } from "../scene/field-path";
 import { ISSUE_CODES } from "../scene/issues";
 import { DEFAULT_LAYERS, type SceneLayerDef } from "../scene/layers";
 import { fieldKind } from "../scene/schema";
@@ -109,7 +110,6 @@ export type CreateRegistryOptions = {
 };
 
 /** What a type's field may be named: a JS identifier, so `@`-prefixed collab layout keys never collide. */
-const FIELD_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 const noAssets: FieldEnv["assets"] = () => [];
 
@@ -304,8 +304,8 @@ export function createRegistry(
     }
     const shape = typeof def.fields === "function" ? def.fields(env) : def.fields;
     for (const key of Object.keys(shape)) {
-      if (!FIELD_NAME.test(key))
-        problem(`behavior "${name}" field "${key}" must match ${FIELD_NAME}`);
+      if (!FIELD_NAME_PATTERN.test(key))
+        problem(`behavior "${name}" field "${key}" must match ${FIELD_NAME_PATTERN}`);
     }
     behaviors.set(name, { ...def, origin, shape, index: behaviors.size });
     behaviorDefaults.set(name, Object.freeze(shapeDefaults(shape)));
@@ -337,7 +337,8 @@ export function createRegistry(
     for (const key of Object.keys(shape)) {
       if (RESERVED_FIELDS.includes(key))
         problem(`type "${name}" redefines the base field "${key}"`);
-      if (!FIELD_NAME.test(key)) problem(`type "${name}" field "${key}" must match ${FIELD_NAME}`);
+      if (!FIELD_NAME_PATTERN.test(key))
+        problem(`type "${name}" field "${key}" must match ${FIELD_NAME_PATTERN}`);
     }
     if (Object.values(shape).some((schema) => fieldKind(schema) === "grid")) {
       const at = shape.at;

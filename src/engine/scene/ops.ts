@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD } from "../game/behaviors";
-import { ID_PATTERN } from "../game/fields";
+import { ID_PATTERN, Z_LIMIT } from "../game/fields";
 import type { BulkKeyInfo, Registry } from "../game/types";
 import { closest } from "./did-you-mean";
 import { bulkOffset, diffScenes, isObj, isStructured } from "./diff";
@@ -38,9 +38,9 @@ import {
 import {
   CHILD_SEPARATOR,
   gridTurns,
+  instanceOverrideEntries,
   localChild,
   mapResolvedBatch,
-  paramOverrides,
   parseChildRef,
   placeChildren,
   resolvePrefab,
@@ -992,8 +992,6 @@ function validateSettings(w: Work, settings: Json, i: number): void {
 
 // ─── Ops ─────────────────────────────────────────────────
 
-const Z_LIMIT = 10_000;
-
 /** `def` with `key` at its canonical place among the keys, or without it for `undefined`. */
 function withKey<T extends object>(def: T, key: string, value: unknown): T {
   const out: Json = {};
@@ -1448,10 +1446,14 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
         const was = t.rec.def.z ?? 0;
         const z = op.z ?? was + op.by!;
         if (!Number.isInteger(z) || Math.abs(z) > Z_LIMIT)
-          fail("op-invalid", `${ref}'s z would be ${z}; z stays within [-10000, 10000].`, {
-            entityIds: [t.rec.def.id],
-            got: String(z),
-          });
+          fail(
+            "op-invalid",
+            `${ref}'s z would be ${z}; z stays within [-${Z_LIMIT}, ${Z_LIMIT}].`,
+            {
+              entityIds: [t.rec.def.id],
+              got: String(z),
+            },
+          );
         if (t.kind === "instance") {
           const next = withZ(t.rec.def, z);
           validateInstance(w, next, () => `/ops/${i}`);
@@ -1920,7 +1922,7 @@ function validateInstance(w: Work, def: InstanceDef, relocate: Relocate): void {
   }
   const prefab = prefabOf(w, def.prefab, relocate("/prefab"));
   // A param's value lands on each of its targets as an override, under the instance's own.
-  const overrides: Json = { ...instanceParams(w, def), ...def.overrides };
+  const overrides = instanceOverrides(w, def);
   const checked: InstanceDef = { ...def, overrides };
   delete checked.params;
   const children = new Set<Ref>();
@@ -1963,13 +1965,13 @@ function validateInstance(w: Work, def: InstanceDef, relocate: Relocate): void {
   }
 }
 
-/** The overrides an instance's params make, defaults included, as resolving lays them under its own. */
-function instanceParams(w: Work, def: InstanceDef): Json {
+/** The overrides resolving lays over an instance's prefab: its params' (defaults included), then its own. */
+function instanceOverrides(w: Work, def: InstanceDef): Json {
   const resolved = resolvePrefab(def.prefab, w.prefabs, w.registry);
-  if (!resolved.ok) return {};
-  return Object.fromEntries(
-    paramOverrides(resolved.prefab.params, def.params).map(([k, v]) => [k, clone(v)]),
-  );
+  const entries = resolved.ok
+    ? instanceOverrideEntries(resolved.prefab.params, def)
+    : Object.entries(def.overrides ?? {});
+  return Object.fromEntries(entries.map(([k, v]) => [k, clone(v)]));
 }
 
 /** The header values beyond `prefabBody`'s that a prefab's body carries: its base, variant overrides, parameters and assets. */
@@ -2157,7 +2159,7 @@ function unpackOps(w: Work, inst: InstanceDef): SceneOp[] {
   const prefab = prefabOf(w, inst.prefab);
   const d = turnOf(inst);
   // The nested instances take the outer params under its overrides, as resolving does.
-  const overrides: Json = { ...instanceParams(w, inst), ...inst.overrides };
+  const overrides = instanceOverrides(w, inst);
   // Entities stay in the group's frame and `placeFragment` adds `at`, so they take only the turn.
   const children = placeChildren(
     prefab,

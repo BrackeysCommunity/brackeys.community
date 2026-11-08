@@ -7,7 +7,7 @@ import { sequentialKeys } from "../../collab/keys";
 import { layoutFromDoc, layoutToDoc } from "../../collab/layout";
 import { readLog } from "../../collab/log";
 import { docToPrefab, prefabToDoc } from "../../collab/prefab-doc";
-import { sessionPrefabSource } from "../../collab/prefab-source";
+import { sessionPrefabSource, type PrefabSource } from "../../collab/prefab-source";
 import { applyProjectBatch } from "../../collab/project-apply";
 import { seedProjectDoc } from "../../collab/project-doc";
 import { readProject } from "../../collab/project-doc";
@@ -20,8 +20,15 @@ import { prefabKind } from "../../project/kinds/prefab";
 import { sceneKind } from "../../project/kinds/scene";
 import type { ProjectOpBatch } from "../../project/ops";
 import type { AssetEntry } from "../../project/types";
+import door from "../../scene/__tests__/fixtures/prefabs/door.json";
+import gate from "../../scene/__tests__/fixtures/prefabs/gate.json";
+import room from "../../scene/__tests__/fixtures/prefabs/room.json";
+import { engine } from "../../scene/__tests__/fixtures/random-ops";
 import { formatScene } from "../../scene/format";
-import type { Prefab, SceneDefinition, ShapeTuple } from "../../scene/types";
+import { sceneHash } from "../../scene/hash";
+import { prefabLibrary } from "../../scene/prefab";
+import { resolveScene } from "../../scene/resolve";
+import type { Prefab, PrefabLibrary, SceneDefinition, ShapeTuple } from "../../scene/types";
 import {
   applyToPrefabBatch,
   asProjectBatch,
@@ -593,5 +600,81 @@ describe("prefab commands across docs", () => {
     );
     expect(refused.ok || refused.issue.code).toBe("op-invalid");
     p.destroy();
+  });
+});
+
+describe("a prefab doc's session", () => {
+  const wrap: Prefab = {
+    kind: "prefab",
+    v: 3,
+    id: "wrap",
+    entities: [],
+    bulk: { solid: [["box", 0, 0, 4, 4]] },
+    instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 1 }],
+  };
+
+  function mutableSource(start: PrefabLibrary) {
+    let lib = start;
+    const listeners = new Set<(changed: readonly string[]) => void>();
+    const source: PrefabSource = {
+      library: () => lib,
+      subscribe: (cb) => {
+        listeners.add(cb);
+        return () => listeners.delete(cb);
+      },
+      open: async () => null,
+    };
+    const set = (next: PrefabLibrary, changed: string[]) => {
+      lib = next;
+      for (const l of listeners) l(changed);
+    };
+    return { source, set };
+  }
+
+  const inside = (def: SceneDefinition, lib: PrefabLibrary) => {
+    const [minX, minY, maxX, maxY] = def.bounds;
+    return (resolveScene(def, engine, lib).entities ?? []).every((e) => {
+      const at = e.at as [number, number] | undefined;
+      return !at || (at[0] >= minX && at[0] <= maxX && at[1] >= minY && at[1] <= maxY);
+    });
+  };
+
+  it("holds a nested instance's children, and every reader hashes it alike", () => {
+    const lib = prefabLibrary([room, door, gate] as unknown as Prefab[]);
+    const { source, set } = mutableSource(lib);
+    const doc = prefabToDoc(wrap);
+    const session = createEditorSession({
+      doc,
+      origin: ada,
+      name: "wrap",
+      registry: engine,
+      prefabs: source,
+      parentBounds: [0, 0, 20, 20],
+      issuesDebounceMs: 0,
+    });
+    expect(inside(session.getDoc(), lib)).toBe(true);
+    expect(session.store.state.issues.filter((i) => i.code === "out-of-bounds")).toEqual([]);
+    const bare = readDoc(doc, { registry: engine, parentBounds: [0, 0, 20, 20] }).def;
+    expect(session.getDoc().bounds).not.toEqual(bare.bounds);
+
+    const far = structuredClone(room) as unknown as Prefab;
+    far.entities[0]!.at = [0, -3000];
+    const next = prefabLibrary([far, door, gate] as unknown as Prefab[]);
+    const before = session.getHash();
+    set(next, ["room"]);
+    expect(session.getHash()).not.toBe(before);
+    expect(session.getHash()).toBe(
+      sceneHash(
+        readDoc(doc, { registry: engine, parentBounds: [0, 0, 20, 20], prefabs: next }).def,
+      ),
+    );
+    expect(inside(session.getDoc(), next)).toBe(true);
+
+    const r = session.dispatch({
+      base: session.getHash(),
+      ops: [{ op: "move", refs: ["~solid:0"], by: [2, 0] }],
+    });
+    expect(r.ok || r.issue).toBe(true);
+    session.destroy();
   });
 });

@@ -1528,6 +1528,7 @@ type PrefabDocHeader = {
 };
 type ReadDocOptions = {
     parentBounds?: Bounds;
+    prefabs?: PrefabLibrary;
     registry?: Registry;
 };
 type SceneToDocOptions = {
@@ -1559,7 +1560,7 @@ declare function patchMap(map: Y.Map<unknown>, next: Readonly<Record<string, unk
 declare function patchRecord(map: Y.Map<unknown>, prev: EntityRecord, next: EntityRecord): void;
 declare const prefabHeaderMap: (doc: Y.Doc) => Y.Map<unknown>;
 declare const prefabOverridesMap: (doc: Y.Doc) => Y.Map<unknown>;
-declare function prefabSceneBounds(prefab: Pick<Prefab, "bulk" | "entities" | "instances" | "v">, parent?: Bounds, registry?: Registry): Bounds;
+declare function prefabSceneBounds(prefab: Pick<Prefab, "bulk" | "entities" | "instances" | "v">, parent?: Bounds, registry?: Registry, prefabs?: PrefabLibrary): Bounds;
 declare const prefabsMap: (doc: Y.Doc) => Y.Map<unknown>;
 declare function readAssets(doc: Y.Doc): AssetId[];
 declare function readDoc(doc: Y.Doc, opts?: ReadDocOptions): DocView;

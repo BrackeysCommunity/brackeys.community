@@ -520,6 +520,17 @@ export function paramOverrides(
 }
 
 /**
+ * What an instance lays over its prefab, in order, later beating earlier:
+ * its params (against the resolved prefab's `params`), then its overrides.
+ */
+export function instanceOverrideEntries(
+  params: Readonly<Record<string, PrefabParam>>,
+  inst: Pick<InstanceDef, "overrides" | "params">,
+): [OverridePath, unknown][] {
+  return [...paramOverrides(params, inst.params), ...Object.entries(inst.overrides ?? {})];
+}
+
+/**
  * `prefab` with an instance's overrides of its nested instances laid over,
  * and the overrides left for its own children. A key under a nested
  * instance (`door-1/panel.path.speed`, `door-1/latch.rot`) moves down into
@@ -652,11 +663,7 @@ function instanceLocal(
 ): Overlaid {
   const base = resolveGiven(prefab, ctx);
   if (!base.ok) return base;
-  const entries = [
-    ...paramOverrides(base.value.prefab.params, inst.params),
-    ...Object.entries(inst.overrides ?? {}),
-  ];
-  return overlaid(prefab, base, entries, ctx);
+  return overlaid(prefab, base, instanceOverrideEntries(base.value.prefab.params, inst), ctx);
 }
 
 function localCtx(
@@ -984,7 +991,7 @@ function ownFrameChild(
   return child ? { child: { ...child, child: ref }, steps, z } : null;
 }
 
-/** What an instance lays over its prefab, in order: its params as overrides of their targets, then its overrides. */
+/** `instanceOverrideEntries`, or only the instance's overrides when its prefab doesn't resolve. */
 function instanceEntries(
   prefab: Prefab,
   inst: InstanceDef,
@@ -992,10 +999,10 @@ function instanceEntries(
   library: PrefabLibrary | undefined,
   cells: boolean,
 ): [OverridePath, unknown][] {
-  const entries = Object.entries(inst.overrides ?? {});
-  if (!library) return entries;
-  const res = resolveGiven(prefab, localCtx(registry, library, { cells }));
-  return res.ok ? [...paramOverrides(res.value.prefab.params, inst.params), ...entries] : entries;
+  const res = library && resolveGiven(prefab, localCtx(registry, library, { cells }));
+  return res?.ok
+    ? instanceOverrideEntries(res.value.prefab.params, inst)
+    : Object.entries(inst.overrides ?? {});
 }
 
 /**

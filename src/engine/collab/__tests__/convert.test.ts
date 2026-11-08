@@ -218,6 +218,49 @@ function patchOnly(doc: Y.Doc, edit: (fields: Record<string, unknown>) => void):
   doc.transact(() => patchRecord(map, prev, next));
 }
 
+describe("kept nested maps", () => {
+  it("a named entity keeps an empty behaviors map, an instance empty params and overrides, and they read as absent", () => {
+    const entity = stored({ [Z_FIELD]: "a0", id: "e", type: "marker", at: [1, 1] });
+    expect(entity.get("behaviors")).toBeInstanceOf(Y.Map);
+    expect(recordOf(entity)).toEqual({ [Z_FIELD]: "a0", id: "e", type: "marker", at: [1, 1] });
+    const inst = stored({ [Z_FIELD]: "a1", id: "p", prefab: "post", at: [0, 0] });
+    expect(inst.get("params")).toBeInstanceOf(Y.Map);
+    expect(inst.get("overrides")).toBeInstanceOf(Y.Map);
+    expect(recordOf(inst)).toEqual({ [Z_FIELD]: "a1", id: "p", prefab: "post", at: [0, 0] });
+    const bulk = stored({
+      [Z_FIELD]: "a2",
+      [BULK_FIELD]: "solid",
+      type: "solid",
+      shape: ["box", 0, 0, 1, 1],
+    });
+    expect(bulk.has("behaviors")).toBe(false);
+  });
+
+  it("removing the last behavior empties the map in place", () => {
+    const doc = sceneToDoc(
+      base({
+        entities: [{ id: "e", type: "marker", at: [1, 1], behaviors: { spin: { speed: 1 } } }],
+      }),
+    );
+    const kept = onlyEntity(doc).get("behaviors");
+    patchOnly(doc, (f) => delete f.behaviors);
+    expect(onlyEntity(doc).get("behaviors")).toBe(kept);
+    expect("behaviors" in recordOf(onlyEntity(doc))).toBe(false);
+  });
+
+  it("a record stored without one keeps only one of two concurrent first behaviors", () => {
+    const [a, b] = pair(base({ entities: [{ id: "e", type: "marker", at: [1, 1] }] }));
+    a.transact(() => onlyEntity(a).delete("behaviors"));
+    merge(a, b);
+    patchOnly(a, (f) => (f.behaviors = { glow: { on: true } }));
+    patchOnly(b, (f) => (f.behaviors = { spin: { speed: 2 } }));
+    merge(a, b);
+    const merged = recordOf(onlyEntity(a)).behaviors as Record<string, unknown>;
+    expect(Object.keys(merged)).toHaveLength(1);
+    expect(recordOf(onlyEntity(b)).behaviors).toEqual(merged);
+  });
+});
+
 describe("layout 3 records", () => {
   it("keeps the layout's keys under @z and @bulk, so a draw z and a field named bulk are fields", () => {
     const def = base({

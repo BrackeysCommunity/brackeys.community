@@ -280,7 +280,8 @@ cells. Every addition is optional with a default equal to v2's behaviour.
   one. `revertAllBatch` on a nested ref (`room-1/door-1`) drops only the
   keys that ref covers (`overridePathsOf`). `nestedInstanceOf` finds a
   nested instance by its resolved ref. `instancesOf` counts placements
-  through nesting when given the library. `createPrefabBatch` accepts
+  through nesting, and placements of the prefab's variants, when given the
+  library. `createPrefabBatch` accepts
   instances, which become nested instances of the new prefab.
   `buildOutline` adds a row for each nested instance and its children
   (`room-1/door-1/panel`), one level deeper each time.
@@ -427,7 +428,11 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   the layout and `readDoc` strips only those, so a draw `z` field survives.
   `behaviors` is a two-level nested map (`NESTED2_FIELDS`; removing a
   behavior wins over a concurrent field set) and `params` joins
-  `NESTED_FIELDS`. Grid-valued fields are stored one row per key
+  `NESTED_FIELDS`. `recordMap` gives a named entity an empty `behaviors`
+  map and an instance empty `params` and `overrides` maps, which
+  `patchRecord` empties and fills in place and `recordOf` reads as absent,
+  so two clients adding an entity's first behaviors (or an instance's
+  first params or overrides) at once both land. Grid-valued fields are stored one row per key
   (`<field>@<cx>,<cy>/<row>`, `GRID_ROW_KEY`): `patchRecord` writes only
   changed rows and `recordOf` gathers them back canonical. The `assets`
   header is the `assets` map (AssetId → true; `readAssets`,
@@ -506,6 +511,13 @@ registry, by, prefabs?)` emits `instantiate` ops after the `add`s,
   would make the prefab contain itself is refused with `prefab-cycle`, both
   live and in `checkProjectBatch`. The bounds a prefab doc is edited in
   also hold its nested instances' origins.
+- `./collab`: `prefabSceneBounds(prefab, parent?, registry?, prefabs?)`
+  and `ReadDocOptions.prefabs` take the prefab library, so a prefab doc's
+  bounds hold its nested instances' resolved children. The editor session,
+  `bindSceneDoc`, `validateDoc`/`watchIssues` and `applyOpsToDoc` all read
+  prefab docs with their prefab source's library, so they agree on its
+  `sceneHash`; an edit to a nested prefab can change that hash (the
+  session re-reads it when its source changes).
 - `./editor`: `applyToPrefabBatch(def, ref, opts?: { to?, prefabs? })` and
   `instancesOf(def, prefab, prefabs?)`.
 - `attachField` takes child refs (`gate-2/lift`), so an entity can ride a

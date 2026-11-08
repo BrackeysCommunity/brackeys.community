@@ -212,6 +212,102 @@ describe("conflicts", () => {
     expect("behaviors" in entity(a, "lamp-2")!).toBe(false);
   });
 
+  it("two clients giving an entity its first behaviors: both blocks land", () => {
+    const [a, b] = pair(testGameYard());
+    expect("behaviors" in entity(a, "lamp-2")!).toBe(false);
+    apply(
+      a,
+      { ops: [{ op: "update", ref: "lamp-2", set: { [`behaviors.${GLOW}`]: { intensity: 2 } } }] },
+      ada,
+      game,
+      { prefabs },
+    );
+    apply(
+      b,
+      { ops: [{ op: "update", ref: "lamp-2", set: { [`behaviors.${SPIN}`]: { speed: 40 } } }] },
+      bo,
+      game,
+      { prefabs },
+    );
+    sync(a, b);
+    expect(text(a)).toBe(text(b));
+    expect(entity(a, "lamp-2")!.behaviors).toEqual({
+      [GLOW]: { intensity: 2 },
+      [SPIN]: { speed: 40 },
+    });
+  });
+
+  it("an entity's behaviors emptied and refilled at once by two clients: both new blocks land", () => {
+    const [a, b] = pair(testGameYard());
+    apply(
+      a,
+      { ops: [{ op: "update", ref: "lamp-2", set: { [`behaviors.${SPIN}`]: { speed: 5 } } }] },
+      ada,
+      game,
+      { prefabs },
+    );
+    apply(a, { ops: [{ op: "update", ref: "lamp-2", unset: [`behaviors.${SPIN}`] }] }, ada, game, {
+      prefabs,
+    });
+    sync(a, b);
+    expect("behaviors" in entity(b, "lamp-2")!).toBe(false);
+    apply(
+      a,
+      { ops: [{ op: "update", ref: "lamp-2", set: { [`behaviors.${GLOW}`]: { intensity: 4 } } }] },
+      ada,
+      game,
+      { prefabs },
+    );
+    apply(
+      b,
+      { ops: [{ op: "update", ref: "lamp-2", set: { [`behaviors.${SPIN}`]: { speed: 9 } } }] },
+      bo,
+      game,
+      { prefabs },
+    );
+    sync(a, b);
+    expect(text(a)).toBe(text(b));
+    expect(entity(a, "lamp-2")!.behaviors).toEqual({
+      [GLOW]: { intensity: 4 },
+      [SPIN]: { speed: 9 },
+    });
+  });
+
+  it("two clients setting an instance's first params and overrides: all of them land", () => {
+    const withParams = { prefabs: yardPrefabs("test-game", { params: true }) };
+    const [a, b] = pair(testGameYard());
+    apply(
+      a,
+      {
+        ops: [
+          { op: "setParam", ref: "gate-1", name: "pause", value: 300 },
+          { op: "override", ref: "gate-1", set: { "door.path.mode": "loop" } },
+        ],
+      },
+      ada,
+      game,
+      withParams,
+    );
+    apply(
+      b,
+      {
+        ops: [
+          { op: "setParam", ref: "gate-1", name: "speed", value: 120 },
+          { op: "override", ref: "gate-1", set: { "trigger.tags": ["gate", "exit"] } },
+        ],
+      },
+      bo,
+      game,
+      withParams,
+    );
+    sync(a, b);
+    expect(text(a)).toBe(text(b));
+    expect(instance(a, "gate-1")).toMatchObject({
+      params: { pause: 300, speed: 120 },
+      overrides: { "door.path.mode": "loop", "trigger.tags": ["gate", "exit"] },
+    });
+  });
+
   it("deleting a grid entity against painting it: the delete wins, and undo brings it back", () => {
     const [a, b] = pair(testGameYard());
     const undo = createSceneUndo(a, ada);

@@ -8,8 +8,10 @@ import {
   ID_PATTERN,
   PathSchema,
   PtSchema,
+  Z_LIMIT,
 } from "../game/fields";
 import { ENGINE_REGISTRY_ID, type RegisteredType, type Registry } from "../game/types";
+import { FIELD_NAME_SOURCE } from "./field-path";
 import { makeIssue } from "./issues";
 import { derivesFrom, isShapeSchema } from "./shapes";
 import { SCENE_FORMAT_VERSION, type EntityTypeName, type SceneIssue } from "./types";
@@ -257,7 +259,7 @@ export const GroupSchema = z
 
 const OVERRIDE_ID = ID_PATTERN.source.slice(1, -1);
 const OVERRIDE_BULK = `~${OVERRIDE_ID}(?::${OVERRIDE_ID})?:(?:0|[1-9][0-9]*)`;
-const OVERRIDE_SEGMENT = `(?:${BEHAVIORS_FIELD}\\.(?:${OVERRIDE_ID}/)?${OVERRIDE_ID}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*)`;
+const OVERRIDE_SEGMENT = `(?:${BEHAVIORS_FIELD}\\.(?:${OVERRIDE_ID}/)?${OVERRIDE_ID}|${FIELD_NAME_SOURCE}|0|[1-9][0-9]*)`;
 
 /**
  * Override keys: a child ref (ids joined by `/`, optionally ending in a
@@ -278,7 +280,7 @@ export const InstanceSchema = z
       .meta({ title: "Prefab", group: "identity" }),
     ...editorFields,
     z: BASE_FIELDS.z.describe(
-      "Added to the z of every child, an integer in [-10000, 10000]. Omitted means 0.",
+      `Added to the z of every child, an integer in [-${Z_LIMIT}, ${Z_LIMIT}]. Omitted means 0.`,
     ),
     at: IntPt.describe(
       "Where the prefab's origin lands, in world px (relative to the group's origin when in a group).",

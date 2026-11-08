@@ -42,11 +42,12 @@ export function validateDoc(
   opts: Pick<WatchIssuesOptions, "prefabs" | "parentBounds" | "project"> = {},
 ): SceneIssue[] {
   try {
+    const prefabs = (opts.prefabs ?? EMPTY_PREFAB_SOURCE).library();
     const view = readDoc(doc, {
       registry,
+      prefabs,
       ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}),
     });
-    const prefabs = (opts.prefabs ?? EMPTY_PREFAB_SOURCE).library();
     const project = opts.project?.view();
     return validateScene(view.def, registry, {
       prefabs,

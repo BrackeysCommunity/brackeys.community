@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { AssetIdSchema, ID_PATTERN } from "../game/fields";
 import { ENGINE_REGISTRY_ID, type Registry } from "../game/types";
+import { FIELD_NAME_PATTERN } from "./field-path";
 import { formatPrefab, formatScene } from "./format";
 import { FRAGMENT_KIND, fragmentSchemaFor, parseFragment } from "./fragment";
 import { hashText } from "./hash";
@@ -46,7 +47,6 @@ function contractSchema(registry: Registry): z.ZodType {
 }
 
 /** A parameter name: letters, digits, `_` and `$`, not starting with a digit. */
-const PARAM_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
 const OverridePathSchema = z.string().regex(OVERRIDE_PATH, {
   error: "an override key is `<childId>.<field.path>`, e.g. door.path.speed",
@@ -77,7 +77,7 @@ const variantHeader = {
     )
     .meta({ title: "Base" }),
   params: z
-    .record(z.string().regex(PARAM_NAME), PrefabParamSchema)
+    .record(z.string().regex(FIELD_NAME_PATTERN), PrefabParamSchema)
     .optional()
     .describe(
       "Exposed parameters by name. An instance's `params` value applies as an override of each target; a variant inherits its base's and may redeclare one.",

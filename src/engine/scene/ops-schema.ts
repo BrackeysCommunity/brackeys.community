@@ -1,10 +1,12 @@
 import { z } from "zod";
 
+import { AssetIdSchema as GameAssetIdSchema, BASE_FIELDS, Z_LIMIT } from "../game/fields";
 import type { Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { closest } from "./did-you-mean";
+import { FIELD_NAME_PATTERN } from "./field-path";
 import { layerNames, toJsonSchema } from "./json-schema";
-import { ID_PATTERN, OVERRIDE_PATH } from "./schema";
+import { OVERRIDE_PATH } from "./schema";
 import { OP_NAMES, type OpBatch, type Ref, type SceneOp } from "./types";
 
 const SPOT_ANCHORS = ["center", "top", "bottom", "left", "right"] as const;
@@ -69,25 +71,19 @@ const PathsSchema = z.array(z.string());
 
 /** Most cells one paintCells op may write, counting every cell of every rect. */
 export const MAX_PAINT_CELLS = 65_536;
-const FIELD_NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-
-const ZSchema = z
-  .number()
-  .int()
-  .min(-10000)
-  .max(10000)
+const ZSchema = BASE_FIELDS.z
+  .unwrap()
   .describe(
-    "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top. On an instance it is added to every child's z.",
+    `Draw order within the layer, an integer in [-${Z_LIMIT}, ${Z_LIMIT}]; higher draws on top. On an instance it is added to every child's z.`,
   );
 
-const AssetIdSchema = z
-  .string()
-  .regex(ID_PATTERN)
-  .describe("A project asset's id: lowercase letters, digits and hyphens.");
+const AssetIdSchema = GameAssetIdSchema.describe(
+  "A project asset's id: lowercase letters, digits and hyphens.",
+);
 
 const ParamNameSchema = z
   .string()
-  .regex(FIELD_NAME)
+  .regex(FIELD_NAME_PATTERN)
   .describe("A prefab parameter's name: letters, digits, `_` and `$`, not starting with a digit.");
 
 const CellValueSchema = z
@@ -365,7 +361,7 @@ const PaintCellsOp = z
   .strictObject({
     op: opName("paintCells"),
     ref: RefSchema.describe("The entity whose grid field to paint."),
-    field: z.string().regex(FIELD_NAME).describe("The grid field, e.g. `cells`."),
+    field: z.string().regex(FIELD_NAME_PATTERN).describe("The grid field, e.g. `cells`."),
     cells: z
       .array(
         z
@@ -600,7 +596,7 @@ function buildOpSchemas(registry: Registry) {
         .optional()
         .describe("A variant's overrides of its base's children."),
       params: z
-        .record(z.string().regex(FIELD_NAME), PrefabParamSchema)
+        .record(z.string().regex(FIELD_NAME_PATTERN), PrefabParamSchema)
         .optional()
         .describe("Exposed parameters by name."),
       assets: z

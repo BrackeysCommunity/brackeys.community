@@ -334,14 +334,15 @@ export function createEditorSession({
 }: EditorSessionOptions): EditorSession {
   const listeners = new Set<(e: EditorSessionEvent) => void>();
   const undo = history ? null : createSceneUndo(doc, origin);
-  const read = () => readDoc(doc, { registry, ...(parentBounds ? { parentBounds } : {}) });
+  let library = prefabs.library();
+  let prefabSig = librarySig(library);
+  const read = () =>
+    readDoc(doc, { registry, prefabs: library, ...(parentBounds ? { parentBounds } : {}) });
   let view: DocView = read();
   let hash = sceneHash(view.def);
   let refByKey = refsOfView(view);
   let keyByRef = invert(refByKey);
   let resolved: SceneDefinition | null = null;
-  let library = prefabs.library();
-  let prefabSig = librarySig(library);
   const getResolved = () => (resolved ??= resolveScene(view.def, registry, library));
   const keyOfRef = (ref: Ref): string | undefined => {
     const child = parseChildRef(ref);
@@ -418,13 +419,13 @@ export function createEditorSession({
   store.setState((s) => ({ ...s, issues: issues.flush() }));
 
   const onTransaction = (tr: Y.Transaction) => {
+    library = prefabs.library();
+    const sig = librarySig(library);
     const next = read();
     const changed = sceneHash(next.def);
     const log = readLog(doc);
     const logged = log.filter((e) => !seenLog.has(e.id));
     seenLog = new Set(log.map((e) => e.id));
-    library = prefabs.library();
-    const sig = librarySig(library);
     if (changed === hash && sig === prefabSig && logged.length === 0) return;
     prefabSig = sig;
     view = next;
@@ -446,6 +447,12 @@ export function createEditorSession({
     const sig = librarySig(library);
     if (sig === prefabSig) return;
     prefabSig = sig;
+    if (view.kind === "prefab") {
+      view = read();
+      hash = sceneHash(view.def);
+      refByKey = refsOfView(view);
+      keyByRef = invert(refByKey);
+    }
     resolved = null;
     selectedKeys = selectedKeys.filter(liveKey);
     syncUndo();

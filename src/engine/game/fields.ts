@@ -159,6 +159,9 @@ export function gridFieldInfo(schema: z.core.$ZodType): GridFieldInfo | null {
 /** An asset id; parses as a string so a dangling id is `asset-missing`, not a parse failure. */
 export const AssetIdSchema = z.string().regex(ID_PATTERN);
 
+/** The largest `z` magnitude: z is an integer in [-Z_LIMIT, Z_LIMIT]. */
+export const Z_LIMIT = 10_000;
+
 const ASSET_KIND_META = "x-asset-kind";
 
 /**
@@ -307,11 +310,11 @@ export const BASE_FIELDS = {
   z: z
     .number()
     .int()
-    .min(-10000)
-    .max(10000)
+    .min(-Z_LIMIT)
+    .max(Z_LIMIT)
     .optional()
     .describe(
-      "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+      `Draw order within the layer, an integer in [-${Z_LIMIT}, ${Z_LIMIT}]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.`,
     )
     .meta({ title: "Z", group: "identity" }),
 } as const;

@@ -177,6 +177,7 @@ export function applyOpsToDoc(
   const view = readDoc(doc, {
     registry,
     ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}),
+    ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
   });
   const refuse = (at: number, message: string, hint?: string): DocApplyResult => ({
     ok: false,

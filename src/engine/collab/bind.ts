@@ -118,7 +118,11 @@ export function bindSceneDoc(
   const tracked = contentMaps(doc);
   const prefabs = opts.prefabs ?? EMPTY_PREFAB_SOURCE;
   const read = () =>
-    readDoc(doc, { registry, ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}) });
+    readDoc(doc, {
+      registry,
+      prefabs: prefabs.library(),
+      ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}),
+    });
   let paused = false;
   let current = expand(read().def);
   runtime.load(current);

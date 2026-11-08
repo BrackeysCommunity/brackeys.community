@@ -1,3 +1,4 @@
+import { Z_LIMIT } from "../game/fields";
 import type { RegisteredType, Registry } from "../game/types";
 import { bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
 import { defaultLayer } from "../scene/layers";
@@ -111,12 +112,14 @@ const overlaps = (a: Aabb, b: Aabb) =>
  * `z`, then document order. Every term stays an exact integer.
  */
 const ORDER_STRIDE = 1e7;
-const Z_SPAN = 20001;
+const Z_SPAN = 2 * Z_LIMIT + 1;
 const zOf = (layerIndex: number, z: number, order: number) =>
-  (layerIndex * Z_SPAN + z + 10000) * ORDER_STRIDE + order;
+  (layerIndex * Z_SPAN + z + Z_LIMIT) * ORDER_STRIDE + order;
 
 const entityZ = (e: EntityDef | undefined) =>
-  typeof e?.z === "number" && Number.isInteger(e.z) ? Math.max(-10000, Math.min(10000, e.z)) : 0;
+  typeof e?.z === "number" && Number.isInteger(e.z)
+    ? Math.max(-Z_LIMIT, Math.min(Z_LIMIT, e.z))
+    : 0;
 
 /** An entry would cover more cells than this; it lives on a list every query scans. */
 const MAX_CELLS = 1024;

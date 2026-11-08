@@ -431,6 +431,29 @@ describe("prefab commands over nested prefabs", () => {
     ]);
     expect(createPrefabBatch(def, ["room-1/floor"], NESTED)).toBeNull();
   });
+
+  it("counts variant placements, scene and nested, as instances of their base", () => {
+    const redDoor: Prefab = {
+      kind: "prefab",
+      v: SCENE_FORMAT_VERSION,
+      id: "red-door",
+      base: "door",
+      entities: [],
+    };
+    const prefabs: PrefabLibrary = new Map([...NESTED, ["red-door", redDoor]]);
+    const withVariants: SceneDefinition = {
+      ...def,
+      instances: [
+        ...def.instances!,
+        { id: "red-1", prefab: "red-door", at: [0, 0] },
+        { id: "red-2", prefab: "red-door", at: [50, 0] },
+      ],
+    };
+    expect(instancesOf(withVariants, "door", prefabs)).toBe(4);
+    expect(instancesOf(withVariants, "red-door", prefabs)).toBe(2);
+    expect(instancesOf(withVariants, "lock", prefabs)).toBe(4);
+    expect(instancesOf(withVariants, "door")).toBe(0);
+  });
 });
 
 describe("nested prefabs in the editor", () => {

@@ -27,12 +27,15 @@ import { randomKey, type KeyGen } from "./keys";
 import { sameValue as same } from "./log";
 import { compareZ, initialZ } from "./order";
 import {
+  BEHAVIORS_FIELD,
   BULK_FIELD,
   COLLAB_LAYOUT_VERSION,
   DOC_MAPS,
   GRID_ROW_KEY,
   NESTED2_FIELDS,
   NESTED_FIELDS,
+  OVERRIDES_FIELD,
+  PARAMS_FIELD,
   Z_FIELD,
   type EntityRecord,
   type SceneDocMeta,
@@ -125,6 +128,20 @@ function gridRows(field: string, grid: GridCells): [string, string][] | null {
 
 const isNested = (k: string) => NESTED_FIELDS.includes(k) || NESTED2_FIELDS.includes(k);
 
+/**
+ * The nested maps a record keeps even while empty, so two clients adding
+ * a record's first behavior (an instance's first param or override)
+ * write into the same `Y.Map` and both land: a named entity's
+ * `behaviors`, an instance's `params` and `overrides`. An empty one
+ * reads as absent.
+ */
+function keptMaps(rec: Record<string, unknown>): readonly string[] {
+  if (rec[BULK_FIELD] !== undefined) return [];
+  if (typeof rec.type === "string") return [BEHAVIORS_FIELD];
+  if (typeof rec.prefab === "string") return [PARAMS_FIELD, OVERRIDES_FIELD];
+  return [];
+}
+
 /** A field written as grid rows: every top-level field but the nested ones, the layout's keys and empty grids. */
 function rowsOf(k: string, v: unknown): [string, string][] | null {
   if (isLayoutKey(k) || isNested(k) || !isGridValue(v)) return null;
@@ -160,7 +177,9 @@ export function recordOf(map: Y.Map<unknown>): EntityRecord {
       list[Number(r)] = v;
       continue;
     }
-    out[k] = v instanceof Y.Map ? v.toJSON() : cloneJson(v);
+    if (v instanceof Y.Map) {
+      if (v.size > 0 || !isNested(k)) out[k] = v.toJSON();
+    } else out[k] = cloneJson(v);
   }
   gatherRows(rows, out);
   if (typeof out[Z_FIELD] !== "string") out[Z_FIELD] = "";
@@ -209,6 +228,7 @@ export function recordMap(rec: EntityRecord): Y.Map<unknown> {
     if (rows) for (const [rk, row] of rows) map.set(rk, row);
     else setField(map, k, v);
   }
+  for (const k of keptMaps(rec)) if (rec[k] === undefined) map.set(k, new Y.Map<unknown>());
   return map;
 }
 
@@ -241,16 +261,26 @@ function patchPlain(
  * `params` are patched key by key, `behaviors` block by block and then
  * field by field, and a grid field row by row; every other value is
  * replaced whole. Removing a behavior deletes its block, so it wins over a
- * concurrent edit inside it.
+ * concurrent edit inside it. A record's kept maps (`keptMaps`) are emptied
+ * rather than deleted and filled from empty in place, so concurrent first
+ * writes merge; a record written before they existed gets one on its
+ * first write, and two clients making that write at once keep only one.
  */
 export function patchRecord(map: Y.Map<unknown>, prev: EntityRecord, next: EntityRecord): void {
   const before = docEntries(prev);
   const after = docEntries(next);
-  for (const k of before.keys()) if (!after.has(k)) map.delete(k);
-  for (const [k, v] of after) {
-    const old = before.get(k);
-    if (same(old, v)) continue;
+  const kept = keptMaps(next);
+  for (const k of before.keys()) {
+    if (after.has(k)) continue;
     const current = map.get(k);
+    if (kept.includes(k) && current instanceof Y.Map)
+      for (const name of [...current.keys()]) current.delete(name);
+    else map.delete(k);
+  }
+  for (const [k, v] of after) {
+    const current = map.get(k);
+    const old = before.get(k) ?? (kept.includes(k) && current instanceof Y.Map ? {} : undefined);
+    if (same(old, v)) continue;
     if (!(isNested(k) && current instanceof Y.Map && isPlainObject(v) && isPlainObject(old))) {
       setField(map, k, v);
       continue;
@@ -412,7 +442,10 @@ export function docPrefabs(doc: Y.Doc): PrefabLibrary {
  * `@`-keys are dropped. A prefab doc reads as a scene of its children and
  * instances (`kind: "prefab"`), named after the prefab, with bounds from
  * `prefabSceneBounds` that are never written; its base, params and
- * overrides are in `prefab`.
+ * overrides are in `prefab`. Those bounds hold nested instances' children
+ * when `prefabs` is given, so an edit to a nested prefab can change a
+ * prefab doc's `sceneHash`: every reader that hashes a prefab doc passes
+ * the same library, and a base taken before such an edit is stale.
  */
 export function readDoc(doc: Y.Doc, opts: ReadDocOptions = {}): DocView {
   const meta = metaMap(doc);

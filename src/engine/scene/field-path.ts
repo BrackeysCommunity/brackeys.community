@@ -16,7 +16,10 @@
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD } from "../game/behaviors";
 import type { FieldPath, OverridePath, Ref } from "./types";
 
-const NAME = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+/** A field or param name: an identifier, so it never clashes with the collab layout's `@` keys. */
+export const FIELD_NAME_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+/** {@link FIELD_NAME_PATTERN} without its anchors, for building larger patterns. */
+export const FIELD_NAME_SOURCE = FIELD_NAME_PATTERN.source.slice(1, -1);
 const BULK_REF = /^~([^/]+):(?:0|[1-9][0-9]*)$/;
 
 /** An entity or instance id: a behavior name without its game's prefix is exactly one. */
@@ -37,7 +40,7 @@ export function splitFieldPath(path: FieldPath): string[] | null {
   const segments = path.split(".");
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i]!;
-    if (NAME.test(seg) || INDEX.test(seg)) continue;
+    if (FIELD_NAME_PATTERN.test(seg) || INDEX.test(seg)) continue;
     if (i > 0 && segments[i - 1] === BEHAVIORS_FIELD && BEHAVIOR_NAME_PATTERN.test(seg)) continue;
     return null;
   }
@@ -64,7 +67,7 @@ export function splitChildRef(ref: Ref): string[] | null {
 /** The fields of a nested instance that an override may set as a whole, besides `params.<name>`. */
 export const INSTANCE_OVERRIDE_FIELDS = ["at", "rot", "flip", "z", "off", "layer"] as const;
 
-const PARAM_FIELD = /^params\.[A-Za-z_$][A-Za-z0-9_$]*$/;
+const PARAM_FIELD = new RegExp(`^params\\.${FIELD_NAME_SOURCE}$`);
 
 /**
  * Whether an override's field path, on a child ref naming a nested

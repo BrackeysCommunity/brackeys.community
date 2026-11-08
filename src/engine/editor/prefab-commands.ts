@@ -51,21 +51,34 @@ export function prefabInstances(prefab: Prefab, prefabs: PrefabLibrary): Instanc
   return out;
 }
 
-/** How many placements of `prefab` the scene holds, counting those nested in other prefabs when `prefabs` is given; what Apply to prefab's confirmation counts. */
+/** Whether `id` is `prefab` or a variant of it (`prefab` sits in its base chain). */
+function derivesFrom(id: string, prefab: string, prefabs: PrefabLibrary): boolean {
+  let cur: string | undefined = id;
+  for (let depth = 0; cur !== undefined && depth <= PREFAB_MAX_DEPTH; depth++) {
+    if (cur === prefab) return true;
+    cur = prefabs.get(cur)?.base;
+  }
+  return false;
+}
+
+/**
+ * How many placements Apply to `prefab` changes, what its confirmation
+ * counts. With `prefabs`, that takes in placements of its variants and
+ * those nested in other prefabs; without, only the scene's own placements
+ * of `prefab` itself.
+ */
 export function instancesOf(def: SceneDefinition, prefab: string, prefabs?: PrefabLibrary): number {
   if (!prefabs) return (def.instances ?? []).filter((i) => i.prefab === prefab).length;
+  const own = (i: InstanceDef): number => (derivesFrom(i.prefab, prefab, prefabs) ? 1 : 0);
   const within = (id: string, depth: number): number => {
     const p = depth < PREFAB_MAX_DEPTH ? prefabs.get(id) : undefined;
     if (!p) return 0;
     return prefabInstances(p, prefabs).reduce(
-      (n, i) => n + (i.prefab === prefab ? 1 : 0) + within(i.prefab, depth + 1),
+      (n, i) => n + own(i) + within(i.prefab, depth + 1),
       0,
     );
   };
-  return (def.instances ?? []).reduce(
-    (n, i) => n + (i.prefab === prefab ? 1 : 0) + within(i.prefab, 1),
-    0,
-  );
+  return (def.instances ?? []).reduce((n, i) => n + own(i) + within(i.prefab, 1), 0);
 }
 
 /**
