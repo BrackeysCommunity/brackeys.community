@@ -16,6 +16,7 @@ import {
   HostedProjectsOffError,
   hostedSite,
   isHostedUrl,
+  isPlainHttpUrl,
   requireAgentToken,
   SYNC_TOKEN_REFRESH_MARGIN_MS,
   SYNC_TOKEN_TTL_MS,
@@ -317,6 +318,13 @@ describe("the site the agent token goes to", () => {
       "nope",
     ])
       expect(isHostedUrl(url), url).toBe(false);
+  });
+
+  it("isPlainHttpUrl is an http:// URL off this machine only", () => {
+    for (const url of ["http://staging.example.test", "http://localhost.evil.test"])
+      expect(isPlainHttpUrl(url), url).toBe(true);
+    for (const url of ["http://localhost:3000", "https://staging.example.test", "ws://x:1", "nope"])
+      expect(isPlainHttpUrl(url), url).toBe(false);
   });
 
   it("hostedSite refuses a plain-http remote site before any request", () => {

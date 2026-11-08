@@ -478,7 +478,8 @@ file commands offline and in CI.
 A project hosted on the site (staging only for now, behind the
 `engine-projects` flag) takes the same `--live` commands. Point `--url` at
 the site instead of a collab server, and pass the agent token a staff member
-created for the project in the site, with `--token` or in `JAMS_AGENT_TOKEN`:
+created for the project in the site, with `--token` or in `JAMS_AGENT_TOKEN`.
+The site URL is `https://` (`http://` only on localhost):
 
 ```sh
 export JAMS_AGENT_TOKEN=jat_…
@@ -576,9 +577,12 @@ docs. `scene_apply_ops` sends its batch as `apply --live` does, and
 `asset_import` and `asset_apply_ops` as the `assets` writers do with `--live`: one undoable history entry under an agent actor (`agentId`,
 default `mcp`, and `onBehalfOf`), which open editors see land and which is
 never on their undo stack. Only localhost servers are reachable, unless the MCP server
-was started with `JAMS_AGENT_TOKEN` in its environment: then `url` may be
-the site hosting that token's project (see [Hosted projects](#hosted-projects)),
-and the actor is the token's. The token is never a tool argument.
+was started with both `JAMS_AGENT_TOKEN` and `JAMS_AGENT_SITE` in its
+environment. `JAMS_AGENT_SITE` is the origin of the site hosting that token's
+project (`https://`, or `http://` on localhost only); then `url` may be that
+origin (see [Hosted projects](#hosted-projects)), and the actor is the
+token's. The token is sent to that origin only, so a `url` naming any other
+site is a usage error, and it is never a tool argument.
 
 ## Semantic `git diff`
 

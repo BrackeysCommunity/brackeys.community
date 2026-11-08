@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseSidecar, sha256 } from "@jams/engine/project";
+import { ContentStoreError, parseSidecar, sha256 } from "@jams/engine/project";
 import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
-import { readLiveScene } from "../project-client";
+import { devContentStore, readLiveScene } from "../project-client";
 import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
 
@@ -387,5 +387,20 @@ describe("assets --live", { timeout: 60_000 }, () => {
     expect(
       (await live("assets", "rename", "gate", "--name", "x", "--base", "0".repeat(64))).exitCode,
     ).toBe(2);
+  });
+
+  it("refuses bytes that hash otherwise than --expect with the hash-mismatch issue", async () => {
+    const store = devContentStore(server.url, "deck");
+    const err = await store.put(new Uint8Array(DOT), "0".repeat(64)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ContentStoreError);
+    expect((err as ContentStoreError).issue.code).toBe("hash-mismatch");
+    const hash = await sha256(new Uint8Array(DOT));
+    expect(await store.put(new Uint8Array(DOT), hash)).toBe(hash);
+  });
+
+  it("refuses a plain-http site URL off this machine with the https rule", async () => {
+    const r = await run("assets", "list", "--live", "--url", "http://example.test");
+    expect(r.exitCode).toBe(2);
+    expect(String(r.data.error)).toMatch(/must be https:\/\/ \(http:\/\/ only on localhost\)/);
   });
 });

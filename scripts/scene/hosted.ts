@@ -384,7 +384,17 @@ export function isHostedUrl(url: string): boolean {
   }
 }
 
-const siteUrlRule = (site: string) =>
+/** An `http://` URL off this machine: a site URL the agent token is never sent to. */
+export function isPlainHttpUrl(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    return protocol === "http:" && !isLocalHost(hostname);
+  } catch {
+    return false;
+  }
+}
+
+export const siteUrlRule = (site: string) =>
   `The site URL must be https:// (http:// only on localhost): ${site}`;
 
 /**

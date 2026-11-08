@@ -47,7 +47,9 @@ import {
   hostedContentStore,
   hostedSite,
   isHostedUrl,
+  isPlainHttpUrl,
   requireAgentToken,
+  siteUrlRule,
   type AgentSyncTokens,
   type HostedSite,
   type HostedSyncToken,
@@ -446,7 +448,7 @@ export function devContentStore(
         error?: unknown;
         issue?: SceneIssue;
       };
-      if (res.status === 409 && body.issue) throw new ContentStoreError(body.issue);
+      if (!res.ok && body.issue) throw new ContentStoreError(body.issue);
       if (!res.ok || typeof body.sha256 !== "string")
         throw new ProjectClientError(
           `The dev server refused the upload (${res.status}${typeof body.error === "string" ? `: ${body.error}` : ""}).`,
@@ -494,6 +496,7 @@ export type LiveProject = { project: ProjectHandle; client: ProjectClient };
 export async function openLiveProject(opts: OpenLiveOptions): Promise<LiveProject> {
   const url = opts.url ?? DEFAULT_PROJECT_URL;
   if (isHostedUrl(url)) return openHostedProject({ ...opts, url });
+  if (isPlainHttpUrl(url)) throw new ProjectClientError(siteUrlRule(url), 2);
   const timeoutMs = opts.timeoutMs ?? PROJECT_TIMEOUT_MS;
   const served = new Set((await listLiveProjects(url, timeoutMs)).map((p) => p.id));
   let candidates = opts.projects.filter((p) => served.has(p.file.id));

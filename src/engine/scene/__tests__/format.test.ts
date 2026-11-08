@@ -196,8 +196,8 @@ describe("formatChecks", () => {
     '  "v": 1,',
     '  "checks": [',
     '    { "id": "valid", "kind": "valid", "max": "warn", "physical": true },',
-    '    { "id": "settles", "kind": "reaches", "script": { "v": 1, "steps": [{ "wait": 60 }] }, "result": "script-end" },',
-    '    { "id": "from-file", "kind": "reaches", "script": "walk.script.json", "result": "goal" },',
+    '    { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "steps": [{ "wait": 60 }], "v": 1 } },',
+    '    { "id": "from-file", "kind": "reaches", "result": "goal", "script": "walk.script.json" },',
     '    { "id": "touch", "kind": "touches", "atLeast": 1, "entity": "zone" }',
     "  ]",
     "}",
@@ -213,7 +213,7 @@ describe("formatChecks", () => {
     expect(formatChecks(reordered as ChecksFile)).toBe(text);
   });
 
-  it("writes an inline script's keys in the order its own file uses", () => {
+  it("writes an inline script as one atomic value, its keys by code unit", () => {
     const script = {
       steps: [{ wait: 5 }],
       maxTicks: 900,
@@ -223,15 +223,10 @@ describe("formatChecks", () => {
       scene: "yard",
       v: 1,
     } as unknown as InputScript;
-    const standalone = JSON.parse(formatInputScript(script)) as Record<string, unknown>;
-    const file = { v: 1, checks: [{ id: "s", kind: "reaches", result: "script-end", script }] };
+    const file = { v: 1, checks: [{ script, result: "script-end", kind: "reaches", id: "s" }] };
     const line = formatChecks(file as ChecksFile).split("\n")[3]!;
     expect(line).toBe(
-      '    { "id": "s", "kind": "reaches", "script": { "v": 1, "scene": "yard", "at": [10, 20], "timeOffsetMs": 500, "game": { "push": false }, "maxTicks": 900, "steps": [{ "wait": 5 }] }, "result": "script-end" }',
+      '    { "id": "s", "kind": "reaches", "result": "script-end", "script": { "at": [10, 20], "game": { "push": false }, "maxTicks": 900, "scene": "yard", "steps": [{ "wait": 5 }], "timeOffsetMs": 500, "v": 1 } }',
     );
-    const nested = (
-      JSON.parse(formatChecks(file as ChecksFile)) as { checks: { script: object }[] }
-    ).checks[0]!.script;
-    expect(Object.keys(nested)).toEqual(Object.keys(standalone));
   });
 });

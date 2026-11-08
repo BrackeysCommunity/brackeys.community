@@ -5,7 +5,11 @@ import { join } from "node:path";
 
 import { runCli } from "../../../scripts/scene/commands.ts";
 import type { ToolContext } from "../../../scripts/scene/context.ts";
-import { AGENT_TOKEN_ENV, SYNC_TOKEN_REFRESH_MARGIN_MS } from "../../../scripts/scene/hosted.ts";
+import {
+  AGENT_SITE_ENV,
+  AGENT_TOKEN_ENV,
+  SYNC_TOKEN_REFRESH_MARGIN_MS,
+} from "../../../scripts/scene/hosted.ts";
 import { MCP_TOOLS, runMcpTool } from "../../../scripts/scene/mcp-tools.ts";
 import { openLiveProject } from "../../../scripts/scene/project-client.ts";
 import { openProject } from "../../../scripts/scene/projects.ts";
@@ -401,15 +405,29 @@ describe("the MCP tools on a hosted project", () => {
     return runMcpTool(tool, input, { ...ctx, env });
   };
 
-  it("takes a hosted URL only with the agent token in the server's environment", async () => {
-    const refused = await call("scene_show", { scene: "engine-yard", live: true, url: SITE }, {});
+  it("takes a hosted URL only with the agent token and the site in the server's environment", async () => {
+    const hosted = { scene: "engine-yard", live: true, url: SITE };
+    const refused = await call("scene_show", hosted, {});
     expect(refused).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
     expect(JSON.stringify(refused)).toContain(AGENT_TOKEN_ENV);
 
+    const noSite = await call("scene_show", hosted, { [AGENT_TOKEN_ENV]: SECRET_AGENT });
+    expect(noSite).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+    expect(JSON.stringify(noSite)).toContain(AGENT_SITE_ENV);
+
+    const elsewhere = await call(
+      "scene_show",
+      { ...hosted, url: "https://elsewhere.example.test" },
+      { [AGENT_TOKEN_ENV]: SECRET_AGENT, [AGENT_SITE_ENV]: SITE },
+    );
+    expect(elsewhere).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+    expect(JSON.stringify(elsewhere)).toContain(AGENT_SITE_ENV);
+    expect(JSON.stringify(elsewhere)).not.toContain(SECRET_AGENT);
+
     const shown = await call(
       "scene_show",
-      { scene: "engine-yard", ref: "lift", live: true, url: SITE },
-      { [AGENT_TOKEN_ENV]: SECRET_AGENT },
+      { ...hosted, ref: "lift" },
+      { [AGENT_TOKEN_ENV]: SECRET_AGENT, [AGENT_SITE_ENV]: SITE },
     );
     expect(shown.structuredContent).toMatchObject({ exitCode: 0, live: true, url: SITE });
     expect(JSON.stringify(shown)).not.toContain(SECRET_AGENT);
