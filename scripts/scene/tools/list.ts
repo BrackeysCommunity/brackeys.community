@@ -27,11 +27,7 @@ export const list: Tool<ListInput> = async (_input, ctx) => {
       const parsed = parseScene(text, judged.registry);
       if (!parsed.ok) return failed(parsed.issues.length);
       const def = parsed.def;
-      const prefabs = await prefabsOf(
-        { project, scene: file },
-        judged.registry,
-        await scanOf(project),
-      );
+      const prefabs = await prefabsOf({ project }, judged.registry, await scanOf(project));
       const issues = { error: 0, warn: 0, info: 0 };
       for (const i of validateScene(def, judged.registry, { prefabs })) issues[i.severity]++;
       return {

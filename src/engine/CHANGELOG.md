@@ -318,8 +318,6 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
   project's live prefab assets at their registry paths. `PrefabFiles` gains
   `files` (each read prefab's file). A project's prefabs change through
   `applyProjectBatchToFiles`.
-- Breaking: `./vite`: `writePrefabFiles` removed; every scene home is a
-  project, whose prefabs change through `applyProjectBatchToFiles`.
 - `./vite`: `FileApplyOptions.store`: where `applyProjectBatchToFiles`
   inspects blob bytes from (a dry run's bytes stay out of the cache).
 - `reinspectBlobs` (`./collab`): the project's one writer re-derives a
@@ -354,6 +352,8 @@ pointer }[]`. With `force` it trashes the asset, and the result carries
 - Prefabs are assets: a prefab file is a `prefab` asset of its project,
   edited in its own doc, and the editor's prefab ops write that doc in the
   same undo step as the scene.
+- **Breaking:** `./vite`: `writePrefabFiles` is removed; every scene home is
+  a project, whose prefabs change through `applyProjectBatchToFiles`.
 - The scene CLI's `GAMES` table, `gameScenesDirs` and `gameSchemaFiles` are
   gone: every `jams.project.json` names its game, and `ToolContext` takes
   `projects`.

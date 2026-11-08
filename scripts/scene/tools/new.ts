@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import { ENGINE_REGISTRY_ID, type SceneTemplate } from "@jams/engine/game";
@@ -11,7 +11,7 @@ import {
   validateScene,
   type Registry,
 } from "@jams/engine/scene";
-import { resolveScenePath, ScenePathError } from "@jams/engine/vite";
+import { applyProjectBatchToFiles, resolveScenePath, ScenePathError } from "@jams/engine/vite";
 
 import {
   failure,
@@ -24,12 +24,11 @@ import {
   projectScenes,
   scopeError,
   usage,
-  writeSceneText,
   type SceneFile,
   type Tool,
   type ToolContext,
 } from "../context";
-import type { ProjectHandle } from "../projects";
+import { withLiveMaterials, type ProjectHandle } from "../projects";
 
 export type NewInput = { name?: string; from?: string; game?: string };
 
@@ -85,8 +84,12 @@ async function schemaFileOf(
  * the scene is for (the engine's for a scene without a game), beside the
  * project's other scenes. It is a copy of `--from` under the new name, else
  * the game's template, else an empty world. `$schema` points where the
- * project's scenes point. Nothing is written when the name is taken in any
- * project or the result has error-severity issues.
+ * project's scenes point. The file is written by a `createAsset` op through
+ * `applyProjectBatchToFiles`, so the project's id and path rules hold: an id
+ * another asset holds is asset-id-taken, a path another asset or an unlisted
+ * file holds is path-taken. Nothing is written when the name is taken by a
+ * scene in any project, the project refuses the op, or the result has
+ * error-severity issues.
  */
 export const newScene: Tool<NewInput> = async (input, ctx) => {
   const { name } = input;
@@ -164,11 +167,24 @@ export const newScene: Tool<NewInput> = async (input, ctx) => {
   const issues = validateScene(parsed.def, registry, { lines: formatScene(parsed.def).lines });
   const errors = issues.filter((i) => i.severity === "error");
   const write = errors.length === 0;
-  if (write) {
-    await mkdir(dir, { recursive: true });
-    await writeSceneText({ file }, text);
-  }
   const game = parsed.def.game ?? null;
+  const path = relative(project.dir, file).split(sep).join("/");
+  const applied = await applyProjectBatchToFiles(
+    await withLiveMaterials(project),
+    {
+      v: 1,
+      label: `New scene ${name}`,
+      ops: [{ op: "createAsset", kind: "scene", id: name, path, content: parsed.def }],
+    },
+    { dryRun: !write },
+  );
+  if (!applied.ok) {
+    return {
+      exitCode: 1,
+      data: { ok: false, scene: name, home, game, file, written: false, issue: applied.issue },
+      text: [`${name}: not created in ${home}`, issueLine(applied.issue)].join("\n"),
+    };
+  }
   return {
     exitCode: write ? 0 : 1,
     data: {

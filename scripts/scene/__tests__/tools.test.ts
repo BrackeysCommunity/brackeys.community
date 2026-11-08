@@ -1,7 +1,7 @@
 // @vitest-environment node
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { RigidBody } from "@dimforge/rapier2d";
@@ -42,6 +42,7 @@ const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, imp
 const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
 const ENGINE_YARD = repoFile("src/engine/scenes/engine-yard.json");
 const ENGINE_YARD_CHECKS = repoFile("src/engine/scenes/engine-yard.checks.json");
+const ENGINE_SCENES = repoFile("src/engine/scenes");
 
 const WALK = 300;
 
@@ -475,6 +476,55 @@ describe("new", () => {
     expect(
       (await newScene({ name: "x", from: "test-yard", game: avatarGame.id }, ctx)).exitCode,
     ).toBe(2);
+  });
+});
+
+describe("new in a project with other assets", { timeout: 60_000 }, () => {
+  let deck: string;
+  let deckCtx: ToolContext;
+
+  /** Every file under `dir` with its bytes, by relative path. */
+  async function tree(dir: string): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    for (const entry of await readdir(dir, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const path = join(entry.parentPath, entry.name);
+      out[relative(dir, path)] = (await readFile(path)).toString("base64");
+    }
+    return out;
+  }
+
+  beforeEach(async () => {
+    deck = join(root, "deck");
+    await cp(ENGINE_SCENES, deck, { recursive: true });
+    deckCtx = { ...ctx, projects: [await tempProject(deck, { id: "deck" })] };
+  });
+
+  it.each(["game-settings", "bouncy"])(
+    "refuses %s, an id another kind's asset holds, and writes nothing",
+    async (name) => {
+      const before = await tree(deck);
+      const r = await newScene({ name }, deckCtx);
+      expect(r.exitCode, r.text).toBe(1);
+      expect(r.data).toMatchObject({
+        ok: false,
+        written: false,
+        issue: { code: "asset-id-taken" },
+      });
+      expect(await tree(deck)).toEqual(before);
+    },
+  );
+
+  it("creates a free name as a scene asset of the project", async () => {
+    const r = await newScene({ name: "annex" }, deckCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(
+      parseSceneOrThrow(await readFile(join(deck, "annex.json"), "utf8"), ENGINE),
+    ).toMatchObject({ name: "annex", v: 2 });
+    const listed = await runCli(["assets", "list", "--kind", "scene", "--json"], deckCtx);
+    expect(
+      (JSON.parse(listed.stdout) as { assets: { id: string }[] }).assets.map((a) => a.id),
+    ).toContain("annex");
   });
 });
 
