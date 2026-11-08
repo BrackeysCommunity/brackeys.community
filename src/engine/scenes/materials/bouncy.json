@@ -4,5 +4,5 @@
   "v": 1,
   "description": "Bouncy rubber.",
   "physics": { "friction": 0.4, "restitution": 0.9 },
-  "render": { "style": { "fill": "#e05a5a" } }
+  "render": { "style": { "fill": "#e05a5a" }, "tint": "#ffc0c0" }
 }

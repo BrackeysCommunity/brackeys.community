@@ -3,7 +3,6 @@ export { ENGINE_VERSION } from "./version";
 export type {
   CameraMode,
   CameraState,
-  DisplayResolution,
   GameConfig,
   GameEventMap,
   GameInstance,
@@ -19,7 +18,6 @@ export type {
   SimState,
   Vec2,
 } from "./types";
-export { DISPLAY_RESOLUTIONS, VIRTUAL_HEIGHT } from "./types";
 export {
   applyPt,
   applyVec,
@@ -38,7 +36,36 @@ export type { ExpandedScene, RuntimeEntity } from "./scene/types";
 export type { GameDefinition, Registry } from "./game/types";
 export type { PlayOptions } from "./headless/playtest-types";
 export type { RunRecording } from "./scene/recording-schema";
-export { createPixiView, pixiContainer, type PixiView } from "./render/pixi-view";
+export {
+  createPixiView,
+  pixiContainer,
+  type PixiView,
+  type PixiViewOptions,
+  type TextureSource,
+} from "./render/pixi-view";
+export {
+  createAssetLoader,
+  type AssetLoader,
+  type AssetUrl,
+  type LoadProgress,
+} from "./render/asset-loader";
+export {
+  DEFAULT_RESOLUTION,
+  resolveResolution,
+  viewportFor,
+  type ResolutionPolicy,
+  type ResolutionViewport,
+} from "./resolution";
+export { drawSprite, type BlendMode, type SpriteVisual } from "./context";
+export {
+  SPRITE,
+  SPRITE_FALLBACK_SIZE,
+  spriteGeometry,
+  type FrameRect,
+  type SpriteAssetInfo,
+  type SpriteBlock,
+  type SpriteGeometry,
+} from "./game/behaviors/sprite";
 export { TOOL_PRIORITY, type ToolConsumer, type ToolEvent, type ToolRouter } from "./tool-router";
 export {
   selectCamera,

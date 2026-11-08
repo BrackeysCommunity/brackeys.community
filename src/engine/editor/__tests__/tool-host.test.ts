@@ -632,3 +632,35 @@ describe("game tools", () => {
     expect(() => rig({}, [tools[0]!, tools[0]!])).toThrow(/listed twice/);
   });
 });
+
+describe("sprite boxes", () => {
+  it("sizes them from the asset lookup and re-indexes on demand", () => {
+    const def = parseSceneOrThrow(yard, registry);
+    def.entities!.push({
+      id: "sign",
+      type: "marker",
+      at: [600, 960],
+      behaviors: { sprite: { asset: "sign", anchor: [0.5, 1] } },
+    });
+    let size: [number, number] = [40, 20];
+    const r = rig(
+      { asset: (id) => (id === "sign" ? { id, kind: "texture", size } : undefined) },
+      undefined,
+      { def, prefabs: prefabLibrary([]) },
+    );
+    expect(r.host.index().get("sign")?.aabb).toEqual({
+      minX: 580,
+      minY: 940,
+      maxX: 620,
+      maxY: 960,
+    });
+    size = [80, 40];
+    r.host.reindex();
+    expect(r.host.index().get("sign")?.aabb).toEqual({
+      minX: 560,
+      minY: 920,
+      maxX: 640,
+      maxY: 960,
+    });
+  });
+});

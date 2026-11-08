@@ -1,11 +1,14 @@
 import type { z } from "zod";
 
-import type { SceneView } from "../context";
+import type { BlendMode, SceneView } from "../context";
+import type { AssetDrop } from "../editor/asset-drop";
 import type { EditorToolDef } from "../editor/tools";
 import type { PhysicsWorld } from "../physics";
 import type { AssetKindDef } from "../project/kinds";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName } from "../project/types";
+import type { ResolutionPolicy } from "../resolution";
+import type { PoseIndex } from "../runtime/poses";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type { SceneLayerDef } from "../scene/layers";
 import type {
@@ -14,7 +17,9 @@ import type {
   Bounds,
   EntityDef,
   EntityTypeName,
+  EntityInput,
   ExpandedScene,
+  InstanceInput,
   IssueCodeInfo,
   PrefabLibrary,
   ResolvedSettings,
@@ -27,7 +32,13 @@ import type {
 import type { AttachmentHub } from "../systems/attachments";
 import type { ToolRouter } from "../tool-router";
 import type { GameMode, InputAction, InputBinding, RapierModule, Vec2 } from "../types";
-import type { BehaviorBlock, BehaviorDef, BehaviorName, RegisteredBehavior } from "./behaviors";
+import type {
+  BehaviorBlock,
+  BehaviorDef,
+  BehaviorName,
+  BehaviorSystem,
+  RegisteredBehavior,
+} from "./behaviors";
 
 // ─── Primitives ──────────────────────────────────────────
 
@@ -35,7 +46,15 @@ import type { BehaviorBlock, BehaviorDef, BehaviorName, RegisteredBehavior } fro
  * Entity types the engine always registers. A game type can name one as its
  * `base` to be spawned by the engine's system for it.
  */
-export const PRIMITIVE_TYPES = ["solid", "sensor", "marker", "prop", "follower", "note"] as const;
+export const PRIMITIVE_TYPES = [
+  "solid",
+  "sensor",
+  "marker",
+  "prop",
+  "follower",
+  "decor",
+  "note",
+] as const;
 export type PrimitiveType = (typeof PRIMITIVE_TYPES)[number];
 /** Primitives with a runtime system; `note` never loads. */
 export type BasePrimitive = Exclude<PrimitiveType, "note">;
@@ -92,6 +111,10 @@ export type MaterialDef = {
   description: string;
   /** Wins over the entity type's style for a body of this material. */
   style?: Style;
+  /** A sprite's tint when its block sets none, 0xRRGGBB. */
+  tint?: number;
+  /** A sprite's blend mode when its block sets none. */
+  blend?: BlendMode;
 };
 
 // ─── Systems ─────────────────────────────────────────────
@@ -150,6 +173,12 @@ export type EngineContext = {
   readonly play: PlayStart | null;
   /** The project's data as of load; null for a run with no project (bare scene tests). Frozen for the run. */
   readonly project: ProjectRuntimeView | null;
+  /** Every loaded entity's pose, written by the system that moves it. */
+  poses: PoseIndex;
+  /** A behavior's runtime system, as `system(type)` gives a type's. */
+  behavior: <S extends BehaviorSystem = BehaviorSystem>(name: BehaviorName) => S | undefined;
+  /** Texture sampling for a sprite whose texture's import sets no `filter`. */
+  readonly sampling: "linear" | "nearest";
 };
 
 /** The resolved start of a play world, as the game's `onLoad` reads it from `EngineContext.play`. */
@@ -285,6 +314,8 @@ export type GameEditorDef = {
   tools?: () => Promise<readonly EditorToolDef[]>;
   /** Widgets by id, as fields name them in `meta.widget`. */
   widgets?: Readonly<Record<string, InspectorWidgetDef>>;
+  /** What a dropped asset becomes in this game's scenes; null falls back to the engine's. */
+  assetDrop?: (drop: AssetDrop) => EntityInput | InstanceInput | null;
 };
 
 // ─── Physical validation and checks ──────────────────────
@@ -508,7 +539,8 @@ export type GameDefinition<S = unknown, G = unknown> = {
   types: readonly EntityTypeDef[];
   /**
    * Spawn groups in order; types inside one group spawn together in file
-   * order (bulk first). Lists every loadable type once. Omitted means each
+   * order (bulk first). Lists every loadable type once, except that `decor`
+   * may be left out and then spawns last. Omitted means each
    * primitive, then each game type, in registration order.
    */
   spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
@@ -559,6 +591,8 @@ export type GameDefinition<S = unknown, G = unknown> = {
   behaviors?: readonly BehaviorDef[];
   /** Scene layers, bottom to top; replaces the engine's four defaults when given. */
   layers?: readonly SceneLayerDef[];
+  /** The game's resolution policy, under the project's and the host's. */
+  resolution?: Partial<ResolutionPolicy>;
 };
 
 /** What a type allows, requires and defaults among the registry's behaviors. */

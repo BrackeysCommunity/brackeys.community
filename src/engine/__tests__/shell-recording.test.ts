@@ -23,7 +23,6 @@ vi.mock("../renderer", () => ({
     destroy: () => {},
   }),
 }));
-vi.mock("../assets", () => ({ initAssets: async () => {} }));
 
 const registry = createRegistry(testGame);
 const yard = (): SceneDefinition => parseSceneOrThrow(engineYardJson, registry);

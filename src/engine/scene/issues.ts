@@ -233,6 +233,18 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Use a kind the project registers, with a path whose extension that kind matches; an immutable kind (recordings) can't take new content.",
     fixable: false,
   },
+  "asset-frame-unknown": {
+    severity: "error",
+    summary: "A sprite names a frame its atlas doesn't have, or names an atlas without a frame.",
+    hint: "Set `frame` to one of the atlas's frames (the message suggests the closest); `vp run scene assets info <atlas>` lists them.",
+    fixable: false,
+  },
+  "sprite-no-asset": {
+    severity: "warn",
+    summary: "A sprite has no `asset`, so only its fallback box draws.",
+    hint: "Set `asset`; until then only the box draws.",
+    fixable: false,
+  },
   "asset-in-use": {
     severity: "error",
     summary: "An asset can't be deleted while other assets reference it.",

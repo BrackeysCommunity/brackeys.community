@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createGame, type GameInstance, type RapierModule } from "@jams/engine";
+import { createGame, type GameConfig, type GameInstance, type RapierModule } from "@jams/engine";
 import { sceneToDoc, sequentialKeys } from "@jams/engine/collab";
 import { defineEditorTool, type Pt, type SceneDefinition } from "@jams/engine/editor";
 import { defineGame } from "@jams/engine/game";
@@ -25,7 +25,11 @@ vi.mock("pixi.js", async (importOriginal) => {
     async init() {}
     destroy() {}
   }
-  return { ...pixi, Application, Assets: { addBundle: () => {}, loadBundle: async () => {} } };
+  return {
+    ...pixi,
+    Application,
+    Assets: { load: async () => pixi.Texture.WHITE, unload: async () => {} },
+  };
 });
 
 const toast = vi.hoisted(() =>
@@ -107,7 +111,7 @@ afterEach(() => {
 });
 
 /** The editor on a real game sized to the window, its canvas the router's input target. */
-async function setup() {
+async function setup(resolution?: GameConfig["resolution"]) {
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
   vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(
@@ -120,6 +124,7 @@ async function setup() {
     displayWidth: window.innerWidth,
     displayHeight: window.innerHeight,
     dev: true,
+    ...(resolution ? { resolution } : {}),
   });
   game.start();
   const doc = sceneToDoc(yard(), { key: sequentialKeys("t") });
@@ -193,6 +198,30 @@ describe("the canvas layer", () => {
     const world = g.screenToWorld({ x, y });
     expect(world.x).toBeCloseTo(900);
     expect(world.y).toBeCloseTo(600);
+  });
+
+  it("scales by the store's camera.scale, so a letterboxed or zoomed view still lines up", async () => {
+    const { game: g, screenOf } = await setup({
+      virtual: { width: 400, height: 400 },
+      fit: "letterbox",
+    });
+    const { camera } = g.getStore().state;
+    const fit = Math.min(window.innerWidth, window.innerHeight) / 400;
+    expect(camera.scale).toBeCloseTo(fit);
+    expect(viewOf(camera, window.innerWidth, window.innerHeight).scale).toBe(camera.scale);
+    for (const at of [
+      [900, 600],
+      [780, 520],
+    ] as Pt[]) {
+      const [x, y] = screenOf(at);
+      const world = g.screenToWorld({ x, y });
+      expect(world.x).toBeCloseTo(at[0]);
+      expect(world.y).toBeCloseTo(at[1]);
+    }
+    g.zoomAt({ x: 100, y: 100 }, 2);
+    expect(g.getStore().state.camera.scale).toBeCloseTo(fit * 2);
+    const [x, y] = screenOf([900, 600]);
+    expect(g.screenToWorld({ x, y }).x).toBeCloseTo(900);
   });
 
   it("commits a drag over an entity as exactly one transaction on release", async () => {

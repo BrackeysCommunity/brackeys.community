@@ -105,6 +105,16 @@ export const PRIMITIVES = {
     style: { fill: 0x6677aa, stroke: 0xffffff, alpha: 0.8 },
     ascii: "F",
   },
+  decor: {
+    type: "decor",
+    description: "A picture with no body: drawn by its sprite, never collides.",
+    fields: {
+      at: pointField(`Where the sprite's pose is. ${absolute}`),
+    },
+    behaviors: { required: { sprite: {} } },
+    style: { stroke: 0xcc99ff, alpha: 0.6 },
+    ascii: "d",
+  },
   note: {
     type: "note",
     description: "Editor note: text pinned to a point. Never loaded into the game.",
@@ -148,6 +158,7 @@ export const BASE_REQUIRED_FIELDS: Record<Exclude<PrimitiveType, "note">, readon
   marker: ["at"],
   prop: ["shape", "density", "restitution"],
   follower: ["shape", "path"],
+  decor: ["at"],
 };
 
 function px2(description: string, [a, b]: [string, string] = ["x", "y"]) {

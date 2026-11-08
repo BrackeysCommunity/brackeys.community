@@ -1,4 +1,5 @@
 import { ENGINE_TOOL_IDS } from "../game/types";
+import type { SpriteAssetLookup } from "../scene/render-geometry";
 import type { Aabb, OpBatch, Pt, Ref } from "../scene/types";
 import { TOOL_PRIORITY, type ToolEvent, type ToolRouter } from "../tool-router";
 import type { Vec2 } from "../types";
@@ -83,6 +84,11 @@ export type ToolHostOptions = {
   now?: () => number;
   /** The tool to start with; default `select`. */
   tool?: string;
+  /**
+   * Asset info for sizing sprite boxes (`ProjectRuntimeView.asset`), read at
+   * each re-index; call `reindex` when its answers change.
+   */
+  asset?: SpriteAssetLookup;
 };
 
 export type ToolHost = {
@@ -125,6 +131,8 @@ export type ToolHost = {
   setLayers(patch: { hidden?: Iterable<string>; locked?: Iterable<string> }): void;
   /** The spatial index the tools pick from, kept current with the session. */
   index(): SpatialIndex;
+  /** Rebuilds the index, for when the `asset` lookup's answers changed. */
+  reindex(): void;
   /** The selection as clipboard text; empty with nothing selected. */
   copy(): string;
   /** The selection's clipboard text, removing it in one batch; empty with nothing selected. */
@@ -191,7 +199,10 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     hidden: new Set(opts.layers?.hidden ?? []),
     locked: new Set(opts.layers?.locked ?? []),
   };
-  const index = createSpatialIndex({ keyOf: (r) => session.keyOf(r) });
+  const index = createSpatialIndex({
+    keyOf: (r) => session.keyOf(r),
+    ...(opts.asset ? { asset: opts.asset } : {}),
+  });
   index.rebuild(session.getResolved(), registry);
   const gesture = createGesturePreview({
     registry,
@@ -545,6 +556,10 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       emit();
     },
     index: () => index,
+    reindex() {
+      index.rebuild(session.getResolved(), registry);
+      emit();
+    },
     copy: () =>
       selection().length > 0
         ? copySelection(session.getDoc(), selection(), registry, session.getPrefabs())

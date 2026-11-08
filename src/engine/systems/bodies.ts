@@ -2,14 +2,16 @@ import type { Collider, ColliderDesc, RigidBody } from "@dimforge/rapier2d";
 
 import { createSensorCollider } from "../collisions";
 import type { ViewLayer } from "../context";
+import { SPRITE } from "../game/behaviors/sprite";
 import { styleOf } from "../game/style";
 import type { ColliderTag, EngineContext, RegisteredType, SceneSystem } from "../game/types";
 import { posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
+import { composePose, relativePose, shapeSpawnPose, type Pose } from "../runtime/poses";
 import { SENSOR_ENTER, SENSOR_EXIT, type StepEvent } from "../runtime/types";
 import { aabb, translateShape } from "../scene/shape-geometry";
 import type { RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
-import type { Attachment } from "./attachments";
+import type { Attachment, AttachmentHost } from "./attachments";
 
 export type SolidEntity = RuntimeEntity<{
   shape: ShapeObj;
@@ -61,17 +63,44 @@ export function surfaceTag(
   return tag;
 }
 
-/** Draws an entity in its type's look; nothing without a view or a look. */
+/**
+ * The draw order of the scene layer `e` names, else `fallback`: an engine
+ * system's own visuals sit on the entity's layer only when it names one.
+ */
+export function entityDrawLayer(
+  ctx: Pick<EngineContext, "registry">,
+  e: { layer?: string },
+  fallback: ViewLayer,
+): ViewLayer {
+  if (e.layer === undefined) return fallback;
+  return ctx.registry.layers.find((l) => l.name === e.layer)?.draw ?? fallback;
+}
+
+/**
+ * Draws an entity in its type's look; nothing without a view or a look, or
+ * for an entity with a sprite, which draws instead. An entity with a `z` or
+ * a `layer` gets its depth, which orders it inside its layer and makes it
+ * one of the layer's entity visuals (hidden in play on an editor-only one).
+ */
 export function drawEntity(
   ctx: Pick<EngineContext, "registry" | "view">,
   type: RegisteredType,
-  e: { id: string; shape: ShapeObj; material?: string },
+  e: {
+    id: string;
+    shape: ShapeObj;
+    material?: string;
+    behaviors?: RuntimeEntity["behaviors"];
+    z?: number;
+    layer?: string;
+  },
   layer: ViewLayer,
   shape: ShapeObj = e.shape,
 ): void {
-  if (!ctx.view) return;
+  if (!ctx.view || e.behaviors?.[SPRITE.name]) return;
   const style = styleOf(ctx, type, e.material);
-  if (style) ctx.view.draw(e.id, shape, style, layer);
+  if (!style) return;
+  ctx.view.draw(e.id, shape, style, layer);
+  if (e.z || e.layer !== undefined) ctx.view.depth?.(e.id, e.z ?? 0);
 }
 
 /** `shape` in the frame of a body `posedBodyDesc` made from it: centred and unrotated. */
@@ -92,12 +121,33 @@ export type OwnedBody = { body: RigidBody; collider: Collider };
 
 const sameShape = (a: ShapeObj, b: ShapeObj) => JSON.stringify(a) === JSON.stringify(b);
 
+/** What a body table reads of an entity: its id, its shape and its quarter turns. */
+type ShapedEntity = Pick<RuntimeEntity, "id" | "transform"> & { shape: ShapeObj };
+
+/**
+ * The entity's pose in its body's frame. A body `posedBodyDesc` made sits
+ * at `shapePose(shape)`; a `local` one (a follower's) carries the shape at
+ * its own offset.
+ */
+function bodyOffset(e: ShapedEntity, local: boolean): Pose {
+  const pose = shapeSpawnPose(e.shape, e.transform);
+  if (local) return pose;
+  const frame = shapePose(e.shape);
+  return relativePose(pose, { x: frame.x, y: frame.y, rot: frame.rotation });
+}
+
 /**
  * Bookkeeping for a system whose entities each own one body with one tagged
- * collider; despawning one also removes its visual.
+ * collider; despawning one also removes its visual. With `view` false the
+ * entities have no visuals to pose.
  */
-export function createBodyTable<T extends OwnedBody>(ctx: EngineContext) {
+export function createBodyTable<T extends OwnedBody>(
+  ctx: EngineContext,
+  opts: { view?: boolean } = {},
+) {
   const owned = new Map<string, T>();
+  const offsets = new Map<string, Pose>();
+  const posesView = opts.view !== false;
 
   function despawn(id: string): void {
     const entry = owned.get(id);
@@ -106,38 +156,53 @@ export function createBodyTable<T extends OwnedBody>(ctx: EngineContext) {
     ctx.physics.removeRigidBody(entry.body);
     ctx.view?.remove(id);
     owned.delete(id);
+    offsets.delete(id);
   }
 
-  function poseBody(id: string, body: RigidBody): void {
-    if (!ctx.view) return;
+  function poseView(id: string, body: RigidBody): void {
+    if (!posesView || !ctx.view) return;
     const t = body.translation();
     ctx.view.pose(id, t.x, t.y, body.rotation());
   }
 
+  /** Writes the entity's pose from its body to the pose index, and to the view when there is one. */
+  function poseBody(id: string, body: RigidBody, snap: boolean): void {
+    const offset = offsets.get(id);
+    if (offset) {
+      const t = body.translation();
+      const p = composePose(t.x, t.y, body.rotation(), offset);
+      ctx.poses.set(id, p.x, p.y, p.rot, snap ? { snap } : undefined);
+    }
+    poseView(id, body);
+  }
+
   return {
     owned,
-    add: (id: string, entry: T, tag: ColliderTag): void => {
+    /** `local` for a body that carries the shape at its own offset rather than one posed at it. */
+    add: (e: ShapedEntity, entry: T, tag: ColliderTag, local = false): void => {
       ctx.tags.set(entry.collider.handle, tag);
-      owned.set(id, entry);
+      owned.set(e.id, entry);
+      offsets.set(e.id, bodyOffset(e, local));
     },
     /**
-     * Re-poses a fixed body for `shape` and swaps its collider for the one
-     * `attach` adds, tagged `tag`: a respawn that keeps the body and the
+     * Re-poses a fixed body for `e`'s shape and swaps its collider for the
+     * one `attach` adds, tagged `tag`: a respawn that keeps the body and the
      * entity's place in spawn order.
      */
     reshape: (
+      e: ShapedEntity,
       entry: T,
-      shape: ShapeObj,
       attach: (body: RigidBody) => Collider,
       tag: ColliderTag,
     ) => {
-      const pose = shapePose(shape);
+      const pose = shapePose(e.shape);
       entry.body.setTranslation(new ctx.rapier.Vector2(pose.x, pose.y), true);
       entry.body.setRotation(pose.rotation, true);
       ctx.tags.delete(entry.collider.handle);
       ctx.physics.removeCollider(entry.collider);
       entry.collider = attach(entry.body);
       ctx.tags.set(entry.collider.handle, tag);
+      offsets.set(e.id, bodyOffset(e, false));
     },
     despawn,
     clear: (): void => {
@@ -150,14 +215,14 @@ export function createBodyTable<T extends OwnedBody>(ctx: EngineContext) {
       const t = entry.body.translation();
       return { x: t.x, y: t.y };
     },
-    /** Moves the entity's visual to its body's pose. */
+    /** Moves the entity's visual to its body's pose; its spawn pose is the runtime's to set. */
     pose: (id: string): void => {
       const entry = owned.get(id);
-      if (entry) poseBody(id, entry.body);
+      if (entry) poseView(id, entry.body);
     },
-    /** Moves every visual to its body's pose. */
-    poseAll: (): void => {
-      if (ctx.view) for (const [id, { body }] of owned) poseBody(id, body);
+    /** Poses every entity to its body, in the pose index and the view; `snap` after a jump. */
+    poseAll: (snap = false): void => {
+      for (const [id, { body }] of owned) poseBody(id, body, snap);
     },
   };
 }
@@ -170,19 +235,32 @@ export type Rider<E extends { id: string; shape: ShapeObj }> = {
   attachment: Attachment;
   /** The shape in the host's frame, once a host has been seen. */
   local: ShapeObj | null;
+  /** The entity's pose in the host's frame, once a host has been seen. */
+  offset: Pose | null;
 };
 
 /**
  * Entities attached to a host (`attach: "<follower id>"`): each collider
  * goes on the host's body at the entity's offset from the host's origin,
  * so the host's motion carries it with no per-tick sync. Visuals are
- * drawn in the host's frame and posed to its body.
+ * drawn in the host's frame; poses and visuals follow the host's body
+ * whenever the host reports it `moved`.
  */
-export function createRiders<E extends { id: string; shape: ShapeObj; attach?: string }>(
+export function createRiders<
+  E extends {
+    id: string;
+    shape: ShapeObj;
+    attach?: string;
+    transform?: RuntimeEntity["transform"];
+    behaviors?: RuntimeEntity["behaviors"];
+    z?: number;
+    layer?: string;
+  },
+>(
   ctx: EngineContext,
   type: RegisteredType,
   opts: {
-    layer: ViewLayer;
+    layer: (e: E) => ViewLayer;
     draw: boolean;
     material?: (e: E) => string | undefined;
     /** Makes the collider on the host's body from a descriptor of the host-local shape. */
@@ -195,30 +273,49 @@ export function createRiders<E extends { id: string; shape: ShapeObj; attach?: s
   function draw(e: E, shape: ShapeObj): void {
     if (!opts.draw) return;
     ctx.view?.remove(e.id);
-    drawEntity(ctx, type, { id: e.id, shape, material: opts.material?.(e) }, opts.layer, shape);
+    drawEntity(
+      ctx,
+      type,
+      {
+        id: e.id,
+        shape,
+        material: opts.material?.(e),
+        behaviors: e.behaviors,
+        z: e.z,
+        layer: e.layer,
+      },
+      opts.layer(e),
+      shape,
+    );
   }
 
-  function pose(r: Rider<E>): void {
-    const host = r.attachment.host();
-    if (!ctx.view || !host || !r.local) return;
+  function pose(r: Rider<E>, snap: boolean, host = r.attachment.host()): void {
+    if (!host || !r.local || !r.offset) return;
     const t = host.body.translation();
-    ctx.view.pose(r.entity.id, t.x, t.y, host.body.rotation());
+    const rot = host.body.rotation();
+    const p = composePose(t.x, t.y, rot, r.offset);
+    ctx.poses.set(r.entity.id, p.x, p.y, p.rot, snap ? { snap } : undefined);
+    ctx.view?.pose(r.entity.id, t.x, t.y, rot);
   }
 
   function add(e: E, hostId: string): void {
-    const rider: Rider<E> = { entity: e, attachment: null as never, local: null };
-    rider.attachment = ctx.attachments.attach(e.id, hostId, (host) => {
+    const rider: Rider<E> = { entity: e, attachment: null as never, local: null, offset: null };
+    const make = (host: AttachmentHost) => {
       const local = translateShape(e.shape, [-host.origin.x, -host.origin.y]);
       rider.local = local;
+      rider.offset = shapeSpawnPose(local, e.transform);
       const collider = opts.collider(host.body, shapeColliderDesc(ctx.rapier, local, true), e);
       ctx.tags.set(collider.handle, {
         ...opts.tag(e),
         carrier: { entityId: host.id, type: host.type },
       });
       draw(e, local);
-      pose(rider);
+      pose(rider, true, host);
       return collider;
-    });
+    };
+    rider.attachment = ctx.attachments.attach(e.id, hostId, make, (host, snap) =>
+      pose(rider, snap, host),
+    );
     riders.set(e.id, rider);
     if (!rider.attachment.collider()) draw(e, e.shape);
   }
@@ -239,9 +336,6 @@ export function createRiders<E extends { id: string; shape: ShapeObj; attach?: s
     clear: () => {
       for (const id of [...riders.keys()]) remove(id);
     },
-    poseAll: () => {
-      for (const r of riders.values()) pose(r);
-    },
     /** Where a rider's collider is now, in world px; null while it waits for its host. */
     position: (id: string): Vec2 | null => {
       const c = riders.get(id)?.attachment.collider();
@@ -254,7 +348,7 @@ export function createRiders<E extends { id: string; shape: ShapeObj; attach?: s
 
 /** Where a system draws its entities, and whether it draws them at all. */
 export type VisualOptions = {
-  /** The draw layer; each system has its own default. */
+  /** The draw layer for every entity, whatever its `layer`; omitted, the entity's layer, else the system's default. */
   layer?: ViewLayer;
   /** False when the game draws the entities itself. */
   draw?: boolean;
@@ -307,7 +401,7 @@ export function createSolidSystem(
   /** Attached one-way solids gated off: their collider's groups are 0 until the actor is above them again. */
   const gated = new Set<string>();
   const riders = createRiders<SolidEntity>(ctx, type, {
-    layer: opts.layer ?? "terrain",
+    layer: (e) => opts.layer ?? entityDrawLayer(ctx, e, "terrain"),
     draw: opts.draw !== false,
     material: (e) => e.material,
     collider: (body, desc, e) =>
@@ -350,7 +444,8 @@ export function createSolidSystem(
   }
 
   function draw(e: SolidEntity): void {
-    if (opts.draw !== false) drawEntity(ctx, type, e, opts.layer ?? "terrain");
+    if (opts.draw !== false)
+      drawEntity(ctx, type, e, opts.layer ?? entityDrawLayer(ctx, e, "terrain"));
   }
 
   function despawn(id: string): void {
@@ -364,7 +459,7 @@ export function createSolidSystem(
     const desc = colliderDesc(e);
     const body = physics.addRigidBody(posedBodyDesc(rapier.RigidBodyDesc.fixed(), e.shape));
     const collider = physics.addCollider(desc, body);
-    table.add(e.id, { body, collider, ...placement(e) }, tagOf(e));
+    table.add(e, { body, collider, ...placement(e) }, tagOf(e));
     draw(e);
   }
 
@@ -374,7 +469,7 @@ export function createSolidSystem(
       const solid = table.owned.get(e.id);
       if (!solid || e.attach !== undefined) return spawn(e);
       const desc = colliderDesc(e);
-      table.reshape(solid, e.shape, (body) => physics.addCollider(desc, body), tagOf(e));
+      table.reshape(e, solid, (body) => physics.addCollider(desc, body), tagOf(e));
       Object.assign(solid, placement(e));
       if (opts.draw !== false) ctx.view?.remove(e.id);
       draw(e);
@@ -405,7 +500,6 @@ export function createSolidSystem(
     },
     isHidden: (id) => table.owned.get(id)?.hidden ?? gated.has(id),
     position: (id) => table.position(id) ?? riders.position(id),
-    afterStep: riders.poseAll,
   };
 
   /**
@@ -446,14 +540,14 @@ export function createPropSystem(
       const friction = e.friction ?? surface.friction;
       if (friction !== undefined) desc.setFriction(friction);
       const collider = physics.addCollider(desc, body);
-      table.add(e.id, { body, collider }, surfaceTag(e.id, type, e.material));
-      drawEntity(ctx, type, e, "body", bodyLocalShape(e.shape));
+      table.add(e, { body, collider }, surfaceTag(e.id, type, e.material));
+      drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "body"), bodyLocalShape(e.shape));
       table.pose(e.id);
     },
     despawn: table.despawn,
     clear: table.clear,
     size: table.size,
-    afterStep: table.poseAll,
+    afterStep: () => table.poseAll(),
   };
 }
 
@@ -471,7 +565,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
   const { rapier, physics } = ctx;
   const inside = new Map<string, Overlaps>();
   const riders = createRiders<SensorEntity>(ctx, type, {
-    layer: "terrain",
+    layer: (e) => entityDrawLayer(ctx, e, "terrain"),
     draw: true,
     collider: (body, desc) => createSensorCollider(ctx, body, desc),
     tag: (e) => tagOf(e),
@@ -509,8 +603,8 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
     const desc = shapeColliderDesc(rapier, e.shape);
     const body = physics.addRigidBody(posedBodyDesc(rapier.RigidBodyDesc.fixed(), e.shape));
     const collider = createSensorCollider(ctx, body, desc);
-    table.add(e.id, { body, collider, inside: new Map() }, tagOf(e));
-    drawEntity(ctx, type, e, "terrain");
+    table.add(e, { body, collider, inside: new Map() }, tagOf(e));
+    drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
   }
 
   return {
@@ -524,9 +618,9 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
         return;
       }
       const desc = shapeColliderDesc(rapier, e.shape);
-      table.reshape(sensor, e.shape, (body) => createSensorCollider(ctx, body, desc), tagOf(e));
+      table.reshape(e, sensor, (body) => createSensorCollider(ctx, body, desc), tagOf(e));
       ctx.view?.remove(e.id);
-      drawEntity(ctx, type, e, "terrain");
+      drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
     },
     despawn,
     clear() {
@@ -540,7 +634,6 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
     },
     size: () => table.size() + riders.riders.size,
     afterStep() {
-      riders.poseAll();
       if (table.owned.size === 0 && riders.riders.size === 0) return;
       // Pairwise checks rather than `intersectionPairsWith`, whose wasm callback fails under Node test runners.
       const colliders = physics.world.colliders.getAll();

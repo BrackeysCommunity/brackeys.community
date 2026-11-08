@@ -11,6 +11,9 @@ import {
 } from "../../__tests__/fixtures/test-game";
 import { engineHomeRegistry } from "../../project/__tests__/fixtures/engine-home";
 import { memoryContentStore, type ContentStore } from "../../project/content-store";
+import { sha256 } from "../../project/hash";
+import { atlasKind } from "../../project/kinds/atlas";
+import { textureKind } from "../../project/kinds/texture";
 import { runtimeView } from "../../project/runtime-view";
 import { snapshotProject, SnapshotError, type ProjectSnapshot } from "../../project/snapshot";
 import type { AssetEntry, AssetId } from "../../project/types";
@@ -104,6 +107,22 @@ describe("loadHeadless's project", () => {
     ]);
   });
 
+  it("copies and freezes the game-settings engine block, empty without one", () => {
+    const engine = { resolution: { virtual: { height: 180 }, integer: true } };
+    const file = { ...settings({}), engine };
+    const view = projectView({
+      ...emptyState(),
+      assets: { "game-settings": entry("game-settings", "game-settings", "game-settings.json") },
+    });
+    const project = runtimeView(view, new Map([["game-settings", file]]), registry);
+    expect(project.engine).toEqual(engine);
+    expect(Object.isFrozen(project.engine)).toBe(true);
+    expect(Object.isFrozen((project.engine.resolution as { virtual: object }).virtual)).toBe(true);
+    engine.resolution.integer = false;
+    expect(project.engine).toMatchObject({ resolution: { integer: true } });
+    expect(runtimeView(projectView(emptyState()), new Map(), registry).engine).toEqual({});
+  });
+
   it("feeds a run's game: a faster avatarSpeed walks it farther", async () => {
     const script = { v: 1 as const, scene: "engine-yard", steps: [{ hold: ["right"], for: 60 }] };
     const walked = async (game: Record<string, unknown>) => {
@@ -155,6 +174,110 @@ describe("loadHeadless's project", () => {
       code: "asset-missing",
       entityIds: ["cards"],
     });
+  });
+});
+
+describe("the runtime view's assets", () => {
+  const fixture = (name: string) =>
+    new Uint8Array(
+      readFileSync(new URL(`../../project/__tests__/fixtures/${name}`, import.meta.url)),
+    );
+  const blobs = async (store?: ContentStore) => {
+    const png = fixture("items.png");
+    const json = fixture("items.json");
+    const art = textureKind.inspect(png, {}, { path: "art/items.png", idAt: () => undefined });
+    const atlas = atlasKind.inspect(
+      json,
+      {},
+      {
+        path: "art/items.json",
+        idAt: (p) => (p === "art/items.png" ? "items-art" : undefined),
+      },
+    );
+    if (!art.ok || !atlas.ok) throw new Error("fixtures don't inspect");
+    const [artHash, atlasHash] = await Promise.all([sha256(png), sha256(json)]);
+    if (store) await Promise.all([store.put(png), store.put(json)]);
+    return [
+      {
+        ...entry("items-art", "texture", "art/items.png"),
+        sha256: artHash,
+        bytes: png.length,
+        meta: art.meta as Record<string, unknown>,
+        import: { pivot: [0.5, 1] },
+      },
+      {
+        ...entry("items", "atlas", "art/items.json"),
+        sha256: atlasHash,
+        bytes: json.length,
+        meta: atlas.meta as Record<string, unknown>,
+        import: atlas.import,
+      },
+    ] satisfies AssetEntry[];
+  };
+
+  it("gives each blob's info from its meta, frozen at load, and undefined for an unknown id", async () => {
+    const entries = await blobs();
+    const view = projectView({
+      ...emptyState(),
+      assets: Object.fromEntries(entries.map((e) => [e.key, e])),
+    });
+    const project = runtimeView(view, new Map(), registry);
+    expect(project.asset("items-art")).toMatchObject({ size: [16, 16], pivot: [0.5, 1] });
+    expect(project.asset("items", "gem.png")).toMatchObject({
+      kind: "atlas",
+      size: [8, 8],
+      pivot: [0.5, 1],
+      texture: "items-art",
+    });
+    expect(project.asset("items")?.frames).toEqual(["coin.png", "gem.png", "panel.png"]);
+    expect(project.asset("items", "nope")).toBeUndefined();
+    expect(project.asset("nowhere")).toBeUndefined();
+    expect(Object.isFrozen(project.asset("items", "gem.png")?.size)).toBe(true);
+    (entries[0]!.meta as { width: number }).width = 99;
+    expect(project.asset("items-art")?.size).toEqual([16, 16]);
+  });
+
+  it("by snapshot, gives what the snapshot pins of each blob, reading none", async () => {
+    const reads: string[] = [];
+    const inner = memoryContentStore();
+    const store: ContentStore = {
+      ...inner,
+      get: (hash) => {
+        reads.push(hash);
+        return inner.get(hash);
+      },
+    };
+    const base = await snapshotOf(store, {});
+    const pinned = await blobs(store);
+    const snapshot: ProjectSnapshot = {
+      ...base,
+      assets: {
+        ...base.assets,
+        ...Object.fromEntries(
+          pinned.map((e) => [
+            e.id,
+            { key: e.key, kind: e.kind, path: e.path, sha256: e.sha256, import: e.import },
+          ]),
+        ),
+      },
+    };
+    reads.length = 0;
+    const loaded = await loadHeadless({ snapshot, store, scene: "engine-yard", registry });
+    expect(loaded.project?.asset("items-art")).toEqual({
+      id: "items-art",
+      kind: "texture",
+      sha256: pinned[0]!.sha256,
+      pivot: [0.5, 1],
+    });
+    expect(loaded.project?.asset("items")).toEqual({
+      id: "items",
+      kind: "atlas",
+      sha256: pinned[1]!.sha256,
+      texture: "items-art",
+    });
+    expect(loaded.project?.asset("cards")).toBeUndefined();
+    const blobHashes = new Set(pinned.map((e) => e.sha256));
+    expect(reads.filter((h) => blobHashes.has(h))).toEqual([]);
   });
 });
 

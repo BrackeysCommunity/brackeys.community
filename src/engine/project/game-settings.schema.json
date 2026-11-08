@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:game-settings:v1",
-  "x-agent-surface": 8,
+  "x-agent-surface": 9,
   "title": "jams engine game settings, format v1",
   "type": "object",
   "properties": {
@@ -21,9 +21,91 @@
     },
     "engine": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "resolution": {
+          "type": "object",
+          "properties": {
+            "virtual": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "World units across."
+                    },
+                    "height": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "World units down."
+                    }
+                  },
+                  "required": ["width", "height"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "height": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "World units down; the width follows the canvas."
+                    }
+                  },
+                  "required": ["height"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "World units across; the height follows the canvas."
+                    }
+                  },
+                  "required": ["width"],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "World units the camera shows at zoom 1 on the fixed axis or axes."
+            },
+            "fit": {
+              "description": "expand: the fixed axis fills the canvas and the other shows more; letterbox: the whole virtual area shows, bars fill the rest; crop: the virtual area covers the canvas, the overflow is cut. letterbox and crop need a width and a height.",
+              "type": "string",
+              "enum": ["expand", "letterbox", "crop"]
+            },
+            "integer": {
+              "description": "Scale only by whole multiples (pixel art); bars take the remainder.",
+              "type": "boolean"
+            },
+            "sampling": {
+              "description": "Default texture sampling; a texture's import filter wins.",
+              "type": "string",
+              "enum": ["linear", "nearest"]
+            },
+            "antialias": {
+              "description": "The renderer's antialiasing.",
+              "type": "boolean"
+            },
+            "pixelSnap": {
+              "description": "Round camera and visual positions to whole canvas pixels.",
+              "type": "boolean"
+            },
+            "bars": {
+              "description": "Bar colour, 0xRRGGBB as a number; default the background.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16777215
+            }
+          },
+          "additionalProperties": false,
+          "description": "How the world maps onto the canvas; each field given wins over the game's and loses to the host's."
+        }
+      },
       "additionalProperties": false,
-      "description": "The engine's project-wide settings; none yet."
+      "description": "The engine's project-wide settings."
     },
     "game": {
       "type": "object",

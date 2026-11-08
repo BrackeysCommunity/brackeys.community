@@ -300,7 +300,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_show",
     title: "Show a scene",
     description:
-      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash: instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world turn and flip, behavior blocks, an instance's params and the params its prefab exposes, and each grid field's filled cells and bounds. Filter by ref, type or a circle.",
+      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash: instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world turn and flip, behavior blocks, an instance's params and the params its prefab exposes, each grid field's filled cells and bounds, and each sprite's `asset[:frame]` and world box (sized from the project's assets). Filter by ref, type or a circle.",
     annotations: READ,
     input: {
       scene: sceneArg,
@@ -550,7 +550,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_render",
     title: "Render a scene",
     description:
-      "A schematic PNG of the scene (longest side 1600px) with axis ticks and entity labels, or with `ascii` a character map. Overlay a playtest or validate result.",
+      "A schematic PNG of the scene (longest side 1600px) with axis ticks, entity labels and each sprite's box labelled `asset[:frame]`, or with `ascii` a character map; `sprites` lists the boxes. Overlay a playtest or validate result.",
     annotations: READ,
     input: {
       scene: sceneArg,

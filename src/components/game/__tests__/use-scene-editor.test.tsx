@@ -11,7 +11,15 @@ import type { LiveEditor, OpenPrefab } from "../live-scene-editor";
 import { useSceneEditor } from "../use-scene-editor";
 
 const fakes = vi.hoisted(() => ({
-  ready: { session: {}, name: "scene:p.yard", id: "yard", doc: { doc: {}, awareness: null } },
+  views: [{ v: 1 }, { v: 2 }],
+  kinds: { kinds: true },
+  edits: 0,
+  ready: {
+    session: {} as Record<string, unknown>,
+    name: "scene:p.yard",
+    id: "yard",
+    doc: { doc: {}, awareness: null },
+  },
   projectDestroy: vi.fn(),
   replaying: false,
   editorChrome: vi.fn((props: { runStore: unknown }) => ({ props })),
@@ -21,14 +29,24 @@ const fakes = vi.hoisted(() => ({
   editorStores: [] as { setState: (fn: (s: { mode: string }) => { mode: string }) => void }[],
   prefabs: [] as { setState: (fn: () => OpenPrefab | null) => void }[],
   closePrefab: vi.fn(),
+  connection: { destroy: () => {} } as Record<string, unknown>,
+  follows: [] as { changes: unknown; game: unknown; off: ReturnType<typeof vi.fn> }[],
 }));
+
+fakes.ready.session = {
+  view: () => fakes.views[Math.min(fakes.edits, 1)],
+  kinds: fakes.kinds,
+};
 
 vi.mock("@/lib/active-user-store", () => ({ activeUserStore: { state: { profile: null } } }));
 vi.mock("../use-scene-doc", () => ({
   useSceneDoc: () => ({ status: "live", ready: fakes.ready, error: null }),
 }));
 vi.mock("../scene-provider", () => ({
-  connectEditorProject: () => ({ destroy: fakes.projectDestroy }),
+  connectEditorProject: () => {
+    fakes.connection = { destroy: fakes.projectDestroy };
+    return fakes.connection;
+  },
 }));
 vi.mock("@/components/game/editor/EditorShell", () => ({ editorChrome: fakes.editorChrome }));
 vi.mock("../live-scene-editor", async () => {
@@ -42,6 +60,11 @@ vi.mock("../live-scene-editor", async () => {
       subscribe: (l: () => void) => {
         fakes.overlayListeners.add(l);
         return () => fakes.overlayListeners.delete(l);
+      },
+      followAssets: (changes: unknown, game: unknown) => {
+        const off = vi.fn();
+        fakes.follows.push({ changes, game, off });
+        return off;
       },
       destroy: () => {},
     }),
@@ -124,6 +147,7 @@ afterEach(() => {
   fakes.editorStores.length = 0;
   fakes.prefabs.length = 0;
   fakes.closePrefab.mockClear();
+  fakes.follows.length = 0;
 });
 
 describe("useSceneEditor's Play-to-loaded-run", () => {
@@ -166,6 +190,33 @@ describe("useSceneEditor's project session", () => {
       project: { session: fakes.ready.session, doc: "scene:p.yard" },
     });
     expect(hook.result.current).toMatchObject({ status: "live", scene: "yard", error: null });
+  });
+
+  it("hands the host the open project's assets, its view read live", async () => {
+    const { hook } = await mount();
+    const assets = hook.result.current.assets!;
+    expect(assets).toMatchObject({ project: "p", kinds: fakes.kinds });
+    expect(assets.view()).toBe(fakes.views[0]);
+    fakes.edits = 1;
+    hook.rerender();
+    expect(hook.result.current.assets).toBe(assets);
+    expect(assets.view()).toBe(fakes.views[1]);
+    fakes.edits = 0;
+  });
+
+  it("follows the link's asset:changed messages into the game it hands the editor", async () => {
+    const { hook, game } = await mount();
+    await waitFor(() => expect(fakes.follows).toHaveLength(1));
+    expect(fakes.follows[0]).toMatchObject({ changes: fakes.connection, game });
+    hook.unmount();
+    expect(fakes.follows[0]!.off).toHaveBeenCalled();
+  });
+
+  it("hands no assets while the editor is off", () => {
+    const hook = renderHook(() =>
+      useSceneEditor({ game: null, project: "p", registry: REGISTRY, enabled: false }),
+    );
+    expect(hook.result.current.assets).toBeNull();
   });
 });
 

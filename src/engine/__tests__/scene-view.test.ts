@@ -5,6 +5,7 @@ import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { materialField, shapeField, tagsField } from "../game/fields";
 import { PRIMITIVES } from "../game/primitives";
 import { createSceneRuntime } from "../runtime/runtime";
+import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import { styleOf, type SolidSystem } from "../systems/bodies";
 import type { RapierModule } from "../types";
 import { engineYard } from "./fixtures/engine-yard.expanded";
@@ -97,6 +98,60 @@ describe("systems draw through the scene view", () => {
       headless.step(DT, []);
     }
     expect(rec.rt.snapshot()).toEqual(headless.snapshot());
+  });
+});
+
+describe("sprites through a view without sprite", () => {
+  const crate: RuntimeEntity = {
+    id: "crate",
+    type: "solid",
+    shape: { type: "box", cx: 300, cy: 400, hw: 20, hh: 20, rotDeg: 0 },
+    behaviors: { sprite: { size: [40, 24], anchor: [0.5, 1] } },
+  };
+  const scene: ExpandedScene = {
+    name: "t",
+    bounds: [0, 0, 1000, 1000],
+    settings: {
+      gravity: [0, 0],
+      physics: "rapier",
+      grid: null,
+      view: { projection: "orthogonal" },
+    },
+    entities: [crate],
+  };
+
+  it("draws the sprite's fallback box in the type's style, posed at the entity", () => {
+    const { view, live, callsFor } = recordingView();
+    expect("sprite" in view).toBe(false);
+    const rt = createSceneRuntime({ rapier, view });
+    expect(rt.load(scene).ok).toBe(true);
+    expect(live.has("crate")).toBe(false);
+    expect(live.get("crate#sprite")).toEqual({
+      shape: { type: "box", cx: 0, cy: -12, hw: 20, hh: 12, rotDeg: 0 },
+      style: PRIMITIVES.solid.style,
+      layer: 10,
+      pose: { x: 300, y: 400, rot: 0 },
+    });
+    expect(callsFor("crate#sprite", "draw")).toHaveLength(1);
+    rt.unload();
+    expect(live.size).toBe(0);
+  });
+
+  it("records sprites and depths when asked, and nothing else changes", () => {
+    const plain = recordingView();
+    const sprites = recordingView({ sprites: true });
+    for (const rec of [plain, sprites]) {
+      const rt = createSceneRuntime({ rapier, view: rec.view, game: testGame });
+      rt.load(engineYard());
+      for (let i = 0; i < 5; i++) rt.step(DT, []);
+    }
+    expect(sprites.calls).toEqual(plain.calls);
+    const rt = createSceneRuntime({ rapier, view: sprites.view });
+    rt.load(scene);
+    expect(sprites.callsFor("crate#sprite", "sprite")).toHaveLength(1);
+    expect(sprites.callsFor("crate#sprite", "depth")).toEqual([
+      { op: "depth", id: "crate#sprite", z: 0 },
+    ]);
   });
 });
 

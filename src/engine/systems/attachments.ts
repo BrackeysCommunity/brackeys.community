@@ -5,11 +5,10 @@ import type { PhysicsWorld } from "../physics";
 import type { Vec2 } from "../types";
 
 /**
- * An attached collider: on its host's body, made by `make` with the body
- * and the host's origin (a follower's first path point), so its offset is
- * fixed in the host's frame.
+ * What an attached collider is made on: the host's body, its origin (a
+ * follower's first path point, where the offset is fixed in its frame) and
+ * who it is.
  */
-/** What an attached collider is made on: the host's body, its origin and who it is. */
 export type AttachmentHost = { body: RigidBody; origin: Vec2; id: string; type: string };
 
 export type Attachment = {
@@ -31,7 +30,17 @@ export type AttachmentHub = {
   host(hostId: string, type: string, body: RigidBody, origin: Vec2): void;
   /** Call before removing the host's body; the colliders go with it and wait for the next `host`. */
   unhost(hostId: string): void;
-  attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider): Attachment;
+  /**
+   * Call after the host's body moved (`snap` when it jumped there): each
+   * collider riding it has `moved` called, to re-pose its entity.
+   */
+  moved(hostId: string, snap?: boolean): void;
+  attach(
+    entityId: string,
+    hostId: string,
+    make: (host: AttachmentHost) => Collider,
+    moved?: (host: AttachmentHost, snap: boolean) => void,
+  ): Attachment;
   /** The ids attached to a host. */
   attachedTo(hostId: string): string[];
   clear(): void;
@@ -41,6 +50,7 @@ type Request = {
   entityId: string;
   hostId: string;
   make: (host: AttachmentHost) => Collider;
+  moved?: (host: AttachmentHost, snap: boolean) => void;
   collider: Collider | null;
 };
 
@@ -65,8 +75,14 @@ export function createAttachmentHub(physics: PhysicsWorld, tags: ColliderTags): 
         r.collider = null;
       }
     },
-    attach(entityId, hostId, make) {
+    moved(hostId, snap = false) {
+      const host = hosts.get(hostId);
+      if (!host) return;
+      for (const r of requests.get(hostId) ?? []) if (r.collider) r.moved?.(host, snap);
+    },
+    attach(entityId, hostId, make, moved) {
       const r: Request = { entityId, hostId, make, collider: null };
+      if (moved) r.moved = moved;
       const list = requests.get(hostId) ?? [];
       list.push(r);
       requests.set(hostId, list);

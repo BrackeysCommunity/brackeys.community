@@ -230,7 +230,7 @@ describe("loadHeadless", () => {
         hero: { key: "hero", kind: "texture", path: "art/hero.png", sha256: "f".repeat(64) },
       },
     };
-    const project = { settings: {}, table: () => [] };
+    const project = { settings: {}, engine: {}, table: () => [], asset: () => undefined };
     const loaded = await loadHeadless({
       snapshot: withBlob,
       store,
@@ -314,6 +314,12 @@ describe("loadHeadless by snapshot, with a real texture", () => {
     expect(loadB.scene).toEqual(loadA.scene);
     const blobs = new Set([snapA.assets.hero!.sha256, snapB.assets.hero!.sha256]);
     expect(reads.filter((h) => blobs.has(h))).toEqual([]);
+    expect(loadA.project?.asset("hero")).toEqual({
+      id: "hero",
+      kind: "texture",
+      sha256: snapA.assets.hero!.sha256,
+    });
+    expect(loadB.project?.asset("hero")?.sha256).toBe(snapB.assets.hero!.sha256);
 
     const script: InputScript = { v: 1, scene: "kitchen-sink", steps: [{ wait: 60 }] };
     const recA = play(loadA, script).recording;

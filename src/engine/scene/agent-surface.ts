@@ -7,7 +7,7 @@
  * Bump it whenever one of those lists changes; `codes --json` and the
  * published JSON Schemas carry it.
  */
-export const AGENT_SURFACE_VERSION = 8;
+export const AGENT_SURFACE_VERSION = 9;
 
 /** The keyword the engine's JSON Schemas carry `AGENT_SURFACE_VERSION` under. */
 export const AGENT_SURFACE_KEYWORD = "x-agent-surface";

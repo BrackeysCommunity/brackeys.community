@@ -23,7 +23,7 @@ export type SmokeRun = { engine: string; ticks: typeof SMOKE_TICKS; digest: stri
 let rapier: Promise<RapierModule> | null = null;
 
 /** `-compat` carries its wasm inline, so the same import initialises in Bun and in every browser. */
-function loadRapier(): Promise<RapierModule> {
+export function loadRapier(): Promise<RapierModule> {
   rapier ??= (async () => {
     const warn = console.warn;
     console.warn = () => {};

@@ -63,7 +63,7 @@ function isPure(argv: string[]): boolean {
   if (rest.includes("--live") || name === "project pull" || name === "project push") return false;
   if (name === "fmt") return rest.includes("--check");
   if (name === "apply" || name?.startsWith("assets "))
-    return name === "assets list" || rest.includes("--dry-run");
+    return name === "assets list" || name === "assets info" || rest.includes("--dry-run");
   if (name === "render") return !rest.includes("--out");
   if (name === "project snapshot") return !rest.includes("--out") || rest.includes("-");
   return name !== "new";
@@ -80,12 +80,15 @@ const inRoot = (argv: readonly string[]) =>
  * An op batch in a document: a `json` fence whose info string names what it
  * runs against, `scene=<id>` (`apply --dry-run`) or `project=<id>` (`assets
  * apply --dry-run`), and with `expect=<code>` the issue code it reports.
+ * With `then=validate` a scene batch is applied to a fresh copy of the
+ * projects and the code is the one `validate` then reports.
  */
 type Batch = {
   doc: string;
   line: number;
   target: { scene: string } | { project: string };
   expect?: string;
+  validate: boolean;
   text: string;
 };
 
@@ -105,7 +108,14 @@ function batches(doc: string, text: string): Batch[] {
         : null;
     if (!target) continue;
     const line = text.slice(0, m.index).split("\n").length;
-    out.push({ doc, line, target, expect: attrs.expect, text: m[2]! });
+    out.push({
+      doc,
+      line,
+      target,
+      expect: attrs.expect,
+      validate: attrs.then === "validate",
+      text: m[2]!,
+    });
   }
   return out;
 }
@@ -152,6 +162,10 @@ const V3_CODES = [
   "grid-invalid",
   "ref-child-unknown",
 ];
+/** The issue codes sprites added. */
+const SPRITE_CODES = ["asset-frame-unknown", "sprite-no-asset"];
+/** The commands sprites added: each has a doc example that runs. */
+const SPRITE_COMMANDS = ["assets info", "bundle"];
 
 /** The card game's scene: a square grid, a painted floor, a lamp and a plain marker. */
 const CARD_TABLE: SceneDefinition = {
@@ -170,12 +184,12 @@ const CARD_TABLE: SceneDefinition = {
 let root: string;
 let ctx: ToolContext;
 
-beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), "scene-readme-"));
+/** The engine, platformer and card game projects, copied under `base`. */
+async function projectsIn(base: string): Promise<ToolContext> {
   const dirs = {
-    engine: join(root, "engine"),
-    platformer: join(root, "platformer"),
-    card: join(root, cardGame.id),
+    engine: join(base, "engine"),
+    platformer: join(base, "platformer"),
+    card: join(base, cardGame.id),
   };
   await cp(repoFile("src/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
@@ -185,7 +199,7 @@ beforeAll(async () => {
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
   );
-  ctx = {
+  return {
     projects: [
       await tempProject(dirs.engine, { id: "engine" }),
       await tempProject(dirs.platformer, { game: platformerGame }),
@@ -193,6 +207,11 @@ beforeAll(async () => {
     ],
     loadRapier: loadCompatRapier,
   };
+}
+
+beforeAll(async () => {
+  root = await mkdtemp(join(tmpdir(), "scene-readme-"));
+  ctx = await projectsIn(root);
 });
 
 afterAll(async () => {
@@ -243,9 +262,23 @@ describe("op batches in the docs", () => {
 
   for (const [n, b] of allBatches.entries()) {
     const on = "scene" in b.target ? b.target.scene : `project ${b.target.project}`;
-    it(`${b.doc}:${b.line}: the batch on ${on} ${b.expect ? `reports ${b.expect}` : "applies"}`, async () => {
+    const outcome = b.expect
+      ? `reports ${b.expect}${b.validate ? " once validated" : ""}`
+      : "applies";
+    it(`${b.doc}:${b.line}: the batch on ${on} ${outcome}`, async () => {
       const file = join(root, `batch-${n}.json`);
       await writeFile(file, b.text);
+      if (b.validate) {
+        if (!("scene" in b.target)) throw new Error("then=validate takes a scene batch");
+        const fresh = await projectsIn(join(root, `validated-${n}`));
+        const applied = await runCli(["apply", b.target.scene, "--ops", file, "--json"], fresh);
+        expect(applied.exitCode, applied.stdout + applied.stderr).toBe(0);
+        const r = await runCli(["validate", b.target.scene, "--json"], fresh);
+        const codes = codesIn(JSON.parse(r.stdout));
+        if (b.expect) expect([...codes], r.stdout).toContain(b.expect);
+        else expect(r.exitCode, r.stdout).toBe(0);
+        return;
+      }
       const argv =
         "scene" in b.target
           ? ["apply", b.target.scene, "--ops", file, "--dry-run", "--json"]
@@ -284,6 +317,23 @@ describe("op batches in the docs", () => {
   it("shows every op format v3 added or changed in an example that runs", async () => {
     const used = await opsInRunnableExamples();
     expect(V3_OPS.filter((op) => !used.has(op))).toEqual([]);
+  });
+
+  it("reproduces every issue code sprites added, and lists each in the issue table", () => {
+    const expected = new Set(allBatches.map((b) => b.expect));
+    expect(SPRITE_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of SPRITE_CODES)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("runs every command sprites added in an example", () => {
+    const run = new Set(
+      all
+        .flat()
+        .filter((e) => e.fenced && isPure(e.argv))
+        .map((e) => split(e.argv)[0]),
+    );
+    expect(SPRITE_COMMANDS.filter((name) => !run.has(name))).toEqual([]);
   });
 
   it("reproduces every issue code format v3 added, and lists each in the issue table", () => {

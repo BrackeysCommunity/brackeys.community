@@ -39,7 +39,7 @@ A scene names its game with a top-level `"game": "platformer"` key. That
 picks the registry every command uses: the game's entity types, bulk keys,
 materials, settings, actions and issue codes, plus the material assets of the
 project that game belongs to. A scene without `game` uses the engine's
-primitives only (`solid`, `sensor`, `marker`, `prop`, `follower`, `note`),
+primitives only (`solid`, `sensor`, `marker`, `prop`, `follower`, `decor`, `note`),
 with the engine project's materials, and means the same to every tool. A
 `game` no project has is an `unknown-game` issue.
 
@@ -77,6 +77,7 @@ Two scenes to practise on: `test-yard` (the platformer's) and
 | `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                          | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                        |
 | `render <scene\|file\|-> [--out file] [--ascii] [view flags…]`                                                                                                                         | with --out               | a schematic PNG or SVG of the scene, or `--ascii` a character map; see [Rendering](#rendering)                                                                                   |
 | `textconv <file>`                                                                                                                                                                      | no                       | a scene as one sorted line per header field, bulk entry and entity, for `git diff`                                                                                               |
+| `bundle <scene>`                                                                                                                                                                       | no                       | the texture blobs a scene loads (sorted, deduplicated, with bytes and a total); `asset-missing` issues with a did-you-mean, exit 1 on them                                       |
 | `project show`                                                                                                                                                                         | no                       | the project's id, name, game, live assets by kind, code modules, file problems and storage usage                                                                                 |
 | `project tree`                                                                                                                                                                         | no                       | folders, live assets and read-only code modules, as the editor's tree panel shows them                                                                                           |
 | `project refs [id]`                                                                                                                                                                    | no                       | what an asset names and what names it; without an id, every dangling reference; exit 1 on dangling ones                                                                          |
@@ -84,6 +85,7 @@ Two scenes to practise on: `test-yard` (the platformer's) and
 | `project pull <project> --url https://site [--out dir] [--check]`                                                                                                                      | unless --check           | every file the hosted project changes (added, changed, removed); exit 1 with `--check` when one would                                                                            |
 | `project push <dir> --create --url https://site [--dry-run]`                                                                                                                           | the site, unless dry run | the files, docs and uploads a new hosted project was seeded with; with `--dry-run`, the docs it would seed and the binaries it would upload                                      |
 | `assets list [--kind k] [--trash] [--live]`                                                                                                                                            | no                       | each live (or trashed) asset: project, path, kind, id, key, name, bytes, hash                                                                                                    |
+| `assets info <id> [--frame f]`                                                                                                                                                         | no                       | an asset's kind, hash and bytes; a texture's size, pivot, nine-slice and filter; an atlas's frames, tags and texture; `--frame` for one frame's size and pivot                   |
 | `assets import <file> [--path p] [--id id] [--kind k] [--settings json]`                                                                                                               | yes, unless dry run      | bytes to the content store, then `importAsset` (a doc kind's JSON: `createAsset`); the file, sidecar and entry                                                                   |
 | `assets rename <id> [--name text] [--file name.ext]`                                                                                                                                   | yes, unless dry run      | `renameAsset`: the display name and the file name in place; the id stays                                                                                                         |
 | `assets move <id...> --to <folder/>`                                                                                                                                                   | yes, unless dry run      | `moveAsset`, sidecars included                                                                                                                                                   |
@@ -112,7 +114,9 @@ and an instance's row lists the instances `nested` in it, the `params` it
 sets and the ones its prefab `exposes`. Rows also carry `z`, `transform`
 (the world `rot` and `flip` their groups and instances give them, when not
 the identity), `behaviors`, and for each grid field a `grids` summary:
-filled cells, chunks and the filled cells' bounds.
+filled cells, chunks and the filled cells' bounds. A row with a sprite has
+`sprite`: its `label` (`asset[:frame]`), `asset`, `frame`, drawn `size` and
+the world `aabb` it draws, the same box `render` outlines.
 
 `diff` reports `{ from, to, changed, changes }`, each change a
 `SceneChange`: `added`, `removed`, `renamed` (an entity whose content is the
@@ -175,6 +179,8 @@ vp run scene project show --project engine
 vp run scene project refs engine-yard
 vp run scene project snapshot --project engine
 vp run scene assets list --project engine
+vp run scene assets info crates --frame crate-0
+vp run scene bundle kitchen-sink
 vp run scene assets import scripts/scene/examples/dot.png --path art/ --project engine --dry-run
 vp run scene assets rename engine-yard --name Yard --dry-run
 vp run scene assets move engine-yard-checks --to checks/ --dry-run
@@ -211,6 +217,22 @@ id to go by need `--project` when there is more than one project. The
 kind of an imported file comes from its name (`.png`, `.checks.json`) or a
 JSON file's `kind`; `--kind` overrides it, and `--path` (a path, or a folder
 ending in `/`) overrides the kind's default folder.
+
+`assets info` is what headless code and the editor know of an asset
+without decoding or fetching it, read from its entry: the kind, hash and
+bytes; a texture's pixel size and its import `pivot`, `nineSlice` and
+`filter`; an atlas's frame names in file order, its tags and its texture's
+id. `--frame` narrows an atlas to one frame's size, rectangle and pivot (a
+frame without its own takes the atlas's `pivotDefault`); an id with no live
+asset, or a frame the atlas lacks, exits 1. `bundle <scene>` lists the
+texture blobs a scene loads, sorted by id and deduplicated, with each
+one's hash and bytes and the total. It reads every asset field of the
+expanded scene (instances resolved and defaults applied, so an id only a
+type's default names counts; a sprite's `asset` among them), its settings'
+asset fields and the `assets` headers of the scene and of every prefab it
+reaches, and follows each asset's own references (an atlas brings its
+texture). Only textures are entries; an atlas's frames ride in its meta. An
+id it can't resolve is `asset-missing` with a did-you-mean, and exits 1.
 
 The readers `project tree`, `project refs` and `assets list` take `--live` too:
 they read the dev server's registry and docs (or a hosted project's), unsaved
@@ -426,18 +448,29 @@ world px, default 1) only shrinks under that cap. Text is Rubik.
   playtest's `trail`, its `events` (dots by type, with a legend) and its
   `outcome` (a cross with the result and tick). A playtest report, a
   blocked playtest or `validate --json` output all work; `-` reads stdin.
+- A sprite (an entity's `sprite` block) draws as a dashed box in its
+  type's color, labelled `asset` or `asset:frame` (`(no asset)` without
+  one), where the sprite would draw: sized from the project's asset info
+  (`size`, else the frame's or texture's pixels times `scale`), placed by
+  its `anchor` and `offset`, turned with the entity's pose (unless `turn:
+false`) and mirrored by its flip. Nothing
+  is decoded; the box is all a schematic shows of the art. With `--json`
+  the report lists them as `sprites`: each one's `ref`, `type`, `label` and
+  world `box`.
 - `--ascii` prints a character map instead, one character per 64px cell
   (bigger cells past 200 columns or rows), aligned to multiples of the cell
   so the ruler and row labels read as world coordinates. Each type's
   character comes from the type (`EntityTypeDef.ascii`, else its base
   primitive's): `#` solid, `=` one-way solids and the platformer's clouds,
   `~` along paths, `G` goal, `S` spawn, `x` hazard, `o` anchor; the legend
-  under the map lists what each character stands for. `--region`,
+  under the map lists what each character stands for. A sprite's box is
+  marked with its entity's character (`d` for a `decor`). `--region`,
   `--around`, `--margin` and `--overlay` (`*` trail, `!` outcome) work the
   same; `--out file.txt` writes it to a file.
 
 ```sh
 vp run scene render engine-yard --ascii
+vp run scene render kitchen-sink --ascii --region 400,900,1100,1200
 vp run scene render test-yard --ascii --around elevator --margin 64
 vp run scene render test-yard --labels all --region 1100,500,1800,1200
 vp run scene render test-yard --out /tmp/test-yard.png
@@ -548,24 +581,24 @@ functions as the CLI (it never spawns it), versioned with the engine
 { "mcpServers": { "jams-scenes": { "command": "bun", "args": ["scripts/scene/mcp.ts"] } } }
 ```
 
-| Tool              | CLI command        | Notes                                                                         |
-| ----------------- | ------------------ | ----------------------------------------------------------------------------- |
-| `scene_list`      | `list`             |                                                                               |
-| `scene_show`      | `show`             | `near` is `[x, y, r]`                                                         |
-| `scene_schema`    | `schema`           | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…) |
-| `scene_codes`     | `codes`            |                                                                               |
-| `scene_validate`  | `validate`         | `physical`                                                                    |
-| `scene_diff`      | `diff`             | one of `other`, `git` or an inline `ops` batch                                |
-| `scene_apply_ops` | `apply` / `--live` | writes; `dryRun` defaults to `true`                                           |
-| `scene_playtest`  | `playtest`         | `script` inline or a path; `at` is `[x, y]`                                   |
-| `scene_replay`    | `replay`           | `run` inline or a path: a recording or a playtest result                      |
-| `scene_fuzz`      | `fuzz`             | `seed`, `rollouts`, `ticks` as numbers                                        |
-| `scene_check`     | `check`            |                                                                               |
-| `scene_render`    | `render`           | a PNG `image` block; `ascii` for the map; `overlay` inline or a path          |
-| `project_tree`    | `project tree`     |                                                                               |
-| `asset_refs`      | `project refs`     | `id`; without one, every dangling reference                                   |
-| `asset_import`    | `assets import`    | writes; `file` (a local path), `path`, `id`, `kind`, `settings`               |
-| `asset_apply_ops` | `assets apply`     | writes; `ops` inline or a path; `base` on files                               |
+| Tool              | CLI command        | Notes                                                                                                  |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `scene_list`      | `list`             |                                                                                                        |
+| `scene_show`      | `show`             | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box                                       |
+| `scene_schema`    | `schema`           | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…)                          |
+| `scene_codes`     | `codes`            |                                                                                                        |
+| `scene_validate`  | `validate`         | `physical`                                                                                             |
+| `scene_diff`      | `diff`             | one of `other`, `git` or an inline `ops` batch                                                         |
+| `scene_apply_ops` | `apply` / `--live` | writes; `dryRun` defaults to `true`                                                                    |
+| `scene_playtest`  | `playtest`         | `script` inline or a path; `at` is `[x, y]`                                                            |
+| `scene_replay`    | `replay`           | `run` inline or a path: a recording or a playtest result                                               |
+| `scene_fuzz`      | `fuzz`             | `seed`, `rollouts`, `ticks` as numbers                                                                 |
+| `scene_check`     | `check`            |                                                                                                        |
+| `scene_render`    | `render`           | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes |
+| `project_tree`    | `project tree`     |                                                                                                        |
+| `asset_refs`      | `project refs`     | `id`; without one, every dangling reference                                                            |
+| `asset_import`    | `assets import`    | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                        |
+| `asset_apply_ops` | `assets apply`     | writes; `ops` inline or a path; `base` on files                                                        |
 
 Each result is the command's `--json` output as compact JSON in a text block
 and as `structuredContent`, with `exitCode` added. A scene with error issues
@@ -787,6 +820,59 @@ the loader bundles them; `useAssets` adds and removes ids:
 
 ```json scene=engine-yard
 { "label": "Bundle the bouncy material", "ops": [{ "op": "useAssets", "add": ["bouncy"] }] }
+```
+
+### Sprites
+
+`sprite` is the engine's own behavior: it draws a texture, or an atlas's
+frame, at the entity's pose. Any entity may carry it, and a `decor` (a
+picture with no body, which never collides) requires it. Its fields:
+`asset` (a texture or atlas id), `frame` (required for an atlas), `size`
+(world px; else the frame's pixels times `scale`), `anchor` (0–1 in the
+frame; else its pivot, else the centre), `offset`, `tint` (0xRRGGBB),
+`alpha`, `flipX`, `flipY`, `blend` (`normal`, `add`, `multiply`, `screen`),
+`tile`, `nineSlice` (else the texture's import setting) and `turn` (turn
+with the pose; default true). The entity's material's `render.tint` and
+`render.blend` fill in each one the block leaves unset, for a material with
+`physics`: one without is render data the registry doesn't take, so it lends
+a sprite nothing. Find frame names and sizes with `assets info`:
+
+```json scene=kitchen-sink
+{
+  "label": "Dress the goal",
+  "ops": [
+    {
+      "op": "add",
+      "entity": {
+        "id": "sign",
+        "type": "decor",
+        "at": [700, 1100],
+        "behaviors": { "sprite": { "asset": "crates", "frame": "crate-1", "scale": 2 } }
+      }
+    },
+    {
+      "op": "update",
+      "ref": "zone",
+      "set": { "behaviors.sprite": { "asset": "backdrop", "alpha": 0.5 } }
+    }
+  ]
+}
+```
+
+`validate` judges sprites against the scene's project, which an `apply`
+report doesn't: the blocks below are applied and the scene then validated.
+A frame the atlas doesn't have, or an atlas with no frame, is
+`asset-frame-unknown`, with the closest frame:
+
+```json scene=kitchen-sink then=validate expect=asset-frame-unknown
+{ "ops": [{ "op": "update", "ref": "crate", "set": { "behaviors.sprite.frame": "crate-9" } }] }
+```
+
+A sprite with no `asset` is the warning `sprite-no-asset`: only its
+fallback box draws, in the game and in `render`:
+
+```json scene=kitchen-sink then=validate expect=sprite-no-asset
+{ "ops": [{ "op": "update", "ref": "crate", "unset": ["behaviors.sprite.asset"] }] }
 ```
 
 ### Grids
@@ -1289,6 +1375,13 @@ Format v3 adds these; [Format v3](#format-v3) has a batch that reports each:
 | `behavior-missing`     | error    | A behavior's `requires` isn't on the same entity.              | add the required block with defaults         |
 | `grid-invalid`         | error    | A grid setting, grid value or grid placement is invalid.       | `fmt` for non-canonical rows; otherwise none |
 | `ref-child-unknown`    | error    | A child ref names an instance whose prefab has no such child.  | did-you-mean                                 |
+
+Sprites add these; [Sprites](#sprites) has a batch that reports each:
+
+| Code                  | Severity | Meaning                                                                           | Fix          |
+| --------------------- | -------- | --------------------------------------------------------------------------------- | ------------ |
+| `asset-frame-unknown` | error    | A sprite names a frame its atlas doesn't have, or names an atlas without a frame. | did-you-mean |
+| `sprite-no-asset`     | warn     | A sprite has no `asset`, so only its fallback box draws.                          | set `asset`  |
 
 Asset fields reuse `asset-missing` and `asset-kind`; a variant's child
 whose id its base already has is `dup-id`, and a nested or pasted instance

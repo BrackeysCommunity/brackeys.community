@@ -1,4 +1,5 @@
 import type { GameInstance } from "@jams/engine";
+import type { ProjectSession } from "@jams/engine/collab";
 import {
   createToolHost,
   DEFAULT_SNAP,
@@ -9,6 +10,7 @@ import {
   type SnapSettings,
   type ToolHost,
 } from "@jams/engine/editor";
+import { assetInfo } from "@jams/engine/project";
 import { useStore } from "@tanstack/react-store";
 import { Store } from "@tanstack/store";
 import { useCallback, useEffect, useReducer, useSyncExternalStore } from "react";
@@ -67,17 +69,26 @@ function previewRuntime(game: Pick<GameInstance, "runtime">): PreviewRuntime {
 /**
  * Runs one tool host for `session` on `game` while mounted and publishes it
  * in `cell`. The game's own tools load first (a dynamic import); if they
- * fail to load, the engine's tools still run.
+ * fail to load, the engine's tools still run. With `project`, sprite boxes
+ * are sized from its assets and re-indexed when the project doc changes.
  */
 export function useToolHostLifecycle(
   cell: ToolHostCell,
   session: EditorSession,
   game: ToolHostGame,
+  project?: ProjectSession | null,
 ): void {
   useEffect(() => {
     let host: ToolHost | null = null;
     let unsubscribe: (() => void) | null = null;
     let cancelled = false;
+    let view = project?.view() ?? null;
+    const onProjectUpdate = () => {
+      if (!project) return;
+      view = project.view();
+      host?.reindex();
+    };
+    project?.projectDoc.on("update", onProjectUpdate);
 
     const start = (gameTools: readonly EditorToolDef[]) => {
       if (cancelled) return;
@@ -95,6 +106,9 @@ export function useToolHostLifecycle(
         pan: ([x, y]) => game.panBy({ x, y }),
         zoomAt: ([x, y], factor) => game.zoomAt({ x, y }, factor),
         frame: (rect) => game.frame(rect),
+        ...(project
+          ? { asset: (id: string, frame?: string) => view && assetInfo(view, id, frame) }
+          : {}),
       });
       let saved = next.snap();
       unsubscribe = next.subscribe(() => {
@@ -120,11 +134,12 @@ export function useToolHostLifecycle(
 
     return () => {
       cancelled = true;
+      project?.projectDoc.off("update", onProjectUpdate);
       unsubscribe?.();
       if (host && cell.state === host) cell.setState(() => null);
       host?.destroy();
     };
-  }, [cell, session, game]);
+  }, [cell, session, game, project]);
 }
 
 export const useToolHost = (cell: ToolHostCell) => useStore(cell);

@@ -16,6 +16,7 @@ export type {
 export { SENSOR_ENTER, SENSOR_EXIT } from "../runtime/types";
 export type { RapierModule } from "../types";
 export type { ProjectRuntimeView } from "../project/runtime-view";
+export { assetInfo, type AssetInfo } from "../project/asset-info";
 export {
   loadHeadless,
   type FilesLoadInput,

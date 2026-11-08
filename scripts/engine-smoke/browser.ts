@@ -2,7 +2,10 @@
  * The engine's browser smoke: build the page in `browser/` with Vite, serve
  * it with `vite preview`, open it headless in each browser, and check that
  * every browser's digest of the shared run (`browser/run.ts`) equals the
- * one Bun computes in-process.
+ * one Bun computes in-process, and that its render run (`browser/render.ts`)
+ * draws the kitchen sink's crate sprite where it stands and nothing in the
+ * empty air beside it. The preview server serves the engine project's blobs
+ * on the dev route (`browser/project.ts`).
  *
  *   vp run engine:smoke:browser [--browsers chromium,firefox,webkit]
  *
@@ -29,7 +32,9 @@ import {
   type BrowserOutcome,
 } from "./browser-compare";
 import type { EngineSmokeResult } from "./browser/main";
+import { loadSinkProject, sinkPreviewPlugin, type SinkProject } from "./browser/project";
 import { runSmokeDigest } from "./browser/run";
+import { INSIDE_COLOUR, INSIDE_POINT, OUTSIDE_POINT, SINK_SCENE } from "./browser/sink";
 import { REPO, ENGINE } from "./pack";
 
 const PAGE_DIR = join(REPO, "scripts/engine-smoke/browser");
@@ -42,6 +47,7 @@ const ci = process.env.CI === "true";
 
 const outDir = mkdtempSync(join(tmpdir(), "jams-engine-browser-smoke-"));
 let server: PreviewServer | null = null;
+let sink: SinkProject | null = null;
 const open = new Set<Browser>();
 
 async function cleanup(): Promise<void> {
@@ -50,6 +56,9 @@ async function cleanup(): Promise<void> {
   const closing = server;
   server = null;
   await closing?.close();
+  const project = sink;
+  sink = null;
+  await project?.close();
   rmSync(outDir, { recursive: true, force: true });
 }
 
@@ -112,6 +121,8 @@ let error: string | null = null;
 try {
   node = await runSmokeDigest();
   console.log(`in-process (bun ${process.versions.bun}): ${node.digest}`);
+  const project = await loadSinkProject(join(ENGINE, "scenes"));
+  sink = project;
 
   await build({
     configFile: false,
@@ -131,6 +142,7 @@ try {
     configFile: false,
     root: PAGE_DIR,
     logLevel: "warn",
+    plugins: [sinkPreviewPlugin(project)],
     build: { outDir },
     preview: { host: "127.0.0.1", port: 0, strictPort: true, open: false },
   });
@@ -141,8 +153,11 @@ try {
   for (const name of browsers) {
     const outcome = await runIn(name, url, node.digest);
     outcomes.push(outcome);
+    const drew = outcome.render
+      ? `; ${outcome.render.renderer} drew rgba(${outcome.render.inside.join(", ")}) on the sprite`
+      : "";
     const detail =
-      outcome.status === "pass" ? `${outcome.digest} in ${outcome.ms} ms` : outcome.reason;
+      outcome.status === "pass" ? `${outcome.digest}${drew} in ${outcome.ms} ms` : outcome.reason;
     console.log(`${name}: ${outcome.status}${detail ? ` — ${detail}` : ""}`);
   }
 } catch (err) {
@@ -161,6 +176,11 @@ writeFileSync(
       engine: node?.engine ?? null,
       ticks: node?.ticks ?? null,
       flavour: "rapier2d-compat",
+      render: {
+        scene: SINK_SCENE,
+        inside: { at: INSIDE_POINT, colour: `#${INSIDE_COLOUR.toString(16).padStart(6, "0")}` },
+        outside: { at: OUTSIDE_POINT },
+      },
       inProcess: node && { runtime: `bun ${process.versions.bun}`, digest: node.digest },
       browsers: outcomes,
       ...(error ? { error } : {}),

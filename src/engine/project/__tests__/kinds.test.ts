@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vite-plus/test";
+import * as Y from "yjs";
 import { z } from "zod";
 
 import { CARD_TABLE, testGame } from "../../__tests__/fixtures/test-game";
+import { layoutFromDoc, layoutPatch, layoutToDoc } from "../../collab/layout";
 import { createRegistry, defineGame } from "../../game/define";
 import { assetField, materialField, pointField, shapeField } from "../../game/fields";
 import type { FieldEnv, GameDefinition, Registry } from "../../game/types";
@@ -18,7 +20,8 @@ import {
 } from "../kinds";
 import { checksKind } from "../kinds/checks";
 import { dataTableIssues, dataTableKind } from "../kinds/data-table";
-import { gameSettingsIssues, gameSettingsKind } from "../kinds/game-settings";
+import type { DocLayout } from "../kinds/define";
+import { engineResolution, gameSettingsIssues, gameSettingsKind } from "../kinds/game-settings";
 import { ENGINE_ASSET_KINDS } from "../kinds/index";
 import { inputScriptKind } from "../kinds/input-script";
 import { materialKind, projectMaterialOf } from "../kinds/material";
@@ -349,6 +352,57 @@ describe("schema refusals", () => {
     expect(projectMaterialOf({ kind: "material", v: 1 })).toBeNull();
   });
 
+  it("material: render tint and blend parse, and tint converts to a number", () => {
+    const paint = {
+      kind: "material",
+      v: 1,
+      description: "Glow.",
+      render: { tint: "#f80", blend: "add" },
+    };
+    expect(parsed(materialKind, paint)).toEqual(paint);
+    expect(projectMaterialOf(paint)).toEqual({
+      description: "Glow.",
+      tint: 0xff8800,
+      blend: "add",
+    });
+    expect(
+      projectMaterialOf({ ...paint, render: { style: { fill: "#123456" }, tint: "#abcdef" } }),
+    ).toEqual({ description: "Glow.", style: { fill: 0x123456 }, tint: 0xabcdef });
+    expect(refused(materialKind, { ...paint, render: { tint: 0xff8800 } })).toEqual([
+      { code: "schema", path: "/render/tint" },
+    ]);
+    expect(refused(materialKind, { ...paint, render: { blend: "overlay" } })).toEqual([
+      { code: "schema", path: "/render/blend" },
+    ]);
+  });
+
+  it("material: keeps render on one line in its file", () => {
+    const text = lines(
+      "{",
+      '  "kind": "material",',
+      '  "v": 1,',
+      '  "description": "Glow.",',
+      '  "render": { "blend": "screen", "style": { "fill": "#fff" }, "tint": "#f80" }',
+      "}",
+    );
+    expect(formatAssetDoc(materialKind, parsed(materialKind, text))).toBe(text);
+    const empty = lines(
+      "{",
+      '  "kind": "material",',
+      '  "v": 1,',
+      '  "description": "x",',
+      '  "render": {}',
+      "}",
+    );
+    expect(formatAssetDoc(materialKind, parsed(materialKind, empty))).toBe(empty);
+    expect(read("../../scenes/materials/bouncy.json")).toBe(
+      formatAssetDoc(
+        materialKind,
+        parsed(materialKind, read("../../scenes/materials/bouncy.json")),
+      ),
+    );
+  });
+
   it("game-settings: `game` is the game's projectSettings, `engine` empty", () => {
     const base = value("game-settings");
     expect(refused(gameSettingsKind, { ...base, game: { avatarSpeed: -1 } })).toEqual([
@@ -365,6 +419,53 @@ describe("schema refusals", () => {
       { code: "unknown-key", path: "/game/title" },
     ]);
     expect(parsed(gameSettingsKind, { ...base, game: {} })).toEqual({ ...base, game: {} });
+  });
+
+  it("game-settings: `engine.resolution` is an all-optional resolution policy", () => {
+    const base = value("game-settings");
+    const resolution = {
+      virtual: { width: 640, height: 360 },
+      fit: "letterbox",
+      integer: true,
+      sampling: "nearest",
+      antialias: false,
+      pixelSnap: true,
+      bars: 0x101010,
+    };
+    expect(parsed(gameSettingsKind, { ...base, engine: { resolution } })).toEqual({
+      ...base,
+      engine: { resolution },
+    });
+    expect(parsed(gameSettingsKind, { ...base, engine: { resolution: {} } })).toEqual({
+      ...base,
+      engine: { resolution: {} },
+    });
+    expect(
+      parsed(gameSettingsKind, { ...base, engine: { resolution: { virtual: { height: 360 } } } }),
+    ).toMatchObject({ engine: { resolution: { virtual: { height: 360 } } } });
+    expect(
+      refused(gameSettingsKind, { ...base, engine: { resolution: { fit: "stretch" } } }),
+    ).toEqual([{ code: "schema", path: "/engine/resolution/fit" }]);
+    expect(
+      refused(gameSettingsKind, { ...base, engine: { resolution: { virtual: { depth: 3 } } } })
+        .length,
+    ).toBeGreaterThan(0);
+    expect(refused(gameSettingsKind, { ...base, engine: { resolution: { scale: 2 } } })).toEqual([
+      { code: "unknown-key", path: "/engine/resolution/scale" },
+    ]);
+  });
+
+  it("game-settings: engineResolution reads the block whole, else field by field", () => {
+    expect(engineResolution({})).toBeUndefined();
+    expect(engineResolution({ resolution: {} })).toBeUndefined();
+    expect(engineResolution({ resolution: "big" })).toBeUndefined();
+    expect(engineResolution({ resolution: { fit: "crop", integer: true } })).toEqual({
+      fit: "crop",
+      integer: true,
+    });
+    expect(
+      engineResolution({ resolution: { fit: "stretch", integer: true, virtual: { height: 360 } } }),
+    ).toEqual({ integer: true, virtual: { height: 360 } });
   });
 
   it("game-settings: a second one in a project is asset-kind", () => {
@@ -764,5 +865,67 @@ describe("refs through asset fields", () => {
         env,
       ),
     ).toEqual([{ pointer: "/game/icon", id: "logo", kinds: ["texture"] }]);
+  });
+});
+
+describe("material doc layout", () => {
+  const layout = materialKind.layout as DocLayout;
+  const pair = () => {
+    const a = new Y.Doc();
+    const b = new Y.Doc();
+    a.on("update", (u: Uint8Array) => Y.applyUpdate(b, u, "remote"));
+    b.on("update", (u: Uint8Array) => Y.applyUpdate(a, u, "remote"));
+    return { a, b };
+  };
+  const base = {
+    kind: "material",
+    v: 1,
+    description: "Glow.",
+    render: { style: { fill: "#fff" } },
+  };
+
+  it("holds render as a map, so concurrent tint and blend edits both survive", () => {
+    const a = new Y.Doc();
+    const b = new Y.Doc();
+    layoutToDoc(a, layout, base);
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+    expect(a.getMap("content").get("render")).toBeInstanceOf(Y.Map);
+
+    layoutPatch(a, layout, { ...base, render: { ...base.render, tint: "#f80" } });
+    layoutPatch(b, layout, { ...base, render: { ...base.render, blend: "add" } });
+    Y.applyUpdate(a, Y.encodeStateAsUpdate(b));
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+
+    const merged = { ...base, render: { style: { fill: "#fff" }, tint: "#f80", blend: "add" } };
+    expect(layoutFromDoc(a, layout)).toEqual(merged);
+    expect(layoutFromDoc(b, layout)).toEqual(merged);
+    expect(formatAssetDoc(materialKind, parsed(materialKind, layoutFromDoc(a, layout)))).toBe(
+      formatAssetDoc(materialKind, parsed(materialKind, merged)),
+    );
+  });
+
+  it("reads a render stored whole by an older client, and writes it as a map from then on", () => {
+    const { a, b } = pair();
+    a.getMap("content").set("kind", "material");
+    a.getMap("content").set("v", 1);
+    a.getMap("content").set("description", "Glow.");
+    a.getMap("content").set("render", { style: { fill: "#fff" } });
+    expect(layoutFromDoc(b, layout)).toEqual(base);
+
+    layoutPatch(b, layout, { ...base, render: { ...base.render, tint: "#f80" } });
+    expect(a.getMap("content").get("render")).toBeInstanceOf(Y.Map);
+    expect(layoutFromDoc(a, layout)).toEqual({
+      ...base,
+      render: { style: { fill: "#fff" }, tint: "#f80" },
+    });
+  });
+
+  it("an empty render reads back as the file's empty map", () => {
+    const doc = new Y.Doc();
+    layoutToDoc(doc, layout, { ...base, render: {} });
+    expect(layoutFromDoc(doc, layout)).toEqual({ ...base, render: {} });
+    layoutPatch(doc, layout, base);
+    layoutPatch(doc, layout, { ...base, render: {} });
+    expect(layoutFromDoc(doc, layout)).toEqual({ ...base, render: {} });
   });
 });

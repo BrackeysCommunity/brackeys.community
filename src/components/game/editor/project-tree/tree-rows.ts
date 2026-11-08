@@ -1,4 +1,5 @@
 import type { ProjectPeer } from "@jams/engine/collab";
+import type { AssetDrop } from "@jams/engine/editor";
 import {
   docNameOf,
   type AssetEntry,
@@ -20,7 +21,17 @@ export type TreeRow =
       /** Assets and code modules beneath it. */
       count: number;
     }
-  | { type: "asset"; key: string; depth: number; entry: AssetEntry; name: string; folder: string }
+  | {
+      type: "asset";
+      key: string;
+      depth: number;
+      entry: AssetEntry;
+      name: string;
+      folder: string;
+      /** An atlas's frame names, listed under it while it's expanded. */
+      frames?: readonly string[];
+    }
+  | { type: "frame"; key: string; depth: number; entry: AssetEntry; frame: string; folder: string }
   | { type: "code"; key: string; depth: number; path: string; name: string; info: CodeModuleInfo };
 
 export const ROOT_KEY = "root";
@@ -45,10 +56,24 @@ const folderKey = (path: string) => `folder:${trimSlash(path)}`;
 export const fileCount = (nodes: readonly ProjectTreeNode[]): number =>
   nodes.reduce((n, node) => n + (node.type === "folder" ? fileCount(node.children) : 1), 0);
 
-/** The rows under the root, depth first, skipping what's inside a collapsed folder. */
+/** The row key of an asset's entry. */
+export const assetRowKey = (entry: AssetEntry) => `asset:${entry.key}`;
+
+export type FlattenOptions = {
+  /** An atlas's frame names; an asset with some gets frame rows. */
+  framesOf?: (entry: AssetEntry) => readonly string[] | undefined;
+  /** Asset row keys whose frames are listed; atlases start closed. */
+  expanded?: ReadonlySet<string>;
+};
+
+/**
+ * The rows under the root, depth first, skipping what's inside a collapsed
+ * folder, with an expanded atlas's frames under it.
+ */
 export function flattenTree(
   nodes: readonly ProjectTreeNode[],
   collapsed: ReadonlySet<string>,
+  { framesOf, expanded }: FlattenOptions = {},
 ): TreeRow[] {
   const out: TreeRow[] = [{ type: "root", key: ROOT_KEY, depth: 0, folder: "" }];
   const walk = (list: readonly ProjectTreeNode[], depth: number) => {
@@ -68,14 +93,28 @@ export function flattenTree(
         if (!collapsed.has(key)) walk(node.children, depth + 1);
       } else if (node.type === "asset") {
         const { entry } = node;
+        const key = assetRowKey(entry);
+        const folder = parentFolder(entry.path);
+        const frames = framesOf?.(entry);
         out.push({
           type: "asset",
-          key: `asset:${entry.key}`,
+          key,
           depth,
           entry,
           name: baseName(entry.path),
-          folder: parentFolder(entry.path),
+          folder,
+          ...(frames?.length ? { frames } : {}),
         });
+        if (frames?.length && expanded?.has(key))
+          for (const frame of frames)
+            out.push({
+              type: "frame",
+              key: `${key}#${frame}`,
+              depth: depth + 1,
+              entry,
+              frame,
+              folder,
+            });
       } else {
         out.push({
           type: "code",
@@ -90,6 +129,34 @@ export function flattenTree(
   };
   walk(nodes, 1);
   return out;
+}
+
+/** The drag type an asset row carries onto the canvas: an `AssetDrop` as JSON. */
+export const ASSET_DRAG_TYPE = "application/x-jams-asset+json";
+
+/** Whether a drag carries an asset row, readable while the drag is still over a target. */
+export const carriesAsset = (data: DataTransfer | null) =>
+  Array.from(data?.types ?? []).includes(ASSET_DRAG_TYPE);
+
+export function writeAssetDrag(data: DataTransfer, drop: AssetDrop): void {
+  data.setData(ASSET_DRAG_TYPE, JSON.stringify(drop));
+  data.effectAllowed = "copyMove";
+}
+
+/** The asset a drop carries, or null when it carries none or isn't one. */
+export function readAssetDrag(data: DataTransfer | null): AssetDrop | null {
+  const raw = data?.getData(ASSET_DRAG_TYPE);
+  if (!raw) return null;
+  try {
+    const drop = JSON.parse(raw) as Partial<AssetDrop> | null;
+    const entry = drop?.entry;
+    if (!entry || typeof entry.id !== "string" || typeof entry.kind !== "string") return null;
+    if (!drop.info || typeof drop.info.id !== "string") return null;
+    if (drop.frame !== undefined && typeof drop.frame !== "string") return null;
+    return drop as AssetDrop;
+  } catch {
+    return null;
+  }
 }
 
 /** The sync doc an entry's peers are in: scenes have `scene:` docs, every other kind `asset:`. */
@@ -121,7 +188,7 @@ export function peersByRow(
         const doc = docOfEntry(project, node.entry);
         const peers = doc ? byDoc.get(doc) : undefined;
         if (!peers?.length) continue;
-        for (const key of [`asset:${node.entry.key}`, ...above]) add(key, peers);
+        for (const key of [assetRowKey(node.entry), ...above]) add(key, peers);
       }
     }
   };

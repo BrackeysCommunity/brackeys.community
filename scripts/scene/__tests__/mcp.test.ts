@@ -27,6 +27,7 @@ const ENGINE_YARD_CHECKS = repoFile("src/engine/scenes/engine-yard.checks.json")
 const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
 const HOP_LEFT = repoFile("scripts/scene/examples/hop-left.json");
 const DOT = repoFile("scripts/scene/examples/dot.png");
+const SPRITES = repoFile("src/engine/scene/__tests__/fixtures/sprites.json");
 
 type Called = {
   content: { type: string; text?: string; data?: string; mimeType?: string }[];
@@ -209,6 +210,34 @@ describe("scene MCP server", () => {
     expect(ascii.content[0]!.type).toBe("text");
     expect(Array.isArray(ascii.structuredContent.lines)).toBe(true);
   });
+
+  it("carries sprite boxes in scene_render and scene_show", async () => {
+    const file = join(dirs.engine, "sprites.json");
+    await copyFile(SPRITES, file);
+    try {
+      await spriteBoxes();
+    } finally {
+      await rm(file);
+    }
+  });
+
+  async function spriteBoxes() {
+    const r = await call("scene_render", { scene: "sprites" });
+    expect(r.isError).toBe(false);
+    expect(r.structuredContent.sprites).toContainEqual({
+      ref: "hero",
+      type: "prop",
+      label: "hero-sheet:idle-0",
+      box: { minX: 80, minY: 240, maxX: 112, maxY: 272 },
+    });
+    const shown = await call("scene_show", { scene: "sprites", ref: "lamp" });
+    expect(shown.structuredContent.entities).toMatchObject([
+      {
+        ref: "lamp",
+        sprite: { label: "lamp", aabb: { minX: 308, minY: 224, maxX: 332, maxY: 288 } },
+      },
+    ]);
+  }
 
   it("scopes any tool to a project, refusing one that doesn't exist", async () => {
     const listed = await call("scene_list", { project: "platformer" });

@@ -48,7 +48,7 @@ const FIXTURES: Record<string, string> = {
     '  "v": 1,',
     '  "description": "Ice.",',
     '  "physics": { "friction": 0, "restitution": 0 },',
-    '  "render": { "style": { "fill": "#ccf", "stroke": "#ffffff", "strokeWidth": 2 } }',
+    '  "render": { "blend": "add", "style": { "fill": "#ccf", "stroke": "#ffffff", "strokeWidth": 2 }, "tint": "#88ccff" }',
     "}",
   ),
   "game-settings": lines(

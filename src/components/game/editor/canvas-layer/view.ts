@@ -1,4 +1,4 @@
-import { VIRTUAL_HEIGHT, type GameStoreState } from "@jams/engine";
+import type { GameStoreState } from "@jams/engine";
 import type { Pt, ShapeObj } from "@jams/engine/editor";
 import { shapeOutline, type PathCommand } from "@jams/engine/scene";
 import { shallow, useStore } from "@tanstack/react-store";
@@ -8,15 +8,15 @@ import { useSyncExternalStore } from "react";
 /** World to screen: `screen = world * scale + (tx, ty)`, in CSS px from the canvas's corner. */
 export type View = { width: number; height: number; scale: number; tx: number; ty: number };
 
-type Camera = Pick<GameStoreState["camera"], "position" | "zoom">;
+type Camera = Pick<GameStoreState["camera"], "position" | "scale">;
 
 /**
- * World to screen as the engine's camera draws it: the view is
- * `VIRTUAL_HEIGHT` world units tall, centred on the camera. The game is
+ * World to screen as the engine's camera draws it: `camera.scale` canvas px
+ * per world unit, the camera's position at the canvas's centre. The game is
  * sized to the window, so the overlay is too.
  */
 export function viewOf(camera: Camera, width: number, height: number): View {
-  const scale = (height / VIRTUAL_HEIGHT) * camera.zoom;
+  const { scale } = camera;
   return {
     width,
     height,
@@ -26,9 +26,9 @@ export function viewOf(camera: Camera, width: number, height: number): View {
   };
 }
 
-/** Screen px per world px for the camera now, sized to the window like `useView`. */
+/** Screen px per world px for the camera now. */
 export function viewScale(camera: Camera): number {
-  return viewOf(camera, window.innerWidth, window.innerHeight).scale;
+  return camera.scale;
 }
 
 function subscribeResize(cb: () => void) {
@@ -40,14 +40,14 @@ const windowHeight = () => window.innerHeight;
 
 /** The game camera's view, following the store and the window. */
 export function useView(store: Store<GameStoreState>): View {
-  const [x, y, zoom] = useStore(
+  const [x, y, scale] = useStore(
     store,
-    (s) => [s.camera.position.x, s.camera.position.y, s.camera.zoom] as const,
+    (s) => [s.camera.position.x, s.camera.position.y, s.camera.scale] as const,
     { equal: shallow },
   );
   const width = useSyncExternalStore(subscribeResize, windowWidth, () => 0);
   const height = useSyncExternalStore(subscribeResize, windowHeight, () => 0);
-  return viewOf({ position: { x, y }, zoom }, width, height);
+  return viewOf({ position: { x, y }, scale }, width, height);
 }
 
 /** A point entity's mark, in screen pixels. */

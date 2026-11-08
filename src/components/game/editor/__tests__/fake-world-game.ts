@@ -23,7 +23,13 @@ export function fakeWorldGame(registry: Registry) {
   let world: ExpandedScene | null = null;
   let editWorld: ExpandedScene | null = null;
   const store = new Store({
-    camera: { position: { x: 0, y: 0 }, zoom: 1, bounds: { min: {}, max: {} }, mode: "free" },
+    camera: {
+      position: { x: 0, y: 0 },
+      zoom: 1,
+      scale: 1,
+      bounds: { min: {}, max: {} },
+      mode: "free",
+    },
     sim: { paused: false, timeScale: 1 },
   } as unknown as GameStoreState);
   const byId = (entities: RuntimeEntity[]) => new Map(entities.map((e) => [e.id, e]));

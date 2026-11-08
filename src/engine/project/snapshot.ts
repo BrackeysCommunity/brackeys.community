@@ -297,7 +297,7 @@ async function readText(
 }
 
 /** The snapshot as a project view: its assets live, nothing in the trash, blobs carrying their hash and import. */
-function snapshotView(snapshot: ProjectSnapshot, kinds: KindRegistry): ProjectView {
+export function snapshotView(snapshot: ProjectSnapshot, kinds: KindRegistry): ProjectView {
   const assets: Record<AssetKey, AssetEntry> = {};
   for (const [id, a] of Object.entries(snapshot.assets)) {
     const blob = kinds.get(a.kind)?.storage === "blob";

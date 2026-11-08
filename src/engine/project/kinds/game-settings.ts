@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Registry } from "../../game/types";
+import type { ResolutionPolicy } from "../../resolution";
 import { makeIssue } from "../../scene/issues";
 import type { SceneIssue } from "../../scene/types";
 import { schemaRefSites, type RefSite } from "../refs";
@@ -15,9 +16,78 @@ export type GameSettingsFile = {
   $schema?: string;
   kind: typeof GAME_SETTINGS_KIND;
   v: typeof GAME_SETTINGS_VERSION;
-  engine: Record<string, never>;
+  engine: { resolution?: Partial<ResolutionPolicy> };
   game: Record<string, unknown>;
 };
+
+const positive = (description: string) => z.number().positive().describe(description);
+
+const VirtualSchema = z
+  .union([
+    z.strictObject({
+      width: positive("World units across."),
+      height: positive("World units down."),
+    }),
+    z.strictObject({ height: positive("World units down; the width follows the canvas.") }),
+    z.strictObject({ width: positive("World units across; the height follows the canvas.") }),
+  ])
+  .describe("World units the camera shows at zoom 1 on the fixed axis or axes.");
+
+const resolutionFields = {
+  virtual: VirtualSchema.optional(),
+  fit: z
+    .enum(["expand", "letterbox", "crop"])
+    .optional()
+    .describe(
+      "expand: the fixed axis fills the canvas and the other shows more; letterbox: the whole virtual area shows, bars fill the rest; crop: the virtual area covers the canvas, the overflow is cut. letterbox and crop need a width and a height.",
+    ),
+  integer: z
+    .boolean()
+    .optional()
+    .describe("Scale only by whole multiples (pixel art); bars take the remainder."),
+  sampling: z
+    .enum(["linear", "nearest"])
+    .optional()
+    .describe("Default texture sampling; a texture's import filter wins."),
+  antialias: z.boolean().optional().describe("The renderer's antialiasing."),
+  pixelSnap: z
+    .boolean()
+    .optional()
+    .describe("Round camera and visual positions to whole canvas pixels."),
+  bars: z
+    .number()
+    .int()
+    .min(0)
+    .max(0xffffff)
+    .optional()
+    .describe("Bar colour, 0xRRGGBB as a number; default the background."),
+};
+
+const ResolutionSchema = z
+  .strictObject(resolutionFields)
+  .describe(
+    "How the world maps onto the canvas; each field given wins over the game's and loses to the host's.",
+  ) satisfies z.ZodType<Partial<ResolutionPolicy>>;
+
+/**
+ * The resolution policy an `engine` block sets: the whole block when it
+ * parses, else each field that does; undefined when it sets none.
+ */
+export function engineResolution(
+  engine: Readonly<Record<string, unknown>>,
+): Partial<ResolutionPolicy> | undefined {
+  const given = engine.resolution;
+  if (given === undefined || given === null || typeof given !== "object") return undefined;
+  const whole = ResolutionSchema.safeParse(given);
+  const out: Record<string, unknown> = {};
+  if (whole.success) Object.assign(out, whole.data);
+  else
+    for (const [key, schema] of Object.entries(resolutionFields)) {
+      const own = (schema as z.ZodType).safeParse((given as Record<string, unknown>)[key]);
+      if (own.success && own.data !== undefined) out[key] = own.data;
+    }
+  return Object.keys(out).length > 0 ? (out as Partial<ResolutionPolicy>) : undefined;
+}
 
 function gameSettingsSchema(registry: Registry): z.ZodType<GameSettingsFile> {
   const fields = registry.game?.projectSettings ?? {};
@@ -26,7 +96,9 @@ function gameSettingsSchema(registry: Registry): z.ZodType<GameSettingsFile> {
       $schema: z.string().optional().describe("The game-settings JSON Schema this file follows."),
       kind: z.literal(GAME_SETTINGS_KIND).describe('Always "game-settings".'),
       v: z.literal(GAME_SETTINGS_VERSION).describe("Game-settings format version."),
-      engine: z.strictObject({}).describe("The engine's project-wide settings; none yet."),
+      engine: z
+        .strictObject({ resolution: ResolutionSchema.optional() })
+        .describe("The engine's project-wide settings."),
       game: z
         .strictObject(fields)
         .describe(
@@ -80,7 +152,7 @@ export function gameSettingsValues(
   return out;
 }
 
-/** Project-wide settings: the engine's block (empty for now) and the game's `projectSettings`. */
+/** Project-wide settings: the engine's block (its resolution policy) and the game's `projectSettings`. */
 export const gameSettingsKind = defineAssetKind({
   kind: GAME_SETTINGS_KIND,
   title: "Game settings",

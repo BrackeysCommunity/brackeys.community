@@ -761,6 +761,122 @@ describe("behaviors", () => {
   });
 });
 
+describe("sprite blocks", () => {
+  const entry = (id: string, kind: string, extra: Partial<AssetEntry> = {}): AssetEntry => ({
+    key: `k-${id}`,
+    id,
+    kind,
+    path: `${id}.${kind}`,
+    created: { at: 0, by: "t" },
+    ...extra,
+  });
+  const frame = (x: number) => ({ x, y: 0, w: 16, h: 16 });
+  const project = projectView({
+    meta: { projectId: "p", layout: 2, name: "P" },
+    assets: Object.fromEntries(
+      [
+        entry("crate", "texture", {
+          sha256: "a".repeat(64),
+          meta: { format: "png", width: 32, height: 32 },
+        }),
+        entry("hero", "atlas", {
+          sha256: "b".repeat(64),
+          meta: {
+            tool: "aseprite",
+            frames: { "idle-0": frame(0), "idle-1": frame(16), "run-0": frame(32) },
+            tags: [],
+            slices: [],
+            order: ["idle-0", "idle-1", "run-0"],
+          },
+          import: { texture: "crate" },
+        }),
+        entry("boom", "sound"),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  });
+  const spriteScene = (sprite: Record<string, unknown>) =>
+    scene({}, [{ id: "pic", type: "marker", at: [10, 10], behaviors: { sprite } }]);
+  const spriteIssues = (def: SceneDefinition, withProject = true) =>
+    validateScene(def, engine, withProject ? { project } : {}).filter(
+      (i) => i.code === "asset-frame-unknown" || i.code === "sprite-no-asset",
+    );
+
+  it("pass for a texture, and for an atlas with one of its frames", () => {
+    expect(spriteIssues(spriteScene({ asset: "crate" }))).toEqual([]);
+    expect(spriteIssues(spriteScene({ asset: "hero", frame: "run-0" }))).toEqual([]);
+  });
+
+  it("asset-frame-unknown for a frame the atlas lacks, with a did-you-mean", () => {
+    const issue = only(
+      spriteIssues(spriteScene({ asset: "hero", frame: "idle-2" })),
+      "asset-frame-unknown",
+    );
+    expect(issue).toMatchObject({
+      severity: "error",
+      path: "/entities/1/behaviors/sprite/frame",
+      entityIds: ["pic"],
+      got: "idle-2",
+      expected: "idle-0 | idle-1 | run-0",
+    });
+    expect(issue.message).toBe(
+      'pic\'s sprite names frame "idle-2", which atlas "hero" doesn\'t have; did you mean "idle-0"?',
+    );
+  });
+
+  it("asset-frame-unknown for an atlas without a frame", () => {
+    const issue = only(spriteIssues(spriteScene({ asset: "hero" })), "asset-frame-unknown");
+    expect(issue).toMatchObject({ path: "/entities/1/behaviors/sprite", entityIds: ["pic"] });
+    expect(issue.message).toContain("names no frame");
+  });
+
+  it("sprite-no-asset, a warning, for a block without an asset", () => {
+    const issue = only(spriteIssues(spriteScene({ scale: 2 })), "sprite-no-asset");
+    expect(issue).toMatchObject({
+      severity: "warn",
+      path: "/entities/1/behaviors/sprite",
+      entityIds: ["pic"],
+    });
+  });
+
+  it("leaves a missing or wrong-kind asset to the asset checks", () => {
+    const missing = validateScene(spriteScene({ asset: "hro", frame: "x" }), engine, { project });
+    expect(missing.map((i) => i.code)).toContain("asset-missing");
+    const wrong = validateScene(spriteScene({ asset: "boom" }), engine, { project });
+    expect(wrong.map((i) => i.code)).toContain("asset-kind");
+    expect(spriteIssues(spriteScene({ asset: "hro", frame: "x" }))).toEqual([]);
+    expect(spriteIssues(spriteScene({ asset: "boom" }))).toEqual([]);
+  });
+
+  it("aren't checked without a project", () => {
+    expect(spriteIssues(spriteScene({}), false)).toEqual([]);
+    expect(spriteIssues(spriteScene({ asset: "hero" }), false)).toEqual([]);
+  });
+
+  it("check a block a type requires, pointing at the entity", () => {
+    const decal = defineEntityType({
+      type: "decal",
+      description: "A picture on the wall.",
+      system: () => ({ spawn: () => {}, despawn: () => {}, clear: () => {}, size: () => 0 }),
+      fields: { at: pointField("Where it hangs.") },
+      behaviors: { required: { sprite: {} } },
+    });
+    const walls = createRegistry(
+      defineGame({
+        id: "walls",
+        types: [decal],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const def = scene({ game: "walls" }, [{ id: "d", type: "decal", at: [5, 5] }]);
+    const issue = only(validateScene(def, walls, { project }), "sprite-no-asset");
+    expect(issue.path).toBe("/entities/1");
+  });
+});
+
 describe("grid fields", () => {
   const PAINT = defineEntityType({
     type: "paint",

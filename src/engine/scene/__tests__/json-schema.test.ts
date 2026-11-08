@@ -66,7 +66,7 @@ describe("scene.schema.json", () => {
     ]);
     const text = JSON.stringify(schema);
     for (const gone of ["cloud", "mover", "anchor", "construct", "spawn"])
-      expect(text).not.toContain(`"${gone}"`);
+      expect(text).not.toContain(`"const":"${gone}"`);
     const game = sceneJsonSchema(fake) as Schema;
     expect(game.properties.game.const).toBe("fake");
     expect(game.required).toContain("game");
@@ -243,7 +243,7 @@ describe("behaviors", () => {
   const slot = (type: string) => entity(type).properties!.behaviors!;
 
   it("lists a type's allowed behaviors, closed to any other name", () => {
-    expect(Object.keys(slot("token").properties!)).toEqual([tint.name, tag.name]);
+    expect(Object.keys(slot("token").properties!)).toEqual(["sprite", tint.name, tag.name]);
     expect(slot("token").additionalProperties).toBe(false);
     expect(slot("token")).toMatchObject({ type: "object", title: "Behaviors" });
     expect(slot("bare").properties).toEqual({});

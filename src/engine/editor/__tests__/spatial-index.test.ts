@@ -222,3 +222,70 @@ describe("createSpatialIndex", () => {
     expectSameAsRebuild(index, next);
   });
 });
+
+describe("sprite boxes", () => {
+  const withSprites = (): SceneDefinition => {
+    const def = engineYard();
+    def.entities!.push(
+      {
+        id: "sign",
+        type: "marker",
+        at: [600, 960],
+        behaviors: { sprite: { size: [64, 32], anchor: [0.5, 1] } },
+      },
+      {
+        id: "barrel",
+        type: "prop",
+        shape: ["circle", 800, 940, 10],
+        density: 1,
+        restitution: 0,
+        behaviors: { sprite: { asset: "barrel" } },
+      },
+    );
+    return def;
+  };
+
+  it("indexes a point entity by its sprite's box, and a body by its body and sprite", () => {
+    const index = createSpatialIndex();
+    index.rebuild(withSprites(), registry);
+    expect(index.get("sign")).toMatchObject({
+      aabb: { minX: 568, minY: 928, maxX: 632, maxY: 960 },
+      geometry: { type: "box", cx: 600, cy: 944, hw: 32, hh: 16 },
+      sprite: { type: "box", cx: 600, cy: 944 },
+    });
+    // No asset info: the 32×32 fallback, wider than the 10px ball.
+    expect(index.get("barrel")).toMatchObject({
+      aabb: { minX: 784, minY: 924, maxX: 816, maxY: 956 },
+      geometry: { type: "circle", cx: 800, cy: 940, r: 10 },
+    });
+    expect(index.query({ minX: 812, minY: 925, maxX: 813, maxY: 926 }).map((e) => e.ref)).toEqual([
+      "barrel",
+    ]);
+    // Entities without sprites are as before.
+    expect(index.get("start")).toMatchObject({ geometry: [300, 960] });
+  });
+
+  it("sizes sprite boxes from the asset lookup", () => {
+    const index = createSpatialIndex({
+      asset: (id) =>
+        id === "barrel" ? { id, kind: "texture", size: [40, 20], pivot: [0.5, 1] } : undefined,
+    });
+    index.rebuild(withSprites(), registry);
+    expect(index.get("barrel")?.aabb).toEqual({ minX: 780, minY: 920, maxX: 820, maxY: 950 });
+  });
+
+  it("keeps sprite boxes current through updates", () => {
+    let def = withSprites();
+    const index = createSpatialIndex();
+    index.rebuild(def, registry);
+    const result = apply(def, [
+      { op: "update", ref: "sign", set: { behaviors: { sprite: { size: [16, 16] } } } },
+      { op: "move", refs: ["barrel"], by: [100, 0] },
+    ]);
+    def = result.def;
+    index.update(def, registry, result.touched);
+    expectSameAsRebuild(index, def);
+    expect(index.get("sign")?.aabb).toEqual({ minX: 592, minY: 952, maxX: 608, maxY: 968 });
+    expect(index.get("barrel")?.aabb.minX).toBe(884);
+  });
+});

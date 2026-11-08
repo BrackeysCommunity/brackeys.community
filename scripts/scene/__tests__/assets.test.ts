@@ -50,6 +50,10 @@ async function tree(dir: string): Promise<Record<string, string>> {
 
 const ids = (data: Data) => (data.assets as { id: string }[]).map((a) => a.id);
 
+/** The kitchen sink's art the copied engine project already holds, by kind. */
+const SINK_TEXTURES = ["backdrop", "crates-texture", "hero-texture"];
+const SINK_ATLASES = ["crates", "hero"];
+
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "scene-assets-"));
   deck = join(root, "deck");
@@ -68,6 +72,11 @@ describe("assets on files", { timeout: 60_000 }, () => {
     const r = await run("assets", "list");
     expect(r.exitCode).toBe(0);
     expect(ids(r.data)).toEqual([
+      "backdrop",
+      "crates",
+      "crates-texture",
+      "hero",
+      "hero-texture",
       "cards",
       "engine-yard-checks",
       "engine-yard",
@@ -99,9 +108,10 @@ describe("assets on files", { timeout: 60_000 }, () => {
       meta: { format: "png", width: 1, height: 1 },
     });
     const listed = await run("assets", "list", "--kind", "texture");
-    expect(listed.data.assets).toEqual([
+    expect(ids(listed.data).sort()).toEqual([...SINK_TEXTURES, "dot"].sort());
+    expect(listed.data.assets).toContainEqual(
       expect.objectContaining({ id: "dot", path: "art/dot.png", bytes: DOT.byteLength }),
-    ]);
+    );
   });
 
   it("import makes a doc kind's file a createAsset, in the kind's folder", async () => {
@@ -122,31 +132,34 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "import",
       join(FIXTURES, "hero.png"),
       "--path",
-      "art/",
+      "imported/",
       "--id",
       "hero-art",
     ];
     expect((await run(...png)).exitCode).toBe(0);
-    for (const [file, tool] of [
-      ["hero.json", "aseprite"],
-      ["items.json", "texturepacker"],
+    for (const [file, tool, id] of [
+      ["hero.json", "aseprite", ["--id", "imported-hero"]],
+      ["items.json", "texturepacker", []],
     ] as const) {
-      const r = await run("assets", "import", join(FIXTURES, file), "--path", "art/");
+      const r = await run("assets", "import", join(FIXTURES, file), "--path", "imported/", ...id);
       expect(r.exitCode, `${file}: ${JSON.stringify(r.data)}`).toBe(0);
-      const raw = await readFile(join(deck, `art/${file}.asset.json`), "utf8");
+      const raw = await readFile(join(deck, `imported/${file}.asset.json`), "utf8");
       const sidecar = parseSidecar(raw);
       expect(sidecar.ok && sidecar.sidecar, file).toMatchObject({
         assetKind: "atlas",
         meta: { tool },
       });
     }
-    const hero = parseSidecar(await readFile(join(deck, "art/hero.json.asset.json"), "utf8"));
+    const hero = parseSidecar(await readFile(join(deck, "imported/hero.json.asset.json"), "utf8"));
     expect(hero.ok && hero.sidecar.import).toEqual({ texture: "hero-art" });
     const listed = await run("assets", "list", "--kind", "atlas");
-    expect(listed.data.assets).toEqual([
-      expect.objectContaining({ id: "hero", path: "art/hero.json" }),
-      expect.objectContaining({ id: "items", path: "art/items.json" }),
-    ]);
+    expect(ids(listed.data)).toEqual([...SINK_ATLASES, "imported-hero", "items"]);
+    expect(listed.data.assets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "imported-hero", path: "imported/hero.json" }),
+        expect.objectContaining({ id: "items", path: "imported/items.json" }),
+      ]),
+    );
 
     await writeFile(join(root, "frames.json"), JSON.stringify({ frames: {}, meta: {} }));
     const unnamed = await run("assets", "import", join(root, "frames.json"), "--dry-run");
@@ -576,6 +589,47 @@ describe("assets on files", { timeout: 60_000 }, () => {
     expect((await run("assets", "import", join(root, "missing.png"))).exitCode).toBe(1);
     expect((await run("assets", "restore", "gate")).exitCode).toBe(1);
   });
+
+  it("info prints a texture's size and an atlas frame's size and pivot", async () => {
+    const art = ["--path", "art/"];
+    expect(
+      (await run("assets", "import", join(FIXTURES, "items.png"), ...art, "--id", "items-art"))
+        .exitCode,
+    ).toBe(0);
+    expect((await run("assets", "import", join(FIXTURES, "items.json"), ...art)).exitCode).toBe(0);
+
+    const texture = await run("assets", "info", "items-art");
+    expect(texture.exitCode, JSON.stringify(texture.data)).toBe(0);
+    expect(texture.data).toMatchObject({
+      project: "deck",
+      path: "art/items.png",
+      info: { id: "items-art", kind: "texture", size: [16, 16] },
+    });
+
+    const frame = await run("assets", "info", "items", "--frame", "gem.png");
+    expect(frame.exitCode, JSON.stringify(frame.data)).toBe(0);
+    expect(frame.data).toMatchObject({
+      frame: "gem.png",
+      info: {
+        kind: "atlas",
+        size: [8, 8],
+        pivot: [0.5, 1],
+        frames: ["coin.png", "gem.png", "panel.png"],
+        texture: "items-art",
+      },
+    });
+    const text = await runCli(["assets", "info", "items", "--frame", "gem.png"], ctx);
+    expect(text.stdout).toContain("frame gem.png: 8×8, pivot 0.5,1");
+    expect(text.stdout).toContain("texture items-art");
+
+    const unknown = await run("assets", "info", "items", "--frame", "gem.pn");
+    expect(unknown.exitCode).toBe(1);
+    expect(String(unknown.data.error)).toMatch(/no frame "gem.pn"; did you mean "gem.png"\?/);
+    const missing = await run("assets", "info", "item");
+    expect(missing.exitCode).toBe(1);
+    expect(String(missing.data.error)).toMatch(/Did you mean "items"\?/);
+    expect((await run("assets", "info")).exitCode).toBe(2);
+  });
 });
 
 describe("assets --live", { timeout: 60_000 }, () => {
@@ -647,25 +701,35 @@ describe("assets --live", { timeout: 60_000 }, () => {
     const r = await live("assets", "import", join(root, "dot.png"), "--path", "art/");
     expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
     const hash = await sha256(new Uint8Array(DOT));
-    expect((await live("assets", "list", "--kind", "texture")).data.assets).toEqual([
+    const textures = (await live("assets", "list", "--kind", "texture")).data;
+    expect(ids(textures).sort()).toEqual([...SINK_TEXTURES, "dot"].sort());
+    expect(textures.assets).toContainEqual(
       expect.objectContaining({ id: "dot", path: "art/dot.png", sha256: hash }),
-    ]);
+    );
     const blob = await fetch(new URL(`/__project/deck/blob/${hash}`, server.httpUrl));
     expect(Buffer.from(await blob.arrayBuffer())).toEqual(DOT);
   });
 
   it("imports an atlas export told by its meta.app, with no --kind", async () => {
-    for (const file of ["hero.json", "items.json"]) {
-      const r = await live("assets", "import", join(FIXTURES, file), "--path", "art/");
+    for (const [file, id] of [
+      ["hero.json", ["--id", "imported-hero"]],
+      ["items.json", []],
+    ] as const) {
+      const r = await live("assets", "import", join(FIXTURES, file), "--path", "imported/", ...id);
       expect(r.exitCode, `${file}: ${JSON.stringify(r.data)}`).toBe(0);
     }
-    const atlases = (await live("assets", "list", "--kind", "atlas")).data.assets;
-    expect(atlases).toEqual([
-      expect.objectContaining({ id: "hero", path: "art/hero.json" }),
-      expect.objectContaining({ id: "items", path: "art/items.json" }),
-    ]);
+    const atlases = (await live("assets", "list", "--kind", "atlas")).data;
+    expect(ids(atlases)).toEqual([...SINK_ATLASES, "imported-hero", "items"]);
+    expect(atlases.assets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "imported-hero", path: "imported/hero.json" }),
+        expect.objectContaining({ id: "items", path: "imported/items.json" }),
+      ]),
+    );
     await until(async () => {
-      const raw = await readFile(join(deck, "art/items.json.asset.json"), "utf8").catch(() => "");
+      const raw = await readFile(join(deck, "imported/items.json.asset.json"), "utf8").catch(
+        () => "",
+      );
       const sidecar = parseSidecar(raw);
       return sidecar.ok && sidecar.sidecar.assetKind === "atlas";
     }, "the server to write the atlas's sidecar");

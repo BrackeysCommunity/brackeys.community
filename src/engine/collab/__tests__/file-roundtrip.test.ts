@@ -42,6 +42,17 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
     );
   });
 
+  it("the kitchen sink it round-trips carries a sprite and a decor", () => {
+    const text = FILES.find(([name]) => name === "../../scenes/kitchen-sink.json")![1];
+    const entities = (JSON.parse(text) as SceneDefinition).entities ?? [];
+    const sprites = entities.filter(
+      (e) => (e.behaviors as Record<string, unknown> | undefined)?.sprite !== undefined,
+    );
+    expect(sprites.length).toBeGreaterThan(0);
+    expect(sprites.some((e) => e.type === "decor")).toBe(true);
+    expect(sprites.some((e) => e.type !== "decor")).toBe(true);
+  });
+
   it("reads the v3 sinks as the current format", () => {
     for (const name of ["kitchen-sink", "test-game-sink"]) {
       const def = JSON.parse(readFileSync(dir(`${V3}${name}.json`), "utf8")) as SceneDefinition;

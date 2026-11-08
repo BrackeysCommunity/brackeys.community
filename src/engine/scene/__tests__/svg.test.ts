@@ -1,12 +1,23 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vite-plus/test";
+import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { ENGINE_YARD_EXPANDED } from "../../__tests__/fixtures/engine-yard.expanded";
 import { generateScene } from "../../__tests__/fixtures/generate-scene";
 import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
-import { createRegistry, defineEntityType, defineGame } from "../../game/define";
+import { createRegistry, defineEntityType, defineGame, withProject } from "../../game/define";
 import { primitiveFields } from "../../game/primitives";
+import type { AssetEntry } from "../../project/types";
+import { projectView } from "../../project/view";
+import {
+  createProjectFileAdapter,
+  readFileProject,
+  readPrefabFiles,
+} from "../../vite/project-files";
 import { parseSceneOrThrow } from "../parse";
 import { drawnEntities, expandedOf } from "../render-geometry";
 import { shapeOutline } from "../shape-outline";
@@ -368,5 +379,153 @@ describe("grid fields", () => {
       [-2, 0],
       [-1, 0],
     ]);
+  });
+});
+
+describe("sprite boxes", () => {
+  const sprites = parseSceneOrThrow(
+    readFileSync(new URL("./fixtures/sprites.json", import.meta.url), "utf8"),
+    engine,
+  );
+  const spritesGolden = new URL("./sprites.golden.svg", import.meta.url);
+  const project = spriteProject();
+  const spriteEl = (svg: string, ref: string) =>
+    new RegExp(`<path data-sprite="${ref}"[^>]*>`).exec(svg)?.[0];
+
+  it("matches the golden render of the sprite fixture (UPDATE_GOLDENS=1 regenerates)", () => {
+    const svg = renderSceneSvg(sprites, { registry: engine });
+    if (process.env.UPDATE_GOLDENS) writeFileSync(spritesGolden, svg);
+    expect(svg).toBe(readFileSync(spritesGolden, "utf8"));
+  });
+
+  it("draws each sprite's box, labelled asset[:frame], on props and point entities alike", () => {
+    const svg = renderSceneSvg(sprites, { registry: engine });
+    expect(spriteEl(svg, "hero")).toContain('data-asset="hero-sheet" data-frame="idle-0"');
+    // Without a project, an atlas frame's box is the 32×32 fallback at the body's centre.
+    expect(spriteEl(svg, "hero")).toContain('d="M80 240L112 240L112 272L80 272Z"');
+    expect(spriteEl(svg, "lamp")).toContain('d="M308 224L332 224L332 288L308 288Z"');
+    expect(svg).toContain(">hero-sheet:idle-0</text>");
+    expect(svg).toContain(">lamp</text>");
+    expect(svg).toContain(">(no asset)</text>");
+    expect(spriteEl(svg, "start")).toBeUndefined();
+  });
+
+  it("turns a sprite with its body and mirrors one with its group", () => {
+    const svg = renderSceneSvg(sprites, { registry: engine });
+    // The crate's 64px box turned 45° about its centre.
+    expect(spriteEl(svg, "crate")).toContain('d="M208 210.75L253.25 256L208 301.25L162.75 256Z"');
+    // The banner's top-left anchor and offset mirror under the group's flip: its box hangs left of the point.
+    expect(spriteEl(svg, "banner")).toContain('d="M520 136L552 136L552 184L520 184Z"');
+  });
+
+  it("sizes boxes from the project's asset info when given one", () => {
+    const svg = renderSceneSvg(sprites, { registry: engine, project });
+    // The frame's 24×40 at its bottom-centre pivot.
+    expect(spriteEl(svg, "hero")).toContain('d="M84 216L108 216L108 256L84 256Z"');
+    // A block's own size still wins.
+    expect(spriteEl(svg, "lamp")).toContain('d="M308 224L332 224L332 288L308 288Z"');
+  });
+
+  it("frames a region around a sprite's box and leaves its label out with labels none", () => {
+    const view = sceneViewport(sprites, { registry: engine, around: "tree", margin: 0 });
+    expect(view.region).toEqual([408, 160, 504, 288]);
+    const bare = renderSceneSvg(sprites, { registry: engine, labels: "none" });
+    expect(spriteEl(bare, "tree")).toBeDefined();
+    expect(bare).not.toContain("(no asset)");
+  });
+
+  it("draws drawnEntities' sprite boxes, which grow the entity's box", () => {
+    const tree = drawnEntities(expandedOf(sprites, engine), engine).find((d) => d.id === "tree");
+    expect(tree?.sprite).toMatchObject({ label: "(no asset)", size: [96, 128] });
+    expect(tree?.box).toEqual({ minX: 408, minY: 160, maxX: 504, maxY: 288 });
+  });
+});
+
+/** A project holding the fixture's art: an atlas whose frame has a pivot, and textures. */
+function spriteProject() {
+  const entry = (id: string, kind: string, extra: Partial<AssetEntry> = {}): AssetEntry => ({
+    key: `k-${id}`,
+    id,
+    kind,
+    path: `${id}.${kind}`,
+    created: { at: 0, by: "t" },
+    ...extra,
+  });
+  const texture = (id: string, width: number, height: number) =>
+    entry(id, "texture", { sha256: "a".repeat(64), meta: { format: "png", width, height } });
+  return projectView({
+    meta: { projectId: "p", layout: 2, name: "P" },
+    assets: Object.fromEntries(
+      [
+        texture("sheet", 64, 64),
+        texture("crate", 64, 64),
+        texture("lamp", 20, 50),
+        texture("banner", 30, 30),
+        entry("hero-sheet", "atlas", {
+          sha256: "b".repeat(64),
+          meta: {
+            tool: "aseprite",
+            frames: { "idle-0": { x: 0, y: 0, w: 24, h: 40, pivot: [0.5, 1] } },
+            tags: [],
+            slices: [],
+            order: ["idle-0"],
+          },
+          import: { texture: "sheet" },
+        }),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  });
+}
+
+/** The engine project's kitchen sink with its prefabs, and the project view and registry it is drawn with. */
+async function loadKitchenSink() {
+  const dir = fileURLToPath(new URL("../../scenes/", import.meta.url));
+  const cacheDir = await mkdtemp(join(tmpdir(), "kitchen-sink-render-"));
+  try {
+    const project = await readFileProject(dir, { cacheDir });
+    const { state } = await createProjectFileAdapter(project).scan();
+    const view = projectView(state, project.kinds);
+    const values = new Map<string, unknown>();
+    for (const entry of view.byId.values())
+      if (entry.sha256 === undefined)
+        values.set(entry.id, JSON.parse(await readFile(join(dir, entry.path), "utf8")));
+    const registry = withProject(createRegistry(), view, values);
+    const scene = parseSceneOrThrow(values.get("kitchen-sink"), registry);
+    const { prefabs } = await readPrefabFiles(dir, registry);
+    return { scene, view, registry, prefabs };
+  } finally {
+    await rm(cacheDir, { recursive: true, force: true });
+  }
+}
+
+describe("the kitchen sink", () => {
+  const sinkGolden = new URL("./kitchen-sink.golden.svg", import.meta.url);
+  let sink: Awaited<ReturnType<typeof loadKitchenSink>>;
+  beforeAll(async () => {
+    sink = await loadKitchenSink();
+  });
+  const render = () =>
+    renderSceneSvg(sink.scene, {
+      registry: sink.registry,
+      prefabs: sink.prefabs,
+      project: sink.view,
+    });
+
+  it("matches its golden render, sprites sized from the project (UPDATE_GOLDENS=1 regenerates)", () => {
+    const svg = render();
+    if (process.env.UPDATE_GOLDENS) writeFileSync(sinkGolden, svg);
+    expect(svg).toBe(readFileSync(sinkGolden, "utf8"));
+    expect(render()).toBe(svg);
+  });
+
+  it("labels each sprite with its asset and frame", () => {
+    const svg = render();
+    expect(svg).toMatch(/<path data-sprite="crate" [^>]*data-asset="crates" data-frame="crate-0"/);
+    expect(svg).toMatch(/<path data-sprite="ball" [^>]*data-asset="crates" data-frame="crate-1"/);
+    expect(svg).toMatch(/<path data-sprite="ledge" [^>]*data-asset="hero" data-frame="hero-1"/);
+    expect(svg).toMatch(/<path data-sprite="lamp" [^>]*data-asset="backdrop"/);
   });
 });

@@ -284,7 +284,7 @@ describe("the engine's doc kinds and a game's converge", () => {
       v: 1,
       description: "Rubber.",
       physics: { friction: 0.4, restitution: 0.9 },
-      render: { style: { fill: "#e05a5a" } },
+      render: { style: { fill: "#e05a5a" }, tint: "#ffffff" },
     },
     "game-settings": { kind: "game-settings", v: 1, engine: {}, game: { avatarSpeed: 200 } },
     "data-table": {
@@ -383,6 +383,27 @@ describe("the engine's doc kinds and a game's converge", () => {
     ]);
     expect(v.description).toBe("Hard rubber.");
     expect(v.render).toEqual({ style: { fill: "#00ff00" } });
+  });
+
+  it("material: concurrent edits of render.tint, render.blend and render.style merge per field", () => {
+    const render = (x: Obj) => x.render as Obj;
+    const v = offline("material", [
+      (x) => ({ ...x, render: { ...render(x), tint: "#ff8800" } }),
+      (x) => ({ ...x, render: { ...render(x), blend: "add" } }),
+      (x) => ({ ...x, render: { ...render(x), style: { fill: "#123456" } } }),
+    ]);
+    expect(v.render).toEqual({ style: { fill: "#123456" }, tint: "#ff8800", blend: "add" });
+  });
+
+  it("material: unsetting render.tint while another client sets render.blend keeps the blend only", () => {
+    const v = offline("material", [
+      (x) => {
+        const { tint: _, ...rest } = x.render as Obj;
+        return { ...x, render: rest };
+      },
+      (x) => ({ ...x, render: { ...(x.render as Obj), blend: "multiply" } }),
+    ]);
+    expect(v.render).toEqual({ style: { fill: "#e05a5a" }, blend: "multiply" });
   });
 
   it("game-settings: concurrent edits of different game settings both land", () => {

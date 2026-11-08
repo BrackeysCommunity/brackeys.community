@@ -14,6 +14,7 @@ import type { MarkerSystem } from "../systems/marker";
 import type { FollowerSystem } from "../systems/path-follower";
 import type { InputAction, RapierModule } from "../types";
 import { engineYard } from "./fixtures/engine-yard.expanded";
+import { recordingView } from "./fixtures/recording-view";
 import { AVATAR_SPEED, CARD_TABLE, testGame, type TestGameSnapshot } from "./fixtures/test-game";
 
 let rapier: RapierModule;
@@ -48,7 +49,14 @@ function scene(entities: RuntimeEntity[], gravity: [number, number] = [0, 1200])
 
 const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 20, 500, 20) };
 
-const EMPTY: RuntimeStats = { bodies: 0, colliders: 0, tags: 0, entities: 0, perType: {} };
+const EMPTY: RuntimeStats = {
+  bodies: 0,
+  colliders: 0,
+  tags: 0,
+  entities: 0,
+  perType: {},
+  behaviors: {},
+};
 
 const press = (action: string): InputAction => ({ action, pressed: true, tick: 0, timestamp: 0 });
 
@@ -78,6 +86,7 @@ describe("SceneRuntime load and unload", () => {
       tags: 8,
       entities: 9,
       perType: ENGINE_YARD_COUNTS,
+      behaviors: {},
     });
     expect(rt.get("lift")?.type).toBe("follower");
     expect(
@@ -210,6 +219,55 @@ describe("primitive systems", () => {
     expect(tagOf("zone")).toEqual({ entityId: "zone", type: "sensor", tags: ["goal"] });
     const ice = rt.ctx.physics.world.getCollider(handleOf(rt, "~solid:ice:0"))!;
     expect(ice.friction()).toBeCloseTo(0.02, 6);
+    rt.destroy();
+  });
+
+  it("loads decor headless with a pose, no body and nothing in the physics world", () => {
+    const lamp: RuntimeEntity = {
+      id: "lamp",
+      type: "decor",
+      at: [40, -30],
+      behaviors: { sprite: {} },
+    };
+    const bare = runtime(null);
+    bare.load(scene([floor]));
+    const rt = runtime(null);
+    expect(rt.load(scene([floor, lamp]))).toMatchObject({
+      ok: true,
+      counts: { solid: 1, decor: 1 },
+    });
+    const { bodies, colliders, tags } = bare.stats();
+    expect(rt.stats()).toMatchObject({ bodies, colliders, tags, entities: 2 });
+    expect(rt.stats().perType).toEqual({ solid: 1, decor: 1 });
+    expect(rt.ctx.physics.world.bodies.len()).toBe(bare.ctx.physics.world.bodies.len());
+    expect(rt.ctx.poses.get("lamp")).toEqual({ x: 40, y: -30, rot: 0 });
+    expect(rt.get("lamp")?.type).toBe("decor");
+
+    expect(rt.update([{ ...lamp, at: [50, -20] }]).ok).toBe(true);
+    expect(rt.ctx.poses.get("lamp")).toEqual({ x: 50, y: -20, rot: 0 });
+    rt.remove(["lamp"]);
+    expect(rt.stats()).toEqual(bare.stats());
+    bare.destroy();
+    rt.destroy();
+  });
+
+  it("draws an engine visual on the layer its entity names, ordered by its z", () => {
+    const recording = recordingView({ sprites: true });
+    const rt = createSceneRuntime({ rapier, view: recording.view, game: null });
+    rt.load(
+      scene([
+        floor,
+        { id: "zone", type: "sensor", shape: box(0, 0, 5, 5), layer: "decor", z: 4 },
+        { id: "lamp", type: "decor", at: [0, 0], z: -2, behaviors: { sprite: {} } },
+      ]),
+    );
+    const layers = rt.ctx.registry.layers;
+    const draw = (name: string) => layers.find((l) => l.name === name)!.draw;
+    expect(recording.live.get("floor")).toMatchObject({ layer: "terrain" });
+    expect(recording.live.get("floor")?.depth).toBeUndefined();
+    expect(recording.live.get("zone")).toMatchObject({ layer: draw("decor"), depth: 4 });
+    expect(recording.live.get("lamp")).toBeUndefined();
+    expect(recording.live.get("lamp#sprite")).toMatchObject({ layer: draw("gameplay"), depth: -2 });
     rt.destroy();
   });
 
@@ -418,7 +476,10 @@ const entry = (id: string, kind: string, path: string): AssetEntry => ({
 });
 
 /** A test-game project: one game-settings asset and two decks of the card table. */
-function testProject(game: Record<string, unknown>): ProjectRuntimeView {
+function testProject(
+  game: Record<string, unknown>,
+  engine: Record<string, unknown> = {},
+): ProjectRuntimeView {
   const entries = [
     entry("settings", "game-settings", "settings.json"),
     entry("deck-b", "data-table", "data/b.json"),
@@ -447,7 +508,7 @@ function testProject(game: Record<string, unknown>): ProjectRuntimeView {
     rows,
   });
   const values = new Map<string, unknown>([
-    ["settings", { kind: "game-settings", v: 1, engine: {}, game }],
+    ["settings", { kind: "game-settings", v: 1, engine, game }],
     ["deck-a", deck({ id: "fireball", cost: 3, damage: 5 }, { id: "heal", cost: 2 })],
     ["deck-b", deck({ id: "bolt", cost: 1 }, { id: "heal", cost: 9 }, { id: "bad" })],
   ]);
@@ -511,5 +572,87 @@ describe("EngineContext.project", () => {
     expect(walk(createSceneRuntime({ rapier, view: null, game: testGame, project }))).toEqual(
       walk(runtime()),
     );
+  });
+
+  it("copies and freezes the settings doc's engine block", () => {
+    const engine = { resolution: { height: 360, sampling: "nearest" } };
+    const project = testProject({}, engine);
+    expect(project.engine).toEqual(engine);
+    expect(project.engine).not.toBe(engine);
+    expect(Object.isFrozen(project.engine)).toBe(true);
+    expect(Object.isFrozen(project.engine.resolution)).toBe(true);
+    engine.resolution.height = 720;
+    expect(project.engine).toEqual({ resolution: { height: 360, sampling: "nearest" } });
+    expect(testProject({}).engine).toEqual({});
+  });
+});
+
+describe("SceneRuntime poses", () => {
+  const crate: RuntimeEntity = {
+    id: "crate",
+    type: "prop",
+    shape: box(100, -50, 10, 10),
+    density: 1,
+    restitution: 0,
+  };
+
+  it("poses entities on load, add and update, snapped to their spawn pose", () => {
+    const rt = runtime(null);
+    rt.load(scene([floor, { id: "start", type: "marker", at: [5, 6] }]));
+    expect(rt.ctx.poses.get("floor")).toEqual({ x: 0, y: 20, rot: 0 });
+    expect(rt.ctx.poses.get("start")).toEqual({ x: 5, y: 6, rot: 0 });
+
+    steps(rt, 3);
+    expect(rt.add([crate]).ok).toBe(true);
+    expect(rt.ctx.poses.get("crate")).toEqual({ x: 100, y: -50, rot: 0 });
+    steps(rt, 5);
+    expect(rt.ctx.poses.get("crate")!.y).toBeGreaterThan(-50);
+
+    expect(rt.update([{ ...crate, shape: box(300, -80, 10, 10) }]).ok).toBe(true);
+    expect(rt.ctx.poses.get("crate")).toEqual({ x: 300, y: -80, rot: 0 });
+    expect(rt.ctx.poses.prev("crate")).toEqual({ x: 300, y: -80, rot: 0 });
+    expect(rt.update([{ id: "start", type: "marker", at: [7, 8] }]).ok).toBe(true);
+    expect(rt.ctx.poses.get("start")).toEqual({ x: 7, y: 8, rot: 0 });
+    expect(rt.ctx.poses.size).toBe(3);
+    rt.destroy();
+  });
+
+  it("removes a pose on despawn and every pose on unload", () => {
+    const rt = runtime(null);
+    rt.load(scene([floor, crate]));
+    rt.remove(["crate"]);
+    expect(rt.ctx.poses.has("crate")).toBe(false);
+    expect([...rt.ctx.poses.ids()]).toEqual(["floor"]);
+    rt.unload();
+    expect(rt.ctx.poses.size).toBe(0);
+    rt.load(scene([floor]));
+    expect(rt.ctx.poses.size).toBe(1);
+    rt.destroy();
+    expect(rt.ctx.poses.size).toBe(0);
+  });
+
+  it("leaves no pose behind for a load or an add that fails", () => {
+    const rt = runtime(null);
+    const bad: RuntimeEntity = {
+      id: "bad",
+      type: "follower",
+      shape: box(0, 0, 4, 4),
+      path: { pts: [[0, 0]], mode: "loop", speed: 1 },
+    };
+    expect(rt.load(scene([floor, bad])).ok).toBe(false);
+    expect(rt.ctx.poses.size).toBe(0);
+    rt.load(scene([floor]));
+    expect(rt.add([crate, bad]).ok).toBe(false);
+    expect([...rt.ctx.poses.ids()]).toEqual(["floor"]);
+    rt.load(scene([floor, crate]));
+    expect(
+      rt.update([
+        { ...crate, shape: box(0, 0, 1, 1) },
+        { ...bad, id: "floor" },
+      ]).ok,
+    ).toBe(false);
+    expect(rt.ctx.poses.get("floor")).toEqual({ x: 0, y: 20, rot: 0 });
+    expect(rt.ctx.poses.get("crate")).toEqual({ x: 100, y: -50, rot: 0 });
+    rt.destroy();
   });
 });

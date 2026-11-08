@@ -223,11 +223,36 @@ export function rng(seed: number) {
 /** The asset ids `useAssets` draws from. */
 const ASSET_POOL = ["boom", "hud", "music", "sky", "tiles"];
 
-/** A value a behavior field's schema takes: a number, a #rrggbb string, or a boolean. */
-function behaviorValue(schema: unknown, int: (lo: number, hi: number) => number): unknown {
-  let s = schema as { _zod: { def: { type: string; innerType?: unknown } } };
-  while (s._zod.def.innerType !== undefined) s = s._zod.def.innerType as typeof s;
-  switch (s._zod.def.type) {
+/** The texture and atlas ids, and the frame names, sprite blocks draw from. */
+const SPRITE_ASSETS = ["crates", "hero", "sky"];
+const SPRITE_FRAMES = ["crate-0", "crate-1", "idle"];
+
+type ZodLike = {
+  _zod: { def: { type: string; innerType?: unknown; items?: unknown[]; entries?: object } };
+};
+
+/**
+ * A value a behavior field's schema takes: an asset id or frame name by the
+ * field's name, an enum's option, a tuple of its items, a #rrggbb string, a
+ * boolean or a number.
+ */
+function behaviorValue(
+  schema: unknown,
+  int: (lo: number, hi: number) => number,
+  field?: string,
+): unknown {
+  let s = schema as ZodLike;
+  while (s._zod.def.innerType !== undefined) s = s._zod.def.innerType as ZodLike;
+  const def = s._zod.def;
+  if (field === "asset") return SPRITE_ASSETS[int(0, SPRITE_ASSETS.length - 1)];
+  if (field === "frame") return SPRITE_FRAMES[int(0, SPRITE_FRAMES.length - 1)];
+  switch (def.type) {
+    case "enum": {
+      const options = Object.values(def.entries ?? {});
+      return options[int(0, options.length - 1)];
+    }
+    case "tuple":
+      return (def.items ?? []).map((item) => behaviorValue(item, int));
     case "string":
       return `#${int(0, 0xffffff).toString(16).padStart(6, "0")}`;
     case "boolean":
@@ -238,7 +263,11 @@ function behaviorValue(schema: unknown, int: (lo: number, hi: number) => number)
 }
 
 export type RandomOpOptions = {
-  /** Also draw the v3 ops: `transform`, `setZ`, `useAssets`, `paintCells`, behavior `update`s and `setParam`. */
+  /**
+   * Also draw the v3 ops: `transform`, `setZ`, `useAssets`, `paintCells`,
+   * behavior `update`s, `setParam`, `decor` adds and `sprite` block adds,
+   * field sets and unsets.
+   */
   v3?: boolean;
 };
 
@@ -264,7 +293,7 @@ export function randomOp(
   const by = (): [number, number] => [int(-64, 64), int(-64, 64)];
   const settings = Object.keys(reg.settings);
 
-  const roll = options.v3 ? int(0, 27) : int(0, 21);
+  const roll = options.v3 ? int(0, 29) : int(0, 21);
   if (roll > 21) {
     const entities = def.entities ?? [];
     switch (roll) {
@@ -333,6 +362,43 @@ export function randomOp(
           : int(20, 300);
         return { op: "setParam", ref, name, value };
       }
+      case 28: {
+        const sprite: Record<string, unknown> =
+          rand() < 0.7 ? { asset: pick(SPRITE_ASSETS)!, size: [int(8, 64), int(8, 64)] } : {};
+        if (rand() < 0.4) sprite.frame = pick(SPRITE_FRAMES)!;
+        return {
+          op: "add",
+          entity: { type: "decor", at: pt(), [BEHAVIORS_FIELD]: { sprite } },
+          ...(rand() < 0.3 ? { index: int(0, ids.length) } : {}),
+        };
+      }
+      case 29: {
+        const shape = reg.behaviors.get("sprite")?.shape;
+        const hosts = entities.filter(
+          (e) => reg.types.has(e.type) && reg.behaviorRules(e.type).allowed.includes("sprite"),
+        );
+        const e = pick(hosts);
+        if (!shape || !e) return { op: "setScene", set: { name: `yard-${int(0, 9)}` } };
+        const path = `${BEHAVIORS_FIELD}.sprite`;
+        const has = (e[BEHAVIORS_FIELD] as Record<string, unknown> | undefined)?.sprite;
+        const r = rand();
+        if (has === undefined || r < 0.15)
+          return {
+            op: "update",
+            ref: e.id,
+            set: { [path]: rand() < 0.5 ? {} : { asset: pick(SPRITE_ASSETS)! } },
+          };
+        if (r < 0.25 && !reg.behaviorRules(e.type).required.has("sprite"))
+          return { op: "update", ref: e.id, unset: [path] };
+        const field = pick(Object.keys(shape))!;
+        return r < 0.45
+          ? { op: "update", ref: e.id, unset: [`${path}.${field}`] }
+          : {
+              op: "update",
+              ref: e.id,
+              set: { [`${path}.${field}`]: behaviorValue(shape[field], int, field) },
+            };
+      }
       default: {
         const hosts = entities.flatMap((e) =>
           reg.types.has(e.type)
@@ -358,7 +424,7 @@ export function randomOp(
           : {
               op: "update",
               ref: e.id,
-              set: { [`${path}.${field}`]: behaviorValue(shape[field], int) },
+              set: { [`${path}.${field}`]: behaviorValue(shape[field], int, field) },
             };
       }
     }

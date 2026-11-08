@@ -23,6 +23,15 @@ export {
   type RegisteredBehavior,
 } from "./behaviors";
 export {
+  SPRITE,
+  SPRITE_FALLBACK_SIZE,
+  spriteGeometry,
+  type FrameRect,
+  type SpriteAssetInfo,
+  type SpriteBlock,
+  type SpriteGeometry,
+} from "./behaviors/sprite";
+export {
   angleField,
   assetField,
   AssetIdSchema,
@@ -106,6 +115,8 @@ export type {
 } from "./types";
 export type { AssetKindDef } from "../project/kinds";
 export type { ProjectRuntimeView } from "../project/runtime-view";
+export type { Pose, PoseIndex } from "../runtime/poses";
+export { spawnPose } from "../runtime/poses";
 
 // ─── System authoring ────────────────────────────────────
 export { DRAW_LAYERS } from "../context";
@@ -126,6 +137,8 @@ export type {
   WaypointMode,
   WaypointState,
 } from "../systems/path-follower";
+export { createDecorSystem } from "../systems/decor";
+export type { DecorEntity } from "../systems/decor";
 export { createMarkerSystem } from "../systems/marker";
 export type { MarkerEntity, MarkerSystem } from "../systems/marker";
 export {

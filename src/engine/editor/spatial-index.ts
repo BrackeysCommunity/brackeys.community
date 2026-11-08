@@ -1,9 +1,11 @@
+import { SPRITE } from "../game/behaviors/sprite";
 import { Z_LIMIT } from "../game/fields";
 import type { RegisteredType, Registry } from "../game/types";
-import { bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
+import { behaviorBlocks, bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
 import { defaultLayer } from "../scene/layers";
+import { spriteBoxOf, type SpriteAssetLookup } from "../scene/render-geometry";
 import { geometryFields } from "../scene/schema";
-import { aabb, translateShape } from "../scene/shape-geometry";
+import { aabb, aabbUnion, translateShape } from "../scene/shape-geometry";
 import { parseShape } from "../scene/shapes";
 import type { Aabb, BulkKey, EntityDef, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
 import type { IndexEntry, SpatialIndex } from "./tools";
@@ -28,6 +30,12 @@ export type EditGeometry = {
   /** The path runs a closing segment from its last point back to its first. */
   loop?: boolean;
 };
+
+/** An index entry, with the world box its sprite draws when it carries one. */
+export type SpriteIndexEntry = IndexEntry & { sprite?: ShapeObj };
+
+/** The world box `e`'s sprite draws, when the index found one. */
+export const spriteHitOf = (e: IndexEntry): ShapeObj | undefined => (e as SpriteIndexEntry).sprite;
 
 const isPt = (v: unknown): v is Pt =>
   Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n));
@@ -132,6 +140,11 @@ export type SpatialIndexOptions = {
    * answers `undefined`, an entry's key is its ref.
    */
   keyOf?: (ref: Ref) => string | undefined;
+  /**
+   * Asset info for sizing sprite boxes (`ProjectRuntimeView.asset`); read at
+   * each (re)index. Without it a sprite's box is its block's size or 32×32.
+   */
+  asset?: SpriteAssetLookup;
 };
 
 export type EditableSpatialIndex = SpatialIndex & {
@@ -150,7 +163,8 @@ export type EditableSpatialIndex = SpatialIndex & {
  * The uniform grid of AABBs picking, marquee and snapping query. Entries
  * cover every bulk entry and every entity with a shape or point, `off`
  * entities and notes included; an entity on a path is indexed at the
- * path's first point.
+ * path's first point. An entity carrying a sprite is also hit by the box
+ * the sprite draws; a point entity's sprite box is its geometry.
  */
 export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpatialIndex {
   const cell = opts.cell ?? DEFAULT_CELL;
@@ -201,22 +215,37 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
   }
 
   function entryOf(
+    registry: Registry,
     ref: Ref,
     type: string,
     layer: string,
     g: EditGeometry | undefined,
+    written?: unknown,
   ): IndexEntry | undefined {
-    const geometry = g?.shape ?? g?.at;
-    if (!geometry) return undefined;
-    return {
+    const own = g?.shape ?? g?.at;
+    if (!g || !own) return undefined;
+    const block = registry.types.has(type)
+      ? behaviorBlocks(registry, type, written)[SPRITE.name]
+      : undefined;
+    const sprite =
+      block &&
+      spriteBoxOf(
+        block,
+        { shape: g.shape, at: g.at, path: g.pts ? { pts: g.pts } : undefined },
+        opts.asset,
+      );
+    const box = g.shape ? aabb(g.shape) : pointBox(g.at!);
+    const entry: SpriteIndexEntry = {
       ref,
       key: keyOf(ref),
       type,
       layer,
-      aabb: g?.shape ? aabb(g.shape) : pointBox(g!.at!),
+      aabb: sprite ? aabbUnion(box, sprite.box) : box,
       z: 0,
-      geometry,
+      geometry: g.shape ?? sprite?.shape ?? own,
+      ...(sprite ? { sprite: sprite.shape } : {}),
     };
+    return entry;
   }
 
   function indexBucket(def: SceneDefinition, registry: Registry, key: BulkKey) {
@@ -225,7 +254,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
     const layer = defaultLayer(registry.types.get(info.type), true, registry.layers);
     bulkEntries(def, key).forEach((value, i) => {
       const ref = bulkId(key, i);
-      const e = entryOf(ref, info.type, layer, bulkGeometry(registry, key, value));
+      const e = entryOf(registry, ref, info.type, layer, bulkGeometry(registry, key, value));
       if (e) insert(e);
     });
   }
@@ -237,7 +266,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
       e.layer && registry.layers.some((l) => l.name === e.layer)
         ? e.layer
         : defaultLayer(t, false, registry.layers);
-    return entryOf(e.id, e.type, layer, entityGeometry(t, e));
+    return entryOf(registry, e.id, e.type, layer, entityGeometry(t, e), e.behaviors);
   }
 
   /** The first entity per id, as refs resolve. */

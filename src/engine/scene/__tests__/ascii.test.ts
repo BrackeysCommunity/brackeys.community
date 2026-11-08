@@ -1,12 +1,28 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vite-plus/test";
+import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { ENGINE_YARD_EXPANDED } from "../../__tests__/fixtures/engine-yard.expanded";
 import { generateScene } from "../../__tests__/fixtures/generate-scene";
 import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
-import { createRegistry, defineEntityType, defineGame, RegistryError } from "../../game/define";
+import {
+  createRegistry,
+  defineEntityType,
+  defineGame,
+  RegistryError,
+  withProject,
+} from "../../game/define";
 import { primitiveFields } from "../../game/primitives";
+import { projectView } from "../../project/view";
+import {
+  createProjectFileAdapter,
+  readFileProject,
+  readPrefabFiles,
+} from "../../vite/project-files";
 import { renderSceneAscii, sceneAsciiMap } from "../ascii";
 import { parseSceneOrThrow } from "../parse";
 import { SCENE_GRID_MAX_CELLS } from "../svg";
@@ -222,5 +238,88 @@ describe("grid fields", () => {
 
   it("leaves the goldens alone: a scene without grid fields draws as before", () => {
     expect(renderSceneAscii(yard, { registry: engine })).toBe(readFileSync(golden, "utf8"));
+  });
+});
+
+describe("sprite boxes", () => {
+  const sprites = parseSceneOrThrow(
+    readFileSync(new URL("./fixtures/sprites.json", import.meta.url), "utf8"),
+    engine,
+  );
+  const spritesGolden = new URL("./sprites.golden.txt", import.meta.url);
+  const at = (map: { lines: string[] }, col: number, row: number) => map.lines[row]![col];
+
+  it("matches the golden map of the sprite fixture (UPDATE_GOLDENS=1 regenerates)", () => {
+    const text = renderSceneAscii(sprites, { registry: engine, cell: 16 });
+    if (process.env.UPDATE_GOLDENS) writeFileSync(spritesGolden, text);
+    expect(text).toBe(readFileSync(spritesGolden, "utf8"));
+  });
+
+  it("marks a sprite's box with its entity type's character", () => {
+    const map = sceneAsciiMap(sprites, { registry: engine, cell: 16 });
+    // The tree's box (408..504, 160..288) is all marker; the point itself is one cell of it.
+    expect(at(map, 26, 10)).toBe("+");
+    expect(at(map, 31, 17)).toBe("+");
+    expect(at(map, 24, 12)).toBe(".");
+    expect(legendOf(map)["+"]).toBe("marker");
+  });
+
+  it("marks under bodies and points: a sprite never takes a cell from them", () => {
+    const count = (def: SceneDefinition, char: string) =>
+      sceneAsciiMap(def, { registry: engine, cell: 16 }).lines.join("").split(char).length - 1;
+    const bare = structuredClone(sprites);
+    bare.entities = bare.entities!.map(({ behaviors: _, ...e }) => e);
+    expect(count(sprites, "+")).toBeGreaterThan(count(bare, "+") + 20);
+    expect(count(sprites, "#")).toBe(count(bare, "#"));
+    // The floor and the spawn keep their cells.
+    const map = sceneAsciiMap(sprites, { registry: engine, cell: 16 });
+    expect(at(map, 6, 18)).toBe("S");
+    expect(map.lines[19]).toBe("#".repeat(40));
+  });
+
+  it("marks the cell under a sprite smaller than a cell", () => {
+    const def = structuredClone(sprites);
+    def.entities = [
+      { id: "dot", type: "marker", at: [40, 40], behaviors: { sprite: { size: [4, 4] } } },
+    ];
+    const map = sceneAsciiMap(def, { registry: engine, cell: 64 });
+    expect(at(map, 0, 0)).toBe("+");
+  });
+});
+
+/** The engine project's kitchen sink with its prefabs, and the project view and registry it is drawn with. */
+async function loadKitchenSink() {
+  const dir = fileURLToPath(new URL("../../scenes/", import.meta.url));
+  const cacheDir = await mkdtemp(join(tmpdir(), "kitchen-sink-render-"));
+  try {
+    const project = await readFileProject(dir, { cacheDir });
+    const { state } = await createProjectFileAdapter(project).scan();
+    const view = projectView(state, project.kinds);
+    const values = new Map<string, unknown>();
+    for (const entry of view.byId.values())
+      if (entry.sha256 === undefined)
+        values.set(entry.id, JSON.parse(await readFile(join(dir, entry.path), "utf8")));
+    const registry = withProject(createRegistry(), view, values);
+    const scene = parseSceneOrThrow(values.get("kitchen-sink"), registry);
+    const { prefabs } = await readPrefabFiles(dir, registry);
+    return { scene, view, registry, prefabs };
+  } finally {
+    await rm(cacheDir, { recursive: true, force: true });
+  }
+}
+
+describe("the kitchen sink", () => {
+  const sinkGolden = new URL("./kitchen-sink.golden.txt", import.meta.url);
+  let sink: Awaited<ReturnType<typeof loadKitchenSink>>;
+  beforeAll(async () => {
+    sink = await loadKitchenSink();
+  });
+
+  it("matches its golden map, sprites sized from the project (UPDATE_GOLDENS=1 regenerates)", () => {
+    const opts = { registry: sink.registry, prefabs: sink.prefabs, project: sink.view, cell: 32 };
+    const text = renderSceneAscii(sink.scene, opts);
+    if (process.env.UPDATE_GOLDENS) writeFileSync(sinkGolden, text);
+    expect(text).toBe(readFileSync(sinkGolden, "utf8"));
+    expect(renderSceneAscii(sink.scene, opts)).toBe(text);
   });
 });

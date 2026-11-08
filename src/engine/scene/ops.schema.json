@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:ops:v3",
-  "x-agent-surface": 8,
+  "x-agent-surface": 9,
   "type": "object",
   "properties": {
     "label": {
@@ -34,7 +34,7 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["solid", "sensor", "marker", "prop", "follower", "note"],
+                    "enum": ["solid", "sensor", "marker", "prop", "follower", "decor", "note"],
                     "description": "The entity's registered type. The remaining fields depend on it, as in the scene schema."
                   },
                   "id": {

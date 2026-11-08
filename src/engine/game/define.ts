@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { BlendMode } from "../context";
 import { MATERIAL_KIND, projectMaterialOf } from "../project/kinds/material";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
 import { FIELD_NAME_PATTERN } from "../scene/field-path";
@@ -21,6 +22,7 @@ import {
   type BehaviorName,
   type RegisteredBehavior,
 } from "./behaviors";
+import { SPRITE } from "./behaviors/sprite";
 import { ID_PATTERN, isAttachField, RESERVED_FIELDS } from "./fields";
 import {
   BASE_REQUIRED_FIELDS,
@@ -71,6 +73,9 @@ export class RegistryError extends Error {
   }
 }
 
+/** Primitives with no body: a game's `spawnOrder` may leave them out, and they then spawn last. */
+const BODILESS_PRIMITIVES: readonly EntityTypeName[] = ["decor"];
+
 const isPrimitive = (name: string): boolean =>
   (PRIMITIVE_TYPES as readonly string[]).includes(name);
 
@@ -89,6 +94,8 @@ export type ProjectMaterialDef = {
   description: string;
   physics?: { friction: number; restitution: number; impulse?: Vec2 };
   style?: Style;
+  tint?: number;
+  blend?: BlendMode;
 };
 
 export type CreateRegistryOptions = {
@@ -96,7 +103,9 @@ export type CreateRegistryOptions = {
    * The project's materials by asset id. Each wins over the game's code
    * material of that name. One with `physics` joins `materials` (and so
    * the material fields' choices); one without is left out of them, so a
-   * physics body naming it is refused like any unknown material. The
+   * physics body naming it is refused like any unknown material, and its
+   * `style`, `tint` and `blend` reach no entity: a sprite falls back to a
+   * material's tint and blend only through `materials`. The
    * `primitives` registry beside a game's has them too, so a scene with
    * no game run under one sees its project's materials.
    */
@@ -114,7 +123,7 @@ export type CreateRegistryOptions = {
 const noAssets: FieldEnv["assets"] = () => [];
 
 /** The engine's own behaviors, registered before a game's. */
-export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([]);
+export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([SPRITE]);
 
 /** A behavior's own field defaults: each field whose schema parses `undefined` to a value. */
 function shapeDefaults(shape: z.ZodRawShape): Record<string, unknown> {
@@ -268,6 +277,8 @@ export function createRegistry(
       ...(impulse ? { impulse: { ...impulse } } : {}),
       description: def.description,
       ...(def.style ? { style: { ...def.style } } : {}),
+      ...(def.tint !== undefined ? { tint: def.tint } : {}),
+      ...(def.blend !== undefined ? { blend: def.blend } : {}),
     });
   }
   const materialNames = [...materials.keys()];
@@ -410,6 +421,12 @@ export function createRegistry(
       else if (types.get(t)!.loads === false) problem(`spawnOrder names "${t}", which never loads`);
       if (seen.has(t)) problem(`spawnOrder lists "${t}" twice`);
       seen.add(t);
+    }
+    for (const t of BODILESS_PRIMITIVES) {
+      if (!seen.has(t)) {
+        spawnGroups.push([t]);
+        seen.add(t);
+      }
     }
     for (const t of loadable) if (!seen.has(t)) problem(`spawnOrder misses type "${t}"`);
   } else {

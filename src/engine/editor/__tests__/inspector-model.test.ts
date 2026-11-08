@@ -683,7 +683,10 @@ describe("behavior sections", () => {
       [`behaviors.${GLOW.name}.color`, "#ffcc00", true],
     ]);
     expect(glow.behavior).toEqual({ name: GLOW.name, description: GLOW.description });
-    expect(m.addBehaviors.map((o) => [o.name, o.label])).toEqual([[SPIN.name, SPIN.name]]);
+    expect(m.addBehaviors.map((o) => [o.name, o.label])).toEqual([
+      ["sprite", "sprite"],
+      [SPIN.name, SPIN.name],
+    ]);
   });
 
   it("reads written values, and keeps the type's own fields out of the behaviors key", () => {
@@ -695,7 +698,7 @@ describe("behavior sections", () => {
       defaultValue: 30,
     });
     expect(fields(m).some((f) => f.path === "behaviors")).toBe(false);
-    expect(m.addBehaviors).toEqual([]);
+    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite"]);
     expect(of(games, doc, "spot").sections.at(-1)!.fields[0]).toMatchObject({
       value: 45,
       defaultValue: 90,
@@ -729,12 +732,12 @@ describe("behavior sections", () => {
   it("adds a behavior the types allow with one update per target lacking it", () => {
     const m = of(games, doc, "lamp", "spot");
     expect(m.sections.some((s) => s.id.startsWith("behaviors:"))).toBe(false);
-    expect(m.addBehaviors.map((o) => o.name)).toEqual([GLOW.name, SPIN.name]);
-    expect(m.addBehaviors[0]!.batch).toEqual({
+    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite", GLOW.name, SPIN.name]);
+    expect(m.addBehaviors[1]!.batch).toEqual({
       label: "Add Glow to spot",
       ops: [{ op: "update", ref: "spot", set: { [`behaviors.${GLOW.name}`]: {} } }],
     });
-    const add = m.addBehaviors[1]!.batch;
+    const add = m.addBehaviors[2]!.batch;
     expect(add).toEqual({
       label: `Add ${SPIN.name} to lamp`,
       ops: [{ op: "update", ref: "lamp", set: { [`behaviors.${SPIN.name}`]: {} } }],
@@ -747,6 +750,43 @@ describe("behavior sections", () => {
     expect(of(games, doc, "spot", "dull").addBehaviors).toEqual([]);
   });
 
+  it("gives the engine's sprite a section of its fields, its asset a text field", () => {
+    const sprited: SceneDefinition = {
+      v: 2,
+      name: "s",
+      bounds: [0, 0, 100, 100],
+      entities: [
+        { id: "pic", type: "marker", at: [5, 5], behaviors: { sprite: { tint: 0xff0000 } } },
+      ],
+    };
+    const m = of(createRegistry(), sprited, "pic");
+    const section = sectionOf(m, "behaviors:sprite")!;
+    expect(section.title).toBe("sprite");
+    expect(section.fields.map((f) => f.name)).toEqual([
+      "asset",
+      "frame",
+      "size",
+      "scale",
+      "anchor",
+      "offset",
+      "tint",
+      "alpha",
+      "flipX",
+      "flipY",
+      "blend",
+      "tile",
+      "nineSlice",
+      "turn",
+    ]);
+    expect(field(m, "behaviors.sprite.asset").widget.kind).toBe("text");
+    expect(field(m, "behaviors.sprite.tint")).toMatchObject({
+      value: 0xff0000,
+      widget: { kind: "number", integer: true, min: 0, max: 0xffffff },
+    });
+    expect(field(m, "behaviors.sprite.blend").widget).toMatchObject({ kind: "segmented" });
+    expect(field(m, "behaviors.sprite.flipX").widget.kind).toBe("switch");
+  });
+
   it("seeds the fields with no default so an added block validates, and edits by dot path", () => {
     const medals: SceneDefinition = {
       v: 2,
@@ -757,7 +797,7 @@ describe("behavior sections", () => {
     };
     const m = of(badges, medals, "m1");
     expect(sectionOf(m, "assets")).toMatchObject({ title: "Assets", fields: [{ path: "art" }] });
-    const add = m.addBehaviors[0]!;
+    const add = m.addBehaviors.find((o) => o.name === BADGE.name)!;
     expect(add).toMatchObject({ name: BADGE.name, label: BADGE.name });
     expect(add.batch.ops).toEqual([
       { op: "update", ref: "m1", set: { [`behaviors.${BADGE.name}`]: { rank: 1, kind: "gold" } } },

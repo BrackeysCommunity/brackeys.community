@@ -56,28 +56,46 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "materials/bouncy.json",
       "game-settings.json",
     ];
-    let bytes = 0;
-    for (const f of files) bytes += (await readFile(join(ROOT, "src/engine/scenes", f))).length;
+    const art = [
+      "art/backdrop.png",
+      "art/crates.json",
+      "art/crates.png",
+      "art/hero.json",
+      "art/hero.png",
+    ];
+    const size = async (list: string[]) => {
+      let bytes = 0;
+      for (const f of list) bytes += (await readFile(join(ROOT, "src/engine/scenes", f))).length;
+      return bytes;
+    };
     expect(data(engine)).toMatchObject({
       ok: true,
       project: "engine",
       name: "Engine",
       game: null,
       dir: join(ROOT, "src/engine/scenes"),
-      assets: 13,
+      assets: 18,
       counts: {
+        atlas: 2,
         checks: 2,
         "data-table": 1,
         "game-settings": 1,
         material: 1,
         prefab: 6,
         scene: 2,
+        texture: 3,
       },
       deleted: 0,
       code: 0,
       problems: [],
       issues: [],
-      usage: { docs: 13, docBytes: bytes, blobs: 0, blobBytes: 0, trashBytes: 0 },
+      usage: {
+        docs: 13,
+        docBytes: await size(files),
+        blobs: 5,
+        blobBytes: await size(art),
+        trashBytes: 0,
+      },
     });
     expect(engine.text).toContain("problems: none");
 
@@ -98,8 +116,14 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     const engine = await projectTree({ project: "engine" }, ctx);
     expect(engine.exitCode).toBe(0);
     const tree = data(engine).tree as ProjectTreeNode[];
-    expect(tree[0]).toMatchObject({ type: "folder", path: "data" });
+    expect(tree[0]).toMatchObject({ type: "folder", path: "art" });
     expect(flatten(tree).map(pathOf)).toEqual([
+      "art",
+      "art/backdrop.png",
+      "art/crates.json",
+      "art/crates.png",
+      "art/hero.json",
+      "art/hero.png",
       "data",
       "data/cards.json",
       "materials",
@@ -145,14 +169,17 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       dangling: [],
     });
     const targets = data(sink).targets as { id: string; target: { path: string } | null }[];
+    const art = ["backdrop", "crates", "hero"];
     expect(new Set(targets.map((t) => t.id))).toEqual(
-      new Set(["post", "gate", "room", "doorway", "one-way-latch", "bouncy", "cards"]),
+      new Set(["post", "gate", "room", "doorway", "one-way-latch", "bouncy", "cards", ...art]),
     );
     expect(targets.find((t) => t.id === "bouncy")?.target?.path).toBe("materials/bouncy.json");
     expect(targets.find((t) => t.id === "cards")?.target?.path).toBe("data/cards.json");
+    for (const id of art)
+      expect(targets.find((t) => t.id === id)?.target?.path, id).toMatch(/^art\//);
     expect(
       targets
-        .filter((t) => t.id !== "bouncy" && t.id !== "cards")
+        .filter((t) => !["bouncy", "cards", ...art].includes(t.id))
         .every((t) => t.target?.path.startsWith("prefabs/")),
     ).toBe(true);
 
@@ -188,24 +215,33 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     expect(second.text).toBe(first.text);
     const snap = data(first).snapshot as ProjectSnapshot;
     expect(snap.hash).toBe(first.text);
-    expect(Object.keys(snap.assets).sort()).toEqual([
-      "bouncy",
-      "cards",
-      "doorway",
-      "engine-yard",
-      "engine-yard-checks",
-      "game-settings",
-      "gate",
-      "kitchen-sink",
-      "kitchen-sink-checks",
-      "latch",
-      "one-way-latch",
-      "post",
-      "room",
-    ]);
+    const blobs = ["backdrop", "crates", "crates-texture", "hero", "hero-texture"];
+    expect(Object.keys(snap.assets).sort()).toEqual(
+      [
+        "bouncy",
+        "cards",
+        "doorway",
+        "engine-yard",
+        "engine-yard-checks",
+        "game-settings",
+        "gate",
+        "kitchen-sink",
+        "kitchen-sink-checks",
+        "latch",
+        "one-way-latch",
+        "post",
+        "room",
+        ...blobs,
+      ].sort(),
+    );
     const loaded = await loadProject(ctx.projects.find((p) => p.file.id === "engine")!);
-    for (const [id, asset] of Object.entries(snap.assets))
-      expect(asset.sha256).toBe(await sha256(loaded.texts.get(id)!));
+    for (const [id, asset] of Object.entries(snap.assets)) {
+      if (blobs.includes(id))
+        expect(asset.sha256, id).toBe(
+          await sha256(await readFile(join(ROOT, "src/engine/scenes", asset.path))),
+        );
+      else expect(asset.sha256, id).toBe(await sha256(loaded.texts.get(id)!));
+    }
     for (const id of ["kitchen-sink", "engine-yard"])
       expect(snap.assets[id]!.sha256).toBe(
         await sha256(await readFile(join(ROOT, "src/engine/scenes", `${id}.json`), "utf8")),

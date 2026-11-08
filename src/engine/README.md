@@ -74,10 +74,15 @@ it.
 
 ## Registering entity types
 
-A scene's entities are typed by the registry: six primitives the engine
-always has (`solid`, `sensor`, `marker`, `prop`, `follower`, `note`) plus the
-game's own types. A game type either names a primitive as its `base`, so the
-primitive's system spawns it, or brings its own `system`.
+A scene's entities are typed by the registry: seven primitives the engine
+always has (`solid`, `sensor`, `marker`, `prop`, `follower`, `decor`,
+`note`) plus the game's own types. A game type either names a primitive as
+its `base`, so the primitive's system spawns it, or brings its own `system`.
+`decor` is a picture with no body: `{ id, type: "decor", at, behaviors: {
+sprite } }`, its `sprite` block required. It loads (headless too), so it
+has a pose and is queryable, but nothing enters the physics world for it.
+A game's `spawnOrder` may leave `decor` out; it then spawns last. A game
+type named `decor` is a registry error, as for every primitive.
 
 ```ts coin-game.ts
 import { defineEntityType, defineGame, primitiveFields, SENSOR_ENTER } from "@jams/engine/game";
@@ -337,6 +342,13 @@ with edit-scope `editorKeys` whose command is `tool:<id>`;
 `placementEditorTool` builds one from a list of shapes to place. Fields a
 game marks with `meta.widget` render with the widget it describes in
 `editor.widgets`.
+
+Dropping an asset on the canvas places it: `dropFragment` turns a texture
+into a `decor` with `sprite.asset`, an atlas frame into one with `asset`
+and `frame`, and a prefab into an instance (other kinds aren't placeable),
+and `dropBatch` places that fragment centred on the snapped drop point as
+one batch, so it is one undo step. A game maps a drop to its own entity
+with `GameDefinition.editor.assetDrop`; returning null keeps the engine's.
 
 ## Scenes as data
 
@@ -656,13 +668,9 @@ defaults?, forbidden? }`. A required behavior is always there: a missing
   defaults, then the type's, then the entity's block. The runtime sees
   whole blocks on `RuntimeEntity.behaviors`; the file keeps only what was
   written, and `{}` means "carry it, all defaults".
-- **Order** is registration order: the engine's behaviors, then the game's
-  in `GameDefinition.behaviors` order. Each tick runs the type systems'
-  `beforeStep`, the game's `beforeStep`, the physics step, the type
-  systems' `afterStep`, then each behavior's `step`, then the game's
-  `afterStep`, so the game sees behavior events. A behavior attaches after
-  its entity's type system spawns it and detaches, in reverse order,
-  before it despawns.
+- **Order** is registration order: the engine's behaviors (`sprite`),
+  then the game's in `GameDefinition.behaviors` order. When systems attach,
+  step and detach is in [Behaviors at runtime](#behaviors-at-runtime).
 - **Registry checks.** `createRegistry` throws on a game behavior without
   its `<id>/` prefix, a duplicate name, a `requires` or type rule naming an
   unknown behavior, a behavior both required and forbidden, a default that
@@ -715,7 +723,18 @@ non-finite `draw` or `scroll`.
   those falls back to its first layer, or its last for editor-only types).
   An unknown name is `layer-unknown`, whose fix unsets it. The editor
   shows, hides and locks by layer, and the engine's own visuals draw on
-  it; a type system's shape visuals keep the draw layer they choose.
+  it: sprites always, and the primitive systems' shapes when the entity
+  names a layer (otherwise, and whenever a game passes its own `layer`
+  option, a shape keeps its system's draw layer, so a game's look doesn't
+  change).
+- In the Pixi view (`createPixiView` gets `registry.layers`), a layer is
+  matched to draws by its `draw` order; draws at any other order are plain
+  draw layers. A `sort: "y"` layer re-sorts each frame by `(z,
+interpolated y, first draw)`; a `scroll` layer is offset by the camera
+  times `1 − scroll`, so `[0.5, 0.5]` moves half as far as the camera; and
+  on an `editorOnly` layer the visuals placed by entity (those given a
+  `depth`) show only in edit mode, while a game's own draws at that order
+  (a play-mode preview) still show.
 - `z` is an integer in `[-10000, 10000]` on entities and instances,
   default 0. Within a layer, visuals draw in `(z, spawn order)`; on a
   y-sorted layer in `(z, y, spawn order)`, so a roof can still sit above
@@ -1020,6 +1039,367 @@ what to do next:
   the grace period, and not pinned by a snapshot. Only those may be
   collected.
 
+## Sprites and rendering
+
+A scene names its art by asset id, the shell loads it, and headless code
+knows its size without decoding a byte. The engine draws an entity through
+its `sprite` behavior; an entity without one draws as its type's shape.
+
+### The `sprite` behavior
+
+`sprite` is the engine's one behavior (`SPRITE` in `./game`), visual only:
+it never changes simulation state and has no system headless. Any entity
+type may carry it, unless the type forbids it. Its fields:
+
+| Field       | Meaning                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------ |
+| `asset`     | A `texture`, or an `atlas` whose frame it draws. Without one only the fallback box draws (`sprite-no-asset`) |
+| `frame`     | The atlas frame's name; required for an atlas (`asset-frame-unknown` otherwise, or for a frame it lacks)     |
+| `size`      | Drawn size in world px; omitted, the frame's (or texture's) pixel size times `scale`                         |
+| `scale`     | Used when `size` is omitted; default 1                                                                       |
+| `anchor`    | 0–1 in the frame; default the frame's pivot, else the texture's import pivot, else the centre                |
+| `offset`    | World px from the pose to the anchor; turns and flips with the instance                                      |
+| `tint`      | 0xRRGGBB multiplied into the texture                                                                         |
+| `alpha`     | Opacity, 0–1; default 1                                                                                      |
+| `flipX`     | Mirror left–right; an instance flip toggles it                                                               |
+| `flipY`     | Mirror top–bottom                                                                                            |
+| `blend`     | `normal`, `add`, `multiply` or `screen`                                                                      |
+| `tile`      | Repeat the frame across `size` instead of stretching it                                                      |
+| `nineSlice` | Border insets in texture px; default the texture's import setting                                            |
+| `turn`      | Turn with the pose's rotation; default true                                                                  |
+
+- **Placement.** The sprite draws at its entity's pose (the pose index,
+  [below](#the-pose-index)) plus `offset`, anchored at `anchor`, as one
+  visual `<entity id>#sprite` on the entity's layer with its `z` as depth.
+  A sprite on a prop rotates with its body; a turned box draws a turned
+  sprite; a flipped instance a mirrored one. An entity with a sprite isn't
+  also drawn in its type's style.
+- **Tint and blend.** Each is the block's, else the entity's `material`'s
+  `render.tint` / `render.blend`, else none. A material reaches a sprite
+  only through `registry.materials`, so only one with `physics` lends its
+  tint and blend: a render-only material file is left out of the registry
+  and lends nothing.
+- **Sampling** is the texture's import `filter`, else the resolution
+  policy's `sampling` ([Resolution](#resolution)).
+- **The fallback box** is `size` (or the frame's, or 32×32) at the anchor
+  in the type's style. It is what a view without `sprite` draws, what the
+  Pixi view shows until the texture arrives, and what the schematic renders
+  outline, labelled `asset[:frame]`.
+- **Sizes headless.** `assetInfo(view, id, frame?)` (`./project` and
+  `./headless`) gives a texture's pixel size, pivot, nine-slice and filter,
+  or an atlas's frame names, tags, texture and, with `frame`, that frame's
+  size, rectangle and pivot, from the asset's entry alone. A run reads the
+  same through `ctx.project.asset(id, frame?)`. `spriteGeometry` turns a
+  block and that info into the drawn box; the renders, picking and the
+  sprite system all use it.
+
+`decor` is the primitive for pictures: `{ id, type: "decor", at,
+behaviors: { sprite } }`, no bulk form, no body. It has a pose and is
+queryable headless, but nothing enters the physics world, so it can't
+change a digest.
+
+### Views
+
+`SceneView` (`draw`, `pose`, `remove`, `layer`) grows optional members, so
+every existing view and fake still satisfies it:
+
+- `sprite?(id, visual, layer)` draws a `SpriteVisual` (`texture` by
+  content hash, `frame`, `size`, `anchor`, `tint`, `alpha`, flips, `blend`,
+  `tile`, `nineSlice`, `sampling` and the `fallback` shape and style).
+  `drawSprite(view, id, visual, layer)` calls it, or draws the fallback box
+  through `draw` on a view without it.
+- `depth?(id, z)` orders a visual inside its layer: higher on top, ties by
+  first draw.
+- `commit?(tick)` and `frame?({ alpha, camera })` drive interpolation.
+- `pose(id, x, y, rot?, snap?)`: `snap` places the visual with no
+  interpolation from its last pose (new visuals always snap).
+
+`createPixiView(container, { layers, textures, editing })` draws one Pixi
+object per id: a `Graphics` for `draw`, a `Sprite`, `TilingSprite` or
+`NineSliceSprite` for `sprite`, with frame textures cached per hash and
+frame. It takes the registry's layers: a `sort: "y"` layer re-sorts by
+`(z, y)` every frame, a `scroll` layer is offset by the camera times
+`1 − scroll` (parallax), and an `editorOnly` layer's entity visuals show
+only while `editing()` is true. `textures` is where hashes come from (the
+loader); a miss draws the fallback and swaps in the texture when it loads.
+See [Layers and `z`](#layers-and-z) for the layer model itself.
+
+### Interpolation
+
+The simulation ticks at a fixed rate and the screen draws in between, so
+the view smooths what moves. Each visual keeps its previous and current
+pose: a `pose` during a tick moves the current one (copying it to the
+previous first, once per tick), the runtime calls `view.commit(tick)` after
+each step, and each rendered frame `view.frame({ alpha, camera })` places
+the visuals posed in the last committed tick at `lerp(prev, cur, alpha)`
+(rotation by the shorter arc) and leaves the rest where they are. Paused
+or in edit mode the shell passes `alpha: 1`. A game that teleports a
+visual (a respawn) passes `snap` to `pose`, or it shows one lerped frame.
+Static visuals are never posed, so they never move. After `view.frame` the
+shell calls `runtime.render(alpha)`, the visual behaviors' render hooks.
+
+### Loading art
+
+Nothing is fetched by `loadScene`, which stays synchronous: a scene's
+textures load ahead of it through the host's loader, and a sprite whose
+texture isn't in yet draws its fallback box and swaps when it arrives.
+
+```ts sprite-host.ts
+import { createAssetLoader, createGame, type AssetUrl, type GameInstance } from "@jams/engine";
+import type { KindRegistry, ProjectView } from "@jams/engine/project";
+import { parseSceneOrThrow } from "@jams/engine/scene";
+
+import { coinGame } from "./coin-game";
+
+/** The dev server's blob route; a hosted build points at its own. */
+const devUrl: AssetUrl = (project, entry) => `/__project/${project}/blob/${entry.sha256}`;
+
+export async function startWithArt(
+  canvas: HTMLCanvasElement,
+  sceneText: string,
+  project: { id: string; view: () => ProjectView; kinds: KindRegistry },
+): Promise<GameInstance> {
+  const loader = createAssetLoader({ project: project.id, url: devUrl });
+  const game = await createGame(canvas, {
+    game: coinGame,
+    rapier: () => import("@dimforge/rapier2d"),
+    displayWidth: canvas.clientWidth,
+    displayHeight: canvas.clientHeight,
+    assets: {
+      loader,
+      kinds: project.kinds,
+      // Read at each bundle, so a live project's latest assets count.
+      get view() {
+        return project.view();
+      },
+    },
+  });
+  const scene = parseSceneOrThrow(sceneText, game.registry);
+  const { failed } = await game.preload(scene, (p) => {
+    console.log(`art ${p.loaded}/${p.total} (${p.bytes} of ${p.totalBytes} bytes)`);
+  });
+  // A failed texture draws its fallback box; the scene still loads.
+  for (const entry of failed) console.warn(`couldn't load ${entry.id}`);
+  const report = game.loadScene(scene);
+  if (!report.ok) throw new Error(`the scene didn't load: ${report.error}`);
+  game.start();
+  return game;
+}
+```
+
+- **Bundles.** `sceneBundle(scene, def, prefabs, view, kinds, registry)`
+  (`./project`, pure) is the list of blobs a scene needs: every asset field
+  of the expanded entities (instances resolved and defaults applied, so an
+  id only a type's default names counts), the scene's settings, and the
+  `assets` headers of the scene and of every prefab it reaches, with each
+  asset's own references followed (an atlas brings its texture). Only
+  textures are entries (`{ id, kind, sha256, bytes }`, sorted by id, each
+  once); an atlas's frames are already in its meta. Anything unresolvable
+  is `asset-missing`. `projectBundle(view, settings, kinds, registry)` is
+  the `game-settings` doc's, loaded once and kept resident. `vp run scene
+bundle <scene>` prints one.
+- **The loader.** `createAssetLoader({ project, url, budgetBytes? })`
+  (`@jams/engine`) loads textures through Pixi's `Assets`, keyed by content
+  hash and shared by every bundle that holds the hash. `load(bundle, onProgress?)` fetches what isn't resident and
+  reports failures instead of throwing; `retain` and `release` count a
+  bundle in and out, and textures no resident bundle holds are evicted
+  least-recently-used once the decoded bytes pass the budget (256 MiB by
+  default). A re-imported file is a new hash, so it is a new key, never a
+  cache bust.
+- **`GameConfig.assets`** is `{ loader, view, kinds }`: the host's loader,
+  the project view bundles are computed over (read at each use, so a getter
+  can follow a live project) and its kinds. `game.preload(scene,
+onProgress?)` loads the scene's bundle and, the first time, the project
+  bundle; `loadScene` retains the new scene's bundle and releases the
+  previous one. Without `assets` nothing is fetched and sprites draw as
+  their boxes.
+- **URLs are the host's.** `AssetUrl` is `(project, entry) => string`:
+  the dev server serves `/__project/<id>/blob/<sha256>`, the site
+  `/api/engine/projects/<id>/blobs/<sha256>` (the site's resolvers are
+  `devAssetUrl` and `hostedAssetUrl` in
+  `src/components/game/asset-urls.ts`), and tests pass an in-memory one.
+- **Headless never builds a loader** and never fetches: it sizes sprites
+  from `assetInfo` alone.
+
+### Hot reload of art
+
+In development, re-exporting a PNG or atlas over its file is picked up by
+the dev server, which rehashes it (one `replaceContent` with re-inspected
+meta) and sends `asset:changed` on the project doc. The editor's session
+waits until the project doc holds the new hash, rebuilds the project's
+runtime view, and calls `game.reloadAssets({ project, view, changed })`:
+the loader fetches the new hash and each sprite naming the asset (or an
+atlas cut from it) redraws through its system's `update`. The scene isn't
+reloaded and the world isn't rebuilt, so the runtime and its tick carry
+on. Only the dev server sends the message; a hosted project picks up new
+art when a scene next loads.
+
+## Behaviors at runtime
+
+[Behaviors](#behaviors) covers defining one; this is what runs it.
+
+- **The host.** Each scene runtime builds one behavior host after its type
+  systems: one system per registered behavior that has one, in
+  registration order (the engine's, then the game's). A behavior with no
+  `system` builds nothing; a `visualOnly` one builds only when the context
+  has a view, so headless `sprite` doesn't exist at all.
+- **Order.** An entity's behaviors attach right after its type system
+  spawns it (its pose is already set), in registration order, and detach
+  right before it despawns, in reverse. An `update` that changes an entity
+  updates each block that changed, attaches the new ones and detaches the
+  removed ones; a system without `update` is detached and attached again.
+  A behavior that throws on attach rolls the whole call back, as a type
+  system's failed spawn does. Each tick runs the type systems'
+  `beforeStep`, the game's `beforeStep`, the physics step, the type
+  systems' `afterStep`, each behavior's `step`, then the game's
+  `afterStep` (so the game sees what behaviors did), then `view.commit`.
+  `reset` and `seek` reach behaviors as they reach type systems, and
+  `stats().behaviors` counts attachments per behavior.
+- **`ctx.behavior(name)`** gives a behavior's system, as `system(type)`
+  gives a type's: undefined for a data-only behavior, and for a visual-only
+  one headless.
+- **Visual only means visual only.** A `visualOnly` behavior may read
+  entities, poses and the project, and writes only through `ctx.view`.
+  Every visual-only behavior is held to that by one check: a playtest with
+  a recording view and the same playtest headless give the same digest
+  (the engine's own runs it over a hundred sprites and `decor`).
+
+### The pose index
+
+`ctx.poses` (`PoseIndex`, simulation-side, deterministic, in no digest)
+holds every loaded entity's pose `{ x, y, rot }` (radians) from the moment
+it spawns: the runtime sets `spawnPose` (a shape's centre, a point field,
+or a follower's first path point; the angle from `rotDeg`, else the
+entity's quarter turns), snapped, before its behaviors attach, and removes
+it after they detach. The system that moves an entity writes it: bodies
+after the physics step (a body's angle plus its quarter turns for shapes
+without `rotDeg`), followers along their path; markers and static solids
+and sensors are written once. `get(id)` is the pose after the last tick,
+`prev(id)` the pose a tick earlier (the same when it didn't move), and
+`set(id, x, y, rot?, { snap? })` is only for the system that owns `id`; a
+game may write the poses of its own entities.
+
+```ts halo-behavior.ts
+import { DRAW_LAYERS, defineBehavior, defineGame, type BehaviorSystem } from "@jams/engine/game";
+import { z } from "zod";
+
+import { coinGame } from "./coin-game";
+
+/** A ring drawn around the entity. Visual only: built with a view, never headless. */
+export const halo = defineBehavior({
+  name: "coin-game/halo",
+  description: "A ring drawn around the entity.",
+  visualOnly: true,
+  fields: { radius: z.number().positive().default(24).describe("Ring radius, px; default 24.") },
+  system(ctx): BehaviorSystem {
+    const rings = new Set<string>();
+    const ringOf = (id: string) => `${id}#halo`;
+    return {
+      attach(id, block) {
+        rings.add(id);
+        const r = Number(block.radius);
+        const style = { stroke: 0xffd700, strokeWidth: 2 };
+        ctx.view?.draw(ringOf(id), { type: "circle", cx: 0, cy: 0, r }, style, DRAW_LAYERS.overlay);
+        // The runtime set the spawn pose before any behavior attached.
+        const pose = ctx.poses.get(id);
+        if (pose) ctx.view?.pose(ringOf(id), pose.x, pose.y, 0, true);
+      },
+      detach(id) {
+        if (rings.delete(id)) ctx.view?.remove(ringOf(id));
+      },
+      // After the type systems' afterStep, so the poses are this tick's.
+      step() {
+        for (const id of rings) {
+          const pose = ctx.poses.get(id);
+          const prev = ctx.poses.prev(id);
+          if (pose && (!prev || pose.x !== prev.x || pose.y !== prev.y))
+            ctx.view?.pose(ringOf(id), pose.x, pose.y);
+        }
+      },
+      clear() {
+        for (const id of rings) ctx.view?.remove(ringOf(id));
+        rings.clear();
+      },
+      size: () => rings.size,
+    };
+  },
+});
+
+export const haloGame = defineGame({
+  ...coinGame,
+  behaviors: [halo],
+  createRuntime(ctx) {
+    const inner = coinGame.createRuntime(ctx);
+    return {
+      ...inner,
+      onLoad(scene) {
+        inner.onLoad?.(scene);
+        // Undefined headless: a visual-only behavior's system isn't built there.
+        const rings = ctx.behavior(halo.name)?.size() ?? 0;
+        if (rings > 0) console.log(`${rings} haloed entities`);
+      },
+    };
+  },
+});
+```
+
+## Resolution
+
+How the world maps onto the canvas is a `ResolutionPolicy`:
+
+- `virtual`: the world units the camera shows at zoom 1, `{ height }`,
+  `{ width }` or both.
+- `fit`: `expand` (the fixed axis fills the canvas and the other shows
+  more), `letterbox` (the whole virtual area shows, bars fill the rest) or
+  `crop` (the virtual area covers the canvas, the overflow is cut); the
+  last two need a width and a height, and fit as `expand` without both.
+- `integer`: scale only by whole multiples, for pixel art; bars take the
+  remainder. `pixelSnap`: round camera and visual positions to whole canvas
+  pixels. `sampling`: the default texture sampling, `linear` or `nearest`
+  (a texture's import `filter` wins). `antialias`: the renderer's
+  antialiasing. `bars`: the bar colour, default the background.
+
+`DEFAULT_RESOLUTION` is `{ virtual: { height: 1080 }, fit: "expand",
+sampling: "linear", antialias: true }`, what the shell always did, so a
+game that sets nothing looks the same. The policy in force is resolved
+field by field (`resolveResolution`; `virtual` is taken whole): the host's
+`GameConfig.resolution` (a site's display menu), then the project's
+`game-settings` `engine.resolution`, then `GameDefinition.resolution`, then
+the default. `viewportFor(policy, canvas)` is the pure maths: the
+world-to-canvas `scale`, the world `view` the camera shows, and the
+`offset` and `bars` of the shown area.
+
+```ts pixel-art.ts
+import { resolveResolution, viewportFor, type ResolutionPolicy } from "@jams/engine";
+import { defineGame } from "@jams/engine/game";
+
+import { coinGame } from "./coin-game";
+
+/** A 640×360 world scaled by whole multiples, letterboxed, sampled nearest. */
+const pixelArt: Partial<ResolutionPolicy> = {
+  virtual: { width: 640, height: 360 },
+  fit: "letterbox",
+  integer: true,
+  sampling: "nearest",
+  antialias: false,
+  pixelSnap: true,
+};
+
+export const pixelCoinGame = defineGame({ ...coinGame, resolution: pixelArt });
+
+// The host's policy wins field by field, then the project's, then the game's.
+const policy = resolveResolution({ game: pixelArt, host: { bars: 0x000000 } });
+const { scale, view, offset } = viewportFor(policy, { width: 1920, height: 1080 });
+console.log(scale, view, offset); // 3 { width: 640, height: 360 } { x: 0, y: 0 }
+```
+
+The store's `CameraState` carries `scale`, world units to canvas pixels
+(the policy's scale times `zoom`), which an overlay drawn over the canvas
+reads to line up with the world. `VIRTUAL_HEIGHT`, `DISPLAY_RESOLUTIONS`
+and the `DisplayResolution` type are gone from the engine's exports: the
+virtual size is the policy's, and a list of display sizes is the host's to
+offer.
+
 ## Co-editing
 
 A scene can live in a shared `Y.Doc` that any number of editors, agents and
@@ -1272,6 +1652,15 @@ Kinematic body that follows a waypoint path.
 | `path`      | [path](#paths)        | yes      |                                                                                                                                                                           |
 | `material`  | none registered       |          | Surface material.                                                                                                                                                         |
 | `behaviors` | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
+
+#### `decor`
+
+A picture with no body: drawn by its sprite, never collides.
+
+| Field       | Type             | Required | Description                                                                                                                                                               |
+| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `at`        | [point](#points) | yes      | Where the sprite's pose is. Absolute world px; y is down.                                                                                                                 |
+| `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `note`
 

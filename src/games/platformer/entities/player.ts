@@ -262,7 +262,7 @@ export function createPlayerEntity(
 
   // ─── Visual ──────────────────────────────────────────
   view?.draw(PLAYER_VIEW_ID, PLAYER_SHAPE, PLAYER_STYLE, PLATFORMER_LAYERS.player);
-  view?.pose(PLAYER_VIEW_ID, spawn.x, spawn.y);
+  view?.pose(PLAYER_VIEW_ID, spawn.x, spawn.y, 0, true);
 
   // ─── Physics body ────────────────────────────────────
   const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y);

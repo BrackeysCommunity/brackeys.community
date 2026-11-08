@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 
 import { createGame } from "../engine";
 import { createRegistry } from "../game/define";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import { parseSceneOrThrow } from "../scene/parse";
 import engineYardJson from "../scenes/engine-yard.json";
 import type { GameInstance, RapierModule } from "../types";
@@ -19,7 +20,6 @@ vi.mock("../renderer", () => ({
     destroy: () => {},
   }),
 }));
-vi.mock("../assets", () => ({ initAssets: async () => {} }));
 
 const yard = parseSceneOrThrow(engineYardJson, createRegistry(testGame));
 
@@ -33,7 +33,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   const canvas = document.createElement("canvas");
   document.body.appendChild(canvas);
-  // 1920×1080 at the virtual height: one screen px is one world px at zoom 1.
+  // 1920×1080 at the default 1080-unit height: one screen px is one world px at zoom 1.
   game = await createGame(canvas, { game: testGame, rapier: async () => rapier, scene: yard });
   game.stop();
 });
@@ -83,5 +83,62 @@ describe("the editor camera", () => {
     expect(cam().position).toEqual({ x: 1500, y: 800 });
     const corner = game!.screenToWorld({ x: 40, y: 540 });
     expect(corner.x).toBeCloseTo(1300, 6);
+  });
+});
+
+describe("a letterboxed shell", () => {
+  async function letterboxed(project?: ProjectRuntimeView) {
+    game?.destroy();
+    const canvas = document.createElement("canvas");
+    document.body.appendChild(canvas);
+    game = await createGame(canvas, {
+      game: { ...testGame, resolution: { virtual: { width: 800, height: 800 }, fit: "crop" } },
+      rapier: async () => rapier,
+      scene: yard,
+      displayWidth: 2560,
+      displayHeight: 1080,
+      resolution: { fit: "letterbox" },
+      ...(project ? { project } : {}),
+    });
+    game.stop();
+    return game;
+  }
+
+  it("takes the host's fit over the game's, and maps screen px through the bars", async () => {
+    const g = await letterboxed();
+    // 1080 / 800 across the 800×800 area; pillars of (2560 − 1080) / 2 = 740 px.
+    const scale = 1080 / 800;
+    expect(cam().scale).toBeCloseTo(scale);
+    const { position } = cam();
+    expect(g.screenToWorld({ x: 1280, y: 540 })).toEqual(position);
+    const left = g.screenToWorld({ x: 740, y: 540 });
+    expect(left.x).toBeCloseTo(position.x - 400, 6);
+  });
+
+  it("pans and zooms by the viewport's scale", async () => {
+    const g = await letterboxed();
+    const scale = cam().scale;
+    const before = cam().position;
+    g.panBy({ x: -27, y: 0 });
+    expect(cam().position.x).toBeCloseTo(before.x + 27 / scale, 6);
+    const screen = { x: 1000, y: 300 };
+    const under = g.screenToWorld(screen);
+    g.zoomAt(screen, 1.5);
+    expect(cam().scale).toBeCloseTo(scale * 1.5);
+    const after = g.screenToWorld(screen);
+    expect(after.x).toBeCloseTo(under.x, 6);
+    expect(after.y).toBeCloseTo(under.y, 6);
+  });
+
+  it("reads the project's engine.resolution between the host's and the game's", async () => {
+    const project: ProjectRuntimeView = {
+      settings: {},
+      engine: { resolution: { virtual: { width: 400, height: 200 }, fit: "crop" } },
+      table: () => [],
+      asset: () => undefined,
+    };
+    await letterboxed(project);
+    // The host's letterbox over the project's 400×200: 2560 / 400 = 6.4 across, 1080 / 200 = 5.4 down.
+    expect(cam().scale).toBeCloseTo(5.4);
   });
 });

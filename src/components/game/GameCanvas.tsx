@@ -1,4 +1,5 @@
 import {
+  createAssetLoader,
   createGame,
   selectDebugMode,
   selectFPS,
@@ -17,6 +18,7 @@ import { ShellTitle, SiteIsland } from "@/components/canvas/shell/SiteIsland";
 import { MicroLabel } from "@/components/ui/typography";
 import { platformerGame } from "@/games/platformer";
 
+import { devAssetUrl } from "./asset-urls";
 import {
   BUNDLED_PREFABS,
   BUNDLED_SCENE,
@@ -25,7 +27,7 @@ import {
 } from "./platformer-scene";
 import { SCENE_PROJECT } from "./scene-collab";
 import type { SceneDocStatus } from "./use-scene-doc";
-import { useSceneEditor } from "./use-scene-editor";
+import { useSceneEditor, type EditorAssets } from "./use-scene-editor";
 
 const loadRapier = () => import("@dimforge/rapier2d");
 
@@ -51,6 +53,7 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
     error,
     registry,
     projectData,
+    assets,
   } = useSceneEditor({
     game,
     builtWith: built?.projectData ?? null,
@@ -62,6 +65,12 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
     canvas: () => canvasRef.current,
   });
 
+  // Read by the build, never a key of it: the project's view changes with every edit.
+  const assetsRef = useRef<EditorAssets | null>(null);
+  useEffect(() => {
+    assetsRef.current = assets;
+  }, [assets]);
+
   // Rebuilt when the editor's project overlays other materials on the code registry, or its settings or tables change.
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,6 +78,9 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
 
     let instance: GameInstance | null = null;
     let mounted = true;
+    // One loader per game instance, only while a project is open: the bundled room has no blobs to fetch.
+    const open = assetsRef.current;
+    const loader = open ? createAssetLoader({ project: open.project, url: devAssetUrl }) : null;
 
     async function init() {
       if (!canvas || !mounted) return;
@@ -82,7 +94,7 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
           ])
         : [undefined, undefined];
       if (!mounted) return;
-      instance = await createGame(canvas, {
+      const created = await createGame(canvas, {
         game: platformerGame,
         registry,
         project: projectData,
@@ -95,17 +107,36 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
         // The page is the game: editor and debug keys work with focus on a panel
         // or fallen to the body, while play input still needs the canvas focused.
         keyTarget: window,
-        scene: BUNDLED_SCENE,
         prefabs: BUNDLED_PREFABS,
+        ...(open && loader
+          ? {
+              assets: {
+                loader,
+                kinds: open.kinds,
+                get view() {
+                  return open.view();
+                },
+              },
+            }
+          : { scene: BUNDLED_SCENE }),
       });
 
+      if (mounted && loader) {
+        await created.preload(BUNDLED_SCENE);
+        if (mounted) {
+          const report = created.loadScene(BUNDLED_SCENE);
+          if (!report.ok) console.warn(`[scene] ${BUNDLED_SCENE.name}: ${report.error}`);
+        }
+      }
+
       if (!mounted) {
-        instance.destroy();
+        created.destroy();
         return;
       }
 
-      setBuilt({ game: instance, projectData });
-      instance.start();
+      instance = created;
+      setBuilt({ game: created, projectData });
+      created.start();
     }
 
     init();
@@ -124,6 +155,7 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
         instance.destroy();
         instance = null;
       }
+      loader?.destroy();
       setBuilt(null);
     };
   }, [registry, projectData]);

@@ -85,7 +85,7 @@ const RAPIER_VALUE_ALLOWLIST: string[] = [];
 
 /** Where the engine may import pixi.js as a value: the renderer behind the view seam, the debug overlay, and the browser shell. */
 const PIXI_VALUE_DIRS = ["render/", "debug/"];
-const PIXI_VALUE_SHELL = ["assets.ts", "engine.ts", "renderer.ts"];
+const PIXI_VALUE_SHELL = ["engine.ts", "renderer.ts"];
 
 /** Words that name the first game's features; none may reach the built package. */
 const GAME_WORDS = /\b(player|players|shaper|grapple|wind|constructs?|cheese|cloud|mover)\b/i;
@@ -267,6 +267,34 @@ describe("package boundary", () => {
           bad.push(`${path}:${imp.line} imports pixi.js`);
         }
       }
+    }
+    violations(bad);
+  });
+
+  it("imports pixi.js as a value under render/ only from the view, its shapes and the asset loader", () => {
+    const known = [
+      "render/draw-shape.ts",
+      "render/pixi-view.ts",
+      "render/asset-loader.ts",
+      "render/sprite-textures.ts",
+    ];
+    const bad = sourceFiles
+      .map((f) => rel(f))
+      .filter((path) => path.startsWith("render/") && !known.includes(path))
+      .filter((path) =>
+        importsOf(join(ENGINE, path)).some((imp) => imp.spec === "pixi.js" && !imp.typeOnly),
+      );
+    violations(bad);
+  });
+
+  it("keeps runtime/ and project/ free of pixi.js at runtime", () => {
+    const bad: string[] = [];
+    for (const file of sourceFiles) {
+      const path = rel(file);
+      if (!/^(runtime|project)\//.test(path)) continue;
+      const { bare } = runtimeGraph(path);
+      if (bare.has("pixi.js"))
+        bad.push(`${path} reaches pixi.js via ${bare.get("pixi.js")!.join(", ")}`);
     }
     violations(bad);
   });

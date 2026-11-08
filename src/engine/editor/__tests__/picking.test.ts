@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { createRegistry } from "../../game/define";
+import { createRegistry, defineEntityType, defineGame } from "../../game/define";
+import { pointField } from "../../game/fields";
 import type { Pt, SceneDefinition } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
 import { cycleHit, marqueeSelect, pickAt } from "../picking";
@@ -120,5 +121,66 @@ describe("marqueeSelect", () => {
     expect(pickAt(yardIndex, [1700, 600], { tolPx: 4, scale: 1 }).map((e) => e.ref)).not.toContain(
       "lift",
     );
+  });
+});
+
+describe("sprite boxes", () => {
+  const decal = defineEntityType({
+    type: "decal",
+    description: "A picture with no body.",
+    system: () => ({ spawn: () => {}, despawn: () => {}, clear: () => {}, size: () => 0 }),
+    fields: { at: pointField("Where its sprite is posed.") },
+    behaviors: { required: { sprite: { size: [40, 60], anchor: [0.5, 1] } } },
+  });
+  const walls = createRegistry(
+    defineGame({
+      id: "walls",
+      types: [decal],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+  const scene: SceneDefinition = {
+    v: 3,
+    name: "sprites",
+    bounds: [0, 0, 1000, 500],
+    entities: [
+      {
+        id: "crate",
+        type: "prop",
+        shape: ["box", 100, 100, 10, 10],
+        density: 1,
+        restitution: 0,
+        behaviors: { sprite: { size: [80, 40] } },
+      },
+      { id: "pin", type: "marker", at: [300, 100], behaviors: { sprite: { asset: "pin" } } },
+      { id: "poster", type: "decal", at: [500, 200] },
+    ],
+  };
+  const spriteIndex = createSpatialIndex({
+    asset: (id) => (id === "pin" ? { id, kind: "texture", size: [20, 100] } : undefined),
+  });
+  spriteIndex.rebuild(scene, walls);
+  const hits = (p: Pt) => pickAt(spriteIndex, p, { tolPx: 0, scale: 1 }).map((e) => e.ref);
+
+  it("hits a body's sprite where it draws past the body", () => {
+    expect(hits([135, 100])).toEqual(["crate"]);
+    expect(hits([100, 125])).toEqual([]);
+  });
+
+  it("hits a point entity anywhere in its sprite's box, sized from the asset lookup", () => {
+    expect(hits([300, 145])).toEqual(["pin"]);
+    expect(hits([300, 155])).toEqual([]);
+    // A type's required sprite: bottom-centre anchored, so the box stands on the point.
+    expect(hits([515, 150])).toEqual(["poster"]);
+    expect(hits([500, 205])).toEqual([]);
+  });
+
+  it("selects by the sprite's box in a marquee", () => {
+    const around = { minX: 470, minY: 130, maxX: 530, maxY: 210 };
+    expect(marqueeSelect(spriteIndex, around, { touch: false })).toEqual(["poster"]);
+    const touching = { minX: 130, minY: 90, maxX: 150, maxY: 110 };
+    expect(marqueeSelect(spriteIndex, touching, { touch: false })).toEqual([]);
+    expect(marqueeSelect(spriteIndex, touching, { touch: true })).toEqual(["crate"]);
   });
 });

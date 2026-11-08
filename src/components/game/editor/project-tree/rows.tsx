@@ -9,9 +9,16 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ProjectPeer } from "@jams/engine/collab";
-import type { PeerPresence } from "@jams/engine/editor";
+import type { AssetDrop, PeerPresence } from "@jams/engine/editor";
 import type { AssetEntry } from "@jams/engine/project";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +28,15 @@ import { cn } from "@/lib/utils";
 import { PeerFaces } from "../peer-faces";
 import { DROP_FOLDER_ATTR } from "./file-drop-target";
 import { kindIcon } from "./kind-icons";
-import { baseName, registersSummary, ROOT_KEY, type TreeRow } from "./tree-rows";
+import {
+  baseName,
+  carriesAsset,
+  readAssetDrag,
+  registersSummary,
+  ROOT_KEY,
+  writeAssetDrag,
+  type TreeRow,
+} from "./tree-rows";
 
 type Row<T extends TreeRow["type"]> = Extract<TreeRow, { type: T }>;
 
@@ -29,6 +44,28 @@ type Row<T extends TreeRow["type"]> = Extract<TreeRow, { type: T }>;
 export type MoveTarget = { folder: string };
 /** An asset row's drag data. */
 export type MoveSource = { entry: AssetEntry };
+
+/**
+ * The asset a row hands the canvas when dragged natively (the canvas sits
+ * outside the tree's DndContext); null leaves the row a folder-move source only.
+ */
+export type DragAsset = (entry: AssetEntry, frame?: string) => AssetDrop | null;
+
+/** Native drag props for a row that carries `drop` onto the canvas. */
+function nativeDrag(drop: (() => AssetDrop | null) | undefined) {
+  if (!drop) return {};
+  return {
+    draggable: true,
+    onDragStart: (e: DragEvent) => {
+      const payload = drop();
+      if (!payload) {
+        e.preventDefault();
+        return;
+      }
+      writeAssetDrag(e.dataTransfer, payload);
+    },
+  };
+}
 
 /** Project peers drawn as the editor draws scene peers; only `user` reaches the faces. */
 const faces = (peers: readonly ProjectPeer[]): PeerPresence[] =>
@@ -41,6 +78,7 @@ function DropRow({
   folder,
   enabled,
   over,
+  onMoveAsset,
   children,
 }: {
   id: string;
@@ -48,18 +86,36 @@ function DropRow({
   enabled: boolean;
   /** A file drag from the desktop is over this folder. */
   over: boolean;
+  /** An asset row dragged natively and dropped here. */
+  onMoveAsset?: (entry: AssetEntry, folder: string) => void;
   children: ReactNode;
 }) {
   const target: MoveTarget = { folder };
   const { setNodeRef, isOver } = useDroppable({ id, data: target, disabled: !enabled });
+  const [assetOver, setAssetOver] = useState(false);
+  const takes = (e: DragEvent) => enabled && !!onMoveAsset && carriesAsset(e.dataTransfer);
   return (
     <li
       ref={setNodeRef}
       {...{ [DROP_FOLDER_ATTR]: folder }}
       className={cn(
         "group/row relative rounded-md",
-        (isOver || over) && "bg-primary/10 ring-1 ring-primary",
+        (isOver || over || assetOver) && "bg-primary/10 ring-1 ring-primary",
       )}
+      onDragOver={(e) => {
+        if (!takes(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setAssetOver(true);
+      }}
+      onDragLeave={() => setAssetOver(false)}
+      onDrop={(e) => {
+        if (!takes(e)) return;
+        e.preventDefault();
+        setAssetOver(false);
+        const drop = readAssetDrag(e.dataTransfer);
+        if (drop) onMoveAsset?.(drop.entry, folder);
+      }}
     >
       {children}
     </li>
@@ -71,14 +127,22 @@ export function RootItem({
   count,
   peers,
   movable,
+  onMoveAsset,
 }: {
   name: string;
   count: number;
   peers: readonly ProjectPeer[] | undefined;
   movable: boolean;
+  onMoveAsset?: (entry: AssetEntry, folder: string) => void;
 }) {
   return (
-    <DropRow id={ROOT_KEY} folder="" enabled={movable} over={false}>
+    <DropRow
+      id={ROOT_KEY}
+      folder=""
+      enabled={movable}
+      over={false}
+      {...(onMoveAsset ? { onMoveAsset } : {})}
+    >
       <div className="flex items-center gap-2 py-1 pr-2 pl-2">
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
         {peers?.length ? (
@@ -97,6 +161,7 @@ export function FolderItem({
   movable,
   fileOver,
   onToggle,
+  onMoveAsset,
 }: {
   row: Row<"folder">;
   open: boolean;
@@ -105,9 +170,16 @@ export function FolderItem({
   movable: boolean;
   fileOver: boolean;
   onToggle: () => void;
+  onMoveAsset?: (entry: AssetEntry, folder: string) => void;
 }) {
   return (
-    <DropRow id={row.key} folder={row.folder} enabled={movable} over={fileOver}>
+    <DropRow
+      id={row.key}
+      folder={row.folder}
+      enabled={movable}
+      over={fileOver}
+      {...(onMoveAsset ? { onMoveAsset } : {})}
+    >
       <button
         type="button"
         aria-expanded={open}
@@ -216,6 +288,9 @@ export function AssetItem({
   onRename,
   onCancelRename,
   onDelete,
+  dragAsset,
+  framesOpen,
+  onToggleFrames,
 }: {
   row: Row<"asset">;
   active: boolean;
@@ -229,6 +304,11 @@ export function AssetItem({
   onRename: (file: string) => void;
   onCancelRename: () => void;
   onDelete: () => void;
+  /** Set, the row drags onto the canvas as this asset. */
+  dragAsset?: DragAsset;
+  /** An atlas's frame rows are listed. */
+  framesOpen?: boolean;
+  onToggleFrames?: () => void;
 }) {
   const { entry } = row;
   const source: MoveSource = { entry };
@@ -259,6 +339,7 @@ export function AssetItem({
           type="button"
           aria-current={active ? "true" : undefined}
           {...listeners}
+          {...nativeDrag(dragAsset && !renaming ? () => dragAsset(entry) : undefined)}
           onClick={onOpen}
           onDoubleClick={editable.rename ? onStartRename : undefined}
           onKeyDown={(e) => {
@@ -292,6 +373,21 @@ export function AssetItem({
           ) : null}
         </button>
       )}
+      {!renaming && row.frames && onToggleFrames ? (
+        <button
+          type="button"
+          aria-expanded={!!framesOpen}
+          aria-label={`${framesOpen ? "Hide" : "Show"} the frames of ${row.name}`}
+          onClick={onToggleFrames}
+          className="absolute top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted"
+          style={{ left: indent.paddingLeft }}
+        >
+          <HugeiconsIcon
+            icon={framesOpen ? ArrowDown01Icon : ArrowRight01Icon}
+            className="size-3"
+          />
+        </button>
+      ) : null}
       {!renaming && (editable.rename || editable.delete) ? (
         <span className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-0.5 rounded-md bg-muted opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
           {editable.rename ? (
@@ -318,6 +414,33 @@ export function AssetItem({
           ) : null}
         </span>
       ) : null}
+    </li>
+  );
+}
+
+/** One frame of an atlas, under its row: dragged onto the canvas it places that frame. */
+export function FrameItem({
+  row,
+  dragAsset,
+  onOpen,
+}: {
+  row: Row<"frame">;
+  dragAsset?: DragAsset;
+  onOpen?: () => void;
+}) {
+  const indent = indentOf(row.depth);
+  return (
+    <li {...{ [DROP_FOLDER_ATTR]: row.folder }} data-kind="frame" className="relative rounded-md">
+      <button
+        type="button"
+        {...nativeDrag(dragAsset ? () => dragAsset(row.entry, row.frame) : undefined)}
+        onClick={onOpen}
+        className="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+        style={{ paddingLeft: `calc(${indent.paddingLeft} + 1rem)` }}
+      >
+        <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+        <span className="min-w-0 truncate">{row.frame}</span>
+      </button>
     </li>
   );
 }

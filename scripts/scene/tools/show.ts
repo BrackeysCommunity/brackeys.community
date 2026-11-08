@@ -1,3 +1,4 @@
+import type { ProjectView } from "@jams/engine/project";
 import {
   aabb,
   bulkEntries,
@@ -14,6 +15,7 @@ import {
   resolvePrefab,
   resolveSceneDetailed,
   sceneHash,
+  sceneSprites,
   topSpan,
   translateShape,
   type Aabb,
@@ -31,6 +33,7 @@ import {
 } from "@jams/engine/scene";
 
 import { openScene, usage, type Tool } from "../context";
+import { sceneProjectView } from "./render";
 
 const addPt = (a: Pt, b: Pt): Pt => [a[0] + b[0], a[1] + b[1]];
 
@@ -70,9 +73,21 @@ export type ShownEntity = {
   exposes?: string[];
   /** Behavior blocks by name. */
   behaviors?: Record<string, unknown>;
+  /** What its sprite draws and where: sized from the project's asset info, else the block or 32×32. */
+  sprite?: ShownSprite;
   /** Each grid field: filled cells, chunks, and the filled cells' bounds (inclusive). */
   grids?: Record<string, GridSummary>;
   extra?: Record<string, unknown>;
+};
+
+export type ShownSprite = {
+  /** `asset`, `asset:frame` or `(no asset)`. */
+  label: string;
+  asset?: string;
+  frame?: string;
+  size: [w: number, h: number];
+  /** The world box it draws. */
+  aabb: Aabb;
 };
 
 export type GridSummary = {
@@ -148,6 +163,34 @@ function entityRow(e: EntityDef, registry: Registry, origin?: Pt): ShownEntity {
  * followed by its children in world coordinates.
  */
 export function sceneRows(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs?: PrefabLibrary,
+  project?: ProjectView,
+): ShownEntity[] {
+  const rows = sceneRowsOf(def, registry, prefabs);
+  const sprites = new Map(
+    sceneSprites(def, { registry, prefabs, ...(project ? { project } : {}) }).map((s) => [
+      s.ref,
+      s,
+    ]),
+  );
+  if (sprites.size === 0) return rows;
+  for (const row of rows) {
+    const s = sprites.get(row.ref);
+    if (!s) continue;
+    row.sprite = {
+      label: s.label,
+      ...(s.asset !== undefined ? { asset: s.asset } : {}),
+      ...(s.frame !== undefined ? { frame: s.frame } : {}),
+      size: s.size,
+      aabb: s.box,
+    };
+  }
+  return rows;
+}
+
+function sceneRowsOf(
   def: SceneDefinition,
   registry: Registry,
   prefabs?: PrefabLibrary,
@@ -246,6 +289,10 @@ function rowLine(r: ShownEntity): string {
   const exposes = r.exposes ? ` exposes ${r.exposes.join(",")}` : "";
   const nested = r.nested ? ` nests ${r.nested.join(",")}` : "";
   const behaviors = r.behaviors ? ` behaviors ${Object.keys(r.behaviors).join(",")}` : "";
+  const b = r.sprite?.aabb;
+  const sprite = r.sprite
+    ? ` sprite ${r.sprite.label} ${b!.minX},${b!.minY}..${b!.maxX},${b!.maxY}`
+    : "";
   const grids = Object.entries(r.grids ?? {})
     .map(([field, { cells, bounds: b }]) => {
       const span = b ? ` ${b.c0},${b.r0}..${b.c1},${b.r1}` : "";
@@ -253,7 +300,7 @@ function rowLine(r: ShownEntity): string {
     })
     .join("");
   const geometry = `${shape}${at}${turn}${z}${box}${top}`;
-  return `${r.ref}  ${r.type}${of}${mat}${geometry}${params}${exposes}${nested}${behaviors}${grids}`;
+  return `${r.ref}  ${r.type}${of}${mat}${geometry}${params}${exposes}${nested}${behaviors}${sprite}${grids}`;
 }
 
 export const show: Tool<ShowInput> = async (input, ctx) => {
@@ -269,7 +316,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
     );
   }
 
-  const all = sceneRows(def, registry, prefabs);
+  const all = sceneRows(def, registry, prefabs, await sceneProjectView(loaded.project));
   let rows = all;
   if (input.ref) rows = rows.filter((r) => r.ref === input.ref);
   if (input.type) rows = rows.filter((r) => r.type === input.type);

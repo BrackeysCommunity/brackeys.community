@@ -1,17 +1,19 @@
 import type { GameStoreState } from "@jams/engine";
-import type { EditorSession, ToolHost } from "@jams/engine/editor";
+import { dropBatch, type EditorSession, type Pt, type ToolHost } from "@jams/engine/editor";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/toast";
 
 import { runOverlay, type LoadedRun } from "../loaded-run";
+import { carriesAsset, readAssetDrag } from "../project-tree/tree-rows";
 import { useEditorDoc, useEditorStore } from "../use-editor-store";
 import { RunMarks } from "./RunMarks";
 import { useHostChanges, useHostValue } from "./tool-host";
 import { ToolOverlayLabels, ToolOverlayMarks } from "./ToolOverlayLayer";
-import { num, toScreen, useView, worldTransform } from "./view";
+import { num, toScreen, useView, worldTransform, type View } from "./view";
 
 /** Screen px between the selection's bottom edge and the offer button. */
 const OFFER_GAP_PX = 16;
@@ -53,10 +55,68 @@ function useCanvasInput(host: ToolHost | null, canvas: (() => HTMLElement | null
 }
 
 /**
+ * The canvas as the project tree's drop target: an asset row dropped on it
+ * is placed at the drop point, snapped as the tool host snaps, in one batch
+ * (one undo step). A kind that can't be placed says so in a toast.
+ */
+function useAssetDrop(
+  session: EditorSession,
+  host: ToolHost | null,
+  canvas: (() => HTMLElement | null) | undefined,
+  view: View,
+) {
+  const latest = useRef({ session, host, view });
+  useEffect(() => {
+    latest.current = { session, host, view };
+  });
+  useEffect(() => {
+    const el = canvas?.();
+    if (!el) return;
+    const onOver = (e: DragEvent) => {
+      if (!carriesAsset(e.dataTransfer)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!carriesAsset(e.dataTransfer)) return;
+      e.preventDefault();
+      const drop = readAssetDrag(e.dataTransfer);
+      if (!drop || !Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return;
+      const { session: s, host: h, view: v } = latest.current;
+      const rect = el.getBoundingClientRect();
+      const scale = v.scale || 1;
+      const at: Pt = [
+        (e.clientX - rect.left - v.tx) / scale,
+        (e.clientY - rect.top - v.ty) / scale,
+      ];
+      const result = dropBatch(drop, at, {
+        def: s.getDoc(),
+        registry: s.registry,
+        prefabs: s.getPrefabs(),
+        ...(h ? { snap: h.snap() } : {}),
+      });
+      if (!result.ok) {
+        toast(result.issues[0]?.message ?? `${drop.entry.id} can't be placed in a scene`);
+        return;
+      }
+      const applied = s.dispatch(result.batch, { selectionAfter: result.select });
+      if (!applied.ok) toast.error(applied.issue.message);
+    };
+    el.addEventListener("dragover", onOver);
+    el.addEventListener("drop", onDrop);
+    return () => {
+      el.removeEventListener("dragover", onOver);
+      el.removeEventListener("drop", onDrop);
+    };
+  }, [canvas]);
+}
+
+/**
  * The editor's layer over the game canvas, in edit mode: the tool host's
  * overlay (selection outlines as previewed, handles, the marquee, guides,
  * paths, placement ghosts and the drag readout), a loaded run, and the
- * fix the host offers after a commit. Only the offer takes the pointer.
+ * fix the host offers after a commit. Only the offer takes the pointer;
+ * assets dragged from the project tree drop on the canvas beneath.
  */
 export function CanvasLayer({
   session,
@@ -80,6 +140,7 @@ export function CanvasLayer({
   useEditorStore(session, (s) => s.selection);
   useEditorDoc(session);
   useCanvasInput(host, canvas);
+  useAssetDrop(session, host, canvas, view);
   const overlay = host?.overlay() ?? {};
   const transform = worldTransform(view);
 

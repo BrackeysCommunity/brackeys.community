@@ -63,6 +63,7 @@ describe("platformerGame registry", () => {
       ["anchor"],
       ["construct"],
       ["marker", "spawn"],
+      ["decor"],
     ]);
   });
 

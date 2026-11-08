@@ -15,7 +15,12 @@ import {
   type SessionDoc,
 } from "@jams/engine/collab";
 import { defineEntityType, defineGame, gridField, pointField } from "@jams/engine/game";
-import type { AssetEntry, ProjectOpBatch, ProjectView } from "@jams/engine/project";
+import {
+  assetInfo,
+  type AssetEntry,
+  type ProjectOpBatch,
+  type ProjectView,
+} from "@jams/engine/project";
 import { readCell, type GridCells } from "@jams/engine/scene";
 import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -535,6 +540,73 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
   );
 
   it(
+    "a material's render tint and blend, and a texture's import filter and pivot",
+    { timeout: 60_000 },
+    async () => {
+      const render = () => valueOf("bouncy").render as Data;
+      const tinted = await cli(
+        "assets",
+        "apply",
+        "--ops",
+        await jsonFile(editAsset("bouncy", [{ set: "/render/tint", value: "#ff8800" }])),
+      );
+      expect(tinted.exitCode, JSON.stringify(tinted.data)).toBe(0);
+      await landsInDoc(
+        "bouncy",
+        () => render().tint === "#ff8800",
+        CLI_AGENT,
+        "the CLI's render.tint",
+      );
+      const blended = await mcp("asset_apply_ops", {
+        ops: editAsset("bouncy", [{ set: "/render/blend", value: "add" }]),
+      });
+      expect(blended.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc("bouncy", () => render().blend === "add", MCP_AGENT, "the MCP render.blend");
+      expect(render()).toMatchObject({ tint: "#ff8800", blend: "add", style: { fill: "#e05a5a" } });
+
+      const imported = await cli(
+        "assets",
+        "import",
+        join(root, "texture.png"),
+        "--path",
+        "sprites/",
+        "--id",
+        "sprite-art",
+        "--kind",
+        "texture",
+      );
+      expect(imported.exitCode, JSON.stringify(imported.data)).toBe(0);
+      await landsInRegistry(
+        (v) => v.byId.get("sprite-art")?.kind === "texture",
+        CLI_AGENT,
+        "the sprite texture's import",
+      );
+      const filtered = await cli("assets", "set-import", "sprite-art", "--set", "filter=nearest");
+      expect(filtered.exitCode, JSON.stringify(filtered.data)).toBe(0);
+      await landsInRegistry(
+        (v) => v.byId.get("sprite-art")?.import?.filter === "nearest",
+        CLI_AGENT,
+        "the CLI's filter",
+      );
+      const pivoted = await mcp("asset_apply_ops", {
+        ops: { v: 1, ops: [{ op: "setImport", id: "sprite-art", set: { pivot: [0.5, 1] } }] },
+      });
+      expect(pivoted.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInRegistry(
+        (v) => JSON.stringify(v.byId.get("sprite-art")?.import?.pivot) === "[0.5,1]",
+        MCP_AGENT,
+        "the MCP pivot",
+      );
+      expect(entryOf("sprite-art").import).toEqual({ filter: "nearest", pivot: [0.5, 1] });
+      expect(assetInfo(view(), "sprite-art")).toMatchObject({
+        size: [12, 10],
+        filter: "nearest",
+        pivot: [0.5, 1],
+      });
+    },
+  );
+
+  it(
     "texture, atlas, font, audio, recording: importAsset and replaceContent",
     {
       timeout: 120_000,
@@ -542,8 +614,8 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
     async () => {
       const store = devContentStore(server.url, PROJECT);
       const blobs = [
-        { kind: "texture", folder: "art/", cli: "texture.png", mcp: "texture.webp" },
-        { kind: "atlas", folder: "art/", cli: "hero.json", mcp: "items.json" },
+        { kind: "texture", folder: "imported/", cli: "texture.png", mcp: "texture.webp" },
+        { kind: "atlas", folder: "imported/", cli: "hero.json", mcp: "items.json" },
         { kind: "font", folder: "fonts/", cli: "font.fnt", mcp: "font2.fnt" },
         { kind: "audio", folder: "sfx/", cli: "tone.ogg", mcp: "tone.mp3" },
         {

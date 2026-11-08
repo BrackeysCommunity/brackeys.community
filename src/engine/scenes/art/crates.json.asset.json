@@ -1,0 +1,25 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "i0d8z236otad",
+  "id": "crates",
+  "assetKind": "atlas",
+  "sha256": "c8d090c87792abb84c769a54fb2c3e5d59961388de4270848f11279c6e4adeda",
+  "bytes": 1126,
+  "import": { "texture": "crates-texture" },
+  "meta": {
+    "frames": {
+      "crate-0": { "h": 16, "pivot": [0.5, 0.5], "w": 16, "x": 0, "y": 0 },
+      "crate-1": { "h": 16, "pivot": [0.5, 0.5], "w": 16, "x": 16, "y": 0 }
+    },
+    "order": ["crate-0", "crate-1"],
+    "slices": [],
+    "tags": [{ "direction": "forward", "from": 0, "name": "stack", "to": 1 }],
+    "tool": "texturepacker"
+  },
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Generated for this repository, in TexturePacker's JSON array export format."
+  }
+}

@@ -37,7 +37,11 @@ vi.mock("pixi.js", async (importOriginal) => {
     async init() {}
     destroy() {}
   }
-  return { ...pixi, Application, Assets: { addBundle: () => {}, loadBundle: async () => {} } };
+  return {
+    ...pixi,
+    Application,
+    Assets: { load: async () => pixi.Texture.WHITE, unload: async () => {} },
+  };
 });
 
 // vitest runs from the consumer directory, which holds the scene and the installed package.

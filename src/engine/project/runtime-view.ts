@@ -1,18 +1,24 @@
 import type { Registry } from "../game/types";
+import { entryInfo, type AssetInfo } from "./asset-info";
 import { deepFreeze } from "./canonical";
 import type { ContentStore } from "./content-store";
+import { createKindRegistry } from "./kinds";
 import { DATA_TABLE_KIND, rowSchemaOf, tableAssets } from "./kinds/data-table";
 import { isPlainObject } from "./kinds/define";
 import { GAME_SETTINGS_KIND, gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
-import { jsonValues, pinnedDocs, type ProjectSnapshot } from "./snapshot";
+import { jsonValues, pinnedDocs, snapshotView, type ProjectSnapshot } from "./snapshot";
 import type { AssetId, ProjectView } from "./types";
 
 /** What game code reads of its project, as of load and frozen for the run. */
 export type ProjectRuntimeView = {
   /** game-settings' `game` block, defaults applied. */
   settings: Readonly<Record<string, unknown>>;
+  /** game-settings' `engine` block as written (`resolution` and the like); empty without one. */
+  engine: Readonly<Record<string, unknown>>;
   /** Rows of a table, merged across its assets in path order. */
   table(name: string): readonly Readonly<Record<string, unknown> & { id: string }>[];
+  /** What `assetInfo` gives for a blob asset, frozen at load; undefined for an unknown id, a doc asset or an unknown frame. */
+  asset(id: AssetId, frame?: string): AssetInfo | undefined;
 };
 
 type Row = Readonly<Record<string, unknown> & { id: string }>;
@@ -24,7 +30,8 @@ type Row = Readonly<Record<string, unknown> & { id: string }>;
  * are its assets' rows in path order, each through the table's row schema
  * (defaults applied); a row that doesn't fit it, or whose id an earlier row
  * has, is left out (the editor reports both). A table the game doesn't
- * declare has no rows. Read once, copied and frozen.
+ * declare has no rows. `engine` is that asset's `engine` block, unparsed.
+ * Read once, copied and frozen.
  */
 export function runtimeView(
   view: ProjectView,
@@ -35,6 +42,9 @@ export function runtimeView(
   const file = settingsEntry ? values.get(settingsEntry.id) : undefined;
   const game = isPlainObject(file) && isPlainObject(file.game) ? file.game : undefined;
   const settings = deepFreeze(structuredClone(gameSettingsValues(registry, game)));
+  const engine = deepFreeze(
+    structuredClone(isPlainObject(file) && isPlainObject(file.engine) ? file.engine : {}),
+  );
 
   const tables = new Map<string, readonly Row[]>();
   for (const [name, def] of Object.entries(registry.game?.tables ?? {})) {
@@ -55,20 +65,42 @@ export function runtimeView(
   }
   const none: readonly Row[] = Object.freeze([]);
 
-  return Object.freeze({ settings, table: (name: string) => tables.get(name) ?? none });
+  const assets = new Map<AssetId, { info: AssetInfo; frames: ReadonlyMap<string, AssetInfo> }>();
+  for (const entry of view.byId.values()) {
+    if (entry.sha256 === undefined) continue;
+    const read = entryInfo(structuredClone(entry));
+    const info = deepFreeze(read.info);
+    const frames = new Map<string, AssetInfo>();
+    for (const [name, own] of read.frames) frames.set(name, deepFreeze({ ...info, ...own }));
+    assets.set(entry.id, { info, frames });
+  }
+
+  return Object.freeze({
+    settings,
+    engine,
+    table: (name: string) => tables.get(name) ?? none,
+    asset: (id: AssetId, frame?: string): AssetInfo | undefined => {
+      const found = assets.get(id);
+      return frame === undefined ? found?.info : found?.frames.get(frame);
+    },
+  });
 }
 
 /**
  * `runtimeView` of a snapshot: its game-settings and data-table docs, each
- * read from its canonical text in `store`. Throws a `SnapshotError` when
- * one has no text there or bytes that don't hash to its pin; a text that
- * isn't JSON is left out.
+ * read from its canonical text in `store`, and its blobs as the snapshot
+ * pins them. A pin holds a blob's hash and import settings but not its
+ * meta, and no blob is read, so `asset` gives a blob's kind, hash, import
+ * pivot, nine-slice and filter and an atlas's texture, without pixel sizes
+ * or frames. Throws a `SnapshotError` when a doc has no text there or bytes
+ * that don't hash to its pin; a text that isn't JSON is left out.
  */
 export async function snapshotRuntimeView(
   snapshot: ProjectSnapshot,
   store: ContentStore,
   registry: Registry,
 ): Promise<ProjectRuntimeView> {
-  const { view, texts } = await pinnedDocs(snapshot, store, [GAME_SETTINGS_KIND, DATA_TABLE_KIND]);
+  const { texts } = await pinnedDocs(snapshot, store, [GAME_SETTINGS_KIND, DATA_TABLE_KIND]);
+  const view = snapshotView(snapshot, createKindRegistry(registry.game));
   return runtimeView(view, jsonValues(texts), registry);
 }

@@ -8215,7 +8215,7 @@ type Vec2 = {
 };
 
 ## version.ts
-declare const ENGINE_VERSION = "0.7.0";
+declare const ENGINE_VERSION = "0.8.0";
 
 ## vite/apply-files.ts
 type FileApplyOptions = {

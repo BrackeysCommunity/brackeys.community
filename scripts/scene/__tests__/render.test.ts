@@ -29,6 +29,10 @@ beforeAll(async () => {
     join(dirs.engine, "engine-yard.json"),
   );
   await copyFile(
+    repoFile("src/engine/scene/__tests__/fixtures/sprites.json"),
+    join(dirs.engine, "sprites.json"),
+  );
+  await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
   );
@@ -138,6 +142,30 @@ describe("scene render", () => {
     stdin = JSON.stringify(report);
     const ascii = await runCli(["render", "engine-yard", "--ascii", "--overlay", "-"], ctx);
     expect(ascii.stdout).toContain("!  outcome won");
+  });
+
+  it("labels each sprite's box with its asset and frame, and lists the boxes", async () => {
+    const svg = (await runCli(["render", "sprites"], ctx)).stdout;
+    expect(svg).toContain('data-sprite="hero" data-asset="hero-sheet" data-frame="idle-0"');
+    expect(svg).toContain(">hero-sheet:idle-0</text>");
+    expect(svg).toContain(">(no asset)</text>");
+
+    const json = JSON.parse((await runCli(["render", "sprites", "--json"], ctx)).stdout);
+    expect(json.sprites).toHaveLength(5);
+    expect(json.sprites).toContainEqual({
+      ref: "lamp",
+      type: "marker",
+      label: "lamp",
+      box: { minX: 308, minY: 224, maxX: 332, maxY: 288 },
+    });
+    const yardJson = JSON.parse((await runCli(["render", "engine-yard", "--json"], ctx)).stdout);
+    expect(yardJson).not.toHaveProperty("sprites");
+
+    const ascii = JSON.parse(
+      (await runCli(["render", "sprites", "--ascii", "--json", "--around", "tree"], ctx)).stdout,
+    );
+    expect(ascii.sprites.map((s: { ref: string }) => s.ref)).toContain("tree");
+    expect(ascii.lines.join("")).toContain("+");
   });
 
   it("exits 2 on bad flags", async () => {

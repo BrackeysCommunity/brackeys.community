@@ -8,6 +8,7 @@ import {
   gridCellsIn,
   num,
   overlaps,
+  renderAssets,
   resolveRegion,
   type DrawnEntity,
   type OverlayPoint,
@@ -106,7 +107,7 @@ export function sceneViewport(
   opts: SceneSvgOptions,
 ): SceneViewport {
   const expanded = expandedOf(scene, opts.registry, opts.prefabs);
-  const all = drawnEntities(expanded, opts.registry);
+  const all = drawnEntities(expanded, opts.registry, renderAssets(opts));
   return viewportOf(expanded, all, opts);
 }
 
@@ -150,7 +151,8 @@ const isSpawnLike = (d: DrawnEntity) => d.tags.includes("spawn") || d.type.type 
 /**
  * A schematic of the scene as SVG text: every entity through `shapeOutline`
  * in its registered type's (and material's) style, a grid with axis ticks in
- * world px, id labels, path waypoints with numbered ghosts, and overlays
+ * world px, id labels, each sprite's box labelled `asset[:frame]` (sized
+ * from `opts.project` when given), path waypoints with numbered ghosts, and overlays
  * (issues, a playtest's trail, events and outcome). Pure and deterministic:
  * the same scene and options give the same text.
  */
@@ -160,7 +162,7 @@ export function renderSceneSvg(
 ): string {
   const { registry } = opts;
   const expanded = expandedOf(scene, registry, opts.prefabs);
-  const all = drawnEntities(expanded, registry);
+  const all = drawnEntities(expanded, registry, renderAssets(opts));
   const vp = viewportOf(expanded, all, opts);
   const [x0, y0, x1, y1] = vp.region;
   const u = 1 / vp.scale;
@@ -241,6 +243,25 @@ export function renderSceneSvg(
   }
   out.push(`</g>`);
 
+  // Sprites: the box each draws, over the bodies they dress
+  const sprites = visible.filter((d) => d.sprite);
+  if (sprites.length > 0) {
+    out.push(
+      `<g id="sprites" fill="none" stroke-width="${px(1.25)}" stroke-dasharray="${px(4)} ${px(3)}">`,
+    );
+    for (const d of sprites) {
+      const s = d.sprite!;
+      const style = styleOf({ registry }, d.type, materialOf(d));
+      const color = hex(style?.stroke ?? style?.fill ?? POINT_COLOR);
+      const asset = s.asset === undefined ? "" : ` data-asset="${esc(s.asset)}"`;
+      const frame = s.frame === undefined ? "" : ` data-frame="${esc(s.frame)}"`;
+      out.push(
+        `<path data-sprite="${esc(d.id)}"${asset}${frame} d="${svgPathData(shapeOutline(s.shape))}" stroke="${color}"/>`,
+      );
+    }
+    out.push(`</g>`);
+  }
+
   // Paths
   if (opts.paths !== false) {
     out.push(`<g id="paths" fill="none">`);
@@ -292,6 +313,12 @@ export function renderSceneSvg(
       } else if (d.at) {
         out.push(
           `<text x="${num(d.at[0] + 9 * u)}" y="${num(d.at[1] - 9 * u)}" font-size="${px(size)}" text-anchor="start"${opacity}>${esc(d.id)}</text>`,
+        );
+      }
+      if (d.sprite) {
+        const b = d.sprite.box;
+        out.push(
+          `<text class="sprite-label" x="${num((b.minX + b.maxX) / 2)}" y="${num(b.minY - 3 * u)}" font-size="${px(9)}" fill-opacity="0.8">${esc(d.sprite.label)}</text>`,
         );
       }
     }

@@ -1,5 +1,6 @@
 import { containedInRect, containsPoint, intersectsRect } from "../scene/shape-geometry";
 import type { Aabb, Pt, Ref } from "../scene/types";
+import { spriteHitOf } from "./spatial-index";
 import type { IndexEntry, SpatialIndex } from "./tools";
 
 /** Layers picking skips. */
@@ -23,7 +24,7 @@ const pickable = (e: IndexEntry, layers: PickLayers | undefined) =>
 
 const isPoint = (g: IndexEntry["geometry"]): g is Pt => Array.isArray(g);
 
-/** Every entry under `p`, topmost first, skipping hidden and locked layers. */
+/** Every entry under `p` (its geometry, or the box its sprite draws), topmost first, skipping hidden and locked layers. */
 export function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntry[] {
   const tol = opts.tolPx / opts.scale;
   const radius = Math.max(opts.pointPx ?? POINT_PICK_PX, opts.tolPx) / opts.scale;
@@ -37,6 +38,8 @@ export function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntr
   return near.filter((e) => {
     if (!pickable(e, opts.layers)) return false;
     const g = e.geometry;
+    const sprite = spriteHitOf(e);
+    if (sprite && containsPoint(sprite, p, tol)) return true;
     return isPoint(g) ? Math.hypot(p[0] - g[0], p[1] - g[1]) <= radius : containsPoint(g, p, tol);
   });
 }
@@ -52,8 +55,8 @@ export function cycleHit(hits: readonly IndexEntry[], current?: Ref): Ref | unde
 
 /**
  * What a marquee over `rect` selects, topmost first: entries wholly inside
- * it, or with `touch` (Alt) any it touches. Hidden and locked layers are
- * skipped.
+ * it, or with `touch` (Alt) any it or its sprite's box touches. Hidden and
+ * locked layers are skipped.
  */
 export function marqueeSelect(
   index: SpatialIndex,
@@ -65,6 +68,8 @@ export function marqueeSelect(
     .filter((e) => {
       if (!pickable(e, opts.layers)) return false;
       const g = e.geometry;
+      const sprite = spriteHitOf(e);
+      if (opts.touch && sprite && intersectsRect(sprite, rect)) return true;
       if (isPoint(g))
         return g[0] >= rect.minX && g[0] <= rect.maxX && g[1] >= rect.minY && g[1] <= rect.maxY;
       return opts.touch ? intersectsRect(g, rect) : containedInRect(g, rect);

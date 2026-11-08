@@ -7,6 +7,246 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.8.0] — unreleased
+
+Sprites and rendering: a scene names art, the engine loads and draws it,
+and headless knows its size. The `sprite` behavior draws textures and
+atlas frames on any entity, `decor` is a picture with no body, the runtime
+runs behaviors' systems and keeps a pose index, the asset loader fetches
+each scene's bundle, the Pixi view interpolates, sorts and scrolls its
+layers, resolution policies fit a virtual area, the editor places dropped
+art, and re-imported art reloads without reloading the scene. Every
+addition is optional; a game, view or host that sets none of them behaves
+exactly as on 0.7.0, and the platformer replays its golden traces
+unchanged.
+
+### Added
+
+- `sprite`, the engine's first behavior (visual-only, so no system
+  headless): draws a texture or an atlas frame at the entity's pose plus
+  `offset` through `SceneView.sprite`, else its fallback box through
+  `draw`. Size comes from the block, else the asset's times `scale`, else
+  32×32; the anchor from the block, else the pivot, else the centre; tint
+  and blend from the block, else the entity's material. `flipX` toggles
+  under an instance flip; the sprite follows the pose's rotation unless
+  `turn: false`, and snaps on a teleport. `SPRITE`, `spriteGeometry`,
+  `SpriteBlock`, `SpriteGeometry`, `SpriteAssetInfo`, `FrameRect` and
+  `SPRITE_FALLBACK_SIZE` are in `./game` and `.`; `SpriteVisual`,
+  `BlendMode` and `drawSprite` (`.`) draw a sprite through any view, as
+  its fallback box through `draw` when the view has no `sprite`.
+- `decor`: a primitive picture with no body,
+  `{ id, type: "decor", at, behaviors: { sprite } }` (sprite required,
+  ascii `d`, no bulk form); it loads headless with a pose and creates
+  nothing in the physics world. `PRIMITIVE_TYPES` and
+  `BASE_REQUIRED_FIELDS` gain it, and `createDecorSystem` / `DecorEntity`
+  join `./game`. A game type named `decor` is a registry error.
+- The pose index: `PoseIndex` and `Pose` (`./game`) and
+  `EngineContext.poses`, each loaded entity's simulation-side pose. Every
+  loaded entity gets a snapped spawn pose from its type's geometry: a
+  shape's centre (a path rider's shape placed at its first path point),
+  else its point field, else its first path point. The angle comes from
+  `rotDeg`, else from `transform.turn`. `prev` is kept lazily per tick.
+  Props write their pose after every step, followers and the entities
+  attached to them on every step, seek and reset; static solids, sensors
+  and markers write theirs once at spawn. Poses are not part of any
+  digest. `spawnPose(entity, registry)` (`./game`) is the spawn pose of an
+  entity a game system owns.
+- The behavior host: the runtime runs registered behaviors' systems.
+  Attach after the type system spawned an entity and its spawn pose is
+  set, in registration order; detach in reverse before it despawns;
+  `update` per block on an edit (detach then attach for a system without
+  `update`); `step` after the type systems' `afterStep` and before the
+  game's; `reset` on every load and `seek` on a `timeOffsetMs` load after
+  the type systems'. A throwing attach rolls `load`, `add` and `update`
+  back as a throwing spawn does. A visual-only behavior builds only when
+  the runtime has a view, so a playtest with and without a view gives one
+  digest. `EngineContext.behavior(name)` is a behavior's runtime system as
+  `system(type)` gives a type's, `SceneRuntimeHandle.render(alpha)` runs
+  the behaviors' `render` hooks, and `RuntimeStats.behaviors` counts each
+  built behavior system's live attachments by name (zeros left out).
+- The asset loader: `createAssetLoader`, `AssetLoader`, `AssetUrl` and
+  `LoadProgress` (`.`). Textures load through Pixi `Assets` (texture
+  parser forced), keyed by Sha256, reference-counted per retained bundle
+  object, a shared hash loaded once; `release` trims released textures
+  least-recently-used past `budgetBytes` (default 256 MiB of decoded
+  w×h×4 bytes). Failures come back in `failed`, never thrown; progress
+  is monotonic and counts settled blobs (failures included).
+  `GameConfig.assets` (`{ loader, view, kinds }`) hands the shell a
+  loader, and `GameInstance.preload(scene, onProgress?)` loads the
+  scene's bundle (and the project bundle, once, retained for the
+  instance's life), resolving with the entries that failed. A definition
+  is expanded with the shell's prefabs and bundles its `assets` header and
+  its prefabs' headers; an `ExpandedScene` carries no header, so it
+  bundles its entities and settings only. Without `config.assets` it
+  resolves `{ failed: [] }` and nothing is retained.
+- Bundles: `sceneBundle`, `projectBundle`, `AssetBundle` and
+  `BundleEntry` (`./project`), the texture blobs a scene or the game
+  settings need loaded. A scene's bundle covers its expanded entities'
+  asset fields (with defaults), its settings, and the assets headers of
+  the scene and every prefab it reaches, following atlas and font refs.
+  Entries are sorted, deduplicated and totalled; anything unresolvable is
+  an `asset-missing` issue with a did-you-mean.
+- Asset info headless: `assetInfo(view, id, frame?)` and `AssetInfo`
+  (`./project`, `./headless`), read from the entry with no decoding: a
+  texture's size, import pivot, nine-slice and filter, and an atlas's
+  frames (file order), tags and texture, or with `frame` that frame's
+  size, pivot and `rect` in its texture; null for an unknown or trashed id
+  or an unknown frame. `ProjectRuntimeView.asset(id, frame?)` is
+  `assetInfo` of each live blob, frozen at load (by snapshot: kind, hash
+  and the import-derived fields only, because a snapshot pins no blob
+  meta). `ProjectRuntimeView.engine` is a frozen copy of the game-settings
+  doc's `engine` block.
+- Interpolation: `SceneView` gains optional `commit` and `frame`. The
+  runtime calls `view.commit(tick)` after the game's `afterStep`; the
+  shell calls `view.frame({ alpha, camera })` and then
+  `SceneRuntimeHandle.render(alpha)` on every rendered frame, with
+  `alpha` 1 while paused or editing. The Pixi view keeps each visual's
+  previous and current pose and places visuals posed in the last
+  committed tick at `lerp(prev, cur, alpha)` (rotation the short way
+  round), leaving the rest at their latest pose; new visuals and
+  `pose(…, snap)` don't lerp.
+- The Pixi view: `createPixiView(container, opts?)` takes
+  `PixiViewOptions` (`layers`, `textures`, `editing`, `pixelSnap`), and
+  `TextureSource` is what it reads textures from; the shell passes the
+  registry's layers, the host's loader and the resolved `pixelSnap`.
+  `sprite()` draws a Sprite, TilingSprite (`tile`) or NineSliceSprite
+  (`nineSlice`) with frame, size, anchor, tint, alpha, blend, flips and
+  per-sprite sampling; frame textures are cached per hash, frame and
+  sampling, and a texture not yet loaded shows the fallback box until
+  `textures.onLoad` reports it. `pixelSnap` rounds placed positions to
+  whole canvas pixels.
+- Resolution policies: `ResolutionPolicy`, `DEFAULT_RESOLUTION` (a
+  1080-unit virtual height, `expand`, linear sampling, antialiasing, which
+  gives 0.7.0's numbers), `viewportFor` / `ResolutionViewport` and
+  `resolveResolution` (`.`), and `engineResolution` (`./project`).
+  `viewportFor` fits the virtual area by `expand` (on a height, a width or
+  both), `letterbox` or `crop`, with `integer` scaling (bars take the
+  remainder) and `pixelSnap`. `resolveResolution` takes each field from
+  `GameConfig.resolution`, then the project's game-settings
+  `engine.resolution`, then `GameDefinition.resolution`, then
+  `DEFAULT_RESOLUTION`. The shell's camera, renderer (antialias,
+  letterbox bars in `bars`, default the background), scene runtime
+  (`sampling`) and Pixi view (`pixelSnap`) follow the resolved policy.
+  `CameraState.scale` is world units to canvas pixels (the display scale
+  times `zoom`). `EngineContext.sampling` (`SceneRuntimeOptions.sampling`,
+  default `"linear"`) is the default texture sampling for sprites.
+- `game-settings`: the `engine` block takes an optional `resolution`
+  (every field optional; `bars` a 0xRRGGBB number), additive with no `v`
+  change. The kind's schema hash changes.
+- Drop-to-place: `dropFragment`, `dropBatch` and `AssetDrop`
+  (`./editor`), and `GameEditorDef.assetDrop`: what a dropped asset
+  becomes in a scene (a texture or atlas frame a `decor` with
+  `sprite.asset`/`frame`, a prefab an instance; a game's hook wins and its
+  null falls back). `dropBatch` takes the project's `prefabs` and returns
+  one labelled batch (`Place <name>`), one undo step, or `ok: false` with
+  `asset-kind` / `asset-frame-unknown` for a drop it can't place.
+- Hot reload of art: `GameInstance.reloadAssets(update)` (the project's
+  new runtime view and view, and the changed asset ids) and
+  `SceneRuntimeHandle.reloadAssets(project, changed)`. The shell takes the
+  new project and view (later preloads bundle against them), swaps its
+  held bundles to the new hashes, loads the changed textures, then the
+  runtime swaps `EngineContext.project` and re-attaches every entity whose
+  behavior block names a changed id through its asset fields (or an atlas
+  cut from a changed texture): `update` with the same block, else detach
+  and attach. The scene isn't reloaded; the runtime and its tick survive.
+  `ASSET_CHANGED` and `AssetChangedMessage` are in `./collab`, so a
+  browser host reads the dev server's `asset:changed` message without
+  `./vite` (which still re-exports both).
+- `validateScene` with `project` emits `asset-frame-unknown` (an atlas
+  frame its meta lacks, or an atlas with no frame named) and
+  `sprite-no-asset` (warn).
+- `renderSceneSvg` draws each sprite's box, labelled `asset[:frame]`, and
+  `sceneAsciiMap` marks it with its entity type's character under bodies
+  and points. `SceneRegionOptions.project` (a ProjectView) sizes the boxes
+  from `assetInfo`, else the block's size, else 32x32. New in `./scene`:
+  `sceneSprites`, `spriteBoxOf`, `projectSpriteAssets`, `DrawnSprite`,
+  `SceneSprite`, `SpriteAssetLookup`, `SpritePoseSource`.
+- Editor: `createSpatialIndex({ asset })` (a
+  `ProjectRuntimeView.asset`-shaped lookup) indexes sprite boxes.
+  `pickAt` and Alt-marquee hit an entity's sprite box, and a point entity
+  with a sprite (a decor) uses that box as its geometry.
+  `ToolHostOptions.asset` passes such a lookup to the tool host's index,
+  and `ToolHost.reindex()` rebuilds it when the lookup's answers change;
+  the site's editor sizes sprite boxes from the project's assets.
+
+### Changed
+
+- `SceneView` gains optional `sprite` and `depth` (beside `commit` and
+  `frame`), and `pose` an optional `snap`. Views that implement none of
+  them keep working.
+- Materials' `render` takes `tint` (`"#rgb"`/`"#rrggbb"`, which
+  `projectMaterialOf` converts to a number) and `blend` (`normal`, `add`,
+  `multiply`, `screen`), additive with no `v` change, and both reach
+  `MaterialDef.tint` / `blend` and `ProjectMaterialDef`'s as a sprite's
+  defaults on an entity of that material (only materials with `physics`
+  join `registry.materials`). In the collab doc, `render` merges field by
+  field, so concurrent tint and blend edits both survive. A `render` an
+  older client stored whole is read as it is and becomes a map on the next
+  write, with no layout bump. Files keep `render` on one line. The
+  material kind's schema hash changes.
+- `AttachmentHub` gains `moved(hostId, snap?)`, and `attach` takes an
+  optional fourth `moved(host, snap)` callback. Hosts call `moved` after
+  their body moves, and the colliders riding them re-pose. A game that
+  hosts bodies through `ctx.attachments.host` must now call `moved`.
+- `loadScene` (and Play/Stop world swaps) retain the new scene's bundle
+  before releasing the previous one and start loading any texture not yet
+  resident, so a scene loaded without `preload` swaps its textures in as
+  they arrive; the edit scene's bundle stays retained through Play.
+  `config.assets.view` is read at each use, so a host may pass a getter
+  that follows its project.
+- `drawEntity` skips an entity carrying a `sprite` block; its entity
+  argument (and `createRiders`') takes optional `behaviors`.
+- Every loadable type allows `sprite` unless it forbids it, so the
+  committed scene, prefab and fragment schemas list it.
+- `createCamera` takes an optional `ResolutionPolicy` (default
+  `DEFAULT_RESOLUTION`, which gives today's numbers), and
+  `createRenderer` takes one too.
+- The platformer snaps its player's spawn pose, so a respawn never shows
+  a lerped frame.
+- A game's `spawnOrder` may leave `decor` out; it then spawns last.
+- The primitive systems' shape visuals (solid, sensor, prop, follower)
+  draw on the entity's `layer` when it names one (a system's explicit
+  `layer` option still wins), and `drawEntity` passes `depth(z)` for an
+  entity with a `z` or a `layer`; its entity parameter gains `z?` and
+  `layer?`.
+- `createPixiView`: layer containers follow `PixiViewOptions.layers` by
+  `draw`; `depth` sets the order inside a layer (ties by first draw); a
+  `sort: "y"` layer re-sorts by (z, interpolated y, first draw) every
+  frame; a `scroll` layer is offset by camera·(1 − scroll); entity
+  visuals on an `editorOnly` layer hide unless `editing()`.
+- Documentation: the README gains §Sprites and rendering (the sprite
+  behavior's fields, tint and blend precedence, decor, views,
+  interpolation and `snap`, the loader, `preload`, bundles and the hosts'
+  URL resolvers, art hot reload in dev), §Behaviors at runtime (the
+  host's order, visual-only behaviors, `ctx.behavior`, the pose index) and
+  §Resolution (policies, resolve order, `CameraState.scale`;
+  `VIRTUAL_HEIGHT`, `DISPLAY_RESOLUTIONS` and `DisplayResolution`
+  removed). scripts/scene/README.md documents `assets info`, `bundle`,
+  sprite boxes in `render` and `show`, and `asset-frame-unknown` /
+  `sprite-no-asset`.
+
+### Removed
+
+- The internal `assets.ts` module and its `initAssets` call in
+  `createGame`.
+- `VIRTUAL_HEIGHT`, `DISPLAY_RESOLUTIONS` and `DisplayResolution`: the
+  site reads `store.camera.scale`, and display menus are the host's
+  (`GameConfig.resolution`).
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 9, and every committed JSON Schema's
+  `x-agent-surface` with it.
+- Issue codes `asset-frame-unknown` (error) and `sprite-no-asset` (warn).
+- CLI commands `assets info <id> [--frame f]` and `bundle <scene>`, both
+  with text and `--json` output.
+- `scene show` lists each sprite's world box (`sprite` on a row: label,
+  asset, frame, size, aabb; text ` sprite <label> x0,y0..x1,y1`).
+  `scene render` labels sprite boxes and adds
+  `sprites: [{ref,type,label,box}]` to its JSON (SVG and `--ascii`) when
+  the scene has any. MCP names are unchanged; the `scene_show` and
+  `scene_render` descriptions now mention sprite boxes.
+
 ## [0.7.0] — unreleased
 
 Scene format v3: every format change the roadmap knows about in one bump

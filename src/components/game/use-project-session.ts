@@ -1,8 +1,10 @@
 import type * as Hocuspocus from "@hocuspocus/provider";
 import {
+  ASSET_CHANGED,
   buildAtFrom,
   COLLAB_LAYOUT_VERSION,
   createProjectSession,
+  type AssetChangedMessage,
   type AwarenessLike,
   type DocOrigin,
   type KeyGen,
@@ -41,6 +43,8 @@ export type ProjectDocEvents = {
    * socket itself is still up (the server dropped only this doc).
    */
   closed(code: SyncCloseCode | null, socketOpen: boolean): void;
+  /** A stateless message the server sent on the doc, as it came. */
+  stateless?(payload: string): void;
 };
 
 /** One doc's provider on the session's socket. */
@@ -105,6 +109,7 @@ export function hocuspocusTransport(mod: typeof Hocuspocus): ProjectTransport {
           onAuthenticationFailed: ({ reason }) =>
             events.closed(syncCloseCode({ reason }), status() === "connected"),
           onClose: ({ event }) => events.closed(syncCloseCode(event), status() === "connected"),
+          onStateless: ({ payload }) => events.stateless?.(payload),
         });
         const awareness = provider.awareness;
         if (!awareness) throw new Error(`"${name}": the provider has no awareness`);
@@ -250,6 +255,11 @@ export type ProjectSessionLinkOptions = ProjectSessionSetup & {
 export type ProjectSessionLink = {
   getState(): ProjectSessionState;
   subscribe(listener: () => void): () => void;
+  /**
+   * Fires for each `asset:changed` message the server sends about this
+   * project: a binary's bytes changed. Only the dev server sends them.
+   */
+  onAssetChanged(listener: (message: AssetChangedMessage) => void): () => void;
   destroy(): void;
 };
 
@@ -265,6 +275,21 @@ const OFF: ProjectSessionState = {
 };
 
 const errorCode = (error: unknown): string | undefined => (error as { code?: string } | null)?.code;
+
+/** `payload` as an `asset:changed` message about `project`; null for anything else. */
+function assetChangedOf(payload: string, project: ProjectId): AssetChangedMessage | null {
+  let message: unknown;
+  try {
+    message = JSON.parse(payload);
+  } catch {
+    return null;
+  }
+  if (typeof message !== "object" || message === null) return null;
+  const m = message as Partial<AssetChangedMessage>;
+  if (m.type !== ASSET_CHANGED || m.project !== project) return null;
+  if (typeof m.id !== "string" || typeof m.sha256 !== "string") return null;
+  return m as AssetChangedMessage;
+}
 
 /**
  * A project session over one socket: the first doc opened creates it (on
@@ -297,6 +322,7 @@ export function connectProjectSession(options: ProjectSessionLinkOptions): Proje
         )
       : null;
   const listeners = new Set<() => void>();
+  const assetListeners = new Set<(message: AssetChangedMessage) => void>();
   const live = new Set<() => void>();
   let state: ProjectSessionState = { ...OFF, status: "connecting", access };
   let socket: Promise<ProjectSocket> | null = null;
@@ -410,6 +436,11 @@ export function connectProjectSession(options: ProjectSessionLinkOptions): Proje
             // A closed socket reconnects on its own and re-authenticates every attached doc.
             if (code !== null || socketOpen) retry();
           },
+          stateless(payload) {
+            if (closed) return;
+            const message = assetChangedOf(payload, project);
+            if (message) for (const l of [...assetListeners]) l(message);
+          },
         },
       });
       live.add(close);
@@ -452,9 +483,14 @@ export function connectProjectSession(options: ProjectSessionLinkOptions): Proje
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    onAssetChanged(listener) {
+      assetListeners.add(listener);
+      return () => assetListeners.delete(listener);
+    },
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      assetListeners.clear();
       if (typeof window !== "undefined") {
         window.removeEventListener("online", onNetwork);
         window.removeEventListener("offline", onNetwork);
@@ -475,6 +511,8 @@ export type UseProjectSessionOptions = ProjectSessionSetup & {
   project: ProjectId | null;
   host: ProjectSessionHost;
   transport?: ProjectTransport;
+  /** Called with each `asset:changed` message on the project; the latest callback is used. */
+  onAssetChanged?: (message: AssetChangedMessage) => void;
 };
 
 /**
@@ -502,9 +540,11 @@ export function useProjectSession(options: UseProjectSessionOptions): ProjectSes
     const link = connectProjectSession({ ...latest.current, project });
     const copy = () => store.setState(() => link.getState());
     const unsubscribe = link.subscribe(copy);
+    const unwatch = link.onAssetChanged((message) => latest.current.onAssetChanged?.(message));
     copy();
     return () => {
       unsubscribe();
+      unwatch();
       link.destroy();
       store.setState(() => OFF);
     };

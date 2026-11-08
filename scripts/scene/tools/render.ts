@@ -1,11 +1,16 @@
 import { writeFile } from "node:fs/promises";
 
+import { projectView, type ProjectView } from "@jams/engine/project";
 import {
   formatAsciiMap,
   renderSceneSvg,
   sceneAsciiMap,
+  sceneSprites,
   sceneViewport,
   type Bounds,
+  type PrefabLibrary,
+  type Registry,
+  type SceneDefinition,
   type SceneLabels,
   type SceneOverlay,
   type SceneRegionOptions,
@@ -20,7 +25,30 @@ import {
   type Tool,
   type ToolResult,
 } from "../context";
+import { scanProject, type ProjectHandle } from "../projects";
 import { rasterizeSvg } from "../raster";
+
+/** The view of the project a scene is in, which sizes its sprites; undefined outside every project. */
+export async function sceneProjectView(
+  project: ProjectHandle | null,
+): Promise<ProjectView | undefined> {
+  if (!project) return undefined;
+  return projectView((await scanProject(project)).state, project.kinds);
+}
+
+/** Each sprite's ref, label and world box, for a render's data; omitted when the scene has none. */
+function spriteRows(
+  def: SceneDefinition,
+  opts: { registry: Registry; prefabs?: PrefabLibrary; project?: ProjectView },
+) {
+  const sprites = sceneSprites(def, opts).map(({ ref, type, label, box }) => ({
+    ref,
+    type,
+    label,
+    box,
+  }));
+  return sprites.length > 0 ? { sprites } : {};
+}
 
 export type RenderInput = {
   scene?: string;
@@ -120,6 +148,7 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
   const loaded = await openScene(ctx, input.scene, "render <scene|file|->");
   if (!loaded.ok) return loaded.result;
   const { name, def, registry, prefabs } = loaded;
+  const project = await sceneProjectView(loaded.project);
 
   let overlay: SceneOverlay | undefined;
   if (input.overlay !== undefined) {
@@ -137,23 +166,36 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
         ...flags,
         registry,
         prefabs,
+        ...(project ? { project } : {}),
         ...(overlay ? { overlay } : {}),
       });
       const text = formatAsciiMap(map);
       if (input.out) await writeFile(input.out, `${text}\n`, "utf8");
       return {
         exitCode: 0,
-        data: { ok: true, scene: name, ...(input.out ? { out: input.out } : {}), ...map },
+        data: {
+          ok: true,
+          scene: name,
+          ...(input.out ? { out: input.out } : {}),
+          ...map,
+          ...spriteRows(def, { registry, prefabs, project }),
+        },
         text: input.out
           ? `wrote ${input.out} (${map.cols} x ${map.rows} cells of ${map.cell}px)`
           : text,
       };
     }
 
-    const opts = { ...flags, registry, prefabs, ...(overlay ? { overlay } : {}) };
+    const opts = {
+      ...flags,
+      registry,
+      prefabs,
+      ...(project ? { project } : {}),
+      ...(overlay ? { overlay } : {}),
+    };
     const svg = renderSceneSvg(def, opts);
     const { region, scale, width, height, tick } = sceneViewport(def, opts);
-    const view = { region, scale, width, height, tick };
+    const view = { region, scale, width, height, tick, ...spriteRows(def, opts) };
     if (!input.out) {
       return { exitCode: 0, data: { ok: true, scene: name, ...view, svg }, text: svg.trimEnd() };
     }

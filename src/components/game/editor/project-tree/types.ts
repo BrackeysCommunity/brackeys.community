@@ -5,6 +5,7 @@ import type {
   AssetKey,
   Licence,
   ProjectId,
+  AssetInfo,
   ProjectTreeNode,
   Referrer,
 } from "@jams/engine/project";
@@ -48,6 +49,12 @@ export type ProjectTreeProps = {
   onMove?: (ids: AssetId[], to: string) => Result;
   onDelete?: (entry: AssetEntry, request: DeleteRequest) => Result<void | DeleteRefused>;
   onRestore?: (entry: AssetEntry) => Result;
+  /**
+   * An asset's info (with `frame`, that frame's). Given, asset and frame
+   * rows drag onto the scene canvas carrying it, and an atlas row lists its
+   * frames.
+   */
+  assetInfo?: (entry: AssetEntry, frame?: string) => AssetInfo | null;
   /** Files dropped on the panel or on a folder row; `folder` as `onMove`'s `to`. */
   onDropFiles?: (files: File[], folder: string) => Result;
 };

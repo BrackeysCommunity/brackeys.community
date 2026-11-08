@@ -262,6 +262,8 @@ export const ENGINE_ISSUE_CODE_LIST = [
   // project
   "asset-missing",
   "asset-kind",
+  "asset-frame-unknown",
+  "sprite-no-asset",
   "asset-in-use",
   "asset-id-taken",
   "path-taken",

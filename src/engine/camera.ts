@@ -1,9 +1,9 @@
 import type { Container } from "pixi.js";
 
 import { clampVec2, lerpVec2 } from "./math";
+import { DEFAULT_RESOLUTION, viewportFor, type ResolutionPolicy } from "./resolution";
 import type { Bounds } from "./scene/types";
 import type { CameraConfig, CameraMode, CameraState, Vec2 } from "./types";
-import { VIRTUAL_HEIGHT } from "./types";
 
 /** World units the camera may show past each edge of a scene's bounds. */
 export const CAMERA_SCENE_MARGIN = 100;
@@ -15,6 +15,7 @@ export type Camera = {
   update: (dt: number, target: Vec2 | null) => void;
   getPosition: () => Vec2;
   getViewport: () => Viewport;
+  /** World units to canvas px at zoom 1, from the resolution policy. */
   getDisplayScale: () => number;
   getState: () => CameraState;
   /** Canvas pixels to world units, honouring zoom and position. The engine's only screen-to-world conversion. */
@@ -31,27 +32,31 @@ export type Camera = {
   destroy: () => void;
 };
 
+/** The view is the policy's viewport, centred on the canvas; under `pixelSnap` the world lands on whole canvas px. */
 export function createCamera(
   worldContainer: Container,
   displayWidth: number,
   displayHeight: number,
   config: CameraConfig,
+  resolution: ResolutionPolicy = DEFAULT_RESOLUTION,
 ): Camera {
   let position: Vec2 = { x: 0, y: 0 };
   let zoom = 1;
   let mode: CameraMode = "follow";
   let bounds = { min: { ...config.bounds.min }, max: { ...config.bounds.max } };
 
-  // Expand-viewport scaling: height is anchored to VIRTUAL_HEIGHT,
-  // width expands based on display aspect ratio.
-  let displayScale = displayHeight / VIRTUAL_HEIGHT;
-  let viewW = displayWidth / displayScale;
-  let viewH = VIRTUAL_HEIGHT;
+  let displayScale = 1;
+  let viewW = 0;
+  let viewH = 0;
+  let offset: Vec2 = { x: 0, y: 0 };
+  recomputeScale(displayWidth, displayHeight);
 
   function recomputeScale(dw: number, dh: number): void {
-    displayScale = dh / VIRTUAL_HEIGHT;
-    viewW = dw / displayScale;
-    viewH = VIRTUAL_HEIGHT;
+    const vp = viewportFor(resolution, { width: dw, height: dh });
+    displayScale = vp.scale;
+    viewW = vp.view.width;
+    viewH = vp.view.height;
+    offset = vp.offset;
   }
 
   function clampToBounds(p: Vec2): Vec2 {
@@ -78,12 +83,11 @@ export function createCamera(
 
   function apply(): void {
     position = clampToBounds(position);
-    // Scale maps game units to display pixels.
     const effectiveScale = displayScale * zoom;
-    worldContainer.position.set(
-      -position.x * effectiveScale + (displayScale * viewW) / 2,
-      -position.y * effectiveScale + (displayScale * viewH) / 2,
-    );
+    const x = -position.x * effectiveScale + offset.x + (displayScale * viewW) / 2;
+    const y = -position.y * effectiveScale + offset.y + (displayScale * viewH) / 2;
+    if (resolution.pixelSnap) worldContainer.position.set(Math.round(x), Math.round(y));
+    else worldContainer.position.set(x, y);
     worldContainer.scale.set(effectiveScale);
   }
 
@@ -115,6 +119,7 @@ export function createCamera(
     return {
       position: { ...position },
       zoom,
+      scale: displayScale * zoom,
       bounds: { min: { ...bounds.min }, max: { ...bounds.max } },
       mode,
     };
@@ -123,7 +128,7 @@ export function createCamera(
   function screenToWorld(screen: Vec2): Vec2 {
     const vp = getViewport();
     const scale = displayScale * zoom;
-    return { x: vp.x + screen.x / scale, y: vp.y + screen.y / scale };
+    return { x: vp.x + (screen.x - offset.x) / scale, y: vp.y + (screen.y - offset.y) / scale };
   }
 
   function snapTo(p: Vec2 | null): void {

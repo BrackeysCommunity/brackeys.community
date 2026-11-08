@@ -11,6 +11,7 @@ import {
   type ProjectSession,
 } from "@jams/engine/collab";
 import {
+  assetInfo,
   parseDocName,
   type AssetEntry,
   type AssetKey,
@@ -198,7 +199,8 @@ function openKey(view: ProjectView, sceneDoc: string, prefab: string | undefined
  * The project tree over a live project session: the registry as folders,
  * assets and code, everyone else on the doc they're in, and each edit as a
  * project op (rename, move, trash and restore, and import of dropped
- * files). Picking an asset puts it in `selected`, for the inspector.
+ * files). Picking an asset puts it in `selected`, for the inspector; asset
+ * and atlas frame rows drag onto the scene canvas to place them.
  */
 export function EditorProject({
   project,
@@ -216,6 +218,10 @@ export function EditorProject({
   useProjectAnnouncements(session, doc);
   const picked = useStore(selected);
   const nodes = useMemo(() => view.tree(), [view]);
+  const infoOf = useMemo<NonNullable<ProjectTreeProps["assetInfo"]>>(
+    () => (entry, frame) => assetInfo(view, entry.id, frame),
+    [view],
+  );
 
   const handlers: Pick<
     ProjectTreeProps,
@@ -255,6 +261,7 @@ export function EditorProject({
       peersByDoc={peersByDoc}
       activeKey={picked ?? openKey(view, doc, prefab)}
       readOnly={readOnly}
+      assetInfo={infoOf}
       {...handlers}
     />
   );

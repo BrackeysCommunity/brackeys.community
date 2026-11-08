@@ -18,7 +18,9 @@ import {
   AssetItem,
   CodeItem,
   FolderItem,
+  FrameItem,
   RootItem,
+  type DragAsset,
   type MoveSource,
   type MoveTarget,
 } from "./rows";
@@ -74,13 +76,22 @@ export function ProjectTree({
   onDelete,
   onRestore,
   onDropFiles,
+  assetInfo,
 }: ProjectTreeProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  const rows = useMemo(() => flattenTree(nodes, collapsed), [nodes, collapsed]);
+  const rows = useMemo(
+    () =>
+      flattenTree(nodes, collapsed, {
+        expanded,
+        ...(assetInfo ? { framesOf: (entry) => assetInfo(entry)?.frames } : {}),
+      }),
+    [nodes, collapsed, expanded, assetInfo],
+  );
   const peers = useMemo(
     () => peersByRow(projectId, nodes, peersByDoc),
     [projectId, nodes, peersByDoc],
@@ -91,26 +102,39 @@ export function ProjectTree({
     delete: !readOnly && !!onDelete,
   };
 
-  const toggle = (key: string) => {
-    const next = new Set(collapsed);
+  const toggleIn = (set: ReadonlySet<string>, key: string) => {
+    const next = new Set(set);
     if (!next.delete(key)) next.add(key);
-    setCollapsed(next);
+    return next;
   };
+  const toggle = (key: string) => setCollapsed(toggleIn(collapsed, key));
+  const toggleFrames = (key: string) => setExpanded(toggleIn(expanded, key));
+
+  const dragAsset: DragAsset | undefined =
+    !readOnly && assetInfo
+      ? (entry, frame) => {
+          const info = assetInfo(entry, frame);
+          return info ? { entry, info, ...(frame !== undefined ? { frame } : {}) } : null;
+        }
+      : undefined;
 
   const rename = (entry: AssetEntry, file: string) => {
     setRenaming(null);
     if (onRename) settle(run(() => onRename(entry, { file }), `Couldn't rename ${entry.id}.`));
   };
 
+  const move = (entry: AssetEntry, folder: string) => {
+    if (!onMove || parentFolder(entry.path) === folder) return;
+    settle(run(() => onMove([entry.id], folder), `Couldn't move ${entry.id}.`));
+  };
+
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     const source = active.data.current as MoveSource | undefined;
     const target = over?.data.current as MoveTarget | undefined;
-    if (!source || !target || !onMove) return;
-    if (parentFolder(source.entry.path) === target.folder) return;
-    settle(
-      run(() => onMove([source.entry.id], target.folder), `Couldn't move ${source.entry.id}.`),
-    );
+    if (source && target) move(source.entry, target.folder);
   };
+  // A row dragged natively (for the canvas) still moves when it lands on a folder.
+  const nativeMove = editable.move ? move : undefined;
 
   const confirmDelete = async ({ entry, referrers }: PendingDelete) => {
     if (!onDelete) return;
@@ -144,6 +168,7 @@ export function ProjectTree({
                       count={fileCount(nodes)}
                       peers={peers.get(ROOT_KEY)}
                       movable={editable.move}
+                      {...(nativeMove ? { onMoveAsset: nativeMove } : {})}
                     />
                   );
                 }
@@ -157,10 +182,21 @@ export function ProjectTree({
                       movable={editable.move}
                       fileOver={fileOver === row.folder}
                       onToggle={() => toggle(row.key)}
+                      {...(nativeMove ? { onMoveAsset: nativeMove } : {})}
                     />
                   );
                 }
                 if (row.type === "code") return <CodeItem key={row.key} row={row} />;
+                if (row.type === "frame") {
+                  return (
+                    <FrameItem
+                      key={row.key}
+                      row={row}
+                      {...(dragAsset ? { dragAsset } : {})}
+                      {...(onOpen ? { onOpen: () => onOpen(row.entry) } : {})}
+                    />
+                  );
+                }
                 const { entry } = row;
                 return (
                   <AssetItem
@@ -177,6 +213,9 @@ export function ProjectTree({
                     onRename={(file) => rename(entry, file)}
                     onCancelRename={() => setRenaming(null)}
                     onDelete={() => setPending({ entry, referrers: referrersOf?.(entry.id) ?? [] })}
+                    {...(dragAsset ? { dragAsset } : {})}
+                    framesOpen={expanded.has(row.key)}
+                    onToggleFrames={() => toggleFrames(row.key)}
                   />
                 );
               })}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:fragment:v3",
-  "x-agent-surface": 8,
+  "x-agent-surface": 9,
   "title": "jams engine scene fragment, format v3",
   "type": "object",
   "properties": {
@@ -134,7 +134,149 @@
             },
             "behaviors": {
               "type": "object",
-              "properties": {},
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Width, px."
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Height, px."
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, px."
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, px; y is down."
+                        }
+                      ],
+                      "unit": "px",
+                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px."
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                }
+              },
               "additionalProperties": false,
               "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
               "title": "Behaviors",
@@ -223,7 +365,149 @@
             },
             "behaviors": {
               "type": "object",
-              "properties": {},
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Width, px."
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Height, px."
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, px."
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, px; y is down."
+                        }
+                      ],
+                      "unit": "px",
+                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px."
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                }
+              },
               "additionalProperties": false,
               "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
               "title": "Behaviors",
@@ -304,7 +588,149 @@
             },
             "behaviors": {
               "type": "object",
-              "properties": {},
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Width, px."
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Height, px."
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, px."
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, px; y is down."
+                        }
+                      ],
+                      "unit": "px",
+                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px."
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                }
+              },
               "additionalProperties": false,
               "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
               "title": "Behaviors",
@@ -401,7 +827,149 @@
             },
             "behaviors": {
               "type": "object",
-              "properties": {},
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Width, px."
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Height, px."
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, px."
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, px; y is down."
+                        }
+                      ],
+                      "unit": "px",
+                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px."
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                }
+              },
               "additionalProperties": false,
               "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
               "title": "Behaviors",
@@ -483,7 +1051,149 @@
             },
             "behaviors": {
               "type": "object",
-              "properties": {},
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Width, px."
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Height, px."
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, px."
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, px; y is down."
+                        }
+                      ],
+                      "unit": "px",
+                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px."
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                }
+              },
               "additionalProperties": false,
               "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
               "title": "Behaviors",
@@ -493,6 +1203,220 @@
           "required": ["id", "type", "shape", "path"],
           "additionalProperties": false,
           "description": "follower: Kinematic body that follows a waypoint path."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "decor",
+              "description": "A picture with no body: drawn by its sprite, never collides.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "at": {
+              "description": "Where the sprite's pose is. Absolute world px; y is down.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Width, px."
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Height, px."
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, px."
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, px; y is down."
+                        }
+                      ],
+                      "unit": "px",
+                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px."
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px."
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "at"],
+          "additionalProperties": false,
+          "description": "decor: A picture with no body: drawn by its sprite, never collides."
         },
         {
           "type": "object",

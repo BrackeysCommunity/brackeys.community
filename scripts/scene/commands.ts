@@ -7,11 +7,13 @@ import { assetsApply, type WriterFlags } from "./tools/assets-apply";
 import { assetsChangeId } from "./tools/assets-change-id";
 import { assetsDelete } from "./tools/assets-delete";
 import { assetsImport } from "./tools/assets-import";
+import { assetsInfo } from "./tools/assets-info";
 import { assetsList } from "./tools/assets-list";
 import { assetsMove } from "./tools/assets-move";
 import { assetsRename } from "./tools/assets-rename";
 import { assetsRestore } from "./tools/assets-restore";
 import { assetsSetImport } from "./tools/assets-set-import";
+import { bundle } from "./tools/bundle";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
@@ -289,6 +291,15 @@ const DEFINITIONS = {
     maxPositionals: 1,
     run: ({ positionals: [file] }, ctx) => textconv({ file }, ctx),
   },
+  bundle: {
+    usage: "bundle <scene|file>",
+    summary:
+      "the blobs a scene loads (ids, kinds, hashes, bytes) from its expanded entities, settings and asset headers; exit 1 on asset-missing",
+    values: [],
+    switches: [],
+    maxPositionals: 1,
+    run: ({ positionals: [scene] }, ctx) => bundle({ scene }, ctx),
+  },
   "project show": {
     usage: "project show [--project id]",
     summary: "a project's id, game, assets by kind, code modules, problems and storage usage",
@@ -380,6 +391,15 @@ const DEFINITIONS = {
         },
         ctx,
       ),
+  },
+  "assets info": {
+    usage: "assets info <id> [--frame f] [--project id]",
+    summary:
+      "an asset's kind, hash and bytes, a texture's size, pivot, nine-slice and filter, an atlas's frames, tags and texture; --frame for one frame's size and pivot",
+    values: ["frame"],
+    switches: [],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) => assetsInfo({ id, frame: str(flags.frame) }, ctx),
   },
   "assets import": {
     usage: `assets import <file> [--path p|folder/] [--id id] [--kind k] [--settings json] ${WRITER_USAGE}`,

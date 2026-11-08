@@ -12,10 +12,13 @@ import type {
 import type { PlayOptions } from "../headless/playtest-types";
 import { createPhysicsWorld } from "../physics";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import { geometryFields } from "../scene/schema";
 import type { EntityTypeName, ExpandedScene, RuntimeEntity } from "../scene/types";
 import { createAttachmentHub } from "../systems/attachments";
 import type { InputAction } from "../types";
+import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import { castSpawn } from "./cast";
+import { createPoseIndex, spawnPoseOf, type GeometryFields } from "./poses";
 import { systemFactoryOf } from "./primitives";
 import type {
   LoadReport,
@@ -83,6 +86,10 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let gameEvents: StepEvent[] = [];
   let inGameHook = false;
   let play: PlayStart | null = null;
+  let project = opts.project ?? null;
+
+  /** Built after the type systems; a type system's factory finds no behavior yet. */
+  let host: BehaviorHost | null = null;
 
   const [gx, gy] = DEFAULT_GRAVITY;
   const physics = createPhysicsWorld(rapier);
@@ -113,7 +120,12 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     get play() {
       return play;
     },
-    project: opts.project ?? null,
+    get project() {
+      return project;
+    },
+    poses: createPoseIndex(() => tick),
+    behavior: (name) => host?.system(name),
+    sampling: opts.sampling ?? "linear",
   };
 
   for (const name of registry.spawnGroups.flat()) {
@@ -121,7 +133,34 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     systems.set(name, systemFactoryOf(type)(ctx, type));
   }
   const ordered = [...systems.values()];
+  const behaviors = createBehaviorHost(ctx, registry);
+  host = behaviors;
   const game: GameRuntime | null = gameDef ? gameDef.createRuntime(ctx) : null;
+
+  /** Each loadable type's geometry fields, for spawn poses. */
+  const geometry = new Map<EntityTypeName, GeometryFields>(
+    [...systems.keys()].map((name) => [name, geometryFields(registry.types.get(name)!)]),
+  );
+
+  /** `e`'s spawn pose (snapped), unless its system posed it itself. */
+  function posed(e: RuntimeEntity): void {
+    if (!ctx.poses.has(e.id)) {
+      const p = spawnPoseOf(e, geometry.get(e.type) ?? []);
+      ctx.poses.set(e.id, p.x, p.y, p.rot, { snap: true });
+    }
+  }
+
+  /** Right after `e`'s system spawned it: its spawn pose, then its behaviors attach and may read it. */
+  function entered(e: RuntimeEntity): void {
+    posed(e);
+    behaviors.attach(e);
+  }
+
+  /** Right before `e`'s system despawns it: its behaviors detach, then its pose goes. */
+  function leaving(e: RuntimeEntity): void {
+    behaviors.detach(e);
+    ctx.poses.remove(e.id);
+  }
 
   function inGame<T>(hook: () => T): T {
     inGameHook = true;
@@ -143,7 +182,10 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       gameLoaded = false;
       inGame(() => game?.onUnload?.());
     }
+    for (const e of [...byId.values()].reverse()) leaving(e);
+    behaviors.clear();
     for (let i = ordered.length - 1; i >= 0; i--) ordered[i]!.clear();
+    for (const id of [...ctx.poses.ids()]) ctx.poses.remove(id);
     ctx.attachments.clear();
     ctx.tags.clear();
     byId.clear();
@@ -214,16 +256,23 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
 
     const counts: Record<EntityTypeName, number> = {};
     let current: string | undefined;
+    const spawned: RuntimeEntity[] = [];
     try {
       for (const e of spawnOrder(next.entities)) {
         current = e.id;
         systems.get(e.type)!.spawn(e);
+        spawned.push(e);
+        entered(e);
         counts[e.type] = (counts[e.type] ?? 0) + 1;
       }
       current = undefined;
       for (const e of next.entities) byId.set(e.id, e);
       const offset = playOpts?.timeOffsetMs ?? 0;
-      if (offset > 0) for (const system of ordered) system.seek?.(offset);
+      behaviors.reset();
+      if (offset > 0) {
+        for (const system of ordered) system.seek?.(offset);
+        behaviors.seek(offset);
+      }
       if (playOpts) {
         const start = resolvePlay(playOpts);
         if ("error" in start) {
@@ -236,6 +285,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       inGame(() => game?.onLoad?.(next));
       ctx.physics.refreshQueries();
     } catch (err) {
+      if (byId.size === 0) for (const e of spawned.reverse()) leaving(e);
       unload();
       const error = errorOf(err);
       return current === undefined ? { ok: false, error } : { ok: false, error, entityId: current };
@@ -256,10 +306,13 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     for (const e of spawnOrder(entities)) {
       try {
         systems.get(e.type)!.spawn(e);
+        entered(e);
       } catch (err) {
+        leaving(e);
         systems.get(e.type)!.despawn(e.id);
         for (let i = spawned.length - 1; i >= 0; i--) {
           const s = spawned[i]!;
+          leaving(s);
           systems.get(s.type)!.despawn(s.id);
         }
         ctx.physics.refreshQueries();
@@ -272,15 +325,23 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     return { ok: true };
   }
 
-  /** Puts `e` in its system in place of `prev`, through the system's fast path when it has one. */
+  /**
+   * Puts `e` in its system in place of `prev`, through the system's fast path
+   * when it has one (and then the behaviors' update), else as a despawn and a spawn.
+   */
   function replace(e: RuntimeEntity, prev: RuntimeEntity): void {
     const system = systems.get(e.type)!;
     if (e.type === prev.type && system.update) {
+      ctx.poses.remove(prev.id);
       system.update(e, prev);
+      posed(e);
+      behaviors.update(e, prev);
       return;
     }
+    leaving(prev);
     systems.get(prev.type)!.despawn(prev.id);
     system.spawn(e);
+    entered(e);
   }
 
   function update(entities: RuntimeEntity[]): ReconcileReport {
@@ -300,10 +361,14 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       try {
         replace(e, prev);
       } catch (err) {
-        for (const change of changes.slice(0, n + 1).reverse()) {
+        for (let i = n; i >= 0; i--) {
+          const change = changes[i]!;
+          leaving(change.e);
+          if (i === n) behaviors.detach(change.prev);
           systems.get(change.e.type)!.despawn(change.e.id);
           systems.get(change.prev.type)!.despawn(change.prev.id);
           systems.get(change.prev.type)!.spawn(change.prev);
+          entered(change.prev);
         }
         ctx.physics.refreshQueries();
         return { ok: false, error: errorOf(err), entityId: e.id };
@@ -319,6 +384,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     for (const id of ids) {
       const e = byId.get(id);
       if (!e) continue;
+      leaving(e);
       systems.get(e.type)!.despawn(id);
       byId.delete(id);
       removed = true;
@@ -335,7 +401,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     inGame(() => game?.beforeStep?.(dtMs, actions));
     ctx.physics.step();
     for (const system of ordered) system.afterStep?.(dtMs);
+    behaviors.step(dtMs);
     inGame(() => game?.afterStep?.(dtMs, [...engineEvents, ...gameEvents]));
+    ctx.view?.commit?.(t);
 
     tick++;
     return { tick: t, events: [...engineEvents, ...gameEvents], game: snapshot() };
@@ -357,6 +425,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       tags: ctx.tags.size,
       entities: byId.size,
       perType,
+      behaviors: behaviors.stats(),
     };
   }
 
@@ -381,6 +450,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     destroy,
     ctx,
     game,
+    render: (alpha) => behaviors.render(alpha),
+    reloadAssets(next, changed) {
+      project = next;
+      behaviors.reloadAssets(changed);
+    },
     scene() {
       if (!loadedScene) return null;
       cachedScene ??= { ...loadedScene, entities: [...byId.values()] };

@@ -1,0 +1,14 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "vsh7awzuz3d7",
+  "id": "backdrop",
+  "sha256": "0663b16f47483921ca648c8893f9bc05ad21ae6dd28b1bd1a94bd5b3122f3173",
+  "bytes": 94,
+  "meta": { "format": "png", "height": 16, "width": 24 },
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Generated for this repository: solid colours written by a zlib PNG writer."
+  }
+}

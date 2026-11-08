@@ -23,7 +23,11 @@ vi.mock("pixi.js", async (importOriginal) => {
     async init() {}
     destroy() {}
   }
-  return { ...pixi, Application, Assets: { addBundle: () => {}, loadBundle: async () => {} } };
+  return {
+    ...pixi,
+    Application,
+    Assets: { load: async () => pixi.Texture.WHITE, unload: async () => {} },
+  };
 });
 
 const toast = vi.hoisted(() =>

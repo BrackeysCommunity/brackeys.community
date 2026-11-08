@@ -1,7 +1,12 @@
 import type { GameInstance, RapierModule, RunRecording } from "@jams/engine";
 import type { ProjectSession } from "@jams/engine/collab";
 import type { EditorStoreState } from "@jams/engine/editor";
-import type { ProjectRuntimeView } from "@jams/engine/project";
+import type {
+  KindRegistry,
+  ProjectId,
+  ProjectRuntimeView,
+  ProjectView,
+} from "@jams/engine/project";
 import type { Registry } from "@jams/engine/scene";
 import { useStore } from "@tanstack/react-store";
 import { Store } from "@tanstack/store";
@@ -11,7 +16,7 @@ import type { EditorChrome } from "@/components/game/editor/EditorShell";
 import type { LoadedRun } from "@/components/game/editor/loaded-run";
 import { activeUserStore } from "@/lib/active-user-store";
 
-import type { EditorIdentity, LiveEditor, OpenPrefab } from "./live-scene-editor";
+import type { EditorIdentity, LiveEditor, OpenPrefab, ProjectRegistry } from "./live-scene-editor";
 import type { EditorProjectConnection } from "./scene-provider";
 import { useSceneDoc, type SceneDocStatus } from "./use-scene-doc";
 
@@ -77,7 +82,12 @@ export type SceneEditorState = {
    * game settings and tables, null without one. It changes as `registry` does.
    */
   projectData: ProjectRuntimeView | null;
+  /** What the host's asset loader bundles scenes over while the project is open; null without one. */
+  assets: EditorAssets | null;
 };
+
+/** The open project's assets: `view` follows its edits, so read it when bundling, not once. */
+export type EditorAssets = { project: ProjectId; view: () => ProjectView; kinds: KindRegistry };
 
 type Build = { registry: Registry; projectData: ProjectRuntimeView | null };
 
@@ -146,7 +156,9 @@ export function useSceneEditor({
   const ready = link.ready;
   const session = ready?.session ?? null;
 
-  const [overlay, setOverlay] = useState<({ session: ProjectSession } & Build) | null>(null);
+  const [overlay, setOverlay] = useState<
+    ({ session: ProjectSession; watch: ProjectRegistry } & Build) | null
+  >(null);
   useEffect(() => {
     if (!modules || !session) return;
     const watch = modules.projectRegistry(session);
@@ -154,7 +166,12 @@ export function useSceneEditor({
     let gone = false;
     const publish = () => {
       if (opened && !gone)
-        setOverlay({ session, registry: watch.current(), projectData: watch.project?.() ?? null });
+        setOverlay({
+          session,
+          watch,
+          registry: watch.current(),
+          projectData: watch.project?.() ?? null,
+        });
     };
     const off = watch.subscribe(publish);
     // Published once every material doc is open, so the game isn't built twice on the way.
@@ -171,6 +188,19 @@ export function useSceneEditor({
   }, [modules, session]);
   const current = session !== null && overlay?.session === session ? overlay : null;
   const settled = current !== null;
+  const openSession = current?.session ?? null;
+  const assets = useMemo<EditorAssets | null>(
+    () =>
+      openSession ? { project, view: () => openSession.view(), kinds: openSession.kinds } : null,
+    [openSession, project],
+  );
+
+  // Re-imported art redraws in the running game; only the dev server sends these messages.
+  const watch = current?.watch ?? null;
+  useEffect(() => {
+    if (!watch || !connection || !game) return;
+    return watch.followAssets?.(connection, game);
+  }, [watch, connection, game]);
 
   const live = useStore(liveCell);
   const playing = useStore(live?.session.store ?? NOT_EDITING, (s) => s.mode === "play");
@@ -263,5 +293,6 @@ export function useSceneEditor({
     error: on ? link.error : null,
     registry: applied.registry,
     projectData: applied.projectData,
+    assets: on ? assets : null,
   };
 }

@@ -223,7 +223,16 @@ export {
   type SceneAsciiMap,
   type SceneAsciiOptions,
 } from "./ascii";
-export type { OverlayPoint, SceneOverlay, SceneRegionOptions } from "./render-geometry";
+export { projectSpriteAssets, sceneSprites, spriteBoxOf } from "./render-geometry";
+export type {
+  DrawnSprite,
+  OverlayPoint,
+  SceneOverlay,
+  SceneRegionOptions,
+  SceneSprite,
+  SpriteAssetLookup,
+  SpritePoseSource,
+} from "./render-geometry";
 export {
   parseRecording,
   RECORDING_SCHEMA_ID,

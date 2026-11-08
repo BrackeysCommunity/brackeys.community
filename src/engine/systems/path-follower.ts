@@ -6,6 +6,7 @@ import {
   applySurface,
   createBodyTable,
   drawEntity,
+  entityDrawLayer,
   surfaceOf,
   surfaceTag,
   type OwnedBody,
@@ -182,18 +183,24 @@ type Follower = OwnedBody & {
   frameDelta: Vec2;
 };
 
-/** Kinematic bodies that follow their `path`, advanced in `beforeStep`; visuals follow in `afterStep`. */
+/**
+ * Kinematic bodies that follow their `path`, advanced in `beforeStep`;
+ * poses and visuals follow in `afterStep`, and so do the entities attached
+ * to them.
+ */
 export function createFollowerSystem(
   ctx: EngineContext,
   type: RegisteredType,
   opts: FollowerOptions = {},
 ): FollowerSystem {
-  const table = createBodyTable<Follower>(ctx);
+  const drawn = opts.draw !== false;
+  const table = createBodyTable<Follower>(ctx, { view: drawn });
   const { rapier, physics } = ctx;
   const groups = ctx.registry.collisionGroups("static");
-  const drawn = opts.draw !== false;
-  const follow = () => {
-    if (drawn) table.poseAll();
+  /** Poses every follower and what rides it; `snap` after a jump (reset, seek). */
+  const follow = (snap = false) => {
+    table.poseAll(snap);
+    for (const id of table.owned.keys()) ctx.attachments.moved(id, snap);
   };
 
   function advance(f: Follower, dtMs: number): void {
@@ -246,11 +253,11 @@ export function createFollowerSystem(
         prevPos: { ...start },
         frameDelta: { x: 0, y: 0 },
       };
-      table.add(e.id, follower, surfaceTag(e.id, type, e.material));
+      table.add(e, follower, surfaceTag(e.id, type, e.material), true);
       place(follower, start, true);
       ctx.attachments.host(e.id, type.type, body, start);
       if (drawn) {
-        drawEntity(ctx, type, e, opts.layer ?? "body");
+        drawEntity(ctx, type, e, opts.layer ?? entityDrawLayer(ctx, e, "body"));
         table.pose(e.id);
       }
     },
@@ -266,7 +273,7 @@ export function createFollowerSystem(
         f.frameDelta = { x: 0, y: 0 };
         place(f, start, true);
       }
-      follow();
+      follow(true);
     },
     size: table.size,
     seek(ms) {
@@ -281,7 +288,7 @@ export function createFollowerSystem(
         f.frameDelta = { x: 0, y: 0 };
         place(f, pos, true);
       }
-      follow();
+      follow(true);
     },
     beforeStep(dtMs) {
       for (const f of table.owned.values()) {
@@ -292,7 +299,7 @@ export function createFollowerSystem(
         place(f, pos, false);
       }
     },
-    afterStep: follow,
+    afterStep: () => follow(),
     frameDelta(id) {
       const f = table.owned.get(id);
       return f ? { ...f.frameDelta } : null;

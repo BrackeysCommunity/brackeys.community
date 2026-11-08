@@ -31,11 +31,11 @@
     ["box", 3580, 580, 20, 580]
   ],
   "entities": [
-    { "id": "ledge", "type": "solid", "shape": ["box", 820, 900, 80, 10], "material": "bouncy", "oneWay": true },
+    { "id": "ledge", "type": "solid", "shape": ["box", 820, 900, 80, 10], "material": "bouncy", "oneWay": true, "behaviors": { "sprite": { "asset": "hero", "frame": "hero-1", "size": [160, 20] } } },
     { "id": "zone", "type": "sensor", "shape": ["box", 1000, 1120, 40, 40], "tags": ["goal"] },
     { "id": "start", "type": "marker", "at": [760, 1140], "tags": ["spawn"] },
-    { "id": "crate", "type": "prop", "shape": ["box", 880, 1140, 20, 20], "density": 1, "restitution": 0 },
-    { "id": "ball", "type": "prop", "shape": ["circle", 1000, 1050, 20], "density": 2, "restitution": 0.3 },
+    { "id": "crate", "type": "prop", "shape": ["box", 880, 1140, 20, 20], "density": 1, "restitution": 0, "behaviors": { "sprite": { "asset": "crates", "frame": "crate-0", "size": [72, 72] } } },
+    { "id": "ball", "type": "prop", "shape": ["circle", 1000, 1050, 20], "density": 2, "restitution": 0.3, "behaviors": { "sprite": { "asset": "crates", "blend": "add", "frame": "crate-1", "size": [40, 40], "tint": 16764040 } } },
     { "id": "carrier", "type": "follower", "shape": ["box", 0, 0, 60, 8], "path": { "pts": [[760, 400], [1240, 400]], "mode": "ping_pong", "speed": 100, "pauseMs": 300 } },
     { "id": "deck", "type": "solid", "shape": ["box", 760, 380, 20, 12], "attach": "carrier" },
     { "id": "deck-zone", "type": "sensor", "shape": ["box", 760, 340, 40, 20], "attach": "carrier", "tags": ["riding"] },
@@ -43,7 +43,7 @@
     { "id": "shelf-board", "type": "solid", "group": "shelf", "shape": ["box", 0, 0, 100, 10] },
     { "id": "shelf-box", "type": "prop", "group": "shelf", "shape": ["box", -40, -30, 20, 20], "density": 1, "restitution": 0 },
     { "id": "shelf-mark", "type": "marker", "group": "shelf", "at": [40, -20], "tags": ["shelf"] },
-    { "id": "about", "type": "note", "at": [60, 40], "text": "Kitchen sink: every engine primitive, bulk shape form, group, prefab and attachment in one scene, with format v3's transforms, nested prefabs, variants, params, child refs, z and the assets header (naming the cards table). Each region has a note." },
+    { "id": "about", "type": "note", "at": [60, 40], "text": "Kitchen sink: every engine primitive, bulk shape form, group, prefab and attachment in one scene, with format v3's transforms, nested prefabs, variants, params, child refs, z, the assets header (naming the cards table) and sprites of the art folder's atlas, sheet and texture. Each region has a note." },
     { "id": "about-bulk", "type": "note", "at": [60, 640], "text": "Bulk solids, one per shape form: the floor and walls (box), a rotated box, circle, capsule, poly and chain." },
     { "id": "about-primitives", "type": "note", "at": [740, 820], "text": "Entity primitives: a one-way solid ledge of the project's bouncy material, a sensor zone the ball falls into, a spawn marker and two props (box and circle)." },
     { "id": "about-follower", "type": "note", "at": [740, 260], "text": "Followers: carrier ping-pongs with a solid deck and a sensor attached to it; orbit loops a closed triangle." },
@@ -54,6 +54,8 @@
     { "id": "wing-mark", "type": "marker", "group": "wing", "at": [80, 20], "tags": ["wing"] },
     { "id": "rider", "type": "sensor", "z": -1, "shape": ["box", 2570, 810, 12, 10], "attach": "room-1/door-1/panel", "tags": ["riding"] },
     { "id": "about-nesting", "type": "note", "at": [2440, 240], "text": "Nesting: room-1 holds a doorway, which holds a latch, and a latch of its own: three levels. Its doorSpeed param feeds the doorway's panel, which rider rides by the child ref room-1/door-1/panel. door-2 is a flipped doorway drawn at z 3; latch-3 places one-way-latch, a variant of latch." },
-    { "id": "about-wing", "type": "note", "at": [3000, 120], "text": "Group wing: turned and flipped. Its members are stored unturned, relative to its origin, and wing-board sits at z 2." }
+    { "id": "about-wing", "type": "note", "at": [3000, 120], "text": "Group wing: turned and flipped. Its members are stored unturned, relative to its origin, and wing-board sits at z 2." },
+    { "id": "lamp", "type": "decor", "layer": "decor", "at": [600, 1040], "behaviors": { "sprite": { "asset": "backdrop", "scale": 4 } } },
+    { "id": "about-sprites", "type": "note", "at": [440, 960], "text": "Sprites: crate draws the crates atlas's crate-0, ball its crate-1 tinted and added, ledge the hero sheet's hero-1 under the bouncy material's tint, and the decor lamp the backdrop texture at scale 4." }
   ]
 }

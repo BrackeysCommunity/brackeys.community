@@ -98,6 +98,7 @@ export {
   type TextureSettings,
 } from "./kinds/index";
 export { atlasExportApp } from "./kinds/atlas";
+export { engineResolution } from "./kinds/game-settings";
 export { canonicalJson, stableJson } from "./canonical";
 export { byCodeUnit } from "./kinds/define";
 export {
@@ -178,6 +179,8 @@ export {
   type QuotaVerdict,
 } from "./usage";
 export { runtimeView, type ProjectRuntimeView } from "./runtime-view";
+export { assetInfo, type AssetInfo } from "./asset-info";
+export { projectBundle, sceneBundle, type AssetBundle, type BundleEntry } from "./bundle";
 export {
   formatProjectFile,
   parseProjectFile,

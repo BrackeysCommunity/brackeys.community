@@ -5,6 +5,7 @@ import {
   gridCellsIn,
   num,
   overlaps,
+  renderAssets,
   resolveRegion,
   type DrawnEntity,
   type OverlayPoint,
@@ -57,8 +58,9 @@ const OUTCOME = "!";
 const MORE = "…";
 const RULER_EVERY = 8;
 
-/** Which character wins a cell: points over sensors over moving bodies over static shapes over lines. */
+/** Which character wins a cell: points over sensors over moving bodies over static shapes over lines over sprites. */
 const PRIORITY = {
+  sprite: -1,
   path: 0,
   trail: 1,
   static: 2,
@@ -141,7 +143,8 @@ function* sampleLine(pts: readonly Pt[], step: number): Generator<Pt> {
  * The scene as a character map, one character per `cell` world px: each
  * entity in its type's character (`EntityTypeDef.ascii`, else its base
  * primitive's), `=` for one-way solids, tag characters for tagged ones,
- * `~` along paths, grid fields' filled cells in their entity's character
+ * `~` along paths, each sprite's box in its entity's character under
+ * everything else, grid fields' filled cells in their entity's character
  * (at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
  */
 export function sceneAsciiMap(
@@ -150,7 +153,7 @@ export function sceneAsciiMap(
 ): SceneAsciiMap {
   const { registry } = opts;
   const expanded = expandedOf(scene, registry, opts.prefabs);
-  const all = drawnEntities(expanded, registry);
+  const all = drawnEntities(expanded, registry, renderAssets(opts));
   const wanted = resolveRegion(expanded, all, opts);
   const maxCells = opts.maxCells ?? 200;
   let cell = opts.cell ?? 64;
@@ -237,6 +240,23 @@ export function sceneAsciiMap(
       label: `${grid.more} more grid cells, not drawn`,
       priority: PRIORITY.more,
     });
+
+  for (const d of visible) {
+    if (!d.sprite) continue;
+    const m = { ...markOf(d, registry, tagChars), priority: PRIORITY.sprite };
+    const s = d.sprite.shape;
+    const [c0, c1, r0, r1] = spanOf(d.sprite.box);
+    let marked = false;
+    for (let r = Math.max(0, r0); r <= Math.min(rows - 1, r1); r++) {
+      for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) {
+        const centre: Pt = [x0 + (c + 0.5) * cell, y0 + (r + 0.5) * cell];
+        if (!containsPoint(s, centre)) continue;
+        put(centre, m);
+        marked = true;
+      }
+    }
+    if (!marked) put([s.cx, s.cy], m);
+  }
 
   for (const d of visible) {
     const m = markOf(d, registry, tagChars);

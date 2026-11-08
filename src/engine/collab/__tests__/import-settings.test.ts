@@ -5,6 +5,7 @@ import * as Y from "yjs";
 import { z } from "zod";
 
 import { createRegistry } from "../../game/define";
+import { assetInfo } from "../../project/asset-info";
 import { stableJson } from "../../project/canonical";
 import { memoryContentStore, type ContentStore } from "../../project/content-store";
 import { sha256 } from "../../project/hash";
@@ -18,6 +19,7 @@ import {
 import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
 import type { ProjectApplyResult } from "../../project/ops";
 import type { AssetEntry, AssetKey, ProjectState } from "../../project/types";
+import { projectView } from "../../project/view";
 import { applyProjectBatch, reinspectBlobs } from "../project-apply";
 import { readProject, seedProjectDoc } from "../project-doc";
 import { readProjectLog } from "../project-log";
@@ -55,6 +57,7 @@ const registry = createRegistry();
 const users: DocOrigin[] = [
   { kind: "user", userId: "ada" },
   { kind: "user", userId: "bo" },
+  { kind: "user", userId: "cy" },
 ];
 
 const HERO = fixture("hero.png");
@@ -136,9 +139,9 @@ function ok(r: ProjectApplyResult): Extract<ProjectApplyResult, { ok: true }> {
 async function apart(
   host: ReturnType<typeof memoryDocHost>,
   store: ContentStore,
-  edits: [(c: Client) => Promise<unknown>, (c: Client) => Promise<unknown>],
+  edits: ((c: Client) => Promise<unknown>)[],
 ) {
-  const clients = await Promise.all(users.map((u) => join(host, u, store)));
+  const clients = await Promise.all(users.slice(0, edits.length).map((u) => join(host, u, store)));
   for (const c of clients) c.setOnline(false);
   for (const [i, edit] of edits.entries()) await edit(clients[i]!);
   for (const c of clients) c.setOnline(true);
@@ -164,6 +167,28 @@ describe("import settings: concurrent edits", () => {
       nineSlice: [1, 1, 1, 1],
     });
     expect(state.assets.hero!.meta).toEqual({ format: "png", width: 32, height: 8 });
+    for (const c of clients) c.session.destroy();
+  });
+
+  it("a texture's filter, pivot and nine-slice set by three clients all land, and its info reads them", async () => {
+    const store = memoryContentStore();
+    const host = await world(store);
+    const { clients, state } = await apart(host, store, [
+      async (c) => ok(await setImport(c, "hero", { filter: "nearest" })),
+      async (c) => ok(await setImport(c, "hero", { pivot: [0.5, 1] })),
+      async (c) => ok(await setImport(c, "hero", { nineSlice: [2, 1, 2, 1] })),
+    ]);
+    expect(state.assets.hero!.import).toEqual({
+      filter: "nearest",
+      pivot: [0.5, 1],
+      nineSlice: [2, 1, 2, 1],
+    });
+    expect(assetInfo(projectView(state, kinds), "hero")).toMatchObject({
+      size: [32, 8],
+      filter: "nearest",
+      pivot: [0.5, 1],
+      nineSlice: [2, 1, 2, 1],
+    });
     for (const c of clients) c.session.destroy();
   });
 

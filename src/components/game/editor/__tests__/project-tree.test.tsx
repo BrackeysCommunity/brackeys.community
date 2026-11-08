@@ -34,6 +34,7 @@ import {
   useSelectedAsset,
   type EditorProjectLink,
 } from "@/components/game/editor/EditorProject";
+import { readAssetDrag } from "@/components/game/editor/project-tree/tree-rows";
 import { useEditorStore } from "@/components/game/editor/use-editor-store";
 import { blobContentStore, type ProjectBlobs } from "@/components/game/project-blobs";
 
@@ -66,6 +67,13 @@ function state(): ProjectState {
       sha256: "b".repeat(64),
       bytes: 80,
       import: { texture: "hero" },
+      meta: {
+        tool: "aseprite",
+        frames: { idle: { x: 0, y: 0, w: 16, h: 16 }, "run-1": { x: 16, y: 0, w: 16, h: 24 } },
+        tags: [],
+        slices: [],
+        order: ["idle", "run-1"],
+      },
     }),
     entry("kjump", "sfx/jump.ogg", "audio", {
       sha256: "c".repeat(64),
@@ -303,6 +311,38 @@ describe("the editor's project tree", () => {
     await waitFor(() => expect(assetOf(session, "kjump").path).toBe("sprites/jump.ogg"));
     await drag(files().getByRole("button", { name: /^jump\.ogg/ }), rowOf("Yard"));
     await waitFor(() => expect(assetOf(session, "kjump").path).toBe("jump.ogg"));
+  });
+
+  it("drags assets and an atlas's frames from meta, with their info, for the canvas", async () => {
+    await setup();
+    const transfer = () => {
+      const data = new Map<string, string>();
+      return {
+        get types() {
+          return [...data.keys()];
+        },
+        setData: (type: string, value: string) => void data.set(type, value),
+        getData: (type: string) => data.get(type) ?? "",
+        effectAllowed: "all",
+      };
+    };
+    const carried = (el: HTMLElement) => {
+      const dataTransfer = transfer();
+      fireEvent.dragStart(el, { dataTransfer });
+      return readAssetDrag(dataTransfer as unknown as DataTransfer);
+    };
+    expect(carried(files().getByRole("button", { name: /^hero\.png/ }))).toMatchObject({
+      entry: { id: "hero" },
+      info: { id: "hero", kind: "texture" },
+    });
+    fireEvent.click(files().getByRole("button", { name: "Show the frames of hero.atlas.json" }));
+    expect(rowOf("idle").dataset.kind).toBe("frame");
+    const run = carried(files().getByRole("button", { name: "run-1" }));
+    expect(run).toMatchObject({
+      entry: { id: "hero-sheet" },
+      frame: "run-1",
+      info: { kind: "atlas", size: [16, 24], rect: { x: 16, y: 0, w: 16, h: 24 } },
+    });
   });
 
   it("moves an unreferenced asset to the trash through the confirm", async () => {

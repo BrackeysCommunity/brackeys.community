@@ -2,6 +2,7 @@ import type { Container } from "pixi.js";
 import { describe, expect, it } from "vite-plus/test";
 
 import { CAMERA_SCENE_MARGIN, createCamera } from "../camera";
+import { DEFAULT_RESOLUTION, type ResolutionPolicy } from "../resolution";
 import type { CameraConfig, Vec2 } from "../types";
 
 function fakeContainer() {
@@ -18,9 +19,14 @@ const WIDE: CameraConfig = {
   bounds: { min: { x: -10_000, y: -10_000 }, max: { x: 10_000, y: 10_000 } },
 };
 
-function setup(displayWidth = 1920, displayHeight = 1080, config = WIDE) {
+function setup(
+  displayWidth = 1920,
+  displayHeight = 1080,
+  config = WIDE,
+  resolution?: ResolutionPolicy,
+) {
   const { container, transform } = fakeContainer();
-  const camera = createCamera(container, displayWidth, displayHeight, config);
+  const camera = createCamera(container, displayWidth, displayHeight, config, resolution);
   /** Where the rendered container puts world point `w` on the canvas. */
   const toScreen = (w: Vec2): Vec2 => ({
     x: w.x * transform.scale + transform.x,
@@ -135,5 +141,75 @@ describe("bounds from the scene", () => {
     camera.setBoundsFromScene([0, 0, 1000, 500], 0);
     camera.snapTo({ x: 0, y: 0 });
     expect(camera.getPosition()).toEqual({ x: 500, y: 250 });
+  });
+});
+
+describe("resolution policies", () => {
+  const LETTERBOX: ResolutionPolicy = {
+    ...DEFAULT_RESOLUTION,
+    virtual: { width: 640, height: 360 },
+    fit: "letterbox",
+  };
+
+  it("matches the policy-free camera with the default", () => {
+    const a = setup(1366, 768);
+    const b = setup(1366, 768, WIDE, DEFAULT_RESOLUTION);
+    for (const { camera } of [a, b]) {
+      camera.setZoom(1.5);
+      camera.snapTo({ x: 123.4, y: -56.7 });
+    }
+    expect(b.transform).toEqual(a.transform);
+    expect(b.camera.getState()).toEqual(a.camera.getState());
+    expect(b.camera.screenToWorld({ x: 17, y: 400 })).toEqual(
+      a.camera.screenToWorld({ x: 17, y: 400 }),
+    );
+    // 768 / 1080 canvas px per world unit, times the zoom.
+    expect(a.camera.getState().scale).toBe((768 / 1080) * 1.5);
+  });
+
+  it("letterboxes: the virtual area fills the middle, the camera at its centre", () => {
+    const { camera, transform, toScreen } = setup(2560, 1080, WIDE, LETTERBOX);
+    camera.snapTo({ x: 1000, y: 500 });
+    expect(camera.getDisplayScale()).toBe(3);
+    expect(camera.getState().scale).toBe(3);
+    expect(camera.getViewport()).toEqual({ x: 680, y: 320, width: 640, height: 360 });
+    // Bars of 320 px each side; the camera sits at the canvas's centre.
+    expect(toScreen({ x: 1000, y: 500 })).toEqual({ x: 1280, y: 540 });
+    expect(toScreen({ x: 680, y: 320 })).toEqual({ x: 320, y: 0 });
+    expect(transform.scale).toBe(3);
+    expect(camera.screenToWorld({ x: 320, y: 0 })).toEqual({ x: 680, y: 320 });
+    expect(camera.screenToWorld({ x: 2240, y: 1080 })).toEqual({ x: 1320, y: 680 });
+  });
+
+  it("follows a resize into a new letterbox", () => {
+    const { camera, toScreen } = setup(1920, 1080, WIDE, LETTERBOX);
+    camera.snapTo({ x: 0, y: 0 });
+    expect(toScreen({ x: -320, y: -180 })).toEqual({ x: 0, y: 0 });
+    camera.resize(1280, 1080);
+    camera.snapTo({ x: 0, y: 0 });
+    // 1280 / 640 = 2: bars of 180 px above and below.
+    expect(camera.getState().scale).toBe(2);
+    expect(toScreen({ x: -320, y: -180 })).toEqual({ x: 0, y: 180 });
+  });
+
+  it("rounds the world container to whole px under pixelSnap", () => {
+    const { camera, transform } = setup(1920, 1080, WIDE, {
+      ...DEFAULT_RESOLUTION,
+      pixelSnap: true,
+    });
+    camera.snapTo({ x: 10.3, y: 20.7 });
+    expect(transform.x).toBe(Math.round(960 - 10.3));
+    expect(transform.y).toBe(Math.round(540 - 20.7));
+  });
+
+  it("scales a 360-high pixel-art area 3× at 1080 px", () => {
+    const { camera } = setup(1920, 1080, WIDE, {
+      ...DEFAULT_RESOLUTION,
+      virtual: { height: 360 },
+      integer: true,
+    });
+    expect(camera.getDisplayScale()).toBe(3);
+    expect(camera.getViewport().height).toBe(360);
+    expect(camera.getViewport().width).toBe(640);
   });
 });

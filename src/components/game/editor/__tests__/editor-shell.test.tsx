@@ -43,7 +43,11 @@ vi.mock("pixi.js", async (importOriginal) => {
     async init() {}
     destroy() {}
   }
-  return { ...pixi, Application, Assets: { addBundle: () => {}, loadBundle: async () => {} } };
+  return {
+    ...pixi,
+    Application,
+    Assets: { load: async () => pixi.Texture.WHITE, unload: async () => {} },
+  };
 });
 
 const toasts = vi.hoisted(() => ({ error: vi.fn(), warning: vi.fn(), success: vi.fn() }));
@@ -168,7 +172,13 @@ afterAll(() => {
 /** The parts of a game the chrome drives, on a real router; sim controls write the store. */
 function fakeGame() {
   const store = new Store({
-    camera: { position: { x: 1000, y: 600 }, zoom: 1, bounds: { min: {}, max: {} }, mode: "free" },
+    camera: {
+      position: { x: 1000, y: 600 },
+      zoom: 1,
+      scale: 1,
+      bounds: { min: {}, max: {} },
+      mode: "free",
+    },
     sim: { paused: false, timeScale: 1 },
   } as unknown as GameStoreState);
   const sim = (patch: Partial<GameStoreState["sim"]>) =>

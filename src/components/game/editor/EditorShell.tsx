@@ -607,7 +607,7 @@ function commandRunner(
 function EditorDock(controls: EditorControls) {
   const { session, game, tools } = controls;
   const mode = useEditorStore(session, (s) => s.mode);
-  useToolHostLifecycle(tools, session, game);
+  useToolHostLifecycle(tools, session, game, controls.project?.session);
   const host = useToolHost(tools);
   useEditorKeys(controls, host);
   useEditorClipboard(session, host);

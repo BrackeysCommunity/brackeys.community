@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   judgeLaunchFailure,
+  judgeRender,
   judgeResult,
   overallOk,
   PAGE_TIMEOUT_MS,
@@ -10,15 +11,23 @@ import {
   SmokeTimeoutError,
   withTimeout,
   type BrowserOutcome,
+  type RenderProbe,
 } from "../browser-compare";
 import type { EngineSmokeResult } from "../browser/main";
 import { runSmokeDigest } from "../browser/run";
 
-const passed = (digest: string): EngineSmokeResult => ({
+const drawn: RenderProbe = {
+  renderer: "webgl",
+  inside: [255, 136, 0, 255],
+  outside: [26, 26, 46, 255],
+};
+
+const passed = (digest: string, render: RenderProbe = drawn): EngineSmokeResult => ({
   ok: true,
   flavour: "rapier2d-compat",
   ticks: 120,
   digest,
+  render,
   userAgent: "test-agent",
 });
 
@@ -34,6 +43,7 @@ describe("judgeResult", () => {
       status: "pass",
       digest: "abc",
       userAgent: "test-agent",
+      render: drawn,
     });
   });
 
@@ -57,6 +67,39 @@ describe("judgeResult", () => {
   it("fails a run of the wrong length or flavour even when the digest matches", () => {
     const short = { ...passed("abc"), ticks: 60 } as unknown as EngineSmokeResult;
     expect(judgeResult("chromium", short, "abc").status).toBe("fail");
+  });
+
+  it("fails a matching digest when the sprite wasn't drawn", () => {
+    const blank = { ...drawn, inside: drawn.outside };
+    const out = judgeResult("firefox", passed("abc", blank), "abc");
+    expect(out).toMatchObject({ status: "fail", reason: expect.stringContaining("blank") });
+  });
+
+  it("fails a page that ran no render", () => {
+    const { render: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
+    const out = judgeResult("chromium", bare as unknown as EngineSmokeResult, "abc");
+    expect(out).toMatchObject({ status: "fail", reason: "the page ran no render" });
+  });
+});
+
+describe("judgeRender", () => {
+  it("passes crate-0's colour inside and the background outside, within the tolerance", () => {
+    expect(judgeRender(drawn)).toBeNull();
+    expect(
+      judgeRender({ ...drawn, inside: [250, 140, 4, 255], outside: [30, 22, 50, 255] }),
+    ).toBeNull();
+  });
+
+  it("fails a translucent sprite pixel", () => {
+    expect(judgeRender({ ...drawn, inside: [255, 136, 0, 128] })).toMatch(/isn't opaque/);
+  });
+
+  it("fails a sprite pixel of another colour: the fallback box, a body's fill, the wrong frame", () => {
+    expect(judgeRender({ ...drawn, inside: [0, 200, 160, 255] })).toMatch(/not crate-0's #ff8800/);
+  });
+
+  it("fails an empty pixel that something drew on", () => {
+    expect(judgeRender({ ...drawn, outside: [255, 136, 0, 255] })).toMatch(/not the background/);
   });
 });
 
@@ -101,7 +144,7 @@ describe("withTimeout", () => {
     vi.useRealTimers();
   });
 
-  it("rejects a page that never answers once the 30 s limit passes", async () => {
+  it("rejects a page that never answers once the 60 s limit passes", async () => {
     vi.useFakeTimers();
     const never = new Promise<string>(() => {});
     const raced = withTimeout(never, PAGE_TIMEOUT_MS, "chromium's window.__engineSmoke");
@@ -117,7 +160,7 @@ describe("withTimeout", () => {
     await vi.advanceTimersByTimeAsync(1);
     const err = await caught;
     expect(err).toBeInstanceOf(SmokeTimeoutError);
-    expect((err as Error).message).toBe("chromium's window.__engineSmoke timed out after 30 s");
+    expect((err as Error).message).toBe("chromium's window.__engineSmoke timed out after 60 s");
   });
 
   it("resolves with the answer and clears its timer", async () => {

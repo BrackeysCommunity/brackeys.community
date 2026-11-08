@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import type { ProjectTreeNode } from "@jams/engine/project";
+import type { AssetEntry, ProjectTreeNode } from "@jams/engine/project";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import { ProjectTree } from "@/components/game/editor/project-tree/project-tree";
+import { ASSET_DRAG_TYPE, readAssetDrag } from "@/components/game/editor/project-tree/tree-rows";
 import type { ProjectTreeProps } from "@/components/game/editor/project-tree/types";
 
-import { gone, hero, ice, jump, level, peer, PROJECT, tree } from "./fixtures";
+import { entry, gone, hero, ice, jump, level, peer, PROJECT, tree } from "./fixtures";
 
 const toastError = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/toast", () => ({ toast: { error: toastError, success: vi.fn() } }));
@@ -301,5 +302,102 @@ describe("ProjectTree", () => {
     expect(within(rowOf("scenes")).queryByRole("img", { name: /Bo/ })).toBeNull();
     fireEvent.click(files().getByRole("button", { name: /^scenes/ }));
     expect(within(rowOf("scenes")).getByRole("img", { name: "Open inside by Bo" })).toBeTruthy();
+  });
+});
+
+describe("asset rows as drag sources", () => {
+  const sheet = entry("ksheet", "sprites/sheet.png", "atlas");
+  const withSheet = (): ProjectTreeNode[] => [
+    ...tree().filter((n) => n.type !== "folder" || n.path !== "sprites"),
+    {
+      type: "folder",
+      path: "sprites",
+      children: [
+        { type: "asset", entry: hero },
+        { type: "asset", entry: sheet },
+      ],
+    },
+  ];
+  const assetInfo = (e: AssetEntry, frame?: string) => ({
+    id: e.id,
+    kind: e.kind,
+    ...(e.kind === "atlas" ? { frames: ["idle", "run-1"] } : {}),
+    ...(frame ? { size: [16, 16] as [number, number] } : {}),
+  });
+
+  function transfer() {
+    const data = new Map<string, string>();
+    return {
+      get types() {
+        return [...data.keys()];
+      },
+      setData: (type: string, value: string) => void data.set(type, value),
+      getData: (type: string) => data.get(type) ?? "",
+      effectAllowed: "all",
+      dropEffect: "none",
+    };
+  }
+  const dragStart = (el: HTMLElement) => {
+    const dataTransfer = transfer();
+    fireEvent.dragStart(el, { dataTransfer });
+    return dataTransfer;
+  };
+
+  it("carries an asset under its own drag type", () => {
+    setup({ assetInfo });
+    const data = dragStart(files().getByRole("button", { name: /^hero\.png/ }));
+    expect(data.types).toEqual([ASSET_DRAG_TYPE]);
+    expect(readAssetDrag(data as unknown as DataTransfer)).toEqual({
+      entry: hero,
+      info: { id: "hero", kind: "texture" },
+    });
+  });
+
+  it("expands an atlas row to its frames, each dragging the asset and frame", () => {
+    setup({ assetInfo, nodes: withSheet() });
+    expect(files().queryByText("run-1")).toBeNull();
+    fireEvent.click(files().getByRole("button", { name: "Show the frames of sheet.png" }));
+    const frame = files().getByRole("button", { name: "run-1" });
+    expect(frame.getAttribute("draggable")).toBe("true");
+    const data = dragStart(frame);
+    expect(readAssetDrag(data as unknown as DataTransfer)).toEqual({
+      entry: sheet,
+      info: { id: "sheet", kind: "atlas", frames: ["idle", "run-1"], size: [16, 16] },
+      frame: "run-1",
+    });
+    fireEvent.click(files().getByRole("button", { name: "Hide the frames of sheet.png" }));
+    expect(files().queryByText("run-1")).toBeNull();
+  });
+
+  it("drags nothing natively without assetInfo or for viewers", () => {
+    setup();
+    expect(
+      files()
+        .getByRole("button", { name: /^hero\.png/ })
+        .hasAttribute("draggable"),
+    ).toBe(false);
+    cleanup();
+    setup({ assetInfo, readOnly: true });
+    expect(
+      files()
+        .getByRole("button", { name: /^hero\.png/ })
+        .hasAttribute("draggable"),
+    ).toBe(false);
+  });
+
+  it("still moves between folders, by pointer or by a native drag onto a folder", async () => {
+    const { onMove } = setup({ assetInfo });
+    await drag(
+      files().getByRole("button", { name: /^hero\.png/ }),
+      files().getByRole("button", { name: /^sfx/ }),
+    );
+    expect(onMove).toHaveBeenCalledWith(["hero"], "sfx/");
+
+    const dataTransfer = dragStart(files().getByRole("button", { name: /^jump\.ogg/ }));
+    fireEvent.dragOver(rowOf("sprites"), { dataTransfer });
+    await act(async () => {
+      fireEvent.drop(rowOf("sprites"), { dataTransfer });
+    });
+    expect(onMove).toHaveBeenLastCalledWith(["jump"], "sprites/");
   });
 });

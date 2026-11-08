@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
+import type * as Hocuspocus from "@hocuspocus/provider";
 import {
+  ASSET_CHANGED,
   buildAtFrom,
   COLLAB_LAYOUT_VERSION,
   seedProjectDoc,
+  type AssetChangedMessage,
   type DocOrigin,
   type ProjectSession,
 } from "@jams/engine/collab";
@@ -19,6 +22,7 @@ import { SYNC_CLOSE } from "@/lib/canvas/sync-channels";
 import {
   connectProjectSession,
   createProjectTokens,
+  hocuspocusTransport,
   TOKEN_REFRESH_MARGIN_MS,
   useProjectSession,
   useSessionDoc,
@@ -165,7 +169,11 @@ function fakeServer() {
   return { transport, sockets, refuse, docs, provider };
 }
 
-function mount(host: ProjectSessionHost, server = fakeServer(), extra: { buildAt?: number } = {}) {
+function mount(
+  host: ProjectSessionHost,
+  server = fakeServer(),
+  extra: { buildAt?: number; onAssetChanged?: (message: AssetChangedMessage) => void } = {},
+) {
   const hook = renderHook(
     (props: { project: string | null }) =>
       useProjectSession({
@@ -419,6 +427,87 @@ describe("close codes", () => {
     expect(p.attached).toBe(true);
     expect(p.attaches).toBe(1);
     l.destroy();
+  });
+});
+
+describe("asset:changed messages", () => {
+  const changed = (over: Partial<AssetChangedMessage> = {}): AssetChangedMessage => ({
+    type: ASSET_CHANGED,
+    project: "p",
+    key: "a",
+    id: "a",
+    kind: "texture",
+    path: "a.png",
+    sha256: "b".repeat(64),
+    bytes: 3,
+    previous: "a".repeat(64),
+    ...over,
+  });
+
+  it("reach the link's listeners when they're about its project, and nothing else does", async () => {
+    const server = fakeServer();
+    const l = connectProjectSession({
+      project: "p",
+      host: { kind: "dev" },
+      registry,
+      kinds,
+      origin,
+      transport: server.transport,
+    });
+    await vi.waitFor(() => expect(l.getState().session).not.toBeNull());
+    const heard: AssetChangedMessage[] = [];
+    const off = l.onAssetChanged((m) => heard.push(m));
+    const events = server.provider("project:p")!.events;
+    events.stateless?.(JSON.stringify(changed()));
+    events.stateless?.(JSON.stringify(changed({ project: "q" })));
+    events.stateless?.(JSON.stringify({ type: "other", project: "p" }));
+    events.stateless?.("not json");
+    expect(heard).toEqual([changed()]);
+    off();
+    events.stateless?.(JSON.stringify(changed({ id: "b" })));
+    expect(heard).toHaveLength(1);
+    l.destroy();
+  });
+
+  it("reach the hook's latest onAssetChanged", async () => {
+    const first = vi.fn();
+    const { hook, server } = mount({ kind: "dev" }, fakeServer(), { onAssetChanged: first });
+    await waitFor(() => expect(hook.result.current.status).toBe("live"));
+    server.provider("project:p")!.events.stateless?.(JSON.stringify(changed()));
+    expect(first).toHaveBeenCalledWith(changed());
+    hook.unmount();
+    expect(server.provider("project:p")).toBeUndefined();
+  });
+
+  it("come through Hocuspocus's onStateless", () => {
+    let config: { onStateless?: (data: { payload: string }) => void } = {};
+    const mod = {
+      WebSocketStatus: { Connected: "connected", Connecting: "connecting" },
+      HocuspocusProviderWebsocket: class {
+        status = "connected";
+        destroy() {}
+      },
+      HocuspocusProvider: class {
+        awareness = {};
+        constructor(c: typeof config) {
+          config = c;
+        }
+        attach() {}
+        detach() {}
+        destroy() {}
+      },
+    } as unknown as typeof Hocuspocus;
+    const stateless = vi.fn();
+    const socket = hocuspocusTransport(mod)("ws://dev.test/__scene-collab");
+    socket.provider({
+      name: "project:p",
+      doc: new Y.Doc(),
+      token: null,
+      events: { synced: () => {}, closed: () => {}, stateless },
+    });
+    config.onStateless?.({ payload: "hello" });
+    expect(stateless).toHaveBeenCalledWith("hello");
+    socket.destroy();
   });
 });
 

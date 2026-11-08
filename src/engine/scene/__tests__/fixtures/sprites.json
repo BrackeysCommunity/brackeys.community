@@ -1,0 +1,48 @@
+{
+  "$schema": "../../scene.schema.json",
+  "v": 3,
+  "name": "sprites",
+  "bounds": [0, 0, 640, 320],
+  "solid": [["box", 320, 304, 320, 16]],
+  "groups": { "mirrored": { "at": [560, 200], "flip": true } },
+  "entities": [
+    {
+      "id": "hero",
+      "type": "prop",
+      "shape": ["box", 96, 256, 16, 32],
+      "density": 1,
+      "restitution": 0,
+      "behaviors": { "sprite": { "asset": "hero-sheet", "frame": "idle-0" } }
+    },
+    {
+      "id": "crate",
+      "type": "prop",
+      "shape": ["box", 208, 256, 24, 24, 45],
+      "density": 2,
+      "restitution": 0.2,
+      "behaviors": { "sprite": { "asset": "crate", "size": [64, 64] } }
+    },
+    {
+      "id": "lamp",
+      "type": "marker",
+      "at": [320, 288],
+      "behaviors": { "sprite": { "asset": "lamp", "size": [24, 64], "anchor": [0.5, 1] } }
+    },
+    {
+      "id": "tree",
+      "type": "marker",
+      "at": [448, 288],
+      "behaviors": { "sprite": { "size": [96, 128], "anchor": [0.5, 1], "offset": [8, 0] } }
+    },
+    {
+      "id": "banner",
+      "type": "marker",
+      "group": "mirrored",
+      "at": [0, 0],
+      "behaviors": {
+        "sprite": { "asset": "banner", "size": [32, 48], "anchor": [0, 0], "offset": [8, -64] }
+      }
+    },
+    { "id": "start", "type": "marker", "at": [96, 288], "tags": ["spawn"] }
+  ]
+}

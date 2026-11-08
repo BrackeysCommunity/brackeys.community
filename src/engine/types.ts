@@ -3,6 +3,12 @@ import type { Store } from "@tanstack/store";
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
 import type { GameDefinition, GameOutcome, Registry } from "./game/types";
 import type { PlayOptions } from "./headless/playtest-types";
+import type { BundleEntry } from "./project/bundle";
+import type { KindRegistry } from "./project/kinds";
+import type { ProjectRuntimeView } from "./project/runtime-view";
+import type { AssetId, ProjectView } from "./project/types";
+import type { AssetLoader, LoadProgress } from "./render/asset-loader";
+import type { ResolutionPolicy } from "./resolution";
 import type { LoadReport, SceneRuntime, StepResult } from "./runtime/types";
 import type { RunRecording } from "./scene/recording-schema";
 import type {
@@ -19,26 +25,6 @@ import type { ToolRouter } from "./tool-router";
 export type Vec2 = { x: number; y: number };
 
 export type RapierModule = typeof import("@dimforge/rapier2d");
-
-// ─── Virtual Resolution ──────────────────────────────────
-// The game world is designed around a fixed virtual height.
-// Width is derived from the display aspect ratio (expand-viewport).
-// Wider screens see more horizontally — no letterboxing.
-
-export const VIRTUAL_HEIGHT = 1080;
-
-export type DisplayResolution = {
-  width: number;
-  height: number;
-  label: string;
-};
-
-export const DISPLAY_RESOLUTIONS: DisplayResolution[] = [
-  { width: 1280, height: 720, label: "720p" },
-  { width: 1920, height: 1080, label: "1080p" },
-  { width: 2560, height: 1440, label: "1440p" },
-  { width: 0, height: 0, label: "Native" }, // 0x0 = use window size
-];
 
 // ─── Config ──────────────────────────────────────────────
 
@@ -79,6 +65,16 @@ export type GameConfig = {
   scene?: SceneDefinition | ExpandedScene;
   /** The prefabs scene documents' instances name; `setPrefabs` replaces them. */
   prefabs?: PrefabLibrary;
+  /**
+   * Where scenes' textures come from: the host's loader (built with its URL
+   * scheme), the project view bundles are computed over, and its kinds.
+   * Without it nothing is fetched and sprites draw as their boxes. `view`
+   * is read each time a bundle is computed, so a getter can follow a live
+   * project.
+   */
+  assets?: { loader: AssetLoader; view: ProjectView; kinds: KindRegistry };
+  /** The host's resolution policy, over the project's and the game's. */
+  resolution?: Partial<ResolutionPolicy>;
 };
 
 export const DEFAULT_GAME_CONFIG: Omit<GameConfig, "game" | "rapier"> = {
@@ -111,6 +107,8 @@ export type CameraMode = "follow" | "free";
 export type CameraState = {
   position: Vec2;
   zoom: number;
+  /** World units to canvas pixels: the display scale times `zoom`. */
+  scale: number;
   bounds: { min: Vec2; max: Vec2 };
   mode: CameraMode;
 };
@@ -213,6 +211,20 @@ export type GameInstance = {
    * first; on failure the current scene keeps running.
    */
   loadScene: (scene: SceneDefinition | ExpandedScene) => LoadReport;
+  /** Loads the scene's bundle (and the project bundle once); resolves when its textures are in. */
+  preload: (
+    scene: SceneDefinition | ExpandedScene,
+    onProgress?: (p: LoadProgress) => void,
+  ) => Promise<{ failed: BundleEntry[] }>;
+  /**
+   * Re-imported art: loads the `changed` assets' new bytes, then redraws the
+   * loaded scene's visuals that use them, without reloading the scene.
+   */
+  reloadAssets: (update: {
+    project: ProjectRuntimeView | null;
+    view: ProjectView;
+    changed: readonly AssetId[];
+  }) => Promise<{ failed: BundleEntry[] }>;
   unloadScene: () => void;
   /**
    * The loaded scene's runtime, for entity-level edits (`add`, `update`,

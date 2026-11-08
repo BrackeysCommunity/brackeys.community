@@ -1,6 +1,9 @@
 import type { SceneView } from "../context";
+import type { BehaviorName } from "../game/behaviors";
 import type { EngineContext, GameDefinition, GameRuntime, Registry } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
+import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetId } from "../project/types";
 import type { EntityTypeName, ExpandedScene, RuntimeEntity } from "../scene/types";
 import type { InputAction, RapierModule, Vec2 } from "../types";
 
@@ -49,6 +52,8 @@ export type RuntimeStats = {
   tags: number;
   entities: number;
   perType: Record<EntityTypeName, number>;
+  /** Each built behavior system's live attachments; zeros left out. */
+  behaviors: Record<BehaviorName, number>;
 };
 
 export type SceneRuntime = {
@@ -93,6 +98,8 @@ export type SceneRuntimeOptions = {
   dev?: boolean;
   /** Clock for `LoadReport.ms`. Defaults to a constant 0 so reports stay deterministic. */
   now?: () => number;
+  /** Texture sampling for sprites whose texture sets no import `filter`; default "linear". */
+  sampling?: "linear" | "nearest";
 };
 
 /** The runtime plus the parts the shell and a game's tools drive directly. */
@@ -102,4 +109,8 @@ export type SceneRuntimeHandle = SceneRuntime & {
   readonly game: GameRuntime | null;
   /** The loaded scene with every `add`, `update` and `remove` since applied, or null. */
   scene: () => ExpandedScene | null;
+  /** Each rendered frame, after the view's `frame`: the visual behaviors' render hooks. */
+  render: (alpha: number) => void;
+  /** Swaps in the project's new view and redraws what uses the `changed` assets. */
+  reloadAssets: (project: ProjectRuntimeView | null, changed: readonly AssetId[]) => void;
 };

@@ -99,6 +99,20 @@ describe("project push --dry-run", () => {
   it("reports the docs it would seed and the binaries it would upload, sending nothing", async () => {
     const r = await push("--create", "--dry-run");
     expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    const binaries = [
+      { path: "art/backdrop.png", kind: "texture" },
+      { path: "art/crates.json", kind: "atlas" },
+      { path: "art/crates.png", kind: "texture" },
+      { path: "art/dot.png", kind: "texture" },
+      { path: "art/hero.json", kind: "atlas" },
+      { path: "art/hero.png", kind: "texture" },
+    ];
+    const want = await Promise.all(
+      binaries.map(async (b) => ({
+        ...b,
+        sha256: await sha256(await readFile(join(deck, b.path))),
+      })),
+    );
     expect(r.data).toMatchObject({
       ok: true,
       dryRun: true,
@@ -106,14 +120,18 @@ describe("project push --dry-run", () => {
       project: PROJECT,
       url: SITE,
       uploaded: 0,
-      uploads: [{ path: "art/dot.png", kind: "texture", sha256: await sha256(DOT) }],
     });
+    const uploads = r.data.uploads as { path: string }[];
+    expect([...uploads].sort((a, b) => (a.path < b.path ? -1 : 1))).toEqual(
+      want.map((w) => expect.objectContaining(w)),
+    );
     const seeds = r.data.seeds as string[];
     expect(seeds).toContain("kitchen-sink.json");
-    expect(seeds).not.toContain("art/dot.png");
+    for (const b of binaries) expect(seeds).not.toContain(b.path);
     expect(r.data.docs).toBe(seeds.length);
-    expect(r.data.files).toBe(seeds.length + 1);
-    expect(requests).toEqual(["GET bundle", `HEAD ${await sha256(DOT)}`]);
+    expect(r.data.files).toBe(seeds.length + binaries.length);
+    expect(requests[0]).toBe("GET bundle");
+    expect(requests.slice(1).sort()).toEqual(want.map((w) => `HEAD ${w.sha256}`).sort());
   });
 
   it("is refused like a push once the project holds anything", async () => {

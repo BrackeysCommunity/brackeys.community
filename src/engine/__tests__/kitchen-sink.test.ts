@@ -5,11 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 
 import { docToScene, sceneToDoc } from "../collab/convert";
 import { docToPrefab, prefabToDoc } from "../collab/prefab-doc";
+import { SPRITE, type SpriteBlock } from "../game/behaviors/sprite";
 import { createRegistry, defineGame, withProject } from "../game/define";
 import { PRIMITIVE_TYPES, type GameDefinition, type Registry } from "../game/types";
 import { loadHeadless } from "../headless/load";
@@ -18,14 +19,19 @@ import type { PlaytestReport } from "../headless/playtest-types";
 import { recordingDivergence, replayRecording } from "../headless/recording";
 import { runChecks } from "../headless/run-checks";
 import { validatePhysical } from "../headless/validate-physical";
+import { assetInfo } from "../project/asset-info";
+import { sceneBundle } from "../project/bundle";
 import { memoryContentStore } from "../project/content-store";
 import { formatAssetDoc, parseAssetDoc, type DocKindDef } from "../project/kinds";
+import { ATLAS_KIND } from "../project/kinds/atlas";
 import { DATA_TABLE_KIND } from "../project/kinds/data-table";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
 import { MATERIAL_KIND } from "../project/kinds/material";
+import { TEXTURE_KIND } from "../project/kinds/texture";
 import { snapshotProject } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectView } from "../project/types";
 import { projectView } from "../project/view";
+import { createSceneRuntime } from "../runtime/runtime";
 import { SENSOR_ENTER } from "../runtime/types";
 import { parseChecks, type ChecksFile } from "../scene/checks";
 import { expandScene } from "../scene/expand";
@@ -109,7 +115,7 @@ beforeAll(async () => {
   const bare = await createProjectFileAdapter(project).scan();
   view = projectView(bare.state, project.kinds);
   values = new Map();
-  for (const entry of view.byId.values())
+  for (const entry of docEntries())
     values.set(entry.id, JSON.parse(await readFile(join(scenesPath, entry.path), "utf8")));
   engine = overlaid(null);
   game = overlaid(testGame);
@@ -143,6 +149,28 @@ function centreX(e: RuntimeEntity): number {
 }
 const entriesOf = (kind: string): AssetEntry[] =>
   [...view.byId.values()].filter((e) => e.kind === kind);
+/** Every asset kept as text, not by content hash. */
+const docEntries = (): AssetEntry[] =>
+  [...view.byId.values()].filter((e) => e.sha256 === undefined);
+/** Each entity carrying a sprite, with its block. */
+const sprites = (): [RuntimeEntity, SpriteBlock][] =>
+  expanded().entities.flatMap((e) => {
+    const block = (e.behaviors as Record<string, unknown> | undefined)?.[SPRITE.name];
+    return block ? [[e, block as SpriteBlock]] : [];
+  });
+const atlasTool = (id: string) => (view.byId.get(id)?.meta as { tool?: string } | undefined)?.tool;
+
+/** A snapshot of the project, its doc texts in a memory store; blobs are pinned by hash only. */
+async function pinned() {
+  const store = memoryContentStore();
+  const texts = new Map<AssetId, string>();
+  for (const entry of docEntries()) {
+    const text = await readFile(join(scenesPath, entry.path), "utf8");
+    texts.set(entry.id, text);
+    await store.put(new TextEncoder().encode(text));
+  }
+  return { snapshot: await snapshotProject(view, texts, scan.state.build), store };
+}
 
 async function walk(dir: string): Promise<string[]> {
   const out: string[] = [];
@@ -302,6 +330,56 @@ describe("kitchen-sink.json", () => {
       expect(def.assets).toEqual([...new Set(def.assets)].sort());
     });
 
+    it("a sprite cut from a TexturePacker atlas's frame", () => {
+      const cut = sprites().filter(
+        ([, b]) => b.frame !== undefined && atlasTool(b.asset!) === "texturepacker",
+      );
+      expect(cut.length).toBeGreaterThanOrEqual(1);
+      for (const [e, b] of cut) {
+        expect(view.byId.get(b.asset!)?.kind, e.id).toBe(ATLAS_KIND);
+        expect(assetInfo(view, b.asset!, b.frame)?.rect, e.id).toBeDefined();
+      }
+    });
+
+    it("a sprite cut from an Aseprite sheet's frame", () => {
+      const cut = sprites().filter(
+        ([, b]) => b.frame !== undefined && atlasTool(b.asset!) === "aseprite",
+      );
+      expect(cut.length).toBeGreaterThanOrEqual(1);
+      for (const [e, b] of cut)
+        expect(assetInfo(view, b.asset!, b.frame)?.rect, e.id).toBeDefined();
+    });
+
+    it("a sprite drawing a whole texture, on a decor", () => {
+      const whole = sprites().filter(
+        ([e, b]) => e.type === "decor" && view.byId.get(b.asset!)?.kind === TEXTURE_KIND,
+      );
+      expect(whole.length).toBeGreaterThanOrEqual(1);
+      for (const [, b] of whole) expect(b.frame).toBeUndefined();
+    });
+
+    it("a sprite with its own tint and blend", () => {
+      expect(
+        sprites().some(
+          ([, b]) => b.tint !== undefined && b.blend !== undefined && b.blend !== "normal",
+        ),
+      ).toBe(true);
+    });
+
+    it("a sprite on an entity whose material lends its render tint", () => {
+      const tinted = sprites().filter(
+        ([e, b]) =>
+          b.tint === undefined &&
+          typeof e.material === "string" &&
+          engine.materials.get(e.material)?.tint !== undefined,
+      );
+      expect(tinted.length).toBeGreaterThanOrEqual(1);
+      const material = values.get(tinted[0]![0].material as string) as {
+        render?: { tint?: string };
+      };
+      expect(material.render?.tint).toMatch(/^#[0-9a-f]{6}$/);
+    });
+
     it("a solid and a sensor attached to a follower", () => {
       const followers = new Set(
         entities()
@@ -355,6 +433,37 @@ describe("kitchen-sink.json", () => {
       ...validatePhysical({ rapier, scene: def, registry: engine, prefabs }),
     ];
     expect(issues.filter((i) => i.severity === "error")).toEqual([]);
+  });
+
+  it("validates against the project view with no issue at all, no asset-* or sprite-* among them", () => {
+    expect(validateScene(def, engine, { prefabs, project: view })).toEqual([]);
+  });
+
+  it("bundles exactly the three textures its sprites cut, each once, with no issues", () => {
+    const { bundle, issues } = sceneBundle(expanded(), def, prefabs, view, project.kinds, engine);
+    expect(issues).toEqual([]);
+    const textures = entriesOf(TEXTURE_KIND);
+    expect(textures).toHaveLength(3);
+    expect(bundle.entries).toEqual(
+      textures
+        .map((t) => ({ id: t.id, kind: TEXTURE_KIND, sha256: t.sha256, bytes: t.bytes }))
+        .sort((a, b) => (a.id < b.id ? -1 : 1)),
+    );
+    expect(bundle.bytes).toBe(textures.reduce((sum, t) => sum + t.bytes!, 0));
+  });
+
+  it("loads its decor headless with a pose and no collider", () => {
+    const decor = entities().filter((e) => e.type === "decor");
+    expect(decor.length).toBeGreaterThan(0);
+    const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine });
+    expect(rt.load(expanded()).ok).toBe(true);
+    for (const d of decor) {
+      const [x, y] = d.at as Pt;
+      expect(rt.ctx.poses.get(d.id)).toEqual({ x, y, rot: 0 });
+      expect(rt.ctx.tags.handlesOf(d.id)).toEqual([]);
+    }
+    expect(rt.stats().perType.decor).toBe(decor.length);
+    rt.destroy();
   });
 
   it("is canonical, and formatting is idempotent", () => {
@@ -439,14 +548,7 @@ describe("kitchen-sink.json", () => {
         };
       },
     });
-    const store = memoryContentStore();
-    const texts = new Map<AssetId, string>();
-    for (const entry of view.byId.values()) {
-      const text = await readFile(join(scenesPath, entry.path), "utf8");
-      texts.set(entry.id, text);
-      await store.put(new TextEncoder().encode(text));
-    }
-    const snapshot = await snapshotProject(view, texts, scan.state.build);
+    const { snapshot, store } = await pinned();
     const loaded = await loadHeadless({
       snapshot,
       store,
@@ -470,6 +572,29 @@ describe("kitchen-sink.json", () => {
       { id: "fireball", cost: 3, damage: 5 },
       { id: "heal", cost: 2, damage: 0 },
     ]);
+  });
+
+  it("loads by snapshot and plays headless with fetch stubbed to throw, never calling it", async () => {
+    const fetch = vi.fn(() => {
+      throw new Error("a headless load fetched");
+    });
+    vi.stubGlobal("fetch", fetch);
+    try {
+      const { snapshot, store } = await pinned();
+      const loaded = await loadHeadless({ snapshot, store, scene: def.name, registry: game });
+      expect(loaded.project?.asset("crates")?.kind).toBe(ATLAS_KIND);
+      const run = runPlaytest({
+        rapier,
+        game: testGame,
+        ...loaded,
+        script: { v: 1, scene: "kitchen-sink", steps: [{ wait: 120 }] },
+      });
+      if (run.blocked) throw new Error(`blocked: ${JSON.stringify(run)}`);
+      expect((run as PlaytestReport<unknown>).ticks).toBe(120);
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   describe("checks", () => {
@@ -513,22 +638,50 @@ describe("kitchen-sink.json", () => {
 });
 
 describe("the engine project", () => {
-  it("scans with no problems, keys equal to ids and no sidecars", async () => {
+  it("scans with no problems: docs keyed by id without sidecars, each blob with a CC0 sidecar naming its key", async () => {
     expect(scan.problems).toEqual([]);
     expect(scan.state.meta).toMatchObject({ projectId: "engine", name: "Engine" });
     const entries = Object.values(scan.state.assets);
     expect(new Set(entries.map((e) => e.kind))).toEqual(
-      new Set(["scene", "prefab", "checks", MATERIAL_KIND, GAME_SETTINGS_KIND, DATA_TABLE_KIND]),
+      new Set([
+        "scene",
+        "prefab",
+        "checks",
+        MATERIAL_KIND,
+        GAME_SETTINGS_KIND,
+        DATA_TABLE_KIND,
+        TEXTURE_KIND,
+        ATLAS_KIND,
+      ]),
     );
+    const blobs = entries.filter((e) => e.sha256 !== undefined);
     for (const e of entries) {
-      expect(e.key, e.path).toBe(e.id);
+      if (e.sha256 === undefined) expect(e.key, e.path).toBe(e.id);
       expect(e.created).toEqual({ at: 0, by: "disk" });
     }
-    expect((await walk(scenesPath)).filter((p) => p.endsWith(".asset.json"))).toEqual([]);
+    expect(blobs.map((e) => e.path).sort()).toEqual([
+      "art/backdrop.png",
+      "art/crates.json",
+      "art/crates.png",
+      "art/hero.json",
+      "art/hero.png",
+    ]);
+    const sidecars = (await walk(scenesPath))
+      .filter((p) => p.endsWith(".asset.json"))
+      .map((p) => p.slice(scenesPath.length))
+      .sort();
+    expect(sidecars).toEqual(blobs.map((e) => `${e.path}.asset.json`).sort());
+    for (const e of blobs) {
+      const sidecar = JSON.parse(
+        await readFile(join(scenesPath, `${e.path}.asset.json`), "utf8"),
+      ) as { key: string; id: string; sha256: string; licence?: { spdx?: string } };
+      expect(sidecar, e.path).toMatchObject({ key: e.key, id: e.id, sha256: e.sha256 });
+      expect(sidecar.licence?.spdx, e.path).toBe("CC0-1.0");
+    }
   });
 
   it("round-trips every doc asset byte-identically through its doc and back, also across the wire", async () => {
-    for (const entry of Object.values(scan.state.assets)) {
+    for (const entry of Object.values(scan.state.assets).filter((e) => e.sha256 === undefined)) {
       const kind = project.kinds.get(entry.kind) as DocKindDef;
       const file = await readFile(join(scenesPath, entry.path), "utf8");
       const name = adapter.docNameOf(entry);

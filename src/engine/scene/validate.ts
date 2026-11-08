@@ -1,13 +1,16 @@
 import { z } from "zod";
 
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
+import { SPRITE } from "../game/behaviors/sprite";
 import type { RegisteredType, Registry } from "../game/types";
+import { assetInfo } from "../project/asset-info";
+import { ATLAS_KIND } from "../project/kinds/atlas";
 import { isPlainObject } from "../project/kinds/define";
 import { entityRefSites, headerAssetRefs } from "../project/kinds/fields";
 import { schemaRefSites, type RefSite } from "../project/refs";
 import type { AssetKindName, ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
-import { bulkId, resolveSettings, type SettingsSources } from "./expand";
+import { behaviorBlocks, bulkId, resolveSettings, type SettingsSources } from "./expand";
 import { isInstanceOverrideField } from "./field-path";
 import { comparePointers } from "./format";
 import { sceneHash } from "./hash";
@@ -78,7 +81,9 @@ export type ValidateOptions = {
   /**
    * The project the scene belongs to. With it, an asset id (asset fields of
    * types, behaviors and settings, and the `assets` header) that isn't live
-   * is `asset-missing` and one of the wrong kind `asset-kind`; without it,
+   * is `asset-missing` and one of the wrong kind `asset-kind`, a sprite
+   * without an asset `sprite-no-asset` and one naming a frame its atlas
+   * lacks (or none) `asset-frame-unknown`; without it,
    * asset ids aren't checked.
    */
   project?: ProjectView;
@@ -233,8 +238,8 @@ function extent(
  * `<instance>/<child>` is `ref-child-unknown` when the instance's prefab
  * lacks the child), behavior blocks
  * (registered, allowed by the type, their `requires` carried, their fields
- * valid), grid fields (only with `settings.grid`), asset ids when
- * `opts.project` is given, and the
+ * valid), grid fields (only with `settings.grid`), asset ids and sprite
+ * frames when `opts.project` is given, and the
  * geometry of every registered shape, point and path field (polys, chains,
  * paths, integer pixels, bounds), then the game's `registry.validators`. No
  * physics. Each issue names the entity (bulk entries by their `~key:index`
@@ -399,6 +404,9 @@ export function validateScene(
     });
     check(schemaRefSites(r.settings, source.settings ?? {}, "/settings"), "", []);
     check(headerAssetRefs(source.assets), "", []);
+    entities.forEach((e, i) => {
+      if (r.types.has(e.type)) checkSprite(r, project, e, jsonPointer(["entities", i]), push);
+    });
   }
 
   // geometry
@@ -725,6 +733,57 @@ function checkBehaviors(
       });
     }
   }
+}
+
+/**
+ * An entity's sprite block against its asset: `sprite-no-asset` without
+ * one, `asset-frame-unknown` for an atlas with no frame or a frame its
+ * meta lacks. A missing or wrong-kind asset is the asset checks'.
+ */
+function checkSprite(
+  registry: Registry,
+  project: ProjectView,
+  e: EntityDef,
+  at: string,
+  push: Push,
+): void {
+  const name = SPRITE.name;
+  const block = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[name];
+  if (!block) return;
+  const written = isPlainObject(e[BEHAVIORS_FIELD]) && Object.hasOwn(e[BEHAVIORS_FIELD], name);
+  const pointer = (...rest: string[]) =>
+    written ? `${at}${jsonPointer([BEHAVIORS_FIELD, name, ...rest])}` : at;
+  const asset = block.asset;
+  if (typeof asset !== "string") {
+    push("sprite-no-asset", {
+      message: `${e.id}'s sprite has no asset, so only its fallback box draws`,
+      path: pointer(),
+      entityIds: [e.id],
+    });
+    return;
+  }
+  const info = assetInfo(project, asset);
+  if (info?.kind !== ATLAS_KIND || !info.frames) return;
+  const frame = block.frame;
+  const frames = info.frames;
+  if (typeof frame !== "string") {
+    push("asset-frame-unknown", {
+      message: `${e.id}'s sprite draws atlas "${asset}" but names no frame`,
+      path: pointer(),
+      entityIds: [e.id],
+      ...(frames.length > 0 ? { expected: frames.join(" | ") } : {}),
+    });
+    return;
+  }
+  if (frames.includes(frame)) return;
+  const guess = closest(frame, frames);
+  push("asset-frame-unknown", {
+    message: `${e.id}'s sprite names frame "${frame}", which atlas "${asset}" doesn't have${guess ? `; did you mean "${guess}"?` : ""}`,
+    path: pointer("frame"),
+    entityIds: [e.id],
+    got: frame,
+    ...(frames.length > 0 ? { expected: frames.join(" | ") } : {}),
+  });
 }
 
 const kindsLabel = (kinds: readonly AssetKindName[]) =>

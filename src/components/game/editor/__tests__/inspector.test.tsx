@@ -258,11 +258,12 @@ describe("EditorInspector", () => {
     });
     const items = await screen.findAllByRole("menuitem");
     expect(items.map((i) => i.textContent)).toEqual([
+      "spriteDraws a texture or an atlas frame at the entity's pose.",
       "HumA low hum it gives off.",
       "SignWords written on it.",
     ]);
     await act(async () => {
-      fireEvent.click(items[0]!);
+      fireEvent.click(items[1]!);
     });
     expect(dispatch).toHaveBeenCalledOnce();
     expect(entity(session, "zone").behaviors).toEqual({ "panels/hum": {} });
@@ -278,6 +279,7 @@ describe("EditorInspector", () => {
       fireEvent.click(screen.getByRole("button", { name: "Add behavior" }));
     });
     expect((await screen.findAllByRole("menuitem")).map((i) => i.textContent)).toEqual([
+      "spriteDraws a texture or an atlas frame at the entity's pose.",
       "SignWords written on it.",
     ]);
   });

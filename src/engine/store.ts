@@ -14,6 +14,7 @@ import type {
 const INITIAL_CAMERA: CameraState = {
   position: { x: 0, y: 0 },
   zoom: 1,
+  scale: 1,
   bounds: {
     min: { x: 0, y: 0 },
     max: { x: 1600, y: 800 },

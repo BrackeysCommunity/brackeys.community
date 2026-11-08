@@ -1,0 +1,14 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "jxu8wn4zv4em",
+  "id": "hero-texture",
+  "sha256": "9719607949688024698bafbc5beacbda01d67a9180e8eba272fe1d3f0b1813ec",
+  "bytes": 98,
+  "meta": { "format": "png", "height": 16, "width": 32 },
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Generated for this repository: solid colours written by a zlib PNG writer."
+  }
+}

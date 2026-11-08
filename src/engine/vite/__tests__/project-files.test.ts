@@ -10,6 +10,7 @@ import * as Y from "yjs";
 
 import { checkedTestGame } from "../../__tests__/fixtures/test-game";
 import { applyOpsToDoc } from "../../collab/apply";
+import { ASSET_CHANGED, type AssetChangedMessage } from "../../collab/asset-changed";
 import {
   docLayout,
   docMeta,
@@ -25,9 +26,10 @@ import { contentMap, layoutFromDoc, layoutPatch } from "../../collab/layout";
 import { logArray, readLog } from "../../collab/log";
 import { docToPrefab, prefabPatch } from "../../collab/prefab-doc";
 import { applyRegistryBatch } from "../../collab/project-apply";
-import { readProject } from "../../collab/project-doc";
+import { projectAssetsMap, readProject } from "../../collab/project-doc";
 import { COLLAB_LAYOUT_VERSION } from "../../collab/types";
 import { createRegistry } from "../../game/define";
+import { assetInfo } from "../../project/asset-info";
 import { inspectEntry } from "../../project/inspect/entry";
 import {
   createKindRegistry,
@@ -39,6 +41,7 @@ import {
 import type { ProjectOp } from "../../project/ops";
 import { parseProjectFile } from "../../project/project-file";
 import type { AssetEntry, ProjectFile } from "../../project/types";
+import { projectView } from "../../project/view";
 import { diffToOps } from "../../scene/diff-to-ops";
 import { formatPrefab, formatScene } from "../../scene/format";
 import { parseSceneOrThrow } from "../../scene/parse";
@@ -362,17 +365,19 @@ describe("scan", () => {
     });
   }
 
-  it("of the engine's home gives keys equal to ids, no sidecars and no problems", async () => {
+  it("of the engine's home gives its docs keys equal to ids and no sidecars, its art sidecars, and no problems", async () => {
     const { state, problems } = await (await home(ENGINE_HOME)).scan();
     expect(problems).toEqual([]);
     expect(state.meta).toEqual({ projectId: "engine", layout: 1, name: "Engine" });
     const entries = Object.values(state.assets);
     const files = await walk(ENGINE_HOME);
-    expect(files.filter((p) => p.endsWith(".asset.json"))).toEqual([]);
+    const sidecars = files.filter((p) => p.endsWith(".asset.json"));
+    const blobs = entries.filter((e) => e.sha256 !== undefined);
+    expect(sidecars).toEqual(blobs.map((e) => `${e.path}.asset.json`).sort());
     expect(entries.map((e) => e.path).sort()).toEqual(
-      files.filter((p) => p !== "jams.project.json"),
+      files.filter((p) => p !== "jams.project.json" && !sidecars.includes(p)),
     );
-    for (const e of entries) expect(e.key).toBe(e.id);
+    for (const e of entries) if (e.sha256 === undefined) expect(e.key).toBe(e.id);
     expect(entries.map((e) => [e.id, e.kind, e.path])).toEqual(
       expect.arrayContaining([
         ["engine-yard", "scene", "engine-yard.json"],
@@ -507,6 +512,40 @@ describe("write-back: edits, for every declarative kind", () => {
       expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry(key)!), doc)).toBe(false);
     });
   }
+
+  it("material: a disk edit of the render block is one disk transaction touching only the changed fields", async () => {
+    const withRender = (render: Record<string, unknown>) =>
+      formatAssetDoc(kindOf("material"), { ...JSON.parse(FILES.material.text), render });
+    await put(
+      FILES.material.path,
+      withRender({ style: { fill: "#ccf" }, tint: "#ffffff", blend: "normal" }),
+    );
+    const s = await session();
+    const doc = await s.open("ice");
+    const render = contentMap(doc).get("render");
+    expect(render).toBeInstanceOf(Y.Map);
+    const touched: string[] = [];
+    contentMap(doc).observeDeep((events) => {
+      for (const e of events)
+        for (const key of e.changes.keys.keys()) touched.push([...e.path, key].join("."));
+    });
+    const after = withRender({ style: { fill: "#ccf" }, tint: "#ff8800", blend: "add" });
+    await put(FILES.material.path, after);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(FILES.material.path, s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(touched.sort()).toEqual(["render.blend", "render.tint"]);
+    expect(contentMap(doc).get("render")).toBe(render);
+    expect(textOf("material", doc)).toBe(after);
+    expect(await s.adapter.syncPath(FILES.material.path, s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry("ice")!), doc)).toBe(false);
+  });
 
   it("refuses a disk edit that doesn't parse and keeps the doc", async () => {
     const s = await session();
@@ -965,6 +1004,62 @@ describe("write-back: binaries", () => {
     expect(await bytesAt("art/crate.png")).toEqual(other);
     for (const path of ["art/crate.png", "art/crate.png.asset.json"])
       expect(await s.adapter.syncPath(path, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+  });
+
+  it("a re-exported PNG is one replaceContent: meta re-inspected, import settings kept, asset:changed raised", async () => {
+    const s = await session();
+    await s.adapter.storeProject(s.project);
+    const sidecar = await sidecarAt("art/crate.png");
+    await putBytes(
+      "art/crate.png.asset.json",
+      new TextEncoder().encode(
+        JSON.stringify({ ...sidecar, import: { filter: "nearest", pivot: [0.5, 1] } }),
+      ),
+    );
+    await s.adapter.syncPath("art/crate.png.asset.json", s.lookup, s.project);
+    expect(assetInfo(projectView(readProject(s.project), kinds), "crate")).toMatchObject({
+      size: [12, 10],
+      filter: "nearest",
+    });
+
+    // What the dev server watches to send asset:changed: a live entry's sha256 changing.
+    const hashChanges: string[] = [];
+    projectAssetsMap(s.project).observeDeep((events) => {
+      for (const e of events)
+        if (e.path.length === 1 && e.changes.keys.has("sha256"))
+          hashChanges.push(String(e.path[0]));
+    });
+    await putBytes("art/crate.png", other);
+    let result: unknown;
+    const origins = await transactions(s.project, async () => {
+      result = await s.adapter.syncPath("art/crate.png", s.lookup, s.project);
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(hashChanges).toEqual(["crate"]);
+    const { changed } = result as { changed: Omit<AssetChangedMessage, "type" | "project"> };
+    const message: AssetChangedMessage = { type: ASSET_CHANGED, project: "demo", ...changed };
+    expect(message).toEqual({
+      type: "asset:changed",
+      project: "demo",
+      key: "crate",
+      id: "crate",
+      kind: "texture",
+      path: "art/crate.png",
+      sha256: sha(other),
+      bytes: other.byteLength,
+      previous: sha(png),
+    });
+    expect(s.entry("crate")).toMatchObject({
+      sha256: sha(other),
+      meta: { format: "png", width: 32, height: 8 },
+      import: { filter: "nearest", pivot: [0.5, 1] },
+    });
+    expect(assetInfo(projectView(readProject(s.project), kinds), "crate")).toMatchObject({
+      sha256: sha(other),
+      size: [32, 8],
+      filter: "nearest",
+      pivot: [0.5, 1],
+    });
   });
 
   it("a replaceContent whose bytes are in the content store writes the file and its sidecar", async () => {

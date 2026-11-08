@@ -11,6 +11,7 @@ import {
   readDoc,
   sessionPrefabSource,
   setProjectPresence,
+  type AssetChangedMessage,
   type AwarenessLike,
   type BindableRuntime,
   type CodeSkewIssue,
@@ -212,7 +213,19 @@ export type ProjectRegistry = {
   ready(): Promise<void>;
   /** Fires when `current()` or `project()` changes: one of those assets was added, deleted or edited. */
   subscribe(listener: () => void): () => void;
+  /**
+   * Hot reload of art: once the project doc holds the hash an `asset:changed`
+   * message names, `project()` is rebuilt in place (no `subscribe` listener
+   * fires, so the host keeps its game) and `game.reloadAssets` redraws what
+   * uses the asset. Returns the unsubscribe.
+   */
+  followAssets(changes: AssetChangeSource, game: Pick<GameInstance, "reloadAssets">): () => void;
   destroy(): void;
+};
+
+/** Where `asset:changed` messages come from: the project session's link. */
+export type AssetChangeSource = {
+  onAssetChanged(listener: (message: AssetChangedMessage) => void): () => void;
 };
 
 const WATCHED_KINDS: ReadonlySet<string> = new Set([
@@ -255,12 +268,15 @@ export function projectRegistry(session: ProjectSession): ProjectRegistry {
     return values;
   }
 
+  const dataValues = (entries: readonly AssetEntry[]) =>
+    valuesOf(entries.filter((e) => e.kind !== MATERIAL_KIND));
+
   function rebuild() {
     if (destroyed) return;
     const view = session.view();
     const entries = watched();
     const materials = valuesOf(entries.filter((e) => e.kind === MATERIAL_KIND));
-    const data = valuesOf(entries.filter((e) => e.kind !== MATERIAL_KIND));
+    const data = dataValues(entries);
     const nextMaterials = stableJson([...materials]);
     // Settings and tables also depend on where each asset sits, which orders them.
     const nextData = stableJson([...data].map(([id, v]) => [id, view.byId.get(id)?.path, v]));
@@ -326,6 +342,32 @@ export function projectRegistry(session: ProjectSession): ProjectRegistry {
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
+    },
+    followAssets(changes, game) {
+      const pending = new Map<AssetId, AssetChangedMessage["sha256"]>();
+      // The message can arrive before the doc update that carries its hash.
+      const flush = () => {
+        if (destroyed || pending.size === 0) return;
+        const view = session.view();
+        const changed: AssetId[] = [];
+        for (const [id, sha256] of pending) {
+          if (view.byId.get(id)?.sha256 !== sha256) continue;
+          pending.delete(id);
+          changed.push(id);
+        }
+        if (changed.length === 0) return;
+        project = runtimeView(view, dataValues(watched()), session.registry);
+        void game.reloadAssets({ project, view, changed: changed.sort() });
+      };
+      const off = changes.onAssetChanged((message) => {
+        pending.set(message.id, message.sha256);
+        flush();
+      });
+      session.projectDoc.on("update", flush);
+      return () => {
+        off();
+        session.projectDoc.off("update", flush);
+      };
     },
     destroy() {
       if (destroyed) return;

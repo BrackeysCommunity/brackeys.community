@@ -8,7 +8,6 @@ import { applyOpsToDoc, readProject } from "@jams/engine/collab";
 import {
   memoryContentStore,
   PROJECT_FILE,
-  sha256,
   type CodeModuleInfo,
   type ContentStore,
   type ProjectBundle,
@@ -154,6 +153,18 @@ async function tree(dir: string): Promise<Record<string, string>> {
   return out;
 }
 
+/** Every binary the deck holds (the engine project's art and the imported dot): what a push uploads. */
+async function binaries(): Promise<{ path: string; sha256: string }[]> {
+  const out: { path: string; sha256: string }[] = [];
+  for (const path of Object.keys(await tree(deck)).sort()) {
+    if (!path.endsWith(".asset.json")) continue;
+    const sidecar = JSON.parse(await readFile(join(deck, path), "utf8")) as { sha256?: string };
+    if (sidecar.sha256)
+      out.push({ path: path.slice(0, -".asset.json".length), sha256: sidecar.sha256 });
+  }
+  return out;
+}
+
 async function pull(...args: string[]) {
   const r = await runCli(
     ["project", "pull", PROJECT, "--url", SITE, "--token", TOKEN, ...args, "--json"],
@@ -205,14 +216,21 @@ describe("project push", () => {
   it("uploads each binary, then has the site seed every doc from the bundle", async () => {
     const r = await push("--create");
     expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
-    expect(r.data).toMatchObject({ ok: true, project: PROJECT, url: SITE, uploaded: 1 });
-    expect(uploads).toEqual([{ kind: "texture", type: "image/png" }]);
-    expect(requests.map((q) => `${q.method} ${q.path.split("/").pop()}`)).toEqual([
-      "GET bundle",
-      `HEAD ${await sha256(DOT)}`,
-      "POST blobs",
-      "POST bundle",
-    ]);
+    const held = await binaries();
+    expect(held.map((b) => b.path)).toContain("art/dot.png");
+    expect(r.data).toMatchObject({ ok: true, project: PROJECT, url: SITE, uploaded: held.length });
+    const json = { kind: "atlas", type: "application/json" };
+    const png = { kind: "texture", type: "image/png" };
+    expect(uploads).toEqual(
+      expect.arrayContaining(held.map((b) => (b.path.endsWith(".json") ? json : png))),
+    );
+    expect(uploads).toHaveLength(held.length);
+    const sent = requests.map((q) => `${q.method} ${q.path.split("/").pop()}`);
+    expect(sent[0]).toBe("GET bundle");
+    expect(sent.at(-1)).toBe("POST bundle");
+    const heads = sent.slice(1, 1 + held.length);
+    expect([...heads].sort()).toEqual(held.map((b) => `HEAD ${b.sha256}`).sort());
+    expect(sent.slice(1 + held.length, -1)).toEqual(held.map(() => "POST blobs"));
     expect(hosted?.docs.get("kitchen-sink")?.prefix).toBe("scene");
   });
 
@@ -338,7 +356,8 @@ describe("project pull", () => {
     try {
       const r = await pull("--out", out);
       expect(r.exitCode).toBe(1);
-      expect(r.data.missing).toEqual([`art/dot.png (${await sha256(DOT)})`]);
+      const missing = (await binaries()).map((b) => `${b.path} (${b.sha256})`);
+      expect([...(r.data.missing as string[])].sort()).toEqual(missing.sort());
       expect(await readdir(out)).toEqual([]);
     } finally {
       blobs = held;

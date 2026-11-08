@@ -1,7 +1,6 @@
 import type { Store } from "@tanstack/store";
 import { Container } from "pixi.js";
 
-import { initAssets } from "./assets";
 import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
@@ -9,8 +8,16 @@ import type { GameAttachment, GameOutcome, GameShell } from "./game/types";
 import type { PlayOptions } from "./headless/playtest-types";
 import { createInputSystem } from "./input";
 import { createGameLoop } from "./loop";
+import { projectBundle, sceneBundle, type AssetBundle, type BundleEntry } from "./project/bundle";
+import { byCodeUnit } from "./project/kinds/define";
+import { engineResolution } from "./project/kinds/game-settings";
+import { TEXTURE_KIND } from "./project/kinds/texture";
+import type { ProjectRuntimeView } from "./project/runtime-view";
+import type { AssetId, ProjectView } from "./project/types";
+import type { LoadProgress } from "./render/asset-loader";
 import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
+import { resolveResolution } from "./resolution";
 import { createSessionRecording, preparePlay, type SessionRecording } from "./runtime/play-session";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "./runtime/runtime";
 import type { LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
@@ -48,6 +55,8 @@ type LoadedScene = {
   runtime: SceneRuntimeHandle;
   view: PixiView;
   attachment: GameAttachment | null;
+  /** The textures it draws, retained while it is loaded; null without `config.assets`. */
+  bundle: AssetBundle | null;
 };
 
 /** `config.project` is what every scene's game reads as `EngineContext.project`; null without one. */
@@ -55,11 +64,18 @@ export async function createGame(
   canvas: HTMLCanvasElement,
   config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier"> & ProjectOption,
 ): Promise<GameInstance> {
-  const { project = null, ...rest } = config;
+  const { project: initialProject = null, ...rest } = config;
+  let project = initialProject;
   const cfg: GameConfig = { ...DEFAULT_GAME_CONFIG, ...rest };
   const { game } = cfg;
   // Resolved before any rendering, so a malformed game fails fast; every scene's runtime shares it.
   const { registry } = resolveGame({ game, registry: cfg.registry });
+  const projectResolution = project ? engineResolution(project.engine) : undefined;
+  const resolution = resolveResolution({
+    ...(cfg.resolution ? { host: cfg.resolution } : {}),
+    ...(projectResolution ? { project: projectResolution } : {}),
+    ...(game.resolution ? { game: game.resolution } : {}),
+  });
 
   // ─── Initialize subsystems ────────────────────────────────
 
@@ -69,19 +85,16 @@ export async function createGame(
 
   setPhase(store, "loading");
 
-  // Renderer (must be created first — Application.init() initializes Assets internally)
-  const renderer = await createRenderer(canvas, cfg);
+  const renderer = await createRenderer(canvas, cfg, resolution);
 
-  // Register asset bundles (after renderer so Assets is already initialized)
-  await initAssets();
-
-  // Camera (display dimensions drive the expand-viewport scaling)
   const camera = createCamera(
     renderer.worldContainer,
     cfg.displayWidth,
     cfg.displayHeight,
     cfg.camera,
+    resolution,
   );
+  updateCamera(store, { scale: camera.getState().scale });
 
   const rapier = await cfg.rapier();
   const input = createInputSystem(cfg.bindings ?? game.actions);
@@ -111,6 +124,61 @@ export async function createGame(
 
   let loaded: LoadedScene | null = null;
 
+  // ─── Textures ─────────────────────────────────────────────
+
+  // `view` is read at each use, so a host may pass a getter that follows its project.
+  const assets = cfg.assets ?? null;
+  let projectAssets: AssetBundle | null = null;
+  let projectRequested = false;
+  /** The view a reload brought, until the host's own `view` moves on from the one it replaced. */
+  let reloaded: { view: ProjectView; over: ProjectView } | null = null;
+
+  function assetView(): ProjectView | null {
+    if (!assets) return null;
+    const own = assets.view;
+    if (reloaded && reloaded.over === own) return reloaded.view;
+    reloaded = null;
+    return own;
+  }
+
+  /** The project bundle, retained for the instance's life from its first use. */
+  function heldProject(): AssetBundle | null {
+    if (!assets) return null;
+    if (!projectAssets) {
+      const settings = project ? { game: project.settings } : undefined;
+      projectAssets = projectBundle(assetView()!, settings, assets.kinds, registry).bundle;
+      assets.loader.retain(projectAssets);
+    }
+    return projectAssets;
+  }
+
+  /**
+   * A definition's bundle covers its `assets` header and its prefabs'; an
+   * expanded scene carries no header, so only its entities and settings count.
+   */
+  function bundleFor(scene: ExpandedScene, def: SceneDefinition | null): AssetBundle | null {
+    if (!assets) return null;
+    const source = def ?? { v: 0, name: scene.name, bounds: scene.bounds };
+    const library = def ? prefabs : new Map();
+    return sceneBundle(scene, source, library, assetView()!, assets.kinds, registry).bundle;
+  }
+
+  /** `bundle`, joined by the project's entries the first time anything loads. */
+  function withProject(bundle: AssetBundle): AssetBundle {
+    const shared = heldProject();
+    if (!shared || projectRequested) return bundle;
+    projectRequested = true;
+    if (shared.entries.length === 0) return bundle;
+    const byId = new Map<string, BundleEntry>();
+    for (const e of [...shared.entries, ...bundle.entries]) byId.set(e.id, e);
+    const entries = [...byId.values()].sort((a, b) => byCodeUnit(a.id, b.id));
+    return {
+      name: bundle.name,
+      entries,
+      bytes: entries.reduce((sum, e) => sum + e.bytes, 0),
+    };
+  }
+
   function syncGameSlice(): void {
     setGameSlice(store, loaded?.runtime.game?.storeSlice?.() ?? null);
   }
@@ -121,6 +189,7 @@ export async function createGame(
     loaded.attachment?.destroy();
     loaded.runtime.destroy();
     loaded.view.destroy();
+    if (loaded.bundle) assets?.loader.release(loaded.bundle);
     loaded = null;
     syncGameSlice();
   }
@@ -131,11 +200,21 @@ export async function createGame(
    * game's target in play mode and on the first load; in edit mode it stays
    * where the editor put it.
    */
-  function buildWorld(scene: ExpandedScene, play?: PlayOptions, snap?: boolean): LoadReport {
+  function buildWorld(
+    scene: ExpandedScene,
+    bundle: AssetBundle | null,
+    play?: PlayOptions,
+    snap?: boolean,
+  ): LoadReport {
     if (destroyed) return { ok: false, error: "game destroyed" };
     const container = new Container();
     container.label = `scene:${scene.name}`;
-    const view = createPixiView(container);
+    const view = createPixiView(container, {
+      layers: registry.layers,
+      textures: cfg.assets?.loader,
+      editing: () => getMode() === "edit",
+      ...(resolution.pixelSnap ? { pixelSnap: true } : {}),
+    });
     const runtime = createSceneRuntime({
       rapier,
       view,
@@ -144,6 +223,7 @@ export async function createGame(
       dev: cfg.dev,
       now: () => performance.now(),
       project,
+      ...(resolution.sampling ? { sampling: resolution.sampling } : {}),
     });
     const report = runtime.load(scene, play);
     if (!report.ok) {
@@ -154,10 +234,13 @@ export async function createGame(
     }
 
     const first = loaded === null;
+    // Retained before the old scene releases, so textures both use stay resident.
+    if (bundle) assets?.loader.retain(bundle);
     teardownScene();
+    if (bundle && assets) void assets.loader.load(withProject(bundle));
     sceneLayer.addChild(container);
     const shell: GameShell = { view, router, dev: cfg.dev, getMode };
-    loaded = { runtime, view, attachment: game.attach?.(shell, runtime) ?? null };
+    loaded = { runtime, view, attachment: game.attach?.(shell, runtime) ?? null, bundle };
     debugOverlay?.setPhysics(runtime.ctx);
     syncGameSlice();
     camera.setBoundsFromScene(scene.bounds);
@@ -170,17 +253,26 @@ export async function createGame(
 
   let prefabs: PrefabLibrary = cfg.prefabs ?? new Map();
 
+  function expand(
+    source: SceneDefinition | ExpandedScene,
+  ): { ok: true; scene: ExpandedScene } | { ok: false; error: string } {
+    try {
+      const scene = isExpandedScene(source) ? source : expandScene(source, registry, { prefabs });
+      return { ok: true, scene };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   function loadScene(source: SceneDefinition | ExpandedScene): LoadReport {
     if (destroyed) return { ok: false, error: "game destroyed" };
-    let scene: ExpandedScene;
-    try {
-      scene = isExpandedScene(source) ? source : expandScene(source, registry, { prefabs });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (cfg.dev) console.warn(`[scene] expand failed: ${message}`);
-      return { ok: false, error: message };
+    const expanded = expand(source);
+    if (!expanded.ok) {
+      if (cfg.dev) console.warn(`[scene] expand failed: ${expanded.error}`);
+      return expanded;
     }
-    return buildWorld(scene);
+    const def = isExpandedScene(source) ? null : source;
+    return buildWorld(expanded.scene, bundleFor(expanded.scene, def));
   }
 
   function getMode(): GameMode {
@@ -190,7 +282,11 @@ export async function createGame(
   // ─── Edit and play ────────────────────────────────────────
 
   /** What Stop brings back: the edit world's scene and the editor camera, taken at Play. */
-  let editState: { scene: ExpandedScene | null; camera: CameraState } | null = null;
+  let editState: {
+    scene: ExpandedScene | null;
+    camera: CameraState;
+    bundle: AssetBundle | null;
+  } | null = null;
 
   function enterMode(mode: GameMode): void {
     setStoreMode(store, mode);
@@ -201,13 +297,24 @@ export async function createGame(
     if (mode === "play" && store.state.phase === "running") focusInput();
   }
 
-  function startPlay(scene: ExpandedScene, opts: PlayOptions = {}): PlayReport {
+  function startPlay(
+    scene: ExpandedScene,
+    bundle: AssetBundle | null,
+    opts: PlayOptions = {},
+  ): PlayReport {
     const playing = getMode() === "play" && editState !== null;
     const remembered = playing
       ? editState
-      : { scene: loaded?.runtime.scene() ?? null, camera: camera.getState() };
-    const report = buildWorld(scene, opts, true);
+      : {
+          scene: loaded?.runtime.scene() ?? null,
+          camera: camera.getState(),
+          bundle: loaded?.bundle ?? null,
+        };
+    // The edit scene's textures stay resident through Play, for Stop.
+    if (!playing && remembered?.bundle) assets?.loader.retain(remembered.bundle);
+    const report = buildWorld(scene, bundle, opts, true);
     if (!report.ok) {
+      if (!playing && remembered?.bundle) assets?.loader.release(remembered.bundle);
       const out: PlayReport = { ok: false, issues: [], error: report.error };
       if (report.reason) out.reason = report.reason;
       return out;
@@ -239,7 +346,7 @@ export async function createGame(
     if (!prepared.ok) return { ok: false, issues: prepared.issues };
     finishRecording(session?.stop() ?? null);
     session = null;
-    const report = startPlay(prepared.scene, opts);
+    const report = startPlay(prepared.scene, bundleFor(prepared.scene, doc), opts);
     if (report.ok) {
       session = createSessionRecording({
         rapier,
@@ -274,7 +381,9 @@ export async function createGame(
     const remembered = editState;
     editState = null;
     const scene = remembered?.scene ?? loaded?.runtime.scene() ?? null;
-    if (!scene || !buildWorld(scene, undefined, false).ok) teardownScene();
+    const bundle = remembered?.scene ? remembered.bundle : (loaded?.bundle ?? null);
+    if (!scene || !buildWorld(scene, bundle, undefined, false).ok) teardownScene();
+    if (remembered?.bundle) assets?.loader.release(remembered.bundle);
     input.flush();
     enterMode("edit");
     if (remembered) restoreCamera(remembered.camera);
@@ -298,7 +407,7 @@ export async function createGame(
     if (mode === "edit") return stop();
     session = null;
     const scene = loaded?.runtime.scene();
-    if (scene) startPlay(scene);
+    if (scene) startPlay(scene, loaded?.bundle ?? null);
     else enterMode("play");
   }
 
@@ -360,9 +469,14 @@ export async function createGame(
       events.emit("game:tick", { tick: store.state.tick });
     },
 
-    onRender(_alpha: number) {
-      // Future: interpolate visual positions between physics ticks
-      // For now, PixiJS renders automatically via its ticker (driven by rAF)
+    onRender(alpha: number) {
+      if (loaded) {
+        // Paused or editing, nothing steps, so visuals sit at their latest poses.
+        const a = loop.isPaused() || getMode() === "edit" ? 1 : alpha;
+        const { position, zoom } = camera.getState();
+        loaded.view.frame?.({ alpha: a, camera: { x: position.x, y: position.y, zoom } });
+        loaded.runtime.render(a);
+      }
       setFPS(store, loop.getFPS());
     },
   });
@@ -424,7 +538,7 @@ export async function createGame(
 
   function panBy(delta: Vec2): void {
     if (destroyed) return;
-    const scale = camera.getDisplayScale() * camera.getState().zoom;
+    const { scale } = camera.getState();
     const at = camera.getPosition();
     moveCamera({ x: at.x - delta.x / scale, y: at.y - delta.y / scale });
   }
@@ -494,6 +608,84 @@ export async function createGame(
     if (destroyed) return;
     renderer.resize(width, height);
     camera.resize(width, height);
+    updateCamera(store, { scale: camera.getState().scale });
+  }
+
+  /** A scene that doesn't expand has nothing to load; `loadScene` reports why. */
+  function preload(
+    source: SceneDefinition | ExpandedScene,
+    onProgress?: (p: LoadProgress) => void,
+  ): Promise<{ failed: BundleEntry[] }> {
+    if (destroyed || !assets) return Promise.resolve({ failed: [] });
+    const expanded = expand(source);
+    if (!expanded.ok) return Promise.resolve({ failed: [] });
+    const def = isExpandedScene(source) ? null : source;
+    const bundle = bundleFor(expanded.scene, def);
+    return bundle
+      ? assets.loader.load(withProject(bundle), onProgress)
+      : Promise.resolve({ failed: [] });
+  }
+
+  /** `bundle` with each changed texture's entry at `view`'s hash; `bundle` itself when none changed. */
+  function rehashed(
+    bundle: AssetBundle,
+    view: ProjectView,
+    changed: ReadonlySet<AssetId>,
+  ): AssetBundle {
+    let moved = false;
+    const entries = bundle.entries.map((e) => {
+      const live = changed.has(e.id) ? view.byId.get(e.id) : undefined;
+      if (live?.sha256 === undefined || live.sha256 === e.sha256) return e;
+      moved = true;
+      return { ...e, sha256: live.sha256, bytes: live.bytes ?? e.bytes };
+    });
+    if (!moved) return bundle;
+    return { name: bundle.name, entries, bytes: entries.reduce((sum, e) => sum + e.bytes, 0) };
+  }
+
+  /** Swaps each held bundle for its rehashed copy, so the new textures stay resident and the old may go. */
+  function rehashHeld(view: ProjectView, changed: ReadonlySet<AssetId>): void {
+    if (!assets) return;
+    const swap = (bundle: AssetBundle): AssetBundle => {
+      const next = rehashed(bundle, view, changed);
+      if (next !== bundle) {
+        assets.loader.retain(next);
+        assets.loader.release(bundle);
+      }
+      return next;
+    };
+    if (loaded?.bundle) loaded.bundle = swap(loaded.bundle);
+    if (editState?.bundle) editState.bundle = swap(editState.bundle);
+    if (projectAssets) projectAssets = swap(projectAssets);
+  }
+
+  /** The changed textures' entries at `view`'s hashes. */
+  function changedTextures(view: ProjectView, changed: readonly AssetId[]): AssetBundle {
+    const entries: BundleEntry[] = [];
+    for (const id of [...new Set(changed)].sort(byCodeUnit)) {
+      const live = view.byId.get(id);
+      if (live?.kind !== TEXTURE_KIND || live.sha256 === undefined) continue;
+      entries.push({ id, kind: live.kind, sha256: live.sha256, bytes: live.bytes ?? 0 });
+    }
+    return { name: "reload", entries, bytes: entries.reduce((sum, e) => sum + e.bytes, 0) };
+  }
+
+  async function reloadAssets(update: {
+    project: ProjectRuntimeView | null;
+    view: ProjectView;
+    changed: readonly AssetId[];
+  }): Promise<{ failed: BundleEntry[] }> {
+    if (destroyed) return { failed: [] };
+    project = update.project;
+    if (assets) reloaded = { view: update.view, over: assets.view };
+    let failed: BundleEntry[] = [];
+    if (assets) {
+      rehashHeld(update.view, new Set(update.changed));
+      const bundle = changedTextures(update.view, update.changed);
+      if (bundle.entries.length > 0) failed = (await assets.loader.load(bundle)).failed;
+    }
+    if (!destroyed) loaded?.runtime.reloadAssets(project, update.changed);
+    return { failed };
   }
 
   function destroy(): void {
@@ -505,6 +697,9 @@ export async function createGame(
     inputTarget.removeEventListener("blur", onInputBlur);
     debugOverlay?.destroy();
     teardownScene();
+    if (editState?.bundle) assets?.loader.release(editState.bundle);
+    editState = null;
+    if (projectAssets) assets?.loader.release(projectAssets);
     router.destroy();
     input.destroy();
     camera.destroy();
@@ -554,6 +749,8 @@ export async function createGame(
     getStore,
     registry,
     loadScene,
+    preload,
+    reloadAssets,
     unloadScene: teardownScene,
     runtime: () => loaded?.runtime ?? null,
     play,

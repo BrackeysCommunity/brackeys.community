@@ -97,7 +97,14 @@ describe("createRegistry", () => {
     expect(r.id).toBe("engine");
     expect(r.typeNames).toEqual([...PRIMITIVE_TYPES]);
     expect(r.schemaId).toBe("urn:jams-engine:scene:v3");
-    expect(r.spawnGroups).toEqual([["solid"], ["sensor"], ["marker"], ["prop"], ["follower"]]);
+    expect(r.spawnGroups).toEqual([
+      ["solid"],
+      ["sensor"],
+      ["marker"],
+      ["prop"],
+      ["follower"],
+      ["decor"],
+    ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid"]);
     expect(r.actionNames).toEqual([]);
   });
@@ -158,6 +165,19 @@ describe("createRegistry", () => {
     expect((s >>> 16) & (d & 0xffff)).not.toBe(0);
   });
 
+  it("spawns decor last when an explicit spawn order leaves it out", () => {
+    const r = createRegistry(
+      game({
+        spawnOrder: ["decor", "solid", "sensor", "crate", "prop", "flag", "marker", "follower"],
+      }),
+    );
+    expect(r.spawnGroups[0]).toEqual(["decor"]);
+    const without = createRegistry(
+      game({ spawnOrder: ["solid", "sensor", "crate", "prop", "flag", "marker", "follower"] }),
+    );
+    expect(without.spawnGroups.at(-1)).toEqual(["decor"]);
+  });
+
   it("honours an explicit spawn order with shared groups", () => {
     const r = createRegistry(
       game({ spawnOrder: ["solid", ["flag", "sensor"], "crate", "prop", "marker", "follower"] }),
@@ -169,6 +189,7 @@ describe("createRegistry", () => {
       ["prop"],
       ["marker"],
       ["follower"],
+      ["decor"],
     ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid", "solid:mud", "flag"]);
   });
@@ -185,6 +206,15 @@ describe("createRegistry", () => {
     });
     expect(problems(() => createRegistry(game({ types: [solid] })))).toEqual([
       'type "solid" is an engine primitive and can\'t be redefined',
+    ]);
+    const decor = defineEntityType({
+      type: "decor",
+      description: "Mine.",
+      base: "decor",
+      fields: { at: pointField("x") },
+    });
+    expect(problems(() => createRegistry(game({ types: [decor] })))).toEqual([
+      'type "decor" is an engine primitive and can\'t be redefined',
     ]);
     expect(
       problems(() =>

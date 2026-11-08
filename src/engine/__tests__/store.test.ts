@@ -83,6 +83,14 @@ describe("mutations", () => {
     expect(store.state.camera.zoom).toBe(1); // unchanged
   });
 
+  it("updateCamera keeps the scale beside the position, so overlays follow a resize", () => {
+    const store = createGameStore();
+    expect(store.state.camera.scale).toBe(1);
+    updateCamera(store, { scale: 3 });
+    updateCamera(store, { position: { x: 5, y: 6 } });
+    expect(store.state.camera.scale).toBe(3);
+  });
+
   it("setSimPaused and setSimTimeScale update sim and skip unchanged values", () => {
     const store = createGameStore();
     let notified = 0;

@@ -13,14 +13,14 @@ import { loadFlavour, probeDigests, type Flavour, type ProbeDigests } from "./de
  * rerun the probe under Bun on another machine to keep the comparison.
  */
 const PINNED: Record<Flavour, ProbeDigests> = {
-  rapier2d: { script: "ec60f220d6590d0d", fuzz: "cede7d80dbf9a1bb", pile: "0f9f997ba5e4ee6e" },
+  rapier2d: { script: "a9b8cef9b0bc5da2", fuzz: "cede7d80dbf9a1bb", pile: "0f9f997ba5e4ee6e" },
   "rapier2d-compat": {
-    script: "ec60f220d6590d0d",
+    script: "a9b8cef9b0bc5da2",
     fuzz: "cede7d80dbf9a1bb",
     pile: "0f9f997ba5e4ee6e",
   },
   "rapier2d-deterministic-compat": {
-    script: "ec60f220d6590d0d",
+    script: "a9b8cef9b0bc5da2",
     fuzz: "cede7d80dbf9a1bb",
     pile: "2ca6d47ad105bbe5",
   },

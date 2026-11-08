@@ -62,10 +62,29 @@ const asset = (id: string, kind: string): AssetEntry => ({
 });
 const project = projectView({
   meta: { projectId: "p", layout: 2, name: "P" },
-  assets: { "k-boom": asset("boom", "sound") },
+  assets: {
+    "k-boom": asset("boom", "sound"),
+    "k-hero": {
+      ...asset("hero", "atlas"),
+      sha256: "b".repeat(64),
+      meta: {
+        tool: "aseprite",
+        frames: { "idle-0": { x: 0, y: 0, w: 16, h: 16 } },
+        tags: [],
+        slices: [],
+        order: ["idle-0"],
+      },
+    },
+  },
   history: {},
   code: {},
   build: {},
+});
+const sprited = (id: string, sprite: Record<string, unknown>): EntityDef => ({
+  id,
+  type: "marker",
+  at: [100, 100],
+  behaviors: { sprite },
 });
 const env = { materials: [], materialDefs: new Map(), types: [], assets: () => [] };
 const scored = createRegistry(
@@ -317,6 +336,10 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
   "asset-missing": () => validated(scene({ assets: ["bom"] }), engine, { project }),
   "asset-kind": () =>
     validated(scene({ game: "scored", settings: { theme: "boom" } }), scored, { project }),
+  "asset-frame-unknown": () =>
+    validated(scene({}, [sprited("pic", { asset: "hero", frame: "idel-0" })]), engine, { project }),
+  "sprite-no-asset": () =>
+    validated(scene({}, [sprited("pic", { scale: 2 })]), engine, { project }),
   // The other project codes come from the project model, not the scene tools these fixtures run.
   "asset-in-use": null,
   "asset-id-taken": null,

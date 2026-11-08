@@ -7,6 +7,7 @@ import type { Duplex } from "node:stream";
 import type { DirectConnection, Server as HocuspocusServer } from "@hocuspocus/server";
 import * as Y from "yjs";
 
+import { ASSET_CHANGED, type AssetChangedMessage } from "../collab/asset-changed";
 import { buildAtFrom, stampWins } from "../collab/build-stamp";
 import { applyRepairs, reinspectBlobs } from "../collab/project-apply";
 import {
@@ -48,11 +49,7 @@ import {
 /** Where the dev server accepts collab websockets, for every doc: `project:`, `scene:` and `asset:`. */
 export const SCENE_COLLAB_PATH = "/__scene-collab";
 
-/** The stateless message type the server sends on a project doc when a binary's bytes change. */
-export const ASSET_CHANGED = "asset:changed";
-
-/** What an `asset:changed` stateless message holds, as JSON: hot reload refetches `sha256`. */
-export type AssetChangedMessage = AssetChange & { type: typeof ASSET_CHANGED; project: ProjectId };
+export { ASSET_CHANGED, type AssetChangedMessage };
 
 export type SceneCollabOptions = {
   /** The projects served; each doc name says which it belongs to. */

@@ -1,8 +1,10 @@
 import { z } from "zod";
 
+import type { BlendMode } from "../../context";
 import type { ProjectMaterialDef } from "../../game/define";
 import type { Style } from "../../game/types";
-import { defineAssetKind } from "./define";
+import { canonicalJson } from "../canonical";
+import { defineAssetKind, type DocLayout } from "./define";
 
 export const MATERIAL_KIND = "material";
 export const MATERIAL_VERSION = 1;
@@ -41,8 +43,18 @@ const PhysicsSchema = z
     "How bodies of this material collide. Required when a physics body uses the material; without it the material is render data only.",
   );
 
+const BlendSchema = z
+  .enum(["normal", "add", "multiply", "screen"])
+  .describe(
+    "How a sprite of this material composites over what is under it.",
+  ) satisfies z.ZodType<BlendMode>;
+
 const RenderSchema = z
-  .strictObject({ style: StyleSchema.optional() })
+  .strictObject({
+    style: StyleSchema.optional(),
+    tint: color("Sprite tint, #rgb or #rrggbb; multiplies the texture's colours.").optional(),
+    blend: BlendSchema.optional(),
+  })
   .describe("How bodies of this material are drawn.");
 
 export const materialSchema = z
@@ -88,8 +100,13 @@ export function projectMaterialOf(value: unknown): ProjectMaterialDef | null {
     description,
     ...(physics ? { physics: { ...physics } } : {}),
     ...(render?.style ? { style: styleOf(render.style) } : {}),
+    ...(render?.tint !== undefined ? { tint: hexColor(render.tint) } : {}),
+    ...(render?.blend !== undefined ? { blend: render.blend } : {}),
   };
 }
+
+/** Each top-level field is one value, so the file keeps `render` on one line. */
+const MATERIAL_TEXT_LAYOUT: DocLayout = { as: "map", rest: { as: "atomic" } };
 
 /** A surface material: a description, an optional physics block and an optional look. */
 export const materialKind = defineAssetKind({
@@ -102,7 +119,13 @@ export const materialKind = defineAssetKind({
   version: MATERIAL_VERSION,
   schemaId: MATERIAL_SCHEMA_ID,
   schema: () => materialSchema,
-  layout: { as: "map", rest: { as: "atomic" } },
+  // `render`'s fields merge one by one, so concurrent tint and blend edits both survive.
+  layout: {
+    as: "map",
+    fields: { render: { as: "map", rest: { as: "atomic" } } },
+    rest: { as: "atomic" },
+  },
+  format: (value: MaterialFile) => canonicalJson(value, MATERIAL_TEXT_LAYOUT),
   empty: (): MaterialFile => ({
     kind: MATERIAL_KIND,
     v: MATERIAL_VERSION,

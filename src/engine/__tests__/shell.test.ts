@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
-import { Container } from "pixi.js";
+import { Assets, Container, type Texture } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { DebugOverlayFactory, DebugSceneSource } from "../debug";
 import { createGame } from "../engine";
 import { createRegistry } from "../game/define";
 import type { GameDefinition, GameShell } from "../game/types";
+import { createKindRegistry } from "../project/kinds";
+import type { AssetEntry, Sha256 } from "../project/types";
+import { projectView } from "../project/view";
+import { createAssetLoader } from "../render/asset-loader";
 import type { LoadReport, SceneRuntimeHandle } from "../runtime/types";
 import { expandScene, isExpandedScene } from "../scene/expand";
 import { parseSceneOrThrow } from "../scene/parse";
@@ -26,7 +30,26 @@ vi.mock("../renderer", () => ({
     destroy: () => {},
   }),
 }));
-vi.mock("../assets", () => ({ initAssets: async () => {} }));
+
+/** The alpha of each frame any Pixi view is asked to render. */
+const frameAlphas = vi.hoisted(() => [] as number[]);
+vi.mock("../render/pixi-view", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../render/pixi-view")>();
+  return {
+    ...real,
+    createPixiView: (...args: Parameters<typeof real.createPixiView>) => {
+      const view = real.createPixiView(...args);
+      const recording: typeof view = {
+        ...view,
+        frame(f) {
+          frameAlphas.push(f.alpha);
+          view.frame!(f);
+        },
+      };
+      return recording;
+    },
+  };
+});
 
 const TICK_MS = 1000 / 60;
 
@@ -314,5 +337,138 @@ describe("input target and router", () => {
     button.focus();
     game.setMode("play");
     expect(document.activeElement).toBe(canvas);
+  });
+});
+
+describe("preload and the scene's textures", () => {
+  const kinds = createKindRegistry(testGame);
+  const sha = (n: number) => n.toString(16).padStart(64, "0") as Sha256;
+  const texture = (id: string, n: number): AssetEntry => ({
+    key: id,
+    id,
+    kind: "texture",
+    path: `art/${id}.png`,
+    sha256: sha(n),
+    bytes: 10 * n,
+    meta: { format: "png", width: 2, height: 2 },
+    created: { at: 0, by: "test" },
+  });
+  const view = projectView(
+    {
+      meta: { projectId: "p", layout: 1, name: "P" },
+      assets: Object.fromEntries([texture("sky", 1), texture("ground", 2)].map((e) => [e.key, e])),
+      history: {},
+      code: {},
+      build: {},
+    },
+    kinds,
+  );
+  const sky: SceneDefinition = { ...sceneB, name: "sky", assets: ["sky"] };
+  const ground: SceneDefinition = { ...sceneB, name: "ground", assets: ["ground", "sky"] };
+
+  function setup() {
+    const fetched: string[] = [];
+    vi.spyOn(Assets, "load").mockImplementation((async (asset: { src: string }) => {
+      fetched.push(asset.src);
+      return { width: 2, height: 2, source: { pixelWidth: 2, pixelHeight: 2 } } as Texture;
+    }) as typeof Assets.load);
+    vi.spyOn(Assets, "unload").mockImplementation(async () => {});
+    const loader = createAssetLoader({ project: "p", url: (_p, e) => `/blob/${e.sha256}` });
+    return { loader, fetched, assets: { loader, view, kinds } };
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("loads a definition's header textures, then loadScene draws with them resident", async () => {
+    const { loader, fetched, assets } = setup();
+    const game = await makeGame({ game: testGame, assets });
+    const progress: number[] = [];
+
+    expect(await game.preload(sky, (p) => progress.push(p.loaded))).toEqual({ failed: [] });
+    expect(fetched).toEqual([`/blob/${sha(1)}`]);
+    expect(progress.at(-1)).toBe(1);
+    expect(loader.get(sha(1))).not.toBeNull();
+
+    expect(game.loadScene(sky).ok).toBe(true);
+    expect(fetched).toHaveLength(1);
+    expect(loader.stats().resident).toEqual(["project", "sky"]);
+  });
+
+  it("retains the loaded scene's bundle and releases the previous one", async () => {
+    const { loader, assets } = setup();
+    const game = await makeGame({ game: testGame, assets });
+
+    await game.preload(sky);
+    game.loadScene(sky);
+    await game.preload(ground);
+    game.loadScene(ground);
+    expect(loader.stats().resident).toEqual(["ground", "project"]);
+
+    game.unloadScene();
+    expect(loader.stats().resident).toEqual(["project"]);
+    game.destroy();
+    expect(loader.stats().resident).toEqual([]);
+  });
+
+  it("fetches what loadScene needs when nothing preloaded it", async () => {
+    const { loader, fetched, assets } = setup();
+    const game = await makeGame({ game: testGame, assets });
+    const arrived: Sha256[] = [];
+    loader.onLoad((h) => arrived.push(h));
+
+    expect(game.loadScene(ground).ok).toBe(true);
+    await vi.waitFor(() => expect(arrived).toHaveLength(2));
+    expect(fetched.sort()).toEqual([`/blob/${sha(1)}`, `/blob/${sha(2)}`]);
+  });
+
+  it("bundles an expanded scene's entities and settings only, with no header", async () => {
+    const { fetched, assets } = setup();
+    const game = await makeGame({ game: testGame, assets });
+    expect(await game.preload(expandScene(sky, game.registry))).toEqual({ failed: [] });
+    expect(fetched).toEqual([]);
+  });
+
+  it("keeps the edit scene's textures through Play and back", async () => {
+    const { loader, assets } = setup();
+    const game = await makeGame({ game: testGame, assets });
+    game.loadScene(sky);
+    expect(game.play(ground).ok).toBe(true);
+    expect(loader.stats().resident).toEqual(["ground", "project", "sky"]);
+    game.stop();
+    expect(loader.stats().resident).toEqual(["project", "sky"]);
+  });
+
+  it("without config.assets resolves with nothing failed and retains nothing", async () => {
+    const { loader, fetched } = setup();
+    const game = await makeGame({ game: testGame });
+    expect(await game.preload(sky)).toEqual({ failed: [] });
+    expect(game.loadScene(sky).ok).toBe(true);
+    expect(fetched).toEqual([]);
+    expect(loader.stats()).toEqual({ textures: 0, bytes: 0, resident: [] });
+  });
+});
+
+describe("render frames", () => {
+  it("interpolate in play and render at alpha 1 paused or editing", async () => {
+    const frames = manualFrames();
+    const game = await makeGame({ game: recordingGame().game });
+    game.loadScene(sceneB);
+    game.setMode("play");
+    game.start();
+    frames.advance(0);
+    frames.advance(TICK_MS * 1.5);
+    expect(frameAlphas.at(-1)).toBeCloseTo(0.5);
+
+    game.pause();
+    frames.advance(TICK_MS / 2);
+    expect(frameAlphas.at(-1)).toBe(1);
+
+    game.resume();
+    game.setMode("edit");
+    const before = frameAlphas.length;
+    frames.advance(TICK_MS / 2);
+    frames.advance(TICK_MS * 1.5);
+    expect(frameAlphas.length).toBeGreaterThan(before);
+    expect(frameAlphas.slice(before).every((a) => a === 1)).toBe(true);
   });
 });
