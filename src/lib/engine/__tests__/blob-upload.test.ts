@@ -186,6 +186,24 @@ describe("blob upload: the rate limit", () => {
     expect(minio.objects.size).toBe(1);
   });
 
+  it("counts only uploads that store a new blob", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    expect((await send(upload(PNG))).status).toBe(200);
+    expect((await send(upload(PNG, { kind: "scene" }))).status).toBe(400);
+    expect((await send(upload(new Uint8Array(65).fill(7), { kind: "texture" }))).status).toBe(413);
+    expect((await send(upload(new Uint8Array(0)))).status).toBe(400);
+    const claimed = await sha256("the bytes the client meant to send");
+    expect((await send(upload(bytes("other"), { expect: claimed }))).status).toBe(422);
+    expect(limiter.hits.get("engine-blob:staff")).toBe(1);
+  });
+
+  it("answers a blob it already holds even when the day's uploads are spent", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    limiter.hits.set("engine-blob:staff", ENGINE_BLOB_UPLOADS_PER_DAY);
+    expect((await send(upload(PNG))).status).toBe(200);
+    expect((await send(upload(bytes("new bytes")))).status).toBe(429);
+  });
+
   it("counts per member", async () => {
     limiter.hits.set("engine-blob:someone-else", ENGINE_BLOB_UPLOADS_PER_DAY);
     expect((await send(upload(PNG))).status).toBe(201);

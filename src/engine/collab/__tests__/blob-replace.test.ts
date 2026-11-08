@@ -150,20 +150,24 @@ describe("binary replace races", () => {
     { timeout: 30_000 },
     async () => {
       const pool = [PNG, PNG_RESAVED, HERO, JPEG, GIF];
+      let retained = 0;
       for (let seed = 1; seed <= 6; seed++) {
         const rand = rng(seed);
         const store = memoryContentStore();
-        for (const bytes of pool) await store.put(bytes);
         const host = await world(store);
         const clients = await Promise.all(users.map((u, i) => join(host, u, store, 10 + i)));
         const offered = new Set([await sha256(PNG)]);
+        const moved = new Set<string>();
         for (let round = 0; round < 12; round++) {
           const c = clients[Math.floor(rand() * clients.length)]!;
           if (rand() < 0.3) c.setOnline(rand() < 0.5);
           const bytes = pool[Math.floor(rand() * pool.length)]!;
+          const hash = await store.put(bytes);
+          const from = readProject(c.session.projectDoc).assets.crate!.sha256!;
           const r = await replace(c.session, "crate", bytes);
           expect(r.ok, `seed ${seed} round ${round}`).toBe(true);
-          offered.add(await sha256(bytes));
+          offered.add(hash);
+          if (from !== hash) moved.add(from).add(hash);
         }
         for (const c of clients) c.setOnline(true);
 
@@ -176,14 +180,18 @@ describe("binary replace races", () => {
         expect(offered.has(crate.sha256!)).toBe(true);
         await consistent(store, crate);
         const held = new Set(end.history.crate!.map((h) => h.sha256));
+        for (const hash of moved)
+          expect(held.has(hash), `seed ${seed}: ${hash} stays in the history`).toBe(true);
+        retained += moved.size;
         for (const hash of held) expect(await store.has(hash)).toBe(true);
-        if (held.size === 0) expect(crate.sha256).toBe(await sha256(PNG));
+        if (moved.size === 0) expect(crate.sha256).toBe(await sha256(PNG));
         else
           expect(held.has(crate.sha256!), `seed ${seed}: the current hash is in the history`).toBe(
             true,
           );
         for (const c of clients) c.session.destroy();
       }
+      expect(retained, "some replace moved the crate off a hash").toBeGreaterThan(0);
     },
   );
 });

@@ -257,9 +257,12 @@ engine-verify:
         fi
       done
     - |
-      for scene in $(bun scripts/scene/cli.ts list | awk '{print $1}'); do
-        bun scripts/scene/cli.ts validate "$scene" || exit 1
-      done
+      scenes=$(bun scripts/scene/cli.ts list --json) || exit 1
+      targets=$(printf '%s' "$scenes" | bun -e 'const d = JSON.parse(await Bun.stdin.text()); for (const s of d.scenes ?? []) console.log(`${s.home} ${s.name}`)') || exit 1
+      [ -n "$targets" ] || { echo "scene list found no scenes" >&2; exit 1; }
+      printf '%s\n' "$targets" | while read -r home name; do
+        bun scripts/scene/cli.ts validate --project "$home" "$name" || exit 1
+      done || exit 1
   rules:
     - !reference [.skip-version-bump, rules]
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'

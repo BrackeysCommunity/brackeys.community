@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ContentStoreError, type ContentStore } from "../project/content-store";
 import { isSha256 } from "../project/hash";
 import { SCENE_KIND_NAME } from "../project/ops";
-import type { ProjectId, ProjectState } from "../project/types";
+import type { ProjectState } from "../project/types";
 import { projectView } from "../project/view";
 import { makeIssue } from "../scene/issues";
 import type { FileProject } from "./project-files";
@@ -62,6 +62,15 @@ const error = (status: number, message: string, extra: Record<string, unknown> =
   body: { ok: false, error: message, ...extra },
 });
 
+/** A URL path segment decoded, or null when its percent-escapes are malformed. */
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * `GET /__scene` lists scene names and `GET /__scene/:name` returns a
  * scene's stored JSON. Writes go through the collab server's documents, so
@@ -75,12 +84,8 @@ export async function handleSceneRequest(
   if (path !== SCENE_ROUTE && !path.startsWith(`${SCENE_ROUTE}/`)) return null;
   if (req.method !== "GET")
     return error(405, "Use GET; scenes are edited through the collab server.");
-  let rest: string;
-  try {
-    rest = decodeURIComponent(path.slice(SCENE_ROUTE.length + 1));
-  } catch {
-    return error(400, "Malformed scene name.");
-  }
+  const rest = decodeSegment(path.slice(SCENE_ROUTE.length + 1));
+  if (rest === null) return error(400, "Malformed scene name.");
   try {
     if (rest === "") return { status: 200, body: { ok: true, scenes: await store.list() } };
     assertSceneName(rest);
@@ -130,7 +135,7 @@ export type ProjectResponse = {
   body: unknown;
 };
 
-/** What a blob upload may hold: the most any blob kind of the project takes. */
+/** What a blob upload may hold: the most any blob kind of the project takes; 0 when it has none. */
 function uploadLimit(project: FileProject): number {
   let max = 0;
   for (const def of project.kinds.list())
@@ -145,8 +150,9 @@ function uploadLimit(project: FileProject): number {
  * - `POST /__project/<id>/blob`: stores the raw body in the project's
  *   content store and answers `{ sha256, bytes }`; with `x-expect-sha256`,
  *   bytes that hash otherwise are refused with `hash-mismatch` (422), an
- *   over-limit body with `asset-too-large` (413) and an empty one with 400,
- *   as the site's blob route answers.
+ *   over-limit body with `asset-too-large` (413), an empty one with 400 and
+ *   any upload to a project with no blob kinds with `asset-kind` (400), as
+ *   the site's blob route answers.
  * - `GET /__project/<id>/blob/<sha256>`: the bytes, cacheable forever.
  *
  * A request from another site's page is 403. Returns null for URLs outside
@@ -175,7 +181,9 @@ export async function handleProjectRequest(
       },
     };
   }
-  const [id, route, hash, ...extra] = parts as [ProjectId, string?, string?, ...string[]];
+  const [segment = "", route, hash, ...extra] = parts;
+  const id = decodeSegment(segment);
+  if (id === null) return error(404, `No project ${JSON.stringify(segment)}.`);
   const source = sources.find((s) => s.project.file.id === id);
   if (!source) return error(404, `No project ${JSON.stringify(id)}.`);
   if (route !== "blob" || extra.length > 0) return error(404, `No route ${path}.`);
@@ -183,6 +191,10 @@ export async function handleProjectRequest(
   if (hash === undefined) {
     if (req.method !== "POST") return error(405, "POST the bytes to store them.");
     const limit = uploadLimit(source.project);
+    if (limit === 0) {
+      const message = "This project defines no blob kinds.";
+      return error(400, message, { issue: makeIssue("asset-kind", { message }) });
+    }
     const bytes = await req.body(limit);
     if (bytes === null) {
       const message = `A blob may hold at most ${limit} bytes.`;

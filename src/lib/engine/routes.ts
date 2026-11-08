@@ -115,9 +115,6 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
     const gated = await gate(request, projectId, "write");
     if ("refusal" in gated) return gated.refusal;
     const { userId } = gated;
-    if (!(await engineBlobUploadAllowed(userId))) {
-      return refuse(429, "Too many uploads today — try again tomorrow.");
-    }
 
     const kindName = request.headers.get("x-asset-kind") ?? "";
     const kind = deps.kinds(kindName);
@@ -158,6 +155,11 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
     const reply = (status: number) =>
       Response.json({ sha256: hash, bytes: bytes.byteLength }, { status });
     if (await blobRow(projectId, hash)) return reply(200);
+
+    // Only an upload that stores a new blob counts against the day's limit.
+    if (!(await engineBlobUploadAllowed(userId))) {
+      return refuse(429, "Too many uploads today — try again tomorrow.");
+    }
 
     const refusal = checkQuota(quota, await storedProjectUsage(projectId), {
       blobs: 1,
