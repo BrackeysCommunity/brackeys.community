@@ -127,10 +127,12 @@ cells. Every addition is optional with a default equal to v2's behaviour.
   references at every `assetField` leaf, following objects, records,
   arrays, tuples, unions and wrappers. Scene and prefab `refs` now cover
   type fields, behavior blocks, `settings`, the `assets` header (any
-  kind), asset-field instance overrides, a prefab's `base` and its nested
-  instances' prefabs; `data-table` refs cover rows (`/rows/@<id>/…`) and
-  `game-settings` the `game` block. `changeAssetId` rewrites references
-  in a scene's settings, `assets` header and a prefab's `base` too.
+  kind), overrides (an instance's or a variant's own) that set an asset
+  field, a whole behavior block or the whole `behaviors` map, a prefab's
+  `base` and its nested instances' prefabs; `data-table` refs cover rows
+  (`/rows/@<id>/…`) and `game-settings` the `game` block. `changeAssetId`
+  rewrites references in a scene's settings, `assets` header, those
+  overrides (each key set whole with `override`) and a prefab's `base` too.
 - `toJsonSchema(schema, { layers?, assets? })` (`JsonSchemaOptions`, with
   `layerNames` on `./scene`): `layer` fields get the registry's layer names
   as `enum` in scene, prefab, fragment, ops and doc-kind schemas; an asset

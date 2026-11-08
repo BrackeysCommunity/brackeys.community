@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import { BEHAVIORS_FIELD } from "../../game/behaviors";
 import type { Registry } from "../../game/types";
 import { jsonPointer } from "../../scene/issues";
@@ -128,16 +126,17 @@ export function entityRefSites(registry: Registry, e: EntityLike, base: string):
   };
   const type = typeof e.type === "string" ? registry.types.get(e.type) : undefined;
   if (type) add(schemaRefSites(type.shape, e, base));
-  const blocks = e[BEHAVIORS_FIELD];
-  if (isPlainObject(blocks))
-    for (const [name, block] of Object.entries(blocks)) {
-      const behavior = registry.behaviors.get(name);
-      if (behavior)
-        add(
-          schemaRefSites(behavior.shape, block, `${base}${jsonPointer([BEHAVIORS_FIELD, name])}`),
-        );
-    }
+  add(behaviorBlockSites(registry, e[BEHAVIORS_FIELD], `${base}${jsonPointer([BEHAVIORS_FIELD])}`));
   return [...sites.values()];
+}
+
+/** The asset fields' references of a `behaviors` map, each registered block under `base`/<name>. */
+function behaviorBlockSites(registry: Registry, blocks: unknown, base: string): RefSite[] {
+  if (!isPlainObject(blocks)) return [];
+  return Object.entries(blocks).flatMap(([name, block]) => {
+    const behavior = registry.behaviors.get(name);
+    return behavior ? schemaRefSites(behavior.shape, block, `${base}${jsonPointer([name])}`) : [];
+  });
 }
 
 /** The asset fields' references of a list of entities (`entityRefSites`), by `@<id>` pointer under `at`. */
@@ -153,25 +152,6 @@ export function entityAssetRefs(
   );
 }
 
-/**
- * The schema a `behaviors` override's value is judged against: one block
- * (`behaviors.<name>`) or the whole map (`behaviors`).
- */
-function behaviorsOverrideSchema(
-  registry: Registry,
-  segments: readonly string[],
-): z.ZodType | undefined {
-  if (segments.length === 2) {
-    const behavior = registry.behaviors.get(segments[1]!);
-    return behavior && z.object(behavior.shape);
-  }
-  return z.object(
-    Object.fromEntries(
-      [...registry.behaviors.entries()].map(([name, b]) => [name, z.object(b.shape).optional()]),
-    ),
-  );
-}
-
 /** The asset fields some registered type (or behavior) has at an override's field path. */
 function overrideSites(
   registry: Registry,
@@ -182,8 +162,10 @@ function overrideSites(
 ) {
   const segments = field.split(".");
   if (segments[0] === BEHAVIORS_FIELD && segments.length <= 2) {
-    const schema = behaviorsOverrideSchema(registry, segments);
-    return schema ? schemaRefSites({ [path]: schema }, { [path]: value }, at) : [];
+    const under = `${at}${jsonPointer([path])}`;
+    if (segments.length === 1) return behaviorBlockSites(registry, value, under);
+    const behavior = registry.behaviors.get(segments[1]!);
+    return behavior ? schemaRefSites(behavior.shape, value, under) : [];
   }
   const shapes =
     segments[0] === BEHAVIORS_FIELD

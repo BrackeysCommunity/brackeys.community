@@ -6,6 +6,9 @@ import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { assetField, materialField, pointField, shapeField } from "../../game/fields";
 import type { FieldEnv } from "../../game/types";
+import { applyOps } from "../../scene/ops";
+import { prefabScene } from "../../scene/prefab";
+import type { Prefab } from "../../scene/types";
 import {
   createKindRegistry,
   defineAssetKind,
@@ -13,7 +16,7 @@ import {
   type KindEnv,
   type KindRegistry,
 } from "../kinds";
-import { checkProjectBatch } from "../ops";
+import { checkProjectBatch, type EditSceneOp } from "../ops";
 import {
   buildRefIndex,
   inUseIssue,
@@ -997,10 +1000,15 @@ describe("a behavior's asset field", () => {
   });
 
   describe.each([
-    ["a whole block", "board.behaviors.paint/skin", { texture: "tiles" }],
-    ["the whole behaviors map", "board.behaviors", { "paint/skin": { texture: "tiles" } }],
-  ])("an override that sets %s", (_, path, value) => {
-    const leaf = path.endsWith("paint/skin") ? "/texture" : "/paint~1skin/texture";
+    ["one asset field", "board.behaviors.paint/skin.texture", "tiles", ""],
+    ["a whole block", "board.behaviors.paint/skin", { texture: "tiles" }, "/texture"],
+    [
+      "the whole behaviors map",
+      "board.behaviors",
+      { "paint/skin": { texture: "tiles" } },
+      "/paint~1skin/texture",
+    ],
+  ])("an override that sets %s", (_, path, value, leaf) => {
     const base = path.replace("/", "~1");
     const cases = [
       {
@@ -1052,7 +1060,7 @@ describe("a behavior's asset field", () => {
       return { ownState, ownView: projectView(ownState, engineKinds) };
     };
 
-    it.each(cases)("is a site $where, and a rename rewrites it", ({ id, pointer, doc }) => {
+    it.each(cases)("is a site $where", ({ id, pointer, doc }) => {
       const { ownView } = project(id);
       const docs = new Map<AssetId, unknown>([
         ["post", post],
@@ -1061,12 +1069,57 @@ describe("a behavior's asset field", () => {
       const refs = buildRefIndex(ownView, docs, engineKinds, { registry, project: ownView });
       expect(refs.referrers("tiles")).toEqual([{ id, kind: docEntries[id].kind, pointer }]);
       expect(refs.targets(id)).toContainEqual({ pointer, id: "tiles", kinds: ["texture"] });
+    });
 
-      const next = rewriteRefs(doc as Record<string, any>, refs.targets(id), "tiles", "tileset");
-      const overrides = id === "yard" ? next.instances[0].overrides : next.overrides;
-      expect(overrides[path]).toEqual(
-        JSON.parse(JSON.stringify(value).replace("tiles", "tileset")),
+    it.each(cases)("follows a changeAssetId $where", ({ id, doc }) => {
+      const { ownState } = project(id);
+      const library = new Map<AssetId, Prefab>([
+        ["post", structuredClone(post) as Prefab],
+        ...(id === "red-post" ? [[id, structuredClone(doc) as Prefab] as const] : []),
+      ]);
+      const delegated: EditSceneOp[] = [];
+      const r = checkProjectBatch(
+        ownState,
+        new Map<AssetId, unknown>([
+          ["post", structuredClone(post)],
+          [id, structuredClone(doc)],
+        ]),
+        { v: 1, ops: [{ op: "changeAssetId", id: "tiles", to: "tileset" }] },
+        {
+          registry,
+          kinds: engineKinds,
+          now: 1,
+          by: "test",
+          newKey: sequentialKeys(),
+          prefabsFor: () => library,
+          prefabEdit: (op) => {
+            delegated.push(op);
+            return null;
+          },
+        },
       );
+      if (!r.ok) throw new Error(r.issue.message);
+      expect(r.issues).toEqual([]);
+      const renamed = JSON.parse(JSON.stringify(value).replace("tiles", "tileset"));
+      if (id === "yard") {
+        const next = r.values.get(id) as Record<string, any>;
+        expect(next.instances[0].overrides).toEqual({ [path]: renamed });
+        expect(r.scenes.get(id)?.ops).toEqual([
+          { op: "override", ref: "p1", set: { [path]: renamed } },
+        ]);
+        return;
+      }
+      expect(delegated).toEqual([
+        { op: "editScene", id, ops: [{ op: "override", set: { [path]: renamed } }] },
+      ]);
+      const applied = applyOps(
+        prefabScene(library.get(id)!, [-512, -512, 512, 512]),
+        { ops: delegated[0]!.ops },
+        registry,
+        { prefabs: library, prefab: id },
+      );
+      if (!applied.ok) throw new Error(applied.issue.message);
+      expect(applied.prefabs?.get(id)?.overrides).toEqual({ [path]: renamed });
     });
 
     it.each(cases)("reports asset-missing $where once force-deleted", ({ id, pointer, doc }) => {

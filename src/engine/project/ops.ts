@@ -1722,7 +1722,7 @@ class BatchWork {
     }
     const next = rewriteRefs(value, sites, from, to);
     this.mustFollow(next, sites);
-    const ops = sceneRewrites(value, sites, to, this.judge);
+    const ops = sceneRewrites(value, next, sites, to, this.judge);
     if (typeof ops === "string")
       this.fail("op-invalid", `the engine can't rewrite a reference at ${ops}`, "id");
     this.rewriting = true;
@@ -1964,21 +1964,35 @@ function holderPointer(site: RefSite): JsonPointer {
   return site.in === "key" ? jsonPointer(pointerSegments(site.pointer).slice(0, -1)) : site.pointer;
 }
 
+/** The override map of a scene's instance `@ref`, or of a prefab's own variant when `ref` is undefined. */
+function overridesIn(value: unknown, ref: string | undefined): Record<string, unknown> | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const holder =
+    ref === undefined
+      ? value
+      : Array.isArray(value.instances)
+        ? value.instances.find((inst) => isPlainObject(inst) && inst.id === ref)
+        : undefined;
+  return isPlainObject(holder) && isPlainObject(holder.overrides) ? holder.overrides : undefined;
+}
+
 /**
  * Scene ops that point a scene's or prefab's sites at `to`: `update` of
- * an entity's or instance's field, `override` of an instance's override,
- * and for a bulk key (`/solid:from`, a prefab's `/bulk/solid:from`) its
- * entries added under the new key and removed from the old. The first
- * pointer none of those reach, when there is one.
+ * an entity's or instance's field, `override` of an instance's or a
+ * variant's own override key (set whole, to its value in `next`, the
+ * value as rewritten), and for a bulk key (`/solid:from`, a prefab's
+ * `/bulk/solid:from`) its entries added under the new key and removed from
+ * the old. The first pointer none of those reach, when there is one.
  */
 function sceneRewrites(
   value: unknown,
+  next: unknown,
   sites: readonly RefSite[],
   to: AssetId,
   registry: Registry,
 ): SceneOp[] | JsonPointer {
   const updates = new Map<string, Record<string, unknown>>();
-  const overrides = new Map<string, Record<string, unknown>>();
+  const overrides = new Map<string | undefined, Record<string, unknown>>();
   const bulk: SceneOp[] = [];
   const removed: string[] = [];
   const settings: Record<string, unknown> = {};
@@ -1988,6 +2002,14 @@ function sceneRewrites(
     const set = map.get(ref) ?? {};
     set[key] = to;
     map.set(ref, set);
+  };
+  const overrideKey = (ref: string | undefined, key: string) => {
+    const own = overridesIn(next, ref);
+    if (!own || !(key in own)) return false;
+    const set = overrides.get(ref) ?? {};
+    set[key] = own[key];
+    overrides.set(ref, set);
+    return true;
   };
   for (const site of sites) {
     const segments = pointerSegments(site.pointer);
@@ -2018,16 +2040,23 @@ function sceneRewrites(
       base = true;
       continue;
     }
+    if (segments[0] === "overrides" && segments.length > 1) {
+      if (!overrideKey(undefined, segments[1]!)) return site.pointer;
+      continue;
+    }
     const [list, item, ...field] = segments;
     if ((list !== "entities" && list !== "instances") || !item?.startsWith("@") || !field.length)
       return site.pointer;
-    if (list === "instances" && field[0] === "overrides" && field.length === 2)
-      into(overrides, item.slice(1), field[1]!);
-    else into(updates, item.slice(1), field.join("."));
+    if (list === "instances" && field[0] === "overrides" && field.length > 1) {
+      if (!overrideKey(item.slice(1), field[1]!)) return site.pointer;
+    } else into(updates, item.slice(1), field.join("."));
   }
   return [
     ...[...updates].map(([ref, set]): SceneOp => ({ op: "update", ref, set })),
-    ...[...overrides].map(([ref, set]): SceneOp => ({ op: "override", ref, set })),
+    ...[...overrides].map(
+      ([ref, set]): SceneOp =>
+        ref === undefined ? { op: "override", set } : { op: "override", ref, set },
+    ),
     ...(Object.keys(settings).length > 0
       ? [{ op: "setSettings", set: settings } satisfies SceneOp]
       : []),
