@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
-import { devContentStore, readLiveScene } from "../project-client";
+import { devContentStore, ProjectClientError, readLiveScene } from "../project-client";
 import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
 
@@ -396,6 +396,16 @@ describe("assets --live", { timeout: 60_000 }, () => {
     expect((err as ContentStoreError).issue.code).toBe("hash-mismatch");
     const hash = await sha256(new Uint8Array(DOT));
     expect(await store.put(new Uint8Array(DOT), hash)).toBe(hash);
+  });
+
+  it("refuses an over-limit upload with asset-too-large and an empty one, as the site does", async () => {
+    const store = devContentStore(server.url, "deck");
+    const huge = await store.put(new Uint8Array(16 * 1024 * 1024 + 1)).catch((e: unknown) => e);
+    expect(huge).toBeInstanceOf(ContentStoreError);
+    expect((huge as ContentStoreError).issue.code).toBe("asset-too-large");
+    const empty = await store.put(new Uint8Array(0)).catch((e: unknown) => e);
+    expect(empty).toBeInstanceOf(ProjectClientError);
+    expect((empty as Error).message).toMatch(/400: The upload is empty/);
   });
 
   it("refuses a plain-http site URL off this machine with the https rule", async () => {

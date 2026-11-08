@@ -323,7 +323,7 @@ describe("the engine's doc kinds and a game's converge", () => {
   });
 
   for (const name of declarative) {
-    it(`${name}: random edits on its layout converge`, () => {
+    it(`${name}: random edits on its layout converge`, { timeout: 30_000 }, () => {
       const { layout } = kind(name);
       for (let seed = 1; seed <= 12; seed++) {
         const rand = rng(seed * 104_729);

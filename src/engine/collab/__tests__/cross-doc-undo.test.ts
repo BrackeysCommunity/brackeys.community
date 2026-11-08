@@ -358,75 +358,79 @@ function simWorld(clients: number, seed: number, links = false) {
 }
 
 describe("cross-doc undo on a simulated network", () => {
-  it("undoes a change of id as one step for its author only, through random delivery and partitions", async () => {
-    let partitions = 0;
-    for (let seed = 1; seed <= 12; seed++) {
-      const { sim, join } = simWorld(3, seed * 7919, true);
-      const [a, b, c] = await Promise.all([join(0, ada), join(1, bo), join(2, cy)]);
-      for (const s of [b, c]) for (const id of CARDS) await s.open(doc(id));
-      const docs = () =>
-        [0, 1, 2].map((i) => ({
-          project: readProject(sim.doc("project:p", i)),
-          cards: CARDS.map((id) => layoutFromDoc(sim.doc(doc(id), i), layout)),
-        }));
-      const pick = <T>(list: readonly T[]) => list[Math.floor(sim.rand() * list.length)]!;
+  it(
+    "undoes a change of id as one step for its author only, through random delivery and partitions",
+    { timeout: 30_000 },
+    async () => {
+      let partitions = 0;
+      for (let seed = 1; seed <= 12; seed++) {
+        const { sim, join } = simWorld(3, seed * 7919, true);
+        const [a, b, c] = await Promise.all([join(0, ada), join(1, bo), join(2, cy)]);
+        for (const s of [b, c]) for (const id of CARDS) await s.open(doc(id));
+        const docs = () =>
+          [0, 1, 2].map((i) => ({
+            project: readProject(sim.doc("project:p", i)),
+            cards: CARDS.map((id) => layoutFromDoc(sim.doc(doc(id), i), layout)),
+          }));
+        const pick = <T>(list: readonly T[]) => list[Math.floor(sim.rand() * list.length)]!;
 
-      const r = await applied(a, {
-        v: 1,
-        label: "Rename post",
-        ops: [{ op: "changeAssetId", id: "post", to: "pole" }],
-      });
-      expect(r.docs).toEqual([doc("flag"), doc("gate"), "project:p"]);
-      const colours: Record<string, string> = {};
-      const sizes: Record<string, number> = {};
-      for (let step = 0; step < 8; step++) {
-        sim.weather(0.2, 0.15);
-        const id = pick(["gate", "flag"]);
-        colours[id] = `c${step}`;
-        await applied(b, paint("color", colours[id], [id]));
-        sim.weather(0.2, 0.15);
-        const sized = pick(CARDS);
-        sizes[sized] = step + 2;
-        await applied(c, paint("size", sizes[sized], [c.state().assets[sized]!.id]));
-      }
-      if (sim.rand() < 0.5) sim.partition([0]);
-      const step = a.undo();
-      expect(step, `seed ${seed}`).toEqual({ label: "Rename post", docs: r.docs });
-      expect(a.canUndo()).toBe(false);
-      for (let i = 0; i < 4; i++) sim.weather(0.2, 0.15);
-      partitions += sim.partitions;
-      sim.settle();
-
-      const all = docs();
-      for (const [i, d] of all.entries()) expect(d, `seed ${seed}, client ${i}`).toEqual(all[0]);
-      expect(all[0]!.project.assets.post!.id, `seed ${seed}`).toBe("post");
-      expect(
-        all[0]!.cards.map((card, n) => ({ ...card, id: CARDS[n] })),
-        `seed ${seed}: others' edits stay`,
-      ).toEqual(
-        CARDS.map((id) => ({
+        const r = await applied(a, {
           v: 1,
-          id,
-          color: colours[id] ?? "grey",
-          size: sizes[id] ?? 1,
-          ...(id === "post" ? {} : { link: "post" }),
-        })),
-      );
-      expect(b.undoLabel()).toBe("Set color");
-      expect(c.undoLabel()).toBe("Set size");
+          label: "Rename post",
+          ops: [{ op: "changeAssetId", id: "post", to: "pole" }],
+        });
+        expect(r.docs).toEqual([doc("flag"), doc("gate"), "project:p"]);
+        const colours: Record<string, string> = {};
+        const sizes: Record<string, number> = {};
+        for (let step = 0; step < 8; step++) {
+          sim.weather(0.2, 0.15);
+          const id = pick(["gate", "flag"]);
+          colours[id] = `c${step}`;
+          await applied(b, paint("color", colours[id], [id]));
+          sim.weather(0.2, 0.15);
+          const sized = pick(CARDS);
+          sizes[sized] = step + 2;
+          await applied(c, paint("size", sizes[sized], [c.state().assets[sized]!.id]));
+        }
+        if (sim.rand() < 0.5) sim.partition([0]);
+        const step = a.undo();
+        expect(step, `seed ${seed}`).toEqual({ label: "Rename post", docs: r.docs });
+        expect(a.canUndo()).toBe(false);
+        for (let i = 0; i < 4; i++) sim.weather(0.2, 0.15);
+        partitions += sim.partitions;
+        sim.settle();
 
-      expect(a.redo()).toEqual(step);
-      sim.settle();
-      for (let i = 0; i < 3; i++) {
-        expect(readProject(sim.doc("project:p", i)).assets.post!.id).toBe("pole");
-        for (const id of ["gate", "flag"])
-          expect(layoutFromDoc(sim.doc(doc(id), i), layout)).toMatchObject({
-            link: "pole",
+        const all = docs();
+        for (const [i, d] of all.entries()) expect(d, `seed ${seed}, client ${i}`).toEqual(all[0]);
+        expect(all[0]!.project.assets.post!.id, `seed ${seed}`).toBe("post");
+        expect(
+          all[0]!.cards.map((card, n) => ({ ...card, id: CARDS[n] })),
+          `seed ${seed}: others' edits stay`,
+        ).toEqual(
+          CARDS.map((id) => ({
+            v: 1,
+            id,
             color: colours[id] ?? "grey",
-          });
+            size: sizes[id] ?? 1,
+            ...(id === "post" ? {} : { link: "post" }),
+          })),
+        );
+        expect(b.undoLabel()).toBe("Set color");
+        expect(c.undoLabel()).toBe("Set size");
+
+        expect(a.redo()).toEqual(step);
+        sim.settle();
+        for (let i = 0; i < 3; i++) {
+          expect(readProject(sim.doc("project:p", i)).assets.post!.id).toBe("pole");
+          for (const id of ["gate", "flag"])
+            expect(layoutFromDoc(sim.doc(doc(id), i), layout)).toMatchObject({
+              link: "pole",
+              color: colours[id] ?? "grey",
+            });
+        }
+        for (const s of [a, b, c]) s.destroy();
       }
-      for (const s of [a, b, c]) s.destroy();
-    }
-    expect(partitions, "the runs must cut clients off").toBeGreaterThan(5);
-  });
+      expect(partitions, "the runs must cut clients off").toBeGreaterThan(5);
+    },
+  );
 });

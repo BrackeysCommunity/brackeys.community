@@ -6,6 +6,7 @@ import { isSha256 } from "../project/hash";
 import { SCENE_KIND_NAME } from "../project/ops";
 import type { ProjectId, ProjectState } from "../project/types";
 import { projectView } from "../project/view";
+import { makeIssue } from "../scene/issues";
 import type { FileProject } from "./project-files";
 import { assertSceneName, ScenePathError } from "./scene-paths";
 
@@ -143,8 +144,9 @@ function uploadLimit(project: FileProject): number {
  * - `GET /__project`: the projects, `{ ok, projects: [{ id, name, game }] }`.
  * - `POST /__project/<id>/blob`: stores the raw body in the project's
  *   content store and answers `{ sha256, bytes }`; with `x-expect-sha256`,
- *   bytes that hash otherwise are refused with `hash-mismatch` (422, as the
- *   site's blob route answers).
+ *   bytes that hash otherwise are refused with `hash-mismatch` (422), an
+ *   over-limit body with `asset-too-large` (413) and an empty one with 400,
+ *   as the site's blob route answers.
  * - `GET /__project/<id>/blob/<sha256>`: the bytes, cacheable forever.
  *
  * A request from another site's page is 403. Returns null for URLs outside
@@ -182,7 +184,13 @@ export async function handleProjectRequest(
     if (req.method !== "POST") return error(405, "POST the bytes to store them.");
     const limit = uploadLimit(source.project);
     const bytes = await req.body(limit);
-    if (bytes === null) return error(413, `A blob may hold at most ${limit} bytes.`);
+    if (bytes === null) {
+      const message = `A blob may hold at most ${limit} bytes.`;
+      return error(413, message, {
+        issue: makeIssue("asset-too-large", { message, expected: `≤ ${limit}` }),
+      });
+    }
+    if (bytes.byteLength === 0) return error(400, "The upload is empty.");
     const expect = header(req.headers, "x-expect-sha256");
     try {
       const sha256 = await source.store.put(bytes, expect);

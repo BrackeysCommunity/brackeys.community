@@ -57,6 +57,15 @@ const refuseIssue = (status: number, issue: SceneIssue) =>
 
 const NOT_FOUND = () => refuse(404, "Not found.");
 
+/** A path segment decoded, or null when its percent-escapes are malformed. */
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The engine's HTTP routes under `/api/engine/`: blob upload and read, and
  * bundle read and seed, for a hosted project; and the agent token exchange.
@@ -266,14 +275,16 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
     }
     const bundleMatch = BUNDLE_PATH.exec(pathname);
     if (bundleMatch) {
-      const projectId = decodeURIComponent(bundleMatch[1] ?? "");
+      const projectId = decodeSegment(bundleMatch[1] ?? "");
+      if (projectId === null) return NOT_FOUND();
       if (request.method === "GET") return readBundle(request, projectId);
       if (request.method === "POST") return seedBundle(request, projectId);
       return methodNotAllowed("GET, POST");
     }
     const match = BLOBS_PATH.exec(pathname);
     if (!match) return null;
-    const projectId = decodeURIComponent(match[1] ?? "");
+    const projectId = decodeSegment(match[1] ?? "");
+    if (projectId === null) return NOT_FOUND();
     const hash = match[2];
     if (hash === undefined) {
       if (request.method !== "POST") return methodNotAllowed("POST");

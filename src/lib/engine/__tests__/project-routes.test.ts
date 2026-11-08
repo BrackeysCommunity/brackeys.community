@@ -226,4 +226,17 @@ describe("bundle routes", () => {
     });
     expect((await send(put)).status).toBe(405);
   });
+
+  it("answer 404 for a project id whose percent-escapes are malformed", async () => {
+    const bad = "%E0%A4%A";
+    expect((await send(bundleRequest(bad))).status).toBe(404);
+    const blobs = `https://site.test/api/engine/projects/${bad}/blobs`;
+    const post = new Request(blobs, {
+      method: "POST",
+      headers: { "x-test-user": "staff", "x-asset-kind": "texture" },
+      body: PNG,
+    });
+    expect((await send(post)).status).toBe(404);
+    expect((await send(new Request(`${blobs}/${"0".repeat(64)}`))).status).toBe(404);
+  });
 });

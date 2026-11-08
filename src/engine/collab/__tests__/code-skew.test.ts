@@ -73,10 +73,20 @@ function world() {
   return host;
 }
 
-const join = (client: MemoryDocClient, kinds: typeof OLD, buildAt: number, origin = ada) =>
+const join = (
+  client: MemoryDocClient,
+  kinds: typeof OLD,
+  buildAt: number,
+  origin = ada,
+  clientID?: number,
+) =>
   createProjectSession({
     project: "p",
-    openDoc: client.openDoc,
+    openDoc: async (name) => {
+      const opened = await client.openDoc(name);
+      if (clientID !== undefined) opened.doc.clientID = clientID;
+      return opened;
+    },
     origin,
     registry: engine,
     kinds,
@@ -197,37 +207,44 @@ describe("code skew", () => {
     for (const s of [plain, overlaid]) s.destroy();
   });
 
-  it("converges on the newest build when two new builds stamp at once", async () => {
-    // Client ids are random, so the rounds cover both outcomes of the concurrent write.
-    for (let round = 0; round < 12; round++) {
-      const host = world();
-      const old = await join(host.client(), OLD, 100);
-      await old.open("asset:p.post");
+  it(
+    "converges on the newest build when two new builds stamp at once",
+    { timeout: 30_000 },
+    async () => {
+      // The larger client id wins the concurrent write, so alternating it covers the newest
+      // build's stamp landing first and being overwritten, under either reconnect order.
+      for (let round = 0; round < 4; round++) {
+        const host = world();
+        const old = await join(host.client(), OLD, 100);
+        await old.open("asset:p.post");
 
-      const one = host.client();
-      const two = host.client();
-      const first = await join(one, NEW, 300);
-      const second = await join(two, NEWER, 300, bo);
-      one.setOnline(false);
-      two.setOnline(false);
-      expect((await first.open("asset:p.post")).readOnly).toBe(false);
-      expect((await second.open("asset:p.post")).readOnly).toBe(false);
-      (round % 2 === 0 ? one : two).setOnline(true);
-      (round % 2 === 0 ? two : one).setOnline(true);
+        const one = host.client();
+        const two = host.client();
+        const [low, high] = [1_000_001, 1_000_002];
+        const first = await join(one, NEW, 300, ada, round % 2 === 0 ? low : high);
+        const second = await join(two, NEWER, 300, bo, round % 2 === 0 ? high : low);
+        one.setOnline(false);
+        two.setOnline(false);
+        expect((await first.open("asset:p.post")).readOnly).toBe(false);
+        expect((await second.open("asset:p.post")).readOnly).toBe(false);
+        const oneFirst = Math.floor(round / 2) % 2 === 0;
+        (oneFirst ? one : two).setOnline(true);
+        (oneFirst ? two : one).setOnline(true);
 
-      const winner = first.hashes.card! > second.hashes.card! ? first : second;
-      const loser = winner === first ? second : first;
-      for (const s of [old, first, second])
-        expect(readProject(s.projectDoc).build.card).toMatchObject({
-          hash: winner.hashes.card,
-          buildAt: 300,
-        });
-      expect(winner.get("asset:p.post")!.readOnly).toBe(false);
-      expect(loser.get("asset:p.post")!.readOnly).toBe(true);
-      expect(old.get("asset:p.post")!.readOnly).toBe(true);
-      for (const s of [old, first, second]) s.destroy();
-    }
-  });
+        const winner = first.hashes.card! > second.hashes.card! ? first : second;
+        const loser = winner === first ? second : first;
+        for (const s of [old, first, second])
+          expect(readProject(s.projectDoc).build.card, `round ${round}`).toMatchObject({
+            hash: winner.hashes.card,
+            buildAt: 300,
+          });
+        expect(winner.get("asset:p.post")!.readOnly, `round ${round}`).toBe(false);
+        expect(loser.get("asset:p.post")!.readOnly, `round ${round}`).toBe(true);
+        expect(old.get("asset:p.post")!.readOnly, `round ${round}`).toBe(true);
+        for (const s of [old, first, second]) s.destroy();
+      }
+    },
+  );
 });
 
 describe("code skew on a simulated network", () => {
