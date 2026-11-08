@@ -12,8 +12,8 @@ which are public contract.
 The editor UI moves into the package. The scene editor the site drew from
 its own components is now `@jams/engine/editor-ui`, rendered by any host
 through one seam, `EditorHost`, and mountable standalone on `./vite`'s
-file-backed collab. Nothing it does changes. Every other entry stays free
-of React.
+file-backed collab. It behaves as it did on the site except for the few
+changes listed under **Changed**. Every other entry stays free of React.
 
 ### Added
 
@@ -33,6 +33,12 @@ of React.
   (a connection that opens nothing, for a host whose project is switched
   off), and the blob client `projectBlobs` and `BlobRouteError`. The provider module is always passed
   in, never imported.
+- `blobContentStore(blobs)`, a `ProjectBlobs` as the content store a
+  project session checks blob ops' bytes against, so a hosted connection
+  inspects imports the same way `devProjectHost` does.
+- The types a host needs to build its own connection or notifier:
+  `MintProjectToken`, `ProjectTokenRequest`, `ProjectAccess` and
+  `NotifyOptions`.
 - `@jams/engine/editor-ui/style.css`, the editor's stylesheet, exported as a
   file and named by `EDITOR_UI_STYLESHEET`: `je-` classes in
   `@layer jams-editor`, themed by `--je-*` custom properties on `.je-root`,
@@ -46,6 +52,20 @@ of React.
   own libraries, `@base-ui/react`, `@dnd-kit/core`,
   `@hugeicons/core-free-icons` and `@hugeicons/react`. `sideEffects` is
   `["*.css"]`.
+
+### Changed
+
+- Per-viewer settings (the outliner's view and collapsed groups, snap and
+  colour space) are stored under `jams-editor:*`; values saved under the
+  site's older `game-editor:*` keys are ignored.
+- A game rebuild keeps the selection and the tool, where they still
+  resolve in the rebuilt editor.
+- The viewer's own face shows the avatar the host's `identity` gives,
+  where the site always drew the initial.
+- `isEditableTarget` treats a CodeMirror editor (`.cm-editor`) as typing,
+  so the game's input router and the editor share one rule.
+- A file drop the import refuses entirely reports one error with the
+  reasons and no longer plays the drop cue.
 
 ### Agent surface
 

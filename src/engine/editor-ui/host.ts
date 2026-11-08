@@ -23,7 +23,7 @@ export type EditorHost = {
   identity?: EditorIdentityInput;
   /** A peer's colour by id, for cursors, faces and history dots; default a fixed palette by hash. */
   peerColor?: (id: string) => string;
-  /** Toasts; default the editor's own toast region. Sonner's `toast` fits as it is. */
+  /** Toasts, read once when the editor mounts; default the editor's own toast region. Sonner's `toast` fits as it is. */
   notify?: EditorNotify;
   /** Interaction sounds; default silent. */
   cue?: (cue: EditorCue) => void;
@@ -128,11 +128,6 @@ export function hostStorage(host: Pick<EditorHost, "storage">): EditorStorage {
     },
   };
 }
-
-export const hostFlag =
-  (host: Pick<EditorHost, "flag">) =>
-  (name: string): boolean =>
-    host.flag?.(name) ?? false;
 
 export const hostCue =
   (host: Pick<EditorHost, "cue">) =>

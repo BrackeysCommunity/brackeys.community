@@ -1,11 +1,13 @@
 import { buildAtFrom, COLLAB_LAYOUT_VERSION } from "@jams/engine/collab";
 import {
+  blobContentStore,
   connectProjectSession,
   createProjectTokens,
   offConnection,
   projectBlobs,
   type CloseReason,
   type EditorHost,
+  type MintProjectToken,
   type ProjectTokens,
   type ProjectTransport,
 } from "@jams/engine/editor-ui";
@@ -22,8 +24,6 @@ import { hostedAssetUrl } from "./asset-urls";
 
 /** The flag a hosted project opens behind; while it is off the editor's connection stays "off". */
 export const ENGINE_PROJECTS_FLAG = "engine-projects";
-
-export type MintProjectToken = Parameters<typeof createProjectTokens>[1];
 
 /** Project tokens from the site's `getProjectSyncToken`. */
 export const mintWithOrpc: MintProjectToken = (request) => client.getProjectSyncToken(request);
@@ -58,7 +58,8 @@ const BUILD_AT = buildAtFrom(import.meta.env.VITE_BUILD_AT);
 /**
  * A project hosted on jams.team: its session on canvas-sync, with a token
  * per doc open from the site's oRPC mint, and its blobs on the site's
- * engine route. While `flag("engine-projects")` is off, `connect` opens
+ * engine route as both the content store imports are checked against and
+ * the import target. While `flag("engine-projects")` is off, `connect` opens
  * nothing.
  */
 export function hostedProject(opts: {
@@ -73,18 +74,20 @@ export function hostedProject(opts: {
     assetUrl: hostedAssetUrl,
     connect({ project, registry, origin }) {
       if (!opts.flag(ENGINE_PROJECTS_FLAG)) return offConnection(access);
+      const blobs = projectBlobs(engineBlobPath(project));
       const link = connectProjectSession({
         project,
         registry,
         kinds: createKindRegistry(registry.game),
         origin,
+        store: blobContentStore(blobs),
         transport: opts.transport,
         tokens: hostedProjectTokens(project, { access, ...(opts.mint ? { mint: opts.mint } : {}) }),
         access,
         closeReason: syncCloseReason,
         buildAt: opts.buildAt ?? BUILD_AT,
       });
-      return { ...link, blobs: projectBlobs(engineBlobPath(project)) };
+      return { ...link, blobs };
     },
   };
 }

@@ -49,7 +49,13 @@ export type ToolRouter = {
 
 export const TOOL_PRIORITY = { play: 0, game: 100, editor: 200, debug: 300 } as const;
 
-/** A text field, a select or a contenteditable: key presses there are typing, not input. */
+const EDITABLE_SELECTOR =
+  '.cm-editor, input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+
+/**
+ * A text field, a select, a contenteditable or a CodeMirror editor: key presses
+ * there are typing, not input.
+ */
 export function isEditableTarget(target: EventTarget | null): boolean {
   if (!target || typeof target !== "object") return false;
   const el = target as {
@@ -59,10 +65,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   };
   if (el.isContentEditable === true) return true;
   if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") return true;
-  return (
-    typeof el.closest === "function" &&
-    el.closest('[contenteditable]:not([contenteditable="false"])') != null
-  );
+  return typeof el.closest === "function" && el.closest(EDITABLE_SELECTOR) != null;
 }
 
 /** The configured target, else the canvas made focusable so it can take key events. */

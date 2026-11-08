@@ -427,6 +427,7 @@
       "DEFAULT_LAYOUT",
       "EDITOR_UI_STYLESHEET",
       "SceneEditor",
+      "blobContentStore",
       "connectProjectSession",
       "createPending",
       "createProjectTokens",

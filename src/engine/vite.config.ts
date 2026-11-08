@@ -54,7 +54,8 @@ export default defineConfig({
       platform: "neutral",
       // Package-level checks run once, on the tarball; the second config would repeat them.
       publint: check && { level: "suggestion", strict: true },
-      attw: check && { profile: "esm-only", level: "error" },
+      // Stylesheet exports are assets with no module or types for attw to resolve.
+      attw: check && { profile: "esm-only", level: "error", excludeEntrypoints: [/\.css$/] },
       unused: check && {
         level: "error",
         ignore: { peerDependencies: [...hostOnlyPeers, "@hocuspocus/server"] },

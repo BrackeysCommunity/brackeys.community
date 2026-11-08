@@ -80,7 +80,7 @@ function EditorLoading({ roomId }: { roomId: string }) {
           role="status"
           className="flex-col items-start gap-0.5 px-2.5 py-1.5 text-xs text-muted-foreground"
         >
-          <span>Opening the editor</span>
+          <span>Loading the editor</span>
         </Island>
       }
     >

@@ -8,7 +8,7 @@ import { useStoreValue } from "../session/use-store-value";
 /** Says the doc on screen is read-only because a newer build of the game changed its kind's schema. */
 export function CodeSkewNotice({
   host,
-  onReload = () => window.location.reload(),
+  onReload = () => globalThis.location?.reload(),
 }: {
   host: Store<EditorHostState>;
   onReload?: () => void;

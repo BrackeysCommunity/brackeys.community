@@ -249,6 +249,21 @@ describe("isEditableTarget", () => {
       },
       false,
     ],
+    [
+      "a node inside a CodeMirror editor",
+      () => {
+        const editor = document.createElement("div");
+        editor.className = "cm-editor";
+        const line = editor.appendChild(document.createElement("div"));
+        return line.appendChild(document.createElement("span"));
+      },
+      true,
+    ],
+    [
+      "an option inside a select",
+      () => document.createElement("select").appendChild(document.createElement("option")),
+      true,
+    ],
     ["a canvas", () => document.createElement("canvas"), false],
   ])("%s", (_, make, editable) => {
     expect(isEditableTarget(make())).toBe(editable);

@@ -26,14 +26,14 @@ afterEach(() => {
 });
 
 describe("GameCanvas while the editor loads", () => {
-  it("keeps the room's chrome and says the editor is opening", async () => {
+  it("keeps the room's chrome and says the editor is loading", async () => {
     render(<GameCanvas roomId="lobby-1" edit />);
     expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
     expect(screen.getByText("site menu")).toBeTruthy();
-    expect(screen.getByRole("status").textContent).toBe("Opening the editor");
+    expect(screen.getByRole("status").textContent).toBe("Loading the editor");
     expect(screen.queryByText("package editor")).toBeNull();
     loading.release();
     expect(await screen.findByText("package editor")).toBeTruthy();
-    expect(screen.queryByText("Opening the editor")).toBeNull();
+    expect(screen.queryByText("Loading the editor")).toBeNull();
   });
 });

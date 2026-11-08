@@ -15,14 +15,18 @@ export type {
   EditorIdentityInput,
   EditorNotify,
   EditorStorage,
+  MintProjectToken,
+  NotifyOptions,
+  ProjectAccess,
   ProjectBlobs,
   ProjectConnection,
   ProjectConnectionState,
   ProjectConnectionStatus,
+  ProjectTokenRequest,
 } from "./host";
 export type { CloseReason, ProjectSocket, ProjectTokenAnswer, ProjectTransport } from "./host";
 
-export { BlobRouteError, projectBlobs } from "./connect/blobs";
+export { blobContentStore, BlobRouteError, projectBlobs } from "./connect/blobs";
 export { devProjectHost } from "./connect/dev";
 export { hocuspocusTransport } from "./connect/hocuspocus";
 export {

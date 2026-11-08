@@ -1,5 +1,10 @@
 import { COLLAB_LAYOUT_VERSION, type AwarenessLike, type DocOrigin } from "@jams/engine/collab";
-import type { ProjectSocket, ProjectTransport } from "@jams/engine/editor-ui";
+import {
+  connectProjectSession,
+  type MintProjectToken,
+  type ProjectSocket,
+  type ProjectTransport,
+} from "@jams/engine/editor-ui";
 import { createRegistry, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -11,10 +16,17 @@ import {
   hostedProject,
   hostedProjectTokens,
   syncCloseReason,
-  type MintProjectToken,
 } from "../hosted-project";
 
-vi.mock("@/orpc/client", () => ({ client: {} }));
+const answer = { token: "t1", url: "wss://sync.example.test/engine", access: "write" as const };
+
+const orpc = vi.hoisted(() => ({ getProjectSyncToken: vi.fn() }));
+vi.mock("@/orpc/client", () => ({ client: orpc }));
+
+vi.mock("@jams/engine/editor-ui", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@jams/engine/editor-ui")>();
+  return { ...actual, connectProjectSession: vi.fn(actual.connectProjectSession) };
+});
 
 const registry = createRegistry(null);
 const origin: DocOrigin = { kind: "user", userId: "u", name: "U" };
@@ -58,11 +70,10 @@ function fakeTransport() {
   return { transport, urls, opened };
 }
 
-const answer = { token: "t1", url: "wss://sync.example.test/engine", access: "write" as const };
-
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   for (const c of cleanups.splice(0).reverse()) c();
+  vi.clearAllMocks();
 });
 
 describe("syncCloseReason", () => {
@@ -106,6 +117,19 @@ describe("hostedProjectTokens", () => {
   });
 });
 
+describe("hostedProjectTokens with the site's mint", () => {
+  it("mints through getProjectSyncToken when no mint is given", async () => {
+    orpc.getProjectSyncToken.mockResolvedValue(answer);
+    expect(await hostedProjectTokens("p").get()).toEqual(answer);
+    expect(orpc.getProjectSyncToken).toHaveBeenCalledWith({
+      projectId: "p",
+      formatVersion: SCENE_FORMAT_VERSION,
+      layoutVersion: COLLAB_LAYOUT_VERSION,
+      access: "write",
+    });
+  });
+});
+
 describe("hostedProject", () => {
   it("opens nothing while the engine-projects flag is off", () => {
     const mint = vi.fn<MintProjectToken>(async () => answer);
@@ -145,6 +169,46 @@ describe("hostedProject", () => {
     expect(
       host.assetUrl("p", { id: "a", kind: "texture", sha256: "ab".repeat(32), bytes: 1 }),
     ).toBe(`/api/engine/projects/p/blobs/${"ab".repeat(32)}`);
+  });
+
+  it("mints one project token through getProjectSyncToken and opens on its URL", async () => {
+    orpc.getProjectSyncToken.mockResolvedValue(answer);
+    const { transport, urls, opened } = fakeTransport();
+    const link = hostedProject({ transport, flag: () => true, access: "read" }).connect({
+      project: "p",
+      registry,
+      origin,
+    });
+    cleanups.push(() => link.destroy());
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    expect(orpc.getProjectSyncToken).toHaveBeenCalledOnce();
+    expect(orpc.getProjectSyncToken).toHaveBeenCalledWith({
+      projectId: "p",
+      formatVersion: SCENE_FORMAT_VERSION,
+      layoutVersion: COLLAB_LAYOUT_VERSION,
+      access: "read",
+    });
+    expect(urls).toEqual([answer.url]);
+    expect(await opened[0]!.token?.()).toBe("t1");
+  });
+
+  it("checks imports against the project's blob route, the same one it uploads to", async () => {
+    const read = vi.fn(async () => new Response(new Uint8Array([1, 2, 3])));
+    vi.stubGlobal("fetch", read);
+    cleanups.push(() => vi.unstubAllGlobals());
+    const { transport } = fakeTransport();
+    const link = hostedProject({ transport, flag: () => true, mint: async () => answer }).connect({
+      project: "p",
+      registry,
+      origin,
+    });
+    cleanups.push(() => link.destroy());
+    const store = vi.mocked(connectProjectSession).mock.calls[0]?.[0].store;
+    expect(store).toBeDefined();
+    const hash = "ab".repeat(32);
+    await store!.get(hash);
+    expect(read).toHaveBeenCalledWith(`/api/engine/projects/p/blobs/${hash}`, expect.anything());
+    expect(link.blobs).toBeDefined();
   });
 
   it("stops a doc canvas-sync closes for good, and fails the session when it is the project's", async () => {

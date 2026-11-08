@@ -621,21 +621,26 @@ EditorIdentityInput
 EditorLayout
 EditorNotify
 EditorStorage
+MintProjectToken
+NotifyOptions
 PanelId
 Pending
 PendingRun
 PendingTask
+ProjectAccess
 ProjectBlobs
 ProjectConnection
 ProjectConnectionState
 ProjectConnectionStatus
 ProjectSocket
 ProjectTokenAnswer
+ProjectTokenRequest
 ProjectTokens
 ProjectTransport
 SceneEditor
 SceneEditorHandle
 SceneEditorProps
+blobContentStore
 connectProjectSession
 createPending
 createProjectTokens
@@ -2412,6 +2417,7 @@ declare class BlobRouteError extends Error {
     readonly issue?: SceneIssue | undefined;
     constructor(message: string, status: number, issue?: SceneIssue | undefined);
 }
+declare function blobContentStore(blobs: ProjectBlobs): ContentStore;
 declare function projectBlobs(route: string, fetcher?: typeof fetch): ProjectBlobs;
 
 ## editor-ui/connect/dev.ts

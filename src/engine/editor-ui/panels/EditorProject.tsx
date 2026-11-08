@@ -137,7 +137,11 @@ function inUse(
 
 const plural = (n: number) => (n === 1 ? "1 file" : `${n} files`);
 
-/** Uploads dropped files and imports them in one batch; a file the batch refuses is left out and the rest go in. */
+/**
+ * Uploads dropped files and imports them in one batch; a file the batch
+ * refuses is left out and the rest go in. Rejects, with the reasons as the
+ * error's `description`, when none of them went in.
+ */
 async function importDropped(
   project: EditorProjectLink,
   blobs: ProjectBlobs,
@@ -169,18 +173,21 @@ async function importDropped(
     skipped.push({ name: failed.name, reason: result.issue.message });
     ops = ops.filter((o) => o !== failed);
   }
-  if (ops.length > 0)
-    notify.success(`Imported ${ops.length === 1 ? ops[0]!.name : plural(ops.length)}`);
-  if (skipped.length > 0) {
-    notify.error(
-      `Couldn't import ${skipped.length === 1 ? skipped[0]!.name : plural(skipped.length)}`,
-      {
-        description: skipped
-          .map((s) => (skipped.length === 1 ? s.reason : `${s.name}: ${s.reason}`))
-          .join(" "),
-      },
-    );
+  const refused =
+    skipped.length > 0
+      ? {
+          message: `Couldn't import ${skipped.length === 1 ? skipped[0]!.name : plural(skipped.length)}`,
+          description: skipped
+            .map((s) => (skipped.length === 1 ? s.reason : `${s.name}: ${s.reason}`))
+            .join(" "),
+        }
+      : null;
+  if (ops.length === 0) {
+    const { message = "Couldn't import those files.", description } = refused ?? {};
+    throw Object.assign(new Error(message), description ? { description } : {});
   }
+  notify.success(`Imported ${ops.length === 1 ? ops[0]!.name : plural(ops.length)}`);
+  if (refused) notify.error(refused.message, { description: refused.description });
 }
 
 /** The registry key of the doc on screen: the open prefab's, else the scene's. */

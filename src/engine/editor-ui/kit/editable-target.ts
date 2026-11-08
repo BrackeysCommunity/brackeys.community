@@ -1,13 +1,4 @@
-/** Where a key press is typing: a text field, select, contenteditable or CodeMirror editor. */
-export function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.isContentEditable ||
-    target.closest(
-      '.cm-editor, input, textarea, select, [contenteditable]:not([contenteditable="false"])',
-    ) != null
-  );
-}
+export { isEditableTarget } from "../../tool-router";
 
 /**
  * Whether `el` (by default the focused element) is inside a menu, popover or

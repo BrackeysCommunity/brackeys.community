@@ -23,7 +23,7 @@ import type { ProjectId, ProjectRuntimeView } from "../project/index";
 import type { SceneDocStatus } from "./connect/scene-doc";
 import { EditorFrame, editorChrome, Island } from "./frame/EditorFrame";
 import { hostCue, type EditorHost, type EditorNotify } from "./host";
-import { createToaster, Toasts } from "./kit/index";
+import { createToaster, hostNotify, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { InspectorReadOnly } from "./panels/EditorInspector";
 import type { Pending, PendingTask } from "./pending/pending";
@@ -34,7 +34,7 @@ export type SceneEditorProps = {
   /** The game the project's scenes are for; an engine-only project passes a minimal one. */
   game: GameDefinition;
   project: ProjectId;
-  /** The scene to open, by id; the project's first scene (with a notice) when it has none of that id. */
+  /** The scene to open, by id; when the project has none of that id its first scene opens and `onSceneChange` reports it. */
   scene?: string;
   rapier: () => Promise<RapierModule>;
   /** Dev hosts: the debug overlay and the game's debug layers (F3). */
@@ -159,7 +159,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [toaster] = useState(() => createToaster({ cue: hostCue(host) }));
   useEffect(() => () => toaster.destroy(), [toaster]);
-  const [notify] = useState(() => host.notify ?? toaster.notify);
+  const [notify] = useState(() => hostNotify(host, toaster));
   const [pending] = useState(() => immediatePending(notify));
   const [getCanvas] = useState(() => () => canvasRef.current);
   const [loadRapier] = useState(() => () => latest.current.rapier());
@@ -337,7 +337,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
           overlay={
             <>
               {chrome?.overlay}
-              {host.notify ? null : <Toasts toaster={toaster} />}
+              {notify === toaster.notify ? <Toasts toaster={toaster} /> : null}
             </>
           }
         >

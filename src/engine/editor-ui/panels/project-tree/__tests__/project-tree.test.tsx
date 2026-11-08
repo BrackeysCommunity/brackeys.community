@@ -221,6 +221,19 @@ describe("ProjectTree", () => {
     expect(cue).not.toHaveBeenCalledWith("drop");
   });
 
+  it("reports a refused import with the description its error carries", async () => {
+    const refused = Object.assign(new Error("Couldn't import coin.png"), {
+      description: "It isn't a kind of file this project takes.",
+    });
+    setup({ onDropFiles: () => Promise.reject(refused) });
+    const png = new File(["x"], "coin.png", { type: "image/png" });
+    await act(async () => dropFiles(rowOf("Yard"), [png]));
+    expect(toastError.mock.calls).toEqual([
+      ["Couldn't import coin.png", { description: "It isn't a kind of file this project takes." }],
+    ]);
+    expect(cue).not.toHaveBeenCalledWith("drop");
+  });
+
   it("deletes through the confirm when nothing references the asset", async () => {
     const { onDelete } = setup({ referrersOf: () => [] });
     fireEvent.click(files().getByRole("button", { name: "Delete hero.png" }));

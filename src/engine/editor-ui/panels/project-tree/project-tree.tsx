@@ -40,7 +40,15 @@ import type { ProjectTreeProps } from "./types";
 const messageOf = (err: unknown, fallback: string) =>
   err instanceof Error && err.message ? err.message : fallback;
 
-/** Runs a host callback; a rejection goes to `notify.error` and rethrows for the caller. */
+const descriptionOf = (err: unknown) =>
+  err instanceof Error && "description" in err && typeof err.description === "string"
+    ? err.description
+    : undefined;
+
+/**
+ * Runs a host callback; a rejection goes to `notify.error`, with the error's
+ * `description` when it has one, and rethrows for the caller.
+ */
 async function attempt<T>(
   notify: Pick<EditorNotify, "error">,
   fn: () => T | Promise<T>,
@@ -49,7 +57,9 @@ async function attempt<T>(
   try {
     return await fn();
   } catch (err) {
-    notify.error(messageOf(err, fallback));
+    const description = descriptionOf(err);
+    if (description) notify.error(messageOf(err, fallback), { description });
+    else notify.error(messageOf(err, fallback));
     throw err;
   }
 }
