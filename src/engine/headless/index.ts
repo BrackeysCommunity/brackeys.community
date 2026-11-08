@@ -6,6 +6,7 @@
 export { createHeadlessRuntime, probeConfigHash, runProbe, unknownActionError } from "./headless";
 export type { HeadlessRuntimeOptions, ProbeInput, ProbeOptions, ProbeReport } from "./types";
 export type {
+  AssetReloadError,
   LoadReport,
   RuntimeStats,
   SceneRuntime,

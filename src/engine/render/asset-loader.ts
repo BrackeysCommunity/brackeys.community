@@ -33,11 +33,21 @@ export type AssetLoader = TextureSource & {
 const DEFAULT_BUDGET_BYTES = 256 * 1024 * 1024;
 
 /**
- * Unloads still settling, by URL. Pixi keeps a URL's cached load until its
- * unload has awaited it, so a load issued in that window would get the
- * texture about to be destroyed. Module-wide because `Assets` is.
+ * What every loader on one Pixi `Assets` cache shares, by URL. Pixi hands
+ * every load of a URL the same texture, so only the last loader holding or
+ * loading it (`users`) may unload it; and it keeps a URL's cached load until
+ * that unload has awaited it, so a load issued while one settles
+ * (`unloading`) waits for it rather than get a texture about to be destroyed.
  */
-const unloading = new Map<string, Promise<void>>();
+type UrlUses = { users: Map<string, number>; unloading: Map<string, Promise<void>> };
+
+const usesByCache = new WeakMap<object, UrlUses>();
+
+function urlUses(cache: object): UrlUses {
+  let uses = usesByCache.get(cache);
+  if (!uses) usesByCache.set(cache, (uses = { users: new Map(), unloading: new Map() }));
+  return uses;
+}
 
 type Resident = { texture: Texture; url: string; bytes: number; used: number };
 
@@ -76,9 +86,26 @@ export function createAssetLoader(opts: {
   let clock = 0;
   let residentBytes = 0;
   let destroyed = false;
+  const { users, unloading } = urlUses(Assets);
+
+  function acquire(url: string): void {
+    users.set(url, (users.get(url) ?? 0) + 1);
+  }
+
+  /** Drops one use of `url`; true when that was the last. */
+  function letGo(url: string): boolean {
+    const count = users.get(url) ?? 0;
+    if (count > 1) {
+      users.set(url, count - 1);
+      return false;
+    }
+    users.delete(url);
+    return true;
+  }
 
   function unload(resident: Resident): void {
     const { url } = resident;
+    if (!letGo(url)) return;
     const done: Promise<void> = Assets.unload(url)
       .catch(() => {})
       .finally(() => {
@@ -93,15 +120,20 @@ export function createAssetLoader(opts: {
     const url = opts.url(opts.project, entry);
     const job = (async () => {
       let texture: Texture;
+      acquire(url);
       try {
         await unloading.get(url);
         texture = await Assets.load<Texture>({ src: url, parser: "texture" });
       } catch {
+        letGo(url);
         return false;
       } finally {
         pending.delete(hash);
       }
-      if (!texture) return false;
+      if (!texture) {
+        letGo(url);
+        return false;
+      }
       const resident: Resident = { texture, url, bytes: decodedBytes(texture), used: ++clock };
       if (destroyed) {
         unload(resident);

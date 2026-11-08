@@ -10,6 +10,7 @@ import { schemaRefSites } from "../project/refs";
 import type { AssetId } from "../project/types";
 import type { RuntimeEntity } from "../scene/types";
 import { ENGINE_BEHAVIOR_SYSTEMS } from "./behaviors/index";
+import type { AssetReloadError } from "./types";
 
 /**
  * Runs each registered behavior's system for one runtime, around the type
@@ -25,7 +26,8 @@ export type BehaviorHost = {
   detach(e: RuntimeEntity): void;
   /**
    * `e` replaced `prev`: update, attach or detach each block as it changed.
-   * A throw detaches `e` from every system, then rethrows.
+   * A block a failed asset reload left detached is attached afresh instead
+   * of updated. A throw detaches `e` from every system, then rethrows.
    */
   update(e: RuntimeEntity, prev: RuntimeEntity): void;
   step(dtMs: number): void;
@@ -41,14 +43,15 @@ export type BehaviorHost = {
    * Redraws each attached entity's blocks that name one of `changed` (or an
    * atlas cut from one) through the block's asset fields: `update` with the
    * same block, else detach and attach. Systems read the project's new info.
-   * An entity whose redraw throws is detached from every system and attached
-   * afresh; if that throws too it stays detached. Either way it is reported
-   * and the remaining entities still redraw.
+   * When an entity's redraw throws, just those blocks are detached and
+   * attached afresh; if that throws too they stay detached until an edit
+   * replaces the entity. Its other blocks keep their state. Either way it is
+   * reported and the remaining entities still redraw.
    */
-  reloadAssets(
-    changed: readonly AssetId[],
-  ): { entityId: string; error: unknown; reattached: boolean }[];
+  reloadAssets(changed: readonly AssetId[]): HostReloadError[];
 };
+
+type HostReloadError = Omit<AssetReloadError, "error"> & { error: unknown };
 
 type Built = { name: BehaviorName; system: BehaviorSystem };
 
@@ -71,6 +74,8 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
   const byName = new Map<BehaviorName, BehaviorSystem>();
   /** The entities carrying blocks, as last attached or updated. */
   const carriers = new Map<string, RuntimeEntity>();
+  /** Per entity, the blocks a failed asset reload left detached. */
+  const dropped = new Map<string, Set<BehaviorName>>();
   for (const name of registry.behaviorNames) {
     const def = registry.behaviors.get(name);
     if (!def || (def.visualOnly && ctx.view === null)) continue;
@@ -92,6 +97,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     } catch (err) {
       detachEverywhere(e.id);
       carriers.delete(e.id);
+      dropped.delete(e.id);
       throw err;
     }
   }
@@ -109,6 +115,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
 
   return {
     attach(e) {
+      dropped.delete(e.id);
       if (!e.behaviors) return;
       carriers.set(e.id, e);
       attached(e, () => {
@@ -120,6 +127,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     },
     detach(e) {
       carriers.delete(e.id);
+      dropped.delete(e.id);
       if (!e.behaviors) return;
       for (let i = built.length - 1; i >= 0; i--) {
         const { name, system } = built[i]!;
@@ -128,17 +136,19 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     },
     update(e, prev) {
       if (!e.behaviors && !prev.behaviors) return;
+      const gone = dropped.get(prev.id);
+      dropped.delete(prev.id);
       carriers.delete(prev.id);
       if (e.behaviors) carriers.set(e.id, e);
       attached(e, () => {
         for (let i = built.length - 1; i >= 0; i--) {
           const { name, system } = built[i]!;
-          if (blockOf(prev, name) && !blockOf(e, name)) system.detach(prev.id);
+          if (blockOf(prev, name) && !blockOf(e, name) && !gone?.has(name)) system.detach(prev.id);
         }
         for (const { name, system } of built) {
           const block = blockOf(e, name);
           if (!block) continue;
-          const before = blockOf(prev, name);
+          const before = gone?.has(name) ? undefined : blockOf(prev, name);
           if (!before) system.attach(e.id, block, e);
           else if (system.update) system.update(e.id, block, before, e);
           else {
@@ -162,6 +172,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     },
     clear() {
       carriers.clear();
+      dropped.clear();
       for (let i = built.length - 1; i >= 0; i--) built[i]!.system.clear();
     },
     stats() {
@@ -177,12 +188,20 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     reloadAssets(changed) {
       if (changed.length === 0) return [];
       const ids = new Set(changed);
-      const errors: { entityId: string; error: unknown; reattached: boolean }[] = [];
+      const errors: HostReloadError[] = [];
       for (const e of [...carriers.values()]) {
+        const gone = dropped.get(e.id);
+        const touched: (Built & { block: BehaviorBlock })[] = [];
+        for (const { name, system } of built) {
+          const block = blockOf(e, name);
+          if (block && !gone?.has(name) && namesChanged(name, block, ids))
+            touched.push({ name, system, block });
+        }
+        const detachTouched = () => {
+          for (let i = touched.length - 1; i >= 0; i--) touched[i]!.system.detach(e.id);
+        };
         try {
-          for (const { name, system } of built) {
-            const block = blockOf(e, name);
-            if (!block || !namesChanged(name, block, ids)) continue;
+          for (const { system, block } of touched) {
             if (system.update) system.update(e.id, block, block, e);
             else {
               system.detach(e.id);
@@ -190,16 +209,15 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
             }
           }
         } catch (err) {
-          detachEverywhere(e.id);
+          detachTouched();
           let reattached = true;
           try {
-            for (const { name, system } of built) {
-              const block = blockOf(e, name);
-              if (block) system.attach(e.id, block, e);
-            }
+            for (const { system, block } of touched) system.attach(e.id, block, e);
           } catch {
-            detachEverywhere(e.id);
-            carriers.delete(e.id);
+            detachTouched();
+            const names = gone ?? new Set<BehaviorName>();
+            for (const { name } of touched) names.add(name);
+            dropped.set(e.id, names);
             reattached = false;
           }
           errors.push({ entityId: e.id, error: err, reattached });

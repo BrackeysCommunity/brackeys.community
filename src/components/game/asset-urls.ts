@@ -23,3 +23,15 @@ export const EDITOR_BLOB_HOST = "dev" satisfies BlobHost["kind"];
 
 /** The URL scheme textures of the editor's open project load from. */
 export const editorAssetUrl: AssetUrl = assetUrls[EDITOR_BLOB_HOST];
+
+/** Asset problems a developer should see; dev builds only. */
+export function warnAssets(message: string): void {
+  if (import.meta.env.DEV) console.warn(`[assets] ${message}`);
+}
+
+/** Textures that didn't load draw as the fallback box; the console says which. */
+export function warnFailedTextures(scene: string, failed: readonly { id: string }[]): void {
+  if (failed.length === 0) return;
+  const ids = failed.map((e) => e.id).join(", ");
+  warnAssets(`${scene}: ${failed.length} texture(s) failed to load: ${ids}`);
+}

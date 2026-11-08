@@ -68,6 +68,7 @@ import type { EditorShellProps } from "@/components/game/editor/EditorShell";
 import { presenceColor } from "@/lib/canvas/presence";
 import { toast } from "@/lib/toast";
 
+import { warnAssets } from "./asset-urls";
 import type { SceneDocStatus } from "./use-scene-doc";
 
 /** What the editor's chrome shows besides the session: the connection, play state and access. */
@@ -229,7 +230,7 @@ export type AssetChangeSource = {
 };
 
 function warnReload(message: string): void {
-  if (import.meta.env.DEV) console.warn(`[assets] hot reload: ${message}`);
+  warnAssets(`hot reload: ${message}`);
 }
 
 const WATCHED_KINDS: ReadonlySet<string> = new Set([

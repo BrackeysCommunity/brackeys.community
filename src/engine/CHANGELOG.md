@@ -161,11 +161,14 @@ unchanged.
   A new `project` also re-resolves the project bundle from its game
   settings: a settings asset field moved to another id is loaded with the
   changed textures and retained in place of the old bundle (fetched again
-  by the next `preload` if that load failed). An entity whose redraw
-  throws is detached from every behavior system and attached afresh (left
-  detached if that throws too), the other entities still redraw, and it
-  comes back in the result's `errors` as an `AssetReloadError`
-  (`{ entityId, error, reattached }`); `SceneRuntimeHandle.reloadAssets`
+  by the next `preload` if that load failed). When an entity's redraw
+  throws, the blocks naming a changed asset are detached and attached
+  afresh while its other blocks (a stepping behavior's state among them)
+  stay attached as they were; if that throws too those blocks stay
+  detached until the next edit of the entity attaches them. The other
+  entities still redraw, and the entity comes back in the result's
+  `errors` as an `AssetReloadError` (`{ entityId, error, reattached }`,
+  exported from `.` and `./headless`); `SceneRuntimeHandle.reloadAssets`
   returns those, and `GameInstance.reloadAssets` resolves
   `{ failed, errors }` without rejecting for them.
   `ASSET_CHANGED`, `AssetChange` and `AssetChangedMessage` are in

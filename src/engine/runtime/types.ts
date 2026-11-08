@@ -11,9 +11,10 @@ export type ReconcileReport = { ok: true } | { ok: false; error: string; entityI
 
 /**
  * An entity whose behavior blocks threw while redrawing for changed assets.
- * It was detached from every behavior system and attached afresh; when that
- * threw too (`reattached` false) it stays loaded with no behaviors until an
- * edit or reload replaces it.
+ * The blocks naming a changed asset were detached and attached afresh; its
+ * other blocks keep their state. When that threw too (`reattached` false)
+ * those blocks stay detached until an edit or a scene load replaces the
+ * entity.
  */
 export type AssetReloadError = { entityId: string; error: string; reattached: boolean };
 

@@ -147,17 +147,25 @@ function loggingGame() {
 
   const brittle = defineBehavior({
     name: BRITTLE,
-    description: "Names a texture; throws on update or attach as `breaks` says.",
+    description:
+      "Names a texture; throws on update or attach as `breaks` says, and on an update for an id it never attached.",
     fields: art,
     system: (ctx) => {
       const inner = logging(BRITTLE, ctx, false);
+      const live = new Set<string>();
       return {
         ...inner,
         attach(id, block, e) {
           if (breaks.attach) throw new Error(`attach broke on ${id}`);
           inner.attach(id, block, e);
+          live.add(id);
+        },
+        detach(id) {
+          inner.detach(id);
+          live.delete(id);
         },
         update(id) {
+          if (!live.has(id)) throw new Error(`update on unattached ${id}`);
           if (breaks.update) throw new Error(`update broke on ${id}`);
           log.push(`update brittle ${id}`);
         },
@@ -426,7 +434,7 @@ describe("behavior host", () => {
     rt.destroy();
   });
 
-  it("keeps redrawing past an entity whose reload throws, reattaching it and reporting it", () => {
+  it("keeps redrawing past an entity whose reload throws, reattaching its changed blocks and reporting it", () => {
     const { rt, log, breaks } = setup();
     rt.load(
       scene([
@@ -443,8 +451,6 @@ describe("behavior host", () => {
     expect(log).toEqual([
       'update skin a {"art":"crate"}->{"art":"crate"}',
       "detach brittle b",
-      "detach tick b",
-      'attach tick b {"n":1} pose=1,2',
       'attach brittle b {"art":"crate"} pose=1,2',
       "detach decal c",
       'attach decal c {"art":"crate"} pose=1,2',
@@ -456,8 +462,9 @@ describe("behavior host", () => {
     expect(rt.reloadAssets(null, ["crate"])).toEqual([
       { entityId: "b", error: "update broke on b", reattached: false },
     ]);
+    expect(log.some((l) => l.includes("tick b"))).toBe(false);
     expect(log.at(-1)).toBe('attach decal c {"art":"crate"} pose=1,2');
-    expect(rt.stats().behaviors).toEqual({ [SKIN]: 1, [DECAL]: 1 });
+    expect(rt.stats().behaviors).toEqual({ [SKIN]: 1, [TICK]: 1, [DECAL]: 1 });
     expect(rt.get("b")).toBeDefined();
 
     breaks.update = false;
@@ -465,6 +472,31 @@ describe("behavior host", () => {
     log.length = 0;
     expect(rt.reloadAssets(null, ["crate"])).toEqual([]);
     expect(log.some((l) => l.includes(" b"))).toBe(false);
+    rt.destroy();
+  });
+
+  it("attaches a block a failed reload left detached on the next edit, and updates the rest", () => {
+    const { rt, log, breaks } = setup();
+    rt.load(scene([probe("b", { [BRITTLE]: { art: "crate" }, [TICK]: { n: 1 } })]));
+    breaks.update = true;
+    breaks.attach = true;
+    expect(rt.reloadAssets(null, ["crate"])).toEqual([
+      { entityId: "b", error: "update broke on b", reattached: false },
+    ]);
+    breaks.update = false;
+    breaks.attach = false;
+    log.length = 0;
+    expect(rt.update([probe("b", { [BRITTLE]: { art: "moss" }, [TICK]: { n: 2 } })])).toEqual({
+      ok: true,
+    });
+    expect(log.filter((l) => !l.startsWith("type-update"))).toEqual([
+      'update tick b {"n":1}->{"n":2}',
+      'attach brittle b {"art":"moss"} pose=1,2',
+    ]);
+    expect(rt.stats().behaviors).toEqual({ [TICK]: 1, [BRITTLE]: 1 });
+    log.length = 0;
+    rt.update([probe("b", { [BRITTLE]: { art: "rock" }, [TICK]: { n: 2 } })]);
+    expect(log).toContain("update brittle b");
     rt.destroy();
   });
 });

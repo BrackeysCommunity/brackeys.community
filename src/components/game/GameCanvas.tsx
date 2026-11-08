@@ -18,7 +18,7 @@ import { ShellTitle, SiteIsland } from "@/components/canvas/shell/SiteIsland";
 import { MicroLabel } from "@/components/ui/typography";
 import { platformerGame } from "@/games/platformer";
 
-import { editorAssetUrl } from "./asset-urls";
+import { editorAssetUrl, warnFailedTextures } from "./asset-urls";
 import {
   BUNDLED_PREFABS,
   BUNDLED_SCENE,
@@ -30,13 +30,6 @@ import type { SceneDocStatus } from "./use-scene-doc";
 import { useSceneEditor, type EditorAssets } from "./use-scene-editor";
 
 const loadRapier = () => import("@dimforge/rapier2d");
-
-/** Textures that didn't load draw as the fallback box; the console says which. */
-export function warnFailedTextures(scene: string, failed: readonly { id: string }[]): void {
-  if (failed.length === 0) return;
-  const ids = failed.map((e) => e.id).join(", ");
-  console.warn(`[assets] ${scene}: ${failed.length} texture(s) failed to load: ${ids}`);
-}
 
 type GameCanvasProps = {
   roomId: string;

@@ -3,7 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import type { AssetBundle, BundleEntry } from "../../project/bundle";
 import type { Sha256 } from "../../project/types";
-import { createAssetLoader, type LoadProgress } from "../asset-loader";
+import {
+  createAssetLoader as createLoader,
+  type AssetLoader,
+  type LoadProgress,
+} from "../asset-loader";
+
+/** URL uses are shared by every loader on Pixi's cache, so every test lets go of what its loaders hold. */
+const live: AssetLoader[] = [];
+function createAssetLoader(opts: Parameters<typeof createLoader>[0]): AssetLoader {
+  const loader = createLoader(opts);
+  live.push(loader);
+  return loader;
+}
 
 /** The blobs the fake server holds, by URL: a decoded size, or a status to refuse with. */
 const server = new Map<string, { w: number; h: number } | number>();
@@ -30,7 +42,8 @@ vi.mock("pixi.js", () => ({ Assets: pixi }));
 beforeEach(() => {
   server.clear();
   fetcher.mockClear();
-  pixi.unload.mockClear();
+  pixi.unload.mockReset();
+  pixi.unload.mockImplementation(async () => {});
   pixi.load.mockReset();
   pixi.load.mockImplementation(async (asset: { src: string; parser?: string }) => {
     if (asset.parser !== "texture") throw new Error(`no parser for ${asset.src}`);
@@ -46,7 +59,10 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  for (const loader of live.splice(0)) loader.destroy();
+  vi.useRealTimers();
+});
 
 const hash = (n: number) => n.toString(16).padStart(64, "0") as Sha256;
 const url = (_project: string, entry: BundleEntry) => `/blobs/${entry.sha256}`;
@@ -263,6 +279,46 @@ describe("createAssetLoader", () => {
     expect(resident).not.toBe(old);
     expect(resident!.destroyed).toBeUndefined();
     expect((old as { destroyed?: boolean }).destroyed).toBe(true);
+  });
+
+  it("leaves a texture another loader holds when a destroyed loader's load settles", async () => {
+    serve(1);
+    // Pixi's cache: every load of a URL gets the same texture until it is unloaded.
+    const cache = new Map<string, Promise<FakeTexture & { destroyed?: boolean }>>();
+    const fresh = pixi.load.getMockImplementation()!;
+    let arrive!: () => void;
+    const gate = new Promise<void>((r) => (arrive = r));
+    pixi.load.mockImplementation((asset: { src: string; parser?: string }) => {
+      let cached = cache.get(asset.src);
+      if (!cached) cache.set(asset.src, (cached = gate.then(() => fresh(asset))));
+      return cached;
+    });
+    pixi.unload.mockImplementation(async (src: string) => {
+      const texture = await cache.get(src);
+      cache.delete(src);
+      if (texture) texture.destroyed = true;
+    });
+    const level = bundle("level", [entry("a", 1)]);
+    const a = createAssetLoader({ project: "p", url });
+    const first = a.load(level);
+    await vi.waitFor(() => expect(pixi.load).toHaveBeenCalledTimes(1));
+
+    a.destroy();
+    const b = createAssetLoader({ project: "p", url });
+    const second = b.load(level);
+    await vi.waitFor(() => expect(pixi.load).toHaveBeenCalledTimes(2));
+    arrive();
+
+    expect(await first).toEqual({ failed: [entry("a", 1)] });
+    expect(await second).toEqual({ failed: [] });
+    const texture = b.get(hash(1)) as (FakeTexture & { destroyed?: boolean }) | null;
+    expect(texture).not.toBeNull();
+    expect(texture!.destroyed).toBeUndefined();
+    expect(pixi.unload).not.toHaveBeenCalled();
+
+    b.destroy();
+    await vi.waitFor(() => expect(pixi.unload).toHaveBeenCalledWith(`/blobs/${hash(1)}`));
+    expect(texture!.destroyed).toBe(true);
   });
 
   it("keeps its state per loader", async () => {

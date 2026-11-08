@@ -3,6 +3,7 @@
 
 ## @jams/engine
 AssetLoader
+AssetReloadError
 AssetUrl
 BlendMode
 CameraMode
@@ -779,6 +780,7 @@ withProject
 
 ## @jams/engine/headless
 AssetInfo
+AssetReloadError
 CheckEnv
 CheckResult
 CheckVerdict
