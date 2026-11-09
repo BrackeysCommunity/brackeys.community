@@ -237,7 +237,9 @@ describe("single-target gizmos round-trip", () => {
       ),
     );
     expect(e.batch?.ops).toEqual([{ op: "move", refs: ["avatar"], by: [660, -24] }]);
-    expect(e.guides?.length).toBe(1);
+    // The x guide on zone's edge, and the y grid line the move also snapped to.
+    expect(e.guides?.map((g) => g.from[0] === g.to[0])).toEqual([true, false]);
+    expect(e.guides?.[0]?.from[0]).toBe(940);
   });
 
   it("moves a point entity and a bulk entry", () => {

@@ -12,6 +12,19 @@ import { boundsCheck } from "../placement";
 import { snapPoint } from "../snap";
 import { defineEditorTool, type EditorToolDef, type ToolOverlay } from "../tools";
 
+/** Screen px each arm of the crosshair before a press reaches from the snapped start. */
+const CROSSHAIR_PX = 12;
+
+/** A crosshair on `at`, `arm` world px each way, in the selection's tone so it reads over the scene. */
+function crosshair([x, y]: Pt, arm: number): NonNullable<ToolOverlay["polylines"]> {
+  const line = (from: Pt, to: Pt) => ({
+    pts: [from, to],
+    closed: false,
+    tone: "selected" as const,
+  });
+  return [line([x - arm, y], [x + arm, y]), line([x, y - arm], [x, y + arm])];
+}
+
 /** The type the draw tools add unless told otherwise. */
 export const DEFAULT_DRAW_TYPE = "solid";
 
@@ -152,7 +165,13 @@ export function createDrawTool(opts: DrawToolOptions): EditorToolDef {
         gesture: () => start !== null,
         overlay(): ToolOverlay {
           // Before the press: where the drag will start, snapped.
-          if (!start) return cursor ? { points: [{ at: cursor, tone: "ghost" }] } : {};
+          if (!start) {
+            if (!cursor) return {};
+            return {
+              points: [{ at: cursor, tone: "ghost" }],
+              polylines: crosshair(cursor, CROSSHAIR_PX / ctx.scale()),
+            };
+          }
           if (!shape) return { points: [{ at: start, tone: "ghost" }] };
           const def = ctx.getDoc();
           const check: PlacementCheck = drawBatch(def, ctx.registry, type, shape)

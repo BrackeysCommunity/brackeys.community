@@ -63,5 +63,17 @@ export async function mountEngineEditor(element: HTMLElement) {
   });
 }
 
+/** Replaces the page's loading line with why the editor couldn't open. */
+export function showMountFailure(element: HTMLElement, error: unknown): void {
+  console.error("[engine editor] couldn't open", error);
+  const line = document.createElement("p");
+  line.className = "boot";
+  line.dataset.failed = "";
+  line.setAttribute("role", "alert");
+  const reason = error instanceof Error ? error.message : String(error);
+  line.textContent = `The editor couldn't open: ${reason}`;
+  element.replaceChildren(line);
+}
+
 const root = typeof document === "undefined" ? null : document.getElementById("editor");
-if (root) void mountEngineEditor(root);
+if (root) mountEngineEditor(root).catch((error: unknown) => showMountFailure(root, error));

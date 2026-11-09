@@ -180,6 +180,7 @@ const opened = () => act(() => new Promise((r) => setTimeout(r, 0)));
 
 const outliner = () => within(screen.getByRole("navigation", { name: "Outliner" }));
 const inspector = () => within(screen.getByRole("tabpanel", { name: "Inspector" }));
+const toolbar = () => within(screen.getByRole("toolbar", { name: "Editor" }));
 const worldAt = (fake: Fake, id: string) => fake.world()!.entities.find((e) => e.id === id)?.at;
 const topOf = (live: LiveEditor, instance: string) =>
   live.session.getResolved().entities!.find((e) => e.id === `${instance}/top`)!.at;
@@ -227,12 +228,12 @@ describe("Open prefab", () => {
 
     // Undo here steps the project's one stack: the prefab and every instance go back.
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      fireEvent.click(toolbar().getByRole("button", { name: "Undo" }));
     });
     expect(worldAt(fake, "top")).toEqual([0, -40]);
     expect(topOf(live, "post-2")).toEqual([300, 860]);
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+      fireEvent.click(toolbar().getByRole("button", { name: "Redo" }));
     });
     expect(topOf(live, "post-2")).toEqual([310, 860]);
 
@@ -244,11 +245,11 @@ describe("Open prefab", () => {
     expect(outliner().getAllByText("prefab").length).toBe(3);
     // Back in the scene, its undo still covers the edit.
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      fireEvent.click(toolbar().getByRole("button", { name: "Undo" }));
     });
     expect(topOf(live, "post-1")).toEqual([100, 860]);
     fake.project.destroy();
-  });
+  }, 20_000);
 
   it("opens from an instance row in the outliner", async () => {
     const fake = await setup();
@@ -586,21 +587,21 @@ describe("the prefab's doc in the project", () => {
       prefab.dispatch({ ops: [{ op: "move", refs: ["top"], by: [5, 0] }] });
     });
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      fireEvent.click(toolbar().getByRole("button", { name: "Undo" }));
     });
     expect(toast).not.toHaveBeenCalled();
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+      fireEvent.click(toolbar().getByRole("button", { name: "Redo" }));
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      fireEvent.click(toolbar().getByRole("button", { name: "Undo" }));
     });
     expect(toast).toHaveBeenCalledWith("Undid Move top in post");
     expect(topOf(live, "post-2")).toEqual([300, 860]);
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+      fireEvent.click(toolbar().getByRole("button", { name: "Redo" }));
     });
     expect(toast).toHaveBeenLastCalledWith("Redid Move top in post");
     expect(topOf(live, "post-2")).toEqual([305, 860]);

@@ -45,7 +45,7 @@
   ],
   "entities": [
     { "id": "pit-shuttle", "type": "mover", "shape": ["box", 0, 0, 50, 6], "path": { "pts": [[1500, 950], [1700, 950]], "mode": "ping_pong", "speed": 80, "pauseMs": 500 } },
-    { "id": "elevator", "type": "mover", "shape": ["box", 0, 0, 40, 6], "path": { "pts": [[1300, 1000], [1300, 700]], "mode": "ping_pong", "speed": 100, "pauseMs": 800 } },
+    { "id": "elevator", "type": "mover", "shape": ["box", 0, 0, 40, 6], "path": { "pts": [[1300, 1000], [1300, 700], [1332, 700]], "mode": "ping_pong", "speed": 100, "pauseMs": 800 } },
     { "id": "diagonal", "type": "mover", "shape": ["box", 0, 0, 35, 6], "path": { "pts": [[200, 800], [400, 700], [600, 750]], "mode": "loop", "speed": 120, "pauseMs": 300 } },
     { "id": "plank", "type": "prop", "shape": ["box", 350, 700, 50, 6], "density": 2, "restitution": 0.2 },
     { "id": "ball", "type": "prop", "shape": ["circle", 780, 900, 15], "density": 1.5, "restitution": 0.6 },

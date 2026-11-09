@@ -15,6 +15,11 @@ import { fileURLToPath } from "node:url";
 
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const ENGINE = join(REPO, "src/engine");
+/**
+ * The repo's own `vp`. A script started as `bun <file>` rather than through
+ * `bun run` has no `node_modules/.bin` on its PATH, and CI images ship no global `vp`.
+ */
+export const VP = join(REPO, "node_modules/.bin/vp");
 
 export type PackageJson = {
   name: string;
@@ -26,13 +31,28 @@ export type PackageJson = {
 };
 
 export function run(cmd: string, args: string[], opts: SpawnSyncOptions = {}): string {
-  const res = spawnSync(cmd, args, { encoding: "utf8", ...opts });
-  if (res.status !== 0) {
-    throw new Error(
-      `${cmd} ${args.join(" ")} exited ${res.status}\n${String(res.stdout)}\n${String(res.stderr)}`,
-    );
-  }
+  const res = spawnSync(cmd, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...opts });
+  if (res.status !== 0) throw new Error(describeFailure([cmd, ...args].join(" "), res));
   return String(res.stdout);
+}
+
+/** Why a child failed: a spawn error (ENOENT, ETIMEDOUT, ENOBUFS), a signal, or an exit code. */
+export function describeFailure(
+  command: string,
+  res: {
+    status: number | null;
+    signal?: NodeJS.Signals | null;
+    error?: Error;
+    stdout?: unknown;
+    stderr?: unknown;
+  },
+): string {
+  const how = res.error
+    ? `failed: ${res.error.message}`
+    : res.signal
+      ? `was killed by ${res.signal}`
+      : `exited ${res.status}`;
+  return `${command} ${how}\n${String(res.stdout ?? "")}\n${String(res.stderr ?? "")}`;
 }
 
 export type Packed = {
@@ -54,7 +74,7 @@ export type Packed = {
  * `node_modules`.
  */
 export function packAndExtract(tools: string[] = []): Packed {
-  run("vp", ["pack"], { cwd: ENGINE });
+  run(VP, ["pack"], { cwd: ENGINE });
   const dir = mkdtempSync(join(tmpdir(), "jams-engine-smoke-"));
   // `bun pm pack` is what the global `vp pm pack` runs here; the repo-local `vp`
   // that scripts and CI get has no `pm` command.

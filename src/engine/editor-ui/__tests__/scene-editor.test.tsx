@@ -206,6 +206,33 @@ describe("SceneEditor", () => {
     expect(games.made.every((g) => g.destroyed)).toBe(true);
   }, 20_000);
 
+  it("boots with every panel's tab over an empty scene, no counts and skeleton bodies", () => {
+    const pending: ProjectConnection = {
+      getState: () => ({
+        status: "connecting",
+        session: null,
+        access: "write",
+        stopped: {},
+        error: null,
+        unsynced: 0,
+      }),
+      subscribe: () => () => {},
+      onAssetChanged: () => () => {},
+      destroy: () => {},
+    };
+    const host: EditorHost = { assetUrl: () => "", storage: null, connect: () => pending };
+    const view = render(
+      <SceneEditor host={host} game={yardGame} project="p" scene="yard" rapier={rapier} />,
+    );
+    const problems = screen.getByRole("tab", { name: /Problems/ });
+    expect(problems.textContent).toBe("Problems");
+    for (const tab of screen.getAllByRole("tab")) fireEvent.click(tab);
+    expect(view.container.querySelectorAll(".je-panel-group .je-skeleton").length).toBeGreaterThan(
+      0,
+    );
+    expect(() => view.unmount()).not.toThrow();
+  });
+
   it("reveals a panel through the ready handle", async () => {
     const { host } = fakeProject();
     let handle: SceneEditorHandle | null = null;

@@ -275,6 +275,20 @@ describe("EditorInspector", () => {
     expect(screen.queryByRole("region", { name: "Hum" })).toBeNull();
   });
 
+  it("heads an unlabelled behavior's section with its key in sentence case", async () => {
+    const { session } = setup(["zone"]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add behavior" }));
+    });
+    await act(async () => {
+      fireEvent.click((await screen.findAllByRole("menuitem"))[0]!);
+    });
+    expect(Object.keys(entity(session, "zone").behaviors ?? {})).toEqual(["sprite"]);
+    const sprite = screen.getByRole("region", { name: "Sprite" });
+    expect(sprite.querySelector("summary")?.textContent).toContain("Sprite");
+    expect(screen.queryByRole("region", { name: "sprite" })).toBeNull();
+  });
+
   it("adds a behavior from the Add behavior menu in one batch, with defaults as placeholders", async () => {
     const { session, dispatch } = setup(["zone"]);
     await act(async () => {
@@ -282,7 +296,7 @@ describe("EditorInspector", () => {
     });
     const items = await screen.findAllByRole("menuitem");
     expect(items.map((i) => i.textContent)).toEqual([
-      "spriteDraws a texture or an atlas frame at the entity's pose.",
+      "SpriteDraws a texture or an atlas frame at the entity's pose.",
       "HumA low hum it gives off.",
       "SignWords written on it.",
     ]);
@@ -303,7 +317,7 @@ describe("EditorInspector", () => {
       fireEvent.click(screen.getByRole("button", { name: "Add behavior" }));
     });
     expect((await screen.findAllByRole("menuitem")).map((i) => i.textContent)).toEqual([
-      "spriteDraws a texture or an atlas frame at the entity's pose.",
+      "SpriteDraws a texture or an atlas frame at the entity's pose.",
       "SignWords written on it.",
     ]);
   });

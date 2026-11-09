@@ -94,7 +94,7 @@ const viewportOf = (width: number, height = 900): Viewport => ({
   bottom: 0,
 });
 
-const px = (el: Element, prop: "left" | "top" | "width" | "height") =>
+const px = (el: Element, prop: "left" | "top" | "width" | "height" | "maxWidth") =>
   Number.parseFloat((el as HTMLElement).style[prop]);
 
 const column = (side: "left" | "right") =>
@@ -342,13 +342,109 @@ describe("the frame's layout", () => {
   it("hides the columns, rails and status in play mode and keeps the dock", () => {
     const { mode } = setup();
     act(() => mode.setState(() => ({ mode: "play" })));
-    expect(document.querySelector(".je-frame-column")).toBeNull();
-    expect(document.querySelector(".je-frame-rail")).toBeNull();
+    const columns = document.querySelector<HTMLElement>(".je-frame-columns")!;
+    expect(columns.hidden).toBe(true);
+    expect(columns.hasAttribute("inert")).toBe(true);
+    expect(column("left")!.closest("[hidden]")).toBe(columns);
     expect(screen.queryAllByRole("separator")).toHaveLength(0);
+    expect(screen.queryByRole("tab", { name: /Inspector/ })).toBeNull();
     expect(screen.queryByText("status")).toBeNull();
     expect(screen.getByRole("button", { name: "dock" })).toBeTruthy();
     act(() => mode.setState(() => ({ mode: "edit" })));
+    expect(columns.hidden).toBe(false);
     expectColumnAt("right", fitLayout(DEFAULT_LAYOUT, viewportOf(1440)).right!);
+  });
+
+  it("keeps the panels mounted through a playtest: the outliner's filter survives Play and Stop", () => {
+    const { mode } = setup();
+    const filter = screen.getByRole("searchbox", { name: "Filter rows" }) as HTMLInputElement;
+    fireEvent.change(filter, { target: { value: "pad" } });
+    act(() => mode.setState(() => ({ mode: "play" })));
+    act(() => mode.setState(() => ({ mode: "edit" })));
+    const after = screen.getByRole("searchbox", { name: "Filter rows" }) as HTMLInputElement;
+    expect(after).toBe(filter);
+    expect(after.value).toBe("pad");
+  });
+
+  it("keeps the inspector group's height through Play and Stop", () => {
+    const { mode } = setup();
+    const inspector = () =>
+      column("right")!.querySelector<HTMLElement>(".je-frame-group-right-0")!.style.height;
+    const before = inspector();
+    expect(before).toMatch(/px$/);
+    act(() => mode.setState(() => ({ mode: "play" })));
+    expect(inspector()).toBe(before);
+    act(() => mode.setState(() => ({ mode: "edit" })));
+    expect(inspector()).toBe(before);
+  });
+
+  it("skips the hidden columns when F6 cycles the regions in play mode", () => {
+    const { mode } = setup();
+    act(() => mode.setState(() => ({ mode: "play" })));
+    fireEvent.keyDown(window, { key: "F6" });
+    expect(document.activeElement?.closest(".je-frame-columns")).toBeNull();
+    expect(screen.getByRole("button", { name: "dock" })).toBe(document.activeElement);
+  });
+
+  it("brings both columns back when the window widens after a rail opened one at 760", () => {
+    const { storage } = setup();
+    resizeWindow(760, 700);
+    const rail = screen.getByRole("navigation", { name: "Left panels" });
+    fireEvent.click(within(rail).getByRole("button", { name: "Outliner" }));
+    expect(column("left")).not.toBeNull();
+    expect(column("right")).toBeNull();
+    expect(screen.getByRole("navigation", { name: "Right panels" })).toBeTruthy();
+    act(() => vi.advanceTimersByTime(LAYOUT_WRITE_DELAY));
+    expect(stored(storage).right.collapsed).toBe(false);
+
+    resizeWindow(1440, 900);
+    const fitted = fitLayout(DEFAULT_LAYOUT, viewportOf(1440));
+    expectColumnAt("left", fitted.left!);
+    expectColumnAt("right", fitted.right!);
+  });
+
+  it("shares the phone's top bar between the host's two corners, the left one stopping short", () => {
+    const real = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+      .value as (this: Element) => DOMRect;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: Element) {
+        if (this.classList.contains("je-frame-top-right")) return new DOMRect(0, 0, 120, 40);
+        if (this.classList.contains("je-frame-top-left")) return new DOMRect(0, 0, 300, 40);
+        return real.call(this);
+      },
+    );
+    try {
+      resizeWindow(375, 812);
+      render(
+        <EditorFrame
+          host={{ storage: memoryStorage() }}
+          panels={panelsFor()}
+          topLeft={<div>a long site menu title</div>}
+          topRight={<div>share</div>}
+        >
+          <canvas />
+        </EditorFrame>,
+      );
+      const left = document.querySelector<HTMLElement>(".je-frame-top-left")!;
+      const right = document.querySelector<HTMLElement>(".je-frame-top-right")!;
+      expect(document.querySelector(".je-frame-chrome")!.getAttribute("data-je-mode")).toBe(
+        "phone",
+      );
+      expect(px(left, "maxWidth")).toBe(375 - 8 - 8 - 8 - 120);
+      expect(right).toBeTruthy();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("places the default toasts inside the canvas area, above the bottom row", () => {
+    const { mode } = setup();
+    const frame = document.querySelector<HTMLElement>(".je-frame")!;
+    const fitted = fitLayout(DEFAULT_LAYOUT, viewportOf(1440));
+    expect(frame.style.getPropertyValue("--je-toasts-right")).toBe(`${fitted.canvas.right + 8}px`);
+    expect(frame.style.getPropertyValue("--je-toasts-bottom")).toBe("8px");
+    act(() => mode.setState(() => ({ mode: "play" })));
+    expect(frame.style.getPropertyValue("--je-toasts-right")).toBe("8px");
   });
 
   it("places the bottom row between the columns", () => {

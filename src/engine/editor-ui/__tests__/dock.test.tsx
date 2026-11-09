@@ -14,10 +14,13 @@ import { createToolHost } from "../../editor/tool-host";
 import { DEFAULT_SNAP } from "../../editor/tools";
 import { createRegistry } from "../../game/index";
 import { createToolRouter } from "../../tool-router";
-import { EditorFrame, editorChrome, Island } from "../frame/EditorFrame";
+import { bottomRow, EditorFrame, editorChrome, Island, useBottomRow } from "../frame/EditorFrame";
+import type { EditorNotify } from "../host";
 import { DEFAULT_LAYOUT, fitLayout, type Viewport } from "../layout/model";
 import { EditorStatusBar } from "../panels/EditorStatusBar";
 import { dockParts, dockWidth, EditorToolbar, fitDock } from "../panels/EditorToolbar";
+import { ACTIVITY_DELAY_MS, createPending, type PendingStep } from "../pending/pending";
+import { PendingProvider } from "../pending/use-pending";
 import type { EditorHostState } from "../session/live-scene-editor";
 import { fakeWorldGame } from "./fake-world-game";
 
@@ -272,6 +275,107 @@ describe("the status in the bottom row", () => {
     expect(within(row).getByText("1 warning").className).toBe("je-sr-only");
     expect(within(row).getByText("Saved").closest(".je-sr-only")).toBeTruthy();
     expect(within(row).getByText("dock-yard").className).toBe("je-sr-only");
+  });
+});
+
+describe("sharing the bottom row with a running activity", () => {
+  const dock = { full: 535, least: 220 };
+  const words = { full: 229, least: 60 };
+
+  it("keeps the status's words beside the whole dock while nothing runs", () => {
+    expect(bottomRow(816, { dock, status: words }, true)).toEqual({
+      dock: 816 - 229 - 8,
+      compactStatus: false,
+      status: Infinity,
+    });
+  });
+
+  it("takes a running activity's room from the dock's tools before the status's words", () => {
+    const activity = { full: 260, least: 120 };
+    const row = bottomRow(816, { dock, status: { ...words, activity } }, true);
+    expect(row.compactStatus).toBe(false);
+    expect(row.status).toBe(229 + 260);
+    expect(row.dock).toBe(816 - 229 - 260 - 8);
+    expect(row.dock).toBeGreaterThanOrEqual(dock.least);
+  });
+
+  it("cuts the activity short once the dock is at its least, then gives way the words", () => {
+    const activity = { full: 400, least: 120 };
+    const short = bottomRow(800, { dock, status: { ...words, activity } }, true);
+    expect(short.compactStatus).toBe(false);
+    expect(short.status).toBe(800 - 8 - dock.least);
+    expect(short.dock).toBe(dock.least);
+
+    const wideDock = { full: 535, least: 500 };
+    const shorter = bottomRow(800, { dock: wideDock, status: { ...words, activity } }, true);
+    expect(shorter.compactStatus).toBe(true);
+    expect(shorter.status).toBe(800 - 8 - wideDock.least);
+    expect(shorter.status).toBeGreaterThanOrEqual(words.least + activity.least);
+  });
+
+  function FixedDock() {
+    const { dock: room } = useBottomRow("dock", dock);
+    return (
+      <Island>
+        <span data-room={room}>dock</span>
+      </Island>
+    );
+  }
+
+  it("shows a running import's label and count at the site's 816 px row beside a 535 px dock", () => {
+    vi.useFakeTimers();
+    // The default columns take 624 px and the row's padding 16: an 816 px row.
+    resizeWindow(816 + 624 + 16);
+    const session = createEditorSession({
+      doc: sceneToDoc(scene, { key: sequentialKeys("t") }),
+      origin: { kind: "user", userId: "ada", name: "Ada" },
+      name: "dock-yard",
+      registry: createRegistry(),
+      issuesDebounceMs: 0,
+    });
+    const host = new Store<EditorHostState>({ connection: "live", sceneChanged: false });
+    const say = Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn(), success: vi.fn() });
+    const pending = createPending({ notify: say as EditorNotify });
+    render(
+      <PendingProvider pending={pending}>
+        <EditorFrame
+          dock={<FixedDock />}
+          status={
+            <Island>
+              <EditorStatusBar session={session} host={host} />
+            </Island>
+          }
+        >
+          <canvas />
+        </EditorFrame>
+      </PendingProvider>,
+    );
+    let step!: PendingStep;
+    act(
+      () =>
+        void pending.run(
+          { label: "Reading review-big-2.png", scope: "project:import", total: 5, error: "x" },
+          (s) => {
+            step = s;
+            return new Promise(() => {});
+          },
+        ),
+    );
+    act(() => step.progress(1));
+    expect(status().textContent).not.toContain("Reading");
+    act(() => vi.advanceTimersByTime(ACTIVITY_DELAY_MS));
+
+    expect(status().hasAttribute("data-compact")).toBe(false);
+    expect(within(status()).getByText("dock-yard").className).toBe("je-status-scene");
+    expect(within(status()).getByText("Saved")).toBeTruthy();
+    const label = status().querySelector(".je-activity-label")!;
+    expect(label.textContent).toBe("Reading review-big-2.png");
+    expect(status().querySelector(".je-activity-count")!.textContent).toBe("1 of 5");
+    const cell = status().closest<HTMLElement>(".je-frame-status")!;
+    const room = Number.parseFloat(cell.style.maxWidth);
+    const dockRoom = Number(document.querySelector("[data-room]")!.getAttribute("data-room"));
+    expect(room + 8 + dockRoom).toBeLessThanOrEqual(816);
+    expect(dockRoom).toBeGreaterThanOrEqual(dock.least);
   });
 });
 

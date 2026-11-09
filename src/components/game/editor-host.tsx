@@ -8,6 +8,8 @@ import {
   type EditorCue,
   type EditorHost,
   type EditorIdentityInput,
+  type EditorNotify,
+  type NotifyOptions,
 } from "@jams/engine/editor-ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
@@ -46,6 +48,21 @@ const CUE_SOUND: Record<EditorCue, SoundName> = {
 };
 
 export const siteCue = (cue: EditorCue): void => play(CUE_SOUND[cue]);
+
+/** The site's toasts at the top centre while the editor is up, clear of its columns and its dock. */
+const EDITOR_TOAST = { position: "top-center" } as const;
+
+export const siteNotify: EditorNotify = Object.assign(
+  (message: string, opts?: NotifyOptions) => toast(message, { ...opts, ...EDITOR_TOAST }),
+  {
+    success: (message: string, opts?: NotifyOptions) =>
+      toast.success(message, { ...opts, ...EDITOR_TOAST }),
+    warning: (message: string, opts?: NotifyOptions) =>
+      toast.warning(message, { ...opts, ...EDITOR_TOAST }),
+    error: (message: string, opts?: NotifyOptions) =>
+      toast.error(message, { ...opts, ...EDITOR_TOAST }),
+  },
+);
 
 export const sitePeerColor = (id: string): string => presenceColor(id).color;
 
@@ -105,7 +122,7 @@ export function useSiteEditorHost({
       assetUrl: server.assetUrl,
       ...(identity ? { identity } : {}),
       peerColor: sitePeerColor,
-      notify: toast,
+      notify: siteNotify,
       cue: siteCue,
       flag,
       chrome: {

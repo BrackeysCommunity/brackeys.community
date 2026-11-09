@@ -69,9 +69,16 @@ afterEach(() => {
 });
 
 describe("the site's editor host", () => {
-  it("notifies with the site's toast", () => {
+  it("notifies with the site's toast, at the top centre clear of the editor's columns", () => {
     const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }));
-    expect(result.current.notify).toBe(toast);
+    const shown = vi.spyOn(toast, "error");
+    result.current.notify?.error("Couldn't import", { description: "why", id: "import" });
+    expect(shown).toHaveBeenCalledWith("Couldn't import", {
+      description: "why",
+      id: "import",
+      position: "top-center",
+    });
+    shown.mockRestore();
   });
 
   it("names the editor after the active user: guild nickname, else Discord username", () => {

@@ -2,9 +2,10 @@ import { Store } from "@tanstack/store";
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 
+import { sceneToDoc, type SceneOrigin } from "../collab/index";
 import type { DebugLayerFactory, DebugOverlayFactory } from "../debug/index";
-import type { SceneIssue } from "../editor/index";
-import { createRegistry } from "../game/index";
+import { createEditorSession, type SceneIssue } from "../editor/index";
+import { createRegistry, type Registry } from "../game/index";
 import {
   createAssetLoader,
   createGame,
@@ -13,6 +14,7 @@ import {
   type RapierModule,
 } from "../index";
 import type { AssetKey, ProjectId, ProjectRuntimeView } from "../project/index";
+import { createScene, EMPTY_SCENE_TEMPLATE } from "../scene/index";
 import type { SceneDocStatus } from "./connect/scene-doc";
 import {
   EditorFrame,
@@ -22,13 +24,14 @@ import {
   type EditorFrameHandle,
   type FramePanels,
 } from "./frame/EditorFrame";
-import { hostCue, type EditorHost } from "./host";
+import { hostCue, type EditorHost, type EditorNotify } from "./host";
 import { createToaster, hostNotify, Spinner, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { InspectorReadOnly } from "./panels/EditorInspector";
 import type { PanelControls } from "./panels/registry";
 import { createPending } from "./pending/pending";
 import { PendingProvider } from "./pending/use-pending";
+import type { LoadedRun } from "./session/loaded-run";
 import { useSceneEditor, type BootPhase, type EditorAssets } from "./session/use-scene-editor";
 
 export type SceneEditorProps = {
@@ -109,17 +112,37 @@ function EditorBooting({
   );
 }
 
-/** The panels' tabs while the editor boots: nothing to count or follow, and every body its skeleton. */
-const BOOT_PANELS: FramePanels = {
-  context: {
-    controls: {
-      session: { store: new Store({ issues: [], selection: [] }) },
-    } as unknown as PanelControls,
-    physical: new Store<readonly SceneIssue[]>([]),
-    pickedAsset: new Store<AssetKey | null>(null),
-  },
-  booting: true,
-};
+const BOOT_ORIGIN: SceneOrigin = { kind: "user", userId: "booting" };
+
+/**
+ * The panels' tabs while the editor boots: an empty scene's session, so
+ * nothing to count or follow, controls that do nothing, and every body its
+ * skeleton.
+ */
+function bootPanels(registry: Registry, notify: EditorNotify): FramePanels {
+  const session = createEditorSession({
+    doc: sceneToDoc(createScene("booting", registry, { template: EMPTY_SCENE_TEMPLATE })),
+    origin: BOOT_ORIGIN,
+    name: "booting",
+    registry,
+  });
+  const controls: PanelControls = {
+    session,
+    notify,
+    onReplay: () => {},
+    runStore: new Store<LoadedRun | null>(null),
+    playFrom: () => {},
+    frame: () => false,
+  };
+  return {
+    context: {
+      controls,
+      physical: new Store<readonly SceneIssue[]>([]),
+      pickedAsset: new Store<AssetKey | null>(null),
+    },
+    booting: true,
+  };
+}
 
 /**
  * What the canvas is sized to: the box it sits in once laid out, else the
@@ -162,6 +185,8 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   const [getCanvas] = useState(() => () => canvasRef.current);
   const [loadRapier] = useState(() => () => latest.current.rapier());
   const registry = useMemo(() => createRegistry(definition), [definition]);
+  const boot = useMemo(() => bootPanels(registry, notify), [registry, notify]);
+  useEffect(() => () => boot.context.controls.session.destroy(), [boot]);
 
   const [built, setBuilt] = useState<{
     game: GameInstance;
@@ -350,7 +375,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
             topLeft={host.chrome?.topLeft}
             topRight={host.chrome?.topRight}
             {...shown}
-            panels={shown?.panels ?? BOOT_PANELS}
+            panels={shown?.panels ?? boot}
             status={shown?.status ?? (booting ? <EditorBooting {...booting} /> : undefined)}
             overlay={
               <>

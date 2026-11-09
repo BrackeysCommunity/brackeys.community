@@ -31,11 +31,15 @@ export function colorValue(text: string, numeric: boolean): number | string | nu
 
 const INVALID = "Enter a colour like #ff8800.";
 
+/** What the picker opens at when a field has no value or default: white, a tint's no-op. */
+const NEUTRAL = "#ffffff";
+
 /**
  * A colour field's control: a swatch that opens the kit's picker and a hex
  * field. The picker previews on the swatch as it moves and commits when a
  * control is let go; the hex field commits on Enter or blur. An emptied
- * optional field commits `undefined`.
+ * optional field commits `undefined`. An unset field opens the picker at its
+ * default, else white, and the hex field says which.
  */
 export function ColorWidget({
   title,
@@ -45,6 +49,7 @@ export function ColorWidget({
   optional,
   numeric,
   placeholder,
+  defaultValue,
   onCommit,
   onProblem,
 }: {
@@ -58,6 +63,8 @@ export function ColorWidget({
   numeric: boolean;
   /** Shown while the hex field is empty: "—" when mixed, the default when unset. */
   placeholder?: string;
+  /** The schema's default, which an unset field shows and the picker opens at. */
+  defaultValue?: unknown;
   /** Writes the value; returns why it didn't land, or null. */
   onCommit: (value: number | string | undefined) => string | null;
   onProblem: (message: string | null) => void;
@@ -87,6 +94,15 @@ export function ColorWidget({
 
   const live = draft !== null ? colorText(draft) : "";
   const swatch = live || shown;
+  const fallback = colorText(defaultValue);
+  const unset = !mixed && shown === "";
+  const hint = !unset
+    ? placeholder
+    : fallback
+      ? `${fallback} (default)`
+      : optional
+        ? `unset (${NEUTRAL})`
+        : placeholder;
   return (
     <div className="je-insp-row" data-gap="tight">
       <Popover>
@@ -99,7 +115,7 @@ export function ColorWidget({
         <PopoverContent>
           <ColorPicker
             label={title}
-            value={swatch || "#000000"}
+            value={swatch || fallback || NEUTRAL}
             onChange={edit}
             onCommit={() => commit(latest.current)}
           />
@@ -110,7 +126,7 @@ export function ColorWidget({
         className="je-insp-color-hex"
         spellCheck={false}
         autoComplete="off"
-        placeholder={placeholder}
+        placeholder={hint}
         value={draft ?? shown}
         onChange={(e) => edit(e.target.value)}
         onBlur={() => commit(latest.current)}

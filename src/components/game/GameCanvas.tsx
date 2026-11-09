@@ -6,7 +6,6 @@ import {
   type GameInstance,
   type GameStoreState,
 } from "@jams/engine";
-import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -39,37 +38,11 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
   if (edit && SiteSceneEditor) {
     return (
       <Suspense fallback={<EditorLoading roomId={roomId} />}>
-        <GameEditor Editor={SiteSceneEditor} roomId={roomId} scene={scene} />
+        <SiteSceneEditor roomId={roomId} scene={scene} />
       </Suspense>
     );
   }
   return <GameRoom roomId={roomId} />;
-}
-
-function GameEditor({
-  Editor,
-  roomId,
-  scene,
-}: {
-  Editor: NonNullable<typeof SiteSceneEditor>;
-  roomId: string;
-  scene?: string;
-}) {
-  const navigate = useNavigate();
-  return (
-    <Editor
-      roomId={roomId}
-      scene={scene}
-      onSceneChange={(id) =>
-        void navigate({
-          to: "/game/$roomId",
-          params: { roomId },
-          search: (prev) => ({ ...prev, scene: id }),
-          replace: true,
-        })
-      }
-    />
-  );
 }
 
 /** While the editor's chunk loads: the room's chrome and what is happening. */

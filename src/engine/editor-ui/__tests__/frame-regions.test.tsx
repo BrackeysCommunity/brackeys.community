@@ -235,21 +235,23 @@ describe("the editor's chrome in the frame", () => {
   }
 
   const regions = () =>
-    [...document.querySelectorAll<HTMLElement>("[data-je-region]")].map((r) =>
-      r.hasAttribute("data-je-document")
-        ? "canvas"
-        : r.closest(".je-frame-top-left")
-          ? "host"
-          : r.closest(".je-frame-dock")
-            ? "dock"
-            : r.closest(".je-frame-left")
-              ? "left"
-              : r.closest(".je-frame-right")
-                ? "right"
-                : r.closest(".je-frame-status")
-                  ? "status"
-                  : "other",
-    );
+    [...document.querySelectorAll<HTMLElement>("[data-je-region]")]
+      .filter((r) => !r.closest("[hidden]"))
+      .map((r) =>
+        r.hasAttribute("data-je-document")
+          ? "canvas"
+          : r.closest(".je-frame-top-left")
+            ? "host"
+            : r.closest(".je-frame-dock")
+              ? "dock"
+              : r.closest(".je-frame-left")
+                ? "left"
+                : r.closest(".je-frame-right")
+                  ? "right"
+                  : r.closest(".je-frame-status")
+                    ? "status"
+                    : "other",
+      );
 
   it("draws the columns, the dock and the status in edit mode", () => {
     editor();

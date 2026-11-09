@@ -1,10 +1,12 @@
 import type { Store } from "@tanstack/store";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { dropPreview, type DropPreview } from "../../../editor/asset-drop";
 import {
   dropBatch,
+  dropPreview,
+  setHover,
   type AssetDrop,
+  type DropPreview,
   type EditorSession,
   type Pt,
   type ToolHost,
@@ -17,7 +19,7 @@ import { runOverlay, type LoadedRun } from "../../session/loaded-run";
 import { useStoreValue } from "../../session/use-store-value";
 import { carriesAsset, readAssetDrag } from "../project-tree/tree-rows";
 import { RunMarks } from "./RunMarks";
-import { hostToWorld, useHostOverlay, useHostValue } from "./tool-host";
+import { hostAsset, hostToWorld, useHostOverlay, useHostValue } from "./tool-host";
 import { ToolOverlayLabels, ToolOverlayMarks } from "./ToolOverlayLayer";
 import { num, toScreen, useView, worldTransform } from "./view";
 
@@ -26,10 +28,15 @@ const OFFER_GAP_PX = 16;
 
 /**
  * The canvas's input surface while editing: the tool host's cursor on it,
- * wheel turns kept from scrolling or zooming the page, and the pointer
- * captured for a press, so a drag released off the canvas still ends there.
+ * wheel turns kept from scrolling or zooming the page, the pointer
+ * captured for a press, so a drag released off the canvas still ends there,
+ * and the shared hover cleared when the pointer leaves it between gestures.
  */
-function useCanvasInput(host: ToolHost | null, canvas: (() => HTMLElement | null) | undefined) {
+function useCanvasInput(
+  session: EditorSession,
+  host: ToolHost | null,
+  canvas: (() => HTMLElement | null) | undefined,
+) {
   const cursor = useHostValue(host, (h) => h.cursor(), undefined);
   useEffect(() => {
     const el = canvas?.();
@@ -51,13 +58,19 @@ function useCanvasInput(host: ToolHost | null, canvas: (() => HTMLElement | null
         // A synthetic or already-released pointer can't be captured; the drag still works over the canvas.
       }
     };
+    const onLeave = () => {
+      if (host?.keyContext().gesture) return;
+      setHover(session.store, null);
+    };
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointerleave", onLeave);
     return () => {
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointerleave", onLeave);
     };
-  }, [canvas]);
+  }, [canvas, session, host]);
 }
 
 /**
@@ -134,12 +147,14 @@ function useAssetDrop(
       const key = `${drop.entry.id}\n${drop.frame ?? ""}\n${Math.round(at[0])},${Math.round(at[1])}`;
       if (shown === key) return;
       shown = key;
+      const asset = hostAsset(h);
       setGhost(
         dropPreview(drop, at, {
           def: s.getDoc(),
           registry: s.registry,
           prefabs: s.getPrefabs(),
           snap: h.snap(),
+          ...(asset ? { asset } : {}),
         }),
       );
     };
@@ -221,7 +236,7 @@ export function CanvasLayer({
   const run = useMemo(() => (loaded ? runOverlay(loaded) : null), [loaded]);
   // The host announces selection, hover and doc changes, including the panels'.
   const hostOverlay = useHostOverlay(host);
-  useCanvasInput(host, canvas);
+  useCanvasInput(session, host, canvas);
   const dropGhost = useAssetDrop(session, host, canvas, notify);
   const overlay = withDropGhost(hostOverlay, dropGhost);
   const transform = worldTransform(view);

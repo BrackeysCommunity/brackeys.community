@@ -176,6 +176,9 @@ export const EDITOR_VIEWPORTS = [
 /** The inspector group's least height at 1440×900. */
 export const INSPECTOR_MIN_PX = 500;
 
+/** The markers in the run the editor run loads, to see the inspector keep its height beside it. */
+export const HELD_RUN_MARKERS = 50;
+
 /** The tab the editor run switches to: the right column's bottom group opens on Problems. */
 export const EDITOR_TAB = "Run";
 
@@ -187,12 +190,17 @@ export type Rect = { x: number; y: number; width: number; height: number };
 /** One island of the editor's chrome as the page measured it. */
 export type IslandBox = { name: string; rect: Rect };
 
+/** The inspector group's height after a Play and Stop, and after loading a long run (null when it isn't drawn). */
+export type EditorHeldProbe = { play: number | null; run: number | null };
+
 /** The editor's chrome in one window: its islands and the inspector group's height (null when it isn't drawn). */
 export type EditorLayoutProbe = {
   width: number;
   height: number;
   islands: IslandBox[];
   inspector: number | null;
+  /** In the first window only. */
+  held?: EditorHeldProbe;
 };
 
 /** The tab switch: whether the tab is selected and its panel shown with content, every sibling panel hidden. */
@@ -279,7 +287,11 @@ export function judgeEditorRender(render: RenderProbe | undefined): string | nul
   return null;
 }
 
-/** The editor page's answers: mounted, every window's chrome sound, the inspector tall enough, the tab switch shown, the crate drawn. */
+/**
+ * The editor page's answers: mounted, every window's chrome sound, the
+ * inspector tall enough and the same height after a Play and Stop and a long
+ * run, the tab switch shown, the crate drawn.
+ */
 export function judgeEditor(
   browser: BrowserName,
   result: EditorSmokeResult | undefined,
@@ -303,6 +315,19 @@ export function judgeEditor(
     return fail(
       `the inspector group is ${Math.round(wide.inspector)} px tall at ${size(first)}, under ${INSPECTOR_MIN_PX}`,
     );
+  if (!wide.held)
+    return fail(`the inspector wasn't measured after a Play and a long run at ${size(first)}`);
+  const after = [
+    ["a Play and Stop", wide.held.play],
+    [`loading a ${HELD_RUN_MARKERS}-marker run`, wide.held.run],
+  ] as const;
+  for (const [what, height] of after) {
+    if (height === null) return fail(`no inspector group is drawn after ${what} at ${size(first)}`);
+    if (Math.abs(height - wide.inspector) > RECT_TOLERANCE)
+      return fail(
+        `the inspector group is ${Math.round(height)} px tall after ${what}, not ${Math.round(wide.inspector)}, at ${size(first)}`,
+      );
+  }
   const { tab } = result;
   if (!tab.selected) return fail(`the ${tab.tab} tab isn't selected after a click on it`);
   if (!tab.shown) return fail(`the ${tab.tab} tab is selected but its panel isn't shown`);

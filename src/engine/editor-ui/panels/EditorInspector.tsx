@@ -97,8 +97,8 @@ import {
   useKit,
 } from "../kit/index";
 import { openPrefabScope } from "../session/live-scene-editor";
+import { readStored, storedFlags, writeStored } from "../session/stored";
 import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
-import { isRecord, readStored, writeStored } from "./EditorOutliner";
 import { useProjectView } from "./EditorProject";
 import {
   AssetCombobox,
@@ -324,10 +324,10 @@ function Section({
   children: ReactNode;
 }) {
   const { storage } = useKit();
-  const [open, setOpen] = useState(() => !readStored(storage, COLLAPSED_KEY, {}, isRecord)[id]);
+  const [open, setOpen] = useState(() => !readStored(storage, COLLAPSED_KEY, {}, storedFlags)[id]);
   const toggle = (e: MouseEvent) => {
     e.preventDefault();
-    const closed = { ...readStored(storage, COLLAPSED_KEY, {}, isRecord) };
+    const closed = { ...readStored(storage, COLLAPSED_KEY, {}, storedFlags) };
     if (open) closed[id] = true;
     else delete closed[id];
     writeStored(storage, COLLAPSED_KEY, closed);
@@ -1440,6 +1440,22 @@ function framesDrawn(fields: ReadonlyMap<string, ModelField>): Set<string> {
   return out;
 }
 
+/**
+ * A behavior's name as the editor shows it: its inspector label as written,
+ * else its key in sentence case ("moving-platform" and "movingPlatform" read
+ * "Moving platform") to sit beside the built-in sections.
+ */
+function behaviorTitle(label: string, name: string): string {
+  if (label !== name) return label;
+  const text = name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((w) => (w.length > 1 && /^[A-Z0-9]+$/.test(w) ? w : w.toLowerCase()))
+    .join(" ");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : name;
+}
+
 /** A behavior's section: its description as the title's hint, and Remove unless the type requires it. */
 function BehaviorSection({
   section,
@@ -1452,17 +1468,20 @@ function BehaviorSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const remove = section.behavior?.remove;
+  const title = section.behavior
+    ? behaviorTitle(section.title, section.behavior.name)
+    : section.title;
   return (
     <Section
       id={section.id}
-      title={section.title}
+      title={title}
       hint={section.behavior?.description}
       actions={
         remove ? (
           <Button
             size="sm"
             variant="ghost"
-            tooltip={`Remove ${section.title} from the selection`}
+            tooltip={`Remove ${title} from the selection`}
             onClick={() => setError(dispatch(ctx, remove))}
           >
             Remove
@@ -1497,7 +1516,7 @@ function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehavio
               className="je-insp-behavior-item"
               onClick={() => setError(dispatch(ctx, o.batch))}
             >
-              <span>{o.label}</span>
+              <span>{behaviorTitle(o.label, o.name)}</span>
               <span className="je-insp-muted">{o.description}</span>
             </MenuItem>
           ))}

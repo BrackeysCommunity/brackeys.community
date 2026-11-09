@@ -164,6 +164,24 @@ describe("the transform overlay", () => {
     expect(svg().querySelector("[data-guide]")).toBeNull();
   });
 
+  it("draws the grid lines a move snaps to, across the moved box", () => {
+    const { ptr, select } = setup({ ...DEFAULT_SNAP, geometry: false });
+    select("panel");
+    // The panel's left and top edges (1450, 250) move by 24, 10 and snap to the 64 px grid at 1472, 256.
+    ptr("down", 1500, 300);
+    ptr("move", 1524, 310);
+    expect(readout()?.textContent).toBe(readDelta([22, 6]));
+    const lines = [...svg().querySelectorAll('[data-guide="guide"] .je-ov-stroke')].map((l) =>
+      ["x1", "y1", "x2", "y2"].map((a) => l.getAttribute(a)),
+    );
+    expect(lines).toEqual([
+      ["1472", "240", "1472", "372"],
+      ["1456", "256", "1588", "256"],
+    ]);
+    ptr("up", 1524, 310);
+    expect(svg().querySelector("[data-guide]")).toBeNull();
+  });
+
   it("reads out a scale as the snapped size the release commits", () => {
     const { ptr, select, shape, host } = setup({ ...DEFAULT_SNAP, geometry: false });
     select("panel");

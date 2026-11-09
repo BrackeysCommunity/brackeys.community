@@ -226,19 +226,44 @@ describe("narrow widths", () => {
     expect(fitLayout(CUSTOM, view(1440, 900)).right!.width).toBe(420);
   });
 
-  it("opening the rail's column in single mode closes the other", () => {
+  it("opening the rail's column in single mode draws it and the other as a rail", () => {
     const narrow = view(760, 700);
     const opened = toggleColumn(DEFAULT_LAYOUT, "left", narrow);
+    expect(opened.lastOpened).toBe("left");
     expect(opened.left.collapsed).toBe(false);
-    expect(opened.right.collapsed).toBe(true);
+    expect(opened.right.collapsed).toBe(false);
     const fit = fitLayout(opened, narrow);
+    expect(fit.mode).toBe("single");
     expect(fit.left!.rail).toBe(false);
     expect(fit.right!.rail).toBe(true);
 
     const back = revealPanel(opened, "history", narrow);
-    expect(back.right.collapsed).toBe(false);
-    expect(back.left.collapsed).toBe(true);
+    expect(back.lastOpened).toBe("right");
+    expect(back.left.collapsed).toBe(false);
     expect(back.right.groups[1]!.active).toBe("history");
+    const fitBack = fitLayout(back, narrow);
+    expect(fitBack.left!.rail).toBe(true);
+    expect(fitBack.right!.rail).toBe(false);
+  });
+
+  it("brings both columns back when the window widens after a rail opened one", () => {
+    const opened = toggleColumn(DEFAULT_LAYOUT, "left", view(760, 700));
+    const wide = fitLayout(opened, view(1440, 900));
+    expect(wide.mode).toBe("desktop");
+    expect(wide.left!.rail).toBe(false);
+    expect(wide.right!.rail).toBe(false);
+    expect(wide.right!.width).toBe(DEFAULT_LAYOUT.right.width);
+  });
+
+  it("draws the column opened last in single mode, the right one by default", () => {
+    const narrow = view(760, 700);
+    expect(fitLayout(DEFAULT_LAYOUT, narrow).left!.rail).toBe(true);
+    const wide = view(1440, 900);
+    const leftLast = toggleColumn(toggleColumn(DEFAULT_LAYOUT, "left", wide), "left", wide);
+    expect(leftLast.lastOpened).toBe("left");
+    const fit = fitLayout(leftLast, narrow);
+    expect(fit.left!.rail).toBe(false);
+    expect(fit.right!.rail).toBe(true);
   });
 
   it("toggles a column to its rail and back on a wide window without touching the other", () => {
@@ -247,7 +272,7 @@ describe("narrow widths", () => {
     expect(closed.left.collapsed).toBe(true);
     expect(fitLayout(closed, wide).left!.rail).toBe(true);
     const reopened = toggleColumn(closed, "left", wide);
-    expect(reopened).toEqual(DEFAULT_LAYOUT);
+    expect(reopened).toEqual({ ...DEFAULT_LAYOUT, lastOpened: "left" });
   });
 
   it("uses the phone layout under 640 px and draws no column", () => {
@@ -331,6 +356,12 @@ describe("parseLayout", () => {
   it("round-trips a stored layout, as an object or as JSON", () => {
     expect(parseLayout(CUSTOM, KNOWN)).toEqual(CUSTOM);
     expect(parseLayout(JSON.stringify(CUSTOM), KNOWN)).toEqual(CUSTOM);
+  });
+
+  it("keeps the column opened last, and drops a bad value for it", () => {
+    const last = { ...CUSTOM, lastOpened: "left" as const };
+    expect(parseLayout(JSON.stringify(last), KNOWN)).toEqual(last);
+    expect(parseLayout({ ...CUSTOM, lastOpened: "middle" }, KNOWN)).toEqual(CUSTOM);
   });
 
   it("rejects other versions and bad shapes", () => {

@@ -9,11 +9,24 @@ which are public contract.
 
 ## [0.8.1] — unreleased
 
-The editor UI moves into the package. The scene editor the site drew from
-its own components is now `@jams/engine/editor-ui`, rendered by any host
-through one seam, `EditorHost`, and mountable standalone on `./vite`'s
-file-backed collab. It behaves as it did on the site except for the few
-changes listed under **Changed**. Every other entry stays free of React.
+The editor UI moves into the package, then gets a usability pass. The
+scene editor the site drew from its own components is now
+`@jams/engine/editor-ui`, rendered by any host through one seam,
+`EditorHost`, and mountable standalone on `./vite`'s file-backed collab.
+Every other entry stays free of React.
+
+The usability pass gives the frame resizable columns that keep their sizes,
+with tab groups in place of fixed islands; one pending mechanism, so every
+action shows busy, its activity and the save state in the status island; a
+denser frame and panels drawn from shared tokens; and in-view feedback:
+selection and hover outlines, transform previews with snap guides (the grid
+included), and placement ghosts. A narrow window keeps the column opened
+last, the activity line holds its place in the status island, and the hover
+clears when the pointer leaves the view. `./editor` gains additive exports
+for these (`setHover` and `EditorStoreState.hover`, `dropPreview`,
+`boundsCheck`, the `color` and `asset` `FieldWidget` kinds,
+`EditorToolContext.hover` and `previewDoc`); nothing in it changes shape.
+**Changed** lists what behaves differently from the site's editor.
 
 ### Added
 
@@ -186,6 +199,10 @@ changes listed under **Changed**. Every other entry stays free of React.
   the snapped Δ, size or angle. Previews are view-only: the editor no
   longer pushes drags into the edit world's runtime, release commits one
   batch, and Esc writes nothing.
+- A grid snap draws its guide too: the grid line across the moved box, a
+  little past each side. The draw tools show a crosshair on the snapped
+  start before the press. Leaving the canvas between gestures clears the
+  shared hover.
 
 ### Agent surface
 

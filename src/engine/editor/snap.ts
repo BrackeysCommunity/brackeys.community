@@ -6,6 +6,8 @@ import type { SnapSettings, SpatialIndex } from "./tools";
 export const SNAP_PX = 8;
 /** How far, in screen px beyond the moved box, snapping looks for other entities when no `view` is given. */
 export const SNAP_REACH_PX = 128;
+/** How far, in screen px, a grid snap's guide runs past the moved box on each side. */
+const GRID_GUIDE_PX = 16;
 
 export type SnapTarget = "grid" | "edge" | "vertex" | "center";
 export type SnapGuide = { from: Pt; to: Pt };
@@ -53,7 +55,11 @@ export type SnapMoveInput = {
 export type SnapMoveResult = {
   /** Whole px. */
   delta: Pt;
-  /** Alignment lines for the geometry snaps. */
+  /**
+   * One line per snapped axis: along the target from the moved box to the
+   * entity it lines up with, or for a grid snap the grid line across the
+   * moved box.
+   */
   guides: SnapGuide[];
   by: { x?: SnapTarget; y?: SnapTarget };
 };
@@ -67,8 +73,8 @@ const RANK: Record<SnapTarget, number> = { grid: 0, edge: 1, vertex: 1, center: 
  * point is what snaps, never its centre. It goes to the closest of: the
  * nearest grid line, and other entities' edges, vertices and centres
  * within `SNAP_PX` screen px; ties go to the grid, then edges and
- * vertices, then centres. `enabled: false` turns all of it off;
- * `geometry: false` leaves only the grid.
+ * vertices, then centres. Each snapped axis gives a guide. `enabled:
+ * false` turns all of it off; `geometry: false` leaves only the grid.
  */
 export function snapMove(input: SnapMoveInput): SnapMoveResult {
   const { aabb: box, grab, delta, settings, scale } = input;
@@ -144,15 +150,18 @@ export function snapMove(input: SnapMoveInput): SnapMoveResult {
 
   const final = roundPt(out);
   const guides: SnapGuide[] = [];
+  const pad = GRID_GUIDE_PX / scale;
   for (const axis of [0, 1] as const) {
     const hit = hits[axis];
-    if (!hit || hit.kind === "grid") continue;
+    if (!hit) continue;
     const [lo, hi] =
       axis === 0
         ? [box.minY + final[1], box.maxY + final[1]]
         : [box.minX + final[0], box.maxX + final[0]];
-    const a = Math.min(lo, hit.span[0]);
-    const b = Math.max(hi, hit.span[1]);
+    const [a, b] =
+      hit.kind === "grid"
+        ? [lo - pad, hi + pad]
+        : [Math.min(lo, hit.span[0]), Math.max(hi, hit.span[1])];
     guides.push(
       axis === 0
         ? { from: [hit.value, a], to: [hit.value, b] }

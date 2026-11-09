@@ -21,7 +21,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 vi.mock("@/components/canvas/shell/SiteMenu", () => ({ SiteMenu: () => <nav>site menu</nav> }));
 vi.mock("../editor-host", () => ({
-  SiteSceneEditor: (props: { roomId: string; scene?: string; onSceneChange(id: string): void }) => {
+  SiteSceneEditor: (props: { roomId: string; scene?: string }) => {
     fakes.editor(props);
     return <div>package editor</div>;
   },
@@ -73,21 +73,9 @@ describe("GameCanvas", () => {
     );
   });
 
-  it("follows the scene the editor opened in the route's ?scene=", async () => {
+  it("leaves following the opened scene in ?scene= to the editor's own default", async () => {
     render(<GameCanvas roomId="lobby-1" edit />);
     await screen.findByText("package editor");
-    const { onSceneChange } = fakes.editor.mock.lastCall![0] as {
-      onSceneChange: (id: string) => void;
-    };
-    onSceneChange("engine-yard");
-    const [args] = fakes.navigate.mock.lastCall as unknown as [
-      { to: string; params: unknown; replace: boolean; search(prev: object): object },
-    ];
-    expect(args).toMatchObject({
-      to: "/game/$roomId",
-      params: { roomId: "lobby-1" },
-      replace: true,
-    });
-    expect(args.search({ edit: 1 })).toEqual({ edit: 1, scene: "engine-yard" });
+    expect(fakes.editor.mock.lastCall![0]).not.toHaveProperty("onSceneChange");
   });
 });

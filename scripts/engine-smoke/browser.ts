@@ -53,7 +53,7 @@ import type { EngineSmokeResult } from "./browser/main";
 import { loadSinkProject, sinkPreviewPlugin, type SinkProject } from "./browser/project";
 import { runSmokeDigest } from "./browser/run";
 import { INSIDE_COLOUR, INSIDE_POINT, OUTSIDE_POINT, SINK_SCENE } from "./browser/sink";
-import { ENGINE, REPO, run } from "./pack";
+import { ENGINE, REPO, run, VP } from "./pack";
 
 const PAGE_DIR = join(REPO, "scripts/engine-smoke/browser");
 const REPORT = join(REPO, "engine-browser-smoke.json");
@@ -372,7 +372,7 @@ try {
   console.log(`serving the page at ${url}`);
 
   // The editor page runs the package as it ships: `dist`, packed fresh.
-  run("vp", ["pack"], { cwd: ENGINE });
+  run(VP, ["pack"], { cwd: ENGINE });
   await build({
     configFile: false,
     root: PAGE_DIR,

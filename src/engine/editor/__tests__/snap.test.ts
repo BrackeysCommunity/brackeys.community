@@ -128,8 +128,12 @@ describe("snapMove", () => {
       const r = move([60, 4], [242, 470]);
       expect(r.delta[0]).toBe(236);
       expect(r.by.x).toBe("edge");
-      // y snapped to the grid (448), so the guide runs from the moved box's top to post's bottom.
-      expect(r.guides).toEqual([{ from: [300, 448], to: [300, 540] }]);
+      // The x guide runs from the moved box's top (y snapped to 448) to post's bottom; the y grid
+      // line's runs across the moved box (236..300), 16 px past each side.
+      expect(r.guides).toEqual([
+        { from: [300, 448], to: [300, 540] },
+        { from: [220, 448], to: [316, 448] },
+      ]);
     });
 
     it("snaps to vertices and point entities", () => {
@@ -175,7 +179,24 @@ describe("snapMove", () => {
         bypass: false,
       });
       expect(r.by.x).toBe("grid");
-      expect(r.guides).toEqual([]);
+      // Each axis's grid line, across the moved box (256..320, 448..480) and 16 px past it.
+      expect(r.delta).toEqual([256, 448]);
+      expect(r.guides).toEqual([
+        { from: [320, 432], to: [320, 496] },
+        { from: [240, 448], to: [336, 448] },
+      ]);
+    });
+
+    it("keeps a grid guide 16 screen px past the box when zoomed", () => {
+      const r = snapMove({
+        aabb: box,
+        grab: [60, 4],
+        delta: [70, 5],
+        settings: grid64,
+        scale: 4,
+        bypass: false,
+      });
+      expect(r.guides[0]).toEqual({ from: [128, -4], to: [128, 36] });
     });
   });
 });

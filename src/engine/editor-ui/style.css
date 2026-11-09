@@ -1241,10 +1241,11 @@
 
   /* Toasts */
 
+  /* The frame sets both to keep them in the canvas area, over its bottom row */
   .je-toasts {
     position: absolute;
-    right: var(--je-inset);
-    bottom: var(--je-inset);
+    right: var(--je-toasts-right, var(--je-inset));
+    bottom: var(--je-toasts-bottom, var(--je-inset));
     z-index: 60;
     display: flex;
     flex-direction: column;
@@ -1349,6 +1350,14 @@
     top: var(--je-inset);
     right: var(--je-inset);
     display: flex;
+  }
+
+  .je-frame-columns {
+    display: contents;
+  }
+
+  .je-frame-columns[hidden] {
+    display: none;
   }
 
   .je-frame-context {
@@ -1666,7 +1675,26 @@
 
   /* The status: an activity label that ellipsizes, and the dot and counts when the row is short */
 
+  .je-frame-status > .je-island {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .je-status {
+    min-width: 0;
+  }
+
+  .je-status > * {
+    flex-shrink: 0;
+  }
+
+  .je-status > .je-activity {
+    flex-shrink: 1;
+  }
+
   .je-status .je-activity-label {
+    min-width: 0;
     max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1693,8 +1721,6 @@
   }
 
   .je-sr-only,
-  .je-status[data-compact] .je-activity-label,
-  .je-status[data-compact] .je-activity-count,
   .je-status[data-compact] .je-activity-progress,
   .je-status[data-compact] .je-activity-more {
     position: absolute;

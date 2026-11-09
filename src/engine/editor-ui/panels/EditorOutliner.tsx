@@ -33,7 +33,7 @@ import {
   type SceneOp,
 } from "../../editor/index";
 import { defaultLayer, type PrefabLibrary } from "../../scene/index";
-import { STORAGE_PREFIX, type EditorStorage } from "../host";
+import { STORAGE_PREFIX } from "../host";
 import {
   Badge,
   Button,
@@ -46,6 +46,7 @@ import {
 } from "../kit/index";
 import { useBusy } from "../pending/use-pending";
 import { openPrefabScope } from "../session/live-scene-editor";
+import { readStored, storedFlags, writeStored } from "../session/stored";
 import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
 import { PeerFaces } from "./peer-faces";
 
@@ -82,34 +83,8 @@ type EntityRow = OutlineRow & { kind: "entity" };
 
 const isEntityRow = (row: Row): row is EntityRow => row.kind === "entity";
 
-/** A JSON value kept in the host's storage, or `fallback` when it's missing, unreadable or not `valid`. */
-export function readStored<T>(
-  storage: EditorStorage,
-  key: string,
-  fallback: T,
-  valid: (v: unknown) => v is T,
-): T {
-  try {
-    const raw = storage.get(key);
-    const parsed: unknown = raw ? JSON.parse(raw) : fallback;
-    return valid(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-/** Panel state is a convenience: a storage that refuses it keeps it for the page's life. */
-export function writeStored(storage: EditorStorage, key: string, value: unknown) {
-  try {
-    storage.set(key, JSON.stringify(value));
-  } catch {
-    // Storage is per-viewer and optional.
-  }
-}
-
-export const isRecord = (v: unknown): v is Record<string, boolean> =>
-  !!v && typeof v === "object" && !Array.isArray(v);
 const isView = (v: unknown): v is View => v === "type" || v === "layer";
+const storedView = (v: unknown): View | null => (isView(v) ? v : null);
 
 /** Buckets start closed, since one can hold hundreds of rows; instances start open. */
 const collapsedByDefault = (row: Row) => row.kind === "bucket";
@@ -570,8 +545,10 @@ export function EditorOutliner({
   const hover = useEditorStore(session, (s) => s.hover);
   const peers = useEditorStore(session, (s) => s.peers);
   const issues = useEditorStore(session, (s) => s.issues);
-  const [collapsed, setCollapsed] = useState(() => readStored(storage, COLLAPSE_KEY, {}, isRecord));
-  const [view, setView] = useState<View>(() => readStored(storage, VIEW_KEY, "type", isView));
+  const [collapsed, setCollapsed] = useState(() =>
+    readStored(storage, COLLAPSE_KEY, {}, storedFlags),
+  );
+  const [view, setView] = useState<View>(() => readStored(storage, VIEW_KEY, "type", storedView));
   const [query, setQuery] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 

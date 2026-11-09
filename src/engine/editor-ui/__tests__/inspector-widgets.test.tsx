@@ -14,6 +14,7 @@ import { createEditorSession, type SceneDefinition } from "../../editor/index";
 import { createRegistry } from "../../game/index";
 import { projectView, type AssetEntry, type ProjectState } from "../../project/index";
 import { EditorInspector } from "../panels/EditorInspector";
+import { ColorWidget } from "../panels/inspector/color-widget";
 
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 const created = { at: 0, by: "test" };
@@ -162,6 +163,45 @@ describe("the inspector's colour widget", () => {
     fireEvent.blur(hex);
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(sprite("pic")).not.toHaveProperty("tint");
+  });
+});
+
+describe("an unset colour", () => {
+  it("opens the picker at white, tint's no-op, and says so in the hex field", async () => {
+    const { dispatch } = setup(["wall"]);
+    const hex = screen.getByLabelText(TINT) as HTMLInputElement;
+    expect(hex.value).toBe("");
+    expect(hex.placeholder).toBe("unset (#ffffff)");
+    fireEvent.click(screen.getByRole("button", { name: "Pick tint" }));
+    const value = await waitFor(
+      () => screen.getByRole("textbox", { name: "Colour value" }) as HTMLInputElement,
+    );
+    expect(value.value.toLowerCase()).toBe("#ffffff");
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("opens the picker at the field's default when it has one", async () => {
+    render(
+      <ColorWidget
+        title="glow"
+        path="glow"
+        value={undefined}
+        mixed={false}
+        optional
+        numeric
+        defaultValue={0x336699}
+        onCommit={() => null}
+        onProblem={() => {}}
+      />,
+    );
+    expect((screen.getByLabelText("glow") as HTMLInputElement).placeholder).toBe(
+      "#336699 (default)",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pick glow" }));
+    const value = await waitFor(
+      () => screen.getByRole("textbox", { name: "Colour value" }) as HTMLInputElement,
+    );
+    expect(value.value.toLowerCase()).toBe("#336699");
   });
 });
 

@@ -25,7 +25,13 @@ export type ColumnState = {
   collapsed: boolean;
   groups: [GroupState] | [GroupState, GroupState];
 };
-export type EditorLayout = { v: 1; left: ColumnState; right: ColumnState };
+export type EditorLayout = {
+  v: 1;
+  left: ColumnState;
+  right: ColumnState;
+  /** The column opened last: the one drawn when only one fits. Default the right. */
+  lastOpened?: Side;
+};
 
 export const LIMITS = {
   column: { min: 232, max: 520 },
@@ -82,11 +88,9 @@ export type FittedLayout = {
   canvas: { left: number; right: number; top: number; bottom: number };
 };
 
-/** The frame's distances, matching `--je-inset`, `--je-gap`, `--je-rail` and `--je-tab`. */
-const INSET = 8;
-const GAP = 8;
-const RAIL = 36;
-const STRIP = 28;
+/** The frame's distances in px, matching `--je-inset`, `--je-gap`, `--je-rail` and `--je-tab`. */
+export const FRAME = { inset: 8, gap: 8, rail: 36, strip: 28 } as const;
+const { inset: INSET, gap: GAP, rail: RAIL, strip: STRIP } = FRAME;
 
 const SIDES: readonly Side[] = ["left", "right"];
 const other = (side: Side): Side => (side === "left" ? "right" : "left");
@@ -159,7 +163,7 @@ function fitColumn(
 /**
  * What the frame draws for this window. Columns shrink toward their minimums
  * before the canvas goes under its own; past that only one column is drawn
- * (`single`: with both stored open, the right one) and the other is a rail;
+ * (`single`: with both stored open, the one opened last) and the other is a rail;
  * under `LIMITS.phone` the frame uses its phone layout and draws no column.
  */
 export const fitLayout = (layout: EditorLayout, viewport: Viewport): FittedLayout => {
@@ -180,7 +184,7 @@ export const fitLayout = (layout: EditorLayout, viewport: Viewport): FittedLayou
   let mode: FittedLayout["mode"] = "desktop";
   if (open.left && open.right && !bothFit(viewport.width)) {
     mode = "single";
-    open.left = false;
+    open[other(layout.lastOpened ?? "right")] = false;
   }
 
   const want = {
@@ -244,16 +248,16 @@ export const resizeSplit = (
   return withColumn(layout, side, { ...column, groups: [top, { ...bottom, size }] });
 };
 
-/** Opens a column; on a window too narrow for both, closes the other to its rail. */
-function openColumn(layout: EditorLayout, side: Side, viewport: Viewport): EditorLayout {
-  let next = layout[side].collapsed
+/**
+ * Opens a column and records it as the one opened last, so a window too
+ * narrow for both draws it and the other as a rail. The other column's
+ * stored state is untouched: widening the window brings both back.
+ */
+function openColumn(layout: EditorLayout, side: Side): EditorLayout {
+  const next = layout[side].collapsed
     ? withColumn(layout, side, { ...layout[side], collapsed: false })
     : layout;
-  const away = other(side);
-  if (!next[away].collapsed && !bothFit(viewport.width)) {
-    next = withColumn(next, away, { ...next[away], collapsed: true });
-  }
-  return next;
+  return next.lastOpened === side ? next : { ...next, lastOpened: side };
 }
 
 export const toggleColumn = (
@@ -264,7 +268,7 @@ export const toggleColumn = (
   const shown = fitLayout(layout, viewport)[side];
   const drawnOpen = shown ? !shown.rail : !layout[side].collapsed;
   if (drawnOpen) return withColumn(layout, side, { ...layout[side], collapsed: true });
-  return openColumn(layout, side, viewport);
+  return openColumn(layout, side);
 };
 
 const setGroup = (
@@ -285,7 +289,11 @@ export const toggleGroup = (layout: EditorLayout, side: Side, group: 0 | 1): Edi
   return setGroup(layout, side, group, (g) => ({ ...g, collapsed: !g.collapsed }));
 };
 
-function locate(layout: EditorLayout, panel: PanelId): { side: Side; group: 0 | 1 } | null {
+/** The column and group that hold `panel`, or null when no group does. */
+export function panelGroup(
+  layout: EditorLayout,
+  panel: PanelId,
+): { side: Side; group: 0 | 1 } | null {
   for (const side of SIDES) {
     const index = layout[side].groups.findIndex((g) => g.panels.includes(panel));
     if (index === 0 || index === 1) return { side, group: index };
@@ -294,7 +302,7 @@ function locate(layout: EditorLayout, panel: PanelId): { side: Side; group: 0 | 
 }
 
 export const selectTab = (layout: EditorLayout, panel: PanelId): EditorLayout => {
-  const at = locate(layout, panel);
+  const at = panelGroup(layout, panel);
   if (!at || layout[at.side].groups[at.group]?.active === panel) return layout;
   return setGroup(layout, at.side, at.group, (g) => ({ ...g, active: panel }));
 };
@@ -312,7 +320,7 @@ export const movePanel = (
   panel: PanelId,
   to: { side: Side; group: 0 | 1 },
 ): EditorLayout => {
-  const from = locate(layout, panel);
+  const from = panelGroup(layout, panel);
   if (!from) return layout;
   const source = layout[from.side].groups[from.group]!;
   if (from.side === to.side && from.group === to.group) return layout;
@@ -362,13 +370,13 @@ export const revealPanel = (
   panel: PanelId,
   viewport: Viewport,
 ): EditorLayout => {
-  const at = locate(layout, panel);
+  const at = panelGroup(layout, panel);
   if (!at) return layout;
   let next = selectTab(layout, panel);
   if (next[at.side].groups[at.group]?.collapsed) next = toggleGroup(next, at.side, at.group);
   const shown = fitLayout(next, viewport)[at.side];
   const drawnOpen = shown ? !shown.rail : !next[at.side].collapsed;
-  return drawnOpen ? next : openColumn(next, at.side, viewport);
+  return drawnOpen ? next : openColumn(next, at.side);
 };
 
 // ─── Stored layouts ──────────────────────────────────────
@@ -429,7 +437,7 @@ export const parseLayout = (raw: unknown, known: readonly PanelId[]): EditorLayo
   for (const panel of known) {
     if (seen.has(panel)) continue;
     seen.add(panel);
-    const home = locate(DEFAULT_LAYOUT, panel) ?? { side: "right" as const, group: 1 as const };
+    const home = panelGroup(DEFAULT_LAYOUT, panel) ?? { side: "right" as const, group: 1 as const };
     const column = groups[home.side];
     const into = column[Math.min(home.group, column.length - 1)];
     if (into) into.panels.push(panel);
@@ -457,5 +465,9 @@ export const parseLayout = (raw: unknown, known: readonly PanelId[]): EditorLayo
   };
   const left = column("left");
   const right = column("right");
-  return left && right ? { v: 1, left, right } : null;
+  if (!left || !right) return null;
+  const last = value.lastOpened;
+  return last === "left" || last === "right"
+    ? { v: 1, left, right, lastOpened: last }
+    : { v: 1, left, right };
 };

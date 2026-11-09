@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
   type ComponentProps,
+  type CSSProperties,
   type ReactNode,
   type Ref,
   type RefObject,
@@ -28,8 +29,9 @@ import type { AssetKey } from "../../project/index";
 import { hostPeerColor, type EditorHost } from "../host";
 import { cx, KitProvider, useKit } from "../kit/index";
 import {
-  DEFAULT_LAYOUT,
   fitLayout,
+  FRAME,
+  panelGroup,
   revealPanel,
   selectTab,
   toggleColumn,
@@ -124,7 +126,9 @@ function useRegionCycling(root: RefObject<HTMLDivElement | null>) {
       const frame = root.current;
       if (!frame) return;
       // An island inside a corner the frame already made a stop is not a second one.
-      const all = [...frame.querySelectorAll<HTMLElement>(REGION)];
+      const all = [...frame.querySelectorAll<HTMLElement>(REGION)].filter(
+        (r) => !r.closest("[hidden]"),
+      );
       const regions = all.filter((r) => !all.some((o) => o !== r && o.contains(r)));
       if (regions.length === 0) return;
       e.preventDefault();
@@ -223,28 +227,21 @@ export function EditorFrame({ host = NO_HOST, theme, ...props }: EditorFrameProp
   );
 }
 
-/** The heights (and the host's top-left width) of what the frame places around the columns. */
+type Size = { width: number; height: number };
+
+/** The sizes of what the frame places around the columns. */
 type Measured = {
   width: number;
   height: number;
-  hostTopLeft: { width: number; height: number };
-  topRight: number;
+  hostTopLeft: Size;
+  topRight: Size;
   context: number;
   bottom: number;
+  /** The phone layout's panel bar and sheet, over the bottom row. */
+  phone: number;
 };
 
-/** The model's own inset and gap, read off a fit so the frame never disagrees with it. */
-const { INSET, GAP } = (() => {
-  const probe = fitLayout(DEFAULT_LAYOUT, {
-    width: 4096,
-    height: 2048,
-    topLeft: 1,
-    topRight: 0,
-    bottom: 0,
-  });
-  const inset = probe.right?.y ?? 0;
-  return { INSET: inset, GAP: (probe.left?.y ?? 0) - inset - 1 };
-})();
+const { inset: INSET, gap: GAP } = FRAME;
 
 /** The least width the context takes beside the host's chrome before it moves below it. */
 const CONTEXT_MIN = 240;
@@ -258,28 +255,34 @@ const box = (el: HTMLElement | null | undefined) => el?.getBoundingClientRect();
  */
 function measure(
   root: HTMLElement | null,
-  [topLeft, topRight, context, bottom]: readonly (HTMLElement | null)[],
+  [topLeft, topRight, context, bottom, phone]: readonly (HTMLElement | null)[],
 ): Measured {
   const frame = box(root);
-  const host = box(topLeft);
+  const size = (el: HTMLElement | null | undefined): Size => {
+    const r = box(el);
+    return { width: r?.width ?? 0, height: r?.height ?? 0 };
+  };
   return {
     width: frame?.width || window.innerWidth,
     height: frame?.height || window.innerHeight,
-    hostTopLeft: { width: host?.width ?? 0, height: host?.height ?? 0 },
-    topRight: box(topRight)?.height ?? 0,
+    hostTopLeft: size(topLeft),
+    topRight: size(topRight),
     context: box(context)?.height ?? 0,
     bottom: box(bottom)?.height ?? 0,
+    phone: box(phone)?.height ?? 0,
   };
 }
+
+const sameSize = (a: Size, b: Size) => a.width === b.width && a.height === b.height;
 
 const sameMeasure = (a: Measured, b: Measured) =>
   a.width === b.width &&
   a.height === b.height &&
-  a.hostTopLeft.width === b.hostTopLeft.width &&
-  a.hostTopLeft.height === b.hostTopLeft.height &&
-  a.topRight === b.topRight &&
+  sameSize(a.hostTopLeft, b.hostTopLeft) &&
+  sameSize(a.topRight, b.topRight) &&
   a.context === b.context &&
-  a.bottom === b.bottom;
+  a.bottom === b.bottom &&
+  a.phone === b.phone;
 
 type ContextPlace = { left: number; top: number; maxWidth: number };
 
@@ -299,7 +302,7 @@ function placeTop(
     width: m.width,
     height: m.height,
     topLeft: host.height,
-    topRight: m.topRight,
+    topRight: m.topRight.height,
     bottom: m.bottom,
   };
   if (!hasContext) return { viewport: base, context: null };
@@ -335,9 +338,10 @@ function useMeasured(
     width: window.innerWidth,
     height: window.innerHeight,
     hostTopLeft: { width: 0, height: 0 },
-    topRight: 0,
+    topRight: { width: 0, height: 0 },
     context: 0,
     bottom: 0,
+    phone: 0,
   }));
 
   useLayoutEffect(() => {
@@ -361,15 +365,7 @@ function useMeasured(
   return measured;
 }
 
-type GroupAt = { side: Side; index: 0 | 1 };
-
-function groupOf(layout: EditorLayout, panel: PanelId): GroupAt | null {
-  for (const side of ["left", "right"] as const) {
-    const index = layout[side].groups.findIndex((g) => g.panels.includes(panel));
-    if (index === 0 || index === 1) return { side, index };
-  }
-  return null;
-}
+type GroupAt = { side: Side; group: 0 | 1 };
 
 /** `openPanel` for the panels and the handle: stable, and carried out by whoever listens now. */
 function createOpener() {
@@ -387,18 +383,25 @@ function createOpener() {
 
 const VisibleAreaContext = createContext<() => VisibleArea | null>(() => null);
 
+type Widths = { full: number; least: number };
+
 /** What the dock and the status each take of the bottom row: drawn in full, and at their least. */
-export type BottomPartWidths = { full: number; least: number };
+export type BottomPartWidths = Widths & {
+  /** The status's running activity, beside its own words: in full, and with its label cut short. */
+  activity?: Widths;
+};
 
 /** The bottom row's room, as the frame shares it with the dock and the status. */
 export type BottomRow = {
   /** px the dock may take; `Infinity` outside a frame. */
   dock: number;
-  /** The status draws its dot and counts only. */
+  /** The status draws its dot and counts in place of its words. */
   compactStatus: boolean;
+  /** px the status may take, its activity included; `Infinity` while nothing runs or outside a frame. */
+  status: number;
 };
 
-const WIDE_ROW: BottomRow = { dock: Infinity, compactStatus: false };
+const WIDE_ROW: BottomRow = { dock: Infinity, compactStatus: false, status: Infinity };
 
 const BottomRowContext = createContext<{
   row: BottomRow;
@@ -413,19 +416,49 @@ const BottomRowContext = createContext<{
 export function useBottomRow(part: "dock" | "status", widths: BottomPartWidths): BottomRow {
   const { row, report } = useContext(BottomRowContext);
   const { full, least } = widths;
-  useLayoutEffect(() => report(part, { full, least }), [report, part, full, least]);
+  const activityFull = widths.activity?.full ?? 0;
+  const activityLeast = widths.activity?.least ?? 0;
+  useLayoutEffect(
+    () =>
+      report(part, {
+        full,
+        least,
+        ...(activityFull > 0 ? { activity: { full: activityFull, least: activityLeast } } : {}),
+      }),
+    [report, part, full, least, activityFull, activityLeast],
+  );
   useLayoutEffect(() => () => report(part, null), [report, part]);
   return row;
 }
 
-type PartWidths = Record<"dock" | "status", BottomPartWidths | null>;
+export type PartWidths = Record<"dock" | "status", BottomPartWidths | null>;
 
-function bottomRow(room: number, parts: PartWidths, statusShown: boolean): BottomRow {
+const sameWidths = (a: Widths | undefined, b: Widths | undefined) =>
+  a === b || (!!a && !!b && a.full === b.full && a.least === b.least);
+
+/**
+ * How the bottom row's `room` is shared. The status's words give way first,
+ * to their dot and counts, when they and the whole dock don't fit side by
+ * side. A running activity then takes its room from the dock's tools, which
+ * move into the overflow menu, and is cut short only once the dock is at its
+ * least; the words give way for it only when even that isn't enough.
+ */
+export function bottomRow(room: number, parts: PartWidths, statusShown: boolean): BottomRow {
   const status = statusShown ? parts.status : null;
-  const dock = parts.dock?.full ?? 0;
-  const compactStatus = status !== null && status.full + GAP + dock > room;
-  const taken = status ? (compactStatus ? status.least : status.full) + GAP : 0;
-  return { dock: Math.max(0, room - taken), compactStatus };
+  if (!status) return { dock: Math.max(0, room), compactStatus: false, status: Infinity };
+  const dock = parts.dock ?? { full: 0, least: 0 };
+  const activity = status.activity;
+  const besideDock = (own: number) => room - own - GAP - dock.least;
+  let compactStatus = status.full + GAP + dock.full > room;
+  if (!compactStatus && activity && besideDock(status.full) < activity.least) compactStatus = true;
+  const own = compactStatus ? status.least : status.full;
+  const running = activity ? Math.min(activity.full, Math.max(activity.least, besideDock(own))) : 0;
+  const taken = own + running;
+  return {
+    dock: Math.max(0, room - taken - GAP),
+    compactStatus,
+    status: activity ? Math.max(0, Math.min(taken, room)) : Infinity,
+  };
 }
 
 /** Keeps `frameInView` for `game` fitting into what the frame around it leaves visible. */
@@ -456,7 +489,8 @@ function FrameBody({
   const topRightRef = useRef<HTMLDivElement>(null);
   const contextRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const parts = useMemo(() => [topLeftRef, topRightRef, contextRef, bottomRef], []);
+  const phoneRef = useRef<HTMLDivElement>(null);
+  const parts = useMemo(() => [topLeftRef, topRightRef, contextRef, bottomRef, phoneRef], []);
   useRegionCycling(root);
 
   const { storage } = useKit();
@@ -487,7 +521,7 @@ function FrameBody({
   useEffect(
     () =>
       opener.listen((id) => {
-        const at = groupOf(layout, id);
+        const at = panelGroup(layout, id);
         if (!at) return;
         if (phone) {
           update((l) => selectTab(l, id));
@@ -510,9 +544,9 @@ function FrameBody({
     const id = focusAfter.current;
     if (id === null) return;
     focusAfter.current = null;
-    const at = groupOf(layout, id);
+    const at = panelGroup(layout, id);
     const group = at
-      ? root.current?.querySelector<HTMLElement>(`.${groupClass(at.side, at.index)}`)
+      ? root.current?.querySelector<HTMLElement>(`.${groupClass(at.side, at.group)}`)
       : null;
     // The opened panel's own tab: the strip's roving tabindex can still point
     // at the tab it showed before, and focusing that one would select it back.
@@ -533,7 +567,7 @@ function FrameBody({
       const was = last[part];
       if (
         was === widths ||
-        (was && widths && was.full === widths.full && was.least === widths.least)
+        (was && widths && sameWidths(was, widths) && sameWidths(was.activity, widths.activity))
       )
         return last;
       return { ...last, [part]: widths };
@@ -610,13 +644,13 @@ function FrameBody({
     return (
       <PanelGroup
         side={sheet.side}
-        index={sheet.index}
+        index={sheet.group}
         layout={layoutState}
         viewport={viewport}
         ctx={columnPanels.ctx}
         panels={columnPanels.defs}
         booting={columnPanels.booting}
-        className={cx("je-frame-sheet", groupClass(sheet.side, sheet.index))}
+        className={cx("je-frame-sheet", groupClass(sheet.side, sheet.group))}
         style={{ height: Math.round(viewport.height / 2) }}
       />
     );
@@ -625,7 +659,7 @@ function FrameBody({
   const phoneRail = (side: Side) => {
     if (!columnPanels && !(side === "left" ? left : right)) return null;
     const open = sheet && typeof sheet !== "string" ? sheet : null;
-    const active = open?.side === side ? layout[side].groups[open.index]?.active : null;
+    const active = open?.side === side ? layout[side].groups[open.group]?.active : null;
     return (
       <Rail
         side={side}
@@ -637,7 +671,7 @@ function FrameBody({
             setSheet((s) => (s === side ? null : side));
             return;
           }
-          const at = groupOf(layout, id);
+          const at = panelGroup(layout, id);
           if (!at) return;
           if (active === id) {
             setSheet(null);
@@ -651,13 +685,33 @@ function FrameBody({
   };
 
   const bottomInset = viewport.bottom > 0 ? INSET + viewport.bottom + GAP : INSET;
+  // The host's two corners share the top row: the left one stops short of the right one.
+  const topLeftMax =
+    measured.topRight.width > 0
+      ? Math.max(0, measured.width - 2 * INSET - GAP - measured.topRight.width)
+      : undefined;
+  // The default toasts sit in the canvas area, over the bottom row and the phone's panel bar.
+  const toasts = {
+    "--je-toasts-right": `${(playing ? 0 : fitted.canvas.right) + INSET}px`,
+    "--je-toasts-bottom": `${bottomInset + (phone && !playing && measured.phone > 0 ? measured.phone + GAP : 0)}px`,
+  } as CSSProperties;
 
   return (
     <VisibleAreaContext.Provider value={readArea}>
-      <div ref={root} className={cx("je-root je-frame", className)} data-je-theme={theme}>
+      <div
+        ref={root}
+        className={cx("je-root je-frame", className)}
+        data-je-theme={theme}
+        style={toasts}
+      >
         <div className="je-frame-chrome" data-je-mode={fitted.mode}>
           {topLeft ? (
-            <div ref={topLeftRef} className="je-frame-top-left je-host" data-je-region="">
+            <div
+              ref={topLeftRef}
+              className="je-frame-top-left je-host"
+              data-je-region=""
+              style={topLeftMax === undefined ? undefined : { maxWidth: topLeftMax }}
+            >
               {topLeft}
             </div>
           ) : null}
@@ -691,20 +745,23 @@ function FrameBody({
               {banner}
             </div>
           ) : null}
-          {playing ? null : phone ? (
-            <div className="je-frame-phone" style={{ bottom: bottomInset }}>
-              {phoneSheet()}
-              <div className="je-frame-phone-bar">
-                {phoneRail("left")}
-                {phoneRail("right")}
+          {/* Kept mounted in play mode, so the panels' scroll, filters and drafts survive a playtest. */}
+          <div className="je-frame-columns" hidden={playing} inert={playing}>
+            {phone ? (
+              <div ref={phoneRef} className="je-frame-phone" style={{ bottom: bottomInset }}>
+                {phoneSheet()}
+                <div className="je-frame-phone-bar">
+                  {phoneRail("left")}
+                  {phoneRail("right")}
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              {column("left")}
-              {column("right")}
-            </>
-          )}
+            ) : (
+              <>
+                {column("left")}
+                {column("right")}
+              </>
+            )}
+          </div>
           {dock || (status && !playing) ? (
             <div
               ref={bottomRef}
@@ -717,7 +774,14 @@ function FrameBody({
             >
               <BottomRowContext.Provider value={bottom}>
                 {dock ? <div className="je-frame-dock">{dock}</div> : null}
-                {statusShown ? <div className="je-frame-status">{status}</div> : null}
+                {statusShown ? (
+                  <div
+                    className="je-frame-status"
+                    style={Number.isFinite(row.status) ? { maxWidth: row.status } : undefined}
+                  >
+                    {status}
+                  </div>
+                ) : null}
               </BottomRowContext.Provider>
             </div>
           ) : null}

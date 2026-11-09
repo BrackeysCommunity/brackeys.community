@@ -2588,6 +2588,7 @@ type ColumnState = {
 };
 declare const DEFAULT_LAYOUT: EditorLayout;
 type EditorLayout = {
+    lastOpened?: Side;
     left: ColumnState;
     right: ColumnState;
     v: 1;
@@ -2622,6 +2623,7 @@ type GroupState = {
     size: null | number;
 };
 type PanelId = "history" | "inspector" | "outliner" | "problems" | "project" | "run" | (string & {});
+type Side = "left" | "right";
 type Viewport = {
     bottom: number;
     height: number;

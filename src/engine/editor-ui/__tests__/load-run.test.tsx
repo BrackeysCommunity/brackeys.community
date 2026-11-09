@@ -158,4 +158,60 @@ describe("LoadRunPanel", () => {
     });
     await waitFor(() => expect(store.state?.name).toBe("run.json"));
   });
+
+  it("keeps Load run in the toolbar row, with Clear beside it once a run is loaded", async () => {
+    const { store } = setup();
+    const region = screen.getByRole("region", { name: "Run" });
+    const toolbar = region.querySelector(".je-panel-toolbar");
+    if (!(toolbar instanceof HTMLElement)) throw new Error("no toolbar row");
+    expect(region.firstElementChild).toBe(toolbar);
+    expect(within(toolbar).getByRole("button", { name: "Load run" })).toBeTruthy();
+    expect(within(toolbar).queryByRole("button", { name: "Clear" })).toBeNull();
+
+    fireEvent.click(within(toolbar).getByRole("button", { name: "Load run" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Or paste it"), { target: { value: printed } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Load" }));
+    expect(store.state).not.toBeNull();
+
+    expect(within(toolbar).getByRole("button", { name: "Load run" })).toBeTruthy();
+    fireEvent.click(within(toolbar).getByRole("button", { name: "Clear" }));
+    expect(store.state).toBeNull();
+    expect(within(toolbar).queryByRole("button", { name: "Clear" })).toBeNull();
+  });
+
+  it("shows a file being read as busy with no PendingProvider above it", async () => {
+    const reads: Array<() => void> = [];
+    const RealReader = globalThis.FileReader;
+    class HeldReader extends RealReader {
+      override readAsText(blob: Blob) {
+        reads.push(() => super.readAsText(blob));
+      }
+    }
+    vi.stubGlobal("FileReader", HeldReader);
+    try {
+      const { store } = setup();
+      fireEvent.click(screen.getByRole("button", { name: "Load run" }));
+      const dialog = await screen.findByRole("dialog");
+      const input = within(dialog).getByLabelText("Recording file");
+      fireEvent.change(input, {
+        target: { files: [new File([printed], "run.json", { type: "application/json" })] },
+      });
+
+      await waitFor(() => expect(input.getAttribute("aria-busy")).toBe("true"));
+      expect(input).toHaveProperty("disabled", true);
+      expect(within(dialog).getByText("Reading run.json")).toBeTruthy();
+      const toolbar = screen
+        .getByRole("region", { name: "Run", hidden: true })
+        .querySelector(".je-panel-toolbar");
+      expect(toolbar?.querySelector("[aria-busy='true']")?.textContent).toContain("Load run");
+
+      act(() => reads.splice(0).forEach((read) => read()));
+      await waitFor(() => expect(store.state?.name).toBe("run.json"));
+      expect(input.getAttribute("aria-busy")).toBeNull();
+      expect(input).toHaveProperty("disabled", false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

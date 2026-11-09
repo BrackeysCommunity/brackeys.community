@@ -1,9 +1,6 @@
-import { useEffect, useState } from "react";
-
 import type { AssetEntry } from "../../../project/index";
-import type { EditorNotify } from "../../host";
-import { createPending, type Pending, type PendingStep } from "../../pending/pending";
-import { usePending } from "../../pending/use-pending";
+import type { Pending, PendingStep } from "../../pending/pending";
+import { useOwnOrSharedPending } from "../../pending/use-pending";
 
 /** The pending scope of an asset's row: busy while it's renamed, moved, deleted or restored. */
 export const assetScope = (entry: Pick<AssetEntry, "key">) => `project:asset:${entry.key}`;
@@ -16,43 +13,11 @@ export const IMPORT_SCOPE_PREFIX = "project:import:";
 export const licenceScope = (entry: Pick<AssetEntry, "key">, field: string) =>
   `project:licence:${entry.key}:${field}`;
 
-function useEditorPending(): Pending | null {
-  try {
-    return usePending();
-  } catch {
-    return null;
-  }
-}
-
 /**
  * The editor's `Pending`, or, for a tree or form rendered outside an editor,
  * one of its own that reports through `notify`.
  */
-export function useTreePending(notify: Pick<EditorNotify, "error">): Pending {
-  const shared = useEditorPending();
-  const [own] = useState(() => ownPending(notify));
-  useEffect(() => {
-    own.retarget(notify);
-  });
-  return shared ?? own.pending;
-}
-
-/** A `Pending` whose errors go to the `notify` it was last retargeted to. */
-function ownPending(notify: Pick<EditorNotify, "error">) {
-  let say = notify;
-  const quiet = () => undefined;
-  const relay: EditorNotify = Object.assign(quiet, {
-    success: quiet,
-    warning: quiet,
-    error: (message: string, opts?: { description?: string }) => say.error(message, opts),
-  });
-  return {
-    pending: createPending({ notify: relay }),
-    retarget(next: Pick<EditorNotify, "error">) {
-      say = next;
-    },
-  };
-}
+export const useTreePending = useOwnOrSharedPending;
 
 /** A host error that carries its own `description`: the toast is titled by its message. */
 class Described extends Error {

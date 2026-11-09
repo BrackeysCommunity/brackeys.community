@@ -11,6 +11,7 @@ import {
   type Pt,
   type SnapSettings,
   type ToolHost,
+  type ToolHostOptions,
   type ToolOverlay,
 } from "../../../editor/index";
 import type { GameInstance, Vec2 } from "../../../index";
@@ -44,6 +45,16 @@ const hostToWorlds = new WeakMap<ToolHost, (screen: Vec2) => Pt>();
  */
 export const hostToWorld = (host: ToolHost): ((screen: Vec2) => Pt) | null =>
   hostToWorlds.get(host) ?? null;
+
+type AssetLookup = NonNullable<ToolHostOptions["asset"]>;
+
+const hostAssets = new WeakMap<ToolHost, AssetLookup>();
+
+/**
+ * The project asset lookup `host` sizes sprite boxes with, for previews
+ * drawn outside it, such as a drop's ghost; undefined without a project.
+ */
+export const hostAsset = (host: ToolHost): AssetLookup | undefined => hostAssets.get(host);
 
 export const SNAP_KEY = `${STORAGE_PREFIX}snap`;
 
@@ -106,6 +117,9 @@ export function useToolHostLifecycle(
         const { x, y } = game.screenToWorld(screen);
         return [x, y];
       };
+      const asset: AssetLookup | undefined = project
+        ? (id, frame) => view && assetInfo(view, id, frame)
+        : undefined;
       const next = createToolHost({
         session,
         router: game.router,
@@ -117,11 +131,10 @@ export function useToolHostLifecycle(
         pan: ([x, y]) => game.panBy({ x, y }),
         zoomAt: ([x, y], factor) => game.zoomAt({ x, y }, factor),
         frame: (rect) => frameInView(game, rect),
-        ...(project
-          ? { asset: (id: string, frame?: string) => view && assetInfo(view, id, frame) }
-          : {}),
+        ...(asset ? { asset } : {}),
       });
       hostToWorlds.set(next, toWorld);
+      if (asset) hostAssets.set(next, asset);
       let saved = next.snap();
       unsubscribe = next.subscribe(() => {
         const snap = next.snap();

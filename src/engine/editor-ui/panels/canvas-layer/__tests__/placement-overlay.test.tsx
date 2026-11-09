@@ -179,6 +179,26 @@ describe("placement previews", () => {
     ptr("move", 70, 60);
     const start = svg().querySelector('[data-point="ghost"] .je-ov-stroke');
     expect([start?.getAttribute("cx"), start?.getAttribute("cy")]).toEqual(["64", "64"]);
+    // A crosshair in the selection's tone marks it, so it reads over a dark scene.
+    const cross = [
+      ...svg().querySelectorAll('[data-polyline][data-tone="selected"] .je-ov-stroke'),
+    ];
+    expect(cross.map((l) => l.getAttribute("d"))).toEqual([
+      polylinePath(
+        [
+          [52, 64],
+          [76, 64],
+        ],
+        false,
+      ),
+      polylinePath(
+        [
+          [64, 52],
+          [64, 76],
+        ],
+        false,
+      ),
+    ]);
     ptr("down", 70, 60);
     ptr("move", 200, 180);
     const drawn = box(128, 128, 64, 64);

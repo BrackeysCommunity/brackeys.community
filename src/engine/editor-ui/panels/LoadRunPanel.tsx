@@ -19,8 +19,12 @@ import {
   Textarea,
   type BadgeVariant,
 } from "../kit/index";
-import { createPending } from "../pending/pending";
-import { useBusy, useOptionalPending } from "../pending/use-pending";
+import {
+  PendingProvider,
+  useBusy,
+  useOwnOrSharedPending,
+  usePending,
+} from "../pending/use-pending";
 import { parseRun, runIsStale, runStart, type LoadedRun } from "../session/loaded-run";
 import { useEditorStore } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
@@ -61,8 +65,7 @@ function LoadRunDialog({
   const [pasted, setPasted] = useState("");
   const fileId = useId();
   const pasteId = useId();
-  const [own] = useState(() => createPending({ notify }));
-  const pending = useOptionalPending() ?? own;
+  const pending = usePending();
   const reading = useBusy(READ_RUN_SCOPE);
 
   const load = (text: string, name: string) => {
@@ -143,15 +146,11 @@ function RunSummary({
   stale,
   onPlayFrom,
   onReplay,
-  onClear,
-  onReplace,
 }: {
   run: LoadedRun;
   stale: boolean;
   onPlayFrom: (opts: PlayOptions) => void;
   onReplay: (run: LoadedRun) => void;
-  onClear: () => void;
-  onReplace: () => void;
 }) {
   const { recording } = run;
   const { outcome } = recording;
@@ -191,12 +190,6 @@ function RunSummary({
         >
           Play from its start
         </Button>
-        <Button size="xs" variant="ghost" onClick={onReplace}>
-          Load another
-        </Button>
-        <Button size="xs" variant="ghost" onClick={onClear}>
-          Clear
-        </Button>
       </div>
       <h3>
         <MicroLabel>
@@ -228,7 +221,8 @@ function RunSummary({
  * `runOverlay` of it): the editor's last Play, or a recording loaded from a
  * file or pasted. It notes when the scene changed since, and offers
  * **Replay** and **Play from its start**. Its summary stays in view while
- * the markers scroll, so a long run never grows the panel.
+ * the markers scroll, so a long run never grows the panel. Outside an
+ * editor it reads files through a `Pending` of its own.
  */
 export function LoadRunPanel({
   session,
@@ -246,37 +240,49 @@ export function LoadRunPanel({
   const loaded = useStoreValue(run);
   const hash = useEditorStore(session, (s) => s.hash);
   const [open, setOpen] = useState(false);
+  const pending = useOwnOrSharedPending(notify);
 
   return (
-    <section aria-label="Run" className="je-scene-panel">
-      {loaded ? (
-        <RunSummary
-          run={loaded}
-          stale={runIsStale(loaded, hash)}
-          onPlayFrom={onPlayFrom}
-          onReplay={onReplay}
-          onClear={() => run.setState(() => null)}
-          onReplace={() => setOpen(true)}
-        />
-      ) : (
-        <div className="je-run-empty">
+    <PendingProvider pending={pending}>
+      <section aria-label="Run" className="je-scene-panel">
+        <div className="je-panel-toolbar">
+          <Button
+            size="xs"
+            variant="outline"
+            busyScope={READ_RUN_SCOPE}
+            onClick={() => setOpen(true)}
+            tooltip="A run recording file, or a pasted playtest report"
+          >
+            Load run
+          </Button>
+          {loaded ? (
+            <Button size="xs" variant="ghost" onClick={() => run.setState(() => null)}>
+              Clear
+            </Button>
+          ) : null}
+        </div>
+        {loaded ? (
+          <RunSummary
+            run={loaded}
+            stale={runIsStale(loaded, hash)}
+            onPlayFrom={onPlayFrom}
+            onReplay={onReplay}
+          />
+        ) : (
           <Text as="p" size="xs" variant="muted">
             Play the scene, or load a recording, to see its trail over the scene.
           </Text>
-          <Button size="xs" variant="outline" onClick={() => setOpen(true)}>
-            Load run
-          </Button>
-        </div>
-      )}
-      <LoadRunDialog
-        open={open}
-        notify={notify}
-        onOpenChange={setOpen}
-        onLoaded={(next) => {
-          run.setState(() => next);
-          setOpen(false);
-        }}
-      />
-    </section>
+        )}
+        <LoadRunDialog
+          open={open}
+          notify={notify}
+          onOpenChange={setOpen}
+          onLoaded={(next) => {
+            run.setState(() => next);
+            setOpen(false);
+          }}
+        />
+      </section>
+    </PendingProvider>
   );
 }

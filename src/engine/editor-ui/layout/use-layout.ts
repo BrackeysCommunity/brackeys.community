@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
+import { readStored, writeStored } from "../session/stored";
 import { DEFAULT_LAYOUT, parseLayout, type EditorLayout, type PanelId } from "./model";
 
 export const LAYOUT_KEY = `${STORAGE_PREFIX}layout:v1`;
@@ -20,23 +21,6 @@ export type LayoutState = {
   reset: () => void;
 };
 
-function readLayout(storage: EditorStorage | null, known: readonly PanelId[]): EditorLayout {
-  if (!storage) return DEFAULT_LAYOUT;
-  try {
-    return parseLayout(storage.get(LAYOUT_KEY), known) ?? DEFAULT_LAYOUT;
-  } catch {
-    return DEFAULT_LAYOUT;
-  }
-}
-
-function writeLayout(storage: EditorStorage | null, layout: EditorLayout): void {
-  try {
-    storage?.set(LAYOUT_KEY, JSON.stringify(layout));
-  } catch {
-    // A refusing storage keeps the layout for the page's life only.
-  }
-}
-
 /**
  * The viewer's layout: read once from storage, written once a change has
  * settled. A null or refusing storage keeps the layout for the page's life.
@@ -45,7 +29,9 @@ export function useLayout(
   storage: EditorStorage | null,
   known: readonly PanelId[] = DEFAULT_PANELS,
 ): LayoutState {
-  const [layout, setLayout] = useState(() => readLayout(storage, known));
+  const [layout, setLayout] = useState(() =>
+    readStored(storage, LAYOUT_KEY, DEFAULT_LAYOUT, (v) => parseLayout(v, known)),
+  );
   const stored = useRef(layout);
   const unsaved = useRef<EditorLayout | null>(null);
   const target = useRef(storage);
@@ -59,7 +45,7 @@ export function useLayout(
     const timer = setTimeout(() => {
       unsaved.current = null;
       stored.current = layout;
-      writeLayout(target.current, layout);
+      writeStored(target.current, LAYOUT_KEY, layout);
     }, LAYOUT_WRITE_DELAY);
     return () => clearTimeout(timer);
   }, [layout]);
@@ -70,7 +56,7 @@ export function useLayout(
       if (!next) return;
       unsaved.current = null;
       stored.current = next;
-      writeLayout(target.current, next);
+      writeStored(target.current, LAYOUT_KEY, next);
     },
     [],
   );

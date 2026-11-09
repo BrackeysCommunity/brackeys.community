@@ -182,6 +182,7 @@ function layoutAt(
     width,
     height,
     inspector,
+    ...(width === 1440 && height === 900 ? { held: { play: inspector, run: inspector } } : {}),
     islands: [
       box(".je-panel-group.je-frame-group-left-0", 8, 8, 280, height / 2 - 12),
       box(".je-panel-group.je-frame-group-left-1", 8, height / 2 + 4, 280, height / 2 - 12),
@@ -315,6 +316,31 @@ describe("judgeEditor", () => {
     const none = EDITOR_VIEWPORTS.map((v) => layoutAt(v.width, v.height, null));
     expect(judgeEditor("chromium", editorPassed({ layouts: none })).reason).toMatch(
       /no inspector group/,
+    );
+  });
+
+  it("fails an inspector group that changes height after a Play and Stop or a 50-marker run", () => {
+    const at = (held: { play: number | null; run: number | null } | undefined) =>
+      EDITOR_VIEWPORTS.map((v) => {
+        const layout = layoutAt(v.width, v.height);
+        return v.width === 1440 ? { ...layout, held } : layout;
+      });
+    expect(
+      judgeEditor("chromium", editorPassed({ layouts: at({ play: 520, run: 520 }) })).status,
+    ).toBe("pass");
+    expect(
+      judgeEditor("chromium", editorPassed({ layouts: at({ play: 360, run: 520 }) })).reason,
+    ).toBe("the inspector group is 360 px tall after a Play and Stop, not 520, at 1440×900");
+    expect(
+      judgeEditor("chromium", editorPassed({ layouts: at({ play: 520, run: 300 }) })).reason,
+    ).toBe(
+      "the inspector group is 300 px tall after loading a 50-marker run, not 520, at 1440×900",
+    );
+    expect(
+      judgeEditor("chromium", editorPassed({ layouts: at({ play: null, run: 520 }) })).reason,
+    ).toMatch(/no inspector group is drawn after a Play and Stop/);
+    expect(judgeEditor("chromium", editorPassed({ layouts: at(undefined) })).reason).toMatch(
+      /wasn't measured after a Play/,
     );
   });
 
