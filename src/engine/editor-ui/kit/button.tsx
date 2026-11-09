@@ -2,6 +2,7 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import type { ReactNode } from "react";
 
 import type { EditorCue } from "../host";
+import { useBusy } from "../pending/use-pending";
 import { useKit } from "./context";
 import { cx } from "./cx";
 import { Hint, type HintSide } from "./hint";
@@ -30,6 +31,8 @@ export type ButtonProps = Omit<ButtonPrimitive.Props, "className"> & {
    * ignored, and the same width, so the row around it doesn't move.
    */
   busy?: boolean;
+  /** Busy too while a pending task runs in this scope (`project:rename:<assetId>`). */
+  busyScope?: string;
   tooltip?: ReactNode;
   tooltipSide?: HintSide;
   /** The sound a press makes; null for none. */
@@ -43,7 +46,8 @@ export function Button({
   size = "default",
   className,
   icon,
-  busy = false,
+  busy: busyProp = false,
+  busyScope,
   tooltip,
   tooltipSide,
   cue = "press",
@@ -53,6 +57,8 @@ export function Button({
   ...props
 }: ButtonProps) {
   const kit = useKit();
+  const scoped = useBusy(busyScope ?? "");
+  const busy = busyProp || (busyScope !== undefined && scoped !== undefined);
   const iconPx = ICON_PX[size] ?? 14;
   const button = (
     <ButtonPrimitive

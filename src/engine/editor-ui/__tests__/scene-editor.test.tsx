@@ -220,8 +220,9 @@ describe("SceneEditor", () => {
     );
     await waitFor(() => expect(handle).not.toBeNull(), { timeout: 10_000 });
     act(() => handle!.openPanel("history"));
+    expect(screen.getByRole("tab", { name: /History/, selected: true })).toBeDefined();
     const history = screen.getByRole("region", { name: "History" });
-    expect(history.closest(".je-island-history")?.contains(document.activeElement)).toBe(true);
+    expect(history.closest(".je-panel-group")?.contains(document.activeElement)).toBe(true);
     expect(() => handle!.resetLayout()).not.toThrow();
   }, 20_000);
 

@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
+import { assetKindsOf } from "../game/fields";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
+import type { AssetKindName } from "../project/types";
 import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
 import { childEntity, resolvePrefab, splitOverridePath } from "../scene/resolve";
@@ -104,6 +106,18 @@ export type FieldWidget =
   /** Mode, speed, pause and the point list, as `children`. */
   | { kind: "path" }
   | { kind: "object" }
+  /**
+   * An sRGB colour, for `meta.widget: "color"` when the game registers no
+   * widget of that id: a swatch that opens a picker, and a hex field. A
+   * number field stores `0xRRGGBB`, a string one `#rrggbb`.
+   */
+  | { kind: "color" }
+  /**
+   * A project asset of one of `kinds` (an `assetField`). When an atlas is
+   * among them and the field has a sibling string field named `frame`,
+   * `frame` is that field's path: picking an atlas sets both.
+   */
+  | { kind: "asset"; kinds: AssetKindName[]; frame?: FieldPath }
   /** A game's own widget from `registry.widgets`, by the id the field's `meta.widget` names. */
   | { kind: "custom"; id: string; widget: InspectorWidgetDef }
   | { kind: "readonly"; format: "text" | "json" };
@@ -217,7 +231,10 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
   if (typeof meta.widget === "string") {
     const widget = ctx.registry.widgets.get(meta.widget);
     if (widget) return { kind: "custom", id: meta.widget, widget };
+    if (meta.widget === "color") return { kind: "color" };
   }
+  const assetKinds = assetKindsOf(schema);
+  if (assetKinds) return { kind: "asset", kinds: [...assetKinds] };
   if (top && name === "layer") return choice(ctx.registry.layers.map((l) => l.name));
   const kind = fieldKind(schema);
   if (kind === "shape") return { kind: "shape", types: shapeTypesOf(schema) };
@@ -336,11 +353,24 @@ function describeField(
   };
   const inner = unwrapSchema(schema);
   if ((widget.kind === "path" || widget.kind === "object") && inner instanceof z.ZodObject) {
-    field.children = Object.entries(inner.shape).map(([k, s]) =>
-      describeField(`${path}.${k}`, s as z.ZodType, root, ctx, { ...place, inherited: section }),
+    field.children = linkFrames(
+      Object.entries(inner.shape).map(([k, s]) =>
+        describeField(`${path}.${k}`, s as z.ZodType, root, ctx, { ...place, inherited: section }),
+      ),
     );
   }
   return field;
+}
+
+/** Points each atlas-taking asset field at its sibling `frame` text field; `siblings` share one parent. */
+function linkFrames(siblings: ModelField[]): ModelField[] {
+  const frame = siblings.find((f) => f.name === "frame" && f.widget.kind === "text");
+  if (!frame) return siblings;
+  for (const f of siblings) {
+    if (f.widget.kind === "asset" && f.widget.kinds.includes("atlas"))
+      f.widget = { ...f.widget, frame: frame.path };
+  }
+  return siblings;
 }
 
 function orderedFields(
@@ -377,7 +407,7 @@ function targetFields(
   const fields = orderedFields(schema.shape, type.inspector?.order ?? [])
     .filter(([n]) => n !== BEHAVIORS_FIELD)
     .map(([n, s]) => describeField(n, s, target.entity, ctx));
-  return { type: type.type, fields };
+  return { type: type.type, fields: linkFrames(fields) };
 }
 
 // ─── Behaviors ───────────────────────────────────────────
@@ -428,16 +458,20 @@ function behaviorFields(registry: Registry, s: BehaviorState, name: BehaviorName
   if (!b)
     return [describeField(`${BEHAVIORS_FIELD}.${name}`, z.unknown(), entity, ctx, { forced })];
   const defaults = s.rules.defaults.get(name) ?? {};
-  return orderedFields(blockShape(registry, entity.type, name), b.inspector?.order ?? []).map(
-    ([k, schema]) => {
-      const f = describeField(`${BEHAVIORS_FIELD}.${name}.${k}`, schema, entity, ctx, { forced });
-      const d = defaults[k];
-      if (d !== undefined) {
-        f.defaultValue = d;
-        f.optional = true;
-      }
-      return f;
-    },
+  return linkFrames(
+    orderedFields(blockShape(registry, entity.type, name), b.inspector?.order ?? []).map(
+      ([k, schema]) => {
+        const f = describeField(`${BEHAVIORS_FIELD}.${name}.${k}`, schema, entity, ctx, {
+          forced,
+        });
+        const d = defaults[k];
+        if (d !== undefined) {
+          f.defaultValue = d;
+          f.optional = true;
+        }
+        return f;
+      },
+    ),
   );
 }
 

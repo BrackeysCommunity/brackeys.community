@@ -15,15 +15,18 @@ function folderAt(target: EventTarget | null): string {
 /**
  * Takes files dragged in from the desktop: onto a folder row they go into
  * that folder, anywhere else into the root. `over` is the folder under the
- * pointer while a drag is on the panel, for rows to highlight.
+ * pointer while a drag is on the panel, for rows to highlight. `busy` while
+ * a drop is still importing; another drop is still taken.
  */
 export function FileDropTarget({
   enabled,
+  busy = false,
   onDrop,
   children,
   className,
 }: {
   enabled: boolean;
+  busy?: boolean;
   onDrop: (files: File[], folder: string) => void;
   children: (over: string | null) => ReactNode;
   className?: string;
@@ -39,6 +42,8 @@ export function FileDropTarget({
       data-testid="project-drop-target"
       className="je-ptree-drop"
       data-drop-over={over === "" ? "" : undefined}
+      data-busy={busy ? "" : undefined}
+      aria-busy={busy || undefined}
       onDragEnter={(e) => {
         if (!enabled || !carriesFiles(e)) return;
         e.preventDefault();

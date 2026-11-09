@@ -3,7 +3,7 @@ import { useMemo } from "react";
 
 import type { EditorSession, Ref, SceneIssue } from "../../editor/index";
 import type { EditorNotify } from "../host";
-import { Badge, Button, Hint, Icon, MicroLabel, Text, type IconSvgElement } from "../kit/index";
+import { Button, Hint, Icon, MicroLabel, Text, type IconSvgElement } from "../kit/index";
 import { useEditorStore } from "../session/use-editor-store";
 
 type Severity = SceneIssue["severity"];
@@ -24,8 +24,9 @@ function merged(structural: readonly SceneIssue[], physical: readonly SceneIssue
 
 /**
  * The scene's problems by severity: the session's structural issues and the
- * physical ones passed in. A row selects and frames what it names; **Fix**
- * applies the issue's own repair as one batch.
+ * physical ones passed in. A row is one line (two when its message needs
+ * them) of icon, message and code, its hint on hover; it selects and frames
+ * what it names, and **Fix** applies the issue's own repair as one batch.
  */
 export function ProblemsPanel({
   session,
@@ -56,18 +57,6 @@ export function ProblemsPanel({
 
   return (
     <section aria-label="Problems" className="je-scene-panel">
-      <h2 className="je-scene-panel-title">
-        Problems
-        {SEVERITIES.map(({ id, icon }) => {
-          const n = rows.filter((r) => r.issue.severity === id).length;
-          return n > 0 ? (
-            <span key={id} className="je-problems-count" data-severity={id}>
-              <Icon icon={icon} size={12} />
-              {n}
-            </span>
-          ) : null;
-        })}
-      </h2>
       {rows.length === 0 ? (
         <Text as="p" size="xs" variant="muted" className="je-scene-panel-empty">
           No problems found.
@@ -101,12 +90,8 @@ export function ProblemsPanel({
                           <span className="je-problems-icon" data-severity={id}>
                             <Icon icon={icon} size={12} />
                           </span>
-                          <span className="je-problems-text">
-                            <span>{issue.message}</span>
-                            <Badge size="label" variant="outline" className="je-problems-code">
-                              {issue.code}
-                            </Badge>
-                          </span>
+                          <span className="je-problems-message">{issue.message}</span>
+                          <span className="je-problems-code">{issue.code}</span>
                         </button>
                       </Hint>
                       <Button

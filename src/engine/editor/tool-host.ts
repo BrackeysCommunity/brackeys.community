@@ -1,6 +1,20 @@
-import { ENGINE_TOOL_IDS } from "../game/types";
-import type { SpriteAssetLookup } from "../scene/render-geometry";
-import type { Aabb, OpBatch, Pt, Ref } from "../scene/types";
+import { ENGINE_TOOL_IDS, type Registry } from "../game/types";
+import { bulkKeysOf } from "../scene/expand";
+import { gridCellBounds } from "../scene/grid";
+import { gridCellOutline, type SpriteAssetLookup } from "../scene/render-geometry";
+import { CHILD_SEPARATOR } from "../scene/resolve";
+import { gridFieldsOf } from "../scene/schema";
+import { aabb, aabbUnion } from "../scene/shape-geometry";
+import type {
+  Aabb,
+  EntityDef,
+  GridSettings,
+  OpBatch,
+  Pt,
+  Ref,
+  SceneDefinition,
+  ShapeObj,
+} from "../scene/types";
 import { TOOL_PRIORITY, type ToolEvent, type ToolRouter } from "../tool-router";
 import type { Vec2 } from "../types";
 import { boxTool, circleTool } from "./builtin/draw";
@@ -27,12 +41,20 @@ import {
 import { createGesturePreview, type PreviewRuntime } from "./gesture";
 import type { KeyContext } from "./keymap";
 import type { EditorSession } from "./session";
-import { createSpatialIndex, geometryOfRef } from "./spatial-index";
+import {
+  createSpatialIndex,
+  entityGeometry,
+  geometryOfRef,
+  spriteHitOf,
+  type EditGeometry,
+} from "./spatial-index";
+import { setHover } from "./store";
 import {
   DEFAULT_SNAP,
   type EditorTool,
   type EditorToolContext,
   type EditorToolDef,
+  type OverlayTone,
   type SnapSettings,
   type SpatialIndex,
   type ToolKeyEvent,
@@ -64,7 +86,10 @@ export type ToolHostOptions = {
   toWorld: (screen: Vec2) => Pt;
   /** Screen px per world px now. */
   scale: () => number;
-  /** The edit world's runtime, for previews; without it previews only draw in the overlay. */
+  /**
+   * A runtime to show previews in as well as the overlay. The editor leaves
+   * it out, so the edit world only ever holds committed state.
+   */
   runtime?: PreviewRuntime | null;
   /** The game's tools (`GameDefinition.editor.tools()`, loaded); an engine id or a repeated id throws. */
   gameTools?: readonly EditorToolDef[];
@@ -151,6 +176,122 @@ export type ToolHost = {
   destroy(): void;
 };
 
+// ─── Outlines ───────────────────────────────────────────
+
+type OutlineMarks = Required<Pick<ToolOverlay, "outlines" | "points">>;
+
+type OutlineLook = {
+  registry: Registry;
+  /** The index whose sprite boxes match `def`; `null` while a preview moves things. */
+  index: SpatialIndex | null;
+};
+
+const boxShape = (b: Aabb): ShapeObj => ({
+  type: "box",
+  cx: (b.minX + b.maxX) / 2,
+  cy: (b.minY + b.maxY) / 2,
+  hw: (b.maxX - b.minX) / 2,
+  hh: (b.maxY - b.minY) / 2,
+  rotDeg: 0,
+});
+
+const ptsBox = (pts: readonly Pt[]): Aabb | null =>
+  pts.reduce<Aabb | null>((b, [x, y]) => {
+    const p = { minX: x, minY: y, maxX: x, maxY: y };
+    return b ? aabbUnion(b, p) : p;
+  }, null);
+
+/** The box over a grid entity's filled cells, placed at `at` the way the renderers place them. */
+function gridBox(grid: GridSettings, at: Pt, e: EntityDef, registry: Registry): Aabb | null {
+  let box: Aabb | null = null;
+  for (const field of gridFieldsOf(registry.types.get(e.type))) {
+    const value = e[field];
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    let b: ReturnType<typeof gridCellBounds> = null;
+    try {
+      b = gridCellBounds(value as Parameters<typeof gridCellBounds>[0]);
+    } catch {
+      continue;
+    }
+    if (!b) continue;
+    // Each edge's neighbour too, so a staggered hex row or column is covered.
+    const cols = [b.c0, Math.min(b.c0 + 1, b.c1), Math.max(b.c1 - 1, b.c0), b.c1];
+    const rows = [b.r0, Math.min(b.r0 + 1, b.r1), Math.max(b.r1 - 1, b.r0), b.r1];
+    for (const c of cols)
+      for (const r of rows) {
+        const cell = ptsBox(gridCellOutline(grid, at, c, r));
+        if (cell) box = box ? aabbUnion(box, cell) : cell;
+      }
+  }
+  return box;
+}
+
+/** One entity's marks as the scene draws it: its shape, its sprite's box, its grid cells' box, else its point. */
+function geometryMarks(
+  def: SceneDefinition,
+  ref: Ref,
+  g: EditGeometry,
+  entity: EntityDef | undefined,
+  tone: OverlayTone,
+  owner: Ref,
+  out: OutlineMarks,
+  look: OutlineLook,
+): void {
+  if (g.shape) out.outlines.push({ shape: g.shape, tone, ref: owner });
+  const indexed = look.index?.get(ref);
+  const sprite = indexed && spriteHitOf(indexed);
+  if (sprite) out.outlines.push({ shape: sprite, tone, ref: owner });
+  const grid = def.settings?.grid;
+  const cells =
+    !g.shape && g.at && grid && entity ? gridBox(grid, g.at, entity, look.registry) : null;
+  if (cells) out.outlines.push({ shape: boxShape(cells), tone, ref: owner });
+  if (!g.shape && g.at) out.points.push({ at: g.at, tone, ref: owner });
+}
+
+/** Whether `ref` names an instance (or a nested one) rather than an entity of `def`. */
+function isComposite(def: SceneDefinition, ref: Ref): boolean {
+  if ((def.entities ?? []).some((e) => e.id === ref)) return false;
+  const prefix = `${ref}${CHILD_SEPARATOR}`;
+  return (def.entities ?? []).some((e) => e.id.startsWith(prefix));
+}
+
+/**
+ * Appends `ref`'s outlines in `def` (the resolved view, as previewed) to
+ * `out`, each in its world pose: an entity's or bulk row's own geometry,
+ * or for an instance, every child it resolves to. Outlines carry `ref`.
+ */
+function outlinesOfRef(
+  def: SceneDefinition,
+  ref: Ref,
+  tone: OverlayTone,
+  out: OutlineMarks,
+  look: OutlineLook,
+): void {
+  const { registry } = look;
+  const own = geometryOfRef(def, registry, ref);
+  if (own) {
+    const entity = own.bulk ? undefined : (def.entities ?? []).find((e) => e.id === ref);
+    geometryMarks(def, ref, own, entity, tone, ref, out, look);
+    return;
+  }
+  const prefix = `${ref}${CHILD_SEPARATOR}`;
+  for (const e of def.entities ?? []) {
+    if (!e.id.startsWith(prefix)) continue;
+    const t = registry.types.get(e.type);
+    if (t) geometryMarks(def, e.id, entityGeometry(t, e), e, tone, ref, out, look);
+  }
+}
+
+/** The box around a set of marks; `null` for none. */
+function marksBounds(
+  outlines: OutlineMarks["outlines"],
+  points: OutlineMarks["points"],
+): Aabb | null {
+  let box = ptsBox(points.map((p) => p.at));
+  for (const o of outlines) box = box ? aabbUnion(box, aabb(o.shape)) : aabb(o.shape);
+  return box;
+}
+
 const modsOf = (n: Partial<Record<"shiftKey" | "altKey" | "ctrlKey" | "metaKey", boolean>>) => ({
   shift: n.shiftKey === true,
   alt: n.altKey === true,
@@ -167,8 +308,8 @@ const isSpace = (key: string) => key === " " || key === "Space" || key === "Spac
 /**
  * Runs the editor's tools on a session: takes the canvas's pointer events
  * from the router, keeps a spatial index current, previews gestures in the
- * edit world's runtime and commits each as one batch, and carries the
- * commands the keymap resolves. Framework-free; the site draws `overlay()`
+ * overlay (and in `runtime` when given one) and commits each as one batch,
+ * and carries the commands the keymap resolves. Framework-free; the site draws `overlay()`
  * and calls `key` and `command` from its keymap consumer.
  */
 export function createToolHost(opts: ToolHostOptions): ToolHost {
@@ -247,11 +388,13 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       session.select(refs, mode);
       emit();
     },
+    hover: (ref) => setHover(session.store, ref),
     commit,
     preview(batch) {
       gesture.preview(batch);
       emit();
     },
+    previewDoc: () => gesture.def(),
     scale: () => opts.scale(),
     snap: () => snap,
     index: () => index,
@@ -362,6 +505,15 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     handle(e) {
       if (e.kind === "pointer") pointer(e);
     },
+  });
+
+  // The overlay outlines the selection and the hover, which the panels change too.
+  let seen = session.store.state;
+  const unwatchStore = session.store.subscribe(() => {
+    const next = session.store.state;
+    if (next.hover === seen.hover && next.selection === seen.selection) return;
+    seen = next;
+    emit();
   });
 
   const unsubscribe = session.subscribe((e) => {
@@ -482,16 +634,60 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     return t.rest.length === 0 && t.instances.length + t.groups.length > 0;
   }
 
-  function selectionOverlay(): ToolOverlay {
-    const def = gesture.def() ?? session.getResolved();
-    const outlines: NonNullable<ToolOverlay["outlines"]> = [];
-    const points: NonNullable<ToolOverlay["points"]> = [];
-    for (const ref of selection()) {
-      const g = geometryOfRef(def, registry, ref);
-      if (g?.shape) outlines.push({ shape: g.shape, tone: "selected" });
-      else if (g?.at) points.push({ at: g.at, tone: "selected" });
+  let previewLook: { def: SceneDefinition; sel: readonly Ref[]; index: SpatialIndex } | null = null;
+
+  /**
+   * An index of just the selection in the previewed document, so sprite
+   * boxes follow a drag; kept while the preview and selection stay the same.
+   */
+  function previewIndex(def: SceneDefinition, sel: readonly Ref[]): SpatialIndex {
+    if (previewLook?.def === def && previewLook.sel === sel) return previewLook.index;
+    const ids = new Set(sel);
+    const prefixes = sel.map((r) => `${r}${CHILD_SEPARATOR}`);
+    const part: SceneDefinition = { ...def };
+    for (const k of bulkKeysOf(part)) delete part[k];
+    part.entities = (def.entities ?? []).filter(
+      (e) => ids.has(e.id) || prefixes.some((p) => e.id.startsWith(p)),
+    );
+    const small = createSpatialIndex(opts.asset ? { asset: opts.asset } : {});
+    small.rebuild(part, registry);
+    previewLook = { def, sel, index: small };
+    return small;
+  }
+
+  /**
+   * The overlay's outlines: the selection's, the shared hover's and the
+   * marquee's would-be selection. While a drag previews, the selection is
+   * outlined where the preview puts it, over a ghost of where it started.
+   */
+  function selectionOverlay(own: ToolOverlay): ToolOverlay {
+    const previewed = gesture.def();
+    const committed = session.getResolved();
+    const def = previewed ?? committed;
+    const sel = selection();
+    const ghost: OutlineMarks = { outlines: [], points: [] };
+    if (previewed) {
+      for (const ref of sel) outlinesOfRef(committed, ref, "ghost", ghost, { registry, index });
+    } else previewLook = null;
+    const marks: OutlineMarks = { outlines: [], points: [] };
+    const look = { registry, index: previewed ? previewIndex(previewed, sel) : index };
+    for (const ref of sel) outlinesOfRef(def, ref, "selected", marks, look);
+    const bounds =
+      sel.length > 1 || (sel.length === 1 && isComposite(def, sel[0]!))
+        ? marksBounds(marks.outlines, marks.points)
+        : null;
+    if (previewed) {
+      marks.outlines = [...ghost.outlines, ...marks.outlines.map((o) => ({ ...o, preview: true }))];
+      marks.points = [...ghost.points, ...marks.points.map((p) => ({ ...p, preview: true }))];
     }
-    return { outlines, points };
+    const taken = new Set(sel);
+    const gesturing = active?.gesture?.() ?? false;
+    const hover = session.store.state.hover;
+    if (!gesturing && hover !== null && !taken.has(hover))
+      outlinesOfRef(def, hover, "hover", marks, look);
+    for (const ref of own.marquee?.hits ?? [])
+      if (!taken.has(ref)) outlinesOfRef(def, ref, "hover", marks, look);
+    return { ...marks, ...(bounds ? { bounds } : {}) };
   }
 
   const host: ToolHost = {
@@ -500,13 +696,14 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     tools: () => [...defs.values()],
     overlay() {
       const own = active?.overlay?.() ?? {};
-      const sel = selectionOverlay();
+      const sel = selectionOverlay(own);
       const outlines = [...(sel.outlines ?? []), ...(own.outlines ?? [])];
       const points = [...(sel.points ?? []), ...(own.points ?? [])];
       return {
         ...own,
         ...(outlines.length > 0 ? { outlines } : {}),
         ...(points.length > 0 ? { points } : {}),
+        ...(sel.bounds ? { bounds: sel.bounds } : {}),
       };
     },
     cursor: () => active?.cursor?.(),
@@ -605,6 +802,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       destroyed = true;
       unregister();
       unsubscribe();
+      unwatchStore();
       listeners.clear();
     },
   };

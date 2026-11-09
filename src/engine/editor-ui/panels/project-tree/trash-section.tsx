@@ -7,9 +7,10 @@ import { Icon } from "../../kit/icon";
 import { MicroLabel } from "../../kit/text";
 import { TimeAgo } from "../../kit/time-ago";
 import { kindIcon } from "./kind-icons";
+import { assetScope } from "./tree-pending";
 import { baseName, parentFolder } from "./tree-rows";
 
-/** Trashed assets, newest first, each with Restore. Closed until opened. */
+/** Trashed assets, newest first, each with Restore, busy while it runs. Closed until opened. */
 export function TrashSection({
   trash,
   readOnly,
@@ -64,6 +65,7 @@ export function TrashSection({
                   variant="ghost"
                   tooltip={`Put it back at ${entry.path}`}
                   aria-label={`Restore ${baseName(entry.path)}`}
+                  busyScope={assetScope(entry)}
                   onClick={() => onRestore(entry)}
                 >
                   Restore

@@ -27,12 +27,47 @@ async function refusal(response: Response, fallback: string): Promise<BlobRouteE
   return new BlobRouteError(message, response.status, body?.issue);
 }
 
+type PostInit = { headers: Record<string, string>; body: Uint8Array };
+
+/** `fetch` has no upload progress; a request posts through XHR so the bytes sent are reported. */
+function postWithProgress(
+  route: string,
+  { headers, body }: PostInit,
+  onSent: (sent: number) => void,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", route);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+    xhr.upload.onprogress = (e) => onSent(e.loaded);
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status > 599) {
+        reject(new BlobRouteError(`The upload failed (${xhr.status}).`, xhr.status));
+        return;
+      }
+      const empty = xhr.status === 204 || xhr.status === 205 || xhr.status === 304;
+      resolve(
+        new Response(empty ? null : xhr.responseText, {
+          status: xhr.status,
+          headers: { "content-type": xhr.getResponseHeader("content-type") ?? "" },
+        }),
+      );
+    };
+    xhr.onerror = () => reject(new BlobRouteError("The upload didn't reach the server.", 0));
+    xhr.onabort = () => reject(new BlobRouteError("The upload was cancelled.", 0));
+    xhr.send(body as XMLHttpRequestBodyInit);
+  });
+}
+
 /**
- * A project's blob route over `fetch`: `POST <route>` stores bytes and
- * `GET <route>/<sha256>` reads them back. An upload reports its progress
- * when it starts and when the server has stored the bytes.
+ * A project's blob route: `POST <route>` stores bytes and `GET
+ * <route>/<sha256>` reads them back. An upload reports its progress once it
+ * has hashed the bytes, as they are sent when the browser can tell (no
+ * `fetcher` given), and when the server has stored them.
  */
-export function projectBlobs(route: string, fetcher: typeof fetch = fetch): ProjectBlobs {
+export function projectBlobs(route: string, fetcher?: typeof fetch): ProjectBlobs {
+  const get = fetcher ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
+  const tracked = !fetcher && typeof XMLHttpRequest !== "undefined";
   const recent = new Map<Sha256, Uint8Array>();
   const remember = (hash: Sha256, bytes: Uint8Array) => {
     recent.delete(hash);
@@ -53,12 +88,17 @@ export function projectBlobs(route: string, fetcher: typeof fetch = fetch): Proj
       };
       if (opts.kind) headers["x-asset-kind"] = opts.kind;
       opts.onProgress?.(0, total);
-      const response = await fetcher(route, {
-        method: "POST",
-        headers,
-        body: bytes as BodyInit,
-        credentials: "same-origin",
-      });
+      const onSent = (sent: number) => {
+        if (sent > 0 && sent < total) opts.onProgress?.(sent, total);
+      };
+      const response = tracked
+        ? await postWithProgress(route, { headers, body: bytes }, onSent)
+        : await get(route, {
+            method: "POST",
+            headers,
+            body: bytes as BodyInit,
+            credentials: "same-origin",
+          });
       if (!response.ok) throw await refusal(response, `The upload failed (${response.status}).`);
       const answer = (await response.json()) as Partial<UploadedBlob>;
       if (answer.sha256 !== expect || answer.bytes !== total)
@@ -71,7 +111,7 @@ export function projectBlobs(route: string, fetcher: typeof fetch = fetch): Proj
       if (!isSha256(hash)) return null;
       const held = recent.get(hash);
       if (held) return held;
-      const response = await fetcher(`${route}/${hash}`, { credentials: "same-origin" });
+      const response = await get(`${route}/${hash}`, { credentials: "same-origin" });
       if (response.status === 404) return null;
       if (!response.ok)
         throw await refusal(response, `Reading ${hash} failed (${response.status}).`);

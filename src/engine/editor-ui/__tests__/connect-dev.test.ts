@@ -43,6 +43,7 @@ describe("the dev server's routes", () => {
       "wss://dev.test/__scene-collab",
     );
     expect(devCollabUrl("https://dev.test:8443")).toBe("wss://dev.test:8443/__scene-collab");
+    expect(devCollabUrl("wss://dev.test")).toBe("wss://dev.test/__scene-collab");
     expect(devCollabUrl()).toBe(`ws://${window.location.host}/__scene-collab`);
   });
 });
@@ -73,6 +74,16 @@ describe("devProjectHost", () => {
     expect(host.assetUrl("p", entry)).toBe(
       `http://dev.test:5173${PROJECT_ROUTE}/p/blob/${entry.sha256}`,
     );
+    connection.destroy();
+  });
+
+  it("takes a websocket origin, and serves blobs over http(s) on the same host", async () => {
+    const { mod, urls } = recordingHocuspocus();
+    const host = devProjectHost({ hocuspocus: mod, origin: "wss://dev.test:8443" });
+    const connection = host.connect(args);
+    await expect.poll(() => urls).toEqual(["wss://dev.test:8443/__scene-collab"]);
+    const entry = { id: "sky", kind: "texture", sha256: "ab".repeat(32), bytes: 1 };
+    expect(host.assetUrl("p", entry)).toMatch(/^https:\/\/dev\.test:8443\/__project\//);
     connection.destroy();
   });
 });

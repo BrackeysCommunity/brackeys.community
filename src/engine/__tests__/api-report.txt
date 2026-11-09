@@ -332,6 +332,8 @@ DispatchOptions
 DocApplyResult
 DragOptions
 DrawToolOptions
+DropOptions
+DropPreview
 ENGINE_KEYS
 ENGINE_TOOL_IDS
 EditGeometry
@@ -455,6 +457,7 @@ applyToPrefabBatch
 asProjectBatch
 attachBatch
 attachFieldOf
+boundsCheck
 boxTool
 buildInspectorModel
 buildOutline
@@ -495,6 +498,7 @@ drawBatch
 drawnShape
 dropBatch
 dropFragment
+dropPreview
 duplicateSelection
 entityGeometry
 expandRefs
@@ -584,6 +588,7 @@ selectTool
 selectionBounds
 selectionBox
 selectionHandles
+setHover
 shapeBatch
 shapeConversions
 shapeEdit
@@ -2682,6 +2687,8 @@ type AssetDrop = {
     frame?: string;
     info: AssetInfo;
 };
+type DropOptions = Parameters<typeof dropBatch>[2];
+type DropPreview = Required<Pick<ToolOverlay, "ghosts">> & Pick<ToolOverlay, "points">;
 declare function dropBatch(drop: AssetDrop, at: Pt, opts: {
     def: SceneDefinition;
     prefabs?: PrefabLibrary;
@@ -2689,6 +2696,9 @@ declare function dropBatch(drop: AssetDrop, at: Pt, opts: {
     snap?: SnapSettings;
 }): PasteResult;
 declare function dropFragment(drop: AssetDrop, registry: Registry): SceneFragment | null;
+declare function dropPreview(drop: AssetDrop, at: Pt, opts: DropOptions & {
+    asset?: SpriteAssetLookup;
+}): DropPreview;
 
 ## editor/attach.ts
 declare function attachBatch(def: SceneDefinition, ref: Ref, follower: Ref | null, registry: Registry, prefabs?: PrefabLibrary): OpBatch | null;
@@ -3074,6 +3084,10 @@ type FieldWidget = {
     format: "json" | "text";
     kind: "readonly";
 } | {
+    frame?: FieldPath;
+    kind: "asset";
+    kinds: AssetKindName[];
+} | {
     id: string;
     kind: "custom";
     widget: InspectorWidgetDef;
@@ -3081,6 +3095,8 @@ type FieldWidget = {
     integer: boolean;
     kind: "angle";
     snapDeg: number;
+} | {
+    kind: "color";
 } | {
     kind: "object";
 } | {
@@ -3385,6 +3401,7 @@ type PlacementTemplate = {
     shape: ShapeObj;
     style?: Style;
 };
+declare function boundsCheck(box: Aabb, def: SceneDefinition): PlacementCheck;
 declare function placedShape(shape: ShapeObj, at: Pt, rotDeg: number): ShapeObj;
 declare function placementEditorTool<T extends PlacementTemplate>(opts: PlacementEditorToolOptions<T>): EditorToolDef;
 
@@ -3581,6 +3598,7 @@ type EditorStoreState = {
     canUndo: boolean;
     hash: SceneHash;
     history: LogEntry[];
+    hover: Ref | null;
     issues: SceneIssue[];
     lastActor?: SceneOrigin;
     mode: EditorMode;
@@ -3592,6 +3610,7 @@ type EditorStoreState = {
     undoLabel?: string;
 };
 declare function createEditorStore(init?: Partial<EditorStoreState>): Store<EditorStoreState>;
+declare function setHover(store: Store<EditorStoreState>, ref: Ref | null): void;
 
 ## editor/tool-host.ts
 declare const MULTI_CLICK_MS = 500;
@@ -3675,6 +3694,7 @@ type EditorToolContext = {
         selectionAfter?: Ref[];
     }): boolean;
     getDoc(): SceneDefinition;
+    hover?(ref: Ref | null): void;
     index(): SpatialIndex;
     invalidate(): void;
     layers(): {
@@ -3683,6 +3703,7 @@ type EditorToolContext = {
     };
     pan?(screenDelta: Pt): void;
     preview(batch: OpBatch | null): void;
+    previewDoc?(): SceneDefinition | null;
     registry: Registry;
     scale(): number;
     select(refs: Ref[], mode?: SelectMode): void;
@@ -3749,6 +3770,7 @@ type ToolModifiers = {
     shift: boolean;
 };
 type ToolOverlay = {
+    bounds?: Aabb;
     ghosts?: {
         reason?: string;
         shape: ShapeObj;
@@ -3761,6 +3783,7 @@ type ToolOverlay = {
     }[];
     handles?: GizmoHandle[];
     marquee?: {
+        hits?: Ref[];
         rect: Aabb;
         touch: boolean;
     };
@@ -3769,11 +3792,15 @@ type ToolOverlay = {
         label: string;
     };
     outlines?: {
+        preview?: boolean;
+        ref?: Ref;
         shape: ShapeObj;
         tone: OverlayTone;
     }[];
     points?: {
         at: Pt;
+        preview?: boolean;
+        ref?: Ref;
         tone: OverlayTone;
     }[];
     polylines?: {

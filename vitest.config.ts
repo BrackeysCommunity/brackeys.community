@@ -31,6 +31,7 @@ export default defineConfig({
       "scripts/scene/**/__tests__/**/*.test.ts",
       "scripts/engine-readme/**/__tests__/**/*.test.ts",
       "scripts/engine-smoke/__tests__/**/*.test.ts",
+      "scripts/engine-editor/**/__tests__/**/*.test.ts",
     ],
     environment: "node",
     globalSetup: ["./src/test/global-setup.ts"],

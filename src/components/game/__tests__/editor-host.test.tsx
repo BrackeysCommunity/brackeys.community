@@ -9,7 +9,7 @@ import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store
 import { presenceColor } from "@/lib/canvas/presence";
 import { toast } from "@/lib/toast";
 
-const fakes = vi.hoisted(() => ({ play: vi.fn(), editor: vi.fn() }));
+const fakes = vi.hoisted(() => ({ play: vi.fn(), editor: vi.fn(), navigate: vi.fn() }));
 
 vi.mock("@/lib/sound", async (original) => ({
   ...(await original<typeof import("@/lib/sound")>()),
@@ -17,7 +17,7 @@ vi.mock("@/lib/sound", async (original) => ({
 }));
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children?: React.ReactNode }) => <a href="/">{children}</a>,
-  useNavigate: () => vi.fn(),
+  useNavigate: () => fakes.navigate,
 }));
 vi.mock("@/components/canvas/shell/SiteMenu", () => ({
   SiteMenu: (props: { back?: { label: string }; signinSource?: string }) => (
@@ -171,5 +171,29 @@ describe("SiteSceneEditor", () => {
     expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
     act(() => props.onReady());
     expect(screen.getByRole("heading", { name: "test-yard" })).toBeTruthy();
+  });
+
+  it("follows the scene the editor opened instead in the room's ?scene=, replacing the entry", () => {
+    render(<SiteSceneEditor roomId="lobby-1" scene="kitchen-sink" />);
+    const props = fakes.editor.mock.lastCall![0] as { host: EditorHost };
+    props.host.onSceneChange?.("test-yard");
+    expect(fakes.navigate).toHaveBeenCalledTimes(1);
+    const to = fakes.navigate.mock.lastCall![0] as {
+      to: string;
+      params: { roomId: string };
+      search: (prev: Record<string, unknown>) => Record<string, unknown>;
+      replace: boolean;
+    };
+    expect(to).toMatchObject({ to: "/game/$roomId", params: { roomId: "lobby-1" }, replace: true });
+    expect(to.search({ edit: 1, scene: "kitchen-sink" })).toEqual({ edit: 1, scene: "test-yard" });
+  });
+
+  it("calls the onSceneChange it was given instead of navigating", () => {
+    const onSceneChange = vi.fn();
+    render(<SiteSceneEditor roomId="lobby-1" onSceneChange={onSceneChange} />);
+    const props = fakes.editor.mock.lastCall![0] as { host: EditorHost };
+    props.host.onSceneChange?.("engine-yard");
+    expect(onSceneChange).toHaveBeenCalledWith("engine-yard");
+    expect(fakes.navigate).not.toHaveBeenCalled();
   });
 });

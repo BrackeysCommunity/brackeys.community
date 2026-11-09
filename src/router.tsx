@@ -74,6 +74,19 @@ export function getRouter() {
     defaultViewTransition: true,
   });
 
+  // Hydrating an `ssr: false` route (`/game/$roomId`, the arcade) holds its
+  // match pending for `defaultPendingMinMs`, and the router's timer that ends
+  // the hold only updates the in-flight matches. If the load's commit is
+  // still waiting on a view transition's update callback when that timer
+  // fires, the rendered match throws `undefined` and a hard load of the page
+  // renders an empty body. So that commit lands directly; there is no
+  // previous page to transition from on a hard load anyway.
+  const startViewTransition = router.startViewTransition;
+  router.startViewTransition = (fn) => {
+    if (router.state.matches.some((m) => m._forcePending)) router.shouldViewTransition = false;
+    startViewTransition(fn);
+  };
+
   // Puts the server's query cache in the document: it dehydrates whatever
   // a loader fetched during SSR into the payload (streaming queries that
   // settle mid-render), and hydrates it on the client before the app runs.

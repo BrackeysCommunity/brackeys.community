@@ -24,10 +24,11 @@ import {
   type Referrer,
 } from "../../project/index";
 import type { EditorNotify, ProjectBlobs } from "../host";
+import type { PendingStep } from "../pending/pending";
 import type { EditorProjectLink } from "../session/use-scene-editor";
 import { useStoreValue } from "../session/use-store-value";
 import type { SelectedAsset } from "./project-tree/asset-panel";
-import { planImport } from "./project-tree/import-files";
+import { filesLabel, planImport, type ImportProgress } from "./project-tree/import-files";
 import { ProjectTree } from "./project-tree/project-tree";
 import type { DeleteRefused, ProjectTreeProps } from "./project-tree/types";
 
@@ -135,12 +136,32 @@ function inUse(
   return referrers.length > 0 ? { inUse: referrers } : null;
 }
 
-const plural = (n: number) => (n === 1 ? "1 file" : `${n} files`);
+const PHASE: Record<Exclude<ImportProgress["phase"], "done">, string> = {
+  read: "Reading",
+  hash: "Hashing",
+  upload: "Uploading",
+};
+
+/** What `step` says while a file imports: its phase, the share of its bytes sent, files done. */
+function reportImport(step: PendingStep, total: number) {
+  let done = 0;
+  return ({ name, phase, sent, total: bytes }: ImportProgress) => {
+    if (phase === "done") {
+      done += 1;
+      step.progress(done, total);
+      return;
+    }
+    const share =
+      phase === "upload" && sent !== undefined && bytes ? Math.floor((sent / bytes) * 100) : null;
+    step.label(`${PHASE[phase]} ${name}${share !== null && share > 0 ? ` (${share}%)` : ""}`);
+  };
+}
 
 /**
- * Uploads dropped files and imports them in one batch; a file the batch
- * refuses is left out and the rest go in. Rejects, with the reasons as the
- * error's `description`, when none of them went in.
+ * Reads, hashes and uploads dropped files one by one, reporting each through
+ * `step`, then imports them in one batch; a file the batch refuses is left
+ * out and the rest go in. Rejects, with the reasons as the error's
+ * `description`, when none of them went in.
  */
 async function importDropped(
   project: EditorProjectLink,
@@ -148,6 +169,7 @@ async function importDropped(
   files: File[],
   folder: string,
   notify: EditorNotify,
+  step: PendingStep,
 ): Promise<void> {
   const { session } = project;
   const view = session.view();
@@ -158,14 +180,16 @@ async function importDropped(
     kinds: session.kinds,
     env: { registry: session.registry, project: view },
     blobs,
+    onProgress: reportImport(step, files.length),
   });
   const skipped = [...plan.skipped];
   let ops = plan.ops;
+  if (ops.length > 0) step.label(`Adding ${filesLabel(ops.length)} to the project`);
   while (ops.length > 0) {
     const result = await apply(
       session,
       ops.map((o) => o.op),
-      ops.length === 1 ? `Import ${ops[0]!.name}` : `Import ${plural(ops.length)}`,
+      ops.length === 1 ? `Import ${ops[0]!.name}` : `Import ${filesLabel(ops.length)}`,
     );
     if (result.ok) break;
     const failed = ops[result.opIndex];
@@ -176,7 +200,7 @@ async function importDropped(
   const refused =
     skipped.length > 0
       ? {
-          message: `Couldn't import ${skipped.length === 1 ? skipped[0]!.name : plural(skipped.length)}`,
+          message: `Couldn't import ${skipped.length === 1 ? skipped[0]!.name : filesLabel(skipped.length)}`,
           description: skipped
             .map((s) => (skipped.length === 1 ? s.reason : `${s.name}: ${s.reason}`))
             .join(" "),
@@ -186,7 +210,7 @@ async function importDropped(
     const { message = "Couldn't import those files.", description } = refused ?? {};
     throw Object.assign(new Error(message), description ? { description } : {});
   }
-  notify.success(`Imported ${ops.length === 1 ? ops[0]!.name : plural(ops.length)}`);
+  notify.success(`Imported ${ops.length === 1 ? ops[0]!.name : filesLabel(ops.length)}`);
   if (refused) notify.error(refused.message, { description: refused.description });
 }
 
@@ -201,8 +225,10 @@ function openKey(view: ProjectView, sceneDoc: string, prefab: string | undefined
  * The project tree over a live project session: the registry as folders,
  * assets and code, everyone else on the doc they're in, and each edit as a
  * project op (rename, move, trash and restore, and import of dropped
- * files). Picking an asset puts it in `selected`, for the inspector; asset
- * and atlas frame rows drag onto the scene canvas to place them.
+ * files), each a pending task the tree shows on its row. Until the project
+ * doc holds the server's state the tree shows its loading skeleton. Picking
+ * an asset puts it in `selected`, for the inspector; asset and atlas frame
+ * rows drag onto the scene canvas to place them.
  */
 export function EditorProject({
   project,
@@ -251,8 +277,8 @@ export function EditorProject({
     onRestore: async (entry) => must(await apply(session, [{ op: "restoreAsset", id: entry.id }])),
     ...(blobs
       ? {
-          onDropFiles: (files: File[], folder: string) =>
-            importDropped(project, blobs, files, folder, notify),
+          onDropFiles: (files: File[], folder: string, step: PendingStep) =>
+            importDropped(project, blobs, files, folder, notify, step),
         }
       : {}),
   };
@@ -265,6 +291,7 @@ export function EditorProject({
       trash={view.deleted}
       peersByDoc={peersByDoc}
       activeKey={picked ?? openKey(view, doc, prefab)}
+      loading={!view.state.meta.projectId}
       readOnly={readOnly}
       assetInfo={infoOf}
       notify={notify}

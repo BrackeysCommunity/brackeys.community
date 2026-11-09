@@ -222,6 +222,7 @@ beforeAll(() => {
 afterAll(() => vi.restoreAllMocks());
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   for (const s of sessions.splice(0)) s.destroy();
   for (const e of editors.values()) e.destroy();
   editors.clear();
@@ -272,12 +273,12 @@ describe("the editor's project tree", () => {
       "sprites",
       "hero.atlas.json",
       "hero.png",
-      "src",
-      "game.ts",
+      "Code",
     ]);
     expect(rowOf("hero.png").dataset.kind).toBe("texture");
     expect(rowOf("hero.atlas.json").dataset.kind).toBe("atlas");
     expect(rowOf("hero.png").querySelector("svg")).not.toBeNull();
+    fireEvent.click(files().getByRole("button", { name: /^Code/ }));
     const code = rowOf("game.ts");
     expect(code.dataset.kind).toBe("code");
     expect(within(code).queryByRole("button")).toBeNull();

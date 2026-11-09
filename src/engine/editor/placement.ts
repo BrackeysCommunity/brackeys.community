@@ -1,7 +1,7 @@
 import type { Style } from "../game/types";
 import { createPlacementTool, type PlacementCheck, type PlacementGhost } from "../placement";
 import { aabb, translateShape } from "../scene/shape-geometry";
-import type { EntityInput, Pt, SceneDefinition, ShapeObj } from "../scene/types";
+import type { Aabb, EntityInput, Pt, SceneDefinition, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 import { nextFreeId } from "./clipboard";
 import type { EditorTool, EditorToolContext, EditorToolDef, ToolOverlay } from "./tools";
@@ -68,10 +68,17 @@ const idStem = (id: string) =>
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "") || "entity";
 
-function insideBounds(shape: ShapeObj, def: SceneDefinition): boolean {
-  const b = aabb(shape);
+const OUT_OF_BOUNDS = "Out of bounds";
+
+/**
+ * The engine's check on anything about to land in a scene (a placement
+ * ghost, a drop, a drawn shape): it has to fit inside the scene's bounds.
+ */
+export function boundsCheck(box: Aabb, def: SceneDefinition): PlacementCheck {
   const [minX, minY, maxX, maxY] = def.bounds;
-  return b.minX >= minX && b.minY >= minY && b.maxX <= maxX && b.maxY <= maxY;
+  return box.minX >= minX && box.minY >= minY && box.maxX <= maxX && box.maxY <= maxY
+    ? { valid: true }
+    : { valid: false, reason: OUT_OF_BOUNDS };
 }
 
 /**
@@ -100,7 +107,8 @@ export function placementEditorTool<T extends PlacementTemplate>(
         };
       };
       const warning = (p: PlacedTemplate<T>): PlacementCheck => {
-        if (!insideBounds(p.shape, ctx.getDoc())) return { valid: false, reason: "Out of bounds" };
+        const inside = boundsCheck(aabb(p.shape), ctx.getDoc());
+        if (!inside.valid) return inside;
         return opts.validate?.(p, ctx) ?? { valid: true };
       };
       const redraw = () => ctx.invalidate();

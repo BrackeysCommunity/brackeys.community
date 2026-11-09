@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import type { DebugLayerFactory, DebugOverlayFactory } from "../debug/index";
+import type { SceneIssue } from "../editor/index";
 import { createRegistry } from "../game/index";
 import {
   createAssetLoader,
@@ -11,16 +12,24 @@ import {
   type GameInstance,
   type RapierModule,
 } from "../index";
-import type { ProjectId, ProjectRuntimeView } from "../project/index";
+import type { AssetKey, ProjectId, ProjectRuntimeView } from "../project/index";
 import type { SceneDocStatus } from "./connect/scene-doc";
-import { EditorFrame, editorChrome, focusRegion, Island } from "./frame/EditorFrame";
-import { hostCue, type EditorHost, type EditorNotify } from "./host";
-import { createToaster, hostNotify, Toasts } from "./kit/index";
+import {
+  EditorFrame,
+  editorChrome,
+  Island,
+  type EditorChrome,
+  type EditorFrameHandle,
+  type FramePanels,
+} from "./frame/EditorFrame";
+import { hostCue, type EditorHost } from "./host";
+import { createToaster, hostNotify, Spinner, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { InspectorReadOnly } from "./panels/EditorInspector";
-import type { Pending, PendingTask } from "./pending/pending";
+import type { PanelControls } from "./panels/registry";
+import { createPending } from "./pending/pending";
 import { PendingProvider } from "./pending/use-pending";
-import { useSceneEditor, type EditorAssets } from "./session/use-scene-editor";
+import { useSceneEditor, type BootPhase, type EditorAssets } from "./session/use-scene-editor";
 
 export type SceneEditorProps = {
   host: EditorHost;
@@ -44,68 +53,72 @@ export type SceneEditorHandle = {
   resetLayout(): void;
 };
 
-// ─── Pending ─────────────────────────────────────────────
-
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-/** Runs each task straight away and tracks none: no busy state, no activity line. */
-function immediatePending(notify: EditorNotify): Pending {
-  const store = new Store<{ tasks: readonly PendingTask[] }>({ tasks: [] });
-  const step = { progress() {}, label() {} };
-  return {
-    store,
-    async run(spec, work) {
-      try {
-        const value = await work(step);
-        const said = typeof spec.success === "function" ? spec.success(value) : spec.success;
-        if (said) notify.success(said);
-        return { ok: true, value };
-      } catch (error) {
-        const title = typeof spec.error === "function" ? spec.error(error) : spec.error;
-        notify.error(title, { description: errorMessage(error) });
-        return { ok: false, error };
-      }
-    },
-    hold: () => (outcome) => {
-      if (outcome?.error !== undefined)
-        notify.error(outcome.errorTitle ?? "Something went wrong", {
-          description: errorMessage(outcome.error),
-        });
-    },
-    busy: () => undefined,
-  };
-}
-
 // ─── The editor ──────────────────────────────────────────
 
-const CONNECTING_LABEL: Record<SceneDocStatus, string> = {
+const CONNECTION_LABEL: Record<SceneDocStatus, string> = {
   connecting: "Connecting to the scene server",
-  live: "Opening the editor",
+  live: "Connecting to the scene server",
   reconnecting: "Reconnecting to the scene server",
   offline: "Offline",
   failed: "The editor couldn't open the project",
 };
 
-function EditorConnecting({ status, error }: { status: SceneDocStatus; error: Error | null }) {
+const PHASE_LABEL: Record<Exclude<BootPhase, "connecting">, string> = {
+  scene: "Opening the scene",
+  assets: "Opening materials and prefabs",
+  game: "Building the game",
+};
+
+const REBUILD_LABEL = "Rebuilding the game";
+
+/** What the editor is doing while its panels can't be used yet, and whether it is still at it. */
+function bootStatus(
+  phase: BootPhase,
+  status: SceneDocStatus,
+  failed: Error | null,
+): { label: string; working: boolean; error: string | null } {
+  if (failed) return { label: "The game couldn't start", working: false, error: failed.message };
+  if (phase !== "connecting") return { label: PHASE_LABEL[phase], working: true, error: null };
+  return {
+    label: CONNECTION_LABEL[status],
+    working: status !== "failed" && status !== "offline",
+    error: null,
+  };
+}
+
+function EditorBooting({
+  label,
+  working,
+  error,
+}: {
+  label: string;
+  working: boolean;
+  error: string | null;
+}) {
   return (
-    <Island role="status" className="je-editor-connecting">
-      <span>{CONNECTING_LABEL[status]}</span>
-      {status === "failed" && error ? (
-        <span className="je-editor-connecting-error">{error.message}</span>
-      ) : null}
+    <Island role="status" aria-live="polite" className="je-editor-connecting">
+      <span className="je-session-boot-label">
+        {working ? <Spinner size={12} label={null} /> : null}
+        {label}
+      </span>
+      {error ? <span className="je-editor-connecting-error">{error}</span> : null}
     </Island>
   );
 }
 
-/** The island each panel sits in, for `openPanel`. */
-const PANEL_ISLAND: Readonly<Record<string, string>> = {
-  outliner: ".je-island-outliner",
-  project: ".je-island-project",
-  inspector: ".je-island-inspector",
-  problems: ".je-island-problems",
-  run: ".je-island-run",
-  history: ".je-island-history",
+/** The panels' tabs while the editor boots: nothing to count or follow, and every body its skeleton. */
+const BOOT_PANELS: FramePanels = {
+  context: {
+    controls: {
+      session: { store: new Store({ issues: [], selection: [] }) },
+    } as unknown as PanelControls,
+    physical: new Store<readonly SceneIssue[]>([]),
+    pickedAsset: new Store<AssetKey | null>(null),
+  },
+  booting: true,
 };
 
 /**
@@ -141,10 +154,11 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef<EditorFrameHandle>(null);
   const [toaster] = useState(() => createToaster({ cue: hostCue(host) }));
   useEffect(() => () => toaster.destroy(), [toaster]);
   const [notify] = useState(() => hostNotify(host, toaster));
-  const [pending] = useState(() => immediatePending(notify));
+  const [pending] = useState(() => createPending({ notify }));
   const [getCanvas] = useState(() => () => canvasRef.current);
   const [loadRapier] = useState(() => () => latest.current.rapier());
   const registry = useMemo(() => createRegistry(definition), [definition]);
@@ -155,10 +169,12 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     /** Built with the open project's asset loader. */
     loads: boolean;
   } | null>(null);
+  const [buildFailed, setBuildFailed] = useState<Error | null>(null);
   const game = built?.game ?? null;
   const editing = useSceneEditor({
     host,
     notify,
+    pending,
     game,
     builtWith: built?.projectData ?? null,
     project,
@@ -225,15 +241,18 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
       }
       instance = created;
       last = size;
+      setBuildFailed(null);
       setBuilt({ game: created, projectData, loads: loader !== null });
       created.start();
       // The box may have changed while the game was being made.
       handleResize();
     }
 
-    init().catch((error: unknown) =>
-      notify.error("The game couldn't start", { description: errorMessage(error) }),
-    );
+    init().catch((error: unknown) => {
+      if (!mounted) return;
+      setBuildFailed(error instanceof Error ? error : new Error(String(error)));
+      notify.error("The game couldn't start", { description: errorMessage(error) });
+    });
 
     function handleResize() {
       if (!instance || !canvas) return;
@@ -259,12 +278,16 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     };
   }, [definition, buildRegistry, projectData, loadRapier, notify]);
 
-  const opened = editing.scene;
+  // Said once per fallback; a host's route that follows it to the opened scene keeps the same one.
+  const fellBack = editing.fellBack;
   useEffect(() => {
-    const asked = latest.current.scene;
-    if (opened !== null && asked !== undefined && opened !== asked)
-      latest.current.host.onSceneChange?.(opened);
-  }, [opened]);
+    if (!fellBack) return;
+    notify.warning(`There's no scene ${fellBack.wanted} in this project`, {
+      id: "scene-fallback",
+      description: `${fellBack.opened} opened instead.`,
+    });
+    latest.current.host.onSceneChange?.(fellBack.opened);
+  }, [fellBack, notify]);
 
   // Once per game built over the project's loader: the opened scene's textures, and which failed.
   const editorSession = editing.editor?.session ?? null;
@@ -289,42 +312,56 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     if (!chrome || announced.current) return;
     announced.current = true;
     latest.current.onReady?.({
-      openPanel(id) {
-        const selector = PANEL_ISLAND[id];
-        const frame = canvasRef.current?.closest(".je-frame");
-        const island = selector ? frame?.querySelector<HTMLElement>(selector) : null;
-        if (!island) return;
-        island.scrollIntoView?.({ block: "nearest" });
-        focusRegion(island);
-      },
-      // The columns are fixed, so there is no layout to put back.
-      resetLayout() {},
+      openPanel: (id) => frameRef.current?.openPanel(id),
+      resetLayout: () => frameRef.current?.resetLayout(),
     });
   }, [chrome]);
 
-  const connecting =
-    !chrome && editing.status ? (
-      <EditorConnecting status={editing.status} error={editing.error} />
-    ) : undefined;
+  // Through a rebuild the last editor's chrome stays on screen, inert, until the next one opens.
+  const [kept, setKept] = useState<EditorChrome | null>(null);
+  const rebuilding = editing.rebuilding && !buildFailed;
+  if (chrome && kept !== chrome) setKept(chrome);
+  else if (!chrome && !rebuilding && kept) setKept(null);
+  const shown = chrome ?? (rebuilding ? kept : null);
+  const inert = !chrome && shown !== null;
+
+  const booting =
+    !shown && (editing.phase || buildFailed)
+      ? bootStatus(editing.phase ?? "game", editing.status ?? "connecting", buildFailed)
+      : null;
+  const activity = inert ? REBUILD_LABEL : booting?.working ? booting.label : null;
+  useEffect(() => {
+    if (!activity) return;
+    return pending.hold({ id: "editor:session", label: activity, scope: "editor" });
+  }, [activity, pending]);
 
   return (
     <PendingProvider pending={pending}>
       <InspectorReadOnly value={editing.editor?.project?.readOnly ?? false}>
-        <EditorFrame
-          host={host}
-          topLeft={host.chrome?.topLeft}
-          topRight={host.chrome?.topRight}
-          {...chrome}
-          status={chrome?.status ?? connecting}
-          overlay={
-            <>
-              {chrome?.overlay}
-              {notify === toaster.notify ? <Toasts toaster={toaster} /> : null}
-            </>
-          }
+        <div
+          className="je-session"
+          style={{ display: "contents" }}
+          inert={inert}
+          aria-busy={inert || undefined}
         >
-          <canvas ref={canvasRef} className="je-scene-canvas" />
-        </EditorFrame>
+          <EditorFrame
+            frameRef={frameRef}
+            host={host}
+            topLeft={host.chrome?.topLeft}
+            topRight={host.chrome?.topRight}
+            {...shown}
+            panels={shown?.panels ?? BOOT_PANELS}
+            status={shown?.status ?? (booting ? <EditorBooting {...booting} /> : undefined)}
+            overlay={
+              <>
+                {shown?.overlay}
+                {notify === toaster.notify ? <Toasts toaster={toaster} /> : null}
+              </>
+            }
+          >
+            <canvas ref={canvasRef} className="je-scene-canvas" />
+          </EditorFrame>
+        </div>
       </InspectorReadOnly>
     </PendingProvider>
   );

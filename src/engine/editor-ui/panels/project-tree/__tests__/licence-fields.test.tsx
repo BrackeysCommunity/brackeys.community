@@ -69,7 +69,9 @@ describe("LicenceFields", () => {
 
     fireEvent.change(author, { target: { value: "Bo" } });
     await act(async () => fireEvent.blur(author));
-    expect(toastError).toHaveBeenCalledWith("read-only kind");
+    expect(toastError).toHaveBeenCalledWith("Couldn't save the author", {
+      description: "read-only kind",
+    });
   });
 
   it("is read-only for viewers", () => {

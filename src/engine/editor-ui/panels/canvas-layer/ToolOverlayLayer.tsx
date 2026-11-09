@@ -1,4 +1,7 @@
-import type { GizmoHandle, OverlayTone, Pt, ToolOverlay } from "../../../editor/index";
+import type { CSSProperties, ReactNode } from "react";
+
+import type { Aabb, GizmoHandle, OverlayTone, Pt, ToolOverlay } from "../../../editor/index";
+import type { Style } from "../../../game/index";
 import { aabb } from "../../../scene/index";
 import {
   num,
@@ -13,25 +16,6 @@ import {
 /** Handles keep this size on screen at any zoom. */
 const HANDLE_PX = 8;
 const DASH = "6 4";
-
-type ToneLook = { stroke: string; opacity?: number; dashed?: boolean };
-
-const TONE: Record<OverlayTone, ToneLook> = {
-  selected: { stroke: "var(--je-primary)" },
-  hover: { stroke: "var(--je-primary)", opacity: 0.55 },
-  invalid: { stroke: "var(--je-danger)" },
-  ghost: { stroke: "var(--je-primary)", opacity: 0.8, dashed: true },
-  guide: { stroke: "var(--je-info)", dashed: true },
-};
-
-const strokeOf = (tone: OverlayTone, dashed?: boolean) => {
-  const look = TONE[tone];
-  return {
-    stroke: look.stroke,
-    strokeOpacity: look.opacity,
-    strokeDasharray: dashed || look.dashed ? DASH : undefined,
-  };
-};
 
 const SQUARE_HANDLES: readonly GizmoHandle["kind"][] = ["vertex", "resize", "move", "waypoint"];
 
@@ -66,80 +50,184 @@ function Handle({ handle, view }: { handle: GizmoHandle; view: View }) {
   return <circle {...common} cx={num(x)} cy={num(y)} r={HANDLE_PX / 2 + 0.5} fill={fill} />;
 }
 
+/** A game template's colour for its ghost: its stroke, else its fill. */
+function styleTone(style: Style | undefined): string | undefined {
+  const c = style?.stroke ?? style?.fill;
+  return c === undefined ? undefined : `#${(c & 0xffffff).toString(16).padStart(6, "0")}`;
+}
+
+/** A rectangle's attributes in world px. */
+const rectOf = (r: Aabb) => ({
+  x: r.minX,
+  y: r.minY,
+  width: r.maxX - r.minX,
+  height: r.maxY - r.minY,
+});
+
+/**
+ * One outline, point, guide, placement ghost or path: a dark halo under the tone's stroke,
+ * both a constant width on screen, so it reads over any art at any zoom.
+ * Its look comes from the stylesheet by `data-tone`, and `data-preview`
+ * fills a mark that shows a drag in progress.
+ */
+function Mark({
+  kind,
+  tone,
+  of,
+  candidate = false,
+  preview = false,
+  shape,
+  dashed,
+  closed,
+  style,
+  children,
+}: {
+  /** `placement` is a ghost about to be placed; `polyline` a path or pen stroke. */
+  kind: "outline" | "point" | "guide" | "placement" | "polyline";
+  tone: OverlayTone;
+  /** The entity it belongs to. */
+  of?: string | undefined;
+  /** The marquee would select it. */
+  candidate?: boolean;
+  /** Where the drag in progress puts it. */
+  preview?: boolean | undefined;
+  /** The outline's shape type; an open chain is never filled. */
+  shape?: string;
+  /** A polyline drawn dashed: the pen's next segment, a path being replaced. */
+  dashed?: boolean | undefined;
+  closed?: boolean | undefined;
+  style?: CSSProperties | undefined;
+  /** The shape, drawn twice: once as the halo, once as the stroke. */
+  children: (className: string) => ReactNode;
+}) {
+  return (
+    <g
+      className="je-ov-mark"
+      {...{ [`data-${kind}`]: tone }}
+      data-tone={tone}
+      data-ref={of}
+      data-candidate={candidate ? "" : undefined}
+      data-preview={preview ? "" : undefined}
+      data-shape={shape}
+      data-dashed={dashed ? "" : undefined}
+      data-closed={closed ? "" : undefined}
+      style={style}
+    >
+      {children("je-ov-halo")}
+      {children("je-ov-stroke")}
+    </g>
+  );
+}
+
 /** The world-space half: outlines, ghosts, the marquee, guides, paths and points. */
 function WorldMarks({ overlay, view }: { overlay: ToolOverlay; view: View }) {
   const r = worldPx(view, POINT_RADIUS_PX);
+  const hits = new Set(overlay.marquee?.hits ?? []);
+  const candidate = (tone: OverlayTone, ref: string | undefined) =>
+    tone === "hover" && ref !== undefined && hits.has(ref);
   return (
     <g fill="none" strokeWidth={2}>
       {overlay.ghosts?.map((g, i) => {
-        const color = g.valid ? "var(--je-primary)" : "var(--je-danger)";
+        const d = shapePath(g.shape);
+        const tint = g.valid ? styleTone(g.style) : undefined;
         return (
-          <path
+          <Mark
             key={`ghost-${i}`}
-            data-ghost-shape={g.valid ? "valid" : "invalid"}
-            d={shapePath(g.shape)}
-            fill={color}
-            fillOpacity={0.15}
-            stroke={color}
-            strokeDasharray={DASH}
-            vectorEffect="non-scaling-stroke"
-          />
+            kind="placement"
+            tone={g.valid ? "ghost" : "invalid"}
+            shape={g.shape.type}
+            style={tint ? ({ "--je-place-tone": tint } as CSSProperties) : undefined}
+          >
+            {(className) => <path className={className} d={d} vectorEffect="non-scaling-stroke" />}
+          </Mark>
         );
       })}
-      {overlay.outlines?.map((o, i) => (
-        <path
-          key={`outline-${i}`}
-          data-outline={o.tone}
-          d={shapePath(o.shape)}
-          {...strokeOf(o.tone)}
-          vectorEffect="non-scaling-stroke"
-        />
-      ))}
-      {overlay.polylines?.map((p, i) => (
-        <path
-          key={`polyline-${i}`}
-          data-polyline={p.closed ? "closed" : "open"}
-          d={polylinePath(p.pts, p.closed)}
-          {...strokeOf(p.tone, p.dashed)}
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      ))}
+      {overlay.bounds ? (
+        <g className="je-ov-mark" data-bounds="">
+          <rect
+            className="je-ov-halo"
+            {...rectOf(overlay.bounds)}
+            vectorEffect="non-scaling-stroke"
+          />
+          <rect
+            className="je-ov-stroke"
+            {...rectOf(overlay.bounds)}
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
+      ) : null}
+      {overlay.outlines?.map((o, i) => {
+        const d = shapePath(o.shape);
+        return (
+          <Mark
+            key={`outline-${i}`}
+            kind="outline"
+            tone={o.tone}
+            of={o.ref}
+            candidate={candidate(o.tone, o.ref)}
+            preview={o.preview}
+            shape={o.shape.type}
+          >
+            {(className) => <path className={className} d={d} vectorEffect="non-scaling-stroke" />}
+          </Mark>
+        );
+      })}
+      {overlay.polylines?.map((p, i) => {
+        const d = polylinePath(p.pts, p.closed);
+        const line = { fill: "none", strokeDasharray: p.dashed ? DASH : "none" };
+        return (
+          <Mark
+            key={`polyline-${i}`}
+            kind="polyline"
+            tone={p.tone}
+            dashed={p.dashed}
+            closed={p.closed}
+          >
+            {(className) => (
+              <path className={className} d={d} style={line} vectorEffect="non-scaling-stroke" />
+            )}
+          </Mark>
+        );
+      })}
       {overlay.guides?.map((g, i) => (
-        <line
-          key={`guide-${i}`}
-          data-guide=""
-          x1={g.from[0]}
-          y1={g.from[1]}
-          x2={g.to[0]}
-          y2={g.to[1]}
-          strokeWidth={1}
-          {...strokeOf("guide")}
-          vectorEffect="non-scaling-stroke"
-        />
+        <Mark key={`guide-${i}`} kind="guide" tone="guide">
+          {(className) => (
+            <line
+              className={className}
+              x1={g.from[0]}
+              y1={g.from[1]}
+              x2={g.to[0]}
+              y2={g.to[1]}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </Mark>
       ))}
       {overlay.points?.map((p, i) => (
-        <circle
+        <Mark
           key={`point-${i}`}
-          data-point={p.tone}
-          cx={p.at[0]}
-          cy={p.at[1]}
-          r={r}
-          {...strokeOf(p.tone)}
-          vectorEffect="non-scaling-stroke"
-        />
+          kind="point"
+          tone={p.tone}
+          of={p.ref}
+          candidate={candidate(p.tone, p.ref)}
+          preview={p.preview}
+        >
+          {(className) => (
+            <circle
+              className={className}
+              cx={p.at[0]}
+              cy={p.at[1]}
+              r={r}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </Mark>
       ))}
       {overlay.marquee ? (
         <rect
+          className="je-ov-marquee"
           data-marquee={overlay.marquee.touch ? "touch" : "contain"}
-          x={overlay.marquee.rect.minX}
-          y={overlay.marquee.rect.minY}
-          width={overlay.marquee.rect.maxX - overlay.marquee.rect.minX}
-          height={overlay.marquee.rect.maxY - overlay.marquee.rect.minY}
-          fill="var(--je-primary)"
-          fillOpacity={0.08}
-          stroke="var(--je-primary)"
-          strokeWidth={1}
+          {...rectOf(overlay.marquee.rect)}
           strokeDasharray={overlay.marquee.touch ? DASH : undefined}
           vectorEffect="non-scaling-stroke"
         />

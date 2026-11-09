@@ -53,6 +53,7 @@ beforeAll(() => {
 afterAll(() => vi.restoreAllMocks());
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   toastError.mockReset();
   cue.mockReset();
 });
@@ -87,10 +88,11 @@ function dropFiles(target: Element, list: File[]) {
 describe("ProjectTree", () => {
   it("renders folders, assets with their kind icons, and greyed read-only code", () => {
     const { onOpen } = setup();
-    const names = files()
-      .getAllByRole("listitem")
-      .map((li) => li.textContent?.replace(/\d+$/, ""));
-    expect(names).toEqual([
+    const names = () =>
+      files()
+        .getAllByRole("listitem")
+        .map((li) => li.textContent?.replace(/\d+$/, ""));
+    expect(names()).toEqual([
       "Yard",
       "scenes",
       "level-1.json",
@@ -98,10 +100,11 @@ describe("ProjectTree", () => {
       "jump.ogg",
       "sprites",
       "hero.png",
-      "src",
-      "game.ts",
       "ice.material.json",
+      "Code",
     ]);
+    fireEvent.click(files().getByRole("button", { name: /^Code/ }));
+    expect(names().slice(-3)).toEqual(["Code", "src", "game.ts"]);
     expect(rowOf("Yard").textContent).toContain("5");
     expect(rowOf("hero.png").dataset.kind).toBe("texture");
     expect(rowOf("hero.png").querySelector("svg")).not.toBeNull();
@@ -176,7 +179,7 @@ describe("ProjectTree", () => {
     const input = files().getByLabelText("File name");
     fireEvent.change(input, { target: { value: "x.png" } });
     await act(async () => fireEvent.keyDown(input, { key: "Enter" }));
-    expect(toastError).toHaveBeenCalledWith("path-taken");
+    expect(toastError).toHaveBeenCalledWith("Couldn't rename hero", { description: "path-taken" });
   });
 
   it("drags an asset onto a folder or the root to move it", async () => {
@@ -297,13 +300,13 @@ describe("ProjectTree", () => {
     const { onDropFiles } = setup();
     const png = new File(["x"], "coin.png", { type: "image/png" });
     dropFiles(files().getByRole("button", { name: /^sprites/ }), [png]);
-    expect(onDropFiles).toHaveBeenCalledWith([png], "sprites/");
+    expect(onDropFiles).toHaveBeenCalledWith([png], "sprites/", expect.anything());
 
     dropFiles(files().getByRole("button", { name: /^jump\.ogg/ }), [png]);
-    expect(onDropFiles).toHaveBeenLastCalledWith([png], "sfx/");
+    expect(onDropFiles).toHaveBeenLastCalledWith([png], "sfx/", expect.anything());
 
     dropFiles(rowOf("Yard"), [png]);
-    expect(onDropFiles).toHaveBeenLastCalledWith([png], "");
+    expect(onDropFiles).toHaveBeenLastCalledWith([png], "", expect.anything());
   });
 
   it("takes no edits when read-only", async () => {

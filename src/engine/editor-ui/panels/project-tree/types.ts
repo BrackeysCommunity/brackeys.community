@@ -10,6 +10,7 @@ import type {
   Referrer,
 } from "../../../project/index";
 import type { EditorNotify } from "../../host";
+import type { PendingStep } from "../../pending/pending";
 
 /** What a delete asks for: `force` once the person chose "Delete anyway" over `referrers`. */
 export type DeleteRequest = { force: boolean; referrers: readonly Referrer[] };
@@ -17,7 +18,10 @@ export type DeleteRequest = { force: boolean; referrers: readonly Referrer[] };
 /** A delete the store refused because the asset is still referenced: the dialog reopens listing them. */
 export type DeleteRefused = { inUse: readonly Referrer[] };
 
-/** Callbacks may return a promise; a rejection shows its message through `notify.error`. */
+/**
+ * Callbacks may return a promise, which keeps their row busy until it
+ * settles; a rejection shows its message through `notify.error`.
+ */
 type Result<T = void> = T | Promise<T>;
 
 /**
@@ -56,8 +60,12 @@ export type ProjectTreeProps = {
    * frames.
    */
   assetInfo?: (entry: AssetEntry, frame?: string) => AssetInfo | null;
-  /** Files dropped on the panel or on a folder row; `folder` as `onMove`'s `to`. */
-  onDropFiles?: (files: File[], folder: string) => Result;
+  /**
+   * Files dropped on the panel or on a folder row; `folder` as `onMove`'s
+   * `to`. `step` reports the import's progress (files done of all dropped)
+   * and what it's doing now; the folder shows both until it settles.
+   */
+  onDropFiles?: (files: File[], folder: string, step: PendingStep) => Result;
   /** Where a failed callback is reported; default the console. */
   notify?: Pick<EditorNotify, "error">;
 };

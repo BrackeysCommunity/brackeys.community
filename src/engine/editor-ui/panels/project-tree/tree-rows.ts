@@ -20,7 +20,10 @@ export type TreeRow =
       folder: string;
       /** Assets and code modules beneath it. */
       count: number;
+      /** A folder under the Code row: it holds code modules only and takes no drops. */
+      code?: true;
     }
+  | { type: "code-group"; key: string; depth: 1; count: number }
   | {
       type: "asset";
       key: string;
@@ -35,6 +38,7 @@ export type TreeRow =
   | { type: "code"; key: string; depth: number; path: string; name: string; info: CodeModuleInfo };
 
 export const ROOT_KEY = "root";
+export const CODE_GROUP_KEY = "code-group";
 
 const trimSlash = (path: string) => path.replace(/\/+$/, "");
 
@@ -51,7 +55,7 @@ export const parentFolder = (path: string) => {
   return slash < 0 ? "" : p.slice(0, slash + 1);
 };
 
-const folderKey = (path: string) => `folder:${trimSlash(path)}`;
+const folderKey = (path: string, prefix = "") => `${prefix}folder:${trimSlash(path)}`;
 
 export const fileCount = (nodes: readonly ProjectTreeNode[]): number =>
   nodes.reduce((n, node) => n + (node.type === "folder" ? fileCount(node.children) : 1), 0);
@@ -73,13 +77,65 @@ export type FlattenOptions = {
 export function flattenTree(
   nodes: readonly ProjectTreeNode[],
   collapsed: ReadonlySet<string>,
-  { framesOf, expanded }: FlattenOptions = {},
+  options: FlattenOptions = {},
 ): TreeRow[] {
-  const out: TreeRow[] = [{ type: "root", key: ROOT_KEY, depth: 0, folder: "" }];
+  return [
+    { type: "root", key: ROOT_KEY, depth: 0, folder: "" },
+    ...walkRows(nodes, collapsed, options),
+  ];
+}
+
+/**
+ * `nodes` split in two: the assets, in their folders, and the code modules,
+ * in theirs. A folder holding only code is left out of the assets.
+ */
+export function splitCode(nodes: readonly ProjectTreeNode[]): {
+  assets: ProjectTreeNode[];
+  code: ProjectTreeNode[];
+} {
+  const assets: ProjectTreeNode[] = [];
+  const code: ProjectTreeNode[] = [];
+  for (const node of nodes) {
+    if (node.type === "code") code.push(node);
+    else if (node.type === "asset") assets.push(node);
+    else {
+      const inner = splitCode(node.children);
+      if (inner.assets.length > 0) assets.push({ ...node, children: inner.assets });
+      if (inner.code.length > 0) code.push({ ...node, children: inner.code });
+    }
+  }
+  return { assets, code };
+}
+
+/**
+ * The tree's rows: the root, the assets, then one Code row with the code
+ * modules beneath it while `codeOpen`.
+ */
+export function projectRows(
+  nodes: readonly ProjectTreeNode[],
+  collapsed: ReadonlySet<string>,
+  { codeOpen = false, ...options }: FlattenOptions & { codeOpen?: boolean } = {},
+): TreeRow[] {
+  const { assets, code } = splitCode(nodes);
+  const rows = flattenTree(assets, collapsed, options);
+  if (code.length === 0) return rows;
+  rows.push({ type: "code-group", key: CODE_GROUP_KEY, depth: 1, count: fileCount(code) });
+  if (codeOpen) rows.push(...walkRows(code, collapsed, {}, 2, "code:"));
+  return rows;
+}
+
+function walkRows(
+  nodes: readonly ProjectTreeNode[],
+  collapsed: ReadonlySet<string>,
+  { framesOf, expanded }: FlattenOptions,
+  start = 1,
+  prefix = "",
+): TreeRow[] {
+  const out: TreeRow[] = [];
   const walk = (list: readonly ProjectTreeNode[], depth: number) => {
     for (const node of list) {
       if (node.type === "folder") {
-        const key = folderKey(node.path);
+        const key = folderKey(node.path, prefix);
         const path = trimSlash(node.path);
         out.push({
           type: "folder",
@@ -89,6 +145,7 @@ export function flattenTree(
           name: baseName(path),
           folder: `${path}/`,
           count: fileCount(node.children),
+          ...(prefix ? { code: true as const } : {}),
         });
         if (!collapsed.has(key)) walk(node.children, depth + 1);
       } else if (node.type === "asset") {
@@ -127,7 +184,7 @@ export function flattenTree(
       }
     }
   };
-  walk(nodes, 1);
+  walk(nodes, start);
   return out;
 }
 

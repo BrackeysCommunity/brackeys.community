@@ -14,9 +14,16 @@ export {
   type PrefabIsolationOptions,
 } from "./isolation";
 export { createHistory, type History, type HistoryEntry, type HistoryOptions } from "./history";
-export { dropBatch, dropFragment, type AssetDrop } from "./asset-drop";
+export {
+  dropBatch,
+  dropFragment,
+  dropPreview,
+  type AssetDrop,
+  type DropOptions,
+  type DropPreview,
+} from "./asset-drop";
 export { prune, remap, select, type SelectMode } from "./selection";
-export { createEditorStore, type EditorMode, type EditorStoreState } from "./store";
+export { createEditorStore, setHover, type EditorMode, type EditorStoreState } from "./store";
 export { buildOutline, INSTANCES_ROW, outlineOrder, type OutlineRow } from "./outline";
 export {
   applyLevels,
@@ -134,6 +141,7 @@ export {
   type PasteResult,
 } from "./clipboard";
 export {
+  boundsCheck,
   placedShape,
   placementEditorTool,
   type PlacedTemplate,

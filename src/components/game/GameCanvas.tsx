@@ -9,12 +9,14 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasShell, Island } from "@/components/canvas/shell/CanvasShell";
 import { MicroLabel } from "@/components/ui/typography";
 import { platformerGame } from "@/games/platformer";
+import { useFlag } from "@/lib/hooks/use-flag";
 
+import { displayResolution, useDisplaySetting } from "./display-menu";
 import { BUNDLED_PREFABS, BUNDLED_SCENE, SCENE_REGISTRY } from "./platformer-scene";
 import { GameSiteIsland } from "./site-island";
 
@@ -89,10 +91,21 @@ function EditorLoading({ roomId }: { roomId: string }) {
   );
 }
 
-/** The game room as everyone plays it: the bundled scene. */
+/**
+ * The game room as everyone plays it: the bundled scene. Under the display
+ * menu's flag the viewer's choice is the host's resolution policy, and a new
+ * choice rebuilds the game, since the engine reads it once at creation.
+ */
 function GameRoom({ roomId }: { roomId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [game, setGame] = useState<GameInstance | null>(null);
+  const displayMenu = useFlag("game-display-menu");
+  const [display, setDisplay] = useDisplaySetting();
+  const resolutionKey = JSON.stringify(displayMenu ? (displayResolution(display) ?? null) : null);
+  const resolution = useMemo(
+    () => (JSON.parse(resolutionKey) as ReturnType<typeof displayResolution> | null) ?? undefined,
+    [resolutionKey],
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -104,8 +117,6 @@ function GameRoom({ roomId }: { roomId: string }) {
     async function init() {
       if (!canvas || !mounted) return;
 
-      // Display resolution = window size (Native mode).
-      // A future settings UI can override with a fixed resolution.
       const [debug, debugLayers] = import.meta.env.DEV
         ? await Promise.all([
             import("@jams/engine/debug").then((m) => m.createDebugOverlay),
@@ -127,6 +138,7 @@ function GameRoom({ roomId }: { roomId: string }) {
         keyTarget: window,
         prefabs: BUNDLED_PREFABS,
         scene: BUNDLED_SCENE,
+        ...(resolution ? { resolution } : {}),
       });
 
       if (!mounted) {
@@ -157,11 +169,16 @@ function GameRoom({ roomId }: { roomId: string }) {
       }
       setGame(null);
     };
-  }, []);
+  }, [resolution]);
 
   return (
     <CanvasShell
-      topLeft={<GameSiteIsland title={roomId} />}
+      topLeft={
+        <GameSiteIsland
+          title={roomId}
+          display={displayMenu ? { value: display, onChange: setDisplay } : undefined}
+        />
+      }
       status={game ? <GameHUD store={game.getStore()} /> : undefined}
     >
       <canvas

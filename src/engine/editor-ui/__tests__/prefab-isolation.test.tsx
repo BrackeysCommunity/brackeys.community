@@ -179,7 +179,7 @@ async function setupWithKeys() {
 const opened = () => act(() => new Promise((r) => setTimeout(r, 0)));
 
 const outliner = () => within(screen.getByRole("navigation", { name: "Outliner" }));
-const inspector = () => within(screen.getByLabelText("Inspector"));
+const inspector = () => within(screen.getByRole("tabpanel", { name: "Inspector" }));
 const worldAt = (fake: Fake, id: string) => fake.world()!.entities.find((e) => e.id === id)?.at;
 const topOf = (live: LiveEditor, instance: string) =>
   live.session.getResolved().entities!.find((e) => e.id === `${instance}/top`)!.at;

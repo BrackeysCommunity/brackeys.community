@@ -21,6 +21,7 @@ import {
   isFollowerType,
   lookupRef,
   outlineOrder,
+  setHover,
   type EditorSession,
   type OpBatch,
   type OutlineRow,
@@ -43,6 +44,8 @@ import {
   SegmentedControl,
   useKit,
 } from "../kit/index";
+import { useBusy } from "../pending/use-pending";
+import { openPrefabScope } from "../session/live-scene-editor";
 import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
 import { PeerFaces } from "./peer-faces";
 
@@ -79,7 +82,8 @@ type EntityRow = OutlineRow & { kind: "entity" };
 
 const isEntityRow = (row: Row): row is EntityRow => row.kind === "entity";
 
-function readStored<T>(
+/** A JSON value kept in the host's storage, or `fallback` when it's missing, unreadable or not `valid`. */
+export function readStored<T>(
   storage: EditorStorage,
   key: string,
   fallback: T,
@@ -94,8 +98,8 @@ function readStored<T>(
   }
 }
 
-/** Outliner state is a convenience: a storage that refuses it keeps it for the page's life. */
-function writeStored(storage: EditorStorage, key: string, value: unknown) {
+/** Panel state is a convenience: a storage that refuses it keeps it for the page's life. */
+export function writeStored(storage: EditorStorage, key: string, value: unknown) {
   try {
     storage.set(key, JSON.stringify(value));
   } catch {
@@ -103,7 +107,7 @@ function writeStored(storage: EditorStorage, key: string, value: unknown) {
   }
 }
 
-const isRecord = (v: unknown): v is Record<string, boolean> =>
+export const isRecord = (v: unknown): v is Record<string, boolean> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 const isView = (v: unknown): v is View => v === "type" || v === "layer";
 
@@ -245,6 +249,9 @@ function parseFilter(query: string): OutlineFilter {
   }
   return out;
 }
+
+const FILTER_SYNTAX =
+  "Words match ids and names; type:sensor, shape:box and has:problems narrow the rows. Esc clears.";
 
 const filterChips = (f: OutlineFilter) => [
   ...f.types.map((t) => `type:${t}`),
@@ -426,6 +433,7 @@ function EntityItem({
   expanded,
   onToggle,
   selected,
+  hovered,
   selectedBy,
   indent,
   onSelect,
@@ -440,10 +448,12 @@ function EntityItem({
   expanded?: boolean;
   onToggle?: () => void;
   selected: boolean;
+  /** The pointer is over this entity, here or in the scene view. */
+  hovered: boolean;
   selectedBy: PeerPresence[] | undefined;
   indent: CSSProperties;
   onSelect: (mode: "replace" | "range" | "toggle") => void;
-  onHover?: (ref: Ref | null) => void;
+  onHover: (ref: Ref | null) => void;
   onOpenPrefab?: (prefab: string, from: Ref) => void;
 }) {
   const ref = row.ref;
@@ -458,6 +468,7 @@ function EntityItem({
     disabled: !follower || !ref,
   });
   const prefab = row.prefab;
+  const opening = useBusy(ref ? openPrefabScope(ref) : "") !== undefined;
   return (
     <li
       ref={setDropRef}
@@ -487,10 +498,13 @@ function EntityItem({
           if (!ref) return;
           onSelect(e.shiftKey ? "range" : e.metaKey || e.ctrlKey ? "toggle" : "replace");
         }}
-        onPointerEnter={() => ref && onHover?.(ref)}
-        onPointerLeave={() => onHover?.(null)}
+        onPointerEnter={() => ref && onHover(ref)}
+        onPointerLeave={() => onHover(null)}
         className="je-outliner-row"
         data-selected={selected ? "" : undefined}
+        data-hover={hovered ? "" : undefined}
+        data-busy={opening ? "" : undefined}
+        aria-busy={opening || undefined}
         data-dragging={isDragging ? "" : undefined}
         style={indent}
       >
@@ -515,6 +529,7 @@ function EntityItem({
           tooltip={`Open ${prefab} on its own`}
           aria-label={`Open prefab ${prefab}`}
           className="je-outliner-open"
+          busyScope={openPrefabScope(ref)}
           onClick={() => onOpenPrefab(prefab, ref)}
         >
           Open
@@ -531,9 +546,10 @@ function EntityItem({
  * group row moves them there as one batch. In either view, dragging rows
  * whose type has an `attachField` onto a follower's row attaches them to it,
  * and in the type view dropping them on their type's row detaches them. `physical`
- * adds physical issues to `has:problems`; `onHover` reports the row under
- * the pointer for the canvas to highlight. The view and the collapsed rows
- * are kept in the host's storage.
+ * adds physical issues to `has:problems`. The row under the pointer is the
+ * editor store's `hover`, which the scene view outlines, and the entity
+ * under the pointer in the view marks its row; `onHover` also hears it.
+ * The view and the collapsed rows are kept in the host's storage.
  */
 export function EditorOutliner({
   session,
@@ -551,6 +567,7 @@ export function EditorOutliner({
   const doc = useEditorDoc(session);
   const sceneName = useEditorStore(session, (s) => s.sceneName);
   const selection = useEditorStore(session, (s) => s.selection);
+  const hover = useEditorStore(session, (s) => s.hover);
   const peers = useEditorStore(session, (s) => s.peers);
   const issues = useEditorStore(session, (s) => s.issues);
   const [collapsed, setCollapsed] = useState(() => readStored(storage, COLLAPSE_KEY, {}, isRecord));
@@ -599,6 +616,11 @@ export function EditorOutliner({
   const selected = new Set(selection);
   const filtering = !isEmpty(filter);
 
+  const hoverRow = (ref: Ref | null) => {
+    setHover(session.store, ref);
+    onHover?.(ref);
+  };
+
   const toggle = (row: Row) => {
     const next = { ...collapsed, [row.key]: !(collapsed[row.key] ?? collapsedByDefault(row)) };
     setCollapsed(next);
@@ -629,8 +651,13 @@ export function EditorOutliner({
   };
 
   return (
-    <nav aria-label="Outliner" className="je-outliner">
-      <div className="je-outliner-head">
+    <nav
+      aria-label="Outliner"
+      className="je-outliner"
+      // The pointer left the scene view for here, so what it last hovered there no longer is.
+      onPointerEnter={() => setHover(session.store, null)}
+    >
+      <div className="je-panel-toolbar je-outliner-head">
         <span className="je-sp-truncate je-outliner-scene">{sceneName}</span>
         <SegmentedControl
           size="xs"
@@ -657,19 +684,21 @@ export function EditorOutliner({
         </SegmentedControl>
       </div>
       <div className="je-outliner-filter">
-        <Input
-          type="search"
-          aria-label="Filter rows"
-          placeholder="Filter: type:sensor shape:box has:problems"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && query) {
-              e.stopPropagation();
-              setQuery("");
-            }
-          }}
-        />
+        <Hint content={FILTER_SYNTAX} side="bottom">
+          <Input
+            type="search"
+            aria-label="Filter rows"
+            placeholder="Filter"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && query) {
+                e.stopPropagation();
+                setQuery("");
+              }
+            }}
+          />
+        </Hint>
         {filterChips(filter).length > 0 ? (
           <div className="je-outliner-chips">
             {filterChips(filter).map((chip) => (
@@ -710,10 +739,11 @@ export function EditorOutliner({
                       }
                     : {})}
                   selected={!!ref && selected.has(ref)}
+                  hovered={!!ref && hover === ref}
                   selectedBy={peerMarks.get(row.key)}
                   indent={indent}
                   onSelect={(mode) => ref && session.select([ref], mode, order)}
-                  onHover={onHover}
+                  onHover={hoverRow}
                   onOpenPrefab={onOpenPrefab}
                 />
               );

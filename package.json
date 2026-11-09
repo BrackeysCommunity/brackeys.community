@@ -29,6 +29,7 @@
     "engine:typecheck:strict": "tsc -p src/engine/tsconfig.strict.json",
     "engine:api-report": "bun scripts/engine-api-report.ts",
     "engine:bundle-check": "bun scripts/engine-bundle-check.ts",
+    "engine:editor": "node --no-experimental-webstorage scripts/engine-editor/run.ts",
     "scene": "bun scripts/scene/cli.ts",
     "check": "vp check --no-fmt",
     "lint": "vp lint",

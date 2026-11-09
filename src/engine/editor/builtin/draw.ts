@@ -1,11 +1,14 @@
 import type { Registry } from "../../game/types";
+import type { PlacementCheck } from "../../placement";
 import { bulkEntries, bulkId } from "../../scene/expand";
 import { geometryFields } from "../../scene/schema";
+import { aabb } from "../../scene/shape-geometry";
 import { shapeToTuple } from "../../scene/shapes";
 import type { OpBatch, Pt, Ref, SceneDefinition, ShapeObj } from "../../scene/types";
 import { nextFreeId } from "../clipboard";
 import { roundShape } from "../gizmos/batch";
 import { readShapeSize } from "../gizmos/readout";
+import { boundsCheck } from "../placement";
 import { snapPoint } from "../snap";
 import { defineEditorTool, type EditorToolDef, type ToolOverlay } from "../tools";
 
@@ -100,10 +103,15 @@ export function createDrawTool(opts: DrawToolOptions): EditorToolDef {
     create(ctx) {
       let start: Pt | null = null;
       let shape: ShapeObj | null = null;
-      let cursor: Pt = [0, 0];
+      let cursor: Pt | null = null;
       const drop = () => {
         start = null;
         shape = null;
+        ctx.invalidate();
+      };
+      const follow = (p: Pt) => {
+        if (cursor && cursor[0] === p[0] && cursor[1] === p[1]) return;
+        cursor = p;
         ctx.invalidate();
       };
       return {
@@ -117,7 +125,10 @@ export function createDrawTool(opts: DrawToolOptions): EditorToolDef {
             ctx.invalidate();
             return true;
           }
-          if (!start) return false;
+          if (!start) {
+            if (e.type === "move") follow(p);
+            return false;
+          }
           if (e.type === "move") {
             cursor = p;
             shape = drawnShape(opts.shape, start, p, e);
@@ -140,10 +151,18 @@ export function createDrawTool(opts: DrawToolOptions): EditorToolDef {
         },
         gesture: () => start !== null,
         overlay(): ToolOverlay {
-          if (!shape) return {};
+          // Before the press: where the drag will start, snapped.
+          if (!start) return cursor ? { points: [{ at: cursor, tone: "ghost" }] } : {};
+          if (!shape) return { points: [{ at: start, tone: "ghost" }] };
+          const def = ctx.getDoc();
+          const check: PlacementCheck = drawBatch(def, ctx.registry, type, shape)
+            ? boundsCheck(aabb(shape), def)
+            : { valid: false, reason: `A ${type} has no shape to draw` };
           return {
-            ghosts: [{ shape, valid: true }],
-            readout: { at: cursor, text: readShapeSize(shape) },
+            ghosts: [
+              { shape, valid: check.valid, ...(check.reason ? { reason: check.reason } : {}) },
+            ],
+            readout: { at: cursor ?? start, text: readShapeSize(shape) },
           };
         },
         cursor: () => "crosshair",

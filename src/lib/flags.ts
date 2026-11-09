@@ -45,6 +45,12 @@ export const FEATURE_FLAGS = {
    * procedure and every `/api/engine/*` route, on top of the staff gate.
    */
   "engine-projects": false,
+  /**
+   * The game room's display menu: the viewer picks the fit and virtual size
+   * the site passes to the engine as its resolution policy. Off, the room
+   * plays at the project's and the game's resolution.
+   */
+  "game-display-menu": false,
 } as const satisfies Record<string, boolean>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

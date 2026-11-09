@@ -2,15 +2,24 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  EDITOR_VIEWPORTS,
+  judgeEditor,
+  judgeEditorLayout,
+  judgeEditorRender,
   judgeLaunchFailure,
   judgeRender,
   judgeResult,
+  leavesWindow,
   overallOk,
   PAGE_TIMEOUT_MS,
   parseBrowsers,
+  rectsIntersect,
   SmokeTimeoutError,
   withTimeout,
   type BrowserOutcome,
+  type EditorLayoutProbe,
+  type EditorSmokeResult,
+  type IslandBox,
   type RenderProbe,
 } from "../browser-compare";
 import type { EngineSmokeResult } from "../browser/main";
@@ -104,28 +113,40 @@ describe("judgeRender", () => {
 });
 
 describe("judgeLaunchFailure", () => {
-  it("skips a missing browser locally, with the install command", () => {
+  it("skips a missing browser locally, with the install command, for the editor run too", () => {
     const out = judgeLaunchFailure("firefox", MISSING, false);
     expect(out.status).toBe("skipped");
     expect(out.reason).toContain("vp exec playwright install firefox");
+    expect(out.editor).toEqual({ browser: "firefox", status: "skipped", reason: out.reason });
   });
 
-  it("fails a missing browser in CI", () => {
-    expect(judgeLaunchFailure("firefox", MISSING, true).status).toBe("fail");
+  it("fails a missing browser in CI, the editor run with it", () => {
+    const out = judgeLaunchFailure("firefox", MISSING, true);
+    expect(out.status).toBe("fail");
+    expect(out.editor?.status).toBe("fail");
   });
 
   it("fails any other launch error, locally too", () => {
     const out = judgeLaunchFailure("webkit", "browserType.launch: Target crashed\nlog…", false);
+    const reason = "couldn't launch: browserType.launch: Target crashed";
     expect(out).toEqual({
       browser: "webkit",
       status: "fail",
-      reason: "couldn't launch: browserType.launch: Target crashed",
+      reason,
+      editor: { browser: "webkit", status: "fail", reason },
     });
   });
 });
 
 describe("overallOk", () => {
-  const o = (status: BrowserOutcome["status"]): BrowserOutcome => ({ browser: "chromium", status });
+  const o = (
+    status: BrowserOutcome["status"],
+    editor: BrowserOutcome["status"] | null = status,
+  ): BrowserOutcome => ({
+    browser: "chromium",
+    status,
+    ...(editor ? { editor: { browser: "chromium", status: editor } } : {}),
+  });
 
   it("passes when every browser passed, or passed and skipped", () => {
     expect(overallOk([o("pass"), o("pass")])).toBe(true);
@@ -136,6 +157,191 @@ describe("overallOk", () => {
     expect(overallOk([o("pass"), o("fail")])).toBe(false);
     expect(overallOk([o("skipped"), o("skipped")])).toBe(false);
     expect(overallOk([])).toBe(false);
+  });
+
+  it("fails when a browser's editor run failed, or never ran, though its engine page passed", () => {
+    expect(overallOk([o("pass", "fail")])).toBe(false);
+    expect(overallOk([o("pass"), o("pass", "fail")])).toBe(false);
+    expect(overallOk([o("pass", null)])).toBe(false);
+    expect(overallOk([o("pass", "skipped")])).toBe(false);
+  });
+});
+
+const box = (name: string, x: number, y: number, width: number, height: number): IslandBox => ({
+  name,
+  rect: { x, y, width, height },
+});
+
+/** The default layout's islands at a window size: two columns, the dock between them. */
+function layoutAt(
+  width: number,
+  height: number,
+  inspector: number | null = 520,
+): EditorLayoutProbe {
+  return {
+    width,
+    height,
+    inspector,
+    islands: [
+      box(".je-panel-group.je-frame-group-left-0", 8, 8, 280, height / 2 - 12),
+      box(".je-panel-group.je-frame-group-left-1", 8, height / 2 + 4, 280, height / 2 - 12),
+      box(".je-panel-group.je-frame-group-right-0", width - 328, 8, 320, height - 260),
+      box(".je-panel-group.je-frame-group-right-1", width - 328, height - 244, 320, 236),
+      box('"Play controls"', width / 2 - 50, height - 48, 100, 40),
+    ],
+  };
+}
+
+const editorPassed = (over: Partial<Extract<EditorSmokeResult, { ok: true }>> = {}) =>
+  ({
+    ok: true,
+    layouts: EDITOR_VIEWPORTS.map((v) => layoutAt(v.width, v.height)),
+    tab: { tab: "Run", selected: true, shown: true, siblingsHidden: true },
+    render: { renderer: "webgl", inside: [255, 136, 0, 255], outside: [0, 0, 0, 0] },
+    userAgent: "test-agent",
+    ...over,
+  }) satisfies EditorSmokeResult;
+
+describe("rectsIntersect and leavesWindow", () => {
+  const a = { x: 0, y: 0, width: 100, height: 100 };
+
+  it("counts shared area, not shared edges or a sub-pixel graze", () => {
+    expect(rectsIntersect(a, { x: 50, y: 50, width: 100, height: 100 })).toBe(true);
+    expect(rectsIntersect(a, { x: 100, y: 0, width: 50, height: 100 })).toBe(false);
+    expect(rectsIntersect(a, { x: 99.7, y: 0, width: 50, height: 100 })).toBe(false);
+    expect(rectsIntersect(a, { x: 0, y: 120, width: 100, height: 10 })).toBe(false);
+  });
+
+  it("flags a rectangle past any edge of the window", () => {
+    expect(leavesWindow(a, 100, 100)).toBe(false);
+    expect(leavesWindow({ ...a, x: -2 }, 100, 100)).toBe(true);
+    expect(leavesWindow(a, 99, 100)).toBe(true);
+    expect(leavesWindow(a, 100, 98)).toBe(true);
+  });
+});
+
+describe("judgeEditorLayout", () => {
+  it("passes islands that keep apart inside the window", () => {
+    for (const v of EDITOR_VIEWPORTS)
+      expect(judgeEditorLayout(layoutAt(v.width, v.height))).toBeNull();
+  });
+
+  it("fails two islands that overlap, naming both and the window", () => {
+    const layout = layoutAt(1024, 700);
+    layout.islands.push(box('"Play controls"', 700, 300, 200, 40));
+    const why = judgeEditorLayout(layout);
+    expect(why).toMatch(/je-frame-group-right-0.*overlaps.*Play controls.*1024×700/);
+  });
+
+  it("fails an island that leaves the window", () => {
+    const layout = layoutAt(760, 700);
+    layout.islands.push(box(".je-frame-rail", 740, 8, 40, 300));
+    expect(judgeEditorLayout(layout)).toMatch(/je-frame-rail leaves the window at 760×700/);
+  });
+
+  it("fails a window with no island drawn", () => {
+    expect(judgeEditorLayout({ ...layoutAt(1440, 900), islands: [] })).toMatch(/no island/);
+  });
+});
+
+describe("judgeEditorRender", () => {
+  const render: RenderProbe = {
+    renderer: "webgpu",
+    inside: [255, 136, 0, 255],
+    outside: [0, 0, 0, 0],
+  };
+
+  it("passes crate-0's colour on the sprite over any background beside it", () => {
+    expect(judgeEditorRender(render)).toBeNull();
+    expect(judgeEditorRender({ ...render, outside: [11, 11, 16, 255] })).toBeNull();
+  });
+
+  it("fails a sprite pixel that's blank, translucent or another colour", () => {
+    expect(judgeEditorRender({ ...render, inside: [0, 0, 0, 0] })).toMatch(/isn't opaque/);
+    expect(judgeEditorRender({ ...render, inside: [0, 200, 160, 255] })).toMatch(/not crate-0's/);
+  });
+
+  it("fails crate-0's colour in the empty air too", () => {
+    expect(judgeEditorRender({ ...render, outside: [255, 136, 0, 255] })).toMatch(/empty pixel/);
+  });
+
+  it("fails a page that read nothing", () => {
+    expect(judgeEditorRender(undefined)).toBe("the editor ran no render");
+  });
+});
+
+describe("judgeEditor", () => {
+  it("passes a mounted editor whose every check held", () => {
+    const result = editorPassed();
+    expect(judgeEditor("webkit", result)).toEqual({
+      browser: "webkit",
+      status: "pass",
+      layouts: result.layouts,
+      render: result.render,
+    });
+  });
+
+  it("fails a page that couldn't mount the editor, or answered nothing", () => {
+    expect(judgeEditor("firefox", { ok: false, error: "socket closed" })).toMatchObject({
+      status: "fail",
+      reason: expect.stringContaining("socket closed"),
+    });
+    expect(judgeEditor("firefox", undefined).status).toBe("fail");
+  });
+
+  it("fails a window the editor wasn't measured at", () => {
+    const out = judgeEditor("chromium", editorPassed({ layouts: [layoutAt(1440, 900)] }));
+    expect(out).toMatchObject({ status: "fail", reason: expect.stringContaining("1024×700") });
+  });
+
+  it("fails overlapping islands in any of the windows", () => {
+    const layouts = EDITOR_VIEWPORTS.map((v) => layoutAt(v.width, v.height));
+    layouts[2]!.islands.push(box(".je-frame-context", 0, 0, 300, 40));
+    const out = judgeEditor("chromium", editorPassed({ layouts }));
+    expect(out).toMatchObject({
+      status: "fail",
+      reason: expect.stringMatching(/overlaps.*760×700/),
+    });
+  });
+
+  it("fails an inspector group under 500 px at 1440×900, and one not drawn", () => {
+    const short = EDITOR_VIEWPORTS.map((v) =>
+      layoutAt(v.width, v.height, v.width === 1440 ? 165 : 520),
+    );
+    expect(judgeEditor("chromium", editorPassed({ layouts: short }))).toMatchObject({
+      status: "fail",
+      reason: "the inspector group is 165 px tall at 1440×900, under 500",
+    });
+    const none = EDITOR_VIEWPORTS.map((v) => layoutAt(v.width, v.height, null));
+    expect(judgeEditor("chromium", editorPassed({ layouts: none })).reason).toMatch(
+      /no inspector group/,
+    );
+  });
+
+  it("judges the inspector only at 1440×900", () => {
+    const layouts = EDITOR_VIEWPORTS.map((v) =>
+      layoutAt(v.width, v.height, v.width === 1440 ? 500 : 120),
+    );
+    expect(judgeEditor("chromium", editorPassed({ layouts })).status).toBe("pass");
+  });
+
+  it("fails a tab switch that didn't select the tab or show its panel alone", () => {
+    const tab = { tab: "Run", selected: true, shown: true, siblingsHidden: true };
+    for (const [broken, why] of [
+      [{ ...tab, selected: false }, /isn't selected/],
+      [{ ...tab, shown: false }, /panel isn't shown/],
+      [{ ...tab, siblingsHidden: false }, /another panel/],
+    ] as const)
+      expect(judgeEditor("chromium", editorPassed({ tab: broken })).reason).toMatch(why);
+  });
+
+  it("fails when the crate's sprite isn't drawn under the editor", () => {
+    const render: RenderProbe = { renderer: "webgl", inside: [0, 0, 0, 0], outside: [0, 0, 0, 0] };
+    expect(judgeEditor("chromium", editorPassed({ render }))).toMatchObject({
+      status: "fail",
+      reason: expect.stringContaining("under the editor"),
+      render,
+    });
   });
 });
 

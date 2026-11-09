@@ -103,6 +103,7 @@ afterEach(() => {
   live = game = null;
   vi.unstubAllGlobals();
   document.body.innerHTML = "";
+  Object.assign(window, { innerWidth: 1024, innerHeight: 768 });
 });
 
 /** The editor on a real game sized to the window, its canvas the router's input target. */
@@ -317,6 +318,7 @@ describe("the canvas layer", () => {
   });
 
   it("picks the game's tool from its edit key, with its argument, and shows its cursor", async () => {
+    Object.assign(window, { innerWidth: 1440, innerHeight: 900 });
     const { session, canvas, pointer } = await setup();
     expect(screen.getByRole("button", { name: "Stamp" })).toBeTruthy();
     fireEvent.keyDown(window, { key: "1" });

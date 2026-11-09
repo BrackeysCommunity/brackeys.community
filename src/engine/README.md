@@ -337,9 +337,10 @@ in `checks`.
 ## Editor tools
 
 `./editor` has no UI, so any host can draw it. `createToolHost({ session,
-router, toWorld, scale, runtime })` puts the active tool on the game's tool
-router: tools get world-space pointer events, preview a drag in the
-running edit world, commit one batch per gesture, and describe what to draw
+router, toWorld, scale })` puts the active tool on the game's tool router:
+tools get world-space pointer events, preview a drag in the overlay (and in
+an optional `runtime`; the editor passes none, so the edit world only holds
+committed state), commit one batch per gesture, and describe what to draw
 (outlines, handles, a marquee, guides, ghosts, a readout) as a
 `ToolOverlay`. The built-in tools are select, pan, box, circle, pen,
 waypoints and rotate. A game adds its own in `GameDefinition.editor.tools`,
@@ -1597,27 +1598,88 @@ onReady? }`; `mountSceneEditor(element, props)` mounts the same thing
   `.je-root` (`--je-bg`, `--je-panel`, `--je-primary`, `--je-font`, …):
   a host sets the variables, unlayered, after importing the sheet. It needs
   no Tailwind and no preflight, and ships no font files.
+- **Density tokens** size everything the sheet draws, on the same
+  `.je-root`: `--je-inset` and `--je-gap` (8 px, the frame's margins),
+  `--je-pad` (6 px), `--je-row` (24 px rows), `--je-control` (26 px
+  controls), `--je-tab` (28 px tab strips), `--je-text`, `--je-text-sm` and
+  `--je-label` (12, 11 and 10 px), `--je-label-col` (the inspector's label
+  column, 30% of the panel from 64 to 120 px), `--je-rail` (a collapsed
+  column, 36 px) and `--je-handle` (the resize handles' hit width).
+- **Layout.** Two columns down the sides, each one or two tab groups. A
+  column is resized from its inner edge (drag, or the arrow keys on the
+  focused handle; Home/End go to the minimum and maximum, Enter collapses
+  it to its rail), and the split between its groups the same way. The
+  viewer's layout is an `EditorLayout` kept under `jams-editor:layout:v1`
+  and read back through `parseLayout`, which drops panels it doesn't know
+  and returns `null` for a value it can't read, so `DEFAULT_LAYOUT` is
+  used. `fitLayout(layout, viewport)` places it in a window without
+  touching what's stored: windows too narrow for both columns draw one and
+  a rail, phones a panel bar with a sheet, and a stored size comes back
+  when the window grows.
+- **Tabs.** Each panel (`PanelId`: outliner, project, inspector, problems,
+  run, history) is a tab. The default puts the Outliner over the Project
+  on the left and the Inspector over Problems · Run · History on the right.
+  A tab's menu moves its panel to the other group of its column or resets
+  the layout; Problems' tab shows the error and warning count; inactive
+  panels stay mounted. `SceneEditorHandle.openPanel(id)` reveals a panel's
+  tab wherever the viewer moved it.
+- **Pending.** Everything the editor waits on (booting, a rebuild, opening
+  a prefab, an import, a tree or licence write, the physical check) is a
+  task in one `Pending` per editor, made with `createPending({ notify })`.
+  A task shows busy on its scope's controls at once, a second run with the
+  same id joins the first, progress only moves forward, and a failure is
+  toasted once (`run` resolves `{ ok: false }` rather than rejecting). The
+  status island's activity line names a task once it has run 300 ms, with
+  "n of m" when it knows its progress, beside the save state (Saving… /
+  Saved, Reconnecting…, Offline — changes will sync).
 
 A game outside jams.team serves its project with `./vite` and opens the
 editor on it:
 
-```ts editor-ui.ts
+```ts vite.config.ts
+import * as hocuspocus from "@hocuspocus/server";
+import { readFileProject, sceneCollabServer } from "@jams/engine/vite";
+import { defineConfig } from "vite";
+import wasm from "vite-plugin-wasm";
+
+import { coinGame } from "./coin-game";
+
+export default defineConfig({
+  plugins: [
+    wasm(),
+    sceneCollabServer({
+      projects: [await readFileProject("src/game", { game: coinGame })],
+      hocuspocus,
+    }),
+  ],
+});
+```
+
+Then `editor.ts`, served by `vite` and opened at `/editor.html`:
+
+```ts editor.ts
 import "@jams/engine/editor-ui/style.css";
 import * as hocuspocus from "@hocuspocus/provider";
 import { devProjectHost, mountSceneEditor } from "@jams/engine/editor-ui";
 
 import { coinGame } from "./coin-game";
 
-/** Opens the project `dev-server.ts` serves in `#editor`, on the same dev server. */
-export function openEditor(element: HTMLElement, project: string) {
-  return mountSceneEditor(element, {
-    host: devProjectHost({ hocuspocus }),
-    game: coinGame,
-    project,
-    rapier: () => import("@dimforge/rapier2d"),
-  });
-}
+mountSceneEditor(document.getElementById("editor")!, {
+  host: devProjectHost({ hocuspocus }),
+  game: coinGame,
+  project: "coin-game",
+  rapier: () => import("@dimforge/rapier2d"),
+});
 ```
+
+Give the server and the page the same game, so that the build stamps both
+sides write agree. A project whose files name no game still needs one that
+declares every data table and setting its files use. `devProjectHost({ origin })`
+points the page at a dev server on another origin (`http(s)://` or
+`ws(s)://`). The repo carries the same setup as `scripts/engine-editor/`
+(`vp run engine:editor`). It edits a scratch copy of `src/engine/scenes`
+(the engine project: kitchen sink and engine yard) unless `--in-place` is
+passed, so the kitchen sink can be checked in the editor without the site.
 
 ## Versioning
 

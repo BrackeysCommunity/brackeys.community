@@ -4,7 +4,7 @@ import { z } from "zod";
 import { GLOW, SPIN, testGame } from "../../__tests__/fixtures/test-game";
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { pointField, shapeField, tagsField } from "../../game/fields";
+import { assetField, pointField, shapeField, tagsField } from "../../game/fields";
 import { applyOps } from "../../scene/ops";
 import { prefabLibrary } from "../../scene/prefab";
 import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
@@ -750,7 +750,7 @@ describe("behavior sections", () => {
     expect(of(games, doc, "spot", "dull").addBehaviors).toEqual([]);
   });
 
-  it("gives the engine's sprite a section of its fields, its asset a text field", () => {
+  it("gives the engine's sprite a section of its fields, its asset a picker and its tint a colour", () => {
     const sprited: SceneDefinition = {
       v: 2,
       name: "s",
@@ -778,10 +778,15 @@ describe("behavior sections", () => {
       "nineSlice",
       "turn",
     ]);
-    expect(field(m, "behaviors.sprite.asset").widget.kind).toBe("text");
+    expect(field(m, "behaviors.sprite.asset").widget).toEqual({
+      kind: "asset",
+      kinds: ["texture", "atlas"],
+      frame: "behaviors.sprite.frame",
+    });
+    expect(field(m, "behaviors.sprite.frame").widget.kind).toBe("text");
     expect(field(m, "behaviors.sprite.tint")).toMatchObject({
       value: 0xff0000,
-      widget: { kind: "number", integer: true, min: 0, max: 0xffffff },
+      widget: { kind: "color" },
     });
     expect(field(m, "behaviors.sprite.blend").widget).toMatchObject({ kind: "segmented" });
     expect(field(m, "behaviors.sprite.flipX").widget.kind).toBe("switch");
@@ -835,5 +840,96 @@ describe("behavior sections", () => {
   it("carries no behavior sections for a bulk entry", () => {
     expect(model("~tile:0").addBehaviors).toEqual([]);
     expect(model("~tile:0").sections.every((s) => !s.behavior)).toBe(true);
+  });
+});
+
+describe("colour and asset widgets", () => {
+  const LAMP_SHADE = defineBehavior({
+    name: "shades/shade",
+    description: "A lampshade.",
+    fields: (env) => ({
+      hue: z.string().optional().describe("Its hue.").meta({ widget: "color" }),
+      cloth: assetField(env, "texture", "Its cloth.").optional(),
+      frame: z.string().optional().describe("Not an atlas frame: cloth takes no atlas."),
+    }),
+  });
+  const shades = (widgets?: Record<string, { kind: "slider"; min: number; max: number }>) =>
+    createRegistry(
+      defineGame({
+        id: "shades",
+        types: [
+          defineEntityType({
+            type: "lampshade",
+            description: "A lampshade.",
+            base: "marker",
+            fields: (env) => ({
+              at: pointField("Where it stands."),
+              glow: z.number().int().optional().describe("Its glow.").meta({ widget: "color" }),
+              art: assetField(env, ["texture", "atlas"], "Its art.").optional(),
+              frame: z.string().optional().describe("Its art's frame."),
+              sound: assetField(env, "audio", "Its click.").optional(),
+            }),
+          }),
+        ],
+        behaviors: [LAMP_SHADE],
+        actions: [],
+        ...(widgets ? { editor: { widgets } } : {}),
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+  const doc: SceneDefinition = {
+    v: 2,
+    game: "shades",
+    name: "s",
+    bounds: [0, 0, 100, 100],
+    entities: [
+      {
+        id: "shade",
+        type: "lampshade",
+        at: [5, 5],
+        glow: 0x00ff00,
+        art: "sheet",
+        frame: "lit",
+        behaviors: { [LAMP_SHADE.name]: { hue: "#ff0000" } },
+      },
+    ],
+  };
+  const of = (r: ReturnType<typeof shades>) => buildInspectorModel(r, [lookupRef(doc, "shade")!]);
+
+  it("draws meta.widget color as the built-in colour widget, numbers and strings alike", () => {
+    const m = of(shades());
+    expect(field(m, "glow")).toMatchObject({ value: 0x00ff00, widget: { kind: "color" } });
+    expect(field(m, `behaviors.${LAMP_SHADE.name}.hue`).widget).toEqual({ kind: "color" });
+  });
+
+  it("lets a game's own widget named color win over the built-in one", () => {
+    const m = of(shades({ color: { kind: "slider", min: 0, max: 9 } }));
+    expect(field(m, "glow").widget).toMatchObject({ kind: "custom", id: "color" });
+  });
+
+  it("gives an assetField its kinds, and an atlas-taking one its sibling frame field", () => {
+    const m = of(shades());
+    expect(field(m, "art")).toMatchObject({
+      section: "assets",
+      value: "sheet",
+      widget: { kind: "asset", kinds: ["texture", "atlas"], frame: "frame" },
+    });
+    expect(field(m, "sound").widget).toEqual({ kind: "asset", kinds: ["audio"] });
+    // A texture-only field has no frame, even beside a field named frame.
+    expect(field(m, `behaviors.${LAMP_SHADE.name}.cloth`).widget).toEqual({
+      kind: "asset",
+      kinds: ["texture"],
+    });
+  });
+
+  it("validates an asset pick as the id it is", () => {
+    const m = of(shades());
+    const art = field(m, "art");
+    const ok = modelOps(art, "other-sheet", [lookupRef(doc, "shade")!]);
+    expect(ok).toEqual({
+      ok: true,
+      ops: [{ op: "update", ref: "shade", set: { art: "other-sheet" } }],
+    });
+    expect(modelOps(art, "Not An Id!", [lookupRef(doc, "shade")!]).ok).toBe(false);
   });
 });

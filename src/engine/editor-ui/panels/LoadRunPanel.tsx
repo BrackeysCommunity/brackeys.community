@@ -14,16 +14,22 @@ import {
   DialogTitle,
   Input,
   MicroLabel,
+  Spinner,
   Text,
   Textarea,
   type BadgeVariant,
 } from "../kit/index";
+import { createPending } from "../pending/pending";
+import { useBusy, useOptionalPending } from "../pending/use-pending";
 import { parseRun, runIsStale, runStart, type LoadedRun } from "../session/loaded-run";
 import { useEditorStore } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
 
 /** Markers listed before the rest are summarised as a count. */
 const MAX_EVENTS = 50;
+
+/** The pending scope of reading a recording file. */
+export const READ_RUN_SCOPE = "run:read-file";
 
 function readText(file: Blob): Promise<string> {
   return new Promise((done, fail) => {
@@ -55,6 +61,9 @@ function LoadRunDialog({
   const [pasted, setPasted] = useState("");
   const fileId = useId();
   const pasteId = useId();
+  const [own] = useState(() => createPending({ notify }));
+  const pending = useOptionalPending() ?? own;
+  const reading = useBusy(READ_RUN_SCOPE);
 
   const load = (text: string, name: string) => {
     const parsed = parseRun(text, name);
@@ -82,17 +91,31 @@ function LoadRunDialog({
             id={fileId}
             type="file"
             accept="application/json,.json"
+            disabled={reading !== undefined}
+            aria-busy={reading !== undefined || undefined}
             onChange={async (e) => {
               const file = e.target.files?.[0];
               e.target.value = "";
               if (!file) return;
-              try {
-                load(await readText(file), file.name);
-              } catch (err) {
-                notify.error("Couldn't read that file", { description: (err as Error).message });
-              }
+              const read = await pending.run(
+                {
+                  label: `Reading ${file.name}`,
+                  scope: READ_RUN_SCOPE,
+                  error: "Couldn't read that file",
+                },
+                () => readText(file),
+              );
+              if (read.ok) load(read.value, file.name);
             }}
           />
+          {reading ? (
+            <span className="je-run-reading">
+              <Spinner size={12} label={null} />
+              <Text as="span" size="xs" variant="muted">
+                {reading.label}
+              </Text>
+            </span>
+          ) : null}
         </label>
         <label htmlFor={pasteId} className="je-run-field">
           <MicroLabel>Or paste it</MicroLabel>
@@ -181,7 +204,7 @@ function RunSummary({
         </MicroLabel>
       </h3>
       {markers.length > 0 ? (
-        <ol aria-label="Run markers" className="je-run-markers">
+        <ol aria-label="Run markers" className="je-run-markers je-scene-panel-scroll">
           {markers.map((e, i) => (
             <li key={`${e.tick}:${i}`} className="je-run-marker">
               <span className="je-run-marker-at">{seconds(e.tick)}</span>
@@ -204,7 +227,8 @@ function RunSummary({
  * A run shown over the scene through `run` (the canvas layer draws
  * `runOverlay` of it): the editor's last Play, or a recording loaded from a
  * file or pasted. It notes when the scene changed since, and offers
- * **Replay** and **Play from its start**.
+ * **Replay** and **Play from its start**. Its summary stays in view while
+ * the markers scroll, so a long run never grows the panel.
  */
 export function LoadRunPanel({
   session,
@@ -225,7 +249,6 @@ export function LoadRunPanel({
 
   return (
     <section aria-label="Run" className="je-scene-panel">
-      <h2 className="je-scene-panel-title">Run</h2>
       {loaded ? (
         <RunSummary
           run={loaded}

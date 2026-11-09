@@ -65,7 +65,19 @@ import {
   type SceneDefinition,
 } from "../../scene/index";
 import type { SceneDocStatus } from "../connect/scene-doc";
+import { frameInView } from "../frame/visible-rect";
 import { defaultPeerColor, guestName, type EditorNotify } from "../host";
+import { createPending, type Pending } from "../pending/pending";
+
+/** The pending scope of opening the prefab an instance (`ref`) places: its outliner row and Open prefab button. */
+export const openPrefabScope = (ref: Ref): string => `prefab:open:${ref}`;
+
+/** The pending scope of the prefab header's actions: opening the variant's base, and Create variant. */
+export const PREFAB_HEADER_SCOPE = "prefab:header";
+
+/** The pending task ids the prefab header tells its buttons apart by. */
+export const openPrefabTask = (prefab: string): string => `prefab:open:${prefab}`;
+export const createVariantTask = (base: string): string => `prefab:variant:${base}`;
 
 /** What the editor's chrome shows besides the session: the connection, play state and access. */
 export type EditorHostState = {
@@ -95,6 +107,7 @@ export type EditorGame = Pick<
   | "setMode"
   | "setPrefabs"
   | "frame"
+  | "panBy"
 >;
 
 /** The project session a scene doc belongs to, and that doc's name in it. */
@@ -108,6 +121,8 @@ export type LiveEditorOptions = {
   identity: EditorIdentity;
   /** Where refusals, remote edits and undo elsewhere are announced. */
   notify: EditorNotify;
+  /** The editor's tasks: opening a prefab and creating a variant run through it. Default: one of its own. */
+  pending?: Pending;
   issuesDebounceMs?: number;
   /** Where the scene's prefabs come from and are written; by default the project's prefab docs, else none. */
   prefabs?: EditorSessionOptions["prefabs"];
@@ -153,7 +168,12 @@ export type LiveEditor = {
   prefab: Store<OpenPrefab | null>;
   /** Everyone else in the project and the doc each is in, for the project tree; empty without a project. */
   projectPeers: Store<readonly ProjectPeer[]>;
-  /** Edits `prefab` on its own once its doc opens; `from` (an instance) is framed again on Back. False while playing or when there is no such prefab. */
+  /**
+   * Edits `prefab` on its own once its doc opens, as a pending task scoped to
+   * `from`'s row (`openPrefabScope`); `from` (an instance) is framed again on
+   * Back. Opening it again while it opens joins that. False while playing or
+   * when there is no such prefab.
+   */
   openPrefab: (prefab: string, from?: Ref) => boolean;
   /** Back to the scene from an open prefab. */
   closePrefab: () => void;
@@ -239,9 +259,13 @@ export type ProjectRegistry = {
    * Hot reload of art: once the project doc holds the hash an `asset:changed`
    * message names, `project()` is rebuilt in place (no `subscribe` listener
    * fires, so the host keeps its game) and `game.reloadAssets` redraws what
-   * uses the asset. Returns the unsubscribe.
+   * uses the asset, as a `pending` hold while it runs. Returns the unsubscribe.
    */
-  followAssets(changes: AssetChangeSource, game: Pick<GameInstance, "reloadAssets">): () => void;
+  followAssets(
+    changes: AssetChangeSource,
+    game: Pick<GameInstance, "reloadAssets">,
+    opts?: { pending?: Pending },
+  ): () => void;
   destroy(): void;
 };
 
@@ -251,6 +275,13 @@ export type AssetChangeSource = {
 };
 
 const warnInConsole = (message: string): void => console.warn(`[assets] ${message}`);
+
+/** What a reload names: the one asset's file name, else how many. */
+function reloadName(view: ReturnType<ProjectSession["view"]>, changed: readonly AssetId[]): string {
+  if (changed.length !== 1) return `${changed.length} assets`;
+  const id = changed[0]!;
+  return view.byId.get(id)?.path.split("/").at(-1) ?? id;
+}
 
 const isWatchedKind = (kind: string): boolean =>
   kind === MATERIAL_KIND || kind === GAME_SETTINGS_KIND || kind === DATA_TABLE_KIND;
@@ -372,7 +403,7 @@ export function projectRegistry(
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    followAssets(changes, game) {
+    followAssets(changes, game, { pending: tasks } = {}) {
       const pending = new Map<AssetId, AssetChangedMessage["sha256"]>();
       // The message can arrive before the doc update that carries its hash.
       const flush = () => {
@@ -386,12 +417,22 @@ export function projectRegistry(
         }
         if (changed.length === 0) return;
         project = runtimeView(view, dataValues(watched()), session.registry);
+        changed.sort();
+        const release = tasks?.hold({
+          id: "art:reload",
+          label: `Reloading ${reloadName(view, changed)}`,
+          scope: "editor",
+        });
         game
-          .reloadAssets({ project, view, changed: changed.sort() })
+          .reloadAssets({ project, view, changed })
           .then(({ errors }) => {
             for (const { entityId, error } of errors) warnReload(`${entityId}: ${error}`);
+            release?.();
           })
-          .catch((err: unknown) => warnReload(err instanceof Error ? err.message : String(err)));
+          .catch((err: unknown) => {
+            if (release) release({ error: err, errorTitle: "The art couldn't reload" });
+            else warnReload(err instanceof Error ? err.message : String(err));
+          });
       };
       const off = changes.onAssetChanged((message) => {
         pending.set(message.id, message.sha256);
@@ -519,11 +560,13 @@ export function openLiveEditor({
   name,
   identity,
   notify,
+  pending,
   issuesDebounceMs,
   prefabs,
   history,
   project: inProject,
 }: LiveEditorOptions): LiveEditor {
+  const tasks = pending ?? createPending({ notify });
   const project = inProject?.session ?? null;
   const sceneDoc = inProject?.doc ?? null;
   /** The doc the editor shows: the scene's, or the open prefab's. */
@@ -686,7 +729,7 @@ export function openLiveEditor({
     binding.destroy();
     binding = bind(target, isolated);
     const box = selectionBounds(target.getResolved(), target.registry, refs);
-    if (box) game.frame(box);
+    if (box) frameInView(game, box);
   }
 
   function closePrefab() {
@@ -711,22 +754,28 @@ export function openLiveEditor({
     return { docName, history: projectHistory(project, docName, { onUndone }) };
   }
 
-  function openPrefab(id: string, from?: Ref): boolean {
+  /** The open and variant tasks in flight, by task id: pressing again joins them. */
+  const running = new Set<string>();
+
+  function openPrefab(
+    id: string,
+    from?: Ref,
+    scope = from !== undefined ? openPrefabScope(from) : PREFAB_HEADER_SCOPE,
+    task = { id: openPrefabTask(id), label: `Opening ${id}` },
+  ): boolean {
     if (playing) return false;
-    if (prefab.state) closePrefab();
+    if (running.has(task.id)) return true;
     if (!session.getPrefabs().has(id)) {
       notify.error(`No prefab ${id} in this scene`);
       return false;
     }
     const ticket = ++opening;
     let isolation: PrefabIsolation | null = null;
-    const failed = (error: unknown) =>
-      notify.error(`Prefab ${id} couldn't be opened`, {
-        description: error instanceof Error ? error.message : String(error),
-      });
-    void prefabDoc(id).then(
-      ({ docName, history: prefabHistory }) =>
-        openPrefabIsolation(session, id, {
+    running.add(task.id);
+    void tasks
+      .run({ ...task, scope, error: `Prefab ${id} couldn't be opened` }, async () => {
+        const { docName, history: prefabHistory } = await prefabDoc(id);
+        const opened = await openPrefabIsolation(session, id, {
           user: identity.user,
           ...(issuesDebounceMs !== undefined ? { issuesDebounceMs } : {}),
           ...(prefabHistory ? { history: prefabHistory } : {}),
@@ -740,28 +789,35 @@ export function openLiveEditor({
               description: `${id} is gone, so you're back in the scene.`,
             });
           },
-        }).then((opened) => {
-          if (!opened) {
-            if (ticket === opening) notify.error(`Prefab ${id} couldn't be opened`);
-            return;
-          }
-          if (ticket !== opening || playing) {
-            opened.close();
-            return;
-          }
-          isolation = { ...opened, session: guarded(opened.session, docName, false) };
-          prefab.setState(() => ({ isolation: isolation!, ...(from ? { from } : {}) }));
-          if (docName) showing(docName);
-          show(isolation.session, docRefs(isolation.session.getDoc()), id);
-        }, failed),
-      failed,
-    );
+        });
+        if (!opened) {
+          if (ticket === opening) throw new Error(`${id}'s doc didn't open.`);
+          return;
+        }
+        if (ticket !== opening || playing) {
+          opened.close();
+          return;
+        }
+        // The prefab on screen stays, with its header, until this one is ready to take its place.
+        const before = prefab.state;
+        if (before) {
+          before.isolation.close();
+          if (!docName) showing(sceneDoc);
+        }
+        isolation = { ...opened, session: guarded(opened.session, docName, false) };
+        prefab.setState(() => ({ isolation: isolation!, ...(from ? { from } : {}) }));
+        if (docName) showing(docName);
+        show(isolation.session, docRefs(isolation.session.getDoc()), id);
+      })
+      .finally(() => running.delete(task.id));
     return true;
   }
 
   /** Live, the project's prefab writer creates the variant's doc, as it does for Create prefab. */
   function createVariant(base: string): boolean {
     if (playing) return false;
+    const task = { id: createVariantTask(base), label: `Creating a variant of ${base}` };
+    if (running.has(task.id)) return true;
     const made = createVariantBatch(base, session.getPrefabs(), {
       taken: project ? project.view().byId.keys() : [],
     });
@@ -774,7 +830,7 @@ export function openLiveEditor({
       notify.error(`Couldn't create a variant of ${base}`, { description: result.issue.message });
       return false;
     }
-    return openPrefab(made.id, prefab.state?.from);
+    return openPrefab(made.id, prefab.state?.from, PREFAB_HEADER_SCOPE, task);
   }
 
   const unsubscribe = session.subscribe((e) => {
@@ -830,7 +886,7 @@ export function openLiveEditor({
               id: open.isolation.prefab,
               scene: name,
               onBack: closePrefab,
-              onOpen: (id) => void openPrefab(id, open.from),
+              onOpen: (id) => void openPrefab(id, open.from, PREFAB_HEADER_SCOPE),
               onCreateVariant: () => void createVariant(open.isolation.prefab),
             },
           }

@@ -79,6 +79,7 @@ export function fakeWorldGame(registry: Registry) {
     cancel: vi.fn(() => false),
     pointerWorld: () => null,
     frame: vi.fn(),
+    panBy: vi.fn(),
   };
   const calls = () =>
     game.loadScene.mock.calls.length +

@@ -23,11 +23,13 @@ const pageOrigin = (origin?: string): PageOrigin | null => {
   return loc ?? null;
 };
 
-/** The dev server's collab socket on `origin` (an `http(s)://` origin), else the page's own. */
+const isSecure = (protocol: string) => protocol === "https:" || protocol === "wss:";
+
+/** The dev server's collab socket on `origin` (an `http(s)://` or `ws(s)://` origin), else the page's own. */
 export function devCollabUrl(origin?: string | PageOrigin): string {
   const loc = typeof origin === "object" ? origin : pageOrigin(origin);
   if (!loc) throw new Error("The dev server's collab URL needs an origin outside a browser.");
-  return `${loc.protocol === "https:" ? "wss" : "ws"}://${loc.host}${SCENE_COLLAB_PATH}`;
+  return `${isSecure(loc.protocol) ? "wss" : "ws"}://${loc.host}${SCENE_COLLAB_PATH}`;
 }
 
 /** `/__project/<id>/blob`, under `origin` when one is given. */
@@ -49,13 +51,20 @@ export const devAssetUrl =
  */
 export function devProjectHost(opts: {
   hocuspocus: HocuspocusModule;
-  /** Default: same origin, with `./vite`'s collab path and project route. */
+  /**
+   * The dev server's origin when it isn't the page's (`http(s)://` or
+   * `ws(s)://`, any path ignored); default the page's own, read when a
+   * project connects.
+   */
   origin?: string;
   /** When the host's build was made; the dev server stamps with the same VITE_BUILD_AT. */
   buildAt?: number;
 }): Pick<EditorHost, "connect" | "assetUrl"> {
   const transport = hocuspocusTransport(opts.hocuspocus);
-  const base = opts.origin === undefined ? "" : new URL(opts.origin).origin;
+  const page = opts.origin === undefined ? undefined : new URL(opts.origin);
+  // Blobs go over http(s) on the same host, whichever scheme the origin was given in.
+  const base = page ? `${isSecure(page.protocol) ? "https" : "http"}://${page.host}` : "";
+  const url = page ? devCollabUrl(page) : undefined;
   return {
     assetUrl: devAssetUrl(base),
     connect({ project, registry, origin }) {
@@ -67,7 +76,7 @@ export function devProjectHost(opts: {
         origin,
         store: blobContentStore(blobs),
         transport,
-        url: devCollabUrl(opts.origin),
+        url: url ?? devCollabUrl(),
         ...(opts.buildAt !== undefined ? { buildAt: opts.buildAt } : {}),
       });
       return { ...link, blobs };

@@ -1,4 +1,4 @@
-import type { OpBatch, Pt, Ref } from "../../scene/types";
+import type { OpBatch, Pt, Ref, SceneDefinition } from "../../scene/types";
 import { targetsOf } from "../commands";
 import { convertToChainFix } from "../gizmos/batch";
 import { dragHandle, moveTarget } from "../gizmos/drag";
@@ -34,7 +34,7 @@ type Drag =
       multi: boolean;
       edit: GizmoEdit | null;
     }
-  | { kind: "marquee"; from: Pt; to: Pt; touch: boolean; mode: SelectMode };
+  | { kind: "marquee"; from: Pt; to: Pt; touch: boolean; mode: SelectMode; hits: Ref[] };
 
 /** Poly and chain outlines, and anything on a path, have points to edit. */
 const hasPoints = (t: GizmoTarget | undefined): t is GizmoTarget =>
@@ -79,8 +79,9 @@ export const selectTool = defineEditorTool({
       scale: ctx.scale(),
       index: ctx.index(),
     });
-    const selectedTargets = () => targetsOf(ctx.getDoc(), ctx.registry, ctx.selection());
-    const subTarget = () => (sub ? gizmoTarget(ctx.getDoc(), ctx.registry, sub.ref) : undefined);
+    const selectedTargets = (doc = ctx.getDoc()) => targetsOf(doc, ctx.registry, ctx.selection());
+    const subTarget = (doc = ctx.getDoc()) =>
+      sub ? gizmoTarget(doc, ctx.registry, sub.ref) : undefined;
 
     function setSub(next: typeof sub) {
       sub = next;
@@ -98,10 +99,17 @@ export const selectTool = defineEditorTool({
       return sub;
     }
 
-    /** The handles a press can grab now, and whether they belong to a multi-selection. */
-    function handlesNow(): { handles: GizmoHandle[]; targets: GizmoTarget[]; multi: boolean } {
+    /**
+     * The handles a press can grab now, and whether they belong to a
+     * multi-selection; in `doc`'s state, the previewed one during a drag.
+     */
+    function handlesNow(doc: SceneDefinition = ctx.getDoc()): {
+      handles: GizmoHandle[];
+      targets: GizmoTarget[];
+      multi: boolean;
+    } {
       const scale = ctx.scale();
-      const st = liveSub() && subTarget();
+      const st = liveSub() && subTarget(doc);
       if (sub && st) {
         const handles = targetHandles(st, { scale, subObject: true }).map((h) => {
           const index = Number(h.id.slice(h.id.indexOf(":") + 1));
@@ -109,7 +117,7 @@ export const selectTool = defineEditorTool({
         });
         return { handles, targets: [st], multi: false };
       }
-      const targets = selectedTargets();
+      const targets = selectedTargets(doc);
       if (targets.length === 1) {
         return { handles: targetHandles(targets[0]!, { scale }), targets, multi: false };
       }
@@ -138,6 +146,7 @@ export const selectTool = defineEditorTool({
 
     function down(e: ToolPointerEvent): boolean {
       offer = null;
+      ctx.hover?.(null);
       const world = e.world;
       const { handles, targets, multi } = handlesNow();
       const hit = hitHandle(handles, world, ctx.scale());
@@ -188,7 +197,7 @@ export const selectTool = defineEditorTool({
         return true;
       }
       const mode: SelectMode = e.shift ? "add" : e.mod ? "toggle" : "replace";
-      drag = { kind: "marquee", from: world, to: world, touch: e.alt, mode };
+      drag = { kind: "marquee", from: world, to: world, touch: e.alt, mode, hits: [] };
       return true;
     }
 
@@ -198,6 +207,7 @@ export const selectTool = defineEditorTool({
         const { handles } = handlesNow();
         const handle = hitHandle(handles, e.world, ctx.scale());
         const ref = handle ? undefined : pickAt(ctx.index(), e.world, pickOpts())[0]?.ref;
+        ctx.hover?.(ref ?? null);
         if (handle?.id !== hover.handle?.id || ref !== hover.ref) {
           hover = { ...(handle ? { handle } : {}), ...(ref !== undefined ? { ref } : {}) };
           ctx.invalidate();
@@ -212,6 +222,14 @@ export const selectTool = defineEditorTool({
       }
       if (drag.kind === "marquee") {
         drag.to = e.world;
+        const far = Math.hypot(e.world[0] - drag.from[0], e.world[1] - drag.from[1]);
+        drag.hits =
+          far * ctx.scale() < DRAG_THRESHOLD_PX
+            ? []
+            : marqueeSelect(ctx.index(), rectOf(drag.from, drag.to), {
+                touch: drag.touch,
+                layers: ctx.layers(),
+              });
         ctx.invalidate();
         return true;
       }
@@ -333,14 +351,22 @@ export const selectTool = defineEditorTool({
         if (offer && !sel.includes(offer.ref)) offer = null;
         if (offer) out.offer = { label: offer.label, batch: offer.batch };
         if (drag?.kind === "marquee") {
-          out.marquee = { rect: rectOf(drag.from, drag.to), touch: drag.touch };
+          out.marquee = { rect: rectOf(drag.from, drag.to), touch: drag.touch, hits: drag.hits };
           return out;
         }
         if (drag && (drag.kind === "move" || drag.kind === "handle")) {
           const edit = drag.edit;
+          const shown = ctx.previewDoc?.() ?? null;
+          const grabbed = drag.kind === "handle" ? drag.handle.id : undefined;
+          const { handles } = handlesNow(shown ?? undefined);
+          if (handles.length > 0)
+            out.handles = handles.map((h) => (h.id === grabbed ? { ...h, active: true } : h));
           if (!edit) return out;
-          if (edit.shape)
-            out.outlines = [{ shape: edit.shape, tone: edit.concave ? "invalid" : "selected" }];
+          // The host outlines the previewed selection; a shape it can't show, or an invalid one, is drawn here.
+          if (edit.shape && (edit.concave || !shown))
+            out.outlines = [
+              { shape: edit.shape, tone: edit.concave ? "invalid" : "selected", preview: true },
+            ];
           if (edit.pts) {
             out.polylines = [
               {
@@ -364,8 +390,9 @@ export const selectTool = defineEditorTool({
             { pts: path.pts, closed: path.loop, dashed: true, numbered: true, tone: "selected" },
           ];
         }
+        // A host that shares hover draws it with the selection; this is for one that doesn't.
         const hovered =
-          hover.ref !== undefined && !sel.includes(hover.ref)
+          !ctx.hover && hover.ref !== undefined && !sel.includes(hover.ref)
             ? ctx.index().get(hover.ref)
             : undefined;
         if (hovered) {
@@ -381,6 +408,7 @@ export const selectTool = defineEditorTool({
         return hover.handle?.cursor ?? (hover.ref !== undefined ? "pointer" : undefined);
       },
       destroy() {
+        ctx.hover?.(null);
         dropDrag();
         if (sub) setSub(null);
       },

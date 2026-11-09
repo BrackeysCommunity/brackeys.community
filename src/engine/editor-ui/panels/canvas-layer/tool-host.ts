@@ -8,22 +8,26 @@ import {
   SNAP_STEPS,
   type EditorSession,
   type EditorToolDef,
-  type PreviewRuntime,
   type Pt,
   type SnapSettings,
   type ToolHost,
+  type ToolOverlay,
 } from "../../../editor/index";
 import type { GameInstance, Vec2 } from "../../../index";
 import { assetInfo } from "../../../project/index";
+import { frameInView } from "../../frame/visible-rect";
 import { STORAGE_PREFIX, type EditorNotify, type EditorStorage } from "../../host";
 import { useKit } from "../../kit/index";
 import { useStoreValue } from "../../session/use-store-value";
 import { viewScale } from "./view";
 
-/** What the tool host needs from the game: its router, camera and edit world. */
+/**
+ * What the tool host needs from the game: its router and camera. Drags
+ * preview in the overlay only, never in the edit world.
+ */
 export type ToolHostGame = Pick<
   GameInstance,
-  "registry" | "router" | "getStore" | "screenToWorld" | "panBy" | "zoomAt" | "frame" | "runtime"
+  "registry" | "router" | "getStore" | "screenToWorld" | "panBy" | "zoomAt" | "frame"
 >;
 
 /** The live tool host, shared by the dock, the keys and the canvas layer; null until it's up. */
@@ -62,15 +66,6 @@ export function readSnap(storage: EditorStorage): SnapSettings {
 
 function writeSnap(storage: EditorStorage, { enabled, step }: SnapSettings) {
   storage.set(SNAP_KEY, JSON.stringify({ enabled, step }));
-}
-
-/** The edit world as the host previews into it; `loadScene` replaces the runtime, so it's looked up each time. */
-function previewRuntime(game: Pick<GameInstance, "runtime">): PreviewRuntime {
-  return {
-    update: (entities) => game.runtime()?.update(entities),
-    add: (entities) => game.runtime()?.add(entities),
-    remove: (ids) => game.runtime()?.remove(ids),
-  };
 }
 
 /**
@@ -116,13 +111,12 @@ export function useToolHostLifecycle(
         router: game.router,
         toWorld,
         scale: () => viewScale(game.getStore().state.camera),
-        runtime: previewRuntime(game),
         gameTools,
         tool: session.store.state.tool,
         snap: readSnap(latest.current.storage),
         pan: ([x, y]) => game.panBy({ x, y }),
         zoomAt: ([x, y], factor) => game.zoomAt({ x, y }, factor),
-        frame: (rect) => game.frame(rect),
+        frame: (rect) => frameInView(game, rect),
         ...(project
           ? { asset: (id: string, frame?: string) => view && assetInfo(view, id, frame) }
           : {}),
@@ -190,9 +184,13 @@ export function useHostValue<T>(
   );
 }
 
-/** Re-renders on every change the host announces; for reads that build a fresh value (`overlay()`). */
-export function useHostChanges(host: ToolHost | null): void {
-  const [, bump] = useReducer((n: number) => n + 1, 0);
+/**
+ * Re-renders on every change the host announces, and returns a version that
+ * moves with them. Pass the version to whatever reads the host, so a
+ * compiler-memoized render reads it again.
+ */
+export function useHostChanges(host: ToolHost | null): number {
+  const [version, bump] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
     if (!host) return;
     const off = host.subscribe(bump);
@@ -200,4 +198,12 @@ export function useHostChanges(host: ToolHost | null): void {
       off();
     };
   }, [host]);
+  return version;
+}
+
+const overlayAt = (host: ToolHost | null, _version: number): ToolOverlay => host?.overlay() ?? {};
+
+/** The host's overlay, read again after every change the host announces. */
+export function useHostOverlay(host: ToolHost | null): ToolOverlay {
+  return overlayAt(host, useHostChanges(host));
 }

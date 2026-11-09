@@ -14,6 +14,7 @@ import {
   type ProjectBlobs,
   type ProjectConnection,
 } from "../host";
+import type { Pending } from "../pending/pending";
 import {
   editorIdentity,
   openLiveEditor,
@@ -109,6 +110,8 @@ export type SceneEditorOptions = {
   host: Pick<EditorHost, "connect" | "identity" | "peerColor" | "notify" | "readOnly">;
   /** Where notices go when the host has no `notify`: the frame's own toast region. */
   notify?: EditorNotify;
+  /** The editor's tasks: opening prefabs, creating variants and reloading art run through it. */
+  pending?: Pending;
   /** Built with the `registry` and `projectData` this hook returns; the editor opens once it is. */
   game: GameInstance | null;
   /** The `projectData` `game` was built with (`createGame`'s `project`); default null. */
@@ -125,9 +128,18 @@ export type SceneEditorOptions = {
   canvas?: () => HTMLElement | null;
 };
 
+/**
+ * How far an editor that isn't up yet has got: connecting to the project,
+ * opening the scene's doc, opening the material, settings, table and prefab
+ * docs, then building the game on them.
+ */
+export type BootPhase = "connecting" | "scene" | "assets" | "game";
+
 export type SceneEditorState = {
   /** What the editor's frame draws, once the scene has synced and the game is up. */
   editor: EditorProps | null;
+  /** While there is no `editor` and it isn't `rebuilding`: what it is waiting for. */
+  phase: BootPhase | null;
   /** The connection while the editor is on; null when it's off. */
   status: SceneDocStatus | null;
   /** Updates the server hasn't acknowledged yet. */
@@ -176,6 +188,7 @@ export type Carried = { doc: string; selection: Ref[]; tool: string };
 export function useSceneEditor({
   host,
   notify,
+  pending,
   game,
   builtWith = null,
   project,
@@ -193,6 +206,7 @@ export function useSceneEditor({
   const [getCanvas] = useState(() => canvas);
   const [projectCell] = useState(() => new Store<ProjectConnection | null>(null));
   const [say] = useState(() => notify ?? host.notify ?? consoleNotify);
+  const [tasks] = useState(() => pending);
   const [connect] = useState(() => host.connect);
   const [readOnly] = useState(() => host.readOnly);
   const [peerColor] = useState(() => hostPeerColor(host));
@@ -239,6 +253,8 @@ export function useSceneEditor({
   );
   const readUnsynced = () => connection?.getState().unsynced ?? 0;
   const unsynced = useSyncExternalStore(watchConnection, readUnsynced, readUnsynced);
+  const readProjectOpen = () => connection?.getState().session != null;
+  const projectOpen = useSyncExternalStore(watchConnection, readProjectOpen, readProjectOpen);
   const link = useSceneDoc(connection, scene);
   const ready = link.ready;
   const session = ready?.session ?? null;
@@ -261,8 +277,8 @@ export function useSceneEditor({
         });
     };
     const off = watch.subscribe(publish);
-    // Published once every material doc is open, so the game isn't built twice on the way.
-    void watch.ready().then(() => {
+    // Published once every material and prefab doc is open, so the game isn't built twice on the way.
+    void Promise.all([watch.ready(), prefabsReady(session).catch(() => {})]).then(() => {
       opened = true;
       publish();
     });
@@ -286,8 +302,8 @@ export function useSceneEditor({
   const watch = current?.watch ?? null;
   useEffect(() => {
     if (!watch || !connection || !game) return;
-    return watch.followAssets?.(connection, game);
-  }, [watch, connection, game]);
+    return watch.followAssets?.(connection, game, tasks ? { pending: tasks } : {});
+  }, [watch, connection, game, tasks]);
 
   const live = useStoreValue(liveCell);
   const playing = useStoreValue(live?.session.store ?? NOT_EDITING, (s) => s.mode === "play");
@@ -320,6 +336,7 @@ export function useSceneEditor({
           name: ready.id,
           identity: loaded.identity,
           notify: say,
+          ...(tasks ? { pending: tasks } : {}),
           project: { session: ready.session, doc: ready.name },
         });
         const kept = carried.current;
@@ -337,7 +354,7 @@ export function useSceneEditor({
       }
       next?.destroy();
     };
-  }, [liveCell, loaded, game, ready, settled, fits, say]);
+  }, [liveCell, loaded, game, ready, settled, fits, say, tasks]);
 
   useEffect(() => {
     live?.host.setState((s) => ({ ...s, connection: link.status }));
@@ -391,8 +408,20 @@ export function useSceneEditor({
   );
 
   const on = enabled;
+  const rebuilding = on && (carrying ? ready !== null && live === null : live !== null && !fits);
+  const phase: BootPhase | null =
+    !on || editor || rebuilding
+      ? null
+      : !ready
+        ? projectOpen && link.status !== "failed"
+          ? "scene"
+          : "connecting"
+        : !settled
+          ? "assets"
+          : "game";
   return {
     editor,
+    phase,
     status: on ? link.status : null,
     unsynced: on ? unsynced : 0,
     scene: on ? (ready?.id ?? null) : null,
@@ -401,7 +430,7 @@ export function useSceneEditor({
     registry: applied.registry,
     projectData: applied.projectData,
     identity: on ? self : null,
-    rebuilding: on && (carrying ? ready !== null && live === null : live !== null && !fits),
+    rebuilding,
     assets: on ? assets : null,
   };
 }

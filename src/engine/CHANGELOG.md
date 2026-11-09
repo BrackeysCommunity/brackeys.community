@@ -43,15 +43,77 @@ changes listed under **Changed**. Every other entry stays free of React.
   file and named by `EDITOR_UI_STYLESHEET`: `je-` classes in
   `@layer jams-editor`, themed by `--je-*` custom properties on `.je-root`,
   with no Tailwind.
-- The layout model's `DEFAULT_LAYOUT` and the types of `fitLayout`,
-  `parseLayout` and `createPending`, exported ahead of their behaviour:
-  the three functions throw until the resizable frame and the pending
-  mechanism land.
+- The layout model is built: `parseLayout` reads a stored layout (unknown
+  panels dropped, missing ones back in their default group, `null` when the
+  shape or version is wrong), and `fitLayout` places both columns and each
+  group for a viewport, switching to one open column or the phone layout when
+  there's no room, and reports what the columns cover of the canvas.
+- `createPending` is built: tasks show busy at once, runs with the same id
+  join, progress only moves forward, each error is toasted once, and `run`
+  resolves `{ ok: false }` instead of rejecting. The status island shows
+  the activity line (after 300 ms, with progress and "+N more") and the
+  save state (Saving… / Saved, Reconnecting…, Offline — changes will
+  sync). The kit `Button` gains `busyScope`.
+- The frame's columns are resizable (drag, arrows 8/32 px, Home/End, Enter
+  collapses, double-click restores) with a split between their two tab
+  groups; sizes come from the layout model and persist per viewer; narrow
+  windows draw one column and a rail, phones a panel bar and sheet; framing
+  a selection, a problem or a prefab fits the canvas the columns leave
+  visible.
+- Editor panels sit in tab groups (two per column): Problems' tab counts
+  errors and warnings, a tab's menu moves its panel to the other group or
+  resets the layout, and inactive panels stay mounted.
 - `react`, `react-dom` and `@hocuspocus/provider` are optional peers, used
   only by `./editor-ui`. The package's first `dependencies` are the editor's
   own libraries, `@base-ui/react`, `@dnd-kit/core`,
   `@hugeicons/core-free-icons` and `@hugeicons/react`. `sideEffects` is
   `["*.css"]`.
+- The scene view outlines every selected thing on its resolved shape and
+  pose (solids, sensors, bulk rows, markers, decor and sprite boxes, grid
+  entities' filled cells, instance children of turned, flipped and nested
+  instances, and an instance by its children), each a primary stroke on a
+  dark halo with non-scaling strokes; a multi-selection adds one bounds box.
+  Hover is shared: `EditorStoreState.hover` (set with `setHover`) is the
+  entity under the pointer in the view or the outliner, outlined in a
+  lighter tone in the view and marked on its outliner row. A marquee
+  outlines what it would select while you drag, and touch mode looks
+  different from contain mode. `ToolOverlay` outlines and points carry
+  `ref`, `ToolOverlay.bounds` and `marquee.hits` are new, and
+  `EditorToolContext.hover` lets a tool report what's under the pointer.
+  The tool host now announces selection and hover changes to its
+  subscribers.
+- Density tokens on `.je-root`: `--je-inset`, `--je-gap`, `--je-pad`,
+  `--je-row`, `--je-control`, `--je-tab`, `--je-text`, `--je-text-sm`,
+  `--je-label`, `--je-label-col`, `--je-rail` and `--je-handle`. The
+  frame, panels and kit size themselves from them.
+- Placement previews. The placement tools, an asset dragged over the view
+  and the draw tools show a ghost of what a release would add, in the
+  template's colour, or in red with the reason when it would land out of
+  bounds or be refused. The pen and waypoint tools draw the stroke so far
+  and a dashed next segment to the snapped pointer, with its length.
+  `dropPreview(drop, at, opts)` (and its `DropPreview` and `DropOptions`
+  types) is the drop's ghost, from the same batch `dropBatch` builds;
+  `boundsCheck(box, def)` is the one bounds rule the placement tool, the
+  drop and the draw tools share.
+- Inspector widgets: `FieldWidget` gains `{ kind: "color" }`, a colour
+  picker for a string field whose meta names the `color` widget (a game's
+  own `color` widget still wins), and `{ kind: "asset", kinds, frame? }`, a
+  searchable picker of the project's assets of those kinds for an asset
+  field. When the field takes atlases and has a sibling `frame` field, the
+  frame becomes a select of the atlas's frames, and picking an asset and
+  its frame is one undo step. Without a project, both stay text fields.
+- `vp run engine:editor` serves the editor standalone on `./vite`, over a
+  scratch copy of the engine project, with no site code.
+- `EditorToolContext.previewDoc()` (optional), the scene as the drag in
+  progress would leave it, and `preview?: boolean` on `ToolOverlay.outlines`
+  and `ToolOverlay.points`, marking what draws the drag's preview.
+- The browser smoke (`vp run engine:smoke:browser`) also mounts the packed
+  `dist` editor UI on the kitchen sink in Chromium, Firefox and WebKit: its
+  islands keep apart and inside the window at 1440×900, 1024×700 and
+  760×700, the inspector group is at least 500 px tall at 1440×900, a tab
+  switch shows its panel, and the crate's sprite pixel reads back from the
+  editor's renderer. `engine-browser-smoke.json` lists the editor run per
+  browser.
 
 ### Changed
 
@@ -67,6 +129,63 @@ changes listed under **Changed**. Every other entry stays free of React.
   as the editor does; the two share one rule.
 - A file drop the import refuses entirely reports one error with the
   reasons and no longer plays the drop cue.
+- The editor's panels draw no headers of their own; each tab group's strip
+  is its only header, and the outliner's Type/Layer control sits in its body
+  toolbar.
+- `devProjectHost`'s `origin` also takes a `ws(s)://` origin; blobs then go
+  over `http(s)://` on the same host. `SceneEditorHandle.openPanel` and
+  `resetLayout` now drive the frame's layout (reveal the panel's tab
+  wherever the viewer moved it; put back the default layout) instead of
+  focusing a fixed island.
+- The editor's frame draws right away with skeleton panels, and the status
+  says which boot phase it's in (connecting, opening the scene, materials
+  and prefabs, building the game). A rebuild keeps the last frame mounted
+  and inert under "Rebuilding the game" and brings back the selection and
+  tool. Opening a prefab and Create variant run as pending tasks with busy
+  controls, and a second press joins the running one. Hot reload of art is
+  a pending hold. A `?scene=` the project doesn't hold now gets a notice,
+  and `onSceneChange` is called with the scene that opened.
+- Project panel: import runs as a pending task with per-file progress
+  (reading, hashing, uploading with % sent, adding), and the folder it was
+  dropped on and the drop target stay busy until it settles, followed by
+  one success toast. Rename, move, delete and restore show their row busy.
+  Each licence field shows Saving… and then any refusal. The tree shows its
+  loading skeleton until the project doc holds the server's state. Code
+  modules sit under one Code row after the assets, collapsed by default and
+  remembered. `projectBlobs` reports bytes sent through XHR when no fetcher
+  is passed.
+- History rows are one line (label · actor · time) with an icon Revert.
+  Consecutive entries with the same label and actor within 60 s fold into
+  one row with a count, which expands; Revert on a folded row reverts the
+  newest. Problems rows are one or two lines: icon, message, then the code
+  in muted text. The Problems tab spins from a doc change until the
+  physical check lands (a `panel:problems` hold). The Run panel's markers
+  scroll inside the panel. Reading a run file goes through the pending
+  mechanism.
+- Inspector: sections collapse from their title and remember it per
+  section (`jams-editor:inspector-collapsed`); the label column follows
+  the panel's width, 30% from 64 to 120 px, through `--je-label-col`; one
+  padding and 26 px controls; the selection's type and Create prefab share
+  the header row; with nothing selected the inspector is one muted line in
+  its body. Outliner: rows are one 24 px line; the filter's placeholder is
+  "Filter", with its syntax in a hint; an instance's row, its Open button
+  and the inspector's Open prefab show busy while that prefab opens.
+- The dock's Play and Play from here are icon buttons with key hints.
+  Tools that don't fit between the columns move into a More tools menu:
+  game tools first, then the grid step, then the shape tools (Select and
+  Pan stay). When the bottom row is short the status shrinks to a
+  save-state dot and counts, and keeps the full words for screen readers
+  and in the dot's hint. The read-only notice is a banner centred over the
+  canvas. The prefab breadcrumb is one row in the frame's context, beside
+  the host's top-left chrome, and moves below it only when the top row has
+  no room.
+- During a move, scale, rotate, vertex or edge drag, the overlay draws the
+  selection where the drag puts it (filled faintly) over a `ghost`-toned
+  outline of where it started. The handles and bounds box follow the
+  preview, snap guides draw as haloed `guide` marks, and the readout shows
+  the snapped Δ, size or angle. Previews are view-only: the editor no
+  longer pushes drags into the edit world's runtime, release commits one
+  batch, and Esc writes nothing.
 
 ### Agent surface
 

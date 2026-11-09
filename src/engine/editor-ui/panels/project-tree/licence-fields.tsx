@@ -3,11 +3,17 @@ import { useId, useState } from "react";
 import type { Licence } from "../../../project/index";
 import { Hint } from "../../kit/hint";
 import { Input } from "../../kit/input";
+import { Spinner } from "../../kit/spinner";
 import { MicroLabel } from "../../kit/text";
+import { PendingProvider, useBusy } from "../../pending/use-pending";
 import { consoleErrors } from "./notify";
+import { licenceScope, runOp, useTreePending } from "./tree-pending";
 import type { LicenceFieldsProps } from "./types";
 
 type Field = keyof Licence;
+
+const messageOf = (err: unknown) =>
+  err instanceof Error && err.message ? err.message : "The project refused it.";
 
 const FIELDS: readonly { field: Field; title: string; hint: string; placeholder: string }[] = [
   {
@@ -62,6 +68,7 @@ function LicenceField({
   value,
   list,
   readOnly,
+  scope,
   onCommit,
 }: {
   title: string;
@@ -70,37 +77,76 @@ function LicenceField({
   value: string;
   list?: string;
   readOnly?: boolean;
-  onCommit: (value: string) => void;
+  /** The pending scope its write runs in. */
+  scope: string;
+  /** Resolves with the refusal's message, or null once written. */
+  onCommit: (value: string) => Promise<string | null>;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const commit = () => {
-    if (draft === null) return;
-    if (draft.trim() !== value) onCommit(draft);
-    setDraft(null);
+  const [error, setError] = useState<string | null>(null);
+  const saving = useBusy(scope) !== undefined;
+  const errorId = useId();
+  const commit = async () => {
+    if (draft === null || saving) return;
+    if (draft.trim() === value) {
+      setDraft(null);
+      return;
+    }
+    setError(null);
+    const refused = await onCommit(draft);
+    setError(refused);
+    // A refused value stays in the field, to fix or Escape.
+    if (refused === null) setDraft(null);
   };
   return (
-    <div className="je-licence-field">
+    <div className="je-licence-field" data-busy={saving ? "" : undefined}>
       <Hint content={hint}>
         <span className="je-licence-title">{title}</span>
       </Hint>
-      <Input
-        aria-label={title}
-        placeholder={readOnly ? undefined : placeholder}
-        list={list}
-        readOnly={readOnly}
-        value={draft ?? value}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") setDraft(null);
-        }}
-      />
+      <span className="je-licence-input">
+        <Input
+          aria-label={title}
+          aria-busy={saving || undefined}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+          placeholder={readOnly ? undefined : placeholder}
+          list={list}
+          readOnly={readOnly}
+          value={draft ?? value}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setError(null);
+          }}
+          onBlur={() => void commit()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void commit();
+            if (e.key === "Escape") {
+              setDraft(null);
+              setError(null);
+            }
+          }}
+        />
+        {saving ? (
+          <span className="je-licence-status" role="status">
+            <Spinner size={12} label={null} />
+            Saving…
+          </span>
+        ) : null}
+      </span>
+      {error ? (
+        <span id={errorId} role="alert" className="je-licence-error">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }
 
-/** An asset's licence, author, source and credit line, each written on Enter or blur. */
+/**
+ * An asset's licence, author, source and credit line, each written on Enter
+ * or blur as a pending task: the field says "Saving…" until the write
+ * settles, and shows a refusal under it.
+ */
 export function LicenceFields({
   entry,
   readOnly,
@@ -108,37 +154,48 @@ export function LicenceFields({
   notify = consoleErrors,
 }: LicenceFieldsProps) {
   const listId = useId();
+  const pending = useTreePending(notify);
   const editable = !readOnly && !!onLicence;
-  const commit = async (field: Field, value: string) => {
-    if (!onLicence) return;
-    try {
-      await onLicence(entry, withLicenceField(entry.licence, field, value));
-    } catch (err) {
-      notify.error(err instanceof Error ? err.message : "Couldn't save the licence.");
-    }
+  const commit = async (field: Field, title: string, value: string) => {
+    if (!onLicence) return null;
+    const scope = licenceScope(entry, field);
+    const result = await runOp(
+      pending,
+      {
+        id: scope,
+        scope,
+        label: `Saving the ${title.toLowerCase()}`,
+        fallback: `Couldn't save the ${title.toLowerCase()}`,
+      },
+      () => onLicence(entry, withLicenceField(entry.licence, field, value)),
+    );
+    return result.ok ? null : messageOf(result.error);
   };
   return (
-    <section aria-label="Licence" className="je-licence">
-      <MicroLabel>Licence</MicroLabel>
-      {FIELDS.map(({ field, title, hint, placeholder }) => (
-        <LicenceField
-          key={`${entry.key}:${field}`}
-          title={title}
-          hint={hint}
-          placeholder={placeholder}
-          value={entry.licence?.[field] ?? ""}
-          list={field === "spdx" && editable ? listId : undefined}
-          readOnly={!editable}
-          onCommit={(value) => void commit(field, value)}
-        />
-      ))}
-      {editable ? (
-        <datalist id={listId}>
-          {COMMON_SPDX.map((id) => (
-            <option key={id} value={id} />
-          ))}
-        </datalist>
-      ) : null}
-    </section>
+    <PendingProvider pending={pending}>
+      <section aria-label="Licence" className="je-licence">
+        <MicroLabel>Licence</MicroLabel>
+        {FIELDS.map(({ field, title, hint, placeholder }) => (
+          <LicenceField
+            key={`${entry.key}:${field}`}
+            title={title}
+            hint={hint}
+            placeholder={placeholder}
+            value={entry.licence?.[field] ?? ""}
+            list={field === "spdx" && editable ? listId : undefined}
+            readOnly={!editable}
+            scope={licenceScope(entry, field)}
+            onCommit={(value) => commit(field, title, value)}
+          />
+        ))}
+        {editable ? (
+          <datalist id={listId}>
+            {COMMON_SPDX.map((id) => (
+              <option key={id} value={id} />
+            ))}
+          </datalist>
+        ) : null}
+      </section>
+    </PendingProvider>
   );
 }

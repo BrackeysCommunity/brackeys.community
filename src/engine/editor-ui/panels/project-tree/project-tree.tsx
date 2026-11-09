@@ -6,17 +6,20 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import type { AssetEntry } from "../../../project/index";
-import type { EditorNotify } from "../../host";
+import { STORAGE_PREFIX } from "../../host";
 import { useKit } from "../../kit/context";
 import { Skeleton } from "../../kit/skeleton";
+import { PendingProvider, usePendingTasks } from "../../pending/use-pending";
 import { DeleteConfirm, type PendingDelete } from "./delete-confirm";
 import { FileDropTarget } from "./file-drop-target";
+import { filesLabel } from "./import-files";
 import { consoleErrors } from "./notify";
 import {
   AssetItem,
+  CodeGroupItem,
   CodeItem,
   FolderItem,
   FrameItem,
@@ -27,51 +30,34 @@ import {
 } from "./rows";
 import { TrashSection } from "./trash-section";
 import {
+  assetScope,
+  IMPORT_SCOPE_PREFIX,
+  importScope,
+  runOp,
+  useTreePending,
+} from "./tree-pending";
+import {
+  baseName,
   fileCount,
-  flattenTree,
   namesIn,
   parentFolder,
   peersByRow,
+  projectRows,
   renameProblem,
   ROOT_KEY,
 } from "./tree-rows";
 import type { ProjectTreeProps } from "./types";
 
-const messageOf = (err: unknown, fallback: string) =>
-  err instanceof Error && err.message ? err.message : fallback;
-
-const descriptionOf = (err: unknown) =>
-  err instanceof Error && "description" in err && typeof err.description === "string"
-    ? err.description
-    : undefined;
+const CODE_OPEN_KEY = `${STORAGE_PREFIX}project-code-open`;
 
 /**
- * Runs a host callback; a rejection goes to `notify.error`, with the error's
- * `description` when it has one, and rethrows for the caller.
- */
-async function attempt<T>(
-  notify: Pick<EditorNotify, "error">,
-  fn: () => T | Promise<T>,
-  fallback: string,
-): Promise<T> {
-  try {
-    return await fn();
-  } catch (err) {
-    const description = descriptionOf(err);
-    if (description) notify.error(messageOf(err, fallback), { description });
-    else notify.error(messageOf(err, fallback));
-    throw err;
-  }
-}
-
-const settle = (p: Promise<unknown>) => void p.catch(() => {});
-
-/**
- * The project's files: folders, assets with their kind icons, and code
- * modules (greyed, read-only), with the peers in each doc on its row. Assets
- * rename in place, drag between folders and go to the trash through the
- * shared confirm, which lists referrers and offers "Delete anyway" when one
- * is in use. Files dropped from the desktop go to `onDropFiles`.
+ * The project's files: folders and assets with their kind icons, then one
+ * Code row, closed until opened, over the code modules (greyed, read-only),
+ * with the peers in each doc on its row. Assets rename in place, drag
+ * between folders and go to the trash through the shared confirm, which
+ * lists referrers and offers "Delete anyway" when one is in use. Files
+ * dropped from the desktop go to `onDropFiles`. Each edit is a pending task:
+ * its row, or the folder an import landed on, shows busy until it settles.
  */
 export function ProjectTree({
   projectId,
@@ -96,18 +82,41 @@ export function ProjectTree({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [renaming, setRenaming] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
-  const { cue } = useKit();
-  const run = <T,>(fn: () => T | Promise<T>, fallback: string) => attempt(notify, fn, fallback);
+  const { cue, storage } = useKit();
+  const [codeOpen, setCodeOpen] = useState(() => storage.get(CODE_OPEN_KEY) === "1");
+  const pendingOps = useTreePending(notify);
+  const importing = usePendingTasks().some((t) => t.scope.startsWith(IMPORT_SCOPE_PREFIX));
+  const imports = useRef(0);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const rows = useMemo(
     () =>
-      flattenTree(nodes, collapsed, {
+      projectRows(nodes, collapsed, {
+        codeOpen,
         expanded,
         ...(assetInfo ? { framesOf: (entry) => assetInfo(entry)?.frames } : {}),
       }),
-    [nodes, collapsed, expanded, assetInfo],
+    [nodes, collapsed, codeOpen, expanded, assetInfo],
   );
+  const toggleCode = () => {
+    const next = !codeOpen;
+    setCodeOpen(next);
+    storage.set(CODE_OPEN_KEY, next ? "1" : "0");
+  };
+
+  /** One edit of an asset, busy on its row. */
+  const onAsset = <T,>(
+    entry: AssetEntry,
+    op: string,
+    label: string,
+    fallback: string,
+    fn: () => T | Promise<T>,
+  ) =>
+    runOp(
+      pendingOps,
+      { id: `project:${op}:${entry.key}`, scope: assetScope(entry), label, fallback },
+      fn,
+    );
   const peers = useMemo(
     () => peersByRow(projectId, nodes, peersByDoc),
     [projectId, nodes, peersByDoc],
@@ -138,139 +147,201 @@ export function ProjectTree({
 
   const rename = (entry: AssetEntry, file: string) => {
     setRenaming(null);
-    if (onRename) settle(run(() => onRename(entry, { file }), `Couldn't rename ${entry.id}.`));
+    if (!onRename) return;
+    void onAsset(
+      entry,
+      "rename",
+      `Renaming ${baseName(entry.path)}`,
+      `Couldn't rename ${entry.id}`,
+      () => onRename(entry, { file }),
+    );
   };
 
-  const move = (entry: AssetEntry, folder: string) => {
+  const move = async (entry: AssetEntry, folder: string) => {
     if (!onMove || parentFolder(entry.path) === folder) return;
-    settle(run(() => onMove([entry.id], folder), `Couldn't move ${entry.id}.`).then(dropped));
+    const moved = await onAsset(
+      entry,
+      "move",
+      `Moving ${baseName(entry.path)}`,
+      `Couldn't move ${entry.id}`,
+      () => onMove([entry.id], folder),
+    );
+    if (moved.ok) dropped();
   };
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     const source = active.data.current as MoveSource | undefined;
     const target = over?.data.current as MoveTarget | undefined;
-    if (source && target) move(source.entry, target.folder);
+    if (source && target) void move(source.entry, target.folder);
   };
   // A row dragged natively (for the canvas) still moves when it lands on a folder.
-  const nativeMove = editable.move ? move : undefined;
+  const nativeMove = editable.move
+    ? (entry: AssetEntry, folder: string) => void move(entry, folder)
+    : undefined;
 
   const confirmDelete = async ({ entry, referrers }: PendingDelete) => {
     if (!onDelete) return;
-    const result = await run(
+    const result = await onAsset(
+      entry,
+      "delete",
+      `Deleting ${baseName(entry.path)}`,
+      `Couldn't delete ${entry.id}`,
       () => onDelete(entry, { force: referrers.length > 0, referrers }),
-      `Couldn't delete ${entry.id}.`,
     );
-    if (result && result.inUse.length > 0) {
-      setPending({ entry, referrers: result.inUse });
+    // A refusal keeps the confirm open; it was toasted already.
+    if (!result.ok) throw result.error;
+    if (result.value && result.value.inUse.length > 0) {
+      setPending({ entry, referrers: result.value.inUse });
       // Keeps the confirm open, now as the in-use variant.
       throw new Error("asset-in-use");
     }
   };
 
-  const drop = (files: File[], folder: string) => {
-    if (onDropFiles) {
-      settle(run(() => onDropFiles(files, folder), "Couldn't import those files.").then(dropped));
-    }
+  const restore = (entry: AssetEntry) => {
+    if (!onRestore) return;
+    void onAsset(
+      entry,
+      "restore",
+      `Restoring ${baseName(entry.path)}`,
+      `Couldn't restore ${entry.id}`,
+      () => onRestore(entry),
+    );
+  };
+
+  const drop = async (files: File[], folder: string) => {
+    if (!onDropFiles) return;
+    imports.current += 1;
+    const imported = await runOp(
+      pendingOps,
+      {
+        // Each drop is its own import, even onto a folder still importing.
+        id: `project:import:${imports.current}`,
+        scope: importScope(folder),
+        label: `Importing ${filesLabel(files.length)}`,
+        total: files.length,
+        fallback: "Couldn't import those files.",
+      },
+      (step) => onDropFiles(files, folder, step),
+    );
+    if (imported.ok) dropped();
   };
 
   return (
-    <nav aria-label="Project" className="je-ptree">
-      <FileDropTarget enabled={!readOnly && !!onDropFiles} onDrop={drop}>
-        {(fileOver) => (
-          <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={onDragEnd}>
-            <ul aria-label="Files" className="je-ptree-files">
-              {rows.map((row) => {
-                if (row.type === "root") {
+    <PendingProvider pending={pendingOps}>
+      <nav aria-label="Project" className="je-ptree">
+        <FileDropTarget
+          enabled={!readOnly && !!onDropFiles}
+          busy={importing}
+          onDrop={(files, folder) => void drop(files, folder)}
+        >
+          {(fileOver) => (
+            <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={onDragEnd}>
+              <ul aria-label="Files" className="je-ptree-files">
+                {rows.map((row) => {
+                  if (row.type === "root") {
+                    return (
+                      <RootItem
+                        key={row.key}
+                        name={projectName}
+                        count={fileCount(nodes)}
+                        peers={peers.get(ROOT_KEY)}
+                        movable={editable.move}
+                        {...(nativeMove ? { onMoveAsset: nativeMove } : {})}
+                      />
+                    );
+                  }
+                  if (row.type === "folder") {
+                    return (
+                      <FolderItem
+                        key={row.key}
+                        row={row}
+                        open={!collapsed.has(row.key)}
+                        peers={peers.get(row.key)}
+                        movable={editable.move && !row.code}
+                        fileOver={!row.code && fileOver === row.folder}
+                        onToggle={() => toggle(row.key)}
+                        {...(nativeMove && !row.code ? { onMoveAsset: nativeMove } : {})}
+                      />
+                    );
+                  }
+                  if (row.type === "code-group") {
+                    return (
+                      <CodeGroupItem
+                        key={row.key}
+                        row={row}
+                        open={codeOpen}
+                        onToggle={toggleCode}
+                      />
+                    );
+                  }
+                  if (row.type === "code") return <CodeItem key={row.key} row={row} />;
+                  if (row.type === "frame") {
+                    return (
+                      <FrameItem
+                        key={row.key}
+                        row={row}
+                        {...(dragAsset ? { dragAsset } : {})}
+                        {...(onOpen ? { onOpen: () => onOpen(row.entry) } : {})}
+                      />
+                    );
+                  }
+                  const { entry } = row;
                   return (
-                    <RootItem
-                      key={row.key}
-                      name={projectName}
-                      count={fileCount(nodes)}
-                      peers={peers.get(ROOT_KEY)}
-                      movable={editable.move}
-                      {...(nativeMove ? { onMoveAsset: nativeMove } : {})}
-                    />
-                  );
-                }
-                if (row.type === "folder") {
-                  return (
-                    <FolderItem
+                    <AssetItem
                       key={row.key}
                       row={row}
-                      open={!collapsed.has(row.key)}
+                      active={entry.key === activeKey}
                       peers={peers.get(row.key)}
-                      movable={editable.move}
-                      fileOver={fileOver === row.folder}
-                      onToggle={() => toggle(row.key)}
-                      {...(nativeMove ? { onMoveAsset: nativeMove } : {})}
-                    />
-                  );
-                }
-                if (row.type === "code") return <CodeItem key={row.key} row={row} />;
-                if (row.type === "frame") {
-                  return (
-                    <FrameItem
-                      key={row.key}
-                      row={row}
+                      editable={editable}
+                      fileOver={fileOver === row.folder && row.folder !== ""}
+                      renaming={renaming === row.key}
+                      checkRename={(file) => renameProblem(entry, file, namesIn(nodes, row.folder))}
+                      onOpen={onOpen ? () => onOpen(entry) : undefined}
+                      onStartRename={() => setRenaming(row.key)}
+                      onRename={(file) => rename(entry, file)}
+                      onCancelRename={() => setRenaming(null)}
+                      onDelete={() =>
+                        setPending({ entry, referrers: referrersOf?.(entry.id) ?? [] })
+                      }
                       {...(dragAsset ? { dragAsset } : {})}
-                      {...(onOpen ? { onOpen: () => onOpen(row.entry) } : {})}
+                      framesOpen={expanded.has(row.key)}
+                      onToggleFrames={() => toggleFrames(row.key)}
                     />
                   );
-                }
-                const { entry } = row;
-                return (
-                  <AssetItem
-                    key={row.key}
-                    row={row}
-                    active={entry.key === activeKey}
-                    peers={peers.get(row.key)}
-                    editable={editable}
-                    fileOver={fileOver === row.folder && row.folder !== ""}
-                    renaming={renaming === row.key}
-                    checkRename={(file) => renameProblem(entry, file, namesIn(nodes, row.folder))}
-                    onOpen={onOpen ? () => onOpen(entry) : undefined}
-                    onStartRename={() => setRenaming(row.key)}
-                    onRename={(file) => rename(entry, file)}
-                    onCancelRename={() => setRenaming(null)}
-                    onDelete={() => setPending({ entry, referrers: referrersOf?.(entry.id) ?? [] })}
-                    {...(dragAsset ? { dragAsset } : {})}
-                    framesOpen={expanded.has(row.key)}
-                    onToggleFrames={() => toggleFrames(row.key)}
-                  />
-                );
-              })}
-              {loading ? (
-                <li aria-label="Loading" className="je-ptree-loading">
-                  {[0.7, 0.5, 0.6].map((w) => (
-                    <Skeleton
-                      key={w}
-                      data-slot="skeleton"
-                      className="je-ptree-skeleton"
-                      style={{ width: `${w * 100}%` }}
-                    />
-                  ))}
-                </li>
-              ) : nodes.length === 0 ? (
-                <li className="je-ptree-empty">
-                  {!readOnly && onDropFiles
-                    ? "No assets yet. Drop files here to import them."
-                    : "No assets yet."}
-                </li>
-              ) : null}
-            </ul>
-          </DndContext>
-        )}
-      </FileDropTarget>
-      <TrashSection
-        trash={trash}
-        readOnly={readOnly}
-        onRestore={
-          onRestore
-            ? (entry) => settle(run(() => onRestore(entry), `Couldn't restore ${entry.id}.`))
-            : undefined
-        }
-      />
-      <DeleteConfirm pending={pending} onConfirm={confirmDelete} onClose={() => setPending(null)} />
-    </nav>
+                })}
+                {loading ? (
+                  <li aria-label="Loading" className="je-ptree-loading">
+                    {[0.7, 0.5, 0.6].map((w) => (
+                      <Skeleton
+                        key={w}
+                        data-slot="skeleton"
+                        className="je-ptree-skeleton"
+                        style={{ width: `${w * 100}%` }}
+                      />
+                    ))}
+                  </li>
+                ) : nodes.length === 0 ? (
+                  <li className="je-ptree-empty">
+                    {!readOnly && onDropFiles
+                      ? "No assets yet. Drop files here to import them."
+                      : "No assets yet."}
+                  </li>
+                ) : null}
+              </ul>
+            </DndContext>
+          )}
+        </FileDropTarget>
+        <TrashSection
+          trash={trash}
+          readOnly={readOnly}
+          onRestore={onRestore ? restore : undefined}
+        />
+        <DeleteConfirm
+          pending={pending}
+          onConfirm={confirmDelete}
+          onClose={() => setPending(null)}
+        />
+      </nav>
+    </PendingProvider>
   );
 }

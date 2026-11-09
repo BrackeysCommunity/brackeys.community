@@ -74,11 +74,22 @@ export type OverlayTone = "selected" | "hover" | "invalid" | "ghost" | "guide";
  * never interprets it.
  */
 export type ToolOverlay = {
-  outlines?: { shape: ShapeObj; tone: OverlayTone }[];
-  points?: { at: Pt; tone: OverlayTone }[];
+  /**
+   * `ref` names the entity an outline belongs to, so panels can match it.
+   * `preview` marks where the drag in progress puts it, drawn filled; a
+   * `ghost` outline is where it started.
+   */
+  outlines?: { shape: ShapeObj; tone: OverlayTone; ref?: Ref; preview?: boolean }[];
+  points?: { at: Pt; tone: OverlayTone; ref?: Ref; preview?: boolean }[];
+  /** One box around a selection of several items, or of an instance's children. */
+  bounds?: Aabb;
   handles?: GizmoHandle[];
-  /** A drag-select rectangle; `touch` selects what it touches, not only what it contains. */
-  marquee?: { rect: Aabb; touch: boolean };
+  /**
+   * A drag-select rectangle; `touch` selects what it touches, not only what
+   * it contains. `hits` is what releasing it now would select; the host
+   * outlines them during the drag.
+   */
+  marquee?: { rect: Aabb; touch: boolean; hits?: Ref[] };
   /** Snap alignment lines. */
   guides?: { from: Pt; to: Pt }[];
   /** Paths and pen strokes; `numbered` labels each point from 0. */
@@ -124,10 +135,21 @@ export type EditorToolContext = {
   getDoc(): SceneDefinition;
   selection(): readonly Ref[];
   select(refs: Ref[], mode?: SelectMode): void;
+  /**
+   * Reports the entity under the pointer, `null` for none. The host shares
+   * it with the outliner and draws its hover outline; absent on a host that
+   * shares no hover, where a tool draws its own.
+   */
+  hover?(ref: Ref | null): void;
   /** One gesture or stroke as one undoable batch; false when it didn't apply. */
   commit(batch: OpBatch, opts?: { selectionAfter?: Ref[] }): boolean;
-  /** Shows a batch in the edit world without committing (a drag in progress); `null` puts it back. */
+  /**
+   * Shows a batch without committing it (a drag in progress): the host
+   * outlines the selection where the batch puts it; `null` puts it back.
+   */
   preview(batch: OpBatch | null): void;
+  /** The resolved document as the current preview shows it; `null` with nothing previewed. */
+  previewDoc?(): SceneDefinition | null;
   /** Screen px per world px, for tolerances and handle sizes given in screen px. */
   scale(): number;
   snap(): SnapSettings;

@@ -1,16 +1,23 @@
 import type { Store } from "@tanstack/store";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { dropBatch, type EditorSession, type ToolHost } from "../../../editor/index";
+import { dropPreview, type DropPreview } from "../../../editor/asset-drop";
+import {
+  dropBatch,
+  type AssetDrop,
+  type EditorSession,
+  type Pt,
+  type ToolHost,
+  type ToolOverlay,
+} from "../../../editor/index";
 import type { GameStoreState } from "../../../index";
 import type { EditorNotify } from "../../host";
 import { Button, useKit } from "../../kit/index";
 import { runOverlay, type LoadedRun } from "../../session/loaded-run";
-import { useEditorDoc, useEditorStore } from "../../session/use-editor-store";
 import { useStoreValue } from "../../session/use-store-value";
 import { carriesAsset, readAssetDrag } from "../project-tree/tree-rows";
 import { RunMarks } from "./RunMarks";
-import { hostToWorld, useHostChanges, useHostValue } from "./tool-host";
+import { hostToWorld, useHostOverlay, useHostValue } from "./tool-host";
 import { ToolOverlayLabels, ToolOverlayMarks } from "./ToolOverlayLayer";
 import { num, toScreen, useView, worldTransform } from "./view";
 
@@ -54,41 +61,99 @@ function useCanvasInput(host: ToolHost | null, canvas: (() => HTMLElement | null
 }
 
 /**
- * The canvas as the project tree's drop target: an asset row dropped on it
- * is placed at the drop point, snapped as the tool host snaps, in one batch
- * (one undo step), through the same screen-to-world conversion as the
- * host's pointer, and sounds the `drop` cue. A kind that can't be placed
- * says so through `notify`.
+ * The asset a drag from the project tree carries. A browser hides a drag's
+ * data until the drop, so it is read when the drag starts and kept until it
+ * ends; a drag whose data is readable over the canvas is read there.
+ */
+function useDraggedAsset(): () => AssetDrop | null {
+  const carried = useRef<AssetDrop | null>(null);
+  useEffect(() => {
+    const onStart = (e: DragEvent) => {
+      carried.current = carriesAsset(e.dataTransfer) ? readAssetDrag(e.dataTransfer) : null;
+    };
+    const onEnd = () => {
+      carried.current = null;
+    };
+    document.addEventListener("dragstart", onStart);
+    document.addEventListener("dragend", onEnd);
+    document.addEventListener("drop", onEnd);
+    return () => {
+      document.removeEventListener("dragstart", onStart);
+      document.removeEventListener("dragend", onEnd);
+      document.removeEventListener("drop", onEnd);
+    };
+  }, []);
+  return () => carried.current;
+}
+
+/**
+ * The canvas as the project tree's drop target: while an asset row is
+ * dragged over it, the ghost of what it would place follows the pointer,
+ * snapped, and says why when it would be refused; dropped, it is placed at
+ * the drop point in one batch (one undo step), through the same
+ * screen-to-world conversion as the host's pointer, and sounds the `drop`
+ * cue. A kind that can't be placed says so through `notify`. Returns the
+ * ghost to draw, `null` with no drag over the canvas.
  */
 function useAssetDrop(
   session: EditorSession,
   host: ToolHost | null,
   canvas: (() => HTMLElement | null) | undefined,
   notify: EditorNotify,
-) {
+): DropPreview | null {
   const { cue } = useKit();
-  const latest = useRef({ session, host, notify, cue });
+  const [ghost, setGhost] = useState<DropPreview | null>(null);
+  const dragged = useDraggedAsset();
+  const latest = useRef({ session, host, notify, cue, dragged });
   useEffect(() => {
-    latest.current = { session, host, notify, cue };
+    latest.current = { session, host, notify, cue, dragged };
   });
   useEffect(() => {
     const el = canvas?.();
     if (!el) return;
+    /** The world point under a drag event, or null without a host. */
+    const worldOf = (e: DragEvent): Pt | null => {
+      const toWorld = latest.current.host && hostToWorld(latest.current.host);
+      if (!toWorld || !Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return null;
+      const rect = el.getBoundingClientRect();
+      return toWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    };
+    let shown: string | null = null;
+    const clear = () => {
+      shown = null;
+      setGhost(null);
+    };
     const onOver = (e: DragEvent) => {
       if (!carriesAsset(e.dataTransfer)) return;
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      const { session: s, host: h, dragged: carried } = latest.current;
+      const drop = readAssetDrag(e.dataTransfer) ?? carried();
+      const at = worldOf(e);
+      if (!drop || !at || !h) return;
+      const key = `${drop.entry.id}\n${drop.frame ?? ""}\n${Math.round(at[0])},${Math.round(at[1])}`;
+      if (shown === key) return;
+      shown = key;
+      setGhost(
+        dropPreview(drop, at, {
+          def: s.getDoc(),
+          registry: s.registry,
+          prefabs: s.getPrefabs(),
+          snap: h.snap(),
+        }),
+      );
+    };
+    const onLeave = (e: DragEvent) => {
+      if (e.target === el) clear();
     };
     const onDrop = (e: DragEvent) => {
       if (!carriesAsset(e.dataTransfer)) return;
       e.preventDefault();
-      const drop = readAssetDrag(e.dataTransfer);
-      if (!drop || !Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return;
-      const { session: s, host: h, notify: say, cue: sound } = latest.current;
-      const toWorld = h && hostToWorld(h);
-      if (!h || !toWorld) return;
-      const rect = el.getBoundingClientRect();
-      const at = toWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      clear();
+      const { session: s, host: h, notify: say, cue: sound, dragged: carried } = latest.current;
+      const drop = readAssetDrag(e.dataTransfer) ?? carried();
+      const at = worldOf(e);
+      if (!drop || !h || !at) return;
       const result = dropBatch(drop, at, {
         def: s.getDoc(),
         registry: s.registry,
@@ -104,12 +169,27 @@ function useAssetDrop(
       else say.error(applied.issue.message);
     };
     el.addEventListener("dragover", onOver);
+    el.addEventListener("dragleave", onLeave);
     el.addEventListener("drop", onDrop);
+    document.addEventListener("dragend", clear);
     return () => {
       el.removeEventListener("dragover", onOver);
+      el.removeEventListener("dragleave", onLeave);
       el.removeEventListener("drop", onDrop);
+      document.removeEventListener("dragend", clear);
     };
   }, [canvas]);
+  return ghost;
+}
+
+/** The host's overlay with a drag's ghost added. */
+function withDropGhost(overlay: ToolOverlay, ghost: DropPreview | null): ToolOverlay {
+  if (!ghost) return overlay;
+  return {
+    ...overlay,
+    ghosts: [...(overlay.ghosts ?? []), ...ghost.ghosts],
+    ...(ghost.points ? { points: [...(overlay.points ?? []), ...ghost.points] } : {}),
+  };
 }
 
 /**
@@ -139,13 +219,11 @@ export function CanvasLayer({
   const view = useView(store);
   const loaded = useStoreValue(runStore, (r) => r, Object.is);
   const run = useMemo(() => (loaded ? runOverlay(loaded) : null), [loaded]);
-  useHostChanges(host);
-  // The overlay draws the selection, which also changes from the panels.
-  useEditorStore(session, (s) => s.selection);
-  useEditorDoc(session);
+  // The host announces selection, hover and doc changes, including the panels'.
+  const hostOverlay = useHostOverlay(host);
   useCanvasInput(host, canvas);
-  useAssetDrop(session, host, canvas, notify);
-  const overlay = host?.overlay() ?? {};
+  const dropGhost = useAssetDrop(session, host, canvas, notify);
+  const overlay = withDropGhost(hostOverlay, dropGhost);
   const transform = worldTransform(view);
 
   let offerAt: [number, number] | null = null;

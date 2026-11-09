@@ -23,9 +23,12 @@ import { IconButton } from "../../kit/button";
 import { Hint } from "../../kit/hint";
 import { Icon } from "../../kit/icon";
 import { Input } from "../../kit/input";
+import { Spinner } from "../../kit/spinner";
+import { useBusy } from "../../pending/use-pending";
 import { PeerFaces } from "../peer-faces";
 import { DROP_FOLDER_ATTR } from "./file-drop-target";
 import { kindIcon } from "./kind-icons";
+import { assetScope, importScope } from "./tree-pending";
 import {
   baseName,
   carriesAsset,
@@ -71,11 +74,28 @@ const faces = (peers: readonly ProjectPeer[]): PeerPresence[] =>
 
 const indentOf = (depth: number): CSSProperties => ({ paddingLeft: `${depth * 12 + 8}px` });
 
+/** What a folder or the root shows while files dropped on it import: a spinner and "2 of 5". */
+function ImportBusy({ folder, children }: { folder: string; children: ReactNode }) {
+  const task = useBusy(importScope(folder));
+  if (!task) return children;
+  return (
+    <span className="je-ptree-busy" data-end="">
+      <Spinner size={12} label={null} />
+      {task.progress ? (
+        <span className="je-ptree-count">
+          {task.progress.done} of {task.progress.total}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function DropRow({
   id,
   folder,
   enabled,
   over,
+  inert = false,
   onMoveAsset,
   children,
 }: {
@@ -84,19 +104,25 @@ function DropRow({
   enabled: boolean;
   /** A file drag from the desktop is over this folder. */
   over: boolean;
+  /** Takes no files and no assets: a folder under the Code row. */
+  inert?: boolean;
   /** An asset row dragged natively and dropped here. */
   onMoveAsset?: (entry: AssetEntry, folder: string) => void;
   children: ReactNode;
 }) {
   const target: MoveTarget = { folder };
-  const { setNodeRef, isOver } = useDroppable({ id, data: target, disabled: !enabled });
+  const { setNodeRef, isOver } = useDroppable({ id, data: target, disabled: !enabled || inert });
   const [assetOver, setAssetOver] = useState(false);
-  const takes = (e: DragEvent) => enabled && !!onMoveAsset && carriesAsset(e.dataTransfer);
+  const importing = useBusy(importScope(folder)) !== undefined && !inert;
+  const takes = (e: DragEvent) =>
+    enabled && !inert && !!onMoveAsset && carriesAsset(e.dataTransfer);
   return (
     <li
       ref={setNodeRef}
-      {...{ [DROP_FOLDER_ATTR]: folder }}
+      {...(inert ? {} : { [DROP_FOLDER_ATTR]: folder })}
       className="je-ptree-row"
+      aria-busy={importing || undefined}
+      data-busy={importing ? "" : undefined}
       data-drop-over={isOver || over || assetOver ? "" : undefined}
       onDragOver={(e) => {
         if (!takes(e)) return;
@@ -144,7 +170,9 @@ export function RootItem({
         {peers?.length ? (
           <PeerFaces peers={faces(peers)} label="On the overview:" size={14} />
         ) : null}
-        <span className="je-ptree-count">{count}</span>
+        <ImportBusy folder="">
+          <span className="je-ptree-count">{count}</span>
+        </ImportBusy>
       </div>
     </DropRow>
   );
@@ -174,6 +202,7 @@ export function FolderItem({
       folder={row.folder}
       enabled={movable}
       over={fileOver}
+      inert={!!row.code}
       {...(onMoveAsset ? { onMoveAsset } : {})}
     >
       <button
@@ -193,9 +222,17 @@ export function FolderItem({
         {!open && peers?.length ? (
           <PeerFaces peers={faces(peers)} label="Open inside by" size={14} />
         ) : null}
-        <span className="je-ptree-count" data-end="">
-          {row.count}
-        </span>
+        {row.code ? (
+          <span className="je-ptree-count" data-end="">
+            {row.count}
+          </span>
+        ) : (
+          <ImportBusy folder={row.folder}>
+            <span className="je-ptree-count" data-end="">
+              {row.count}
+            </span>
+          </ImportBusy>
+        )}
       </button>
     </DropRow>
   );
@@ -307,11 +344,12 @@ export function AssetItem({
   onToggleFrames?: () => void;
 }) {
   const { entry } = row;
+  const busy = useBusy(assetScope(entry));
   const source: MoveSource = { entry };
   const { setNodeRef, listeners, isDragging } = useDraggable({
     id: row.key,
     data: source,
-    disabled: !editable.move || renaming,
+    disabled: !editable.move || renaming || !!busy,
   });
   const indent = indentOf(row.depth);
   const display = entry.name && entry.name !== baseName(entry.path).replace(/\..*$/, "");
@@ -320,6 +358,8 @@ export function AssetItem({
       {...{ [DROP_FOLDER_ATTR]: row.folder }}
       data-kind={entry.kind}
       className="je-ptree-row"
+      aria-busy={busy ? true : undefined}
+      data-busy={busy ? "" : undefined}
       data-file-over={fileOver ? "" : undefined}
     >
       {renaming ? (
@@ -338,14 +378,14 @@ export function AssetItem({
           {...listeners}
           {...nativeDrag(dragAsset && !renaming ? () => dragAsset(entry) : undefined)}
           onClick={onOpen}
-          onDoubleClick={editable.rename ? onStartRename : undefined}
+          onDoubleClick={editable.rename && !busy ? onStartRename : undefined}
           onKeyDown={(e) => {
             if (e.key === "F2" && editable.rename) {
               e.preventDefault();
-              onStartRename();
+              if (!busy) onStartRename();
             } else if ((e.key === "Delete" || e.key === "Backspace") && editable.delete) {
               e.preventDefault();
-              onDelete();
+              if (!busy) onDelete();
             } else listeners?.onKeyDown?.(e);
           }}
           className="je-ptree-item"
@@ -359,6 +399,11 @@ export function AssetItem({
           {peers?.length ? (
             <span className="je-ptree-end">
               <PeerFaces peers={faces(peers)} label="Open by" size={14} />
+            </span>
+          ) : null}
+          {busy ? (
+            <span className="je-ptree-busy" data-end="">
+              <Spinner size={12} label={null} />
             </span>
           ) : null}
         </button>
@@ -375,7 +420,7 @@ export function AssetItem({
           <Icon icon={framesOpen ? ArrowDown01Icon : ArrowRight01Icon} size={12} />
         </button>
       ) : null}
-      {!renaming && (editable.rename || editable.delete) ? (
+      {!renaming && !busy && (editable.rename || editable.delete) ? (
         <span className="je-ptree-actions">
           {editable.rename ? (
             <IconButton
@@ -425,6 +470,43 @@ export function FrameItem({
         <span aria-hidden className="je-ptree-dot" />
         <span className="je-ptree-name">{row.frame}</span>
       </button>
+    </li>
+  );
+}
+
+/** The one row the code modules sit under, after the assets; closed until opened. */
+export function CodeGroupItem({
+  row,
+  open,
+  onToggle,
+}: {
+  row: Row<"code-group">;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <li data-kind="code-group" className="je-ptree-row">
+      <Hint content="The game's code modules: read-only here, edit them in your code editor.">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          className="je-ptree-item"
+          data-tone="code-group"
+          style={indentOf(row.depth)}
+        >
+          <Icon
+            icon={open ? ArrowDown01Icon : ArrowRight01Icon}
+            size={12}
+            className="je-ptree-muted"
+          />
+          <Icon icon={kindIcon("code")} className="je-ptree-muted" />
+          <span className="je-ptree-name">Code</span>
+          <span className="je-ptree-count" data-end="">
+            {row.count}
+          </span>
+        </button>
+      </Hint>
     </li>
   );
 }

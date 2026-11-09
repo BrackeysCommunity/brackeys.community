@@ -3,14 +3,31 @@ import type { ReactNode } from "react";
 
 import { ShellTitle, SiteIsland } from "@/components/canvas/shell/SiteIsland";
 
-/** The site menu, the lobby link and the room's title, top left in play and in the editor. */
-export function GameSiteIsland({ title }: { title: ReactNode }) {
+import { DisplayMenu, type DisplaySetting } from "./display-menu";
+
+/**
+ * The site menu, the lobby link and the room's title, top left in play and in
+ * the editor; with `display`, the room's display menu after the title.
+ */
+export function GameSiteIsland({
+  title,
+  display,
+}: {
+  title: ReactNode;
+  display?: { value: DisplaySetting; onChange: (next: DisplaySetting) => void };
+}) {
   return (
     <SiteIsland
       label="Game"
       site={{ back: { label: "lobby", link: <Link to="/game" /> }, signinSource: "game" }}
     >
       <ShellTitle>{title}</ShellTitle>
+      {display ? (
+        <>
+          <span className="h-5 w-px shrink-0 bg-border" aria-hidden />
+          <DisplayMenu value={display.value} onChange={display.onChange} />
+        </>
+      ) : null}
     </SiteIsland>
   );
 }

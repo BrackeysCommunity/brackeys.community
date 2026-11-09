@@ -9,6 +9,7 @@ import {
   type EditorHost,
   type EditorIdentityInput,
 } from "@jams/engine/editor-ui";
+import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -120,18 +121,32 @@ export type SiteSceneEditorProps = {
   roomId: string;
   /** The project scene to open, by id; default the bundled one. */
   scene?: string;
+  /** Default: the room's route follows, its `?scene=` set to the scene the editor opened. */
   onSceneChange?: (id: string) => void;
 };
 
 /**
  * The game room's `?edit=1`: the engine's scene editor on the platformer
  * project, in the site's chrome. The title names the room until the editor
- * is up, then the scene; `onSceneChange` keeps `scene` on the one it opened.
+ * is up, then the scene. When the editor opens another scene than `scene`
+ * (it isn't in the project), the editor's notice says so through the site's
+ * toast and the route's `?scene=` follows, replacing the history entry.
  */
 export function SiteSceneEditor({ roomId, scene, onSceneChange }: SiteSceneEditorProps) {
   const [ready, setReady] = useState(false);
   const editing = scene ?? BUNDLED_SCENE_ID;
-  const host = useSiteEditorHost({ title: ready ? editing : roomId, onSceneChange });
+  const navigate = useNavigate();
+  const followScene = (id: string) =>
+    void navigate({
+      to: "/game/$roomId",
+      params: { roomId },
+      search: (prev) => ({ ...prev, scene: id }),
+      replace: true,
+    });
+  const host = useSiteEditorHost({
+    title: ready ? editing : roomId,
+    onSceneChange: onSceneChange ?? followScene,
+  });
   return (
     <SceneEditor
       host={host}

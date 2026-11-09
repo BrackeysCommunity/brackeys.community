@@ -210,7 +210,12 @@ function fakeGame() {
 const unregister: (() => void)[] = [];
 
 const outliner = () => within(screen.getByRole("navigation", { name: "Outliner" }));
-const history = () => within(screen.getByRole("region", { name: "History" }));
+/** The History panel, its tab brought forward first. */
+const history = () => {
+  const tab = screen.getByRole("tab", { name: /History/ });
+  if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
+  return within(screen.getByRole("region", { name: "History" }));
+};
 const rows = () => history().getAllByRole("listitem");
 
 beforeEach(() => {
@@ -549,12 +554,12 @@ describe("editorChrome with someone else on the doc", () => {
   it("shows the connection and how many others are here", () => {
     const { host } = setup();
     const status = within(
-      screen.getAllByRole("status").find((s) => s.textContent?.includes("Live"))!,
+      screen.getAllByRole("status").find((s) => s.textContent?.includes("Saved"))!,
     );
     expect(status.getByText("1 other here")).toBeTruthy();
     expect(status.getByRole("img", { name: "Here: Bo" })).toBeTruthy();
     act(() => host.setState((s) => ({ ...s, connection: "reconnecting" })));
-    expect(status.getByText("Reconnecting")).toBeTruthy();
+    expect(status.getByText("Reconnecting…")).toBeTruthy();
   });
 
   it("marks their selection in the outliner, on a closed bucket, and on the canvas", () => {
@@ -634,7 +639,8 @@ describe("editorChrome with someone else on the doc", () => {
     act(() => {
       b.dispatch({ ops: [{ op: "update", ref: "pad", set: { at: [1200, 1010] } }] });
     });
-    fireEvent.click(within(rows()[1]!).getByRole("button", { name: "Revert" }));
+    fireEvent.click(within(rows()[0]!).getByRole("button", { name: /^Expand / }));
+    fireEvent.click(within(rows()[2]!).getByRole("button", { name: "Revert" }));
     expect(toasts.error).toHaveBeenCalledOnce();
     expect(toasts.error.mock.calls[0]![1]).toMatchObject({
       description: expect.stringContaining("changed since"),

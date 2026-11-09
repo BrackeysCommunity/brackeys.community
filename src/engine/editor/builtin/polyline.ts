@@ -1,7 +1,7 @@
 import { isConvex } from "../../scene/shape-geometry";
 import type { Pt, ShapeObj } from "../../scene/types";
 import { pathBatch } from "../gizmos/batch";
-import { readPoint } from "../gizmos/readout";
+import { readLength, readPoint } from "../gizmos/readout";
 import { gizmoTarget, type GizmoTarget } from "../gizmos/target";
 import { MIN_WAYPOINTS } from "../gizmos/waypoints";
 import { pickAt } from "../picking";
@@ -42,6 +42,12 @@ export function lock45(from: Pt, p: Pt): Pt {
   return roundPt([from[0] + t * u[0], from[1] + t * u[1]]);
 }
 
+/** The next segment's readout: where it ends, and its length when it has one. */
+function segmentText(from: Pt, to: Pt): string {
+  const len = Math.round(Math.hypot(to[0] - from[0], to[1] - from[1]));
+  return len > 0 ? `${readPoint(to)}  ${readLength(len)}` : readPoint(to);
+}
+
 /**
  * The shape a finished pen stroke makes: an open chain, or when closed on
  * its first point a poly if convex and a closed chain (its first point
@@ -64,6 +70,8 @@ type StrokeOptions = {
   under?(): ToolOverlay;
   /** A press when no stroke is open; true when it was used for something else (picking a target). */
   before?(world: Pt): boolean;
+  /** A press now would start a stroke, so the snapped point under the pointer is shown; default true. */
+  armed?(): boolean;
 };
 
 /**
@@ -85,6 +93,16 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
     pts = [];
     ctx.invalidate();
   };
+  /** A click at `p` would close the stroke on its first point. */
+  const closes = (p: Pt): boolean => {
+    const first = pts[0];
+    return (
+      opts.closable &&
+      first !== undefined &&
+      pts.length >= 3 &&
+      Math.hypot(p[0] - first[0], p[1] - first[1]) <= CLOSE_PX / ctx.scale()
+    );
+  };
   const finish = (closed: boolean) => {
     const stroke = pts;
     reset();
@@ -105,14 +123,7 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
         return true;
       }
       const p = place(e.world, e);
-      const first = pts[0];
-      const tol = CLOSE_PX / ctx.scale();
-      if (
-        opts.closable &&
-        first &&
-        pts.length >= 3 &&
-        Math.hypot(p[0] - first[0], p[1] - first[1]) <= tol
-      ) {
+      if (closes(p)) {
         finish(true);
         return true;
       }
@@ -142,16 +153,28 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
     gesture: () => pts.length > 0,
     overlay(): ToolOverlay {
       const base = opts.under?.() ?? {};
-      if (pts.length === 0) return base;
-      const line = hover ? [...pts, hover] : pts;
+      const last = pts[pts.length - 1];
+      if (!last) {
+        const starts = hover !== null && (opts.armed?.() ?? true);
+        return starts && hover ? { ...base, points: [{ at: hover, tone: "ghost" }] } : base;
+      }
+      const first = pts[0]!;
+      const closing = hover !== null && closes(hover);
+      // The next segment follows the pointer, or runs back to the first point when a click would close.
+      const next = closing ? first : hover;
+      const polylines: NonNullable<ToolOverlay["polylines"]> = [
+        ...(base.polylines ?? []),
+        { pts, closed: false, numbered: opts.numbered, tone: "ghost" },
+      ];
+      if (next) polylines.push({ pts: [last, next], closed: false, dashed: true, tone: "ghost" });
       return {
         ...base,
-        polylines: [
-          ...(base.polylines ?? []),
-          { pts: line, closed: false, numbered: opts.numbered, tone: "ghost" },
-        ],
-        points: pts.map((at) => ({ at, tone: "ghost" as const })),
-        ...(hover ? { readout: { at: hover, text: readPoint(hover) } } : {}),
+        polylines,
+        points: pts.map((at, i) => ({
+          at,
+          tone: closing && i === 0 ? ("selected" as const) : ("ghost" as const),
+        })),
+        ...(hover && next ? { readout: { at: hover, text: segmentText(last, next) } } : {}),
       };
     },
     cursor: () => "crosshair",
@@ -206,6 +229,7 @@ export const waypointsTool = defineEditorTool({
       closable: false,
       minPoints: MIN_WAYPOINTS,
       numbered: true,
+      armed: () => target() !== undefined,
       before(world) {
         if (target()) return false;
         const hit = pickAt(ctx.index(), world, {

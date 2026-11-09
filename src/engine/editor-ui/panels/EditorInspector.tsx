@@ -1,4 +1,6 @@
 import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
   Cancel01Icon,
   FlipHorizontalIcon,
   FlipVerticalIcon,
@@ -9,13 +11,16 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type MouseEvent,
   type PointerEvent,
   type ReactElement,
   type ReactNode,
 } from "react";
 
+import type { ProjectSession } from "../../collab/index";
 import {
   applyLevels,
   applyToPrefabBatch,
@@ -57,9 +62,9 @@ import {
   type SceneDefinition,
   type ShapeTuple,
 } from "../../editor/index";
+import { STORAGE_PREFIX } from "../host";
 import {
   Button,
-  ColorField as ColorPicker,
   Combobox,
   ComboboxChip,
   ComboboxChips,
@@ -79,9 +84,6 @@ import {
   MenuItem,
   MenuTrigger,
   MicroLabel,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   SegmentedControl,
   Select,
   SelectContent,
@@ -90,9 +92,22 @@ import {
   SelectValue,
   Slider,
   Switch,
+  Text,
   useComboboxAnchor,
+  useKit,
 } from "../kit/index";
+import { openPrefabScope } from "../session/live-scene-editor";
 import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
+import { isRecord, readStored, writeStored } from "./EditorOutliner";
+import { useProjectView } from "./EditorProject";
+import {
+  AssetCombobox,
+  assetOptions,
+  danglingAsset,
+  FrameSelect,
+  frameFor,
+} from "./inspector/asset-picker";
+import { ColorWidget } from "./inspector/color-widget";
 import { AssetPanel, type SelectedAsset } from "./project-tree/asset-panel";
 
 /** Why an edit didn't land in a read-only inspector. */
@@ -124,6 +139,12 @@ type Ctx = {
   edit?: (field: ModelField, input: unknown) => Edit;
   /** Every edit is refused. */
   readOnly?: boolean;
+  /** Where asset fields find the project's assets; without it they're text fields. */
+  project?: ProjectSession | null;
+  /** The model's fields by path, for widgets that edit a sibling (an atlas's frame). */
+  fields?: ReadonlyMap<string, ModelField>;
+  /** Fields an asset picker draws as its frame row, so they aren't drawn again. */
+  drawnBy?: ReadonlySet<string>;
 };
 
 type Edit = { ok: true; batch: OpBatch } | { ok: false; error: string };
@@ -170,6 +191,23 @@ function dispatchSource(
 
 function batchFor(ctx: Ctx, field: ModelField, input: unknown, targets = ctx.targets): Edit {
   return ctx.edit ? ctx.edit(field, input) : modelBatch(field, input, targets, ctx.def);
+}
+
+/** Sets each field to its input on every target, as one batch. */
+function commitFields(
+  ctx: Ctx,
+  label: string,
+  edits: readonly (readonly [ModelField, unknown])[],
+): string | null {
+  const ops: OpBatch["ops"] = [];
+  let base: string | undefined;
+  for (const [field, input] of edits) {
+    const edit = batchFor(ctx, field, input);
+    if (!edit.ok) return edit.error;
+    ops.push(...edit.batch.ops);
+    base ??= edit.batch.base;
+  }
+  return dispatch(ctx, { label, ...(base ? { base } : {}), ops });
 }
 
 /** Sets `field` to `input` on every target, as one batch. */
@@ -237,6 +275,81 @@ const relative = (delta: number) => (delta >= 0 ? `+=${delta}` : `-=${-delta}`);
 const tidy = (n: number) => Number(n.toFixed(6));
 
 // ─── Building blocks ─────────────────────────────────────
+
+/** The label column's share of the inspector's width, and its bounds in px. */
+const LABEL_COLUMN = { min: 64, share: 0.3, max: 120 } as const;
+
+/** The label column for an inspector `width` px wide. */
+const labelColumnPx = (width: number): number =>
+  Math.round(Math.min(LABEL_COLUMN.max, Math.max(LABEL_COLUMN.min, width * LABEL_COLUMN.share)));
+
+/**
+ * Sets `--je-label-col` on the element from its own width as it resizes, so
+ * nested fields line up with the top-level ones; without a `ResizeObserver`
+ * the stylesheet's token sizes each row.
+ */
+function useLabelColumn() {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const apply = () =>
+      el.style.setProperty("--je-label-col", `${labelColumnPx(el.clientWidth)}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [el]);
+  return setEl;
+}
+
+const COLLAPSED_KEY = `${STORAGE_PREFIX}inspector-collapsed`;
+
+/**
+ * A titled group of fields that collapses from its title, remembered per
+ * `id` in the host's storage. The title is a `<summary>`, so it stays
+ * usable inside a read-only inspector's disabled fieldset.
+ */
+function Section({
+  id,
+  title,
+  hint,
+  actions,
+  children,
+}: {
+  id: string;
+  title: string;
+  hint?: string;
+  /** Controls beside the title, such as a behavior's Remove. */
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  const { storage } = useKit();
+  const [open, setOpen] = useState(() => !readStored(storage, COLLAPSED_KEY, {}, isRecord)[id]);
+  const toggle = (e: MouseEvent) => {
+    e.preventDefault();
+    const closed = { ...readStored(storage, COLLAPSED_KEY, {}, isRecord) };
+    if (open) closed[id] = true;
+    else delete closed[id];
+    writeStored(storage, COLLAPSED_KEY, closed);
+    setOpen(!open);
+  };
+  return (
+    <section aria-label={title} className="je-insp-section" data-open={open ? "" : undefined}>
+      <div className="je-insp-section-head">
+        <details open={open} className="je-insp-section-title">
+          <Hinted hint={hint}>
+            <summary className="je-insp-section-toggle" onClick={toggle}>
+              <Icon icon={open ? ArrowDown01Icon : ArrowRight01Icon} size={12} />
+              <MicroLabel className="je-sp-truncate">{title}</MicroLabel>
+            </summary>
+          </Hinted>
+        </details>
+        {actions}
+      </div>
+      {open ? children : null}
+    </section>
+  );
+}
 
 function Hinted({ hint, children }: { hint?: string; children: ReactElement }) {
   return (
@@ -1044,53 +1157,119 @@ function NestedFields({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
-const colorText = (v: unknown) =>
-  typeof v === "number" ? `#${v.toString(16).padStart(6, "0")}` : typeof v === "string" ? v : "";
-
+/** A colour field: `0xRRGGBB` or `#rrggbb`, as the field's schema takes. */
 function ColorField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
-  const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const numeric = field.schema.safeParse(0).success;
-  const shown = field.mixed ? "" : colorText(field.value);
-  const commit = (text: string) => {
-    const hex = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(text.trim())?.[1];
-    if (!hex) return setError("Enter a colour like #ff8800.");
-    const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
-    const problem = commitField(
-      ctx,
-      field,
-      numeric ? parseInt(full, 16) : `#${full.toLowerCase()}`,
-    );
-    setError(problem);
-    if (!problem) setDraft(null);
-  };
   return (
     <FieldRow field={field} error={error}>
-      <div className="je-insp-row" data-gap="tight">
-        <Popover>
-          <PopoverTrigger
-            aria-label={`Pick ${field.title}`}
-            className="je-insp-swatch"
-            style={{ background: shown || "transparent" }}
-          />
-          <PopoverContent>
-            <ColorPicker
-              label={field.title}
-              value={shown || "#000000"}
-              onChange={setDraft}
-              onCommit={() => draft && commit(draft)}
-            />
-          </PopoverContent>
-        </Popover>
-        <Input
-          aria-label={field.path}
-          placeholder={field.mixed ? MIXED : undefined}
-          value={draft ?? shown}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => draft !== null && commit(draft)}
-          onKeyDown={(e) => e.key === "Enter" && draft !== null && commit(draft)}
+      <ColorWidget
+        title={field.title}
+        path={field.path}
+        value={field.value}
+        mixed={field.mixed}
+        optional={field.optional}
+        numeric={field.schema.safeParse(0).success}
+        placeholder={
+          field.mixed ? MIXED : field.optional ? unsetText(field.defaultValue) : undefined
+        }
+        onCommit={(value) => commitField(ctx, field, value)}
+        onProblem={setError}
+      />
+    </FieldRow>
+  );
+}
+
+/**
+ * An asset field: a combobox of the project's assets of its kinds. Picking
+ * an atlas also sets its linked frame field (the current frame when the
+ * atlas has it, else its first) and picking a texture unsets it, one batch
+ * each; the frame row then lists the atlas's frames. Without a project
+ * both are text fields.
+ */
+function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+  const w = field.widget as Extract<FieldWidget, { kind: "asset" }>;
+  const view = useProjectView(ctx.project ?? null);
+  const [error, setError] = useState<string | null>(null);
+  const frameField = w.frame ? ctx.fields?.get(w.frame) : undefined;
+  if (!view) {
+    return (
+      <>
+        <TextField field={field} ctx={ctx} />
+        {frameField ? <TextField field={frameField} ctx={ctx} /> : null}
+      </>
+    );
+  }
+  const options = assetOptions(view, w.kinds);
+  const chosen = field.mixed ? undefined : options.find((o) => o.id === field.value);
+  const problem = error ?? (field.mixed ? null : danglingAsset(field.value, options, w.kinds));
+
+  const pick = (id: string | undefined) => {
+    const edits: [ModelField, unknown][] = [[field, id]];
+    if (frameField) {
+      const frames = options.find((o) => o.id === id)?.frames;
+      edits.push([frameField, frames ? frameFor(frames, frameField.value) : undefined]);
+    }
+    setError(commitFields(ctx, `Set ${field.title}`, edits));
+  };
+
+  // A texture draws no frame, so its row shows only to clear a stale one.
+  const showFrame =
+    chosen?.frames !== undefined ||
+    frameField?.mixed === true ||
+    frameField?.value !== undefined ||
+    (chosen === undefined && (field.mixed || field.value !== undefined));
+  return (
+    <>
+      <FieldRow field={field} error={problem}>
+        <AssetCombobox
+          path={field.path}
+          kinds={w.kinds}
+          options={options}
+          value={field.value}
+          mixed={field.mixed}
+          optional={field.optional}
+          invalid={problem !== null}
+          {...(field.mixed ? { placeholder: MIXED } : {})}
+          onPick={pick}
         />
-      </div>
+      </FieldRow>
+      {frameField && showFrame ? (
+        chosen?.frames ? (
+          <FrameRow field={frameField} frames={chosen.frames} ctx={ctx} />
+        ) : (
+          <TextField field={frameField} ctx={ctx} />
+        )
+      ) : null}
+    </>
+  );
+}
+
+function FrameRow({
+  field,
+  frames,
+  ctx,
+}: {
+  field: ModelField;
+  frames: readonly string[];
+  ctx: Ctx;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const current = field.mixed ? undefined : field.value;
+  const problem =
+    error ??
+    (typeof current === "string" && !frames.includes(current)
+      ? `This atlas has no frame ${current}.`
+      : null);
+  return (
+    <FieldRow field={field} error={problem}>
+      <FrameSelect
+        path={field.path}
+        frames={frames}
+        value={field.value}
+        mixed={field.mixed}
+        empty={field.mixed ? MIXED : "unset"}
+        onPick={(frame) => setError(commitField(ctx, field, frame))}
+      />
     </FieldRow>
   );
 }
@@ -1172,6 +1351,7 @@ function CustomField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 
 /** One field, drawn by the widget the model chose for it. */
 function FieldView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+  if (ctx.drawnBy?.has(field.path)) return null;
   const top = field.path.split(".")[0]!;
   if (ctx.overrides?.has(top) && !field.path.includes("."))
     return (
@@ -1232,6 +1412,10 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     case "path":
     case "object":
       return <NestedFields field={field} ctx={ctx} />;
+    case "color":
+      return <ColorField field={field} ctx={ctx} />;
+    case "asset":
+      return <AssetField field={field} ctx={ctx} />;
     case "custom":
       return <CustomField field={field} ctx={ctx} />;
     case "readonly":
@@ -1239,17 +1423,42 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   }
 }
 
-/** A behavior section's heading: its label, its description as the hint, and Remove unless the type requires it. */
-function BehaviorHeading({ section, ctx }: { section: InspectorSectionModel; ctx: Ctx }) {
+function fieldsByPath(fields: readonly ModelField[], into = new Map<string, ModelField>()) {
+  for (const f of fields) {
+    into.set(f.path, f);
+    if (f.children) fieldsByPath(f.children, into);
+  }
+  return into;
+}
+
+/** The frame fields an asset picker among `fields` draws itself. */
+function framesDrawn(fields: ReadonlyMap<string, ModelField>): Set<string> {
+  const out = new Set<string>();
+  for (const f of fields.values())
+    if (f.widget.kind === "asset" && f.widget.frame && fields.has(f.widget.frame))
+      out.add(f.widget.frame);
+  return out;
+}
+
+/** A behavior's section: its description as the title's hint, and Remove unless the type requires it. */
+function BehaviorSection({
+  section,
+  ctx,
+  children,
+}: {
+  section: InspectorSectionModel;
+  ctx: Ctx;
+  children: ReactNode;
+}) {
   const [error, setError] = useState<string | null>(null);
   const remove = section.behavior?.remove;
   return (
-    <>
-      <div className="je-insp-row je-insp-line" data-gap="tight">
-        <Hinted hint={section.behavior?.description}>
-          <MicroLabel className="je-insp-grow je-sp-truncate">{section.title}</MicroLabel>
-        </Hinted>
-        {remove ? (
+    <Section
+      id={section.id}
+      title={section.title}
+      hint={section.behavior?.description}
+      actions={
+        remove ? (
           <Button
             size="sm"
             variant="ghost"
@@ -1258,11 +1467,13 @@ function BehaviorHeading({ section, ctx }: { section: InspectorSectionModel; ctx
           >
             Remove
           </Button>
-        ) : null}
-      </div>
+        ) : null
+      }
+    >
       {section.fields.length === 0 ? <p className="je-insp-note">No fields to set.</p> : null}
       {error ? <p className="je-insp-error">{error}</p> : null}
-    </>
+      {children}
+    </Section>
   );
 }
 
@@ -1335,10 +1546,13 @@ type InspectorProps = {
   inPrefab?: boolean;
   /** The asset picked in the project tree. */
   asset?: SelectedAsset;
+  /** The open project, whose assets asset fields pick from; without one they're text fields. */
+  project?: ProjectSession | null;
 };
 
-function Inspector({ session, onOpenPrefab, inPrefab = false, asset }: InspectorProps) {
+function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: InspectorProps) {
   const readOnly = useContext(ReadOnlyContext);
+  const labelColumn = useLabelColumn();
   const selection = useEditorStore(session, (s) => s.selection);
   const doc = useEditorDoc(session);
   const view = session.getResolved();
@@ -1357,16 +1571,24 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset }: Inspector
     return <InstancePanel session={session} doc={doc} id={only} onOpenPrefab={onOpenPrefab} />;
   }
   if (targets.length === 0) {
-    return <p className="je-insp-empty">Select something in the outliner.</p>;
+    return (
+      <Text as="p" size="xs" variant="muted" className="je-panel-empty">
+        Select something in the scene or the outliner.
+      </Text>
+    );
   }
 
   const model = buildInspectorModel(session.registry, targets);
   const child = targets.length === 1 ? childOverrides(doc, targets[0]!.ref) : null;
+  const byPath = fieldsByPath(model.sections.flatMap((s) => s.fields));
   const ctx: Ctx = {
     session,
     targets,
     def: doc,
     readOnly,
+    project: project ?? null,
+    fields: byPath,
+    drawnBy: framesDrawn(byPath),
     ...(child ? { overrides: child.fields } : {}),
   };
   const prefabBatch =
@@ -1376,7 +1598,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset }: Inspector
   const scope = targets.map((t) => t.ref).join(",");
 
   return (
-    <div className="je-inspector" aria-label="Inspector">
+    <div ref={labelColumn} className="je-inspector" aria-label="Inspector">
       <header className="je-insp-head">
         {targets.length > 1 ? (
           <span className="je-insp-title">{targets.length} selected</span>
@@ -1384,39 +1606,42 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset }: Inspector
           <span className="je-insp-title je-sp-truncate">{targets[0]!.ref}</span>
         )}
         <Hinted hint={targets.length === 1 ? typeDefs[0]?.description : undefined}>
-          <span className="je-sp-truncate je-insp-muted">{typeLabel}</span>
+          <span className="je-insp-grow je-sp-truncate je-insp-muted">{typeLabel}</span>
         </Hinted>
+        {prefabBatch ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="je-insp-head-action"
+            tooltip="Move the selection into a new prefab, with one instance where it stands"
+            onClick={() => dispatchSource(session, prefabBatch, readOnly)}
+          >
+            Create prefab
+          </Button>
+        ) : null}
       </header>
       {child ? (
         <p className="je-insp-note">In {child.instance}; bold fields override its prefab.</p>
-      ) : null}
-      {prefabBatch ? (
-        <Button
-          size="sm"
-          variant="outline"
-          tooltip="Move the selection into a new prefab, with one instance where it stands"
-          onClick={() => dispatchSource(session, prefabBatch, readOnly)}
-        >
-          Create prefab
-        </Button>
       ) : null}
       {model.sections.length === 0 ? (
         <p className="je-insp-note">
           {targets.length > 1 ? "Nothing in common to edit." : "Nothing to edit."}
         </p>
       ) : null}
-      {model.sections.map((section) => (
-        <section key={section.id} aria-label={section.title} className="je-insp-stack">
-          {section.behavior ? (
-            <BehaviorHeading key={scope} section={section} ctx={ctx} />
-          ) : (
-            <MicroLabel>{section.title}</MicroLabel>
-          )}
-          {section.fields.map((field) => (
-            <FieldView key={`${scope}:${field.path}`} field={field} ctx={ctx} />
-          ))}
-        </section>
-      ))}
+      {model.sections.map((section) => {
+        const fields = section.fields.map((field) => (
+          <FieldView key={`${scope}:${field.path}`} field={field} ctx={ctx} />
+        ));
+        return section.behavior ? (
+          <BehaviorSection key={`${scope}:${section.id}`} section={section} ctx={ctx}>
+            {fields}
+          </BehaviorSection>
+        ) : (
+          <Section key={section.id} id={section.id} title={section.title}>
+            {fields}
+          </Section>
+        );
+      })}
       {model.addBehaviors.length > 0 ? (
         <AddBehaviorMenu key={scope} options={model.addBehaviors} ctx={ctx} />
       ) : null}
@@ -1455,8 +1680,7 @@ function ParamsSection({
     },
   };
   return (
-    <section aria-label="Parameters" className="je-insp-stack">
-      <MicroLabel>Parameters</MicroLabel>
+    <Section id="instance:parameters" title="Parameters">
       {model.params.map((p) =>
         p.set ? (
           <div key={`${model.ref}:${p.name}`} className="je-insp-overridden" data-overridden="">
@@ -1477,7 +1701,7 @@ function ParamsSection({
         ),
       )}
       {error ? <p className="je-insp-error">{error}</p> : null}
-    </section>
+    </Section>
   );
 }
 
@@ -1523,8 +1747,7 @@ function PlacementSection({
     },
   ];
   return (
-    <section aria-label="Placement" className="je-insp-stack">
-      <MicroLabel>Placement</MicroLabel>
+    <Section id="instance:placement" title="Placement">
       <div className="je-insp-row" data-gap="tight">
         <span className="je-insp-grow je-sp-truncate je-insp-muted">{placementText(model)}</span>
         {model.editable
@@ -1557,7 +1780,7 @@ function PlacementSection({
         )}
       </FieldRow>
       {error ? <p className="je-insp-error">{error}</p> : null}
-    </section>
+    </Section>
   );
 }
 
@@ -1578,6 +1801,7 @@ function InstancePanel({
   onOpenPrefab?: (prefab: string, from: Ref) => void;
 }) {
   const readOnly = useContext(ReadOnlyContext);
+  const labelColumn = useLabelColumn();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState<string | null>(null);
@@ -1592,7 +1816,7 @@ function InstancePanel({
   const params = instanceParamsModel(doc, id, session.registry, prefabs);
   const placement = instanceTransformModel(doc, id, prefabs);
   return (
-    <div className="je-inspector" aria-label="Inspector">
+    <div ref={labelColumn} className="je-inspector" aria-label="Inspector">
       <header className="je-insp-head">
         <span className="je-insp-title je-sp-truncate">{id}</span>
         <span className="je-sp-truncate je-insp-muted">
@@ -1607,8 +1831,7 @@ function InstancePanel({
       {params && params.params.length > 0 ? (
         <ParamsSection key={id} session={session} doc={doc} model={params} />
       ) : null}
-      <section aria-label="Overrides" className="je-insp-stack">
-        <MicroLabel>Overrides</MicroLabel>
+      <Section id="instance:overrides" title="Overrides">
         {keys.length === 0 ? (
           <p className="je-insp-note">Same as the prefab.</p>
         ) : (
@@ -1620,10 +1843,9 @@ function InstancePanel({
             ))}
           </ul>
         )}
-      </section>
+      </Section>
       {levels.length > 1 ? (
-        <section aria-label="Apply to" className="je-insp-stack">
-          <MicroLabel>Apply to</MicroLabel>
+        <Section id="instance:apply-to" title="Apply to">
           <SegmentedControl
             size="xs"
             aria-label="Apply to"
@@ -1645,7 +1867,7 @@ function InstancePanel({
               </SegmentedControl.Item>
             ))}
           </SegmentedControl>
-        </section>
+        </Section>
       ) : null}
       <div className="je-insp-actions">
         <Button
@@ -1682,6 +1904,7 @@ function InstancePanel({
             size="sm"
             variant="ghost"
             disabled={missing}
+            busyScope={openPrefabScope(id)}
             tooltip="Edit the prefab on its own; every instance follows"
             onClick={() => onOpenPrefab(inst.prefab, id)}
           >
