@@ -6,18 +6,27 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import {
   AVATAR_SPEED,
   GOAL_EVENT,
+  NUDGE,
   testGame,
   type TestGameOptions,
   type TestGameSnapshot,
 } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import { hashText } from "../../scene/hash";
 import { parseSceneOrThrow } from "../../scene/parse";
 import type { SceneDefinition } from "../../scene/types";
 import type { RapierModule } from "../../types";
+import { ENGINE_VERSION } from "../../version";
 import { compileInputScript } from "../compile-input-script";
-import { STUCK_TICKS } from "../play-loop";
+import { prepareRun, runLoop, slotWakes, startRun, STUCK_TICKS } from "../play-loop";
 import { runPlaytest } from "../playtest";
-import type { InputScript, PlaytestBlocked, PlaytestReport, PlaytestRun } from "../playtest-types";
+import type {
+  InputEdge,
+  InputScript,
+  PlaytestBlocked,
+  PlaytestReport,
+  PlaytestRun,
+} from "../playtest-types";
 
 const registry = createRegistry(testGame);
 const text = readFileSync(new URL("../../scenes/engine-yard.json", import.meta.url), "utf8");
@@ -242,5 +251,245 @@ describe("runPlaytest", () => {
       outcome: { result: "script-end", at: null },
     });
     expect((r as PlaytestReport).trail.pts).toEqual([]);
+  });
+});
+
+describe("runPlaytest with commands", () => {
+  it("reports the commands it stepped beside the inputs, and the game acts on them", () => {
+    const steps: InputScript["steps"] = [
+      { hold: ["right"], for: 5 },
+      { command: NUDGE, args: { dx: 60 } },
+      { hold: ["right"], for: 5 },
+    ];
+    const r = report(play({ v: 1, steps }));
+    expect(r.commands).toEqual([[5, NUDGE, { dx: 60 }]]);
+    expect(r.inputs).toEqual([[0, "right", 1]]);
+    expect(r.ticks).toBe(11);
+    expect(r.steps[1]).toEqual({ index: 1, start: 5, ticks: 1, end: "done" });
+    const walked = report(play({ v: 1, steps: [{ hold: ["right"], for: 11 }] }));
+    expect(r.final!.position.x - walked.final!.position.x).toBeCloseTo(60, 0);
+    expect(report(play(toGoal)).commands).toEqual([]);
+  });
+
+  it("sends @elapsed for an elapse step, clamped to catchUp.maxMs, and wakes a turns game", () => {
+    const away = { ...testGame, time: { kind: "turns" as const, catchUp: { maxMs: 1000 } } };
+    const r = report(
+      runPlaytest({
+        rapier,
+        game: away,
+        scene: yard,
+        script: {
+          v: 1,
+          steps: [
+            { hold: ["right"], for: 4 },
+            { elapse: 250 },
+            { wait: 3 },
+            { elapse: 60_000 },
+            { command: NUDGE, args: { dx: 2 } },
+          ],
+        },
+      }),
+    );
+    expect(r.commands).toEqual([
+      [0, "@elapsed", { ms: 250 }],
+      [1, "@elapsed", { ms: 1000 }],
+      [2, NUDGE, { dx: 2 }],
+    ]);
+    expect(r.ticks).toBe(3);
+    expect(r.slots).toBe(10);
+    expect(r.inputs).toEqual([
+      [0, "right", 1],
+      [1, "right", 0],
+    ]);
+  });
+
+  it("blocks a script whose command the game doesn't declare", () => {
+    const b = blocked(play({ v: 1, steps: [{ command: "nudg", args: { dx: 1 } }] }));
+    expect(b.stage).toBe("script");
+    expect(b.scriptIssues[0]!.message).toContain('did you mean "nudge"?');
+  });
+});
+
+describe("runPlaytest on the game's clock", () => {
+  const at30 = { ...testGame, time: { kind: "fixed" as const, rate: 30 } };
+
+  /** An event game that stays busy for `busyTicks` ticks after any input. */
+  function eventGame(busyTicks: number) {
+    return {
+      ...testGame,
+      time: { kind: "event" as const },
+      createRuntime(ctx: Parameters<typeof testGame.createRuntime>[0]) {
+        const inner = testGame.createRuntime(ctx);
+        let left = 0;
+        return {
+          ...inner,
+          beforeStep(...args: Parameters<NonNullable<typeof inner.beforeStep>>) {
+            left = args[1].length > 0 ? busyTicks : left - 1;
+            inner.beforeStep?.(...args);
+          },
+          busy: () => left > 0,
+        };
+      },
+    };
+  }
+
+  it("turns a 30 Hz game's forMs: 1000 into 30 ticks and reports its rate", () => {
+    const r = report(
+      runPlaytest({
+        rapier,
+        game: at30,
+        scene: yard,
+        script: { v: 1, steps: [{ wait: 1 }, { hold: ["right"], forMs: 1000 }] },
+      }),
+    );
+    expect(r.ticks).toBe(31);
+    expect(r.slots).toBe(31);
+    expect(r.steps[1]).toEqual({ index: 1, start: 1, ticks: 30, end: "done" });
+    expect(r.tickRate).toBe(30);
+    expect(r.recording.tickRate).toBe(30);
+    expect(r.configHash).not.toBe(report(play({ v: 1, steps: [{ wait: 1 }] })).configHash);
+  });
+
+  it("walks a 30 Hz avatar as far per second as a 60 Hz one", () => {
+    const walk = (ms: number) => ({ v: 1 as const, steps: [{ hold: ["right"], forMs: ms }] });
+    const slow = report(runPlaytest({ rapier, game: at30, scene: yard, script: walk(500) }));
+    const fast = report(play(walk(500)));
+    expect(slow.ticks * 2).toBe(fast.ticks);
+    // Within one 30 Hz tick of walking: the worlds integrate at different steps.
+    expect(Math.abs(slow.final!.position.x - fast.final!.position.x)).toBeLessThan(
+      AVATAR_SPEED / 30,
+    );
+  });
+
+  it("keeps a 60 Hz fixed game's report as it was: slots equal ticks, the hash unchanged", () => {
+    const r = report(play(toGoal));
+    expect(r.tickRate).toBe(60);
+    expect(r.slots).toBe(r.ticks);
+    expect(r.recording.tickRate).toBe(60);
+    expect(r.configHash).toBe(
+      hashText(
+        JSON.stringify({
+          engine: ENGINE_VERSION,
+          tickRate: 60,
+          game: testGame.id,
+          config: testGame.configHash ?? null,
+        }),
+      ),
+    );
+  });
+
+  it("simulates nothing for an event game's idle wait, and counts its slots", () => {
+    const r = report(
+      runPlaytest({
+        rapier,
+        game: eventGame(5),
+        scene: yard,
+        script: { v: 1, steps: [{ wait: 30 }] },
+      }),
+    );
+    expect(r.ticks).toBe(0);
+    expect(r.slots).toBe(30);
+    expect(r.outcome).toMatchObject({ result: "script-end", tick: -1 });
+    expect(r.steps).toEqual([{ index: 0, start: 0, ticks: 30, end: "done" }]);
+    expect(r.recording.ticks).toBe(0);
+    expect(r.inputs).toEqual([]);
+  });
+
+  it("wakes an event game on an edge and steps it while busy, then idles", () => {
+    const r = report(
+      runPlaytest({
+        rapier,
+        game: eventGame(5),
+        scene: yard,
+        script: { v: 1, steps: [{ wait: 10 }, { press: "right" }, { wait: 20 }] },
+      }),
+    );
+    // The press and the release each wake one tick; five busy ticks follow the release.
+    expect(r.ticks).toBe(7);
+    expect(r.slots).toBe(31);
+    expect(r.inputs).toEqual([
+      [0, "right", 1],
+      [1, "right", 0],
+    ]);
+    expect(r.steps.map((s) => [s.start, s.ticks])).toEqual([
+      [0, 10],
+      [10, 1],
+      [11, 20],
+    ]);
+    expect(r.recording.ticks).toBe(7);
+  });
+
+  it("caps an event game's run at maxTicks simulated ticks, however many slots", () => {
+    const r = report(
+      runPlaytest({
+        rapier,
+        game: eventGame(1000),
+        scene: yard,
+        script: { v: 1, maxTicks: 40, steps: [{ wait: 100 }, { press: "right" }, { wait: 100 }] },
+      }),
+    );
+    expect(r.outcome.result).toBe("timeout");
+    expect(r.ticks).toBe(40);
+    expect(r.slots).toBe(140);
+  });
+});
+
+describe("runLoop", () => {
+  const turns = { ...testGame, time: { kind: "turns" as const } };
+  const turnsRegistry = createRegistry(turns);
+
+  it("carries a turns game's key edges to the tick a command wakes, in order", () => {
+    const prepared = prepareRun(yard, turnsRegistry);
+    if (!prepared.ok) throw new Error("blocked");
+    const started = startRun({
+      rapier,
+      game: turns,
+      registry: turnsRegistry,
+      scene: prepared.scene,
+      play: {},
+    });
+    if (!started.ok) throw new Error("load failed");
+    const stepped: unknown[] = [];
+    const record: InputEdge[] = [];
+    try {
+      const end = runLoop({
+        runtime: started.runtime,
+        game: turns,
+        maxTicks: 100,
+        maxSlots: 12,
+        record,
+        input: {
+          done: () => false,
+          edges: (slot) => (slot === 2 ? [[2, "right", 1]] : slot === 4 ? [[4, "left", 1]] : []),
+          commands: (slot) => (slot === 7 ? [{ name: "@elapsed", args: { ms: 5 } }] : []),
+        },
+        onTick: (state, _focus, edges, commands) => stepped.push([state.tick, edges, commands]),
+      });
+      expect(end).toEqual({ result: "timeout", tick: 0, ticks: 1, slots: 12 });
+      expect(stepped).toEqual([
+        [
+          0,
+          [
+            [0, "right", 1],
+            [0, "left", 1],
+          ],
+          [{ name: "@elapsed", args: { ms: 5 } }],
+        ],
+      ]);
+      expect(record).toEqual([
+        [0, "right", 1],
+        [0, "left", 1],
+      ]);
+    } finally {
+      started.runtime.destroy();
+    }
+  });
+
+  it("steps a fixed game every slot", () => {
+    expect(slotWakes({ kind: "fixed" }, [], [])).toBe(true);
+    expect(slotWakes({ kind: "event" }, [[0, "a", 1]], [])).toBe(true);
+    expect(slotWakes({ kind: "event" }, [], [])).toBe(false);
+    expect(slotWakes({ kind: "turns" }, [[0, "a", 1]], [])).toBe(false);
+    expect(slotWakes({ kind: "turns" }, [], [{ name: "@elapsed" }])).toBe(true);
   });
 });

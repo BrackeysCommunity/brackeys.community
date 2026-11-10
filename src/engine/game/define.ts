@@ -22,7 +22,10 @@ import {
   type BehaviorName,
   type RegisteredBehavior,
 } from "./behaviors";
+import { OCCUPANT } from "./behaviors/occupant";
 import { SPRITE } from "./behaviors/sprite";
+import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
+import { DEFAULT_TIME } from "./defaults";
 import { ID_PATTERN, isAttachField, RESERVED_FIELDS } from "./fields";
 import {
   BASE_REQUIRED_FIELDS,
@@ -31,6 +34,7 @@ import {
   PRIMITIVES,
   resolveFields,
 } from "./primitives";
+import { tickRateProblem } from "./time";
 import {
   ENGINE_CHECK_KINDS,
   ENGINE_COLLISION_GROUPS,
@@ -41,9 +45,11 @@ import {
   type BasePrimitive,
   type BehaviorRules,
   type BulkKeyInfo,
+  type CommandDef,
   type EntityTypeDef,
   type FieldEnv,
   type GameDefinition,
+  type GameWorldDef,
   type MaterialDef,
   type RegisteredType,
   type Registry,
@@ -74,7 +80,7 @@ export class RegistryError extends Error {
 }
 
 /** Primitives with no body: a game's `spawnOrder` may leave them out, and they then spawn last. */
-const BODILESS_PRIMITIVES: readonly EntityTypeName[] = ["decor"];
+const BODILESS_PRIMITIVES: readonly EntityTypeName[] = ["decor", "nav"];
 
 const isPrimitive = (name: string): boolean =>
   (PRIMITIVE_TYPES as readonly string[]).includes(name);
@@ -123,7 +129,7 @@ export type CreateRegistryOptions = {
 const noAssets: FieldEnv["assets"] = () => [];
 
 /** The engine's own behaviors, registered before a game's. */
-export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([SPRITE]);
+export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([SPRITE, OCCUPANT]);
 
 /** A behavior's own field defaults: each field whose schema parses `undefined` to a value. */
 function shapeDefaults(shape: z.ZodRawShape): Record<string, unknown> {
@@ -235,6 +241,36 @@ function checkLayers(layers: readonly SceneLayerDef[], problem: (msg: string) =>
   }
 }
 
+/** Refuses world defaults the runtime can't use: each must be what the scene setting of that name accepts. */
+function checkWorld(
+  world: GameWorldDef,
+  types: ReadonlyMap<EntityTypeName, RegisteredType>,
+  problem: (msg: string) => void,
+): void {
+  if (world.physics !== undefined && world.physics !== "rapier" && world.physics !== "none")
+    problem(`world.physics must be "rapier" or "none", got ${JSON.stringify(world.physics)}`);
+  const g = world.gravity as unknown;
+  if (
+    g !== undefined &&
+    !(
+      Array.isArray(g) &&
+      g.length === 2 &&
+      g.every((n) => typeof n === "number" && Number.isFinite(n))
+    )
+  )
+    problem("world.gravity must be two finite numbers [x, y]");
+  if (world.grid !== undefined && !z.safeParse(ENGINE_SETTINGS.grid, world.grid).success)
+    problem("world.grid must be a square or hex grid, as settings.grid takes it");
+  for (const name of world.gridWalls ?? []) {
+    const t = types.get(name);
+    if (!t) problem(`world.gridWalls names unknown type "${name}"`);
+    else if (t.loads === false) problem(`world.gridWalls names "${name}", which never loads`);
+  }
+  const unit = world.lengthUnit;
+  if (unit !== undefined && !(typeof unit === "number" && Number.isFinite(unit) && unit > 0))
+    problem(`world.lengthUnit must be a finite number above 0, got ${String(unit)}`);
+}
+
 /**
  * Merges the engine's primitives with a game's types, materials, actions,
  * collision groups and issue codes, and the project's materials over the
@@ -243,7 +279,9 @@ function checkLayers(layers: readonly SceneLayerDef[], problem: (msg: string) =>
  * keys or codes, a type without a system, a spawn order that misses or
  * repeats a type, unknown groups, a game behavior outside the game's
  * namespace, behavior rules naming unknown behaviors or failing their
- * schemas, a grid field without a point `at`.
+ * schemas, a grid field without a point `at`, a `time.rate` the clock can't run
+ * (`tick-rate-invalid`), world defaults the scene settings would refuse, and
+ * `world.gridWalls` naming a type that is unknown or never loads.
  */
 export function createRegistry(
   game?: GameDefinition | null,
@@ -501,6 +539,13 @@ export function createRegistry(
     if (game?.settings && key in game.settings) problem(`settings field "${key}" is the engine's`);
   }
 
+  // time and world
+  const rate = game?.time?.rate;
+  const rateProblem = rate === undefined ? null : tickRateProblem(rate);
+  if (rateProblem) problem(`time.rate: ${rateProblem} (tick-rate-invalid)`);
+  const world = game?.world;
+  if (world) checkWorld(world, types, problem);
+
   // layers
   const layers = game?.layers ?? DEFAULT_LAYERS;
   if (game?.layers) checkLayers(game.layers, problem);
@@ -550,7 +595,19 @@ export function createRegistry(
     seenChecks.add(check.id);
   }
 
+  for (const name of Object.keys(game?.commands ?? {})) {
+    if (name.startsWith("@"))
+      problem(`command "${name}" can't start with "@"; those are the engine's`);
+    else if (!COMMAND_NAME_PATTERN.test(name))
+      problem(`command "${name}" must match ${COMMAND_NAME_PATTERN}`);
+  }
+
   if (problems.length > 0) throw new RegistryError(id, problems);
+
+  const commands = new Map<string, CommandDef>([
+    ...Object.entries(ENGINE_COMMANDS),
+    ...Object.entries(game?.commands ?? {}),
+  ]);
 
   const rulesByType = new Map<EntityTypeName, BehaviorRules>();
   for (const t of types.values())
@@ -584,6 +641,9 @@ export function createRegistry(
     prefabContract: { ...game?.prefabContract },
     runResults,
     predicateNames,
+    commands,
+    commandNames: [...commands.keys()],
+    time: game?.time ?? DEFAULT_TIME,
     checkKinds,
     physicalChecks,
     widgets,

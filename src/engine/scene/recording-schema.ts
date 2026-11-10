@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { MAX_TICK_RATE, MIN_TICK_RATE } from "../game/time";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { jsonPointer } from "./issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "./json-schema";
@@ -45,7 +46,7 @@ export const runRecordingSchema = z
       .describe(
         "What the run depends on besides the scene: engine version, tick rate, the game and its tuning.",
       ),
-    tickRate: z.literal(60).describe("Ticks per second."),
+    tickRate: z.number().int().min(MIN_TICK_RATE).max(MAX_TICK_RATE).describe("Ticks per second."),
     start: z
       .strictObject({
         at: pt
@@ -78,6 +79,21 @@ export const runRecordingSchema = z
           .describe("One input edge, in the order the runtime stepped it."),
       )
       .describe("Every input edge played, oldest first."),
+    commands: z
+      .array(
+        z
+          .tuple([
+            tick("The tick the command is stepped on."),
+            z
+              .string()
+              .describe("The command's name: the game's, or an engine one such as `@elapsed`."),
+            z.unknown().optional().describe("Its arguments, as parsed; absent for none."),
+          ])
+          .meta({ minItems: 2, maxItems: 3 })
+          .describe("One command, in the order the runtime stepped it."),
+      )
+      .optional()
+      .describe("Every command stepped, oldest first; omitted when there were none."),
     ticks: tick("Ticks simulated."),
     outcome: z
       .strictObject({
@@ -128,6 +144,7 @@ export const runRecordingSchema = z
 
 export type RunRecording = z.infer<typeof runRecordingSchema>;
 export type RecordingMarker = RunRecording["markers"][number];
+export type RecordingCommand = NonNullable<RunRecording["commands"]>[number];
 
 /** A recording that didn't parse: a JSON Pointer into it and one sentence per problem. */
 export type RecordingIssue = { path: string; message: string };
@@ -166,6 +183,19 @@ export function parseRecording(input: unknown): ParseRecordingResult {
         {
           path: jsonPointer(["inputs", bad, 1]),
           message: `action index ${inputs[bad]![1]} is outside \`actions\` (${actions.length} names)`,
+        },
+      ],
+    };
+  }
+  const commands = parsed.data.commands ?? [];
+  const late = commands.findIndex(([t], i) => i > 0 && t < commands[i - 1]![0]);
+  if (late >= 0) {
+    return {
+      ok: false,
+      issues: [
+        {
+          path: jsonPointer(["commands", late, 0]),
+          message: `commands are oldest first, but tick ${commands[late]![0]} follows tick ${commands[late - 1]![0]}`,
         },
       ],
     };

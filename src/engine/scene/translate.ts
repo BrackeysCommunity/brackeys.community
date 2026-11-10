@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
-import type { Registry } from "../game/types";
+import { SIDES } from "../game/fields";
+import type { Registry, Side } from "../game/types";
 import { transformGrid, type GridCells } from "./grid";
 import { fieldKind, geometryFields } from "./schema";
 import { normDeg } from "./shape-geometry";
@@ -25,7 +26,7 @@ export const linearPart = (t: Transform2D): Transform2D => ({ ...t, tx: 0, ty: 0
 export type GeometryKind = "shape" | "point" | "path";
 
 /** Every kind a transform acts on; anything else is a plain value it leaves alone. */
-type TransformKind = GeometryKind | "vector" | "angle" | "mirror" | "grid";
+type TransformKind = GeometryKind | "vector" | "angle" | "mirror" | "side" | "grid";
 
 const TRANSFORM_KINDS: readonly string[] = [
   "shape",
@@ -34,6 +35,7 @@ const TRANSFORM_KINDS: readonly string[] = [
   "vector",
   "angle",
   "mirror",
+  "side",
   "grid",
 ] satisfies TransformKind[];
 
@@ -100,6 +102,19 @@ export function translateBulkEntry(value: BulkEntry, by: Pt): BulkEntry {
   return transformBulkEntry(value, translation(by));
 }
 
+const SIDE_VECTORS: Record<Side, Pt> = { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] };
+
+const isSide = (v: unknown): v is Side => SIDES.includes(v as Side);
+
+/** A side under `t`; `true` (`"up"`) stays `true` while it still faces up. */
+function transformSide(value: Side | true, t: Transform2D): Side | true {
+  const d = quarterTurns(t);
+  if (isIdentityTurn(d)) return value;
+  const [x, y] = applyVec(t, SIDE_VECTORS[value === true ? "up" : value]);
+  const side = SIDES.find((s) => SIDE_VECTORS[s][0] === x && SIDE_VECTORS[s][1] === y) ?? "up";
+  return value === true && side === "up" ? true : side;
+}
+
 function transformPath(p: PathDef, t: Transform2D): PathDef {
   return Array.isArray(p.pts) ? { ...p, pts: p.pts.map((q) => (isPt(q) ? applyPt(t, q) : q)) } : p;
 }
@@ -120,6 +135,8 @@ function transformByKind(kind: string, value: unknown, t: Transform2D): unknown 
       return typeof value === "number" ? turnAngle(value, quarterTurns(t)) : value;
     case "mirror":
       return typeof value === "boolean" && quarterTurns(t).flip ? !value : value;
+    case "side":
+      return value === true || isSide(value) ? transformSide(value, t) : value;
     case "grid": {
       if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
       const d = quarterTurns(t);
@@ -134,8 +151,8 @@ function transformByKind(kind: string, value: unknown, t: Transform2D): unknown 
  * One whole field value under `t`, by what its schema says it holds:
  * shapes, points and paths move; vectors turn and flip but never move;
  * angles gain 90° per turn and negate under a flip; mirror booleans toggle
- * under a flip; grids remap their cells. Anything else, and any value not
- * shaped like its kind, comes back as given.
+ * under a flip; sides turn and flip as directions; grids remap their cells.
+ * Anything else, and any value not shaped like its kind, comes back as given.
  */
 export function transformFieldValue(
   schema: z.core.$ZodType,

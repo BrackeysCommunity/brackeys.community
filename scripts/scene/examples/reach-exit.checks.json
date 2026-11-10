@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "checks": [
+    {
+      "id": "exit-reachable",
+      "kind": "connected",
+      "from": "start",
+      "to": ["exit", [17, 9]],
+      "blockedBy": ["solid"]
+    },
+    { "id": "corner-cut", "kind": "connected", "from": "start", "to": ["exit"], "diagonals": true }
+  ]
+}

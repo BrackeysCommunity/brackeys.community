@@ -1,6 +1,12 @@
 import type { SceneView } from "../context";
 import type { BehaviorName } from "../game/behaviors";
-import type { EngineContext, GameDefinition, GameRuntime, Registry } from "../game/types";
+import type {
+  EngineContext,
+  GameCommand,
+  GameDefinition,
+  GameRuntime,
+  Registry,
+} from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
@@ -18,15 +24,17 @@ export type ReconcileReport = { ok: true } | { ok: false; error: string; entityI
  */
 export type AssetReloadError = { entityId: string; error: string; reattached: boolean };
 
+/**
+ * Why a load failed, when it wasn't a plain error. `spawn-blocked`: a play
+ * start `at` lies inside a solid. `physics-required`: an entity needs physics
+ * the scene runs without. `physics-not-loaded`: the scene needs Rapier and
+ * the host gave none.
+ */
+export type LoadFailureReason = "spawn-blocked" | "physics-required" | "physics-not-loaded";
+
 export type LoadReport =
   | { ok: true; counts: Record<EntityTypeName, number>; ms: number }
-  | {
-      ok: false;
-      error: string;
-      entityId?: string;
-      /** `spawn-blocked`: a play start `at` lies inside a solid. */
-      reason?: "spawn-blocked";
-    };
+  | { ok: false; error: string; entityId?: string; reason?: LoadFailureReason };
 
 /**
  * Something that happened during one tick, naming entities by id. The
@@ -56,6 +64,8 @@ export type StepResult = {
 };
 
 export type RuntimeStats = {
+  /** Which world holds the colliders `bodies` and `colliders` count. */
+  backend: "rapier" | "geometry";
   bodies: number;
   colliders: number;
   tags: number;
@@ -90,7 +100,10 @@ export type SceneRuntime = {
   /** Despawns by id; unknown ids are no-ops. */
   remove: (ids: string[]) => void;
   get: (id: string) => RuntimeEntity | undefined;
-  step: (dtMs: number, actions: InputAction[]) => StepResult;
+  /** One tick; `commands` reach the game's `beforeStep`. */
+  step: (dtMs: number, actions: InputAction[], commands?: readonly GameCommand[]) => StepResult;
+  /** The game's `busy()`: false without a game or the hook. */
+  busy: () => boolean;
   /** The game's snapshot now; `null` without a game. */
   snapshot: () => unknown;
   stats: () => RuntimeStats;
@@ -98,7 +111,8 @@ export type SceneRuntime = {
 };
 
 export type SceneRuntimeOptions = {
-  rapier: RapierModule;
+  /** Without one the runtime has no Rapier world: `ctx.rapier` and `ctx.physics` are null. */
+  rapier: RapierModule | null | undefined;
   view: SceneView | null;
   /** Without a game the runtime loads primitives only, has no hooks, and snapshots `null`. */
   game?: GameDefinition | null;

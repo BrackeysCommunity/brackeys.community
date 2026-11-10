@@ -4,7 +4,8 @@ import { Container } from "pixi.js";
 import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
-import type { GameAttachment, GameOutcome, GameShell } from "./game/types";
+import { resolveTime, type ResolvedTime } from "./game/time";
+import type { GameAttachment, GameCommand, GameOutcome, GameShell } from "./game/types";
 import type { PlayOptions } from "./headless/playtest-types";
 import { createInputSystem } from "./input";
 import { createGameLoop } from "./loop";
@@ -26,7 +27,7 @@ import { resolveResolution } from "./resolution";
 import { createSessionRecording, preparePlay, type SessionRecording } from "./runtime/play-session";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "./runtime/runtime";
 import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
-import { expandScene, isExpandedScene } from "./scene/expand";
+import { defaultPhysics, expandScene, isExpandedScene, scenePhysics } from "./scene/expand";
 import type { RunRecording } from "./scene/recording-schema";
 import type { Aabb, ExpandedScene, PrefabLibrary, SceneDefinition } from "./scene/types";
 import {
@@ -50,7 +51,9 @@ import type {
   GameInstance,
   GameMode,
   GameStoreState,
+  InputAction,
   PlayReport,
+  RapierModule,
   Vec2,
 } from "./types";
 import { DEFAULT_GAME_CONFIG } from "./types";
@@ -64,10 +67,13 @@ type LoadedScene = {
   bundle: AssetBundle | null;
 };
 
+/** Time away shorter than this (a quick tab switch, one long frame) isn't worth an `@elapsed`. */
+const MIN_CATCH_UP_MS = 1000;
+
 /** `config.project` is what every scene's game reads as `EngineContext.project`; null without one. */
 export async function createGame(
   canvas: HTMLCanvasElement,
-  config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier"> & ProjectOption,
+  config: Partial<GameConfig> & Pick<GameConfig, "game"> & ProjectOption,
 ): Promise<GameInstance> {
   const { project: initialProject = null, ...rest } = config;
   let project = initialProject;
@@ -101,7 +107,32 @@ export async function createGame(
   );
   updateCamera(store, { scale: camera.getState().scale });
 
-  const rapier = await cfg.rapier();
+  // Rapier loads at start only when the game (or its start-up scene) runs on it; `preload`
+  // brings it in for a later Rapier scene, and without it such a load reports `physics-not-loaded`.
+  let rapier: RapierModule | null = null;
+  let rapierLoading: Promise<RapierModule | null> | null = null;
+
+  function loadRapier(): Promise<RapierModule | null> {
+    if (rapier || !cfg.rapier) return Promise.resolve(rapier);
+    rapierLoading ??= cfg.rapier().then(
+      (mod) => (rapier = mod),
+      (error: unknown) => {
+        rapierLoading = null;
+        throw error;
+      },
+    );
+    return rapierLoading;
+  }
+
+  const startScene = cfg.scene;
+  const startPhysics = !startScene
+    ? null
+    : isExpandedScene(startScene)
+      ? startScene.settings.physics
+      : scenePhysics(startScene, registry, project?.engine);
+  if (defaultPhysics(registry, project?.engine) === "rapier" || startPhysics === "rapier") {
+    await loadRapier();
+  }
   const input = createInputSystem(cfg.bindings ?? game.actions);
   const inputTarget = resolveInputTarget(canvas, cfg.inputTarget);
   const keyTarget = cfg.keyTarget ?? inputTarget;
@@ -249,12 +280,13 @@ export async function createGame(
     }
 
     const first = loaded === null;
+    syncTickRate(runtime.ctx.time);
     // Retained before the old scene releases, so textures both use stay resident.
     if (bundle) assets?.loader.retain(bundle);
     teardownScene();
     if (bundle && assets) void loadBundle(bundle);
     sceneLayer.addChild(container);
-    const shell: GameShell = { view, router, dev: cfg.dev, getMode };
+    const shell: GameShell = { view, router, dev: cfg.dev, getMode, send };
     loaded = { runtime, view, attachment: game.attach?.(shell, runtime) ?? null, bundle };
     debugOverlay?.setPhysics(runtime.ctx);
     syncGameSlice();
@@ -272,7 +304,9 @@ export async function createGame(
     source: SceneDefinition | ExpandedScene,
   ): { ok: true; scene: ExpandedScene } | { ok: false; error: string } {
     try {
-      const scene = isExpandedScene(source) ? source : expandScene(source, registry, { prefabs });
+      const scene = isExpandedScene(source)
+        ? source
+        : expandScene(source, registry, { prefabs, engine: project?.engine });
       return { ok: true, scene };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -335,7 +369,7 @@ export async function createGame(
       return out;
     }
     editState = remembered;
-    input.flush();
+    resetQueues();
     enterMode("play");
     setSession(store, { startTick: store.state.tick, outcome: null });
     return { ok: true, issues: [] };
@@ -357,7 +391,7 @@ export async function createGame(
     replay?: RunRecording,
   ): PlayReport {
     if (destroyed) return { ok: false, issues: [], error: "game destroyed" };
-    const prepared = preparePlay(doc, registry, { dev: cfg.dev, prefabs });
+    const prepared = preparePlay(doc, registry, { dev: cfg.dev, prefabs, engine: project?.engine });
     if (!prepared.ok) return { ok: false, issues: prepared.issues };
     finishRecording(session?.stop() ?? null);
     session = null;
@@ -369,6 +403,7 @@ export async function createGame(
         scene: doc.name,
         sceneHash: prepared.hash,
         start: opts,
+        ...(loaded ? { time: loaded.runtime.ctx.time } : {}),
         ...(replay ? { replay } : {}),
       });
       if (replay && loop.isPaused()) resume();
@@ -399,7 +434,7 @@ export async function createGame(
     const bundle = remembered?.scene ? remembered.bundle : (loaded?.bundle ?? null);
     if (!scene || !buildWorld(scene, bundle, undefined, false).ok) teardownScene();
     if (remembered?.bundle) assets?.loader.release(remembered.bundle);
-    input.flush();
+    resetQueues();
     enterMode("edit");
     if (remembered) restoreCamera(remembered.camera);
     setSession(store, null);
@@ -443,50 +478,142 @@ export async function createGame(
     return verdict;
   }
 
+  // ─── Clock and input queues ──────────────────────────────
+
+  /** The loaded runtime's clock; before any load, the one a load would get. */
+  function clock(): ResolvedTime {
+    return (
+      loaded?.runtime.ctx.time ?? resolveTime({ project: project?.engine, game: registry.time })
+    );
+  }
+
+  const initialTime = clock();
+  let loopRate = initialTime.rate;
+
+  function syncTickRate(time: ResolvedTime): void {
+    if (time.rate === loopRate) return;
+    loopRate = time.rate;
+    loop.setTickRate(time.rate);
+  }
+
+  /** Commands for the next simulated tick (`send`, `@elapsed`), in the order they were queued. */
+  let pendingCommands: GameCommand[] = [];
+  /** Input polled while a turns or event game sat idle, delivered with its next tick. */
+  let heldInput: InputAction[] = [];
+  /** The pointer at the last simulated tick, so an event game can tell it moved. */
+  let tickPointer: Vec2 = input.getMousePosition();
+
+  /** A new world starts with nothing pending from the last. */
+  function resetQueues(): void {
+    input.flush();
+    heldInput = [];
+    pendingCommands = [];
+    tickPointer = input.getMousePosition();
+  }
+
+  function takeInput(tick: number): InputAction[] {
+    const polled = input.poll(tick);
+    if (heldInput.length === 0) return polled;
+    const actions = heldInput.concat(polled);
+    heldInput = [];
+    for (const action of actions) action.tick = tick;
+    return actions;
+  }
+
+  /** Commands wake every model; for event games so do button edges and, when asked, pointer moves. */
+  function wakePending(time: ResolvedTime): boolean {
+    if (pendingCommands.length > 0) return true;
+    if (time.kind !== "event") return false;
+    const polled = input.poll(store.state.tick);
+    if (polled.length > 0) heldInput.push(...polled);
+    if (heldInput.length > 0) return true;
+    if (!time.wakeOnPointerMove) return false;
+    const at = input.getMousePosition();
+    return at.x !== tickPointer.x || at.y !== tickPointer.y;
+  }
+
+  /** Whether the loop may tick now: always outside play, while replaying and for fixed games. */
+  function gate(): boolean {
+    if (!loaded || getMode() !== "play" || session?.replaying) return true;
+    const time = loaded.runtime.ctx.time;
+    if (time.kind === "fixed") return true;
+    return wakePending(time) || loaded.runtime.busy();
+  }
+
+  /** Queues `@elapsed` for wall time away, clamped to the game's `catchUp.maxMs`. */
+  function queueElapsed(ms: number): boolean {
+    const catchUp = clock().catchUp;
+    if (!catchUp || !loaded || getMode() !== "play") return false;
+    pendingCommands.push({
+      name: "@elapsed",
+      args: { ms: Math.floor(Math.min(ms, catchUp.maxMs)) },
+    });
+    return true;
+  }
+
   // ─── Game loop ────────────────────────────────────────────
 
+  /** The camera, the game's store slice and the debug overlay: what moves on with or without a step. */
+  function shellTick(dt: number, mouseWorld: Vec2): void {
+    const hooks = loaded?.runtime.game ?? null;
+    camera.update(dt, hooks?.cameraTarget?.() ?? null);
+    syncGameSlice();
+    updateCamera(store, { position: camera.getPosition() });
+
+    debugOverlay?.update({
+      dtMs: dt,
+      mouseWorld,
+      viewport: camera.getViewport(),
+      info: hooks?.debugInfo?.() ?? null,
+    });
+  }
+
   const loop = createGameLoop({
-    tickRate: cfg.targetFPS,
+    tickRate: initialTime.rate,
     maxDeltaMs: cfg.maxDeltaTime,
+    ...(initialTime.kind === "fixed" ? {} : { gate }),
 
     onTick(dt: number) {
-      const polled = input.poll(store.state.tick);
+      const polled = takeInput(store.state.tick);
       const mouseWorld = camera.screenToWorld(input.getMousePosition());
 
       if (loaded && getMode() === "play") {
-        const actions = session ? session.actions(loaded.runtime.ctx.tick, polled) : polled;
+        const tick = loaded.runtime.ctx.tick;
+        const actions = session ? session.actions(tick, polled) : polled;
+        const queued = pendingCommands;
+        pendingCommands = [];
+        const commands = session ? session.commands(tick, queued) : queued;
+        tickPointer = input.getMousePosition();
         loaded.attachment?.onTick?.(dt, mouseWorld);
-        const result = loaded.runtime.step(dt, actions);
+        const result = loaded.runtime.step(dt, actions, commands);
         incrementTick(store);
         events.emit("scene:step", result);
         const verdict = judge(result);
         if (session) {
           const wasReplay = session.replaying;
-          const finished = session.stepped(result, actions, verdict);
+          const finished = session.stepped(result, actions, verdict, commands);
           finishRecording(finished);
           // A replay holds its last frame until Stop, so the end state can be looked at.
           if (finished && wasReplay) pause();
         }
       }
 
-      const hooks = loaded?.runtime.game ?? null;
-      camera.update(dt, hooks?.cameraTarget?.() ?? null);
-      syncGameSlice();
-      updateCamera(store, { position: camera.getPosition() });
-
-      debugOverlay?.update({
-        dtMs: dt,
-        mouseWorld,
-        viewport: camera.getViewport(),
-        info: hooks?.debugInfo?.() ?? null,
-      });
-
+      shellTick(dt, mouseWorld);
       events.emit("game:tick", { tick: store.state.tick });
+    },
+
+    onIdle(dt: number) {
+      shellTick(dt, camera.screenToWorld(input.getMousePosition()));
+    },
+
+    onDropped(ms: number) {
+      if (ms >= MIN_CATCH_UP_MS) queueElapsed(ms);
     },
 
     onRender(alpha: number) {
       if (loaded) {
-        // Paused or editing, nothing steps, so visuals sit at their latest poses.
+        // Paused or editing, nothing steps, so visuals sit at their latest poses (an idle
+        // turns or event game gets alpha 1 from the loop).
         const a = loop.isPaused() || getMode() === "edit" ? 1 : alpha;
         const { position, zoom } = camera.getState();
         loaded.view.frame?.({ alpha: a, camera: { x: position.x, y: position.y, zoom } });
@@ -500,6 +627,7 @@ export async function createGame(
 
   // A hidden tab gets no frames; pausing keeps its return from catching up the gap in one burst.
   let pausedWhileHidden = false;
+  let hiddenAt = 0;
 
   function syncSim(): void {
     setSimPaused(store, loop.isPaused());
@@ -531,6 +659,50 @@ export async function createGame(
 
   function command(name: string): boolean {
     return loaded?.attachment?.onCommand?.(name) ?? false;
+  }
+
+  /** Why `command` can't be queued now, or its args as parsed. */
+  function commandProblem(command: GameCommand): { why: string } | { args: unknown } {
+    if (destroyed) return { why: "game destroyed" };
+    if (!loaded || getMode() !== "play") return { why: "nothing is playing" };
+    if (session?.replaying) return { why: "a replay plays its recorded commands" };
+    const def = registry.commands.get(command.name);
+    if (!def) return { why: `unknown command; known: ${registry.commandNames.join(", ")}` };
+    if (!def.args) {
+      return command.args === undefined ? { args: undefined } : { why: "it takes no args" };
+    }
+    const parsed = def.args.safeParse(command.args);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const where = issue?.path.length ? `${issue.path.join(".")}: ` : "";
+      return { why: `args don't parse: ${where}${issue?.message ?? "invalid"}` };
+    }
+    return { args: parsed.data };
+  }
+
+  function send(command: GameCommand): boolean {
+    const checked = commandProblem(command);
+    if ("why" in checked) {
+      if (cfg.dev) console.warn(`[game] send("${command.name}"): ${checked.why}`);
+      return false;
+    }
+    const queued: GameCommand = { ...command };
+    if (checked.args === undefined) delete queued.args;
+    else queued.args = checked.args;
+    pendingCommands.push(queued);
+    return true;
+  }
+
+  function elapse(ms: number): void {
+    if (destroyed) return;
+    const why = !clock().catchUp
+      ? "the game has no time.catchUp"
+      : !(Number.isFinite(ms) && ms > 0)
+        ? "ms must be a finite number > 0"
+        : queueElapsed(ms)
+          ? null
+          : "nothing is playing";
+    if (why && cfg.dev) console.warn(`[game] elapse(${ms}): ${why}`);
   }
 
   function cancel(): boolean {
@@ -588,10 +760,13 @@ export async function createGame(
     if (document.hidden) input.releaseAll(performance.now());
     if (document.hidden && !loop.isPaused()) {
       pausedWhileHidden = true;
+      hiddenAt = performance.now();
       loop.pause();
     } else if (!document.hidden && pausedWhileHidden) {
       pausedWhileHidden = false;
       loop.resume();
+      const away = performance.now() - hiddenAt;
+      if (away >= MIN_CATCH_UP_MS) queueElapsed(away);
     }
     syncSim();
   }
@@ -626,17 +801,28 @@ export async function createGame(
     updateCamera(store, { scale: camera.getState().scale });
   }
 
-  /** A scene that doesn't expand has nothing to load; `loadScene` reports why. */
-  function preload(
+  /**
+   * A scene that doesn't expand has nothing to load; `loadScene` reports why,
+   * as it reports `physics-not-loaded` when Rapier failed to load here.
+   */
+  async function preload(
     source: SceneDefinition | ExpandedScene,
     onProgress?: (p: LoadProgress) => void,
   ): Promise<{ failed: BundleEntry[] }> {
-    if (destroyed || !assets) return Promise.resolve({ failed: [] });
+    if (destroyed) return { failed: [] };
     const expanded = expand(source);
-    if (!expanded.ok) return Promise.resolve({ failed: [] });
+    if (!expanded.ok) return { failed: [] };
+    const physics =
+      expanded.scene.settings.physics === "rapier"
+        ? loadRapier().catch((error: unknown) => {
+            if (cfg.dev) console.warn(`[scene] Rapier failed to load`, error);
+          })
+        : null;
     const def = isExpandedScene(source) ? null : source;
-    const bundle = bundleFor(expanded.scene, def);
-    return bundle ? loadBundle(bundle, onProgress) : Promise.resolve({ failed: [] });
+    const bundle = assets ? bundleFor(expanded.scene, def) : null;
+    const textures = bundle ? loadBundle(bundle, onProgress) : { failed: [] };
+    const [, result] = await Promise.all([physics, textures]);
+    return result;
   }
 
   /** `bundle` with each changed texture's entry at `view`'s hash; `bundle` itself when none changed. */
@@ -800,6 +986,8 @@ export async function createGame(
     step,
     setTimeScale,
     command,
+    send,
+    elapse,
     cancel,
     pointerWorld,
     setMode,
@@ -809,5 +997,6 @@ export async function createGame(
     panBy,
     zoomAt,
     frame,
+    extractPixels: (world) => renderer.extractPixels(world),
   };
 }

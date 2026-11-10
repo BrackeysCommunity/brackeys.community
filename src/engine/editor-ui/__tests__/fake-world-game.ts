@@ -76,6 +76,8 @@ export function fakeWorldGame(registry: Registry) {
     step: vi.fn(),
     setTimeScale: vi.fn(),
     command: vi.fn(() => false),
+    send: vi.fn(() => false),
+    elapse: vi.fn(),
     cancel: vi.fn(() => false),
     pointerWorld: () => null,
     frame: vi.fn(),

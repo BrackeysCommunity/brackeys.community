@@ -11,10 +11,16 @@ import {
   gridProblems,
   type GridCells,
 } from "../scene/grid";
-import { derivesFrom, SHAPE_TYPES, ShapeTupleSchema, shapeTupleSchemaOf } from "../scene/shapes";
+import {
+  derivesFrom,
+  SHAPE_SIGNATURES,
+  SHAPE_TYPES,
+  ShapeTupleSchema,
+  shapeTupleSchemaOf,
+} from "../scene/shapes";
 import type { Pt, ShapeTuple, ShapeType } from "../scene/types";
 import { BEHAVIORS_FIELD } from "./behaviors";
-import type { FieldEnv } from "./types";
+import type { FieldEnv, Side } from "./types";
 
 /**
  * Field builders for entity type schemas. Every field carries a
@@ -97,6 +103,20 @@ export function angleField(description: string, unit: "deg") {
 /** Whether the entity is mirrored along `axis`: toggled when its entity is flipped across that axis. */
 export function mirrorField(axis: "x", description: string) {
   return z.boolean().describe(description).meta({ kind: "mirror", axis });
+}
+
+/** The four sides, clockwise from `"up"`. */
+export const SIDES = ["up", "right", "down", "left"] as const satisfies readonly Side[];
+
+/** A side field's value: `true` is `"up"`. */
+export const sideOf = (value: Side | true): Side => (value === true ? "up" : value);
+
+/** A side of the entity, or `true` for `"up"`: turned and flipped with its entity. */
+export function sideField(description: string): z.ZodType<Side | true> {
+  return z
+    .union([z.literal(true), z.enum(SIDES)])
+    .describe(description)
+    .meta({ kind: "side" });
 }
 
 const GRID_META = "x-grid";
@@ -212,6 +232,31 @@ export function shapeField(
   const schema = only ? shapeTupleSchemaOf(only.types, only.id, only.owner) : ShapeTupleSchema;
   return schema.meta({ ...SHAPE_META, description });
 }
+
+const PolygonSchema = shapeTupleSchemaOf(["poly"], "Polygon", "a polygon field's");
+z.globalRegistry.add(PolygonSchema, {
+  ...z.globalRegistry.get(PolygonSchema),
+  description: `A simple polygon: ${SHAPE_SIGNATURES.poly}, concave allowed. Integer pixels, y is down.`,
+  oneOf: [
+    {
+      title: "poly",
+      description:
+        "Simple polygon as flat x, y pairs (at least 3 points), convex or concave; its edges may not cross. Points are absolute.",
+      type: "array",
+      prefixItems: [{ const: "poly" }],
+      items: { type: "number", unit: "px" },
+      minItems: 7,
+    },
+  ],
+});
+
+/** A `["poly", …]` shape field with no convexity rule: any simple polygon, concave allowed. */
+export function polygonField(description: string): z.ZodType<ShapeTuple> {
+  return PolygonSchema.meta({ ...SHAPE_META, description });
+}
+
+/** Whether a field is a `polygonField`, which takes concave polygons. */
+export const isPolygonField = (schema: z.core.$ZodType) => derivesFrom(schema, PolygonSchema);
 
 function unknownMaterialMessage(got: unknown, known: readonly string[]): string {
   const name =

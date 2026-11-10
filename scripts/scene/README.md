@@ -39,7 +39,7 @@ A scene names its game with a top-level `"game": "platformer"` key. That
 picks the registry every command uses: the game's entity types, bulk keys,
 materials, settings, actions and issue codes, plus the material assets of the
 project that game belongs to. A scene without `game` uses the engine's
-primitives only (`solid`, `sensor`, `marker`, `prop`, `follower`, `decor`, `note`),
+primitives only (`solid`, `sensor`, `marker`, `prop`, `follower`, `decor`, `nav`, `note`),
 with the engine project's materials, and means the same to every tool. A
 `game` no project has is an `unknown-game` issue.
 
@@ -62,7 +62,7 @@ Two scenes to practise on: `test-yard` (the platformer's) and
 | Command                                                                                                                                                                                | Writes                   | What it returns                                                                                                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `list`                                                                                                                                                                                 | no                       | every scene with its `game`, `sceneHash`, issue counts, entity counts per type and bounds, `clashes`                                                                             |
-| `show <scene\|file\|-> [--ref id] [--type t] [--near x,y,r]`                                                                                                                           | no                       | entities and bulk entries with their ref, type, raw shape, world AABB and top span, plus `sceneHash`                                                                             |
+| `show <scene\|file\|-> [--ref id] [--type t] [--near x,y,r]`                                                                                                                           | no                       | entities and bulk entries with their ref, type, raw shape, world AABB and top span, plus `sceneHash`, the time model and the physics backend                                     |
 | `schema [scene\|ops\|script\|checks\|recording\|fragment\|prefab\|project\|asset-sidecar\|project-ops\|project-snapshot\|material\|game-settings\|data-table\|<doc kind>] [--game id]` | no                       | a JSON Schema the engine serves (`urn:jams-engine:<kind>[:<game>]:v<n>`): a game's scene, ops, script, checks, fragment, prefab and doc kinds; the recording and project schemas |
 | `codes`                                                                                                                                                                                | no                       | `agentSurface` and every issue code with its severity, summary, hint and fixability, grouped by owner                                                                            |
 | `validate <scene\|file\|-> [--physical]`                                                                                                                                               | no                       | `SceneIssue[]` with JSON Pointer paths and line numbers; `--physical` adds the physics world's; exit 1 on errors                                                                 |
@@ -70,7 +70,8 @@ Two scenes to practise on: `test-yard` (the platformer's) and
 | `apply <scene> --ops <file\|-> [--dry-run] [--base hash] [--live …]`                                                                                                                   | yes, unless dry run      | the `ApplyResult`: diff, inverse, created ids, ref remap, issues and the new `sceneHash`                                                                                         |
 | `diff <a> (<b> \| --git <rev> \| --ops <file\|->)`                                                                                                                                     | no                       | `changes`: what changed from the first side to the second, entity by entity                                                                                                      |
 | `new <name> [--game id] [--from scene]`                                                                                                                                                | yes                      | writes a new scene from the game's template, or a copy of `--from` under the new name, as a `createAsset` (an id or path another asset holds is refused)                         |
-| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--game id]`                                                                                                           | no                       | a headless probe: events by entity id, the game's final snapshot, runtime stats                                                                                                  |
+| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]] [--elapse tick:ms] [--game id]`                                                           | no                       | a headless probe: events by entity id, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat                                                               |
+| `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                      | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                           |
 | `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--game id] [--record file]`                                                                                                  | with --record            | a headless run of an input script: outcome, steps, events, focus trail, `recording`; exit 1 when blocked                                                                         |
 | `replay <scene\|file\|-> --run <file\|-> [--game id]`                                                                                                                                  | no                       | replays a run recording (or a playtest report's) headless; exit 1 when it ends differently                                                                                       |
 | `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id]`                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second                                                                                  |
@@ -159,7 +160,9 @@ issue. `step --inputs` takes a JSON array of `[tick, action, 0|1]` edges;
 `--hold` presses actions at tick 0 and never releases them. Action names
 are the game's (the platformer's are `move_left`, `move_right`, `jump`,
 `move_down`, `dash` and `grapple`), and any other name is a usage error
-with a suggestion; the simulation runs at 60 ticks a second.
+with a suggestion; the simulation runs at the game's tick rate (`tickRate`
+in the report; 60 unless its time model or the project says otherwise).
+`--command` and `--elapse` send commands (see [Game commands](#game-commands)).
 
 ## Projects and assets
 
@@ -304,9 +307,10 @@ inside a solid. `schema script --game <id>` is the reference; a script's
 `$schema` points at the committed `src/games/<id>/input-script.schema.json`
 (the engine's is `src/engine/scene/input-script.schema.json`).
 
-- Steps: `{ "hold": [...], "for": ticks }`, `"forMs"` (rounded to 60 Hz
-  ticks) or `"until": {...}` capped by `"max"` (default 600); `{ "press": a }`
-  for one tick; `{ "wait": n }`. A step names everything held during it;
+- Steps: `{ "hold": [...], "for": ticks }`, `"forMs"` (rounded to whole
+  ticks at the game's rate) or `"until": {...}` capped by `"max"` (default 600); `{ "press": a }`
+  for one tick; `{ "wait": n }`; `{ "command": name, "args"? }` and
+  `{ "elapse": ms }` send a command (see [Game commands](#game-commands)). A step names everything held during it;
   what the step before held and this one doesn't is released when it starts.
 - `until` keys AND together and are checked after each tick: `event` (a
   type, or `{ type, entityId?, other? }`), `tick` (absolute), and the game's
@@ -421,6 +425,201 @@ file exits 1 with issues pointing into it, with lines.
 vp run scene check engine-yard
 vp run scene check engine-yard --only settles --json
 vp run scene schema checks
+```
+
+## World models
+
+A world needn't be a side view stepped by Rapier sixty times a second. A
+game picks how its clock runs and whether it has physics; a scene may run
+without Rapier, on a cell grid, with walk areas for navigation. `show`
+prints both under its header, and its JSON carries them as `time` (`kind`,
+`rate`, `catchUp`, `wakeOnPointerMove`) and `physics`:
+
+```sh
+vp run scene show grid-yard
+```
+
+```text
+time fixed 60Hz; physics none, no wasm
+```
+
+The engine's `grid-yard` is the scene to practise on: no game, `settings.physics`
+`"none"`, a 32 px square grid, walls of solids with one gap, markers
+`start` and `exit` and two sensors. No repo game declares a time model or
+commands yet, so the `corridor` and `meadow` examples below run against the
+engine README's walker and orchard games
+(`scripts/engine-readme/examples/walker-game.ts`, `orchard-game.ts`), whose
+scenes the README test writes: `corridor` is a turn game on a square grid
+with a `walk { to: [col, row] }` command; `meadow` an idle game with a
+`plant` command and catch-up.
+
+### Time models
+
+A game's `time` is `fixed` (the default: a tick every `1 / rate` seconds),
+`turns` or `event`. A turns or event game ticks only when an input wakes it
+(a key edge, a command; with `wakeOnPointerMove`, an event game's pointer
+moves too), then once per `1 / rate` while its runtime's `busy()` says so,
+and otherwise holds still. `rate` is an integer from 1 to 240, default 60;
+the project's `game-settings` `engine.tickRate` overrides the game's.
+Headless runs skip the slots a sleeping game would ignore: `ticks` and every
+tick in a report count simulated ticks, and a playtest's `slots` counts the
+script slots it used. `forMs` and millisecond timers round to whole ticks at
+the game's rate. A rate the clock can't run is `tick-rate-invalid`:
+
+```json project=engine expect=tick-rate-invalid
+{
+  "v": 1,
+  "ops": [
+    {
+      "op": "editAsset",
+      "id": "game-settings",
+      "edits": [{ "set": "/engine/tickRate", "value": 0 }]
+    }
+  ]
+}
+```
+
+### Game commands
+
+A command is a named, JSON-argument message a game declares in `commands`
+(its arguments checked by the command's schema), queued for the next
+simulated tick and handed to the game's `beforeStep`. The engine's one
+command is `@elapsed { ms }`: time away, which a game with `time.catchUp`
+gets in one piece, capped at `catchUp.maxMs`; without `catchUp` it is
+refused. `step` sends them on given ticks: `--command <tick>:<name>[=<json>]`
+and `--elapse <tick>:<ms>`, both repeatable, sent in flag order. Quote the
+JSON for your shell:
+
+```sh
+vp run scene step corridor --ticks 40 --command '0:walk={"to":[9,0]}'
+vp run scene step meadow --ticks 3 --command 0:plant --command 0:plant --elapse 1:28800000
+```
+
+An input script's `{ "command": "walk", "args": { … } }` and `{ "elapse":
+ms }` steps take one slot each and keep what the step before held. An
+unknown command or arguments that don't parse is a script issue with a
+did-you-mean, as an unknown action is. A playtest report lists the
+commands it sent as `commands` (`[tick, name, args?]`) beside `inputs`,
+the recording carries them, and `replay` sends them on the same ticks.
+`examples/walk-corridor.json` walks the hero down, waits, then sends it to
+the far corner, and wins:
+
+```sh
+vp run scene playtest corridor --script scripts/scene/examples/walk-corridor.json --record walk.json
+vp run scene replay corridor --run walk.json
+```
+
+### Physics none
+
+A scene runs without Rapier when its physics resolves to `"none"`: scene
+`settings.physics`, else the project's `engine.physics`, else the game's
+`world.physics`, else `"rapier"`. Every command loads the wasm only for a
+Rapier scene. The engine's own colliders stand in: `solid` (one-way sides
+included), `sensor` (enter and exit from overlaps) and `follower` (a
+kinematic collider on its path) work; `marker`, `decor`, `nav` and `note`
+never had a body. `prop`, anything with `attach`, and a game type that
+declares `physics: "required"` are `physics-required`, reported before
+anything loads:
+
+```json scene=grid-yard expect=physics-required
+{
+  "ops": [
+    {
+      "op": "add",
+      "entity": {
+        "id": "crate",
+        "type": "prop",
+        "shape": ["box", 160, 160, 12, 12],
+        "density": 1,
+        "restitution": 0
+      }
+    }
+  ]
+}
+```
+
+`validate --physical` and `check`'s `physical` run on the same colliders:
+`solid-overlap`, `follower-hits-solid` and the game's checks, except one
+that declares `needsPhysics`, which is skipped as `physics-skipped` (info).
+Replays of a physics-free scene match on every platform as long as its
+colliders stay axis-aligned or turned by quarter turns.
+
+Two more side-view assumptions are gone, both in the kitchen sink: a solid's
+`oneWay` names the side actors land on (`"up"`, the same as `true`,
+`"down"`, `"left"` or `"right"`; `side-wall` is `"left"`), and turns with
+its instance; and a `prop` takes `gravityScale`, `linearDamping`,
+`angularDamping`, `fixedRotation` (`upright`) and `ccd`.
+
+### Grids and `connected`
+
+`grid` prints the scene's grid as text: walls (cells whose centre a `solid`
+covers, or the game's `world.gridWalls` types), a path between two cells
+(`c,r`) or entities (their cell), what a cell sees within a radius, and
+with `--diagonals` diagonal steps. It exits 1 when there's no path:
+
+```sh
+vp run scene grid grid-yard --from start --to exit
+vp run scene grid grid-yard --from 2,2 --to 17,9 --diagonals
+vp run scene grid grid-yard --fov 2,2:5
+```
+
+A `connected` check asks the same of the scene in `.checks.json`, with no
+physics and no game code: `from` and each of `to` are an entity id or a
+`[col, row]` cell, `diagonals` defaults to false and `blockedBy` lists the
+types whose cells are walls (default `["solid"]`). Each target no path
+reaches is one `grid-unreachable`; a scene without a grid is
+`grid-invalid`. `examples/reach-exit.checks.json` passes on `grid-yard`:
+
+```sh
+vp run scene check grid-yard --checks scripts/scene/examples/reach-exit.checks.json
+```
+
+Blocking sensors too closes the gap at the foot of the divider:
+
+```json checks=grid-yard expect=grid-unreachable
+{
+  "v": 1,
+  "checks": [
+    {
+      "id": "sealed",
+      "kind": "connected",
+      "from": "start",
+      "to": ["exit"],
+      "blockedBy": ["solid", "sensor"]
+    }
+  ]
+}
+```
+
+### Motion and navigation
+
+Motion is game code with no scene keys: a game moves its own entities with
+`./game`'s motion bodies, top-down controller and grid stepper, which work
+on either backend and write the entity's pose, so `show`, `render` and the
+editor follow them. Read where they go with `step` or `playtest`, never
+from constants.
+
+`nav` is the engine's walk-area type: `{ "id", "type": "nav", "shape":
+["poly", x1, y1, …], "mode"?: "walk" | "block", "tags"? }`. A walk area is
+any simple polygon, concave allowed; a `block` polygon is a hole in the walk
+area around it. The kitchen sink's `floor-plan` is an L-shaped hall with
+the `pillar` hole in it. A polygon that crosses itself, a hole not inside
+exactly one walk area, or two walk areas that overlap is `nav-invalid`:
+
+```json scene=kitchen-sink expect=nav-invalid
+{
+  "ops": [
+    {
+      "op": "add",
+      "entity": {
+        "id": "rug",
+        "type": "nav",
+        "shape": ["poly", 2400, 300, 2500, 300, 2500, 400, 2400, 400],
+        "mode": "block"
+      }
+    }
+  ]
+}
 ```
 
 ## Rendering
@@ -584,16 +783,16 @@ functions as the CLI (it never spawns it), versioned with the engine
 | Tool              | CLI command        | Notes                                                                                                  |
 | ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
 | `scene_list`      | `list`             |                                                                                                        |
-| `scene_show`      | `show`             | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box                                       |
+| `scene_show`      | `show`             | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box; `time` and `physics`                 |
 | `scene_schema`    | `schema`           | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…)                          |
 | `scene_codes`     | `codes`            |                                                                                                        |
 | `scene_validate`  | `validate`         | `physical`                                                                                             |
 | `scene_diff`      | `diff`             | one of `other`, `git` or an inline `ops` batch                                                         |
 | `scene_apply_ops` | `apply` / `--live` | writes; `dryRun` defaults to `true`                                                                    |
-| `scene_playtest`  | `playtest`         | `script` inline or a path; `at` is `[x, y]`                                                            |
+| `scene_playtest`  | `playtest`         | `script` inline or a path, command and elapse steps included; `at` is `[x, y]`                         |
 | `scene_replay`    | `replay`           | `run` inline or a path: a recording or a playtest result                                               |
 | `scene_fuzz`      | `fuzz`             | `seed`, `rollouts`, `ticks` as numbers                                                                 |
-| `scene_check`     | `check`            |                                                                                                        |
+| `scene_check`     | `check`            | every kind, `connected` included                                                                       |
 | `scene_render`    | `render`           | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes |
 | `project_tree`    | `project tree`     |                                                                                                        |
 | `asset_refs`      | `project refs`     | `id`; without one, every dangling reference                                                            |
@@ -859,19 +1058,21 @@ a sprite nothing. Find frame names and sizes with `assets info`:
 }
 ```
 
-`validate` judges sprites against the scene's project, which an `apply`
-report doesn't: the blocks below are applied and the scene then validated.
+`apply` (and `apply --live`, and MCP's `scene_apply_ops`) judges asset ids
+and sprites against the scene's project as `validate` does, reporting
+`asset-missing`, `asset-kind`, `asset-frame-unknown` and `sprite-no-asset`;
+the first three are errors, so a batch that leaves one writes nothing.
 A frame the atlas doesn't have, or an atlas with no frame, is
 `asset-frame-unknown`, with the closest frame:
 
-```json scene=kitchen-sink then=validate expect=asset-frame-unknown
+```json scene=kitchen-sink expect=asset-frame-unknown
 { "ops": [{ "op": "update", "ref": "crate", "set": { "behaviors.sprite.frame": "crate-9" } }] }
 ```
 
 A sprite with no `asset` is the warning `sprite-no-asset`: only its
 fallback box draws, in the game and in `render`:
 
-```json scene=kitchen-sink then=validate expect=sprite-no-asset
+```json scene=kitchen-sink expect=sprite-no-asset
 { "ops": [{ "op": "update", "ref": "crate", "unset": ["behaviors.sprite.asset"] }] }
 ```
 
@@ -1226,9 +1427,8 @@ Exposing one on `gate`:
           "op": "exposeParam",
           "name": "oneWay",
           "param": {
-            "description": "Whether things pass up through the bar.",
-            "targets": ["bar.oneWay"],
-            "default": false
+            "description": "The side things land on, for a one-way bar.",
+            "targets": ["bar.oneWay"]
           }
         }
       ]
@@ -1253,9 +1453,8 @@ were. `definePrefab` in the scene's own batch can, so here a variant of
         "base": "gate",
         "params": {
           "oneWay": {
-            "description": "Whether things pass up through the bar.",
-            "targets": ["bar.oneWay"],
-            "default": false
+            "description": "The side things land on, for a one-way bar.",
+            "targets": ["bar.oneWay"]
           }
         },
         "entities": []
@@ -1274,8 +1473,8 @@ were. `definePrefab` in the scene's own batch can, so here a variant of
       "op": "instantiate",
       "instance": { "id": "switch-2", "prefab": "switch-gate", "at": [1440, 1160] }
     },
-    { "op": "setParam", "ref": "switch-2", "name": "oneWay", "value": true },
-    { "op": "update", "ref": "switch-1", "set": { "params.oneWay": false } }
+    { "op": "setParam", "ref": "switch-2", "name": "oneWay", "value": "down" },
+    { "op": "update", "ref": "switch-1", "set": { "params.oneWay": "left" } }
   ]
 }
 ```
@@ -1383,6 +1582,17 @@ Sprites add these; [Sprites](#sprites) has a batch that reports each:
 | `asset-frame-unknown` | error    | A sprite names a frame its atlas doesn't have, or names an atlas without a frame. | did-you-mean |
 | `sprite-no-asset`     | warn     | A sprite has no `asset`, so only its fallback box draws.                          | set `asset`  |
 
+World models add these; [World models](#world-models) has an example that
+reports each but `physics-skipped`:
+
+| Code                | Severity | Meaning                                                                                                    | Fix                      |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `tick-rate-invalid` | error    | A tick rate (`engine.tickRate`, a game's `time.rate`) that isn't an integer from 1 to 240.                 | set one in range         |
+| `physics-required`  | error    | An entity needs physics (a `prop`, an `attach`, a type that requires it) in a scene whose physics is none. | remove it, or use Rapier |
+| `physics-skipped`   | info     | A game's physical check that needs physics was skipped in a scene without it.                              | —                        |
+| `grid-unreachable`  | error    | A `connected` check's target has no path from its start on the grid.                                       | open a path, or drop it  |
+| `nav-invalid`       | error    | A nav polygon crosses itself, a hole isn't inside exactly one walk area, or two walk areas overlap.        | reshape the polygons     |
+
 Asset fields reuse `asset-missing` and `asset-kind`; a variant's child
 whose id its base already has is `dup-id`, and a nested or pasted instance
 of a missing prefab is `prefab-unknown`.
@@ -1423,8 +1633,8 @@ trusting codes or flags.
   imports the MCP SDK.
 - `raster.ts`: SVG to PNG for `render`, with resvg-wasm and the site's Rubik
   files from `src/lib/og/assets/`; the engine stays font-free.
-- `examples/`: the op batches, input list, input script and image this
-  README uses.
+- `examples/`: the op batches, input list, input scripts, checks file and
+  image this README uses.
 - `__tests__/`: the tools against temp projects (`fixtures.ts`), with the
   platformer and a small inline game; the asset commands on files and live;
   the repo's own projects; and every command and op batch in this README.

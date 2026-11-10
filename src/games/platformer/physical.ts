@@ -83,6 +83,7 @@ function spawnInSolid(env: PhysicalEnv, spawn: Spawn, hits: readonly Hit[]): Sce
 const spawnChecks: PhysicalCheck = {
   id: "spawns",
   description: "Each spawn's player box is clear of solids and hazards and has a floor below.",
+  needsPhysics: true,
   run(env) {
     const out: SceneIssue[] = [];
     for (const spawn of spawnsOf(env.def)) {
@@ -121,6 +122,7 @@ const spawnChecks: PhysicalCheck = {
 const anchorChecks: PhysicalCheck = {
   id: "anchors",
   description: `Each grapple anchor is in open air with something to stand on within ${GRAPPLE_RANGE}px.`,
+  needsPhysics: true,
   run(env) {
     const anchors = [
       ...placedOf(env.def, TYPE.anchor, "at"),
@@ -158,6 +160,7 @@ const anchorChecks: PhysicalCheck = {
 const cloudChecks: PhysicalCheck = {
   id: "clouds",
   description: "No cloud overlaps a solid.",
+  needsPhysics: true,
   run(env) {
     const out: SceneIssue[] = [];
     for (const { ref, value, path } of placedOf(env.def, TYPE.cloud, "shape")) {
@@ -179,7 +182,11 @@ const cloudChecks: PhysicalCheck = {
   },
 };
 
-/** The platformer's checks over the loaded world: spawns, grapple anchors and clouds. */
+/**
+ * The platformer's checks over the loaded world: spawns, grapple anchors and
+ * clouds. They model the player's Rapier body, so a scene without physics
+ * skips them.
+ */
 export const PLATFORMER_PHYSICAL_CHECKS: readonly PhysicalCheck[] = [
   spawnChecks,
   anchorChecks,

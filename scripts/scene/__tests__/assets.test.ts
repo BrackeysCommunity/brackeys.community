@@ -81,6 +81,8 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "engine-yard-checks",
       "engine-yard",
       "game-settings",
+      "grid-yard-checks",
+      "grid-yard",
       "kitchen-sink-checks",
       "kitchen-sink",
       "bouncy",

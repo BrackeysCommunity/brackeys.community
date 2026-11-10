@@ -1,0 +1,21 @@
+{
+  "$schema": "../scene/scene.schema.json",
+  "v": 3,
+  "name": "grid-yard",
+  "bounds": [0, 0, 640, 384],
+  "settings": { "grid": { "cell": [32, 32], "kind": "square" }, "physics": "none" },
+  "solid": [
+    ["box", 320, 16, 320, 16],
+    ["box", 320, 368, 320, 16],
+    ["box", 16, 192, 16, 160],
+    ["box", 624, 192, 16, 160]
+  ],
+  "entities": [
+    { "id": "divider", "type": "solid", "shape": ["box", 336, 160, 16, 128] },
+    { "id": "start", "type": "marker", "at": [80, 80], "tags": ["spawn"] },
+    { "id": "exit", "type": "marker", "at": [560, 80], "tags": ["exit"] },
+    { "id": "exit-zone", "type": "sensor", "shape": ["box", 560, 80, 16, 16], "tags": ["goal"] },
+    { "id": "gap-zone", "type": "sensor", "shape": ["box", 336, 320, 16, 32], "tags": ["gap"] },
+    { "id": "about", "type": "note", "at": [48, 48], "text": "Grid yard: a physics-free scene (settings.physics none, no Rapier) on a 32 px square grid. The solids wall off the cells whose centres they hold; the divider leaves one gap at its foot, so a grid path from start reaches exit only through gap-zone." }
+  ]
+}

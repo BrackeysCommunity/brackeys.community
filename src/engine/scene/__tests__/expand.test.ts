@@ -5,12 +5,31 @@ import { GLOW, SPIN, testGame } from "../../__tests__/fixtures/test-game";
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { mirrorField, pointField, shapeField, vectorField } from "../../game/fields";
-import { behaviorBlocks, bulkId, bulkKeyType, expandScene, parseBulkId } from "../expand";
+import type { GameWorldDef } from "../../game/types";
+import {
+  behaviorBlocks,
+  bulkId,
+  bulkKeyType,
+  defaultPhysics,
+  expandScene,
+  parseBulkId,
+  resolveSettings,
+  scenePhysics,
+  settingsSources,
+} from "../expand";
 import { parseSceneOrThrow } from "../parse";
 import { prefabLibrary } from "../prefab";
 import { applyPt, applyVec, dihedral, type Dihedral } from "../transform";
-import type { PathDef, Pt, RuntimeEntity, SceneDefinition, ShapeObj } from "../types";
-import { engine, engineYardText, fake } from "./fixtures/fake-game";
+import type {
+  GridSettings,
+  PathDef,
+  Pt,
+  RuntimeEntity,
+  SceneDefinition,
+  SceneSettings,
+  ShapeObj,
+} from "../types";
+import { engine, engineYardText, fake, fakeGame } from "./fixtures/fake-game";
 
 const yard = parseSceneOrThrow(engineYardText, engine);
 const DEFAULTS = {
@@ -145,6 +164,121 @@ describe("expandScene", () => {
       entities: [{ id: "x", type: "cloud", shape: ["box", 0, 0, 1, 1] }],
     };
     expect(() => expandScene(def, engine)).toThrow(/unregistered type "cloud"/);
+  });
+});
+
+describe("settings resolution", () => {
+  const bare: SceneDefinition = { v: 1, name: "x", bounds: [0, 0, 10, 10], game: "fake" };
+  const square: GridSettings = { kind: "square", cell: [16, 16] };
+  const hex: GridSettings = { kind: "hex", cell: [32, 28], side: 16, stagger: "x", index: "odd" };
+  const withWorld = (world: GameWorldDef) => createRegistry(defineGame({ ...fakeGame, world }));
+  const expandWith = (
+    settings: SceneSettings | undefined,
+    world: GameWorldDef | undefined,
+    engineBlock?: Record<string, unknown>,
+  ) =>
+    expandScene(
+      settings ? { ...bare, settings } : bare,
+      world ? withWorld(world) : fake,
+      engineBlock ? { engine: engineBlock } : {},
+    ).settings;
+
+  /** One value per source for each key; `undefined` where the key never reads that source. */
+  const LADDER: Record<
+    "gravity" | "physics" | "grid",
+    { scene: unknown; project: unknown; game: unknown; engine: unknown }
+  > = {
+    gravity: { scene: [1, 2], project: [3, 4], game: [5, 6], engine: [0, 1200] },
+    physics: { scene: "none", project: "rapier", game: "none", engine: "rapier" },
+    grid: { scene: square, project: undefined, game: hex, engine: null },
+  };
+
+  for (const [key, values] of Object.entries(LADDER)) {
+    it(`resolves ${key} scene → project → game → engine, each position present or not`, () => {
+      const order = ["scene", "project", "game"] as const;
+      for (let mask = 0; mask < 8; mask++) {
+        const has = (i: number) => (mask & (1 << i)) !== 0;
+        const scene = has(0) ? { [key]: values.scene } : undefined;
+        const project = has(1) ? { [key]: values.project ?? square } : undefined;
+        const world = has(2) ? ({ [key]: values.game } as GameWorldDef) : undefined;
+        const winner =
+          order.find((from, i) => has(i) && values[from] !== undefined) ?? ("engine" as const);
+        expect(expandWith(scene, world, project)[key], `${key} mask ${mask}`).toEqual(
+          values[winner],
+        );
+      }
+    });
+  }
+
+  it("never reads view from the project or the game", () => {
+    const registry = createRegistry(
+      defineGame({ ...fakeGame, world: { view: { projection: "other" } } as never }),
+    );
+    expect(
+      expandScene(bare, registry, { engine: { view: { projection: "other" } } }).settings.view,
+    ).toEqual({ projection: "orthogonal" });
+  });
+
+  it("resolves a gravity-less scene to the game's [0, 0]", () => {
+    expect(expandWith(undefined, { gravity: [0, 0] }).gravity).toEqual([0, 0]);
+    expect(expandWith({ lives: 3 }, { gravity: [0, 0] })).toEqual({
+      ...DEFAULTS,
+      gravity: [0, 0],
+      lives: 3,
+    });
+  });
+
+  it("lets the project block beat the game, and the scene beat both", () => {
+    const world: GameWorldDef = { gravity: [0, 0], physics: "none" };
+    const project = { gravity: [0, 300], physics: "rapier" };
+    expect(expandWith(undefined, world, project)).toMatchObject({
+      gravity: [0, 300],
+      physics: "rapier",
+    });
+    expect(expandWith({ gravity: [10, 0], physics: "none" }, world, project)).toMatchObject({
+      gravity: [10, 0],
+      physics: "none",
+    });
+  });
+
+  it("passes over a project value the setting's schema refuses", () => {
+    const world: GameWorldDef = { gravity: [0, 0] };
+    expect(expandWith(undefined, world, { gravity: "down", physics: "box2d" })).toMatchObject({
+      gravity: [0, 0],
+      physics: "rapier",
+    });
+  });
+
+  it("clones what it takes from a source", () => {
+    const gravity: Pt = [0, 0];
+    const out = resolveSettings(undefined, { game: { gravity } });
+    out.gravity[1] = 5;
+    expect(gravity).toEqual([0, 0]);
+  });
+
+  it("builds its sources from the registry's world and the project's block", () => {
+    expect(settingsSources(fake)).toEqual({ game: {} });
+    const registry = withWorld({ gravity: [0, 0], physics: "none", grid: square, lengthUnit: 50 });
+    expect(settingsSources(registry, { tickRate: 30 })).toEqual({
+      project: { tickRate: 30 },
+      game: { gravity: [0, 0], physics: "none", grid: square },
+    });
+  });
+
+  it("scenePhysics and defaultPhysics follow the same order", () => {
+    const none = withWorld({ physics: "none" });
+    expect(defaultPhysics(fake)).toBe("rapier");
+    expect(defaultPhysics(engine)).toBe("rapier");
+    expect(defaultPhysics(none)).toBe("none");
+    expect(defaultPhysics(none, { physics: "rapier" })).toBe("rapier");
+    expect(defaultPhysics(fake, { physics: "none" })).toBe("none");
+    expect(defaultPhysics(none, { physics: 3 })).toBe("none");
+    expect(scenePhysics(bare, none)).toBe("none");
+    expect(scenePhysics(bare, none, { physics: "rapier" })).toBe("rapier");
+    expect(scenePhysics({ ...bare, settings: { physics: "rapier" } }, none)).toBe("rapier");
+    expect(
+      scenePhysics({ ...bare, settings: { physics: "none" } }, fake, { physics: "rapier" }),
+    ).toBe("none");
   });
 });
 

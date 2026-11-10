@@ -97,6 +97,43 @@ describe("parseChecks", () => {
     expect(bad!.path).toBe("/checks/0/atLeast");
   });
 
+  it("parses a connected check, from and to as refs or cells", () => {
+    const r = parseChecks(
+      text([
+        {
+          id: "exit",
+          kind: "connected",
+          from: "start",
+          to: ["exit", [40, 12], "~solid:0"],
+          diagonals: true,
+          blockedBy: ["solid", "plain"],
+        },
+        { id: "near", kind: "connected", from: [0, 0], to: [[1, 1]] },
+      ]),
+      game,
+    );
+    expect(r.ok && r.file.checks).toEqual([
+      {
+        id: "exit",
+        kind: "connected",
+        from: "start",
+        to: ["exit", [40, 12], "~solid:0"],
+        diagonals: true,
+        blockedBy: ["solid", "plain"],
+      },
+      { id: "near", kind: "connected", from: [0, 0], to: [[1, 1]] },
+    ]);
+  });
+
+  it("refuses a connected check with no targets, a fractional cell, or an unknown wall type", () => {
+    const bad = (check: Record<string, unknown>) =>
+      issues(text([{ id: "c", kind: "connected", from: "start", to: ["exit"], ...check }]));
+    expect(bad({ to: [] })[0]!.path).toBe("/checks/0/to");
+    expect(bad({ to: [[1.5, 2]] })[0]!.path).toMatch(/^\/checks\/0\/to\/0/);
+    expect(bad({ blockedBy: ["rock"] })[0]!.path).toBe("/checks/0/blockedBy/0");
+    expect(bad({ from: undefined })[0]!.path).toBe("/checks/0/from");
+  });
+
   it("leaves an inline script to the playtest's compiler", () => {
     const r = parseChecks(
       text([{ id: "r", kind: "reaches", script: { v: 1, steps: "?" }, result: "timeout" }]),
@@ -115,6 +152,7 @@ describe("checks schema", () => {
     expect(schema[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);
     expect(undescribedProperties(schema)).toEqual([]);
     expect(JSON.stringify(schema)).toContain("test-game/props");
+    expect(JSON.stringify(checksJsonSchema(engine))).toContain('"connected"');
   });
 
   it("accepts what parseChecks accepts, inline scripts checked in full", () => {

@@ -297,7 +297,7 @@ function gridValues(type: RegisteredType, e: RuntimeEntity): { field: string; va
 }
 
 /** `box` grown over the filled cells of `values`, placed at `at`. */
-function growOverGrid(
+export function growOverGrid(
   box: Aabb,
   grid: GridSettings,
   at: Pt,

@@ -297,11 +297,12 @@ describe("EditorInspector", () => {
     const items = await screen.findAllByRole("menuitem");
     expect(items.map((i) => i.textContent)).toEqual([
       "SpriteDraws a texture or an atlas frame at the entity's pose.",
+      "OccupantStands on the grid cell under its pose, where paths and game code see it.",
       "HumA low hum it gives off.",
       "SignWords written on it.",
     ]);
     await act(async () => {
-      fireEvent.click(items[1]!);
+      fireEvent.click(items[2]!);
     });
     expect(dispatch).toHaveBeenCalledOnce();
     expect(entity(session, "zone").behaviors).toEqual({ "panels/hum": {} });
@@ -318,6 +319,7 @@ describe("EditorInspector", () => {
     });
     expect((await screen.findAllByRole("menuitem")).map((i) => i.textContent)).toEqual([
       "SpriteDraws a texture or an atlas frame at the entity's pose.",
+      "OccupantStands on the grid cell under its pose, where paths and game code see it.",
       "SignWords written on it.",
     ]);
   });

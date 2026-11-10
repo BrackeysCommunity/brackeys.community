@@ -10,8 +10,9 @@ import {
   UsageError,
   type Tool,
 } from "../context";
+import { projectRuntime } from "../projects";
 import { blockedText } from "./playtest";
-import { rounded } from "./step";
+import { rapierFor, rounded } from "./step";
 
 export type ReplayInput = { scene?: string; run?: string; game?: string };
 
@@ -55,12 +56,14 @@ export const replay: Tool<ReplayInput> = async (input, ctx) => {
   }
   const recording = isRecord(json) && json.blocked === false ? json.recording : json;
 
+  const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
   const run = replayRecording({
-    rapier: await ctx.loadRapier(),
+    rapier: await rapierFor(ctx, loaded.def, registry, project?.engine),
     game: registry.game,
     registry,
     scene: loaded.def,
     prefabs: loaded.prefabs,
+    project,
     recording,
   });
   const game = registry.game?.id ?? null;

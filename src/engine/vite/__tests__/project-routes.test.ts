@@ -70,3 +70,77 @@ describe("the dev server's blob upload", () => {
     expect(res?.body).toMatchObject({ issue: { code: "hash-mismatch" } });
   });
 });
+
+describe("the project routes' CORS", () => {
+  const from = (origin: string, method: string, url: string): ProjectRequest => ({
+    method,
+    url,
+    headers: { host: "localhost:5173", origin },
+    body: async () => PNG,
+  });
+
+  it("answers a preflight from a loopback origin, as Vite's default allows", async () => {
+    const res = await handleProjectRequest(
+      from("http://localhost:3000", "OPTIONS", "/__project/a/blob"),
+      [source("a")],
+    );
+    expect(res?.status).toBe(204);
+    expect(res?.headers).toMatchObject({
+      "access-control-allow-origin": "http://localhost:3000",
+      vary: "Origin",
+    });
+    const allowed = res?.headers?.["access-control-allow-headers"]?.split(/,\s*/);
+    expect(allowed).toEqual(expect.arrayContaining(["content-type", "x-expect-sha256"]));
+  });
+
+  it("refuses a preflight from another origin, with no CORS headers", async () => {
+    const res = await handleProjectRequest(
+      from("https://elsewhere.example", "OPTIONS", "/__project/a/blob"),
+      [source("a")],
+    );
+    expect(res?.status).toBe(403);
+    expect(Object.keys(res?.headers ?? {}).filter((k) => k.startsWith("access-control"))).toEqual(
+      [],
+    );
+  });
+
+  it("puts the header on a blob GET and a POST from an allowed origin", async () => {
+    const a = source("a");
+    const hash = await a.store.put(PNG);
+    const origin = "http://127.0.0.1:4000";
+    const got = await handleProjectRequest(from(origin, "GET", `/__project/a/blob/${hash}`), [a]);
+    expect(got?.status).toBe(200);
+    expect(got?.headers).toMatchObject({
+      "access-control-allow-origin": origin,
+      vary: "Origin",
+      "content-type": "application/octet-stream",
+    });
+    const posted = await handleProjectRequest(from(origin, "POST", "/__project/a/blob"), [a]);
+    expect(posted).toMatchObject({
+      status: 200,
+      headers: { "access-control-allow-origin": origin },
+      body: { sha256: hash },
+    });
+  });
+
+  it("follows the dev server's own cors setting", async () => {
+    const origin = "https://editor.example";
+    const req = from(origin, "GET", "/__project");
+    const allowed = await handleProjectRequest(req, [source("a")], { cors: { origin: [origin] } });
+    expect(allowed?.headers?.["access-control-allow-origin"]).toBe(origin);
+    const off = await handleProjectRequest(
+      from("http://localhost:3000", "GET", "/__project"),
+      [source("a")],
+      { cors: false },
+    );
+    expect(off?.status).toBe(403);
+  });
+
+  it("adds no CORS headers to a same-origin request", async () => {
+    const res = await handleProjectRequest(from("http://localhost:5173", "GET", "/__project"), [
+      source("a"),
+    ]);
+    expect(res?.status).toBe(200);
+    expect(res?.headers?.["access-control-allow-origin"]).toBeUndefined();
+  });
+});

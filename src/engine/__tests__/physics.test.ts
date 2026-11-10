@@ -1,7 +1,17 @@
 // @vitest-environment jsdom
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { createPhysicsWorld, degToRad, shapeColliderDesc, shapePose, TICK_RATE } from "../physics";
+import { DEFAULT_TICK_RATE, SIDE_VIEW_CONTROLLER, TOP_DOWN_CONTROLLER } from "../game/defaults";
+import {
+  createPhysicsWorld,
+  degToRad,
+  shapeColliderDesc,
+  shapePose,
+  type CharacterControllerOptions,
+} from "../physics";
+import { createSceneRuntime } from "../runtime/runtime";
+import type { ExpandedScene, RuntimeEntity, ShapeObj } from "../scene/types";
+import type { PropEntity } from "../systems/bodies";
 import type { RapierModule } from "../types";
 
 let rapier: RapierModule;
@@ -33,9 +43,19 @@ describe("createPhysicsWorld", () => {
     pw.destroy();
   });
 
-  it("steps once per tick", () => {
+  it("steps once per tick at the default rate", () => {
     const pw = createPhysicsWorld(rapier);
-    expect(pw.world.timestep).toBeCloseTo(1 / TICK_RATE, 6);
+    expect(pw.world.timestep).toBe(Math.fround(1 / DEFAULT_TICK_RATE));
+    pw.destroy();
+  });
+
+  it("takes the step length from its timestep", () => {
+    const pw = createPhysicsWorld(rapier, { timestep: 1 / 30 });
+    expect(pw.world.timestep).toBe(Math.fround(1 / 30));
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic());
+    pw.addCollider(rapier.ColliderDesc.ball(5), body);
+    pw.step();
+    expect(body.linvel().y).toBeCloseTo(1200 / 30, 3);
     pw.destroy();
   });
 
@@ -147,14 +167,14 @@ describe("simulation", () => {
 describe("character controller", () => {
   it("creates a character controller", () => {
     const pw = createPhysicsWorld(rapier);
-    expect(pw.createCharacterController()).toBeDefined();
+    expect(pw.createCharacterController(SIDE_VIEW_CONTROLLER)).toBeDefined();
     pw.destroy();
   });
 
   it("resolves collider movement against a floor", () => {
     const pw = createPhysicsWorld(rapier);
     addFloor(pw, 1020);
-    const controller = pw.createCharacterController(0.01);
+    const controller = pw.createCharacterController(SIDE_VIEW_CONTROLLER);
     const body = pw.addRigidBody(
       rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 900),
     );
@@ -169,7 +189,7 @@ describe("character controller", () => {
   it("reports grounded after landing", () => {
     const pw = createPhysicsWorld(rapier);
     addFloor(pw, 1020);
-    const controller = pw.createCharacterController(0.01);
+    const controller = pw.createCharacterController(SIDE_VIEW_CONTROLLER);
     const body = pw.addRigidBody(
       rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 989),
     );
@@ -179,6 +199,73 @@ describe("character controller", () => {
     controller.computeColliderMovement(collider, new rapier.Vector2(0, 5));
     expect(controller.computedGrounded()).toBe(true);
     pw.destroy();
+  });
+
+  /** What a controller was set up with, read back through Rapier's getters. */
+  function readBack(opts: CharacterControllerOptions) {
+    const pw = createPhysicsWorld(rapier);
+    const c = pw.createCharacterController(opts);
+    const up = c.up();
+    const out = {
+      offset: c.offset(),
+      up: { x: up.x, y: up.y },
+      climbDeg: (c.maxSlopeClimbAngle() * 180) / Math.PI,
+      slideDeg: (c.minSlopeSlideAngle() * 180) / Math.PI,
+      autostep: c.autostepEnabled()
+        ? {
+            maxHeight: c.autostepMaxHeight(),
+            minWidth: c.autostepMinWidth(),
+            dynamic: c.autostepIncludesDynamicBodies(),
+          }
+        : null,
+      snap: c.snapToGroundEnabled() ? c.snapToGroundDistance() : null,
+      push: c.applyImpulsesToDynamicBodies(),
+    };
+    pw.destroy();
+    return out;
+  }
+
+  it("options reach the controller", () => {
+    const side = readBack(SIDE_VIEW_CONTROLLER);
+    expect(side.offset).toBeCloseTo(0.01, 6);
+    expect(side.up).toEqual({ x: 0, y: -1 });
+    expect(side.climbDeg).toBeCloseTo(50, 4);
+    expect(side.slideDeg).toBeCloseTo(30, 4);
+    expect(side.autostep).toEqual({ maxHeight: 4, minWidth: 2, dynamic: true });
+    expect(side.snap).toBeCloseTo(4, 6);
+    expect(side.push).toBe(true);
+
+    const custom = readBack({
+      offset: 0.5,
+      up: { x: 1, y: 0 },
+      maxSlopeClimbDeg: 20,
+      minSlopeSlideDeg: 10,
+      autostep: { maxHeight: 8, minWidth: 3, dynamic: false },
+      snapToGround: 2,
+      pushDynamic: false,
+    });
+    expect(custom.offset).toBeCloseTo(0.5, 6);
+    expect(custom.up).toEqual({ x: 1, y: 0 });
+    expect(custom.climbDeg).toBeCloseTo(20, 4);
+    expect(custom.slideDeg).toBeCloseTo(10, 4);
+    expect(custom.autostep).toEqual({ maxHeight: 8, minWidth: 3, dynamic: false });
+    expect(custom.snap).toBeCloseTo(2, 6);
+    expect(custom.push).toBe(false);
+  });
+
+  it("a null option turns that behaviour off", () => {
+    const off = (patch: Partial<CharacterControllerOptions>) =>
+      readBack({ ...SIDE_VIEW_CONTROLLER, ...patch });
+    expect(off({ maxSlopeClimbDeg: null }).climbDeg).toBeCloseTo(90, 4);
+    expect(off({ minSlopeSlideDeg: null }).slideDeg).toBeCloseTo(90, 4);
+    expect(off({ autostep: null }).autostep).toBeNull();
+    expect(off({ snapToGround: null }).snap).toBeNull();
+    expect(off({ offset: undefined }).offset).toBeCloseTo(0.01, 6);
+
+    const top = readBack(TOP_DOWN_CONTROLLER);
+    expect(top).toMatchObject({ autostep: null, snap: null, push: false, up: { x: 0, y: -1 } });
+    expect(top.climbDeg).toBeCloseTo(90, 4);
+    expect(top.slideDeg).toBeCloseTo(90, 4);
   });
 });
 
@@ -265,5 +352,140 @@ describe("debugRender", () => {
     }
 
     pw.destroy();
+  });
+});
+
+// ─── Prop body fields ────────────────────────────────────
+
+describe("prop body fields", () => {
+  const DT = 1000 / 60;
+
+  function yard(entities: RuntimeEntity[], gravity: [number, number] = [0, 1200]): ExpandedScene {
+    return {
+      name: "props",
+      bounds: [-1000, -1000, 1000, 1000],
+      settings: { gravity, physics: "rapier", grid: null, view: { projection: "orthogonal" } },
+      entities,
+    };
+  }
+
+  const box = (cx: number, cy: number, hw: number, hh: number): ShapeObj => ({
+    type: "box",
+    cx,
+    cy,
+    hw,
+    hh,
+    rotDeg: 0,
+  });
+
+  const crate = (fields: Partial<PropEntity> = {}): RuntimeEntity => ({
+    id: "crate",
+    type: "prop",
+    shape: box(0, 0, 10, 10),
+    density: 1,
+    restitution: 0,
+    ...fields,
+  });
+
+  function run(entities: RuntimeEntity[], gravity?: [number, number]) {
+    const rt = createSceneRuntime({ rapier, view: null, game: null });
+    const report = rt.load(yard(entities, gravity));
+    if (!report.ok) throw new Error(report.error);
+    const [handle] = rt.ctx.tags.handlesOf("crate");
+    const body = rt.ctx.physics!.world.getCollider(handle!)!.parent()!;
+    const step = (n: number) => {
+      for (let i = 0; i < n; i++) rt.step(DT, []);
+    };
+    return { rt, body, step };
+  }
+
+  it("keeps Rapier's defaults for a prop that sets none", () => {
+    const { rt, body } = run([crate()]);
+    expect(body.gravityScale()).toBe(1);
+    expect(body.linearDamping()).toBe(0);
+    expect(body.angularDamping()).toBe(0);
+    expect(body.isCcdEnabled()).toBe(false);
+    expect(body.effectiveWorldInvInertia()).toBeGreaterThan(0);
+    rt.destroy();
+  });
+
+  it("sets each field it names on the body", () => {
+    const { rt, body } = run([
+      crate({ gravityScale: 0.5, linearDamping: 2, angularDamping: 3, ccd: true }),
+    ]);
+    expect(body.gravityScale()).toBe(0.5);
+    expect(body.linearDamping()).toBe(2);
+    expect(body.angularDamping()).toBe(3);
+    expect(body.isCcdEnabled()).toBe(true);
+    rt.destroy();
+  });
+
+  it("linear damping slows a moving prop", () => {
+    const speed = (fields: Partial<PropEntity>) => {
+      const { rt, body, step } = run([crate(fields)], [0, 0]);
+      body.setLinvel({ x: 300, y: 0 }, true);
+      step(30);
+      const v = body.linvel().x;
+      rt.destroy();
+      return v;
+    };
+    expect(speed({})).toBeCloseTo(300, 3);
+    expect(speed({ linearDamping: 2 })).toBeLessThan(150);
+  });
+
+  it("angular damping slows a spinning prop", () => {
+    const spin = (fields: Partial<PropEntity>) => {
+      const { rt, body, step } = run([crate(fields)], [0, 0]);
+      body.setAngvel(4, true);
+      step(30);
+      const w = body.angvel();
+      rt.destroy();
+      return w;
+    };
+    expect(spin({})).toBeCloseTo(4, 3);
+    expect(spin({ angularDamping: 2 })).toBeLessThan(2);
+  });
+
+  it("a prop with fixedRotation never turns", () => {
+    /** A crate dropped with most of it past a ledge's edge: free, it tips over. */
+    const tip = (fields: Partial<PropEntity>) => {
+      const ledge: RuntimeEntity = { id: "ledge", type: "solid", shape: box(-50, 40, 50, 10) };
+      const { rt, body, step } = run([ledge, crate({ shape: box(5, 0, 10, 10), ...fields })]);
+      const rots: number[] = [];
+      for (let i = 0; i < 90; i++) {
+        step(1);
+        rots.push(body.rotation());
+      }
+      rt.destroy();
+      return rots;
+    };
+    expect(Math.max(...tip({}).map(Math.abs))).toBeGreaterThan(0.3);
+    expect(tip({ fixedRotation: true }).every((r) => r === 0)).toBe(true);
+  });
+
+  it("a prop with gravityScale 0 floats", () => {
+    const fall = (fields: Partial<PropEntity>) => {
+      const { rt, body, step } = run([crate(fields)]);
+      step(60);
+      const y = body.translation().y;
+      rt.destroy();
+      return y;
+    };
+    expect(fall({})).toBeGreaterThan(400);
+    expect(fall({ gravityScale: 0 })).toBe(0);
+  });
+
+  it("with ccd a prop doesn't tunnel through a 2 px wall at 6000 px/s", () => {
+    const wall: RuntimeEntity = { id: "wall", type: "solid", shape: box(200, 0, 1, 100) };
+    const throwAt = (fields: Partial<PropEntity>) => {
+      const { rt, body, step } = run([wall, crate({ shape: box(0, 0, 5, 5), ...fields })], [0, 0]);
+      body.setLinvel({ x: 6000, y: 0 }, true);
+      step(10);
+      const x = body.translation().x;
+      rt.destroy();
+      return x;
+    };
+    expect(throwAt({})).toBeGreaterThan(200);
+    expect(throwAt({ ccd: true })).toBeLessThan(200);
   });
 });

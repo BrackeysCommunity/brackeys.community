@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
+import { OCCUPANT } from "../game/behaviors/occupant";
 import { SPRITE } from "../game/behaviors/sprite";
+import { isAttachField, isPolygonField } from "../game/fields";
+import { typePhysics } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { assetInfo } from "../project/asset-info";
 import { ATLAS_KIND } from "../project/kinds/atlas";
@@ -10,7 +13,13 @@ import { entityRefSites, headerAssetRefs } from "../project/kinds/fields";
 import { schemaRefSites, type RefSite } from "../project/refs";
 import type { AssetKindName, ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
-import { behaviorBlocks, bulkId, resolveSettings, type SettingsSources } from "./expand";
+import {
+  behaviorBlocks,
+  bulkId,
+  resolveSettings,
+  settingsSources,
+  type SettingsSources,
+} from "./expand";
 import { isInstanceOverrideField } from "./field-path";
 import { comparePointers } from "./format";
 import { sceneHash } from "./hash";
@@ -39,7 +48,15 @@ import {
   sceneRegistry,
   unknownGameIssue,
 } from "./schema";
-import { aabb, aabbUnion, convexHull, isConvex, translateShape } from "./shape-geometry";
+import {
+  aabb,
+  aabbUnion,
+  convexHull,
+  isConvex,
+  translateShape,
+  walkPolygonIssues,
+  type WalkPolygon,
+} from "./shape-geometry";
 import { parseShape } from "./shapes";
 import { composeDihedral, isIdentityTurn, turnOf, type Dihedral } from "./transform";
 import {
@@ -88,13 +105,16 @@ export type ValidateOptions = {
    */
   project?: ProjectView;
   /**
-   * Where engine settings come from besides the scene (the project's
-   * `game-settings` engine block, the game's defaults). A prefab view has
-   * no settings of its own, so it judges a turned or flipped nested
-   * instance over grid children against the grid these resolve; with no
-   * grid there, each scene that places the prefab judges it. No source
-   * holds a grid yet (the engine block and the game's defaults carry none).
+   * The project's `game-settings` engine block. Settings resolve through it
+   * and the game's world as `expandScene` resolves them, so the grid that
+   * sizes grid fields, and that a turned or flipped instance over grid
+   * children is judged against, is the scene's, else the game's
+   * `world.grid`. A prefab view has no settings of its own and judges
+   * against the grid these sources give; with none, each scene that places
+   * the prefab judges it.
    */
+  engine?: Readonly<Record<string, unknown>>;
+  /** Overrides the sources `engine` and the game's world give, key by key. */
   settings?: SettingsSources;
 };
 
@@ -238,7 +258,7 @@ function extent(
  * `<instance>/<child>` is `ref-child-unknown` when the instance's prefab
  * lacks the child), behavior blocks
  * (registered, allowed by the type, their `requires` carried, their fields
- * valid), grid fields (only with `settings.grid`), asset ids and sprite
+ * valid), grid fields (only with a grid: the scene's, else the game's world's), asset ids and sprite
  * frames when `opts.project` is given, and the
  * geometry of every registered shape, point and path field (polys, chains,
  * paths, integer pixels, bounds), then the game's `registry.validators`. No
@@ -269,13 +289,19 @@ export function validateScene(
   const batch = (label: string, ops: SceneOp[], refs: Ref[]): OpBatch =>
     refs.some((ref) => ref.startsWith("~")) ? { label, base: base(), ops } : { label, ops };
 
+  const sources = { ...settingsSources(r, opts.engine), ...opts.settings };
+  const { grid, physics } = resolveSettings(
+    opts.prefab === undefined ? source.settings : undefined,
+    sources,
+  );
+
   validateSource(
     source,
     r,
     opts.prefabs,
     opts.prefab,
     (code, fields) => issues.push(withLine(makeIssue(code, fields))),
-    opts.settings,
+    grid,
   );
 
   const resolved = resolveSceneDetailed(source, r, opts.prefabs);
@@ -371,20 +397,38 @@ export function validateScene(
     if (type) checkBehaviors(r, type, e, jsonPointer(["entities", i]), push, batch);
   });
 
-  // grid fields need the scene's grid to size their cells; a prefab view has
-  // no settings, and the scene placing it sizes its cells instead
-  if (opts.prefab === undefined && !isPlainObject(source.settings?.grid)) {
+  // grid fields need a grid to size their cells; a prefab view has no
+  // settings, and the scene placing it sizes its cells instead
+  if (opts.prefab === undefined && !isPlainObject(grid)) {
     entities.forEach((e, i) => {
       for (const field of gridFields(r, e.type)) {
         if (e[field] === undefined) continue;
         push("grid-invalid", {
-          message: `${e.id}.${field} is a grid field, but the scene has no settings.grid to size its cells`,
+          message: `${e.id}.${field} is a grid field, but the scene has no settings.grid, nor the game's world a grid, to size its cells`,
           path: jsonPointer(["entities", i, field]),
           entityIds: [e.id],
           hint: 'Give the scene a grid with setSettings (e.g. { "grid": { "kind": "square", "cell": [32, 32] } }), or unset the field.',
         });
       }
     });
+  }
+
+  // what loading needs from the scene's settings: physics for some types
+  // and for riders, a grid for occupants; a prefab view is judged by the
+  // scene placing it
+  if (opts.prefab === undefined) {
+    if (physics === "none") checkPhysics(r, def, push);
+    if (!isPlainObject(grid)) {
+      entities.forEach((e, i) => {
+        if (e.off || !(OCCUPANT.name in behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD]))) return;
+        push("grid-invalid", {
+          message: `${e.id} has the ${OCCUPANT.name} behavior, but the scene has no settings.grid, nor the game's world a grid, for it to occupy`,
+          path: jsonPointer(["entities", i, BEHAVIORS_FIELD, OCCUPANT.name]),
+          entityIds: [e.id],
+          hint: `Give the scene a grid with setSettings (e.g. { "grid": { "kind": "square", "cell": [32, 32] } }), or drop ${e.id}'s ${OCCUPANT.name} behavior.`,
+        });
+      });
+    }
   }
 
   // assets
@@ -420,7 +464,7 @@ export function validateScene(
       const obj = shape.shape;
       parsed.push(obj);
 
-      if (obj.type === "poly" && obj.pts[0] && !isConvex(obj.pts)) {
+      if (obj.type === "poly" && obj.pts[0] && !isPolygonField(schema) && !isConvex(obj.pts)) {
         const chain: ShapeTuple = ["chain", ...obj.pts.flat(), ...obj.pts[0]];
         const canChain = z.safeParse(schema, chain).success;
         const hull = convexHull(obj.pts);
@@ -568,6 +612,8 @@ export function validateScene(
     }
   }
 
+  checkNav(r, entities, push);
+
   for (const validator of r.validators) {
     for (const issue of validator(def, { registry: r, lines: opts.lines })) {
       issues.push(withLine(toSource(issue)));
@@ -586,6 +632,76 @@ export function validateScene(
 }
 
 type Push = (code: IssueCode, fields: Partial<SceneIssue> & { message: string }) => void;
+
+/** `physics-required` on each loadable entry whose type needs physics, and each rider, in a scene whose physics is "none". */
+function checkPhysics(r: Registry, def: SceneDefinition, push: Push): void {
+  const needs = (type: RegisteredType | undefined): type is RegisteredType =>
+    type !== undefined && type.loads !== false && typePhysics(type) === "required";
+  const message = (what: string) => `${what}, but the scene's physics resolves to "none"`;
+  for (const b of r.bulkKeys) {
+    const rows = def[b.key];
+    if (!Array.isArray(rows) || !needs(r.types.get(b.type))) continue;
+    rows.forEach((_, i) => {
+      const ref = bulkId(b.key, i);
+      push("physics-required", {
+        message: message(`${ref} is a ${b.type}, which needs physics`),
+        path: jsonPointer([b.key, i]),
+        entityIds: [ref],
+      });
+    });
+  }
+  (def.entities ?? []).forEach((e, i) => {
+    const type = r.types.get(e.type);
+    if (e.off || !type || type.loads === false) return;
+    if (needs(type)) {
+      push("physics-required", {
+        message: message(`${e.id} is a ${e.type}, which needs physics`),
+        path: jsonPointer(["entities", i]),
+        entityIds: [e.id],
+      });
+    }
+    for (const [field, schema] of Object.entries(type.shape)) {
+      if (e[field] === undefined || !isAttachField(schema)) continue;
+      push("physics-required", {
+        message: message(`${e.id}.${field} rides ${JSON.stringify(e[field])}, which needs physics`),
+        path: jsonPointer(["entities", i, field]),
+        entityIds: [e.id],
+      });
+    }
+  });
+}
+
+/** Whether entities of `type` are nav polygons: the `nav` primitive, or a type based on it. */
+const isNavType = (type: RegisteredType | undefined): type is RegisteredType =>
+  type !== undefined && type.loads !== false && (type.base ?? type.type) === "nav";
+
+/**
+ * `nav-invalid` on each walk area or hole that breaks the rules the mesh
+ * builder keeps: simple polygons, walk areas whose interiors don't overlap,
+ * and every hole inside exactly one walk area.
+ */
+function checkNav(r: Registry, entities: readonly EntityDef[], push: Push): void {
+  const areas: WalkPolygon[] = [];
+  const holes: WalkPolygon[] = [];
+  const where = new Map<string, { path: string; at: Pt }>();
+  entities.forEach((e, i) => {
+    if (e.off || !isNavType(r.types.get(e.type))) return;
+    const shape = parseShape(e.shape);
+    if (!shape.ok || shape.shape.type !== "poly") return;
+    where.set(e.id, { path: jsonPointer(["entities", i, "shape"]), at: center(aabb(shape.shape)) });
+    (e.mode === "block" ? holes : areas).push({ id: e.id, pts: shape.shape.pts });
+  });
+  if (areas.length === 0 && holes.length === 0) return;
+  for (const issue of walkPolygonIssues(areas, holes).issues) {
+    const last = where.get(issue.entityIds.at(-1) ?? "");
+    push("nav-invalid", {
+      message: issue.message,
+      path: last?.path,
+      entityIds: issue.entityIds,
+      at: last?.at,
+    });
+  }
+}
 
 const gridFields = (registry: Registry, type: string): string[] =>
   gridFieldsOf(registry.types.get(type));
@@ -886,7 +1002,7 @@ function validateSource(
   prefabs: PrefabLibrary | undefined,
   self: string | undefined,
   push: Push,
-  settings?: SettingsSources,
+  grid: unknown,
 ): void {
   const entities = def.entities ?? [];
   const instances = def.instances ?? [];
@@ -936,8 +1052,8 @@ function validateSource(
   }
 
   // settings
-  const grid = def.settings?.grid;
-  if (isPlainObject(grid)) validateGrid(grid, push);
+  const own = def.settings?.grid;
+  if (isPlainObject(own)) validateGrid(own, push);
 
   // the assets header
   const listed = new Set<string>();
@@ -1120,8 +1236,8 @@ function validateSource(
     def,
     registry,
     prefabs,
-    self === undefined ? def.settings?.grid : resolveSettings(undefined, settings).grid,
-    self === undefined ? "the scene's grid" : "the project's grid",
+    grid,
+    self === undefined ? "the scene's grid" : "the game's grid",
     push,
   );
 }

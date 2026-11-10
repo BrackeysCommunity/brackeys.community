@@ -1,8 +1,9 @@
+import { resolveTime } from "../game/time";
 import type { GameDefinition, PlayState, ScriptPredicate } from "../game/types";
-import { TICK_RATE } from "../physics";
-import { createRunRecorder, trailPoint } from "../runtime/recorder";
+import { createRunRecorder, recordedCommand, trailPoint } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame } from "../runtime/runtime";
 import type { StepEvent } from "../runtime/types";
+import type { RecordingCommand } from "../scene/recording-schema";
 import type { Pt } from "../scene/types";
 import { compileInputScript } from "./compile-input-script";
 import { probeConfigHash } from "./headless";
@@ -60,7 +61,11 @@ function untilHolds(
   return true;
 }
 
-/** Plays a compiled script step by step, logging how each step went. */
+/**
+ * Plays a compiled script step by step, logging how each step went. A step's
+ * length counts slots, so an idle turns or event game still moves through it;
+ * `until` is checked only after simulated ticks.
+ */
 function scriptInput(
   script: CompiledInputScript,
   predicates: Readonly<Record<string, ScriptPredicate>>,
@@ -70,25 +75,35 @@ function scriptInput(
   let at = 0;
   let ran = 0;
   let start = 0;
+  const advance = (end: PlaytestStep["end"] | null) => {
+    if (!end) return;
+    log.push({ index: steps[at]!.index, start, ticks: ran, end });
+    at++;
+    ran = 0;
+  };
+  /** The step's end once its slots or its `max` run out. */
+  const lengthEnd = (step: (typeof steps)[number]): PlaytestStep["end"] | null => {
+    if (step.ticks !== undefined) return ran >= step.ticks ? "done" : null;
+    return ran >= step.max! ? "max" : null;
+  };
   return {
     done: () => at >= steps.length,
-    held(tick) {
-      if (ran === 0) start = tick;
+    held(slot) {
+      if (ran === 0) start = slot;
       return steps[at]!.hold;
+    },
+    commands() {
+      return ran === 0 ? (steps[at]!.commands ?? []) : [];
     },
     after(state) {
       const step = steps[at]!;
       ran++;
-      let end: PlaytestStep["end"] | null = null;
-      if (step.ticks !== undefined) {
-        if (ran >= step.ticks) end = "done";
-      } else if (untilHolds(step.until!, state, predicates)) end = "until";
-      else if (ran >= step.max!) end = "max";
-      if (end) {
-        log.push({ index: step.index, start, ticks: ran, end });
-        at++;
-        ran = 0;
-      }
+      if (step.ticks === undefined && untilHolds(step.until!, state, predicates)) advance("until");
+      else advance(lengthEnd(step));
+    },
+    skipped() {
+      ran++;
+      advance(lengthEnd(steps[at]!));
     },
     log: () =>
       ran > 0 ? [...log, { index: steps[at]!.index, start, ticks: ran, end: "run" }] : log,
@@ -109,10 +124,15 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
   });
   const name = opts.scene.name;
 
+  const engine = opts.project?.engine;
   let script: CompiledInputScript;
   if (isCompiled(opts.script)) script = opts.script;
   else {
-    const compiled = compileInputScript(opts.script, registry);
+    const compiled = compileInputScript(
+      opts.script,
+      registry,
+      resolveTime({ project: engine, game: registry.time }),
+    );
     if (!compiled.ok) return blockedRun("script", name, [], compiled.issues);
     script = compiled.script;
   }
@@ -133,7 +153,7 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
     );
   }
 
-  const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs);
+  const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs, engine);
   if (!prepared.ok) return prepared.blocked as PlaytestRun<S>;
   const runtime = createSceneRuntime({
     rapier: opts.rapier,
@@ -157,13 +177,16 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
     const pts: Pt[] = [];
     let trailTruncated = false;
     const inputs: InputEdge[] = [];
+    const commands: RecordingCommand[] = [];
     const input = scriptInput(script, game?.play?.predicates ?? {});
+    const time = runtime.ctx.time;
     const recorder = createRunRecorder({
-      rapier: opts.rapier,
+      rapier: prepared.scene.settings.physics === "rapier" ? (opts.rapier ?? null) : null,
       game,
       scene: name,
       sceneHash: prepared.hash,
       start: script.play,
+      time,
       maxTrail,
     });
 
@@ -173,8 +196,9 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
       maxTicks: script.maxTicks,
       input,
       record: inputs,
-      onTick(state, focus, edges) {
-        recorder.tick(state, edges, focus);
+      onTick(state, focus, edges, stepped) {
+        recorder.tick(state, edges, focus, stepped);
+        for (const c of stepped) commands.push(recordedCommand(state.tick, c));
         for (const e of state.events) {
           if (events.length < maxEvents) events.push(e);
           else eventsTruncated = true;
@@ -201,10 +225,11 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
       blocked: false,
       scene: name,
       sceneHash: prepared.hash,
-      configHash: probeConfigHash(game),
-      tickRate: TICK_RATE,
+      configHash: probeConfigHash(game, time),
+      tickRate: time.rate,
       outcome,
       ticks: end.ticks,
+      slots: end.slots,
       events,
       truncated: eventsTruncated,
       trail: { every: TRAIL_EVERY, pts, truncated: trailTruncated },
@@ -212,6 +237,7 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
       steps,
       final,
       inputs,
+      commands,
       issues: prepared.issues,
       recording: recorder.finish(end, final),
     };

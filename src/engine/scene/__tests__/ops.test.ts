@@ -3,6 +3,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import type { Registry } from "../../game/types";
+import type { AssetEntry } from "../../project/types";
+import { projectView } from "../../project/view";
 import { formatScene } from "../format";
 import { readCell, type GridCells } from "../grid";
 import { sceneHash } from "../hash";
@@ -2260,4 +2262,72 @@ describe("applyOps: place an instance", () => {
         expect(anchorOf(r.def, anchor)).toEqual([200, 300]);
         expect(text(ok(apply(r.def, r.inverse, { prefabs })).def)).toBe(text(def));
       });
+});
+
+describe("applyOps: assets and sprites against the project", () => {
+  const entry = (id: string, kind: string, extra: Partial<AssetEntry> = {}): AssetEntry => ({
+    key: `k-${id}`,
+    id,
+    kind,
+    path: `${id}.${kind}`,
+    created: { at: 0, by: "t" },
+    ...extra,
+  });
+  const project = projectView({
+    meta: { projectId: "p", layout: 2, name: "P" },
+    assets: Object.fromEntries(
+      [
+        entry("crate", "texture", {
+          sha256: "a".repeat(64),
+          meta: { format: "png", width: 32, height: 32 },
+        }),
+        entry("hero", "atlas", {
+          sha256: "b".repeat(64),
+          meta: {
+            tool: "aseprite",
+            frames: { "idle-0": { x: 0, y: 0, w: 16, h: 16 } },
+            tags: [],
+            slices: [],
+            order: ["idle-0"],
+          },
+          import: { texture: "crate" },
+        }),
+        entry("boom", "sound"),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  });
+  const def: SceneDefinition = {
+    v: 1,
+    name: "t",
+    bounds: [0, 0, 1000, 1000],
+    entities: [{ id: "pic", type: "marker", at: [10, 10] }],
+  };
+  const withSprite = (sprite: Record<string, unknown>): OpBatch => ({
+    ops: [{ op: "update", ref: "pic", set: { "behaviors.sprite": sprite } }],
+  });
+  const codes = (sprite: Record<string, unknown>, opts: ApplyOptions) =>
+    ok(apply(def, withSprite(sprite), opts)).issues.map((i) => [i.code, i.severity]);
+
+  it("reports each asset code with the project", () => {
+    expect(codes({ asset: "nope" }, { project })).toEqual([["asset-missing", "error"]]);
+    expect(codes({ asset: "boom" }, { project })).toEqual([["asset-kind", "error"]]);
+    expect(codes({ asset: "hero", frame: "idle-9" }, { project })).toEqual([
+      ["asset-frame-unknown", "error"],
+    ]);
+    expect(codes({ alpha: 0.5 }, { project })).toEqual([["sprite-no-asset", "warn"]]);
+    expect(codes({ asset: "hero", frame: "idle-0" }, { project })).toEqual([]);
+  });
+
+  it("checks no asset ids without one", () => {
+    for (const sprite of [
+      { asset: "nope" },
+      { asset: "boom" },
+      { asset: "hero", frame: "idle-9" },
+      { alpha: 0.5 },
+    ])
+      expect(codes(sprite, {})).toEqual([]);
+  });
 });

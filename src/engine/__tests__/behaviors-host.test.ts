@@ -181,9 +181,9 @@ function loggingGame() {
       const inner = testGame.createRuntime(ctx);
       return {
         ...inner,
-        beforeStep(dtMs, actions) {
+        beforeStep(dtMs, actions, commands) {
           log.push("game:beforeStep");
-          inner.beforeStep?.(dtMs, actions);
+          inner.beforeStep?.(dtMs, actions, commands);
         },
         afterStep(dtMs, events) {
           log.push(`game:afterStep ${events.map((e) => e.type).join(",")}`);

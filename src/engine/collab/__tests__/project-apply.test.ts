@@ -374,6 +374,65 @@ describe("applyProjectBatch", () => {
     s.destroy();
   });
 
+  it("reports a sprite's unknown atlas frame on the result, and writes the scene", async () => {
+    const host = memoryDocHost();
+    const sheet: AssetEntry = {
+      key: "sheet",
+      id: "sheet",
+      kind: "atlas",
+      path: "art/sheet.atlas.json",
+      created: at,
+      sha256: "b".repeat(64),
+      bytes: 10,
+      meta: {
+        tool: "aseprite",
+        frames: { "a-0": { x: 0, y: 0, w: 8, h: 8 } },
+        tags: [],
+        slices: [],
+        order: ["a-0"],
+      },
+    };
+    seedProjectDoc(
+      host.doc("project:p"),
+      { ...STATE, assets: { yard: STATE.assets.yard!, sheet } },
+      { kind: "migration" },
+    );
+    sceneToDoc(engineYard(), { doc: host.doc("scene:p.yard"), key: sequentialKeys("srv") });
+    const s = await join(host, ada, { kinds: createKindRegistry(null) });
+    const pic = (frame: string): ProjectOpBatch => ({
+      v: 1,
+      ops: [
+        {
+          op: "editScene",
+          id: "yard",
+          ops: [
+            {
+              op: "add",
+              entity: {
+                id: `pic-${frame}`,
+                type: "marker",
+                at: [10, 10],
+                behaviors: { sprite: { asset: "sheet", frame } },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const r = ok(await applyProjectBatch(s, pic("a-9"), ada));
+    expect(r.issues.filter((i) => i.code === "asset-frame-unknown")).toMatchObject([
+      { severity: "error", entityIds: ["pic-a-9"], got: "a-9" },
+    ]);
+    expect(docToScene(host.doc("scene:p.yard")).entities!.some((e) => e.id === "pic-a-9")).toBe(
+      true,
+    );
+    const fine = ok(await applyProjectBatch(s, pic("a-0"), ada));
+    expect(fine.issues.filter((i) => i.code === "asset-frame-unknown")).toEqual([
+      expect.objectContaining({ entityIds: ["pic-a-9"] }),
+    ]);
+    s.destroy();
+  });
+
   it("hands prefab writes to the session's prefab writer", async () => {
     const host = world();
     const s = await join(host);

@@ -415,9 +415,8 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
             op: "exposeParam",
             name: "oneWay",
             param: {
-              description: "Whether things pass up through the pole.",
+              description: "The side things land on, for a one-way pole.",
               targets: ["pole.oneWay"],
-              default: false,
             },
           },
         ]),
@@ -536,6 +535,57 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
         expect(viaMcp.structuredContent, c.id).toMatchObject({ exitCode: 0, written: true });
         await landsInDoc(c.id, c.mcpLanded, MCP_AGENT, `the MCP edit to ${c.id}`);
       }
+    },
+  );
+
+  it(
+    "game settings: editAsset of /engine/tickRate lands as the agent; a bad rate is refused",
+    { timeout: 60_000 },
+    async () => {
+      const engine = () => valueOf("game-settings").engine as Data;
+      const setRate = (value: unknown) =>
+        editAsset("game-settings", [{ set: "/engine/tickRate", value }]);
+
+      const viaCli = await cli("assets", "apply", "--ops", await jsonFile(setRate(30)));
+      expect(viaCli.exitCode, JSON.stringify(viaCli.data)).toBe(0);
+      await landsInDoc(
+        "game-settings",
+        () => engine().tickRate === 30,
+        CLI_AGENT,
+        "the CLI's tick rate",
+      );
+
+      const viaMcp = await mcp("asset_apply_ops", { ops: setRate(120) });
+      expect(viaMcp.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(
+        "game-settings",
+        () => engine().tickRate === 120,
+        MCP_AGENT,
+        "the MCP tick rate",
+      );
+
+      const badCli = await cli("assets", "apply", "--ops", await jsonFile(setRate(0)));
+      expect(badCli.exitCode).toBe(1);
+      expect(badCli.data).toMatchObject({ written: false, issue: { code: "tick-rate-invalid" } });
+      const badMcp = await mcp("asset_apply_ops", { ops: setRate(30.5) });
+      expect(badMcp.structuredContent).toMatchObject({
+        exitCode: 1,
+        written: false,
+        issue: { code: "tick-rate-invalid" },
+      });
+      expect(engine().tickRate).toBe(120);
+      expect(human.session.canUndo()).toBe(false);
+
+      const reset = await mcp("asset_apply_ops", {
+        ops: editAsset("game-settings", [{ unset: "/engine/tickRate" }]),
+      });
+      expect(reset.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(
+        "game-settings",
+        () => !("tickRate" in engine()),
+        MCP_AGENT,
+        "the MCP unset of the tick rate",
+      );
     },
   );
 

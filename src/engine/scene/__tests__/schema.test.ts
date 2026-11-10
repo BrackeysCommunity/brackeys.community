@@ -3,7 +3,14 @@ import { z } from "zod";
 
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { angleField, assetField, mirrorField, pointField, vectorField } from "../../game/fields";
+import {
+  angleField,
+  assetField,
+  mirrorField,
+  pointField,
+  sideField,
+  vectorField,
+} from "../../game/fields";
 import { PRIMITIVE_TYPES } from "../../game/types";
 import {
   ID_PATTERN,
@@ -177,15 +184,34 @@ describe("field kinds", () => {
     expect(fieldKind(engine.types.get("prop")!.shape.density!)).toBe("value");
   });
 
-  it("knows vector, angle, mirror and grid fields by their meta kind", () => {
+  it("knows vector, angle, mirror, side and grid fields by their meta kind", () => {
     expect(fieldKind(vectorField("Aim.").optional())).toBe("vector");
     expect(fieldKind(angleField("Facing.", "deg").default(0))).toBe("angle");
     expect(fieldKind(mirrorField("x", "Faces left.").optional().describe("Faces left."))).toBe(
       "mirror",
     );
+    expect(fieldKind(sideField("Lands on.").optional())).toBe("side");
+    expect(fieldKind(engine.types.get("solid")!.shape.oneWay!)).toBe("side");
     expect(fieldKind(z.array(z.string()).meta({ kind: "grid" }).optional())).toBe("grid");
     expect(fieldKind(z.number().meta({ kind: "other" }))).toBe("value");
     expect(fieldKind(assetField(noAssets, "texture", "Pic."))).toBe("value");
+  });
+});
+
+describe("one-way sides", () => {
+  const solid = entitySchemaFor(engine, "solid")!;
+  const base = { id: "p", type: "solid", shape: ["box", 0, 0, 10, 2] };
+
+  it("takes true or a side for oneWay, and nothing else", () => {
+    for (const oneWay of [true, "up", "down", "left", "right"])
+      expect(solid.safeParse({ ...base, oneWay }).success).toBe(true);
+    expect(solid.safeParse(base).success).toBe(true);
+    for (const oneWay of [false, "north", 1, null])
+      expect(solid.safeParse({ ...base, oneWay }).success).toBe(false);
+  });
+
+  it("keeps true as written", () => {
+    expect(solid.parse({ ...base, oneWay: true }).oneWay).toBe(true);
   });
 });
 

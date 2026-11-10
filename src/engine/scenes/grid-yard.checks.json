@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "checks": [
+    { "id": "valid", "kind": "valid", "physical": true },
+    { "id": "exit-reachable", "kind": "connected", "from": "start", "to": ["exit", "exit-zone", "gap-zone", [17, 9]] },
+    { "id": "exit-reachable-diagonally", "kind": "connected", "diagonals": true, "from": "start", "to": ["exit"] },
+    { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "scene": "grid-yard", "steps": [{ "wait": 60 }], "v": 1 } }
+  ]
+}

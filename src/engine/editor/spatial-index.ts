@@ -3,10 +3,11 @@ import { Z_LIMIT } from "../game/fields";
 import type { RegisteredType, Registry } from "../game/types";
 import { behaviorBlocks, bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
 import { defaultLayer } from "../scene/layers";
-import { spriteBoxOf, type SpriteAssetLookup } from "../scene/render-geometry";
+import { spriteBoxOf, type DrawnSprite, type SpriteAssetLookup } from "../scene/render-geometry";
 import { geometryFields } from "../scene/schema";
 import { aabb, aabbUnion, translateShape } from "../scene/shape-geometry";
 import { parseShape } from "../scene/shapes";
+import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, BulkKey, EntityDef, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
 import type { IndexEntry, SpatialIndex } from "./tools";
 
@@ -30,12 +31,6 @@ export type EditGeometry = {
   /** The path runs a closing segment from its last point back to its first. */
   loop?: boolean;
 };
-
-/** An index entry, with the world box its sprite draws when it carries one. */
-export type SpriteIndexEntry = IndexEntry & { sprite?: ShapeObj };
-
-/** The world box `e`'s sprite draws, when the index found one. */
-export const spriteHitOf = (e: IndexEntry): ShapeObj | undefined => (e as SpriteIndexEntry).sprite;
 
 const isPt = (v: unknown): v is Pt =>
   Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n));
@@ -110,10 +105,30 @@ export function geometryOfRef(
   return t && { ...entityGeometry(t, e), type: e.type, bulk: false };
 }
 
-const pointBox = ([x, y]: Pt): Aabb => ({ minX: x, minY: y, maxX: x, maxY: y });
+/**
+ * Where the sprite of an entity or bulk row of `type` draws over `g`: its
+ * `sprite` block (the type's default merged with `written`, the entity's
+ * `behaviors`) at `g`'s pose. Undefined when it carries no sprite.
+ */
+export function editSpriteBox(
+  registry: Registry,
+  type: string,
+  g: EditGeometry,
+  written?: unknown,
+  asset?: SpriteAssetLookup,
+): DrawnSprite | undefined {
+  if (!registry.types.has(type)) return undefined;
+  const block = behaviorBlocks(registry, type, written)[SPRITE.name];
+  return block
+    ? spriteBoxOf(
+        block,
+        { shape: g.shape, at: g.at, path: g.pts ? { pts: g.pts } : undefined },
+        asset,
+      )
+    : undefined;
+}
 
-const overlaps = (a: Aabb, b: Aabb) =>
-  a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+const pointBox = ([x, y]: Pt): Aabb => ({ minX: x, minY: y, maxX: x, maxY: y });
 
 /**
  * Stacking, bottom to top: the registry's layer order, then the entity's
@@ -128,9 +143,6 @@ const entityZ = (e: EntityDef | undefined) =>
   typeof e?.z === "number" && Number.isInteger(e.z)
     ? Math.max(-Z_LIMIT, Math.min(Z_LIMIT, e.z))
     : 0;
-
-/** An entry would cover more cells than this; it lives on a list every query scans. */
-const MAX_CELLS = 1024;
 
 export type SpatialIndexOptions = {
   /** World px per grid cell; default 256. */
@@ -167,51 +179,20 @@ export type EditableSpatialIndex = SpatialIndex & {
  * the sprite draws; a point entity's sprite box is its geometry.
  */
 export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpatialIndex {
-  const cell = opts.cell ?? DEFAULT_CELL;
   const keyOf = (ref: Ref) => opts.keyOf?.(ref) ?? ref;
   const entries = new Map<Ref, IndexEntry>();
-  const cells = new Map<string, Set<Ref>>();
-  const cellsOf = new Map<Ref, string[]>();
-  const big = new Set<Ref>();
+  const hash = createSpatialHash<Ref>(opts.cell ?? DEFAULT_CELL);
   /** Each indexed bulk key's entries as last indexed, to spot a changed bucket. */
   const buckets = new Map<BulkKey, { sig: string; count: number }>();
 
-  const span = (b: Aabb) => ({
-    x0: Math.floor(b.minX / cell),
-    y0: Math.floor(b.minY / cell),
-    x1: Math.floor(b.maxX / cell),
-    y1: Math.floor(b.maxY / cell),
-  });
-
   function insert(e: IndexEntry) {
     entries.set(e.ref, e);
-    const { x0, y0, x1, y1 } = span(e.aabb);
-    if ((x1 - x0 + 1) * (y1 - y0 + 1) > MAX_CELLS) {
-      big.add(e.ref);
-      return;
-    }
-    const keys: string[] = [];
-    for (let x = x0; x <= x1; x++) {
-      for (let y = y0; y <= y1; y++) {
-        const k = `${x},${y}`;
-        let set = cells.get(k);
-        if (!set) cells.set(k, (set = new Set()));
-        set.add(e.ref);
-        keys.push(k);
-      }
-    }
-    cellsOf.set(e.ref, keys);
+    hash.insert(e.ref, e.aabb);
   }
 
   function drop(ref: Ref) {
     if (!entries.delete(ref)) return;
-    big.delete(ref);
-    for (const k of cellsOf.get(ref) ?? []) {
-      const set = cells.get(k);
-      set?.delete(ref);
-      if (set?.size === 0) cells.delete(k);
-    }
-    cellsOf.delete(ref);
+    hash.remove(ref);
   }
 
   function entryOf(
@@ -224,18 +205,9 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
   ): IndexEntry | undefined {
     const own = g?.shape ?? g?.at;
     if (!g || !own) return undefined;
-    const block = registry.types.has(type)
-      ? behaviorBlocks(registry, type, written)[SPRITE.name]
-      : undefined;
-    const sprite =
-      block &&
-      spriteBoxOf(
-        block,
-        { shape: g.shape, at: g.at, path: g.pts ? { pts: g.pts } : undefined },
-        opts.asset,
-      );
+    const sprite = editSpriteBox(registry, type, g, written, opts.asset);
     const box = g.shape ? aabb(g.shape) : pointBox(g.at!);
-    const entry: SpriteIndexEntry = {
+    return {
       ref,
       key: keyOf(ref),
       type,
@@ -245,7 +217,6 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
       geometry: g.shape ?? sprite?.shape ?? own,
       ...(sprite ? { sprite: sprite.shape } : {}),
     };
-    return entry;
   }
 
   function indexBucket(def: SceneDefinition, registry: Registry, key: BulkKey) {
@@ -303,9 +274,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
 
   function clear() {
     entries.clear();
-    cells.clear();
-    cellsOf.clear();
-    big.clear();
+    hash.clear();
     buckets.clear();
   }
 
@@ -355,24 +324,11 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
       restack(def, registry, ents);
     },
 
-    query(rect) {
-      const { x0, y0, x1, y1 } = span(rect);
-      const seen = new Set<Ref>(big);
-      if ((x1 - x0 + 1) * (y1 - y0 + 1) > cells.size) {
-        for (const ref of cellsOf.keys()) seen.add(ref);
-      } else {
-        for (let x = x0; x <= x1; x++) {
-          for (let y = y0; y <= y1; y++)
-            for (const ref of cells.get(`${x},${y}`) ?? []) seen.add(ref);
-        }
-      }
-      const out: IndexEntry[] = [];
-      for (const ref of seen) {
-        const e = entries.get(ref)!;
-        if (overlaps(e.aabb, rect)) out.push(e);
-      }
-      return out.sort((a, b) => b.z - a.z);
-    },
+    query: (rect) =>
+      hash
+        .query(rect)
+        .map((ref) => entries.get(ref)!)
+        .sort((a, b) => b.z - a.z),
 
     get: (ref) => entries.get(ref),
     entries: () => [...entries.values()].sort((a, b) => b.z - a.z),

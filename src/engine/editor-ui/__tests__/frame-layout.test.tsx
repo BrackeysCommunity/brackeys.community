@@ -459,6 +459,9 @@ describe("the frame's layout", () => {
 
   it("opens a panel through its handle wherever it is, and resets the layout", () => {
     const { handle } = setup();
+    expect(screen.getByRole("tab", { name: /History/ }).getAttribute("aria-selected")).toBe(
+      "false",
+    );
     fireEvent.keyDown(separator("Right column edge"), { key: "Enter" });
     expect(column("right")).toBeNull();
     act(() => handle.current!.openPanel("history"));
@@ -469,6 +472,22 @@ describe("the frame's layout", () => {
     fireEvent.keyDown(separator("Right column edge"), { key: "End" });
     act(() => handle.current!.resetLayout());
     expectColumnAt("right", fitLayout(DEFAULT_LAYOUT, viewportOf(1440)).right!);
+  });
+
+  it("opens a panel behind another tab in a collapsed group through its handle", () => {
+    const { handle } = setup();
+    const bottom = () => column("right")!.querySelector(".je-frame-group-right-1")!;
+    const open = px(bottom(), "height");
+    fireEvent.keyDown(separator("Right column split"), { key: "Enter" });
+    expect(px(bottom(), "height")).toBe(28);
+    expect(screen.getByRole("tab", { name: /History/ }).getAttribute("aria-selected")).toBe(
+      "false",
+    );
+
+    act(() => handle.current!.openPanel("history"));
+    expect(px(bottom(), "height")).toBe(open);
+    expect(screen.getByRole("tab", { name: /History/ }).getAttribute("aria-selected")).toBe("true");
+    expect(bottom().contains(document.activeElement)).toBe(true);
   });
 
   it("holds the left and right slots in fitted columns when there are no panels", () => {

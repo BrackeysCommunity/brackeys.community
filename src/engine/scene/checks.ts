@@ -48,10 +48,25 @@ export type TouchesCheck = CheckHead & {
   seed?: string | number;
   ticks?: number;
 };
+/** A grid cell, `[col, row]`. */
+export type CheckCell = [col: number, row: number];
+/** An entity ref (its cell holds its geometry's centre) or a cell. */
+export type CheckPlace = Ref | CheckCell;
+/** A path on the scene's grid joins `from` to each of `to`; walls are the `blockedBy` types' cells. */
+export type ConnectedCheck = CheckHead & {
+  kind: "connected";
+  from: CheckPlace;
+  to: CheckPlace[];
+  diagonals?: boolean;
+  /** Entity types whose shapes wall cells off; default `["solid"]`, `[]` for none. */
+  blockedBy?: string[];
+};
+/** The types a `connected` check walls with when it names none. */
+export const DEFAULT_BLOCKED_BY: readonly string[] = ["solid"];
 /** A game's kind (`<game>/<kind>`), with the fields its `arg` schema defines. */
 export type GameCheck = CheckHead & { [field: string]: unknown };
 
-export type SceneCheck = ValidCheck | ReachesCheck | TouchesCheck | GameCheck;
+export type SceneCheck = ValidCheck | ReachesCheck | TouchesCheck | ConnectedCheck | GameCheck;
 
 export type ChecksFile = { $schema?: string; v: 1; checks: SceneCheck[] };
 
@@ -162,6 +177,38 @@ function buildChecksSchemas(registry: Registry, strictScript: boolean) {
       })
       .describe("Passes when at least `atLeast` seeded fuzz rollouts touch `entity`."),
   };
+
+  const typeNames = [...registry.types.keys()] as [string, ...string[]];
+  const place = z.union([
+    z.string().min(1).describe("An entity's id, or a bulk reference `~key:index`."),
+    z
+      .tuple([z.number().int().describe("Column."), z.number().int().describe("Row.")])
+      .describe("A grid cell, `[col, row]`."),
+  ]);
+  kinds.connected = z
+    .strictObject({
+      ...head(z.literal("connected").describe("A grid path joins two places.")),
+      from: place.describe(
+        "Where paths start: an entity (the cell holding its geometry's centre) or a `[col, row]` cell.",
+      ),
+      to: z
+        .array(place)
+        .min(1)
+        .describe("The places each path must reach, as entities or `[col, row]` cells."),
+      diagonals: z
+        .boolean()
+        .optional()
+        .describe("Square grids: also step diagonally, never past a wall's corner; default false."),
+      blockedBy: z
+        .array(z.enum(typeNames))
+        .optional()
+        .describe(
+          `Entity types whose shapes wall off the cells whose centres they hold; default ${JSON.stringify(DEFAULT_BLOCKED_BY)}, [] for none.`,
+        ),
+    })
+    .describe(
+      "Passes when a path on the scene's grid reaches every `to` from `from`; needs `settings.grid`, and no physics.",
+    );
 
   for (const [kind, def] of Object.entries(registry.game?.checks ?? {})) {
     const own = head(z.literal(kind).describe(def.description));

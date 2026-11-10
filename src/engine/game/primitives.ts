@@ -6,10 +6,14 @@ import {
   PathSchema,
   materialField,
   pointField,
+  polygonField,
   shapeField,
+  sideField,
   tagsField,
 } from "./fields";
 import type { EntityTypeDef, FieldEnv, PrimitiveType } from "./types";
+
+export { DEFAULT_GRAVITY } from "./defaults";
 
 const absolute = "Absolute world px; y is down.";
 
@@ -22,13 +26,14 @@ export const PRIMITIVES = {
     type: "solid",
     description:
       "Static ground, walls and platforms: collides from every side, or from above only.",
+    physics: "optional",
     fields: (env) => ({
       shape: shapeField(`Collider shape. ${absolute} Any tag, including chain for outlines.`),
       material: materialField(env),
-      oneWay: z
-        .boolean()
+      oneWay: sideField(
+        'The one side actors collide with: they pass through from every other side and land on this one. `true` is "up": they pass up through it and land on top.',
+      )
         .optional()
-        .describe("When true, actors pass up through it and land on top.")
         .meta({ title: "One-way", group: "surface" }),
       attach: attachField(
         "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
@@ -46,6 +51,7 @@ export const PRIMITIVES = {
     type: "sensor",
     description:
       "Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it.",
+    physics: "optional",
     fields: {
       shape: shapeField(`Trigger shape. ${absolute}`),
       tags: tagsField("Labels a game reads off the sensor's events."),
@@ -59,6 +65,7 @@ export const PRIMITIVES = {
   marker: {
     type: "marker",
     description: "A named point with tags; what it means is up to the game.",
+    physics: "optional",
     fields: {
       at: pointField(`Marker position. ${absolute}`),
       tags: tagsField("Labels a game reads, e.g. spawn or checkpoint."),
@@ -69,6 +76,7 @@ export const PRIMITIVES = {
   prop: {
     type: "prop",
     description: "Dynamic physics object that can be pushed and stood on.",
+    physics: "required",
     fields: (env) => ({
       shape: bodyShapeField(`Starting collider shape. ${absolute} Not chain.`),
       density: z
@@ -88,6 +96,35 @@ export const PRIMITIVES = {
         .describe("Surface friction; omitted uses the material's, else the physics default.")
         .meta({ title: "Friction" }),
       material: materialField(env),
+      gravityScale: z
+        .number()
+        .optional()
+        .describe("Multiplies the world's gravity on this body: 0 floats, -1 falls up; default 1.")
+        .meta({ title: "Gravity scale", group: "body" }),
+      linearDamping: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Slows the body's motion over time; default 0.")
+        .meta({ title: "Linear damping", group: "body" }),
+      angularDamping: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Slows the body's spin over time; default 0.")
+        .meta({ title: "Angular damping", group: "body" }),
+      fixedRotation: z
+        .boolean()
+        .optional()
+        .describe("When true, the body never turns.")
+        .meta({ title: "Fixed rotation", group: "body" }),
+      ccd: z
+        .boolean()
+        .optional()
+        .describe(
+          "Continuous collision detection: when true, a fast body can't pass through thin colliders between steps.",
+        )
+        .meta({ title: "CCD", group: "body" }),
     }),
     style: { fill: 0xaa7744, stroke: 0xddaa77, alpha: 0.9 },
     ascii: "p",
@@ -95,6 +132,7 @@ export const PRIMITIVES = {
   follower: {
     type: "follower",
     description: "Kinematic body that follows a waypoint path.",
+    physics: "optional",
     fields: (env) => ({
       shape: bodyShapeField(
         'Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. ["box", 0, 0, 40, 6]). Not chain.',
@@ -108,12 +146,29 @@ export const PRIMITIVES = {
   decor: {
     type: "decor",
     description: "A picture with no body: drawn by its sprite, never collides.",
+    physics: "optional",
     fields: {
       at: pointField(`Where the sprite's pose is. ${absolute}`),
     },
     behaviors: { required: { sprite: {} } },
     style: { stroke: 0xcc99ff, alpha: 0.6 },
     ascii: "d",
+  },
+  nav: {
+    type: "nav",
+    description: "A walkable area, or a hole in one, for navigation without physics or a grid.",
+    physics: "optional",
+    fields: {
+      shape: polygonField(`A simple polygon, concave allowed. ${absolute}`),
+      mode: z
+        .enum(["walk", "block"])
+        .optional()
+        .describe("walk (default) or a hole cut out of the walk area it lies in.")
+        .meta({ title: "Mode" }),
+      tags: tagsField("Labels a game reads, e.g. a room name."),
+    },
+    style: { stroke: 0x55aaff, alpha: 0.25 },
+    ascii: "n",
   },
   note: {
     type: "note",
@@ -128,6 +183,14 @@ export const PRIMITIVES = {
     },
   },
 } satisfies Record<PrimitiveType, EntityTypeDef>;
+
+/**
+ * Whether entities of `type` can load in a scene without physics: the
+ * type's own `physics`, else its base primitive's, else "optional".
+ */
+export function typePhysics(type: EntityTypeDef): "required" | "optional" {
+  return type.physics ?? (type.base ? PRIMITIVES[type.base].physics : undefined) ?? "optional";
+}
 
 type ResolvedFields<D> = D extends { fields: infer F }
   ? F extends (env: FieldEnv) => infer R
@@ -159,6 +222,7 @@ export const BASE_REQUIRED_FIELDS: Record<Exclude<PrimitiveType, "note">, readon
   prop: ["shape", "density", "restitution"],
   follower: ["shape", "path"],
   decor: ["at"],
+  nav: ["shape"],
 };
 
 function px2(description: string, [a, b]: [string, string] = ["x", "y"]) {
@@ -175,7 +239,9 @@ export const ENGINE_SETTINGS = {
       z.number().describe("y, px/s²; positive pulls down."),
     ])
     .optional()
-    .describe("World gravity [x, y] in px/s²; y is down. Omitted means [0, 1200].")
+    .describe(
+      "World gravity [x, y] in px/s²; y is down. Omitted: the project's, else the game's default.",
+    )
     .meta({ title: "Gravity", unit: "px/s²" }),
   physics: z
     .enum(["rapier", "none"])
@@ -210,7 +276,9 @@ export const ENGINE_SETTINGS = {
       }),
     ])
     .optional()
-    .describe("The scene's one cell grid, square or hex; the hex parameters match Tiled's.")
+    .describe(
+      "The scene's one cell grid, square or hex; the hex parameters match Tiled's. Omitted: the game's world grid, else none.",
+    )
     .meta({ title: "Grid" }),
   view: z
     .strictObject({
@@ -225,5 +293,3 @@ export const ENGINE_SETTINGS = {
 export const ENGINE_SETTING_KEYS = Object.keys(
   ENGINE_SETTINGS,
 ) as readonly (keyof typeof ENGINE_SETTINGS)[];
-
-export const DEFAULT_GRAVITY: [number, number] = [0, 1200];

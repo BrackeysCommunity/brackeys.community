@@ -26,6 +26,20 @@ const SiteSceneEditor = import.meta.env.DEV
   ? lazy(() => import("./editor-host").then((m) => ({ default: m.SiteSceneEditor })))
   : null;
 
+/**
+ * The editor's skeleton frame, loaded on its own beside the editor's chunk;
+ * the play route imports nothing from `@jams/engine/editor-ui` statically.
+ */
+const EditorSkeleton = import.meta.env.DEV
+  ? lazy(() =>
+      Promise.all([
+        import("@jams/engine/editor-ui"),
+        import("@jams/engine/editor-ui/style.css"),
+        import("@/styles/editor-ui.css"),
+      ]).then(([m]) => ({ default: m.EditorSkeleton })),
+    )
+  : null;
+
 type GameCanvasProps = {
   roomId: string;
   /** Opens the scene editor; dev builds only. */
@@ -45,22 +59,21 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
   return <GameRoom roomId={roomId} />;
 }
 
-/** While the editor's chunk loads: the room's chrome and what is happening. */
+/** The room before its code runs: the editor's loading frame with `edit`, else the bare canvas. */
+export function GameCanvasLoading({ roomId, edit = false }: { roomId: string; edit?: boolean }) {
+  return edit && SiteSceneEditor ? <EditorLoading roomId={roomId} /> : <BlankCanvas />;
+}
+
+const BlankCanvas = () => <div className="h-full w-full bg-[#1a1a2e]" />;
+
+/** While the editor's chunk loads: its skeleton frame in the room's chrome, a plain canvas until then. */
 function EditorLoading({ roomId }: { roomId: string }) {
+  const canvas = <BlankCanvas />;
+  if (!EditorSkeleton) return canvas;
   return (
-    <CanvasShell
-      topLeft={<GameSiteIsland title={roomId} />}
-      status={
-        <Island
-          role="status"
-          className="flex-col items-start gap-0.5 px-2.5 py-1.5 text-xs text-muted-foreground"
-        >
-          <span>Loading the editor</span>
-        </Island>
-      }
-    >
-      <div className="h-full w-full bg-[#1a1a2e]" />
-    </CanvasShell>
+    <Suspense fallback={canvas}>
+      <EditorSkeleton topLeft={<GameSiteIsland title={roomId} />} />
+    </Suspense>
   );
 }
 

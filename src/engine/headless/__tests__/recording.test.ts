@@ -3,8 +3,14 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { GOAL_EVENT, testGame, type TestGameSnapshot } from "../../__tests__/fixtures/test-game";
+import {
+  GOAL_EVENT,
+  NUDGE,
+  testGame,
+  type TestGameSnapshot,
+} from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import { createSessionRecording } from "../../runtime/play-session";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../../scene/agent-surface";
 import { formatScene } from "../../scene/format";
 import { hashText } from "../../scene/hash";
@@ -168,6 +174,146 @@ describe("RunRecording", () => {
       ok: false,
       issues: [{ path: "/inputs/0/1" }],
     });
+  });
+});
+
+describe("commands in recordings", () => {
+  const nudged: InputScript = {
+    v: 1,
+    steps: [
+      { hold: ["right"], for: 10 },
+      { command: NUDGE, args: { dx: 40 } },
+      { hold: [], for: 5 },
+      { command: NUDGE, args: { dx: -15 } },
+      { command: NUDGE, args: { dx: 5 } },
+      { wait: 10 },
+    ],
+  };
+
+  it("a playtest with command steps records them, and its recording replays to the same digest", () => {
+    const r = played(nudged);
+    const expected = [
+      [10, NUDGE, { dx: 40 }],
+      [16, NUDGE, { dx: -15 }],
+      [17, NUDGE, { dx: 5 }],
+    ];
+    expect(r.commands).toEqual(expected);
+    expect(r.recording.commands).toEqual(expected);
+    expect(Object.keys(r.recording).indexOf("commands")).toBe(
+      Object.keys(r.recording).indexOf("inputs") + 1,
+    );
+    const plain = played({
+      ...nudged,
+      steps: nudged.steps.map((s) => ("command" in s ? { wait: 1 } : s)),
+    });
+    expect(plain.recording.end).not.toBe(r.recording.end);
+
+    const text = JSON.parse(JSON.stringify(r.recording));
+    expect(parseRecording(text)).toEqual({ ok: true, recording: r.recording });
+    const again = replayed(text);
+    expect(again.matches, again.divergence ?? "").toBe(true);
+    expect(again.recording).toEqual(r.recording);
+    expect(again.final).toEqual(r.final);
+  });
+
+  it("leaves `commands` out of a run that sent none, so older recordings stay as they were", () => {
+    const rec = played(toGoal).recording;
+    expect(rec).not.toHaveProperty("commands");
+    expect(played(toGoal).commands).toEqual([]);
+  });
+
+  it("parses a recording made before commands existed", () => {
+    const frozen = readFileSync(
+      new URL("../../project/__tests__/fixtures/run.recording.json", import.meta.url),
+      "utf8",
+    );
+    const parsed = parseRecording(frozen);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok && parsed.recording).not.toHaveProperty("commands");
+  });
+
+  it("refuses commands out of order, unknown commands and bad args", () => {
+    const rec = played(nudged).recording;
+    expect(
+      parseRecording({
+        ...rec,
+        commands: [
+          [5, NUDGE, { dx: 1 }],
+          [4, NUDGE, { dx: 1 }],
+        ],
+      }),
+    ).toMatchObject({ ok: false, issues: [{ path: "/commands/1/0" }] });
+    const replay = (commands: unknown) =>
+      replayRecording({
+        rapier,
+        game: testGame,
+        registry,
+        scene: yard,
+        recording: { ...rec, commands },
+      });
+    const unknown = replay([[10, "nudg", { dx: 1 }]]);
+    expect(unknown.blocked && unknown.scriptIssues).toEqual([
+      {
+        path: "/commands/0/1",
+        message: 'unknown command "nudg"; did you mean "nudge"? (commands: @elapsed, nudge)',
+      },
+    ]);
+    const bad = replay([[10, NUDGE, { dx: "far" }]]);
+    expect(bad.blocked && bad.scriptIssues[0]).toMatchObject({
+      path: "/commands/0/2",
+      message: expect.stringMatching(/^bad args for nudge/),
+    });
+  });
+
+  it("a browser session records the commands it stepped, and a replay feeds its own instead", () => {
+    const rec = played(nudged).recording;
+    const opts = {
+      rapier,
+      game: testGame,
+      scene: "engine-yard",
+      sceneHash: rec.sceneHash,
+      start: {},
+    };
+    const live = createSessionRecording(opts);
+    const queued = [{ name: NUDGE, args: { dx: 3 } }];
+    expect(live.commands(0, queued)).toBe(queued);
+    live.stepped({ tick: 0, game: null, events: [] }, [], null, queued);
+    expect(live.stop()!.commands).toEqual([[0, NUDGE, { dx: 3 }]]);
+
+    const replay = createSessionRecording({ ...opts, replay: rec });
+    expect(replay.commands(10, queued)).toEqual([{ name: NUDGE, args: { dx: 40 } }]);
+    expect(replay.commands(11, queued)).toEqual([]);
+    expect(replay.commands(17, [])).toEqual([{ name: NUDGE, args: { dx: 5 } }]);
+  });
+
+  it("replays a turns game's recording tick for tick, though its idle slots simulated nothing", () => {
+    const turns = { ...testGame, time: { kind: "turns" as const } };
+    const turnsRegistry = createRegistry(turns);
+    const run = runPlaytest<TestGameSnapshot>({
+      rapier,
+      game: turns,
+      registry: turnsRegistry,
+      scene: yard,
+      script: nudged,
+    });
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    expect(run.ticks).toBe(3);
+    expect(run.slots).toBe(28);
+    expect(run.commands).toEqual([
+      [0, NUDGE, { dx: 40 }],
+      [1, NUDGE, { dx: -15 }],
+      [2, NUDGE, { dx: 5 }],
+    ]);
+    const again = replayRecording<TestGameSnapshot>({
+      rapier,
+      game: turns,
+      registry: turnsRegistry,
+      scene: yard,
+      recording: run.recording,
+    });
+    if (again.blocked) throw new Error(JSON.stringify(again));
+    expect(again.matches, again.divergence ?? "").toBe(true);
+    expect(again.recording).toEqual(run.recording);
   });
 });
 

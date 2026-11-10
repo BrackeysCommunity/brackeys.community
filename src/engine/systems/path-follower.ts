@@ -1,12 +1,17 @@
+import { physicsOf } from "../game/physics-of";
 import type { EngineContext, RegisteredType, SceneSystem } from "../game/types";
-import { shapeColliderDesc, TICK_RATE } from "../physics";
+import { shapeColliderDesc } from "../physics";
+import { composePose, type Pose } from "../runtime/poses";
+import { shapeSpawnPose } from "../runtime/spawn-pose";
 import type { PathDef, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 import {
+  addGeometryCollider,
   applySurface,
   createBodyTable,
   drawEntity,
   entityDrawLayer,
+  removeGeometryCollider,
   surfaceOf,
   surfaceTag,
   type OwnedBody,
@@ -175,7 +180,8 @@ export function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null {
   return isFollowerSystem(system) ? system.frameDelta(carrier.entityId) : null;
 }
 
-type Follower = OwnedBody & {
+/** Where a follower is on its path. */
+type Motion = {
   entity: FollowerEntity;
   waypoints: Vec2[];
   state: WaypointState;
@@ -183,10 +189,20 @@ type Follower = OwnedBody & {
   frameDelta: Vec2;
 };
 
+type Follower = OwnedBody & Motion;
+
+/**
+ * A follower in a scene without physics: no body, its entity's pose in the
+ * path point's frame, and its kinematic collider in the geometry world
+ * when the runtime has one.
+ */
+type BodilessFollower = Motion & { offset: Pose; handle: number | null };
+
 /**
  * Kinematic bodies that follow their `path`, advanced in `beforeStep`;
  * poses and visuals follow in `afterStep`, and so do the entities attached
- * to them.
+ * to them. In a scene without physics a follower has no body: its pose,
+ * and its geometry collider, follow the path all the same.
  */
 export function createFollowerSystem(
   ctx: EngineContext,
@@ -195,20 +211,39 @@ export function createFollowerSystem(
 ): FollowerSystem {
   const drawn = opts.draw !== false;
   const table = createBodyTable<Follower>(ctx, { view: drawn });
-  const { rapier, physics } = ctx;
   const groups = ctx.registry.collisionGroups("static");
+  const bodiless = new Map<string, BodilessFollower>();
+  const motions = (): (Follower | BodilessFollower)[] => [
+    ...table.owned.values(),
+    ...bodiless.values(),
+  ];
+
+  /**
+   * Writes a bodiless follower's pose, and moves its geometry collider
+   * with it: as a kinematic Rapier body's next translation, the move lands
+   * after the step's overlaps were taken.
+   */
+  function poseBodiless(f: BodilessFollower, snap: boolean): void {
+    const at = poseOf(f);
+    if (f.handle !== null) ctx.geometry?.setPose(f.handle, at.x, at.y, 0);
+    const p = composePose(at.x, at.y, 0, f.offset);
+    ctx.poses.set(f.entity.id, p.x, p.y, p.rot, snap ? { snap } : undefined);
+    if (drawn) ctx.view?.pose(f.entity.id, at.x, at.y, 0);
+  }
+
   /** Poses every follower and what rides it; `snap` after a jump (reset, seek). */
   const follow = (snap = false) => {
     table.poseAll(snap);
     for (const id of table.owned.keys()) ctx.attachments.moved(id, snap);
+    for (const f of bodiless.values()) poseBodiless(f, snap);
   };
 
-  function advance(f: Follower, dtMs: number): void {
+  function advance(f: Motion, dtMs: number): void {
     const { path } = f.entity;
     f.state = advanceWaypoint(f.state, f.waypoints, path.speed, dtMs, path.pauseMs ?? 0, path.mode);
   }
 
-  function poseOf(f: Follower): Vec2 {
+  function poseOf(f: Motion): Vec2 {
     return interpolatePosition(
       waypointAt(f.waypoints, f.state.currentIndex),
       waypointAt(f.waypoints, f.state.nextIndex),
@@ -217,11 +252,20 @@ export function createFollowerSystem(
   }
 
   function despawn(id: string): void {
+    const f = bodiless.get(id);
+    if (f) {
+      removeGeometryCollider(ctx, f.handle);
+      bodiless.delete(id);
+      if (drawn) ctx.view?.remove(id);
+      return;
+    }
     ctx.attachments.unhost(id);
     table.despawn(id);
   }
 
-  function place(f: Follower, pos: Vec2, teleport: boolean): void {
+  function place(f: Follower | BodilessFollower, pos: Vec2, teleport: boolean): void {
+    if (!("body" in f)) return;
+    const { rapier } = physicsOf(ctx, type.type, f.entity.id);
     const v = new rapier.Vector2(pos.x, pos.y);
     if (teleport) f.body.setTranslation(v, true);
     else f.body.setNextKinematicTranslation(v);
@@ -235,6 +279,28 @@ export function createFollowerSystem(
       if (!start || waypoints.length < 2)
         throw new Error(`${type.type} ${e.id} needs at least 2 path points`);
 
+      if (!ctx.physics) {
+        const f: BodilessFollower = {
+          entity: e,
+          waypoints,
+          state: initialWaypointState(),
+          prevPos: { ...start },
+          frameDelta: { x: 0, y: 0 },
+          offset: shapeSpawnPose(e.shape, e.transform),
+          handle: addGeometryCollider(
+            ctx,
+            e.shape,
+            { body: "kinematic", group: "static" },
+            surfaceTag(e.id, type, e.material),
+            { x: start.x, y: start.y, rot: 0 },
+          ),
+        };
+        bodiless.set(e.id, f);
+        if (drawn) drawEntity(ctx, type, e, opts.layer ?? entityDrawLayer(ctx, e, "body"));
+        poseBodiless(f, true);
+        return;
+      }
+      const { rapier, physics } = physicsOf(ctx, type.type, e.id);
       const surface = surfaceOf(ctx, e.material, opts);
       const desc = applySurface(
         shapeColliderDesc(rapier, e.shape, true).setCollisionGroups(groups),
@@ -263,10 +329,11 @@ export function createFollowerSystem(
     },
     despawn,
     clear() {
+      for (const id of [...bodiless.keys()]) despawn(id);
       for (const id of [...table.owned.keys()]) despawn(id);
     },
     reset() {
-      for (const f of table.owned.values()) {
+      for (const f of motions()) {
         const start = waypointAt(f.waypoints, 0);
         f.state = initialWaypointState();
         f.prevPos = { ...start };
@@ -275,12 +342,12 @@ export function createFollowerSystem(
       }
       follow(true);
     },
-    size: table.size,
+    size: () => table.size() + bodiless.size,
     seek(ms) {
-      const tickMs = 1000 / TICK_RATE;
+      const { tickMs } = ctx.time;
       const whole = Math.floor(ms / tickMs);
       const rest = ms - whole * tickMs;
-      for (const f of table.owned.values()) {
+      for (const f of motions()) {
         for (let i = 0; i < whole; i++) advance(f, tickMs);
         if (rest > 0) advance(f, rest);
         const pos = poseOf(f);
@@ -291,7 +358,7 @@ export function createFollowerSystem(
       follow(true);
     },
     beforeStep(dtMs) {
-      for (const f of table.owned.values()) {
+      for (const f of motions()) {
         advance(f, dtMs);
         const pos = poseOf(f);
         f.frameDelta = { x: pos.x - f.prevPos.x, y: pos.y - f.prevPos.y };
@@ -301,9 +368,12 @@ export function createFollowerSystem(
     },
     afterStep: () => follow(),
     frameDelta(id) {
-      const f = table.owned.get(id);
+      const f = table.owned.get(id) ?? bodiless.get(id);
       return f ? { ...f.frameDelta } : null;
     },
-    position: table.position,
+    position(id) {
+      const f = bodiless.get(id);
+      return f ? { ...f.prevPos } : table.position(id);
+    },
   };
 }

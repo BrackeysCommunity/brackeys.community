@@ -8,6 +8,9 @@ import { formatScene, type SceneDefinition } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "../../../src/games/platformer";
+import { meadow, orchardGame } from "../../engine-readme/examples/orchard-game";
+import { walkerGame } from "../../engine-readme/examples/walker-game";
+import { corridor } from "../../engine-readme/examples/walker-playtest";
 import { COMMAND_GROUPS, COMMANDS, runCli, type CommandName } from "../commands";
 import type { ToolContext } from "../context";
 import { loadCompatRapier } from "../rapier-compat";
@@ -31,7 +34,7 @@ function examples(doc: string, text: string): Example[] {
     for (const line of block[1]!.split("\n")) {
       const m = /^(?:vp run scene|bun scripts\/scene\/cli\.ts) (.+)$/.exec(line.trim());
       if (!m) continue;
-      out.push({ doc, line: line.trim(), fenced: true, argv: m[1]!.trim().split(/\s+/) });
+      out.push({ doc, line: line.trim(), fenced: true, argv: shellWords(m[1]!) });
     }
   }
   const prose = text.replace(/^```[\s\S]*?^```/gm, "");
@@ -48,6 +51,13 @@ function examples(doc: string, text: string): Example[] {
   }
   return out;
 }
+
+/** Whitespace-separated words, each with the single quotes a shell would strip taken off. */
+const shellWords = (line: string) =>
+  line
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/^'(.*)'$/, "$1"));
 
 /** A command's name and the arguments after it: `assets import x` is `assets import`, then `x`. */
 function split(argv: readonly string[]): [string | undefined, string[]] {
@@ -80,15 +90,14 @@ const inRoot = (argv: readonly string[]) =>
  * An op batch in a document: a `json` fence whose info string names what it
  * runs against, `scene=<id>` (`apply --dry-run`) or `project=<id>` (`assets
  * apply --dry-run`), and with `expect=<code>` the issue code it reports.
- * With `then=validate` a scene batch is applied to a fresh copy of the
- * projects and the code is the one `validate` then reports.
+ * `checks=<scene>` is a checks file instead, which `check <scene> --checks`
+ * runs.
  */
 type Batch = {
   doc: string;
   line: number;
-  target: { scene: string } | { project: string };
+  target: { scene: string } | { project: string } | { checks: string };
   expect?: string;
-  validate: boolean;
   text: string;
 };
 
@@ -105,7 +114,9 @@ function batches(doc: string, text: string): Batch[] {
       ? { scene: attrs.scene }
       : attrs.project
         ? { project: attrs.project }
-        : null;
+        : attrs.checks
+          ? { checks: attrs.checks }
+          : null;
     if (!target) continue;
     const line = text.slice(0, m.index).split("\n").length;
     out.push({
@@ -113,7 +124,6 @@ function batches(doc: string, text: string): Batch[] {
       line,
       target,
       expect: attrs.expect,
-      validate: attrs.then === "validate",
       text: m[2]!,
     });
   }
@@ -167,6 +177,9 @@ const SPRITE_CODES = ["asset-frame-unknown", "sprite-no-asset"];
 /** The commands sprites added: each has a doc example that runs. */
 const SPRITE_COMMANDS = ["assets info", "bundle"];
 
+/** The codes the world models added, each reproduced by a doc example and listed in the issue table. */
+const WORLD_CODES = ["tick-rate-invalid", "physics-required", "grid-unreachable", "nav-invalid"];
+
 /** The card game's scene: a square grid, a painted floor, a lamp and a plain marker. */
 const CARD_TABLE: SceneDefinition = {
   v: 3,
@@ -190,11 +203,17 @@ async function projectsIn(base: string): Promise<ToolContext> {
     engine: join(base, "engine"),
     platformer: join(base, "platformer"),
     card: join(base, cardGame.id),
+    walker: join(base, walkerGame.id),
+    orchard: join(base, orchardGame.id),
   };
   await cp(repoFile("src/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
   await mkdir(dirs.card);
   await writeFile(join(dirs.card, "card-table.json"), formatScene(CARD_TABLE).text);
+  await mkdir(dirs.walker);
+  await writeFile(join(dirs.walker, "corridor.json"), formatScene(corridor).text);
+  await mkdir(dirs.orchard);
+  await writeFile(join(dirs.orchard, "meadow.json"), formatScene(meadow).text);
   await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
@@ -204,6 +223,8 @@ async function projectsIn(base: string): Promise<ToolContext> {
       await tempProject(dirs.engine, { id: "engine" }),
       await tempProject(dirs.platformer, { game: platformerGame }),
       await tempProject(dirs.card, { game: cardGame }),
+      await tempProject(dirs.walker, { game: walkerGame }),
+      await tempProject(dirs.orchard, { game: orchardGame }),
     ],
     loadRapier: loadCompatRapier,
   };
@@ -261,37 +282,31 @@ describe("op batches in the docs", () => {
   });
 
   for (const [n, b] of allBatches.entries()) {
-    const on = "scene" in b.target ? b.target.scene : `project ${b.target.project}`;
-    const outcome = b.expect
-      ? `reports ${b.expect}${b.validate ? " once validated" : ""}`
-      : "applies";
+    const on =
+      "scene" in b.target
+        ? b.target.scene
+        : "checks" in b.target
+          ? `checks of ${b.target.checks}`
+          : `project ${b.target.project}`;
+    const outcome = b.expect ? `reports ${b.expect}` : "applies";
     it(`${b.doc}:${b.line}: the batch on ${on} ${outcome}`, async () => {
       const file = join(root, `batch-${n}.json`);
       await writeFile(file, b.text);
-      if (b.validate) {
-        if (!("scene" in b.target)) throw new Error("then=validate takes a scene batch");
-        const fresh = await projectsIn(join(root, `validated-${n}`));
-        const applied = await runCli(["apply", b.target.scene, "--ops", file, "--json"], fresh);
-        expect(applied.exitCode, applied.stdout + applied.stderr).toBe(0);
-        const r = await runCli(["validate", b.target.scene, "--json"], fresh);
-        const codes = codesIn(JSON.parse(r.stdout));
-        if (b.expect) expect([...codes], r.stdout).toContain(b.expect);
-        else expect(r.exitCode, r.stdout).toBe(0);
-        return;
-      }
       const argv =
         "scene" in b.target
           ? ["apply", b.target.scene, "--ops", file, "--dry-run", "--json"]
-          : [
-              "assets",
-              "apply",
-              "--ops",
-              file,
-              "--project",
-              b.target.project,
-              "--dry-run",
-              "--json",
-            ];
+          : "checks" in b.target
+            ? ["check", b.target.checks, "--checks", file, "--json"]
+            : [
+                "assets",
+                "apply",
+                "--ops",
+                file,
+                "--project",
+                b.target.project,
+                "--dry-run",
+                "--json",
+              ];
       const r = await runCli(argv, ctx);
       const codes = codesIn(JSON.parse(r.stdout));
       if (b.expect) expect([...codes], r.stdout).toContain(b.expect);
@@ -334,6 +349,24 @@ describe("op batches in the docs", () => {
         .map((e) => split(e.argv)[0]),
     );
     expect(SPRITE_COMMANDS.filter((name) => !run.has(name))).toEqual([]);
+  });
+
+  it("reproduces every issue code the world models added, and lists each in the issue table", () => {
+    const expected = new Set(allBatches.map((b) => b.expect));
+    expect(WORLD_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of WORLD_CODES)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("runs every command and flag the world models added in an example", () => {
+    const run = all.flat().filter((e) => e.fenced && isPure(e.argv));
+    const used = (name: string, flag?: string) =>
+      run.some((e) => split(e.argv)[0] === name && (!flag || e.argv.includes(flag)));
+    expect(used("grid", "--from")).toBe(true);
+    expect(used("grid", "--fov")).toBe(true);
+    expect(used("step", "--command")).toBe(true);
+    expect(used("step", "--elapse")).toBe(true);
+    expect(used("check", "--checks")).toBe(true);
   });
 
   it("reproduces every issue code format v3 added, and lists each in the issue table", () => {

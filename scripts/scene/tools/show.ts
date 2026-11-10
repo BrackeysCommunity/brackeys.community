@@ -1,3 +1,4 @@
+import type { TimeKind } from "@jams/engine/game";
 import type { ProjectView } from "@jams/engine/project";
 import {
   aabb,
@@ -14,7 +15,9 @@ import {
   parseShape,
   resolvePrefab,
   resolveSceneDetailed,
+  resolveTime,
   sceneHash,
+  scenePhysics,
   sceneSprites,
   topSpan,
   translateShape,
@@ -34,6 +37,7 @@ import {
 
 import { openScene, usage, type Tool } from "../context";
 import { sceneProjectView } from "./render";
+import { projectEngine } from "./step";
 
 const addPt = (a: Pt, b: Pt): Pt => [a[0] + b[0], a[1] + b[1]];
 
@@ -255,6 +259,22 @@ function sceneRowsOf(
   return rows;
 }
 
+/** How the scene's clock runs, as Play resolves it: the project's tick rate, else the game's time model. */
+export type ShownTime = {
+  kind: TimeKind;
+  rate: number;
+  catchUp: { maxMs: number } | null;
+  wakeOnPointerMove: boolean;
+};
+
+/** `time turns 60Hz catch-up 3600000ms; physics none, no wasm`. */
+export function worldLine(time: ShownTime, physics: "rapier" | "none"): string {
+  const catchUp = time.catchUp ? ` catch-up ${time.catchUp.maxMs}ms` : "";
+  const pointer = time.wakeOnPointerMove ? " wakes on pointer move" : "";
+  const backend = physics === "none" ? "none, no wasm" : physics;
+  return `time ${time.kind} ${time.rate}Hz${catchUp}${pointer}; physics ${backend}`;
+}
+
 function parseNear(near: string): [number, number, number] | null {
   const parts = near.split(",").map(Number);
   if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n)) || parts[2]! < 0) return null;
@@ -317,6 +337,13 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
   }
 
   const all = sceneRows(def, registry, prefabs, await sceneProjectView(loaded.project));
+  const engine = await projectEngine(loaded.project, registry);
+  const { kind, rate, catchUp, wakeOnPointerMove } = resolveTime({
+    project: engine,
+    game: registry.time,
+  });
+  const time: ShownTime = { kind, rate, catchUp, wakeOnPointerMove };
+  const physics = scenePhysics(def, registry, engine);
   let rows = all;
   if (input.ref) rows = rows.filter((r) => r.ref === input.ref);
   if (input.type) rows = rows.filter((r) => r.type === input.type);
@@ -333,6 +360,8 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
     sceneHash: hash,
     bounds: def.bounds,
     ...(def.settings ? { settings: def.settings } : {}),
+    time,
+    physics,
     entities: shown,
     total,
     truncated,
@@ -354,5 +383,9 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
   const more = truncated
     ? [`(${total - MAX_ROWS} more rows; narrow with --ref, --type or --near)`]
     : [];
-  return { exitCode: 0, data, text: [head, ...shown.map(rowLine), ...more].join("\n") };
+  return {
+    exitCode: 0,
+    data,
+    text: [head, worldLine(time, physics), ...shown.map(rowLine), ...more].join("\n"),
+  };
 };

@@ -2,10 +2,12 @@
  * The engine's browser smoke: build the page in `browser/` with Vite, serve
  * it with `vite preview`, open it headless in each browser, and check that
  * every browser's digest of the shared run (`browser/run.ts`) equals the
- * one Bun computes in-process, and that its render run (`browser/render.ts`)
- * draws the kitchen sink's crate sprite where it stands and nothing in the
- * empty air beside it. The preview server serves the engine project's blobs
- * on the dev route (`browser/project.ts`).
+ * one Bun computes in-process, that its physics-free run
+ * (`browser/physics-free.ts`) gives Bun's digest too without ever loading
+ * Rapier, and that its render run (`browser/render.ts`) draws the kitchen
+ * sink's crate sprite where it stands and nothing in the empty air beside
+ * it. The preview server serves the engine project's blobs on the dev route
+ * (`browser/project.ts`).
  *
  * Then, in the same browser, the editor page (`browser/editor.ts`): the
  * packed `dist` editor on the kitchen sink of a scratch copy of the engine
@@ -14,16 +16,17 @@
  * each of `EDITOR_VIEWPORTS`, switched to another tab, and its own renderer's
  * crate pixel read back.
  *
- *   vp run engine:smoke:browser [--browsers chromium,firefox,webkit]
+ *   vp run engine:smoke:browser [--browsers chromium,firefox,webkit] [--out <file>]
  *
- * Writes `engine-browser-smoke.json` at the repo root. A browser Playwright
- * hasn't installed is skipped locally and fails under `CI=true`.
+ * Writes `engine-browser-smoke.json` at the repo root, or to `--out`. A
+ * browser Playwright hasn't installed is skipped locally and fails under
+ * `CI=true`.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -38,6 +41,7 @@ import {
   INSPECTOR_MIN_PX,
   judgeEditor,
   judgeLaunchFailure,
+  judgePhysicsFree,
   judgeResult,
   overallOk,
   PAGE_TIMEOUT_MS,
@@ -47,20 +51,25 @@ import {
   type BrowserOutcome,
   type EditorOutcome,
   type EditorTabProbe,
+  type PhysicsFreeProbe,
+  type SmokeExpected,
 } from "./browser-compare";
 import type { EngineEditorPage } from "./browser/editor";
 import type { EngineSmokeResult } from "./browser/main";
+import { rapierSpy, runPhysicsFree } from "./browser/physics-free";
 import { loadSinkProject, sinkPreviewPlugin, type SinkProject } from "./browser/project";
-import { runSmokeDigest } from "./browser/run";
+import { loadRapier, runSmokeDigest } from "./browser/run";
 import { INSIDE_COLOUR, INSIDE_POINT, OUTSIDE_POINT, SINK_SCENE } from "./browser/sink";
 import { ENGINE, REPO, run, VP } from "./pack";
 
 const PAGE_DIR = join(REPO, "scripts/engine-smoke/browser");
-const REPORT = join(REPO, "engine-browser-smoke.json");
 const TYPES: Record<BrowserName, BrowserType> = { chromium, firefox, webkit };
 
-const { values } = parseArgs({ options: { browsers: { type: "string" } } });
+const { values } = parseArgs({
+  options: { browsers: { type: "string" }, out: { type: "string" } },
+});
 const browsers = parseBrowsers(values.browsers);
+const REPORT = values.out ? resolve(values.out) : join(REPO, "engine-browser-smoke.json");
 const ci = process.env.CI === "true";
 
 const outDir = mkdtempSync(join(tmpdir(), "jams-engine-browser-smoke-"));
@@ -204,7 +213,7 @@ async function runEngine(
   browser: Browser,
   name: BrowserName,
   url: string,
-  expected: string,
+  expected: SmokeExpected,
 ): Promise<BrowserOutcome> {
   const started = performance.now();
   const page = await browser.newPage();
@@ -310,7 +319,7 @@ async function runEditor(browser: Browser, name: BrowserName, url: string): Prom
 async function runIn(
   name: BrowserName,
   url: string,
-  expected: string,
+  expected: SmokeExpected,
   editorUrl: string,
 ): Promise<BrowserOutcome> {
   let browser: Browser;
@@ -337,11 +346,18 @@ async function runIn(
 
 let outcomes: BrowserOutcome[] = [];
 let node: Awaited<ReturnType<typeof runSmokeDigest>> | null = null;
+let physicsFree: PhysicsFreeProbe | null = null;
 let error: string | null = null;
 
 try {
   node = await runSmokeDigest();
   console.log(`in-process (bun ${process.versions.bun}): ${node.digest}`);
+  const spy = rapierSpy(loadRapier);
+  physicsFree = { ...(await runPhysicsFree(spy.load)), rapierLoads: spy.calls(), shellTicks: null };
+  const unsound = judgePhysicsFree(physicsFree, physicsFree.digest, false);
+  if (unsound) throw new Error(`in-process: ${unsound}`);
+  console.log(`in-process physics-free: ${physicsFree.digest}`);
+  const expected: SmokeExpected = { digest: node.digest, physicsFree: physicsFree.digest };
   const project = await loadSinkProject(join(ENGINE, "scenes"));
   sink = project;
 
@@ -402,13 +418,16 @@ try {
   console.log(`serving the editor at ${editor.url}`);
 
   for (const name of browsers) {
-    const outcome = await runIn(name, url, node.digest, editor.url);
+    const outcome = await runIn(name, url, expected, editor.url);
     outcomes.push(outcome);
     const drew = outcome.render
       ? `; ${outcome.render.renderer} drew rgba(${outcome.render.inside.join(", ")}) on the sprite`
       : "";
+    const free = outcome.physicsFree ? `; physics-free ${outcome.physicsFree.digest}` : "";
     const detail =
-      outcome.status === "pass" ? `${outcome.digest}${drew} in ${outcome.ms} ms` : outcome.reason;
+      outcome.status === "pass"
+        ? `${outcome.digest}${free}${drew} in ${outcome.ms} ms`
+        : outcome.reason;
     console.log(`${name}: ${outcome.status}${detail ? ` — ${detail}` : ""}`);
     const ed = outcome.editor;
     if (ed) {
@@ -443,7 +462,11 @@ writeFileSync(
         inspectorMin: INSPECTOR_MIN_PX,
         tab: EDITOR_TAB,
       },
-      inProcess: node && { runtime: `bun ${process.versions.bun}`, digest: node.digest },
+      inProcess: node && {
+        runtime: `bun ${process.versions.bun}`,
+        digest: node.digest,
+        physicsFree,
+      },
       browsers: outcomes,
       ...(error ? { error } : {}),
     },

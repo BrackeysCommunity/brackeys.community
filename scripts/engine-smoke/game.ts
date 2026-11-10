@@ -6,7 +6,7 @@ export type SmokeSnapshot = { x: number; y: number; vx: number; vy: number } | n
 function avatarBody(ctx: EngineContext): RigidBody | null {
   const [handle] = ctx.tags.handlesOf("avatar");
   if (handle === undefined) return null;
-  return ctx.physics.world.getCollider(handle)?.parent() ?? null;
+  return ctx.physics?.world.getCollider(handle)?.parent() ?? null;
 }
 
 /**

@@ -20,6 +20,7 @@
 <path data-ref="deck" data-type="solid" d="M740 368L780 368L780 392L740 392Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="shelf-board" data-type="solid" d="M1300 690L1500 690L1500 710L1300 710Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="wing-board" data-type="solid" d="M3192 480L3192 400L3208 400L3208 480Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
+<path data-ref="side-wall" data-type="solid" d="M292 160L308 160L308 280L292 280Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="post-1/pole" data-type="solid" d="M1630 1040L1650 1040L1650 1160L1630 1160Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="post-2/pole" data-type="solid" d="M1750 1040L1770 1040L1770 1160L1750 1160Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="gate-1/bar" data-type="solid" d="M1920 1140L2040 1140L2040 1160L1920 1160Z" fill="#445566" fill-opacity="0.8" stroke="#8899aa" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
@@ -46,10 +47,13 @@
 <path data-ref="crate" data-type="prop" d="M860 1120L900 1120L900 1160L860 1160Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="ball" data-type="prop" d="M1020 1050A20 20 0 0 1 1000 1070A20 20 0 0 1 980 1050A20 20 0 0 1 1000 1030A20 20 0 0 1 1020 1050Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="shelf-box" data-type="prop" d="M1340 650L1380 650L1380 690L1340 690Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="2.81" stroke-linejoin="round"/>
+<path data-ref="upright" data-type="prop" d="M302 130L322 130L322 150L302 150Z" fill="#aa7744" fill-opacity="0.9" stroke="#ddaa77" stroke-opacity="0.9" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="carrier" data-type="follower" d="M700 392L820 392L820 408L700 408Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="orbit" data-type="follower" d="M1716 200A16 16 0 0 1 1700 216A16 16 0 0 1 1684 200A16 16 0 0 1 1700 184A16 16 0 0 1 1716 200Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="room-1/door-1/panel" data-type="follower" d="M2562 820L2578 820L2578 900L2562 900Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
 <path data-ref="door-2/panel" data-type="follower" d="M3292 1080L3308 1080L3308 1160L3292 1160Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.81" stroke-linejoin="round"/>
+<path data-ref="floor-plan" data-type="nav" d="M1900 300L2300 300L2300 400L2050 400L2050 550L1900 550Z" fill="none" stroke="#55aaff" stroke-opacity="0.6" stroke-width="2.81" stroke-linejoin="round"/>
+<path data-ref="pillar" data-type="nav" d="M2120 330L2180 330L2180 370L2120 370Z" fill="none" stroke="#55aaff" stroke-opacity="0.6" stroke-width="2.81" stroke-linejoin="round"/>
 <g data-ref="start" data-type="marker" class="spawn"><path d="M760 1140V1090.5L787 1101.75L760 1113" fill="#ffcc44" fill-opacity="0.85" stroke="#ffcc44" stroke-width="3.38"/><circle cx="760" cy="1140" r="6.75" fill="#ffcc44"/></g>
 <g data-ref="shelf-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1440" cy="680" r="11.25"/><path d="M1422 680H1458M1440 662V698"/></g>
 <g data-ref="wing-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="3220" cy="480" r="11.25"/><path d="M3202 480H3238M3220 462V498"/></g>
@@ -98,6 +102,7 @@
 <text x="760" y="388.84" font-size="24.75">deck</text>
 <text x="1400" y="708.84" font-size="24.75">shelf-board</text>
 <text x="3200" y="448.84" font-size="24.75">wing-board</text>
+<text x="300" y="228.84" font-size="24.75">side-wall</text>
 <text x="1640" y="1108.84" font-size="24.75">post-1/pole</text>
 <text x="1760" y="1108.84" font-size="24.75">post-2/pole</text>
 <text x="1980" y="1158.84" font-size="24.75">gate-1/bar</text>
@@ -132,12 +137,15 @@
 <text x="1000" y="1058.84" font-size="24.75">ball</text>
 <text class="sprite-label" x="1000" y="1023.25" font-size="20.25" fill-opacity="0.8">crates:crate-1</text>
 <text x="1360" y="678.84" font-size="24.75">shelf-box</text>
+<text x="312" y="148.84" font-size="24.75">upright</text>
 <text x="760" y="380.59" font-size="24.75">carrier</text>
 <text x="1700" y="172.59" font-size="24.75">orbit</text>
 <text x="2570" y="808.59" font-size="24.75">room-1/door-1/panel</text>
 <text x="3300" y="1068.59" font-size="24.75">door-2/panel</text>
 <text x="620.25" y="1019.75" font-size="24.75" text-anchor="start">lamp</text>
 <text class="sprite-label" x="600" y="1001.25" font-size="20.25" fill-opacity="0.8">backdrop</text>
+<text x="2100" y="433.84" font-size="24.75">floor-plan</text>
+<text x="2150" y="358.84" font-size="24.75">pillar</text>
 </g>
 <g id="ticks" font-size="22.5" fill="#c8ccd6" stroke="#101218" stroke-width="5.63" paint-order="stroke">
 <text x="6.75" y="24.75">0</text>

@@ -104,6 +104,7 @@ describe("createRegistry", () => {
       ["prop"],
       ["follower"],
       ["decor"],
+      ["nav"],
     ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid"]);
     expect(r.actionNames).toEqual([]);
@@ -165,17 +166,27 @@ describe("createRegistry", () => {
     expect((s >>> 16) & (d & 0xffff)).not.toBe(0);
   });
 
-  it("spawns decor last when an explicit spawn order leaves it out", () => {
+  it("spawns decor and nav last when an explicit spawn order leaves them out", () => {
     const r = createRegistry(
       game({
-        spawnOrder: ["decor", "solid", "sensor", "crate", "prop", "flag", "marker", "follower"],
+        spawnOrder: [
+          "decor",
+          "nav",
+          "solid",
+          "sensor",
+          "crate",
+          "prop",
+          "flag",
+          "marker",
+          "follower",
+        ],
       }),
     );
-    expect(r.spawnGroups[0]).toEqual(["decor"]);
+    expect(r.spawnGroups.slice(0, 2)).toEqual([["decor"], ["nav"]]);
     const without = createRegistry(
       game({ spawnOrder: ["solid", "sensor", "crate", "prop", "flag", "marker", "follower"] }),
     );
-    expect(without.spawnGroups.at(-1)).toEqual(["decor"]);
+    expect(without.spawnGroups.slice(-2)).toEqual([["decor"], ["nav"]]);
   });
 
   it("honours an explicit spawn order with shared groups", () => {
@@ -190,6 +201,7 @@ describe("createRegistry", () => {
       ["marker"],
       ["follower"],
       ["decor"],
+      ["nav"],
     ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid", "solid:mud", "flag"]);
   });
@@ -464,6 +476,114 @@ describe("createRegistry field names and settings", () => {
   it("offers the engine's settings beside the game's", () => {
     const registry = createRegistry(game({ settings: { lives: z.number().optional() } }));
     expect(Object.keys(registry.settings)).toEqual(["gravity", "physics", "grid", "view", "lives"]);
+  });
+});
+
+describe("createRegistry time and world", () => {
+  it("refuses a time.rate the clock can't run, naming tick-rate-invalid", () => {
+    for (const rate of [0, 241, 1.5, Number.NaN]) {
+      const found = problems(() => createRegistry(game({ time: { kind: "fixed", rate } })));
+      expect(found, String(rate)).toHaveLength(1);
+      expect(found[0]).toContain("tick-rate-invalid");
+      expect(found[0]).toContain("time.rate");
+    }
+    expect(() => createRegistry(game({ time: { kind: "fixed", rate: 0 } }))).toThrow(
+      /tick-rate-invalid/,
+    );
+  });
+
+  it("takes a valid rate, or none, as the registry's time", () => {
+    expect(createRegistry(game({ time: { kind: "turns", rate: 240 } })).time).toEqual({
+      kind: "turns",
+      rate: 240,
+    });
+    expect(createRegistry(game({ time: { kind: "event" } })).time).toEqual({ kind: "event" });
+    expect(createRegistry(game()).time).toEqual({ kind: "fixed", rate: 60 });
+  });
+
+  it("accepts world defaults the scene settings would", () => {
+    const registry = createRegistry(
+      game({
+        world: {
+          physics: "none",
+          gravity: [0, 0],
+          grid: { kind: "square", cell: [16, 16] },
+          gridWalls: ["solid", "crate"],
+          lengthUnit: 50,
+        },
+      }),
+    );
+    expect(registry.game?.world?.gravity).toEqual([0, 0]);
+    expect(() => createRegistry(game({ world: { gridWalls: [] } }))).not.toThrow();
+  });
+
+  it("refuses world defaults the runtime can't use", () => {
+    expect(
+      problems(() =>
+        createRegistry(
+          game({
+            world: {
+              physics: "box2d" as never,
+              gravity: [0, Number.POSITIVE_INFINITY],
+              grid: { kind: "square" } as never,
+              gridWalls: ["boulder", "note"],
+              lengthUnit: 0,
+            },
+          }),
+        ),
+      ),
+    ).toEqual([
+      'world.physics must be "rapier" or "none", got "box2d"',
+      "world.gravity must be two finite numbers [x, y]",
+      "world.grid must be a square or hex grid, as settings.grid takes it",
+      'world.gridWalls names unknown type "boulder"',
+      'world.gridWalls names "note", which never loads',
+      "world.lengthUnit must be a finite number above 0, got 0",
+    ]);
+    for (const gravity of [[0], [0, 1, 2], ["0", 1]])
+      expect(
+        problems(() => createRegistry(game({ world: { gravity: gravity as never } }))),
+      ).toEqual(["world.gravity must be two finite numbers [x, y]"]);
+    for (const lengthUnit of [-1, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(problems(() => createRegistry(game({ world: { lengthUnit } })))).toHaveLength(1);
+  });
+});
+
+describe("createRegistry commands", () => {
+  const command = { description: "A test command.", args: z.strictObject({}) };
+
+  it("registers the engine's commands, then the game's", () => {
+    const registry = createRegistry(game({ commands: { end: command, "move-to": command } }));
+    expect(registry.commandNames).toEqual(["@elapsed", "end", "move-to"]);
+    expect(registry.commands.get("move-to")).toBe(command);
+  });
+
+  it("refuses game command names that take the engine's @ or don't match the pattern", () => {
+    expect(
+      problems(() =>
+        createRegistry(
+          game({
+            commands: {
+              "@elapsed": command,
+              "@mine": command,
+              Move: command,
+              "two words": command,
+              "-dash": command,
+              ["x".repeat(49)]: command,
+              ok: command,
+            },
+          }),
+        ),
+      ),
+    ).toEqual([
+      `command "@elapsed" can't start with "@"; those are the engine's`,
+      `command "@mine" can't start with "@"; those are the engine's`,
+      'command "Move" must match /^[a-z0-9][a-z0-9-]{0,47}$/',
+      'command "two words" must match /^[a-z0-9][a-z0-9-]{0,47}$/',
+      'command "-dash" must match /^[a-z0-9][a-z0-9-]{0,47}$/',
+      `command "${"x".repeat(49)}" must match /^[a-z0-9][a-z0-9-]{0,47}$/`,
+    ]);
+    expect(() => createRegistry(game({ commands: { ["x".repeat(48)]: command } }))).not.toThrow();
   });
 });
 

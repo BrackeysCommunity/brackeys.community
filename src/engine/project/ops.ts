@@ -648,6 +648,15 @@ function valueAt(value: unknown, segs: readonly (string | number)[]): unknown {
   return at;
 }
 
+/** The codes `validateScene` gives only with a project: what a scene's asset ids and sprite frames leave. */
+const ASSET_CODES: readonly IssueCode[] = [
+  "asset-missing",
+  "asset-kind",
+  "asset-frame-unknown",
+  "sprite-no-asset",
+];
+const isAssetIssue = (issue: SceneIssue) => ASSET_CODES.includes(issue.code);
+
 /** A delegated `editScene`, replayed once the batch's other ops have run. */
 type Deferred = {
   entry: AssetEntry;
@@ -670,6 +679,8 @@ class BatchWork {
   readonly delegated: number[] = [];
   /** Ids trashed with `force` while referenced: their referrers' `asset-missing` is on the result. */
   readonly forced = new Set<AssetId>();
+  /** The asset issues of each scene or prefab an `editScene` reached, as its latest edit leaves it. */
+  readonly assetIssues = new Map<AssetKey, SceneIssue[]>();
   /** Assets the batch trashes without `force`, judged for references once every op has run. */
   private readonly trashing = new Map<
     AssetId,
@@ -755,6 +766,24 @@ class BatchWork {
       if (value !== undefined) values.set(e.id, value);
     }
     return buildRefIndex(this.view, values, this.env.kinds, this.kindEnv());
+  }
+
+  /** `assetIssues` of the scenes and prefabs still live once the batch has run. */
+  liveAssetIssues(): SceneIssue[] {
+    const live = new Set([...this.view.byId.values()].map((e) => e.key));
+    return [...this.assetIssues].flatMap(([key, issues]) => (live.has(key) ? issues : []));
+  }
+
+  /**
+   * Whether a referrer's dangling reference (`refIndex().dangling()`, whose
+   * `entityIds` is the referrer) is one an `editScene` already reported as
+   * `asset-missing` for that scene or prefab and asset.
+   */
+  judgedMissing(dangling: SceneIssue): boolean {
+    const from = dangling.entityIds[0];
+    const key = from === undefined ? undefined : this.view.byId.get(from)?.key;
+    const judged = key === undefined ? undefined : this.assetIssues.get(key);
+    return judged?.some((i) => i.code === "asset-missing" && i.got === dangling.got) ?? false;
   }
 
   /**
@@ -1094,7 +1123,10 @@ class BatchWork {
     if (usesBulkRefs(batch)) batch = { ...batch, base: sceneHash(current) };
     const prefabs = this.libraryBefore(this.opIndex, this.prefabsFor(entry));
     const registry = this.judge;
-    const result = applyOps(current, batch, registry, prefabs ? { prefabs } : {});
+    const result = applyOps(current, batch, registry, {
+      ...(prefabs ? { prefabs } : {}),
+      project: this.view,
+    });
     if (!result.ok) {
       const { code, message, path, ...rest } = result.issue;
       this.fail(code, message, undefined, {
@@ -1103,7 +1135,8 @@ class BatchWork {
         entityIds: rest.entityIds.length > 0 ? rest.entityIds : [entry.id],
       });
     }
-    this.warnings.push(...result.issues);
+    this.warnings.push(...result.issues.filter((i) => !isAssetIssue(i)));
+    this.assetIssues.set(entry.key, result.issues.filter(isAssetIssue));
     this.wrote(entry.key, result.def);
     const write = this.scenes.get(entry.key);
     this.scenes.set(entry.key, {
@@ -1193,9 +1226,10 @@ class BatchWork {
         }
         continue;
       }
-      const replayed = this.replay(d, own, ownPrefab, library);
+      const replayed = this.replay(d, own, ownPrefab, library, true);
       if (!replayed.ok) this.fail(...replayed.fail);
       const { result } = replayed;
+      this.assetIssues.set(key, result.issues.filter(isAssetIssue));
       this.leaves.set(key, replayed.prefab ?? result.def);
       if (replayed.prefab) changes.set(d.entry.id, replayed.prefab);
       if (!result.prefabsChanged || !result.prefabs) continue;
@@ -1238,13 +1272,15 @@ class BatchWork {
   /**
    * Runs a deferred op's scene ops on `own`, and on a prefab its header
    * ops, against `library`: the result, and the prefab it leaves; or the
-   * arguments `fail` refuses it with.
+   * arguments `fail` refuses it with. With `judge`, the result's issues
+   * are the scene's against the batch's view; else it has none.
    */
   private replay(
     d: Deferred,
     own: SceneDefinition,
     ownPrefab: Prefab | undefined,
     library: PrefabLibrary | undefined,
+    judge = false,
   ):
     | { ok: true; result: Extract<ApplyResult, { ok: true }>; prefab?: Prefab }
     | { ok: false; fail: [IssueCode, string, Field | undefined, Partial<SceneIssue>] } {
@@ -1255,7 +1291,7 @@ class BatchWork {
     const applied = applyOps(own, batch, d.registry, {
       ...(library ? { prefabs: library } : {}),
       ...(ownPrefab ? { prefab: d.entry.id } : {}),
-      validate: "none",
+      ...(judge ? { project: this.view } : { validate: "none" }),
     });
     const result = applied.ok ? applied : remapBodyFailure(applied, split.at);
     if (!result.ok) {
@@ -2116,6 +2152,7 @@ export function checkProjectBatch(
           .refIndex()
           .dangling()
           .filter((issue) => issue.got !== undefined && work.forced.has(issue.got))
+          .filter((issue) => !work.judgedMissing(issue))
       : [];
   return {
     ok: true,
@@ -2126,7 +2163,13 @@ export function checkProjectBatch(
     writtenBy: work.writtenBy,
     scenes: work.scenes,
     created: work.created,
-    issues: [...work.view.issues, ...work.warnings, ...missing, ...work.tableIssues()],
+    issues: [
+      ...work.view.issues,
+      ...work.warnings,
+      ...work.liveAssetIssues(),
+      ...missing,
+      ...work.tableIssues(),
+    ],
     delegated: work.delegated,
   };
 }

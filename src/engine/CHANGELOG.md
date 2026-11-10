@@ -7,6 +7,398 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.9.0] — unreleased
+
+World models: optional physics, grids, turns and movement. Nothing in the
+engine assumes physics, gravity, a side view or real time any more. A game
+picks its clock (fixed, turns or event) and takes commands; a scene with
+physics `none` runs on the geometry backend and never loads Rapier;
+`ctx.space` answers queries on either backend; grids come with A\*, flow
+fields, field of view and occupancy; motion bodies, a top-down controller,
+a grid stepper and walk-polygon navigation move things without a platformer
+controller. `EngineContext.rapier` and `physics` become nullable, which is
+breaking on 0.x. The editor UI's close-out from 0.8.1 lands here too.
+
+### Added
+
+- Time models in `./game`: `TimeModel`, `TimeKind`, `ResolvedTime`,
+  `resolveTime` (also in `./scene`), `ticksFor`, `tickRateProblem`,
+  `MIN_TICK_RATE` and `MAX_TICK_RATE`; `GameDefinition.time`,
+  `EngineContext.time`, `GameRuntime.busy` and `SceneRuntime.busy()`.
+- Game commands: `GameCommand`, `CommandDef`, `ENGINE_COMMANDS` (`@elapsed`),
+  `COMMAND_NAME_PATTERN`, `GameDefinition.commands`, `Registry.commands`,
+  `commandNames` and `time`, a third `commands` parameter on
+  `GameRuntime.beforeStep`, and `SceneRuntime.step(dtMs, actions, commands?)`.
+- `GameInstance.send` and `GameShell.send` queue a game command (or
+  `@elapsed`) for the next simulated tick, waking a turns or event game; they
+  return false, with a dev warning, when nothing is playing, while a replay
+  plays its recorded commands, for an unknown name, or when `args` fail the
+  command's schema (a command without an `args` schema takes none).
+- Recordings gain an optional `commands: [tick, name, args?][]` after
+  `inputs`, oldest first; replays step them on their ticks and refuse an
+  unknown command or bad args. Input scripts gain `{ command, args? }` and
+  `{ elapse }` steps (one slot each, holding what the hold step before held;
+  `elapse` sends `@elapsed` clamped to `time.catchUp.maxMs` and needs
+  catch-up). An unknown command gets a did-you-mean, as an unknown action
+  does. `PlaytestReport.commands` sits beside `inputs`;
+  `CompiledStep.commands`; new type `RecordingCommand`.
+- World defaults in `./game`: `DEFAULT_TICK_RATE`, `DEFAULT_PHYSICS`,
+  `DEFAULT_TIME`, `DEFAULT_SPAWN_CAST`, and the controller presets
+  `SIDE_VIEW_CONTROLLER` and `TOP_DOWN_CONTROLLER`; `GameDefinition.world`
+  (`GameWorldDef`).
+- Grid toolkit in `./game`: `gridGeometry` (square and Tiled staggered hex;
+  neighbours in a fixed order, 10/14 costs, octile or 10 × hex-distance
+  heuristic, `center`/`cellAt` laid out the way Tiled lays them out,
+  `corners`, `line` (supercover on squares, cube lerp on hexes, symmetric),
+  `cellsIn`, `rect`), `cellKey`/`cellOf` and `createOccupancy`; `ctx.grid`
+  (`RuntimeGrid`) built at load from `settings.grid`, with walls from
+  `GameDefinition.world.gridWalls` (default `["solid"]`) kept in step with
+  edits; the `occupant` behavior (`OCCUPANT`, `OccupantBlock`: `{ blocks? }`),
+  which keeps an entity on its pose's cell.
+- Scenes without physics: the runtime makes its Rapier world at the first
+  load whose physics resolves to `rapier` and keeps it, emptied between
+  loads. A physics-free load leaves `ctx.rapier` and `ctx.physics` null and
+  reports `stats().backend` as `"geometry"`. A Rapier scene without a module
+  fails with `reason: "physics-not-loaded"`, and nothing already loaded
+  changes. A `PhysicsRequiredError` from a spawn (a `prop`, or an `attach`)
+  fails the load with `reason: "physics-required"` and the entity.
+- Scenes without physics run on the geometry backend. Solids add static
+  geometry colliders (one-way gating by enabling the collider), sensors add
+  sensor colliders and raise `sensor:enter`/`sensor:exit` from
+  `space.overlaps`, and followers add a kinematic collider that follows the
+  path. `ctx.geometry` is set per load. `ctx.space` answers on either
+  backend. `RuntimeStats.bodies`/`colliders` count the geometry world.
+- `ctx.space` (`SpaceQuery`): `pointAt`, `overlaps`, `raycast`, `sweep` on
+  Rapier and on the geometry world, with the same results and order. Overlap
+  hits come back by handle, and casts by time of impact, then handle.
+  Touching counts. A cast's `toi` is a fraction (0 to 1) of `maxDist` or
+  `by`. A ray that starts inside a collider hits at 0 with normal (0, 0).
+  Without `filter.group`, every collider counts except one gated off with
+  groups 0. With `filter.group`, colliders are filtered by collision group as
+  Rapier does. A geometry sweep finds `toi` to 1/1024 of `by`, and touching
+  at the start counts as a hit at 0. `shapesIntersect`, `shapeAtPose` and
+  `raycastShape` in `./scene` are exact, using only + − × ÷ and sqrt; quarter
+  turns use exact tables. `GeometryWorld` and `GeometryColliderDesc` are
+  exported from `./game`.
+- `createSpatialHash(cell?)` in `./scene`: a uniform-cell index of boxes by
+  key (256 px cells by default; touching counts; queries answer in insertion
+  order). The editor's spatial index and the geometry world use it.
+- `prop` takes optional `gravityScale`, `linearDamping`, `angularDamping`,
+  `fixedRotation` and `ccd`, applied to the body only when set.
+- `findPath(grid, from, to, opts?)`: A\* with integer costs and a heap
+  ordered by (f, h, insertion), so every platform finds the same path;
+  `GridPathOptions` (`passable`, `cost`, `diagonals`, `cutCorners`,
+  `bounds`, `maxExpanded`, default 65,536) and `GridPath` (`cells`, `cost`,
+  `expanded`). `flowField(grid, goals, opts?)`: Dijkstra from every goal at
+  once over the same steps, giving each cell's `cost` and `next` step
+  (`FlowField`), with an optional `maxCost`.
+- `fieldOfView(grid, origin, radius, opaque)`: symmetric shadowcasting on
+  square grids (a floor cell sees another exactly when it is seen back;
+  walls in view are visible, the cells behind them aren't), a line to each
+  cell on hex grids; `radius` counts steps (Chebyshev on squares, hex
+  distance on hexes) and must be finite and ≥ 0. `lineOfSight(grid, a, b,
+opaque)` gives the same answer as `fieldOfView` at any radius.
+- The `connected` check kind (`{ kind: "connected", from, to, diagonals?,
+blockedBy? }`): A\* on the scene's grid, walls from `blockedBy` (default
+  `["solid"]`, `[]` for none), one `grid-unreachable` per unreachable
+  target, `grid-invalid` without `settings.grid`; runs with no Rapier.
+  `ENGINE_CHECK_KINDS` gains `"connected"`; `ConnectedCheck`, `CheckPlace`,
+  `CheckCell` and `DEFAULT_BLOCKED_BY` are exported from `./scene`.
+- `DebugSceneSource` includes `geometry`, so game debug layers can read the
+  geometry world.
+- Each engine primitive declares `physics`: `prop` is `"required"`, every
+  other loadable primitive `"optional"`. `validateScene` reports
+  `physics-required` (error) on each entity whose type requires physics (its
+  own `physics`, else its base primitive's) and on each entity with
+  `attach`, when the scene's physics resolves to `"none"`; an entity with the
+  `occupant` behavior in a scene with no resolved grid is `grid-invalid`.
+- `physicsOf` and `PhysicsRequiredError` (`code: "physics-required"`),
+  `EntityTypeDef.physics`, and `LoadFailureReason` with `physics-required`
+  and `physics-not-loaded` beside `spawn-blocked`.
+- `SpawnShape.cast`, `ColliderTag.oneWaySide` and `Side`;
+  `PhysicalEnv.space` and `PhysicalCheck.needsPhysics`; `RuntimeStats.backend`.
+- Navigation in `./game`: `buildNavMesh(areas, holes)` triangulates walk
+  areas (simple polygons, concave allowed) with their holes and stitches
+  areas that share an edge's endpoints, reporting (`NavIssue`) and leaving
+  out polygons that break the walk rules; `navPath` (A\* over triangles,
+  then the funnel; null when the points aren't connected), `navContains` and
+  `navNearest` read the `NavMesh`.
+- The `nav` primitive (a simple polygon, concave allowed,
+  `mode: "walk" | "block"`, tags) with its system (`createNavSystem`,
+  `isNavSystem`, `NavEntity`, `NavSystem`, `NavPolygon`), and
+  `polygonField(description)` with `isPolygonField`.
+- `ctx.nav` is a live `RuntimeNav` (`mesh`, `path`, `contains`, `nearest`)
+  over the scene's walk areas, null without any, rebuilt on the first read
+  after an area or hole changes. `validateScene` raises `nav-invalid` for a
+  self-intersecting nav polygon, a hole not strictly inside exactly one walk
+  area, or overlapping walk areas.
+- `scenePhysics(def, registry, engine?)` and `defaultPhysics(registry,
+engine?)` (the project's `engine.physics`, else `world.physics`, else
+  `"rapier"`); `ValidateOptions.engine`, the project's engine block, resolved
+  as `expandScene` resolves it.
+- `game-settings` `engine` block gains optional `physics` (`"rapier" |
+"none"`), `gravity` ([x, y] px/s²) and `tickRate` (any number in the
+  schema; the kind's `validate` reports `tick-rate-invalid` for anything
+  that isn't an integer from 1 to 240). Additive, `v` stays 1; the `engine`
+  map layout merges concurrent per-key edits. New type `GameSettingsEngine`
+  (`./project`).
+- Time models `fixed`/`turns`/`event` in the browser shell: the loop ticks
+  at `time.rate` or the project's `engine.tickRate`; turns and event games
+  idle until a waking input and step at the rate while `busy()`. Catch-up:
+  with `time.catchUp`, a tab hidden at least 1 s, or a long frame the 250 ms
+  clamp cut by at least 1 s, queues one `@elapsed { ms: min(away, maxMs) }`;
+  `GameInstance.elapse(ms)` queues the same (dev warning without `catchUp`
+  or when not playing).
+- Turns and event games idle headless: an input slot that wakes nothing (no
+  command; for event, no action edge) while the game isn't `busy()`
+  simulates no tick; its edges play with the next tick. Script step lengths
+  and fuzz `ticks` count slots; `maxTicks` and `ticks` count simulated
+  ticks. `PlaytestReport.slots` is new.
+- `probeConfigHash(game, time?)`, `compileInputScript(script, registry,
+time?)` and `RecorderOptions.time` take the run's clock; omitted, the
+  game's own.
+- `ProbeInput.commands`: `runProbe` steps game commands on their ticks, in
+  list order.
+- `GameInstance.extractPixels(world)` reads back the canvas pixel (RGBA)
+  under each world point through the camera, from the stage at resolution 1
+  over the game's background colour (null off the canvas), and names the
+  renderer that drew them.
+- `SceneEditorHandle.game()`: the editor's running `GameInstance`, or null
+  before it is built.
+- `ApplyOptions.project`: with a project, `applyOps` (and `applyOpsToDoc`)
+  judge asset ids and sprite frames as `validateScene` does.
+- `IndexEntry.sprite`: the world box an indexed entity's sprite draws, when
+  it has one (picking, marquee and asset drop read it).
+- `EditorSkeleton` (`./editor-ui`): the editor's frame in its default
+  layout, with every panel's skeleton and a "Loading the editor" status, for
+  a host to draw while the editor's code loads. `SceneEditor` draws the same
+  component while it boots.
+- `castSpawn` (play from here) casts along gravity, a game's
+  `SpawnShape.cast` direction, or not at all (`"none"`, zero gravity). It
+  runs on either backend and refuses a start inside a non-sensor collider
+  through `ctx.space`. A straight-down cast under downward gravity is
+  unchanged.
+- `sideField(description)` (field kind `side`, a `Side | true` value) and
+  `SIDES`; `FieldKind` gains `"side"`. `solid.oneWay` takes `true` or a side
+  (`"up" | "down" | "left" | "right"`), with `true` meaning `"up"`; instance
+  and group transforms turn and flip a side field, so a turned instance's
+  one-way side turns with it.
+- `SolidSystem.gateOneWaySides(actor, passing)` gates one-way solids by side
+  for an actor's box; `ColliderTag.oneWaySide` is set on every one-way
+  collider on both backends (`"up"` for `oneWay: true`);
+  `SolidOptions.oneWay` and `SolidEntity.oneWay` take a side.
+  `gateOneWay(bottomY, dropping)` is the `"up"` shorthand and leaves solids
+  of other sides as they are.
+- Motion bodies: `createMotionBody(ctx, entity, at, { shape, group?, tag? })`
+  moves an entity on either backend (a kinematic position-based Rapier body
+  with a top-down character controller, or a kinematic geometry collider
+  moved by sweep and slide, at most 4 passes), writes `ctx.poses`, snaps on
+  `teleport`, reports `moved`, `hits` and `blocked`, and doesn't push props.
+  `createTopDownController(body, { maxSpeed, accel, decel })` gives
+  accelerated top-down movement with intent clamped to the unit disc.
+- `createGridStepper(ctx, entityId, { start, msPerStep, body?, occupy? })`
+  moves an entity cell to cell on the scene grid: each step takes
+  `ticksFor(msPerStep, ctx.time)` whole ticks, ends exactly on the cell
+  centre, writes `ctx.poses` (and moves a given motion body), and with
+  `occupy` reserves its target in `ctx.grid.occupancy` as it starts.
+- `sceneGrid(scene, registry, wallTypes?)` in `./game`: a scene's grid
+  outside a runtime, walls rasterised as a load does; the `connected` check
+  and `scene grid` both use it.
+- Genre probes (tests only, not public API): `__tests__/genres/` runs each
+  `*.probe.ts` headless, with its variants, against pinned digests. Probe
+  `grid-puzzle` pushes crates on a square grid with physics `none`, under
+  zero and sideways gravity too. Probe `top-down`: a top-down controller
+  steers a motion body through an axis-aligned corridor into a goal sensor;
+  it runs on Rapier, on the geometry backend (physics none) and under
+  sideways gravity. Probe `turn-tactics` walks a unit across a hex grid by
+  commands, turn by turn, with field of view, also under sideways gravity.
+- The AGN sweep (`__tests__/agnostic-sweep.test.ts`): genre probes must
+  cover gravity `[0, 0]`, sideways `[1200, 0]` and physics `"none"`, and
+  engine sources outside `game/defaults.ts` may not hard-code `[0, 1200]`,
+  `TICK_RATE`, `1000 / 60`, `Vector2(0, -1)` or `{ x: 0, y: -1 }` unless the
+  line says `agnostic-ok: <reason>`.
+
+### Changed
+
+- `solid.oneWay: false` no longer parses (omit the key instead).
+- The platformer states `world: { gravity: [0, 1200] }` and
+  `time: { kind: "fixed", rate: 60 }`.
+- `createGame` loads `GameConfig.rapier` lazily: at start only when the
+  game's default physics (project `engine.physics`, else `world.physics`,
+  else Rapier) or the start-up scene's is Rapier; `preload(scene)` loads it
+  for a Rapier scene (a failure there warns in dev and resolves; the next
+  preload retries); `loadScene`, `play` and `replay` of a Rapier scene before
+  it is in report `physics-not-loaded`.
+- `HeadlessRuntimeOptions`, `ProbeOptions`, `ValidatePhysicalOptions`,
+  `RunChecksOptions`, `PlaytestOptions`, `FuzzOptions` and `ReplayOptions`
+  take `rapier?: RapierModule | null`. `validatePhysical` throws
+  `PhysicsRequiredError` for a Rapier scene without a module. `ValidatePhysicalOptions` and `RunChecksOptions`
+  gain `engine?` (the project's engine block). `FuzzOptions`,
+  `ReplayOptions` and `RunChecksOptions` gain `project?`
+  (`ProjectRuntimeView`), as `PlaytestOptions` has it: its `engine` block
+  resolves the scene's settings and the clock, and `runChecks` passes it to
+  the `reaches` and `touches` checks.
+- `validatePhysical` runs on the geometry backend for a scene without
+  physics: `follower-hits-solid` and `solid-overlap` run on either backend;
+  a `PhysicalCheck` with `needsPhysics: true` is skipped there with a
+  `physics-skipped` info issue. `PhysicalEnv.overlaps` and `cast` go through
+  `space`. `solid-overlap`'s depth and point now come from the overlap of
+  the two shapes' bounding boxes, the same on both backends (engine-yard's
+  walls report at [20, 980], not [20, 962]). The F3 physics wireframes draw
+  the geometry world's colliders when `ctx.physics` is null. The
+  platformer's physical checks declare `needsPhysics: true`.
+- A recording of a physics-free scene names physics `none`. A headless
+  replay simulates every recorded tick, whatever the time model.
+- `ctx.physics` is null outside a loaded Rapier scene, before the first load
+  and after `unload()` included.
+- The `game-settings` kind's schema hash moves with its new `engine` keys,
+  so a build older than this one opens a project's game settings read-only
+  with `code-skew`.
+- The scene CLI's `step`, `playtest`, `replay`, `fuzz`, `check` and
+  `validate --physical` load Rapier only for a scene whose physics resolves
+  to `"rapier"`, and resolve settings through the project's `engine`
+  block.
+- `createRegistry` refuses game command names that start with `@` or don't
+  match `COMMAND_NAME_PATTERN`.
+- A game's explicit `spawnOrder` may leave out `nav` as it may `decor`;
+  both then spawn last.
+- `EngineContext.rapier` and `EngineContext.physics` may be null (breaking).
+  The engine's systems read them through `physicsOf` when they spawn, not
+  when they are built; `ctx.attachments.attach` throws
+  `PhysicsRequiredError` without a world.
+- `PhysicsWorld.createCharacterController(opts)` takes
+  `CharacterControllerOptions` and has no default (breaking): pass
+  `SIDE_VIEW_CONTROLLER` for the controller it built before. A null option
+  turns that behaviour off.
+- `GameConfig.rapier` is optional, `SceneRuntimeOptions.rapier` takes null,
+  and `CheckEnv.rapier`, `PhysicalEnv.rapier` and `PhysicalEnv.physics` may
+  be null; `CheckEnv.rapier` is optional. A runtime given no Rapier builds
+  no world.
+- `ProbeReport.tickRate` and `PlaytestReport.tickRate` widen from `60` to
+  `number`; a recording's `tickRate` is any integer from 1 to 240.
+  `physicsBuild(null)` is `"none"`.
+- Settings resolve `gravity` and `physics` scene → project `engine` block →
+  `GameDefinition.world` → engine default, and `grid` scene → `world.grid` →
+  none (the project block never supplies a grid, and `view` is the scene's or
+  orthogonal); a project value that fails the setting's schema is skipped.
+  `expandScene` resolves through `opts.engine` and the game's world;
+  `SettingsSources.project` is readonly and `SettingsSources.game` holds the
+  game's world defaults.
+- Grid fields and turned grid instances are judged against the resolved
+  grid, so a game's `world.grid` satisfies them, and a prefab view's message
+  says "the game's grid".
+- `createRegistry` refuses a `time.rate` the clock can't run (the problem
+  names `tick-rate-invalid`) and world defaults it can't use: a bad
+  `world.physics`, a `world.gravity` that isn't two finite numbers, a
+  `world.grid` that `settings.grid` would refuse, `world.gridWalls` naming an
+  unknown or never-loading type, and a `world.lengthUnit` that isn't finite
+  and above 0.
+- `DEFAULT_GRAVITY` is re-exported from `game/primitives` (it lives in
+  `game/defaults`).
+- Headless runs follow the game's clock: steps are `ctx.time.tickMs` long,
+  reports' and recordings' `tickRate` and `configHash` use the run's rate,
+  and `forMs` rounds through `ticksFor`.
+- The runtime's physics world steps `1 / ctx.time.rate` s
+  (`PhysicsConfig.timestep`, default `1 / DEFAULT_TICK_RATE`); path
+  followers' `seek` steps by `ctx.time.tickMs`.
+- `applyOps` and the project batch's `editScene` (`checkProjectBatch`,
+  `applyProjectBatch`, `applyRegistryBatch`, `applyProjectBatchToFiles`, the
+  dev server) report `asset-missing`, `asset-kind`, `asset-frame-unknown`
+  and `sprite-no-asset` for a scene in a project, once per scene and asset (a
+  forced delete's dangling ref and `editScene`'s `asset-missing` for it are
+  one issue). The scene CLI's `apply` and `apply --live` no longer write a
+  batch that leaves `asset-missing`, `asset-kind` or `asset-frame-unknown`
+  (errors); `sprite-no-asset` is a warning and doesn't block.
+
+### Deprecated
+
+- `GameConfig.targetFPS` (ignored): the clock runs at the game's rate.
+
+### Removed
+
+- `TICK_RATE` (from `physics.ts`): the step length is `ctx.time.tickMs` and
+  the rate `ctx.time.rate`.
+
+### Fixed
+
+- A bulk row carrying a sprite gets a moving sprite box during a drag:
+  selection outlines pose sprite boxes from the previewed geometry, for
+  entities and bulk rows alike, rather than from the index's committed entry.
+- `/__project` on `./vite`'s dev server answers CORS for the origins Vite's
+  `server.cors` allows (by default the loopback hosts on any port), outside
+  Vite's own cors middleware too. A preflight is 204, and every answer
+  carries `Access-Control-Allow-Origin` (the request's origin), `Vary:
+Origin`, and allows `content-type`, `x-expect-sha256` and `x-asset-kind`,
+  so `devProjectHost({ origin })` on another origin can fetch and store
+  blobs. Any other origin is still 403 with no CORS headers.
+- The standalone editor's (`vp run engine:editor`) Play camera frames the
+  play start, or the centre of the scene's bounds when Play didn't start
+  from a point.
+- The site's editor loading frame draws the editor's skeleton instead of the
+  site's canvas chrome.
+- The editor's Run panel no longer marks a fresh run stale: it compares the
+  recording's `sceneHash` with `sceneHashWith` of the open scene and its
+  prefab library, the hash the recorder writes; editing a prefab the scene
+  places now marks the run stale too.
+- An instance's asset parameters get the asset picker (textures and atlases
+  of the field's kinds, an atlas's frames as a select) instead of text
+  fields, as a type's own asset fields do; picking an atlas inside an object
+  parameter writes the atlas and its frame as one setParam.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 10, and every committed JSON Schema's
+  `x-agent-surface` with it. Schema ids are unchanged: every schema change
+  below is additive.
+- `recording.schema.json`: `tickRate` is an integer from 1 to 240; an
+  optional `commands` array follows `inputs`.
+- `input-script.schema.json`: steps gain `{ command, args? }` and
+  `{ elapse }`.
+- `scene.schema.json` (and the prefab and fragment schemas): every loadable
+  type's behaviors gain `occupant` (`{ blocks? }`) after `sprite`.
+- `validate` and `check` emit `physics-required` for a prop or an `attach`
+  in a scene without physics, and `grid-invalid` for an occupant in a scene
+  with no grid.
+- Issue codes `physics-required`, `nav-invalid`, `grid-unreachable` and
+  `tick-rate-invalid` (all errors, not fixable).
+- Issue code `physics-skipped` (info, not fixable): `validate --physical`
+  reports it for each game check with `needsPhysics` in a scene without
+  physics.
+- The `checks:v1` schema gains the `connected` kind; `check` and MCP
+  `scene_check` run it.
+- `scene.schema.json` (and the prefab and fragment schemas): `prop` gains
+  optional `gravityScale`, `linearDamping`, `angularDamping`,
+  `fixedRotation` and `ccd`.
+- `scene.schema.json`: the `gravity` and `grid` settings' descriptions name
+  the project's and the game's defaults. `game-settings.schema.json`: the
+  `engine` block's `physics`, `gravity` and `tickRate`.
+- `apply`, `apply --live` and MCP `scene_apply_ops` report the asset codes
+  (`asset-missing`, `asset-kind`, `asset-frame-unknown`, `sprite-no-asset`)
+  as `validate` does.
+- `scene grid <scene> [--from c,r|ref] [--to c,r|ref] [--fov c,r:radius]
+[--diagonals] [--json]` prints the grid's walls, a path and a field of view
+  as ASCII; exit 1 with no path, `grid-invalid` without a grid.
+- `scene.schema.json` (and the prefab and fragment schemas): `solid.oneWay`
+  is `true` or a side (`up`, `right`, `down`, `left`).
+- `input-script.schema.json`: the header's `at` casts along the game's spawn
+  direction (gravity by default).
+- `scene.schema.json` (and the prefab and fragment schemas): the `nav`
+  primitive (`shape` a `Polygon`, `mode` `walk` or `block`, `tags`) and
+  `$defs.Polygon` (one `poly` tuple).
+- `validate` and `check` emit `nav-invalid` for a self-intersecting nav
+  polygon, a hole not strictly inside exactly one walk area, or overlapping
+  walk areas.
+- `scene show` prints `time <kind> <rate>Hz[ catch-up <ms>ms][ wakes on
+pointer move]; physics rapier|none, no wasm` as its second line, and its
+  JSON (and MCP `scene_show`) carries `time` (`kind`, `rate`, `catchUp`,
+  `wakeOnPointerMove`) and `physics`.
+- `scene step --command <tick>:<name>[=<json>]` and `--elapse <tick>:<ms>`
+  are repeatable and step on their ticks (each tick's `@elapsed` before its
+  commands), checked as an input script's command and elapse steps are;
+  `step`'s JSON gains `commands`.
+- MCP `scene_playtest` documents command and elapse steps, and
+  `scene_check` documents `connected`. Tool names are unchanged.
+
 ## [0.8.1] — unreleased
 
 The editor UI moves into the package, then gets a usability pass. The
@@ -203,6 +595,15 @@ for these (`setHover` and `EditorStoreState.hover`, `dropPreview`,
   little past each side. The draw tools show a crosshair on the snapped
   start before the press. Leaving the canvas between gestures clears the
   shared hover.
+
+### Fixed
+
+- The scene editor builds each game on a new `<canvas>` element. Rebuilding
+  the game (a project, settings or table change, or a new game definition)
+  used to put the new Pixi app on the old game's canvas. Pixi had already
+  lost that canvas's WebGL context, so in Chromium, and in WebKit wherever
+  it falls back to WebGL, the tab hung in Pixi's shader probe and the editor
+  never mounted.
 
 ### Agent surface
 

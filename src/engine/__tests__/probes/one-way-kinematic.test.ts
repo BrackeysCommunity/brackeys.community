@@ -14,6 +14,15 @@
 import type { Collider, RigidBody, World } from "@dimforge/rapier2d";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
+import { createRegistry } from "../../game/define";
+import type { Side } from "../../game/types";
+import { createSceneRuntime } from "../../runtime/runtime";
+import { expandScene } from "../../scene/expand";
+import { prefabLibrary } from "../../scene/prefab";
+import { aabb, translateShape } from "../../scene/shape-geometry";
+import { applyVec, dihedral, type Dihedral } from "../../scene/transform";
+import type { ExpandedScene, Pt, RuntimeEntity, ShapeObj } from "../../scene/types";
+import type { SolidSystem } from "../../systems/bodies";
 import type { RapierModule } from "../../types";
 
 let rapier: RapierModule;
@@ -109,5 +118,203 @@ describe("a one-way collider on a moving kinematic body", () => {
     expect(y(r)).toBeCloseTo(RESTING_Y, 1);
     expect(rayHitsPlank(r)).toBe(true);
     r.world.free();
+  });
+});
+
+// ─── One-way sides on the solid system ───────────────────
+
+const OUTWARD: Record<Side, Pt> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+const SIDES = Object.keys(OUTWARD) as Side[];
+const sideOfVec = (v: Pt): Side =>
+  SIDES.find((s) => OUTWARD[s][0] === v[0] && OUTWARD[s][1] === v[1])!;
+
+const box = (cx: number, cy: number, hw: number, hh: number): ShapeObj => ({
+  type: "box",
+  cx,
+  cy,
+  hw,
+  hh,
+  rotDeg: 0,
+});
+const WALL = box(0, 0, 20, 20);
+const ACTOR = box(0, 0, 5, 5);
+
+type Backend = "rapier" | "geometry";
+const BACKENDS: Backend[] = ["rapier", "geometry"];
+
+function scene(entities: RuntimeEntity[], backend: Backend): ExpandedScene {
+  return {
+    name: "sides",
+    bounds: [-1000, -1000, 1000, 1000],
+    settings: {
+      gravity: [0, 0],
+      physics: backend === "rapier" ? "rapier" : "none",
+      grid: null,
+      view: { projection: "orthogonal" },
+    },
+    entities,
+  };
+}
+
+type Runtime = ReturnType<typeof createSceneRuntime>;
+
+function load(entities: RuntimeEntity[], backend: Backend) {
+  const rt = createSceneRuntime({
+    rapier: backend === "rapier" ? rapier : null,
+    view: null,
+    game: null,
+  });
+  rt.load(scene(entities, backend));
+  return { rt, solids: rt.ctx.system<SolidSystem>("solid")! };
+}
+
+/**
+ * Moves the actor from `from` by `by` in 10 px steps, gating the solids for
+ * its box before each sweep as a kinematic mover would, and stops at a hit.
+ * Returns where it ends.
+ */
+function travel(rt: Runtime, solids: SolidSystem, from: Pt, by: Pt): Pt {
+  const steps = Math.max(Math.abs(by[0]), Math.abs(by[1])) / 10;
+  const step: Pt = [by[0] / steps, by[1] / steps];
+  let at: Pt = from;
+  for (let i = 0; i < steps; i++) {
+    gateAt(rt, solids, at);
+    const shape = translateShape(ACTOR, at);
+    const hit = rt.ctx.space.sweep(shape, { x: step[0], y: step[1] });
+    const t = hit ? hit.toi : 1;
+    at = [at[0] + step[0] * t, at[1] + step[1] * t];
+    if (hit) break;
+  }
+  return at;
+}
+
+const scale = (v: Pt, k: number): Pt => [v[0] * k, v[1] * k];
+
+/**
+ * Gates the solids for the actor at `at`. Rapier's queries see a gated
+ * body's move after the next step, as the actor's own move would, so the
+ * world steps on that backend.
+ */
+function gateAt(rt: Runtime, solids: SolidSystem, at: Pt, passing = false): void {
+  solids.gateOneWaySides(aabb(translateShape(ACTOR, at)), passing);
+  rt.ctx.physics?.world.step();
+}
+
+describe("one-way sides", () => {
+  for (const backend of BACKENDS) {
+    it(`a "left" solid lets an actor through from the right only (${backend})`, () => {
+      const { rt, solids } = load(
+        [{ id: "w", type: "solid", shape: WALL, oneWay: "left" }],
+        backend,
+      );
+      expect(rt.ctx.tags.get(rt.ctx.tags.handlesOf("w")[0]!)).toMatchObject({
+        oneWay: true,
+        oneWaySide: "left",
+      });
+      expect(travel(rt, solids, [60, 0], [-200, 0])).toEqual([-140, 0]);
+      solids.reset?.();
+      const [x, y] = travel(rt, solids, [-60, 0], [200, 0]);
+      expect(x).toBeCloseTo(-25, 1);
+      expect(y).toBe(0);
+      rt.destroy();
+    });
+
+    it(`each side holds an actor on it and lets one through from the other (${backend})`, () => {
+      for (const side of SIDES) {
+        const { rt, solids } = load(
+          [{ id: "w", type: "solid", shape: WALL, oneWay: side }],
+          backend,
+        );
+        const n = OUTWARD[side];
+        const toward = (from: Pt) =>
+          rt.ctx.space.sweep(translateShape(ACTOR, from), { x: -2 * from[0], y: -2 * from[1] });
+
+        gateAt(rt, solids, scale(n, 60));
+        expect(solids.isHidden("w"), side).toBe(false);
+        expect(toward(scale(n, 60))?.tag.entityId, side).toBe("w");
+
+        gateAt(rt, solids, scale(n, 60), true);
+        expect(solids.isHidden("w"), `${side} passing`).toBe(true);
+        expect(toward(scale(n, 60)), `${side} passing`).toBeNull();
+
+        gateAt(rt, solids, scale(n, -60));
+        expect(solids.isHidden("w"), `${side} far side`).toBe(true);
+        expect(toward(scale(n, -60)), `${side} far side`).toBeNull();
+        rt.destroy();
+      }
+    });
+
+    it(`gateOneWay gates only the "up" solids (${backend})`, () => {
+      const { rt, solids } = load(
+        [
+          { id: "ledge", type: "solid", shape: box(0, 0, 20, 5), oneWay: true },
+          { id: "wall", type: "solid", shape: box(200, 0, 5, 20), oneWay: "left" },
+        ],
+        backend,
+      );
+      expect(rt.ctx.tags.get(rt.ctx.tags.handlesOf("ledge")[0]!)?.oneWaySide).toBe("up");
+      solids.gateOneWay(20, false);
+      expect(solids.isHidden("ledge")).toBe(true);
+      expect(solids.isHidden("wall")).toBe(false);
+      solids.gateOneWay(-10, false);
+      expect(solids.isHidden("ledge")).toBe(false);
+      rt.destroy();
+    });
+  }
+
+  it("a turned or flipped instance turns its one-way side", () => {
+    const prefabs = prefabLibrary([
+      {
+        kind: "prefab",
+        v: 3,
+        id: "gate",
+        entities: [
+          { id: "up", type: "solid", shape: ["box", 0, 0, 20, 20], oneWay: true },
+          { id: "left", type: "solid", shape: ["box", 0, 0, 20, 20], oneWay: "left" },
+        ],
+      },
+    ]);
+    const registry = createRegistry(null);
+    const elements: Dihedral[] = [false, true].flatMap((flip) =>
+      ([0, 1, 2, 3] as const).map((rot) => ({ rot, flip })),
+    );
+    for (const backend of BACKENDS) {
+      for (const d of elements) {
+        const expanded = expandScene(
+          {
+            v: 3,
+            name: "turned",
+            bounds: [-1000, -1000, 1000, 1000],
+            instances: [
+              {
+                id: "g",
+                prefab: "gate",
+                at: [0, 0],
+                ...(d.rot ? { rot: d.rot } : {}),
+                ...(d.flip ? { flip: true as const } : {}),
+              },
+            ],
+          },
+          registry,
+          { prefabs },
+        );
+        for (const [child, own] of [
+          ["up", "up"],
+          ["left", "left"],
+        ] as const) {
+          const side = sideOfVec(applyVec(dihedral(d, [0, 0]), OUTWARD[own]));
+          const label = `${backend} ${JSON.stringify(d)} ${child} -> ${side}`;
+          const e = expanded.entities.find((x) => x.id === `g/${child}`)!;
+          const { rt, solids } = load([e], backend);
+          expect(rt.ctx.tags.get(rt.ctx.tags.handlesOf(e.id)[0]!)?.oneWaySide, label).toBe(side);
+          const n = OUTWARD[side];
+          gateAt(rt, solids, scale(n, 60));
+          expect(solids.isHidden(e.id), label).toBe(false);
+          gateAt(rt, solids, scale(n, -60));
+          expect(solids.isHidden(e.id), label).toBe(true);
+          rt.destroy();
+        }
+      }
+    }
   });
 });

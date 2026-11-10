@@ -1,7 +1,14 @@
 import { Store } from "@tanstack/store";
 
 import type { PlayOptions } from "../../index";
-import { parseRecording, type RunRecording, type SceneOverlay } from "../../scene/index";
+import {
+  parseRecording,
+  sceneHashWith,
+  type PrefabLibrary,
+  type RunRecording,
+  type SceneDefinition,
+  type SceneOverlay,
+} from "../../scene/index";
 
 export type LoadedRun = {
   recording: RunRecording;
@@ -90,7 +97,11 @@ export function parseRun(text: string, name: string): ParsedRun {
   return { ok: true, run: { recording: parsed.recording, name } };
 }
 
-/** Whether the run was recorded on a different version of the scene than `hash`. */
-export function runIsStale(run: LoadedRun, hash: string): boolean {
-  return run.recording.sceneHash !== hash;
+/**
+ * Whether the run was recorded on a different version of the scene than
+ * `def` with `prefabs`, hashed as the recorder hashes it (`sceneHashWith`,
+ * so editing a prefab the scene places counts too).
+ */
+export function runIsStale(run: LoadedRun, def: SceneDefinition, prefabs: PrefabLibrary): boolean {
+  return run.recording.sceneHash !== sceneHashWith(def, prefabs);
 }

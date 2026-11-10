@@ -50,6 +50,7 @@ function scene(entities: RuntimeEntity[], gravity: [number, number] = [0, 1200])
 const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 20, 500, 20) };
 
 const EMPTY: RuntimeStats = {
+  backend: "rapier",
   bodies: 0,
   colliders: 0,
   tags: 0,
@@ -71,7 +72,7 @@ function handleOf(rt: ReturnType<typeof runtime>, id: string): number {
 }
 
 function bodyOf(rt: ReturnType<typeof runtime>, id: string) {
-  return rt.ctx.physics.world.getCollider(handleOf(rt, id))!.parent()!;
+  return rt.ctx.physics!.world.getCollider(handleOf(rt, id))!.parent()!;
 }
 
 const ENGINE_YARD_COUNTS = { solid: 4, sensor: 1, marker: 1, prop: 2, follower: 1 };
@@ -81,6 +82,7 @@ describe("SceneRuntime load and unload", () => {
     const rt = runtime();
     expect(rt.load(engineYard())).toEqual({ ok: true, counts: ENGINE_YARD_COUNTS, ms: 0 });
     expect(rt.stats()).toEqual({
+      backend: "rapier",
       bodies: 8,
       colliders: 8,
       tags: 8,
@@ -105,9 +107,11 @@ describe("SceneRuntime load and unload", () => {
     const loaded = rt.stats();
     steps(rt, 30, [press("right")]);
 
+    const world = rt.ctx.physics!;
     rt.unload();
     expect(rt.stats()).toEqual(EMPTY);
-    expect(rt.ctx.physics.world.bodies.len()).toBe(0);
+    expect(rt.ctx.physics).toBeNull();
+    expect(world.world.bodies.len()).toBe(0);
     expect(rt.get("lift")).toBeUndefined();
     expect(rt.scene()).toBeNull();
     expect(rt.snapshot()).toBeNull();
@@ -215,9 +219,14 @@ describe("primitive systems", () => {
       type: "solid",
       material: "ice",
     });
-    expect(tagOf("ledge")).toEqual({ entityId: "ledge", type: "solid", oneWay: true });
+    expect(tagOf("ledge")).toEqual({
+      entityId: "ledge",
+      type: "solid",
+      oneWay: true,
+      oneWaySide: "up",
+    });
     expect(tagOf("zone")).toEqual({ entityId: "zone", type: "sensor", tags: ["goal"] });
-    const ice = rt.ctx.physics.world.getCollider(handleOf(rt, "~solid:ice:0"))!;
+    const ice = rt.ctx.physics!.world.getCollider(handleOf(rt, "~solid:ice:0"))!;
     expect(ice.friction()).toBeCloseTo(0.02, 6);
     rt.destroy();
   });
@@ -239,7 +248,7 @@ describe("primitive systems", () => {
     const { bodies, colliders, tags } = bare.stats();
     expect(rt.stats()).toMatchObject({ bodies, colliders, tags, entities: 2 });
     expect(rt.stats().perType).toEqual({ solid: 1, decor: 1 });
-    expect(rt.ctx.physics.world.bodies.len()).toBe(bare.ctx.physics.world.bodies.len());
+    expect(rt.ctx.physics!.world.bodies.len()).toBe(bare.ctx.physics!.world.bodies.len());
     expect(rt.ctx.poses.get("lamp")).toEqual({ x: 40, y: -30, rot: 0 });
     expect(rt.get("lamp")?.type).toBe("decor");
 
@@ -347,7 +356,7 @@ describe("primitive systems", () => {
     rt.load(
       scene([{ id: "avatar", type: "prop", shape: box(0, 0, 5, 5), density: 1, restitution: 0 }]),
     );
-    expect(rt.ctx.physics.world.gravity).toMatchObject({ x: 0, y: 1200 });
+    expect(rt.ctx.physics!.world.gravity).toMatchObject({ x: 0, y: 1200 });
     steps(rt, 30);
     expect(bodyOf(rt, "avatar").translation().y).toBeGreaterThan(0);
     rt.destroy();
@@ -370,6 +379,59 @@ describe("primitive systems", () => {
     expect(lift.frameDelta("lift")?.y).toBeCloseTo(-80 / 60, 6);
     expect(lift.frameDelta("nope")).toBeNull();
     rt.destroy();
+  });
+});
+
+describe("the runtime's clock", () => {
+  const atRate = (rate: number) =>
+    createSceneRuntime({
+      rapier,
+      view: null,
+      game: defineGame({
+        id: `clock-${rate}`,
+        types: [],
+        actions: [],
+        time: { kind: "fixed", rate },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    });
+
+  it("steps a 30 Hz game's world 1/30 s per tick", () => {
+    const rt = atRate(30);
+    expect(rt.ctx.time.tickMs).toBeCloseTo(1000 / 30, 9);
+    rt.load(scene([]));
+    expect(rt.ctx.physics!.world.timestep).toBe(Math.fround(1 / 30));
+    rt.destroy();
+  });
+
+  it("keeps the 60 Hz step a game without a time model always had", () => {
+    const rt = runtime(null);
+    rt.load(scene([]));
+    expect(rt.ctx.physics!.world.timestep).toBe(Math.fround(1 / 60));
+    rt.destroy();
+  });
+
+  it("a follower covers the same distance per wall second at 30 and 60 Hz", () => {
+    const seekY = (rate: number) => {
+      const rt = atRate(rate);
+      rt.load(engineYard());
+      rt.ctx.system<FollowerSystem>("follower")!.seek?.(1000);
+      const y = rt.ctx.system<FollowerSystem>("follower")!.position("lift")!.y;
+      rt.destroy();
+      return y;
+    };
+    const stepY = (rate: number) => {
+      const rt = atRate(rate);
+      rt.load(engineYard());
+      for (let i = 0; i < rate; i++) rt.step(rt.ctx.time.tickMs, []);
+      const y = rt.ctx.system<FollowerSystem>("follower")!.position("lift")!.y;
+      rt.destroy();
+      return y;
+    };
+    expect(seekY(30)).toBeCloseTo(seekY(60), 6);
+    expect(stepY(30)).toBeCloseTo(stepY(60), 6);
+    expect(seekY(60)).toBeCloseTo(stepY(60), 6);
+    expect(seekY(60)).toBeLessThan(900);
   });
 });
 
@@ -653,6 +715,248 @@ describe("SceneRuntime poses", () => {
     ).toBe(false);
     expect(rt.ctx.poses.get("floor")).toEqual({ x: 0, y: 20, rot: 0 });
     expect(rt.ctx.poses.get("crate")).toEqual({ x: 100, y: -50, rot: 0 });
+    rt.destroy();
+  });
+});
+
+describe("physics per load", () => {
+  /** `rapier` with a count of the worlds made from it. */
+  function counted() {
+    const made = { worlds: 0 };
+    class World extends rapier.World {
+      constructor(...args: ConstructorParameters<typeof rapier.World>) {
+        super(...args);
+        made.worlds++;
+      }
+    }
+    return { module: { ...rapier, World } as RapierModule, made };
+  }
+
+  const free = (entities: RuntimeEntity[]): ExpandedScene => ({
+    ...scene(entities),
+    settings: { ...scene(entities).settings, physics: "none" },
+  });
+
+  const zone: RuntimeEntity = { id: "zone", type: "sensor", shape: box(50, 0, 10, 10) };
+  const start: RuntimeEntity = { id: "start", type: "marker", at: [5, 6] };
+  const lift: RuntimeEntity = {
+    id: "lift",
+    type: "follower",
+    shape: box(0, 0, 20, 4),
+    path: {
+      pts: [
+        [0, 100],
+        [0, 0],
+      ],
+      mode: "loop",
+      speed: 60,
+    },
+  };
+
+  it("makes no world for a scene without physics", () => {
+    const { module, made } = counted();
+    const rt = createSceneRuntime({ rapier: module, view: null, game: null });
+    expect(rt.load(free([floor, zone, start])).ok).toBe(true);
+    expect(rt.ctx.physics).toBeNull();
+    expect(rt.ctx.rapier).toBeNull();
+    expect(made.worlds).toBe(0);
+    expect(rt.stats()).toMatchObject({ backend: "geometry", bodies: 2, colliders: 2, entities: 3 });
+    rt.destroy();
+  });
+
+  it("keeps one world across two Rapier loads, emptied between them", () => {
+    const { module, made } = counted();
+    const rt = createSceneRuntime({ rapier: module, view: null, game: null });
+    expect(made.worlds).toBe(0);
+    rt.load(scene([floor]));
+    const world = rt.ctx.physics;
+    expect(world).not.toBeNull();
+    expect(rt.ctx.rapier).toBe(module);
+    rt.load(scene([floor, zone], [0, 300]));
+    expect(rt.ctx.physics).toBe(world);
+    expect(world!.world.bodies.len()).toBe(2);
+    expect(world!.world.gravity).toMatchObject({ x: 0, y: 300 });
+    expect(made.worlds).toBe(1);
+    rt.destroy();
+  });
+
+  it("runs Rapier, then none, then Rapier on the same world", () => {
+    const { module, made } = counted();
+    const rt = createSceneRuntime({ rapier: module, view: null, game: null });
+    rt.load(scene([floor, zone]));
+    const world = rt.ctx.physics!;
+    const handles = rt.stats();
+
+    expect(rt.load(free([floor, zone, start])).ok).toBe(true);
+    expect(rt.ctx.physics).toBeNull();
+    expect(world.world.bodies.len()).toBe(0);
+    expect(rt.stats().backend).toBe("geometry");
+    steps(rt, 3);
+
+    expect(rt.load(scene([floor, zone])).ok).toBe(true);
+    expect(rt.ctx.physics).toBe(world);
+    expect(rt.stats()).toEqual(handles);
+    expect(made.worlds).toBe(1);
+    rt.destroy();
+  });
+
+  it("loads and steps a scene of markers, sensors, solids and followers with no Rapier", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null, game: null });
+    expect(rt.load(free([floor, zone, start, lift]))).toEqual({
+      ok: true,
+      counts: { solid: 1, sensor: 1, marker: 1, follower: 1 },
+      ms: 0,
+    });
+    expect(rt.ctx.poses.get("zone")).toEqual({ x: 50, y: 0, rot: 0 });
+    expect(rt.ctx.poses.get("lift")).toEqual({ x: 0, y: 100, rot: 0 });
+    const results = steps(rt, 30);
+    expect(results.at(-1)?.tick).toBe(29);
+    expect(rt.ctx.poses.get("lift")!.y).toBeCloseTo(100 - 60 * (30 / 60), 6);
+    expect(rt.ctx.system<FollowerSystem>("follower")!.frameDelta("lift")!.y).toBeCloseTo(-1, 6);
+    expect(rt.stats()).toMatchObject({ backend: "geometry", entities: 4, tags: 3 });
+    rt.remove(["zone"]);
+    expect(rt.stats().perType).toEqual({ solid: 1, marker: 1, follower: 1 });
+    rt.destroy();
+  });
+
+  it("fails a load with physics-required on a prop in a scene without physics", () => {
+    const rt = createSceneRuntime({ rapier, view: null, game: null });
+    const crate: RuntimeEntity = {
+      id: "crate",
+      type: "prop",
+      shape: box(0, 0, 5, 5),
+      density: 1,
+      restitution: 0,
+    };
+    expect(rt.load(free([floor, crate]))).toMatchObject({
+      ok: false,
+      reason: "physics-required",
+      entityId: "crate",
+    });
+    expect(rt.scene()).toBeNull();
+    expect(rt.stats()).toMatchObject({ entities: 0, bodies: 0 });
+    expect(rt.ctx.poses.size).toBe(0);
+    rt.destroy();
+  });
+
+  it("fails a load with physics-required on an attach in a scene without physics", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null, game: null });
+    const rider: RuntimeEntity = { ...zone, attach: "lift" };
+    expect(rt.load(free([lift, rider]))).toMatchObject({
+      ok: false,
+      reason: "physics-required",
+      entityId: "zone",
+    });
+    expect(rt.ctx.poses.size).toBe(0);
+    rt.destroy();
+  });
+
+  it("puts solids, sensors and followers in a geometry world, emptied between loads", () => {
+    const rt = createSceneRuntime({ rapier, view: null, game: null });
+    expect(rt.ctx.geometry).toBeNull();
+    rt.load(free([floor, zone, start, lift]));
+    const geometry = rt.ctx.geometry!;
+    expect(geometry).not.toBeNull();
+    expect(rt.ctx.space.backend).toBe("geometry");
+    expect(geometry.size).toBe(3);
+    expect(rt.stats()).toMatchObject({ backend: "geometry", bodies: 3, colliders: 3, tags: 3 });
+    expect(rt.ctx.tags.get(handleOf(rt, "zone"))).toEqual({ entityId: "zone", type: "sensor" });
+
+    rt.load(free([floor, zone]));
+    expect(rt.ctx.geometry).toBe(geometry);
+    expect(geometry.size).toBe(2);
+
+    rt.load(scene([floor, zone]));
+    expect(rt.ctx.geometry).toBeNull();
+    expect(rt.ctx.space.backend).toBe("rapier");
+    expect(geometry.size).toBe(0);
+    expect(rt.stats()).toMatchObject({ backend: "rapier", bodies: 2, colliders: 2 });
+
+    rt.load(free([zone]));
+    expect(rt.ctx.geometry).toBe(geometry);
+    rt.unload();
+    expect(rt.ctx.geometry).toBeNull();
+    expect(geometry.size).toBe(0);
+    rt.destroy();
+  });
+
+  it("moves a follower's geometry collider along its path each tick", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null, game: null });
+    rt.load(free([lift]));
+    const handle = handleOf(rt, "lift");
+    const at = () => rt.ctx.geometry!.shape(handle) as Extract<ShapeObj, { type: "box" }>;
+    expect(at()).toMatchObject({ cx: 0, cy: 100, hw: 20, hh: 4 });
+    steps(rt, 30);
+    expect(at().cy).toBeCloseTo(rt.ctx.poses.get("lift")!.y, 6);
+    expect(at().cy).toBeCloseTo(70, 6);
+    rt.remove(["lift"]);
+    expect(rt.ctx.geometry!.size).toBe(0);
+    expect(rt.ctx.tags.size).toBe(0);
+    rt.destroy();
+  });
+
+  it("gates a one-way solid in the geometry world by disabling its collider", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null, game: null });
+    const ledge: RuntimeEntity = {
+      id: "ledge",
+      type: "solid",
+      shape: box(0, 0, 50, 5),
+      oneWay: true,
+    };
+    rt.load(free([ledge]));
+    expect(rt.ctx.tags.get(handleOf(rt, "ledge"))).toMatchObject({ oneWay: true });
+    const solids = rt.ctx.system<SolidSystem>("solid")!;
+    const probe = box(0, 0, 2, 2);
+    expect(rt.ctx.space.overlaps(probe).map((h) => h.tag.entityId)).toEqual(["ledge"]);
+
+    solids.gateOneWay(20, false);
+    expect(solids.isHidden("ledge")).toBe(true);
+    expect(rt.ctx.space.overlaps(probe)).toEqual([]);
+
+    solids.gateOneWay(-10, false);
+    expect(solids.isHidden("ledge")).toBe(false);
+    expect(rt.ctx.space.overlaps(probe)).toHaveLength(1);
+
+    solids.gateOneWay(-10, true);
+    expect(solids.isHidden("ledge")).toBe(true);
+    rt.ctx.system<SolidSystem>("solid")!.reset!();
+    expect(solids.isHidden("ledge")).toBe(false);
+    rt.destroy();
+  });
+
+  it("raises sensor events from geometry overlaps in a scene without physics", () => {
+    const linked = defineGame({
+      id: "linked",
+      types: [],
+      actions: [],
+      collisionGroups: { static: { collidesWith: ["sensor"] } },
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const rt = createSceneRuntime({ rapier: null, view: null, game: linked });
+    const gate: RuntimeEntity = { id: "gate", type: "sensor", shape: box(0, 50, 30, 5) };
+    rt.load(free([lift, gate]));
+    const events = steps(rt, 120).flatMap((r) => r.events);
+    expect(events.map((e) => [e.type, e.entityId, e.other])).toEqual([
+      [SENSOR_ENTER, "gate", "lift"],
+      [SENSOR_EXIT, "gate", "lift"],
+    ]);
+    expect(events[0]!.at.x).toBe(0);
+    rt.destroy();
+  });
+
+  it("raises no geometry sensor events for groups the registry doesn't link", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null, game: null });
+    const gate: RuntimeEntity = { id: "gate", type: "sensor", shape: box(0, 50, 30, 5) };
+    rt.load(free([lift, gate]));
+    expect(steps(rt, 120).flatMap((r) => r.events)).toEqual([]);
+    rt.destroy();
+  });
+
+  it("refuses a Rapier scene without the module, keeping what was loaded", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null, game: null });
+    rt.load(free([start]));
+    expect(rt.load(scene([floor]))).toMatchObject({ ok: false, reason: "physics-not-loaded" });
+    expect(rt.get("start")).toBeDefined();
     rt.destroy();
   });
 });

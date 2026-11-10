@@ -2,10 +2,12 @@
 import { readFileSync } from "node:fs";
 
 import type { RapierModule } from "@jams/engine";
-import { validatePhysical } from "@jams/engine/headless";
+import type { PhysicalEnv } from "@jams/engine/game";
+import { runPhysicalChecks, validatePhysical } from "@jams/engine/headless";
 import {
   applyOps,
   createRegistry,
+  expandScene,
   parseSceneOrThrow,
   sceneHash,
   type SceneDefinition,
@@ -15,6 +17,7 @@ import {
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { PLATFORMER_ISSUES, platformerGame } from "..";
+import { PLATFORMER_PHYSICAL_CHECKS } from "../physical";
 
 const registry = createRegistry(platformerGame);
 const yard = parseSceneOrThrow(
@@ -110,5 +113,46 @@ describe("the platformer's physical checks", () => {
   it("every code it emits is registered", () => {
     for (const code of Object.keys(PLATFORMER_ISSUES))
       expect(registry.issueCodes[code]).toBeDefined();
+  });
+
+  it("every check needs physics, so a scene without it skips each with an info issue", () => {
+    expect(PLATFORMER_PHYSICAL_CHECKS.map((c) => [c.id, c.needsPhysics])).toEqual([
+      ["spawns", true],
+      ["anchors", true],
+      ["clouds", true],
+    ]);
+    const free = { ...yard, settings: { ...yard.settings, physics: "none" as const } };
+    const space: PhysicalEnv["space"] = {
+      backend: "geometry",
+      pointAt: () => [],
+      overlaps: () => [],
+      raycast: () => null,
+      sweep: () => null,
+    };
+    const env: PhysicalEnv = {
+      def: free,
+      scene: expandScene(free, registry),
+      registry,
+      rapier: null,
+      physics: null,
+      tags: {
+        set: () => {},
+        get: () => undefined,
+        delete: () => {},
+        clear: () => {},
+        size: 0,
+        handlesOf: () => [],
+      },
+      space,
+      overlaps: () => [],
+      cast: () => null,
+    };
+    expect(runPhysicalChecks(env).map((i) => [i.code, i.severity, i.message])).toEqual(
+      ["spawns", "anchors", "clouds"].map((id) => [
+        "physics-skipped",
+        "info",
+        `physical check platformer/${id} needs physics and was skipped: the scene runs without it`,
+      ]),
+    );
   });
 });

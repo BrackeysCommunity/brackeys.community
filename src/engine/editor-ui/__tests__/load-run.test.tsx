@@ -6,11 +6,23 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
-import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
+import {
+  sceneToDoc,
+  sequentialKeys,
+  type PrefabSource,
+  type SceneOrigin,
+} from "../../collab/index";
 import { createEditorSession } from "../../editor/index";
 import { createRegistry } from "../../game/index";
 import { runPlaytest, type PlaytestReport, type RapierModule } from "../../headless/index";
-import { parseSceneOrThrow } from "../../scene/index";
+import {
+  parsePrefab,
+  parseSceneOrThrow,
+  prefabLibrary,
+  type Prefab,
+  type PrefabLibrary,
+  type SceneDefinition,
+} from "../../scene/index";
 import type { EditorNotify } from "../host";
 import { LoadRunPanel } from "../panels/LoadRunPanel";
 import { createLoadedRunStore, parseRun, runOverlay, runStart } from "../session/loaded-run";
@@ -25,12 +37,54 @@ const yard = parseSceneOrThrow(
 );
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 
+const parsedPost = parsePrefab(
+  readFileSync(resolve("src/engine/scenes/prefabs/post.json"), "utf8"),
+  registry,
+);
+if (!parsedPost.ok) throw new Error("post.json doesn't parse");
+const post: Prefab = parsedPost.prefab;
+const yardWithPost: SceneDefinition = {
+  ...yard,
+  instances: [{ id: "post-1", prefab: "post", at: [1800, 960] }],
+};
+
+/** A prefab source whose library can be swapped, as a prefab doc edit does. */
+function swappableSource(initial: PrefabLibrary) {
+  let library = initial;
+  const listeners = new Set<(changed: readonly string[]) => void>();
+  const source: PrefabSource = {
+    library: () => library,
+    subscribe(cb) {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    open: async () => null,
+  };
+  const set = (next: PrefabLibrary) => {
+    library = next;
+    for (const l of listeners) l(["post"]);
+  };
+  return { source, set };
+}
+
 let report: PlaytestReport;
 /** The report as `scene playtest --json` prints it. */
 let printed: string;
+/** A run of `yardWithPost`, recorded with the post prefab. */
+let withPost: PlaytestReport;
 
 beforeAll(async () => {
   const rapier: RapierModule = await import("@dimforge/rapier2d");
+  const placed = runPlaytest({
+    rapier,
+    game: testGame,
+    registry,
+    scene: yardWithPost,
+    prefabs: prefabLibrary([post]),
+    script: { v: 1, scene: "engine-yard", steps: [{ hold: ["right"], for: 30 }] },
+  });
+  if (placed.blocked) throw new Error(`blocked at ${placed.stage}`);
+  withPost = placed;
   const run = runPlaytest({
     rapier,
     game: testGame,
@@ -91,13 +145,14 @@ describe("loaded-run", () => {
 });
 
 describe("LoadRunPanel", () => {
-  function setup() {
+  function setup(def: SceneDefinition = yard, prefabs?: PrefabSource) {
     const session = createEditorSession({
-      doc: sceneToDoc(yard, { key: sequentialKeys("t") }),
+      doc: sceneToDoc(def, { key: sequentialKeys("t") }),
       origin: ada,
       name: "engine-yard",
       registry,
       issuesDebounceMs: 0,
+      ...(prefabs ? { prefabs } : {}),
     });
     const store = createLoadedRunStore();
     const onPlayFrom = vi.fn();
@@ -139,6 +194,31 @@ describe("LoadRunPanel", () => {
 
     fireEvent.click(panel.getByRole("button", { name: "Clear" }));
     expect(store.state).toBeNull();
+  });
+
+  it("reads a run recorded on the open scene and its prefabs as fresh", () => {
+    const { source, set } = swappableSource(prefabLibrary([post]));
+    const { session, store } = setup(yardWithPost, source);
+    // The recorder's hash covers the prefabs the scene places; the scene's own doesn't.
+    expect(withPost.recording.sceneHash).not.toBe(session.getHash());
+    act(() => store.setState(() => ({ recording: withPost.recording, name: "Last run" })));
+    const panel = within(screen.getByRole("region", { name: "Run" }));
+    expect(panel.getByText("Last run")).toBeTruthy();
+    expect(panel.queryByRole("status")).toBeNull();
+
+    const moved: Prefab = {
+      ...post,
+      entities: post.entities!.map((e) => (e.id === "cap" ? { ...e, at: [0, -140] } : e)),
+    };
+    act(() => set(prefabLibrary([moved])));
+    expect(panel.getByRole("status").textContent).toContain("scene changed since this run");
+    act(() => set(prefabLibrary([post])));
+    expect(panel.queryByRole("status")).toBeNull();
+
+    act(() => {
+      session.dispatch({ ops: [{ op: "move", refs: ["crate"], by: [16, 0] }] });
+    });
+    expect(panel.getByRole("status").textContent).toContain("scene changed since this run");
   });
 
   it("loads a report file, and toasts a bad one", async () => {

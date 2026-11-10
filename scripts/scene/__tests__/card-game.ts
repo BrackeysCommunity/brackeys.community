@@ -98,7 +98,7 @@ export const cardGame = defineGame({
       onLoad() {
         const [handle] = ctx.tags.handlesOf("avatar");
         avatar =
-          handle === undefined ? null : (ctx.physics.world.getCollider(handle)?.parent() ?? null);
+          handle === undefined ? null : (ctx.physics!.world.getCollider(handle)?.parent() ?? null);
         avatar?.lockRotations(true, true);
       },
       beforeStep(_dt, actions) {

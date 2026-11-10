@@ -5,7 +5,14 @@ import { z } from "zod";
 
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { angleField, gridField, mirrorField, pointField, vectorField } from "../../game/fields";
+import {
+  angleField,
+  gridField,
+  mirrorField,
+  pointField,
+  sideField,
+  vectorField,
+} from "../../game/fields";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../agent-surface";
 import {
   fragmentJsonSchema,
@@ -103,6 +110,7 @@ describe("field kind meta", () => {
             wind: vectorField("Which way it blows.").optional(),
             heading: angleField("Which way it points.", "deg").optional(),
             mirrored: mirrorField("x", "Whether it faces left.").optional(),
+            facing: sideField("Which side faces out.").optional(),
             cells: gridField("Its painted cells.").optional(),
           },
         }),
@@ -138,6 +146,25 @@ describe("field kind meta", () => {
       expect(keys.has("axis")).toBe(false);
       expect(keys.has("unit")).toBe(true);
     }
+  });
+});
+
+describe("one-way sides", () => {
+  it("writes solid.oneWay as true or one of the four sides", () => {
+    const solid = (
+      sceneJsonSchema(engine) as {
+        $defs: { Entity: { oneOf: { properties: Record<string, Record<string, unknown>> }[] } };
+      }
+    ).$defs.Entity.oneOf.find((e) => e.properties.type?.const === "solid")!;
+    expect(solid.properties.oneWay).toMatchObject({
+      title: "One-way",
+      anyOf: [
+        { type: "boolean", const: true },
+        { type: "string", enum: ["up", "right", "down", "left"] },
+      ],
+    });
+    expect(solid.properties.oneWay!.description).toMatch(/`true` is "up"/);
+    expect(solid.properties.oneWay).not.toHaveProperty("kind");
   });
 });
 
@@ -243,7 +270,12 @@ describe("behaviors", () => {
   const slot = (type: string) => entity(type).properties!.behaviors!;
 
   it("lists a type's allowed behaviors, closed to any other name", () => {
-    expect(Object.keys(slot("token").properties!)).toEqual(["sprite", tint.name, tag.name]);
+    expect(Object.keys(slot("token").properties!)).toEqual([
+      "sprite",
+      "occupant",
+      tint.name,
+      tag.name,
+    ]);
     expect(slot("token").additionalProperties).toBe(false);
     expect(slot("token")).toMatchObject({ type: "object", title: "Behaviors" });
     expect(slot("bare").properties).toEqual({});

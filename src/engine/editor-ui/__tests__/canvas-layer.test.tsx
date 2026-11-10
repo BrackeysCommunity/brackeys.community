@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type * as Y from "yjs";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
-import { defineEditorTool, type Pt, type SceneDefinition } from "../../editor/index";
+import { defineEditorTool, type Pt, type SceneDefinition, type ToolHost } from "../../editor/index";
 import { defineGame } from "../../game/index";
 import { createGame, type GameConfig, type GameInstance, type RapierModule } from "../../index";
 import { EditorFrame, editorChrome } from "../frame/EditorFrame";
@@ -25,6 +25,20 @@ vi.mock("pixi.js", async (importOriginal) => {
     ...pixi,
     Application,
     Assets: { load: async () => pixi.Texture.WHITE, unload: async () => {} },
+  };
+});
+
+/** Every tool host the editor starts, so a test can count what reads it. */
+const hosts = vi.hoisted(() => [] as ToolHost[]);
+vi.mock("../../editor/index", async (importOriginal) => {
+  const editor = await importOriginal<typeof import("../../editor/index")>();
+  return {
+    ...editor,
+    createToolHost: (...args: Parameters<typeof editor.createToolHost>) => {
+      const host = editor.createToolHost(...args);
+      hosts.push(host);
+      return host;
+    },
   };
 });
 
@@ -97,6 +111,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  hosts.length = 0;
   cleanup();
   live?.destroy();
   game?.destroy();
@@ -264,6 +279,18 @@ describe("the canvas layer", () => {
     expect(layer().querySelector("[data-marquee]")).toBeTruthy();
     pointer("up", [1600, 300]);
     expect(layer().querySelector("[data-marquee]")).toBeNull();
+  });
+
+  it("redraws once per selection change, from the host's announcement", async () => {
+    const { session } = await setup();
+    const host = hosts.at(-1)!;
+    const reads = vi.spyOn(host, "overlay");
+    act(() => session.select(["zone"]));
+    expect(reads).toHaveBeenCalledTimes(1);
+    expect(layer().querySelectorAll("[data-handle]").length).toBeGreaterThan(0);
+    act(() => session.select([]));
+    expect(reads).toHaveBeenCalledTimes(2);
+    expect(layer().querySelectorAll("[data-handle]")).toHaveLength(0);
   });
 
   it("offers Convert to chain after a vertex drag leaves a poly concave", async () => {

@@ -24,7 +24,8 @@ export type Attachment = {
  * Colliders that ride another entity's body (`attach` on solids and
  * sensors): a host offers its body when it spawns and withdraws it before
  * the body goes; requests made before the host spawned, or across its
- * respawns, attach when it (re)appears. One per runtime.
+ * respawns, attach when it (re)appears. One per runtime. `attach` throws
+ * `PhysicsRequiredError` while the runtime has no physics world.
  */
 export type AttachmentHub = {
   host(hostId: string, type: string, body: RigidBody, origin: Vec2): void;
@@ -54,7 +55,14 @@ type Request = {
   collider: Collider | null;
 };
 
-export function createAttachmentHub(physics: PhysicsWorld, tags: ColliderTags): AttachmentHub {
+/**
+ * `physics` reads the runtime's world for the entity attaching or detaching,
+ * and throws `PhysicsRequiredError` without one.
+ */
+export function createAttachmentHub(
+  physics: (entityId: string) => PhysicsWorld,
+  tags: ColliderTags,
+): AttachmentHub {
   const hosts = new Map<string, AttachmentHost>();
   const requests = new Map<string, Request[]>();
 
@@ -81,6 +89,7 @@ export function createAttachmentHub(physics: PhysicsWorld, tags: ColliderTags): 
       for (const r of requests.get(hostId) ?? []) if (r.collider) r.moved?.(host, snap);
     },
     attach(entityId, hostId, make, moved) {
+      physics(entityId);
       const r: Request = { entityId, hostId, make, collider: null };
       if (moved) r.moved = moved;
       const list = requests.get(hostId) ?? [];
@@ -93,7 +102,7 @@ export function createAttachmentHub(physics: PhysicsWorld, tags: ColliderTags): 
         detach() {
           if (r.collider) {
             tags.delete(r.collider.handle);
-            physics.removeCollider(r.collider);
+            physics(entityId).removeCollider(r.collider);
             r.collider = null;
           }
           const left = (requests.get(hostId) ?? []).filter((x) => x !== r);

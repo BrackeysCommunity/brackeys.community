@@ -8,7 +8,11 @@ import type { AssetKindDef } from "../project/kinds";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName } from "../project/types";
 import type { ResolutionPolicy } from "../resolution";
+import type { GeometryWorld } from "../runtime/geometry-world";
+import type { RuntimeGrid } from "../runtime/grid";
+import type { RuntimeNav } from "../runtime/nav";
 import type { PoseIndex } from "../runtime/poses";
+import type { SpaceQuery } from "../runtime/space";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type { SceneLayerDef } from "../scene/layers";
 import type {
@@ -19,9 +23,11 @@ import type {
   EntityTypeName,
   EntityInput,
   ExpandedScene,
+  GridSettings,
   InstanceInput,
   IssueCodeInfo,
   PrefabLibrary,
+  Pt,
   ResolvedSettings,
   RuntimeEntity,
   SceneDefinition,
@@ -39,6 +45,9 @@ import type {
   BehaviorSystem,
   RegisteredBehavior,
 } from "./behaviors";
+import type { ResolvedTime, TimeModel } from "./time";
+
+export type { ResolvedTime, RuntimeGrid, RuntimeNav };
 
 // ─── Primitives ──────────────────────────────────────────
 
@@ -53,6 +62,7 @@ export const PRIMITIVE_TYPES = [
   "prop",
   "follower",
   "decor",
+  "nav",
   "note",
 ] as const;
 export type PrimitiveType = (typeof PRIMITIVE_TYPES)[number];
@@ -77,13 +87,18 @@ export type ColliderTag = {
   tags?: readonly string[];
   /** One-way: actors pass up through it and land on top. */
   oneWay?: boolean;
+  /** The side actors land on, set with `oneWay: true`. */
+  oneWaySide?: Side;
   /** The entity's own launch velocity on any contact; a material's is in `registry.materials`. */
   impulse?: Vec2;
   /** The entity whose body carries the collider when it isn't `entityId`'s own (an attached solid rides a follower). */
   carrier?: { entityId: string; type: string };
 };
 
-/** Per-world lookup from Rapier collider handle to the entity that owns it. */
+/** A side of an entity; it turns and flips with instance transforms. */
+export type Side = "up" | "down" | "left" | "right";
+
+/** Per-world lookup from collider handle (Rapier's or the geometry world's) to the entity that owns it. */
 export type ColliderTags = {
   set: (handle: number, tag: ColliderTag) => void;
   get: (handle: number) => ColliderTag | undefined;
@@ -147,8 +162,19 @@ export interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
 
 /** Everything a scene system or a game's runtime hooks need, scoped to one runtime. */
 export type EngineContext = {
-  rapier: RapierModule;
-  physics: PhysicsWorld;
+  /** Null while the loaded scene runs without physics; `physicsOf` reads both or throws. */
+  rapier: RapierModule | null;
+  physics: PhysicsWorld | null;
+  /** The engine's own colliders while the loaded scene has no physics; null under Rapier. */
+  geometry: GeometryWorld | null;
+  /** Point, shape, ray and sweep queries over whichever backend is loaded. */
+  space: SpaceQuery;
+  /** The run's clock; the same for every load of one runtime. */
+  readonly time: ResolvedTime;
+  /** Present when the loaded scene's resolved settings have a grid. */
+  readonly grid: RuntimeGrid | null;
+  /** Present when the loaded scene has walk areas. */
+  readonly nav: RuntimeNav | null;
   view: SceneView | null;
   tags: ColliderTags;
   registry: Registry;
@@ -163,12 +189,15 @@ export type EngineContext = {
   emit: (event: Omit<StepEvent, "tick">) => void;
   /** The system that spawns `type`, for a game's hooks to drive. */
   system: <S extends SceneSystem = SceneSystem>(type: EntityTypeName) => S | undefined;
-  /** Colliders riding another entity's body: what `attach` on solids and sensors goes through. */
+  /**
+   * Colliders riding another entity's body: what `attach` on solids and
+   * sensors goes through. Throws `PhysicsRequiredError` when physics is null.
+   */
   attachments: AttachmentHub;
   /**
    * What this load is playing: `null` for an edit world. With `at`, the game
    * spawns its actor there instead of at its own spawn; the runtime has already
-   * cast it onto the first surface below.
+   * cast it along its `spawnShape`'s `cast` onto the first surface it meets.
    */
   readonly play: PlayStart | null;
   /**
@@ -188,7 +217,7 @@ export type EngineContext = {
 
 /** The resolved start of a play world, as the game's `onLoad` reads it from `EngineContext.play`. */
 export type PlayStart = {
-  /** Where the centre of the game's `play.spawnShape` starts. */
+  /** Where the centre of the game's `play.spawnShape` starts, already cast along its `cast` (not at all with zero gravity, `"none"` or a zero vector). */
   at?: Vec2;
   timeOffsetMs: number;
   /** The game's own options (`GamePlayDef.options`), already parsed. */
@@ -242,6 +271,8 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   /** One character for the scene's ASCII map; omitted, the base primitive's, else the type's first letter. */
   ascii?: string;
   inspector?: { label?: string; group?: string; order?: readonly string[] };
+  /** Whether the type can load in a scene with physics "none"; default its base primitive's, else "optional". */
+  physics?: "required" | "optional";
   /** Which behaviors this type always has, defaults, and refuses. */
   behaviors?: {
     /** Always present; a missing block loads as these defaults ({} for the behavior's own). */
@@ -341,9 +372,11 @@ export type PhysicalEnv = {
   def: SceneDefinition;
   scene: ExpandedScene;
   registry: Registry;
-  rapier: RapierModule;
-  physics: PhysicsWorld;
+  /** Null in a scene without physics; `space` answers on either backend. */
+  rapier: RapierModule | null;
+  physics: PhysicsWorld | null;
   tags: ColliderTags;
+  space: SpaceQuery;
   /** Colliders overlapping `shape` (world coordinates); sensors only with `sensors: true`. */
   overlaps(
     shape: ShapeObj,
@@ -361,11 +394,13 @@ export type PhysicalEnv = {
 export type PhysicalCheck = {
   id: string;
   description: string;
+  /** Skipped, with an info issue, in a scene without physics. */
+  needsPhysics?: boolean;
   run(env: PhysicalEnv): SceneIssue[];
 };
 
 /** Check kinds the engine runs itself; a game's are `<game-id>/<kind>`. */
-export const ENGINE_CHECK_KINDS = ["valid", "reaches", "touches"] as const;
+export const ENGINE_CHECK_KINDS = ["valid", "reaches", "touches", "connected"] as const;
 export type EngineCheckKind = (typeof ENGINE_CHECK_KINDS)[number];
 
 /** What a `.checks.json` check runs against. */
@@ -374,7 +409,8 @@ export type CheckEnv = {
   /** The prefabs the scene's instances name. */
   prefabs?: PrefabLibrary;
   registry: Registry;
-  rapier: RapierModule;
+  /** Null when the host loaded no Rapier (a scene without physics needs none). */
+  rapier?: RapierModule | null;
   /** Reads a file a check names (an input script), relative to the checks file. */
   readFile(path: string): string;
 };
@@ -408,8 +444,8 @@ export type GameRuntime<S = unknown> = {
   onLoad?(scene: ExpandedScene): void;
   /** Before `onLoad` of the next scene, and on destroy. Remove what `onLoad` made. */
   onUnload?(): void;
-  /** After the systems' `beforeStep`, before the physics step. */
-  beforeStep?(dtMs: number, actions: InputAction[]): void;
+  /** After the systems' `beforeStep`, before the physics step; `commands` are the ones queued for this tick. */
+  beforeStep?(dtMs: number, actions: InputAction[], commands: readonly GameCommand[]): void;
   /** After the systems' `afterStep`; `events` holds this tick's events so far. */
   afterStep?(dtMs: number, events: readonly StepEvent[]): void;
   /** What `StepResult.game` and `ProbeReport.final` carry; plain JSON. */
@@ -420,7 +456,25 @@ export type GameRuntime<S = unknown> = {
   storeSlice?(): unknown;
   /** What the game's debug layers read each tick. */
   debugInfo?(): unknown;
+  /** turns/event: keep stepping at `rate` after the tick an input woke. Ignored for fixed. */
+  busy?(): boolean;
   destroy?(): void;
+};
+
+// ─── Commands ────────────────────────────────────────────
+
+/** A discrete message to the game, delivered on the next simulated tick. */
+export type GameCommand = {
+  /** A name in GameDefinition.commands, or an engine command ("@elapsed"). */
+  name: string;
+  /** Plain JSON, checked by the command's `args` schema. */
+  args?: unknown;
+};
+
+export type CommandDef = {
+  description: string;
+  /** Validates `args`; omitted, the command takes none. */
+  args?: z.ZodType;
 };
 
 // ─── Play and playtests ──────────────────────────────────
@@ -458,11 +512,15 @@ export type ScriptPredicate<S = unknown> = {
   test(arg: unknown, state: PlayState<S>): boolean;
 };
 
-/** The actor's shape centred on its position; "play from here" casts it down onto the first surface. */
-export type SpawnShape =
+/** The actor's shape centred on its position; "play from here" casts it along `cast` onto the first surface it meets, within the scene bounds. */
+export type SpawnShape = (
   | { type: "box"; hw: number; hh: number }
   | { type: "circle"; r: number }
-  | { type: "capsule"; halfLen: number; r: number };
+  | { type: "capsule"; halfLen: number; r: number }
+) & {
+  /** How "play from here" settles the start: along gravity (default), not at all, or along a direction. */
+  cast?: "gravity" | "none" | Pt;
+};
 
 /** The slice of the seeded generator (`@jams/engine/sim-kit`'s `Rng`) a macro generator draws from. */
 export type MacroRandom = {
@@ -478,7 +536,7 @@ export type Macro = { hold: readonly string[]; ticks: number };
 
 /** How a game plays: what Play, `runPlaytest` and `fuzz` ask it. Every hook is optional. */
 export type GamePlayDef<S = unknown, G = unknown> = {
-  /** Cast down from the cursor for "play from here"; without it `at` is used as given. */
+  /** Cast from the cursor along its `cast` for "play from here"; without it `at` is used as given. */
   spawnShape?: SpawnShape;
   /** The position trails, stuck detection and fuzz follow; `null` while there is none. */
   focus?(snapshot: S): Vec2 | null;
@@ -521,6 +579,8 @@ export type GameShell = {
   router: ToolRouter;
   dev: boolean;
   getMode: () => GameMode;
+  /** Queues a command for the next simulated tick; false (and a dev warning) when not playing, unknown, or its args don't parse. */
+  send: (command: GameCommand) => boolean;
 };
 
 export type GameAttachment = {
@@ -545,7 +605,7 @@ export type GameDefinition<S = unknown, G = unknown> = {
   /**
    * Spawn groups in order; types inside one group spawn together in file
    * order (bulk first). Lists every loadable type once, except that `decor`
-   * may be left out and then spawns last. Omitted means each
+   * and `nav` may be left out and then spawn last. Omitted means each
    * primitive, then each game type, in registration order.
    */
   spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
@@ -574,6 +634,12 @@ export type GameDefinition<S = unknown, G = unknown> = {
   /** Hashes the game's tuning into `ProbeReport.configHash`. */
   configHash?: string;
   createRuntime(ctx: EngineContext): GameRuntime<S>;
+  /** How the game's clock runs; omitted: fixed at 60. */
+  time?: TimeModel;
+  /** The game's world defaults, under the project's and each scene's settings. */
+  world?: GameWorldDef;
+  /** Commands the game accepts beside the engine's; names match `COMMAND_NAME_PATTERN`. */
+  commands?: Readonly<Record<string, CommandDef>>;
   /** Play, playtest and fuzz hooks: outcome, focus, predicates, macros, spawn shape. */
   play?: GamePlayDef<S, G>;
   /** Keys the game adds to the editor's keymap; engine bindings win. */
@@ -598,6 +664,17 @@ export type GameDefinition<S = unknown, G = unknown> = {
   layers?: readonly SceneLayerDef[];
   /** The game's resolution policy, under the project's and the host's. */
   resolution?: Partial<ResolutionPolicy>;
+};
+
+/** A game's world defaults (`GameDefinition.world`). */
+export type GameWorldDef = {
+  physics?: "rapier" | "none";
+  gravity?: Pt;
+  grid?: GridSettings;
+  /** Cells covered by these types' shapes become grid walls at load; default ["solid"], [] for none. */
+  gridWalls?: readonly EntityTypeName[];
+  /** px per metre for Rapier's tolerances; default 100. Reserved: nothing reads it yet. */
+  lengthUnit?: number;
 };
 
 /** What a type allows, requires and defaults among the registry's behaviors. */
@@ -641,6 +718,11 @@ export type Registry = {
   runResults: readonly string[];
   /** `ENGINE_PREDICATES`, then the game's `play.predicates` keys. */
   predicateNames: readonly string[];
+  /** `ENGINE_COMMANDS`, then the game's `commands`. */
+  commands: ReadonlyMap<string, CommandDef>;
+  commandNames: readonly string[];
+  /** The game's time model before project overrides, else the engine default. */
+  time: TimeModel;
   /** `ENGINE_CHECK_KINDS`, then the game's `checks` keys. */
   checkKinds: readonly string[];
   /** The game's physical checks; the engine's own run first and aren't listed. */

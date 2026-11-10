@@ -5,7 +5,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { DebugOverlayFactory, DebugSceneSource } from "../debug";
 import { createGame } from "../engine";
 import { createRegistry } from "../game/define";
-import type { GameDefinition, GameShell } from "../game/types";
+import type { TimeModel } from "../game/time";
+import type { GameCommand, GameDefinition, GameShell } from "../game/types";
 import { createKindRegistry } from "../project/kinds";
 import type { AssetEntry, Sha256 } from "../project/types";
 import { projectView } from "../project/view";
@@ -92,7 +93,7 @@ function recordingOverlay() {
         source = next;
         bound.push(next);
       },
-      update: () => void colliders.push(source?.physics.world.colliders.len() ?? null),
+      update: () => void colliders.push(source?.physics?.world.colliders.len() ?? null),
       destroy() {},
     };
   };
@@ -152,10 +153,118 @@ function play(runtime: SceneRuntimeHandle, ticks: number): unknown[] {
 const withoutMs = (report: LoadReport) => (report.ok ? { ...report, ms: 0 } : report);
 
 describe("createGame config", () => {
-  it("requires the host to inject Rapier", () => {
-    // @ts-expect-error -- the engine has no default loader, so `rapier` is required.
+  it("lets the host leave Rapier out", () => {
     const config: Parameters<typeof createGame>[1] = { game: testGame };
     expect(config).not.toHaveProperty("rapier");
+  });
+});
+
+describe("lazy Rapier", () => {
+  const freeGame: GameDefinition = { ...testGame, world: { physics: "none" } };
+  const markers: SceneDefinition = {
+    v: 1,
+    name: "markers",
+    bounds: [0, 0, 500, 500],
+    entities: [
+      { id: "a", type: "marker", at: [100, 100] },
+      { id: "b", type: "marker", at: [300, 200], tags: ["spawn"] },
+    ],
+  };
+  const withRapier: SceneDefinition = { ...sceneB, settings: { physics: "rapier" } };
+
+  const world = (game: GameInstance) => game.runtime() as SceneRuntimeHandle | null;
+
+  async function spied(game: GameDefinition, extra: { scene?: SceneDefinition } = {}) {
+    const load = vi.fn(async () => rapier);
+    const instance = await createGame(canvas, { game, rapier: load, dev: true, ...extra });
+    games.push(instance);
+    return { instance, load };
+  }
+
+  it("loads it once at start for a game whose default physics is Rapier", async () => {
+    const { instance, load } = await spied(testGame);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(instance.loadScene(sceneB).ok).toBe(true);
+    await instance.preload(sceneA);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("never calls GameConfig.rapier in the shell of a physics-free game", async () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const { instance, load } = await spied(freeGame, { scene: markers });
+    instance.start();
+    expect(world(instance)?.ctx.physics).toBeNull();
+    await instance.preload(markers);
+    expect(instance.loadScene(markers).ok).toBe(true);
+    expect(instance.play(markers).ok).toBe(true);
+    instance.step(10);
+    expect(instance.getStore().state.tick).toBe(10);
+    instance.stop();
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it("loads it at start for a physics-free game whose start-up scene runs on Rapier", async () => {
+    const { instance, load } = await spied(freeGame, { scene: withRapier });
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(world(instance)?.ctx.physics).not.toBeNull();
+  });
+
+  it("preload brings it in, once, for a Rapier scene", async () => {
+    const { instance, load } = await spied(freeGame);
+    await instance.preload(sceneB);
+    expect(load).not.toHaveBeenCalled();
+    await Promise.all([instance.preload(withRapier), instance.preload(withRapier)]);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(instance.loadScene(withRapier).ok).toBe(true);
+    expect(world(instance)?.ctx.physics).not.toBeNull();
+  });
+
+  it("reports physics-not-loaded for loadScene, play and replay of a Rapier scene before it", async () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { instance, load } = await spied(freeGame, { scene: markers });
+    instance.start();
+    expect(instance.loadScene(withRapier)).toMatchObject({
+      ok: false,
+      reason: "physics-not-loaded",
+    });
+    expect(instance.play(withRapier)).toMatchObject({ ok: false, reason: "physics-not-loaded" });
+
+    expect(instance.play(markers).ok).toBe(true);
+    instance.step(3);
+    instance.stop();
+    const recording = instance.recording()!;
+    expect(instance.replay(withRapier, recording)).toMatchObject({
+      ok: false,
+      reason: "physics-not-loaded",
+    });
+    expect(world(instance)?.scene()?.name).toBe("markers");
+    expect(load).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("lets a failed preload retry, and loads report physics-not-loaded until one succeeds", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let fail = true;
+    const load = vi.fn(async () => {
+      if (fail) throw new Error("offline");
+      return rapier;
+    });
+    const instance = await createGame(canvas, { game: freeGame, rapier: load, dev: true });
+    games.push(instance);
+    await expect(instance.preload(withRapier)).resolves.toEqual({ failed: [] });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/Rapier failed to load/),
+      expect.anything(),
+    );
+    expect(instance.loadScene(withRapier)).toMatchObject({ reason: "physics-not-loaded" });
+    fail = false;
+    await instance.preload(withRapier);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(instance.loadScene(withRapier).ok).toBe(true);
+    warn.mockRestore();
   });
 });
 
@@ -470,5 +579,232 @@ describe("render frames", () => {
     frames.advance(TICK_MS * 1.5);
     expect(frameAlphas.length).toBeGreaterThan(before);
     expect(frameAlphas.slice(before).every((a) => a === 1)).toBe(true);
+  });
+});
+
+describe("the clock", () => {
+  type Step = { dtMs: number; actions: string[]; commands: GameCommand[] };
+
+  /** The test game on `time`, logging each step; `busy` is read through `state`. */
+  function timedGame(time: TimeModel) {
+    const steps: Step[] = [];
+    const state = { busy: false };
+    const game: GameDefinition = {
+      ...testGame,
+      time,
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            steps.push({
+              dtMs,
+              actions: actions.map((a) => `${a.action}:${a.pressed ? 1 : 0}`),
+              commands: [...commands],
+            });
+            base.beforeStep?.(dtMs, actions, commands);
+          },
+          busy: () => state.busy,
+        };
+      },
+    };
+    return { game, steps, state };
+  }
+
+  const press = (game: GameInstance, key: string, type: "down" | "up" = "down") =>
+    game.router.dispatch({
+      kind: "key",
+      type,
+      key,
+      native: new KeyboardEvent(type === "down" ? "keydown" : "keyup", { key, bubbles: true }),
+    });
+
+  async function playing(time: TimeModel) {
+    const frames = manualFrames();
+    const timed = timedGame(time);
+    const game = await makeGame({ game: timed.game });
+    expect(game.play(sceneB).ok).toBe(true);
+    game.start();
+    frames.advance(0);
+    return { ...timed, game, frames };
+  }
+
+  /** `ms` of wall time in 120 Hz frames. */
+  function wall(frames: ReturnType<typeof manualFrames>, ms: number) {
+    for (let t = 0; t < ms; t += 1000 / 120) frames.advance(1000 / 120);
+  }
+
+  it("gives a 30 Hz game 33.33… ms ticks, 30 a wall second", async () => {
+    const { steps, frames, game } = await playing({ kind: "fixed", rate: 30 });
+    expect(game.getStore().state.mode).toBe("play");
+    wall(frames, 1000);
+    expect(steps).toHaveLength(30);
+    expect(steps.every((s) => s.dtMs === 1000 / 30)).toBe(true);
+    expect(steps[0]!.dtMs).toBeCloseTo(33.333, 3);
+  });
+
+  it("ignores targetFPS", async () => {
+    const frames = manualFrames();
+    const { game, steps } = timedGame({ kind: "fixed", rate: 30 });
+    const instance = await makeGame({ game, targetFPS: 144 });
+    instance.play(sceneB);
+    instance.start();
+    frames.advance(0);
+    wall(frames, 1000);
+    expect(steps).toHaveLength(30);
+  });
+
+  it("idles a turns game: no ticks for wall time or key edges, frames at alpha 1", async () => {
+    const { steps, frames, game } = await playing({ kind: "turns", rate: 30 });
+    const before = frameAlphas.length;
+    wall(frames, 1000);
+    press(game, "d");
+    wall(frames, 500);
+    expect(steps).toHaveLength(0);
+    expect(game.getStore().state.tick).toBe(0);
+    expect(frameAlphas.length).toBeGreaterThan(before);
+    expect(frameAlphas.slice(before).every((a) => a === 1)).toBe(true);
+  });
+
+  it("step(n) simulates a turns game with nothing waking it, delivering the held keys", async () => {
+    const { steps, game } = await playing({ kind: "turns", rate: 30 });
+    press(game, "d");
+    game.step(2);
+    expect(steps.map((s) => s.actions)).toEqual([["right:1"], []]);
+  });
+
+  it("wakes an event game for one tick on a key edge, with edges in arrival order", async () => {
+    const { steps, frames, game } = await playing({ kind: "event", rate: 30 });
+    wall(frames, 500);
+    expect(steps).toHaveLength(0);
+    press(game, "d");
+    press(game, "a");
+    frames.advance(1000 / 120);
+    expect(steps.map((s) => s.actions)).toEqual([["right:1", "left:1"]]);
+    wall(frames, 500);
+    expect(steps).toHaveLength(1);
+    press(game, "d", "up");
+    frames.advance(1000 / 120);
+    expect(steps.map((s) => s.actions)).toEqual([["right:1", "left:1"], ["right:0"]]);
+  });
+
+  it("wakes an event game on a pointer move only with wakeOnPointerMove", async () => {
+    const move = (game: GameInstance, x: number) =>
+      game.router.dispatch({
+        kind: "pointer",
+        type: "move",
+        screen: { x, y: 10 },
+        button: 0,
+        deltaY: 0,
+        native: new MouseEvent("pointermove"),
+      });
+    const still = await playing({ kind: "event" });
+    move(still.game, 40);
+    wall(still.frames, 100);
+    expect(still.steps).toHaveLength(0);
+
+    const hover = await playing({ kind: "event", wakeOnPointerMove: true });
+    move(hover.game, 40);
+    wall(hover.frames, 100);
+    expect(hover.steps).toHaveLength(1);
+    move(hover.game, 40);
+    wall(hover.frames, 100);
+    expect(hover.steps).toHaveLength(1);
+  });
+
+  it("keeps a woken game stepping at its rate while busy, then idles", async () => {
+    const { steps, frames, game, state } = await playing({ kind: "event", rate: 30 });
+    press(game, "d");
+    state.busy = true;
+    frames.advance(1000 / 120);
+    expect(steps).toHaveLength(1);
+    wall(frames, 1000);
+    expect(steps).toHaveLength(31);
+    state.busy = false;
+    wall(frames, 1000);
+    expect(steps).toHaveLength(31);
+  });
+
+  describe("catch-up", () => {
+    let hidden = false;
+    let now = 0;
+
+    beforeEach(() => {
+      hidden = false;
+      now = 0;
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
+      vi.spyOn(performance, "now").mockImplementation(() => now);
+    });
+
+    afterEach(() => {
+      delete (document as { hidden?: boolean }).hidden;
+      vi.restoreAllMocks();
+    });
+
+    function hideFor(ms: number) {
+      hidden = true;
+      document.dispatchEvent(new Event("visibilitychange"));
+      now += ms;
+      hidden = false;
+      document.dispatchEvent(new Event("visibilitychange"));
+    }
+
+    const elapsed = (steps: Step[]) =>
+      steps.flatMap((s) => s.commands).filter((c) => c.name === "@elapsed");
+
+    it("queues one @elapsed clamped to maxMs for a hidden tab, which wakes a turns game", async () => {
+      const { steps, frames } = await playing({ kind: "turns", catchUp: { maxMs: 2000 } });
+      hideFor(10_000);
+      wall(frames, 100);
+      expect(elapsed(steps)).toEqual([{ name: "@elapsed", args: { ms: 2000 } }]);
+      expect(steps).toHaveLength(1);
+    });
+
+    it("passes the time away whole when it is under maxMs, and skips a short absence", async () => {
+      const { steps, frames } = await playing({ kind: "fixed", catchUp: { maxMs: 60_000 } });
+      hideFor(500);
+      wall(frames, 100);
+      expect(elapsed(steps)).toEqual([]);
+      hideFor(4321.7);
+      wall(frames, 100);
+      expect(elapsed(steps)).toEqual([{ name: "@elapsed", args: { ms: 4321 } }]);
+    });
+
+    it("queues nothing without catchUp", async () => {
+      const { steps, frames, game } = await playing({ kind: "fixed" });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      hideFor(10_000);
+      game.elapse(10_000);
+      wall(frames, 100);
+      expect(steps.length).toBeGreaterThan(0);
+      expect(elapsed(steps)).toEqual([]);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("elapse queues the same command, and warns in dev without catchUp", async () => {
+      const { steps, frames, game } = await playing({ kind: "turns", catchUp: { maxMs: 1000 } });
+      game.elapse(250);
+      game.elapse(9000);
+      wall(frames, 100);
+      expect(elapsed(steps)).toEqual([
+        { name: "@elapsed", args: { ms: 250 } },
+        { name: "@elapsed", args: { ms: 1000 } },
+      ]);
+      expect(steps).toHaveLength(1);
+
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const plain = await makeGame({ game: timedGame({ kind: "fixed" }).game, dev: true });
+      plain.elapse(1000);
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/elapse\(1000\).*catchUp/));
+    });
+
+    it("drops what was queued at Stop", async () => {
+      const { steps, frames, game } = await playing({ kind: "turns", catchUp: { maxMs: 1000 } });
+      game.elapse(500);
+      game.stop();
+      expect(game.play(sceneB).ok).toBe(true);
+      wall(frames, 100);
+      expect(steps).toHaveLength(0);
+    });
   });
 });

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,6 +31,7 @@ const ENGINE = createRegistry();
 const ENGINE_YARD = fileURLToPath(
   new URL("../../../src/engine/scenes/engine-yard.json", import.meta.url),
 );
+const ENGINE_SCENES = fileURLToPath(new URL("../../../src/engine/scenes", import.meta.url));
 
 let root: string;
 let server: ListeningSceneCollab;
@@ -278,5 +279,55 @@ describe("apply --live", () => {
     const r = await runCli(["apply", "engine-yard", "--ops", "x.json", "--agent", "claude"], ctx);
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toMatch(/--agent needs --live/);
+  });
+});
+
+describe("apply --live judges sprites against the project", { timeout: 60_000 }, () => {
+  let sink: { dir: string; ctx: ToolContext; server: ListeningSceneCollab };
+
+  beforeEach(async () => {
+    const dir = join(root, "sink");
+    await cp(ENGINE_SCENES, dir, { recursive: true });
+    sink = {
+      dir,
+      ctx: {
+        projects: [await openProject(dir, { cacheDir: join(root, "sink-cli-cache") })],
+        loadRapier: loadCompatRapier,
+      },
+      server: await listenSceneCollab({
+        projects: [await readFileProject(dir, { cacheDir: join(root, "sink-cache") })],
+        debounceMs: 50,
+        warn: () => undefined,
+      }),
+    };
+  });
+
+  afterEach(async () => {
+    await sink.server.close();
+  });
+
+  const dryRun = async (batch: unknown) => {
+    const r = await applyLive(
+      { scene: "kitchen-sink", ops: await opsFile(batch), url: sink.server.url, dryRun: true },
+      sink.ctx,
+    );
+    return { ...r, codes: (r.data as { issues?: { code: string }[] }).issues?.map((i) => i.code) };
+  };
+
+  it("reports an unknown atlas frame (exit 1) and a sprite with no asset (exit 0), writing nothing", async () => {
+    const before = await readFile(join(sink.dir, "kitchen-sink.json"), "utf8");
+    const frame = await dryRun({
+      ops: [{ op: "update", ref: "crate", set: { "behaviors.sprite.frame": "crate-9" } }],
+    });
+    expect(frame.exitCode, frame.text).toBe(1);
+    expect(frame.data).toMatchObject({ written: false });
+    expect(frame.codes).toContain("asset-frame-unknown");
+
+    const bare = await dryRun({
+      ops: [{ op: "update", ref: "crate", unset: ["behaviors.sprite.asset"] }],
+    });
+    expect(bare.exitCode, bare.text).toBe(0);
+    expect(bare.codes).toEqual(["sprite-no-asset"]);
+    expect(await readFile(join(sink.dir, "kitchen-sink.json"), "utf8")).toBe(before);
   });
 });

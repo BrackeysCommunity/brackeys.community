@@ -5,6 +5,9 @@ import { sceneHash } from "../../scene/hash";
 import { applyOps } from "../../scene/ops";
 import type { OpBatch, SceneDefinition, SceneOp } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
+import sink from "../../scenes/kitchen-sink.json";
+import { dropBatch, dropPreview, type AssetDrop } from "../asset-drop";
+import { pickAt } from "../picking";
 import { createSpatialIndex, type EditableSpatialIndex } from "../spatial-index";
 
 const registry = createRegistry();
@@ -287,5 +290,48 @@ describe("sprite boxes", () => {
     expectSameAsRebuild(index, def);
     expect(index.get("sign")?.aabb).toEqual({ minX: 592, minY: 952, maxX: 608, maxY: 968 });
     expect(index.get("barrel")?.aabb.minX).toBe(884);
+  });
+});
+
+describe("the kitchen sink's sprites", () => {
+  const def = () => structuredClone(sink) as unknown as SceneDefinition;
+
+  it("carries the crate's sprite box on its entry, which picking hits past the body", () => {
+    const index = createSpatialIndex();
+    index.rebuild(def(), registry);
+    const crate = index.get("crate");
+    expect(crate?.sprite).toEqual({ type: "box", cx: 880, cy: 1140, hw: 36, hh: 36, rotDeg: 0 });
+    expect(crate?.aabb).toEqual({ minX: 844, minY: 1104, maxX: 916, maxY: 1176 });
+    // Outside the 40 px body, inside the 72 px sprite.
+    expect(pickAt(index, [910, 1140], { tolPx: 0, scale: 1 }).map((e) => e.ref)).toContain("crate");
+    expect(pickAt(index, [920, 1140], { tolPx: 0, scale: 1 }).map((e) => e.ref)).not.toContain(
+      "crate",
+    );
+  });
+
+  it("draws a dropped frame's ghost on the box the placed entity's entry carries", () => {
+    const drop: AssetDrop = {
+      entry: {
+        key: "k-crates",
+        id: "crates",
+        kind: "atlas",
+        path: "art/crates.json",
+        created: { at: 0, by: "t" },
+      },
+      info: { id: "crates", kind: "atlas", size: [24, 24] },
+      frame: "crate-0",
+    };
+    const asset = (id: string) => (id === "crates" ? drop.info : undefined);
+    const scene = def();
+    const preview = dropPreview(drop, [1200, 400], { def: scene, registry, asset });
+    const placed = dropBatch(drop, [1200, 400], { def: scene, registry });
+    if (!placed.ok) throw new Error("the drop was refused");
+    const after = applyOps(scene, placed.batch, registry, { validate: "none" });
+    if (!after.ok) throw new Error(after.issue.message);
+    const index = createSpatialIndex({ asset });
+    index.rebuild(after.def, registry);
+    const entry = index.get(placed.select[0]!);
+    expect(entry?.sprite).toBeDefined();
+    expect(preview.ghosts.map((g) => g.shape)).toEqual([entry!.sprite]);
   });
 });

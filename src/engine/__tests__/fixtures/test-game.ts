@@ -24,6 +24,9 @@ export const AVATAR_SPEED = 300;
 export const AVATAR_FLOATING = "test-game/avatar-floating";
 export const PUSH_IMPULSE = 400;
 
+/** The test game's command: moves the avatar `dx` px along x at once. */
+export const NUDGE = "nudge";
+
 /** The test game's data table: cards with a cost and an optional damage. */
 export const CARD_TABLE = "card";
 
@@ -111,13 +114,14 @@ export const TEST_LAYERS = [
 function avatarBody(ctx: EngineContext): RigidBody | null {
   const [handle] = ctx.tags.handlesOf("avatar");
   if (handle === undefined) return null;
-  return ctx.physics.world.getCollider(handle)?.parent() ?? null;
+  return ctx.physics!.world.getCollider(handle)?.parent() ?? null;
 }
 
 /**
  * A minimal game for engine tests: the prop `avatar` walks left and right and
  * pushes up, and wins on entering a sensor tagged `goal`. It implements every
- * play hook, has a data table, and walks at its project's `avatarSpeed`.
+ * play hook, has a data table and a `nudge` command, and walks at its
+ * project's `avatarSpeed`.
  */
 export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
   id: "test-game",
@@ -130,6 +134,14 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
     { action: "push", keys: ["space"], description: "Push the avatar up." },
   ],
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
+  commands: {
+    [NUDGE]: {
+      description: "Move the avatar along x at once.",
+      args: z.strictObject({
+        dx: z.number().int().min(-200).max(200).describe("How far, px; negative is left."),
+      }),
+    },
+  },
   tables: {
     [CARD_TABLE]: {
       description: "Cards a deck holds.",
@@ -204,7 +216,7 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
           }
         }
       },
-      beforeStep(_dtMs, actions) {
+      beforeStep(_dtMs, actions, commands) {
         const options = (ctx.play?.game ?? {}) as TestGameOptions;
         const pushed =
           options.push !== false && actions.some((a) => a.action === "push" && a.pressed);
@@ -213,6 +225,11 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
           else held.delete(a.action);
         }
         if (!avatar) return;
+        for (const c of commands) {
+          if (c.name !== NUDGE) continue;
+          const p = avatar.translation();
+          avatar.setTranslation({ x: p.x + (c.args as { dx: number }).dx, y: p.y }, true);
+        }
         const dir = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
         const v = avatar.linvel();
         avatar.setLinvel({ x: dir * speed, y: v.y }, true);

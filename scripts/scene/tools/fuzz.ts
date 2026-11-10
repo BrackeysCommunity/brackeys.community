@@ -2,7 +2,9 @@ import { fuzz as runFuzz, type FuzzReport } from "@jams/engine/headless";
 import { MAX_SCRIPT_TICKS } from "@jams/engine/scene";
 
 import { gameFlag, isToolResult, openScene, usage, type Tool } from "../context";
+import { projectRuntime } from "../projects";
 import { blockedText } from "./playtest";
+import { rapierFor } from "./step";
 
 export type FuzzInput = {
   scene?: string;
@@ -60,12 +62,14 @@ export const fuzz: Tool<FuzzInput> = async (input, ctx) => {
   const { registry } = loaded;
   const game = registry.game?.id ?? null;
 
+  const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
   const run = runFuzz({
-    rapier: await ctx.loadRapier(),
+    rapier: await rapierFor(ctx, loaded.def, registry, project?.engine),
     game: registry.game,
     registry,
     scene: loaded.def,
     prefabs: loaded.prefabs,
+    project,
     seed: seedOf(input.seed),
     rollouts,
     ticks,

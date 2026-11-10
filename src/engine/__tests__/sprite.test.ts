@@ -2,6 +2,7 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { SpriteVisual } from "../context";
+import { OCCUPANT } from "../game/behaviors/occupant";
 import { SPRITE, spriteAssets, spriteGeometry, spriteOffset } from "../game/behaviors/sprite";
 import { createRegistry, ENGINE_BEHAVIORS, type ProjectMaterialDef } from "../game/define";
 import { PRIMITIVES } from "../game/primitives";
@@ -138,7 +139,7 @@ const poseCalls = (calls: ViewCall[], id: string) =>
 
 describe("the sprite behavior", () => {
   it("is the engine's first behavior, visual-only, with a system", () => {
-    expect(ENGINE_BEHAVIORS).toEqual([SPRITE]);
+    expect(ENGINE_BEHAVIORS).toEqual([SPRITE, OCCUPANT]);
     expect(SPRITE.visualOnly).toBe(true);
     expect(ENGINE_BEHAVIOR_SYSTEMS.sprite).toBe(createSpriteSystem);
   });
@@ -237,6 +238,34 @@ describe("the sprite's visual", () => {
     expect(live.get(spriteViewId("back"))?.layer).toBe(5);
     expect(live.get(spriteViewId("front"))?.layer).toBe(10);
   });
+
+  it("draws where its entity's own visuals would, falling back to its type's default layer", () => {
+    const box = { type: "box", cx: 0, cy: 0, hw: 10, hh: 10, rotDeg: 0 } as const;
+    const wall = (id: string, layer?: string, sprite?: Record<string, unknown>): RuntimeEntity => ({
+      id,
+      type: "solid",
+      shape: box,
+      ...(layer ? { layer } : {}),
+      ...(sprite ? { behaviors: { sprite } } : {}),
+    });
+    const { live } = loaded([
+      marker("named", { asset: "crate" }, { layer: "decor" }),
+      marker("unknown", { asset: "crate" }, { layer: "nowhere" }),
+      marker("bare", { asset: "crate" }),
+      wall("decor-sprite", "decor", { asset: "crate" }),
+      wall("decor-shape", "decor"),
+      wall("unknown-sprite", "nowhere", { asset: "crate" }),
+      wall("bare-sprite", undefined, { asset: "crate" }),
+    ]);
+    const order = (id: string) => live.get(spriteViewId(id))?.layer;
+    // The same orders as before: a named layer's, else the type's default (gameplay, or terrain for walls).
+    expect([order("named"), order("unknown"), order("bare")]).toEqual([5, 10, 10]);
+    expect([order("decor-sprite"), order("unknown-sprite"), order("bare-sprite")]).toEqual([
+      5, 10, 10,
+    ]);
+    // On the layer the entity's own visuals draw on.
+    expect(order("decor-sprite")).toBe(live.get("decor-shape")?.layer);
+  });
 });
 
 describe("tint and blend", () => {
@@ -330,7 +359,7 @@ describe("transforms", () => {
       behaviors: { sprite: { asset: "crate", offset: [0, -10] } },
     };
     const { rt, live, calls } = loaded([prop]);
-    rt.ctx.physics.world.forEachRigidBody((b) => {
+    rt.ctx.physics!.world.forEachRigidBody((b) => {
       if (b.isDynamic()) b.setAngvel(3, true);
     });
     for (let i = 0; i < 10; i++) rt.step(DT, []);

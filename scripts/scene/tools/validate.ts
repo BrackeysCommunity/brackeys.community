@@ -18,7 +18,8 @@ import {
   usage,
   type Tool,
 } from "../context";
-import { scanProject } from "../projects";
+import { projectRuntime, scanProject } from "../projects";
+import { rapierFor } from "./step";
 
 export type ValidateInput = { target?: string; physical?: boolean };
 
@@ -49,14 +50,25 @@ export const validate: Tool<ValidateInput> = async (input, ctx) => {
       const project =
         source.project && scan ? projectView(scan.state, source.project.kinds) : undefined;
       const prefabs = await prefabsOf(prefabHomeOf(source, target), judged.registry, scan);
+      const engine =
+        source.project && scan
+          ? (await projectRuntime(source.project, judged.registry, scan)).engine
+          : undefined;
       issues = [
         ...parsed.issues,
-        ...validateScene(def, judged.registry, { lines, prefabs, project }),
+        ...validateScene(def, judged.registry, { lines, prefabs, project, engine }),
       ];
       if (input.physical) {
-        const rapier = await ctx.loadRapier();
+        const rapier = await rapierFor(ctx, def, judged.registry, engine);
         issues.push(
-          ...validatePhysical({ rapier, scene: def, registry: judged.registry, lines, prefabs }),
+          ...validatePhysical({
+            rapier,
+            scene: def,
+            registry: judged.registry,
+            lines,
+            prefabs,
+            engine,
+          }),
         );
       }
     } else issues = parsed.issues;

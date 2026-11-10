@@ -38,16 +38,16 @@ const yardGame = defineGame({
           const entry = owned.get(id);
           if (!entry) return;
           ctx.tags.delete(entry.collider.handle);
-          ctx.physics.removeRigidBody(entry.body);
+          ctx.physics!.removeRigidBody(entry.body);
           owned.delete(id);
         };
         return {
           spawn(e) {
             despawn(e.id);
-            const body = ctx.physics.addRigidBody(
-              ctx.rapier.RigidBodyDesc.fixed().setTranslation(e.at[0], e.at[1]),
+            const body = ctx.physics!.addRigidBody(
+              ctx.rapier!.RigidBodyDesc.fixed().setTranslation(e.at[0], e.at[1]),
             );
-            const collider = ctx.physics.addCollider(ctx.rapier.ColliderDesc.ball(4), body);
+            const collider = ctx.physics!.addCollider(ctx.rapier!.ColliderDesc.ball(4), body);
             ctx.tags.set(collider.handle, { entityId: e.id, type: type.type });
             owned.set(e.id, { body, collider });
           },
@@ -95,7 +95,7 @@ function tables(rt: Runtime) {
     tags
       .handlesOf(id)
       .map((h) => {
-        const c = physics.world.getCollider(h)!;
+        const c = physics!.world.getCollider(h)!;
         const body = c.parent();
         return round({
           tag: tags.get(h),
@@ -220,7 +220,7 @@ describe("SceneRuntime add, update and remove", () => {
   it("a sensor's shape change and a solid's shape change keep their bodies", () => {
     const rt = loaded();
     const bodyOf = (id: string) =>
-      rt.ctx.physics.world.getCollider(rt.ctx.tags.handlesOf(id)[0]!)!.parent()!.handle;
+      rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf(id)[0]!)!.parent()!.handle;
     const before = { ledge: bodyOf("ledge"), zone: bodyOf("zone") };
     rt.update([
       { id: "ledge", type: "solid", shape: { type: "circle", cx: 1400, cy: 800, r: 30 } },
@@ -269,7 +269,7 @@ describe("SceneRuntime add, update and remove", () => {
 
   it("unknown ids and unchanged entities are no-ops", () => {
     const rt = loaded();
-    const refresh = vi.spyOn(rt.ctx.physics, "refreshQueries");
+    const refresh = vi.spyOn(rt.ctx.physics!, "refreshQueries");
     const handles = rt.ctx.tags.handlesOf("ledge");
     const scene = rt.scene();
     const before = tables(rt);
@@ -370,9 +370,9 @@ describe("SceneRuntime add, update and remove", () => {
 
   it("refreshes queries once per call, so a query sees the change before any step", () => {
     const rt = loaded();
-    const refresh = vi.spyOn(rt.ctx.physics, "refreshQueries");
+    const refresh = vi.spyOn(rt.ctx.physics!, "refreshQueries");
     const hit = (x: number, y: number) =>
-      rt.ctx.physics.world.castRay(new rapier.Ray({ x, y: y - 5 }, { x: 0, y: 1 }), 10, true) !==
+      rt.ctx.physics!.world.castRay(new rapier.Ray({ x, y: y - 5 }, { x: 0, y: 1 }), 10, true) !==
       null;
     expect(hit(600, 700)).toBe(false);
     rt.add(structuredClone(NEW));

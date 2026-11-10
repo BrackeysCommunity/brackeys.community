@@ -145,7 +145,7 @@ export type GridSettings =
 
 /** The engine's settings; a game's settings schema adds its own keys beside them. */
 export type SceneSettings = {
-  /** World gravity, px/s²; y is down. Omitted means [0, 1200]. */
+  /** World gravity, px/s²; y is down. Omitted: the project's, else the game's default. */
   gravity?: Pt;
   /** "none" runs without Rapier; omitted resolves through the project and game defaults to "rapier". */
   physics?: "rapier" | "none";
@@ -251,9 +251,13 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "behavior-missing",
   "grid-invalid",
   "ref-child-unknown",
+  "physics-required",
+  "physics-skipped",
+  "nav-invalid",
   // physical
   "follower-hits-solid",
   "solid-overlap",
+  "grid-unreachable",
   // ops
   "stale-base",
   "ref-not-found",
@@ -264,6 +268,7 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "asset-kind",
   "asset-frame-unknown",
   "sprite-no-asset",
+  "tick-rate-invalid",
   "asset-in-use",
   "asset-id-taken",
   "path-taken",
@@ -505,4 +510,6 @@ export type ApplyOptions = {
   prefabs?: PrefabLibrary;
   /** The prefab the document is a view of (a prefab doc read as a scene), so an op that nests instances refuses a cycle through it. */
   prefab?: string;
+  /** The project the scene belongs to: its issues judge asset ids and sprite frames, as `validateScene` does. */
+  project?: import("../project/types").ProjectView;
 };

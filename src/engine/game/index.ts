@@ -31,6 +31,7 @@ export {
   type SpriteBlock,
   type SpriteGeometry,
 } from "./behaviors/sprite";
+export { OCCUPANT, type OccupantBlock } from "./behaviors/occupant";
 export {
   angleField,
   assetField,
@@ -43,19 +44,44 @@ export {
   gridField,
   gridFieldInfo,
   ID_PATTERN,
+  isPolygonField,
   materialField,
   mirrorField,
   PathSchema,
   pointField,
+  polygonField,
   PtSchema,
   refField,
   shapeField,
+  sideField,
+  SIDES,
   tagsField,
   vectorField,
   type GridFieldInfo,
 } from "./fields";
 export { DEFAULT_LAYERS, type SceneLayerDef } from "../scene/layers";
-export { DEFAULT_GRAVITY, primitiveFields } from "./primitives";
+export { primitiveFields } from "./primitives";
+export {
+  DEFAULT_GRAVITY,
+  DEFAULT_PHYSICS,
+  DEFAULT_SPAWN_CAST,
+  DEFAULT_TICK_RATE,
+  DEFAULT_TIME,
+  SIDE_VIEW_CONTROLLER,
+  TOP_DOWN_CONTROLLER,
+} from "./defaults";
+export {
+  MAX_TICK_RATE,
+  MIN_TICK_RATE,
+  resolveTime,
+  tickRateProblem,
+  ticksFor,
+  type ResolvedTime,
+  type TimeKind,
+  type TimeModel,
+} from "./time";
+export { PhysicsRequiredError, physicsOf } from "./physics-of";
+export { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
 export {
   ENGINE_CHECK_KINDS,
   ENGINE_COLLISION_GROUPS,
@@ -74,6 +100,7 @@ export type {
   CheckKindDef,
   CheckVerdict,
   ColliderTag,
+  CommandDef,
   ColliderTags,
   EngineCheckKind,
   EngineCollisionGroup,
@@ -82,6 +109,7 @@ export type {
   EntityTypeDef,
   FieldEnv,
   GameAttachment,
+  GameCommand,
   GameDefinition,
   GameEditorDef,
   GameKeyBinding,
@@ -90,6 +118,7 @@ export type {
   GameRuntime,
   GameShell,
   GameTableDef,
+  GameWorldDef,
   EngineToolId,
   InspectorWidgetDef,
   IssueCodeDef,
@@ -109,6 +138,7 @@ export type {
   ScriptPredicate,
   SceneTemplate,
   SceneValidator,
+  Side,
   SpawnShape,
   Style,
   SystemFactory,
@@ -123,7 +153,7 @@ export { DRAW_LAYERS } from "../context";
 export type { DrawLayer, SceneView, ViewLayer, ViewLayerHandle } from "../context";
 export { createSensorCollider } from "../collisions";
 export { degToRad, posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
-export type { PhysicsWorld } from "../physics";
+export type { CharacterControllerOptions, PhysicsWorld } from "../physics";
 export {
   advanceWaypoint,
   initialWaypointState,
@@ -141,6 +171,8 @@ export { createDecorSystem } from "../systems/decor";
 export type { DecorEntity } from "../systems/decor";
 export { createMarkerSystem } from "../systems/marker";
 export type { MarkerEntity, MarkerSystem } from "../systems/marker";
+export { createNavSystem, isNavSystem } from "../systems/nav";
+export type { NavEntity, NavPolygon, NavSystem } from "../systems/nav";
 export {
   bodyLocalShape,
   createPropSystem,
@@ -152,7 +184,56 @@ export {
 export type { SensorSystem, SolidOptions, SolidSystem, VisualOptions } from "../systems/bodies";
 export { drawShape, traceShape } from "../render/draw-shape";
 export { clamp, clampVec2, distanceVec2, lerp, lerpVec2 } from "../math";
-export type { SceneRuntimeHandle, StepEvent, StepResult } from "../runtime/types";
+export type {
+  LoadFailureReason,
+  SceneRuntimeHandle,
+  StepEvent,
+  StepResult,
+} from "../runtime/types";
+export type { GeometryColliderDesc, GeometryWorld } from "../runtime/geometry-world";
+export type { SpaceCastHit, SpaceFilter, SpaceHit, SpaceQuery } from "../runtime/space";
+export { sceneGrid } from "../runtime/grid";
+export type { RuntimeGrid } from "../runtime/grid";
+export type { RuntimeNav } from "../runtime/nav";
+
+// ─── Grids, motion and navigation ────────────────────────
+export {
+  cellKey,
+  cellOf,
+  createOccupancy,
+  fieldOfView,
+  findPath,
+  flowField,
+  gridGeometry,
+  lineOfSight,
+  type Cell,
+  type CellBounds,
+  type CellKey,
+  type FlowField,
+  type GridGeometry,
+  type GridPath,
+  type GridPathOptions,
+  type Occupancy,
+} from "../grid/index";
+export {
+  createGridStepper,
+  createMotionBody,
+  createTopDownController,
+  type GridStepper,
+  type MotionBody,
+  type MotionBodyOptions,
+  type MotionResult,
+  type TopDownController,
+  type TopDownOptions,
+} from "../motion/index";
+export {
+  buildNavMesh,
+  navContains,
+  navNearest,
+  navPath,
+  type NavIssue,
+  type NavMesh,
+} from "../nav/index";
 export { SENSOR_ENTER, SENSOR_EXIT } from "../runtime/types";
 export { TOOL_PRIORITY, type ToolConsumer, type ToolEvent, type ToolRouter } from "../tool-router";
 export type { EditorToolDef } from "../editor/tools";

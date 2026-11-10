@@ -103,6 +103,12 @@ const FILE_EXPORTS = ["@jams/engine/editor-ui/style.css"];
  * import the editor UI, which the image doesn't have.
  */
 const SERVICE_COPIED = ["scene/", "collab/", "game/", "project/", "version.ts"];
+const isServiceCopied = (path: string) =>
+  SERVICE_COPIED.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p));
+/** The canvas-sync service's own sources, which reach the engine by relative path. */
+const SERVICE_SRC = join(REPO, "services/canvas-sync/src");
+/** Engine directories that hold pure toolkits: no Pixi, and Rapier only through `ctx.rapier`. */
+const TOOLKIT_DIRS = ["grid/", "nav/", "motion/"];
 /** The engine's shared test helpers, a tsconfig alias only games' tests may import. */
 const TEST_SUPPORT = "@jams/engine-testing";
 /**
@@ -389,8 +395,7 @@ describe("package boundary", () => {
     const bad: string[] = [];
     for (const file of engineFiles) {
       const path = rel(file);
-      if (!SERVICE_COPIED.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p)))
-        continue;
+      if (!isServiceCopied(path)) continue;
       for (const imp of importsOf(file)) {
         if (reachesEditorUi(path, imp.spec)) bad.push(`${path}:${imp.line} imports ${imp.spec}`);
       }
@@ -537,6 +542,53 @@ describe("package boundary", () => {
     const { files, bare } = runtimeGraph(ENTRIES["./sim-kit"]);
     expect([...bare.keys()]).toEqual([]);
     violations([...files].filter((f) => !f.startsWith("sim-kit/")));
+  });
+
+  it("keeps grid/, nav/ and motion/ off pixi.js and Rapier values", () => {
+    const toolkit = sourceFiles
+      .map((f) => rel(f))
+      .filter((path) => TOOLKIT_DIRS.some((d) => path.startsWith(d)));
+    for (const dir of TOOLKIT_DIRS)
+      expect(
+        toolkit.some((p) => p.startsWith(dir)),
+        dir,
+      ).toBe(true);
+    const bad: string[] = [];
+    for (const path of toolkit) {
+      const { bare } = runtimeGraph(path);
+      for (const [spec, from] of bare) {
+        if (spec === "pixi.js" || spec.startsWith("@dimforge/"))
+          bad.push(`${path} reaches ${spec} via ${from.join(", ")}`);
+      }
+    }
+    violations(bad);
+  });
+
+  it("lets the canvas-sync service reach only the engine files its image copies", () => {
+    const via = new Map<string, string>();
+    const queue = walk(SERVICE_SRC, /\.ts$/);
+    expect(queue.length).toBeGreaterThan(0);
+    const seen = new Set<string>();
+    const bad: string[] = [];
+    while (queue.length > 0) {
+      const file = queue.pop()!;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      for (const imp of importsOf(file)) {
+        if (imp.typeOnly || !imp.spec.startsWith(".")) continue;
+        const target = resolveRelative(file, imp.spec);
+        if (!target || !/\.tsx?$/.test(target)) continue;
+        if (!via.has(target)) via.set(target, `${rel(file, REPO)}:${imp.line}`);
+        if (inside(target, ENGINE)) {
+          const path = rel(target);
+          if (path === "game/index.ts")
+            bad.push(`${via.get(target)} imports the ./game barrel; import single files`);
+          else if (!isServiceCopied(path)) bad.push(`${via.get(target)} reaches ${path}`);
+        }
+        queue.push(target);
+      }
+    }
+    violations(bad);
   });
 
   it("has no module-level Map, Set or array registries", () => {

@@ -1,4 +1,9 @@
-import { ENGINE_RUN_RESULTS, type GameOutcome, type Registry } from "../game/types";
+import {
+  ENGINE_RUN_RESULTS,
+  type GameCommand,
+  type GameOutcome,
+  type Registry,
+} from "../game/types";
 import type { InputEdge } from "../headless/playtest-types";
 import { deepFreeze } from "../project/canonical";
 import { expandScene } from "../scene/expand";
@@ -16,7 +21,9 @@ import { validateScene } from "../scene/validate";
 import type { InputAction } from "../types";
 import {
   createRunRecorder,
+  gameTime,
   inputAction,
+  recordingCommands,
   recordingEdges,
   type RecorderOptions,
   type RecordingEnd,
@@ -47,17 +54,22 @@ export type PreparedPlay =
 export function preparePlay(
   doc: SceneDefinition,
   registry: Registry,
-  opts: { dev?: boolean; prefabs?: PrefabLibrary } = {},
+  opts: {
+    dev?: boolean;
+    prefabs?: PrefabLibrary;
+    /** The project's `engine` block, which settings resolve through. */
+    engine?: Readonly<Record<string, unknown>>;
+  } = {},
 ): PreparedPlay {
   const parsed = parseScene(structuredClone(doc), registry);
   if (!parsed.ok) return { ok: false, issues: parsed.issues };
   const def = parsed.def;
-  const { prefabs } = opts;
-  const issues = validateScene(def, registry, { prefabs });
+  const { prefabs, engine } = opts;
+  const issues = validateScene(def, registry, { prefabs, engine });
   if (issues.some((i) => i.severity === "error")) return { ok: false, issues };
   let scene: ExpandedScene;
   try {
-    scene = expandScene(def, registry, { prefabs });
+    scene = expandScene(def, registry, { prefabs, engine });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
@@ -75,7 +87,7 @@ export function preparePlay(
 // ─── Recording a browser session ─────────────────────────
 
 export type SessionRecordingOptions = RecorderOptions & {
-  /** Play this recording's edges instead of the keyboard's, and end where it ended. */
+  /** Play this recording's edges and commands instead of the keyboard's and the host's, and end where it ended. */
   replay?: RunRecording;
 };
 
@@ -83,6 +95,11 @@ export type SessionRecordingOptions = RecorderOptions & {
 export type SessionRecording = {
   /** What to step on `tick`: the replay's edges while replaying, else what the keyboard gave. */
   actions(tick: number, polled: InputAction[]): InputAction[];
+  /**
+   * The commands to step on `tick`: the replay's while replaying (what the
+   * host queued is dropped), else what the host queued.
+   */
+  commands(tick: number, queued: readonly GameCommand[]): readonly GameCommand[];
   /**
    * After each step, with the game's first verdict when this tick produced
    * it. Returns the recording when this tick finished it: the verdict, or a
@@ -92,6 +109,7 @@ export type SessionRecording = {
     result: StepResult,
     actions: readonly InputAction[],
     verdict: GameOutcome | null,
+    commands?: readonly GameCommand[],
   ): RunRecording | null;
   /** Finishes it as `quit` unless it already finished; null when it had. */
   stop(): RunRecording | null;
@@ -103,9 +121,11 @@ export type SessionRecording = {
 
 export function createSessionRecording(opts: SessionRecordingOptions): SessionRecording {
   const recorder = createRunRecorder(opts);
+  const time = opts.time ?? gameTime(opts.game);
   const play = opts.game?.play;
   const replay = opts.replay ?? null;
   const fed = replay ? recordingEdges(replay) : null;
+  const fedCommands = replay ? recordingCommands(replay) : null;
   let done: RunRecording | null = null;
   let last = -1;
   let final: unknown = null;
@@ -119,10 +139,14 @@ export function createSessionRecording(opts: SessionRecordingOptions): SessionRe
     actions(tick, polled) {
       if (!fed || done) return polled;
       return (fed.get(tick) ?? []).map(([t, action, pressed]) =>
-        inputAction(action, pressed === 1, t),
+        inputAction(action, pressed === 1, t, time),
       );
     },
-    stepped(result, actions, verdict) {
+    commands(tick, queued) {
+      if (!fedCommands || done) return queued;
+      return fedCommands.get(tick) ?? [];
+    },
+    stepped(result, actions, verdict, commands) {
       if (done) return null;
       last = result.tick;
       final = result.game;
@@ -132,6 +156,7 @@ export function createSessionRecording(opts: SessionRecordingOptions): SessionRe
         { tick: result.tick, snapshot: result.game, events: result.events },
         edges,
         focus,
+        commands,
       );
       const ticks = result.tick + 1;
       if (verdict) {

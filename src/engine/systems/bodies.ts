@@ -1,23 +1,26 @@
-import type { Collider, ColliderDesc, RigidBody } from "@dimforge/rapier2d";
+import type { Collider, ColliderDesc, RigidBody, RigidBodyDesc } from "@dimforge/rapier2d";
 
 import { createSensorCollider } from "../collisions";
 import type { ViewLayer } from "../context";
 import { SPRITE } from "../game/behaviors/sprite";
+import { physicsOf } from "../game/physics-of";
 import { styleOf } from "../game/style";
-import type { ColliderTag, EngineContext, RegisteredType, SceneSystem } from "../game/types";
+import type { ColliderTag, EngineContext, RegisteredType, SceneSystem, Side } from "../game/types";
 import { posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
+import type { GeometryColliderDesc } from "../runtime/geometry-world";
 import { composePose, relativePose, type Pose } from "../runtime/poses";
+import type { SpaceHit } from "../runtime/space";
 import { shapeSpawnPose } from "../runtime/spawn-pose";
 import { SENSOR_ENTER, SENSOR_EXIT, type StepEvent } from "../runtime/types";
 import { aabb, translateShape } from "../scene/shape-geometry";
-import type { RuntimeEntity, ShapeObj } from "../scene/types";
+import type { Aabb, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 import type { Attachment, AttachmentHost } from "./attachments";
 
 export type SolidEntity = RuntimeEntity<{
   shape: ShapeObj;
   material?: string;
-  oneWay?: boolean;
+  oneWay?: boolean | Side;
   attach?: string;
 }>;
 export type PropEntity = RuntimeEntity<{
@@ -26,6 +29,11 @@ export type PropEntity = RuntimeEntity<{
   restitution: number;
   friction?: number;
   material?: string;
+  gravityScale?: number;
+  linearDamping?: number;
+  angularDamping?: number;
+  fixedRotation?: boolean;
+  ccd?: boolean;
 }>;
 export type SensorEntity = RuntimeEntity<{ shape: ShapeObj; tags?: string[]; attach?: string }>;
 
@@ -137,10 +145,52 @@ function bodyOffset(e: ShapedEntity, local: boolean): Pose {
   return relativePose(pose, { x: frame.x, y: frame.y, rot: frame.rotation });
 }
 
+/** What a geometry collider is, apart from its shape and pose. */
+export type GeometryPart = Omit<GeometryColliderDesc, "shape" | "pose">;
+
+/**
+ * Adds `shape` to the geometry world, tagged `tag`, and returns its handle;
+ * null when the runtime has no geometry world. Without `at` the collider
+ * is posed as a Rapier body made by `posedBodyDesc` would be; with it,
+ * `shape` is local to `at` (a follower's path point).
+ */
+export function addGeometryCollider(
+  ctx: Pick<EngineContext, "geometry" | "tags">,
+  shape: ShapeObj,
+  part: GeometryPart,
+  tag: ColliderTag,
+  at?: Pose,
+): number | null {
+  const world = ctx.geometry;
+  if (!world) return null;
+  let pose = at;
+  let local = shape;
+  if (!pose) {
+    const frame = shapePose(shape);
+    pose = { x: frame.x, y: frame.y, rot: frame.rotation };
+    local = bodyLocalShape(shape);
+  }
+  const handle = world.add({ ...part, shape: local, pose });
+  ctx.tags.set(handle, tag);
+  return handle;
+}
+
+/** Removes a collider `addGeometryCollider` added, and its tag. */
+export function removeGeometryCollider(
+  ctx: Pick<EngineContext, "geometry" | "tags">,
+  handle: number | null,
+): void {
+  if (handle === null) return;
+  ctx.tags.delete(handle);
+  ctx.geometry?.remove(handle);
+}
+
 /**
  * Bookkeeping for a system whose entities each own one body with one tagged
  * collider; despawning one also removes its visual. With `view` false the
- * entities have no visuals to pose.
+ * entities have no visuals to pose. While the scene has no physics an
+ * entity is `placed` instead: drawn and posed where its shape is, with a
+ * collider in the geometry world when the runtime has one.
  */
 export function createBodyTable<T extends OwnedBody>(
   ctx: EngineContext,
@@ -148,13 +198,21 @@ export function createBodyTable<T extends OwnedBody>(
 ) {
   const owned = new Map<string, T>();
   const offsets = new Map<string, Pose>();
+  const placed = new Map<string, { at: Vec2; handle: number | null }>();
   const posesView = opts.view !== false;
 
   function despawn(id: string): void {
+    const p = placed.get(id);
+    if (p) {
+      removeGeometryCollider(ctx, p.handle);
+      placed.delete(id);
+      ctx.view?.remove(id);
+      return;
+    }
     const entry = owned.get(id);
     if (!entry) return;
     ctx.tags.delete(entry.collider.handle);
-    ctx.physics.removeRigidBody(entry.body);
+    physicsOf(ctx, "a body", id).physics.removeRigidBody(entry.body);
     ctx.view?.remove(id);
     owned.delete(id);
     offsets.delete(id);
@@ -196,21 +254,38 @@ export function createBodyTable<T extends OwnedBody>(
       attach: (body: RigidBody) => Collider,
       tag: ColliderTag,
     ) => {
+      const { rapier, physics } = physicsOf(ctx, "a body", e.id);
       const pose = shapePose(e.shape);
-      entry.body.setTranslation(new ctx.rapier.Vector2(pose.x, pose.y), true);
+      entry.body.setTranslation(new rapier.Vector2(pose.x, pose.y), true);
       entry.body.setRotation(pose.rotation, true);
       ctx.tags.delete(entry.collider.handle);
-      ctx.physics.removeCollider(entry.collider);
+      physics.removeCollider(entry.collider);
       entry.collider = attach(entry.body);
       ctx.tags.set(entry.collider.handle, tag);
       offsets.set(e.id, bodyOffset(e, false));
     },
+    /**
+     * Holds `e` with no body, at its shape's pose, with a geometry collider
+     * made of `part` and tagged `tag` when there is a geometry world; its
+     * system draws it. Returns the collider's handle, else null.
+     */
+    place: (e: ShapedEntity, part: GeometryPart, tag: ColliderTag): number | null => {
+      const pose = shapePose(e.shape);
+      const handle = addGeometryCollider(ctx, e.shape, part, tag);
+      placed.set(e.id, { at: { x: pose.x, y: pose.y }, handle });
+      return handle;
+    },
+    /** The geometry collider of a placed entity, else null. */
+    placedHandle: (id: string): number | null => placed.get(id)?.handle ?? null,
     despawn,
     clear: (): void => {
+      for (const id of [...placed.keys()]) despawn(id);
       for (const id of [...owned.keys()]) despawn(id);
     },
-    size: () => owned.size,
+    size: () => owned.size + placed.size,
     position: (id: string): Vec2 | null => {
+      const p = placed.get(id);
+      if (p) return { ...p.at };
       const entry = owned.get(id);
       if (!entry) return null;
       const t = entry.body.translation();
@@ -305,7 +380,8 @@ export function createRiders<
       const local = translateShape(e.shape, [-host.origin.x, -host.origin.y]);
       rider.local = local;
       rider.offset = shapeSpawnPose(local, e.transform);
-      const collider = opts.collider(host.body, shapeColliderDesc(ctx.rapier, local, true), e);
+      const { rapier } = physicsOf(ctx, type.type, e.id);
+      const collider = opts.collider(host.body, shapeColliderDesc(rapier, local, true), e);
       ctx.tags.set(collider.handle, {
         ...opts.tag(e),
         carrier: { entityId: host.id, type: host.type },
@@ -360,20 +436,23 @@ export type VisualOptions = {
 /** Visuals default to the `terrain` layer. */
 export type SolidOptions = SurfaceDefaults &
   VisualOptions & {
-    /** Every entity of the type is one-way, whatever its own `oneWay` says. */
-    oneWay?: boolean;
+    /** Every entity of the type is one-way, whatever its own `oneWay` says; `true` is `"up"`, and an entity's own side wins. */
+    oneWay?: boolean | Side;
     /** Collision group; `static` when omitted. */
     group?: string;
   };
 
 export type SolidSystem = SceneSystem<SolidEntity> & {
   /**
-   * Gates this system's one-way entities for one actor: each stays solid
-   * while the actor's bottom is at or above its top (within 4 px) and the
-   * actor isn't dropping through, and otherwise moves its body out of the
+   * Gates this system's one-way entities for one actor's box: each stays
+   * solid while the actor is on its one-way side (within 4 px of that face)
+   * and isn't `passing` through, and otherwise moves its body out of the
    * world so queries and contacts skip it. An attached one is gated by its
-   * collider's collision groups instead.
+   * collider's collision groups instead, and one in the geometry world by
+   * disabling its collider.
    */
+  gateOneWaySides(actor: Aabb, passing: boolean): void;
+  /** `gateOneWaySides` for the `"up"` solids alone, by the actor's bottom edge; other sides are left as they are. */
   gateOneWay(actorBottomY: number, dropping: boolean): void;
   isHidden(id: string): boolean;
   /** Where the entity's body is now; a hidden one-way body is off-world. */
@@ -383,10 +462,34 @@ export type SolidSystem = SceneSystem<SolidEntity> & {
 const ONE_WAY_TOLERANCE = 4;
 const HIDDEN_Y = -99999;
 
+/** A one-way solid's side: the entity's own when it names one, else the type's; `true` is `"up"`, null when not one-way. */
+function oneWaySideOf(
+  own: boolean | Side | undefined,
+  typeWide: boolean | Side | undefined,
+): Side | null {
+  if (typeof own === "string") return own;
+  if (typeof typeWide === "string") return typeWide;
+  return own === true || typeWide === true ? "up" : null;
+}
+
+/** Whether `actor` is on a one-way solid's `side`, at most the tolerance past that face: where the solid holds it. */
+function onOneWaySide(side: Side, solid: Aabb, actor: Aabb): boolean {
+  switch (side) {
+    case "up":
+      return actor.maxY <= solid.minY + ONE_WAY_TOLERANCE;
+    case "down":
+      return actor.minY >= solid.maxY - ONE_WAY_TOLERANCE;
+    case "left":
+      return actor.maxX <= solid.minX + ONE_WAY_TOLERANCE;
+    case "right":
+      return actor.minX >= solid.maxX - ONE_WAY_TOLERANCE;
+  }
+}
+
 type SolidBody = OwnedBody & {
   pose: Vec2;
-  top: number;
-  oneWay: boolean;
+  box: Aabb;
+  oneWay: Side | null;
   hidden: boolean;
 };
 
@@ -396,9 +499,15 @@ export function createSolidSystem(
   opts: SolidOptions = {},
 ): SolidSystem {
   const table = createBodyTable<SolidBody>(ctx);
-  const { rapier, physics } = ctx;
-  const groups = ctx.registry.collisionGroups(opts.group ?? "static");
-  const isOneWay = (e: SolidEntity) => opts.oneWay === true || e.oneWay === true;
+  const physicsFor = (id: string) => physicsOf(ctx, type.type, id);
+  const group = opts.group ?? "static";
+  const groups = ctx.registry.collisionGroups(group);
+  /** One-way solids in the geometry world, gated by enabling their colliders. */
+  const placedOneWay = new Map<
+    string,
+    { handle: number; box: Aabb; side: Side; hidden: boolean }
+  >();
+  const sideOf = (e: SolidEntity) => oneWaySideOf(e.oneWay, opts.oneWay);
   /** Attached one-way solids gated off: their collider's groups are 0 until the actor is above them again. */
   const gated = new Set<string>();
   const riders = createRiders<SolidEntity>(ctx, type, {
@@ -406,7 +515,7 @@ export function createSolidSystem(
     draw: opts.draw !== false,
     material: (e) => e.material,
     collider: (body, desc, e) =>
-      physics.addCollider(
+      physicsFor(e.id).physics.addCollider(
         applySurface(
           desc.setCollisionGroups(gated.has(e.id) ? 0 : groups),
           surfaceOf(ctx, e.material, opts),
@@ -416,21 +525,27 @@ export function createSolidSystem(
     tag: (e) => tagOf(e),
   });
 
-  function setHidden(solid: SolidBody, hidden: boolean): void {
+  function setHidden(id: string, solid: SolidBody, hidden: boolean): void {
     if (solid.hidden === hidden) return;
+    const { rapier } = physicsFor(id);
     const y = hidden ? HIDDEN_Y : solid.pose.y;
     solid.body.setTranslation(new rapier.Vector2(solid.pose.x, y), true);
     solid.hidden = hidden;
   }
 
   function colliderDesc(e: SolidEntity): ColliderDesc {
+    const { rapier } = physicsFor(e.id);
     const surface = surfaceOf(ctx, e.material, opts);
     return applySurface(shapeColliderDesc(rapier, e.shape).setCollisionGroups(groups), surface);
   }
 
   function tagOf(e: SolidEntity): ColliderTag {
     const tag = surfaceTag(e.id, type, e.material);
-    if (opts.oneWay === true || e.oneWay === true) tag.oneWay = true;
+    const side = sideOf(e);
+    if (side) {
+      tag.oneWay = true;
+      tag.oneWaySide = side;
+    }
     return tag;
   }
 
@@ -438,8 +553,8 @@ export function createSolidSystem(
     const pose = shapePose(e.shape);
     return {
       pose: { x: pose.x, y: pose.y },
-      top: aabb(e.shape).minY,
-      oneWay: opts.oneWay === true || e.oneWay === true,
+      box: aabb(e.shape),
+      oneWay: sideOf(e),
       hidden: false,
     };
   }
@@ -451,12 +566,27 @@ export function createSolidSystem(
 
   function despawn(id: string): void {
     gated.delete(id);
+    placedOneWay.delete(id);
     if (!riders.remove(id)) table.despawn(id);
+  }
+
+  function setPlacedHidden(solid: { handle: number; hidden: boolean }, hidden: boolean): void {
+    if (solid.hidden === hidden) return;
+    ctx.geometry?.setEnabled(solid.handle, !hidden);
+    solid.hidden = hidden;
   }
 
   function spawn(e: SolidEntity): void {
     despawn(e.id);
     if (e.attach !== undefined) return riders.add(e, e.attach);
+    if (!ctx.physics) {
+      const handle = table.place(e, { body: "static", group }, tagOf(e));
+      const side = sideOf(e);
+      if (handle !== null && side)
+        placedOneWay.set(e.id, { handle, box: aabb(e.shape), side, hidden: false });
+      return draw(e);
+    }
+    const { rapier, physics } = physicsFor(e.id);
     const desc = colliderDesc(e);
     const body = physics.addRigidBody(posedBodyDesc(rapier.RigidBodyDesc.fixed(), e.shape));
     const collider = physics.addCollider(desc, body);
@@ -470,7 +600,7 @@ export function createSolidSystem(
       const solid = table.owned.get(e.id);
       if (!solid || e.attach !== undefined) return spawn(e);
       const desc = colliderDesc(e);
-      table.reshape(e, solid, (body) => physics.addCollider(desc, body), tagOf(e));
+      table.reshape(e, solid, (body) => physicsFor(e.id).physics.addCollider(desc, body), tagOf(e));
       Object.assign(solid, placement(e));
       if (opts.draw !== false) ctx.view?.remove(e.id);
       draw(e);
@@ -479,29 +609,53 @@ export function createSolidSystem(
     clear() {
       riders.clear();
       gated.clear();
+      placedOneWay.clear();
       table.clear();
     },
     reset() {
-      for (const solid of table.owned.values()) setHidden(solid, false);
+      for (const [id, solid] of table.owned) setHidden(id, solid, false);
+      for (const solid of placedOneWay.values()) setPlacedHidden(solid, false);
       for (const id of [...gated]) gate(id, false);
     },
     size: () => table.size() + riders.riders.size,
+    gateOneWaySides: (actor, passing) => gateSides(actor, passing, null),
     gateOneWay(actorBottomY, dropping) {
-      for (const solid of table.owned.values()) {
-        if (!solid.oneWay) continue;
-        const above = actorBottomY <= solid.top + ONE_WAY_TOLERANCE;
-        setHidden(solid, !(above && !dropping));
-      }
-      for (const r of riders.riders.values()) {
-        const host = r.attachment.host();
-        if (!isOneWay(r.entity) || !host || !r.local) continue;
-        const top = host.body.translation().y + aabb(r.local).minY;
-        gate(r.entity.id, !(actorBottomY <= top + ONE_WAY_TOLERANCE && !dropping));
-      }
+      const edge = { minX: 0, minY: actorBottomY, maxX: 0, maxY: actorBottomY };
+      gateSides(edge, dropping, "up");
     },
-    isHidden: (id) => table.owned.get(id)?.hidden ?? gated.has(id),
+    isHidden: (id) => table.owned.get(id)?.hidden ?? placedOneWay.get(id)?.hidden ?? gated.has(id),
     position: (id) => table.position(id) ?? riders.position(id),
   };
+
+  /** Gates each one-way solid, or each of side `only`: hidden unless the actor is on its side and not passing. */
+  function gateSides(actor: Aabb, passing: boolean, only: Side | null): void {
+    const hiddenFor = (side: Side | null, box: Aabb): boolean | null => {
+      if (!side || (only !== null && side !== only)) return null;
+      return passing || !onOneWaySide(side, box, actor);
+    };
+    for (const [id, solid] of table.owned) {
+      const hidden = hiddenFor(solid.oneWay, solid.box);
+      if (hidden !== null) setHidden(id, solid, hidden);
+    }
+    for (const solid of placedOneWay.values()) {
+      const hidden = hiddenFor(solid.side, solid.box);
+      if (hidden !== null) setPlacedHidden(solid, hidden);
+    }
+    for (const r of riders.riders.values()) {
+      const host = r.attachment.host();
+      if (!host || !r.local) continue;
+      const t = host.body.translation();
+      const b = aabb(r.local);
+      const box = {
+        minX: t.x + b.minX,
+        minY: t.y + b.minY,
+        maxX: t.x + b.maxX,
+        maxY: t.y + b.maxY,
+      };
+      const hidden = hiddenFor(sideOf(r.entity), box);
+      if (hidden !== null) gate(r.entity.id, hidden);
+    }
+  }
 
   /**
    * An attached one-way solid can't leave the world without moving its
@@ -521,19 +675,30 @@ export function createSolidSystem(
 
 // ─── Prop ────────────────────────────────────────────────
 
+/** A prop's body: posed at its shape, with only the body fields it sets, so others keep Rapier's defaults. */
+function propBodyDesc(desc: RigidBodyDesc, e: PropEntity): RigidBodyDesc {
+  posedBodyDesc(desc, e.shape);
+  if (e.gravityScale !== undefined) desc.setGravityScale(e.gravityScale);
+  if (e.linearDamping !== undefined) desc.setLinearDamping(e.linearDamping);
+  if (e.angularDamping !== undefined) desc.setAngularDamping(e.angularDamping);
+  if (e.fixedRotation === true) desc.lockRotations();
+  if (e.ccd !== undefined) desc.setCcdEnabled(e.ccd);
+  return desc;
+}
+
 export function createPropSystem(
   ctx: EngineContext,
   type: RegisteredType,
 ): SceneSystem<PropEntity> {
   const table = createBodyTable(ctx);
-  const { rapier, physics } = ctx;
   const groups = ctx.registry.collisionGroups("dynamic");
 
   return {
     spawn(e) {
       table.despawn(e.id);
+      const { rapier, physics } = physicsOf(ctx, type.type, e.id);
       const surface = surfaceOf(ctx, e.material, {});
-      const body = physics.addRigidBody(posedBodyDesc(rapier.RigidBodyDesc.dynamic(), e.shape));
+      const body = physics.addRigidBody(propBodyDesc(rapier.RigidBodyDesc.dynamic(), e));
       const desc = shapeColliderDesc(rapier, e.shape)
         .setCollisionGroups(groups)
         .setRestitution(e.restitution)
@@ -563,8 +728,16 @@ type SensorBody = OwnedBody & { inside: Overlaps };
 
 export function createSensorSystem(ctx: EngineContext, type: RegisteredType): SensorSystem {
   const table = createBodyTable<SensorBody>(ctx);
-  const { rapier, physics } = ctx;
+  const physicsFor = (id: string) => physicsOf(ctx, type.type, id);
   const inside = new Map<string, Overlaps>();
+  /**
+   * Sensors in the geometry world, in spawn order: what overlapped each at
+   * the last step, and what overlaps it at the start of this one.
+   */
+  const placedSensors = new Map<
+    string,
+    { handle: number; inside: Overlaps; next: Map<number, SpaceHit> | null }
+  >();
   const riders = createRiders<SensorEntity>(ctx, type, {
     layer: (e) => entityDrawLayer(ctx, e, "terrain"),
     draw: true,
@@ -572,19 +745,71 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
     tag: (e) => tagOf(e),
   });
 
-  function positionOf(handle: number, fallback: Collider): Vec2 {
+  function positionOf(id: string, handle: number, fallback: Collider): Vec2 {
+    const { physics } = physicsFor(id);
     const t = (physics.world.getCollider(handle)?.parent() ?? fallback.parent())?.translation();
     return t ? { x: t.x, y: t.y } : { x: 0, y: 0 };
   }
 
-  function raise(kind: string, id: string, sensor: Collider, handle: number, other?: string) {
-    const event: Omit<StepEvent, "tick"> = {
-      type: kind,
-      entityId: id,
-      at: positionOf(handle, sensor),
-    };
+  function raise(kind: string, id: string, at: Vec2, other?: string) {
+    const event: Omit<StepEvent, "tick"> = { type: kind, entityId: id, at };
     if (other !== undefined) event.other = other;
     ctx.emit(event);
+  }
+
+  /** Enter for each handle in `now` and not `before`, then exit for each in `before` and not `now`. */
+  function diff(id: string, before: Overlaps, now: Overlaps, at: (handle: number) => Vec2): void {
+    for (const [handle, other] of now) {
+      if (!before.has(handle)) raise(SENSOR_ENTER, id, at(handle), other);
+    }
+    for (const [handle, other] of before) {
+      if (!now.has(handle)) raise(SENSOR_EXIT, id, at(handle), other);
+    }
+  }
+
+  /**
+   * Where a geometry collider's body would be on Rapier: its entity's
+   * position when its system reports one, else the hit's point.
+   */
+  function originOf(hit: SpaceHit | undefined, handle: number): Vec2 {
+    const tag = hit?.tag ?? ctx.tags.get(handle);
+    if (tag) {
+      const system = ctx.system(tag.type) as
+        | (SceneSystem & { position?: (id: string) => Vec2 | null })
+        | undefined;
+      const at = system?.position?.(tag.entityId);
+      if (at) return { x: at.x, y: at.y };
+    }
+    return hit ? { x: hit.at.x, y: hit.at.y } : { x: 0, y: 0 };
+  }
+
+  /**
+   * Takes each geometry sensor's overlaps (`space.overlaps`, in handle
+   * order, against what the sensor group meets) before anything moves this
+   * step, as Rapier's step finds intersections before it moves bodies.
+   */
+  function takePlaced(): void {
+    const world = ctx.geometry;
+    if (!world) return;
+    for (const sensor of placedSensors.values()) {
+      const shape = world.shape(sensor.handle);
+      sensor.next = new Map();
+      if (!shape) continue;
+      for (const hit of ctx.space.overlaps(shape, { group: "sensor" })) {
+        if (hit.handle !== sensor.handle) sensor.next.set(hit.handle, hit);
+      }
+    }
+  }
+
+  function raisePlaced(): void {
+    for (const [id, sensor] of placedSensors) {
+      const hits = sensor.next;
+      if (!hits) continue;
+      const now: Overlaps = new Map([...hits].map(([h, hit]) => [h, hit.tag.entityId]));
+      diff(id, sensor.inside, now, (h) => originOf(hits.get(h), h));
+      sensor.inside = now;
+      sensor.next = null;
+    }
   }
 
   function tagOf(e: SensorEntity): ColliderTag {
@@ -595,12 +820,19 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
 
   function despawn(id: string): void {
     inside.delete(id);
+    placedSensors.delete(id);
     if (!riders.remove(id)) table.despawn(id);
   }
 
   function spawn(e: SensorEntity): void {
     despawn(e.id);
     if (e.attach !== undefined) return riders.add(e, e.attach);
+    if (!ctx.physics) {
+      const handle = table.place(e, { body: "static", sensor: true, group: "sensor" }, tagOf(e));
+      if (handle !== null) placedSensors.set(e.id, { handle, inside: new Map(), next: null });
+      return drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
+    }
+    const { rapier, physics } = physicsFor(e.id);
     const desc = shapeColliderDesc(rapier, e.shape);
     const body = physics.addRigidBody(posedBodyDesc(rapier.RigidBodyDesc.fixed(), e.shape));
     const collider = createSensorCollider(ctx, body, desc);
@@ -618,7 +850,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
         ctx.tags.set(sensor.collider.handle, tagOf(e));
         return;
       }
-      const desc = shapeColliderDesc(rapier, e.shape);
+      const desc = shapeColliderDesc(physicsFor(e.id).rapier, e.shape);
       table.reshape(e, sensor, (body) => createSensorCollider(ctx, body, desc), tagOf(e));
       ctx.view?.remove(e.id);
       drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
@@ -627,16 +859,26 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
     clear() {
       riders.clear();
       inside.clear();
+      placedSensors.clear();
       table.clear();
     },
     reset() {
       for (const sensor of table.owned.values()) sensor.inside.clear();
+      for (const sensor of placedSensors.values()) {
+        sensor.inside.clear();
+        sensor.next = null;
+      }
       inside.clear();
     },
     size: () => table.size() + riders.riders.size,
+    beforeStep() {
+      if (placedSensors.size > 0) takePlaced();
+    },
     afterStep() {
+      if (placedSensors.size > 0) raisePlaced();
       if (table.owned.size === 0 && riders.riders.size === 0) return;
       // Pairwise checks rather than `intersectionPairsWith`, whose wasm callback fails under Node test runners.
+      const { physics } = physicsOf(ctx, type.type);
       const colliders = physics.world.colliders.getAll();
       const check = (id: string, collider: Collider, before: Overlaps): Overlaps => {
         const now: Overlaps = new Map();
@@ -646,12 +888,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
             now.set(other.handle, ctx.tags.get(other.handle)?.entityId);
           }
         }
-        for (const [handle, other] of now) {
-          if (!before.has(handle)) raise(SENSOR_ENTER, id, collider, handle, other);
-        }
-        for (const [handle, other] of before) {
-          if (!now.has(handle)) raise(SENSOR_EXIT, id, collider, handle, other);
-        }
+        diff(id, before, now, (handle) => positionOf(id, handle, collider));
         return now;
       };
       for (const [id, sensor] of table.owned)

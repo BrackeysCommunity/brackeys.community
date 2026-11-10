@@ -1,24 +1,22 @@
 /**
  * The browser smoke's render run: the kitchen sink played on a canvas with
  * its textures fetched through the asset loader on the dev URL scheme,
- * stepped once and drawn, then two pixels read back through Pixi's
- * renderer extract (WebGPU and WebGL alike): one inside the crate's sprite,
- * one in empty air.
+ * stepped once and drawn, then two pixels read back through
+ * `GameInstance.extractPixels` (WebGPU and WebGL alike): one inside the
+ * crate's sprite, one in empty air.
  */
-import { createAssetLoader, createGame } from "@jams/engine";
+import { createAssetLoader, createGame, type GameInstance } from "@jams/engine";
 import { createRegistry, withProject } from "@jams/engine/game";
 import { createKindRegistry, projectView, runtimeView } from "@jams/engine/project";
 import { parsePrefab, parseSceneOrThrow, type Prefab } from "@jams/engine/scene";
-import { Rectangle, type Application } from "pixi.js";
 
 import { devAssetUrl } from "../../../src/engine/editor-ui/connect/dev";
-import type { RenderProbe, Rgba } from "../browser-compare";
+import type { RenderProbe } from "../browser-compare";
 import { smokeGame } from "../game";
+import { readProbe } from "./pixels";
 import type { SinkProjectData } from "./project";
 import { loadRapier } from "./run";
 import {
-  INSIDE_POINT,
-  OUTSIDE_POINT,
   SINK_CANVAS,
   SINK_DATA_ROUTE,
   SINK_FRAME,
@@ -27,34 +25,12 @@ import {
   SMOKE_BACKGROUND,
 } from "./sink";
 
-type PixiHooks = { __PIXI_APP_INIT__?: (app: Application, version: string) => void };
-
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 async function sinkData(): Promise<SinkProjectData> {
   const res = await fetch(SINK_DATA_ROUTE);
   if (!res.ok) throw new Error(`GET ${SINK_DATA_ROUTE} answered ${res.status}`);
   return (await res.json()) as SinkProjectData;
-}
-
-/** The app `createGame` builds, caught through Pixi's devtools hook since the instance doesn't expose it. */
-function catchApp(): { app: () => Application; release: () => void } {
-  const hooks = globalThis as PixiHooks;
-  const previous = hooks.__PIXI_APP_INIT__;
-  let caught: Application | null = null;
-  hooks.__PIXI_APP_INIT__ = (app, version) => {
-    caught = app;
-    previous?.(app, version);
-  };
-  return {
-    app: () => {
-      if (!caught) throw new Error("createGame built no Pixi application");
-      return caught;
-    },
-    release: () => {
-      hooks.__PIXI_APP_INIT__ = previous;
-    },
-  };
 }
 
 export async function runRenderSmoke(): Promise<RenderProbe> {
@@ -75,8 +51,7 @@ export async function runRenderSmoke(): Promise<RenderProbe> {
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
   const loader = createAssetLoader({ project: SINK_PROJECT, url: devAssetUrl() });
-  const hook = catchApp();
-  let game: Awaited<ReturnType<typeof createGame>> | null = null;
+  let game: GameInstance | null = null;
   try {
     game = await createGame(canvas, {
       game: smokeGame,
@@ -89,7 +64,6 @@ export async function runRenderSmoke(): Promise<RenderProbe> {
       displayHeight: SINK_CANVAS.height,
       backgroundColor: SMOKE_BACKGROUND,
     });
-    const app = hook.app();
     const { failed } = await game.preload(scene);
     if (failed.length > 0)
       throw new Error(`textures failed to load: ${failed.map((e) => e.id).join(", ")}`);
@@ -101,25 +75,8 @@ export async function runRenderSmoke(): Promise<RenderProbe> {
     game.start();
     for (let i = 0; i < 3; i++) await nextFrame();
 
-    const world = app.stage.getChildByLabel("world");
-    if (!world) throw new Error("the stage has no world container");
-    const pixel = ([x, y]: readonly [number, number]): Rgba => {
-      const at = world.toGlobal({ x, y });
-      const { pixels } = app.renderer.extract.pixels({
-        target: app.stage,
-        frame: new Rectangle(Math.floor(at.x), Math.floor(at.y), 1, 1),
-        resolution: 1,
-        clearColor: SMOKE_BACKGROUND,
-      });
-      return [pixels[0] ?? 0, pixels[1] ?? 0, pixels[2] ?? 0, pixels[3] ?? 0];
-    };
-    return {
-      renderer: app.renderer.name,
-      inside: pixel(INSIDE_POINT),
-      outside: pixel(OUTSIDE_POINT),
-    };
+    return readProbe(game);
   } finally {
-    hook.release();
     game?.destroy();
     loader.destroy();
     canvas.remove();

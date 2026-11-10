@@ -1,5 +1,6 @@
 import type { Collider, ColliderDesc, RigidBody } from "@dimforge/rapier2d";
 
+import { physicsOf } from "./game/physics-of";
 import type { EngineContext } from "./game/types";
 
 /**
@@ -12,7 +13,8 @@ export function createSensorCollider(
   body: RigidBody,
   desc: ColliderDesc,
 ): Collider {
-  const { ActiveCollisionTypes } = ctx.rapier;
+  const { rapier, physics } = physicsOf(ctx, "a sensor");
+  const { ActiveCollisionTypes } = rapier;
   desc
     .setSensor(true)
     .setCollisionGroups(ctx.registry.collisionGroups("sensor"))
@@ -21,5 +23,5 @@ export function createSensorCollider(
         ActiveCollisionTypes.KINEMATIC_FIXED |
         ActiveCollisionTypes.KINEMATIC_KINEMATIC,
     );
-  return ctx.physics.addCollider(desc, body);
+  return physics.addCollider(desc, body);
 }

@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "scene": "corridor",
+  "steps": [
+    { "command": "walk", "args": { "to": [0, 4] } },
+    { "wait": 100 },
+    { "command": "walk", "args": { "to": [9, 0] } },
+    { "wait": 300 }
+  ]
+}

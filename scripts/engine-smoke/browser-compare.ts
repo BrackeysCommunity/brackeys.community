@@ -1,6 +1,7 @@
 /**
  * The browser smoke's verdicts, kept free of Playwright and Vite so the
- * runner's rules (a digest must equal Node's, the sprite's pixel must be
+ * runner's rules (a digest must equal Bun's, the physics-free run must
+ * never load Rapier, the sprite's pixel must be
  * drawn and the empty one blank, the editor's islands must keep apart and
  * inside the window, a page must answer in time, a missing browser is never
  * a pass) are unit-tested without a browser.
@@ -18,6 +19,54 @@ export type Rgba = readonly [r: number, g: number, b: number, a: number];
 
 /** The page's render run: which renderer drew, and the two pixels it read. */
 export type RenderProbe = { renderer: string; inside: Rgba; outside: Rgba };
+
+/** What the physics-free run gives, beside where it ran. */
+export type PhysicsFreeRun = {
+  /** The scene's physics as it resolved before anything loaded. */
+  physics: "rapier" | "none";
+  ticks: number;
+  result: string;
+  /** The replay of the run's recording ended as the run did. */
+  replayMatches: boolean;
+  digest: string;
+};
+
+/** The physics-free run as one runtime saw it: how often its Rapier loader was called, and the shell's ticks (null without a page). */
+export type PhysicsFreeProbe = PhysicsFreeRun & { rapierLoads: number; shellTicks: number | null };
+
+/** Ticks the page's shell steps the physics-free scene. */
+export const SHELL_TICKS = 30;
+
+/** How the physics-free run must end. */
+export const PHYSICS_FREE_RESULT = "won";
+
+/**
+ * Why a physics-free run fails, or null: it resolved to no physics, never
+ * called its Rapier loader, reached its result, replayed to the same end,
+ * stepped the shell when it had one, and gave the `expected` digest.
+ */
+export function judgePhysicsFree(
+  probe: PhysicsFreeProbe | undefined,
+  expected: string,
+  shell: boolean,
+): string | null {
+  if (!probe) return "the page ran no physics-free run";
+  if (probe.physics !== "none")
+    return `the physics-free scene resolved to ${probe.physics}, not none`;
+  if (probe.rapierLoads !== 0)
+    return `the physics-free run loaded Rapier ${probe.rapierLoads} time(s)`;
+  if (probe.result !== PHYSICS_FREE_RESULT)
+    return `the physics-free run ended ${probe.result} at tick ${probe.ticks}, not ${PHYSICS_FREE_RESULT}`;
+  if (!probe.replayMatches) return "the physics-free run's replay didn't match it";
+  if (shell && probe.shellTicks !== SHELL_TICKS)
+    return `the shell stepped the physics-free scene ${probe.shellTicks ?? "no"} ticks, not ${SHELL_TICKS}`;
+  if (probe.digest !== expected)
+    return `physics-free digest ${probe.digest} differs from the in-process run's ${expected}`;
+  return null;
+}
+
+/** The digests every browser must reproduce, from the runner's own runs. */
+export type SmokeExpected = { digest: string; physicsFree: string };
 
 /** How far a channel may stray from the colour expected of it. */
 export const PIXEL_TOLERANCE = 8;
@@ -59,6 +108,7 @@ export type BrowserOutcome = {
   digest?: string;
   userAgent?: string;
   render?: RenderProbe;
+  physicsFree?: PhysicsFreeProbe;
   reason?: string;
   ms?: number;
   /** The editor page's run in the same browser. */
@@ -94,11 +144,11 @@ export function parseBrowsers(arg: string | undefined): BrowserName[] {
   return [...new Set(names)] as BrowserName[];
 }
 
-/** The page's answer against the digest the same run gave in-process. */
+/** The page's answer against the digests the same runs gave in-process. */
 export function judgeResult(
   browser: BrowserName,
   result: EngineSmokeResult | undefined,
-  expected: string,
+  expected: SmokeExpected,
 ): BrowserOutcome {
   if (!result) return { browser, status: "fail", reason: "the page set no window.__engineSmoke" };
   if (!result.ok) return { browser, status: "fail", reason: `the page failed: ${result.error}` };
@@ -107,6 +157,7 @@ export function judgeResult(
     digest: result.digest,
     userAgent: result.userAgent,
     ...(result.render ? { render: result.render } : {}),
+    ...(result.physicsFree ? { physicsFree: result.physicsFree } : {}),
   };
   if (result.flavour !== "rapier2d-compat" || result.ticks !== 120) {
     return {
@@ -115,15 +166,17 @@ export function judgeResult(
       reason: `the page ran ${result.ticks} ticks on ${result.flavour}, not 120 on rapier2d-compat`,
     };
   }
-  if (result.digest !== expected) {
+  if (result.digest !== expected.digest) {
     return {
       ...seen,
       status: "fail",
-      reason: `digest ${result.digest} differs from the in-process run's ${expected}`,
+      reason: `digest ${result.digest} differs from the in-process run's ${expected.digest}`,
     };
   }
   const drawn = judgeRender(result.render);
   if (drawn) return { ...seen, status: "fail", reason: drawn };
+  const free = judgePhysicsFree(result.physicsFree, expected.physicsFree, true);
+  if (free) return { ...seen, status: "fail", reason: free };
   return { ...seen, status: "pass" };
 }
 

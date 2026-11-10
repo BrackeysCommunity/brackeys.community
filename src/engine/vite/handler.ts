@@ -120,6 +120,82 @@ export function sameOrigin(headers: Headers): boolean {
   }
 }
 
+/**
+ * Which other origins may call `/__project`, as Vite's `server.cors` says:
+ * `true` any, `false` none, or `{ origin }` with a string, a pattern, a list
+ * of them, or Vite's callback form.
+ */
+export type ProjectCors =
+  | boolean
+  | {
+      origin?:
+        | boolean
+        | string
+        | RegExp
+        | readonly (string | RegExp)[]
+        | ((origin: string | undefined, cb: (err: Error | null, allow?: unknown) => void) => void);
+    };
+
+/** Vite's default `server.cors`: pages served from a loopback host, on any port. */
+export const DEFAULT_PROJECT_CORS: ProjectCors = {
+  origin: /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
+};
+
+const CORS_HEADERS = "content-type, x-expect-sha256, x-asset-kind";
+const CORS_METHODS = "GET, POST";
+
+type OriginRule = boolean | string | RegExp | readonly (string | RegExp)[];
+
+const isOriginRule = (value: unknown): value is OriginRule =>
+  typeof value === "boolean" ||
+  typeof value === "string" ||
+  value instanceof RegExp ||
+  (Array.isArray(value) && value.every((v) => typeof v === "string" || v instanceof RegExp));
+
+function ruleAllows(origin: string, rule: OriginRule): boolean {
+  if (typeof rule === "boolean") return rule;
+  const rules: readonly (string | RegExp)[] = Array.isArray(rule)
+    ? rule
+    : [rule as string | RegExp];
+  return rules.some((r) => (typeof r === "string" ? r === origin : r.test(origin)));
+}
+
+/** Whether `cors` lets a page on `origin` call the routes. */
+async function corsAllows(origin: string, cors: ProjectCors): Promise<boolean> {
+  if (typeof cors === "boolean") return cors;
+  const rule = cors.origin;
+  // The cors package Vite hands the object to allows any origin when it names none.
+  if (rule === undefined) return true;
+  if (typeof rule !== "function") return ruleAllows(origin, rule);
+  return new Promise((resolve) =>
+    rule(origin, (err, allow) => resolve(!err && isOriginRule(allow) && ruleAllows(origin, allow))),
+  );
+}
+
+/**
+ * The CORS headers a cross-origin request gets: `null` when it isn't
+ * cross-origin, `false` when its origin isn't allowed.
+ */
+async function corsHeaders(
+  headers: Headers,
+  cors: ProjectCors,
+): Promise<Record<string, string> | false | null> {
+  if (sameOrigin(headers)) return null;
+  const origin = header(headers, "origin");
+  if (origin === undefined || !(await corsAllows(origin, cors))) return false;
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-methods": CORS_METHODS,
+    "access-control-allow-headers": CORS_HEADERS,
+    vary: "Origin",
+  };
+}
+
+export type ProjectRouteOptions = {
+  /** The other origins whose pages may fetch and store blobs; default Vite's own default. */
+  cors?: ProjectCors;
+};
+
 export type ProjectRequest = {
   method: string;
   url: string;
@@ -159,17 +235,31 @@ function uploadLimit(project: FileProject): number {
  *   quotas, rate limit or upload scan.
  * - `GET /__project/<id>/blob/<sha256>`: the bytes, cacheable forever.
  *
- * A request from another site's page is 403. Returns null for URLs outside
- * the route.
+ * A page on another origin that `options.cors` allows (by default Vite's:
+ * the loopback hosts) gets CORS headers on every answer, and its `OPTIONS`
+ * preflight is 204. A page on any other origin is 403, with no CORS
+ * headers. Returns null for URLs outside the route.
  */
 export async function handleProjectRequest(
   req: ProjectRequest,
   sources: readonly ProjectSource[],
+  options: ProjectRouteOptions = {},
 ): Promise<ProjectResponse | null> {
   const [path = ""] = req.url.split("?");
   if (path !== PROJECT_ROUTE && !path.startsWith(`${PROJECT_ROUTE}/`)) return null;
-  if (!sameOrigin(req.headers))
+  const cors = await corsHeaders(req.headers, options.cors ?? DEFAULT_PROJECT_CORS);
+  if (cors === false)
     return error(403, "Cross-origin requests can't reach the dev server's projects.");
+  if (req.method === "OPTIONS") return { status: 204, headers: cors ?? {}, body: null };
+  const res = await answerProject(req, path, sources);
+  return cors ? { ...res, headers: { ...res.headers, ...cors } } : res;
+}
+
+async function answerProject(
+  req: ProjectRequest,
+  path: string,
+  sources: readonly ProjectSource[],
+): Promise<ProjectResponse> {
   const parts = path.slice(PROJECT_ROUTE.length + 1).split("/");
   if (path === PROJECT_ROUTE || (parts.length === 1 && parts[0] === "")) {
     if (req.method !== "GET") return error(405, "Use GET.");
@@ -226,6 +316,8 @@ export async function handleProjectRequest(
     headers: {
       "content-type": "application/octet-stream",
       "cache-control": "public, max-age=31536000, immutable",
+      // A cached copy without another origin's CORS headers mustn't answer that origin.
+      vary: "Origin",
     },
     body: bytes,
   };

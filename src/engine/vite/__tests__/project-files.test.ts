@@ -547,6 +547,69 @@ describe("write-back: edits, for every declarative kind", () => {
     expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry("ice")!), doc)).toBe(false);
   });
 
+  it("game-settings: a disk edit of engine.gravity is one disk transaction touching only it", async () => {
+    const s = await session();
+    const doc = await s.open("settings");
+    const touched: string[] = [];
+    contentMap(doc).observeDeep((events) => {
+      for (const e of events)
+        for (const key of e.changes.keys.keys()) touched.push([...e.path, key].join("."));
+    });
+    const value = JSON.parse(FILES["game-settings"].text) as Record<string, unknown>;
+    const after = formatAssetDoc(kindOf("game-settings"), {
+      ...value,
+      engine: { gravity: [0, 600] },
+    });
+    await put(FILES["game-settings"].path, after);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(FILES["game-settings"].path, s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(touched).toEqual(["engine.gravity"]);
+    expect(layoutFromDoc(doc, layoutOf("game-settings")).engine).toEqual({ gravity: [0, 600] });
+    expect(textOf("game-settings", doc)).toBe(after);
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry("settings")!), doc)).toBe(false);
+  });
+
+  it("checks: a hand-written connected check is formatted canonically on the next store", async () => {
+    const s = await session();
+    const doc = await s.open("yard-checks");
+    const connected = {
+      to: [[3, 4], "gate"],
+      from: "post",
+      kind: "connected",
+      id: "joined",
+      diagonals: true,
+    };
+    const value = JSON.parse(FILES.checks.text) as { checks: unknown[] };
+    const hand = `${JSON.stringify({ ...value, checks: [...value.checks, connected] }, null, 4)}\n`;
+    await put(FILES.checks.path, hand);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(FILES.checks.path, s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(await read(FILES.checks.path)).toBe(hand);
+
+    const canonicalText = formatAssetDoc(kindOf("checks"), JSON.parse(hand));
+    expect(canonicalText).not.toBe(hand);
+    expect(canonicalText).toContain(
+      '{ "id": "joined", "kind": "connected", "diagonals": true, "from": "post", "to": [[3, 4], "gate"] }',
+    );
+    const name = s.adapter.docNameOf(s.entry("yard-checks")!);
+    expect(await s.adapter.storeDoc(name, doc)).toBe(true);
+    expect(await read(FILES.checks.path)).toBe(canonicalText);
+    expect(await s.adapter.storeDoc(name, doc)).toBe(false);
+    expect(await s.adapter.syncPath(FILES.checks.path, s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+  });
+
   it("refuses a disk edit that doesn't parse and keeps the doc", async () => {
     const s = await session();
     const doc = await s.open("ice");

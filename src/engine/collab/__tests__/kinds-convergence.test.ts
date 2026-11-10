@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
-import { testGame } from "../../__tests__/fixtures/test-game";
+import { NUDGE, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { stableJson } from "../../project/canonical";
 import {
@@ -414,6 +414,16 @@ describe("the engine's doc kinds and a game's converge", () => {
     expect(v.game).toEqual({ avatarSpeed: 260, title: "Deck" });
   });
 
+  it("game-settings: concurrent engine.tickRate and engine.physics both survive", () => {
+    const engine = (x: Obj) => x.engine as Obj;
+    const v = offline("game-settings", [
+      (x) => ({ ...x, engine: { ...engine(x), tickRate: 30 } }),
+      (x) => ({ ...x, engine: { ...engine(x), physics: "none" } }),
+    ]);
+    expect(v.engine).toEqual({ tickRate: 30, physics: "none" });
+    expect(v.game).toEqual({ avatarSpeed: 200 });
+  });
+
   it("data-table: concurrent row inserts, a field edit and a reorder all land", () => {
     const v = offline("data-table", [
       (x) => ({ ...x, rows: [rows(x)[1], { ...rows(x)[0]!, cost: 4 }, { id: "bolt", cost: 1 }] }),
@@ -443,6 +453,22 @@ describe("the engine's doc kinds and a game's converge", () => {
       { hold: ["right"], for: 20 },
       { wait: 5 },
     ]);
+  });
+
+  it("input-script: concurrent inserts of command steps merge", () => {
+    const nudge = (dx: number) => ({ command: NUDGE, args: { dx } });
+    const v = offline("input-script", [
+      (x) => ({ ...x, steps: [nudge(1), ...items(x, "steps")] }),
+      (x) => ({ ...x, steps: [items(x, "steps")[0], nudge(2), ...items(x, "steps").slice(1)] }),
+      (x) => ({ ...x, steps: [items(x, "steps")[0], nudge(3), ...items(x, "steps").slice(1)] }),
+      (x) => ({ ...x, steps: [...items(x, "steps"), nudge(4)] }),
+    ]);
+    const steps = items(v, "steps");
+    expect(steps).toHaveLength(6);
+    expect(steps[0]).toEqual(nudge(1));
+    expect(steps[1]).toEqual({ wait: 10 });
+    expect(steps.slice(2, 4)).toEqual(expect.arrayContaining([nudge(2), nudge(3)]));
+    expect(steps.slice(4)).toEqual([{ hold: ["right"], for: 20 }, nudge(4)]);
   });
 
   it("checks: concurrent edits of different checks and fields all land", () => {

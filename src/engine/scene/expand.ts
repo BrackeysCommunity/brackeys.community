@@ -1,6 +1,9 @@
+import { z } from "zod";
+
 import { BEHAVIORS_FIELD, type BehaviorBlock, type BehaviorName } from "../game/behaviors";
+import { DEFAULT_GRAVITY, DEFAULT_PHYSICS } from "../game/defaults";
 import { BASE_FIELDS } from "../game/fields";
-import { DEFAULT_GRAVITY, ENGINE_SETTING_KEYS } from "../game/primitives";
+import { ENGINE_SETTING_KEYS, ENGINE_SETTINGS } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
 import { bulkId } from "./bulk-ref";
@@ -52,24 +55,44 @@ const pt = ([x, y]: Pt): Pt => [x, y];
 
 /** Where engine settings come from besides the scene, highest first after it. */
 export type SettingsSources = {
-  /** The project's `game-settings` `engine` block. */
-  project?: Record<string, unknown>;
-  /** The game's defaults. */
+  /** The project's `game-settings` `engine` block: `gravity` and `physics`, each used when valid. */
+  project?: Readonly<Record<string, unknown>>;
+  /** The game's world defaults (`GameDefinition.world`): `gravity`, `physics` and `grid`. */
   game?: Partial<ResolvedSettings>;
 };
 
+type EngineSettingKey = (typeof ENGINE_SETTING_KEYS)[number];
+
 const ENGINE_DEFAULTS = {
   gravity: DEFAULT_GRAVITY,
-  physics: "rapier",
+  physics: DEFAULT_PHYSICS,
   grid: null,
   view: { projection: "orthogonal" },
-} satisfies Record<(typeof ENGINE_SETTING_KEYS)[number], unknown>;
+} satisfies Record<EngineSettingKey, unknown>;
+
+/** The sources each engine key reads after the scene: `grid` skips the project, `view` reads none. */
+const SOURCES_OF: Record<EngineSettingKey, readonly (keyof SettingsSources)[]> = {
+  gravity: ["project", "game"],
+  physics: ["project", "game"],
+  grid: ["game"],
+  view: [],
+};
+
+function sourceValue(sources: SettingsSources, from: keyof SettingsSources, key: EngineSettingKey) {
+  const value = sources[from]?.[key];
+  if (value === undefined || value === null) return undefined;
+  // the project block is stored data; one that fails the setting's schema is passed over
+  if (from === "project" && !z.safeParse(ENGINE_SETTINGS[key], value).success) return undefined;
+  return value;
+}
 
 /**
- * The scene's settings with every engine key filled: each comes from the
- * scene's `settings`, else the project's engine block, else the game's
- * default, else the engine's (`[0, 1200]` gravity, Rapier, no grid,
- * orthogonal). The game's own keys are the scene's, as given.
+ * The scene's settings with every engine key filled. `gravity` and
+ * `physics` come from the scene's `settings`, else the project's engine
+ * block, else the game's world, else the engine's default; `grid` from the
+ * scene, else the game's world, else none; `view` from the scene, else
+ * orthogonal (`game/defaults` holds the engine's values). The game's own
+ * keys are the scene's, as given.
  */
 export function resolveSettings(
   settings: SceneSettings | undefined,
@@ -77,14 +100,44 @@ export function resolveSettings(
 ): ResolvedSettings {
   const out: Record<string, unknown> = {};
   for (const key of ENGINE_SETTING_KEYS) {
-    const value =
-      settings?.[key] ?? sources.project?.[key] ?? sources.game?.[key] ?? ENGINE_DEFAULTS[key];
-    out[key] = structuredClone(value);
+    let value: unknown = settings?.[key];
+    for (const from of SOURCES_OF[key]) value ??= sourceValue(sources, from, key);
+    out[key] = structuredClone(value ?? ENGINE_DEFAULTS[key]);
   }
   for (const [key, value] of Object.entries(settings ?? {})) {
     if (!(key in out) && value !== undefined) out[key] = structuredClone(value);
   }
   return out as ResolvedSettings;
+}
+
+/** The sources a scene under `registry` resolves through: `engine` (the project's block), then the game's world. */
+export function settingsSources(
+  registry: Registry,
+  engine?: Readonly<Record<string, unknown>>,
+): SettingsSources {
+  const world = registry.game?.world;
+  const game: Partial<ResolvedSettings> = {};
+  if (world?.gravity) game.gravity = world.gravity;
+  if (world?.physics) game.physics = world.physics;
+  if (world?.grid) game.grid = world.grid;
+  return { ...(engine ? { project: engine } : {}), game };
+}
+
+/** The physics backend `def` resolves to, so a host can load Rapier only when it says "rapier". */
+export function scenePhysics(
+  def: SceneDefinition,
+  registry: Registry,
+  engine?: Readonly<Record<string, unknown>>,
+): "rapier" | "none" {
+  return resolveSettings(def.settings, settingsSources(registry, engine)).physics;
+}
+
+/** The game's default backend: the project's `engine.physics`, else `world.physics`, else Rapier. */
+export function defaultPhysics(
+  registry: Registry,
+  engine?: Readonly<Record<string, unknown>>,
+): "rapier" | "none" {
+  return resolveSettings(undefined, settingsSources(registry, engine)).physics;
 }
 
 /**
@@ -153,6 +206,8 @@ export function isExpandedScene(scene: SceneDefinition | ExpandedScene): scene i
 export type ExpandOptions = {
   /** The prefabs the scene's instances name; an instance whose prefab is missing loads nothing. */
   prefabs?: PrefabLibrary;
+  /** The project's `engine` block, which settings resolve through between the scene and the game. */
+  engine?: Readonly<Record<string, unknown>>;
 };
 
 /**
@@ -213,7 +268,7 @@ export function expandScene(
     name: def.name,
     ...(def.game !== undefined ? { game: def.game } : {}),
     bounds: [def.bounds[0], def.bounds[1], def.bounds[2], def.bounds[3]],
-    settings: resolveSettings(def.settings),
+    settings: resolveSettings(def.settings, settingsSources(registry, opts.engine)),
     entities: groups.flat(),
   };
 }

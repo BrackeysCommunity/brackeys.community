@@ -5,14 +5,14 @@
  * `/__scene-collab` and `/__project`. The runner drives the window and the
  * clicks; this page measures what they leave on screen, plays and stops the
  * scene and loads a long run to see the inspector keep its height, and reads
- * the crate's sprite back from the editor's own renderer.
+ * the crate's sprite back from the editor's own game, through the handle
+ * `onReady` gives it.
  */
 import "@fontsource-variable/rubik";
 import "@jams/engine/editor-ui/style.css";
 import * as hocuspocus from "@hocuspocus/provider";
-import { devProjectHost, mountSceneEditor } from "@jams/engine/editor-ui";
+import { devProjectHost, mountSceneEditor, type SceneEditorHandle } from "@jams/engine/editor-ui";
 import { RECORDING_VERSION } from "@jams/engine/scene";
-import { Rectangle, type Application } from "pixi.js";
 
 import {
   EDITOR_VIEWPORTS,
@@ -23,11 +23,11 @@ import {
   type EditorTabProbe,
   type IslandBox,
   type RenderProbe,
-  type Rgba,
 } from "../browser-compare";
 import { smokeGame } from "../game";
+import { readProbe } from "./pixels";
 import { loadRapier } from "./run";
-import { INSIDE_POINT, OUTSIDE_POINT, SINK_PROJECT, SINK_SCENE } from "./sink";
+import { SINK_FRAME, SINK_PROJECT, SINK_SCENE } from "./sink";
 
 export type EngineEditorPage = {
   /** Set when the editor couldn't mount. */
@@ -50,16 +50,8 @@ declare global {
   }
 }
 
-type PixiHooks = { __PIXI_APP_INIT__?: (app: Application, version: string) => void };
-
-/** Every Pixi application made from here on; the editor's game doesn't expose its own. */
-const apps: Application[] = [];
-const hooks = globalThis as PixiHooks;
-const previous = hooks.__PIXI_APP_INIT__;
-hooks.__PIXI_APP_INIT__ = (app, version) => {
-  apps.push(app);
-  previous?.(app, version);
-};
+/** The editor's commands, once it is up. */
+let handle: SceneEditorHandle | null = null;
 
 /** What the frame lays out as separate chrome: islands, the host's corners, the prefab context. */
 const ISLANDS = ".je-island, .je-host, .je-frame-context";
@@ -252,58 +244,25 @@ async function measure(): Promise<EditorLayoutProbe> {
   return { ...probe, held };
 }
 
-/** The editor's scene renderer: the newest application still drawing on a canvas in the page. */
-function editorApp(): Application | null {
-  for (let i = apps.length - 1; i >= 0; i--) {
-    const app = apps[i]!;
-    if (app.renderer && app.canvas.isConnected && app.stage.getChildByLabel("world")) return app;
-  }
-  return null;
-}
-
 /**
- * The two pixels with the world framed on the crate at scale 1, so the
- * reading doesn't hang on where the editor's camera stands; the camera's own
- * transform is put back before the next frame draws.
+ * The two pixels with the editor's camera framed on the crate at its frame,
+ * so the reading doesn't hang on where the editor's camera stood.
  */
-function readPixels(app: Application): RenderProbe {
-  const world = app.stage.getChildByLabel("world");
-  if (!world) throw new Error("the editor's stage has no world container");
-  const saved = { x: world.position.x, y: world.position.y, sx: world.scale.x, sy: world.scale.y };
-  try {
-    world.scale.set(1);
-    world.position.set(
-      Math.round(app.screen.width / 2 - INSIDE_POINT[0]),
-      Math.round(app.screen.height / 2 - INSIDE_POINT[1]),
-    );
-    const pixel = ([x, y]: readonly [number, number]): Rgba => {
-      const at = world.toGlobal({ x, y });
-      const { pixels } = app.renderer.extract.pixels({
-        target: app.stage,
-        frame: new Rectangle(Math.floor(at.x), Math.floor(at.y), 1, 1),
-        resolution: 1,
-      });
-      return [pixels[0] ?? 0, pixels[1] ?? 0, pixels[2] ?? 0, pixels[3] ?? 0];
-    };
-    return {
-      renderer: app.renderer.name,
-      inside: pixel(INSIDE_POINT),
-      outside: pixel(OUTSIDE_POINT),
-    };
-  } finally {
-    world.position.set(saved.x, saved.y);
-    world.scale.set(saved.sx, saved.sy);
-  }
+async function readPixels(): Promise<RenderProbe | null> {
+  const game = handle?.game();
+  if (!game) return null;
+  game.frame({ ...SINK_FRAME }, 0);
+  await nextFrame();
+  return readProbe(game);
 }
 
 async function readSprite(ms: number): Promise<RenderProbe> {
   const until = performance.now() + ms;
   for (;;) {
-    const app = editorApp();
-    const probe = app ? readPixels(app) : null;
+    const probe = await readPixels();
     if (probe && judgeEditorRender(probe) === null) return probe;
     if (performance.now() >= until) {
-      if (!probe) throw new Error("the editor drew no scene on a Pixi canvas");
+      if (!probe) throw new Error("the editor never built its game");
       return probe;
     }
     await sleep(250);
@@ -322,6 +281,9 @@ try {
     project: SINK_PROJECT,
     scene: SINK_SCENE,
     rapier: loadRapier,
+    onReady: (ready) => {
+      handle = ready;
+    },
   });
 } catch (err) {
   page.error = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);

@@ -1729,3 +1729,125 @@ describe("changeAssetId in keyed collections with their own id field", () => {
     });
   });
 });
+
+describe("editScene judges assets against the batch's view", () => {
+  const engineKinds = createKindRegistry(null);
+  const state: ProjectState = {
+    meta: { projectId: "p", layout: 1, name: "P" },
+    assets: {
+      room: entry("room", { id: "room", kind: "scene", path: "levels/room.json" }),
+      tiles: entry("tiles", {
+        id: "tiles",
+        kind: "texture",
+        path: "art/tiles.png",
+        sha256: H("a"),
+        bytes: 10,
+      }),
+      sheet: entry("sheet", {
+        id: "sheet",
+        kind: "atlas",
+        path: "art/sheet.atlas.json",
+        sha256: H("b"),
+        bytes: 10,
+        import: { texture: "tiles" },
+        meta: {
+          tool: "aseprite",
+          frames: { "a-0": { x: 0, y: 0, w: 8, h: 8 } },
+          tags: [],
+          slices: [],
+          order: ["a-0"],
+        },
+      }),
+    },
+    history: {},
+    code: {},
+    build: {},
+  };
+  const room = {
+    v: 2,
+    name: "room",
+    bounds: [0, 0, 1000, 1000],
+    entities: [
+      { id: "pic", type: "marker", at: [10, 10], behaviors: { sprite: { asset: "tiles" } } },
+    ],
+  };
+  const run = (ops: ProjectOp[], extra: Partial<ProjectBatchEnv> = {}) => {
+    const r = checkProjectBatch(
+      state,
+      new Map([["room", structuredClone(room)]]),
+      { v: 1, ops },
+      env({ kinds: engineKinds, ...extra }),
+    );
+    if (!r.ok) throw new Error(`op ${r.opIndex}: ${r.issue.message}`);
+    return r;
+  };
+  const sprite = (value: Record<string, unknown>): ProjectOp => ({
+    op: "editScene",
+    id: "room",
+    ops: [{ op: "update", ref: "pic", set: { "behaviors.sprite": value } }],
+  });
+  const assetCodes = (r: Extract<ProjectBatchCheck, { ok: true }>) =>
+    r.issues
+      .filter((i) => i.code.startsWith("asset-") || i.code === "sprite-no-asset")
+      .map((i) => [i.code, i.entityIds]);
+
+  it("reports each of the four codes", () => {
+    expect(assetCodes(run([sprite({ asset: "nope" })]))).toEqual([["asset-missing", ["pic"]]]);
+    expect(assetCodes(run([sprite({ asset: "room" })]))).toEqual([["asset-kind", ["pic"]]]);
+    expect(assetCodes(run([sprite({ asset: "sheet", frame: "a-9" })]))).toEqual([
+      ["asset-frame-unknown", ["pic"]],
+    ]);
+    expect(assetCodes(run([sprite({ alpha: 0.5 })]))).toEqual([["sprite-no-asset", ["pic"]]]);
+    expect(assetCodes(run([sprite({ asset: "sheet", frame: "a-0" })]))).toEqual([]);
+  });
+
+  it("sees a texture an earlier op imports", () => {
+    const r = run([
+      { op: "importAsset", path: "art/hero.png", sha256: H("c"), bytes: 10 },
+      sprite({ asset: "hero" }),
+    ]);
+    expect(r.issues).toEqual([]);
+  });
+
+  it("reports the latest edit of a scene, once", () => {
+    const r = run([sprite({ asset: "nope" }), sprite({ asset: "nope" })]);
+    expect(assetCodes(r)).toEqual([["asset-missing", ["pic"]]]);
+    expect(assetCodes(run([sprite({ asset: "nope" }), sprite({ asset: "tiles" })]))).toEqual([]);
+  });
+
+  it("reports no asset-missing when changeAssetId renames a texture a sprite uses", () => {
+    const r = run([{ op: "changeAssetId", id: "tiles", to: "tileset" }]);
+    expect(r.issues.filter((i) => i.code === "asset-missing")).toEqual([]);
+    const after = r.values.get("room") as typeof room;
+    expect(after.entities[0]!.behaviors.sprite.asset).toBe("tileset");
+  });
+
+  it("judges an editScene that writes prefabs once the batch has run", () => {
+    const r = run(
+      [
+        {
+          op: "editScene",
+          id: "room",
+          ops: [
+            { op: "update", ref: "pic", set: { "behaviors.sprite": { asset: "sheet" } } },
+            { op: "definePrefab", id: "post", prefab: { entities: [] } },
+          ],
+        },
+      ],
+      { prefabsFor: () => new Map(), prefabEdit: () => null },
+    );
+    expect(r.delegated).toEqual([0]);
+    expect(assetCodes(r)).toEqual([["asset-frame-unknown", ["pic"]]]);
+  });
+
+  it("reports a forced delete's dangling sprite once", () => {
+    const missing = (r: Extract<ProjectBatchCheck, { ok: true }>) =>
+      r.issues.filter((i) => i.code === "asset-missing").map((i) => i.entityIds);
+    const forced: ProjectOp = { op: "deleteAsset", id: "tiles", force: true };
+    expect(missing(run([forced]))).toEqual([["room"], ["sheet"]]);
+    expect(missing(run([forced, sprite({ asset: "tiles", alpha: 0.5 })]))).toEqual([
+      ["pic"],
+      ["sheet"],
+    ]);
+  });
+});

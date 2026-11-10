@@ -38,6 +38,8 @@ const games = vi.hoisted(() => ({
   made: [] as { destroyed: boolean; game: unknown }[],
   /** What each game's `preload` reports as failed. */
   failed: [] as { id: string }[],
+  /** While set, games being built wait for it. */
+  hold: null as Promise<void> | null,
 }));
 
 // Records every game the editor builds and whether it was destroyed.
@@ -46,6 +48,7 @@ vi.mock("../../index", async (importOriginal) => {
   return {
     ...engine,
     createGame: async (...args: Parameters<typeof engine.createGame>) => {
+      await games.hold;
       const game: GameInstance = await engine.createGame(...args);
       const made = { destroyed: false, game: game as unknown };
       games.made.push(made);
@@ -166,6 +169,7 @@ afterEach(() => {
   cleanup();
   games.made.length = 0;
   games.failed = [];
+  games.hold = null;
   vi.unstubAllGlobals();
 });
 
@@ -251,6 +255,39 @@ describe("SceneEditor", () => {
     const history = screen.getByRole("region", { name: "History" });
     expect(history.closest(".je-panel-group")?.contains(document.activeElement)).toBe(true);
     expect(() => handle!.resetLayout()).not.toThrow();
+  }, 20_000);
+
+  it("hands out its current game through the ready handle: null while it builds and after unmount", async () => {
+    const { host } = fakeProject();
+    let handle: SceneEditorHandle | null = null;
+    const props = {
+      host,
+      project: "p",
+      scene: "yard",
+      rapier,
+      onReady: (h: SceneEditorHandle) => (handle = h),
+    };
+    const view = render(<SceneEditor game={yardGame} {...props} />);
+    await waitFor(() => expect(handle).not.toBeNull(), { timeout: 10_000 });
+    const first = games.made.at(-1)!;
+    expect(handle!.game()).toBe(first.game);
+
+    let release!: () => void;
+    games.hold = new Promise((resolve) => (release = resolve));
+    const regame = defineGame({ ...yardGame });
+    view.rerender(<SceneEditor game={regame} {...props} />);
+    expect(first.destroyed).toBe(true);
+    expect(handle!.game()).toBeNull();
+
+    games.hold = null;
+    release();
+    await waitFor(() => expect(games.made).toHaveLength(2), { timeout: 10_000 });
+    const second = games.made.at(-1)!;
+    await waitFor(() => expect(handle!.game()).toBe(second.game));
+
+    view.unmount();
+    expect(second.destroyed).toBe(true);
+    expect(handle!.game()).toBeNull();
   }, 20_000);
 
   it("names the scene it opened when the one asked for isn't in the project", async () => {

@@ -103,6 +103,16 @@ describe("compileInputScript", () => {
     expect(ticksOf(1)).toBe(1);
   });
 
+  it("converts forMs at the game's rate, or the run's when given", () => {
+    const script = { v: 1, steps: [{ hold: ["left"], forMs: 1000 }] };
+    const ticksOf = (r: CompileResult) => (r.ok ? r.script.steps[0]!.ticks : null);
+    const at30 = createRegistry({ ...testGame, time: { kind: "fixed", rate: 30 } });
+    expect(ticksOf(compileInputScript(script, at30))).toBe(30);
+    expect(ticksOf(compileInputScript(script, game, { rate: 30 }))).toBe(30);
+    expect(ticksOf(compileInputScript(script, at30, { rate: 120 }))).toBe(120);
+    expect(ticksOf(compileInputScript({ v: 1, steps: [{ hold: [], forMs: 1 }] }, at30))).toBe(1);
+  });
+
   it("suggests the action an unknown name meant", () => {
     const found = issues(
       compileInputScript(
@@ -163,8 +173,10 @@ describe("compileInputScript", () => {
     expect(at("/steps/4/until/pastt")).toBe('unknown key "pastt"; did you mean "past"?');
     expect(at("/steps/5/until")).toBe("an until clause needs at least one predicate");
     expect(at("/steps/6/until/past")).toMatch(/expected number/);
-    expect(at("/steps/7")).toBe("a step is one of hold, press or wait, not press and wait");
-    expect(at("/steps/8")).toBe("a step needs one of hold, press or wait");
+    expect(at("/steps/7")).toBe(
+      "a step is one of hold, press, wait, command or elapse, not press and wait",
+    );
+    expect(at("/steps/8")).toBe("a step needs one of hold, press, wait, command or elapse");
     expect(at("/steps/9")).toMatch(/a step is an object/);
   });
 
@@ -184,6 +196,111 @@ describe("compileInputScript", () => {
     ).toBe("/maxTicks");
     expect(issues(compileInputScript({ v: 1, steps: [{ wait: 0 }] }, game))[0]!.path).toBe(
       "/steps/0/wait",
+    );
+  });
+});
+
+describe("command and elapse steps", () => {
+  const catchUp = createRegistry({
+    ...testGame,
+    time: { kind: "turns", catchUp: { maxMs: 5000 } },
+  });
+
+  it("compile to one slot each that sends the command and holds what the hold before held", () => {
+    const result = compileInputScript(
+      {
+        v: 1,
+        steps: [
+          { hold: ["right"], for: 3 },
+          { command: "nudge", args: { dx: 12 } },
+          { elapse: 9000.7 },
+          { press: "push" },
+          { command: "nudge", args: { dx: -4 } },
+          { elapse: 250.5 },
+        ],
+      },
+      catchUp,
+    );
+    expect(result).toEqual({
+      ok: true,
+      script: {
+        maxTicks: 1800,
+        play: {},
+        steps: [
+          { index: 0, hold: ["right"], ticks: 3 },
+          { index: 1, hold: ["right"], ticks: 1, commands: [{ name: "nudge", args: { dx: 12 } }] },
+          {
+            index: 2,
+            hold: ["right"],
+            ticks: 1,
+            commands: [{ name: "@elapsed", args: { ms: 5000 } }],
+          },
+          { index: 3, hold: ["push"], ticks: 1 },
+          { index: 4, hold: [], ticks: 1, commands: [{ name: "nudge", args: { dx: -4 } }] },
+          { index: 5, hold: [], ticks: 1, commands: [{ name: "@elapsed", args: { ms: 250 } }] },
+        ],
+        edges: [
+          [0, "right", 1],
+          [5, "right", 0],
+          [5, "push", 1],
+          [6, "push", 0],
+        ],
+      },
+    });
+  });
+
+  it("suggests the command an unknown name meant", () => {
+    const found = issues(
+      compileInputScript({ v: 1, steps: [{ command: "nuge", args: { dx: 1 } }] }, game),
+    );
+    expect(found).toEqual([
+      {
+        path: "/steps/0/command",
+        message: 'unknown command "nuge"; did you mean "nudge"? (commands: nudge)',
+        expected: '"nudge"',
+        got: '"nuge"',
+      },
+    ]);
+    expect(issues(compileInputScript({ v: 1, steps: [{ command: "go" }] }, engine))[0]).toEqual(
+      expect.objectContaining({
+        path: "/steps/0/command",
+        message: 'unknown command "go" (commands: none)',
+      }),
+    );
+  });
+
+  it("refuses bad args, engine commands, stray args and elapse without catch-up", () => {
+    const found = issues(
+      compileInputScript(
+        {
+          v: 1,
+          steps: [
+            { command: "nudge", args: { dx: "far" } },
+            { command: "nudge" },
+            { command: "nudge", args: { dx: 1, dy: 2 } },
+            { command: "@elapsed", args: { ms: 10 } },
+            { wait: 2, args: {} },
+            { elapse: 100 },
+            { command: "nudge", elapse: 3 },
+          ],
+        },
+        game,
+      ),
+    );
+    const at = (path: string) => found.find((i) => i.path === path)?.message;
+    expect(at("/steps/0/args")).toMatch(/^bad args for nudge: dx: .*expected number/i);
+    expect(at("/steps/1/args")).toMatch(/^bad args for nudge: /);
+    expect(at("/steps/2/args")).toMatch(/^bad args for nudge: .*dy/);
+    expect(at("/steps/3/command")).toBe("@elapsed is the engine's; send it with an elapse step");
+    expect(at("/steps/4/args")).toBe("args goes with a command step");
+    expect(at("/steps/5/elapse")).toBe(
+      "elapse needs the game's time.catchUp, and this game has none",
+    );
+    expect(at("/steps/6")).toBe(
+      "a step is one of hold, press, wait, command or elapse, not command and elapse",
+    );
+    expect(issues(compileInputScript({ v: 1, steps: [{ elapse: 0 }] }, catchUp))[0]!.path).toBe(
+      "/steps/0/elapse",
     );
   });
 });

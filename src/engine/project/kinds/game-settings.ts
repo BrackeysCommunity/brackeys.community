@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import type { Registry } from "../../game/types";
+import { MAX_TICK_RATE, MIN_TICK_RATE, tickRateProblem } from "../../game/time";
+import type { GameWorldDef, Registry } from "../../game/types";
 import type { ResolutionPolicy } from "../../resolution";
 import { makeIssue } from "../../scene/issues";
 import type { SceneIssue } from "../../scene/types";
@@ -16,8 +17,17 @@ export type GameSettingsFile = {
   $schema?: string;
   kind: typeof GAME_SETTINGS_KIND;
   v: typeof GAME_SETTINGS_VERSION;
-  engine: { resolution?: Partial<ResolutionPolicy> };
+  engine: GameSettingsEngine;
   game: Record<string, unknown>;
+};
+
+/** The engine's project-wide settings: each beats the game's default and loses to a scene's own. */
+export type GameSettingsEngine = {
+  resolution?: Partial<ResolutionPolicy>;
+  physics?: GameWorldDef["physics"];
+  gravity?: GameWorldDef["gravity"];
+  /** Ticks per second for every scene; checked by the kind's `validate`, not the schema. */
+  tickRate?: number;
 };
 
 const positive = (description: string) => z.number().positive().describe(description);
@@ -69,6 +79,31 @@ const ResolutionSchema = z
     "How the world maps onto the canvas; each field given wins over the game's and loses to the host's.",
   ) satisfies z.ZodType<Partial<ResolutionPolicy>>;
 
+const engineFields = {
+  resolution: ResolutionSchema.optional(),
+  physics: z
+    .enum(["rapier", "none"])
+    .optional()
+    .describe(
+      'The physics world for every scene that doesn\'t set its own: "rapier" simulates bodies, "none" runs without one. Omitted: the game\'s.',
+    ) satisfies z.ZodType<GameSettingsEngine["physics"]>,
+  gravity: z
+    .tuple([
+      z.number().describe("x, px/s²; positive pulls right."),
+      z.number().describe("y, px/s²; positive pulls down."),
+    ])
+    .optional()
+    .describe(
+      "World gravity [x, y] in px/s² for every scene that doesn't set its own; y is down. Omitted: the game's.",
+    ) satisfies z.ZodType<GameSettingsEngine["gravity"]>,
+  tickRate: z
+    .number()
+    .optional()
+    .describe(
+      `Ticks per second for every scene, an integer from ${MIN_TICK_RATE} to ${MAX_TICK_RATE}; the game's time model keeps its kind. Omitted: the game's rate.`,
+    ),
+};
+
 /**
  * The resolution policy an `engine` block sets: the whole block when it
  * parses, else each field that does; undefined when it sets none.
@@ -96,9 +131,7 @@ function gameSettingsSchema(registry: Registry): z.ZodType<GameSettingsFile> {
       $schema: z.string().optional().describe("The game-settings JSON Schema this file follows."),
       kind: z.literal(GAME_SETTINGS_KIND).describe('Always "game-settings".'),
       v: z.literal(GAME_SETTINGS_VERSION).describe("Game-settings format version."),
-      engine: z
-        .strictObject({ resolution: ResolutionSchema.optional() })
-        .describe("The engine's project-wide settings."),
+      engine: z.strictObject(engineFields).describe("The engine's project-wide settings."),
       game: z
         .strictObject(fields)
         .describe(
@@ -152,7 +185,23 @@ export function gameSettingsValues(
   return out;
 }
 
-/** Project-wide settings: the engine's block (its resolution policy) and the game's `projectSettings`. */
+/** `tick-rate-invalid` for an `engine.tickRate` the clock can't run. */
+function engineIssues(engine: GameSettingsEngine): SceneIssue[] {
+  if (engine.tickRate === undefined) return [];
+  const problem = tickRateProblem(engine.tickRate);
+  return problem === null
+    ? []
+    : [
+        makeIssue("tick-rate-invalid", {
+          message: `engine.tickRate: ${problem}`,
+          path: "/engine/tickRate",
+          expected: `integer ${MIN_TICK_RATE}..${MAX_TICK_RATE}`,
+          got: String(engine.tickRate),
+        }),
+      ];
+}
+
+/** Project-wide settings: the engine's block (resolution, physics, gravity, tick rate) and the game's `projectSettings`. */
 export const gameSettingsKind = defineAssetKind({
   kind: GAME_SETTINGS_KIND,
   title: "Game settings",
@@ -170,6 +219,7 @@ export const gameSettingsKind = defineAssetKind({
       game: { as: "map", rest: { as: "atomic" } },
     },
   },
+  validate: (file: GameSettingsFile): SceneIssue[] => engineIssues(file.engine),
   refs: (file: GameSettingsFile, env: KindEnv): RefSite[] =>
     schemaRefSites(env.registry.game?.projectSettings ?? {}, file.game, "/game"),
   empty: (): GameSettingsFile => ({

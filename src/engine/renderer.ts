@@ -1,13 +1,15 @@
-import { Application, Container, Graphics } from "pixi.js";
+import { Application, Container, Graphics, Rectangle } from "pixi.js";
 
 import { DEFAULT_RESOLUTION, viewportFor, type ResolutionPolicy } from "./resolution";
-import type { GameConfig } from "./types";
+import type { GameConfig, GameInstance, Vec2 } from "./types";
 
 export type Renderer = {
   app: Application;
   worldContainer: Container;
   uiContainer: Container;
   resize: (width: number, height: number) => void;
+  /** The canvas pixel under each world point, through the world container's current transform. */
+  extractPixels: GameInstance["extractPixels"];
   destroy: () => void;
 };
 
@@ -73,11 +75,29 @@ export async function createRenderer(
 
   drawBars(config.displayWidth, config.displayHeight);
 
+  function extractPixels(world: readonly Vec2[]): ReturnType<GameInstance["extractPixels"]> {
+    const { width, height } = app.screen;
+    const pixels = world.map((point) => {
+      const at = worldContainer.toGlobal(point);
+      const x = Math.floor(at.x);
+      const y = Math.floor(at.y);
+      if (!(x >= 0 && y >= 0 && x < width && y < height)) return null;
+      const { pixels: rgba } = app.renderer.extract.pixels({
+        target: app.stage,
+        frame: new Rectangle(x, y, 1, 1),
+        resolution: 1,
+        clearColor: config.backgroundColor,
+      });
+      return [rgba[0] ?? 0, rgba[1] ?? 0, rgba[2] ?? 0, rgba[3] ?? 0] as const;
+    });
+    return { renderer: app.renderer.name, pixels };
+  }
+
   function destroy(): void {
     // Pass false for removeView — React owns the canvas DOM element, not PixiJS.
     // Passing true causes Strict Mode double-mount to fail (canvas removed on first cleanup).
     app.destroy(false, { children: true });
   }
 
-  return { app, worldContainer, uiContainer, resize, destroy };
+  return { app, worldContainer, uiContainer, resize, extractPixels, destroy };
 }

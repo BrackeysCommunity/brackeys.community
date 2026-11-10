@@ -114,6 +114,21 @@ describe("fuzz", () => {
     expect(() => run({ rollouts: 0 })).toThrow(RangeError);
   });
 
+  it("ends an idle turns game's rollouts on their slots, having simulated nothing", () => {
+    const turns = { ...testGame, time: { kind: "turns" as const } };
+    const r = report(fuzz({ rapier, game: turns, scene: yard, seed: 1, rollouts: 3, ticks: 200 }));
+    expect(r.ticks).toBe(0);
+    expect(r.results.timeout).toBe(3);
+    expect(r.touched).toEqual([]);
+  });
+
+  it("simulates an event game only on the slots its macros' edges wake", () => {
+    const event = { ...testGame, time: { kind: "event" as const } };
+    const r = report(fuzz({ rapier, game: event, scene: yard, seed: 1, rollouts: 3, ticks: 200 }));
+    expect(r.ticks).toBeGreaterThan(0);
+    expect(r.ticks).toBeLessThan(3 * 200);
+  });
+
   it("starts each rollout like Play, and blocks a scene with errors or a bad start", () => {
     const from = run({ play: { at: { x: 800, y: 500 } }, rollouts: 4 });
     expect(from.touched.find((t) => t.ref === "zone")?.firstTick ?? Infinity).toBeLessThan(

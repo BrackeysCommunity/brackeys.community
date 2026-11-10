@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:recording:v1",
-  "x-agent-surface": 9,
+  "x-agent-surface": 10,
   "title": "jams engine run recording, format v1",
   "type": "object",
   "properties": {
@@ -54,8 +54,9 @@
       "description": "What the run depends on besides the scene: engine version, tick rate, the game and its tuning."
     },
     "tickRate": {
-      "type": "number",
-      "const": 60,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 240,
       "description": "Ticks per second."
     },
     "start": {
@@ -118,6 +119,31 @@
         "description": "One input edge, in the order the runtime stepped it."
       },
       "description": "Every input edge played, oldest first."
+    },
+    "commands": {
+      "description": "Every command stepped, oldest first; omitted when there were none.",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The tick the command is stepped on."
+          },
+          {
+            "type": "string",
+            "description": "The command's name: the game's, or an engine one such as `@elapsed`."
+          },
+          {
+            "description": "Its arguments, as parsed; absent for none."
+          }
+        ],
+        "minItems": 2,
+        "maxItems": 3,
+        "description": "One command, in the order the runtime stepped it."
+      }
     },
     "ticks": {
       "type": "integer",

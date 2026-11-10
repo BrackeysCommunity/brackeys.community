@@ -1,12 +1,15 @@
 import type { z } from "zod";
 
+import { resolveTime, ticksFor, type ResolvedTime } from "../game/time";
 import type { Registry } from "../game/types";
-import { TICK_RATE } from "../physics";
 import { closest } from "../scene/did-you-mean";
 import {
+  checkCommand,
   DEFAULT_SCRIPT_MAX_TICKS,
   DEFAULT_UNTIL_MAX,
+  elapsedCommand,
   inputScriptSchemasFor,
+  scriptCommandNames,
   type InputScriptSchemas,
 } from "../scene/input-script";
 import { jsonPointer } from "../scene/issues";
@@ -23,9 +26,10 @@ import type {
 
 type Path = (string | number)[];
 
-const STEP_KINDS = ["hold", "press", "wait"] as const;
+const STEP_KINDS = ["hold", "press", "wait", "command", "elapse"] as const;
 const DURATIONS = ["for", "forMs", "until"] as const;
-const STEP_KEYS = [...STEP_KINDS, ...DURATIONS, "max"];
+const STEP_KEYS = [...STEP_KINDS, ...DURATIONS, "max", "args"];
+const KIND_LIST = "hold, press, wait, command or elapse";
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -113,7 +117,9 @@ function parseStep(
     issues: [{ path: jsonPointer(path), message, ...extra }],
   });
   if (!isRecord(raw))
-    return fail("a step is an object: { hold, for | forMs | until }, { press } or { wait }");
+    return fail(
+      "a step is an object: { hold, for | forMs | until }, { press }, { wait }, { command, args? } or { elapse }",
+    );
 
   const unknown = Object.keys(raw).filter((k) => !STEP_KEYS.includes(k));
   if (unknown.length > 0) {
@@ -123,9 +129,24 @@ function parseStep(
   if (kinds.length !== 1) {
     return fail(
       kinds.length === 0
-        ? "a step needs one of hold, press or wait"
-        : `a step is one of hold, press or wait, not ${kinds.join(" and ")}`,
+        ? `a step needs one of ${KIND_LIST}`
+        : `a step is one of ${KIND_LIST}, not ${kinds.join(" and ")}`,
     );
+  }
+  if ("args" in raw && kinds[0] !== "command") {
+    return {
+      ok: false,
+      issues: [
+        {
+          path: jsonPointer([...path, "args"]),
+          message: "args goes with a command step",
+        },
+      ],
+    };
+  }
+  if (kinds[0] === "command") {
+    const problem = commandStepIssue(raw, path, registry);
+    if (problem) return { ok: false, issues: [problem] };
   }
   let shape: z.ZodType;
   if (kinds[0] === "hold") {
@@ -159,10 +180,58 @@ function parseStep(
   return { ok: false, issues: fromZod(parsed.error, raw, path, registry, keysAt) };
 }
 
+/** An unknown command (with a guess) or args its schema refuses, as one issue. */
+function commandStepIssue(
+  raw: Record<string, unknown>,
+  path: Path,
+  registry: Registry,
+): ScriptIssue | null {
+  const name = raw.command;
+  if (typeof name !== "string") return null;
+  const names = scriptCommandNames(registry);
+  if (name.startsWith("@") && registry.commands.has(name)) {
+    return {
+      path: jsonPointer([...path, "command"]),
+      message:
+        name === "@elapsed"
+          ? "@elapsed is the engine's; send it with an elapse step"
+          : `${name} is the engine's; a command step sends the game's`,
+      got: JSON.stringify(name),
+    };
+  }
+  const checked = checkCommand(registry, { name, args: raw.args }, names);
+  if (checked.ok) return null;
+  const issue: ScriptIssue = {
+    path: jsonPointer([...path, checked.at === "name" ? "command" : "args"]),
+    message: checked.message,
+  };
+  if (checked.at === "name") {
+    issue.expected = names.map((n) => JSON.stringify(n)).join(" | ");
+    issue.got = JSON.stringify(name);
+  }
+  return issue;
+}
+
 const unique = (actions: readonly string[]) => [...new Set(actions)];
 
-function compileStep(step: ParsedStep, index: number): CompiledStep {
+function compileStep(
+  step: ParsedStep,
+  index: number,
+  time: Pick<ResolvedTime, "rate">,
+  registry: Registry,
+  held: readonly string[],
+): CompiledStep {
   if ("wait" in step) return { index, hold: [], ticks: step.wait };
+  if ("command" in step) {
+    const checked = checkCommand(registry, { name: step.command, args: step.args });
+    if (!checked.ok) throw new Error(checked.message);
+    return { index, hold: [...held], ticks: 1, commands: [checked.command] };
+  }
+  if ("elapse" in step) {
+    const { catchUp } = resolveTime({ game: registry.time });
+    if (!catchUp) throw new Error("elapse needs the game's time.catchUp");
+    return { index, hold: [...held], ticks: 1, commands: [elapsedCommand(step.elapse, catchUp)] };
+  }
   if ("press" in step) {
     return {
       index,
@@ -173,7 +242,7 @@ function compileStep(step: ParsedStep, index: number): CompiledStep {
   const hold = unique(step.hold);
   if ("for" in step) return { index, hold, ticks: step.for };
   if ("forMs" in step) {
-    return { index, hold, ticks: Math.max(1, Math.round((step.forMs * TICK_RATE) / 1000)) };
+    return { index, hold, ticks: ticksFor(step.forMs, time) };
   }
   const until = Object.fromEntries(
     Object.entries(step.until).filter(([, v]) => v !== undefined),
@@ -212,12 +281,16 @@ function staticEdges(steps: readonly CompiledStep[], maxTicks: number): InputEdg
 }
 
 /**
- * Checks an input script against `registry`'s game (its actions, `until`
- * predicates and play options) and resolves every step to ticks at 60 Hz.
- * Issues carry JSON Pointers into the script; an unknown action or key gets
- * a "did you mean".
+ * Checks an input script against `registry`'s game (its actions, commands,
+ * `until` predicates and play options) and resolves every step to ticks at
+ * `time`'s rate, by default the game's own. Issues carry JSON Pointers into
+ * the script; an unknown action, command or key gets a "did you mean".
  */
-export function compileInputScript(script: unknown, registry: Registry): CompileResult {
+export function compileInputScript(
+  script: unknown,
+  registry: Registry,
+  time: Pick<ResolvedTime, "rate"> = resolveTime({ game: registry.time }),
+): CompileResult {
   const schemas = inputScriptSchemasFor(registry);
   const issues: ScriptIssue[] = [];
   const head = schemas.head.safeParse(script);
@@ -227,10 +300,15 @@ export function compileInputScript(script: unknown, registry: Registry): Compile
   }
   const rawSteps = isRecord(script) && Array.isArray(script.steps) ? script.steps : [];
   const steps: CompiledStep[] = [];
+  /** What a command or elapse step goes on holding: a hold step's set; nothing after a press or wait. */
+  let carried: readonly string[] = [];
   rawSteps.forEach((raw, index) => {
     const parsed = parseStep(raw, index, schemas, registry);
-    if (parsed.ok) steps.push(compileStep(parsed.step, index));
-    else issues.push(...parsed.issues);
+    if (!parsed.ok) return void issues.push(...parsed.issues);
+    const step = compileStep(parsed.step, index, time, registry, carried);
+    if ("hold" in parsed.step) carried = step.hold;
+    else if ("press" in parsed.step || "wait" in parsed.step) carried = [];
+    steps.push(step);
   });
   if (!head.success || issues.length > 0) return { ok: false, issues };
 

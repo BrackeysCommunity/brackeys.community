@@ -7,6 +7,7 @@ export { createHeadlessRuntime, probeConfigHash, runProbe, unknownActionError } 
 export type { HeadlessRuntimeOptions, ProbeInput, ProbeOptions, ProbeReport } from "./types";
 export type {
   AssetReloadError,
+  LoadFailureReason,
   LoadReport,
   RuntimeStats,
   SceneRuntime,
@@ -46,6 +47,7 @@ export {
   parseRecording,
   RECORDING_VERSION,
   type ParseRecordingResult,
+  type RecordingCommand,
   type RecordingIssue,
   type RecordingMarker,
   type RunRecording,

@@ -298,7 +298,17 @@ describe("a rebuild", () => {
       timeout: 10_000,
     });
     fireEvent.click(row);
-    fireEvent.click(screen.getByRole("button", { name: "Box" }));
+    // A running activity, such as the physical check that follows the editor
+    // opening, moves the shape tools into "More tools" until it lands, so the
+    // click goes to whichever Box is on screen when it does.
+    const box = () => screen.getByRole("button", { name: "Box" });
+    await waitFor(
+      () => {
+        fireEvent.click(box());
+        expect(box().getAttribute("aria-pressed")).toBe("true");
+      },
+      { timeout: 5_000 },
+    );
     const outlinerNav = screen.getByRole("navigation", { name: "Outliner" });
     const built = games.made.length;
 
@@ -328,7 +338,9 @@ describe("a rebuild", () => {
       "true",
     );
     expect(screen.getByRole("region", { name: "Identity" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Box" }).getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect(box().getAttribute("aria-pressed")).toBe("true"), {
+      timeout: 5_000,
+    });
     await waitFor(() => expect(status()).not.toContain("Rebuilding the game"));
   }, 20_000);
 });

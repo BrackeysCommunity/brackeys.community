@@ -20,7 +20,7 @@ import {
   type ToolResult,
 } from "../context";
 import { projectRuntime } from "../projects";
-import { rounded } from "./step";
+import { rapierFor, rounded } from "./step";
 
 export type PlaytestInput = {
   scene?: string;
@@ -106,13 +106,14 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
   if (at && script !== null && typeof script === "object" && !Array.isArray(script))
     script = { ...script, at };
 
+  const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
   const run = runPlaytest({
-    rapier: await ctx.loadRapier(),
+    rapier: await rapierFor(ctx, loaded.def, registry, project?.engine),
     game: registry.game,
     registry,
     scene: loaded.def,
     prefabs: loaded.prefabs,
-    project: loaded.project ? await projectRuntime(loaded.project, registry) : null,
+    project,
     script: script as InputScript,
   });
   const game = registry.game?.id ?? null;

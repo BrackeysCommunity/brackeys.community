@@ -32,6 +32,7 @@ import {
   handleSceneRequest,
   projectSceneStore,
   sameOrigin,
+  type ProjectCors,
   type ProjectSource,
   type SceneStore,
 } from "./handler";
@@ -579,6 +580,7 @@ async function serveRequest(
   sources: readonly ProjectSource[],
   req: IncomingMessage,
   res: ServerResponse,
+  cors?: ProjectCors,
 ): Promise<boolean> {
   const url = req.url ?? "";
   const method = req.method ?? "GET";
@@ -587,13 +589,16 @@ async function serveRequest(
     (await handleProjectRequest(
       { method, url, headers: req.headers, body: (limit) => readBody(req, limit) },
       sources,
+      { cors },
     ));
   if (!result) return false;
   res.statusCode = result.status;
   const headers = "headers" in result ? result.headers : undefined;
+  for (const [k, v] of Object.entries(headers ?? {})) res.setHeader(k, v);
   if (result.body instanceof Uint8Array) {
-    for (const [k, v] of Object.entries(headers ?? {})) res.setHeader(k, v);
     res.end(result.body);
+  } else if (result.status === 204) {
+    res.end();
   } else {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(result.body));
@@ -614,6 +619,7 @@ export type SceneCollabPlugin = {
   name: string;
   apply: "serve";
   configureServer(server: {
+    config?: { server?: { cors?: ProjectCors } };
     middlewares: { use(fn: Middleware): unknown };
     httpServer?: {
       on(event: "upgrade", listener: UpgradeListener): unknown;
@@ -639,7 +645,7 @@ export function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugi
       const sources = projectSources(options.projects, () => ready);
       const scenes = projectSceneStore(sources);
       vite.middlewares.use((req, res, next) => {
-        serveRequest(scenes, sources, req, res)
+        serveRequest(scenes, sources, req, res, vite.config?.server?.cors)
           .then((handled) => {
             if (!handled) next();
           })

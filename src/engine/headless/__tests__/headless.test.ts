@@ -132,6 +132,42 @@ describe("headless runtime", () => {
     );
   });
 
+  it("steps on the game's clock and reports its rate", () => {
+    const at30 = { ...testGame, time: { kind: "fixed" as const, rate: 30 } };
+    const dts: number[] = [];
+    const timed = {
+      ...at30,
+      createRuntime(ctx: Parameters<typeof testGame.createRuntime>[0]) {
+        const inner = testGame.createRuntime(ctx);
+        return {
+          ...inner,
+          beforeStep(...args: Parameters<NonNullable<typeof inner.beforeStep>>) {
+            dts.push(args[0]);
+            for (const a of args[1]) dts.push(a.timestamp);
+            inner.beforeStep?.(...args);
+          },
+        };
+      },
+    };
+    const report = runProbe({
+      rapier,
+      game: timed,
+      scene: engineYard(),
+      ticks: 3,
+      inputs: [[2, "right", 1]],
+    });
+    expect(report.tickRate).toBe(30);
+    expect(dts).toEqual([1000 / 30, 1000 / 30, 1000 / 30, 2 * (1000 / 30)]);
+    expect(report.configHash).toBe(probeConfigHash(at30));
+    expect(probeConfigHash(at30)).not.toBe(probeConfigHash(testGame));
+    expect(probeConfigHash(testGame, { rate: 30 })).toBe(probeConfigHash(at30));
+  });
+
+  it("steps every tick of an event game, as the shell's step(n) does", () => {
+    const event = { ...testGame, time: { kind: "event" as const } };
+    expect(runProbe({ rapier, game: event, scene: engineYard(), ticks: 10 }).ticks).toBe(10);
+  });
+
   it("createHeadlessRuntime loads the scene it is given", () => {
     const rt = createHeadlessRuntime({ rapier, game: testGame, scene: engineYard() });
     expect(rt.stats().entities).toBe(9);
@@ -143,5 +179,15 @@ describe("headless runtime", () => {
     const scene = engineYard();
     scene.entities.push({ ...scene.entities[0]! });
     expect(() => createHeadlessRuntime({ rapier, game: testGame, scene })).toThrow(/~solid:0/);
+  });
+
+  it("without Rapier, refuses a Rapier scene in the probe and in createHeadlessRuntime", () => {
+    expect(runProbe({ game: testGame, scene: engineYard(), ticks: 3 })).toMatchObject({
+      ticks: 0,
+      load: { ok: false, reason: "physics-not-loaded" },
+    });
+    expect(() => createHeadlessRuntime({ game: testGame, scene: engineYard() })).toThrow(
+      /no Rapier module/,
+    );
   });
 });

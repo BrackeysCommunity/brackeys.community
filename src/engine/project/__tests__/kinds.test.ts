@@ -411,8 +411,8 @@ describe("schema refusals", () => {
     expect(refused(gameSettingsKind, { ...base, game: { lives: 3 } })).toEqual([
       { code: "unknown-key", path: "/game/lives" },
     ]);
-    expect(refused(gameSettingsKind, { ...base, engine: { tickRate: 60 } })).toEqual([
-      { code: "unknown-key", path: "/engine/tickRate" },
+    expect(refused(gameSettingsKind, { ...base, engine: { fps: 60 } })).toEqual([
+      { code: "unknown-key", path: "/engine/fps" },
     ]);
     expect(refused(gameSettingsKind, base, engineEnv)).toEqual([
       { code: "unknown-key", path: "/game/avatarSpeed" },
@@ -453,6 +453,52 @@ describe("schema refusals", () => {
     expect(refused(gameSettingsKind, { ...base, engine: { resolution: { scale: 2 } } })).toEqual([
       { code: "unknown-key", path: "/engine/resolution/scale" },
     ]);
+  });
+
+  it("game-settings: `engine` takes physics, gravity and tickRate beside resolution", () => {
+    const base = value("game-settings");
+    const engine = { physics: "none", gravity: [0, 0], tickRate: 30, resolution: { fit: "crop" } };
+    expect(parsed(gameSettingsKind, { ...base, engine })).toEqual({ ...base, engine });
+    expect(parsed(gameSettingsKind, { ...base, engine: { physics: "rapier" } })).toMatchObject({
+      engine: { physics: "rapier" },
+    });
+    expect(refused(gameSettingsKind, { ...base, engine: { physics: "box2d" } })).toEqual([
+      { code: "schema", path: "/engine/physics" },
+    ]);
+    expect(refused(gameSettingsKind, { ...base, engine: { gravity: [0] } })).toEqual([
+      { code: "schema", path: "/engine/gravity/1" },
+    ]);
+    expect(refused(gameSettingsKind, { ...base, engine: { tickRate: "60" } })).toEqual([
+      { code: "schema", path: "/engine/tickRate" },
+    ]);
+    for (const rate of [1, 60, 240])
+      expect(
+        parseAssetDoc(gameSettingsKind, { ...base, engine: { tickRate: rate } }, gameEnv).issues,
+      ).toEqual([]);
+  });
+
+  it("game-settings: tick-rate-invalid for a rate the clock can't run", () => {
+    const base = value("game-settings");
+    for (const rate of [0, 241, 1.5]) {
+      expect(refused(gameSettingsKind, { ...base, engine: { tickRate: rate } })).toEqual([
+        { code: "tick-rate-invalid", path: "/engine/tickRate" },
+      ]);
+    }
+    const text = lines(
+      "{",
+      '  "kind": "game-settings",',
+      '  "v": 1,',
+      '  "engine": {',
+      '    "tickRate": 241',
+      "  },",
+      '  "game": {}',
+      "}",
+    );
+    const result = parseAssetDoc(gameSettingsKind, text, gameEnv);
+    expect(result.ok).toBe(false);
+    const [issue] = result.issues;
+    expect(issue).toMatchObject({ code: "tick-rate-invalid", severity: "error", line: 5 });
+    expect(issue!.message).toMatch(/241/);
   });
 
   it("game-settings: engineResolution reads the block whole, else field by field", () => {
@@ -927,5 +973,27 @@ describe("material doc layout", () => {
     layoutPatch(doc, layout, base);
     layoutPatch(doc, layout, { ...base, render: {} });
     expect(layoutFromDoc(doc, layout)).toEqual({ ...base, render: {} });
+  });
+});
+
+describe("game-settings doc layout", () => {
+  const layout = gameSettingsKind.layout as DocLayout;
+  const base = { kind: "game-settings", v: 1, engine: { gravity: [0, 1] }, game: {} };
+
+  it("holds engine as a map, so concurrent tickRate and physics edits both survive", () => {
+    const a = new Y.Doc();
+    const b = new Y.Doc();
+    layoutToDoc(a, layout, base);
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+
+    layoutPatch(a, layout, { ...base, engine: { ...base.engine, tickRate: 30 } });
+    layoutPatch(b, layout, { ...base, engine: { ...base.engine, physics: "none" } });
+    Y.applyUpdate(a, Y.encodeStateAsUpdate(b));
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+
+    const merged = { ...base, engine: { gravity: [0, 1], tickRate: 30, physics: "none" } };
+    expect(layoutFromDoc(a, layout)).toEqual(merged);
+    expect(layoutFromDoc(b, layout)).toEqual(merged);
+    expect(parseAssetDoc(gameSettingsKind, merged, gameEnv).ok).toBe(true);
   });
 });

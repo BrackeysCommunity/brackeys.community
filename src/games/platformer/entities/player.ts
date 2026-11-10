@@ -1,6 +1,6 @@
 import type { Collider } from "@dimforge/rapier2d";
 import type { InputAction, Vec2 } from "@jams/engine";
-import type { EngineContext } from "@jams/engine/game";
+import { physicsOf, SIDE_VIEW_CONTROLLER, type EngineContext } from "@jams/engine/game";
 
 import type { ForceFields } from "../force-fields";
 import { PLATFORMER_LAYERS } from "../layers";
@@ -256,7 +256,8 @@ export function createPlayerEntity(
   feet: Vec2,
   deps: PlayerDeps = {},
 ): PlayerEntity {
-  const { rapier: RAPIER, physics, view, tags } = ctx;
+  const { rapier: RAPIER, physics } = physicsOf(ctx, PLAYER_TYPE, PLAYER_ENTITY_ID);
+  const { view, tags } = ctx;
   const { anchors: grappleAnchors, forces } = deps;
   const spawn = { x: feet.x, y: feet.y - PLAYER_HEIGHT / 2 };
 
@@ -275,7 +276,7 @@ export function createPlayerEntity(
   const collider = physics.addCollider(colliderDesc, body);
   tags.set(collider.handle, { entityId: PLAYER_ENTITY_ID, type: PLAYER_TYPE });
 
-  const controller = physics.createCharacterController();
+  const controller = physics.createCharacterController(SIDE_VIEW_CONTROLLER);
 
   // ─── State ───────────────────────────────────────────
   let velocity: Vec2 = { x: 0, y: 0 };

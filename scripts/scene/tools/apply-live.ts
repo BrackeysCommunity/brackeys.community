@@ -50,8 +50,9 @@ const USAGE =
  * has it, then sent as one `editScene` project op, so prefab ops write the
  * prefab docs they name. `~` refs resolve against the doc as it is when the
  * batch lands, so a batch needs no `base` (one it brings is still checked,
- * and failing it is exit 1, not 3). Like `apply`, a batch that would leave
- * error-severity issues isn't applied.
+ * and failing it is exit 1, not 3). Like `apply`, the trial judges asset ids
+ * and sprite frames against the project as the server has it, and a batch
+ * that would leave error-severity issues isn't applied.
  */
 export const applyLive: Tool<ApplyLiveInput> = async (input, ctx) => {
   if (!input.ops || !input.scene) return usage(USAGE);
@@ -113,6 +114,7 @@ export const applyLive: Tool<ApplyLiveInput> = async (input, ctx) => {
       const trial = applyOpsToDoc(scratch, batch, origin, registry, {
         prefabs: session.prefabLibrary(),
         prefabWriter: TRIAL_PREFABS,
+        project: session.view(),
       });
       scratch.destroy();
       if (!trial.ok) {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:input-script:v1",
-  "x-agent-surface": 9,
+  "x-agent-surface": 10,
   "title": "jams engine input script, format v1",
   "type": "object",
   "properties": {
@@ -19,7 +19,7 @@
       "type": "string"
     },
     "at": {
-      "description": "Play from here instead of the game's spawn, cast down onto the first surface below; refused inside a solid.",
+      "description": "Play from here instead of the game's spawn, cast along the game's spawn direction (gravity by default) onto the first surface it meets; refused inside a solid.",
       "type": "array",
       "prefixItems": [
         {
@@ -160,9 +160,37 @@
           "required": ["wait"],
           "additionalProperties": false,
           "description": "Release everything for a number of ticks."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "not": {},
+              "description": "A command name; this registry's game declares none."
+            },
+            "args": {
+              "description": "The command's arguments, checked by its `args` schema; omit for none."
+            }
+          },
+          "required": ["command"],
+          "additionalProperties": false,
+          "description": "Send a command for one slot, still holding what the hold step before it held (nothing after a press or wait). It wakes a turns or event game."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "elapse": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Milliseconds away, sent as `@elapsed`; this game has no `time.catchUp`, so it refuses the step."
+            }
+          },
+          "required": ["elapse"],
+          "additionalProperties": false,
+          "description": "Report wall time away for one slot, as `@elapsed`, still holding what the hold step before it held (nothing after a press or wait). It wakes every game."
         }
       ],
-      "description": "One step: `hold` with exactly one of `for`, `forMs` or `until`; `press`; or `wait`."
+      "description": "One step: `hold` with exactly one of `for`, `forMs` or `until`; `press`; `wait`; `command`; or `elapse`."
     },
     "Action": {
       "not": {},

@@ -39,6 +39,7 @@ export {
 
 // ─── Building blocks ─────────────────────────────────────
 
+export { EditorSkeleton, type EditorSkeletonProps } from "./frame/EditorSkeleton";
 export {
   DEFAULT_LAYOUT,
   fitLayout,

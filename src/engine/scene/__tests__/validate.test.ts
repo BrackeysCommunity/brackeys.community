@@ -3,8 +3,10 @@ import { z } from "zod";
 
 import { GLOW, LAMP, PLAIN, testGame } from "../../__tests__/fixtures/test-game";
 import { defineBehavior } from "../../game/behaviors";
+import { OCCUPANT } from "../../game/behaviors/occupant";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { assetField, gridField, pointField } from "../../game/fields";
+import { PRIMITIVES, primitiveFields, typePhysics } from "../../game/primitives";
 import type { FieldEnv, Registry, SceneSystem } from "../../game/types";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
@@ -184,6 +186,80 @@ describe("validateScene", () => {
     const flatIssue = only(validateScene(flat, engine), "poly-invalid");
     expect(flatIssue.fix).toBeUndefined();
     expect(flatIssue.hint).toContain("one line");
+  });
+
+  describe("nav-invalid", () => {
+    const nav = (id: string, pts: number[], mode?: "walk" | "block"): EntityDef => ({
+      id,
+      type: "nav",
+      shape: ["poly", ...pts],
+      ...(mode ? { mode } : {}),
+    });
+    const navIssues = (...extra: EntityDef[]) =>
+      validateScene(scene({}, extra), engine).filter(
+        (i) => i.code === "nav-invalid" || i.code === "poly-invalid",
+      );
+    const ell = [100, 100, 500, 100, 500, 300, 300, 300, 300, 600, 100, 600];
+
+    it("takes a concave walk area, a hole inside it, and areas that share an edge", () => {
+      expect(
+        navIssues(
+          nav("room", ell),
+          nav("pillar", [150, 150, 250, 150, 250, 250, 150, 250], "block"),
+          nav("hall", [500, 100, 800, 100, 800, 300, 500, 300]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("refuses a self-intersecting polygon, without poly-invalid", () => {
+      const issues = navIssues(nav("bowtie", [100, 100, 300, 300, 300, 100, 100, 300]));
+      expect(issues).toHaveLength(1);
+      expect(issues[0]).toMatchObject({
+        code: "nav-invalid",
+        severity: "error",
+        path: "/entities/1/shape",
+        entityIds: ["bowtie"],
+      });
+    });
+
+    it("refuses a hole outside every walk area, or across an area's edge", () => {
+      const outside = navIssues(
+        nav("room", ell),
+        nav("stray", [700, 700, 800, 700, 800, 800, 700, 800], "block"),
+      );
+      expect(outside).toEqual([
+        expect.objectContaining({
+          code: "nav-invalid",
+          path: "/entities/2/shape",
+          entityIds: ["stray"],
+        }),
+      ]);
+      const across = navIssues(
+        nav("room", ell),
+        nav("ledge", [450, 150, 550, 150, 550, 250, 450, 250], "block"),
+      );
+      expect(across.map((i) => i.entityIds)).toEqual([["ledge"]]);
+    });
+
+    it("refuses two walk areas whose interiors overlap, naming both", () => {
+      const issues = navIssues(
+        nav("room", ell),
+        nav("annex", [400, 200, 700, 200, 700, 400, 400, 400]),
+      );
+      expect(issues).toEqual([
+        expect.objectContaining({
+          code: "nav-invalid",
+          path: "/entities/2/shape",
+          entityIds: ["room", "annex"],
+        }),
+      ]);
+    });
+
+    it("skips nav entities that are off", () => {
+      expect(
+        navIssues({ ...nav("bowtie", [100, 100, 300, 300, 300, 100, 100, 300]), off: true }),
+      ).toEqual([]);
+    });
   });
 
   it("chain-invalid", () => {
@@ -961,20 +1037,20 @@ describe("grid fields", () => {
     }
   });
 
-  it("a prefab view judges a turned nested instance over grid children against the project's grid", () => {
+  it("a prefab view judges a turned nested instance over grid children against the game's grid", () => {
     const view = prefabScene(prefabs.get("nest")!, [-512, -512, 512, 512]);
     const judged = (grid: Record<string, unknown> | undefined) =>
       validateScene(view, painter, {
         prefabs,
         prefab: "nest",
-        ...(grid ? { settings: { project: { grid } } } : {}),
+        ...(grid ? { settings: { game: { grid: grid as never } } } : {}),
       });
     const flagged = judged({ kind: "square", cell: [32, 16] });
     expect(flagged.map((i) => [i.code, i.path, i.entityIds])).toEqual([
       ["grid-invalid", "/instances/0/rot", ["inner"]],
     ]);
     expect(flagged[0]?.message).toContain("inner/floor");
-    expect(flagged[0]?.message).toContain("the project's grid");
+    expect(flagged[0]?.message).toContain("the game's grid");
     expect(
       validateScene(view, painter, {
         prefabs,
@@ -986,6 +1062,61 @@ describe("grid fields", () => {
     ).toEqual(["grid-invalid"]);
     expect(judged(square)).toEqual([]);
     expect(judged(undefined)).toEqual([]);
+  });
+
+  const painterWith = (world: { grid: Record<string, unknown> }) =>
+    createRegistry(
+      defineGame({
+        id: "painter",
+        types: [PAINT],
+        actions: [],
+        world: world as never,
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+
+  it("a game's world.grid sizes grid fields in a scene without settings.grid", () => {
+    const world = painterWith({ grid: square });
+    const def = gridScene(undefined, {}, [floor()]);
+    expect(validateScene(def, world, { prefabs }).filter((i) => i.code === "grid-invalid")).toEqual(
+      [],
+    );
+  });
+
+  it("ValidateOptions.engine resolves as expandScene does: the project block gives no grid", () => {
+    const def = gridScene(undefined, {}, [floor()]);
+    const issues = validateScene(def, painter, { prefabs, engine: { grid: square } }).filter(
+      (i) => i.code === "grid-invalid",
+    );
+    expect(issues.map((i) => i.path)).toEqual(["/entities/1/cells"]);
+    expect(
+      validateScene(def, painterWith({ grid: square }), {
+        prefabs,
+        engine: { gravity: [0, 0], physics: "none" },
+      }).filter((i) => i.code === "grid-invalid"),
+    ).toEqual([]);
+  });
+
+  it("judges a turned instance over grid children against the game's world.grid", () => {
+    const def = gridScene(undefined, {
+      instances: [{ id: "t1", prefab: "tiles", at: [128, 128], rot: 1 }],
+    });
+    const flagged = validateScene(def, painterWith({ grid: { kind: "square", cell: [32, 16] } }), {
+      prefabs,
+    }).filter((i) => i.code === "grid-invalid");
+    expect(flagged.map((i) => [i.path, i.entityIds])).toEqual([["/instances/0/rot", ["t1"]]]);
+    expect(
+      validateScene(def, painterWith({ grid: square }), { prefabs }).filter(
+        (i) => i.code === "grid-invalid",
+      ),
+    ).toEqual([]);
+    const view = prefabScene(prefabs.get("nest")!, [-512, -512, 512, 512]);
+    expect(
+      validateScene(view, painterWith({ grid: { kind: "square", cell: [32, 16] } }), {
+        prefabs,
+        prefab: "nest",
+      }).map((i) => i.code),
+    ).toEqual(["grid-invalid"]);
   });
 
   it("an override naming a grid field, with a fix that drops it", () => {
@@ -1074,6 +1205,201 @@ describe("grid fields", () => {
       gridScene(tall, { instances: [{ id: "n1", prefab: "nest", at: [0, 0], rot: 2 }] }),
     );
     expect(cancelled).toEqual([]);
+  });
+});
+
+describe("physics-required", () => {
+  const crate: EntityDef = {
+    id: "crate",
+    type: "prop",
+    shape: ["box", 200, 200, 20, 20],
+    density: 1,
+    restitution: 0,
+  };
+  const none = { physics: "none" } as const;
+  const required = (def: SceneDefinition, registry: Registry = engine, opts = {}) =>
+    validateScene(def, registry, opts).filter((i) => i.code === "physics-required");
+
+  it("sets each primitive's physics: only prop requires it", () => {
+    expect(
+      Object.fromEntries(Object.entries(PRIMITIVES).map(([name, def]) => [name, typePhysics(def)])),
+    ).toEqual({
+      solid: "optional",
+      sensor: "optional",
+      marker: "optional",
+      prop: "required",
+      follower: "optional",
+      decor: "optional",
+      nav: "optional",
+      note: "optional",
+    });
+  });
+
+  it("flags a prop in a scene whose physics is none, and only then", () => {
+    const [issue, ...rest] = required(scene({ settings: none }, [crate]));
+    expect(rest).toEqual([]);
+    expect(issue).toMatchObject({
+      severity: "error",
+      path: "/entities/1",
+      entityIds: ["crate"],
+    });
+    expect(issue?.message).toContain('"none"');
+    expect(required(scene({}, [crate]))).toEqual([]);
+    expect(required(scene({ settings: { physics: "rapier" } }, [crate]))).toEqual([]);
+    expect(required(scene({ settings: none }, [{ ...crate, off: true }]))).toEqual([]);
+    expect(required(scene({ settings: none }))).toEqual([]);
+  });
+
+  it("resolves physics through the project's engine block and the game's world", () => {
+    expect(required(scene({}, [crate]), engine, { engine: none }).map((i) => i.path)).toEqual([
+      "/entities/1",
+    ]);
+    expect(
+      required(scene({ settings: { physics: "rapier" } }, [crate]), engine, { engine: none }),
+    ).toEqual([]);
+    const still = createRegistry(
+      defineGame({
+        id: "still",
+        types: [],
+        actions: [],
+        world: { physics: "none" },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    expect(required(scene({ game: "still" }, [crate]), still)).toHaveLength(1);
+    expect(
+      required(scene({ game: "still" }, [crate]), still, { engine: { physics: "rapier" } }),
+    ).toEqual([]);
+  });
+
+  it("a game type requires physics as its base primitive does, unless it says otherwise", () => {
+    const fields = (env: FieldEnv) => primitiveFields("prop", env);
+    const crates = createRegistry(
+      defineGame({
+        id: "crates",
+        types: [
+          defineEntityType({ type: "box", description: "A box.", base: "prop", fields }),
+          defineEntityType({
+            type: "ghost",
+            description: "Drawn where a box would be.",
+            base: "prop",
+            physics: "optional",
+            fields,
+          }),
+          defineEntityType({
+            type: "anchor",
+            description: "Needs a world to hang from.",
+            base: "marker",
+            physics: "required",
+            fields: (env) => primitiveFields("marker", env),
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const def = scene({ game: "crates", settings: none }, [
+      { ...crate, id: "a", type: "box" },
+      { ...crate, id: "b", type: "ghost" },
+      { id: "c", type: "anchor", at: [10, 10] },
+    ]);
+    expect(required(def, crates).map((i) => i.entityIds)).toEqual([["a"], ["c"]]);
+  });
+
+  it("flags an attach, pointing at the field, but not the follower it rides", () => {
+    const rider: EntityDef = {
+      id: "deck",
+      type: "sensor",
+      shape: ["box", 100, 100, 20, 5],
+      attach: "lift",
+    };
+    const def = scene({ settings: none }, [
+      lift([
+        [100, 100],
+        [300, 100],
+      ]),
+      rider,
+    ]);
+    const [issue, ...rest] = required(def);
+    expect(rest).toEqual([]);
+    expect(issue).toMatchObject({ path: "/entities/2/attach", entityIds: ["deck"] });
+    expect(issue?.message).toContain("lift");
+    expect(required({ ...def, settings: {} })).toEqual([]);
+  });
+
+  it("judges instance children in the placing scene, not in the prefab's view", () => {
+    const prefabs = new Map<string, Prefab>([
+      [
+        "crate",
+        {
+          kind: "prefab",
+          v: 3,
+          id: "crate",
+          entities: [{ ...crate, shape: ["box", 0, 0, 20, 20] }],
+        },
+      ],
+    ]);
+    const def = scene({
+      settings: none,
+      instances: [{ id: "c1", prefab: "crate", at: [300, 300] }],
+    });
+    expect(required(def, engine, { prefabs }).map((i) => [i.path, i.entityIds])).toEqual([
+      ["/instances/0", ["c1/crate"]],
+    ]);
+    const view = prefabScene(prefabs.get("crate")!, [-512, -512, 512, 512]);
+    expect(required(view, engine, { prefabs, prefab: "crate", engine: none })).toEqual([]);
+  });
+});
+
+describe("the occupant behavior needs a grid", () => {
+  const piece = (over: Partial<EntityDef> = {}): EntityDef => ({
+    id: "piece",
+    type: "marker",
+    at: [64, 64],
+    behaviors: { [OCCUPANT.name]: {} },
+    ...over,
+  });
+  const square = { kind: "square" as const, cell: [32, 32] as [number, number] };
+  const gridIssues = (def: SceneDefinition, registry: Registry = engine, opts = {}) =>
+    validateScene(def, registry, opts).filter((i) => i.code === "grid-invalid");
+
+  it("an occupant in a scene with no grid is grid-invalid", () => {
+    const [issue, ...rest] = gridIssues(scene({}, [piece()]));
+    expect(rest).toEqual([]);
+    expect(issue).toMatchObject({
+      severity: "error",
+      path: `/entities/1/behaviors/${OCCUPANT.name}`,
+      entityIds: ["piece"],
+    });
+    expect(issue?.message).toContain("no settings.grid");
+    expect(gridIssues(scene({}, [piece({ off: true })]))).toEqual([]);
+  });
+
+  it("passes with the scene's grid or the game's world.grid, but not the project's", () => {
+    expect(gridIssues(scene({ settings: { grid: square } }, [piece()]))).toEqual([]);
+    const gridded = createRegistry(
+      defineGame({
+        id: "gridded",
+        types: [],
+        actions: [],
+        world: { grid: square },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    expect(gridIssues(scene({ game: "gridded" }, [piece()]), gridded)).toEqual([]);
+    expect(gridIssues(scene({}, [piece()]), engine, { engine: { grid: square } })).toHaveLength(1);
+  });
+
+  it("judges an instance's occupant in the placing scene, not in the prefab's view", () => {
+    const prefabs = new Map<string, Prefab>([
+      ["token", { kind: "prefab", v: 3, id: "token", entities: [piece({ at: [0, 0] })] }],
+    ]);
+    const def = scene({ instances: [{ id: "t1", prefab: "token", at: [128, 128] }] });
+    expect(gridIssues(def, engine, { prefabs }).map((i) => [i.path, i.entityIds])).toEqual([
+      ["/instances/0", ["t1/piece"]],
+    ]);
+    const view = prefabScene(prefabs.get("token")!, [-512, -512, 512, 512]);
+    expect(gridIssues(view, engine, { prefabs, prefab: "token" })).toEqual([]);
   });
 });
 

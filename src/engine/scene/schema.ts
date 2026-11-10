@@ -58,14 +58,15 @@ export type FieldKind =
   | "vector"
   | "angle"
   | "mirror"
+  | "side"
   | "grid"
   | "value";
 
-const META_KINDS: readonly string[] = ["vector", "angle", "mirror", "grid"];
+const META_KINDS: readonly string[] = ["vector", "angle", "mirror", "side", "grid"];
 
 /**
  * Shape tuples, points and paths are recognised by the schema they were
- * built from, vectors, angles, mirrors and grids by their builder's
+ * built from, vectors, angles, mirrors, sides and grids by their builder's
  * `meta.kind` (`game/fields.ts`).
  */
 export function fieldKind(schema: z.core.$ZodType): FieldKind {

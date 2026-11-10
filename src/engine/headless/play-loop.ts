@@ -1,10 +1,13 @@
+import type { ResolvedTime } from "../game/time";
 /**
  * The run loop `runPlaytest` and `fuzz` share: a play world started the way
- * the editor's Play starts one, stepped at 60 Hz from a source of held
- * actions, ended by the game's outcome, `stuck`, `script-end` or `timeout`.
+ * the editor's Play starts one, stepped on the runtime's clock from a source
+ * of held actions, ended by the game's outcome, `stuck`, `script-end` or
+ * `timeout`. The input's slots stand in for wall time: a turns or event game
+ * that nothing wakes skips the slot.
  */
-import type { GameDefinition, PlayState, Registry, RunResult } from "../game/types";
-import { TICK_RATE } from "../physics";
+import type { GameCommand, GameDefinition, PlayState, Registry, RunResult } from "../game/types";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import { preparePlay } from "../runtime/play-session";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { LoadReport, SceneRuntimeHandle } from "../runtime/types";
@@ -13,8 +16,6 @@ import type { RapierModule, Vec2 } from "../types";
 import { heldEdges } from "./compile-input-script";
 import { inputAction } from "./headless";
 import type { InputEdge, PlaytestBlocked, PlayOptions, ScriptIssue } from "./playtest-types";
-
-const TICK_MS = 1000 / TICK_RATE;
 
 /** Holding a movement action with the focus moving under `STUCK_PX` over `STUCK_TICKS` ticks is `stuck`. */
 export const STUCK_TICKS = 120;
@@ -36,25 +37,33 @@ export type PreparedRun =
   | { ok: true; scene: ExpandedScene; hash: string; issues: SceneIssue[] }
   | { ok: false; blocked: PlaytestBlocked };
 
-/** Play's first half (parse, validate, clone, freeze in dev, expand, hash); errors block. */
+/**
+ * Play's first half (parse, validate, clone, freeze in dev, expand, hash);
+ * errors block. `engine` is the project's `engine` block, which settings
+ * resolve through.
+ */
 export function prepareRun(
   doc: SceneDefinition,
   registry: Registry,
   dev = false,
   prefabs?: PrefabLibrary,
+  engine?: Readonly<Record<string, unknown>>,
 ): PreparedRun {
-  const prepared = preparePlay(doc, registry, { dev, prefabs });
+  const prepared = preparePlay(doc, registry, { dev, prefabs, engine });
   if (!prepared.ok) return { ok: false, blocked: blockedRun("scene", doc.name, prepared.issues) };
   return { ok: true, scene: prepared.scene, hash: prepared.hash, issues: prepared.issues };
 }
 
 export type StartOptions = {
-  rapier: RapierModule;
+  /** Needed only for a scene whose physics resolves to Rapier. */
+  rapier?: RapierModule | null;
   game: GameDefinition | null;
   registry: Registry;
   scene: ExpandedScene;
   play: PlayOptions;
   dev?: boolean;
+  /** The project's data the game reads as `EngineContext.project`; its `engine` block sets the clock. */
+  project?: ProjectRuntimeView | null;
 };
 
 /** A fresh headless play world for one run; the caller destroys the runtime. */
@@ -67,6 +76,7 @@ export function startRun(
     game: opts.game,
     registry: opts.registry,
     dev: opts.dev,
+    project: opts.project,
   });
   const load = runtime.load(opts.scene, opts.play);
   if (load.ok) return { ok: true, runtime };
@@ -74,16 +84,24 @@ export function startRun(
   return { ok: false, load };
 }
 
-/** What a run plays: the actions held on each tick, or the exact edges a recording stepped. */
+/**
+ * What a run plays, one slot at a time: the actions held, or the exact edges
+ * a recording stepped. A fixed game simulates every slot; a turns or event
+ * game only the slots something wakes, so slot and tick numbers can differ.
+ */
 export type InputSource = {
   /** True when the input has run out; the run ends as `script-end`. */
   done(): boolean;
-  /** Every action held during `tick`; called once per simulated tick, in order. */
-  held?(tick: number): readonly string[];
-  /** The edges to step on `tick`, in order, instead of `held`'s difference from the tick before. */
-  edges?(tick: number): readonly InputEdge[];
-  /** After each tick, with what it produced. */
+  /** Every action held during `slot`; called once per slot, in order. */
+  held?(slot: number): readonly string[];
+  /** The edges to play in `slot`, in order, instead of `held`'s difference from the slot before. */
+  edges?(slot: number): readonly InputEdge[];
+  /** The commands to step on `slot`, in order. A command wakes every model. */
+  commands?(slot: number): readonly GameCommand[];
+  /** After each simulated tick, with what it produced. */
   after?(state: PlayState): void;
+  /** After a slot the clock skipped: nothing woke an idle turns or event game. */
+  skipped?(slot: number): void;
 };
 
 export type RunEnd = {
@@ -92,6 +110,8 @@ export type RunEnd = {
   tick: number;
   /** Ticks simulated. */
   ticks: number;
+  /** Input slots consumed, skipped ones included; equal to `ticks` for a fixed game. */
+  slots: number;
   cause?: string;
   entityId?: string;
 };
@@ -99,15 +119,40 @@ export type RunEnd = {
 export type RunLoopOptions = {
   runtime: SceneRuntimeHandle;
   game: GameDefinition | null;
+  /** Simulated ticks before `timeout`. */
   maxTicks: number;
+  /** Slots before `timeout`, simulated or skipped; default unbounded. */
+  maxSlots?: number;
   input: InputSource;
-  /** Every edge played is appended here. */
+  /** Every edge played is appended here, stamped with the tick that stepped it. */
   record?: InputEdge[];
   /** False skips `stuck`, for replaying a run that ended some other way. Default true. */
   stuck?: boolean;
-  /** After each tick, with the edges it stepped, before the run decides whether it is over. */
-  onTick?(state: PlayState, focus: Vec2 | null, edges: readonly InputEdge[]): void;
+  /** Simulate every slot whatever the time model, as a replay of recorded ticks does. */
+  everySlot?: boolean;
+  /** After each tick, with the edges and commands it stepped, before the run decides whether it is over. */
+  onTick?(
+    state: PlayState,
+    focus: Vec2 | null,
+    edges: readonly InputEdge[],
+    commands: readonly GameCommand[],
+  ): void;
 };
+
+/**
+ * Whether a slot's input wakes an idle game on `time`'s clock: a command
+ * wakes every model, and an action edge wakes an event game. A fixed clock
+ * never idles. Headless input has no pointer, so `wakeOnPointerMove` never
+ * applies here.
+ */
+export function slotWakes(
+  time: Pick<ResolvedTime, "kind">,
+  edges: readonly InputEdge[],
+  commands: readonly GameCommand[],
+): boolean {
+  if (time.kind === "fixed" || commands.length > 0) return true;
+  return time.kind === "event" && edges.length > 0;
+}
 
 /** `held` after `edges`: a down adds its action, an up removes it. */
 function applyEdges(held: readonly string[], edges: readonly InputEdge[]): string[] {
@@ -140,40 +185,64 @@ function stuckDetector(): (moving: boolean, focus: Vec2 | null) => boolean {
   };
 }
 
-/** Steps `runtime` until the game's outcome, `stuck`, the input running out, or `maxTicks`. */
+/**
+ * Steps `runtime` until the game's outcome, `stuck`, the input running out,
+ * `maxTicks` simulated ticks or `maxSlots` slots. A turns or event game
+ * skips a slot nothing wakes while it isn't busy; that slot's edges are
+ * played, in order, with the next simulated tick.
+ */
 export function runLoop(opts: RunLoopOptions): RunEnd {
   const { runtime, input, maxTicks } = opts;
+  const maxSlots = opts.maxSlots ?? Infinity;
+  const time = runtime.ctx.time;
   const play = opts.game?.play;
   const movement = play?.focus ? (play.movementActions ?? []) : [];
   const stuck = movement.length > 0 && opts.stuck !== false ? stuckDetector() : null;
   let held: readonly string[] = [];
+  let carried: InputEdge[] = [];
+  let tick = 0;
 
-  for (let tick = 0; ; tick++) {
-    const last = { tick: tick - 1, ticks: tick };
+  for (let slot = 0; ; slot++) {
+    const last = { tick: tick - 1, ticks: tick, slots: slot };
     if (input.done()) return { result: "script-end", ...last };
-    if (tick >= maxTicks) return { result: "timeout", ...last };
+    if (tick >= maxTicks || slot >= maxSlots) return { result: "timeout", ...last };
 
-    let edges: readonly InputEdge[];
+    let slotEdges: readonly InputEdge[];
     if (input.edges) {
-      edges = input.edges(tick);
-      held = applyEdges(held, edges);
+      slotEdges = input.edges(slot);
+      held = applyEdges(held, slotEdges);
     } else {
-      const next = input.held?.(tick) ?? [];
-      edges = heldEdges(held, next, tick);
+      const next = input.held?.(slot) ?? [];
+      slotEdges = heldEdges(held, next, slot);
       held = next;
     }
+    const commands = input.commands?.(slot) ?? [];
+    if (!opts.everySlot && !slotWakes(time, slotEdges, commands) && !runtime.busy()) {
+      carried.push(...slotEdges);
+      input.skipped?.(slot);
+      continue;
+    }
+
+    const edges: InputEdge[] = [...carried, ...slotEdges].map(([, action, pressed]) => [
+      tick,
+      action,
+      pressed,
+    ]);
+    carried = [];
     opts.record?.push(...edges);
     const result = runtime.step(
-      TICK_MS,
-      edges.map(([t, action, pressed]) => inputAction(action, pressed === 1, t)),
+      time.tickMs,
+      edges.map(([t, action, pressed]) => inputAction(action, pressed === 1, t, time)),
+      commands,
     );
 
     const state: PlayState = { tick, snapshot: result.game, events: result.events };
     const focus = play?.focus ? play.focus(result.game) : null;
     input.after?.(state);
-    opts.onTick?.(state, focus, edges);
+    opts.onTick?.(state, focus, edges, commands);
 
-    const ended = { tick, ticks: tick + 1 };
+    const ended = { tick, ticks: tick + 1, slots: slot + 1 };
+    tick++;
     const verdict = play?.outcome?.(state);
     if (verdict) {
       const out: RunEnd = { result: verdict.result, ...ended };

@@ -12,6 +12,7 @@ import type { EngineContext } from "../../game/types";
 import { parseBulkId } from "../../scene/bulk-ref";
 import { defaultLayer } from "../../scene/layers";
 import type { Pt, RuntimeEntity } from "../../scene/types";
+import { entityDrawLayer } from "../../systems/bodies";
 import type { Pose } from "../poses";
 import { spawnPose } from "../spawn-pose";
 
@@ -39,15 +40,6 @@ type Attached = {
 
 const samePose = (a: Readonly<Pose>, b: Readonly<Pose>) =>
   a.x === b.x && a.y === b.y && a.rot === b.rot;
-
-/** The scene layer's draw order for `e`: its `layer`, else its type's default. */
-function drawOrder(ctx: EngineContext, e: RuntimeEntity): number {
-  const { layers, types } = ctx.registry;
-  const fallback = defaultLayer(types.get(e.type), parseBulkId(e.id) !== null, layers);
-  const layer =
-    layers.find((l) => l.name === (e.layer ?? fallback)) ?? layers.find((l) => l.name === fallback);
-  return layer?.draw ?? DRAW_LAYERS.body;
-}
 
 /**
  * The visual a block draws for `e`, its flips toggled by the entity's
@@ -111,7 +103,11 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
 
   function show(id: string, block: SpriteBlock, entity: RuntimeEntity): void {
     const sid = spriteViewId(id);
-    drawSprite(view, sid, visualOf(ctx, entity, block), drawOrder(ctx, entity));
+    // An entity naming no layer, or an unknown one, draws on its type's default layer.
+    const { layers, types } = ctx.registry;
+    const home = defaultLayer(types.get(entity.type), parseBulkId(id) !== null, layers);
+    const fallback = layers.find((l) => l.name === home)?.draw ?? DRAW_LAYERS.body;
+    drawSprite(view, sid, visualOf(ctx, entity, block), entityDrawLayer(ctx, entity, fallback));
     view.depth?.(sid, entity.z ?? 0);
     const a: Attached = {
       entity,

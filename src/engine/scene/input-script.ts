@@ -1,15 +1,17 @@
 import { z } from "zod";
 
-import { ENGINE_PREDICATES, type Registry } from "../game/types";
+import { resolveTime } from "../game/time";
+import { ENGINE_PREDICATES, type GameCommand, type Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
+import { closest } from "./did-you-mean";
 import { schemaIdFor, toJsonSchema } from "./json-schema";
 
 /** The input-script format version, the `v` every script carries. */
 export const INPUT_SCRIPT_VERSION = 1;
 
-/** A run ends as `timeout` after this many ticks unless the script sets `maxTicks`: 30 s. */
+/** A run ends as `timeout` after this many simulated ticks unless the script sets `maxTicks`. */
 export const DEFAULT_SCRIPT_MAX_TICKS = 1800;
-/** The longest run a script may ask for: 10 minutes at 60 Hz. */
+/** The longest run, and the longest step, a script may ask for, in ticks. */
 export const MAX_SCRIPT_TICKS = 36_000;
 /** An `until` step gives up after this many ticks unless it sets `max`. */
 export const DEFAULT_UNTIL_MAX = 600;
@@ -17,8 +19,67 @@ export const DEFAULT_UNTIL_MAX = 600;
 const ticks = (description: string) =>
   z.number().int().min(1).max(MAX_SCRIPT_TICKS).describe(description);
 
+/** `ticks` at `rate` as seconds, e.g. `30 s`. */
+const seconds = (ticks: number, rate: number) => `${Math.round((ticks / rate) * 100) / 100} s`;
+
+/** The `@elapsed` command for `ms` away, clamped to the game's `catchUp.maxMs`. */
+export function elapsedCommand(ms: number, catchUp: { maxMs: number }): GameCommand {
+  return { name: "@elapsed", args: { ms: Math.floor(Math.min(ms, catchUp.maxMs)) } };
+}
+
+export type CheckedCommand =
+  | { ok: true; command: GameCommand }
+  | { ok: false; at: "name" | "args"; message: string };
+
+/**
+ * Checks a command against `registry`: a known name (an unknown one gets a
+ * "did you mean"), and `args` its schema parses. The checked command carries
+ * the parsed args, and no `args` key for a command that takes none.
+ */
+export function checkCommand(
+  registry: Registry,
+  command: GameCommand,
+  names: readonly string[] = registry.commandNames,
+): CheckedCommand {
+  const { name, args } = command;
+  const def = names.includes(name) ? registry.commands.get(name) : undefined;
+  if (!def) {
+    const guess = closest(name, names);
+    const known = names.length > 0 ? names.join(", ") : "none";
+    return {
+      ok: false,
+      at: "name",
+      message: `unknown command ${JSON.stringify(name)}${guess ? `; did you mean "${guess}"?` : ""} (commands: ${known})`,
+    };
+  }
+  if (!def.args) {
+    return args === undefined
+      ? { ok: true, command: { name } }
+      : { ok: false, at: "args", message: `${name} takes no args` };
+  }
+  const parsed = def.args.safeParse(args);
+  if (!parsed.success) {
+    const problems = parsed.error.issues.map((i) =>
+      i.path.length > 0 ? `${i.path.map(String).join(".")}: ${i.message}` : i.message,
+    );
+    return { ok: false, at: "args", message: `bad args for ${name}: ${problems.join("; ")}` };
+  }
+  return {
+    ok: true,
+    command: parsed.data === undefined ? { name } : { name, args: parsed.data },
+  };
+}
+
+const NO_CATCH_UP = "elapse needs the game's time.catchUp, and this game has none";
+
+/** The commands a script's `command` step may send: the game's own, not the engine's `@` ones. */
+export function scriptCommandNames(registry: Registry): string[] {
+  return registry.commandNames.filter((n) => !n.startsWith("@"));
+}
+
 function buildInputScriptSchemas(registry: Registry) {
   const names = registry.actionNames;
+  const { rate, kind, catchUp } = resolveTime({ game: registry.time });
   const action = (names.length > 0 ? z.enum(names as [string, ...string[]]) : z.never())
     .describe(
       names.length > 0
@@ -80,7 +141,7 @@ function buildInputScriptSchemas(registry: Registry) {
     .meta({ id: "Until" });
 
   const holdFor = z
-    .strictObject({ hold: held, for: ticks("Hold for this many ticks (60 a second).") })
+    .strictObject({ hold: held, for: ticks(`Hold for this many ticks (${rate} a second).`) })
     .describe("Hold actions for a fixed number of ticks.");
   const holdForMs = z
     .strictObject({
@@ -88,8 +149,10 @@ function buildInputScriptSchemas(registry: Registry) {
       forMs: z
         .number()
         .positive()
-        .max((MAX_SCRIPT_TICKS * 1000) / 60)
-        .describe("Hold for this many milliseconds, rounded to whole 60 Hz ticks (at least one)."),
+        .max((MAX_SCRIPT_TICKS * 1000) / rate)
+        .describe(
+          `Hold for this many milliseconds, rounded to whole ${rate} Hz ticks (at least one).`,
+        ),
     })
     .describe("Hold actions for a duration in milliseconds.");
   const holdUntil = z
@@ -112,9 +175,59 @@ function buildInputScriptSchemas(registry: Registry) {
     .strictObject({ wait: ticks("Hold nothing for this many ticks.") })
     .describe("Release everything for a number of ticks.");
 
+  const commandNames = scriptCommandNames(registry);
+  const command = z
+    .strictObject({
+      command: (commandNames.length > 0
+        ? z.enum(commandNames as [string, ...string[]])
+        : z.never()
+      ).describe(
+        commandNames.length > 0
+          ? `A command the game declares: ${commandNames
+              .map((n) => `${n} (${registry.commands.get(n)!.description})`)
+              .join("; ")}.`
+          : "A command name; this registry's game declares none.",
+      ),
+      args: z
+        .unknown()
+        .optional()
+        .describe("The command's arguments, checked by its `args` schema; omit for none."),
+    })
+    .superRefine((step, ctx) => {
+      const checked = checkCommand(registry, { name: step.command, args: step.args }, commandNames);
+      if (!checked.ok)
+        ctx.addIssue({
+          code: "custom",
+          path: [checked.at === "name" ? "command" : "args"],
+          message: checked.message,
+        });
+    })
+    .describe(
+      "Send a command for one slot, still holding what the hold step before it held (nothing after a press or wait). It wakes a turns or event game.",
+    );
+  const elapse = z
+    .strictObject({
+      elapse: z
+        .number()
+        .positive()
+        .describe(
+          catchUp
+            ? `Milliseconds away, sent as \`@elapsed\` and clamped to ${catchUp.maxMs}.`
+            : "Milliseconds away, sent as `@elapsed`; this game has no `time.catchUp`, so it refuses the step.",
+        ),
+    })
+    .superRefine((_step, ctx) => {
+      if (!catchUp) ctx.addIssue({ code: "custom", path: ["elapse"], message: NO_CATCH_UP });
+    })
+    .describe(
+      "Report wall time away for one slot, as `@elapsed`, still holding what the hold step before it held (nothing after a press or wait). It wakes every game.",
+    );
+
   const step = z
-    .union([holdFor, holdForMs, holdUntil, press, wait])
-    .describe("One step: `hold` with exactly one of `for`, `forMs` or `until`; `press`; or `wait`.")
+    .union([holdFor, holdForMs, holdUntil, press, wait, command, elapse])
+    .describe(
+      "One step: `hold` with exactly one of `for`, `forMs` or `until`; `press`; `wait`; `command`; or `elapse`.",
+    )
     .meta({ id: "Step" });
 
   const options = registry.game?.play?.options;
@@ -132,7 +245,7 @@ function buildInputScriptSchemas(registry: Registry) {
       ])
       .optional()
       .describe(
-        "Play from here instead of the game's spawn, cast down onto the first surface below; refused inside a solid.",
+        "Play from here instead of the game's spawn, cast along the game's spawn direction (gravity by default) onto the first surface it meets; refused inside a solid.",
       ),
     timeOffsetMs: z
       .number()
@@ -147,7 +260,7 @@ function buildInputScriptSchemas(registry: Registry) {
         }
       : {}),
     maxTicks: ticks(
-      `The run ends as \`timeout\` after this many ticks (default ${DEFAULT_SCRIPT_MAX_TICKS}, 30 s).`,
+      `The run ends as \`timeout\` after this many ticks (default ${DEFAULT_SCRIPT_MAX_TICKS}, ${seconds(DEFAULT_SCRIPT_MAX_TICKS, rate)}).`,
     ).optional(),
   };
 
@@ -157,15 +270,23 @@ function buildInputScriptSchemas(registry: Registry) {
       steps: z.array(step).min(1).describe("The steps, played in order from tick 0."),
     })
     .describe(
-      "A headless playtest: steps of held actions at 60 ticks a second. The run ends when the game's outcome hook decides, " +
+      `A headless playtest: steps of held actions at ${rate} ticks a second. The run ends when the game's outcome hook decides, ` +
         "when the steps run out (`script-end`), at `maxTicks` (`timeout`), or `stuck` (a movement action held with the focus " +
-        "moving under 4 px in 120 ticks).",
+        "moving under 4 px in 120 ticks)." +
+        (kind === "fixed"
+          ? ""
+          : ` Step lengths count slots: in this ${kind} game a slot nothing wakes while it isn't busy simulates no tick.`),
     );
 
   /** The script with its steps unchecked, so each step can be checked by its own shape. */
   const head = z.strictObject({ ...header, steps: z.array(z.unknown()).min(1) });
 
-  return { script, head, steps: { holdFor, holdForMs, holdUntil, press, wait }, until };
+  return {
+    script,
+    head,
+    steps: { holdFor, holdForMs, holdUntil, press, wait, command, elapse },
+    until,
+  };
 }
 
 export type InputScriptSchemas = ReturnType<typeof buildInputScriptSchemas>;

@@ -1,6 +1,5 @@
 import { containedInRect, containsPoint, intersectsRect } from "../scene/shape-geometry";
 import type { Aabb, Pt, Ref } from "../scene/types";
-import { spriteHitOf } from "./spatial-index";
 import type { IndexEntry, SpatialIndex } from "./tools";
 
 /** Layers picking skips. */
@@ -37,8 +36,7 @@ export function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntr
   });
   return near.filter((e) => {
     if (!pickable(e, opts.layers)) return false;
-    const g = e.geometry;
-    const sprite = spriteHitOf(e);
+    const { geometry: g, sprite } = e;
     if (sprite && containsPoint(sprite, p, tol)) return true;
     return isPoint(g) ? Math.hypot(p[0] - g[0], p[1] - g[1]) <= radius : containsPoint(g, p, tol);
   });
@@ -67,8 +65,7 @@ export function marqueeSelect(
     .query(rect)
     .filter((e) => {
       if (!pickable(e, opts.layers)) return false;
-      const g = e.geometry;
-      const sprite = spriteHitOf(e);
+      const { geometry: g, sprite } = e;
       if (opts.touch && sprite && intersectsRect(sprite, rect)) return true;
       if (isPoint(g))
         return g[0] >= rect.minX && g[0] <= rect.maxX && g[1] >= rect.minY && g[1] <= rect.maxY;

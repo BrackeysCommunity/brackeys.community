@@ -2,9 +2,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import type { EngineContext } from "@jams/engine/game";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { showMountFailure } from "../main";
+import { engineEditorGame, showMountFailure } from "../main";
 
 const html = readFileSync(join(import.meta.dirname, "../index.html"), "utf8");
 
@@ -26,5 +27,24 @@ describe("the standalone editor's page", () => {
     expect(root.querySelector('[role="alert"]')).not.toBeNull();
     expect(log).toHaveBeenCalledWith("[engine editor] couldn't open", error);
     log.mockRestore();
+  });
+});
+
+describe("the standalone editor's game", () => {
+  const camera = (ctx: Pick<EngineContext, "play" | "bounds">) =>
+    engineEditorGame.createRuntime(ctx as EngineContext).cameraTarget?.();
+
+  it("points Play's camera at the play start when Play began from a point", () => {
+    const play = { at: { x: 120, y: -40 }, timeOffsetMs: 0 };
+    expect(camera({ play, bounds: [0, 0, 2000, 1200] })).toEqual({ x: 120, y: -40 });
+  });
+
+  it("points it at the centre of the scene's bounds otherwise", () => {
+    const play = { timeOffsetMs: 0 };
+    expect(camera({ play, bounds: [-400, 100, 1600, 900] })).toEqual({ x: 600, y: 500 });
+  });
+
+  it("leaves an edit world's camera to the editor", () => {
+    expect(camera({ play: null, bounds: [0, 0, 2000, 1200] })).toBeNull();
   });
 });

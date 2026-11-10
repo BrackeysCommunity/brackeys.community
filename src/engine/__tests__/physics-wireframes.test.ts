@@ -1,10 +1,19 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { colliderShape, colliderTint } from "../debug/physics-wireframes";
+import { createColliderTags } from "../collider-tags";
+import {
+  colliderShape,
+  colliderTint,
+  createPhysicsWireframes,
+  geometryWireframes,
+} from "../debug/physics-wireframes";
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { shapeField, tagsField } from "../game/fields";
 import { createPhysicsWorld, posedBodyDesc, shapeColliderDesc } from "../physics";
-import type { Pt, ShapeObj } from "../scene/types";
+import { createGeometryWorld } from "../runtime/geometry-world";
+import { createSceneRuntime } from "../runtime/runtime";
+import { expandScene } from "../scene/expand";
+import type { Pt, SceneDefinition, ShapeObj } from "../scene/types";
 import type { RapierModule } from "../types";
 
 let rapier: RapierModule;
@@ -137,5 +146,119 @@ describe("colliderTint", () => {
   it("gives untagged and unknown colliders no tint", () => {
     expect(colliderTint(undefined, registry)).toBeUndefined();
     expect(colliderTint({ entityId: "x", type: "nope" }, registry)).toBeUndefined();
+  });
+});
+
+describe("wireframes over a geometry world", () => {
+  const registry = createRegistry();
+  const style = (type: string) => registry.types.get(type)!.style!;
+
+  function world() {
+    const geometry = createGeometryWorld(registry);
+    const tags = createColliderTags();
+    const floor = geometry.add({
+      shape: { type: "box", cx: 0, cy: 0, hw: 100, hh: 10, rotDeg: 0 },
+      body: "static",
+      pose: { x: 200, y: 300, rot: 0 },
+    });
+    const zone = geometry.add({
+      shape: { type: "circle", cx: 0, cy: 0, r: 20 },
+      body: "static",
+      sensor: true,
+      pose: { x: 50, y: 60, rot: 0 },
+    });
+    const loose = geometry.add({
+      shape: {
+        type: "chain",
+        pts: [
+          [0, 0],
+          [40, 0],
+        ],
+      },
+      body: "static",
+    });
+    tags.set(floor, { entityId: "floor", type: "solid" });
+    tags.set(zone, { entityId: "zone", type: "sensor" });
+    return { geometry, tags, floor, zone, loose };
+  }
+
+  it("lists every collider's world shape in handle order, tinted by its tag", () => {
+    const { geometry, tags, floor, zone, loose } = world();
+    expect(geometryWireframes(geometry, { tags, registry })).toEqual([
+      {
+        handle: floor,
+        shape: expect.objectContaining({ type: "box", cx: 200, cy: 300, hw: 100, hh: 10 }),
+        tint: style("solid").stroke,
+      },
+      {
+        handle: zone,
+        shape: expect.objectContaining({ type: "circle", cx: 50, cy: 60, r: 20 }),
+        tint: style("sensor").stroke,
+      },
+      {
+        handle: loose,
+        shape: {
+          type: "chain",
+          pts: [
+            [0, 0],
+            [40, 0],
+          ],
+        },
+        tint: undefined,
+      },
+    ]);
+    geometry.remove(zone);
+    geometry.setPose(floor, 210, 300);
+    expect(geometryWireframes(geometry, { tags, registry }).map((w) => w.handle)).toEqual([
+      floor,
+      loose,
+    ]);
+    expect(geometryWireframes(geometry, { tags, registry })[0]!.shape).toMatchObject({ cx: 210 });
+  });
+
+  it("draws the geometry world when the scene has no physics, and nothing without a world", () => {
+    const { geometry, tags } = world();
+    const wireframes = createPhysicsWireframes();
+    try {
+      wireframes.update({ physics: null, geometry, tags, registry });
+      const box = wireframes.container.getLocalBounds();
+      expect(box.minX).toBeLessThanOrEqual(0);
+      expect(box.maxX).toBeGreaterThanOrEqual(300);
+      expect(box.maxY).toBeGreaterThanOrEqual(310);
+      wireframes.update({ physics: null, geometry: null, tags, registry });
+      expect(wireframes.container.getLocalBounds().width).toBe(0);
+    } finally {
+      wireframes.destroy();
+    }
+  });
+
+  it("draws a physics-free runtime's colliders from its context", () => {
+    const def: SceneDefinition = {
+      v: 1,
+      name: "free",
+      bounds: [0, 0, 1000, 1000],
+      settings: { physics: "none" },
+      solid: [["box", 500, 920, 400, 20]],
+      entities: [{ id: "zone", type: "sensor", shape: ["box", 900, 830, 40, 30] }],
+    };
+    const runtime = createSceneRuntime({ rapier: null, view: null, registry });
+    const wireframes = createPhysicsWireframes();
+    try {
+      expect(runtime.load(expandScene(def, registry)).ok).toBe(true);
+      const { ctx } = runtime;
+      expect(ctx.physics).toBeNull();
+      const drawn = geometryWireframes(ctx.geometry!, ctx);
+      expect(drawn.map((w) => ctx.tags.get(w.handle)?.entityId)).toEqual(["~solid:0", "zone"]);
+      wireframes.update(ctx);
+      const box = wireframes.container.getLocalBounds();
+      // The strokes reach a couple of px past the shapes.
+      expect(box.minX).toBeGreaterThan(95);
+      expect(box.minX).toBeLessThanOrEqual(100);
+      expect(box.maxX).toBeGreaterThanOrEqual(940);
+      expect(box.maxX).toBeLessThan(945);
+    } finally {
+      wireframes.destroy();
+      runtime.destroy();
+    }
   });
 });

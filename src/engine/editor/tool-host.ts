@@ -1,7 +1,6 @@
 import { ENGINE_TOOL_IDS, type Registry } from "../game/types";
-import { bulkKeysOf } from "../scene/expand";
-import { gridCellBounds } from "../scene/grid";
-import { gridCellOutline, type SpriteAssetLookup } from "../scene/render-geometry";
+import type { GridCells } from "../scene/grid";
+import { growOverGrid, type SpriteAssetLookup } from "../scene/render-geometry";
 import { CHILD_SEPARATOR } from "../scene/resolve";
 import { gridFieldsOf } from "../scene/schema";
 import { aabb, aabbUnion } from "../scene/shape-geometry";
@@ -45,7 +44,7 @@ import {
   createSpatialIndex,
   entityGeometry,
   geometryOfRef,
-  spriteHitOf,
+  editSpriteBox,
   type EditGeometry,
 } from "./spatial-index";
 import { setHover } from "./store";
@@ -178,12 +177,15 @@ export type ToolHost = {
 
 // ─── Outlines ───────────────────────────────────────────
 
-type OutlineMarks = Required<Pick<ToolOverlay, "outlines" | "points">>;
+/** Outline marks as the overlay draws them. */
+export type OutlineMarks = Required<Pick<ToolOverlay, "outlines" | "points">>;
 
-type OutlineLook = {
+export type OutlineLook = {
   registry: Registry;
-  /** The index whose sprite boxes match `def`; `null` while a preview moves things. */
-  index: SpatialIndex | null;
+  /** Asset info for sizing sprite boxes (`ProjectRuntimeView.asset`); without it a box is its block's size or 32×32. */
+  asset?: SpriteAssetLookup;
+  /** Whether a point entity carrying a sprite marks its point as well as the box; default true. */
+  spritePoints?: boolean;
 };
 
 const boxShape = (b: Aabb): ShapeObj => ({
@@ -201,36 +203,30 @@ const ptsBox = (pts: readonly Pt[]): Aabb | null =>
     return b ? aabbUnion(b, p) : p;
   }, null);
 
-/** The box over a grid entity's filled cells, placed at `at` the way the renderers place them. */
+/** The box over a grid entity's origin and filled cells, as the renderers bound it; null without cells. */
 function gridBox(grid: GridSettings, at: Pt, e: EntityDef, registry: Registry): Aabb | null {
-  let box: Aabb | null = null;
+  const origin: Aabb = { minX: at[0], minY: at[1], maxX: at[0], maxY: at[1] };
+  let box = origin;
   for (const field of gridFieldsOf(registry.types.get(e.type))) {
     const value = e[field];
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    let b: ReturnType<typeof gridCellBounds> = null;
     try {
-      b = gridCellBounds(value as Parameters<typeof gridCellBounds>[0]);
+      box = growOverGrid(box, grid, at, [{ value: value as GridCells }]);
     } catch {
-      continue;
+      // A half-typed grid value outlines nothing rather than throwing.
     }
-    if (!b) continue;
-    // Each edge's neighbour too, so a staggered hex row or column is covered.
-    const cols = [b.c0, Math.min(b.c0 + 1, b.c1), Math.max(b.c1 - 1, b.c0), b.c1];
-    const rows = [b.r0, Math.min(b.r0 + 1, b.r1), Math.max(b.r1 - 1, b.r0), b.r1];
-    for (const c of cols)
-      for (const r of rows) {
-        const cell = ptsBox(gridCellOutline(grid, at, c, r));
-        if (cell) box = box ? aabbUnion(box, cell) : cell;
-      }
   }
-  return box;
+  return box === origin ? null : box;
 }
 
-/** One entity's marks as the scene draws it: its shape, its sprite's box, its grid cells' box, else its point. */
+/**
+ * One entity's or bulk row's marks as the scene draws it, posed by `g`:
+ * its shape, its sprite's box, its grid cells' box, and without a shape its point.
+ */
 function geometryMarks(
   def: SceneDefinition,
-  ref: Ref,
   g: EditGeometry,
+  type: string,
   entity: EntityDef | undefined,
   tone: OverlayTone,
   owner: Ref,
@@ -238,14 +234,14 @@ function geometryMarks(
   look: OutlineLook,
 ): void {
   if (g.shape) out.outlines.push({ shape: g.shape, tone, ref: owner });
-  const indexed = look.index?.get(ref);
-  const sprite = indexed && spriteHitOf(indexed);
-  if (sprite) out.outlines.push({ shape: sprite, tone, ref: owner });
+  const sprite = editSpriteBox(look.registry, type, g, entity?.behaviors, look.asset);
+  if (sprite) out.outlines.push({ shape: sprite.shape, tone, ref: owner });
   const grid = def.settings?.grid;
   const cells =
     !g.shape && g.at && grid && entity ? gridBox(grid, g.at, entity, look.registry) : null;
   if (cells) out.outlines.push({ shape: boxShape(cells), tone, ref: owner });
-  if (!g.shape && g.at) out.points.push({ at: g.at, tone, ref: owner });
+  if (!g.shape && g.at && (!sprite || look.spritePoints !== false))
+    out.points.push({ at: g.at, tone, ref: owner });
 }
 
 /** Whether `ref` names an instance (or a nested one) rather than an entity of `def`. */
@@ -258,9 +254,10 @@ function isComposite(def: SceneDefinition, ref: Ref): boolean {
 /**
  * Appends `ref`'s outlines in `def` (the resolved view, as previewed) to
  * `out`, each in its world pose: an entity's or bulk row's own geometry,
- * or for an instance, every child it resolves to. Outlines carry `ref`.
+ * or for an instance, every child it resolves to. Sprite boxes are posed
+ * from `def`'s geometry, so they follow a preview. Outlines carry `ref`.
  */
-function outlinesOfRef(
+export function outlinesOfRef(
   def: SceneDefinition,
   ref: Ref,
   tone: OverlayTone,
@@ -271,19 +268,19 @@ function outlinesOfRef(
   const own = geometryOfRef(def, registry, ref);
   if (own) {
     const entity = own.bulk ? undefined : (def.entities ?? []).find((e) => e.id === ref);
-    geometryMarks(def, ref, own, entity, tone, ref, out, look);
+    geometryMarks(def, own, own.type, entity, tone, ref, out, look);
     return;
   }
   const prefix = `${ref}${CHILD_SEPARATOR}`;
   for (const e of def.entities ?? []) {
     if (!e.id.startsWith(prefix)) continue;
     const t = registry.types.get(e.type);
-    if (t) geometryMarks(def, e.id, entityGeometry(t, e), e, tone, ref, out, look);
+    if (t) geometryMarks(def, entityGeometry(t, e), e.type, e, tone, ref, out, look);
   }
 }
 
 /** The box around a set of marks; `null` for none. */
-function marksBounds(
+export function marksBounds(
   outlines: OutlineMarks["outlines"],
   points: OutlineMarks["points"],
 ): Aabb | null {
@@ -634,27 +631,6 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     return t.rest.length === 0 && t.instances.length + t.groups.length > 0;
   }
 
-  let previewLook: { def: SceneDefinition; sel: readonly Ref[]; index: SpatialIndex } | null = null;
-
-  /**
-   * An index of just the selection in the previewed document, so sprite
-   * boxes follow a drag; kept while the preview and selection stay the same.
-   */
-  function previewIndex(def: SceneDefinition, sel: readonly Ref[]): SpatialIndex {
-    if (previewLook?.def === def && previewLook.sel === sel) return previewLook.index;
-    const ids = new Set(sel);
-    const prefixes = sel.map((r) => `${r}${CHILD_SEPARATOR}`);
-    const part: SceneDefinition = { ...def };
-    for (const k of bulkKeysOf(part)) delete part[k];
-    part.entities = (def.entities ?? []).filter(
-      (e) => ids.has(e.id) || prefixes.some((p) => e.id.startsWith(p)),
-    );
-    const small = createSpatialIndex(opts.asset ? { asset: opts.asset } : {});
-    small.rebuild(part, registry);
-    previewLook = { def, sel, index: small };
-    return small;
-  }
-
   /**
    * The overlay's outlines: the selection's, the shared hover's and the
    * marquee's would-be selection. While a drag previews, the selection is
@@ -666,11 +642,9 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     const def = previewed ?? committed;
     const sel = selection();
     const ghost: OutlineMarks = { outlines: [], points: [] };
-    if (previewed) {
-      for (const ref of sel) outlinesOfRef(committed, ref, "ghost", ghost, { registry, index });
-    } else previewLook = null;
+    const look: OutlineLook = { registry, ...(opts.asset ? { asset: opts.asset } : {}) };
+    if (previewed) for (const ref of sel) outlinesOfRef(committed, ref, "ghost", ghost, look);
     const marks: OutlineMarks = { outlines: [], points: [] };
-    const look = { registry, index: previewed ? previewIndex(previewed, sel) : index };
     for (const ref of sel) outlinesOfRef(def, ref, "selected", marks, look);
     const bounds =
       sel.length > 1 || (sel.length === 1 && isComposite(def, sel[0]!))

@@ -170,6 +170,38 @@ describe("buildInspectorModel", () => {
     });
   });
 
+  it("offers a one-way side as the four sides, showing `true` as up", () => {
+    const doc: SceneDefinition = {
+      v: 1,
+      name: "w",
+      bounds: [0, 0, 100, 100],
+      entities: [
+        { id: "p", type: "solid", shape: ["box", 5, 5, 20, 2], oneWay: true },
+        { id: "q", type: "solid", shape: ["box", 5, 15, 20, 2], oneWay: "up" },
+        { id: "r", type: "solid", shape: ["box", 5, 25, 20, 2], oneWay: "left" },
+        { id: "w", type: "solid", shape: ["box", 5, 35, 20, 2] },
+      ],
+    };
+    const engine = createRegistry();
+    const solids = (...ids: string[]) =>
+      buildInspectorModel(
+        engine,
+        ids.map((id) => lookupRef(doc, id)!),
+      );
+    expect(field(solids("p"), "oneWay")).toMatchObject({
+      value: "up",
+      optional: true,
+      section: "physics",
+      widget: {
+        kind: "segmented",
+        options: ["up", "right", "down", "left"].map((v) => ({ value: v, label: v })),
+      },
+    });
+    expect(field(solids("p", "q"), "oneWay")).toMatchObject({ value: "up", mixed: false });
+    expect(field(solids("p", "r"), "oneWay").mixed).toBe(true);
+    expect(field(solids("w"), "oneWay").value).toBeUndefined();
+  });
+
   const m = model("a");
 
   it("sections fields by meta.group, else by kind, in the fixed section order", () => {
@@ -685,6 +717,7 @@ describe("behavior sections", () => {
     expect(glow.behavior).toEqual({ name: GLOW.name, description: GLOW.description });
     expect(m.addBehaviors.map((o) => [o.name, o.label])).toEqual([
       ["sprite", "sprite"],
+      ["occupant", "occupant"],
       [SPIN.name, SPIN.name],
     ]);
   });
@@ -698,7 +731,7 @@ describe("behavior sections", () => {
       defaultValue: 30,
     });
     expect(fields(m).some((f) => f.path === "behaviors")).toBe(false);
-    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite"]);
+    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite", "occupant"]);
     expect(of(games, doc, "spot").sections.at(-1)!.fields[0]).toMatchObject({
       value: 45,
       defaultValue: 90,
@@ -732,12 +765,12 @@ describe("behavior sections", () => {
   it("adds a behavior the types allow with one update per target lacking it", () => {
     const m = of(games, doc, "lamp", "spot");
     expect(m.sections.some((s) => s.id.startsWith("behaviors:"))).toBe(false);
-    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite", GLOW.name, SPIN.name]);
-    expect(m.addBehaviors[1]!.batch).toEqual({
+    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite", "occupant", GLOW.name, SPIN.name]);
+    expect(m.addBehaviors[2]!.batch).toEqual({
       label: "Add Glow to spot",
       ops: [{ op: "update", ref: "spot", set: { [`behaviors.${GLOW.name}`]: {} } }],
     });
-    const add = m.addBehaviors[2]!.batch;
+    const add = m.addBehaviors[3]!.batch;
     expect(add).toEqual({
       label: `Add ${SPIN.name} to lamp`,
       ops: [{ op: "update", ref: "lamp", set: { [`behaviors.${SPIN.name}`]: {} } }],

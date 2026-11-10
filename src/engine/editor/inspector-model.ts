@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
-import { assetKindsOf } from "../game/fields";
+import { assetKindsOf, SIDES } from "../game/fields";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
 import type { AssetKindName } from "../project/types";
 import { splitFieldPath } from "../scene/field-path";
@@ -245,6 +245,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
       ...(typeof meta.unit === "string" ? { unit: meta.unit } : {}),
     };
   if (kind === "path") return { kind: "path" };
+  if (kind === "side") return choice(SIDES);
 
   const inner = unwrapSchema(schema);
   const ref = top ? ctx.type?.refs?.find((r) => r.field === name) : undefined;
@@ -320,6 +321,12 @@ function valueAt(root: unknown, path: FieldPath): unknown {
   return cur;
 }
 
+/** The value at `path`, with a side field's `true` shown as the `"up"` it means. */
+function fieldValue(schema: z.ZodType, root: unknown, path: FieldPath): unknown {
+  const value = valueAt(root, path);
+  return value === true && fieldKind(schema) === "side" ? "up" : value;
+}
+
 /** Where a field lands: `forced` always (a behavior's block), else its group, `inherited`, or its kind's. */
 type Placement = { inherited?: ModelSectionId; forced?: ModelSectionId };
 
@@ -347,7 +354,7 @@ function describeField(
       path === "id" ||
       widget.kind === "readonly" ||
       (widget.kind === "custom" && widget.widget.kind === "readonly"),
-    value: valueAt(root, path),
+    value: fieldValue(schema, root, path),
     mixed: false,
     schema,
   };
@@ -842,7 +849,7 @@ function targetInfo(
 /** `f` moved from `from` to `to`, its children's values read from `root`. */
 function moveField(f: ModelField, from: string, to: string, root: unknown): ModelField {
   const path = `${to}${f.path.slice(from.length)}`;
-  const out: ModelField = { ...f, path, value: valueAt(root, path) };
+  const out: ModelField = { ...f, path, value: fieldValue(f.schema, root, path) };
   if (f.children) out.children = f.children.map((c) => moveField(c, from, to, root));
   return out;
 }

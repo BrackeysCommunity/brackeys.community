@@ -7,7 +7,7 @@ import type {
   World,
 } from "@dimforge/rapier2d";
 
-import { DEFAULT_GRAVITY } from "./game/primitives";
+import { DEFAULT_GRAVITY, DEFAULT_TICK_RATE } from "./game/defaults";
 import { signedArea } from "./scene/shape-geometry";
 import type { ShapeObj } from "./scene/types";
 import type { RapierModule, Vec2 } from "./types";
@@ -27,7 +27,8 @@ export type PhysicsWorld = {
   addRigidBody: (desc: RigidBodyDesc) => RigidBody;
   /** Create a collider, optionally attached to a rigid body */
   addCollider: (desc: ColliderDesc, body?: RigidBody) => Collider;
-  createCharacterController: (offset?: number) => KinematicCharacterController;
+  /** A character controller set up exactly as `opts` says; `SIDE_VIEW_CONTROLLER` and `TOP_DOWN_CONTROLLER` are presets. */
+  createCharacterController: (opts: CharacterControllerOptions) => KinematicCharacterController;
   /** Remove a rigid body (and its attached colliders) */
   removeRigidBody: (body: RigidBody) => void;
   removeCollider: (collider: Collider) => void;
@@ -37,17 +38,30 @@ export type PhysicsWorld = {
   destroy: () => void;
 };
 
+/** How a Rapier character controller moves; each null turns that behaviour off. */
+export type CharacterControllerOptions = {
+  /** The gap kept from what it touches; default 0.01. */
+  offset?: number;
+  /** Unit vector pointing up. */
+  up: Vec2;
+  /** null: no climbing limit. */
+  maxSlopeClimbDeg: number | null;
+  /** null: never slides. */
+  minSlopeSlideDeg: number | null;
+  autostep: { maxHeight: number; minWidth: number; dynamic: boolean } | null;
+  snapToGround: number | null;
+  pushDynamic: boolean;
+};
+
 export type PhysicsConfig = {
   gravity: Vec2;
+  /** Seconds per step: one step per tick, so `1 / time.rate`. */
   timestep: number;
 };
 
-/** Fixed simulation ticks per second; one physics step per tick. */
-export const TICK_RATE = 60;
-
 const DEFAULT_PHYSICS_CONFIG: PhysicsConfig = {
   gravity: { x: DEFAULT_GRAVITY[0], y: DEFAULT_GRAVITY[1] },
-  timestep: 1 / TICK_RATE,
+  timestep: 1 / DEFAULT_TICK_RATE,
 };
 
 /** Create an empty Rapier world; scene systems add every body. */
@@ -85,19 +99,25 @@ export function createPhysicsWorld(
     return world.createCollider(desc, body);
   }
 
-  function createCharacterController(offset = 0.01): KinematicCharacterController {
-    const controller = world.createCharacterController(offset);
-    // Our coordinate system: +Y is down (screen space), so "up" is -Y
-    controller.setUp(new rapier.Vector2(0, -1));
-    // Slopes: climb up to 50°, slide on slopes > 30°
-    controller.setMaxSlopeClimbAngle((50 * Math.PI) / 180);
-    controller.setMinSlopeSlideAngle((30 * Math.PI) / 180);
-    // Auto-step: max 4 game units high, min 2 wide, include dynamic bodies
-    controller.enableAutostep(4, 2, true);
-    // Snap to ground when walking down slopes (up to 4 units)
-    controller.enableSnapToGround(4);
-    // Push dynamic bodies when walking into them
-    controller.setApplyImpulsesToDynamicBodies(true);
+  function createCharacterController(
+    opts: CharacterControllerOptions,
+  ): KinematicCharacterController {
+    const controller = world.createCharacterController(opts.offset ?? 0.01);
+    controller.setUp(new rapier.Vector2(opts.up.x, opts.up.y));
+    // A right angle from `up` is any slope: no climbing limit, and nothing slides.
+    controller.setMaxSlopeClimbAngle(
+      opts.maxSlopeClimbDeg === null ? Math.PI / 2 : (opts.maxSlopeClimbDeg * Math.PI) / 180,
+    );
+    controller.setMinSlopeSlideAngle(
+      opts.minSlopeSlideDeg === null ? Math.PI / 2 : (opts.minSlopeSlideDeg * Math.PI) / 180,
+    );
+    if (opts.autostep) {
+      const { maxHeight, minWidth, dynamic } = opts.autostep;
+      controller.enableAutostep(maxHeight, minWidth, dynamic);
+    } else controller.disableAutostep();
+    if (opts.snapToGround === null) controller.disableSnapToGround();
+    else controller.enableSnapToGround(opts.snapToGround);
+    controller.setApplyImpulsesToDynamicBodies(opts.pushDynamic);
     return controller;
   }
 

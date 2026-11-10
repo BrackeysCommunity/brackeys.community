@@ -1,7 +1,7 @@
 import type { Store } from "@tanstack/store";
 
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
-import type { GameDefinition, GameOutcome, Registry } from "./game/types";
+import type { GameCommand, GameDefinition, GameOutcome, Registry } from "./game/types";
 import type { PlayOptions } from "./headless/playtest-types";
 import type { BundleEntry } from "./project/bundle";
 import type { KindRegistry } from "./project/kinds";
@@ -9,7 +9,13 @@ import type { ProjectRuntimeView } from "./project/runtime-view";
 import type { AssetId, ProjectView } from "./project/types";
 import type { AssetLoader, LoadProgress } from "./render/asset-loader";
 import type { ResolutionPolicy } from "./resolution";
-import type { AssetReloadError, LoadReport, SceneRuntime, StepResult } from "./runtime/types";
+import type {
+  AssetReloadError,
+  LoadFailureReason,
+  LoadReport,
+  SceneRuntime,
+  StepResult,
+} from "./runtime/types";
 import type { RunRecording } from "./scene/recording-schema";
 import type {
   Aabb,
@@ -36,6 +42,7 @@ export type GameConfig = {
   displayWidth: number;
   displayHeight: number;
   backgroundColor: number;
+  /** @deprecated Ignored: the loop ticks at the game's `time.rate` (or the project's `engine.tickRate`). */
   targetFPS: number;
   maxDeltaTime: number;
   camera: CameraConfig;
@@ -59,8 +66,11 @@ export type GameConfig = {
   /**
    * Loads the Rapier module: `() => import("@dimforge/rapier2d")` in a browser,
    * or `@dimforge/rapier2d-compat` (cast) after its `init()` in Bun or Node.
+   * `createGame` awaits it only when the game's default physics (or the
+   * start-up scene's) is Rapier; `preload` brings it in for a Rapier scene.
+   * A game whose scenes all run without physics needs none.
    */
-  rapier: () => Promise<RapierModule>;
+  rapier?: () => Promise<RapierModule>;
   /** Loaded on start, expanded through `registry` when it is a document. Without one the world is empty. */
   scene?: SceneDefinition | ExpandedScene;
   /** The prefabs scene documents' instances name; `setPrefabs` replaces them. */
@@ -173,8 +183,8 @@ export type PlayReport =
       issues: SceneIssue[];
       /** Why the play world didn't load; absent when validation blocked it. */
       error?: string;
-      /** `spawn-blocked`: `at` lies inside a solid. */
-      reason?: "spawn-blocked";
+      /** The load's own reason (`LoadReport`): `spawn-blocked` when `at` lies inside a solid. */
+      reason?: LoadFailureReason;
     };
 
 export type GameStoreState = {
@@ -214,7 +224,9 @@ export type GameInstance = {
   /**
    * Loads the scene's bundle, joined by the project bundle until all of the
    * project's textures are in (a project texture that failed is fetched again
-   * by the next `preload` or `loadScene`); resolves when its textures are in.
+   * by the next `preload` or `loadScene`), and `GameConfig.rapier` when the
+   * scene's physics is Rapier; resolves when both are in. Loading a Rapier
+   * scene before its module is in reports `physics-not-loaded`.
    */
   preload: (
     scene: SceneDefinition | ExpandedScene,
@@ -281,6 +293,14 @@ export type GameInstance = {
   setTimeScale: (scale: number) => void;
   /** Runs a game command (its `editorKeys`, or a host button); false when the game didn't apply it. */
   command: (name: string) => boolean;
+  /**
+   * Queues a command for the next simulated tick, waking a turns or event
+   * game; false (and a dev warning) when not playing, while a replay plays
+   * its recorded commands, for an unknown name, or when its args don't parse.
+   */
+  send: (command: GameCommand) => boolean;
+  /** Wall time away, e.g. a restored save's last-seen gap; becomes `@elapsed` when the game has `time.catchUp`. */
+  elapse: (ms: number) => void;
   /** Offers Escape to the game in play (a tool's selection); true when it used it, so play goes on. */
   cancel: () => boolean;
   /** The last pointer position over the input target in world units, for "play from here"; null before any. */
@@ -310,4 +330,14 @@ export type GameInstance = {
   zoomAt: (screen: Vec2, factor: number) => void;
   /** Centres `rect` (world px) and zooms so it fits with `marginPx` screen px around it (default 48). */
   frame: (rect: Aabb, marginPx?: number) => void;
+  /**
+   * Reads back the canvas pixel (RGBA bytes) under each world point, through
+   * the camera, from the stage at resolution 1 over the game's background
+   * colour; a point off the canvas reads null. `renderer` is the renderer
+   * that drew them, `webgl` or `webgpu`.
+   */
+  extractPixels: (world: readonly Vec2[]) => {
+    renderer: string;
+    pixels: (readonly [number, number, number, number] | null)[];
+  };
 };

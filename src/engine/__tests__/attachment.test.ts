@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineGame } from "../game/define";
+import { PhysicsRequiredError } from "../game/physics-of";
 import { validatePhysical } from "../headless/validate-physical";
 import { ALL_GROUPS, castSpawn } from "../runtime/cast";
 import { createSceneRuntime } from "../runtime/runtime";
@@ -70,7 +71,7 @@ function loaded(def: SceneDefinition, reg = registry) {
 }
 
 const colliderOf = (rt: ReturnType<typeof loaded>, id: string) =>
-  rt.ctx.physics.world.getCollider(rt.ctx.tags.handlesOf(id)[0]!)!;
+  rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf(id)[0]!)!;
 
 describe("attachment to a path follower", () => {
   it("puts the child's collider on the follower's body at its offset from the first path point", () => {
@@ -130,7 +131,7 @@ describe("attachment to a path follower", () => {
     expect(plank.parent()!.handle).toBe(colliderOf(rt, "lift").parent()!.handle);
     rt.ctx.system<SolidSystem>("solid")!.despawn("plank");
     expect(rt.ctx.tags.handlesOf("plank")).toEqual([]);
-    expect(rt.ctx.physics.world.getCollider(colliderOf(rt, "lift").handle)).toBeDefined();
+    expect(rt.ctx.physics!.world.getCollider(colliderOf(rt, "lift").handle)).toBeDefined();
     rt.destroy();
   });
 
@@ -145,10 +146,10 @@ describe("attachment to a path follower", () => {
     expect(solids.isHidden("plank")).toBe(true);
     expect(plank.collisionGroups()).toBe(0);
     expect(colliderOf(rt, "lift").parent()!.translation()).toEqual({ x: 400, y: 600 });
-    rt.ctx.physics.refreshQueries();
+    rt.ctx.physics!.refreshQueries();
     const shape = new rapier.Cuboid(4, 4);
     expect(
-      rt.ctx.physics.world.intersectionWithShape(
+      rt.ctx.physics!.world.intersectionWithShape(
         { x: 500, y: 590 },
         0,
         shape,
@@ -229,6 +230,25 @@ describe("attachment to a path follower", () => {
       [["lift", "plank", "wall"], "/entities/0/path/pts/2"],
     ]);
     expect(hits[0]!.message).toMatch(/^plank, riding lift, runs into wall on lift's segment 1/);
+  });
+});
+
+describe("attachment without physics", () => {
+  it("throws PhysicsRequiredError from the hub, and fails the load on the rider", () => {
+    const rt = createSceneRuntime({ rapier: null, view: null, registry });
+    const report = rt.load(expandScene({ ...yard(), settings: { physics: "none" } }, registry));
+    expect(report).toMatchObject({ ok: false, reason: "physics-required", entityId: "plank" });
+    let thrown: unknown;
+    try {
+      rt.ctx.attachments.attach("plank", "lift", () => {
+        throw new Error("never made");
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(PhysicsRequiredError);
+    expect(thrown).toMatchObject({ code: "physics-required", what: "attach", entityId: "plank" });
+    rt.destroy();
   });
 });
 

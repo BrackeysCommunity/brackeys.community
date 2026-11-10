@@ -19,6 +19,7 @@ import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
 import { fmt } from "./tools/fmt";
 import { fuzz } from "./tools/fuzz";
+import { grid } from "./tools/grid";
 import { list } from "./tools/list";
 import { newScene } from "./tools/new";
 import { playtest } from "./tools/playtest";
@@ -36,19 +37,22 @@ import { step } from "./tools/step";
 import { textconv } from "./tools/textconv";
 import { validate } from "./tools/validate";
 
-export type ParsedArgs = { positionals: string[]; flags: Record<string, string | true> };
+export type ParsedArgs = { positionals: string[]; flags: Record<string, string | string[] | true> };
 
 type Command = {
   usage: string;
   summary: string;
   /** Flags that take a value; the rest of `flags` are switches. `json` and `project` are accepted everywhere. */
   values: readonly string[];
+  /** Value flags that may repeat; their values arrive as an array in flag order. Every other value flag keeps its last value. */
+  repeatable?: readonly string[];
   switches: readonly string[];
   maxPositionals: number;
   run: (args: ParsedArgs, ctx: ToolContext) => Promise<ToolResult>;
 };
 
-const str = (v: string | true | undefined) => (typeof v === "string" ? v : undefined);
+const str = (v: ParsedArgs["flags"][string] | undefined) => (typeof v === "string" ? v : undefined);
+const strs = (v: ParsedArgs["flags"][string] | undefined) => (Array.isArray(v) ? v : undefined);
 
 /** Every writer's flags: `--live` sends the batch to the dev server, or with a site `--url` to a hosted project, instead of the files. */
 const WRITER_VALUES = ["url", "token", "agent", "on-behalf-of", "base"] as const;
@@ -89,7 +93,8 @@ const DEFINITIONS = {
   },
   show: {
     usage: "show <scene|file|-> [--ref id] [--type t] [--near x,y,r]",
-    summary: "entities and bulk entries with refs, AABB and top span, plus the scene hash",
+    summary:
+      "entities and bulk entries with refs, AABB and top span, the scene hash, and the time model and physics backend",
     values: ["ref", "type", "near"],
     switches: [],
     maxPositionals: 1,
@@ -182,9 +187,12 @@ const DEFINITIONS = {
       newScene({ name, game: str(flags.game), from: str(flags.from) }, ctx),
   },
   step: {
-    usage: "step <scene|file|-> [--ticks N] [--hold a,b] [--inputs file] [--game id]",
-    summary: "run the headless runtime and report events and the game's final snapshot",
-    values: ["ticks", "hold", "inputs", "game"],
+    usage:
+      "step <scene|file|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]]… [--elapse tick:ms]… [--game id]",
+    summary:
+      "run the headless runtime and report events and the game's final snapshot; --command and --elapse repeat, stepped on their ticks in flag order",
+    values: ["ticks", "hold", "inputs", "command", "elapse", "game"],
+    repeatable: ["command", "elapse"],
     switches: [],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
@@ -194,7 +202,28 @@ const DEFINITIONS = {
           ticks: str(flags.ticks),
           hold: str(flags.hold),
           inputs: str(flags.inputs),
+          command: strs(flags.command),
+          elapse: strs(flags.elapse),
           game: str(flags.game),
+        },
+        ctx,
+      ),
+  },
+  grid: {
+    usage: "grid <scene> [--from c,r|ref] [--to c,r|ref] [--fov c,r:radius] [--diagonals] [--json]",
+    summary:
+      "the scene's grid as ASCII: walls, a path between two cells or entities, and what a cell can see; exit 1 with no path",
+    values: ["from", "to", "fov"],
+    switches: ["diagonals"],
+    maxPositionals: 1,
+    run: ({ positionals: [scene], flags }, ctx) =>
+      grid(
+        {
+          scene,
+          from: str(flags.from),
+          to: str(flags.to),
+          fov: str(flags.fov),
+          diagonals: flags.diagonals === true,
         },
         ctx,
       ),
@@ -202,7 +231,7 @@ const DEFINITIONS = {
   playtest: {
     usage: "playtest <scene|file|-> --script <file|-> [--at x,y] [--game id] [--record file]",
     summary:
-      "play an input script headless: the outcome, steps, events and focus trail; exit 1 when blocked",
+      "play an input script headless (actions, waits, game commands, time away): the outcome, steps, events and focus trail; exit 1 when blocked",
     values: ["script", "at", "game", "record"],
     switches: [],
     maxPositionals: 1,
@@ -249,7 +278,7 @@ const DEFINITIONS = {
   check: {
     usage: "check <scene|file> [--checks file] [--only id] [--game id]",
     summary:
-      "run the scene's <scene>.checks.json (playtests, fuzz, validation); exit 1 on a failure",
+      "run the scene's <scene>.checks.json (validation, playtests, fuzz, connected); exit 1 on a failure",
     values: ["checks", "only", "game"],
     switches: [],
     maxPositionals: 1,
@@ -526,7 +555,7 @@ export function parseArgs(
   argv: readonly string[],
 ): { ok: true; args: ParsedArgs; json: boolean } | { ok: false; error: string } {
   const positionals: string[] = [];
-  const flags: Record<string, string | true> = {};
+  const flags: ParsedArgs["flags"] = {};
   let json = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -548,7 +577,10 @@ export function parseArgs(
     if (!command.values.includes(name)) return { ok: false, error: `unknown flag --${name}` };
     const value = eq >= 0 ? arg.slice(eq + 1) : argv[++i];
     if (value === undefined) return { ok: false, error: `--${name} needs a value` };
-    flags[name] = value;
+    const prior = flags[name];
+    if (!command.repeatable?.includes(name)) flags[name] = value;
+    else if (Array.isArray(prior)) prior.push(value);
+    else flags[name] = [value];
   }
   if (positionals.length > command.maxPositionals) {
     return {

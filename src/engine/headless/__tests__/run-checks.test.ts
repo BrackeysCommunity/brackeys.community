@@ -7,7 +7,7 @@ import { checkedTestGame, GOAL_EVENT } from "../../__tests__/fixtures/test-game"
 import { createRegistry } from "../../game/define";
 import { parseChecks, type ChecksFile, type SceneCheck } from "../../scene/checks";
 import { parseSceneOrThrow } from "../../scene/parse";
-import type { SceneDefinition } from "../../scene/types";
+import type { SceneDefinition, SceneIssue } from "../../scene/types";
 import type { RapierModule } from "../../types";
 import { runChecks } from "../run-checks";
 
@@ -168,6 +168,51 @@ describe("runChecks on engine-yard", () => {
     expect(physical.results[1]!.message).toContain("test-game/avatar-floating");
   });
 
+  it("runs without Rapier: a scene without physics passes, a Rapier one fails its physical check", () => {
+    const checks = file([{ id: "physical", kind: "valid", physical: true }], engine);
+    const bare = (scene: SceneDefinition) =>
+      runChecks({ scene, registry: engine, checks, readFile: () => "" }).results[0];
+    const free: SceneDefinition = { ...yard, entities: [], settings: { physics: "none" } };
+    expect(bare(free)).toMatchObject({ pass: true });
+    expect(bare(yard)).toMatchObject({
+      pass: false,
+      message: expect.stringContaining("needs physics"),
+    });
+  });
+
+  it("plays reaches and touches under the project's engine block", () => {
+    const checks = file(
+      [
+        {
+          id: "ends",
+          kind: "reaches",
+          result: "script-end",
+          script: { v: 1, steps: [{ wait: 10 }] },
+        },
+        { id: "start", kind: "touches", entity: "start", atLeast: 1, rollouts: 2, ticks: 10 },
+      ],
+      engine,
+    );
+    const scene: SceneDefinition = {
+      ...yard,
+      entities: [{ id: "start", type: "marker", at: [100, 100], tags: ["spawn"] }],
+    };
+    const project = {
+      settings: {},
+      engine: { physics: "none" },
+      table: () => [],
+      asset: () => undefined,
+    };
+    const played = runChecks({ scene, registry: engine, checks, readFile: () => "", project });
+    expect(played.results[0]).toMatchObject({ pass: true });
+    expect(played.results[1]!.message).toBe("start touched in 0 of 2 rollouts; needs 1");
+    const bare = runChecks({ scene, registry: engine, checks, readFile: () => "" });
+    expect(bare.results.map((r) => r.message)).toEqual([
+      expect.stringContaining("blocked at load"),
+      expect.stringContaining("blocked at load"),
+    ]);
+  });
+
   it("runs a game's check kind with its parsed fields", () => {
     const checks: SceneCheck[] = file([
       { id: "two", kind: "test-game/props", atLeast: 2 },
@@ -188,6 +233,112 @@ describe("runChecks on engine-yard", () => {
     expect(unknown.results[0]).toMatchObject({
       pass: false,
       message: 'unknown check kind "test-game/props"',
+    });
+  });
+});
+
+describe("the connected check", () => {
+  /** A 5 × 5 grid of 100 px cells; a solid fills column 2 down to `wallTo`. */
+  const walled = (wallTo: number, grid = true): SceneDefinition => ({
+    v: 1,
+    name: "maze",
+    bounds: [0, 0, 500, 500],
+    settings: { physics: "none", ...(grid ? { grid: { kind: "square", cell: [100, 100] } } : {}) },
+    solid: [["box", 250, wallTo / 2, 50, wallTo / 2]],
+    entities: [
+      { id: "start", type: "marker", at: [50, 250], tags: ["spawn"] },
+      { id: "exit", type: "marker", at: [450, 250] },
+      { id: "near", type: "marker", at: [150, 50] },
+    ],
+  });
+  const connected = (check: Record<string, unknown>) =>
+    file([{ id: "joined", kind: "connected", from: "start", to: ["exit"], ...check }], engine);
+  const check = (scene: SceneDefinition, checks: ChecksFile) =>
+    runChecks({ rapier: null, scene, registry: engine, checks, readFile: () => "" });
+
+  it("passes through a gap in the wall, with no Rapier", () => {
+    const report = check(walled(400), connected({ to: ["exit", "near", [4, 0]] }));
+    expect(report.ok).toBe(true);
+    expect(report.results[0]).toMatchObject({
+      pass: true,
+      message: "start [0, 2] reaches 3 targets on the grid",
+      detail: {
+        paths: [
+          { to: "exit [4, 2]", steps: 8, cost: 80 },
+          { to: "near [1, 0]", steps: 3, cost: 30 },
+          { to: "[4, 0]", steps: 10, cost: 100 },
+        ],
+      },
+    });
+  });
+
+  it("fails with one grid-unreachable per target no path reaches, naming the entity", () => {
+    const scene = walled(500);
+    const report = check(scene, connected({ to: ["exit", "near", [3, 3]] }));
+    const [result] = report.results;
+    expect(result!.pass).toBe(false);
+    expect(result!.message).toBe(
+      "2 of 3 targets unreachable from start [0, 2]; first: no path on the grid from start [0, 2] to exit [4, 2]",
+    );
+    const { issues } = result!.detail as { issues: SceneIssue[] };
+    expect(issues).toEqual([
+      expect.objectContaining({
+        code: "grid-unreachable",
+        severity: "error",
+        entityIds: ["exit"],
+        path: "/entities/1",
+        line: expect.any(Number),
+        at: [450, 250],
+      }),
+      expect.objectContaining({ code: "grid-unreachable", entityIds: [], at: [350, 350] }),
+    ]);
+    expect(issues[0]!.hint!.length).toBeGreaterThan(0);
+  });
+
+  it("walls with blockedBy's types instead of solids", () => {
+    const plugged: SceneDefinition = {
+      ...walled(400),
+      entities: [
+        ...walled(400).entities!,
+        { id: "plug", type: "sensor", shape: ["box", 250, 450, 50, 50] },
+      ],
+    };
+    const walls = (blockedBy?: string[]) =>
+      check(plugged, connected(blockedBy ? { blockedBy } : {})).ok;
+    expect(walls()).toBe(true);
+    expect(walls(["solid", "sensor"])).toBe(false);
+    expect(walls(["sensor"])).toBe(true);
+    expect(check(walled(500), connected({ blockedBy: [] })).ok).toBe(true);
+    expect(check(walled(500), connected({ blockedBy: ["marker"] })).ok).toBe(true);
+  });
+
+  it("takes diagonals when asked, never past a wall's corner", () => {
+    const diagonal = (scene: SceneDefinition, diagonals: boolean) =>
+      check(
+        scene,
+        file([{ id: "d", kind: "connected", from: [0, 0], to: [[1, 1]], diagonals }], engine),
+      ).results[0]!.detail;
+    const open: SceneDefinition = { ...walled(400), solid: [] };
+    expect(diagonal(open, true)).toEqual({ paths: [{ to: "[1, 1]", steps: 1, cost: 14 }] });
+    expect(diagonal(open, false)).toEqual({ paths: [{ to: "[1, 1]", steps: 2, cost: 20 }] });
+    const corner: SceneDefinition = { ...open, solid: [["box", 150, 50, 50, 50]] };
+    expect(diagonal(corner, true)).toEqual({ paths: [{ to: "[1, 1]", steps: 2, cost: 20 }] });
+  });
+
+  it("is grid-invalid on a scene without a grid", () => {
+    const report = check(walled(400, false), connected({}));
+    const [result] = report.results;
+    expect(result!.pass).toBe(false);
+    expect((result!.detail as { issues: SceneIssue[] }).issues).toEqual([
+      expect.objectContaining({ code: "grid-invalid", severity: "error", path: "/settings/grid" }),
+    ]);
+  });
+
+  it("fails on a ref the scene doesn't load", () => {
+    const report = check(walled(400), connected({ to: ["gone"] }));
+    expect(report.results[0]).toMatchObject({
+      pass: false,
+      message: "no loaded entity gone in maze",
     });
   });
 });

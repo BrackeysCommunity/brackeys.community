@@ -32,6 +32,29 @@ describe("game-settings.schema.json", () => {
     expect(undescribedProperties(fresh())).toEqual([]);
   });
 
+  it("lists the engine block's keys, physics as an enum and tickRate as any number", () => {
+    const engine = (
+      fresh() as {
+        properties: {
+          engine: {
+            additionalProperties?: unknown;
+            properties: Record<string, Record<string, unknown>>;
+          };
+        };
+      }
+    ).properties.engine;
+    expect(engine.additionalProperties).toBe(false);
+    expect(Object.keys(engine.properties).sort()).toEqual([
+      "gravity",
+      "physics",
+      "resolution",
+      "tickRate",
+    ]);
+    expect(engine.properties.physics?.enum).toEqual(["rapier", "none"]);
+    expect(engine.properties.tickRate?.type).toBe("number");
+    expect(engine.properties.gravity?.type).toBe("array");
+  });
+
   it("has an empty `game` block without a game", () => {
     const props = (fresh() as { properties: Record<string, { additionalProperties?: unknown }> })
       .properties;

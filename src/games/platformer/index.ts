@@ -46,6 +46,8 @@ export const platformerGame = defineGame<PlayerSnapshot>({
     player: { width: PLAYER_WIDTH, height: PLAYER_HEIGHT },
   }),
   createRuntime: createPlatformerRuntime,
+  world: { gravity: [0, 1200] },
+  time: { kind: "fixed", rate: 60 },
   play: PLATFORMER_PLAY,
   editorKeys: [...SHAPER_KEYS, ...PLATFORMER_EDIT_KEYS],
   // Dev builds only, so a production build emits no editor code at all.

@@ -32,6 +32,8 @@ export type IndexEntry = {
   z: number;
   /** The entity's geometry: a shape, or a point for point entities. */
   geometry: ShapeObj | Pt;
+  /** The world box the entity's sprite draws, when it has one. */
+  sprite?: ShapeObj;
 };
 
 /** The uniform grid of AABBs picking and marquee query. */

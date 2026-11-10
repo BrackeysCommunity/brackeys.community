@@ -31,9 +31,15 @@ export {
   type Dihedral,
   type Transform2D,
 } from "./math";
-export type { AssetReloadError, LoadReport, StepEvent, StepResult } from "./runtime/types";
+export type {
+  AssetReloadError,
+  LoadFailureReason,
+  LoadReport,
+  StepEvent,
+  StepResult,
+} from "./runtime/types";
 export type { ExpandedScene, RuntimeEntity } from "./scene/types";
-export type { GameDefinition, Registry } from "./game/types";
+export type { GameCommand, GameDefinition, Registry } from "./game/types";
 export type { PlayOptions } from "./headless/playtest-types";
 export type { RunRecording } from "./scene/recording-schema";
 export {

@@ -6,12 +6,14 @@ import { fileURLToPath } from "node:url";
 
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { docToScene, readLog, readProject, readProjectLog } from "@jams/engine/collab";
+import { defineGame } from "@jams/engine/game";
 import { docNameOf } from "@jams/engine/project";
 import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
+import { z } from "zod";
 
 import { platformerGame } from "../../../src/games/platformer";
 import type { ToolContext } from "../context";
@@ -356,6 +358,182 @@ describe("scene MCP server", () => {
     } finally {
       await rm(file, { force: true });
     }
+  });
+
+  it("reports the asset codes from scene_apply_ops for a scene in a project", async () => {
+    const art = join(dirs.engine, "crate-art");
+    const file = join(dirs.engine, "sprite-yard.json");
+    await mkdir(art);
+    for (const name of [
+      "crates.json",
+      "crates.json.asset.json",
+      "crates.png",
+      "crates.png.asset.json",
+    ])
+      await copyFile(repoFile(`src/engine/scenes/art/${name}`), join(art, name));
+    const def = JSON.parse(await readFile(ENGINE_YARD, "utf8"));
+    await writeFile(file, JSON.stringify({ ...def, name: "sprite-yard" }));
+    const pic = (sprite: Record<string, unknown>) => ({
+      ops: [
+        {
+          op: "add",
+          entity: { id: "pic", type: "marker", at: [100, 100], behaviors: { sprite } },
+        },
+      ],
+    });
+    const codes = (r: Called) =>
+      (r.structuredContent.issues as { code: string }[]).map((i) => i.code);
+    try {
+      const frame = await call("scene_apply_ops", {
+        scene: "sprite-yard",
+        ops: pic({ asset: "crates", frame: "crate-9" }),
+      });
+      expect(frame.structuredContent).toMatchObject({ exitCode: 1, written: false });
+      expect(codes(frame)).toContain("asset-frame-unknown");
+      const bare = await call("scene_apply_ops", {
+        scene: "sprite-yard",
+        ops: pic({ alpha: 0.5 }),
+      });
+      expect(bare.structuredContent).toMatchObject({ exitCode: 0 });
+      expect(codes(bare)).toEqual(["sprite-no-asset"]);
+    } finally {
+      await rm(file, { force: true });
+      await rm(art, { recursive: true, force: true });
+    }
+  });
+});
+
+/** A physics-free turns game that counts `bump`s and keeps time away. */
+const tallyGame = defineGame({
+  id: "tally-game",
+  types: [],
+  actions: [],
+  time: { kind: "turns", catchUp: { maxMs: 1000 } },
+  commands: {
+    bump: { description: "Adds n.", args: z.strictObject({ n: z.number().int() }) },
+  },
+  createRuntime() {
+    let count = 0;
+    let away = 0;
+    return {
+      beforeStep(_dt, _actions, commands) {
+        for (const c of commands) {
+          if (c.name === "bump") count += (c.args as { n: number }).n;
+          else if (c.name === "@elapsed") away += (c.args as { ms: number }).ms;
+        }
+      },
+      snapshot: () => ({ count, away }),
+    };
+  },
+});
+
+describe("world models", () => {
+  /** A 6×3 square grid with a wall down column 2, open in the bottom row unless `sealed`. */
+  const yard = (sealed: boolean) => ({
+    v: 3,
+    name: sealed ? "sealed-yard" : "tally-yard",
+    game: tallyGame.id,
+    bounds: [0, 0, 192, 96],
+    settings: { physics: "none", grid: { kind: "square", cell: [32, 32] } },
+    solid: [["box", 80, sealed ? 48 : 32, 16, sealed ? 48 : 32]],
+    entities: [
+      { id: "start", type: "marker", at: [16, 16] },
+      { id: "exit", type: "marker", at: [176, 16] },
+    ],
+  });
+  const CONNECTED = {
+    v: 1,
+    checks: [{ id: "path", kind: "connected", from: "start", to: ["exit"] }],
+  };
+  let world: Client;
+  let loads = 0;
+  const callWorld = async (name: string, args: Record<string, unknown>) =>
+    (await world.callTool({ name, arguments: args })) as Called;
+
+  beforeAll(async () => {
+    const dir = join(root, tallyGame.id);
+    await mkdir(dir);
+    for (const sealed of [false, true]) {
+      const scene = yard(sealed);
+      await writeFile(join(dir, `${scene.name}.json`), JSON.stringify(scene, null, 2));
+      await writeFile(join(dir, `${scene.name}.checks.json`), JSON.stringify(CONNECTED));
+    }
+    const ctx: ToolContext = {
+      projects: [await tempProject(dir, { game: tallyGame })],
+      loadRapier: () => {
+        loads++;
+        return Promise.reject(new Error("a physics-free tool loaded Rapier"));
+      },
+    };
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createSceneMcpServer(ctx).connect(serverSide);
+    world = new Client({ name: "scene-mcp-world-test", version: "0" });
+    await world.connect(clientSide);
+  });
+
+  afterAll(async () => {
+    await world.close();
+    expect(loads).toBe(0);
+  });
+
+  it("scene_show carries time and physics", async () => {
+    const shown = await callWorld("scene_show", { scene: "tally-yard" });
+    expect(shown.structuredContent).toMatchObject({
+      exitCode: 0,
+      time: { kind: "turns", rate: 60, catchUp: { maxMs: 1000 }, wakeOnPointerMove: false },
+      physics: "none",
+    });
+    const rapier = await call("scene_show", { scene: "test-yard", ref: "elevator" });
+    expect(rapier.structuredContent).toMatchObject({
+      time: { kind: "fixed", rate: 60, catchUp: null },
+      physics: "rapier",
+    });
+  });
+
+  it("scene_playtest takes command and elapse steps", async () => {
+    const script = {
+      v: 1,
+      steps: [
+        { command: "bump", args: { n: 2 } },
+        { elapse: 5000 },
+        { command: "bump", args: { n: 3 } },
+      ],
+    };
+    const played = await callWorld("scene_playtest", { scene: "tally-yard", script });
+    expect(played.isError).toBe(false);
+    expect(played.structuredContent).toMatchObject({
+      exitCode: 0,
+      outcome: { result: "script-end" },
+      final: { count: 5, away: 1000 },
+    });
+    expect((played.structuredContent.commands as unknown[][]).map((c) => c.slice(1))).toEqual([
+      ["bump", { n: 2 }],
+      ["@elapsed", { ms: 1000 }],
+      ["bump", { n: 3 }],
+    ]);
+
+    const typo = await callWorld("scene_playtest", {
+      scene: "tally-yard",
+      script: { v: 1, steps: [{ command: "bum" }] },
+    });
+    expect(typo.structuredContent.exitCode).toBe(1);
+    expect(JSON.stringify(typo.structuredContent)).toContain('did you mean \\"bump\\"');
+  });
+
+  it("scene_check runs a connected check", async () => {
+    const open = await callWorld("scene_check", { scene: "tally-yard" });
+    expect(open.structuredContent).toMatchObject({
+      exitCode: 0,
+      ok: true,
+      results: [expect.objectContaining({ id: "path", pass: true })],
+    });
+    const sealed = await callWorld("scene_check", { scene: "sealed-yard" });
+    expect(sealed.isError).toBe(false);
+    expect(sealed.structuredContent).toMatchObject({
+      exitCode: 1,
+      results: [expect.objectContaining({ id: "path", pass: false })],
+    });
+    expect(JSON.stringify(sealed.structuredContent)).toContain("grid-unreachable");
   });
 });
 

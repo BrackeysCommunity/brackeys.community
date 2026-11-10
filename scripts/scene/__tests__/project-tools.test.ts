@@ -46,6 +46,8 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "kitchen-sink.checks.json",
       "engine-yard.json",
       "engine-yard.checks.json",
+      "grid-yard.json",
+      "grid-yard.checks.json",
       "prefabs/doorway.json",
       "prefabs/gate.json",
       "prefabs/latch.json",
@@ -74,15 +76,15 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       name: "Engine",
       game: null,
       dir: join(ROOT, "src/engine/scenes"),
-      assets: 18,
+      assets: 20,
       counts: {
         atlas: 2,
-        checks: 2,
+        checks: 3,
         "data-table": 1,
         "game-settings": 1,
         material: 1,
         prefab: 6,
-        scene: 2,
+        scene: 3,
         texture: 3,
       },
       deleted: 0,
@@ -90,7 +92,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       problems: [],
       issues: [],
       usage: {
-        docs: 13,
+        docs: 15,
         docBytes: await size(files),
         blobs: 5,
         blobBytes: await size(art),
@@ -138,6 +140,8 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "engine-yard.checks.json",
       "engine-yard.json",
       "game-settings.json",
+      "grid-yard.checks.json",
+      "grid-yard.json",
       "kitchen-sink.checks.json",
       "kitchen-sink.json",
     ]);
@@ -225,6 +229,8 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         "engine-yard-checks",
         "game-settings",
         "gate",
+        "grid-yard",
+        "grid-yard-checks",
         "kitchen-sink",
         "kitchen-sink-checks",
         "latch",
@@ -242,7 +248,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         );
       else expect(asset.sha256, id).toBe(await sha256(loaded.texts.get(id)!));
     }
-    for (const id of ["kitchen-sink", "engine-yard"])
+    for (const id of ["kitchen-sink", "engine-yard", "grid-yard"])
       expect(snap.assets[id]!.sha256).toBe(
         await sha256(await readFile(join(ROOT, "src/engine/scenes", `${id}.json`), "utf8")),
       );

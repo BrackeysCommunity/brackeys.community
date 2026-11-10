@@ -6,7 +6,10 @@ import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineGame } from "../../game/define";
 import { assetField } from "../../game/fields";
 import type { Registry } from "../../game/types";
+import { runChecks } from "../../headless/run-checks";
 import { validatePhysical } from "../../headless/validate-physical";
+import { parseAssetDoc } from "../../project/kinds";
+import { gameSettingsKind } from "../../project/kinds/game-settings";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
 import type { RapierModule } from "../../types";
@@ -93,6 +96,24 @@ const scored = createRegistry(
     types: [],
     settings: { theme: assetField(env, "music", "The scene's music.").optional() },
     actions: [],
+    createRuntime: () => ({ snapshot: () => null }),
+  }),
+);
+
+/** A game whose one physical check needs physics. */
+const needy = createRegistry(
+  defineGame({
+    id: "needy",
+    types: [],
+    actions: [],
+    physicalChecks: [
+      {
+        id: "rapier-only",
+        description: "Reads the Rapier world.",
+        needsPhysics: true,
+        run: () => [],
+      },
+    ],
     createRuntime: () => ({ snapshot: () => null }),
   }),
 );
@@ -340,6 +361,56 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
     validated(scene({}, [sprited("pic", { asset: "hero", frame: "idel-0" })]), engine, { project }),
   "sprite-no-asset": () =>
     validated(scene({}, [sprited("pic", { scale: 2 })]), engine, { project }),
+  "tick-rate-invalid": () =>
+    parseAssetDoc(
+      gameSettingsKind,
+      JSON.stringify({ kind: "game-settings", v: 1, engine: { tickRate: 241 }, game: {} }, null, 2),
+      { registry: engine, project: null },
+    ).issues,
+  "physics-required": () =>
+    validated(
+      scene({ settings: { physics: "none" } }, [
+        {
+          id: "crate",
+          type: "prop",
+          shape: ["box", 200, 200, 20, 20],
+          density: 1,
+          restitution: 0,
+        },
+      ]),
+    ),
+  "physics-skipped": () => {
+    const def = scene({ game: "needy", settings: { physics: "none" } });
+    return validatePhysical({
+      rapier: null,
+      scene: def,
+      registry: needy,
+      lines: formatScene(def).lines,
+    });
+  },
+  "nav-invalid": () =>
+    validated(
+      scene({}, [
+        { id: "bowtie", type: "nav", shape: ["poly", 100, 100, 300, 300, 300, 100, 100, 300] },
+      ]),
+    ),
+  "grid-unreachable": () => {
+    const def = scene(
+      {
+        settings: { grid: { kind: "square", cell: [100, 100] } },
+        solid: [["box", 750, 500, 50, 500]],
+      },
+      [{ id: "exit", type: "marker", at: [900, 900] }],
+    );
+    const { results } = runChecks({
+      rapier: null,
+      scene: def,
+      registry: engine,
+      checks: { v: 1, checks: [{ id: "joined", kind: "connected", from: "start", to: ["exit"] }] },
+      readFile: () => "",
+    });
+    return (results[0]?.detail as { issues?: SceneIssue[] } | undefined)?.issues ?? [];
+  },
   // The other project codes come from the project model, not the scene tools these fixtures run.
   "asset-in-use": null,
   "asset-id-taken": null,

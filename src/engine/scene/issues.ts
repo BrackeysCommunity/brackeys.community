@@ -183,6 +183,27 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Point the reference at a child the prefab has (the message suggests the closest), or remove it.",
     fixable: true,
   },
+  "physics-required": {
+    severity: "error",
+    summary:
+      'An entity needs physics (its type requires it, or it rides a follower with `attach`), but the scene\'s resolved physics is `"none"`.',
+    hint: "Set `settings.physics` to `\"rapier\"` (or drop it so the project's or game's default applies), or remove the entity or its `attach`.",
+    fixable: false,
+  },
+  "physics-skipped": {
+    severity: "info",
+    summary:
+      "A game's physical check that needs physics was skipped because the scene runs without it.",
+    hint: 'Set `settings.physics` to `"rapier"` to run it, or leave it skipped.',
+    fixable: false,
+  },
+  "nav-invalid": {
+    severity: "error",
+    summary:
+      "A nav polygon intersects itself, a block polygon isn't inside exactly one walk area, or two walk areas overlap.",
+    hint: "Redraw the polygon without crossings, move the block inside one walk area, or inset the walk areas so they only share edges.",
+    fixable: false,
+  },
   "follower-hits-solid": {
     severity: "warn",
     summary: "A path follower, or a solid riding it, swept along the path, runs into a solid.",
@@ -193,6 +214,12 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     severity: "info",
     summary: "Two static solids overlap; they may be one shape drawn twice or mergeable.",
     hint: "Merge them into one shape, or move one so they only touch.",
+    fixable: false,
+  },
+  "grid-unreachable": {
+    severity: "error",
+    summary: "A `connected` check's target has no path from its start on the scene's grid.",
+    hint: "Open a gap in the walls between them, move the target, or allow `diagonals`; `vp run scene grid` prints the grid and the path.",
     fixable: false,
   },
   "stale-base": {
@@ -243,6 +270,12 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     severity: "warn",
     summary: "A sprite has no `asset`, so only its fallback box draws.",
     hint: "Set `asset`; until then only the box draws.",
+    fixable: false,
+  },
+  "tick-rate-invalid": {
+    severity: "error",
+    summary: "A tick rate the clock can't run: it must be an integer from 1 to 240.",
+    hint: "Set `engine.tickRate` (or the game's `time.rate`) to an integer from 1 to 240; 60 is the default.",
     fixable: false,
   },
   "asset-in-use": {

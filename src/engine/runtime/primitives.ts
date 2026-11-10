@@ -2,6 +2,7 @@ import type { BasePrimitive, RegisteredType, SystemFactory } from "../game/types
 import { createPropSystem, createSensorSystem, createSolidSystem } from "../systems/bodies";
 import { createDecorSystem } from "../systems/decor";
 import { createMarkerSystem } from "../systems/marker";
+import { createNavSystem } from "../systems/nav";
 import { createFollowerSystem } from "../systems/path-follower";
 
 /** The engine's system factory for each primitive that loads. */
@@ -12,6 +13,7 @@ export const PRIMITIVE_SYSTEMS: Readonly<Record<BasePrimitive, SystemFactory>> =
   prop: createPropSystem,
   follower: createFollowerSystem,
   decor: createDecorSystem,
+  nav: createNavSystem,
 };
 
 /** The factory that spawns `type`: its own system, else its base primitive's (a primitive is its own base). */

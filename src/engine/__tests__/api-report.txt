@@ -13,6 +13,7 @@ Dihedral
 ENGINE_VERSION
 ExpandedScene
 FrameRect
+GameCommand
 GameConfig
 GameDefinition
 GameEventMap
@@ -23,6 +24,7 @@ GameStoreState
 IDENTITY_2D
 InputAction
 InputBinding
+LoadFailureReason
 LoadProgress
 LoadReport
 PixiView
@@ -625,6 +627,8 @@ EditorHost
 EditorIdentityInput
 EditorLayout
 EditorNotify
+EditorSkeleton
+EditorSkeletonProps
 EditorStorage
 MintProjectToken
 NotifyOptions
@@ -675,20 +679,31 @@ BehaviorSystem
 BehaviorSystemFactory
 BulkKeyInfo
 CHILD_REF_PATTERN
+COMMAND_NAME_PATTERN
+Cell
+CellBounds
+CellKey
+CharacterControllerOptions
 CheckEnv
 CheckKindDef
 CheckVerdict
 ColliderTag
 ColliderTags
+CommandDef
 CreateRegistryOptions
 DEFAULT_GRAVITY
 DEFAULT_LAYERS
+DEFAULT_PHYSICS
 DEFAULT_ROTATE_STEP
+DEFAULT_SPAWN_CAST
+DEFAULT_TICK_RATE
+DEFAULT_TIME
 DRAW_LAYERS
 DecorEntity
 DrawLayer
 ENGINE_CHECK_KINDS
 ENGINE_COLLISION_GROUPS
+ENGINE_COMMANDS
 ENGINE_PREDICATES
 ENGINE_REGISTRY_ID
 ENGINE_RUN_RESULTS
@@ -702,10 +717,12 @@ EngineToolId
 EntityOf
 EntityTypeDef
 FieldEnv
+FlowField
 FollowerOptions
 FollowerSystem
 FrameRect
 GameAttachment
+GameCommand
 GameDefinition
 GameEditorDef
 GameKeyBinding
@@ -714,20 +731,42 @@ GamePlayDef
 GameRuntime
 GameShell
 GameTableDef
+GameWorldDef
+GeometryColliderDesc
+GeometryWorld
 GridFieldInfo
+GridGeometry
+GridPath
+GridPathOptions
+GridStepper
 ID_PATTERN
 InspectorWidgetDef
 IssueCodeDef
+LoadFailureReason
+MAX_TICK_RATE
+MIN_TICK_RATE
 Macro
 MacroRandom
 MarkerEntity
 MarkerSystem
 MaterialDef
+MotionBody
+MotionBodyOptions
+MotionResult
+NavEntity
+NavIssue
+NavMesh
+NavPolygon
+NavSystem
+OCCUPANT
+Occupancy
+OccupantBlock
 PRIMITIVE_TYPES
 PathSchema
 PhysicalCheck
 PhysicalEnv
 PhysicalHit
+PhysicsRequiredError
 PhysicsWorld
 PlacementCheck
 PlacementDraw
@@ -746,9 +785,14 @@ RegisteredBehavior
 RegisteredType
 Registry
 RegistryError
+ResolvedTime
 RunResult
+RuntimeGrid
+RuntimeNav
 SENSOR_ENTER
 SENSOR_EXIT
+SIDES
+SIDE_VIEW_CONTROLLER
 SPRITE
 SPRITE_FALLBACK_SIZE
 SceneLayerDef
@@ -759,8 +803,13 @@ SceneValidator
 SceneView
 ScriptPredicate
 SensorSystem
+Side
 SolidOptions
 SolidSystem
+SpaceCastHit
+SpaceFilter
+SpaceHit
+SpaceQuery
 SpawnShape
 SpriteAssetInfo
 SpriteBlock
@@ -770,9 +819,14 @@ StepResult
 Style
 SystemFactory
 TOOL_PRIORITY
+TOP_DOWN_CONTROLLER
+TimeKind
+TimeModel
 ToolConsumer
 ToolEvent
 ToolRouter
+TopDownController
+TopDownOptions
 ViewLayer
 ViewLayerHandle
 VisualOptions
@@ -784,18 +838,26 @@ assetField
 assetKindsOf
 bodyLocalShape
 bodyShapeField
+buildNavMesh
 carrierDelta
+cellKey
+cellOf
 clamp
 clampVec2
 createDecorSystem
 createFollowerSystem
+createGridStepper
 createMarkerSystem
+createMotionBody
+createNavSystem
+createOccupancy
 createPlacementTool
 createPropSystem
 createRegistry
 createSensorCollider
 createSensorSystem
 createSolidSystem
+createTopDownController
 defineBehavior
 defineEntityType
 defineGame
@@ -803,25 +865,42 @@ degToRad
 distanceVec2
 drawEntity
 drawShape
+fieldOfView
+findPath
+flowField
 gridField
 gridFieldInfo
+gridGeometry
 initialWaypointState
 interpolatePosition
+isNavSystem
+isPolygonField
 lerp
 lerpVec2
+lineOfSight
 materialField
 mirrorField
+navContains
+navNearest
+navPath
+physicsOf
 pointField
+polygonField
 posedBodyDesc
 primitiveFields
 refField
+resolveTime
+sceneGrid
 shapeColliderDesc
 shapeField
 shapePose
+sideField
 spawnPose
 spriteGeometry
 styleOf
 tagsField
+tickRateProblem
+ticksFor
 traceShape
 vectorField
 withProject
@@ -848,6 +927,7 @@ HeadlessRuntimeOptions
 InputEdge
 InputScript
 InputScriptStep
+LoadFailureReason
 LoadReport
 ParseRecordingResult
 PhysicalEnv
@@ -869,6 +949,7 @@ ProjectSnapshot
 RECORDING_VERSION
 RapierModule
 RecorderOptions
+RecordingCommand
 RecordingEnd
 RecordingIssue
 RecordingMarker
@@ -967,6 +1048,7 @@ FontSettings
 GAME_SETTINGS_KIND
 GAME_SETTINGS_SCHEMA_ID
 GAME_SETTINGS_VERSION
+GameSettingsEngine
 GameSettingsFile
 GlobMatch
 HashHistoryEntry
@@ -1163,10 +1245,14 @@ CHILD_SEPARATOR
 CHUNK_KEY_PATTERN
 CellEdit
 CellRect
+CheckCell
+CheckPlace
 ChecksFile
 ChecksIssue
 ChunkKey
+ConnectedCheck
 DEFAULT_ASCII_TAG_CHARS
+DEFAULT_BLOCKED_BY
 DEFAULT_LAYERS
 DEFAULT_SCRIPT_MAX_TICKS
 DEFAULT_TOUCH_ROLLOUTS
@@ -1246,6 +1332,7 @@ RECORDING_TRAIL_EVERY
 RECORDING_VERSION
 RESERVED_SCENE_KEYS
 ReachesCheck
+RecordingCommand
 RecordingIssue
 RecordingMarker
 RectInput
@@ -1292,6 +1379,7 @@ ShapeObj
 ShapeTuple
 ShapeTupleSchema
 ShapeType
+SpatialHash
 SpotAnchor
 SpriteAssetLookup
 SpritePoseSource
@@ -1328,8 +1416,10 @@ containsPoint
 convexHull
 createRegistry
 createScene
+createSpatialHash
 decodeRow
 defaultLayer
+defaultPhysics
 describeChange
 diffPrefabToOps
 diffScenes
@@ -1408,6 +1498,7 @@ prefabScene
 prefabSchemaFor
 prefabsUsedBy
 projectSpriteAssets
+raycastShape
 readCell
 recordingJsonSchema
 renderSceneAscii
@@ -1416,6 +1507,7 @@ resolvePrefab
 resolveScene
 resolveSceneDetailed
 resolveSettings
+resolveTime
 rotateShape
 runRecordingSchema
 sceneAsciiMap
@@ -1425,15 +1517,18 @@ sceneHash
 sceneHashWith
 sceneJsonSchema
 sceneOpSchemaFor
+scenePhysics
 sceneRegistry
 sceneSchemaFor
 sceneSprites
 sceneViewport
 schemaIdFor
+shapeAtPose
 shapeIsClosed
 shapeOutline
 shapeToTuple
 shapeVertices
+shapesIntersect
 splitChildRef
 splitFieldPath
 splitOverridePath
@@ -2387,7 +2482,7 @@ type DebugOverlay = {
     update: (tick: DebugTick) => void;
 };
 type DebugOverlayFactory = (deps: DebugDeps) => DebugOverlay;
-type DebugSceneSource = Pick<EngineContext, "physics" | "registry" | "tags">;
+type DebugSceneSource = Pick<EngineContext, "geometry" | "physics" | "registry" | "tags">;
 type DebugTick = Omit<DebugFrame, "scene">;
 declare const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[];
 declare function createDebugOverlay(deps: DebugDeps): DebugOverlay;
@@ -2396,6 +2491,7 @@ declare function debugModes(layers: readonly DebugLayerFactory[]): string[];
 ## editor-ui/SceneEditor.ts
 declare function SceneEditor(props: SceneEditorProps): ReactElement;
 type SceneEditorHandle = {
+    game(): GameInstance | null;
     openPanel(id: PanelId): void;
     resetLayout(): void;
 };
@@ -2464,6 +2560,66 @@ declare function createProjectTokens(request: ProjectTokenRequest, mint: MintPro
     ttlMs: number;
 }): ProjectTokens;
 declare function offConnection(access?: ProjectAccess): ProjectConnection;
+
+## editor-ui/connect/scene-doc.ts
+type SceneDocStatus = "connecting" | "failed" | "live" | "offline" | "reconnecting";
+
+## editor-ui/frame/EditorFrame.ts
+type EditorFrameHandle = {
+    openPanel(id: PanelId): void;
+    resetLayout(): void;
+};
+type EditorFrameProps = EditorFrameSlots & {
+    children: ReactNode;
+    className?: string;
+    frameRef?: Ref<EditorFrameHandle>;
+    host?: Pick<EditorHost, "cue" | "peerColor" | "storage">;
+    theme?: "dark" | "light";
+};
+type EditorFrameSlots = {
+    banner?: ReactNode;
+    context?: ReactNode;
+    dock?: ReactNode;
+    left?: ReactNode;
+    mode?: ReadableStore<{
+        readonly mode: string;
+    }>;
+    overlay?: ReactNode;
+    panels?: FramePanels;
+    right?: ReactNode;
+    status?: ReactNode;
+    topLeft?: ReactNode;
+    topRight?: ReactNode;
+};
+type FramePanels = {
+    booting?: boolean;
+    context: Omit<PanelContext, "openPanel" | "subscribe">;
+    defs?: readonly PanelDef[];
+};
+
+## editor-ui/frame/EditorSkeleton.ts
+declare function EditorSkeleton({ panels, registry, notify, status, children, ...frame }: EditorSkeletonProps): ReactElement;
+type EditorSkeletonProps = Omit<EditorFrameProps, "children" | "panels"> & {
+    children?: ReactNode;
+    notify?: EditorNotify;
+    panels?: FramePanels;
+    registry?: Registry;
+    status?: ReactNode;
+};
+
+## editor-ui/frame/keys.ts
+type EditorChromeProps = EditorProps & {
+    notify: EditorNotify;
+};
+type EditorControls = Omit<EditorChromeProps, "rapier" | "runStore"> & {
+    frame: (refs: readonly Ref[]) => boolean;
+    keymap: Keymap;
+    playFrom: (opts: PlayOptions) => void;
+    playHere: () => void;
+    rapier: RapierModule | null;
+    runStore: Store<LoadedRun | null>;
+    tools: ToolHostCell;
+};
 
 ## editor-ui/host.ts
 type CloseReason = "retry" | "revoked" | "too-large";
@@ -2634,6 +2790,32 @@ type Viewport = {
 declare const fitLayout: (layout: EditorLayout, viewport: Viewport) => FittedLayout;
 declare const parseLayout: (raw: unknown, known: readonly PanelId[]) => EditorLayout | null;
 
+## editor-ui/panels/canvas-layer/tool-host.ts
+type ToolHostCell = Store<ToolHost | null>;
+
+## editor-ui/panels/registry.ts
+type PanelContext = {
+    controls: PanelControls;
+    openPanel(id: PanelId): void;
+    physical: Store<readonly SceneIssue[]>;
+    pickedAsset: Store<AssetKey | null>;
+    subscribe: (listener: () => void) => () => void;
+};
+type PanelControls = Pick<EditorControls, "frame" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session">;
+type PanelDef = {
+    badge?: (ctx: PanelContext) => null | {
+        count: number;
+        tone: "danger" | "muted" | "warning";
+    };
+    busyScope?: string;
+    follow?: (ctx: PanelContext, reveal: () => void) => () => void;
+    icon: IconSvgElement;
+    id: PanelId;
+    render: (ctx: PanelContext) => ReactNode;
+    skeleton?: () => ReactNode;
+    title: string;
+};
+
 ## editor-ui/pending/pending.ts
 type Pending = {
     busy(scope: string): PendingTask | undefined;
@@ -2682,6 +2864,59 @@ declare const createPending: (opts: {
     notify: EditorNotify;
     now?: () => number;
 }) => Pending;
+
+## editor-ui/session/live-scene-editor.ts
+type EditingTarget = {
+    onOpenPrefab?: (prefab: string, from: Ref) => void;
+    prefab?: OpenPrefabLink;
+    session: EditorSession;
+};
+type EditorHostState = {
+    connection: SceneDocStatus;
+    readOnly?: CodeSkewIssue | null;
+    sceneChanged: boolean;
+    unsynced?: number;
+};
+type OpenPrefabLink = {
+    id: string;
+    onBack: () => void;
+    onCreateVariant?: () => void;
+    onOpen?: (prefab: string) => void;
+    scene: string;
+};
+
+## editor-ui/session/loaded-run.ts
+type LoadedRun = {
+    name: string;
+    recording: RunRecording;
+};
+
+## editor-ui/session/use-scene-editor.ts
+type EditorChromeGame = Pick<GameInstance, "cancel" | "command" | "frame" | "getStore" | "panBy" | "pause" | "pointerWorld" | "registry" | "resume" | "router" | "runtime" | "screenToWorld" | "setTimeScale" | "step" | "zoomAt">;
+type EditorProjectLink = {
+    blobs?: ProjectBlobs;
+    doc: string;
+    readOnly?: boolean;
+    session: ProjectSession;
+};
+type EditorProps = EditingTarget & {
+    canvas?: () => HTMLElement | null;
+    game: EditorChromeGame;
+    host: Store<EditorHostState>;
+    onPlay: (opts?: PlayOptions) => void;
+    onReplay: (recording: RunRecording) => void;
+    onRestart: () => void;
+    onStop: () => void;
+    project?: EditorProjectLink;
+    rapier?: RapierModule | null;
+    runStore?: Store<LoadedRun | null>;
+};
+
+## editor-ui/session/use-store-value.ts
+type ReadableStore<S> = {
+    readonly state: S;
+    subscribe(listener: () => void): () => void;
+};
 
 ## editor/asset-drop.ts
 type AssetDrop = {
@@ -3738,6 +3973,7 @@ type IndexEntry = {
     key: string;
     layer: string;
     ref: Ref;
+    sprite?: ShapeObj;
     type: string;
     z: number;
 };
@@ -3828,7 +4064,7 @@ type ToolPointerEvent = ToolModifiers & {
 declare function defineEditorTool<T extends EditorToolDef>(def: T): T;
 
 ## engine.ts
-declare function createGame(canvas: HTMLCanvasElement, config: Partial<GameConfig> & Pick<GameConfig, "game" | "rapier"> & ProjectOption): Promise<GameInstance>;
+declare function createGame(canvas: HTMLCanvasElement, config: Partial<GameConfig> & Pick<GameConfig, "game"> & ProjectOption): Promise<GameInstance>;
 
 ## game/behaviors.ts
 declare const BEHAVIORS_FIELD = "behaviors";
@@ -3865,6 +4101,15 @@ type RegisteredBehavior = BehaviorDef & {
     shape: z.ZodRawShape;
 };
 declare function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): BehaviorDef<F>;
+
+## game/behaviors/occupant.ts
+declare const OCCUPANT: BehaviorDef<{
+    blocks: z.ZodOptional<z.ZodBoolean>;
+}>;
+type OccupantBlock = z.infer<z.ZodObject<typeof occupantFields>>;
+declare const occupantFields: {
+    blocks: z.ZodOptional<z.ZodBoolean>;
+};
 
 ## game/behaviors/sprite.ts
 type FrameRect = {
@@ -3963,6 +4208,25 @@ declare const spriteFields: (env: FieldEnv) => {
 };
 declare function spriteGeometry(block: Partial<SpriteBlock>, info?: SpriteAssetInfo | null): SpriteGeometry;
 
+## game/commands.ts
+declare const COMMAND_NAME_PATTERN: RegExp;
+declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed", CommandDef>>;
+
+## game/defaults.ts
+declare const DEFAULT_GRAVITY: [
+    number,
+    number
+];
+declare const DEFAULT_PHYSICS = "rapier";
+declare const DEFAULT_SPAWN_CAST = "gravity";
+declare const DEFAULT_TICK_RATE = 60;
+declare const DEFAULT_TIME: {
+    readonly kind: "fixed";
+    readonly rate: 60;
+};
+declare const SIDE_VIEW_CONTROLLER: CharacterControllerOptions;
+declare const TOP_DOWN_CONTROLLER: CharacterControllerOptions;
+
 ## game/define.ts
 type CreateRegistryOptions = {
     assets?: FieldEnv["assets"];
@@ -4022,6 +4286,12 @@ declare const PtSchema: z.ZodTuple<[
     z.ZodNumber,
     z.ZodNumber
 ], null>;
+declare const SIDES: readonly [
+    "up",
+    "right",
+    "down",
+    "left"
+];
 declare function angleField(description: string, unit: "deg"): z.ZodNumber;
 declare function assetField(env: FieldEnv, kinds: AssetKindName | readonly AssetKindName[], description: string): z.ZodType<AssetId>;
 declare function assetKindsOf(schema: z.core.$ZodType): null | readonly AssetKindName[];
@@ -4031,6 +4301,7 @@ declare function gridField(description: string, opts?: {
     values?: readonly string[];
 }): z.ZodType<GridCells>;
 declare function gridFieldInfo(schema: z.core.$ZodType): GridFieldInfo | null;
+declare const isPolygonField: (schema: z.core.$ZodType) => boolean;
 declare function materialField(env: FieldEnv, description?: string): z.ZodOptional<z.ZodEnum<{
     [x: string]: string;
 }>> | z.ZodOptional<z.ZodNever>;
@@ -4039,20 +4310,30 @@ declare function pointField(description: string): z.ZodTuple<[
     z.ZodNumber,
     z.ZodNumber
 ], null>;
+declare function polygonField(description: string): z.ZodType<ShapeTuple>;
 declare function refField(description: string): z.ZodType<string>;
 declare function shapeField(description: string, only?: {
     id: string;
     owner: string;
     types: readonly ShapeType[];
 }): z.ZodType<ShapeTuple>;
+declare function sideField(description: string): z.ZodType<Side | true>;
 declare function tagsField(description: string): z.ZodOptional<z.ZodArray<z.ZodString>>;
 declare function vectorField(description: string): z.ZodType<Pt>;
 
+## game/physics-of.ts
+declare class PhysicsRequiredError extends Error {
+    readonly code = "physics-required";
+    readonly what: string;
+    readonly entityId: string | undefined;
+    constructor(what: string, entityId?: string);
+}
+declare function physicsOf(ctx: Pick<EngineContext, "physics" | "rapier">, what: string, entityId?: string): {
+    physics: PhysicsWorld;
+    rapier: RapierModule;
+};
+
 ## game/primitives.ts
-declare const DEFAULT_GRAVITY: [
-    number,
-    number
-];
 declare const PRIMITIVES: {
     decor: {
         ascii: string;
@@ -4068,6 +4349,7 @@ declare const PRIMITIVES: {
                 z.ZodNumber
             ], null>;
         };
+        physics: "optional";
         style: {
             alpha: number;
             stroke: number;
@@ -4095,6 +4377,7 @@ declare const PRIMITIVES: {
             }, z.core.$strict>;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
         };
+        physics: "optional";
         style: {
             alpha: number;
             fill: number;
@@ -4112,7 +4395,26 @@ declare const PRIMITIVES: {
             ], null>;
             tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
         };
+        physics: "optional";
         style: {
+            stroke: number;
+        };
+        type: string;
+    };
+    nav: {
+        ascii: string;
+        description: string;
+        fields: {
+            mode: z.ZodOptional<z.ZodEnum<{
+                block: "block";
+                walk: "walk";
+            }>>;
+            shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+            tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        };
+        physics: "optional";
+        style: {
+            alpha: number;
             stroke: number;
         };
         type: string;
@@ -4133,14 +4435,20 @@ declare const PRIMITIVES: {
         ascii: string;
         description: string;
         fields: (env: FieldEnv) => {
+            angularDamping: z.ZodOptional<z.ZodNumber>;
+            ccd: z.ZodOptional<z.ZodBoolean>;
             density: z.ZodNumber;
+            fixedRotation: z.ZodOptional<z.ZodBoolean>;
             friction: z.ZodOptional<z.ZodNumber>;
+            gravityScale: z.ZodOptional<z.ZodNumber>;
+            linearDamping: z.ZodOptional<z.ZodNumber>;
             material: z.ZodOptional<z.ZodEnum<{
                 [x: string]: string;
             }>> | z.ZodOptional<z.ZodNever>;
             restitution: z.ZodNumber;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
         };
+        physics: "required";
         style: {
             alpha: number;
             fill: number;
@@ -4156,6 +4464,7 @@ declare const PRIMITIVES: {
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
             tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
         };
+        physics: "optional";
         style: {
             alpha: number;
             fill: number;
@@ -4176,9 +4485,10 @@ declare const PRIMITIVES: {
             material: z.ZodOptional<z.ZodEnum<{
                 [x: string]: string;
             }>> | z.ZodOptional<z.ZodNever>;
-            oneWay: z.ZodOptional<z.ZodBoolean>;
+            oneWay: z.ZodOptional<z.ZodType<Side | true, unknown, z.core.$ZodTypeInternals<Side | true, unknown>>>;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
         };
+        physics: "optional";
         style: {
             alpha: number;
             fill: number;
@@ -4194,6 +4504,34 @@ declare function primitiveFields<P extends PrimitiveType>(name: P, env: FieldEnv
 
 ## game/style.ts
 declare function styleOf(ctx: Pick<EngineContext, "registry">, type: RegisteredType, material: string | undefined): Style | undefined;
+
+## game/time.ts
+declare const MAX_TICK_RATE = 240;
+declare const MIN_TICK_RATE = 1;
+type ResolvedTime = Readonly<{
+    catchUp: null | {
+        maxMs: number;
+    };
+    kind: TimeKind;
+    rate: number;
+    tickMs: number;
+    wakeOnPointerMove: boolean;
+}>;
+type TimeKind = "event" | "fixed" | "turns";
+type TimeModel = {
+    catchUp?: {
+        maxMs: number;
+    };
+    kind: TimeKind;
+    rate?: number;
+    wakeOnPointerMove?: boolean;
+};
+declare function resolveTime(sources: {
+    game?: TimeModel;
+    project?: Readonly<Record<string, unknown>>;
+}): ResolvedTime;
+declare function tickRateProblem(rate: unknown): null | string;
+declare function ticksFor(ms: number, time: Pick<ResolvedTime, "rate">): number;
 
 ## game/types.ts
 type ActionDef = InputBinding & {
@@ -4215,7 +4553,7 @@ type BulkKeyInfo = {
 type CheckEnv = {
     def: SceneDefinition;
     prefabs?: PrefabLibrary;
-    rapier: RapierModule;
+    rapier?: RapierModule | null;
     readFile(path: string): string;
     registry: Registry;
 };
@@ -4238,6 +4576,7 @@ type ColliderTag = {
     impulse?: Vec2;
     material?: string;
     oneWay?: boolean;
+    oneWaySide?: Side;
     tags?: readonly string[];
     type: string;
 };
@@ -4249,10 +4588,15 @@ type ColliderTags = {
     readonly size: number;
     set: (handle: number, tag: ColliderTag) => void;
 };
+type CommandDef = {
+    args?: z.ZodType;
+    description: string;
+};
 declare const ENGINE_CHECK_KINDS: readonly [
     "valid",
     "reaches",
-    "touches"
+    "touches",
+    "connected"
 ];
 declare const ENGINE_COLLISION_GROUPS: readonly [
     "static",
@@ -4287,16 +4631,21 @@ type EngineContext = {
     bounds: Bounds;
     dev: boolean;
     emit: (event: Omit<StepEvent, "tick">) => void;
+    geometry: GeometryWorld | null;
     gravity: Vec2;
-    physics: PhysicsWorld;
+    physics: PhysicsWorld | null;
     poses: PoseIndex;
-    rapier: RapierModule;
+    rapier: RapierModule | null;
+    readonly grid: RuntimeGrid | null;
+    readonly nav: RuntimeNav | null;
     readonly play: PlayStart | null;
     readonly project: ProjectRuntimeView | null;
     readonly sampling: "linear" | "nearest";
     readonly tick: number;
+    readonly time: ResolvedTime;
     registry: Registry;
     settings: ResolvedSettings;
+    space: SpaceQuery;
     system: <S extends SceneSystem = SceneSystem>(type: EntityTypeName) => S | undefined;
     tags: ColliderTags;
     view: SceneView | null;
@@ -4324,6 +4673,7 @@ type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
         order?: readonly string[];
     };
     loads?: boolean;
+    physics?: "optional" | "required";
     refs?: {
         field: string;
         targets: readonly EntityTypeName[];
@@ -4345,6 +4695,10 @@ type GameAttachment = {
     onModeChange?(mode: GameMode): void;
     onTick?(dtMs: number, mouseWorld: Vec2): void;
 };
+type GameCommand = {
+    args?: unknown;
+    name: string;
+};
 type GameDefinition<S = unknown, G = unknown> = {
     actions: readonly ActionDef[];
     assetKinds?: readonly AssetKindDef[];
@@ -4354,6 +4708,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     collisionGroups?: Readonly<Record<string, {
         collidesWith: readonly string[];
     }>>;
+    commands?: Readonly<Record<string, CommandDef>>;
     configHash?: string;
     createRuntime(ctx: EngineContext): GameRuntime<S>;
     editor?: GameEditorDef;
@@ -4371,8 +4726,10 @@ type GameDefinition<S = unknown, G = unknown> = {
     spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
     tables?: Readonly<Record<string, GameTableDef>>;
     template?: SceneTemplate;
+    time?: TimeModel;
     types: readonly EntityTypeDef[];
     validators?: readonly SceneValidator[];
+    world?: GameWorldDef;
 };
 type GameEditorDef = {
     assetDrop?: (drop: AssetDrop) => EntityInput | InstanceInput | null;
@@ -4403,7 +4760,8 @@ type GamePlayDef<S = unknown, G = unknown> = {
 };
 type GameRuntime<S = unknown> = {
     afterStep?(dtMs: number, events: readonly StepEvent[]): void;
-    beforeStep?(dtMs: number, actions: InputAction[]): void;
+    beforeStep?(dtMs: number, actions: InputAction[], commands: readonly GameCommand[]): void;
+    busy?(): boolean;
     cameraTarget?(): Vec2 | null;
     debugInfo?(): unknown;
     destroy?(): void;
@@ -4416,11 +4774,19 @@ type GameShell = {
     dev: boolean;
     getMode: () => GameMode;
     router: ToolRouter;
+    send: (command: GameCommand) => boolean;
     view: SceneView;
 };
 type GameTableDef = {
     description: string;
     row: z.ZodRawShape;
+};
+type GameWorldDef = {
+    gravity?: Pt;
+    grid?: GridSettings;
+    gridWalls?: readonly EntityTypeName[];
+    lengthUnit?: number;
+    physics?: "none" | "rapier";
 };
 type InspectorWidgetDef = {
     format?: "json" | "text";
@@ -4467,11 +4833,13 @@ declare const PRIMITIVE_TYPES: readonly [
     "prop",
     "follower",
     "decor",
+    "nav",
     "note"
 ];
 type PhysicalCheck = {
     description: string;
     id: string;
+    needsPhysics?: boolean;
     run(env: PhysicalEnv): SceneIssue[];
 };
 type PhysicalEnv = {
@@ -4485,10 +4853,11 @@ type PhysicalEnv = {
         exclude?: readonly string[];
         sensors?: boolean;
     }): PhysicalHit[];
-    physics: PhysicsWorld;
-    rapier: RapierModule;
+    physics: PhysicsWorld | null;
+    rapier: RapierModule | null;
     registry: Registry;
     scene: ExpandedScene;
+    space: SpaceQuery;
     tags: ColliderTags;
 };
 type PhysicalHit = {
@@ -4521,6 +4890,8 @@ type Registry = {
     checkKinds: readonly string[];
     collisionGroupNames: readonly string[];
     collisionGroups: (name: string) => number;
+    commandNames: readonly string[];
+    commands: ReadonlyMap<string, CommandDef>;
     game: GameDefinition | null;
     id: string;
     issueCodes: Readonly<Record<string, IssueCodeInfo>>;
@@ -4536,6 +4907,7 @@ type Registry = {
     settings: z.ZodRawShape;
     spawnGroupOf: (type: EntityTypeName) => number | undefined;
     spawnGroups: readonly (readonly EntityTypeName[])[];
+    time: TimeModel;
     typeNames: readonly EntityTypeName[];
     types: ReadonlyMap<EntityTypeName, RegisteredType>;
     validators: readonly SceneValidator[];
@@ -4568,7 +4940,8 @@ type ScriptPredicate<S = unknown> = {
     description: string;
     test(arg: unknown, state: PlayState<S>): boolean;
 };
-type SpawnShape = {
+type Side = "down" | "left" | "right" | "up";
+type SpawnShape = ({
     halfLen: number;
     r: number;
     type: "capsule";
@@ -4579,6 +4952,8 @@ type SpawnShape = {
 } | {
     r: number;
     type: "circle";
+}) & {
+    cast?: "gravity" | "none" | Pt;
 };
 type Style = {
     alpha?: number;
@@ -4589,8 +4964,82 @@ type Style = {
 };
 type SystemFactory<E extends RuntimeEntity = RuntimeEntity> = (ctx: EngineContext, type: RegisteredType) => SceneSystem<E>;
 
+## grid/flow.ts
+type FlowField = {
+    cost(c: Cell): number | undefined;
+    next(c: Cell): Cell | undefined;
+    readonly bounds: CellBounds;
+};
+declare function flowField(grid: GridGeometry, goals: readonly Cell[], opts?: GridPathOptions & {
+    maxCost?: number;
+}): FlowField;
+
+## grid/fov.ts
+declare function fieldOfView(grid: GridGeometry, origin: Cell, radius: number, opaque: (c: Cell) => boolean): Set<CellKey>;
+declare function lineOfSight(grid: GridGeometry, a: Cell, b: Cell, opaque: (c: Cell) => boolean): boolean;
+
+## grid/geometry.ts
+type Cell = readonly [
+    col: number,
+    row: number
+];
+type CellBounds = {
+    c0: number;
+    c1: number;
+    r0: number;
+    r1: number;
+};
+type CellKey = number;
+interface GridGeometry {
+    readonly settings: GridSettings;
+    neighbors(c: Cell, diagonals?: boolean): Cell[];
+    stepCost(a: Cell, b: Cell): number;
+    heuristic(a: Cell, b: Cell): number;
+    distance(a: Cell, b: Cell, diagonals?: boolean): number;
+    center(c: Cell): Pt;
+    cellAt(p: Pt): Cell;
+    corners(c: Cell): Pt[];
+    line(a: Cell, b: Cell): Cell[];
+    cellsIn(shape: ShapeObj): Cell[];
+    rect(bounds: Bounds): CellBounds;
+}
+declare function cellKey(c: Cell): CellKey;
+declare function cellOf(k: CellKey): Cell;
+declare function gridGeometry(settings: GridSettings): GridGeometry;
+
+## grid/occupancy.ts
+interface Occupancy {
+    place(id: string, cell: Cell, opts?: {
+        blocks?: boolean;
+    }): void;
+    remove(id: string): void;
+    at(cell: Cell): readonly string[];
+    cellOf(id: string): Cell | undefined;
+    blocked(cell: Cell): boolean;
+    setWall(cell: Cell, wall: boolean): void;
+    wall(cell: Cell): boolean;
+    clear(): void;
+}
+declare function createOccupancy(): Occupancy;
+
+## grid/path.ts
+type GridPath = {
+    cells: Cell[];
+    cost: number;
+    expanded: number;
+};
+type GridPathOptions = {
+    bounds?: CellBounds;
+    cost?: (from: Cell, to: Cell) => null | number;
+    cutCorners?: boolean;
+    diagonals?: boolean;
+    maxExpanded?: number;
+    passable?: (c: Cell) => boolean;
+};
+declare function findPath(grid: GridGeometry, from: Cell, to: Cell, opts?: GridPathOptions): GridPath | null;
+
 ## headless/compile-input-script.ts
-declare function compileInputScript(script: unknown, registry: Registry): CompileResult;
+declare function compileInputScript(script: unknown, registry: Registry, time?: Pick<ResolvedTime, "rate">): CompileResult;
 declare function heldEdges(prev: readonly string[], next: readonly string[], tick: number): InputEdge[];
 
 ## headless/fuzz.ts
@@ -4649,6 +5098,7 @@ type CompiledInputScript = {
     steps: CompiledStep[];
 };
 type CompiledStep = {
+    commands?: GameCommand[];
     hold: string[];
     index: number;
     max?: number;
@@ -4665,7 +5115,8 @@ type FuzzOptions<S = unknown, G = unknown> = {
     game?: GameDefinition<S, G> | null;
     play?: PlayOptions<G>;
     prefabs?: PrefabLibrary;
-    rapier: RapierModule;
+    project?: ProjectRuntimeView | null;
+    rapier?: RapierModule | null;
     registry?: Registry;
     rollouts?: number;
     scene: SceneDefinition;
@@ -4715,6 +5166,11 @@ type InputScript<G = unknown> = {
 type InputScriptStep = ({
     hold: string[];
 } & StepDuration) | {
+    args?: unknown;
+    command: string;
+} | {
+    elapse: number;
+} | {
     press: string | string[];
 } | {
     wait: number;
@@ -4739,7 +5195,7 @@ type PlaytestOptions<S = unknown, G = unknown> = {
     maxTrail?: number;
     prefabs?: PrefabLibrary;
     project?: ProjectRuntimeView | null;
-    rapier: RapierModule;
+    rapier?: RapierModule | null;
     registry?: Registry;
     scene: SceneDefinition;
     script: CompiledInputScript | InputScript<G>;
@@ -4753,6 +5209,7 @@ type PlaytestOutcomeReport = {
 };
 type PlaytestReport<S = unknown> = {
     blocked: false;
+    commands: RecordingCommand[];
     configHash: string;
     events: StepEvent[];
     final: S | null;
@@ -4762,9 +5219,10 @@ type PlaytestReport<S = unknown> = {
     recording: RunRecording;
     scene: string;
     sceneHash: SceneHash;
+    slots: number;
     steps: PlaytestStep[];
     stepsReached: number;
-    tickRate: 60;
+    tickRate: number;
     ticks: number;
     trail: {
         every: 4;
@@ -4807,7 +5265,8 @@ type ReplayOptions<S = unknown> = {
     dev?: boolean;
     game?: GameDefinition<S> | null;
     prefabs?: PrefabLibrary;
-    rapier: RapierModule;
+    project?: ProjectRuntimeView | null;
+    rapier?: RapierModule | null;
     recording: RunRecording | unknown;
     registry?: Registry;
     scene: SceneDefinition;
@@ -4840,8 +5299,10 @@ type ChecksReport = {
 };
 type RunChecksOptions = {
     checks: ChecksFile;
+    engine?: Readonly<Record<string, unknown>>;
     prefabs?: PrefabLibrary;
-    rapier: RapierModule;
+    project?: ProjectRuntimeView | null;
+    rapier?: RapierModule | null;
     readFile: (path: string) => string;
     registry: Registry;
     scene: SceneDefinition;
@@ -4852,11 +5313,15 @@ declare function runChecks(opts: RunChecksOptions): ChecksReport;
 type HeadlessRuntimeOptions = {
     dev?: boolean;
     game?: GameDefinition | null;
-    rapier: RapierModule;
+    rapier?: RapierModule | null;
     registry?: Registry;
     scene?: ExpandedScene;
 };
 type ProbeInput = {
+    commands?: readonly (readonly [
+        tick: number,
+        command: GameCommand
+    ])[];
     hold?: string[];
     inputs?: [
         tick: number,
@@ -4868,7 +5333,7 @@ type ProbeInput = {
 };
 type ProbeOptions<S = unknown> = ProbeInput & {
     game?: GameDefinition<S> | null;
-    rapier: RapierModule;
+    rapier?: RapierModule | null;
     registry?: Registry;
     scene: ExpandedScene;
 };
@@ -4881,7 +5346,7 @@ type ProbeReport<S = unknown> = {
         tick: number;
     };
     stats: RuntimeStats;
-    tickRate: 60;
+    tickRate: number;
     ticks: number;
     truncated: boolean;
 };
@@ -4891,8 +5356,9 @@ type PhysicalOptions = {
     lines?: ReadonlyMap<string, number>;
 };
 type ValidatePhysicalOptions = PhysicalOptions & {
+    engine?: Readonly<Record<string, unknown>>;
     prefabs?: PrefabLibrary;
-    rapier: RapierModule;
+    rapier?: RapierModule | null;
     registry: Registry;
     scene: SceneDefinition;
 };
@@ -4907,11 +5373,105 @@ declare function distanceVec2(a: Vec2, b: Vec2): number;
 declare function lerp(a: number, b: number, t: number): number;
 declare function lerpVec2(a: Vec2, b: Vec2, t: number): Vec2;
 
+## motion/body.ts
+interface MotionBody {
+    readonly entityId: string;
+    readonly handle: number;
+    position(): Vec2;
+    move(delta: Vec2, opts?: {
+        slide?: boolean;
+    }): MotionResult;
+    teleport(x: number, y: number): void;
+    setEnabled(enabled: boolean): void;
+    destroy(): void;
+}
+type MotionBodyOptions = {
+    group?: string;
+    shape: ShapeObj;
+    tag?: Partial<ColliderTag>;
+};
+type MotionResult = {
+    blocked: boolean;
+    hits: SpaceCastHit[];
+    moved: Vec2;
+};
+declare function createMotionBody(ctx: EngineContext, entity: {
+    id: string;
+    type: string;
+}, at: Vec2, opts: MotionBodyOptions): MotionBody;
+
+## motion/grid-step.ts
+interface GridStepper {
+    cell(): Cell;
+    moving(): boolean;
+    step(to: Cell): boolean;
+    update(dtMs: number): void;
+}
+declare function createGridStepper(ctx: EngineContext, entityId: string, opts: {
+    body?: MotionBody;
+    msPerStep: number;
+    occupy?: boolean;
+    start: Cell;
+}): GridStepper;
+
+## motion/top-down.ts
+interface TopDownController {
+    velocity(): Vec2;
+    step(dtMs: number, intent: Vec2): MotionResult;
+}
+type TopDownOptions = {
+    accel: number;
+    decel: number;
+    maxSpeed: number;
+};
+declare function createTopDownController(body: MotionBody, opts: TopDownOptions): TopDownController;
+
+## nav/navmesh.ts
+type NavIssue = {
+    entityIds: string[];
+    message: string;
+};
+type NavMesh = {
+    areaOf: readonly string[];
+    neighbors: readonly (readonly number[])[];
+    triangles: readonly (readonly [
+        Pt,
+        Pt,
+        Pt
+    ])[];
+};
+declare function buildNavMesh(areas: readonly {
+    id: string;
+    pts: readonly Pt[];
+}[], holes: readonly {
+    id: string;
+    pts: readonly Pt[];
+}[]): {
+    issues: NavIssue[];
+    mesh: NavMesh;
+};
+declare function navContains(mesh: NavMesh, p: Pt): boolean;
+declare function navNearest(mesh: NavMesh, p: Pt): Pt;
+declare function navPath(mesh: NavMesh, from: Pt, to: Pt): Pt[] | null;
+
 ## physics.ts
+type CharacterControllerOptions = {
+    autostep: null | {
+        dynamic: boolean;
+        maxHeight: number;
+        minWidth: number;
+    };
+    maxSlopeClimbDeg: null | number;
+    minSlopeSlideDeg: null | number;
+    offset?: number;
+    pushDynamic: boolean;
+    snapToGround: null | number;
+    up: Vec2;
+};
 type PhysicsWorld = {
     addCollider: (desc: ColliderDesc, body?: RigidBody) => Collider;
     addRigidBody: (desc: RigidBodyDesc) => RigidBody;
-    createCharacterController: (offset?: number) => KinematicCharacterController;
+    createCharacterController: (opts: CharacterControllerOptions) => KinematicCharacterController;
     debugRender: () => {
         colors: Float32Array;
         vertices: Float32Array;
@@ -5511,11 +6071,15 @@ declare const fontSettingsSchema: z.ZodType<FontSettings>;
 declare const GAME_SETTINGS_KIND = "game-settings";
 declare const GAME_SETTINGS_SCHEMA_ID = "urn:jams-engine:game-settings:v1";
 declare const GAME_SETTINGS_VERSION = 1;
+type GameSettingsEngine = {
+    gravity?: GameWorldDef["gravity"];
+    physics?: GameWorldDef["physics"];
+    resolution?: Partial<ResolutionPolicy>;
+    tickRate?: number;
+};
 type GameSettingsFile = {
     $schema?: string;
-    engine: {
-        resolution?: Partial<ResolutionPolicy>;
-    };
+    engine: GameSettingsEngine;
     game: Record<string, unknown>;
     kind: typeof GAME_SETTINGS_KIND;
     v: typeof GAME_SETTINGS_VERSION;
@@ -5553,6 +6117,7 @@ declare const gameSettingsKind: {
     schemaId: string;
     storage: "doc";
     title: string;
+    validate: (file: GameSettingsFile) => SceneIssue[];
     version: number;
 };
 declare function gameSettingsValues(registry: Registry, game: Record<string, unknown> | undefined): Record<string, unknown>;
@@ -6539,6 +7104,46 @@ declare function viewportFor(policy: ResolutionPolicy, canvas: {
     width: number;
 }): ResolutionViewport;
 
+## runtime/geometry-world.ts
+type GeometryColliderDesc = {
+    body: "kinematic" | "static";
+    group?: string;
+    pose?: {
+        rot: number;
+        x: number;
+        y: number;
+    };
+    sensor?: boolean;
+    shape: ShapeObj;
+};
+interface GeometryWorld {
+    add(desc: GeometryColliderDesc): number;
+    setPose(handle: number, x: number, y: number, rot?: number): void;
+    setEnabled(handle: number, enabled: boolean): void;
+    remove(handle: number): void;
+    shape(handle: number): ShapeObj | undefined;
+    handles(): IterableIterator<number>;
+    clear(): void;
+    readonly size: number;
+}
+
+## runtime/grid.ts
+type RuntimeGrid = {
+    bounds: CellBounds;
+    geometry: GridGeometry;
+    occupancy: Occupancy;
+    passable(c: Cell): boolean;
+};
+declare function sceneGrid(scene: ExpandedScene, registry: Registry, wallTypes?: readonly string[]): RuntimeGrid | null;
+
+## runtime/nav.ts
+type RuntimeNav = {
+    contains(p: Vec2): boolean;
+    mesh: NavMesh;
+    nearest(p: Vec2): Vec2;
+    path(from: Vec2, to: Vec2): Vec2[] | null;
+};
+
 ## runtime/play-session.ts
 type PreparedPlay = {
     def: SceneDefinition;
@@ -6552,6 +7157,7 @@ type PreparedPlay = {
 };
 declare function preparePlay(doc: SceneDefinition, registry: Registry, opts?: {
     dev?: boolean;
+    engine?: Readonly<Record<string, unknown>>;
     prefabs?: PrefabLibrary;
 }): PreparedPlay;
 
@@ -6578,10 +7184,11 @@ type RecorderOptions = {
     game: GameDefinition | null;
     maxMarkers?: number;
     maxTrail?: number;
-    rapier: RapierModule;
+    rapier: RapierModule | null;
     scene: string;
     sceneHash: SceneHash;
     start: PlayOptions;
+    time?: ResolvedTime;
 };
 type RecordingEnd = {
     cause?: string;
@@ -6592,10 +7199,34 @@ type RecordingEnd = {
 };
 type RunRecorder = {
     finish(end: RecordingEnd, final: unknown): RunRecording;
-    tick(state: PlayState, edges: readonly InputEdge[], focus: Vec2 | null): void;
+    tick(state: PlayState, edges: readonly InputEdge[], focus: Vec2 | null, commands?: readonly GameCommand[]): void;
 };
 declare function createRunRecorder(opts: RecorderOptions): RunRecorder;
-declare function probeConfigHash(game?: GameDefinition | null): string;
+declare function probeConfigHash(game?: GameDefinition | null, time?: Pick<ResolvedTime, "rate">): string;
+
+## runtime/space.ts
+type SpaceCastHit = SpaceHit & {
+    normal: Vec2;
+    toi: number;
+};
+type SpaceFilter = {
+    exclude?: readonly string[];
+    group?: string;
+    sensors?: boolean;
+    types?: readonly string[];
+};
+type SpaceHit = {
+    at: Vec2;
+    handle: number;
+    tag: ColliderTag;
+};
+interface SpaceQuery {
+    readonly backend: "geometry" | "rapier";
+    pointAt(p: Vec2, filter?: SpaceFilter): SpaceHit[];
+    overlaps(shape: ShapeObj, filter?: SpaceFilter): SpaceHit[];
+    raycast(from: Vec2, dir: Vec2, maxDist: number, filter?: SpaceFilter): SpaceCastHit | null;
+    sweep(shape: ShapeObj, by: Vec2, filter?: SpaceFilter): SpaceCastHit | null;
+}
 
 ## runtime/spawn-pose.ts
 declare function spawnPose(e: RuntimeEntity, registry: Registry): Pose;
@@ -6606,6 +7237,7 @@ type AssetReloadError = {
     error: string;
     reattached: boolean;
 };
+type LoadFailureReason = "physics-not-loaded" | "physics-required" | "spawn-blocked";
 type LoadReport = {
     counts: Record<EntityTypeName, number>;
     ms: number;
@@ -6614,7 +7246,7 @@ type LoadReport = {
     entityId?: string;
     error: string;
     ok: false;
-    reason?: "spawn-blocked";
+    reason?: LoadFailureReason;
 };
 type ReconcileReport = {
     entityId?: string;
@@ -6624,6 +7256,7 @@ type ReconcileReport = {
     ok: true;
 };
 type RuntimeStats = {
+    backend: "geometry" | "rapier";
     behaviors: Record<BehaviorName, number>;
     bodies: number;
     colliders: number;
@@ -6635,13 +7268,14 @@ declare const SENSOR_ENTER = "sensor:enter";
 declare const SENSOR_EXIT = "sensor:exit";
 type SceneRuntime = {
     add: (entities: RuntimeEntity[]) => ReconcileReport;
+    busy: () => boolean;
     destroy: () => void;
     get: (id: string) => RuntimeEntity | undefined;
     load: (scene: ExpandedScene, play?: PlayOptions) => LoadReport;
     remove: (ids: string[]) => void;
     snapshot: () => unknown;
     stats: () => RuntimeStats;
-    step: (dtMs: number, actions: InputAction[]) => StepResult;
+    step: (dtMs: number, actions: InputAction[], commands?: readonly GameCommand[]) => StepResult;
     unload: () => void;
     update: (entities: RuntimeEntity[]) => ReconcileReport;
 };
@@ -6667,7 +7301,7 @@ type StepResult = {
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 9;
+declare const AGENT_SURFACE_VERSION = 10;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -6706,11 +7340,16 @@ declare function parseBulkId(ref: Ref): null | {
 ## scene/checks.ts
 declare const CHECKS_FORMAT_VERSION = 1;
 declare const CHECKS_SUFFIX = ".checks.json";
+type CheckCell = [
+    col: number,
+    row: number
+];
 type CheckHead = {
     id: string;
     kind: string;
     skip?: string;
 };
+type CheckPlace = CheckCell | Ref;
 type ChecksFile = {
     $schema?: string;
     checks: SceneCheck[];
@@ -6724,6 +7363,14 @@ type ChecksIssue = {
     message: string;
     path: string;
 };
+type ConnectedCheck = CheckHead & {
+    blockedBy?: string[];
+    diagonals?: boolean;
+    from: CheckPlace;
+    kind: "connected";
+    to: CheckPlace[];
+};
+declare const DEFAULT_BLOCKED_BY: readonly string[];
 declare const DEFAULT_TOUCH_ROLLOUTS = 100;
 declare const DEFAULT_TOUCH_SEED = 1;
 declare const DEFAULT_TOUCH_TICKS = 600;
@@ -6744,7 +7391,7 @@ type ReachesCheck = CheckHead & {
     result: string;
     script: InputScript | string;
 };
-type SceneCheck = GameCheck | ReachesCheck | TouchesCheck | ValidCheck;
+type SceneCheck = ConnectedCheck | GameCheck | ReachesCheck | TouchesCheck | ValidCheck;
 type TouchesCheck = CheckHead & {
     atLeast: number;
     entity: Ref;
@@ -6784,18 +7431,21 @@ declare function diffScenes(a: SceneDefinition, b: SceneDefinition): SceneChange
 
 ## scene/expand.ts
 type ExpandOptions = {
+    engine?: Readonly<Record<string, unknown>>;
     prefabs?: PrefabLibrary;
 };
 type SettingsSources = {
     game?: Partial<ResolvedSettings>;
-    project?: Record<string, unknown>;
+    project?: Readonly<Record<string, unknown>>;
 };
 declare function behaviorBlocks(registry: Registry, type: EntityTypeName, written?: unknown): Record<BehaviorName, BehaviorBlock>;
 declare function bulkEntries(def: SceneDefinition, k: BulkKey): BulkEntry[];
 declare function bulkKeysOf(def: SceneDefinition): BulkKey[];
+declare function defaultPhysics(registry: Registry, engine?: Readonly<Record<string, unknown>>): "none" | "rapier";
 declare function expandScene(source: SceneDefinition, registry: Registry, opts?: ExpandOptions): ExpandedScene;
 declare function isExpandedScene(scene: ExpandedScene | SceneDefinition): scene is ExpandedScene;
 declare function resolveSettings(settings: SceneSettings | undefined, sources?: SettingsSources): ResolvedSettings;
+declare function scenePhysics(def: SceneDefinition, registry: Registry, engine?: Readonly<Record<string, unknown>>): "none" | "rapier";
 
 ## scene/field-path.ts
 declare const INSTANCE_OVERRIDE_FIELDS: readonly [
@@ -6924,12 +7574,7 @@ declare function canonicalGrid(grid: GridCells): GridCells;
 declare function compareChunkKeys(a: ChunkKey, b: ChunkKey): number;
 declare function decodeRow(row: GridRow): Uint16Array | null;
 declare function encodeRow(cells: ArrayLike<number>): GridRow;
-declare function gridCellBounds(grid: GridCells): null | {
-    c0: number;
-    c1: number;
-    r0: number;
-    r1: number;
-};
+declare function gridCellBounds(grid: GridCells): CellBounds | null;
 declare function gridProblems(value: unknown, max?: number): GridProblem[];
 declare function isGridValue(v: unknown): v is GridCells;
 declare function paintGrid(grid: GridCells, edit: {
@@ -7025,12 +7670,30 @@ declare function buildInputScriptSchemas(registry: Registry): {
             }, z.core.$strict>,
             z.ZodObject<{
                 wait: z.ZodNumber;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                args: z.ZodOptional<z.ZodUnknown>;
+                command: z.ZodEnum<{
+                    [x: string]: string;
+                }> | z.ZodNever;
+            }, z.core.$strict>,
+            z.ZodObject<{
+                elapse: z.ZodNumber;
             }, z.core.$strict>
         ]>>;
         timeOffsetMs: z.ZodOptional<z.ZodNumber>;
         v: z.ZodLiteral<1>;
     }, z.core.$strict>;
     steps: {
+        command: z.ZodObject<{
+            args: z.ZodOptional<z.ZodUnknown>;
+            command: z.ZodEnum<{
+                [x: string]: string;
+            }> | z.ZodNever;
+        }, z.core.$strict>;
+        elapse: z.ZodObject<{
+            elapse: z.ZodNumber;
+        }, z.core.$strict>;
         holdFor: z.ZodObject<{
             for: z.ZodNumber;
             hold: z.ZodArray<z.ZodEnum<{
@@ -7782,6 +8445,7 @@ type ParseRecordingResult = {
 declare const RECORDING_SCHEMA_ID = "urn:jams-engine:recording:v1";
 declare const RECORDING_TRAIL_EVERY = 4;
 declare const RECORDING_VERSION = 1;
+type RecordingCommand = NonNullable<RunRecording["commands"]>[number];
 type RecordingIssue = {
     message: string;
     path: string;
@@ -7793,6 +8457,11 @@ declare function recordingJsonSchema(): Record<string, unknown>;
 declare const runRecordingSchema: z.ZodObject<{
     $schema: z.ZodOptional<z.ZodString>;
     actions: z.ZodArray<z.ZodString>;
+    commands: z.ZodOptional<z.ZodArray<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodString,
+        z.ZodOptional<z.ZodUnknown>
+    ], null>>>;
     configHash: z.ZodString;
     end: z.ZodString;
     engine: z.ZodObject<{
@@ -7838,7 +8507,7 @@ declare const runRecordingSchema: z.ZodObject<{
         game: z.ZodOptional<z.ZodUnknown>;
         timeOffsetMs: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>;
-    tickRate: z.ZodLiteral<60>;
+    tickRate: z.ZodNumber;
     ticks: z.ZodNumber;
     trail: z.ZodOptional<z.ZodObject<{
         every: z.ZodLiteral<4>;
@@ -7993,7 +8662,7 @@ declare function resolveScene(def: SceneDefinition, registry: Registry, prefabs?
 declare function resolveSceneDetailed(def: SceneDefinition, registry: Registry, prefabs?: PrefabLibrary): ResolvedScene;
 
 ## scene/schema.ts
-type FieldKind = "angle" | "grid" | "mirror" | "path" | "point" | "shape" | "value" | "vector";
+type FieldKind = "angle" | "grid" | "mirror" | "path" | "point" | "shape" | "side" | "value" | "vector";
 declare const GroupSchema: z.ZodObject<{
     at: z.ZodTuple<[
         z.ZodNumber,
@@ -8060,8 +8729,18 @@ declare function nearestVertex(s: ShapeObj, p: Pt): null | {
     dist: number;
     index: number;
 };
+declare function raycastShape(s: ShapeObj, from: Pt, dir: Pt, maxDist: number): null | {
+    normal: Pt;
+    toi: number;
+};
 declare function rotateShape(s: ShapeObj, about: Pt, deg: number): ShapeObj;
+declare function shapeAtPose(local: ShapeObj, pose: {
+    rot: number;
+    x: number;
+    y: number;
+}): ShapeObj;
 declare function shapeVertices(s: ShapeObj): Pt[];
+declare function shapesIntersect(a: ShapeObj, b: ShapeObj): boolean;
 declare function topSpan(s: ShapeObj): [
     x0: number,
     x1: number,
@@ -8102,6 +8781,17 @@ type ParseShapeResult = {
 declare const ShapeTupleSchema: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
 declare function parseShape(input: unknown, path?: string): ParseShapeResult;
 declare function shapeToTuple(s: ShapeObj): ShapeTuple;
+
+## scene/spatial-hash.ts
+type SpatialHash<K> = {
+    clear(): void;
+    insert(key: K, box: Aabb): void;
+    query(box: Aabb): K[];
+    readonly size: number;
+    remove(key: K): void;
+    update(key: K, box: Aabb): void;
+};
+declare function createSpatialHash<K>(cell?: number): SpatialHash<K>;
 
 ## scene/svg.ts
 declare const SCENE_SVG_MAX_SIZE = 1600;
@@ -8168,6 +8858,7 @@ type Aabb = {
 type ApplyOptions = {
     prefab?: string;
     prefabs?: PrefabLibrary;
+    project?: ProjectView;
     validate?: "none" | "structural";
 };
 type ApplyResult = {
@@ -8240,8 +8931,12 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "behavior-missing",
     "grid-invalid",
     "ref-child-unknown",
+    "physics-required",
+    "physics-skipped",
+    "nav-invalid",
     "follower-hits-solid",
     "solid-overlap",
+    "grid-unreachable",
     "stale-base",
     "ref-not-found",
     "op-invalid",
@@ -8250,6 +8945,7 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "asset-kind",
     "asset-frame-unknown",
     "sprite-no-asset",
+    "tick-rate-invalid",
     "asset-in-use",
     "asset-id-taken",
     "path-taken",
@@ -8721,6 +9417,7 @@ type SpotAnchor = "bottom" | "center" | "left" | "right" | "top";
 
 ## scene/validate.ts
 type ValidateOptions = {
+    engine?: Readonly<Record<string, unknown>>;
     lines?: ReadonlyMap<string, number>;
     prefab?: string;
     prefabs?: PrefabLibrary;
@@ -8810,8 +9507,13 @@ type AttachmentHub = {
 
 ## systems/bodies.ts
 type PropEntity = RuntimeEntity<{
+    angularDamping?: number;
+    ccd?: boolean;
     density: number;
+    fixedRotation?: boolean;
     friction?: number;
+    gravityScale?: number;
+    linearDamping?: number;
     material?: string;
     restitution: number;
     shape: ShapeObj;
@@ -8827,15 +9529,16 @@ type SensorSystem = SceneSystem<SensorEntity> & {
 type SolidEntity = RuntimeEntity<{
     attach?: string;
     material?: string;
-    oneWay?: boolean;
+    oneWay?: Side | boolean;
     shape: ShapeObj;
 }>;
 type SolidOptions = SurfaceDefaults & VisualOptions & {
     group?: string;
-    oneWay?: boolean;
+    oneWay?: Side | boolean;
 };
 type SolidSystem = SceneSystem<SolidEntity> & {
     gateOneWay(actorBottomY: number, dropping: boolean): void;
+    gateOneWaySides(actor: Aabb, passing: boolean): void;
     isHidden(id: string): boolean;
     position(id: string): Vec2 | null;
 };
@@ -8876,6 +9579,28 @@ type MarkerSystem = SceneSystem<MarkerEntity> & {
     list(): MarkerEntity[];
 };
 declare function createMarkerSystem(_ctx: EngineContext, _type: RegisteredType): MarkerSystem;
+
+## systems/nav.ts
+type NavEntity = RuntimeEntity<{
+    mode?: "block" | "walk";
+    shape: ShapeObj;
+    tags?: string[];
+}>;
+type NavPolygon = {
+    id: string;
+    pts: readonly Pt[];
+};
+type NavSystem = SceneSystem<NavEntity> & {
+    areas(): NavPolygon[];
+    holes(): NavPolygon[];
+    memo: null | {
+        key: string;
+        nav: RuntimeNav | null;
+    };
+    revision(): number;
+};
+declare function createNavSystem(_ctx: EngineContext, _type: RegisteredType): NavSystem;
+declare function isNavSystem(system: SceneSystem | undefined): system is NavSystem;
 
 ## systems/path-follower.ts
 type FollowerEntity = RuntimeEntity<{
@@ -8977,7 +9702,7 @@ type GameConfig = {
     keyTarget?: HTMLElement | Window;
     maxDeltaTime: number;
     prefabs?: PrefabLibrary;
-    rapier: () => Promise<RapierModule>;
+    rapier?: () => Promise<RapierModule>;
     registry?: Registry;
     resolution?: Partial<ResolutionPolicy>;
     scene?: ExpandedScene | SceneDefinition;
@@ -8998,6 +9723,16 @@ type GameInstance = {
     cancel: () => boolean;
     command: (name: string) => boolean;
     destroy: () => void;
+    elapse: (ms: number) => void;
+    extractPixels: (world: readonly Vec2[]) => {
+        pixels: (null | readonly [
+            number,
+            number,
+            number,
+            number
+        ])[];
+        renderer: string;
+    };
     frame: (rect: Aabb, marginPx?: number) => void;
     getMode: () => GameMode;
     getStore: () => Store<GameStoreState>;
@@ -9027,6 +9762,7 @@ type GameInstance = {
     router: ToolRouter;
     runtime: () => SceneRuntime | null;
     screenToWorld: (screen: Vec2) => Vec2;
+    send: (command: GameCommand) => boolean;
     setMode: (mode: GameMode) => void;
     setPrefabs: (prefabs: PrefabLibrary) => void;
     setTimeScale: (scale: number) => void;
@@ -9066,7 +9802,7 @@ type PlayReport = {
     error?: string;
     issues: SceneIssue[];
     ok: false;
-    reason?: "spawn-blocked";
+    reason?: LoadFailureReason;
 } | {
     issues: SceneIssue[];
     ok: true;
@@ -9086,7 +9822,7 @@ type Vec2 = {
 };
 
 ## version.ts
-declare const ENGINE_VERSION = "0.8.1";
+declare const ENGINE_VERSION = "0.9.0";
 
 ## vite/apply-files.ts
 type FileApplyOptions = {
@@ -9130,6 +9866,11 @@ type SceneCollabOptions = {
 type SceneCollabPlugin = {
     apply: "serve";
     configureServer(server: {
+        config?: {
+            server?: {
+                cors?: ProjectCors;
+            };
+        };
         httpServer?: null | {
             on(event: "close", listener: () => void): unknown;
             on(event: "upgrade", listener: UpgradeListener): unknown;
@@ -9155,6 +9896,9 @@ declare function fileContentStore(cacheDir: string): ContentStore;
 
 ## vite/handler.ts
 declare const PROJECT_ROUTE = "/__project";
+type ProjectCors = boolean | {
+    origin?: ((origin: string | undefined, cb: (err: Error | null, allow?: unknown) => void) => void) | RegExp | boolean | readonly (RegExp | string)[] | string;
+};
 declare const SCENE_ROUTE = "/__scene";
 
 ## vite/project-files.ts

@@ -65,7 +65,8 @@ const byRef = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * Seeded random rollouts of a scene: each starts the way the editor's Play
  * does and plays macros (the game's `play.macro`, else `defaultFuzzMacro`)
  * drawn from `@jams/engine/sim-kit`'s `Rng`, until the game's outcome,
- * `stuck` or `ticks`. Reports which entities the rollouts' events named,
+ * `stuck` or `ticks` slots (an idle turns or event game skips slots, so its
+ * rollouts still end). Reports which entities the rollouts' events named,
  * how many rollouts reached each and how early, the ones never touched, and
  * how the rollouts ended. Rollout `i` draws from its own fork of the seed,
  * so the first rollouts of a longer fuzz are the same as a shorter one's.
@@ -79,7 +80,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
   const rollouts = positiveInt("rollouts", opts.rollouts ?? DEFAULT_ROLLOUTS);
   const ticksPerRollout = positiveInt("ticks", opts.ticks ?? DEFAULT_TICKS);
 
-  const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs);
+  const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs, opts.project?.engine);
   if (!prepared.ok) return prepared.blocked;
   const types = new Map<Ref, EntityTypeName>(prepared.scene.entities.map((e) => [e.id, e.type]));
 
@@ -97,12 +98,13 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
 
   for (let rollout = 0; rollout < rollouts; rollout++) {
     const started = startRun({
-      rapier: opts.rapier,
+      rapier: opts.rapier ?? null,
       game,
       registry,
       scene: prepared.scene,
       play: opts.play ?? {},
       dev: opts.dev,
+      project: opts.project,
     });
     if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
     const seen = new Set<Ref>();
@@ -124,6 +126,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
         runtime: started.runtime,
         game,
         maxTicks: ticksPerRollout,
+        maxSlots: ticksPerRollout,
         input: macroInput(root.fork(`rollout:${rollout}`), macro, registry.actionNames),
         onTick(state) {
           for (const e of state.events) {

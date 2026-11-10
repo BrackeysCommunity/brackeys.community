@@ -143,7 +143,7 @@ describe("createDebugOverlay", () => {
 
     expect(game.frames.map((f) => f.scene)).toEqual([null, a, b, null]);
     expect(game.frames[2]).toEqual({ ...TICK, scene: b });
-    expect(game.frames[2]!.scene!.physics.world.colliders.len()).toBeGreaterThan(1);
+    expect(game.frames[2]!.scene!.physics!.world.colliders.len()).toBeGreaterThan(1);
     overlay.destroy();
     runtimeB.destroy();
   });

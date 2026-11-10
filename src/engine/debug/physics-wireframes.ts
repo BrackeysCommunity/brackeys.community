@@ -3,6 +3,7 @@ import { Container, Graphics } from "pixi.js";
 
 import type { ColliderTag, Registry } from "../game/types";
 import { traceShape } from "../render/draw-shape";
+import type { GeometryWorld } from "../runtime/geometry-world";
 import { shapeIsClosed } from "../scene/shape-outline";
 import type { Pt, ShapeObj } from "../scene/types";
 import { styleOf } from "../systems/bodies";
@@ -65,8 +66,28 @@ function worldPoints(flat: Float32Array, tx: number, ty: number, rot: number): P
   return pts;
 }
 
+/** The outline of a geometry-world collider with no tint; Rapier's own debug lines are drawn in a like grey. */
+const GEOMETRY_LINE = 0xb0b0b0;
+
+/** The loaded world; `geometry` is drawn when the scene runs without physics. */
+export type WireframeSource = DebugSceneSource;
+
+/** Each geometry-world collider's world shape, in handle order, with its tag's tint when it has one. */
+export function geometryWireframes(
+  geometry: GeometryWorld,
+  source: Pick<DebugSceneSource, "tags" | "registry">,
+): { handle: number; shape: ShapeObj; tint: number | undefined }[] {
+  const out: { handle: number; shape: ShapeObj; tint: number | undefined }[] = [];
+  for (const handle of geometry.handles()) {
+    const shape = geometry.shape(handle);
+    if (!shape) continue;
+    out.push({ handle, shape, tint: colliderTint(source.tags.get(handle), source.registry) });
+  }
+  return out;
+}
+
 export type PhysicsWireframes = {
-  update: (source: DebugSceneSource | null) => void;
+  update: (source: WireframeSource | null) => void;
   setVisible: (visible: boolean) => void;
   destroy: () => void;
   container: Container;
@@ -81,12 +102,31 @@ export function createPhysicsWireframes(): PhysicsWireframes {
   container.addChild(graphics);
   container.addChild(tintGraphics);
 
-  function update(source: DebugSceneSource | null): void {
+  function drawTinted(shape: ShapeObj, color: number): void {
+    traceShape(tintGraphics, shape);
+    if (shapeIsClosed(shape)) tintGraphics.fill({ color, alpha: 0.15 });
+    tintGraphics.stroke({ width: 2, color, alpha: 0.8 });
+  }
+
+  function drawGeometry(geometry: GeometryWorld, source: WireframeSource): void {
+    for (const { shape, tint } of geometryWireframes(geometry, source)) {
+      traceShape(graphics, shape);
+      graphics.stroke({ width: 1.5, color: GEOMETRY_LINE, alpha: 0.8 });
+      if (tint !== undefined) drawTinted(shape, tint);
+    }
+  }
+
+  function update(source: WireframeSource | null): void {
     graphics.clear();
     tintGraphics.clear();
     if (!source) return;
+    const { physics, geometry } = source;
+    if (!physics) {
+      if (geometry) drawGeometry(geometry, source);
+      return;
+    }
 
-    const { vertices, colors } = source.physics.debugRender();
+    const { vertices, colors } = physics.debugRender();
 
     // Rapier returns line segments: every 4 floats in vertices = one segment
     // [x1, y1, x2, y2, ...] and colors has [r, g, b, a] per vertex
@@ -118,15 +158,12 @@ export function createPhysicsWireframes(): PhysicsWireframes {
     }
 
     const { tags, registry } = source;
-    const { ShapeType } = source.physics.rapier;
-    source.physics.world.forEachCollider((collider) => {
+    const { ShapeType } = physics.rapier;
+    physics.world.forEachCollider((collider) => {
       const color = colliderTint(tags.get(collider.handle), registry);
       if (color === undefined) return;
       const shape = colliderShape(collider, ShapeType);
-      if (!shape) return;
-      traceShape(tintGraphics, shape);
-      if (shapeIsClosed(shape)) tintGraphics.fill({ color, alpha: 0.15 });
-      tintGraphics.stroke({ width: 2, color, alpha: 0.8 });
+      if (shape) drawTinted(shape, color);
     });
   }
 
@@ -143,7 +180,10 @@ export function createPhysicsWireframes(): PhysicsWireframes {
   return { update, setVisible, destroy, container };
 }
 
-/** Rapier's collider outlines, with each tagged collider tinted by its type's style. */
+/**
+ * Rapier's collider outlines, or the geometry world's in a scene without
+ * physics, with each tagged collider tinted by its type's style.
+ */
 export const physicsLayer: DebugLayerFactory = {
   id: "physics",
   create(host) {

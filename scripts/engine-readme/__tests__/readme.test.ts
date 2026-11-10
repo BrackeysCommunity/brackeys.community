@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vite-plus/test";
 
+import { loadCompatRapier } from "../../scene/rapier-compat";
 import {
   formatReference,
   REFERENCE_END,
@@ -86,5 +87,59 @@ describe("the engine README", () => {
     for (const b of ts) {
       expect(readFileSync(join(EXAMPLES, b.name!), "utf8"), b.name).toBe(b.body);
     }
+  });
+});
+
+describe("the world-model examples run", () => {
+  it("grid-tools.ts paths round the rocks, floods a field and casts sight", async () => {
+    const { scout } = await import("../examples/grid-tools");
+    const r = scout();
+    expect(r.steps).toBeGreaterThan(8);
+    expect(r.cost).toBe(r.steps! * 10);
+    expect(r.fromCorner).toBeGreaterThan(0);
+    expect(r.nextFromCorner).toBeDefined();
+    expect(r.seesAcross).toBe(false);
+    expect(r.clearShot).toBe(true);
+  });
+
+  it("nav-walk.ts walks round the table and through the doorway", async () => {
+    const { walkAround } = await import("../examples/nav-walk");
+    const r = walkAround();
+    expect(r.issues).toEqual([]);
+    expect(r.path?.[0]).toEqual([100, 150]);
+    expect(r.path?.at(-1)).toEqual([650, 150]);
+    expect(r.path!.length).toBeGreaterThan(2);
+    expect(r.onTable).toBe(false);
+    expect(r.clickedOutside).toEqual([550, 200]);
+  });
+
+  it("orchard-game.ts catches up eight hours of a day away", async () => {
+    const { dayAway } = await import("../examples/orchard-game");
+    expect(dayAway().final).toEqual({ trees: 2, ripe: 0, picked: 2 * 8 * 60 });
+  });
+
+  it("balloon-type.ts is physics-required in a scene without physics", async () => {
+    const { balloonIssues } = await import("../examples/balloon-type");
+    expect(balloonIssues()).toEqual(["physics-required"]);
+  });
+
+  it("rover-game.ts drives home on both backends", async () => {
+    const { driveHome } = await import("../examples/rover-game");
+    expect(driveHome(null).result).toBe("won");
+    expect(driveHome(await loadCompatRapier()).result).toBe("won");
+  });
+
+  it("walker-playtest.ts wins, replays, skips idle slots and never loads Rapier", async () => {
+    const { walkCorridor } = await import("../examples/walker-playtest");
+    let loaded = false;
+    const r = await walkCorridor(async () => {
+      loaded = true;
+      return loadCompatRapier();
+    });
+    expect(loaded).toBe(false);
+    expect(r.result).toBe("won");
+    expect(r.replayed).toBe(true);
+    expect(r.ticks).toBeLessThan(r.slots);
+    expect(r.commands.map((c) => c[1])).toEqual(["walk", "walk"]);
   });
 });

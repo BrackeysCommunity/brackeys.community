@@ -9,8 +9,7 @@ import { bulkKeysOf } from "../scene/expand";
 import { FRAGMENT_KIND, type SceneFragment } from "../scene/fragment";
 import { makeIssue } from "../scene/issues";
 import { applyOps } from "../scene/ops";
-import { CHILD_SEPARATOR, resolveScene } from "../scene/resolve";
-import { aabb, aabbUnion } from "../scene/shape-geometry";
+import { resolveScene } from "../scene/resolve";
 import {
   PREFAB_KIND,
   SCENE_FORMAT_VERSION,
@@ -23,10 +22,10 @@ import {
   type SceneDefinition,
   type SceneIssue,
 } from "../scene/types";
-import type { Aabb, ShapeObj } from "../scene/types";
+import type { ShapeObj } from "../scene/types";
 import { pasteFragment, type PasteResult } from "./clipboard";
 import { boundsCheck } from "./placement";
-import { createSpatialIndex, spriteHitOf } from "./spatial-index";
+import { marksBounds, outlinesOfRef, type OutlineMarks } from "./tool-host";
 import type { SnapSettings, ToolOverlay } from "./tools";
 
 /** An asset dragged onto the canvas: a texture, an atlas frame (with `frame`) or a prefab. */
@@ -144,9 +143,10 @@ const POINT_PAD = 8;
 export type DropPreview = Required<Pick<ToolOverlay, "ghosts">> & Pick<ToolOverlay, "points">;
 
 /**
- * What `dropBatch` would place at `at`, drawn before the drop: each placed
- * entity's sprite box or shape as a ghost (an instance's children each),
- * and point entities as ghost points, snapped as the drop is. A drop that
+ * What `dropBatch` would place at `at`, drawn before the drop: what it
+ * selects, outlined as the selection would be (`outlinesOfRef`), its
+ * outlines as ghosts and the points of point entities without a sprite as
+ * ghost points, snapped as the drop is. A drop that
  * would be refused, or that lands outside the scene's bounds, gives
  * invalid ghosts with the reason. `asset` sizes sprite boxes; without it
  * the dropped asset's own info does.
@@ -174,23 +174,12 @@ export function dropPreview(
   const placed = resolveScene(applied.def, registry, applied.prefabs ?? prefabs);
   const asset: SpriteAssetLookup =
     opts.asset ?? ((id) => (id === drop.entry.id ? drop.info : undefined));
-  const index = createSpatialIndex({ asset });
-  index.rebuild(placed, registry);
-  const prefixes = result.select.map((r) => `${r}${CHILD_SEPARATOR}`);
-  const ours = (ref: string) =>
-    result.select.includes(ref) || prefixes.some((p) => ref.startsWith(p));
-  const shapes: ShapeObj[] = [];
-  const points: Pt[] = [];
-  let box: Aabb | null = null;
-  for (const e of index.entries()) {
-    if (!ours(e.ref)) continue;
-    const sprite = spriteHitOf(e);
-    if (!Array.isArray(e.geometry)) shapes.push(e.geometry);
-    if (sprite) shapes.push(sprite);
-    if (Array.isArray(e.geometry) && !sprite) points.push(e.geometry);
-    const b = sprite ? aabbUnion(e.aabb, aabb(sprite)) : e.aabb;
-    box = box ? aabbUnion(box, b) : b;
-  }
+  const marks: OutlineMarks = { outlines: [], points: [] };
+  for (const ref of result.select)
+    outlinesOfRef(placed, ref, "ghost", marks, { registry, asset, spritePoints: false });
+  const shapes = marks.outlines.map((o) => o.shape);
+  const points = marks.points.map((p) => p.at);
+  const box = marksBounds(marks.outlines, marks.points);
   if (!box) return { ghosts: [{ shape: assetBox(drop, at), valid: true }] };
   const check = boundsCheck(box, def);
   const tone = check.valid ? ("ghost" as const) : ("invalid" as const);

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:data-table:v1",
-  "x-agent-surface": 9,
+  "x-agent-surface": 10,
   "title": "jams engine data table, format v1",
   "type": "object",
   "properties": {

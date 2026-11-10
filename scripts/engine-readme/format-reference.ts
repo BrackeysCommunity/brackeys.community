@@ -18,6 +18,7 @@ type Node = {
   additionalProperties?: Node | boolean;
   required?: string[];
   oneOf?: Node[];
+  anyOf?: Node[];
   description?: string;
   title?: string;
   unit?: string;
@@ -31,6 +32,7 @@ const REF_NAMES: Record<string, string> = {
   Pt: "[point](#points)",
   ShapeTuple: "[shape](#shapes)",
   BodyShape: "[body shape](#shapes)",
+  Polygon: "[polygon](#shapes)",
   Path: "[path](#paths)",
   Entity: "[entity](#entity-types)",
   Group: "[group](#groups-and-prefabs)",
@@ -53,7 +55,7 @@ function typeOf(node: Node): string {
     return `[${node.prefixItems.map((i) => typeOf(i)).join(", ")}]${unit}`;
   }
   if (node.type === "array" && node.items) return `${typeOf(node.items)}[]`;
-  if (node.oneOf) return node.oneOf.map(typeOf).join(" or ");
+  if (node.oneOf ?? node.anyOf) return (node.oneOf ?? node.anyOf)!.map(typeOf).join(" or ");
   if (node.type === "object" && typeof node.additionalProperties === "object")
     return `{ id: ${typeOf(node.additionalProperties)} }`;
   return `${node.type ?? "any"}${unit}`;

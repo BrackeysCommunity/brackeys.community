@@ -223,7 +223,7 @@ describe("the runtime's pose index", () => {
       { id: "floor", type: "solid", shape: box(0, 200, 500, 20) },
       { id: "crate", type: "prop", shape: box(0, 0, 10, 10), density: 1, restitution: 0 },
     ]);
-    const body = rt.ctx.physics.world.getCollider(rt.ctx.tags.handlesOf("crate")[0]!)!.parent()!;
+    const body = rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf("crate")[0]!)!.parent()!;
     let before = rt.ctx.poses.get("crate")!;
     for (let i = 0; i < 30; i++) {
       rt.step(DT, []);
@@ -265,7 +265,7 @@ describe("the runtime's pose index", () => {
     ]);
     expect(rt.ctx.poses.get("wheel")).toEqual({ x: 100, y: 0, rot: Math.PI / 2 });
     rt.step(DT, []);
-    const body = rt.ctx.physics.world.getCollider(rt.ctx.tags.handlesOf("wheel")[0]!)!.parent()!;
+    const body = rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf("wheel")[0]!)!.parent()!;
     expect(rt.ctx.poses.get("wheel")!.rot).toBe(body.rotation() + Math.PI / 2);
     rt.destroy();
   });
@@ -290,7 +290,7 @@ describe("the runtime's pose index", () => {
     ]);
     expect(rt.ctx.poses.get("slab")).toEqual({ x: 20, y: 10, rot: 0 });
     rt.step(DT, []);
-    const body = rt.ctx.physics.world.getCollider(rt.ctx.tags.handlesOf("slab")[0]!)!.parent()!;
+    const body = rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf("slab")[0]!)!.parent()!;
     const t = body.translation();
     expect(rt.ctx.poses.get("slab")).toEqual(
       composePose(t.x, t.y, body.rotation(), { x: 20, y: 10, rot: 0 }),
@@ -307,7 +307,7 @@ describe("the runtime's pose index", () => {
     const rt = loaded(entities);
     expect(rt.ctx.poses.get("lift")).toEqual({ x: 405, y: 600, rot: 0 });
     expect(rt.ctx.poses.get("plank")).toEqual({ x: 500, y: 590, rot: 0 });
-    const body = rt.ctx.physics.world.getCollider(rt.ctx.tags.handlesOf("lift")[0]!)!.parent()!;
+    const body = rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf("lift")[0]!)!.parent()!;
     for (let i = 0; i < 20; i++) {
       const before = rt.ctx.poses.get("plank");
       rt.step(DT, []);

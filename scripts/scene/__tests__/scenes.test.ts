@@ -12,10 +12,13 @@ import {
   undescribedProperties,
   untitledEntityFields,
 } from "@jams/engine/scene";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { judgeScene, projectScenes, type ToolContext } from "../context";
 import { discoverProjects } from "../projects";
+import { loadCompatRapier } from "../rapier-compat";
+import { check } from "../tools/check";
+import { validate } from "../tools/validate";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const PROJECTS = await discoverProjects(ROOT);
@@ -80,6 +83,58 @@ describe("the projects' scenes", () => {
         fmtIgnorePatterns().some((p) => matchesGlob(probe, p)),
         probe,
       ).toBe(true);
+  });
+});
+
+describe("grid-yard, the engine's physics-free scene", () => {
+  const noRapier = () => {
+    const loadRapier = vi.fn(() => Promise.reject(new Error("grid-yard loaded Rapier")));
+    return { ctx: { projects: PROJECTS, loadRapier } satisfies ToolContext, loadRapier };
+  };
+  const file = join(ROOT, "src/engine/scenes/grid-yard.json");
+  const def = () => {
+    const text = readFileSync(file, "utf8");
+    const judged = judgeScene(ctx, text);
+    if (!judged.ok) throw new Error(judged.issue.message);
+    return parseSceneOrThrow(text, judged.registry);
+  };
+
+  it("runs without physics on a square grid, with solids, markers and sensors and no game", () => {
+    const scene = def();
+    expect(scene.game).toBeUndefined();
+    expect(scene.settings?.physics).toBe("none");
+    expect(scene.settings?.grid?.kind).toBe("square");
+    const types = new Set((scene.entities ?? []).map((e) => e.type));
+    for (const t of ["solid", "marker", "sensor"]) expect(types.has(t), t).toBe(true);
+  });
+
+  it("validates, structural and physical, with no issue and without loading Rapier", async () => {
+    const { ctx, loadRapier } = noRapier();
+    const result = await validate({ target: "grid-yard", physical: true }, ctx);
+    expect(result.exitCode, result.text).toBe(0);
+    expect((result.data as { issues: unknown[] }).issues).toEqual([]);
+    expect(loadRapier).not.toHaveBeenCalled();
+  });
+
+  it("asks for Rapier where a physical scene does, so the spy above can see a load", async () => {
+    const loadRapier = vi.fn(loadCompatRapier);
+    await validate({ target: "kitchen-sink", physical: true }, { projects: PROJECTS, loadRapier });
+    expect(loadRapier).toHaveBeenCalled();
+  });
+
+  it("passes every check headless, a connected check among them, without loading Rapier", async () => {
+    const { ctx, loadRapier } = noRapier();
+    const result = await check({ scene: "grid-yard" }, ctx);
+    expect(result.exitCode, result.text).toBe(0);
+    const results = (
+      result.data as { results: { id: string; kind: string; pass: boolean; skipped?: string }[] }
+    ).results;
+    expect(results.map((r) => r.kind)).toContain("connected");
+    for (const r of results) {
+      expect(r.skipped, r.id).toBeUndefined();
+      expect(r.pass, r.id).toBe(true);
+    }
+    expect(loadRapier).not.toHaveBeenCalled();
   });
 });
 

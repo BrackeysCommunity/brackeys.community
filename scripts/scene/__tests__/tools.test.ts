@@ -18,6 +18,7 @@ import {
   type OpBatch,
 } from "@jams/engine/scene";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { z } from "zod";
 
 import { platformerGame } from "../../../src/games/platformer";
 import { COMMAND_NAMES, runCli } from "../commands";
@@ -28,6 +29,7 @@ import { codes } from "../tools/codes";
 import { diff } from "../tools/diff";
 import { fmt } from "../tools/fmt";
 import { fuzz } from "../tools/fuzz";
+import { grid } from "../tools/grid";
 import { list } from "../tools/list";
 import { newScene } from "../tools/new";
 import { playtest } from "../tools/playtest";
@@ -85,7 +87,7 @@ const avatarGame = defineGame({
       onLoad() {
         const [handle] = ctx.tags.handlesOf("avatar");
         avatar =
-          handle === undefined ? null : (ctx.physics.world.getCollider(handle)?.parent() ?? null);
+          handle === undefined ? null : (ctx.physics!.world.getCollider(handle)?.parent() ?? null);
         avatar?.lockRotations(true, true);
       },
       beforeStep(_dt, actions) {
@@ -226,6 +228,41 @@ describe("show", () => {
     );
     expect((await show({ scene: "test-yard", ref: "nope" }, ctx)).exitCode).toBe(1);
     expect((await show({ scene: "test-yard", near: "1,2" }, ctx)).exitCode).toBe(2);
+  });
+
+  it("prints the time model and the physics backend, with time and physics in JSON", async () => {
+    const yard = await show({ scene: "test-yard" }, ctx);
+    expect(yard.text.split("\n")[1]).toBe("time fixed 60Hz; physics rapier");
+    expect(yard.data).toMatchObject({
+      time: { kind: "fixed", rate: 60, catchUp: null, wakeOnPointerMove: false },
+      physics: "rapier",
+    });
+
+    const tally = await show({ scene: "tally-yard" }, await tallyCtx());
+    expect(tally.exitCode, tally.text).toBe(0);
+    expect(tally.text.split("\n")[1]).toBe(
+      "time turns 60Hz catch-up 1000ms; physics none, no wasm",
+    );
+    expect(tally.data).toMatchObject({
+      time: { kind: "turns", rate: 60, catchUp: { maxMs: 1000 } },
+      physics: "none",
+    });
+    await rm(join(root, tallyGame.id), { recursive: true, force: true });
+
+    const project = await show(
+      { scene: "tally-yard" },
+      await tallyCtx({ tickRate: 30, physics: "rapier" }),
+    );
+    expect(project.text.split("\n")[1]).toBe(
+      "time turns 30Hz catch-up 1000ms; physics none, no wasm",
+    );
+    const settings = JSON.parse(await engineYardText()) as Record<string, unknown>;
+    await writeFile(
+      join(avatarDir, "engine-yard.json"),
+      JSON.stringify({ ...settings, settings: { physics: "none" } }),
+    );
+    const free = await show({ scene: "engine-yard" }, ctx);
+    expect(free.data).toMatchObject({ physics: "none", time: { kind: "fixed" } });
   });
 
   it("shows a gameless scene with the engine's types, by name or file", async () => {
@@ -933,6 +970,104 @@ describe("apply", () => {
   });
 });
 
+describe("apply judges sprites against the scene's project", { timeout: 60_000 }, () => {
+  let sink: string;
+  let sinkCtx: ToolContext;
+
+  beforeEach(async () => {
+    sink = join(root, "engine");
+    await cp(ENGINE_SCENES, sink, { recursive: true });
+    sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
+  });
+
+  const sinkText = () => readFile(join(sink, "kitchen-sink.json"), "utf8");
+  const codesOf = (data: unknown) =>
+    (data as { issues: { code: string }[] }).issues.map((i) => i.code);
+
+  it("refuses an unknown atlas frame, and writes nothing", async () => {
+    const before = await sinkText();
+    stdin = JSON.stringify({
+      ops: [{ op: "update", ref: "crate", set: { "behaviors.sprite.frame": "crate-9" } }],
+    });
+    for (const dryRun of [true, false]) {
+      const r = await apply({ scene: "kitchen-sink", ops: "-", dryRun }, sinkCtx);
+      expect(r.exitCode, r.text).toBe(1);
+      expect(r.data).toMatchObject({ written: false });
+      expect(codesOf(r.data)).toContain("asset-frame-unknown");
+    }
+    expect(await sinkText()).toBe(before);
+  });
+
+  it("warns of a sprite with no asset, and still writes", async () => {
+    stdin = JSON.stringify({
+      ops: [{ op: "update", ref: "crate", unset: ["behaviors.sprite.asset"] }],
+    });
+    const dry = await apply({ scene: "kitchen-sink", ops: "-", dryRun: true }, sinkCtx);
+    expect(dry.exitCode, dry.text).toBe(0);
+    expect(codesOf(dry.data)).toEqual(["sprite-no-asset"]);
+    const wrote = await apply({ scene: "kitchen-sink", ops: "-" }, sinkCtx);
+    expect(wrote.exitCode, wrote.text).toBe(0);
+    expect(wrote.data).toMatchObject({ written: true });
+  });
+});
+
+/** A physics-free turns game that counts `bump`s and keeps a log of the commands it stepped. */
+const tallyGame = defineGame({
+  id: "tally-game",
+  types: [],
+  actions: [{ action: "right", keys: ["d"], description: "Unused." }],
+  time: { kind: "turns", catchUp: { maxMs: 1000 } },
+  commands: {
+    bump: { description: "Adds n.", args: z.strictObject({ n: z.number().int() }) },
+    reset: { description: "Back to zero." },
+  },
+  createRuntime() {
+    let tick = 0;
+    let count = 0;
+    let away = 0;
+    const log: string[] = [];
+    return {
+      beforeStep(_dt, _actions, commands) {
+        for (const c of commands) {
+          log.push(`${tick}:${c.name}`);
+          if (c.name === "bump") count += (c.args as { n: number }).n;
+          else if (c.name === "reset") count = 0;
+          else if (c.name === "@elapsed") away += (c.args as { ms: number }).ms;
+        }
+        tick++;
+      },
+      snapshot: () => ({ count, away, log: [...log] }),
+    };
+  },
+});
+
+const TALLY_YARD = {
+  v: 1,
+  name: "tally-yard",
+  game: tallyGame.id,
+  bounds: [0, 0, 320, 240],
+  settings: { physics: "none" },
+  entities: [{ id: "start", type: "marker", at: [16, 16] }],
+};
+
+/** `ctx` plus the tally game's project holding tally-yard; loading Rapier fails the test. */
+async function tallyCtx(engine?: Record<string, unknown>): Promise<ToolContext> {
+  const dir = join(root, tallyGame.id);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, "tally-yard.json"), JSON.stringify(TALLY_YARD, null, 2));
+  if (engine) {
+    await writeFile(
+      join(dir, "game-settings.json"),
+      JSON.stringify({ kind: "game-settings", v: 1, engine, game: {} }),
+    );
+  }
+  return {
+    ...ctx,
+    projects: [...ctx.projects, await tempProject(dir, { game: tallyGame })],
+    loadRapier: () => Promise.reject(new Error("a physics-free run loaded Rapier")),
+  };
+}
+
 describe("step", () => {
   type StepData = {
     game: string | null;
@@ -992,6 +1127,101 @@ describe("step", () => {
     expect(bare.data).toMatchObject({ game: null, final: null, ticks: 10 });
     expect((bare.data as StepData).configHash).not.toBe(data.configHash);
     expect((await step({ scene: ENGINE_YARD, ticks: "10" }, ctx)).exitCode).toBe(0);
+  });
+
+  it("steps --elapse and --command on their ticks, time away before a tick's commands", async () => {
+    const tally = await tallyCtx();
+    const r = await step(
+      {
+        scene: "tally-yard",
+        ticks: "10",
+        command: ['2:bump={"n":3}', "5:reset", '7:bump={"n":4}'],
+        elapse: ["2:5000"],
+      },
+      tally,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.data).toMatchObject({
+      game: tallyGame.id,
+      ticks: 10,
+      commands: [
+        [2, "@elapsed", { ms: 1000 }],
+        [2, "bump", { n: 3 }],
+        [5, "reset"],
+        [7, "bump", { n: 4 }],
+      ],
+      final: { count: 4, away: 1000, log: ["2:@elapsed", "2:bump", "5:reset", "7:bump"] },
+    });
+    expect(r.text).toContain('  t2 command @elapsed {"ms":1000}\n  t2 command bump {"n":3}');
+    expect(r.text).toContain("  t5 command reset");
+
+    const one = await step({ scene: "tally-yard", ticks: "3", command: "1:reset" }, tally);
+    expect(one.data).toMatchObject({ commands: [[1, "reset"]], final: { log: ["1:reset"] } });
+    expect((await step({ scene: "tally-yard", ticks: "3" }, tally)).data).toMatchObject({
+      commands: [],
+      final: { log: [] },
+    });
+  });
+
+  it("refuses a bad --command or --elapse with the playtest's message", async () => {
+    const tally = await tallyCtx();
+    const refused = async (input: { command?: string[]; elapse?: string[] }) => {
+      const r = await step({ scene: "tally-yard", ticks: "10", ...input }, tally);
+      expect(r.exitCode, r.text).toBe(2);
+      return r.text;
+    };
+    expect(await refused({ command: ["2:bum"] })).toContain(
+      '--command 2:bum: unknown command "bum"; did you mean "bump"?',
+    );
+    expect(await refused({ command: ["2:bump"] })).toContain("--command 2:bump: bad args for bump");
+    expect(await refused({ command: ['2:bump={"n":1.5}'] })).toContain("bad args for bump");
+    expect(await refused({ command: ["2:reset={}"] })).toContain("reset takes no args");
+    expect(await refused({ command: ["2:bump={n:1}"] })).toContain("args are not JSON");
+    expect(await refused({ command: ["2:@elapsed"] })).toContain("send it with an elapse step");
+    expect(await refused({ command: ["reset"] })).toContain("expected tick:name[=json]");
+    expect(await refused({ command: ["-1:reset"] })).toContain("with a whole tick");
+    expect(await refused({ command: ["10:reset"] })).toContain(
+      "tick 10 is past the run's last (9)",
+    );
+    expect(await refused({ elapse: ["3:soon"] })).toContain("--elapse 3:soon:");
+    expect(await refused({ elapse: ["3"] })).toContain("expected tick:ms");
+
+    const fixed = await step({ scene: "test-yard", ticks: "10", elapse: ["1:500"] }, ctx);
+    expect(fixed.exitCode).toBe(2);
+    expect(fixed.text).toContain("--elapse 1:500: elapse needs the game's time.catchUp");
+    const gameless = await step({ scene: "engine-yard", ticks: "10", command: ["1:reset"] }, ctx);
+    expect(gameless.text).toContain("(commands: none)");
+  });
+
+  it("takes repeated --command and --elapse flags on the command line", async () => {
+    const tally = await tallyCtx();
+    const r = await runCli(
+      [
+        "step",
+        "tally-yard",
+        "--ticks",
+        "6",
+        "--command",
+        '1:bump={"n":2}',
+        '--command=3:bump={"n":5}',
+        "--elapse",
+        "4:20",
+        "--json",
+      ],
+      tally,
+    );
+    expect(r.exitCode, r.stdout + r.stderr).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({
+      commands: [
+        [1, "bump", { n: 2 }],
+        [3, "bump", { n: 5 }],
+        [4, "@elapsed", { ms: 20 }],
+      ],
+      final: { count: 7, away: 20 },
+    });
+    const bad = await runCli(["step", "tally-yard", "--command", "1:bum"], tally);
+    expect(bad.exitCode).toBe(2);
+    expect(bad.stderr).toContain('did you mean "bump"');
   });
 
   it("refuses bad ticks, unknown actions and games, and --game on a game's scene", async () => {
@@ -1184,6 +1414,140 @@ describe("playtest in a project with data", () => {
       (r.data as { final: { position: { x: number } } }).final.position.x;
     const start = 300;
     expect(x(fast) - start).toBeGreaterThan(1.5 * (x(slow) - start));
+  });
+});
+
+describe("a scene without physics", () => {
+  const WAIT_SCRIPT = { v: 1, steps: [{ wait: 30 }] };
+  const FREE_YARD = {
+    v: 1,
+    name: "free-yard",
+    bounds: [0, 0, 640, 480],
+    entities: [
+      { id: "start", type: "marker", at: [100, 100], tags: ["spawn"] },
+      { id: "zone", type: "sensor", shape: ["box", 300, 300, 40, 40] },
+    ],
+  };
+
+  /** A project holding free-yard, physics-free through its own settings or the project's; loading Rapier fails the test. */
+  async function freeCtx(
+    where: "scene" | "project",
+    extra: Record<string, unknown>[] = [],
+  ): Promise<ToolContext & { loads: () => number }> {
+    const dir = join(root, "free");
+    await mkdir(dir, { recursive: true });
+    const yard = {
+      ...FREE_YARD,
+      ...(where === "scene" ? { settings: { physics: "none" } } : {}),
+      entities: [...FREE_YARD.entities, ...extra],
+    };
+    await writeFile(join(dir, "free-yard.json"), JSON.stringify(yard, null, 2));
+    await writeFile(
+      join(dir, "free-yard.checks.json"),
+      JSON.stringify({
+        v: 1,
+        checks: [
+          { id: "valid", kind: "valid", physical: true },
+          { id: "ends", kind: "reaches", result: "script-end", script: WAIT_SCRIPT },
+        ],
+      }),
+    );
+    if (where === "project") {
+      await writeFile(
+        join(dir, "game-settings.json"),
+        JSON.stringify({ kind: "game-settings", v: 1, engine: { physics: "none" }, game: {} }),
+      );
+    }
+    let loads = 0;
+    return {
+      ...ctx,
+      projects: [...ctx.projects, await tempProject(dir)],
+      loadRapier: () => {
+        loads++;
+        return Promise.reject(new Error("a physics-free run loaded Rapier"));
+      },
+      loads: () => loads,
+    };
+  }
+
+  const WAIT = async () => {
+    const file = join(root, "wait.json");
+    await writeFile(file, JSON.stringify(WAIT_SCRIPT));
+    return file;
+  };
+
+  for (const where of ["scene", "project"] as const) {
+    it(`playtest, step, validate and check never load Rapier (physics "none" from the ${where})`, async () => {
+      const free = await freeCtx(where);
+      const played = await runCli(
+        ["playtest", "free-yard", "--script", await WAIT(), "--json"],
+        free,
+      );
+      expect(played.exitCode, played.stdout).toBe(0);
+      expect(JSON.parse(played.stdout)).toMatchObject({ blocked: false, game: null });
+      const stepped = await runCli(["step", "free-yard", "--ticks", "30", "--json"], free);
+      expect(stepped.exitCode, stepped.stdout).toBe(0);
+      expect(JSON.parse(stepped.stdout)).toMatchObject({ ticks: 30, load: { ok: true } });
+      const physical = await validate({ target: "free-yard", physical: true }, free);
+      expect(physical.exitCode, physical.text).toBe(0);
+      const checked = await check({ scene: "free-yard" }, free);
+      expect(checked.exitCode, checked.text).toBe(0);
+      const results = (checked.data as { results: { pass: boolean }[] }).results;
+      expect(results.length).toBe(2);
+      expect(results.every((r) => r.pass)).toBe(true);
+      expect(free.loads()).toBe(0);
+    });
+  }
+
+  for (const where of ["scene", "project"] as const) {
+    it(`replay and fuzz never load Rapier (physics "none" from the ${where})`, async () => {
+      const free = await freeCtx(where);
+      const rec = join(root, "free.rec.json");
+      const played = await playtest(
+        { scene: "free-yard", script: await WAIT(), record: rec },
+        free,
+      );
+      expect(played.exitCode, played.text).toBe(0);
+      const replayed = await replay({ scene: "free-yard", run: rec }, free);
+      expect(replayed.exitCode, replayed.text).toBe(0);
+      expect(replayed.data).toMatchObject({ matches: true });
+      const fuzzed = await fuzz({ scene: "free-yard", rollouts: "2", ticks: "30" }, free);
+      expect(fuzzed.exitCode, fuzzed.text).toBe(0);
+      expect(free.loads()).toBe(0);
+    });
+  }
+
+  it("a prop fails validation with physics-required, whichever level says none", async () => {
+    const crate = {
+      id: "crate",
+      type: "prop",
+      shape: ["box", 200, 200, 20, 20],
+      density: 1,
+      restitution: 0,
+    };
+    for (const where of ["scene", "project"] as const) {
+      const free = await freeCtx(where, [crate]);
+      const r = await validate({ target: "free-yard" }, free);
+      expect(r.exitCode).toBe(1);
+      const issues = (r.data as { issues: { code: string; entityIds: string[] }[] }).issues;
+      expect(issues.filter((i) => i.code === "physics-required")).toEqual([
+        expect.objectContaining({ entityIds: ["crate"] }),
+      ]);
+      await rm(join(root, "free"), { recursive: true, force: true });
+    }
+  });
+
+  it("a Rapier scene still loads Rapier", async () => {
+    let loads = 0;
+    const counted: ToolContext = {
+      ...ctx,
+      loadRapier: () => {
+        loads++;
+        return ctx.loadRapier();
+      },
+    };
+    expect((await step({ scene: "test-yard", ticks: "1" }, counted)).exitCode).toBe(0);
+    expect(loads).toBe(1);
   });
 });
 
@@ -1411,6 +1775,156 @@ describe("--game on playtest and fuzz", () => {
   });
 });
 
+describe("grid", () => {
+  /** A gameless physics-free scene on a 6×3 square grid: `start` at [0, 0], `exit` at [5, 0], a wall down column 2. */
+  const yard = (wallRows: 2 | 3, settings: Record<string, unknown> = SQUARE) => ({
+    v: 3,
+    name: "grid-yard",
+    bounds: [0, 0, 192, 96],
+    settings: { physics: "none", grid: settings },
+    solid: [["box", 80, 16 * wallRows, 16, 16 * wallRows]],
+    entities: [
+      { id: "start", type: "marker", at: [16, 16] },
+      { id: "exit", type: "marker", at: [176, 16] },
+    ],
+  });
+  const SQUARE = { kind: "square", cell: [32, 32] };
+  const noRapier: () => ToolContext = () => ({
+    ...ctx,
+    loadRapier: () => Promise.reject(new Error("scene grid loaded Rapier")),
+  });
+  const write = async (scene: unknown) => {
+    const file = join(root, "grid-yard.json");
+    await writeFile(file, JSON.stringify(scene, null, 2));
+    return file;
+  };
+
+  it("prints a square grid's walls, the path between two entities and a field of view", async () => {
+    const file = await write(yard(2));
+    const r = await grid(
+      { scene: file, from: "start", to: "exit", fov: "0,2:3", diagonals: false },
+      noRapier(),
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.text).toBe(
+      [
+        "grid-yard grid square 32×32: cells [0, 0]..[5, 2] (6×3), 2 walls",
+        "walls (# wall, . open)",
+        "  ..#...",
+        "  ..#...",
+        "  ......",
+        "path start [0, 0] → exit [5, 0]: 9 steps, cost 90 (* path, A from, B to)",
+        "  A*#.*B",
+        "  .*#**.",
+        "  .***..",
+        "fov [0, 2] radius 3: 10 cells visible (@ origin, # wall, . open, blank unseen)",
+        "  ..#",
+        "  ..#",
+        "  @...",
+      ].join("\n"),
+    );
+    const json = await runCli(
+      ["grid", file, "--from", "0,0", "--to", "5,0", "--diagonals", "--json"],
+      noRapier(),
+    );
+    expect(json.exitCode, json.stdout).toBe(0);
+    const data = JSON.parse(json.stdout);
+    expect(data.grid.walls).toEqual([
+      [2, 0],
+      [2, 1],
+    ]);
+    expect(data.path).toMatchObject({ from: [0, 0], to: [5, 0], diagonals: true });
+    expect(data.path.cells[0]).toEqual([0, 0]);
+    expect(data.path.cells.at(-1)).toEqual([5, 0]);
+    expect(data.path.cost).toBeLessThan(90);
+  });
+
+  it("draws a hex grid in its stagger and finds a path on it", async () => {
+    const hex = { kind: "hex", cell: [32, 32], side: 16, stagger: "y", index: "odd" };
+    const file = await write(yard(2, hex));
+    const r = await grid(
+      { scene: file, from: "start", to: "exit", fov: "start:2", diagonals: false },
+      noRapier(),
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.text).toBe(
+      [
+        "grid-yard grid hex 32×32 side 16, stagger y odd: cells [-1, -1]..[5, 3] (7×5), 4 walls",
+        "walls (# wall, . open)",
+        "   . . . . . . .",
+        "  . . . # . . .",
+        "   . . # # . . .",
+        "  . . . # . . .",
+        "   . . . . . . .",
+        "path start [0, 0] → exit [5, 0]: 6 steps, cost 60 (* path, A from, B to)",
+        "   . . * * * * .",
+        "  . A * # . . B",
+        "   . . # # . . .",
+        "  . . . # . . .",
+        "   . . . . . . .",
+        "fov start [0, 0] radius 2: 13 cells visible (@ origin, # wall, . open, blank unseen)",
+        "   . . .",
+        "  . @ . #",
+        "   . . #",
+        "  . . .",
+        "",
+      ].join("\n"),
+    );
+    const stagger = await grid(
+      { scene: await write(yard(2, { ...hex, stagger: "x" })), diagonals: false },
+      noRapier(),
+    );
+    expect(stagger.exitCode, stagger.text).toBe(0);
+    expect(stagger.text.split("\n").slice(1)).toEqual([
+      "walls (# wall, . open)",
+      "   . . . .",
+      "  . . # . .",
+      "   . # . .",
+      "  . . # . .",
+      "   . # . .",
+      "  . . # . .",
+      "   . . . .",
+      "  . . . . .",
+    ]);
+  });
+
+  it("exits 1 with no path, naming the target", async () => {
+    const file = await write(yard(3));
+    const r = await runCli(["grid", file, "--from", "start", "--to", "exit", "--json"], noRapier());
+    expect(r.exitCode).toBe(1);
+    const data = JSON.parse(r.stdout);
+    expect(data).toMatchObject({ ok: false, path: null });
+    expect(data.issues).toEqual([
+      expect.objectContaining({ code: "grid-unreachable", entityIds: ["exit"] }),
+    ]);
+    const text = await grid({ scene: file, from: "0,0", to: "5,2", diagonals: true }, noRapier());
+    expect(text.exitCode).toBe(1);
+    expect(text.text).toContain("no path from [0, 0] to [5, 2]");
+  });
+
+  it("reports grid-invalid without a grid, and refuses bad places", async () => {
+    const { settings: _drop, ...gridless } = yard(2);
+    const none = await grid({ scene: await write(gridless), diagonals: false }, noRapier());
+    expect(none.exitCode).toBe(1);
+    expect(none.data).toMatchObject({
+      issues: [expect.objectContaining({ code: "grid-invalid" })],
+    });
+    const file = await write(yard(2));
+    const typo = await grid(
+      { scene: file, from: "strt", to: "exit", diagonals: false },
+      noRapier(),
+    );
+    expect(typo.exitCode).toBe(1);
+    expect(typo.text).toContain("did you mean start?");
+    expect((await grid({ scene: file, from: "0,0", diagonals: false }, noRapier())).exitCode).toBe(
+      2,
+    );
+    expect((await grid({ scene: file, fov: "0,0", diagonals: false }, noRapier())).exitCode).toBe(
+      2,
+    );
+  });
+});
+
 describe("schema checks", () => {
   it("prints the engine's or a game's checks-file schema", async () => {
     const engine = await schema({ which: "checks" }, ctx);
@@ -1447,6 +1961,7 @@ describe("runCli", () => {
       "diff",
       "new",
       "step",
+      "grid",
       "playtest",
       "replay",
       "fuzz",
@@ -1483,6 +1998,16 @@ describe("runCli", () => {
     const bad = await runCli(["assets", "nope"], ctx);
     expect(bad.exitCode).toBe(2);
     expect((await runCli(["project", "show"], ctx)).exitCode).toBe(2);
+  });
+
+  it("takes grid's flags", async () => {
+    const r = await runCli(
+      ["grid", "test-yard", "--from", "0,0", "--to", "3,4", "--fov", "1,1:5", "--diagonals"],
+      ctx,
+    );
+    expect(r.exitCode).toBe(1);
+    expect(r.stdout + r.stderr).toContain("grid-invalid");
+    expect((await runCli(["grid", "test-yard", "--from"], ctx)).exitCode).toBe(2);
   });
 
   it("prints JSON with --json and exits 2 on usage errors", async () => {

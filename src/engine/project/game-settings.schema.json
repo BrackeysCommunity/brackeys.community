@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:game-settings:v1",
-  "x-agent-surface": 9,
+  "x-agent-surface": 10,
   "title": "jams engine game settings, format v1",
   "type": "object",
   "properties": {
@@ -102,6 +102,29 @@
           },
           "additionalProperties": false,
           "description": "How the world maps onto the canvas; each field given wins over the game's and loses to the host's."
+        },
+        "physics": {
+          "description": "The physics world for every scene that doesn't set its own: \"rapier\" simulates bodies, \"none\" runs without one. Omitted: the game's.",
+          "type": "string",
+          "enum": ["rapier", "none"]
+        },
+        "gravity": {
+          "description": "World gravity [x, y] in px/s² for every scene that doesn't set its own; y is down. Omitted: the game's.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "description": "x, px/s²; positive pulls right."
+            },
+            {
+              "type": "number",
+              "description": "y, px/s²; positive pulls down."
+            }
+          ]
+        },
+        "tickRate": {
+          "description": "Ticks per second for every scene, an integer from 1 to 240; the game's time model keeps its kind. Omitted: the game's rate.",
+          "type": "number"
         }
       },
       "additionalProperties": false,

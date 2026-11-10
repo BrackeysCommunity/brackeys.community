@@ -11,7 +11,7 @@ import { gridLayer } from "./grid-overlay";
 import { physicsLayer } from "./physics-wireframes";
 
 /** The loaded scene's world, as the physics wireframes read it. */
-export type DebugSceneSource = Pick<EngineContext, "physics" | "tags" | "registry">;
+export type DebugSceneSource = Pick<EngineContext, "physics" | "geometry" | "tags" | "registry">;
 
 /** What every visible layer gets each shell tick. */
 export type DebugFrame = {

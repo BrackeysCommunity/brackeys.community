@@ -79,18 +79,26 @@ const refused = (over: Partial<GameDefinition>) => problems(() => createRegistry
 
 describe("behavior registration", () => {
   it("registers the engine's behaviors, then the game's in order", () => {
-    expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(["sprite"]);
+    expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(["sprite", "occupant"]);
     const r = createRegistry(game());
-    expect(r.behaviorNames).toEqual(["sprite", "fake/tint", "fake/wobble", "fake/kinds"]);
+    expect(r.behaviorNames).toEqual([
+      "sprite",
+      "occupant",
+      "fake/tint",
+      "fake/wobble",
+      "fake/kinds",
+    ]);
     expect([...r.behaviors.keys()]).toEqual(r.behaviorNames);
     expect(r.behaviors.get("sprite")).toMatchObject({
       origin: "engine",
       index: 0,
       visualOnly: true,
     });
+    expect(r.behaviors.get("occupant")).toMatchObject({ origin: "engine", index: 1 });
+    expect(r.behaviors.get("occupant")?.visualOnly).toBeUndefined();
     const reg = r.behaviors.get("fake/wobble")!;
     expect(reg.origin).toBe("fake");
-    expect(reg.index).toBe(2);
+    expect(reg.index).toBe(3);
     expect(reg.requires).toEqual(["fake/tint"]);
     expect(Object.keys(reg.shape)).toEqual(["amount"]);
   });
@@ -103,8 +111,8 @@ describe("behavior registration", () => {
   });
 
   it("has only the engine's without a game, and the primitives registry has none of the game's", () => {
-    expect(createRegistry().behaviorNames).toEqual(["sprite"]);
-    expect(createRegistry(game()).primitives.behaviorNames).toEqual(["sprite"]);
+    expect(createRegistry().behaviorNames).toEqual(["sprite", "occupant"]);
+    expect(createRegistry(game()).primitives.behaviorNames).toEqual(["sprite", "occupant"]);
   });
 
   it("defineBehavior is the identity", () => {
@@ -222,7 +230,13 @@ describe("behaviorRules", () => {
     const r = createRegistry(game());
     for (const type of ["post", "solid", "marker"]) {
       const rules = r.behaviorRules(type);
-      expect(rules.allowed).toEqual(["sprite", "fake/tint", "fake/wobble", "fake/kinds"]);
+      expect(rules.allowed).toEqual([
+        "sprite",
+        "occupant",
+        "fake/tint",
+        "fake/wobble",
+        "fake/kinds",
+      ]);
       expect(rules.required.size).toBe(0);
     }
   });
@@ -247,7 +261,12 @@ describe("behaviorRules", () => {
         ],
       }),
     );
-    expect(r.behaviorRules("some").allowed).toEqual(["sprite", "fake/tint", "fake/wobble"]);
+    expect(r.behaviorRules("some").allowed).toEqual([
+      "sprite",
+      "occupant",
+      "fake/tint",
+      "fake/wobble",
+    ]);
     expect(r.behaviorRules("only").allowed).toEqual(["fake/tint"]);
     expect(r.behaviorRules("none").allowed).toEqual([]);
     expect(r.behaviorRules("none").defaults.size).toBe(0);
@@ -271,6 +290,7 @@ describe("behaviorRules", () => {
     expect([...rules.required]).toEqual([["fake/tint", { color: "#ff0000", alpha: 0.5 }]]);
     expect(Object.fromEntries(rules.defaults)).toEqual({
       sprite: {},
+      occupant: {},
       "fake/tint": { color: "#ff0000", alpha: 0.5 },
       "fake/wobble": { amount: 3 },
       "fake/kinds": {},
@@ -296,7 +316,7 @@ describe("the test game's behaviors", () => {
   const r = createRegistry(testGame);
 
   it("registers glow and spin, prefixed with the game id", () => {
-    expect(r.behaviorNames).toEqual(["sprite", "test-game/glow", "test-game/spin"]);
+    expect(r.behaviorNames).toEqual(["sprite", "occupant", "test-game/glow", "test-game/spin"]);
     expect(r.behaviors.get(GLOW.name)?.system).toBeUndefined();
     expect(typeof r.behaviors.get(SPIN.name)?.system).toBe("function");
   });

@@ -70,13 +70,14 @@ export function scriptReport(rapier: RapierModule) {
 }
 
 /**
- * `stats.behaviors` stays out of the digest: the test game attaches none, so
- * it is always empty, and leaving it out keeps the pin comparable with
- * engines that predate the key.
+ * The digest hashes only the stats fields the pin was taken over, by name
+ * and in that order, so a stats field added later (`behaviors`, `backend`)
+ * leaves the pin comparable with engines that predate it.
  */
 function scriptDigest(rapier: RapierModule): string {
   const report = scriptReport(rapier);
-  const { behaviors: _behaviors, ...stats } = report.stats;
+  const { bodies, colliders, tags, entities, perType } = report.stats;
+  const stats = { bodies, colliders, tags, entities, perType };
   return hashText(JSON.stringify([report.final, report.events, stats]));
 }
 

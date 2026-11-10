@@ -76,13 +76,15 @@ flavour and when the wasm loads:
   standard build's.
 
 Both flavours step a scene bit for bit alike; the engine's parity test checks
-it.
+it. A scene without physics never needs the module, and a host that passes
+a loader only pays for the wasm when a Rapier scene loads (see
+[Physics optional](#physics-optional)).
 
 ## Registering entity types
 
-A scene's entities are typed by the registry: seven primitives the engine
+A scene's entities are typed by the registry: eight primitives the engine
 always has (`solid`, `sensor`, `marker`, `prop`, `follower`, `decor`,
-`note`) plus the game's own types. A game type either names a primitive as
+`nav`, `note`) plus the game's own types. A game type either names a primitive as
 its `base`, so the primitive's system spawns it, or brings its own `system`.
 `decor` is a picture with no body: `{ id, type: "decor", at, behaviors: {
 sprite } }`, its `sprite` block required. It loads (headless too), so it
@@ -327,20 +329,28 @@ a solid riding it, swept along the path into a solid
 (`solid-overlap`), then the game's `physicalChecks`, which get shape
 queries (`overlaps`, `cast`) over that world.
 
+A scene without physics is checked on the engine's own colliders: both
+engine checks and every game check run there, except one with
+`needsPhysics: true`, which is skipped as `physics-skipped` (info). A
+check's `overlaps` and `cast` go through `space`, the same queries on
+either backend; touching isn't overlapping.
+
 A `<scene>.checks.json` beside a scene lists what must stay true of it,
 outside the scene's hash; `runChecks` runs it. The engine's kinds are
 `valid` (no issues at or above a severity, optionally physical),
-`reaches` (an input script ends in a given result) and `touches` (fuzz
-reaches an entity in at least N rollouts); a game adds `<id>/<kind>` kinds
+`reaches` (an input script ends in a given result), `touches` (fuzz
+reaches an entity in at least N rollouts) and `connected` (cells or
+entities reach each other on the grid; see
+[Grids at runtime](#grids-at-runtime)); a game adds `<id>/<kind>` kinds
 in `checks`.
 
 ## Editor tools
 
 `./editor` has no UI, so any host can draw it. `createToolHost({ session,
 router, toWorld, scale })` puts the active tool on the game's tool router:
-tools get world-space pointer events, preview a drag in the overlay (and in
-an optional `runtime`; the editor passes none, so the edit world only holds
-committed state), commit one batch per gesture, and describe what to draw
+tools get world-space pointer events, preview a drag only in the overlay
+(previews are view-only: the editor passes no `runtime`, so the edit world
+holds committed state), commit one batch per gesture, and describe what to draw
 (outlines, handles, a marquee, guides, ghosts, a readout) as a
 `ToolOverlay`. The built-in tools are select, pan, box, circle, pen,
 waypoints and rotate. A game adds its own in `GameDefinition.editor.tools`,
@@ -1418,6 +1428,718 @@ and the `DisplayResolution` type are gone from the engine's exports: the
 virtual size is the policy's, and a list of display sizes is the host's to
 offer.
 
+## World models
+
+A game says how its clock runs with `GameDefinition.time`, a `TimeModel`:
+
+- **`fixed`** (the default): a tick every `1 / rate` seconds of scaled wall
+  time, whatever happens.
+- **`turns`** and **`event`**: the loop draws every frame but ticks only
+  when an input wakes it (a key edge or a command; an event game with
+  `wakeOnPointerMove` also wakes on pointer moves), then once per `1 /
+rate` seconds while the runtime's `busy()` returns true, and otherwise
+  holds still. Turns suits a game that moves per order, event an idle or
+  menu-driven one. `step(n)` simulates `n` ticks whatever the model, for
+  debugging.
+
+`rate` is an integer from 1 to 240, default 60, resolved first match wins
+from the project's `game-settings` `engine.tickRate`, then the game's
+`time.rate`, then 60 (`resolveTime` in `./scene` applies the order;
+`ticksFor(ms, time)` is the whole ticks a duration lasts). The run's clock
+is `ctx.time` (`kind`, `rate`, `tickMs`, `catchUp`, `wakeOnPointerMove`),
+and every tick's `dtMs` is its `tickMs`. A rate the clock can't run is
+`tick-rate-invalid`: `createRegistry` throws with it, and the project's
+`game-settings` doc reports it. Headless runs of a turns or event game skip
+the script slots a sleeping game would ignore, carrying their non-waking
+input to the next simulated tick: `ticks` and every tick in a report count
+simulated ticks, and `slots` the slots a playtest used.
+
+**Commands** are how anything but the keyboard drives a game: a move in a
+turn game, a button in a host's UI, an agent's order. A game declares them
+in `commands`, each with a `description` and an optional Zod `args` schema;
+names are lowercase words joined by dashes and never start with `@`, which
+is the engine's. `GameInstance.send({ name, args })` queues one for the next
+simulated tick and wakes a sleeping game (false, with a dev warning, when
+not playing, for an unknown name or arguments that don't parse), and the
+runtime gets the tick's commands as `beforeStep`'s third argument. Input
+scripts send them with `{ command, args }` and `{ elapse }` steps, playtest
+reports list them beside `inputs`, recordings carry them, and replays send
+them on the same ticks.
+
+**Catch-up.** With `time.catchUp: { maxMs }`, time away arrives as one
+engine command, `@elapsed { ms }`, capped at `maxMs`: the browser shell
+measures how long the page was hidden and sends it when the page is shown
+again after at least a second, and `GameInstance.elapse(ms)` sends it for a
+host (a restored save's last-seen gap). Without `catchUp` neither does
+anything. An idle game that ripens apples by the minute:
+
+```ts orchard-game.ts
+import { defineGame } from "@jams/engine/game";
+import { runPlaytest } from "@jams/engine/headless";
+import type { SceneDefinition } from "@jams/engine/scene";
+
+export type OrchardSnapshot = { trees: number; ripe: number; picked: number };
+
+const HOUR = 3_600_000;
+
+/** An idle game: apples ripen while nobody plays, and only input or a command wakes it. */
+export const orchardGame = defineGame<OrchardSnapshot>({
+  id: "orchard",
+  types: [],
+  actions: [{ action: "pick", keys: ["space"], description: "Pick every ripe apple." }],
+  time: { kind: "event", catchUp: { maxMs: 8 * HOUR } },
+  world: { physics: "none" },
+  commands: { plant: { description: "Plant one more tree." } },
+  createRuntime() {
+    let trees = 1;
+    let ripe = 0;
+    let picked = 0;
+    return {
+      onLoad() {
+        trees = 1;
+        ripe = 0;
+        picked = 0;
+      },
+      beforeStep(_dtMs, actions, commands) {
+        for (const c of commands) {
+          if (c.name === "plant") trees++;
+          // Time away, already capped at catchUp.maxMs: an apple per tree per minute.
+          if (c.name === "@elapsed")
+            ripe += trees * Math.floor((c.args as { ms: number }).ms / 60_000);
+        }
+        if (actions.some((a) => a.action === "pick" && a.pressed)) {
+          picked += ripe;
+          ripe = 0;
+        }
+      },
+      snapshot: () => ({ trees, ripe, picked }),
+    };
+  },
+});
+
+/** The game keeps its trees in its runtime, so the scene is empty. */
+export const meadow: SceneDefinition = {
+  v: 3,
+  game: "orchard",
+  name: "meadow",
+  bounds: [0, 0, 640, 360],
+  entities: [],
+};
+
+/** Plants a tree, is away for a day (capped at eight hours), then picks. */
+export function dayAway() {
+  const run = runPlaytest({
+    game: orchardGame,
+    scene: meadow,
+    script: { v: 1, steps: [{ command: "plant" }, { elapse: 24 * HOUR }, { press: ["pick"] }] },
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.scriptIssues)}`);
+  return { final: run.final, ticks: run.ticks };
+}
+```
+
+A turn game on a grid: each `walk` command plans a path, and `busy()` keeps
+the clock running until the hero arrives. It has no physics (`world.physics:
+"none"`), so a host never loads Rapier for it:
+
+```ts walker-game.ts
+import {
+  createGridStepper,
+  defineGame,
+  findPath,
+  type Cell,
+  type EngineContext,
+  type GridStepper,
+} from "@jams/engine/game";
+import type { ExpandedScene, Pt } from "@jams/engine/scene";
+import { z } from "zod";
+
+export type WalkerSnapshot = { cell: Cell | null; walks: number; home: boolean };
+
+const markerAt = (scene: ExpandedScene, tag: string) =>
+  scene.entities.find(
+    (e) => e.type === "marker" && (e.tags as string[] | undefined)?.includes(tag),
+  );
+
+/** A turn game with no physics: each `walk` command paths the hero over the grid, cell by cell. */
+export const walkerGame = defineGame<WalkerSnapshot>({
+  id: "walker",
+  types: [],
+  actions: [],
+  time: { kind: "turns", rate: 30 },
+  world: { physics: "none", grid: { kind: "square", cell: [32, 32] } },
+  commands: {
+    walk: {
+      description: "Walk the hero to a cell along the shortest open path.",
+      args: z.strictObject({ to: z.tuple([z.number().int(), z.number().int()]) }),
+    },
+  },
+  play: {
+    results: ["won"],
+    outcome: ({ snapshot }) => (snapshot.home ? { result: "won" } : null),
+  },
+  createRuntime(ctx: EngineContext) {
+    let hero: { id: string; at: Pt } | null = null;
+    let goal: Pt | null = null;
+    let stepper: GridStepper | null = null;
+    let route: Cell[] = [];
+    let walks = 0;
+
+    const home = () => {
+      if (!stepper || !goal || !ctx.grid) return false;
+      const [c, r] = ctx.grid.geometry.cellAt(goal);
+      const [hc, hr] = stepper.cell();
+      return c === hc && r === hr && !stepper.moving();
+    };
+
+    return {
+      onLoad(scene) {
+        const h = markerAt(scene, "hero");
+        hero = h ? { id: h.id, at: h.at as Pt } : null;
+        goal = (markerAt(scene, "goal")?.at as Pt | undefined) ?? null;
+        stepper = null;
+        route = [];
+        walks = 0;
+      },
+      beforeStep(dtMs, _actions, commands) {
+        const grid = ctx.grid;
+        if (!grid || !hero) return;
+        // ctx.grid is built after onLoad, so the stepper starts on the first tick.
+        stepper ??= createGridStepper(ctx, hero.id, {
+          start: grid.geometry.cellAt(hero.at),
+          msPerStep: 150,
+        });
+        stepper.update(dtMs);
+        for (const command of commands) {
+          if (command.name !== "walk") continue;
+          const { to } = command.args as { to: [number, number] };
+          const path = findPath(grid.geometry, stepper.cell(), to, {
+            passable: (c) => grid.passable(c),
+          });
+          route = path?.cells.slice(1) ?? [];
+          walks++;
+        }
+        const next = route[0];
+        if (next && !stepper.moving() && stepper.step(next)) route.shift();
+      },
+      // While true, the clock keeps ticking at `time.rate` with no input.
+      busy: () => route.length > 0 || (stepper?.moving() ?? false),
+      snapshot: () => ({ cell: stepper?.cell() ?? null, walks, home: home() }),
+    };
+  },
+});
+```
+
+```ts walker-playtest.ts
+import { createRegistry } from "@jams/engine/game";
+import { replayRecording, runPlaytest, type RapierModule } from "@jams/engine/headless";
+import { scenePhysics, type SceneDefinition } from "@jams/engine/scene";
+
+import { walkerGame } from "./walker-game";
+
+const registry = createRegistry(walkerGame);
+
+/** Ten cells by five; a wall over the top four rows of column 4 sends the hero round the bottom. */
+export const corridor: SceneDefinition = {
+  v: 3,
+  game: "walker",
+  name: "corridor",
+  bounds: [0, 0, 320, 160],
+  entities: [
+    { id: "wall", type: "solid", shape: ["box", 144, 64, 16, 64] },
+    { id: "hero", type: "marker", at: [16, 16], tags: ["hero"] },
+    { id: "goal", type: "marker", at: [304, 16], tags: ["goal"] },
+  ],
+};
+
+/** Plays two `walk` commands, then replays the recording; Rapier is never loaded. */
+export async function walkCorridor(loadRapier: () => Promise<RapierModule>) {
+  const rapier = scenePhysics(corridor, registry) === "rapier" ? await loadRapier() : null;
+  const run = runPlaytest({
+    rapier,
+    game: walkerGame,
+    registry,
+    scene: corridor,
+    script: {
+      v: 1,
+      steps: [
+        { command: "walk", args: { to: [0, 4] } },
+        { wait: 100 },
+        { command: "walk", args: { to: [9, 0] } },
+        { wait: 300 },
+      ],
+    },
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.scriptIssues)}`);
+  const replay = replayRecording({
+    rapier,
+    game: walkerGame,
+    scene: corridor,
+    recording: run.recording,
+  });
+  return {
+    result: run.outcome.result,
+    // Ticks run only while the hero walks: the first wait's idle slots were skipped.
+    ticks: run.ticks,
+    slots: run.slots,
+    commands: run.commands,
+    replayed: !replay.blocked && replay.matches,
+  };
+}
+```
+
+## Physics optional
+
+A scene's physics resolves like gravity (see [Settings](#settings)): the
+scene's `settings.physics`, the project's `engine.physics`, the game's
+`world.physics`, then `"rapier"`. `scenePhysics(def, registry, engine?)`
+answers before anything loads, so a host decides whether it needs the
+wasm. With `"none"`, `ctx.rapier` and `ctx.physics` are null and
+`ctx.geometry` holds the engine's own colliders, static and kinematic
+shapes with sensors and collision groups, filtered exactly as Rapier
+filters them. `ctx.space` answers the same queries on either backend
+(`space.backend` says which): `pointAt`, `overlaps`, `raycast` and `sweep`,
+filtered by `sensors`, `exclude`, `group` and `types`, overlaps in handle
+order and casts by time of impact, then handle.
+
+| Primitive                | With Rapier          | With `physics: "none"`                                        |
+| ------------------------ | -------------------- | ------------------------------------------------------------- |
+| `solid`                  | fixed body, collider | a static collider; one-way sides gate on its tag              |
+| `sensor`                 | sensor collider      | a sensor collider; enter and exit from overlaps, in one order |
+| `follower`               | kinematic body       | a kinematic collider whose pose follows the path              |
+| `marker`, `decor`, `nav` | nothing              | nothing                                                       |
+| `prop`                   | dynamic body         | `physics-required`                                            |
+| `attach`                 | rides the follower   | `physics-required`                                            |
+
+A type that can't work without Rapier says `physics: "required"` (the
+default is its base primitive's, else `"optional"`): `validateScene`
+reports `physics-required` for each of its entities in a physics-free
+scene, before anything loads. Its system reaches Rapier through
+`physicsOf(ctx, what, entityId)`, which returns `{ rapier, physics }` or
+throws a `PhysicsRequiredError`; a load that hits one fails with `reason:
+"physics-required"`. `RuntimeStats.backend` is `rapier` or `geometry`.
+
+```ts balloon-type.ts
+import type { RigidBody } from "@dimforge/rapier2d";
+import {
+  createRegistry,
+  defineEntityType,
+  defineGame,
+  physicsOf,
+  pointField,
+} from "@jams/engine/game";
+import { validateScene, type Pt, type SceneDefinition } from "@jams/engine/scene";
+import { z } from "zod";
+
+/** A balloon floats up: a Rapier body with a negative gravity scale, so it needs physics. */
+export const balloon = defineEntityType({
+  type: "balloon",
+  description: "A balloon that floats up.",
+  physics: "required",
+  fields: {
+    at: pointField("Where it starts."),
+    lift: z
+      .number()
+      .positive()
+      .default(0.3)
+      .describe("How strongly it rises, as a share of gravity."),
+  },
+  style: { fill: 0xff6688, stroke: 0xff6688 },
+  system(ctx, type) {
+    const bodies = new Map<string, RigidBody>();
+    return {
+      spawn(e) {
+        // Throws PhysicsRequiredError in a scene with physics "none"; the load reports it.
+        const { rapier, physics } = physicsOf(ctx, type.type, e.id);
+        const [x, y] = e.at as Pt;
+        const body = physics.addRigidBody(
+          rapier.RigidBodyDesc.dynamic().setTranslation(x, y).setGravityScale(-Number(e.lift)),
+        );
+        const desc = rapier.ColliderDesc.ball(10);
+        desc.setCollisionGroups(ctx.registry.collisionGroups("dynamic"));
+        ctx.tags.set(physics.addCollider(desc, body).handle, { entityId: e.id, type: type.type });
+        ctx.poses.set(e.id, x, y, 0, { snap: true });
+        bodies.set(e.id, body);
+      },
+      despawn(id) {
+        const body = bodies.get(id);
+        if (!body) return;
+        for (let i = 0; i < body.numColliders(); i++) ctx.tags.delete(body.collider(i).handle);
+        physicsOf(ctx, type.type, id).physics.removeRigidBody(body);
+        bodies.delete(id);
+      },
+      clear() {
+        for (const id of [...bodies.keys()]) this.despawn(id);
+      },
+      afterStep() {
+        for (const [id, body] of bodies) {
+          const p = body.translation();
+          ctx.poses.set(id, p.x, p.y, body.rotation());
+        }
+      },
+      size: () => bodies.size,
+    };
+  },
+});
+
+const party = defineGame({
+  id: "party",
+  types: [balloon],
+  actions: [],
+  createRuntime: () => ({ snapshot: () => null }),
+});
+const registry = createRegistry(party);
+
+/** The codes a physics-free scene with a balloon gets: `physics-required`, before anything loads. */
+export function balloonIssues(): string[] {
+  const scene: SceneDefinition = {
+    v: 3,
+    game: "party",
+    name: "party",
+    bounds: [0, 0, 400, 300],
+    settings: { physics: "none" },
+    entities: [{ id: "red", type: "balloon", at: [200, 250] }],
+  };
+  return validateScene(scene, registry).map((i) => i.code);
+}
+```
+
+**Rapier loads lazily.** `GameConfig.rapier` is optional: `createGame`
+loads it at start only when the game's start-up scene needs it,
+`GameInstance.preload` brings it in for a Rapier scene, and `loadScene`,
+`play` or `replay` of a Rapier scene with no module reports
+`physics-not-loaded`. The headless options take `rapier: RapierModule |
+null`, and the scene CLI loads the wasm only for a Rapier scene.
+
+**Replays everywhere.** The geometry backend uses only `+ − × ÷` and
+`Math.sqrt`, which every JavaScript engine rounds alike, and quarter turns
+are exact tables; a collider turned by any other angle needs `Math.cos`
+and `Math.sin`, which engines may round differently. So a physics-free game
+replays bit for bit across browsers and machines as long as its colliders
+stay axis-aligned or quarter-turned, which every grid and turn game does.
+Rapier scenes replay exactly on the same build, as before.
+
+**Nothing assumes a side view.** Gravity defaults to `DEFAULT_GRAVITY` and
+any vector works, `[0, 0]` and sideways included. "Play from here" settles
+the start along gravity, not at all or along a direction
+(`SpawnShape.cast`). `PhysicsWorld.createCharacterController` takes its
+options in full: `SIDE_VIEW_CONTROLLER` is the old tuning,
+`TOP_DOWN_CONTROLLER` has no slopes, steps or snapping. A solid's `oneWay`
+names the side actors land on (`"up"`, the same as `true`, `"down"`,
+`"left"` or `"right"`) and turns with its instance; the kitchen sink's
+`side-wall` is one-way from the left. A `prop` takes `gravityScale`,
+`linearDamping`, `angularDamping`, `fixedRotation` (the sink's `upright`)
+and `ccd`. `world.lengthUnit`, Rapier's pixels per metre, is reserved:
+accepted, and read by nothing yet.
+
+## Grids at runtime
+
+A scene with a grid (its `settings.grid`, else the game's `world.grid`)
+gets `ctx.grid` at load: the `geometry`, an `occupancy`, the scene's
+`bounds` in cells and `passable(cell)`. Cells covered by the shapes of the
+game's `world.gridWalls` types (default `["solid"]`, `[]` for none) are
+walls. Everything else is pure and works without a runtime:
+
+- **`gridGeometry(settings)`** for square and hex grids, placed as Tiled
+  places them: `neighbors` in a fixed order, `stepCost` (10 an edge, 14 a
+  diagonal), `heuristic`, `distance`, `center`, `cellAt`, `corners`, `line`
+  (every cell a segment passes through), `cellsIn(shape)` and `rect`.
+  Cells are `[col, row]`; `cellKey` packs one into a number for sets and
+  maps.
+- **`createOccupancy()`**: which ids hold which cell, which cells block
+  paths, which are walls. The `occupant` behavior (`{ blocks? }`) keeps an
+  entity in `ctx.grid.occupancy` as it moves.
+- **`findPath`** (A\* with integer costs and a heap ordered by f, h and
+  insertion, so one answer on every machine), **`flowField`** (every cell's
+  cost to the nearest goal and the neighbour to step to, for many walkers),
+  **`fieldOfView`** (symmetric shadowcasting on squares, a line to each
+  cell on hexes) and **`lineOfSight`**. Paths take `passable`, a `cost` per
+  step, `diagonals`, `cutCorners`, `bounds` and `maxExpanded`.
+
+A `connected` check asks a scene's `.checks.json` whether cells or entities
+reach each other on the grid, with no physics and no game code; each
+unreachable target is `grid-unreachable`. The scene CLI's `grid` command
+prints the walls, a path and a field of view as text. The engine's
+`grid-yard` is a physics-free scene on a 32 px square grid with a
+`connected` check.
+
+```ts grid-tools.ts
+import {
+  cellKey,
+  fieldOfView,
+  findPath,
+  flowField,
+  gridGeometry,
+  lineOfSight,
+  type Cell,
+} from "@jams/engine/game";
+
+/** A 12×8 hex board, Tiled's flat-top layout, with a rock wall down column 5 but for its last row. */
+const hex = gridGeometry({ kind: "hex", cell: [32, 28], side: 16, stagger: "x", index: "odd" });
+const bounds = { c0: 0, r0: 0, c1: 11, r1: 7 };
+const rocks = new Set([0, 1, 2, 3, 4, 5, 6].map((r) => cellKey([5, r])));
+const open = (c: Cell) => !rocks.has(cellKey(c));
+
+export function scout() {
+  // A*, integer costs (10 a step), the same path on every machine.
+  const path = findPath(hex, [1, 1], [9, 1], { passable: open, bounds });
+  // Every cell's cost to the nearest goal, and the neighbour to step to: one field, many walkers.
+  const field = flowField(hex, [[9, 1]], { passable: open, bounds });
+  // What [1, 1] sees within 6 steps; the rocks block sight.
+  const seen = fieldOfView(hex, [1, 1], 6, (c) => !open(c));
+  return {
+    steps: path ? path.cells.length - 1 : null,
+    cost: path?.cost ?? null,
+    fromCorner: field.cost([0, 7]),
+    nextFromCorner: field.next([0, 7]),
+    seesAcross: seen.has(cellKey([8, 1])),
+    clearShot: lineOfSight(hex, [1, 7], [9, 7], (c) => !open(c)),
+    centre: hex.center([9, 1]),
+  };
+}
+```
+
+## Motion
+
+`./game` moves entities without a game writing its own physics, on either
+backend:
+
+- **`createMotionBody(ctx, entity, at, { shape, group?, tag? })`**: a body
+  moved by `move(delta)`, which slides along what it hits (up to four
+  times) and reports what it `moved`, its `hits` and whether it was
+  `blocked`. On Rapier it is a kinematic body with a
+  `TOP_DOWN_CONTROLLER` character controller; on geometry a kinematic
+  collider swept through `ctx.space`. `teleport`, `setEnabled` and
+  `destroy` do what they say. It doesn't push props: a game that wants
+  pushing uses Rapier's character controller itself.
+- **`createTopDownController(body, { maxSpeed, accel, decel })`**: steering
+  toward an intended direction in the unit disc, with acceleration and
+  braking, one `step(dtMs, intent)` a tick.
+- **`createGridStepper(ctx, entityId, { start, msPerStep, body?, occupy?
+})`**: one cell at a time to a neighbour, reserving the cell at once and
+  moving there over whole ticks.
+
+Each writes the entity's pose, so sprites, picking and interpolation follow
+with no other wiring. A top-down rover that steers into a wall, slides
+along it into a sensor, and wins on Rapier and without it:
+
+```ts rover-game.ts
+import type { Vec2 } from "@jams/engine";
+import {
+  createMotionBody,
+  createTopDownController,
+  defineGame,
+  SENSOR_ENTER,
+  type EngineContext,
+  type TopDownController,
+} from "@jams/engine/game";
+import { runPlaytest, type RapierModule } from "@jams/engine/headless";
+import type { Pt, SceneDefinition } from "@jams/engine/scene";
+
+export type RoverSnapshot = { at: Vec2; speed: number; wallAhead: number | null } | null;
+
+const STEER: Readonly<Record<string, Vec2>> = {
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+};
+
+/** Top-down steering on whichever backend the scene loads: a motion body, a controller and a sensor goal. */
+export const roverGame = defineGame<RoverSnapshot>({
+  id: "rover",
+  types: [],
+  actions: Object.keys(STEER).map((action) => ({
+    action,
+    keys: [`arrow${action}`],
+    description: `Steer ${action}.`,
+  })),
+  world: { gravity: [0, 0] },
+  // Motion bodies are in the engine's dynamic group, which ignores sensors unless told.
+  collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
+  play: {
+    results: ["won"],
+    movementActions: Object.keys(STEER),
+    focus: (snap) => snap?.at ?? null,
+    outcome: ({ events }) =>
+      events.some((e) => e.type === "rover:home") ? { result: "won" } : null,
+  },
+  createRuntime(ctx: EngineContext) {
+    const held = new Set<string>();
+    let rover: TopDownController | null = null;
+    let position = (): Vec2 => ({ x: 0, y: 0 });
+    let id = "";
+    return {
+      onLoad(scene) {
+        held.clear();
+        const start = scene.entities.find((e) => e.id === "start");
+        if (!start) return;
+        const [x, y] = start.at as Pt;
+        id = start.id;
+        const body = createMotionBody(
+          ctx,
+          { id, type: start.type },
+          { x, y },
+          {
+            shape: { type: "circle", cx: 0, cy: 0, r: 8 },
+          },
+        );
+        position = () => body.position();
+        rover = createTopDownController(body, { maxSpeed: 180, accel: 900, decel: 900 });
+      },
+      beforeStep(dtMs, actions) {
+        for (const a of actions) {
+          if (a.pressed) held.add(a.action);
+          else held.delete(a.action);
+        }
+        const intent = { x: 0, y: 0 };
+        for (const a of held) {
+          intent.x += STEER[a]?.x ?? 0;
+          intent.y += STEER[a]?.y ?? 0;
+        }
+        rover?.step(dtMs, intent);
+      },
+      afterStep(_dtMs, events) {
+        for (const e of events)
+          if (e.type === SENSOR_ENTER && e.entityId === "home" && e.other === id)
+            ctx.emit({ type: "rover:home", entityId: "home", at: e.at });
+      },
+      snapshot() {
+        if (!rover) return null;
+        const at = position();
+        const v = rover.velocity();
+        // ctx.space answers on Rapier and on the geometry backend alike.
+        const hit = ctx.space.raycast(at, { x: 1, y: 0 }, 1000, { exclude: [id] });
+        return {
+          at,
+          speed: Math.sqrt(v.x * v.x + v.y * v.y),
+          wallAhead: hit ? hit.toi * 1000 : null,
+        };
+      },
+    };
+  },
+});
+
+const yard = (physics: "rapier" | "none"): SceneDefinition => ({
+  v: 3,
+  game: "rover",
+  name: "yard",
+  bounds: [0, 0, 400, 300],
+  settings: { physics },
+  entities: [
+    { id: "east", type: "solid", shape: ["box", 392, 150, 8, 150] },
+    { id: "south", type: "solid", shape: ["box", 200, 292, 200, 8] },
+    { id: "start", type: "marker", at: [40, 40] },
+    { id: "home", type: "sensor", shape: ["box", 360, 260, 24, 24] },
+  ],
+});
+
+/** Drives right into the east wall, then slides down it into the home sensor. */
+export function driveHome(rapier: RapierModule | null) {
+  const run = runPlaytest({
+    rapier,
+    game: roverGame,
+    scene: yard(rapier ? "rapier" : "none"),
+    script: {
+      v: 1,
+      steps: [
+        { hold: ["right"], forMs: 2500 },
+        { hold: ["right", "down"], until: { event: "rover:home" }, max: 600 },
+      ],
+    },
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
+  return { result: run.outcome.result, ticks: run.ticks, final: run.final };
+}
+```
+
+## Navigation
+
+The `nav` primitive marks walkable areas for games with neither a grid nor
+physics to walk on (point-and-click, a room-based RPG): `{ id, type:
+"nav", shape: ["poly", …], mode?: "walk" | "block", tags? }`. A walk area
+is any simple polygon, concave allowed; a `block` polygon is a hole in the
+area around it. At load the runtime builds `ctx.nav` (`path`, `contains`,
+`nearest` and the `mesh`); `buildNavMesh`, `navPath`, `navContains` and
+`navNearest` are the same maths without a runtime. Areas are triangulated
+by ear clipping with their holes bridged in and stitched where they share
+an edge's exact end points; paths run A\* over the triangles, then the
+funnel. A polygon that crosses itself, a hole not inside exactly one walk
+area, or two walk areas that overlap is `nav-invalid`. The kitchen sink's
+`floor-plan` is an L-shaped hall with the `pillar` hole in it.
+
+```ts nav-walk.ts
+import { buildNavMesh, navContains, navNearest, navPath } from "@jams/engine/game";
+
+type Ring = [number, number][];
+
+/** A room with a table in it, and a corridor stitched on where they share the doorway's two corners. */
+const room = {
+  id: "room",
+  pts: [
+    [0, 0],
+    [400, 0],
+    [400, 100],
+    [400, 200],
+    [400, 300],
+    [0, 300],
+  ] as Ring,
+};
+const corridor = {
+  id: "corridor",
+  pts: [
+    [400, 100],
+    [700, 100],
+    [700, 200],
+    [400, 200],
+  ] as Ring,
+};
+const table = {
+  id: "table",
+  pts: [
+    [150, 100],
+    [250, 100],
+    [250, 200],
+    [150, 200],
+  ] as Ring,
+};
+
+export function walkAround() {
+  const { mesh, issues } = buildNavMesh([room, corridor], [table]);
+  // The funnel's corners: round the table, through the doorway, to the end of the corridor.
+  const path = navPath(mesh, [100, 150], [650, 150]);
+  return {
+    issues,
+    path,
+    onTable: navContains(mesh, [200, 150]),
+    // A click outside the walk areas, moved to the closest walkable point.
+    clickedOutside: navNearest(mesh, [550, 280]),
+  };
+}
+```
+
+## Genre probes
+
+The engine proves it isn't a platformer engine with small games built in
+tests from the primitives and the APIs above, under
+`src/engine/__tests__/genres/`. Each probe is a game, a scene built in
+code, an input script and the result it must reach:
+
+| Probe          | Genres                       | Physics | Time  | What it plays                                                                            |
+| -------------- | ---------------------------- | ------- | ----- | ---------------------------------------------------------------------------------------- |
+| `grid-puzzle`  | puzzle, card and board games | none    | event | a square-grid Sokoban: arrow keys step a pusher; won with both crates on goals           |
+| `top-down`     | top-down, racing             | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor             |
+| `turn-tactics` | tactics, roguelikes          | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target |
+
+`runGenreProbe` plays each, replays its recording, and compares a digest of
+the run with a pinned one, so CI on other machines checks the same numbers.
+Probes also run under variants (gravity zero, gravity sideways, physics
+none) that must reach the same result. A physics-free probe never loads
+Rapier: the harness hands it none and a mock fails if the wasm module ever
+initialises. A sweep test fails on side-view literals in engine source, and
+a matrix maps every genre row of the engine's roadmap to the probes that
+cover it.
+
 ## Co-editing
 
 A scene can live in a shared `Y.Doc` that any number of editors, agents and
@@ -1573,7 +2295,8 @@ through the host.
 - **`SceneEditor`** takes `{ host, game, project, scene?, rapier, debug?,
 onReady? }`; `mountSceneEditor(element, props)` mounts the same thing
   without JSX and returns `{ update, unmount }`. `onReady` hands the host a
-  `SceneEditorHandle` (`openPanel(id)`, `resetLayout()`).
+  `SceneEditorHandle` (`openPanel(id)`, `resetLayout()`, and `game()`, the
+  editor's current `GameInstance`, null while it builds).
 - **`EditorHost`** is the one seam. `connect({ project, registry, origin })`
   returns a `ProjectConnection` and `assetUrl` says where the asset loader
   fetches blobs; both are required. The rest default when left out:
@@ -1738,13 +2461,13 @@ primitives); a game's schema adds its types and settings.
 
 Static ground, walls and platforms: collides from every side, or from above only.
 
-| Field       | Type             | Required | Description                                                                                                                                                               |
-| ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`     | [shape](#shapes) | yes      | Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.                                                                                      |
-| `material`  | none registered  |          | Surface material.                                                                                                                                                         |
-| `oneWay`    | boolean          |          | When true, actors pass up through it and land on top.                                                                                                                     |
-| `attach`    | string           |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
-| `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
+| Field       | Type                                                  | Required | Description                                                                                                                                                               |
+| ----------- | ----------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shape`     | [shape](#shapes)                                      | yes      | Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.                                                                                      |
+| `material`  | none registered                                       |          | Surface material.                                                                                                                                                         |
+| `oneWay`    | `true` or `"up"` \| `"right"` \| `"down"` \| `"left"` |          | The one side actors collide with: they pass through from every other side and land on this one. `true` is "up": they pass up through it and land on top.                  |
+| `attach`    | string                                                |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
+| `behaviors` | object                                                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `sensor`
 
@@ -1771,14 +2494,19 @@ A named point with tags; what it means is up to the game.
 
 Dynamic physics object that can be pushed and stood on.
 
-| Field         | Type                  | Required | Description                                                                                                                                                               |
-| ------------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`       | [body shape](#shapes) | yes      | Starting collider shape. Absolute world px; y is down. Not chain.                                                                                                         |
-| `density`     | number                | yes      | Density, mass per px²; heavier props are harder to push.                                                                                                                  |
-| `restitution` | number                | yes      | Bounciness: 0 doesn't bounce, 1 keeps all its speed.                                                                                                                      |
-| `friction`    | number                |          | Surface friction; omitted uses the material's, else the physics default.                                                                                                  |
-| `material`    | none registered       |          | Surface material.                                                                                                                                                         |
-| `behaviors`   | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
+| Field            | Type                  | Required | Description                                                                                                                                                               |
+| ---------------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shape`          | [body shape](#shapes) | yes      | Starting collider shape. Absolute world px; y is down. Not chain.                                                                                                         |
+| `density`        | number                | yes      | Density, mass per px²; heavier props are harder to push.                                                                                                                  |
+| `restitution`    | number                | yes      | Bounciness: 0 doesn't bounce, 1 keeps all its speed.                                                                                                                      |
+| `friction`       | number                |          | Surface friction; omitted uses the material's, else the physics default.                                                                                                  |
+| `material`       | none registered       |          | Surface material.                                                                                                                                                         |
+| `gravityScale`   | number                |          | Multiplies the world's gravity on this body: 0 floats, -1 falls up; default 1.                                                                                            |
+| `linearDamping`  | number                |          | Slows the body's motion over time; default 0.                                                                                                                             |
+| `angularDamping` | number                |          | Slows the body's spin over time; default 0.                                                                                                                               |
+| `fixedRotation`  | boolean               |          | When true, the body never turns.                                                                                                                                          |
+| `ccd`            | boolean               |          | Continuous collision detection: when true, a fast body can't pass through thin colliders between steps.                                                                   |
+| `behaviors`      | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `follower`
 
@@ -1799,6 +2527,17 @@ A picture with no body: drawn by its sprite, never collides.
 | ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `at`        | [point](#points) | yes      | Where the sprite's pose is. Absolute world px; y is down.                                                                                                                 |
 | `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
+
+#### `nav`
+
+A walkable area, or a hole in one, for navigation without physics or a grid.
+
+| Field       | Type                  | Required | Description                                                                                                                                                               |
+| ----------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shape`     | [polygon](#shapes)    | yes      | A simple polygon, concave allowed. Absolute world px; y is down.                                                                                                          |
+| `mode`      | `"walk"` \| `"block"` |          | walk (default) or a hole cut out of the walk area it lies in.                                                                                                             |
+| `tags`      | string[]              |          | Labels a game reads, e.g. a room name.                                                                                                                                    |
+| `behaviors` | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `note`
 

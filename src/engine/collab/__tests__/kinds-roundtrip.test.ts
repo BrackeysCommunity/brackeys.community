@@ -91,7 +91,8 @@ const FIXTURES: Record<string, string> = {
     '  "checks": [',
     '    { "id": "valid", "kind": "valid" },',
     '    { "id": "props", "kind": "test-game/props", "atLeast": 1 },',
-    '    { "id": "far", "kind": "reaches", "at": [5, 5], "result": "won", "script": "far.script.json" }',
+    '    { "id": "far", "kind": "reaches", "at": [5, 5], "result": "won", "script": "far.script.json" },',
+    '    { "id": "joined", "kind": "connected", "blockedBy": ["solid"], "diagonals": true, "from": "post", "to": [[3, 4], "gate"] }',
     "  ]",
     "}",
   ),
@@ -193,6 +194,20 @@ describe("file → doc → file, per kind", () => {
         expect(formatAssetDoc(kind, back)).toBe(text);
     });
   }
+
+  it("checks: a connected check, every optional field set, is among the byte-identical fixtures", () => {
+    const parsed = parseAssetDoc(kinds.get("checks") as DocKindDef, FIXTURES.checks!, env);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    const { checks } = parsed.value as { checks: Record<string, unknown>[] };
+    expect(checks.find((c) => c.kind === "connected")).toEqual({
+      id: "joined",
+      kind: "connected",
+      blockedBy: ["solid"],
+      diagonals: true,
+      from: "post",
+      to: [[3, 4], "gate"],
+    });
+  });
 
   it("the game's deck keeps two items with one id through the doc, reported as dup-id", () => {
     const value = JSON.parse(FIXTURES[deckKind.kind]!) as { cards: { id: string }[] };

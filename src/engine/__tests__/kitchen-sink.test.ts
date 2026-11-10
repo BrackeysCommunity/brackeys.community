@@ -42,6 +42,7 @@ import { resolvePrefab, valueAtPath } from "../scene/resolve";
 import { SHAPE_TYPES } from "../scene/shapes";
 import type { PrefabLibrary, Pt, RuntimeEntity, SceneDefinition } from "../scene/types";
 import { validateScene } from "../scene/validate";
+import type { SolidSystem } from "../systems/bodies";
 import type { RapierModule } from "../types";
 import {
   createProjectFileAdapter,
@@ -70,6 +71,7 @@ const MOVING = [
   "room-1/door-1/panel",
   "rider",
   "door-2/panel",
+  "upright",
 ];
 
 /** A game with no actor whose snapshot is every moving body's pose, so a replay's digest covers the world. */
@@ -83,7 +85,7 @@ const watcher = defineGame<Body[]>({
       snapshot: () =>
         MOVING.map((id): Body => {
           const [handle] = ctx.tags.handlesOf(id);
-          const c = handle === undefined ? null : ctx.physics.world.getCollider(handle);
+          const c = handle === undefined ? null : ctx.physics!.world.getCollider(handle);
           const p = c?.translation() ?? { x: NaN, y: NaN };
           return [id, p.x, p.y, c?.rotation() ?? NaN];
         }),
@@ -392,6 +394,30 @@ describe("kitchen-sink.json", () => {
       expect(attached).toEqual(expect.arrayContaining(["solid", "sensor"]));
     });
 
+    it("a nav walk area with a block hole inside it", () => {
+      const nav = entities().filter((e) => e.type === "nav");
+      const bounds = (e: (typeof nav)[number]) => {
+        const pts = (e.shape as unknown[]).slice(1) as number[];
+        const xs = pts.filter((_, i) => i % 2 === 0);
+        const ys = pts.filter((_, i) => i % 2 === 1);
+        return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] as const;
+      };
+      const walks = nav.filter((e) => (e.mode ?? "walk") === "walk").map(bounds);
+      const holes = nav.filter((e) => e.mode === "block").map(bounds);
+      expect(walks.length).toBeGreaterThanOrEqual(1);
+      expect(holes.length).toBeGreaterThanOrEqual(1);
+      for (const [x0, y0, x1, y1] of holes)
+        expect(walks.some(([a, b, c, d]) => x0 > a && y0 > b && x1 < c && y1 < d)).toBe(true);
+    });
+
+    it('a one-way solid open on its "left" side', () => {
+      expect(entities().some((e) => e.type === "solid" && e.oneWay === "left")).toBe(true);
+    });
+
+    it("a prop with fixedRotation", () => {
+      expect(entities().some((e) => e.type === "prop" && e.fixedRotation === true)).toBe(true);
+    });
+
     it("a note per region", () => {
       expect(entities().filter((e) => e.type === "note").length).toBeGreaterThanOrEqual(5);
     });
@@ -466,6 +492,111 @@ describe("kitchen-sink.json", () => {
     rt.destroy();
   });
 
+  it("loads its walk area and hole headless with no collider, and ctx.nav paths around the hole", () => {
+    const nav = entities().filter((e) => e.type === "nav");
+    expect(nav.some((e) => (e.mode ?? "walk") === "walk")).toBe(true);
+    const holes = nav.filter((e) => e.mode === "block");
+    expect(holes.length).toBeGreaterThanOrEqual(1);
+    const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine });
+    expect(rt.load(expanded()).ok).toBe(true);
+    for (const e of nav) expect(rt.ctx.tags.handlesOf(e.id)).toEqual([]);
+    expect(rt.stats().perType.nav).toBe(nav.length);
+    const from = { x: 2250, y: 350 };
+    const to = { x: 1950, y: 500 };
+    const path = rt.ctx.nav!.path(from, to)!;
+    expect(path[0]).toEqual(from);
+    expect(path.at(-1)).toEqual(to);
+    expect(path.length).toBeGreaterThan(2);
+    for (const hole of holes) {
+      const pts = (hole.shape as unknown[]).slice(1) as number[];
+      const xs = pts.filter((_, i) => i % 2 === 0);
+      const ys = pts.filter((_, i) => i % 2 === 1);
+      const box = {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys),
+      };
+      const centre = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
+      expect(rt.ctx.nav!.contains(centre), hole.id).toBe(false);
+      const strictlyInside = (p: { x: number; y: number }) =>
+        p.x > box.minX && p.x < box.maxX && p.y > box.minY && p.y < box.maxY;
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1]!;
+        const b = path[i]!;
+        for (let k = 0; k <= 64; k++) {
+          const p = { x: a.x + ((b.x - a.x) * k) / 64, y: a.y + ((b.y - a.y) * k) / 64 };
+          expect(strictlyInside(p), `${hole.id} at ${p.x},${p.y}`).toBe(false);
+        }
+      }
+      const corner = (p: { x: number; y: number }) =>
+        (p.x === box.minX || p.x === box.maxX) && (p.y === box.minY || p.y === box.maxY);
+      expect(path.some(corner), `the path hugs a corner of ${hole.id}`).toBe(true);
+    }
+    rt.destroy();
+  });
+
+  it('loads its "left" one-way solid tagged with its side, holding an actor on its left and letting one through from the right', () => {
+    const left = entities().filter((e) => e.type === "solid" && e.oneWay === "left");
+    expect(left.length).toBeGreaterThanOrEqual(1);
+    const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine });
+    expect(rt.load(expanded()).ok).toBe(true);
+    const solids = rt.ctx.system<SolidSystem>("solid")!;
+    for (const e of left) {
+      const [cx, cy, hw] = (e.shape as number[]).slice(1) as [number, number, number];
+      expect(rt.ctx.tags.get(rt.ctx.tags.handlesOf(e.id)[0]!)).toMatchObject({
+        oneWay: true,
+        oneWaySide: "left",
+      });
+      const actor = (x: number) => ({ minX: x - 5, maxX: x + 5, minY: cy - 5, maxY: cy + 5 });
+      solids.gateOneWaySides(actor(cx - hw - 10), false);
+      expect(solids.isHidden(e.id), `${e.id} with the actor on its left`).toBe(false);
+      solids.gateOneWaySides(actor(cx + hw + 10), false);
+      expect(solids.isHidden(e.id), `${e.id} with the actor on its right`).toBe(true);
+      solids.gateOneWaySides(actor(cx - hw - 10), true);
+      expect(solids.isHidden(e.id), `${e.id} with the actor passing`).toBe(true);
+    }
+    rt.destroy();
+  });
+
+  it("has a prop with fixedRotation that never turns, where the same prop without it tips over", () => {
+    const fixed = entities().filter((e) => e.type === "prop" && e.fixedRotation === true);
+    expect(fixed.length).toBeGreaterThanOrEqual(1);
+    const DT = 1000 / 60;
+    const turns = (scene: SceneDefinition): Map<string, number[]> => {
+      const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine });
+      expect(rt.load(expanded(scene)).ok).toBe(true);
+      const bodies = fixed.map((e) => {
+        const [handle] = rt.ctx.tags.handlesOf(e.id);
+        return [e.id, rt.ctx.physics!.world.getCollider(handle!)!.parent()!] as const;
+      });
+      const rots = new Map(bodies.map(([id]) => [id, [] as number[]]));
+      for (let i = 0; i < 120; i++) {
+        rt.step(DT, []);
+        for (const [id, body] of bodies) rots.get(id)!.push(body.rotation());
+      }
+      rt.destroy();
+      return rots;
+    };
+    const free: SceneDefinition = {
+      ...def,
+      entities: entities().map((e) => {
+        if (e.fixedRotation !== true) return e;
+        const { fixedRotation: _, ...rest } = e;
+        return rest;
+      }),
+    };
+    const held = turns(def);
+    const loose = turns(free);
+    for (const { id } of fixed) {
+      expect(
+        held.get(id)!.every((r) => r === 0),
+        id,
+      ).toBe(true);
+      expect(Math.max(...loose.get(id)!.map(Math.abs)), id).toBeGreaterThan(0.3);
+    }
+  });
+
   it("is canonical, and formatting is idempotent", () => {
     const once = formatScene(def).text;
     expect(once).toBe(text);
@@ -538,7 +669,7 @@ describe("kitchen-sink.json", () => {
           onLoad(loaded) {
             inner.onLoad?.(loaded);
             const [handle] = ctx.tags.handlesOf(material.id);
-            const collider = handle === undefined ? null : ctx.physics.world.getCollider(handle);
+            const collider = handle === undefined ? null : ctx.physics!.world.getCollider(handle);
             seen.push(
               [collider?.friction(), collider?.restitution()],
               ctx.project?.settings,

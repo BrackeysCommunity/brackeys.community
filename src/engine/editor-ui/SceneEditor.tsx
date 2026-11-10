@@ -1,11 +1,8 @@
-import { Store } from "@tanstack/store";
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 
-import { sceneToDoc, type SceneOrigin } from "../collab/index";
 import type { DebugLayerFactory, DebugOverlayFactory } from "../debug/index";
-import { createEditorSession, type SceneIssue } from "../editor/index";
-import { createRegistry, type Registry } from "../game/index";
+import { createRegistry } from "../game/index";
 import {
   createAssetLoader,
   createGame,
@@ -13,25 +10,16 @@ import {
   type GameInstance,
   type RapierModule,
 } from "../index";
-import type { AssetKey, ProjectId, ProjectRuntimeView } from "../project/index";
-import { createScene, EMPTY_SCENE_TEMPLATE } from "../scene/index";
+import type { ProjectId, ProjectRuntimeView } from "../project/index";
 import type { SceneDocStatus } from "./connect/scene-doc";
-import {
-  EditorFrame,
-  editorChrome,
-  Island,
-  type EditorChrome,
-  type EditorFrameHandle,
-  type FramePanels,
-} from "./frame/EditorFrame";
-import { hostCue, type EditorHost, type EditorNotify } from "./host";
-import { createToaster, hostNotify, Spinner, Toasts } from "./kit/index";
+import { editorChrome, type EditorChrome, type EditorFrameHandle } from "./frame/EditorFrame";
+import { EditorBooting, EditorSkeleton } from "./frame/EditorSkeleton";
+import { hostCue, type EditorHost } from "./host";
+import { createToaster, hostNotify, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { InspectorReadOnly } from "./panels/EditorInspector";
-import type { PanelControls } from "./panels/registry";
 import { createPending } from "./pending/pending";
 import { PendingProvider } from "./pending/use-pending";
-import type { LoadedRun } from "./session/loaded-run";
 import { useSceneEditor, type BootPhase, type EditorAssets } from "./session/use-scene-editor";
 
 export type SceneEditorProps = {
@@ -54,6 +42,8 @@ export type SceneEditorProps = {
 export type SceneEditorHandle = {
   openPanel(id: PanelId): void;
   resetLayout(): void;
+  /** The editor's current game; null while it builds (a rebuild included) and after unmount. */
+  game(): GameInstance | null;
 };
 
 const errorMessage = (error: unknown): string =>
@@ -92,58 +82,6 @@ function bootStatus(
   };
 }
 
-function EditorBooting({
-  label,
-  working,
-  error,
-}: {
-  label: string;
-  working: boolean;
-  error: string | null;
-}) {
-  return (
-    <Island role="status" aria-live="polite" className="je-editor-connecting">
-      <span className="je-session-boot-label">
-        {working ? <Spinner size={12} label={null} /> : null}
-        {label}
-      </span>
-      {error ? <span className="je-editor-connecting-error">{error}</span> : null}
-    </Island>
-  );
-}
-
-const BOOT_ORIGIN: SceneOrigin = { kind: "user", userId: "booting" };
-
-/**
- * The panels' tabs while the editor boots: an empty scene's session, so
- * nothing to count or follow, controls that do nothing, and every body its
- * skeleton.
- */
-function bootPanels(registry: Registry, notify: EditorNotify): FramePanels {
-  const session = createEditorSession({
-    doc: sceneToDoc(createScene("booting", registry, { template: EMPTY_SCENE_TEMPLATE })),
-    origin: BOOT_ORIGIN,
-    name: "booting",
-    registry,
-  });
-  const controls: PanelControls = {
-    session,
-    notify,
-    onReplay: () => {},
-    runStore: new Store<LoadedRun | null>(null),
-    playFrom: () => {},
-    frame: () => false,
-  };
-  return {
-    context: {
-      controls,
-      physical: new Store<readonly SceneIssue[]>([]),
-      pickedAsset: new Store<AssetKey | null>(null),
-    },
-    booting: true,
-  };
-}
-
 /**
  * What the canvas is sized to: the box it sits in once laid out, else the
  * window, as a full-page editor is. Never the canvas's own box, which keeps
@@ -177,7 +115,13 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Destroying a game loses its canvas's WebGL context for good, and a game
+  // built on that canvas again hangs in Pixi's shader probe: every build gets
+  // a new canvas element.
+  const [canvasKey, setCanvasKey] = useState(0);
+  const [spent] = useState(() => new WeakSet<HTMLCanvasElement>());
   const frameRef = useRef<EditorFrameHandle>(null);
+  const gameRef = useRef<GameInstance | null>(null);
   const [toaster] = useState(() => createToaster({ cue: hostCue(host) }));
   useEffect(() => () => toaster.destroy(), [toaster]);
   const [notify] = useState(() => hostNotify(host, toaster));
@@ -185,8 +129,6 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   const [getCanvas] = useState(() => () => canvasRef.current);
   const [loadRapier] = useState(() => () => latest.current.rapier());
   const registry = useMemo(() => createRegistry(definition), [definition]);
-  const boot = useMemo(() => bootPanels(registry, notify), [registry, notify]);
-  useEffect(() => () => boot.context.controls.session.destroy(), [boot]);
 
   const [built, setBuilt] = useState<{
     game: GameInstance;
@@ -219,7 +161,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   const { registry: buildRegistry, projectData } = editing;
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || spent.has(canvas)) return;
 
     let instance: GameInstance | null = null;
     let last = { width: 0, height: 0 };
@@ -265,6 +207,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
         return;
       }
       instance = created;
+      gameRef.current = created;
       last = size;
       setBuildFailed(null);
       setBuilt({ game: created, projectData, loads: loader !== null });
@@ -296,12 +239,15 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
       mounted = false;
       window.removeEventListener("resize", handleResize);
       observer?.disconnect();
+      gameRef.current = null;
       instance?.destroy();
       instance = null;
       loader?.destroy();
       setBuilt(null);
+      spent.add(canvas);
+      setCanvasKey((k) => k + 1);
     };
-  }, [definition, buildRegistry, projectData, loadRapier, notify]);
+  }, [definition, buildRegistry, projectData, loadRapier, notify, spent, canvasKey]);
 
   // Said once per fallback; a host's route that follows it to the opened scene keeps the same one.
   const fellBack = editing.fellBack;
@@ -339,6 +285,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     latest.current.onReady?.({
       openPanel: (id) => frameRef.current?.openPanel(id),
       resetLayout: () => frameRef.current?.resetLayout(),
+      game: () => gameRef.current,
     });
   }, [chrome]);
 
@@ -369,14 +316,17 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
           inert={inert}
           aria-busy={inert || undefined}
         >
-          <EditorFrame
+          <EditorSkeleton
             frameRef={frameRef}
             host={host}
             topLeft={host.chrome?.topLeft}
             topRight={host.chrome?.topRight}
+            registry={registry}
+            notify={notify}
             {...shown}
-            panels={shown?.panels ?? boot}
-            status={shown?.status ?? (booting ? <EditorBooting {...booting} /> : undefined)}
+            status={
+              shown ? (shown.status ?? null) : booting ? <EditorBooting {...booting} /> : undefined
+            }
             overlay={
               <>
                 {shown?.overlay}
@@ -384,8 +334,8 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
               </>
             }
           >
-            <canvas ref={canvasRef} className="je-scene-canvas" />
-          </EditorFrame>
+            <canvas key={canvasKey} ref={canvasRef} className="je-scene-canvas" />
+          </EditorSkeleton>
         </div>
       </InspectorReadOnly>
     </PendingProvider>

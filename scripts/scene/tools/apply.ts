@@ -1,5 +1,6 @@
 import {
   PREFAB_SCENE_OPS,
+  projectView,
   type ProjectApplyResult,
   type ProjectOpBatch,
 } from "@jams/engine/project";
@@ -13,7 +14,7 @@ import {
 import { applyProjectBatchToFiles } from "@jams/engine/vite";
 
 import { failure, issueLine, loadScene, readArg, usage, UsageError, type Tool } from "../context";
-import { withLiveMaterials } from "../projects";
+import { scanProject, withLiveMaterials } from "../projects";
 
 export type ApplyInput = { scene?: string; ops?: string; dryRun?: boolean; base?: string };
 
@@ -28,8 +29,10 @@ function renameHash<T extends { hash: string }>({ hash, ...rest }: T) {
  * `editScene` project op through `applyProjectBatchToFiles`, the way the dev
  * server applies it live: prefab ops follow the project's id, path and trash
  * rules and write sidecars and the registry. `--dry-run` runs that project
- * batch in memory too, so it reports what the write would refuse. A batch
- * that would leave error-severity issues writes nothing.
+ * batch in memory too, so it reports what the write would refuse. The trial
+ * judges asset ids and sprite frames against the scene's project, as
+ * `validate` does. A batch that would leave error-severity issues writes
+ * nothing.
  */
 export const apply: Tool<ApplyInput> = async (input, ctx) => {
   if (!input.ops) return usage("scene apply <scene> --ops <file|-> [--dry-run] [--base hash]");
@@ -48,7 +51,12 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
     batch = { ...batch, base: input.base };
   }
 
-  const result = applyOps(loaded.def, batch, loaded.registry, { prefabs: loaded.prefabs });
+  const home = loaded.scene.project;
+  const project = projectView((await scanProject(home)).state, home.kinds);
+  const result = applyOps(loaded.def, batch, loaded.registry, {
+    prefabs: loaded.prefabs,
+    project,
+  });
   if (!result.ok) {
     return {
       exitCode: result.issue.code === "stale-base" ? 3 : 1,

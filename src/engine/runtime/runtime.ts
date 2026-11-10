@@ -1,9 +1,12 @@
 import { createColliderTags } from "../collider-tags";
 import { SPRITE } from "../game/behaviors/sprite";
+import { DEFAULT_GRAVITY } from "../game/defaults";
 import { createRegistry } from "../game/define";
-import { DEFAULT_GRAVITY } from "../game/primitives";
+import { physicsOf, PhysicsRequiredError } from "../game/physics-of";
+import { resolveTime } from "../game/time";
 import type {
   EngineContext,
+  GameCommand,
   GameDefinition,
   GameRuntime,
   PlayStart,
@@ -11,7 +14,7 @@ import type {
   SceneSystem,
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
-import { createPhysicsWorld } from "../physics";
+import { createPhysicsWorld, type PhysicsWorld } from "../physics";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import { geometryFields } from "../scene/schema";
 import type { EntityTypeName, ExpandedScene, RuntimeEntity } from "../scene/types";
@@ -20,8 +23,12 @@ import type { InputAction } from "../types";
 import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import type { SpriteSystem } from "./behaviors/sprite";
 import { castSpawn } from "./cast";
+import { createGeometryWorld, type GeometryWorld } from "./geometry-world";
+import { createGridState, type GridState } from "./grid";
+import { runtimeNav } from "./nav";
 import { createPoseIndex } from "./poses";
 import { systemFactoryOf } from "./primitives";
+import { geometrySpace, rapierSpace, type SpaceQuery } from "./space";
 import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
 import type {
   LoadReport,
@@ -95,14 +102,46 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let host: BehaviorHost | null = null;
 
   const [gx, gy] = DEFAULT_GRAVITY;
-  const physics = createPhysicsWorld(rapier);
+  const time = resolveTime({ project: opts.project?.engine, game: registry.time });
+  /**
+   * Made at the first load that runs on Rapier and kept: later loads empty
+   * it, so handles allocate as they would in a world made up front.
+   */
+  let world: PhysicsWorld | null = null;
+  /** Whether the scene loaded (or loading) runs on Rapier; `ctx.rapier` and `ctx.physics` are null otherwise. */
+  let onRapier = false;
   const tags = createColliderTags();
+  /**
+   * The engine's colliders for loads without physics, made at the first
+   * one and kept, emptied between loads as the Rapier world is.
+   */
+  let geometryWorld: GeometryWorld | null = null;
+  let geometryQueries: SpaceQuery | null = null;
+  /** Built once `ctx` exists, since both read it. */
+  let rapierQueries: SpaceQuery | null = null;
+  let space: SpaceQuery | null = null;
+  let grid: GridState | null = null;
   const ctx: EngineContext = {
-    rapier,
-    physics,
+    get rapier() {
+      return onRapier ? (rapier ?? null) : null;
+    },
+    get physics() {
+      return onRapier ? world : null;
+    },
+    geometry: null,
+    get space() {
+      return space!;
+    },
+    time,
+    get grid() {
+      return grid?.current ?? null;
+    },
+    get nav() {
+      return runtimeNav(ctx);
+    },
     view,
     tags,
-    attachments: createAttachmentHub(physics, tags),
+    attachments: createAttachmentHub((id) => physicsOf(ctx, "attach", id).physics, tags),
     registry,
     dev: opts.dev ?? false,
     bounds: [0, 0, 0, 0],
@@ -130,6 +169,10 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     behavior: (name) => host?.system(name),
     sampling: opts.sampling ?? "linear",
   };
+  rapierQueries = rapierSpace(ctx);
+  space = rapierQueries;
+  const gridState = createGridState(ctx, registry);
+  grid = gridState;
 
   for (const name of registry.spawnGroups.flat()) {
     const type = registry.types.get(name)!;
@@ -192,6 +235,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     for (const id of [...ctx.poses.ids()]) ctx.poses.remove(id);
     ctx.attachments.clear();
     ctx.tags.clear();
+    gridState.clear();
+    geometryWorld?.clear();
+    ctx.geometry = null;
+    space = rapierQueries;
+    onRapier = false;
     byId.clear();
     loadedScene = null;
     cachedScene = null;
@@ -228,8 +276,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   }
 
   function reconciled(): void {
-    ctx.physics.refreshQueries();
+    ctx.physics?.refreshQueries();
     cachedScene = null;
+    gridState.sync(currentScene());
   }
 
   /** The play start for `opts`, `at` cast onto the ground when the game has a spawn shape. */
@@ -239,7 +288,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     if (!opts.at) return start;
     const shape = gameDef?.play?.spawnShape;
     if (!shape) return { ...start, at: { ...opts.at } };
-    ctx.physics.refreshQueries();
+    ctx.physics?.refreshQueries();
     const cast = castSpawn(ctx, opts.at, shape);
     return cast.ok ? { ...start, at: cast.at } : { error: cast.error };
   }
@@ -250,13 +299,29 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
 
     const rejected = checkEntities(next.entities, () => false);
     if (rejected) return rejected;
+    if (next.settings.physics === "rapier" && !rapier) {
+      return {
+        ok: false,
+        error: "this scene runs on Rapier, and the host loaded no Rapier module",
+        reason: "physics-not-loaded",
+      };
+    }
 
     unload();
     const gravity = next.settings.gravity;
     ctx.bounds = [...next.bounds];
     ctx.settings = { ...next.settings, gravity: [gravity[0], gravity[1]] };
     ctx.gravity = { x: gravity[0], y: gravity[1] };
-    ctx.physics.setGravity(ctx.gravity);
+    if (rapier && next.settings.physics === "rapier") {
+      world ??= createPhysicsWorld(rapier, { gravity: ctx.gravity, timestep: 1 / time.rate });
+      onRapier = true;
+    } else {
+      geometryWorld ??= createGeometryWorld(registry);
+      geometryQueries ??= geometrySpace(geometryWorld, tags, registry);
+      ctx.geometry = geometryWorld;
+      space = geometryQueries;
+    }
+    ctx.physics?.setGravity(ctx.gravity);
 
     const counts: Record<EntityTypeName, number> = {};
     let current: string | undefined;
@@ -287,16 +352,20 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       }
       gameLoaded = true;
       inGame(() => game?.onLoad?.(next));
-      ctx.physics.refreshQueries();
+      ctx.physics?.refreshQueries();
     } catch (err) {
       if (byId.size === 0) for (const e of spawned.reverse()) leaving(e);
       unload();
-      const error = errorOf(err);
-      return current === undefined ? { ok: false, error } : { ok: false, error, entityId: current };
+      const report: Extract<LoadReport, { ok: false }> = { ok: false, error: errorOf(err) };
+      const entityId = current ?? (err instanceof PhysicsRequiredError ? err.entityId : undefined);
+      if (entityId !== undefined) report.entityId = entityId;
+      if (err instanceof PhysicsRequiredError) report.reason = "physics-required";
+      return report;
     }
 
     loadedScene = next;
     cachedScene = next;
+    gridState.load(next);
     return { ok: true, counts, ms: now() - started };
   }
 
@@ -319,7 +388,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
           leaving(s);
           systems.get(s.type)!.despawn(s.id);
         }
-        ctx.physics.refreshQueries();
+        ctx.physics?.refreshQueries();
         return { ok: false, error: errorOf(err), entityId: e.id };
       }
       spawned.push(e);
@@ -374,7 +443,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
           systems.get(change.prev.type)!.spawn(change.prev);
           entered(change.prev);
         }
-        ctx.physics.refreshQueries();
+        ctx.physics?.refreshQueries();
         return { ok: false, error: errorOf(err), entityId: e.id };
       }
     }
@@ -396,14 +465,18 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     if (removed) reconciled();
   }
 
-  function step(dtMs: number, actions: InputAction[]): StepResult {
+  function step(
+    dtMs: number,
+    actions: InputAction[],
+    commands?: readonly GameCommand[],
+  ): StepResult {
     const t = tick;
     engineEvents = [];
     gameEvents = [];
 
     for (const system of ordered) system.beforeStep?.(dtMs);
-    inGame(() => game?.beforeStep?.(dtMs, actions));
-    ctx.physics.step();
+    inGame(() => game?.beforeStep?.(dtMs, actions, commands ?? []));
+    ctx.physics?.step();
     for (const system of ordered) system.afterStep?.(dtMs);
     behaviors.step(dtMs);
     inGame(() => game?.afterStep?.(dtMs, [...engineEvents, ...gameEvents]));
@@ -424,9 +497,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       const n = system.size();
       if (n > 0) perType[type] = n;
     }
+    const physics = ctx.physics;
     return {
-      bodies: ctx.physics.world.bodies.len(),
-      colliders: ctx.physics.world.colliders.len(),
+      backend: ctx.settings.physics === "none" ? "geometry" : "rapier",
+      bodies: physics ? physics.world.bodies.len() : (ctx.geometry?.size ?? 0),
+      colliders: physics ? physics.world.colliders.len() : (ctx.geometry?.size ?? 0),
       tags: ctx.tags.size,
       entities: byId.size,
       perType,
@@ -434,11 +509,19 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     };
   }
 
+  /** The loaded scene with every reconcile since applied, or null. */
+  function currentScene(): ExpandedScene | null {
+    if (!loadedScene) return null;
+    cachedScene ??= { ...loadedScene, entities: [...byId.values()] };
+    return cachedScene;
+  }
+
   function destroy(): void {
     if (destroyed) return;
     unload();
     inGame(() => game?.destroy?.());
-    ctx.physics.destroy();
+    world?.destroy();
+    world = null;
     destroyed = true;
   }
 
@@ -450,6 +533,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     remove,
     get: (id) => byId.get(id),
     step,
+    busy: () => game?.busy?.() ?? false,
     snapshot,
     stats,
     destroy,
@@ -464,10 +548,6 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         reattached,
       }));
     },
-    scene() {
-      if (!loadedScene) return null;
-      cachedScene ??= { ...loadedScene, entities: [...byId.values()] };
-      return cachedScene;
-    },
+    scene: currentScene,
   };
 }

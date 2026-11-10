@@ -56,6 +56,12 @@
     { "id": "about-nesting", "type": "note", "at": [2440, 240], "text": "Nesting: room-1 holds a doorway, which holds a latch, and a latch of its own: three levels. Its doorSpeed param feeds the doorway's panel, which rider rides by the child ref room-1/door-1/panel. door-2 is a flipped doorway drawn at z 3; latch-3 places one-way-latch, a variant of latch." },
     { "id": "about-wing", "type": "note", "at": [3000, 120], "text": "Group wing: turned and flipped. Its members are stored unturned, relative to its origin, and wing-board sits at z 2." },
     { "id": "lamp", "type": "decor", "layer": "decor", "at": [600, 1040], "behaviors": { "sprite": { "asset": "backdrop", "scale": 4 } } },
-    { "id": "about-sprites", "type": "note", "at": [440, 960], "text": "Sprites: crate draws the crates atlas's crate-0, ball its crate-1 tinted and added, ledge the hero sheet's hero-1 under the bouncy material's tint, and the decor lamp the backdrop texture at scale 4." }
+    { "id": "about-sprites", "type": "note", "at": [440, 960], "text": "Sprites: crate draws the crates atlas's crate-0, ball its crate-1 tinted and added, ledge the hero sheet's hero-1 under the bouncy material's tint, and the decor lamp the backdrop texture at scale 4." },
+    { "id": "floor-plan", "type": "nav", "shape": ["poly", 1900, 300, 2300, 300, 2300, 400, 2050, 400, 2050, 550, 1900, 550], "tags": ["hall"] },
+    { "id": "about-nav", "type": "note", "at": [1900, 280], "text": "Navigation: floor-plan is a concave walk area with the pillar hole cut out of it; ctx.nav paths across it, around the pillar, without physics or a grid." },
+    { "id": "pillar", "type": "nav", "shape": ["poly", 2120, 330, 2180, 330, 2180, 370, 2120, 370], "mode": "block" },
+    { "id": "side-wall", "type": "solid", "shape": ["box", 300, 220, 8, 60], "oneWay": "left" },
+    { "id": "upright", "type": "prop", "shape": ["box", 312, 140, 10, 10], "density": 1, "fixedRotation": true, "restitution": 0 },
+    { "id": "about-sides", "type": "note", "at": [200, 60], "text": "One-way sides and body fields: side-wall is one-way from the left, so an actor passes it moving left and stops on its left face; upright starts half past its top and slides off without turning (fixedRotation)." }
   ]
 }

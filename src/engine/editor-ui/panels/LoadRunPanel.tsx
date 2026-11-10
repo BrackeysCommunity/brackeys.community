@@ -1,5 +1,5 @@
 import type { Store } from "@tanstack/store";
-import { useId, useState } from "react";
+import { useId, useMemo, useState, useSyncExternalStore } from "react";
 
 import type { EditorSession } from "../../editor/index";
 import type { PlayOptions } from "../../index";
@@ -26,7 +26,7 @@ import {
   usePending,
 } from "../pending/use-pending";
 import { parseRun, runIsStale, runStart, type LoadedRun } from "../session/loaded-run";
-import { useEditorStore } from "../session/use-editor-store";
+import { useEditorDoc } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
 
 /** Markers listed before the rest are summarised as a count. */
@@ -219,10 +219,10 @@ function RunSummary({
 /**
  * A run shown over the scene through `run` (the canvas layer draws
  * `runOverlay` of it): the editor's last Play, or a recording loaded from a
- * file or pasted. It notes when the scene changed since, and offers
- * **Replay** and **Play from its start**. Its summary stays in view while
- * the markers scroll, so a long run never grows the panel. Outside an
- * editor it reads files through a `Pending` of its own.
+ * file or pasted. It notes when the scene, or a prefab it places, changed
+ * since, and offers **Replay** and **Play from its start**. Its summary
+ * stays in view while the markers scroll, so a long run never grows the
+ * panel. Outside an editor it reads files through a `Pending` of its own.
  */
 export function LoadRunPanel({
   session,
@@ -238,7 +238,15 @@ export function LoadRunPanel({
   notify: EditorNotify;
 }) {
   const loaded = useStoreValue(run);
-  const hash = useEditorStore(session, (s) => s.hash);
+  const def = useEditorDoc(session);
+  const prefabs = useSyncExternalStore(
+    (changed) => session.prefabs.subscribe(changed),
+    () => session.getPrefabs(),
+  );
+  const stale = useMemo(
+    () => (loaded ? runIsStale(loaded, def, prefabs) : false),
+    [loaded, def, prefabs],
+  );
   const [open, setOpen] = useState(false);
   const pending = useOwnOrSharedPending(notify);
 
@@ -262,12 +270,7 @@ export function LoadRunPanel({
           ) : null}
         </div>
         {loaded ? (
-          <RunSummary
-            run={loaded}
-            stale={runIsStale(loaded, hash)}
-            onPlayFrom={onPlayFrom}
-            onReplay={onReplay}
-          />
+          <RunSummary run={loaded} stale={stale} onPlayFrom={onPlayFrom} onReplay={onReplay} />
         ) : (
           <Text as="p" size="xs" variant="muted">
             Play the scene, or load a recording, to see its trail over the scene.

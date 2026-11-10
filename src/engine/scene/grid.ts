@@ -9,6 +9,7 @@
  * chunk `(floor(col/32), floor(row/32))` at row `row mod 32`, column
  * `col mod 32`.
  */
+import type { CellBounds } from "../grid/geometry";
 import { dihedral, type Dihedral, type Transform2D } from "./transform";
 import type { CellEdit, CellRect } from "./types";
 
@@ -295,10 +296,8 @@ export function gridProblems(value: unknown, max = GRID_MAX_VALUE): GridProblem[
   return out;
 }
 
-export function gridCellBounds(
-  grid: GridCells,
-): { c0: number; r0: number; c1: number; r1: number } | null {
-  let b: { c0: number; r0: number; c1: number; r1: number } | null = null;
+export function gridCellBounds(grid: GridCells): CellBounds | null {
+  let b: CellBounds | null = null;
   for (const [key, rows] of Object.entries(grid)) {
     const at = parseChunkKey(key);
     if (!at) throw new Error(`"${key}" isn't a chunk key "cx,cy"`);

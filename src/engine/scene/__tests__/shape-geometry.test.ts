@@ -12,12 +12,24 @@ import {
   geometryPose,
   intersectsRect,
   isConvex,
+  isSimplePolygon,
+  polygonInside,
+  polygonSide,
+  polygonsDisjoint,
+  polygonsOverlap,
+  segmentsMeet,
+  walkPolygonIssues,
+  nearestPointOnShape,
   nearestSegment,
   nearestVertex,
   normDeg,
+  raycastShape,
   rotateShape,
+  shapeAtPose,
   shapeCentre,
+  shapesIntersect,
   shapeVertices,
+  sweepShape,
   topSpan,
   translateShape,
   turnBy,
@@ -522,5 +534,581 @@ describe("turnBy, shapeCentre and geometryPose", () => {
     expect(geometryPose({ at: [9, 8], path })).toEqual({ at: [9, 8] });
     expect(geometryPose({ path })).toEqual({ at: [100, 200] });
     expect(geometryPose({})).toBeNull();
+  });
+});
+
+/** A seeded generator, so a failure names the same shapes every run. */
+function random(seed: number) {
+  let s = seed >>> 0;
+  const next = () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const int = (lo: number, hi: number) => lo + Math.floor(next() * (hi - lo + 1));
+  return { next, int };
+}
+
+const SHAPE_TYPES = ["box", "circle", "capsule", "poly", "chain"] as const;
+
+function randomShape(type: ShapeObj["type"], rnd: ReturnType<typeof random>): ShapeObj {
+  const quarter = () => rnd.int(0, 3) * 90;
+  const at = () => rnd.int(5, 35);
+  switch (type) {
+    case "box":
+      return {
+        type,
+        cx: at(),
+        cy: at(),
+        hw: rnd.int(1, 10),
+        hh: rnd.int(1, 10),
+        rotDeg: quarter(),
+      };
+    case "circle":
+      return { type, cx: at(), cy: at(), r: rnd.int(1, 10) };
+    case "capsule":
+      return {
+        type,
+        cx: at(),
+        cy: at(),
+        halfLen: rnd.int(1, 10),
+        r: rnd.int(1, 6),
+        rotDeg: quarter(),
+      };
+    case "poly": {
+      for (;;) {
+        const ox = rnd.int(0, 20);
+        const oy = rnd.int(0, 20);
+        const pts = Array.from(
+          { length: rnd.int(3, 6) },
+          (): Pt => [ox + rnd.int(0, 20), oy + rnd.int(0, 20)],
+        );
+        const hull = convexHull(pts);
+        if (hull.length >= 3) return { type, pts: hull };
+      }
+    }
+    case "chain":
+      return { type, pts: Array.from({ length: rnd.int(2, 4) }, (): Pt => [at(), at()]) };
+  }
+}
+
+const STEP = 0.5;
+
+/** Whether some point of a `STEP` grid lies within `tol` of both shapes. */
+function sampled(a: ShapeObj, b: ShapeObj, tol: number): boolean {
+  const ba = aabb(a);
+  const bb = aabb(b);
+  const minX = Math.floor(Math.max(ba.minX, bb.minX) - tol);
+  const maxX = Math.ceil(Math.min(ba.maxX, bb.maxX) + tol);
+  const minY = Math.floor(Math.max(ba.minY, bb.minY) - tol);
+  const maxY = Math.ceil(Math.min(ba.maxY, bb.maxY) + tol);
+  for (let x = minX; x <= maxX; x += STEP) {
+    for (let y = minY; y <= maxY; y += STEP) {
+      if (containsPoint(a, [x, y], tol) && containsPoint(b, [x, y], tol)) return true;
+    }
+  }
+  return false;
+}
+
+const box = (cx: number, cy: number, hw: number, hh: number, rotDeg = 0): ShapeObj => ({
+  type: "box",
+  cx,
+  cy,
+  hw,
+  hh,
+  rotDeg,
+});
+
+describe("shapesIntersect", () => {
+  it("agrees with a point sampler on random integer shapes, for every pair of types", () => {
+    const rnd = random(14);
+    const grid = STEP * Math.SQRT1_2 + 1e-9;
+    for (const ta of SHAPE_TYPES) {
+      for (const tb of SHAPE_TYPES) {
+        let hits = 0;
+        let misses = 0;
+        for (let i = 0; i < 40; i++) {
+          const a = randomShape(ta, rnd);
+          const b = randomShape(tb, rnd);
+          const hit = shapesIntersect(a, b);
+          const where = JSON.stringify([a, b]);
+          expect(shapesIntersect(b, a), where).toBe(hit);
+          if (sampled(a, b, 0)) expect(hit, where).toBe(true);
+          if (hit) expect(sampled(a, b, grid), where).toBe(true);
+          if (hit) hits++;
+          else misses++;
+        }
+        expect(hits, `${ta}/${tb}`).toBeGreaterThan(0);
+        if (ta !== "chain" || tb !== "chain") expect(misses, `${ta}/${tb}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("counts touching, and nothing nearer than touching", () => {
+    expect(shapesIntersect(box(0, 0, 5, 5), box(10, 0, 5, 5))).toBe(true);
+    expect(shapesIntersect(box(0, 0, 5, 5), box(10.000001, 0, 5, 5))).toBe(false);
+    expect(shapesIntersect(box(0, 0, 5, 5), { type: "circle", cx: 10, cy: 0, r: 5 })).toBe(true);
+    // The circle's box overlaps the square's corner, but the circle doesn't.
+    expect(shapesIntersect(box(0, 0, 5, 5), { type: "circle", cx: 12, cy: 12, r: 9 })).toBe(false);
+    expect(shapesIntersect(box(0, 0, 5, 5), { type: "circle", cx: 12, cy: 12, r: 10 })).toBe(true);
+  });
+
+  it("treats chains as segments: a crossing or a chain wholly inside counts", () => {
+    const through: ShapeObj = {
+      type: "chain",
+      pts: [
+        [-20, 0],
+        [20, 0],
+      ],
+    };
+    const inside: ShapeObj = {
+      type: "chain",
+      pts: [
+        [-1, -1],
+        [1, 1],
+      ],
+    };
+    expect(shapesIntersect(through, box(0, 0, 5, 5))).toBe(true);
+    expect(shapesIntersect(inside, box(0, 0, 5, 5))).toBe(true);
+    expect(shapesIntersect(inside, { type: "circle", cx: 0, cy: 0, r: 5 })).toBe(true);
+    expect(shapesIntersect(through, box(0, 10, 5, 5))).toBe(false);
+  });
+
+  it("separates collinear capsules and segments end to end", () => {
+    const cap = (cy: number): ShapeObj => ({
+      type: "capsule",
+      cx: 0,
+      cy,
+      halfLen: 5,
+      r: 2,
+      rotDeg: 0,
+    });
+    expect(shapesIntersect(cap(0), cap(14))).toBe(true);
+    expect(shapesIntersect(cap(0), cap(14.5))).toBe(false);
+    const seg = (x0: number, x1: number): ShapeObj => ({
+      type: "chain",
+      pts: [
+        [x0, 0],
+        [x1, 0],
+      ],
+    });
+    expect(shapesIntersect(seg(0, 5), seg(6, 9))).toBe(false);
+    expect(shapesIntersect(seg(0, 5), seg(5, 9))).toBe(true);
+  });
+
+  it("handles boxes at other angles", () => {
+    const diamond = box(0, 0, 10, 10, 45);
+    expect(shapesIntersect(diamond, box(14, 0, 1, 1))).toBe(true);
+    expect(shapesIntersect(diamond, box(16, 0, 1, 1))).toBe(false);
+  });
+});
+
+describe("shapeAtPose", () => {
+  it("translates and turns by exact quarter turns", () => {
+    const local = box(10, 0, 4, 2);
+    expect(shapeAtPose(local, { x: 100, y: 50, rot: Math.PI / 2 })).toEqual(box(100, 60, 4, 2, 90));
+    expect(shapeAtPose(local, { x: 100, y: 50, rot: -Math.PI / 2 })).toEqual(
+      box(100, 40, 4, 2, 270),
+    );
+    expect(shapeAtPose(local, { x: 0, y: 0, rot: Math.PI })).toEqual(box(-10, 0, 4, 2, 180));
+    expect(shapeAtPose(local, { x: 1, y: 2, rot: 0 })).toEqual(box(11, 2, 4, 2));
+    expect(
+      shapeAtPose(
+        { type: "capsule", cx: 0, cy: 0, halfLen: 3, r: 1, rotDeg: 90 },
+        { x: 5, y: 5, rot: Math.PI / 2 },
+      ),
+    ).toEqual({ type: "capsule", cx: 5, cy: 5, halfLen: 3, r: 1, rotDeg: 180 });
+  });
+
+  it("moves every point of a poly or chain", () => {
+    const tri: ShapeObj = {
+      type: "poly",
+      pts: [
+        [0, 0],
+        [10, 0],
+        [0, 5],
+      ],
+    };
+    expect(shapeAtPose(tri, { x: 100, y: 0, rot: Math.PI / 2 })).toEqual({
+      type: "poly",
+      pts: [
+        [100, 0],
+        [100, 10],
+        [95, 0],
+      ],
+    });
+    expect(shapeAtPose({ type: "chain", pts: [[1, 2]] }, { x: 10, y: 20, rot: Math.PI })).toEqual({
+      type: "chain",
+      pts: [[9, 18]],
+    });
+  });
+
+  it("turns a circle's centre and leaves its radius", () => {
+    expect(
+      shapeAtPose({ type: "circle", cx: 0, cy: 3, r: 2 }, { x: 1, y: 1, rot: Math.PI / 2 }),
+    ).toEqual({ type: "circle", cx: -2, cy: 1, r: 2 });
+  });
+
+  it("uses cos and sin for other angles", () => {
+    const s = shapeAtPose(box(10, 0, 4, 2), { x: 0, y: 0, rot: 0.3 });
+    if (s.type !== "box") throw new Error("box expected");
+    expect(s.cx).toBeCloseTo(10 * Math.cos(0.3));
+    expect(s.cy).toBeCloseTo(10 * Math.sin(0.3));
+    expect(s.rotDeg).toBeCloseTo((0.3 * 180) / Math.PI);
+  });
+});
+
+describe("raycastShape", () => {
+  it("gives the time of impact as a fraction of maxDist, with the face's normal", () => {
+    expect(raycastShape(box(50, 50, 10, 10), [0, 50], [1, 0], 100)).toEqual({
+      toi: 0.4,
+      normal: [-1, 0],
+    });
+    expect(raycastShape(box(50, 50, 10, 10), [0, 50], [5, 0], 100)).toEqual({
+      toi: 0.4,
+      normal: [-1, 0],
+    });
+    expect(raycastShape(box(50, 50, 10, 10), [50, 100], [0, -1], 50)?.normal).toEqual([0, 1]);
+    expect(raycastShape(box(50, 50, 10, 10), [0, 50], [1, 0], 39)).toBeNull();
+    expect(raycastShape(box(50, 50, 10, 10), [0, 50], [-1, 0], 100)).toBeNull();
+    expect(raycastShape(box(50, 50, 10, 10), [0, 50], [0, 0], 100)).toBeNull();
+  });
+
+  it("hits at 0 with no normal from inside a solid shape", () => {
+    expect(raycastShape(box(50, 50, 10, 10), [50, 50], [1, 0], 100)).toEqual({
+      toi: 0,
+      normal: [0, 0],
+    });
+    expect(raycastShape({ type: "circle", cx: 0, cy: 0, r: 5 }, [1, 1], [1, 0], 10)).toEqual({
+      toi: 0,
+      normal: [0, 0],
+    });
+  });
+
+  it("casts against circles and capsules, sides and caps", () => {
+    expect(raycastShape({ type: "circle", cx: 50, cy: 50, r: 10 }, [50, 0], [0, 1], 100)).toEqual({
+      toi: 0.4,
+      normal: [0, -1],
+    });
+    const cap: ShapeObj = { type: "capsule", cx: 50, cy: 50, halfLen: 10, r: 5, rotDeg: 0 };
+    expect(raycastShape(cap, [0, 50], [1, 0], 100)).toEqual({ toi: 0.45, normal: [-1, 0] });
+    expect(raycastShape(cap, [50, 0], [0, 1], 100)).toEqual({ toi: 0.35, normal: [0, -1] });
+    expect(raycastShape({ ...cap, rotDeg: 90 }, [0, 50], [1, 0], 100)).toEqual({
+      toi: 0.35,
+      normal: [-1, 0],
+    });
+  });
+
+  it("hits a chain from either side, the normal facing the ray", () => {
+    const chain: ShapeObj = {
+      type: "chain",
+      pts: [
+        [0, 100],
+        [100, 100],
+      ],
+    };
+    expect(raycastShape(chain, [50, 150], [0, -1], 100)).toEqual({ toi: 0.5, normal: [0, 1] });
+    expect(raycastShape(chain, [50, 50], [0, 1], 100)).toEqual({ toi: 0.5, normal: [0, -1] });
+    expect(raycastShape(chain, [150, 50], [0, 1], 100)).toBeNull();
+    expect(raycastShape(chain, [-50, 100], [1, 0], 100)).toBeNull();
+  });
+
+  it("agrees with marching the ray on random shapes", () => {
+    const rnd = random(7);
+    const dt = 0.01;
+    for (const type of ["box", "circle", "capsule", "poly"] as const) {
+      for (let i = 0; i < 40; i++) {
+        const s = randomShape(type, rnd);
+        const from: Pt = [rnd.int(-10, 50) + 0.5, rnd.int(-10, 50) + 0.5];
+        const a = rnd.next() * 2 * Math.PI;
+        const dir: Pt = [Math.cos(a), Math.sin(a)];
+        const maxDist = 80;
+        const hit = raycastShape(s, from, dir, maxDist);
+        let marched: number | null = null;
+        for (let t = 0; t <= maxDist; t += dt) {
+          if (containsPoint(s, [from[0] + dir[0] * t, from[1] + dir[1] * t], 1e-9)) {
+            marched = t;
+            break;
+          }
+        }
+        const where = JSON.stringify({ s, from, dir });
+        if (marched === null) {
+          expect(hit, where).toBeNull();
+          continue;
+        }
+        expect(hit, where).not.toBeNull();
+        expect(Math.abs(hit!.toi * maxDist - marched), where).toBeLessThanOrEqual(dt + 1e-9);
+        if (hit!.toi > 0) {
+          const t = hit!.toi * maxDist;
+          expect(containsPoint(s, [from[0] + dir[0] * t, from[1] + dir[1] * t], 1e-6)).toBe(true);
+          expect(Math.hypot(hit!.normal[0], hit!.normal[1])).toBeCloseTo(1, 9);
+          expect(hit!.normal[0] * dir[0] + hit!.normal[1] * dir[1]).toBeLessThanOrEqual(1e-9);
+        }
+      }
+    }
+  });
+});
+
+describe("sweepShape", () => {
+  it("finds the time of impact to 1/1024 of the motion, with the separating normal", () => {
+    const hit = sweepShape(box(0, 0, 5, 5), [0, 100], box(0, 60, 50, 10));
+    expect(hit).not.toBeNull();
+    expect(hit!.toi).toBeLessThanOrEqual(0.45);
+    expect(hit!.toi).toBeGreaterThan(0.45 - 1 / 1024);
+    expect(hit!.normal).toEqual([0, -1]);
+    expect(hit!.at[1]).toBe(50);
+  });
+
+  it("catches a wall the motion passes clean through", () => {
+    const hit = sweepShape(box(0, 0, 2, 2), [100, 0], box(50, 0, 1, 20));
+    expect(hit!.toi).toBeGreaterThan(0.47 - 1 / 1024);
+    expect(hit!.toi).toBeLessThanOrEqual(0.47);
+    expect(hit!.normal).toEqual([-1, 0]);
+  });
+
+  it("takes its normal from the separating axis on a corner", () => {
+    const hit = sweepShape({ type: "circle", cx: 0, cy: 0, r: 5 }, [100, 100], box(50, 50, 10, 10));
+    expect(hit!.normal[0]).toBeCloseTo(-Math.SQRT1_2, 2);
+    expect(hit!.normal[1]).toBeCloseTo(-Math.SQRT1_2, 2);
+  });
+
+  it("is a hit at 0 when touching at the start, and null with no motion or no contact", () => {
+    expect(sweepShape(box(0, 0, 5, 5), [0, 10], box(10, 0, 5, 5))?.toi).toBe(0);
+    expect(sweepShape(box(0, 0, 5, 5), [0, 0], box(10, 0, 5, 5))).toBeNull();
+    expect(sweepShape(box(0, 0, 5, 5), [0, 100], box(50, 0, 5, 5))).toBeNull();
+  });
+});
+
+describe("nearestPointOnShape", () => {
+  it("is the point itself inside, else the nearest point of the outline", () => {
+    expect(nearestPointOnShape(box(0, 0, 5, 5), [1, 2])).toEqual([1, 2]);
+    expect(nearestPointOnShape(box(0, 0, 5, 5), [20, 2])).toEqual([5, 2]);
+    expect(nearestPointOnShape({ type: "circle", cx: 0, cy: 0, r: 5 }, [0, 20])).toEqual([0, 5]);
+    expect(
+      nearestPointOnShape(
+        {
+          type: "chain",
+          pts: [
+            [0, 0],
+            [10, 0],
+          ],
+        },
+        [4, 3],
+      ),
+    ).toEqual([4, 0]);
+  });
+});
+
+describe("walk-polygon predicates", () => {
+  const sq = (x0: number, y0: number, x1: number, y1: number): Pt[] => [
+    [x0, y0],
+    [x1, y0],
+    [x1, y1],
+    [x0, y1],
+  ];
+  const l: Pt[] = [
+    [0, 0],
+    [100, 0],
+    [100, 40],
+    [40, 40],
+    [40, 100],
+    [0, 100],
+  ];
+
+  it("segmentsMeet counts crossings and touches", () => {
+    expect(segmentsMeet([0, 0], [10, 10], [0, 10], [10, 0])).toBe(true);
+    expect(segmentsMeet([0, 0], [10, 0], [10, 0], [20, 5])).toBe(true);
+    expect(segmentsMeet([0, 0], [10, 0], [5, 0], [5, 5])).toBe(true);
+    expect(segmentsMeet([0, 0], [10, 0], [5, 1], [5, 5])).toBe(false);
+    expect(segmentsMeet([0, 0], [10, 0], [11, 0], [20, 0])).toBe(false);
+    expect(segmentsMeet([0, 0], [10, 0], [5, 0], [20, 0])).toBe(true);
+  });
+
+  it("polygonSide tells inside, outline and outside apart in either winding", () => {
+    for (const pts of [l, [...l].reverse()]) {
+      expect(polygonSide([20, 20], pts)).toBe(1);
+      expect(polygonSide([70, 40], pts)).toBe(0);
+      expect(polygonSide([40, 40], pts)).toBe(0);
+      expect(polygonSide([70, 70], pts)).toBe(-1);
+      expect(polygonSide([-1, 50], pts)).toBe(-1);
+    }
+  });
+
+  it("isSimplePolygon accepts concave and collinear rings, refuses knots", () => {
+    expect(isSimplePolygon(l)).toBe(true);
+    expect(isSimplePolygon([...l].reverse())).toBe(true);
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [5, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+      ]),
+    ).toBe(true);
+    // Bow-tie.
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [10, 10],
+        [10, 0],
+        [0, 10],
+      ]),
+    ).toBe(false);
+    // Two squares meeting at one corner (a figure eight).
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [20, 10],
+        [20, 20],
+        [10, 20],
+        [10, 10],
+        [0, 10],
+      ]),
+    ).toBe(false);
+    // A corner touching an edge.
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [20, 0],
+        [20, 10],
+        [10, 0],
+        [0, 10],
+      ]),
+    ).toBe(false);
+    // A spike doubling back.
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [10, 0],
+        [5, 0],
+        [5, 10],
+      ]),
+    ).toBe(false);
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [10, 0],
+        [10, 0],
+        [0, 10],
+      ]),
+    ).toBe(false);
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [5, 0],
+        [10, 0],
+      ]),
+    ).toBe(false);
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [10, 0],
+      ]),
+    ).toBe(false);
+    expect(
+      isSimplePolygon([
+        [0, 0],
+        [10, Number.NaN],
+        [0, 10],
+      ]),
+    ).toBe(false);
+  });
+
+  it("polygonInside is strict: touching or crossing the outline fails", () => {
+    expect(polygonInside(sq(10, 10, 20, 20), l)).toBe(true);
+    expect(polygonInside(sq(10, 10, 20, 20), [...l].reverse())).toBe(true);
+    expect(polygonInside(sq(0, 10, 20, 20), l)).toBe(false);
+    expect(polygonInside(sq(30, 30, 50, 50), l)).toBe(false);
+    expect(polygonInside(sq(60, 60, 70, 70), l)).toBe(false);
+    expect(polygonInside(l, sq(10, 10, 20, 20))).toBe(false);
+    // A hole around the inner corner, every corner inside, one edge crossing out.
+    expect(
+      polygonInside(
+        [
+          [30, 30],
+          [60, 30],
+          [30, 60],
+        ],
+        l,
+      ),
+    ).toBe(false);
+  });
+
+  it("polygonsDisjoint needs no shared point and no nesting", () => {
+    expect(polygonsDisjoint(sq(0, 0, 10, 10), sq(20, 0, 30, 10))).toBe(true);
+    expect(polygonsDisjoint(sq(0, 0, 10, 10), sq(10, 0, 20, 10))).toBe(false);
+    expect(polygonsDisjoint(sq(0, 0, 10, 10), sq(10, 10, 20, 20))).toBe(false);
+    expect(polygonsDisjoint(sq(0, 0, 10, 10), sq(2, 2, 8, 8))).toBe(false);
+    expect(polygonsDisjoint(sq(2, 2, 8, 8), sq(0, 0, 10, 10))).toBe(false);
+  });
+
+  it("polygonsOverlap is about interiors: shared edges and corners don't count", () => {
+    expect(polygonsOverlap(sq(0, 0, 10, 10), sq(10, 0, 20, 10))).toBe(false);
+    expect(polygonsOverlap(sq(0, 0, 10, 10), sq(10, 5, 20, 15))).toBe(false);
+    expect(polygonsOverlap(sq(0, 0, 10, 10), sq(10, 10, 20, 20))).toBe(false);
+    expect(polygonsOverlap(sq(0, 0, 10, 10), sq(20, 0, 30, 10))).toBe(false);
+    expect(polygonsOverlap(sq(0, 0, 10, 10), sq(5, 5, 15, 15))).toBe(true);
+    expect(polygonsOverlap(sq(0, 0, 10, 10), sq(2, 2, 8, 8))).toBe(true);
+    expect(polygonsOverlap(sq(2, 2, 8, 8), sq(0, 0, 10, 10))).toBe(true);
+    expect(polygonsOverlap(sq(0, 0, 10, 10), sq(0, 0, 10, 10))).toBe(true);
+    expect(polygonsOverlap(sq(0, 0, 10, 10), [...sq(0, 0, 10, 10)].reverse())).toBe(true);
+    // Same outline with an extra collinear corner.
+    expect(
+      polygonsOverlap(sq(0, 0, 10, 10), [
+        [0, 0],
+        [5, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+      ]),
+    ).toBe(true);
+    // Sharing part of an edge from inside: a box against the L's inner corner.
+    expect(polygonsOverlap(l, sq(40, 40, 60, 60))).toBe(false);
+    expect(polygonsOverlap(l, sq(30, 40, 60, 60))).toBe(true);
+    // A cross: no corner of either inside the other.
+    expect(polygonsOverlap(sq(0, 4, 10, 6), sq(4, 0, 6, 10))).toBe(true);
+  });
+
+  it("walkPolygonIssues reports each broken rule and keeps the rest", () => {
+    const { issues, areas } = walkPolygonIssues(
+      [
+        { id: "room", pts: l },
+        { id: "annex", pts: sq(100, 0, 140, 40) },
+        { id: "over", pts: sq(90, 30, 120, 60) },
+        {
+          id: "knot",
+          pts: [
+            [200, 0],
+            [210, 10],
+            [210, 0],
+            [200, 10],
+          ],
+        },
+      ],
+      [
+        { id: "pillar", pts: sq(10, 10, 20, 20) },
+        { id: "stray", pts: sq(300, 0, 310, 10) },
+        { id: "seam", pts: sq(95, 10, 105, 20) },
+        { id: "nested", pts: sq(12, 12, 14, 14) },
+        { id: "crate", pts: sq(110, 10, 120, 20) },
+      ],
+    );
+    expect(issues.map((i) => i.entityIds)).toEqual([
+      ["room", "over"],
+      ["knot"],
+      ["stray"],
+      ["seam"],
+      ["pillar", "nested"],
+    ]);
+    expect(issues.every((i) => i.message.length > 0)).toBe(true);
+    expect(areas.map((a) => [a.area.id, a.holes.map((h) => h.id)])).toEqual([
+      ["room", ["pillar"]],
+      ["annex", ["crate"]],
+    ]);
   });
 });

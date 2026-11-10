@@ -7,6 +7,7 @@ import {
   judgeEditorLayout,
   judgeEditorRender,
   judgeLaunchFailure,
+  judgePhysicsFree,
   judgeRender,
   judgeResult,
   leavesWindow,
@@ -20,7 +21,10 @@ import {
   type EditorLayoutProbe,
   type EditorSmokeResult,
   type IslandBox,
+  type PhysicsFreeProbe,
   type RenderProbe,
+  SHELL_TICKS,
+  type SmokeExpected,
 } from "../browser-compare";
 import type { EngineSmokeResult } from "../browser/main";
 import { runSmokeDigest } from "../browser/run";
@@ -31,14 +35,31 @@ const drawn: RenderProbe = {
   outside: [26, 26, 46, 255],
 };
 
-const passed = (digest: string, render: RenderProbe = drawn): EngineSmokeResult => ({
+const free: PhysicsFreeProbe = {
+  physics: "none",
+  ticks: 94,
+  result: "won",
+  replayMatches: true,
+  digest: "pf",
+  rapierLoads: 0,
+  shellTicks: SHELL_TICKS,
+};
+
+const passed = (
+  digest: string,
+  render: RenderProbe = drawn,
+  physicsFree: PhysicsFreeProbe = free,
+): EngineSmokeResult => ({
   ok: true,
   flavour: "rapier2d-compat",
   ticks: 120,
   digest,
   render,
+  physicsFree,
   userAgent: "test-agent",
 });
+
+const want = (digest: string, physicsFree = "pf"): SmokeExpected => ({ digest, physicsFree });
 
 const MISSING = `browserType.launch: Executable doesn't exist at /ms-playwright/firefox-1555/firefox
 Looks like Playwright was just installed or updated.
@@ -47,17 +68,18 @@ Please run the following command to download new browsers:
 
 describe("judgeResult", () => {
   it("passes a digest equal to the in-process one", () => {
-    expect(judgeResult("webkit", passed("abc"), "abc")).toEqual({
+    expect(judgeResult("webkit", passed("abc"), want("abc"))).toEqual({
       browser: "webkit",
       status: "pass",
       digest: "abc",
       userAgent: "test-agent",
       render: drawn,
+      physicsFree: free,
     });
   });
 
   it("fails a digest that differs, naming both", () => {
-    const out = judgeResult("chromium", passed("abc"), "def");
+    const out = judgeResult("chromium", passed("abc"), want("def"));
     expect(out.status).toBe("fail");
     expect(out.digest).toBe("abc");
     expect(out.reason).toContain("abc");
@@ -65,29 +87,78 @@ describe("judgeResult", () => {
   });
 
   it("fails a page that reported an error", () => {
-    const out = judgeResult("firefox", { ok: false, error: "wasm init failed" }, "abc");
+    const out = judgeResult("firefox", { ok: false, error: "wasm init failed" }, want("abc"));
     expect(out).toMatchObject({ status: "fail", reason: expect.stringContaining("wasm init") });
   });
 
   it("fails a page that set nothing", () => {
-    expect(judgeResult("firefox", undefined, "abc").status).toBe("fail");
+    expect(judgeResult("firefox", undefined, want("abc")).status).toBe("fail");
   });
 
   it("fails a run of the wrong length or flavour even when the digest matches", () => {
     const short = { ...passed("abc"), ticks: 60 } as unknown as EngineSmokeResult;
-    expect(judgeResult("chromium", short, "abc").status).toBe("fail");
+    expect(judgeResult("chromium", short, want("abc")).status).toBe("fail");
   });
 
   it("fails a matching digest when the sprite wasn't drawn", () => {
     const blank = { ...drawn, inside: drawn.outside };
-    const out = judgeResult("firefox", passed("abc", blank), "abc");
+    const out = judgeResult("firefox", passed("abc", blank), want("abc"));
     expect(out).toMatchObject({ status: "fail", reason: expect.stringContaining("blank") });
   });
 
   it("fails a page that ran no render", () => {
     const { render: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
-    const out = judgeResult("chromium", bare as unknown as EngineSmokeResult, "abc");
+    const out = judgeResult("chromium", bare as unknown as EngineSmokeResult, want("abc"));
     expect(out).toMatchObject({ status: "fail", reason: "the page ran no render" });
+  });
+
+  it("fails a page whose physics-free digest differs from the in-process one, naming both", () => {
+    const out = judgeResult("webkit", passed("abc"), want("abc", "other"));
+    expect(out.status).toBe("fail");
+    expect(out.reason).toContain("pf");
+    expect(out.reason).toContain("other");
+  });
+
+  it("fails a page whose physics-free run loaded Rapier, or ran none", () => {
+    const loaded = judgeResult(
+      "chromium",
+      passed("abc", drawn, { ...free, rapierLoads: 1 }),
+      want("abc"),
+    );
+    expect(loaded).toMatchObject({
+      status: "fail",
+      reason: expect.stringContaining("loaded Rapier"),
+    });
+    const { physicsFree: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
+    const none = judgeResult("chromium", bare as unknown as EngineSmokeResult, want("abc"));
+    expect(none).toMatchObject({ status: "fail", reason: "the page ran no physics-free run" });
+  });
+});
+
+describe("judgePhysicsFree", () => {
+  it("passes a run with no physics that reached its result, replayed and matched", () => {
+    expect(judgePhysicsFree(free, "pf", true)).toBeNull();
+    expect(judgePhysicsFree({ ...free, shellTicks: null }, "pf", false)).toBeNull();
+  });
+
+  it("fails a scene that resolved to Rapier, or a loader that was called", () => {
+    expect(judgePhysicsFree({ ...free, physics: "rapier" }, "pf", true)).toMatch(
+      /resolved to rapier/,
+    );
+    expect(judgePhysicsFree({ ...free, rapierLoads: 2 }, "pf", true)).toMatch(/loaded Rapier 2/);
+  });
+
+  it("fails another ending, a replay that diverged, or a shell that didn't step", () => {
+    expect(judgePhysicsFree({ ...free, result: "timeout" }, "pf", true)).toMatch(/ended timeout/);
+    expect(judgePhysicsFree({ ...free, replayMatches: false }, "pf", true)).toMatch(/replay/);
+    expect(judgePhysicsFree({ ...free, shellTicks: 0 }, "pf", true)).toMatch(/stepped/);
+    expect(judgePhysicsFree({ ...free, shellTicks: null }, "pf", true)).toMatch(/no ticks/);
+  });
+
+  it("fails a digest that differs, naming both", () => {
+    const why = judgePhysicsFree(free, "elsewhere", true);
+    expect(why).toContain("pf");
+    expect(why).toContain("elsewhere");
   });
 });
 

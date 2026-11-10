@@ -7,9 +7,14 @@ import { sceneToDoc } from "../../collab/convert";
 import { sequentialKeys } from "../../collab/keys";
 import { readLog } from "../../collab/log";
 import type { SceneOrigin } from "../../collab/types";
+import { createRegistry, defineEntityType, defineGame } from "../../game/define";
+import { pointField } from "../../game/fields";
+import type { Registry } from "../../game/types";
 import { expandScene } from "../../scene/expand";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { prefabLibrary } from "../../scene/prefab";
+import { drawnEntities } from "../../scene/render-geometry";
+import { aabb } from "../../scene/shape-geometry";
 import type {
   EntityDef,
   ExpandedScene,
@@ -20,6 +25,7 @@ import type {
 } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
 import { createToolRouter, type ToolRouter } from "../../tool-router";
+import { dropBatch, dropPreview, type AssetDrop } from "../asset-drop";
 import { createEditorSession, type EditorSession } from "../session";
 import { createToolHost, type ToolHost, type ToolHostOptions } from "../tool-host";
 import { DEFAULT_SNAP, type EditorToolDef } from "../tools";
@@ -89,8 +95,9 @@ afterEach(() => {
 function rig(
   opts: Partial<ToolHostOptions> = {},
   gameTools?: readonly EditorToolDef[],
-  scene?: { def: SceneDefinition; prefabs: PrefabLibrary },
+  scene?: { def: SceneDefinition; prefabs: PrefabLibrary; registry?: Registry },
 ): Rig {
+  const registry = scene?.registry ?? toolRegistry;
   const base = scene?.def ?? parseSceneOrThrow(yard, registry);
   const doc = sceneToDoc(base, { key: sequentialKeys("k") });
   const session = createEditorSession({
@@ -662,5 +669,109 @@ describe("sprite boxes", () => {
       maxX: 640,
       maxY: 960,
     });
+  });
+});
+
+describe("outlines", () => {
+  const tree: AssetDrop = {
+    entry: {
+      key: "k-tree",
+      id: "tree",
+      kind: "texture",
+      path: "art/tree.png",
+      created: { at: 0, by: "t" },
+    },
+    info: { id: "tree", kind: "texture", size: [48, 24], pivot: [0.5, 1] },
+  };
+  const asset = (id: string) => (id === "tree" ? tree.info : undefined);
+  const selected = (r: Rig, ref: string) => {
+    const o = r.host.overlay();
+    return {
+      shapes: (o.outlines ?? [])
+        .filter((x) => x.tone === "selected" && x.ref === ref)
+        .map((x) => x.shape),
+      points: (o.points ?? [])
+        .filter((x) => x.tone === "selected" && x.ref === ref)
+        .map((x) => x.at),
+    };
+  };
+
+  it("draws a drop preview with the selection's outlines for the same ref", () => {
+    const r = rig({ asset });
+    const opts = { def: r.def(), registry, snap: free };
+    const preview = dropPreview(tree, [700, 500], { ...opts, asset });
+    const placed = dropBatch(tree, [700, 500], opts);
+    if (!placed.ok) throw new Error("the drop was refused");
+    expect(r.session.dispatch(placed.batch, { selectionAfter: placed.select }).ok).toBe(true);
+    const ref = placed.select[0]!;
+    const { shapes, points } = selected(r, ref);
+    expect(shapes).toEqual([{ type: "box", cx: 700, cy: 488, hw: 24, hh: 12, rotDeg: 0 }]);
+    expect(preview.ghosts.map((g) => g.shape)).toEqual(shapes);
+    // The selection marks the point under the sprite too; a drop's ghost shows the picture only.
+    expect(points).toEqual([[700, 500]]);
+    expect(preview.points).toBeUndefined();
+  });
+
+  it("boxes a grid entity as the renderers bound it", () => {
+    const def = parseSceneOrThrow(yard, registry);
+    def.settings = { ...def.settings, grid: { kind: "square", cell: [16, 16] } };
+    // Its only filled cell sits off its origin, which the box still covers.
+    def.entities!.push({
+      id: "floor",
+      type: "paint",
+      at: [100, 400],
+      cells: { "0,0": ["", "0,1"] },
+    });
+    const r = rig({}, undefined, { def, prefabs: prefabLibrary([]) });
+    r.session.select(["floor"]);
+    const drawn = drawnEntities(expandScene(r.def(), registry), registry).find(
+      (d) => d.id === "floor",
+    );
+    const { shapes } = selected(r, "floor");
+    expect(shapes).toHaveLength(1);
+    expect(aabb(shapes[0]!)).toEqual(drawn?.box);
+    expect(drawn?.box).toEqual({ minX: 100, minY: 400, maxX: 132, maxY: 432 });
+  });
+
+  it("moves a bulk row's sprite box with a drag's preview", () => {
+    const lamps = createRegistry(
+      defineGame({
+        id: "lamps",
+        types: [
+          defineEntityType({
+            type: "lamp",
+            description: "A lit post.",
+            system: () => ({ spawn: () => {}, despawn: () => {}, clear: () => {}, size: () => 0 }),
+            fields: { at: pointField("Where the lamp stands.") },
+            bulk: { form: "point", description: "Lamps." },
+            behaviors: { required: { sprite: { size: [40, 20] } } },
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const def = {
+      v: 3,
+      game: "lamps",
+      name: "lamps",
+      bounds: [0, 0, 2000, 2000],
+      lamp: [[400, 400]],
+    } as unknown as SceneDefinition;
+    const r = rig({}, undefined, { def, prefabs: prefabLibrary([]), registry: lamps });
+    const ref = "~lamp:0";
+    expect(r.host.index().get(ref)?.sprite).toBeDefined();
+    r.session.select([ref]);
+    r.ptr("down", 410, 400);
+    r.ptr("move", 460, 430);
+    const o = r.host.overlay();
+    const mine = (o.outlines ?? []).filter((x) => x.ref === ref);
+    expect(mine.filter((x) => x.preview).map((x) => x.shape)).toEqual([
+      { type: "box", cx: 450, cy: 430, hw: 20, hh: 10, rotDeg: 0 },
+    ]);
+    expect(mine.filter((x) => x.tone === "ghost").map((x) => x.shape)).toEqual([
+      { type: "box", cx: 400, cy: 400, hw: 20, hh: 10, rotDeg: 0 },
+    ]);
+    r.ptr("up", 460, 430);
   });
 });

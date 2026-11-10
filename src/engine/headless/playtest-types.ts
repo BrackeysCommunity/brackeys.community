@@ -1,7 +1,7 @@
-import type { GameDefinition, Registry, RunResult } from "../game/types";
+import type { GameCommand, GameDefinition, Registry, RunResult } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { LoadReport, StepEvent } from "../runtime/types";
-import type { RunRecording } from "../scene/recording-schema";
+import type { RecordingCommand, RunRecording } from "../scene/recording-schema";
 import type {
   EntityTypeName,
   PrefabLibrary,
@@ -44,7 +44,11 @@ export type UntilClause = {
   [predicate: string]: unknown;
 };
 
-/** How long a step runs: `for` ticks, `forMs` milliseconds (rounded to ticks), or `until`, capped by `max` ticks. */
+/**
+ * How long a step runs: `for` ticks, `forMs` milliseconds (rounded to ticks at
+ * the run's rate), or `until`, capped by `max` ticks. Lengths count input
+ * slots, which an idle turns or event game skips without simulating.
+ */
 export type StepDuration = {
   for?: number;
   forMs?: number;
@@ -62,7 +66,11 @@ export type InputScriptStep =
   /** Down for one tick, then up. */
   | { press: string | string[] }
   /** Nothing held for this many ticks. */
-  | { wait: number };
+  | { wait: number }
+  /** One slot that sends a game command, holding what the step before held. */
+  | { command: string; args?: unknown }
+  /** One slot that sends `@elapsed { ms }` (the game needs `time.catchUp`), holding what the step before held. */
+  | { elapse: number };
 
 export type InputScript<G = unknown> = {
   $schema?: string;
@@ -73,7 +81,7 @@ export type InputScript<G = unknown> = {
   at?: Pt;
   timeOffsetMs?: number;
   game?: G;
-  /** The run ends as `timeout` after this many ticks (default 1800, 30 s). */
+  /** The run ends as `timeout` after this many simulated ticks (default 1800). */
   maxTicks?: number;
   steps: InputScriptStep[];
 };
@@ -83,11 +91,13 @@ export type CompiledStep = {
   /** Index into the script's `steps`. */
   index: number;
   hold: string[];
-  /** Fixed length in ticks; absent when the step waits on `until`. */
+  /** Fixed length in slots (ticks, for a fixed game); absent when the step waits on `until`. */
   ticks?: number;
   until?: UntilClause;
-  /** With `until`: the most ticks the step may run. */
+  /** With `until`: the most slots the step may run. */
   max?: number;
+  /** Sent on the step's one slot, args parsed. */
+  commands?: GameCommand[];
 };
 
 export type CompiledInputScript = {
@@ -97,8 +107,9 @@ export type CompiledInputScript = {
   maxTicks: number;
   play: PlayOptions;
   /**
-   * Every edge before `maxTicks`, when no step waits on `until`; otherwise
-   * edges are only known by running. Nothing is released after the last step.
+   * Every edge before `maxTicks`, stamped with its slot, when no step waits
+   * on `until`; otherwise edges are only known by running. Nothing is
+   * released after the last step. For a fixed game these are the ticks played.
    */
   edges: InputEdge[] | null;
 };
@@ -119,7 +130,8 @@ export type CompileResult =
 // ─── Playtests ───────────────────────────────────────────
 
 export type PlaytestOptions<S = unknown, G = unknown> = {
-  rapier: RapierModule;
+  /** Needed only for a scene whose physics resolves to Rapier; omitted or null, that scene's load fails. */
+  rapier?: RapierModule | null;
   game?: GameDefinition<S, G> | null;
   /** Built from `game` when omitted. */
   registry?: Registry;
@@ -142,9 +154,9 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
 export type PlaytestStep = {
   /** Index into the script's `steps`. */
   index: number;
-  /** The tick it started on. */
+  /** The slot it started on: its tick, for a fixed game. */
   start: number;
-  /** Ticks it ran. */
+  /** Slots it ran: ticks, for a fixed game; a turns or event game may skip some. */
   ticks: number;
   /** `done`: its fixed length ran out; `until`: its condition held; `max`: it gave up; `run`: the run ended during it. */
   end: "done" | "until" | "max" | "run";
@@ -166,10 +178,13 @@ export type PlaytestReport<S = unknown> = {
   sceneHash: SceneHash;
   /** `probeConfigHash` of the game. */
   configHash: string;
-  tickRate: 60;
+  /** The run's ticks per second. */
+  tickRate: number;
   outcome: PlaytestOutcomeReport;
   /** Ticks simulated. */
   ticks: number;
+  /** Input slots the script used, skipped ones included; equal to `ticks` for a fixed game. */
+  slots: number;
   events: StepEvent[];
   truncated: boolean;
   /**
@@ -185,6 +200,8 @@ export type PlaytestReport<S = unknown> = {
   final: S | null;
   /** The edges actually played, `until` steps resolved. */
   inputs: InputEdge[];
+  /** The commands stepped, oldest first, stamped with the tick that stepped them. */
+  commands: RecordingCommand[];
   /** Warnings and info the scene had; errors block instead. */
   issues: SceneIssue[];
   /** The run as a recording: `replayRecording` plays it again tick for tick. */
@@ -207,7 +224,8 @@ export type PlaytestRun<S = unknown> = PlaytestReport<S> | PlaytestBlocked;
 // ─── Fuzz ────────────────────────────────────────────────
 
 export type FuzzOptions<S = unknown, G = unknown> = {
-  rapier: RapierModule;
+  /** Needed only for a scene whose physics resolves to Rapier. */
+  rapier?: RapierModule | null;
   game?: GameDefinition<S, G> | null;
   registry?: Registry;
   scene: SceneDefinition;
@@ -217,10 +235,12 @@ export type FuzzOptions<S = unknown, G = unknown> = {
   seed: number | string;
   /** Default 100. */
   rollouts?: number;
-  /** Ticks per rollout; default 600. */
+  /** Input slots per rollout, simulated or skipped; default 600. */
   ticks?: number;
   play?: PlayOptions<G>;
   dev?: boolean;
+  /** The project's data the game reads as `EngineContext.project`; its `engine` block resolves the scene's settings and the clock. */
+  project?: ProjectRuntimeView | null;
 };
 
 /** An entity some rollout touched: named by an event's `entityId` or `other`. */

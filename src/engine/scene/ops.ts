@@ -354,6 +354,7 @@ function run(
         : validateScene(after, given, {
             prefabs,
             ...(opts.prefab !== undefined ? { prefab: opts.prefab } : {}),
+            ...(opts.project ? { project: opts.project } : {}),
           }),
     ...(w.prefabsChanged.size > 0
       ? { prefabs: w.prefabs, prefabsChanged: [...w.prefabsChanged].sort() }

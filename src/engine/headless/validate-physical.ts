@@ -1,8 +1,7 @@
-import type { Collider, Shape } from "@dimforge/rapier2d";
-
-import type { ColliderTag, PhysicalEnv, PhysicalHit, Registry } from "../game/types";
-import { shapeColliderDesc, shapePose } from "../physics";
+import { PhysicsRequiredError } from "../game/physics-of";
+import type { ColliderTag, PhysicalCheck, PhysicalEnv, Registry } from "../game/types";
 import { createSceneRuntime } from "../runtime/runtime";
+import type { SpaceHit } from "../runtime/space";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import { expandScene, parseBulkId } from "../scene/expand";
 import { comparePointers } from "../scene/format";
@@ -10,7 +9,7 @@ import { jsonPointer, lineAt, makeIssue } from "../scene/issues";
 import { toSourceBatch } from "../scene/ops";
 import { issueOnSource, resolveSceneDetailed } from "../scene/resolve";
 import { fieldKind } from "../scene/schema";
-import { aabb, centroid, translateShape } from "../scene/shape-geometry";
+import { aabb, aabbUnion, centroid, translateShape } from "../scene/shape-geometry";
 import type {
   Aabb,
   ExpandedScene,
@@ -28,29 +27,14 @@ import type { RapierModule, Vec2 } from "../types";
 const OVERLAP_EPS = 0.01;
 /** A swept shape is inset by this, so sliding flush along a surface isn't a hit; world geometry is whole pixels. */
 const SWEEP_SKIN = 0.5;
-
-type Tagged = { collider: Collider; tag: ColliderTag };
+/**
+ * A physical check that needs physics, skipped in a scene without it, is
+ * reported under this code at `info`.
+ */
+const SKIPPED_CODE = "physics-skipped";
 
 const vec = (x: number, y: number) => ({ x, y });
 const rounded = (p: Vec2): Pt => [Math.round(p.x), Math.round(p.y)];
-
-function worldPoint(collider: Collider, local: Vec2): Vec2 {
-  const t = collider.translation();
-  const r = collider.rotation();
-  const c = Math.cos(r);
-  const s = Math.sin(r);
-  return vec(t.x + local.x * c - local.y * s, t.y + local.x * s + local.y * c);
-}
-
-/** `shape` as a Rapier query shape with its world pose. */
-function queryShape(rapier: RapierModule, shape: ShapeObj) {
-  const pose = shapePose(shape);
-  return {
-    shape: shapeColliderDesc(rapier, shape).shape as Shape,
-    pos: vec(pose.x, pose.y),
-    rot: pose.rotation,
-  };
-}
 
 /** `shape` shrunk by `d` on every side (a poly toward its centroid); a chain is unchanged. */
 function inset(shape: ShapeObj, d: number): ShapeObj {
@@ -62,7 +46,10 @@ function inset(shape: ShapeObj, d: number): ShapeObj {
       return { ...shape, r: Math.max(shape.r - d, d) };
     case "poly": {
       const [cx, cy] = centroid(shape.pts);
-      const far = Math.max(...shape.pts.map(([x, y]) => Math.hypot(x - cx, y - cy)));
+      let far = 0;
+      for (const [x, y] of shape.pts) {
+        far = Math.max(far, Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)));
+      }
       const k = far > 2 * d ? 1 - d / far : 1;
       return {
         ...shape,
@@ -74,107 +61,8 @@ function inset(shape: ShapeObj, d: number): ShapeObj {
   }
 }
 
-/** Every tagged collider in the world that isn't gated off (collision groups 0), in handle order. */
-function taggedColliders(env: Pick<PhysicalEnv, "physics" | "tags">): Tagged[] {
-  const out: Tagged[] = [];
-  for (const collider of env.physics.world.colliders.getAll()) {
-    const tag = env.tags.get(collider.handle);
-    if (tag && collider.collisionGroups() !== 0) out.push({ collider, tag });
-  }
-  return out;
-}
-
-/** A static solid: on a fixed body (or none) and not a sensor. */
-const isStatic = ({ collider }: Tagged) =>
-  !collider.isSensor() && (collider.parent()?.isFixed() ?? true);
-
-/** The first of `candidates` that `shape` hits when swept by `by`, `toi` a fraction of `by`. */
-function sweep(
-  rapier: RapierModule,
-  candidates: readonly Tagged[],
-  shape: ShapeObj,
-  by: Vec2,
-  stopAtPenetration: boolean,
-): (PhysicalHit & { toi: number }) | null {
-  const length = Math.hypot(by.x, by.y);
-  if (length === 0) return null;
-  const q = queryShape(rapier, shape);
-  const dir = vec(by.x / length, by.y / length);
-  const still = vec(0, 0);
-  let best: { c: Tagged; toi: number; witness: Vec2 } | null = null;
-  for (const c of candidates) {
-    const hit = c.collider.castShape(
-      still,
-      q.shape,
-      q.pos,
-      q.rot,
-      dir,
-      0,
-      length,
-      stopAtPenetration,
-    );
-    if (hit && (!best || hit.time_of_impact < best.toi))
-      best = { c, toi: hit.time_of_impact, witness: hit.witness1 };
-  }
-  if (!best) return null;
-  return {
-    tag: best.c.tag,
-    at: worldPoint(best.c.collider, best.witness),
-    toi: best.toi / length,
-  };
-}
-
-/**
- * Shape queries over a loaded runtime's world: the editor's edit world or a
- * headless one, never stepped. Null when nothing is loaded. Queries test the
- * colliders as they stand, so they need no query refresh.
- */
-export function physicalEnv(runtime: SceneRuntimeHandle, def: SceneDefinition): PhysicalEnv | null {
-  const scene = runtime.scene();
-  if (!scene) return null;
-  const { rapier, physics, tags, registry } = runtime.ctx;
-  const all = () => taggedColliders({ physics, tags });
-  const kept = (exclude: readonly string[] | undefined) => (c: Tagged) =>
-    !exclude?.includes(c.tag.entityId);
-
-  return {
-    def,
-    scene,
-    registry,
-    rapier,
-    physics,
-    tags,
-    overlaps(shape, opts = {}) {
-      const q = queryShape(rapier, shape);
-      const hits: PhysicalHit[] = [];
-      for (const c of all().filter(kept(opts.exclude))) {
-        if (c.collider.isSensor() && !opts.sensors) continue;
-        const contact = c.collider.contactShape(q.shape, q.pos, q.rot, 0);
-        if (contact && contact.distance < -OVERLAP_EPS) {
-          hits.push({ tag: c.tag, at: vec(contact.point1.x, contact.point1.y) });
-        }
-      }
-      return hits;
-    },
-    cast(shape, by, opts = {}) {
-      const candidates = all().filter((c) => !c.collider.isSensor() && kept(opts.exclude)(c));
-      return sweep(rapier, candidates, shape, by, false);
-    },
-  };
-}
-
-// ─── The engine's checks ─────────────────────────────────
-
-/** Where `ref` lives in the document: a bulk entry, or an entity (its `field` when given). */
-function refPointer(def: SceneDefinition, ref: Ref, field?: string): string | undefined {
-  const bulk = parseBulkId(ref);
-  if (bulk) return jsonPointer([bulk.key, bulk.index]);
-  const i = (def.entities ?? []).findIndex((e) => e.id === ref);
-  if (i < 0) return undefined;
-  return jsonPointer(field ? ["entities", i, field] : ["entities", i]);
-}
-
-const fmtPt = ([x, y]: Pt) => `[${x}, ${y}]`;
+const isShapeObj = (v: unknown): v is ShapeObj =>
+  v !== null && typeof v === "object" && "type" in v;
 
 /** Types with the follower's fields: a shape local to the current point of a `path`. */
 function followsPath(registry: Registry, e: RuntimeEntity): boolean {
@@ -192,40 +80,127 @@ type FollowerEntity = RuntimeEntity<{
   path: { pts: Pt[]; mode: "loop" | "ping_pong" };
 }>;
 
-const isShapeObj = (v: unknown): v is ShapeObj =>
-  v !== null && typeof v === "object" && "type" in v;
+/** A non-sensor collider found in the loaded world. */
+type Solid = SpaceHit & {
+  /** On a body that never moves: no follower, rider or Rapier body that isn't fixed. */
+  fixed: boolean;
+};
 
-/**
- * The solid colliders riding `host`'s body (gated one-way ones too), each
- * with its entity's shape: world px with the host at its first path point.
- */
-function ridersOf(env: PhysicalEnv, host: string): { id: string; shape: ShapeObj }[] {
-  const ids = new Set<string>();
-  for (const collider of env.physics.world.colliders.getAll()) {
-    const tag = env.tags.get(collider.handle);
-    if (tag?.carrier?.entityId === host && !collider.isSensor()) ids.add(tag.entityId);
+type World = Pick<PhysicalEnv, "def" | "scene" | "registry" | "physics" | "space">;
+
+/** Where the loaded colliders can be: the bounds, every shape, and each follower at its path's start. */
+function extentOf({ def, scene, registry }: World): ShapeObj {
+  const [minX, minY, maxX, maxY] = def.bounds;
+  let box: Aabb = { minX, minY, maxX, maxY };
+  for (const e of scene.entities) {
+    if (!isShapeObj(e.shape)) continue;
+    const start = followsPath(registry, e) ? (e as FollowerEntity).path.pts[0] : undefined;
+    box = aabbUnion(box, aabb(start ? translateShape(e.shape, start) : e.shape));
   }
-  return env.scene.entities.flatMap((e) =>
-    ids.has(e.id) && isShapeObj(e.shape) ? [{ id: e.id, shape: e.shape }] : [],
-  );
+  const pad = Math.max(box.maxX - box.minX, box.maxY - box.minY, 1);
+  return {
+    type: "box",
+    cx: (box.minX + box.maxX) / 2,
+    cy: (box.minY + box.maxY) / 2,
+    hw: (box.maxX - box.minX) / 2 + pad,
+    hh: (box.maxY - box.minY) / 2 + pad,
+    rotDeg: 0,
+  };
 }
 
 /**
- * Each follower's shape, and every solid riding it, swept along every path
- * segment (the loop's closing one too) into a static solid.
+ * Every non-sensor collider in the loaded world, by handle, on either
+ * backend. The geometry world holds only static and kinematic colliders, and
+ * the engine's kinematic ones are followers and what rides them.
  */
-function followerHitsSolid(env: PhysicalEnv): SceneIssue[] {
-  const statics = taggedColliders(env).filter(isStatic);
+function solidsOf(world: World): Solid[] {
+  const movers = new Set(
+    world.scene.entities.filter((e) => followsPath(world.registry, e)).map((e) => e.id),
+  );
+  return world.space.overlaps(extentOf(world)).map((hit) => {
+    const body = world.physics?.world.getCollider(hit.handle)?.parent();
+    return {
+      ...hit,
+      fixed: !hit.tag.carrier && !movers.has(hit.tag.entityId) && (body ? body.isFixed() : true),
+    };
+  });
+}
+
+const unique = (ids: Iterable<string>) => [...new Set(ids)];
+
+/**
+ * Shape queries over a loaded runtime's world: the editor's edit world or a
+ * headless one, never stepped, on Rapier or the geometry backend. Null when
+ * nothing is loaded. Queries go through `ctx.space`, where touching isn't
+ * overlapping.
+ */
+export function physicalEnv(runtime: SceneRuntimeHandle, def: SceneDefinition): PhysicalEnv | null {
+  const scene = runtime.scene();
+  if (!scene) return null;
+  const { rapier, physics, tags, registry, space } = runtime.ctx;
+  return {
+    def,
+    scene,
+    registry,
+    rapier,
+    physics,
+    tags,
+    space,
+    overlaps(shape, opts = {}) {
+      return space
+        .overlaps(inset(shape, OVERLAP_EPS), {
+          sensors: opts.sensors === true,
+          ...(opts.exclude && { exclude: opts.exclude }),
+        })
+        .map(({ tag, at }) => ({ tag, at }));
+    },
+    cast(shape, by, opts = {}) {
+      const hit = space.sweep(shape, by, opts.exclude ? { exclude: opts.exclude } : {});
+      return hit && { tag: hit.tag, at: hit.at, toi: hit.toi };
+    },
+  };
+}
+
+// ─── The engine's checks ─────────────────────────────────
+
+/** Where `ref` lives in the document: a bulk entry, or an entity (its `field` when given). */
+function refPointer(def: SceneDefinition, ref: Ref, field?: string): string | undefined {
+  const bulk = parseBulkId(ref);
+  if (bulk) return jsonPointer([bulk.key, bulk.index]);
+  const i = (def.entities ?? []).findIndex((e) => e.id === ref);
+  if (i < 0) return undefined;
+  return jsonPointer(field ? ["entities", i, field] : ["entities", i]);
+}
+
+const fmtPt = ([x, y]: Pt) => `[${x}, ${y}]`;
+
+/**
+ * Each follower's shape, and every solid riding it, swept along every path
+ * segment (the loop's closing one too) into a static solid. Riders are in
+ * world px with the host at its first path point.
+ */
+function followerHitsSolid(env: PhysicalEnv, solids: readonly Solid[]): SceneIssue[] {
+  const fixedIds = new Set(solids.filter((s) => s.fixed).map((s) => s.tag.entityId));
+  const moving = unique(
+    solids.filter((s) => !fixedIds.has(s.tag.entityId)).map((s) => s.tag.entityId),
+  );
+  const shapes = new Map<string, ShapeObj>();
+  for (const e of env.scene.entities) if (isShapeObj(e.shape)) shapes.set(e.id, e.shape);
   const out: SceneIssue[] = [];
   for (const e of env.scene.entities) {
     if (!followsPath(env.registry, e)) continue;
     const { id, shape, path } = e as FollowerEntity;
-    const others = statics.filter((c) => c.tag.entityId !== id);
     const { pts } = path;
     const start = pts[0]!;
+    const riders = unique(
+      solids.filter((s) => s.tag.carrier?.entityId === id).map((s) => s.tag.entityId),
+    ).flatMap((rider) => {
+      const own = shapes.get(rider);
+      return own ? [{ id: rider, shape: own }] : [];
+    });
     const parts = [
       { id, at: (a: Pt) => translateShape(shape, a) },
-      ...ridersOf(env, id).map((r) => ({
+      ...riders.map((r) => ({
         id: r.id,
         at: (a: Pt) => translateShape(r.shape, [a[0] - start[0], a[1] - start[1]]),
       })),
@@ -235,9 +210,10 @@ function followerHitsSolid(env: PhysicalEnv): SceneIssue[] {
       const a = pts[i]!;
       const b = pts[(i + 1) % pts.length]!;
       const by = vec(b[0] - a[0], b[1] - a[1]);
+      if (by.x === 0 && by.y === 0) continue;
       for (const part of parts) {
-        const candidates = others.filter((c) => c.tag.entityId !== part.id);
-        const hit = sweep(env.rapier, candidates, inset(part.at(a), SWEEP_SKIN), by, true);
+        const exclude = unique([...moving, id, part.id]);
+        const hit = env.cast(inset(part.at(a), SWEEP_SKIN), by, { exclude });
         if (!hit) continue;
         const closing = i === pts.length - 1 ? "closing " : "";
         const at = rounded(hit.at);
@@ -259,54 +235,79 @@ function followerHitsSolid(env: PhysicalEnv): SceneIssue[] {
   return out;
 }
 
-const mergeKey = ({ tag }: Tagged) => `${tag.type}|${tag.material ?? ""}|${tag.oneWay === true}`;
+const mergeKey = (tag: ColliderTag) =>
+  `${tag.type}|${tag.material ?? ""}|${tag.oneWay === true ? (tag.oneWaySide ?? "up") : ""}`;
 
-const UNBOUNDED: Aabb = { minX: -Infinity, minY: -Infinity, maxX: Infinity, maxY: Infinity };
+/** The overlap of two boxes, or null when they only touch. */
+function intersection(a: Aabb, b: Aabb): Aabb | null {
+  const box = {
+    minX: Math.max(a.minX, b.minX),
+    minY: Math.max(a.minY, b.minY),
+    maxX: Math.min(a.maxX, b.maxX),
+    maxY: Math.min(a.maxY, b.maxY),
+  };
+  return box.minX < box.maxX && box.minY < box.maxY ? box : null;
+}
 
-/** Pairs of static solids of one type, material and one-way-ness that overlap: they could be one shape. */
-function solidOverlap(env: PhysicalEnv): SceneIssue[] {
+/**
+ * Pairs of static solids of one type, material and one-way-ness that
+ * overlap: they could be one shape. The depth and point come from the
+ * overlap of the two shapes' bounding boxes.
+ */
+function solidOverlap(env: PhysicalEnv, solids: readonly Solid[]): SceneIssue[] {
+  const statics = new Map<string, Set<string>>();
+  for (const s of solids) {
+    if (!s.fixed) continue;
+    const keys = statics.get(s.tag.entityId) ?? new Set<string>();
+    keys.add(mergeKey(s.tag));
+    statics.set(s.tag.entityId, keys);
+  }
   const shapes = new Map<string, ShapeObj>();
-  for (const e of env.scene.entities) {
-    const shape = e.shape as ShapeObj | undefined;
-    if (shape && typeof shape === "object" && "type" in shape) shapes.set(e.id, shape);
-  }
-  const groups = new Map<string, { c: Tagged; box: Aabb }[]>();
-  for (const c of taggedColliders(env).filter(isStatic)) {
-    const shape = shapes.get(c.tag.entityId);
-    const list = groups.get(mergeKey(c)) ?? [];
-    list.push({ c, box: shape ? aabb(shape) : UNBOUNDED });
-    groups.set(mergeKey(c), list);
-  }
+  for (const e of env.scene.entities) if (isShapeObj(e.shape)) shapes.set(e.id, e.shape);
 
+  const seen = new Set<string>();
   const out: SceneIssue[] = [];
-  for (const list of groups.values()) {
-    list.sort((p, q) => p.box.minX - q.box.minX);
-    for (let i = 0; i < list.length; i++) {
-      const a = list[i]!;
-      for (let j = i + 1; j < list.length && list[j]!.box.minX < a.box.maxX; j++) {
-        const b = list[j]!;
-        if (b.box.minY >= a.box.maxY || a.box.minY >= b.box.maxY) continue;
-        if (a.c.tag.entityId === b.c.tag.entityId) continue;
-        const contact = a.c.collider.contactCollider(b.c.collider, 0);
-        if (!contact || contact.distance >= -OVERLAP_EPS) continue;
-        const [first, second] = [a.c.tag.entityId, b.c.tag.entityId].sort((x, y) =>
-          comparePointers(refPointer(env.def, x), refPointer(env.def, y)),
-        ) as [string, string];
-        const at = rounded(
-          vec((contact.point1.x + contact.point2.x) / 2, (contact.point1.y + contact.point2.y) / 2),
-        );
-        out.push(
-          makeIssue("solid-overlap", {
-            message: `${second} overlaps ${first} by ${Math.round(-contact.distance)}px at ${fmtPt(at)}`,
-            path: refPointer(env.def, second, "shape") ?? "",
-            entityIds: [second, first],
-            at,
-          }),
-        );
-      }
+  for (const s of solids) {
+    const id = s.tag.entityId;
+    const shape = shapes.get(id);
+    if (!shape || !s.fixed) continue;
+    const key = mergeKey(s.tag);
+    for (const hit of env.overlaps(shape, { exclude: [id] })) {
+      const other = hit.tag.entityId;
+      if (mergeKey(hit.tag) !== key || !statics.get(other)?.has(key)) continue;
+      const [first, second] = [id, other].sort((x, y) =>
+        comparePointers(refPointer(env.def, x), refPointer(env.def, y)),
+      ) as [string, string];
+      const pair = `${first}\u0000${second}`;
+      if (seen.has(pair)) continue;
+      seen.add(pair);
+      const otherShape = shapes.get(other);
+      const box = otherShape ? intersection(aabb(shape), aabb(otherShape)) : null;
+      const at = box
+        ? rounded(vec((box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2))
+        : rounded(hit.at);
+      const depth = box
+        ? ` by ${Math.round(Math.min(box.maxX - box.minX, box.maxY - box.minY))}px`
+        : "";
+      out.push(
+        makeIssue("solid-overlap", {
+          message: `${second} overlaps ${first}${depth} at ${fmtPt(at)}`,
+          path: refPointer(env.def, second, "shape") ?? "",
+          entityIds: [second, first],
+          at,
+        }),
+      );
     }
   }
   return out;
+}
+
+/** The info issue for a game check that needs physics, in a scene without it. */
+function skipped(env: PhysicalEnv, check: PhysicalCheck): SceneIssue {
+  return makeIssue(SKIPPED_CODE, {
+    message: `physical check ${env.registry.id}/${check.id} needs physics and was skipped: the scene runs without it`,
+    path: env.def.settings?.physics === undefined ? "" : jsonPointer(["settings", "physics"]),
+  });
 }
 
 export type PhysicalOptions = {
@@ -317,12 +318,17 @@ export type PhysicalOptions = {
 /**
  * The engine's physical checks (`follower-hits-solid`, `solid-overlap`),
  * then the registry's `physicalChecks`, in document order of their `path`.
+ * All of them run on either backend, except a game check with
+ * `needsPhysics`, which a scene without physics skips with an info issue.
  */
 export function runPhysicalChecks(env: PhysicalEnv, opts: PhysicalOptions = {}): SceneIssue[] {
+  const solids = solidsOf(env);
   const issues = [
-    ...followerHitsSolid(env),
-    ...solidOverlap(env),
-    ...env.registry.physicalChecks.flatMap((check) => check.run(env)),
+    ...followerHitsSolid(env, solids),
+    ...solidOverlap(env, solids),
+    ...env.registry.physicalChecks.flatMap((check) =>
+      check.needsPhysics === true && !env.physics ? [skipped(env, check)] : check.run(env),
+    ),
   ];
   const withLines = opts.lines
     ? issues.map((issue) => {
@@ -338,31 +344,37 @@ export function runPhysicalChecks(env: PhysicalEnv, opts: PhysicalOptions = {}):
 }
 
 export type ValidatePhysicalOptions = PhysicalOptions & {
-  rapier: RapierModule;
+  /** Needed for a scene that runs on Rapier; without one such a scene throws `PhysicsRequiredError`. */
+  rapier?: RapierModule | null;
   scene: SceneDefinition;
   registry: Registry;
   /** The prefabs the scene's instances name. */
   prefabs?: PrefabLibrary;
+  /** The project's `engine` block, which the scene's settings resolve through. */
+  engine?: Readonly<Record<string, unknown>>;
 };
 
 /**
  * Loads `scene` into a headless world that is never stepped and runs the
- * physical checks over it. The checks see the resolved view (instances
+ * physical checks over it: on Rapier, or on the geometry backend when the
+ * scene runs without physics. The checks see the resolved view (instances
  * inlined, groups applied); their issues come back pointing into the
  * document, with fixes mapped onto it. A scene for another game, or one
  * that doesn't expand or load, has none: `validateScene` reports why.
  */
 export function validatePhysical(opts: ValidatePhysicalOptions): SceneIssue[] {
-  const { rapier, scene: source, registry, prefabs } = opts;
+  const { rapier, scene: source, registry, prefabs, engine } = opts;
   if (source.game !== undefined && source.game !== registry.id) return [];
   const resolved = resolveSceneDetailed(source, registry, prefabs);
   let scene: ExpandedScene;
   try {
-    scene = expandScene(resolved.def, registry);
+    scene = expandScene(resolved.def, registry, engine ? { engine } : {});
   } catch {
     return [];
   }
-  const runtime = createSceneRuntime({ rapier, view: null, registry });
+  const physicsFree = scene.settings.physics === "none";
+  if (!physicsFree && !rapier) throw new PhysicsRequiredError("physical validation");
+  const runtime = createSceneRuntime({ rapier: physicsFree ? null : rapier, view: null, registry });
   try {
     if (!runtime.load(scene).ok) return [];
     const env = physicalEnv(runtime, resolved.def);

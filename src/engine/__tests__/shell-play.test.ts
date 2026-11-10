@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { Container } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { z } from "zod";
 
 import { createGame } from "../engine";
 import { createRegistry } from "../game/define";
-import type { GameAttachment, GameDefinition } from "../game/types";
+import type { TimeModel } from "../game/time";
+import type { GameAttachment, GameCommand, GameDefinition } from "../game/types";
 import type { SceneRuntimeHandle, StepResult } from "../runtime/types";
 import { formatScene } from "../scene/format";
 import { sceneHash } from "../scene/hash";
@@ -341,6 +343,160 @@ describe("game commands", () => {
     game.play(yard());
     expect(game.cancel()).toBe(true);
     expect(game.cancel()).toBe(false);
+  });
+});
+
+describe("send", () => {
+  /** The test game with two commands, logging the commands each step delivers. */
+  function sendingGame(time?: TimeModel) {
+    const delivered: GameCommand[][] = [];
+    const game: GameDefinition = {
+      ...testGame,
+      ...(time ? { time } : {}),
+      commands: {
+        shove: {
+          description: "Moves something by `by`.",
+          args: z.strictObject({ by: z.number().int() }),
+        },
+        wait: { description: "Takes no args." },
+      },
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            delivered.push([...commands]);
+            base.beforeStep?.(dtMs, actions, commands);
+          },
+        };
+      },
+    };
+    return { game, delivered };
+  }
+
+  /** Drives the loop's frames by hand, from before the game is made. */
+  function manualFrames() {
+    let pending: FrameRequestCallback[] = [];
+    let now = 0;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
+    return (ms: number) => {
+      for (let t = 0; t < ms; t += 1000 / 120) {
+        now += 1000 / 120;
+        const due = pending;
+        pending = [];
+        for (const cb of due) cb(now);
+      }
+    };
+  }
+
+  it("returns false with a dev warning while editing, and queues nothing for Play", async () => {
+    const { game: def, delivered } = sendingGame();
+    const game = await editing({ game: def, dev: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(game.send({ name: "shove", args: { by: 1 } })).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/send\("shove"\).*nothing is playing/));
+    warn.mockRestore();
+
+    expect(game.play(yard()).ok).toBe(true);
+    game.step(1);
+    expect(delivered).toEqual([[]]);
+  });
+
+  it("delivers a command on the next simulated tick, once, in the order sent", async () => {
+    const { game: def, delivered } = sendingGame();
+    const game = await editing({ game: def });
+    expect(game.play(yard()).ok).toBe(true);
+    game.step(2);
+    expect(game.send({ name: "shove", args: { by: 3 } })).toBe(true);
+    expect(game.send({ name: "wait" })).toBe(true);
+    expect(delivered).toHaveLength(2);
+    game.step(2);
+    expect(delivered).toEqual([[], [], [{ name: "shove", args: { by: 3 } }, { name: "wait" }], []]);
+  });
+
+  it("refuses an unknown name and args that don't fit the command's schema", async () => {
+    const { game: def, delivered } = sendingGame();
+    const game = await editing({ game: def, dev: true });
+    game.play(yard());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(game.send({ name: "shovee" })).toBe(false);
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/unknown command; known: .*shove/));
+    expect(game.send({ name: "shove", args: { by: 1.5 } })).toBe(false);
+    expect(game.send({ name: "shove", args: { by: 1, extra: true } })).toBe(false);
+    expect(game.send({ name: "shove" })).toBe(false);
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/args don't parse/));
+    expect(game.send({ name: "wait", args: {} })).toBe(false);
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/takes no args/));
+    expect(game.send({ name: "@elapsed", args: { ms: -1 } })).toBe(false);
+    warn.mockRestore();
+    game.step(1);
+    expect(delivered).toEqual([[]]);
+  });
+
+  it("hands the game's shell the same send", async () => {
+    const { game: def, delivered } = sendingGame();
+    let shellSend: ((c: GameCommand) => boolean) | null = null;
+    const game = await editing({
+      game: {
+        ...def,
+        attach(shell) {
+          shellSend = shell.send;
+          return { destroy() {} };
+        },
+      },
+    });
+    game.play(yard());
+    expect(shellSend!({ name: "shove", args: { by: -2 } })).toBe(true);
+    game.step(1);
+    expect(delivered).toEqual([[{ name: "shove", args: { by: -2 } }]]);
+  });
+
+  it("drops what was queued when Play restarts or stops", async () => {
+    const { game: def, delivered } = sendingGame();
+    const game = await editing({ game: def });
+    game.play(yard());
+    game.send({ name: "wait" });
+    game.play(yard());
+    game.step(1);
+    game.send({ name: "wait" });
+    game.stop();
+    game.play(yard());
+    game.step(1);
+    expect(delivered).toEqual([[], []]);
+  });
+
+  it("never ticks a turns game with no command, and wakes it for one tick per command", async () => {
+    const wall = manualFrames();
+    const { game: def, delivered } = sendingGame({ kind: "turns", rate: 30 });
+    const game = await makeGame({ game: def });
+    game.start();
+    expect(game.play(yard()).ok).toBe(true);
+    wall(2000);
+    game.router.dispatch(press("d"));
+    wall(500);
+    expect(delivered).toEqual([]);
+    expect(game.getStore().state.tick).toBe(0);
+
+    expect(game.send({ name: "shove", args: { by: 1 } })).toBe(true);
+    wall(1000);
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0]).toEqual([{ name: "shove", args: { by: 1 } }]);
+    game.send({ name: "wait" });
+    wall(1000);
+    expect(delivered.map((c) => c.map((x) => x.name))).toEqual([["shove"], ["wait"]]);
+  });
+
+  it("wakes an event game on a command, as on a button edge", async () => {
+    const wall = manualFrames();
+    const { game: def, delivered } = sendingGame({ kind: "event", rate: 30 });
+    const game = await makeGame({ game: def });
+    game.start();
+    game.play(yard());
+    wall(500);
+    expect(delivered).toEqual([]);
+    game.send({ name: "wait" });
+    wall(500);
+    expect(delivered).toEqual([[{ name: "wait" }]]);
   });
 });
 

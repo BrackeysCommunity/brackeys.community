@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { Container } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { z } from "zod";
 
 import { createGame } from "../engine";
 import { createRegistry } from "../game/define";
+import type { GameCommand, GameDefinition } from "../game/types";
 import { replayRecording } from "../headless/recording";
 import { parseSceneOrThrow } from "../scene/parse";
 import type { RunRecording } from "../scene/recording-schema";
@@ -46,17 +48,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function editing(): Promise<GameInstance> {
-  const game = await createGame(document.querySelector("canvas")!, {
-    game: testGame,
-    registry,
+async function editing(game: GameDefinition = testGame): Promise<GameInstance> {
+  const instance = await createGame(document.querySelector("canvas")!, {
+    game,
+    registry: game === testGame ? registry : createRegistry(game),
     rapier: async () => rapier,
     scene: yard(),
   });
-  games.push(game);
-  game.start();
-  game.stop();
-  return game;
+  games.push(instance);
+  instance.start();
+  instance.stop();
+  return instance;
 }
 
 const key = (k: string, type: "down" | "up" = "down"): ToolEvent => ({
@@ -145,5 +147,73 @@ describe("recording a play session", () => {
     expect(recorded[0]!.end).toBe(rec.end);
     expect(recorded[0]!.inputs).toEqual(rec.inputs);
     expect(game.getStore().state.sim.paused).toBe(true);
+  });
+});
+
+describe("commands in a play session", () => {
+  /** The test game with a `shove` command, logging each step's commands by tick. */
+  function commandGame() {
+    const delivered: [number, GameCommand[]][] = [];
+    let tick = 0;
+    const game: GameDefinition = {
+      ...testGame,
+      commands: {
+        shove: { description: "Moves by `by`.", args: z.strictObject({ by: z.number() }) },
+        wait: { description: "Takes no args." },
+      },
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            tick = ctx.tick;
+            if (commands.length > 0) delivered.push([tick, [...commands]]);
+            base.beforeStep?.(dtMs, actions, commands);
+          },
+        };
+      },
+    };
+    return { game, delivered };
+  }
+
+  it("records the commands sent on their ticks and replays them through the shell", async () => {
+    const { game: def, delivered } = commandGame();
+    const game = await editing(def);
+    const doc = yard();
+    const recorded: RunRecording[] = [];
+    game.on("play:recorded", (r) => recorded.push(r));
+
+    expect(game.play(doc)).toMatchObject({ ok: true });
+    game.router.dispatch(key("d"));
+    game.step(5);
+    expect(game.send({ name: "shove", args: { by: 2 } })).toBe(true);
+    game.step(3);
+    game.send({ name: "wait" });
+    game.send({ name: "shove", args: { by: -1 } });
+    game.step(4);
+    game.stop();
+    expect(recorded).toHaveLength(1);
+    const rec = recorded[0]!;
+    expect(rec.ticks).toBe(12);
+    expect(rec.commands).toEqual([
+      [5, "shove", { by: 2 }],
+      [8, "wait"],
+      [8, "shove", { by: -1 }],
+    ]);
+    const live = structuredClone(delivered);
+    expect(live.map(([t]) => t)).toEqual([5, 8]);
+
+    delivered.length = 0;
+    expect(game.replay(doc, rec)).toMatchObject({ ok: true });
+    expect(game.send({ name: "wait" })).toBe(false);
+    game.step(20);
+    expect(delivered).toEqual(live);
+    expect(recorded).toHaveLength(2);
+    expect(recorded[1]!.commands).toEqual(rec.commands);
+    expect(recorded[1]!.end).toBe(rec.end);
+
+    const headless = replayRecording({ rapier, game: def, scene: doc, recording: rec });
+    if (headless.blocked) throw new Error("replay blocked");
+    expect(headless.matches, headless.divergence ?? "").toBe(true);
   });
 });

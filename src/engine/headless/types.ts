@@ -1,10 +1,11 @@
-import type { GameDefinition, GameOutcome, Registry } from "../game/types";
+import type { GameCommand, GameDefinition, GameOutcome, Registry } from "../game/types";
 import type { LoadReport, RuntimeStats, StepEvent } from "../runtime/types";
 import type { ExpandedScene } from "../scene/types";
 import type { RapierModule } from "../types";
 
 export type HeadlessRuntimeOptions = {
-  rapier: RapierModule;
+  /** Needed for a scene that runs on Rapier; a scene without physics loads with none. */
+  rapier?: RapierModule | null;
   /** Without one the runtime loads primitives only. */
   game?: GameDefinition | null;
   /** Built from `game` when omitted. */
@@ -19,12 +20,15 @@ export type ProbeInput = {
   hold?: string[];
   /** Edges applied at the start of their tick, in list order. */
   inputs?: [tick: number, action: string, pressed: 0 | 1][];
+  /** Game commands stepped on their tick, in list order; checked by the caller (`compileInputScript`). */
+  commands?: readonly (readonly [tick: number, command: GameCommand])[];
   /** Cap on `events`; defaults to 1000. */
   maxEvents?: number;
 };
 
 export type ProbeOptions<S = unknown> = ProbeInput & {
-  rapier: RapierModule;
+  /** Needed for a scene that runs on Rapier; a scene without physics loads with none. */
+  rapier?: RapierModule | null;
   game?: GameDefinition<S> | null;
   registry?: Registry;
   scene: ExpandedScene;
@@ -33,7 +37,8 @@ export type ProbeOptions<S = unknown> = ProbeInput & {
 export type ProbeReport<S = unknown> = {
   /** Changes with the engine version, the tick rate, the game and its tuning. */
   configHash: string;
-  tickRate: 60;
+  /** The runtime's ticks per second. */
+  tickRate: number;
   /** Ticks actually simulated: 0 when the scene failed to load. */
   ticks: number;
   load: LoadReport;

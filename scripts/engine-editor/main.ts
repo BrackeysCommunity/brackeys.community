@@ -4,11 +4,27 @@
  * mounts it. This module is also read by the server for `engineEditorGame`,
  * so everything the page needs beyond that is imported when it mounts.
  */
-import { defineGame } from "@jams/engine/game";
+import { defineGame, type EngineContext } from "@jams/engine/game";
 import { z } from "zod";
 
 /** The scene the editor opens when the URL names none. */
 export const DEFAULT_SCENE = "kitchen-sink";
+
+type Vec = { x: number; y: number };
+
+/**
+ * Where Play's camera looks: the play start when Play began from a point,
+ * else the centre of the scene's bounds. The engine's primitives have no
+ * actor to follow, so without this the camera stays at the origin. An edit
+ * world (no `play`) leaves the camera to the editor.
+ */
+export function playCameraTarget(ctx: Pick<EngineContext, "play" | "bounds">): Vec | null {
+  if (!ctx.play) return null;
+  const at = ctx.play.at;
+  if (at) return { x: at.x, y: at.y };
+  const [minX, minY, maxX, maxY] = ctx.bounds;
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+}
 
 /**
  * The engine project's game: no types, actions or settings of its own, so
@@ -29,7 +45,7 @@ export const engineEditorGame = defineGame<null>({
       },
     },
   },
-  createRuntime: () => ({ snapshot: () => null }),
+  createRuntime: (ctx) => ({ snapshot: () => null, cameraTarget: () => playCameraTarget(ctx) }),
 });
 
 const sceneOf = (url: URL): string => url.searchParams.get("scene") || DEFAULT_SCENE;

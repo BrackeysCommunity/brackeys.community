@@ -211,11 +211,11 @@ describe("diffToOps", () => {
     const a = engineYard();
     const b = engineYard();
     b.entities![2] = { ...b.entities![2]!, z: 3 };
-    b.entities![0] = { ...b.entities![0]!, z: 3, oneWay: false };
+    b.entities![0] = { ...b.entities![0]!, z: 3, oneWay: "down" };
     b.instances![0] = { ...b.instances![0]!, z: -1 };
     const batch = roundTrip(engine, a, b);
     expect(batch.ops).toEqual([
-      { op: "update", ref: "ledge", set: { oneWay: false, z: 3 } },
+      { op: "update", ref: "ledge", set: { oneWay: "down", z: 3 } },
       { op: "setZ", refs: ["crate"], z: 3 },
       { op: "setZ", refs: ["gate-1"], z: -1 },
     ]);

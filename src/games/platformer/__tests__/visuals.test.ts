@@ -227,7 +227,7 @@ describe("platformer visuals through the view", () => {
 
     for (let i = 0; i < 3; i++) {
       player.update(1000 / 60, []);
-      rt.ctx.physics.step();
+      rt.ctx.physics!.step();
     }
     expect(live.get(PLAYER_VIEW_ID)!.pose[1]).toBeGreaterThan(470);
 

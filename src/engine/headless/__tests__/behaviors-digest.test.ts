@@ -144,7 +144,7 @@ function runDigest(view: SceneView | null): {
     rt.render(0.5);
   }
   const bodies: unknown[] = [];
-  rt.ctx.physics.world.bodies.forEach((b) => {
+  rt.ctx.physics!.world.bodies.forEach((b) => {
     bodies.push([b.translation(), b.linvel(), b.rotation()]);
   });
   const digest = hashText(JSON.stringify({ steps, bodies, stats: rt.stats().bodies }));

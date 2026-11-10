@@ -17,6 +17,7 @@ import type { Vec2 } from "@jams/engine";
 import {
   createSensorCollider,
   degToRad,
+  physicsOf,
   type EngineContext,
   type RegisteredType,
   type SceneSystem,
@@ -207,7 +208,7 @@ function constructPieces(type: ConstructType): Piece[] {
 }
 
 export function createConstructSystem(ctx: EngineContext, type: RegisteredType): ConstructSystem {
-  const { rapier, physics, view, tags } = ctx;
+  const { view, tags } = ctx;
   const fields = createForceFields();
   const placed = new Map<string, Placed>();
   let nextRuntimeId = 0;
@@ -243,6 +244,7 @@ export function createConstructSystem(ctx: EngineContext, type: RegisteredType):
     let body: RigidBody | null = null;
     let collider: Collider | null = null;
     if (kind !== "light_orb") {
+      const { rapier, physics } = physicsOf(ctx, type.type, id);
       body = physics.addRigidBody(
         rapier.RigidBodyDesc.fixed().setTranslation(position.x, position.y).setRotation(rotation),
       );
@@ -281,7 +283,7 @@ export function createConstructSystem(ctx: EngineContext, type: RegisteredType):
     if (!entry) return;
     if (entry.info.construct === "grapple_anchor") anchors().despawn(id);
     if (entry.collider) tags.delete(entry.collider.handle);
-    if (entry.body) physics.removeRigidBody(entry.body);
+    if (entry.body) physicsOf(ctx, type.type, id).physics.removeRigidBody(entry.body);
     if (entry.info.construct === "wind_zone") fields.remove(id);
     for (const pieceId of entry.pieces) view?.remove(pieceId);
     placed.delete(id);

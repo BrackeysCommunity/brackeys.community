@@ -8,9 +8,11 @@ import {
   PathSchema,
   pointField,
   shapeField,
+  sideField,
+  SIDES,
   vectorField,
 } from "../../game/fields";
-import type { Registry } from "../../game/types";
+import type { Registry, Side } from "../../game/types";
 import { transformGrid } from "../grid";
 import { applyPt, applyVec, dihedral, IDENTITY_2D, type Dihedral } from "../transform";
 import {
@@ -43,6 +45,7 @@ const schemas = {
   vector: vectorField("A launch direction."),
   angle: angleField("A facing.", "deg"),
   mirror: mirrorField("x", "Mirrored."),
+  side: sideField("A side."),
   grid: gridSchema,
   tuple: z.tuple([z.number(), z.number()]).describe("A plain pair."),
   number: z.number().describe("A plain number."),
@@ -125,6 +128,60 @@ describe("transformFieldValue: each kind under each element", () => {
     const scale = { ...IDENTITY_2D, a: 2 };
     expect(transformFieldValue(schemas.point, [1, 1], scale)).toEqual([2, 1]);
     expect(() => transformFieldValue(schemas.angle, 0, scale)).toThrow(/quarter turns/);
+  });
+});
+
+describe("transformFieldValue: sides", () => {
+  /** `side` after `d`, by the clockwise order: a flip mirrors left and right, then each turn steps one side clockwise. */
+  const expected = (side: Side, d: Dihedral): Side => {
+    const mirrored = !d.flip ? side : side === "left" ? "right" : side === "right" ? "left" : side;
+    return SIDES[(SIDES.indexOf(mirrored) + d.rot) % 4]!;
+  };
+
+  for (const d of ELEMENTS) {
+    it(label(d), () => {
+      const t = dihedral(d, AT);
+      for (const side of SIDES)
+        expect(transformFieldValue(schemas.side, side, t)).toBe(expected(side, d));
+      const up = expected("up", d);
+      expect(transformFieldValue(schemas.side.optional(), true, t)).toBe(up === "up" ? true : up);
+    });
+  }
+
+  it('turns `true` as "up" and keeps it `true` while it faces up', () => {
+    expect(transformFieldValue(schemas.side, true, dihedral({ rot: 0, flip: false }, AT))).toBe(
+      true,
+    );
+    expect(transformFieldValue(schemas.side, true, dihedral({ rot: 0, flip: true }, AT))).toBe(
+      true,
+    );
+    expect(transformFieldValue(schemas.side, true, dihedral({ rot: 1, flip: false }, AT))).toBe(
+      "right",
+    );
+    expect(transformFieldValue(schemas.side, true, dihedral({ rot: 2, flip: true }, AT))).toBe(
+      "down",
+    );
+  });
+
+  it("undoes a turn with its inverse", () => {
+    for (const d of ELEMENTS) {
+      const t = dihedral(d, AT);
+      const back = dihedral(
+        d.flip ? d : { rot: ((4 - d.rot) % 4) as Dihedral["rot"], flip: false },
+        [0, 0],
+      );
+      for (const side of SIDES)
+        expect(
+          transformFieldValue(schemas.side, transformFieldValue(schemas.side, side, t), back),
+        ).toBe(side);
+    }
+  });
+
+  it("leaves a value that isn't a side alone", () => {
+    const t = dihedral({ rot: 1, flip: false }, AT);
+    expect(transformFieldValue(schemas.side, false, t)).toBe(false);
+    expect(transformFieldValue(schemas.side, "north", t)).toBe("north");
+    expect(transformFieldValue(schemas.side.optional(), undefined, t)).toBeUndefined();
   });
 });
 
@@ -242,6 +299,22 @@ describe("transformEntityDef", () => {
       speed: 3,
     });
     expect(def.shape).toEqual(["box", 10, 0, 30, 5]);
+  });
+
+  it("turns a one-way solid's side with it, and leaves it alone under a translation", () => {
+    const registry = createRegistry();
+    const solid: EntityDef = { id: "s", type: "solid", shape: ["box", 0, 0, 40, 4], oneWay: true };
+    expect(transformEntityDef(registry, solid, dihedral({ rot: 1, flip: false }, AT))?.oneWay).toBe(
+      "right",
+    );
+    expect(
+      transformEntityDef(
+        registry,
+        { ...solid, oneWay: "left" },
+        dihedral({ rot: 0, flip: true }, AT),
+      )?.oneWay,
+    ).toBe("right");
+    expect(translateEntityDef(registry, solid, [5, 5])?.oneWay).toBe(true);
   });
 
   it("is null for an entity with nothing a transform acts on", () => {

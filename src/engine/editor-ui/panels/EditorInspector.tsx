@@ -54,6 +54,7 @@ import {
   type InspectorWidgetDef,
   type InstanceParamsModel,
   type InstanceTransformModel,
+  type ParamModel,
   type ModelField,
   type OpBatch,
   type Pt,
@@ -137,6 +138,8 @@ type Ctx = {
   overrides?: Map<string, string[]>;
   /** Builds the batch for an edit instead of `modelBatch`; it's written against the document. */
   edit?: (field: ModelField, input: unknown) => Edit;
+  /** Builds one batch for several edits instead of joining `edit`'s, when they can touch one value. */
+  editAll?: (label: string, edits: readonly (readonly [ModelField, unknown])[]) => Edit;
   /** Every edit is refused. */
   readOnly?: boolean;
   /** Where asset fields find the project's assets; without it they're text fields. */
@@ -199,6 +202,10 @@ function commitFields(
   label: string,
   edits: readonly (readonly [ModelField, unknown])[],
 ): string | null {
+  if (ctx.editAll) {
+    const edit = ctx.editAll(label, edits);
+    return edit.ok ? dispatch(ctx, edit.batch) : edit.error;
+  }
   const ops: OpBatch["ops"] = [];
   let base: string | undefined;
   for (const [field, input] of edits) {
@@ -1587,7 +1594,15 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
     (doc.instances?.some((i) => i.id === only) ||
       nestedInstanceOf(doc, only, session.getPrefabs()) !== null);
   if (only !== undefined && instance) {
-    return <InstancePanel session={session} doc={doc} id={only} onOpenPrefab={onOpenPrefab} />;
+    return (
+      <InstancePanel
+        session={session}
+        doc={doc}
+        id={only}
+        onOpenPrefab={onOpenPrefab}
+        project={project ?? null}
+      />
+    );
   }
   if (targets.length === 0) {
     return (
@@ -1668,39 +1683,120 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
   );
 }
 
+const paramOf = (model: InstanceParamsModel, field: ModelField): ParamModel | undefined =>
+  model.params.find(
+    (p) => field.path === p.field.path || field.path.startsWith(`${p.field.path}.`),
+  );
+
+/** `model` with param `name` holding what `ops` (one param's `paramBatch`) write. */
+function afterParamOps(
+  model: InstanceParamsModel,
+  name: string,
+  ops: OpBatch["ops"],
+): InstanceParamsModel {
+  if (model.target.kind !== "entity") return model;
+  const params = { ...(model.target.entity.params as Record<string, unknown> | undefined) };
+  let set = true;
+  for (const op of ops) {
+    const value =
+      op.op === "setParam"
+        ? op.value
+        : op.op === "override"
+          ? Object.values(op.set ?? {})[0]
+          : undefined;
+    if (value === undefined || value === null) {
+      delete params[name];
+      set = false;
+    } else params[name] = value;
+  }
+  return {
+    ...model,
+    target: { ...model.target, entity: { ...model.target.entity, params } },
+    params: model.params.map((p) => (p.name === name ? { ...p, set } : p)),
+  };
+}
+
+/**
+ * One batch for several edits to an instance's params: each is read against
+ * the value the ones before it left, and only a param's last write is kept,
+ * so an atlas and its frame inside one param land together.
+ */
+function paramsBatch(
+  model: InstanceParamsModel,
+  label: string,
+  edits: readonly (readonly [ModelField, unknown])[],
+): Edit {
+  let current = model;
+  const writes = new Map<string, OpBatch["ops"]>();
+  for (const [field, input] of edits) {
+    const param = paramOf(current, field);
+    if (!param) return { ok: false, error: `${field.path} isn't a parameter` };
+    const edit = paramBatch(current, param, input, field);
+    if (!edit.ok) return edit;
+    writes.set(param.name, edit.batch.ops);
+    current = afterParamOps(current, param.name, edit.batch.ops);
+  }
+  return { ok: true, batch: { label, ops: [...writes.values()].flat() } };
+}
+
+/**
+ * A param's field with each atlas picker inside it pointing at its sibling
+ * `frame` under the param's own path, where the param's widgets edit it.
+ */
+function paramFrames(field: ModelField): ModelField {
+  if (!field.children) return field;
+  const children = field.children.map(paramFrames);
+  const frame = children.find((c) => c.name === "frame");
+  return {
+    ...field,
+    children: children.map((c) =>
+      frame && c.widget.kind === "asset" && c.widget.frame !== undefined
+        ? { ...c, widget: { ...c.widget, frame: frame.path } }
+        : c,
+    ),
+  };
+}
+
 /**
  * The prefab's exposed parameters on an instance, each drawn by its first
  * target's widget and set with `setParam` (an override of the nested
- * instance's param when it sits inside another); a set one is bold, with Reset.
+ * instance's param when it sits inside another); a set one is bold, with
+ * Reset. Asset params pick from `project`'s assets, as a type's own fields do.
  */
 function ParamsSection({
   session,
   doc,
   model,
+  project,
 }: {
   session: EditorSession;
   doc: SceneDefinition;
   model: InstanceParamsModel;
+  project: ProjectSession | null;
 }) {
   const [error, setError] = useState<string | null>(null);
   const readOnly = useContext(ReadOnlyContext);
+  const params = model.params.map((p) => ({ ...p, field: paramFrames(p.field) }));
+  const byPath = fieldsByPath(params.map((p) => p.field));
   const ctx: Ctx = {
     session,
     targets: [model.target],
     def: doc,
     readOnly,
+    project,
+    fields: byPath,
+    drawnBy: framesDrawn(byPath),
     edit: (field, input) => {
-      const param = model.params.find(
-        (p) => field.path === p.field.path || field.path.startsWith(`${p.field.path}.`),
-      );
+      const param = paramOf(model, field);
       return param
         ? paramBatch(model, param, input, field)
         : { ok: false, error: `${field.path} isn't a parameter` };
     },
+    editAll: (label, edits) => paramsBatch(model, label, edits),
   };
   return (
     <Section id="instance:parameters" title="Parameters">
-      {model.params.map((p) =>
+      {params.map((p) =>
         p.set ? (
           <div key={`${model.ref}:${p.name}`} className="je-insp-overridden" data-overridden="">
             <div className="je-insp-grow">
@@ -1813,11 +1909,14 @@ function InstancePanel({
   doc,
   id,
   onOpenPrefab,
+  project,
 }: {
   session: EditorSession;
   doc: SceneDefinition;
   id: Ref;
   onOpenPrefab?: (prefab: string, from: Ref) => void;
+  /** Where asset params find the project's assets; without it they're text fields. */
+  project: ProjectSession | null;
 }) {
   const readOnly = useContext(ReadOnlyContext);
   const labelColumn = useLabelColumn();
@@ -1848,7 +1947,7 @@ function InstancePanel({
         <PlacementSection key={id} session={session} doc={doc} model={placement} />
       ) : null}
       {params && params.params.length > 0 ? (
-        <ParamsSection key={id} session={session} doc={doc} model={params} />
+        <ParamsSection key={id} session={session} doc={doc} model={params} project={project} />
       ) : null}
       <Section id="instance:overrides" title="Overrides">
         {keys.length === 0 ? (

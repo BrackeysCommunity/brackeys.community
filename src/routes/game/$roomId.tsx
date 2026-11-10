@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { GameCanvas } from "@/components/game/GameCanvas";
+import { GameCanvas, GameCanvasLoading } from "@/components/game/GameCanvas";
 
 /** `scene` names the project scene `?edit=1` opens, by id. */
 type GameSearch = { edit?: 1; scene?: string };
@@ -16,8 +16,15 @@ export const Route = createFileRoute("/game/$roomId")({
       : {}),
   }),
   ssr: false,
+  pendingComponent: GameRoomPending,
   component: GameRoom,
 });
+
+function GameRoomPending() {
+  const { roomId } = Route.useParams();
+  const { edit } = Route.useSearch();
+  return <GameCanvasLoading roomId={roomId} edit={edit === 1} />;
+}
 
 function GameRoom() {
   const { roomId } = Route.useParams();

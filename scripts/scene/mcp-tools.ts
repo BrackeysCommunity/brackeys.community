@@ -300,7 +300,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_show",
     title: "Show a scene",
     description:
-      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash: instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world turn and flip, behavior blocks, an instance's params and the params its prefab exposes, each grid field's filled cells and bounds, and each sprite's `asset[:frame]` and world box (sized from the project's assets). Filter by ref, type or a circle.",
+      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash, with `time` (its clock as Play resolves it: kind, rate, catch-up) and `physics` (`rapier`, or `none`: no wasm loads): instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world turn and flip, behavior blocks, an instance's params and the params its prefab exposes, each grid field's filled cells and bounds, and each sprite's `asset[:frame]` and world box (sized from the project's assets). Filter by ref, type or a circle.",
     annotations: READ,
     input: {
       scene: sceneArg,
@@ -446,11 +446,13 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_playtest",
     title: "Playtest a scene",
     description:
-      "Play an input script headless: the outcome, steps, events and focus trail. exitCode 1 when the scene or script is blocked.",
+      "Play an input script headless: the outcome, steps, events, focus trail and the commands stepped. Steps hold or press actions, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`). exitCode 1 when the scene or script is blocked.",
     annotations: READ,
     input: {
       scene: sceneArg,
-      script: jsonOrPath("An input script (`scene_schema` with which `script`)"),
+      script: jsonOrPath(
+        "An input script (`scene_schema` with which `script`), command and elapse steps included",
+      ),
       at: z.tuple([z.number(), z.number()]).optional().describe("[x, y]: start the player here."),
       game,
       ...liveFields,
@@ -517,7 +519,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_check",
     title: "Run scene checks",
     description:
-      "Run a scene's `<scene>.checks.json` (playtests, fuzz, validation). exitCode 1 when a check fails.",
+      "Run a scene's `<scene>.checks.json` (validation, playtests, fuzz, and `connected`: a path on the scene's grid joins two places). exitCode 1 when a check fails.",
     annotations: READ,
     input: {
       scene: sceneArg,

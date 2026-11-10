@@ -1,11 +1,14 @@
 import type { GameDefinition, Registry } from "../game/types";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import {
   createRunRecorder,
   physicsBuild,
   probeConfigHash,
+  recordingCommands,
   recordingEdges,
 } from "../runtime/recorder";
 import { resolveGame } from "../runtime/runtime";
+import { checkCommand } from "../scene/input-script";
 import { parseRecording, type RunRecording } from "../scene/recording-schema";
 import type { PrefabLibrary, SceneDefinition } from "../scene/types";
 import type { RapierModule } from "../types";
@@ -15,7 +18,8 @@ import { blockedRun, prepareRun, runLoop, startRun, type InputSource } from "./p
 import type { PlaytestBlocked, PlayOptions, ScriptIssue } from "./playtest-types";
 
 export type ReplayOptions<S = unknown> = {
-  rapier: RapierModule;
+  /** Needed only for a scene whose physics resolves to Rapier. */
+  rapier?: RapierModule | null;
   game?: GameDefinition<S> | null;
   registry?: Registry;
   /** Validated, hashed and expanded the way Play does. */
@@ -25,6 +29,8 @@ export type ReplayOptions<S = unknown> = {
   /** A recording, or its JSON (text or parsed), checked by `parseRecording`. */
   recording: RunRecording | unknown;
   dev?: boolean;
+  /** The project's data the game reads as `EngineContext.project`; its `engine` block resolves the scene's settings and the clock. */
+  project?: ProjectRuntimeView | null;
 };
 
 export type ReplayReport<S = unknown> = {
@@ -53,7 +59,7 @@ function replayWarnings(
   scene: string,
   hash: string,
   game: GameDefinition | null,
-  rapier: RapierModule,
+  rapier: RapierModule | null,
 ): string[] {
   const out: string[] = [];
   if (recording.scene !== scene)
@@ -89,7 +95,8 @@ export function recordingDivergence(a: RunRecording, b: RunRecording): string | 
 
 /**
  * Replays a recording headless: the play world starts as it did and every
- * recorded edge is stepped on its tick, in order. The run ends where the
+ * recorded edge and command is stepped on its tick, in order, every tick
+ * simulated whatever the time model. The run ends where the
  * recording did (its outcome, or its last tick), so a deterministic replay
  * matches it exactly; a stale scene or other tuning is a warning, not a block.
  */
@@ -113,7 +120,13 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     const error = unknownActionError(action, registry.actionNames);
     return error ? [scriptIssue(`/actions/${i}`, error)] : [];
   });
-  if (actionIssues.length > 0) return blockedRun("script", name, [], actionIssues);
+  const commandIssues = (rec.commands ?? []).flatMap(([, command, args], i) => {
+    const checked = checkCommand(registry, { name: command, args });
+    if (checked.ok) return [];
+    return [scriptIssue(`/commands/${i}/${checked.at === "name" ? 1 : 2}`, checked.message)];
+  });
+  const refused = [...actionIssues, ...commandIssues];
+  if (refused.length > 0) return blockedRun("script", name, [], refused);
 
   const play: PlayOptions = {};
   if (rec.start.at) play.at = { x: rec.start.at[0], y: rec.start.at[1] };
@@ -133,7 +146,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     play.game = checked.data;
   }
 
-  const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs);
+  const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs, opts.project?.engine);
   if (!prepared.ok) return prepared.blocked;
   const started = startRun({
     rapier: opts.rapier,
@@ -142,16 +155,20 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     scene: prepared.scene,
     play,
     dev: opts.dev,
+    project: opts.project,
   });
   if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
   const { runtime } = started;
+  const rapier = prepared.scene.settings.physics === "rapier" ? (opts.rapier ?? null) : null;
 
   try {
     const byTick = recordingEdges(rec);
+    const commandsByTick = recordingCommands(rec);
     const inputEnds = rec.outcome.result === "quit" || rec.outcome.result === "script-end";
     const input: InputSource = {
       done: () => false,
       edges: (tick) => byTick.get(tick) ?? [],
+      commands: (tick) => commandsByTick.get(tick) ?? [],
     };
     if (inputEnds) {
       let next = 0;
@@ -159,11 +176,12 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       input.after = () => void next++;
     }
     const recorder = createRunRecorder({
-      rapier: opts.rapier,
+      rapier,
       game,
       scene: name,
       sceneHash: prepared.hash,
       start: play,
+      time: runtime.ctx.time,
     });
     const end = runLoop({
       runtime,
@@ -171,7 +189,8 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       maxTicks: rec.ticks,
       input,
       stuck: rec.outcome.result === "stuck",
-      onTick: (state, focus, edges) => recorder.tick(state, edges, focus),
+      everySlot: true,
+      onTick: (state, focus, edges, commands) => recorder.tick(state, edges, focus, commands),
     });
     if (end.result === "script-end" && rec.outcome.result === "quit") end.result = "quit";
     const final = runtime.snapshot() as S | null;
@@ -180,7 +199,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     return {
       blocked: false,
       stale: rec.sceneHash !== prepared.hash,
-      warnings: replayWarnings(rec, name, prepared.hash, game, opts.rapier),
+      warnings: replayWarnings(rec, name, prepared.hash, game, rapier),
       matches: divergence === null,
       divergence,
       recording,

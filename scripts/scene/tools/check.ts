@@ -17,6 +17,8 @@ import {
   type ToolContext,
   type ToolResult,
 } from "../context";
+import { projectRuntime } from "../projects";
+import { rapierFor } from "./step";
 
 export type CheckInput = { scene?: string; checks?: string; only?: string; game?: string };
 
@@ -90,8 +92,10 @@ export const check: Tool<CheckInput> = async (input, ctx) => {
   }
 
   const dir = dirname(file);
+  const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
   const report = runChecks({
-    rapier: await ctx.loadRapier(),
+    rapier: await rapierFor(ctx, def, registry, project?.engine),
+    project,
     scene: def,
     prefabs: loaded.prefabs,
     registry,
