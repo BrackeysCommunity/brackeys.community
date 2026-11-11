@@ -99,15 +99,67 @@ describe("drawing with a picked type", () => {
     expect(issues).toEqual([]);
   });
 
-  it("closes an open nav stroke of three points or more, and adds nothing for two", () => {
+  it("closes an open nav stroke of three points or more, and keeps a shorter one open saying why", () => {
+    const ctx = fakeToolContext(toolRegistry, doc(), free);
+    const pen = penTool.create(ctx);
+    const enter = () =>
+      pen.key!({ type: "down", key: "Enter", repeat: false, shift: false, alt: false, mod: false });
+    pen.command!("type:nav");
+    pen.pointer!(pointer("down", [0, 0]));
+    pen.pointer!(pointer("down", [100, 0]));
+    expect(pen.overlay!().readout).toBeUndefined();
+    enter();
+    expect(ctx.commits).toEqual([]);
+    expect(pen.gesture!()).toBe(true);
+    let overlay = pen.overlay!();
+    expect(overlay.readout).toEqual({ at: [100, 0], text: "A nav needs 3 points" });
+    expect(overlay.polylines?.[0]).toMatchObject({
+      pts: [
+        [0, 0],
+        [100, 0],
+      ],
+      tone: "invalid",
+    });
+
+    // A double-click is refused the same way.
+    pen.pointer!({ ...pointer("down", [100, 0]), clicks: 2 });
+    expect(ctx.commits).toEqual([]);
+    expect(pen.overlay!().readout?.text).toBe("A nav needs 3 points");
+
+    // A third point clears it, and the stroke finishes as a closed poly.
+    pen.pointer!(pointer("down", [100, 100]));
+    overlay = pen.overlay!();
+    expect(overlay.polylines?.[0]?.tone).toBe("ghost");
+    expect(overlay.readout?.text ?? "").not.toContain("needs");
+    enter();
+    expect(ctx.commits.map((b) => b.ops[0])).toEqual([
+      {
+        op: "add",
+        entity: { id: "nav", type: "nav", shape: ["poly", 0, 0, 100, 0, 100, 100] },
+      },
+    ]);
+  });
+
+  it("lets a refused stroke finish once the picked type takes a chain", () => {
     const ctx = fakeToolContext(toolRegistry, doc(), free);
     const pen = penTool.create(ctx);
     pen.command!("type:nav");
     pen.pointer!(pointer("down", [0, 0]));
     pen.pointer!(pointer("down", [100, 0]));
     pen.key!({ type: "down", key: "Enter", repeat: false, shift: false, alt: false, mod: false });
-    expect(ctx.commits).toEqual([]);
+    expect(pen.overlay!().readout?.text).toBe("A nav needs 3 points");
+    pen.command!("type:solid");
+    expect(pen.overlay!().readout?.text ?? "").not.toContain("needs");
+    pen.key!({ type: "down", key: "Enter", repeat: false, shift: false, alt: false, mod: false });
+    expect(ctx.commits.map((b) => b.ops[0])).toEqual([
+      { op: "addBulk", key: "solid", shapes: [["chain", 0, 0, 100, 0]] },
+    ]);
+  });
 
+  it("closes an open nav stroke of more than three points", () => {
+    const ctx = fakeToolContext(toolRegistry, doc(), free);
+    const pen = penTool.create(ctx);
+    pen.command!("type:nav");
     for (const p of NOTCH) pen.pointer!(pointer("down", p));
     pen.key!({ type: "down", key: "Enter", repeat: false, shift: false, alt: false, mod: false });
     expect(ctx.commits.map((b) => b.ops[0])).toEqual([

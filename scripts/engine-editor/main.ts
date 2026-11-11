@@ -4,9 +4,9 @@
  * mounts it. Everything the page needs beyond the game is imported when it
  * mounts.
  */
-import { DEFAULT_SCENE, engineEditorGame } from "./game";
+import { DEFAULT_SCENE, engineEditorGame } from "../../src/games/engine-editor";
 
-export { DEFAULT_SCENE, engineEditorGame, playCameraTarget } from "./game";
+export { DEFAULT_SCENE, engineEditorGame, playCameraTarget } from "../../src/games/engine-editor";
 
 const sceneOf = (url: URL): string => url.searchParams.get("scene") || DEFAULT_SCENE;
 

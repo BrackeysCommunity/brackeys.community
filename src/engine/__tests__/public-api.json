@@ -988,7 +988,6 @@
     "code-skew",
     "dangling-ref",
     "dup-id",
-    "event-loop",
     "follower-hits-solid",
     "grid-invalid",
     "grid-unreachable",

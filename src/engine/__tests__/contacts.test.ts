@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { defineEntityType, defineGame } from "../game/define";
-import { shapeField, tagsField } from "../game/fields";
+import { pointField, shapeField, tagsField } from "../game/fields";
 import type { ContactSelector, EngineContext, GameDefinition } from "../game/types";
 import { createContacts } from "../runtime/contacts";
 import { createSceneRuntime } from "../runtime/runtime";
@@ -338,4 +338,84 @@ describe("watched pairs on both backends", () => {
     expect(after.some((e) => e.other === start.other)).toBe(false);
     r.rt.destroy();
   });
+});
+
+/** A puck with no shape field: its system builds a 60 px box collider around `at` in code. */
+const PUCK = defineEntityType({
+  type: "puck",
+  description: "A box its system builds in code.",
+  fields: { at: pointField("The puck's centre.") },
+  system: (ctx) => {
+    const handles = new Map<string, number>();
+    return {
+      spawn(e) {
+        const [x, y] = (e as RuntimeEntity & { at: [number, number] }).at;
+        let handle: number;
+        if (ctx.physics) {
+          const { ColliderDesc } = ctx.physics.rapier;
+          handle = ctx.physics.addCollider(ColliderDesc.cuboid(30, 30).setTranslation(x, y)).handle;
+        } else {
+          handle = ctx.geometry!.add({
+            shape: { type: "box", cx: 0, cy: 0, hw: 30, hh: 30, rotDeg: 0 },
+            body: "kinematic",
+            pose: { x, y, rot: 0 },
+          });
+        }
+        ctx.tags.set(handle, { entityId: e.id, type: "puck" });
+        handles.set(e.id, handle);
+      },
+      despawn(id) {
+        const handle = handles.get(id);
+        if (handle === undefined) return;
+        handles.delete(id);
+        ctx.tags.delete(handle);
+        if (ctx.physics) ctx.physics.removeCollider(ctx.physics.world.getCollider(handle));
+        else ctx.geometry!.remove(handle);
+      },
+      clear() {
+        for (const id of [...handles.keys()]) this.despawn(id);
+      },
+      size: () => handles.size,
+    };
+  },
+});
+
+const pucks = defineGame({
+  id: "pucks",
+  types: [STONE, PUCK],
+  actions: [],
+  createRuntime: () => ({ snapshot: () => null }),
+});
+
+describe("an entity whose colliders come from its system", () => {
+  for (const physics of ["rapier", "none"] as const) {
+    it(`touches a wall beside its pose by its collider's bounds (${physics})`, () => {
+      // The puck's pose is its centre (500, 500), outside the wall; its box reaches 530, into the wall's 525.
+      const r = run(
+        physics,
+        [
+          { id: "puck", type: "puck", at: [500, 500] },
+          { id: "wall", type: "stone", shape: box(545, 500, 20, 100), tags: [] },
+        ],
+        { game: pucks },
+      );
+      r.rt.ctx.contacts.watch("puck", { type: "stone" });
+      const started = r.step(1);
+      expect(started).toHaveLength(1);
+      expect(started[0]).toMatchObject({ type: CONTACT_START, entityId: "puck", other: "wall" });
+      expect(Math.abs(started[0]!.at.x - 527.5)).toBeLessThanOrEqual(3);
+
+      // Moving the collider away, with its pose left where it was, ends the contact.
+      const [handle] = r.rt.ctx.tags.handlesOf("puck");
+      if (physics === "rapier") {
+        r.rt.ctx.physics!.world.getCollider(handle!).setTranslation({ x: 300, y: 500 });
+      } else {
+        r.rt.ctx.geometry!.setPose(handle!, 300, 500);
+      }
+      const ended = r.step(1);
+      expect(ended).toHaveLength(1);
+      expect(ended[0]).toMatchObject({ type: CONTACT_END, entityId: "puck", other: "wall" });
+      r.rt.destroy();
+    });
+  }
 });

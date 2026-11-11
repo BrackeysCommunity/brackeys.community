@@ -121,7 +121,7 @@ describe("ProblemsPanel", () => {
 describe("ProblemsPanel in a narrow column", () => {
   const styleCss = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
 
-  it("is a size container, each row's code a sibling of its message", () => {
+  it("is a size container, each row's code right after its message in one text run", () => {
     const session = sessionOf(scene());
     render(
       <ProblemsPanel session={session} physical={[crushed]} onFrame={() => {}} notify={notify} />,
@@ -131,19 +131,24 @@ describe("ProblemsPanel in a narrow column", () => {
     const code = within(panel).getByText("spawn-in-solid");
     expect(code.className).toBe("je-problems-code");
     expect(code.previousElementSibling?.className).toBe("je-problems-message");
-    expect(code.parentElement?.className).toBe("je-problems-show");
+    expect(code.parentElement?.className).toBe("je-problems-text");
+    expect(code.parentElement?.parentElement?.className).toBe("je-problems-show");
   });
 
-  it("puts the rule code on a line of its own under a column's narrower widths", () => {
+  it("keeps the rule code on the message's lines under a column's narrower widths", () => {
     expect(styleCss).toMatch(/\.je-problems \{\s*container: je-problems \/ inline-size;/);
+    expect(styleCss).toMatch(/\.je-problems-text \{\s*display: contents;/);
     const at = styleCss.indexOf("@container je-problems (max-width: 288px)");
     expect(at).toBeGreaterThan(0);
     const block = styleCss.slice(at, styleCss.indexOf("\n  }\n", at));
-    expect(block).toMatch(/\.je-problems-show \{[^}]*flex-wrap: wrap;/);
-    expect(block).toMatch(/\.je-problems-code \{[^}]*flex-basis: 100%;[^}]*max-width: none;/);
+    expect(block).toMatch(/\.je-problems-text \{[^}]*-webkit-line-clamp: 2;/);
+    expect(block).toMatch(/\.je-problems-message \{[^}]*display: inline;/);
+    expect(block).toMatch(/\.je-problems-code \{[^}]*display: inline;/);
+    expect(block).not.toMatch(/flex-basis: 100%/);
+    expect(block).not.toMatch(/flex-wrap: wrap/);
   });
 
-  it("wraps at the right column's width under 900 px and not at its default", () => {
+  it("narrows at the right column's width under 900 px and not at its default", () => {
     // The panel's inline size is the column's less the group's border and the body's padding.
     const bodyWidth = (column: number) => column - 2 * 1 - 2 * 6;
     const right = (width: number) =>

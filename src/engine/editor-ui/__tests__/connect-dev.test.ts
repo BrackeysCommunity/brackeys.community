@@ -142,6 +142,28 @@ describe("findDevScene", () => {
     expect(await findDevScene("7c1d2e3f", { fetch })).toMatchObject({ name: "grid-yard" });
   });
 
+  it("reads the scenes together to match a name, and takes the first match in listing order", async () => {
+    const { fetch: answer } = listingFetch({
+      "/__scene/kitchen-sink": { v: 3, name: "grid-yard", bounds: [0, 0, 1, 1] },
+    });
+    let open = 0;
+    let most = 0;
+    const fetch = async (url: string) => {
+      open += 1;
+      most = Math.max(most, open);
+      // The first scene answers last, so a match picked by arrival order would be wrong.
+      await new Promise((r) => setTimeout(r, url.endsWith("7c1d2e3f") ? 20 : 0));
+      open -= 1;
+      return answer(url);
+    };
+    expect(await findDevScene("grid-yard", { fetch })).toEqual({
+      project: "engine",
+      id: "7c1d2e3f",
+      name: "grid-yard",
+    });
+    expect(most).toBeGreaterThanOrEqual(3);
+  });
+
   it("says nothing when no scene matches, two projects play its game, or the server can't answer", async () => {
     expect(await findDevScene("nowhere", listingFetch())).toBeNull();
     const twoGameless = listingFetch({

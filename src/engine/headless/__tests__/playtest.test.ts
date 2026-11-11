@@ -15,7 +15,8 @@ import {
 import { createRegistry, defineGame } from "../../game/define";
 import { hashText } from "../../scene/hash";
 import { parseSceneOrThrow } from "../../scene/parse";
-import type { SceneDefinition } from "../../scene/types";
+import { prefabLibrary } from "../../scene/prefab";
+import type { Prefab, SceneDefinition } from "../../scene/types";
 import type { RapierModule } from "../../types";
 import { ENGINE_VERSION } from "../../version";
 import { compileInputScript } from "../compile-input-script";
@@ -606,6 +607,58 @@ describe("runPlaytest's world predicates", () => {
       { hold: [], until: { tick: 5, count: { type: "lamp", min: 1 }, exists: "lamp#2", past: 0 } },
     ]);
     expect(lastTicks(r)).toEqual([5]);
+  });
+
+  it("exists takes the id an instantiate returned, while any of its children lives", () => {
+    const beacon: Prefab = {
+      kind: "prefab",
+      v: 3,
+      id: "beacon",
+      entities: [
+        { id: "left", type: "marker", at: [0, 0] },
+        { id: "right", type: "marker", at: [10, 0] },
+      ],
+    };
+    const game = defineGame<TestGameSnapshot, TestGameOptions>({
+      ...testGame,
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        let tick = 0;
+        return {
+          ...base,
+          afterStep(dtMs, events) {
+            base.afterStep?.(dtMs, events);
+            if (tick === 2) expect(ctx.instantiate("beacon", [0, 0]).id).toBe("beacon#1");
+            if (tick === 4) ctx.setEnabled("beacon#1/left", false);
+            if (tick === 6) ctx.setEnabled("beacon#1/right", false);
+            if (tick === 8) ctx.destroy("beacon#1");
+            tick++;
+          },
+        };
+      },
+    });
+    const r = report(
+      runPlaytest({
+        rapier,
+        game,
+        registry: createRegistry(game),
+        scene: yard,
+        library: prefabLibrary([beacon]),
+        script: {
+          v: 1,
+          steps: [
+            { hold: [], until: { exists: "beacon#1" } },
+            { wait: 2 },
+            { hold: [], until: { exists: "beacon#1" } },
+            { hold: [], until: { exists: "beacon#1" }, max: 1 },
+            { hold: [], until: { exists: { id: "beacon#1", enabled: false } } },
+            { hold: [], until: { exists: { id: "beacon#1", enabled: false } }, max: 1 },
+          ],
+        },
+      }) as PlaytestRun<TestGameSnapshot>,
+    );
+    // Live from 2; still enabled at 5 with one child off; off at 6 with both; gone at 8.
+    expect(lastTicks(r)).toEqual([2, "done", 5, "max", 7, "max"]);
   });
 
   it("gives the game's outcome hook the world", () => {

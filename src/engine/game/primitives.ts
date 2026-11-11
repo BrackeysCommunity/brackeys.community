@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   attachField,
   bodyShapeField,
+  isAttachField,
   PathSchema,
   materialField,
   pointField,
@@ -11,7 +12,7 @@ import {
   sideField,
   tagsField,
 } from "./fields";
-import type { EntityTypeDef, FieldEnv, PrimitiveType } from "./types";
+import type { EntityTypeDef, FieldEnv, PrimitiveType, RegisteredType } from "./types";
 
 export { DEFAULT_GRAVITY } from "./defaults";
 
@@ -94,7 +95,7 @@ export const PRIMITIVES = {
         .min(0)
         .optional()
         .describe("Surface friction; omitted uses the material's, else the physics default.")
-        .meta({ title: "Friction", group: "body", placeholder: "material's" }),
+        .meta({ title: "Friction", group: "body", placeholder: "from material" }),
       material: materialField(env),
       gravityScale: z
         .number()
@@ -190,6 +191,26 @@ export const PRIMITIVES = {
  */
 export function typePhysics(type: EntityTypeDef): "required" | "optional" {
   return type.physics ?? (type.base ? PRIMITIVES[type.base].physics : undefined) ?? "optional";
+}
+
+/** One reason an entity can't load without physics: its type needs it, or `field` rides another entity. */
+export type PhysicsNeed = { field?: string };
+
+/**
+ * Why an entity of `type` with these fields can't load in a scene without
+ * physics, type first then each set attach field; empty when it can (or
+ * when the type doesn't load at all).
+ */
+export function physicsNeeds(
+  type: RegisteredType,
+  fields: Readonly<Record<string, unknown>>,
+): PhysicsNeed[] {
+  if (type.loads === false) return [];
+  const out: PhysicsNeed[] = typePhysics(type) === "required" ? [{}] : [];
+  for (const [field, schema] of Object.entries(type.shape)) {
+    if (fields[field] !== undefined && isAttachField(schema)) out.push({ field });
+  }
+  return out;
 }
 
 type ResolvedFields<D> = D extends { fields: infer F }

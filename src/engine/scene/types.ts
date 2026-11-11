@@ -280,7 +280,6 @@ export const ENGINE_ISSUE_CODE_LIST = [
   // runtime
   "spawn-id-invalid",
   "prefab-not-spawnable",
-  "event-loop",
 ] as const;
 export type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 /** An engine code, or a game's `<game-id>/<code>`. */

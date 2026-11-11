@@ -2414,7 +2414,10 @@ next physics step.
   resolves are the run's library, read once per load: the shell passes
   its `setPrefabs` library, the editor's Play the project's, and headless
   entries `library` (every prefab the game may place; it defaults to
-  `prefabs`, those the scene's instances name). A prefab it can't place
+  `prefabs`, those the scene's instances name). The scene hash covers only
+  the prefabs the scene's instances name, so a change to one that only
+  `ctx.instantiate` places shows on replay as a digest mismatch, not as a
+  changed input. A prefab it can't place
   throws `prefab-not-spawnable`, its `cause` the reason with its own code:
   `prefab-unknown`, `prefab-cycle`, `prefab-depth`, `physics-required` or
   `unknown-type`.
@@ -2665,7 +2668,9 @@ subscription when that entity is destroyed.
   order and each to its subscribers in subscription order. A handler's own
   events are delivered in the same pass; a pass delivering more than 4096
   events throws `EngineError("event-loop")`, which is a handler raising
-  events in a loop.
+  events in a loop. It is a bug guard rather than an issue code: a
+  playtest it stops is blocked at stage `run` with an issue carrying the
+  code.
 - **Subscribe in `onLoad`.** Every subscription, watch and timer ends at
   unload, so a game subscribes in `onLoad` (or later), and again on each
   load. Spawns at load and outside a step raise no events.
@@ -2745,8 +2750,10 @@ and only enabled entities count unless a selector says `enabled: false`.
 between entities matching `a` and `b`, each an id or `{ type?, tag? }`;
 without `b`, anything that isn't a sensor. It returns the unwatch. After
 the sensors' `afterStep`, for each watch in watch order and each enabled
-match in spawn order, a broad phase of every non-sensor collider's extent
-finds the candidates, and each pair is tested exactly: Rapier's
+match in spawn order, a broad phase of every non-sensor collider's world
+bounds (refreshed each tick for the colliders that moved, so a collider a
+system builds in code counts by where it is, not by the entity's scene
+shape) finds the candidates, and each pair is tested exactly: Rapier's
 `contactCollider` (touching at distance 0 or less) or the geometry
 backend's `shapesIntersect`. A pair reports once per tick, `at` the
 contact point. An entity destroyed or disabled mid-contact ends its

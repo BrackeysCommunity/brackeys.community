@@ -11,7 +11,11 @@ import {
   staticPrefabSource,
   type SceneOrigin,
 } from "../../../../collab/index";
-import { createEditorSession, type EditorSession } from "../../../../editor/index";
+import {
+  createEditorSession,
+  type EditorSession,
+  type ToolOverlay,
+} from "../../../../editor/index";
 import type { GameStoreState } from "../../../../index";
 import {
   prefabLibrary,
@@ -23,6 +27,7 @@ import type { EditorNotify } from "../../../host";
 import { KitProvider } from "../../../kit/index";
 import type { LoadedRun } from "../../../session/loaded-run";
 import { CanvasLayer } from "../CanvasLayer";
+import { OneWayMarks } from "../OneWayMarks";
 
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 const notify: EditorNotify = Object.assign(vi.fn(), {
@@ -124,5 +129,35 @@ describe("one-way landing faces on the edit overlay", () => {
       wall: { side: "down", face: "M310 150 L290 150" },
       floor: { side: "up", face: "M300 490 L700 490", arrows: 8 },
     });
+  });
+
+  it("leaves out the faces of what a drag is moving until it lands", () => {
+    const session = setup();
+    cleanup();
+    const view = { width: 2000, height: 1200, scale: 1, tx: 0, ty: 0 };
+    const box = { type: "box", cx: 0, cy: 0, hw: 1, hh: 1, rotDeg: 0 } as const;
+    const marksWith = (overlay?: ToolOverlay) =>
+      render(
+        <svg>
+          <OneWayMarks session={session} view={view} transform="" overlay={overlay} />
+        </svg>,
+      );
+    const { rerender } = marksWith({
+      // Where the drag started stays a plain outline; the previewed ones name what moves.
+      outlines: [
+        { shape: box, tone: "ghost", ref: "cloud" },
+        { shape: box, tone: "selected", ref: "cloud", preview: true },
+        { shape: box, tone: "selected", ref: "turned", preview: true },
+        { shape: box, tone: "selected", ref: "wall" },
+      ],
+    });
+    expect(Object.keys(marks())).toEqual(["wall"]);
+
+    rerender(
+      <svg>
+        <OneWayMarks session={session} view={view} transform="" overlay={{}} />
+      </svg>,
+    );
+    expect(Object.keys(marks()).sort()).toEqual(["cloud", "turned/bar", "wall"]);
   });
 });

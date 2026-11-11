@@ -4,8 +4,8 @@ import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../ga
 import { OCCUPANT } from "../game/behaviors/occupant";
 import { SPRITE } from "../game/behaviors/sprite";
 import { isSpawnOnly, placeableTypes } from "../game/define";
-import { isAttachField, isPolygonField } from "../game/fields";
-import { typePhysics } from "../game/primitives";
+import { isPolygonField } from "../game/fields";
+import { physicsNeeds } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { assetInfo } from "../project/asset-info";
 import { ATLAS_KIND } from "../project/kinds/atlas";
@@ -665,12 +665,11 @@ type Push = (code: IssueCode, fields: Partial<SceneIssue> & { message: string })
 
 /** `physics-required` on each loadable entry whose type needs physics, and each rider, in a scene whose physics is "none". */
 function checkPhysics(r: Registry, def: SceneDefinition, push: Push, fix: () => OpBatch): void {
-  const needs = (type: RegisteredType | undefined): type is RegisteredType =>
-    type !== undefined && type.loads !== false && typePhysics(type) === "required";
   const message = (what: string) => `${what}, but the scene's physics resolves to "none"`;
   for (const b of r.bulkKeys) {
     const rows = def[b.key];
-    if (!Array.isArray(rows) || !needs(r.types.get(b.type))) continue;
+    const type = r.types.get(b.type);
+    if (!Array.isArray(rows) || !type || physicsNeeds(type, {}).length === 0) continue;
     rows.forEach((_, i) => {
       const ref = bulkId(b.key, i);
       push("physics-required", {
@@ -683,20 +682,15 @@ function checkPhysics(r: Registry, def: SceneDefinition, push: Push, fix: () => 
   }
   (def.entities ?? []).forEach((e, i) => {
     const type = r.types.get(e.type);
-    if (e.off || !type || type.loads === false) return;
-    if (needs(type)) {
+    if (e.off || !type) return;
+    for (const { field } of physicsNeeds(type, e)) {
       push("physics-required", {
-        message: message(`${e.id} is a ${e.type}, which needs physics`),
-        path: jsonPointer(["entities", i]),
-        entityIds: [e.id],
-        fix: fix(),
-      });
-    }
-    for (const [field, schema] of Object.entries(type.shape)) {
-      if (e[field] === undefined || !isAttachField(schema)) continue;
-      push("physics-required", {
-        message: message(`${e.id}.${field} rides ${JSON.stringify(e[field])}, which needs physics`),
-        path: jsonPointer(["entities", i, field]),
+        message: message(
+          field === undefined
+            ? `${e.id} is a ${e.type}, which needs physics`
+            : `${e.id}.${field} rides ${JSON.stringify(e[field])}, which needs physics`,
+        ),
+        path: jsonPointer(field === undefined ? ["entities", i] : ["entities", i, field]),
         entityIds: [e.id],
         fix: fix(),
       });

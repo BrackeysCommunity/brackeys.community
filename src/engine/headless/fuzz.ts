@@ -8,6 +8,7 @@ import { probeConfigHash, unknownActionError } from "./headless";
 import {
   blockedRun,
   prepareRun,
+  runBlocked,
   runLibrary,
   runLoop,
   startRun,
@@ -151,6 +152,10 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
       });
       results[end.result] = (results[end.result] ?? 0) + 1;
       ticks += end.ticks;
+    } catch (err) {
+      const blocked = runBlocked(err, name, prepared.issues, registry);
+      if (blocked) return blocked;
+      throw err;
     } finally {
       started.runtime.destroy();
     }

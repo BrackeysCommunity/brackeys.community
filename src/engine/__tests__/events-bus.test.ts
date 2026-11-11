@@ -269,6 +269,38 @@ describe("handler-raised events", () => {
     expect(log).toEqual(["game afterStep", "destroyed a", "destroyed b", "after-a"]);
     rt.destroy();
   });
+
+  it("a destroy from a second-point handler flushes and delivers in the same tick", () => {
+    const { ctx, step, log, hooks, rt } = setup([
+      { id: "boss", type: "dot", at: [0, 0] },
+      { id: "minion", type: "dot", at: [0, 0] },
+      { id: "pet", type: "dot", at: [0, 0] },
+    ]);
+    ctx.events.on(ENTITY_DESTROYED, (e) => {
+      log.push(`destroyed ${e.entityId} at tick ${e.tick}`);
+      if (e.entityId === "boss") ctx.destroy("minion");
+      if (e.entityId === "minion") ctx.destroy("pet");
+    });
+    hooks.gameAfter = (c) => {
+      c.destroy("boss");
+      hooks.gameAfter = null;
+    };
+    const result = step();
+    expect(log).toEqual([
+      "game afterStep",
+      "destroyed boss at tick 0",
+      "destroyed minion at tick 0",
+      "destroyed pet at tick 0",
+    ]);
+    expect(result.events.map((e) => [e.type, e.entityId])).toEqual([
+      [ENTITY_DESTROYED, "boss"],
+      [ENTITY_DESTROYED, "minion"],
+      [ENTITY_DESTROYED, "pet"],
+    ]);
+    for (const id of ["boss", "minion", "pet"]) expect(ctx.exists(id)).toBe(false);
+    expect(rt.stats().entities).toBe(0);
+    rt.destroy();
+  });
 });
 
 describe("the loop guard", () => {
@@ -280,6 +312,29 @@ describe("the loop guard", () => {
       ctx.emit({ type: "echo", at });
     });
     hooks.systemAfter = (c) => c.emit({ type: "echo", at });
+    let caught: unknown;
+    try {
+      step();
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(EngineError);
+    expect((caught as EngineError).code).toBe("event-loop");
+    expect(handled).toBe(EVENT_PASS_LIMIT);
+    rt.destroy();
+  });
+
+  it("throws event-loop when second-point handlers keep destroying what they spawn", () => {
+    const { ctx, step, hooks, rt } = setup();
+    let handled = 0;
+    ctx.events.on(ENTITY_DESTROYED, () => {
+      handled++;
+      ctx.destroy(ctx.spawn({ type: "dot", at: [0, 0] }).id);
+    });
+    hooks.gameAfter = (c) => {
+      c.destroy("a");
+      hooks.gameAfter = null;
+    };
     let caught: unknown;
     try {
       step();

@@ -211,4 +211,33 @@ describe("fuzz", () => {
       new Set([...plain.touched.map((t) => t.ref), ...plain.untouched]),
     );
   }, 30_000);
+
+  it("ends blocked at 'run' when a step throws an EngineError, its code in issues", () => {
+    const boom: GameDefinition = {
+      ...testGame,
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        let tick = 0;
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            base.beforeStep?.(dtMs, actions, commands);
+            if (tick++ === 3) ctx.spawn({ type: "plain", id: "plain#7", at: [0, 0] });
+          },
+        };
+      },
+    };
+    const r = fuzz({
+      rapier,
+      game: boom,
+      registry: createRegistry(boom),
+      scene: yard,
+      seed: 1,
+      rollouts: 2,
+      ticks: 20,
+    });
+    expect(r).toMatchObject({ blocked: true, stage: "run", scene: "engine-yard" });
+    if (!r.blocked) throw new Error("expected a blocked run");
+    expect(r.issues.at(-1)).toMatchObject({ severity: "error", code: "spawn-id-invalid" });
+  });
 });

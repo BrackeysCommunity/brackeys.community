@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 
-import type { EditorSession, Pt } from "../../../editor/index";
+import type { EditorSession, Pt, Ref, ToolOverlay } from "../../../editor/index";
 import { expandScene } from "../../../scene/expand";
 import { drawnEntities, oneWayEdges, type OneWayEdge } from "../../../scene/render-geometry";
+import { CHILD_SEPARATOR } from "../../../scene/resolve";
 import { useEditorDoc, useEditorPrefabs } from "../../session/use-editor-store";
 import { num, worldPx, type View } from "./view";
 
@@ -26,6 +27,18 @@ function useOneWayEdges(session: EditorSession): OneWayEdge[] {
     }
   }, [def, prefabs, session]);
 }
+
+/** The refs a drag in progress is moving: the overlay outlines them where the preview puts them. */
+function previewedRefs(overlay: ToolOverlay | undefined): Ref[] {
+  const refs = new Set<Ref>();
+  for (const mark of [...(overlay?.outlines ?? []), ...(overlay?.points ?? [])])
+    if (mark.preview && mark.ref !== undefined) refs.add(mark.ref);
+  return [...refs];
+}
+
+/** Whether `id` is `ref` or a child of it (an instance's or a group's member). */
+const within = (id: string, refs: readonly Ref[]) =>
+  refs.some((ref) => id === ref || id.startsWith(`${ref}${CHILD_SEPARATOR}`));
 
 /** Chevrons just outside a face, pointing into it: the way an actor lands. */
 function arrowsPath(edge: OneWayEdge, view: View): string {
@@ -53,19 +66,26 @@ function arrowsPath(edge: OneWayEdge, view: View): string {
 
 /**
  * Each one-way solid's landing face, highlighted, with arrows on the side
- * actors land from: they pass through from every other side.
+ * actors land from: they pass through from every other side. The faces come
+ * from the committed document, so those of what a drag is moving are left
+ * out until it lands.
  */
 export function OneWayMarks({
   session,
   view,
   transform,
+  overlay,
 }: {
   session: EditorSession;
   view: View;
   /** The world group's transform. */
   transform: string;
+  /** The tool host's overlay, whose previewed outlines name what a drag is moving. */
+  overlay?: ToolOverlay;
 }) {
-  const edges = useOneWayEdges(session);
+  const all = useOneWayEdges(session);
+  const moving = previewedRefs(overlay);
+  const edges = moving.length > 0 ? all.filter((e) => !within(e.entity.id, moving)) : all;
   if (edges.length === 0) return null;
   return (
     <g

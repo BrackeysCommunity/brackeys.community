@@ -549,3 +549,33 @@ describe("recording.schema.json", () => {
     expect(undescribedProperties(schema)).toEqual([]);
   });
 });
+
+describe("replayRecording when a step throws", () => {
+  it("ends blocked at 'run' on an EngineError, its code in issues", () => {
+    const rec = played(toGoal).recording;
+    const boom: GameDefinition<TestGameSnapshot> = {
+      ...testGame,
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        let tick = 0;
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            base.beforeStep?.(dtMs, actions, commands);
+            if (tick++ === 3) ctx.spawn({ type: "plain", id: "plain#7", at: [0, 0] });
+          },
+        };
+      },
+    };
+    const run = replayRecording<TestGameSnapshot>({
+      rapier,
+      game: boom,
+      registry: createRegistry(boom),
+      scene: yard,
+      recording: rec,
+    });
+    expect(run).toMatchObject({ blocked: true, stage: "run", scene: "engine-yard" });
+    if (!run.blocked) throw new Error("expected a blocked replay");
+    expect(run.issues.at(-1)).toMatchObject({ severity: "error", code: "spawn-id-invalid" });
+  });
+});

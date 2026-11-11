@@ -6,7 +6,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { AssetEntry } from "../../../project/index";
 import { STORAGE_PREFIX } from "../../host";
@@ -49,6 +49,12 @@ import {
 import type { ProjectTreeProps } from "./types";
 
 const CODE_OPEN_KEY = `${STORAGE_PREFIX}project-code-open`;
+const ALL_FILES = "All files";
+
+/** The row above the tree that holds its `head`. */
+export function ProjectTreeHead({ children }: { children: ReactNode }) {
+  return <div className="je-panel-toolbar je-ptree-head">{children}</div>;
+}
 
 /**
  * The project's files: folders and assets with their kind icons, then one
@@ -58,6 +64,8 @@ const CODE_OPEN_KEY = `${STORAGE_PREFIX}project-code-open`;
  * lists referrers and offers "Delete anyway" when one is in use. Files
  * dropped from the desktop go to `onDropFiles`. Each edit is a pending task:
  * its row, or the folder an import landed on, shows busy until it settles.
+ * A `head` (the project switcher) names the project, so the root row then
+ * says "All files" rather than repeating it.
  */
 export function ProjectTree({
   projectId,
@@ -230,7 +238,7 @@ export function ProjectTree({
   return (
     <PendingProvider pending={pendingOps}>
       <nav aria-label="Project" className="je-ptree">
-        {head ? <div className="je-panel-toolbar je-ptree-head">{head}</div> : null}
+        {head ? <ProjectTreeHead>{head}</ProjectTreeHead> : null}
         <FileDropTarget
           enabled={!readOnly && !!onDropFiles}
           busy={importing}
@@ -244,7 +252,7 @@ export function ProjectTree({
                     return (
                       <RootItem
                         key={row.key}
-                        name={projectName}
+                        name={head ? ALL_FILES : projectName}
                         count={fileCount(nodes)}
                         peers={peers.get(ROOT_KEY)}
                         movable={editable.move}

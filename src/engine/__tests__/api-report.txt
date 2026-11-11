@@ -2706,7 +2706,9 @@ type EditorHost = {
     flag?: (name: string) => boolean;
     identity?: EditorIdentityInput;
     notify?: EditorNotify;
-    onProjectChange?: (id: ProjectId) => void;
+    onProjectChange?: (id: ProjectId, opts?: {
+        scene?: string;
+    }) => void;
     onSceneChange?: (id: string) => void;
     peerColor?: (id: string) => string;
     projects?: readonly EditorProjectChoice[];
@@ -2733,6 +2735,10 @@ type EditorStorage = {
 type HocuspocusModule = typeof _$_hocuspocus_provider0;
 type MintProjectToken = (request: ProjectTokenRequest) => Promise<ProjectTokenAnswer>;
 type NotifyOptions = {
+    action?: {
+        label: string;
+        onClick: () => void;
+    };
     description?: string;
     id?: string;
 };
@@ -9324,8 +9330,7 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "import-failed",
     "quota-exceeded",
     "spawn-id-invalid",
-    "prefab-not-spawnable",
-    "event-loop"
+    "prefab-not-spawnable"
 ];
 type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 type EntityBase = {

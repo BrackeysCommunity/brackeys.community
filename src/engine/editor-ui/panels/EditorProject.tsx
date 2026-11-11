@@ -25,12 +25,12 @@ import {
 } from "../../project/index";
 import type { EditorNotify, ProjectBlobs } from "../host";
 import type { PendingStep } from "../pending/pending";
-import type { EditorProjectLink } from "../session/use-scene-editor";
+import type { EditorProjectChoices, EditorProjectLink } from "../session/use-scene-editor";
 import { useStoreValue } from "../session/use-store-value";
 import type { SelectedAsset } from "./project-tree/asset-panel";
 import { filesLabel, planImport, type ImportProgress } from "./project-tree/import-files";
 import { ProjectSwitch } from "./project-tree/project-switch";
-import { ProjectTree } from "./project-tree/project-tree";
+import { ProjectTree, ProjectTreeHead } from "./project-tree/project-tree";
 import type { DeleteRefused, ProjectTreeProps } from "./project-tree/types";
 
 export type { EditorProjectLink };
@@ -220,6 +220,22 @@ function openKey(view: ProjectView, sceneDoc: string, prefab: string | undefined
   if (prefab) return view.byId.get(prefab)?.key ?? null;
   const ref = parseDocName(sceneDoc);
   return ref && ref.kind !== "project" ? ref.key : null;
+}
+
+/**
+ * The Project panel's switcher row on its own, for while the editor boots or
+ * has failed and there is no tree to head: `useSceneEditor`'s `projectChoice`.
+ */
+export function ProjectSwitchRow({ choice }: { choice: EditorProjectChoices }) {
+  return (
+    <ProjectTreeHead>
+      <ProjectSwitch
+        current={choice.current}
+        projects={choice.projects}
+        onChange={choice.onChange}
+      />
+    </ProjectTreeHead>
+  );
 }
 
 /**

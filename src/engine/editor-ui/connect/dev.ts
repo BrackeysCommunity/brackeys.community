@@ -83,12 +83,12 @@ export async function findDevScene(
     const doc = await read(scene);
     if (doc) found = { id: scene, doc };
   }
-  for (const id of found ? [] : candidates) {
-    const doc = await read(id);
-    if (doc?.name === scene) {
-      found = { id, doc };
-      break;
-    }
+  if (!found) {
+    // Read together, matched in listing order so the same name always resolves to the same scene.
+    const docs = await Promise.all(candidates.map(read));
+    const at = docs.findIndex((doc) => doc?.name === scene);
+    const doc = docs[at];
+    if (doc) found = { id: candidates[at]!, doc };
   }
   if (!found) return null;
   const game = typeof found.doc.game === "string" ? found.doc.game : null;

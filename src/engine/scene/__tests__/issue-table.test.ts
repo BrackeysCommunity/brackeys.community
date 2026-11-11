@@ -420,10 +420,9 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
   "asset-too-large": null,
   "import-failed": null,
   "quota-exceeded": null,
-  // Runtime refusals are thrown as `EngineError`s by `ctx.spawn`, `ctx.instantiate` and the event bus, not reported by the scene tools.
+  // Runtime refusals are thrown as `EngineError`s by `ctx.spawn` and `ctx.instantiate`, not reported by the scene tools.
   "spawn-id-invalid": null,
   "prefab-not-spawnable": null,
-  "event-loop": null,
 };
 
 /** `applyOps` codes point into the batch, which has no line map. */

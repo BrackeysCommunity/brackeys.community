@@ -17,6 +17,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { DEFAULT_SCENE as ENGINE_DEFAULT_SCENE, engineEditorGame } from "@/games/engine-editor";
 import { platformerGame } from "@/games/platformer";
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
@@ -25,17 +26,16 @@ import { useFlags } from "@/lib/hooks/use-flag";
 import { play, type SoundName } from "@/lib/sound";
 import { toast } from "@/lib/toast";
 
-import {
-  DEFAULT_SCENE as ENGINE_DEFAULT_SCENE,
-  engineEditorGame,
-} from "../../../scripts/engine-editor/game";
 import { BUNDLED_SCENE_ID } from "./platformer-scene";
 import { GameSiteIsland } from "./site-island";
 
-/** A project the game room's editor can open: its `jams.project.json` id and name, and the game it is edited with. */
+/**
+ * A project the game room's editor can open: its `jams.project.json` id and
+ * the game it is edited with. Its name is the project file's, from the dev
+ * server's listing.
+ */
 export type SiteProject = {
   id: string;
-  name: string;
   /** The project's game; a project whose file names none is edited with the game its own editor uses. */
   game: GameDefinition;
   /** The scene opened when the URL names none. */
@@ -47,12 +47,11 @@ export type SiteProject = {
 export const SITE_PROJECTS: readonly SiteProject[] = [
   {
     id: "platformer",
-    name: "Platformer",
     game: platformerGame,
     defaultScene: BUNDLED_SCENE_ID,
     debugLayers: () => import("@/games/platformer/debug").then((m) => m.PLATFORMER_DEBUG_LAYERS),
   },
-  { id: "engine", name: "Engine", game: engineEditorGame, defaultScene: ENGINE_DEFAULT_SCENE },
+  { id: "engine", game: engineEditorGame, defaultScene: ENGINE_DEFAULT_SCENE },
 ];
 
 /** The project `/game/<room>?edit=1` opens without `?project=`. */
@@ -61,7 +60,48 @@ export const DEFAULT_PROJECT = "platformer";
 export const siteProject = (id: string): SiteProject | null =>
   SITE_PROJECTS.find((p) => p.id === id) ?? null;
 
-const PROJECT_CHOICES = SITE_PROJECTS.map(({ id, name }) => ({ id, name }));
+/** Each project's name by id, as its `jams.project.json` says. */
+export type ProjectNames = Readonly<Record<string, string>>;
+
+/** The dev server's project listing (`@jams/engine/vite`'s `PROJECT_ROUTE`). */
+const PROJECT_LISTING = "/__project";
+
+/** The names the dev server's project listing gives, or none when it can't answer. */
+export async function fetchProjectNames(
+  fetch: (url: string) => Promise<Pick<Response, "ok" | "json">> = globalThis.fetch,
+): Promise<ProjectNames> {
+  try {
+    const res = await fetch(PROJECT_LISTING);
+    const body = res.ok ? ((await res.json()) as { projects?: unknown }) : null;
+    const names: Record<string, string> = {};
+    for (const p of Array.isArray(body?.projects) ? body.projects : []) {
+      const { id, name } = (p ?? {}) as { id?: unknown; name?: unknown };
+      if (typeof id === "string" && typeof name === "string") names[id] = name;
+    }
+    return names;
+  } catch {
+    return {};
+  }
+}
+
+/** The site's projects as the switcher lists them, each by its file's name (its id until the listing answers). */
+export const projectChoices = (names: ProjectNames) =>
+  SITE_PROJECTS.map(({ id }) => ({ id, name: names[id] ?? id }));
+
+/** The dev server's project names; null until it answers (an empty record when it can't). */
+function useProjectNames(): ProjectNames | null {
+  const [names, setNames] = useState<ProjectNames | null>(null);
+  useEffect(() => {
+    let live = true;
+    void fetchProjectNames().then((got) => {
+      if (live) setNames(got);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return names;
+}
 
 const loadRapier = () => import("@dimforge/rapier2d");
 
@@ -120,8 +160,10 @@ export type SiteEditorHostOptions = {
   /** What the site menu's island names: the room, then the scene once the editor is up. */
   title: ReactNode;
   onSceneChange?: (id: string) => void;
-  /** A project picked in the Project panel's switcher. */
-  onProjectChange?: (id: string) => void;
+  /** A project picked in the Project panel's switcher, or a scene's own project from the fallback notice. */
+  onProjectChange?: (id: string, opts?: { scene?: string }) => void;
+  /** The projects' names, from the dev server's listing; each project goes by its id without one. */
+  projectNames?: ProjectNames;
   /** The project's server; default the dev server. */
   project?: Pick<EditorHost, "connect" | "assetUrl"> & Partial<Pick<EditorHost, "findScene">>;
 };
@@ -131,6 +173,7 @@ export function useSiteEditorHost({
   title,
   onSceneChange,
   onProjectChange,
+  projectNames,
   project,
 }: SiteEditorHostOptions): EditorHost {
   const [server] = useState(() => project ?? devProject());
@@ -152,14 +195,17 @@ export function useSiteEditorHost({
         (flagsRef.current as Partial<Record<string, boolean>>)[name] ?? false,
   );
   const [sceneChange] = useState(() => (id: string) => sceneChangeRef.current?.(id));
-  const [projectChange] = useState(() => (id: string) => projectChangeRef.current?.(id));
+  const [projectChange] = useState(
+    () => (id: string, opts?: { scene?: string }) => projectChangeRef.current?.(id, opts),
+  );
+  const projects = useMemo(() => projectChoices(projectNames ?? {}), [projectNames]);
 
   return useMemo<EditorHost>(
     () => ({
       connect: server.connect,
       assetUrl: server.assetUrl,
       ...(server.findScene ? { findScene: server.findScene } : {}),
-      projects: PROJECT_CHOICES,
+      projects,
       onProjectChange: projectChange,
       ...(identity ? { identity } : {}),
       peerColor: sitePeerColor,
@@ -171,7 +217,7 @@ export function useSiteEditorHost({
       },
       onSceneChange: sceneChange,
     }),
-    [server, identity, flag, sceneChange, projectChange, title],
+    [server, identity, flag, sceneChange, projectChange, projects, title],
   );
 }
 
@@ -201,13 +247,16 @@ function patchSearch(prev: Search, patch: Search): Search {
  * room until the editor is up, then the scene. When the editor opens another
  * scene than `scene` (it isn't in the project), the editor's notice says so
  * through the site's toast and the route's `?scene=` follows, replacing the
- * history entry. Picking a project in the Project panel opens its default
- * scene as a new history entry.
+ * history entry; when another project holds the scene, the notice's action
+ * opens it there. Picking a project in the Project panel opens its default
+ * scene as a new history entry. Projects go by their files' names, from the
+ * dev server's listing.
  */
 export function SiteSceneEditor({ roomId, project, scene, onSceneChange }: SiteSceneEditorProps) {
   const known = project === undefined ? null : siteProject(project);
   const chosen = known ?? siteProject(DEFAULT_PROJECT)!;
   const unknown = project !== undefined && known === null ? project : null;
+  const names = useProjectNames();
   const navigate = useNavigate();
   const go = (patch: Search, replace: boolean) =>
     void navigate({
@@ -220,23 +269,25 @@ export function SiteSceneEditor({ roomId, project, scene, onSceneChange }: SiteS
   useEffect(() => {
     goRef.current = go;
   });
+  const chosenName = names?.[chosen.id] ?? chosen.id;
   useEffect(() => {
-    if (unknown === null) return;
+    if (unknown === null || names === null) return;
     siteNotify.warning(`There's no project "${unknown}" here`, {
       id: "project-fallback",
-      description: `${chosen.name} opened instead.`,
+      description: `${chosenName} opened instead.`,
     });
     goRef.current({ project: undefined }, true);
-  }, [unknown, chosen.name]);
+  }, [unknown, names, chosenName]);
   return (
     <ProjectSceneEditor
       key={chosen.id}
       roomId={roomId}
       project={chosen}
       scene={unknown === null ? scene : undefined}
+      projectNames={names ?? undefined}
       onSceneChange={onSceneChange ?? ((id) => go({ scene: id }, true))}
-      onProjectChange={(id) =>
-        go({ project: id === DEFAULT_PROJECT ? undefined : id, scene: undefined }, false)
+      onProjectChange={(id, opts) =>
+        go({ project: id === DEFAULT_PROJECT ? undefined : id, scene: opts?.scene }, false)
       }
     />
   );
@@ -246,14 +297,16 @@ function ProjectSceneEditor({
   roomId,
   project,
   scene,
+  projectNames,
   onSceneChange,
   onProjectChange,
 }: {
   roomId: string;
   project: SiteProject;
   scene: string | undefined;
+  projectNames: ProjectNames | undefined;
   onSceneChange: (id: string) => void;
-  onProjectChange: (id: string) => void;
+  onProjectChange: (id: string, opts?: { scene?: string }) => void;
 }) {
   const [ready, setReady] = useState(false);
   const editing = scene ?? project.defaultScene;
@@ -262,6 +315,7 @@ function ProjectSceneEditor({
     title: ready ? editing : roomId,
     onSceneChange,
     onProjectChange,
+    ...(projectNames ? { projectNames } : {}),
   });
   return (
     <SceneEditor

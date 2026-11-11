@@ -379,6 +379,23 @@ describe("ctx.destroy", () => {
     rt.destroy();
   });
 
+  it("exists and enabled answer for an instance id through its live children", () => {
+    const { rt } = setup([ghostAt("gate/frame"), ghostAt("gate/door"), ghostAt("gatehouse")]);
+    const { ctx } = rt;
+    expect(ctx.exists("gate")).toBe(true);
+    expect(ctx.enabled("gate")).toBe(true);
+    ctx.setEnabled("gate/frame", false);
+    expect(ctx.enabled("gate")).toBe(true);
+    ctx.setEnabled("gate/door", false);
+    expect(ctx.exists("gate")).toBe(true);
+    expect(ctx.enabled("gate")).toBe(false);
+    ctx.destroy("gate");
+    expect(ctx.exists("gate")).toBe(false);
+    expect(ctx.exists("gatehouse")).toBe(true);
+    expect(ctx.exists("gat")).toBe(false);
+    rt.destroy();
+  });
+
   it("flushes ids queued during the flush in the same pass", () => {
     const { rt, during } = setup([ghostAt("a"), ghostAt("b"), ghostAt("c")]);
     const system = rt.ctx.system("ghost")!;
@@ -412,6 +429,36 @@ describe("ctx.destroy", () => {
     afterStep.run = (ctx) => ctx.destroy("g1");
     expect(rt.step(DT, []).events.map((e) => e.type)).toEqual([ENTITY_DESTROYED]);
     expect(rt.ctx.exists("g1")).toBe(false);
+    rt.destroy();
+  });
+});
+
+describe("an edit to a disabled entity", () => {
+  it("keeps it disabled, with its timers paused, when the edit respawns it", () => {
+    const { rt } = setup([ghostAt("g1")]);
+    const { ctx } = rt;
+    let fired = 0;
+    ctx.timers.every(1, () => void fired++, { owner: "g1" });
+    ctx.setEnabled("g1", false);
+    expect(rt.update([{ id: "g1", type: "crate", at: [5, 5] }])).toEqual({ ok: true });
+    expect(ctx.exists("g1")).toBe(true);
+    expect(ctx.enabled("g1")).toBe(false);
+    rt.step(DT, []);
+    rt.step(DT, []);
+    expect(fired).toBe(0);
+    ctx.setEnabled("g1", true);
+    for (let i = 0; i < 3; i++) rt.step(DT, []);
+    expect(fired).toBeGreaterThan(0);
+    rt.destroy();
+  });
+
+  it("stays disabled when the edit rolls back", () => {
+    const { rt } = setup([ghostAt("g1")]);
+    rt.ctx.setEnabled("g1", false);
+    const report = rt.update([{ id: "g1", type: "crate", at: [0, 0], boom: true }]);
+    expect(report).toMatchObject({ ok: false, entityId: "g1" });
+    expect(rt.ctx.exists("g1")).toBe(true);
+    expect(rt.ctx.enabled("g1")).toBe(false);
     rt.destroy();
   });
 });

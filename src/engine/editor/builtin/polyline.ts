@@ -93,6 +93,8 @@ type StrokeOptions = {
   minPoints: number;
   numbered: boolean;
   finish(pts: Pt[], closed: boolean): void;
+  /** Why finishing these points now would add nothing; the stroke then stays open and says so. */
+  refuse?(pts: readonly Pt[], closed: boolean): string | undefined;
   /** Overlay drawn under the stroke. */
   under?(): ToolOverlay;
   /** A press when no stroke is open; true when it was used for something else (picking a target). */
@@ -105,11 +107,14 @@ type StrokeOptions = {
  * Click-by-click point entry, the pen's and the waypoint tool's: each click
  * adds a snapped point (Shift locks it to 45° from the last), Backspace
  * removes the last, Enter or a double-click finishes, Escape cancels with
- * no batch.
+ * no batch. A finish the stroke can't make keeps it open, outlined as
+ * invalid with the reason in the readout, until a point is added or removed.
  */
 function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
   let pts: Pt[] = [];
   let hover: Pt | null = null;
+  /** The finish last refused (open or closed), until the points change. */
+  let refused: { closed: boolean } | null = null;
 
   const place = (world: Pt, mods: ToolModifiers): Pt => {
     const p = snapPoint(world, ctx.snap(), { bypass: mods.mod });
@@ -118,6 +123,7 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
   };
   const reset = () => {
     pts = [];
+    refused = null;
     ctx.invalidate();
   };
   /** A click at `p` would close the stroke on its first point. */
@@ -131,6 +137,12 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
     );
   };
   const finish = (closed: boolean) => {
+    const reason = pts.length >= opts.minPoints ? opts.refuse?.(pts, closed) : undefined;
+    if (reason) {
+      refused = { closed };
+      ctx.invalidate();
+      return;
+    }
     const stroke = pts;
     reset();
     if (stroke.length >= opts.minPoints) opts.finish(stroke, closed);
@@ -155,7 +167,10 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
         return true;
       }
       const last = pts[pts.length - 1];
-      if (!last || last[0] !== p[0] || last[1] !== p[1]) pts.push(p);
+      if (!last || last[0] !== p[0] || last[1] !== p[1]) {
+        pts.push(p);
+        refused = null;
+      }
       ctx.invalidate();
       return true;
     },
@@ -163,6 +178,7 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
       if (e.type !== "down" || pts.length === 0) return false;
       if (e.key === "Backspace") {
         pts.pop();
+        refused = null;
         ctx.invalidate();
         return true;
       }
@@ -189,11 +205,17 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
       const closing = hover !== null && closes(hover);
       // The next segment follows the pointer, or runs back to the first point when a click would close.
       const next = closing ? first : hover;
+      const reason = refused ? opts.refuse?.(pts, refused.closed) : undefined;
       const polylines: NonNullable<ToolOverlay["polylines"]> = [
         ...(base.polylines ?? []),
-        { pts, closed: false, numbered: opts.numbered, tone: "ghost" },
+        { pts, closed: false, numbered: opts.numbered, tone: reason ? "invalid" : "ghost" },
       ];
       if (next) polylines.push({ pts: [last, next], closed: false, dashed: true, tone: "ghost" });
+      const readout = reason
+        ? { at: hover ?? last, text: reason }
+        : hover && next
+          ? { at: hover, text: segmentText(last, next) }
+          : null;
       return {
         ...base,
         polylines,
@@ -201,7 +223,7 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
           at,
           tone: closing && i === 0 ? ("selected" as const) : ("ghost" as const),
         })),
-        ...(hover && next ? { readout: { at: hover, text: segmentText(last, next) } } : {}),
+        ...(readout ? { readout } : {}),
       };
     },
     cursor: () => "crosshair",
@@ -212,7 +234,7 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
  * The pen (`P`): a stroke of clicks becomes one chain or poly of the picked
  * type (`type:<name>`, offered in the overlay's `option`; default `solid`).
  * For a type that takes no chain, an open stroke of three points or more
- * closes, and a shorter one adds nothing.
+ * closes; finishing a shorter one keeps it open and says it needs three.
  */
 export function createPenTool(opts: { type?: string } = {}) {
   return defineEditorTool({
@@ -226,13 +248,16 @@ export function createPenTool(opts: { type?: string } = {}) {
         closable: true,
         minPoints: 2,
         numbered: false,
+        refuse(pts, closed) {
+          const type = choice.type();
+          return !closed && pts.length < 3 && !strokeFit(ctx.registry, type).chain
+            ? `A ${type} needs 3 points`
+            : undefined;
+        },
         finish(pts, closed) {
           const type = choice.type();
           const fit = strokeFit(ctx.registry, type);
-          if (!closed && !fit.chain) {
-            if (pts.length < 3) return;
-            closed = true;
-          }
+          if (!closed && !fit.chain) closed = true;
           const shape = strokeShape(pts, closed, fit);
           const out = drawBatch(ctx.getDoc(), ctx.registry, type, shape, "Pen");
           if (out) ctx.commit(out.batch, { selectionAfter: [out.select] });

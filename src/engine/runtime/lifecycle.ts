@@ -1,6 +1,5 @@
-import { isAttachField } from "../game/fields";
 import { PhysicsRequiredError } from "../game/physics-of";
-import { typePhysics } from "../game/primitives";
+import { physicsNeeds } from "../game/primitives";
 import { parseRuntimeId, RUNTIME_ID_PATTERN, runtimeId } from "../game/runtime-ids";
 import {
   EngineError,
@@ -96,7 +95,11 @@ export type Lifecycle = {
   destroy: (id: string) => void;
   instantiate: (prefab: AssetId, at: Pt | Vec2, opts?: InstantiateOptions) => InstantiateResult;
   setEnabled: (id: string, enabled: boolean) => void;
+  /** Switches off `e`, a record that just replaced a disabled one, as `setEnabled(id, false)` would. */
+  keepDisabled: (e: RuntimeEntity) => void;
+  /** Whether `id` is live and on; an instance id when any of its live children is. */
   enabled: (id: string) => boolean;
+  /** Whether `id` is live; an instance id when it has a live child. */
   exists: (id: string) => boolean;
   get: (id: string) => RuntimeEntity | undefined;
   /**
@@ -105,6 +108,8 @@ export type Lifecycle = {
    * the flush flushed in the same pass.
    */
   flush: () => void;
+  /** Whether destroys wait for the next `flush`. */
+  pending: () => boolean;
   /** At each load, before anything spawns: the run's prefab library, frozen for the run. */
   load: (library: PrefabLibrary) => void;
   /** At unload: forgets the library, every disabled flag, the counters and queued destroys. */
@@ -275,11 +280,12 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     if (ctx.physics) return null;
     for (const e of children) {
       const t = registry.types.get(e.type);
-      if (!t) continue;
-      if (typePhysics(t) === "required") return new PhysicsRequiredError(`a ${e.type}`, e.id);
-      for (const [field, schema] of Object.entries(t.shape)) {
-        if (e[field] !== undefined && isAttachField(schema))
-          return new PhysicsRequiredError(`${e.type}.${field}`, e.id);
+      const need = t ? physicsNeeds(t, e)[0] : undefined;
+      if (need) {
+        return new PhysicsRequiredError(
+          need.field === undefined ? `a ${e.type}` : `${e.type}.${need.field}`,
+          e.id,
+        );
       }
     }
     return null;
@@ -484,8 +490,14 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       if (on) enable(e);
       else disable(e);
     },
-    enabled: (id) => entities.has(id) && !disabled.has(id),
-    exists: (id) => entities.has(id),
+    keepDisabled(e) {
+      if (entities.has(e.id) && !disabled.has(e.id)) disable(e);
+    },
+    enabled: (id) =>
+      entities.has(id)
+        ? !disabled.has(id)
+        : childrenOf(id).some((child) => !disabled.has(child.id)),
+    exists: live,
     get: (id) => entities.get(id),
     flush() {
       if (doomed.length > 0) {
@@ -494,6 +506,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       }
       deps.settled();
     },
+    pending: () => doomed.length > 0,
     load(next) {
       library = new Map(next);
       counters.clear();

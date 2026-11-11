@@ -18,8 +18,10 @@ import {
 import { useMemo, type ReactNode } from "react";
 
 import {
+  drawTypeOptions,
   ENGINE_TOOL_IDS,
   SNAP_STEPS,
+  type DrawToolKind,
   type EditorCommand,
   type EditorSession,
   type EditorToolDef,
@@ -28,9 +30,11 @@ import {
   type ToolHost,
   type ToolOption,
 } from "../../editor/index";
+import type { Registry } from "../../scene/index";
 import { useBottomRow } from "../frame/EditorFrame";
 import {
   Button,
+  cx,
   Hotkey,
   Icon,
   IconButton,
@@ -147,12 +151,17 @@ function PickerMenu({
   label,
   tooltip,
   icon,
+  minWidth,
+  menuClassName,
   children,
 }: {
   text: string;
   label: string;
   tooltip: string;
   icon?: IconSvgElement;
+  /** Keeps the button one width whichever value it shows. */
+  minWidth?: number;
+  menuClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -163,6 +172,7 @@ function PickerMenu({
             variant="ghost"
             size="sm"
             {...(icon ? { icon } : {})}
+            {...(minWidth ? { style: { minWidth } } : {})}
             aria-label={label}
             tooltip={tooltip}
           />
@@ -171,7 +181,7 @@ function PickerMenu({
         {text}
         <Icon icon={ArrowDown01Icon} size={13} />
       </MenuTrigger>
-      <MenuContent side="top" align="center" className="je-snap-menu">
+      <MenuContent side="top" align="center" className={cx("je-snap-menu", menuClassName)}>
         {children}
       </MenuContent>
     </Menu>
@@ -203,7 +213,12 @@ function OptionItems({ host, option }: { host: ToolHost; option: ToolOption }) {
     >
       {option.choices.map((choice) => (
         <MenuRadioItem key={choice.value} value={choice.value} closeOnClick>
-          {choice.label}
+          <span className="je-option-choice">
+            {choice.label}
+            {choice.description ? (
+              <span className="je-option-choice-description">{choice.description}</span>
+            ) : null}
+          </span>
         </MenuRadioItem>
       ))}
     </MenuRadioGroup>
@@ -211,13 +226,68 @@ function OptionItems({ host, option }: { host: ToolHost; option: ToolOption }) {
 }
 
 /** The active tool's setting: the type a draw tool adds. */
-function ToolOptionMenu({ host, option }: { host: ToolHost; option: ToolOption }) {
+function ToolOptionMenu({
+  host,
+  option,
+  width,
+}: {
+  host: ToolHost;
+  option: ToolOption;
+  width: number;
+}) {
   const text = optionText(option);
   return (
-    <PickerMenu text={text} label={`${option.label}: ${text}`} tooltip={option.label}>
+    <PickerMenu
+      text={text}
+      label={`${option.label}: ${text}`}
+      tooltip={option.label}
+      minWidth={width}
+      menuClassName="je-option-menu"
+    >
       <OptionItems host={host} option={option} />
     </PickerMenu>
   );
+}
+
+/** The option's slot while the active tool has none, so the dock keeps its place. */
+function NoToolOption({ width }: { width: number }) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled
+      style={{ minWidth: width }}
+      aria-label="Draw type: the active tool adds no type"
+    >
+      —
+      <Icon icon={ArrowDown01Icon} size={13} />
+    </Button>
+  );
+}
+
+const DRAW_TOOLS: readonly DrawToolKind[] = ["box", "circle", "pen"];
+
+type OptionChoices = { choices: readonly { label: string }[] };
+
+/**
+ * The widest choices the dock's option slot holds: the active tool's, or any
+ * of the built-in draw tools' that offers two or more types. Null when no
+ * tool has an option, and the dock has no slot.
+ */
+export function optionSlot(
+  tools: readonly EditorToolDef[],
+  registry: Registry,
+  option: ToolOption | null,
+): OptionChoices | null {
+  const candidates: OptionChoices[] = option ? [option] : [];
+  for (const kind of DRAW_TOOLS) {
+    if (!tools.some((t) => t.id === kind)) continue;
+    const choices = drawTypeOptions(registry, kind);
+    if (choices.length > 1) candidates.push({ choices });
+  }
+  let widest: OptionChoices | null = null;
+  for (const c of candidates) if (!widest || optionWidth(c) > optionWidth(widest)) widest = c;
+  return widest;
 }
 
 // The toolbar's widths, matching the stylesheet: an island's padding and
@@ -230,7 +300,7 @@ const textWidth = (label: string) => W.textPad + Math.ceil(label.length * W.char
 const stepWidth = (step: number) =>
   W.textPad + 14 + 4 + Math.ceil(String(step).length * W.char) + 6 + 13;
 /** A tool option's button at its longest choice, so picking another doesn't refit the dock. */
-const optionWidth = (option: ToolOption) =>
+const optionWidth = (option: OptionChoices) =>
   W.textPad + Math.ceil(Math.max(...option.choices.map((c) => c.label.length)) * W.char) + 6 + 13;
 
 /** Tools that never move into the overflow menu. */
@@ -239,11 +309,11 @@ const isPinned = (id: string) => id === "select" || id === "pan";
 /** One control in the toolbar; `drop` orders what moves into the overflow menu, lowest first. */
 export type DockPart = { key: string; width: number; drop?: number; game?: true };
 
-/** What the toolbar draws, in order, before anything overflows; `option` is the active tool's. */
+/** What the toolbar draws, in order, before anything overflows; `option` is the slot's (`optionSlot`). */
 export function dockParts(
   tools: readonly EditorToolDef[],
   step: number | null,
-  option: ToolOption | null = null,
+  option: OptionChoices | null = null,
 ): DockPart[] {
   const engine = tools.filter((t) => isEngineTool(t.id));
   const game = tools.filter((t) => !isEngineTool(t.id));
@@ -421,10 +491,15 @@ export function EditorToolbar({
   const tools = useMemo(() => host?.tools() ?? [], [host]);
   const snap = useHostValue(host, (h) => h.snap(), host?.snap() ?? NO_SNAP);
   const option = useHostValue(host, (h) => h.option() ?? NO_OPTION, NO_OPTION);
+  const slot = useMemo(
+    () => optionSlot(tools, session.registry, option),
+    [tools, session.registry, option],
+  );
+  const slotWidth = slot ? optionWidth(slot) : 0;
 
   const parts = useMemo(
-    () => dockParts(tools, snap?.step ?? null, option),
-    [tools, snap?.step, option],
+    () => dockParts(tools, snap?.step ?? null, slot),
+    [tools, snap?.step, slot],
   );
   const full = useMemo(() => dockWidth(parts, new Set()), [parts]);
   const least = useMemo(() => dockWidth(parts, allDroppable(parts)), [parts]);
@@ -468,10 +543,14 @@ export function EditorToolbar({
           {gameTools.length > 0 ? <Divider /> : null}
           {gameTools.map(toolButton)}
           {overflow}
-          {option && !hidden.has("option") ? (
+          {slot && !hidden.has("option") ? (
             <>
               <Divider />
-              <ToolOptionMenu host={host} option={option} />
+              {option ? (
+                <ToolOptionMenu host={host} option={option} width={slotWidth} />
+              ) : (
+                <NoToolOption width={slotWidth} />
+              )}
             </>
           ) : null}
           {snap ? (

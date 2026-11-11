@@ -647,6 +647,8 @@ describe("package boundary", () => {
           if (inside(target, ENGINE) && !(shared && entryIndex))
             bad.push(`${where} reaches into src/engine: ${spec}`);
           if (inside(target, GAMES)) bad.push(`${where} reaches into src/games by path: ${spec}`);
+          if (!isTest(file) && inside(target, join(REPO, "scripts")))
+            bad.push(`${where} reaches into dev tooling in scripts/: ${spec}`);
         }
       }
     }

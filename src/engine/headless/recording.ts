@@ -20,6 +20,7 @@ import { unknownActionError } from "./headless";
 import {
   blockedRun,
   prepareRun,
+  runBlocked,
   runLibrary,
   runLoop,
   startRun,
@@ -198,15 +199,22 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       start: play,
       time: runtime.ctx.time,
     });
-    const end = runLoop({
-      runtime,
-      game,
-      maxTicks: rec.ticks,
-      input,
-      stuck: rec.outcome.result === "stuck",
-      everySlot: true,
-      onTick: (state, focus, edges, commands) => recorder.tick(state, edges, focus, commands),
-    });
+    let end: ReturnType<typeof runLoop>;
+    try {
+      end = runLoop({
+        runtime,
+        game,
+        maxTicks: rec.ticks,
+        input,
+        stuck: rec.outcome.result === "stuck",
+        everySlot: true,
+        onTick: (state, focus, edges, commands) => recorder.tick(state, edges, focus, commands),
+      });
+    } catch (err) {
+      const blocked = runBlocked(err, name, prepared.issues, registry);
+      if (blocked) return blocked;
+      throw err;
+    }
     if (end.result === "script-end" && rec.outcome.result === "quit") end.result = "quit";
     const final = runtime.snapshot() as S | null;
     const recording = recorder.finish(end, final);

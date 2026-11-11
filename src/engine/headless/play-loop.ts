@@ -92,7 +92,9 @@ export function prepareRun(
 /**
  * The prefabs a run's `ctx.instantiate` places: `library` when given (a
  * loader's whole library), else `prefabs`. Hashing and validation read only
- * the prefabs the scene's instances name, so either may hold more.
+ * the prefabs the scene's instances name, so either may hold more, and a
+ * prefab only `ctx.instantiate` places is outside the scene and config
+ * hashes: a change to it shows on replay as a digest mismatch.
  */
 export function runLibrary(opts: {
   prefabs?: PrefabLibrary;

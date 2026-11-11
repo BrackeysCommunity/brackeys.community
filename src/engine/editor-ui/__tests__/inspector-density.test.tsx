@@ -232,6 +232,31 @@ describe("the inspector's label column", () => {
     expect(column()).toBe("96px");
     vi.restoreAllMocks();
   });
+
+  it("measures its titles again only when the titles shown change", () => {
+    observeWidths();
+    let measured = 0;
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollWidth")!;
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(
+      function (this: HTMLElement) {
+        if (this.classList.contains("je-insp-field-title")) measured += 1;
+        return original.get!.call(this) as number;
+      },
+    );
+    const session = sessionOf(["plank"]);
+    render(<EditorInspector session={session} />);
+    expect(measured).toBeGreaterThan(0);
+
+    measured = 0;
+    for (const power of [3, 4, 5])
+      act(() => void session.dispatch({ ops: [{ op: "update", ref: "plank", set: { power } }] }));
+    expect(screen.getByLabelText<HTMLInputElement>("power").value).toBe("5");
+    expect(measured).toBe(0);
+
+    act(() => session.select(["deck-1"]));
+    expect(measured).toBeGreaterThan(0);
+    vi.restoreAllMocks();
+  });
 });
 
 describe("the inspector with nothing selected", () => {

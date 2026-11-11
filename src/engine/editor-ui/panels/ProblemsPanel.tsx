@@ -26,9 +26,9 @@ function merged(structural: readonly SceneIssue[], physical: readonly SceneIssue
  * The scene's problems by severity: the session's structural issues and the
  * physical ones passed in. A row is one line (two when its message needs
  * them) of icon, message and code, its hint on hover; in a narrow panel the
- * code moves to a line of its own under the message. A row selects and
- * frames what it names, and **Fix** applies the issue's own repair as one
- * batch.
+ * code follows the message inline, inside the same two-line clamp. A row
+ * selects and frames what it names, and **Fix** applies the issue's own
+ * repair as one batch.
  */
 export function ProblemsPanel({
   session,
@@ -92,8 +92,10 @@ export function ProblemsPanel({
                           <span className="je-problems-icon" data-severity={id}>
                             <Icon icon={icon} size={12} />
                           </span>
-                          <span className="je-problems-message">{issue.message}</span>
-                          <span className="je-problems-code">{issue.code}</span>
+                          <span className="je-problems-text">
+                            <span className="je-problems-message">{issue.message}</span>{" "}
+                            <span className="je-problems-code">{issue.code}</span>
+                          </span>
                         </button>
                       </Hint>
                       <Button

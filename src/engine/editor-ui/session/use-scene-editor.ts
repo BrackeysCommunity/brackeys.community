@@ -174,6 +174,19 @@ export type SceneEditorState = {
   rebuilding: boolean;
   /** What the host's asset loader bundles scenes over while the project is open; null without one. */
   assets: EditorAssets | null;
+  /**
+   * The switcher's projects while the host offers two or more and a way to
+   * open another; set while the editor boots or has failed too, so a project
+   * that won't open can still be left.
+   */
+  projectChoice: EditorProjectChoices | null;
+};
+
+/** The host's projects as the Project panel's switcher offers them. */
+export type EditorProjectChoices = {
+  current: ProjectId;
+  projects: readonly EditorProjectChoice[];
+  onChange: (id: ProjectId) => void;
 };
 
 /** The open project's assets: `view` follows its edits, so read it when bundling, not once. */
@@ -231,6 +244,10 @@ export function useSceneEditor({
   });
   const carried = useRef<Carried | null>(null);
   const [carrying, setCarrying] = useState(false);
+  const projectChoice = useMemo<EditorProjectChoices | null>(
+    () => (projects ? { current: project, projects, onChange: switchProject } : null),
+    [projects, project, switchProject],
+  );
 
   useEffect(() => {
     if (!enabled) return;
@@ -459,6 +476,7 @@ export function useSceneEditor({
     identity: on ? self : null,
     rebuilding,
     assets: on ? assets : null,
+    projectChoice: on ? projectChoice : null,
   };
 }
 

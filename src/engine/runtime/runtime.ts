@@ -4,15 +4,16 @@ import { DEFAULT_GRAVITY } from "../game/defaults";
 import { createRegistry } from "../game/define";
 import { physicsOf, PhysicsRequiredError } from "../game/physics-of";
 import { resolveTime } from "../game/time";
-import type {
-  EngineContext,
-  GameCommand,
-  GameDefinition,
-  GameRuntime,
-  PlayStart,
-  Registry,
-  SceneSystem,
-  SpawnInput,
+import {
+  EngineError,
+  type EngineContext,
+  type GameCommand,
+  type GameDefinition,
+  type GameRuntime,
+  type PlayStart,
+  type Registry,
+  type SceneSystem,
+  type SpawnInput,
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
 import { createPhysicsWorld, type PhysicsWorld } from "../physics";
@@ -24,7 +25,7 @@ import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import type { SpriteSystem } from "./behaviors/sprite";
 import { castSpawn } from "./cast";
 import { createContacts, type RuntimeContacts } from "./contacts";
-import { createEventBus } from "./events";
+import { createEventBus, EVENT_PASS_LIMIT } from "./events";
 import { createGeometryWorld, type GeometryWorld } from "./geometry-world";
 import { createGridState, type GridState } from "./grid";
 import { createLifecycle, type Lifecycle } from "./lifecycle";
@@ -457,8 +458,10 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       lifecycle.updated(e);
       return;
     }
+    const wasDisabled = !lifecycle.enabled(prev.id);
     despawnEntity(prev, { keepOwned: true });
     spawnEntity(e);
+    if (wasDisabled) lifecycle.keepDisabled(e);
   }
 
   function update(entities: RuntimeEntity[]): ReconcileReport {
@@ -474,6 +477,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     );
     if (changes.length === 0) return { ok: true };
 
+    const off = changes.map(({ prev }) => !lifecycle.enabled(prev.id));
     for (const [n, { e, prev }] of changes.entries()) {
       try {
         replace(e, prev);
@@ -485,6 +489,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
           systems.get(change.e.type)!.despawn(change.e.id);
           systems.get(change.prev.type)!.despawn(change.prev.id);
           spawnEntity(change.prev);
+          if (off[i]) lifecycle.keepDisabled(change.prev);
         }
         ctx.physics?.refreshQueries();
         return { ok: false, error: errorOf(err), entityId: e.id };
@@ -529,7 +534,17 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       const delivered = events.dispatch(raised, 0);
       inGame(() => game?.afterStep?.(dtMs, [...engineEvents, ...gameEvents]));
       lifecycle.flush();
-      events.dispatch(raised, delivered);
+      let next = events.dispatch(raised, delivered);
+      for (let flushes = 1; lifecycle.pending(); flushes++) {
+        if (flushes >= EVENT_PASS_LIMIT) {
+          throw new EngineError(
+            "event-loop",
+            `the end-of-tick flush needed more than ${EVENT_PASS_LIMIT} passes; event handlers are destroying in a loop`,
+          );
+        }
+        lifecycle.flush();
+        next = events.dispatch(raised, next);
+      }
     } finally {
       stepping = false;
     }

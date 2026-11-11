@@ -343,13 +343,6 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Read the error's `cause` (its `code`: prefab-unknown, prefab-cycle, prefab-depth, physics-required or unknown-type) and fix the prefab, the library the host passes, or the scene's physics.",
     fixable: false,
   },
-  "event-loop": {
-    severity: "error",
-    summary:
-      "One event dispatch pass delivered more than the limit: handlers raise events in a loop.",
-    hint: "Find the handlers of the event the message names that raise it again (directly or through another event) and break the cycle, or raise it once per tick.",
-    fixable: false,
-  },
 };
 
 /**

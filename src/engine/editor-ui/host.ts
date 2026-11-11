@@ -37,8 +37,12 @@ export type EditorHost = {
   onSceneChange?: (id: string) => void;
   /** The projects the host can open; with two or more the Project panel offers a switcher. */
   projects?: readonly EditorProjectChoice[];
-  /** A project picked in the switcher: the host opens it by giving the editor another `project`. */
-  onProjectChange?: (id: ProjectId) => void;
+  /**
+   * A project picked in the switcher, or a scene's own project from the
+   * fallback notice's action (with that `scene`): the host opens it by giving
+   * the editor another `project`, on `scene` when one is given.
+   */
+  onProjectChange?: (id: ProjectId, opts?: { scene?: string }) => void;
   /** Which project holds a scene, by id or name, so a scene missing from this one can be pointed to. */
   findScene?: (scene: string) => Promise<SceneHome | null>;
   /** The tree, inspector and licence fields take no edits. */
@@ -49,7 +53,12 @@ export type EditorIdentityInput = { name: string; avatarUrl?: string | null };
 export type EditorProjectChoice = { id: ProjectId; name: string };
 /** A scene's project, and its id and display name there. */
 export type SceneHome = { project: ProjectId; id: string; name: string };
-export type NotifyOptions = { description?: string; id?: string };
+export type NotifyOptions = {
+  description?: string;
+  id?: string;
+  /** A button on the toast; sonner's `action` takes it as it is. A host whose toasts can't show one drops it. */
+  action?: { label: string; onClick: () => void };
+};
 export type EditorNotify = ((message: string, opts?: NotifyOptions) => unknown) & {
   success(message: string, opts?: NotifyOptions): unknown;
   warning(message: string, opts?: NotifyOptions): unknown;

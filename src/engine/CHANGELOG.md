@@ -88,7 +88,9 @@ overlay and narrow layouts get a pass.
   `prefabs` (the used ones `sceneHash` covers); `ReplayOptions.library`,
   `RunChecksOptions.library`, `PlaytestOptions.library` and
   `FuzzOptions.library` (default `prefabs`); `createHeadlessRuntime` and
-  `runProbe` take `prefabs`.
+  `runProbe` take `prefabs`. `sceneHash` and `configHash` don't cover the
+  prefabs only `ctx.instantiate` places: a changed one shows on replay as a
+  digest mismatch rather than as a changed input.
 - `EntityTypeDef.spawnOnly?: true`. Spawn-only types load and spawn and take
   a spawn group (an explicit `spawnOrder` must list them), but are left out
   of the scene, fragment, prefab and op schemas and their JSON Schemas; a
@@ -130,7 +132,8 @@ overlay and narrow layouts get a pass.
   points in the tick (after timers, and after the end-of-tick destroys), in
   subscription order per event and raise order across events; events a
   handler raises join the same pass, which throws `EngineError("event-loop")`
-  past 4,096 deliveries; `entity` matches `entityId` or `other` (or a child
+  past 4,096 deliveries (a bug guard, not an issue code: a playtest it
+  stops is blocked at stage `run` with an issue carrying the code); `entity` matches `entityId` or `other` (or a child
   of that instance id); `owner` ends the subscription when that entity is
   destroyed; every subscription ends at unload.
 - `ctx.query` (`select`, `byType`, `byTag`, `count`, `inArea`, `at`,
@@ -154,8 +157,12 @@ overlay and narrow layouts get a pass.
 - `ctx.contacts.watch(a, b?)` raises `contact:start` and `contact:end`
   between watched entities (by id, or `{ type?, tag? }`; `b` omitted means
   anything that isn't a sensor), read after the sensors each tick with no
-  physics callback: a broad phase over the query index's extents (the same
-  on both backends), then `Collider.contactCollider(other, 0)` on Rapier
+  physics callback: a broad phase over every enabled entity's non-sensor
+  colliders by world bounds (Rapier's collider at its translation and
+  rotation, the geometry world's shape), refreshed each tick for the
+  colliders that moved, so a collider a system builds in code (the
+  platformer's `player#1`) touches by where it is rather than by the
+  entity's scene shape; then `Collider.contactCollider(other, 0)` on Rapier
   (touching at distance <= 0, `at` its `point1`) or `shapesIntersect` in the
   geometry world (`at` the centre of the boxes' overlap). A pair reports once
   per tick and `entityId` is the watched side; a destroyed or disabled
@@ -180,14 +187,19 @@ kind)` lists the types whose shape field takes what the tool draws, and the
   `strokeFit(registry, type)` returns.
 - Editor UI: `EditorHost` gains `projects` (a host's projects; with two or
   more and an `onProjectChange`, the Project panel shows a project switcher),
-  `onProjectChange(id)` and `findScene(scene)` (which project holds a scene,
+  `onProjectChange(id, opts?: { scene? })` and `findScene(scene)` (which project holds a scene,
   by id or name, as `SceneHome { project, id, name }`); new types
   `EditorProjectChoice` and `SceneHome`. `devProjectHost` also returns
   `findScene`, answered from the dev server's `/__scene` and `/__project`
   listings. `SceneEditor`'s `scene` opens a scene by id or by display name.
   The fallback notice names the scene that opened by name (never its id) and
   the project asked about (`There's no scene "x" in <project>`), and points
-  to the project that holds the scene when the host can say. A rebuilt game
+  to the project that holds the scene when the host can say; when the host
+  has its own `notify` and an `onProjectChange` for that project, the notice
+  carries an `Open in <project>` action that calls
+  `onProjectChange(project, { scene })`, which opens the scene asked for
+  rather than the project's default. `NotifyOptions` gains
+  `action?: { label, onClick }` (sonner's `action` takes it as it is). A rebuilt game
   (materials, settings or tables changed, including the rebuild Stop lets
   in) keeps the edit camera: the zoom and centre of the last edit view of the
   same scene.
@@ -309,9 +321,9 @@ set: { physics: "rapier" } }] }`, so the editor's Problems panel and
   or string).
 - `recording.schema.json`: `start` gains an optional `seed` (number or
   string).
-- Issue code `event-loop` (error): one event dispatch pass delivered more
-  than the limit, so handlers raise events in a loop. Thrown by the event
-  bus as an `EngineError`; a playtest it stops is blocked at stage `run`.
+- Issue code `physics-required` is now fixable: each issue carries a `fix`
+  batch (`setSettings` with `physics: "rapier"`), and `codes --json` says
+  `fixable: true`.
 - `input-script.schema.json` (engine and platformer): `until` gains
   `exists` (`$defs.ExistsMatch`) and `count` (`$defs.CountMatch`,
   `$defs.EntityType`).

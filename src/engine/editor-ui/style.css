@@ -1870,6 +1870,24 @@
     padding: 4px;
   }
 
+  .je-option-menu {
+    max-width: 260px;
+  }
+
+  .je-option-choice {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 4px 0;
+  }
+
+  .je-option-choice-description {
+    color: var(--je-muted-fg);
+    font-size: 11px;
+    line-height: 14px;
+    white-space: normal;
+  }
+
   .je-play-bar {
     display: flex;
     flex-wrap: wrap;
@@ -2775,25 +2793,35 @@
     margin-top: 1px;
   }
 
-  /* A column at its narrower widths: the message keeps the row, the code goes under it. */
+  /* Wide, the code is a column of its own; narrow, it trails the message inside one clamp. */
   .je-problems {
     container: je-problems / inline-size;
   }
 
+  .je-problems-text {
+    display: contents;
+  }
+
   @container je-problems (max-width: 288px) {
-    .je-problems-show {
-      flex-wrap: wrap;
-      row-gap: 0;
+    .je-problems-text {
+      display: -webkit-box;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow-wrap: anywhere;
     }
 
     .je-problems-message {
-      flex-basis: calc(100% - 18px);
+      display: inline;
+      overflow: visible;
     }
 
     .je-problems-code {
-      flex-basis: 100%;
+      display: inline;
       max-width: none;
-      padding-left: 18px;
     }
   }
 

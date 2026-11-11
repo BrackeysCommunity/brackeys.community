@@ -15,7 +15,7 @@ import type { ProjectId, ProjectRuntimeView } from "../project/index";
 import type { SceneDocStatus, SceneFallback } from "./connect/scene-doc";
 import { editorChrome, type EditorChrome, type EditorFrameHandle } from "./frame/EditorFrame";
 import { EditorBooting, EditorSkeleton } from "./frame/EditorSkeleton";
-import { hostCue, type EditorHost, type SceneHome } from "./host";
+import { hostCue, type EditorHost, type NotifyOptions, type SceneHome } from "./host";
 import { createToaster, hostNotify, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { InspectorReadOnly } from "./panels/EditorInspector";
@@ -112,19 +112,32 @@ export function restoreEditView(
   if (dx !== 0 || dy !== 0) game.panBy({ x: dx, y: dy });
 }
 
-/** The "There's no scene" notice: what was asked for, where it is when another project holds it, and what opened. */
+/**
+ * The "There's no scene" notice: what was asked for, where it is when another
+ * project holds it, and what opened. With `open`, the notice carries an
+ * action that opens the scene in its own project.
+ */
 export function fallbackNotice(
   fellBack: SceneFallback,
   home: SceneHome | null,
   projectName: (id: string) => string,
-): { message: string; description: string } {
+  open?: (home: SceneHome) => void,
+): { message: string; description: string; action?: NonNullable<NotifyOptions["action"]> } {
   const elsewhere = home && home.project !== fellBack.project.id ? home : null;
   const opened = `${fellBack.openedName} opened instead.`;
+  const message = `There's no scene "${elsewhere?.name ?? fellBack.wanted}" in ${fellBack.project.name}`;
+  if (!elsewhere) return { message, description: opened };
+  const name = projectName(elsewhere.project);
+  if (!open) {
+    return {
+      message,
+      description: `It's in ${name}: switch to that project in the Project panel. ${opened}`,
+    };
+  }
   return {
-    message: `There's no scene "${elsewhere?.name ?? fellBack.wanted}" in ${fellBack.project.name}`,
-    description: elsewhere
-      ? `It's in ${projectName(elsewhere.project)}: switch to that project in the Project panel. ${opened}`
-      : opened,
+    message,
+    description: `It's in ${name}. ${opened}`,
+    action: { label: `Open in ${name}`, onClick: () => open(elsewhere) },
   };
 }
 
@@ -293,8 +306,14 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     const say = (home: SceneHome | null) => {
       if (!live) return;
       const nameOf = (id: string) => current.projects?.find((p) => p.id === id)?.name ?? id;
-      const { message, description } = fallbackNotice(fellBack, home, nameOf);
-      notify.warning(message, { id: "scene-fallback", description });
+      // The editor's own toasts show no buttons, so only a host's toasts get the action.
+      const change = current.onProjectChange;
+      const open =
+        change && current.notify && current.projects?.some((p) => p.id === home?.project)
+          ? (to: SceneHome) => change(to.project, { scene: to.id })
+          : undefined;
+      const { message, ...opts } = fallbackNotice(fellBack, home, nameOf, open);
+      notify.warning(message, { id: "scene-fallback", ...opts });
     };
     const find = current.findScene;
     if (find) find(fellBack.wanted).then(say, () => say(null));

@@ -299,20 +299,24 @@ const labelColumnPx = (width: number, longest: number): number => {
   return Math.round(Math.max(base, Math.min(Math.ceil(longest), width * LABEL_COLUMN.fit)));
 };
 
+const fieldTitles = (el: HTMLElement) => el.querySelectorAll<HTMLElement>(".je-insp-field-title");
+
 function fitLabelColumn(el: HTMLElement) {
   let longest = 0;
-  for (const t of el.querySelectorAll<HTMLElement>(".je-insp-field-title"))
-    longest = Math.max(longest, t.scrollWidth);
+  for (const t of fieldTitles(el)) longest = Math.max(longest, t.scrollWidth);
   el.style.setProperty("--je-label-col", `${labelColumnPx(el.clientWidth, longest)}px`);
 }
 
 /**
- * Sets `--je-label-col` on the element from its own width and its titles as
- * it resizes or re-renders, so nested fields line up with the top-level ones;
- * without a `ResizeObserver` the stylesheet's token sizes each row.
+ * Sets `--je-label-col` on the element from its own width and its titles,
+ * so nested fields line up with the top-level ones: again on each resize,
+ * and on a re-render only when the titles shown changed, so a scrub doesn't
+ * measure every frame. Without a `ResizeObserver` the stylesheet's token
+ * sizes each row.
  */
 function useLabelColumn() {
   const [el, setEl] = useState<HTMLElement | null>(null);
+  const fitted = useRef<{ el: HTMLElement; titles: string } | null>(null);
   useLayoutEffect(() => {
     if (!el || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => fitLabelColumn(el));
@@ -320,7 +324,11 @@ function useLabelColumn() {
     return () => observer.disconnect();
   }, [el]);
   useLayoutEffect(() => {
-    if (el && typeof ResizeObserver !== "undefined") fitLabelColumn(el);
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const titles = Array.from(fieldTitles(el), (t) => t.textContent).join("\n");
+    if (fitted.current?.el === el && fitted.current.titles === titles) return;
+    fitted.current = { el, titles };
+    fitLabelColumn(el);
   });
   return setEl;
 }

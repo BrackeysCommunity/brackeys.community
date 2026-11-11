@@ -3,9 +3,16 @@ import { useCallback, useEffect, useReducer, useRef, useSyncExternalStore } from
 
 import type { ProjectSession } from "../../../collab/index";
 import {
+  boxTool,
+  circleTool,
+  createDrawTool,
+  createPenTool,
   createToolHost,
   DEFAULT_SNAP,
+  DRAW_TYPE_COMMAND,
+  drawTypeOptions,
   SNAP_STEPS,
+  type DrawToolKind,
   type EditorSession,
   type EditorToolDef,
   type Pt,
@@ -14,6 +21,7 @@ import {
   type ToolHostOptions,
   type ToolOverlay,
 } from "../../../editor/index";
+import type { Registry } from "../../../game/types";
 import type { GameInstance, Vec2 } from "../../../index";
 import { assetInfo } from "../../../project/index";
 import { frameInView } from "../../frame/visible-rect";
@@ -79,12 +87,61 @@ function writeSnap(storage: EditorStorage, { enabled, step }: SnapSettings) {
   storage.set(SNAP_KEY, JSON.stringify({ enabled, step }));
 }
 
+export const DRAW_TYPE_KEY = `${STORAGE_PREFIX}draw-type`;
+
+/** The type this viewer last picked for the draw tools; null before any pick. */
+export function readDrawType(storage: EditorStorage): string | null {
+  try {
+    return storage.get(DRAW_TYPE_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The engine's Box, Circle and Pen, each starting on `saved` when it can
+ * draw that type, and passing each type picked in them to `remember`, so the
+ * pick outlives the host.
+ */
+function rememberedDrawTools(
+  registry: Registry,
+  saved: string | null,
+  remember: (type: string) => void,
+): EditorToolDef[] {
+  const start = (kind: DrawToolKind) =>
+    saved !== null && drawTypeOptions(registry, kind).some((o) => o.type === saved)
+      ? { type: saved }
+      : {};
+  const like = ({ id, label, description }: EditorToolDef) => ({ id, label, description });
+  const tools = [
+    createDrawTool({ ...like(boxTool), shape: "box", ...start("box") }),
+    createDrawTool({ ...like(circleTool), shape: "circle", ...start("circle") }),
+    createPenTool(start("pen")),
+  ];
+  return tools.map((def) => ({
+    ...def,
+    create(ctx) {
+      const tool = def.create(ctx);
+      return {
+        ...tool,
+        command(command) {
+          const took = tool.command?.(command) ?? false;
+          if (took && command.startsWith(DRAW_TYPE_COMMAND))
+            remember(command.slice(DRAW_TYPE_COMMAND.length));
+          return took;
+        },
+      };
+    },
+  }));
+}
+
 /**
  * Runs one tool host for `session` on `game` while mounted and publishes it
  * in `cell`. The game's own tools load first (a dynamic import); if they
  * fail to load, the engine's tools still run, and `notify` says so. With
  * `project`, sprite boxes are sized from its assets and re-indexed when the
- * project doc changes. Snap settings are kept in the kit's storage.
+ * project doc changes. Snap settings and the draw tools' type are kept in
+ * the kit's storage, so they survive a rebuild of the host.
  */
 export function useToolHostLifecycle(
   cell: ToolHostCell,
@@ -126,6 +183,11 @@ export function useToolHostLifecycle(
         toWorld,
         scale: () => viewScale(game.getStore().state.camera),
         gameTools,
+        engineTools: rememberedDrawTools(
+          session.registry,
+          readDrawType(latest.current.storage),
+          (type) => latest.current.storage.set(DRAW_TYPE_KEY, type),
+        ),
         tool: session.store.state.tool,
         snap: readSnap(latest.current.storage),
         pan: ([x, y]) => game.panBy({ x, y }),
