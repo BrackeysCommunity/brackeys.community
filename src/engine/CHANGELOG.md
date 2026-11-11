@@ -264,6 +264,14 @@ input-map reloads, and the remaining content in metres.
   doc is still persisted and the store throws, naming the file; closing
   the tabs and restarting the dev server reseeds it from the file.
 
+### Internal
+
+- The boundary test lets the site glob a hosted game's art
+  (`/src/games/*/**/*.{png,jpg,jpeg,webp,gif}`) and its sidecars
+  (`/src/games/*/**/*.asset.json`), and only from a call that also leaves
+  out `!/src/games/*/**/__tests__/**`; every other deep glob into a game is
+  still refused.
+
 ## [0.11.0] — unreleased
 
 Input v2, local multiplayer and recording v2, with the world authored in

@@ -196,8 +196,8 @@ describe("the tactics HUD", () => {
     afterMove(fake, "blue-1", [4, 1], "blue-1 moves to 4,1");
     expect(hud().dataset.mode).toBe("selected");
     expect(cellsOf("reach")).toEqual([]);
-    expect(document.querySelector('[role="log"]')!.textContent).toBe("blue-1 moves to 4,1");
-    expect(shownLog()).toEqual(["blue-1 moves to 4,1"]);
+    expect(document.querySelector('[role="log"]')!.textContent).toBe("Blue knight moves");
+    expect(shownLog()).toEqual(["Blue knight moves"]);
 
     step(fake, 1, 0);
     press(fake, "confirm");
@@ -478,12 +478,16 @@ describe("the tactics HUD", () => {
     expect(fake.sends).toEqual([]);
   });
 
-  it("shows the last three log lines and announces only the newest", () => {
+  it("shows the last three log lines in the player's words and announces only the newest", () => {
     const fake = mount();
     expect(shownLog()).toEqual([]);
     const lines = ["a", "b", "blue-1 hits red-1 for 8 (crit)", "red-1 hits blue-1 for 4", "e"];
     fake.setSlice(sliceOf(snapshot(START), lines));
-    expect(shownLog()).toEqual(lines.slice(-3));
+    expect(shownLog()).toEqual([
+      "Blue knight hits Red knight for 8, a critical hit",
+      "Red knight hits Blue knight for 4",
+      "e",
+    ]);
     expect(document.querySelector(".tactics-hud-log")!.getAttribute("aria-hidden")).toBe("true");
     expect(document.querySelector('[role="log"]')!.textContent).toBe("e");
   });

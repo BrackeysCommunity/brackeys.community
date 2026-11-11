@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 
 import { defineGame } from "@jams/engine/game";
+import { heldProject, parseSidecar } from "@jams/engine/project";
+import { createRegistry } from "@jams/engine/scene";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
@@ -33,6 +35,37 @@ const project = (id: string, extra: Record<string, unknown> = {}) => ({
   game: { module: "./index.ts", export: `${id}Game` },
   ...extra,
 });
+
+/**
+ * The view the tactics golden pin builds (`src/games/tactics/__tests__/pins.ts`),
+ * from the same files read off disk, since a site test may not import a game's tests.
+ */
+function tacticsPinnedView(game: Parameters<typeof createRegistry>[0]) {
+  const dir = "src/games/tactics";
+  const sidecar = (path: string) => {
+    const parsed = parseSidecar(json(`${dir}/${path}.asset.json`));
+    if (!parsed.ok) throw new Error(`${path}'s sidecar doesn't parse`);
+    return parsed.sidecar;
+  };
+  const doc = (path: string) => ({ path, json: json(`${dir}/${path}`), sidecar: sidecar(path) });
+  const binary = (path: string) => ({ path, sidecar: sidecar(path) });
+  const meta = json(`${dir}/jams.project.json`) as { id: string; name: string };
+  return heldProject(
+    [
+      doc("game-settings.json"),
+      doc("input-map.json"),
+      doc("data/unit-classes.json"),
+      binary("art/tile-marsh.png"),
+      binary("art/tile-thicket.png"),
+      binary("art/tile-wall.png"),
+      binary("art/tiles.png"),
+      binary("art/units.png"),
+      binary("art/units.json"),
+    ],
+    createRegistry(game),
+    { projectId: meta.id, name: meta.name },
+  ).runtime;
+}
 
 /** The platformer from its real files and a fixture board game, each loader a spy. */
 function globs(patch: Partial<HostedGameGlobs> = {}) {
@@ -250,8 +283,7 @@ describe("hostedGamesFrom", () => {
   });
 
   it("serves tactics' sprites and tiles, and reads its project as its golden pin does", async () => {
-    const { tacticsProjectView } = await import("@/games/tactics/__tests__/pins");
-    const { UNIT_CLASS_TABLE } = await import("@/games/tactics");
+    const { tacticsGame, UNIT_CLASS_TABLE } = await import("@/games/tactics");
     const { project, assets } = await hostedGame("tactics")!.load();
     expect(assets).not.toBeNull();
     const textures = [...assets!.view.byId.values()].filter((e) => e.kind === "texture");
@@ -267,7 +299,7 @@ describe("hostedGamesFrom", () => {
     }
     expect(project.asset("units", "knight-blue")).toMatchObject({ texture: "units-texture" });
 
-    const pinned = tacticsProjectView();
+    const pinned = tacticsPinnedView(tacticsGame);
     expect(pinned.settings).toEqual(project.settings);
     expect(pinned.engine).toEqual(project.engine);
     expect(pinned.inputMap).toEqual(project.inputMap);

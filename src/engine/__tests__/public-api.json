@@ -976,6 +976,7 @@
       "gameSettingsKind",
       "gameSettingsValues",
       "hashForPut",
+      "heldProject",
       "idsAtPaths",
       "inputMapEntries",
       "inputMapIssues",

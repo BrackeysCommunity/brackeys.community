@@ -244,8 +244,8 @@ const isSiteGameTarget = (target: string) => {
  * with its line. Read from the raw text, since a pattern's `/*` would read as
  * a comment's start; a commented-out call is judged too.
  */
-function globsIn(src: string): { pattern: string; line: number }[] {
-  const out: { pattern: string; line: number }[] = [];
+function globsIn(src: string): { pattern: string; line: number; call: string[] }[] {
+  const out: { pattern: string; line: number; call: string[] }[] = [];
   for (const m of src.matchAll(/\bimport\.meta\.glob\b/g)) {
     let i = m.index + m[0].length;
     if (src[i] === "<") {
@@ -258,11 +258,13 @@ function globsIn(src: string): { pattern: string; line: number }[] {
     const call = /^\s*\(\s*(\[[^\]]*\]|"[^"]*"|'[^']*'|`[^`]*`)/.exec(src.slice(i));
     const line = src.slice(0, m.index).split("\n").length;
     if (!call) {
-      out.push({ pattern: "", line });
+      out.push({ pattern: "", line, call: [""] });
       continue;
     }
-    for (const lit of call[1]!.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`/g))
-      out.push({ pattern: lit[1] ?? lit[2] ?? lit[3]!, line });
+    const patterns = [...call[1]!.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`/g)].map(
+      (lit) => lit[1] ?? lit[2] ?? lit[3]!,
+    );
+    for (const pattern of patterns) out.push({ pattern, line, call: patterns });
   }
   return out;
 }
@@ -279,14 +281,24 @@ const expandBraces = (pattern: string): string[] => {
 };
 
 /**
+ * A hosted game's art and the sidecars that describe it, the one deep glob
+ * the site may make into src/games, and only from a call that leaves out
+ * every game's tests.
+ */
+const SITE_ART_GLOB = /^\/src\/games\/\*\/\*\*\/\*\.(asset\.json|png|jpe?g|webp|gif)$/;
+const NO_GAME_TESTS = "!/src/games/*/**/__tests__/**";
+
+/**
  * Why a site file's `import.meta.glob` pattern breaks the boundary, or null:
  * a pattern into src/games must match only what `isSiteGameTarget` allows
- * (a wildcard stands for one name), and none may reach src/engine.
+ * (a wildcard stands for one name) or be `SITE_ART_GLOB` beside
+ * `NO_GAME_TESTS` in its call, and none may reach src/engine.
  */
-function siteGlobViolation(file: string, pattern: string): string | null {
+function siteGlobViolation(file: string, pattern: string, call = [pattern]): string | null {
   if (pattern === "") return "calls import.meta.glob without a literal pattern";
   if (pattern.startsWith("!")) return null;
   for (const one of expandBraces(pattern)) {
+    if (SITE_ART_GLOB.test(one) && call.includes(NO_GAME_TESTS)) continue;
     const target = one.startsWith("@/")
       ? join(SITE, one.slice(2))
       : one.startsWith("/")
@@ -857,8 +869,8 @@ describe("package boundary", () => {
     const bad: string[] = [];
     for (const file of SITE_GLOB_DIRS.flatMap((d) => walk(d, /\.tsx?$/))) {
       if (isTest(file)) continue;
-      for (const { pattern, line } of globsIn(readFileSync(file, "utf8"))) {
-        const why = siteGlobViolation(file, pattern);
+      for (const { pattern, line, call } of globsIn(readFileSync(file, "utf8"))) {
+        const why = siteGlobViolation(file, pattern, call);
         if (why) bad.push(`${rel(file, REPO)}:${line} ${why}`);
       }
     }
@@ -868,7 +880,7 @@ describe("package boundary", () => {
   it("judges a fixture's glob patterns by the site's game-entry rule", () => {
     const file = join(SITE, "components/game/fixture.ts");
     const judged = (source: string) =>
-      globsIn(source).map(({ pattern }) => siteGlobViolation(file, pattern));
+      globsIn(source).map(({ pattern, call }) => siteGlobViolation(file, pattern, call));
     expect(
       judged(
         [
@@ -878,6 +890,10 @@ describe("package boundary", () => {
           'import.meta.glob("/src/games/*/scenes/{*.json,prefabs/*.json}");',
           'import.meta.glob("/src/games/*/debug/index.ts");',
           'import.meta.glob(["/src/games/*/{game-settings,input-map}.json", "/src/games/*/data/*.json", "!/src/games/*/data/*.asset.json"]);',
+          'import.meta.glob(["/src/games/*/**/*.asset.json", "!/src/games/*/**/__tests__/**"]);',
+          'import.meta.glob(["/src/games/*/**/*.{png,jpg,jpeg,webp,gif}", "!/src/games/*/**/__tests__/**"]);',
+          'import.meta.glob("/src/games/*/**/*.png");',
+          'import.meta.glob(["/src/games/*/**/*.{png,ts}", "!/src/games/*/**/__tests__/**"]);',
           'import.meta.glob("/src/games/*/data/**/*.json");',
           'import.meta.glob("/src/games/**/*.ts");',
           'import.meta.glob("/src/games/*/runtime.ts");',
@@ -895,6 +911,13 @@ describe("package boundary", () => {
       null,
       null,
       null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "globs more of a game than its entries and project JSON: /src/games/*/**/*.png",
+      "globs more of a game than its entries and project JSON: /src/games/*/**/*.{png,ts}",
       null,
       "globs more of a game than its entries and project JSON: /src/games/*/data/**/*.json",
       "globs more of a game than its entries and project JSON: /src/games/**/*.ts",
