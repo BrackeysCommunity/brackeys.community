@@ -1211,8 +1211,9 @@ describe("seats", () => {
     game.step();
     expect(steps).toEqual([
       ["left@0:1", "right@1:1"],
-      // A binding without a seat follows the keyboard's owner, seat 0.
-      ["left@0:0", "left@1:1", "push@0:1"],
+      // A binding without a seat follows the keyboard's owner, seat 0; a
+      // tick's actions reach the game seat by seat, as a replay decodes them.
+      ["left@0:0", "push@0:1", "left@1:1"],
     ]);
   });
 
