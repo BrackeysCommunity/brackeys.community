@@ -1,4 +1,4 @@
-import type { CheckEnv, CheckVerdict, Registry } from "../game/types";
+import type { CheckEnv, CheckVerdict, PlayState, Registry } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import {
   gridMissingIssue,
@@ -24,14 +24,16 @@ import {
 } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatScene } from "../scene/format";
+import { inputScriptSchemasFor } from "../scene/input-script";
 import { jsonPointer, lineAt, makeIssue } from "../scene/issues";
 import { parseChildRef } from "../scene/resolve";
 import type { PrefabLibrary, Ref, SceneDefinition, SceneIssue, Severity } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { RapierModule } from "../types";
 import { fuzz } from "./fuzz";
-import { runPlaytest } from "./playtest";
-import type { InputScript, PlaytestBlocked } from "./playtest-types";
+import { runLibrary } from "./play-loop";
+import { runPlaytest, untilHolds } from "./playtest";
+import type { InputScript, PlaytestBlocked, UntilClause } from "./playtest-types";
 import { validatePhysical } from "./validate-physical";
 
 export type CheckResult = {
@@ -56,6 +58,8 @@ export type RunChecksOptions = {
   scene: SceneDefinition;
   /** The prefabs the scene's instances name. */
   prefabs?: PrefabLibrary;
+  /** Every prefab the game's `ctx.instantiate` may place in the checks that play; default `prefabs`. */
+  library?: PrefabLibrary;
   registry: Registry;
   checks: ChecksFile;
   /** Reads a file a check names, relative to the checks file. */
@@ -65,6 +69,9 @@ export type RunChecksOptions = {
   /** The project's data, for the checks that play the scene (`reaches`, `touches`); its `engine` block stands in for `engine` when that is omitted. */
   project?: ProjectRuntimeView | null;
 };
+
+/** A check's env with the run's prefab library, for the checks that play the scene. */
+type RunEnv = CheckEnv & { library?: PrefabLibrary };
 
 /** The fields every check has; a game kind's `arg` gets the rest. */
 const HEAD_KEYS: readonly string[] = ["id", "kind", "skip"];
@@ -86,7 +93,7 @@ function blockedMessage(run: PlaytestBlocked): string {
 
 function runValid(
   check: ValidCheck,
-  env: CheckEnv,
+  env: RunEnv,
   engine: Readonly<Record<string, unknown>> | undefined,
 ): CheckVerdict {
   const issues = [
@@ -99,7 +106,7 @@ function runValid(
           rapier: env.rapier ?? null,
           scene: env.def,
           registry: env.registry,
-          prefabs: env.prefabs,
+          prefabs: runLibrary(env),
           ...(engine ? { engine } : {}),
         })
       : []),
@@ -119,9 +126,38 @@ function runValid(
       };
 }
 
+/** `expect` parsed by the registry's `until` schema, keys in the order the check wrote them. */
+function parseExpect(
+  expect: UntilClause,
+  registry: Registry,
+): { ok: true; keys: [string, unknown][] } | { ok: false; message: string } {
+  const parsed = inputScriptSchemasFor(registry).until.safeParse(expect);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const at = issue?.path.length ? ` at expect.${issue.path.join(".")}` : "";
+    return { ok: false, message: `bad expect${at}: ${issue?.message ?? "invalid"}` };
+  }
+  const data = parsed.data as Record<string, unknown>;
+  return {
+    ok: true,
+    keys: Object.keys(expect)
+      .filter((key) => data[key] !== undefined)
+      .map((key) => [key, data[key]]),
+  };
+}
+
+/** The first of `keys` that doesn't hold on `state`, judged one key at a time as a step's `until` is. */
+function firstFailing(
+  keys: readonly [string, unknown][],
+  state: PlayState,
+  registry: Registry,
+): [string, unknown] | null {
+  return keys.find(([key, arg]) => !untilHolds({ [key]: arg }, state, registry)) ?? null;
+}
+
 function runReaches(
   check: ReachesCheck,
-  env: CheckEnv,
+  env: RunEnv,
   project: ProjectRuntimeView | null,
 ): CheckVerdict {
   let script: InputScript;
@@ -135,26 +171,60 @@ function runReaches(
   } else script = check.script;
   if (check.at) script = { ...script, at: check.at };
 
+  let expectKeys: [string, unknown][] | null = null;
+  if (check.expect !== undefined) {
+    const parsed = parseExpect(check.expect, env.registry);
+    if (!parsed.ok) return { pass: false, message: parsed.message };
+    expectKeys = parsed.keys;
+  }
+  let failed: [string, unknown] | null = null;
+  let judged = false;
+
   const run = runPlaytest({
     rapier: env.rapier ?? null,
     registry: env.registry,
     scene: env.def,
-    prefabs: env.prefabs,
+    prefabs: runLibrary(env),
     script,
     project,
+    ...(expectKeys && {
+      onLastTick(state: PlayState) {
+        judged = true;
+        failed = firstFailing(expectKeys!, state, env.registry);
+      },
+    }),
   });
   if (run.blocked) return { pass: false, message: blockedMessage(run), detail: run };
   const { outcome } = run;
   const ended = `ended ${outcome.result} at t${outcome.tick}${outcome.cause ? ` (${outcome.cause})` : ""}`;
-  const detail = { outcome, ticks: run.ticks, steps: run.steps };
-  return outcome.result === check.result
-    ? { pass: true, message: ended, detail }
-    : { pass: false, message: `${ended}, not ${check.result}`, detail };
+  const detail: Record<string, unknown> = { outcome, ticks: run.ticks, steps: run.steps };
+  if (outcome.result !== check.result) {
+    return { pass: false, message: `${ended}, not ${check.result}`, detail };
+  }
+  if (!expectKeys) return { pass: true, message: ended, detail };
+  if (!judged) {
+    return { pass: false, message: `${ended}, but no tick ran to judge expect on`, detail };
+  }
+  const miss = failed as [string, unknown] | null;
+  if (miss) {
+    detail.expect = { failed: miss[0] };
+    return {
+      pass: false,
+      message: `${ended}, but expect.${miss[0]} (${JSON.stringify(miss[1])}) doesn't hold then`,
+      detail,
+    };
+  }
+  detail.expect = { failed: null };
+  return {
+    pass: true,
+    message: `${ended}; expect holds (${expectKeys.map(([k]) => k).join(", ")})`,
+    detail,
+  };
 }
 
 function runTouches(
   check: TouchesCheck,
-  env: CheckEnv,
+  env: RunEnv,
   project: ProjectRuntimeView | null,
 ): CheckVerdict {
   const rollouts = check.rollouts ?? DEFAULT_TOUCH_ROLLOUTS;
@@ -162,7 +232,7 @@ function runTouches(
     rapier: env.rapier ?? null,
     registry: env.registry,
     scene: env.def,
-    prefabs: env.prefabs,
+    prefabs: runLibrary(env),
     seed: check.seed ?? DEFAULT_TOUCH_SEED,
     rollouts,
     ticks: check.ticks ?? DEFAULT_TOUCH_TICKS,
@@ -270,7 +340,7 @@ function runConnected(
 
 function runOne(
   check: SceneCheck,
-  env: CheckEnv,
+  env: RunEnv,
   engine: Readonly<Record<string, unknown>> | undefined,
   project: ProjectRuntimeView | null,
 ): CheckVerdict {
@@ -300,9 +370,10 @@ function runOne(
  * over the scene's grid, a game's through its `checks`. A check that throws fails with the error.
  */
 export function runChecks(opts: RunChecksOptions): ChecksReport {
-  const env: CheckEnv = {
+  const env: RunEnv = {
     def: opts.scene,
     ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
+    ...(opts.library ? { library: opts.library } : {}),
     registry: opts.registry,
     rapier: opts.rapier ?? null,
     readFile: opts.readFile,

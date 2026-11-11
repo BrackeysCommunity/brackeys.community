@@ -134,6 +134,46 @@ describe("parseChecks", () => {
     expect(bad({ from: undefined })[0]!.path).toBe("/checks/0/from");
   });
 
+  it("parses a reaches check's expect with the game's until keys, in the order written", () => {
+    const expectClause = { count: { type: "prop", eq: 2 }, exists: "avatar", past: 300, tick: 5 };
+    const r = parseChecks(
+      text([{ id: "r", kind: "reaches", script: "r.json", result: "won", expect: expectClause }]),
+      game,
+    );
+    expect(r.ok && r.file.checks[0]).toEqual({
+      id: "r",
+      kind: "reaches",
+      script: "r.json",
+      result: "won",
+      expect: expectClause,
+    });
+    expect(r.ok && Object.keys((r.file.checks[0] as { expect: object }).expect)).toEqual([
+      "count",
+      "exists",
+      "past",
+      "tick",
+    ]);
+  });
+
+  it("refuses an expect that is empty, names an unknown key or a game's predicate without its registry", () => {
+    const bad = (expectClause: unknown, registry = engine) =>
+      issues(
+        text([
+          { id: "r", kind: "reaches", script: "r.json", result: "timeout", expect: expectClause },
+        ]),
+        registry,
+      );
+    expect(bad({})[0]).toMatchObject({
+      path: "/checks/0/expect",
+      message: "an until clause needs at least one predicate",
+    });
+    expect(bad({ past: 300 })[0]).toMatchObject({
+      path: "/checks/0/expect/past",
+      message: 'unknown key "past"',
+    });
+    expect(bad({ tick: -1 }, game)[0]!.path).toBe("/checks/0/expect/tick");
+  });
+
   it("leaves an inline script to the playtest's compiler", () => {
     const r = parseChecks(
       text([{ id: "r", kind: "reaches", script: { v: 1, steps: "?" }, result: "timeout" }]),
@@ -153,6 +193,9 @@ describe("checks schema", () => {
     expect(undescribedProperties(schema)).toEqual([]);
     expect(JSON.stringify(schema)).toContain("test-game/props");
     expect(JSON.stringify(checksJsonSchema(engine))).toContain('"connected"');
+    const reaches = JSON.stringify(checksJsonSchema(game));
+    expect(reaches).toContain("on the run's last tick");
+    expect(reaches).toContain('"past"');
   });
 
   it("accepts what parseChecks accepts, inline scripts checked in full", () => {

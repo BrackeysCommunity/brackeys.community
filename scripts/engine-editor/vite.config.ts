@@ -6,7 +6,7 @@ import { readFileProject, sceneCollabServer } from "@jams/engine/vite";
 import wasm from "vite-plugin-wasm";
 import type { InlineConfig } from "vite-plus";
 
-import { engineEditorGame } from "./main";
+import { engineEditorGame } from "./game";
 
 const PAGE_DIR = fileURLToPath(new URL(".", import.meta.url));
 const REPO = fileURLToPath(new URL("../..", import.meta.url));

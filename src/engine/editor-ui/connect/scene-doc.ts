@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import type { ProjectSession, SessionDoc } from "../../collab/index";
 import { SCENE_KIND_NAME, type AssetEntry, type ProjectView } from "../../project/index";
+import { fileNameOf, splitExtension } from "../../project/view";
 import type { ProjectConnection, ProjectConnectionStatus } from "../host";
 import { useStoreValue } from "../session/use-store-value";
 
@@ -20,11 +21,22 @@ export type OpenSceneDoc = {
   name: string;
   /** The scene's asset id. */
   id: string;
+  /** Its display name. */
+  sceneName: string;
   doc: SessionDoc;
 };
 
-/** The scene asked for wasn't in the project, so another was opened in its place. */
-export type SceneFallback = { wanted: string; opened: string };
+/**
+ * The scene asked for wasn't in the project, so another was opened in its
+ * place: `opened` is its id, `openedName` its display name, and `project`
+ * the open project's id and name.
+ */
+export type SceneFallback = {
+  wanted: string;
+  opened: string;
+  openedName: string;
+  project: { id: string; name: string };
+};
 
 export type SceneDocState = {
   status: SceneDocStatus;
@@ -47,11 +59,23 @@ const EMPTY: SceneDocState = { status: "connecting", ready: null, error: null, f
 
 const byPath = (a: AssetEntry, b: AssetEntry) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 
-/** The scene an editor opens: `wanted` when the project holds a live scene of that id, else its first scene by path. */
+/** An asset's display name: its own, else its file's stem. */
+export const assetName = (entry: Pick<AssetEntry, "name" | "path">): string =>
+  entry.name ?? splitExtension(fileNameOf(entry.path))[0];
+
+/** The live scene `wanted` names, by id, else by display name (the first by path); null when none does. */
+export function findScene(view: ProjectView, wanted: string): AssetEntry | null {
+  const byId = view.byId.get(wanted);
+  if (byId?.kind === SCENE_KIND_NAME) return byId;
+  return scenesOf(view).find((e) => assetName(e) === wanted) ?? null;
+}
+
+const scenesOf = (view: ProjectView) =>
+  [...view.byId.values()].filter((e) => e.kind === SCENE_KIND_NAME).sort(byPath);
+
+/** The scene an editor opens: the one `wanted` names by id or name, else the project's first scene by path. */
 export function pickScene(view: ProjectView, wanted?: string | null): AssetEntry | null {
-  const named = wanted ? view.byId.get(wanted) : undefined;
-  if (named?.kind === SCENE_KIND_NAME) return named;
-  return [...view.byId.values()].filter((e) => e.kind === SCENE_KIND_NAME).sort(byPath)[0] ?? null;
+  return (wanted ? findScene(view, wanted) : null) ?? scenesOf(view)[0] ?? null;
 }
 
 const WAITING: Partial<Record<ProjectConnectionStatus, SceneDocStatus>> = {
@@ -71,7 +95,7 @@ export function createSceneDocLink({
   scene,
 }: {
   source: SceneDocSource;
-  /** The scene's id; the project's first scene, reported in `fellBack`, when it holds none of that id. */
+  /** The scene's id or name; the project's first scene, reported in `fellBack`, when it holds neither. */
   scene?: string | null;
 }): SceneDocLink {
   const listeners = new Set<() => void>();
@@ -110,7 +134,7 @@ export function createSceneDocLink({
       (doc) => {
         if (destroyed || session !== current) return current.release(name);
         held = name;
-        opening = { session: current, name, id: entry.id, doc };
+        opening = { session: current, name, id: entry.id, sceneName: assetName(entry), doc };
         refresh();
       },
       (error: unknown) => {
@@ -122,11 +146,16 @@ export function createSceneDocLink({
   }
 
   function fallbackOf(ready: OpenSceneDoc | null): SceneFallback | null {
-    if (!ready || !scene || ready.id === scene) return null;
+    if (!ready || !scene || ready.id === scene || ready.sceneName === scene) return null;
     const last = state.fellBack;
-    return last && last.wanted === scene && last.opened === ready.id
-      ? last
-      : { wanted: scene, opened: ready.id };
+    if (last && last.wanted === scene && last.opened === ready.id) return last;
+    const meta = ready.session.view().state.meta;
+    return {
+      wanted: scene,
+      opened: ready.id,
+      openedName: ready.sceneName,
+      project: { id: ready.session.project, name: meta.name || ready.session.project },
+    };
   }
 
   function refresh() {
@@ -174,15 +203,17 @@ export function createSceneDocLink({
 /**
  * The scene `scene` of the project `source` serves, held open while the
  * component is mounted. Null `source` (not connected yet, or the editor is
- * off) keeps it closed. Asking for the scene that is already open (a host
- * following a fallback in its route) keeps the doc and the fallback as they are.
+ * off) keeps it closed. Asking for the scene that is already open, by id or
+ * name (a host following a fallback in its route), keeps the doc and the
+ * fallback as they are.
  */
 export function useSceneDoc(source: SceneDocSource | null, scene?: string | null): SceneDocState {
   const [store] = useState(() => new Store<SceneDocState>(EMPTY));
   const state = useStoreValue(store);
   const asked = scene ?? null;
   const [wanted, setWanted] = useState(asked);
-  if (asked !== wanted && asked !== state.ready?.id) setWanted(asked);
+  const open = state.ready;
+  if (asked !== wanted && asked !== open?.id && asked !== open?.sceneName) setWanted(asked);
 
   useEffect(() => {
     if (!source) return;

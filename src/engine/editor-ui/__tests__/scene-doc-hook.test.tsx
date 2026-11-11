@@ -79,7 +79,7 @@ describe("useSceneDoc", () => {
     hook.rerender({ id: "a-yard" });
     await act(async () => {});
     expect(hook.result.current.ready).toBe(ready);
-    expect(hook.result.current.fellBack).toEqual({ wanted: "gone", opened: "a-yard" });
+    expect(hook.result.current.fellBack).toMatchObject({ wanted: "gone", opened: "a-yard" });
     expect(release).not.toHaveBeenCalled();
     hook.unmount();
     source.destroy();

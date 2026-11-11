@@ -1,7 +1,9 @@
 import {
   ENGINE_RUN_RESULTS,
+  type EngineContext,
   type GameCommand,
   type GameOutcome,
+  type PlayWorld,
   type Registry,
 } from "../game/types";
 import type { InputEdge } from "../headless/playtest-types";
@@ -186,5 +188,17 @@ export function createSessionRecording(opts: SessionRecordingOptions): SessionRe
     get replaying() {
       return replay !== null && done === null;
     },
+  };
+}
+
+/**
+ * What `PlayState.world` answers, read live from `ctx`: an entity exists
+ * while it is enabled unless asked with `enabled: false`, and counts go
+ * through the query index.
+ */
+export function playWorld(ctx: Pick<EngineContext, "exists" | "enabled" | "query">): PlayWorld {
+  return {
+    exists: (id, opts) => (opts?.enabled === false ? ctx.exists(id) : ctx.enabled(id)),
+    count: (sel) => ctx.query.count(sel),
   };
 }

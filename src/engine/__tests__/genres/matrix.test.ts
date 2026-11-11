@@ -28,6 +28,13 @@ describe("the genre matrix", () => {
       MATRIX[row].milestones.every((m) => m <= LANDED_THROUGH),
     );
     for (const row of landed) expect(MATRIX[row].probes.length, row).toBeGreaterThan(0);
+    // Every row still needs a milestone after M15, so none is complete yet.
+    expect(landed).toStrictEqual([]);
+  });
+
+  it("names, on each row, exactly the probes that list it", () => {
+    for (const row of GENRE_ROWS)
+      expect(MATRIX[row].probes, row).toStrictEqual([...GENRE_MATRIX[row].probes].sort());
   });
 
   describe.each(PROBES.map((p) => [p.id, p] as const))("%s", (_, probe) => {

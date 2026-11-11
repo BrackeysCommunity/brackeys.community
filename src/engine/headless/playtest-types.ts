@@ -1,6 +1,7 @@
 import type { GameCommand, GameDefinition, Registry, RunResult } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { LoadReport, StepEvent } from "../runtime/types";
+import type { CountMatch, ExistsMatch } from "../scene/input-script";
 import type { RecordingCommand, RunRecording } from "../scene/recording-schema";
 import type {
   EntityTypeName,
@@ -23,6 +24,8 @@ export type PlayOptions<G = unknown> = {
   timeOffsetMs?: number;
   /** The game's own options (the platformer's abilities), parsed by its `play.options`. */
   game?: G;
+  /** Seeds `EngineContext.random`; omitted, `defaultSeed(gameId, sceneName)`. */
+  seed?: number | string;
 };
 
 /** One input edge: at the start of `tick`, `action` goes down (1) or up (0). */
@@ -34,13 +37,17 @@ export type InputEdge = [tick: number, action: string, pressed: 0 | 1];
 export type EventMatch = string | { type: string; entityId?: string; other?: string };
 
 /**
- * When a step ends early: every key must hold (AND). `event` and `tick` (an
- * absolute tick, reached or passed) are the engine's; the rest are the game's
- * `play.predicates`.
+ * When a step ends early: every key must hold (AND). `event`, `tick` (an
+ * absolute tick, reached or passed), `exists` and `count` are the engine's;
+ * the rest are the game's `play.predicates`.
  */
 export type UntilClause = {
   event?: EventMatch;
   tick?: number;
+  /** True while the entity exists and is enabled; `{ id, enabled: false }` while it exists at all. */
+  exists?: ExistsMatch;
+  /** The number of entities matching a selector keeps `min`, `max` or `eq`. */
+  count?: CountMatch;
   [predicate: string]: unknown;
 };
 
@@ -81,6 +88,8 @@ export type InputScript<G = unknown> = {
   at?: Pt;
   timeOffsetMs?: number;
   game?: G;
+  /** Seeds `EngineContext.random` for the run, as `PlayOptions.seed`. */
+  seed?: number | string;
   /** The run ends as `timeout` after this many simulated ticks (default 1800). */
   maxTicks?: number;
   steps: InputScriptStep[];
@@ -139,6 +148,8 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
   scene: SceneDefinition;
   /** The prefabs the scene's instances name. */
   prefabs?: PrefabLibrary;
+  /** Every prefab the game's `ctx.instantiate` may place, as `loadHeadless` returns it; default `prefabs`. */
+  library?: PrefabLibrary;
   script: InputScript<G> | CompiledInputScript;
   /** Cap on `events`; default 1000. */
   maxEvents?: number;
@@ -208,10 +219,14 @@ export type PlaytestReport<S = unknown> = {
   recording: RunRecording;
 };
 
-/** A playtest that never ran: the script didn't compile, the scene has errors, or it didn't load. */
+/**
+ * A playtest that didn't finish: the script didn't compile, the scene has
+ * errors, it didn't load, or an `EngineError` ended the run (`run`, its code
+ * in `issues`).
+ */
 export type PlaytestBlocked = {
   blocked: true;
-  stage: "script" | "scene" | "load";
+  stage: "script" | "scene" | "load" | "run";
   scene: string;
   issues: SceneIssue[];
   scriptIssues: ScriptIssue[];
@@ -231,6 +246,8 @@ export type FuzzOptions<S = unknown, G = unknown> = {
   scene: SceneDefinition;
   /** The prefabs the scene's instances name. */
   prefabs?: PrefabLibrary;
+  /** Every prefab the game's `ctx.instantiate` may place, as `loadHeadless` returns it; default `prefabs`. */
+  library?: PrefabLibrary;
   /** Seeds the generator; the same seed gives the same report (timing aside). */
   seed: number | string;
   /** Default 100. */

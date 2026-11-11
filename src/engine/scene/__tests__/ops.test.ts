@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
-import { createRegistry } from "../../game/define";
+import { createRegistry, defineEntityType } from "../../game/define";
+import { pointField } from "../../game/fields";
 import type { Registry } from "../../game/types";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
@@ -2329,5 +2330,37 @@ describe("applyOps: assets and sprites against the project", () => {
       { alpha: 0.5 },
     ])
       expect(codes(sprite, {})).toEqual([]);
+  });
+});
+
+describe("spawn-only types in ops", () => {
+  const ember = defineEntityType({
+    type: "ember",
+    description: "A spark game code makes.",
+    base: "marker",
+    spawnOnly: true,
+    fields: { at: pointField("Where it glows.") },
+  });
+  const spawned = createRegistry({ ...testGame, types: [...testGame.types, ember] });
+  const yard = (): SceneDefinition => ({ ...gameYard(), entities: [] });
+
+  it("an add naming one fails with unknown-type, spawned by game code only", () => {
+    const r = failed(
+      applyOps(yard(), { ops: [{ op: "add", entity: { type: "ember", at: [0, 0] } }] }, spawned),
+    );
+    expect(r.issue.code).toBe("unknown-type");
+    expect(r.issue.got).toMatch(/^"?ember"?$/);
+    expect(r.issue.message).toContain("spawned by game code only");
+    expect(r.issue.expected!.split(" | ")).not.toContain("ember");
+    expect(r.issue.expected!.split(" | ")).toContain("lamp");
+  });
+
+  it("an add's did-you-mean never names one", () => {
+    const r = failed(
+      applyOps(yard(), { ops: [{ op: "add", entity: { type: "embr", at: [0, 0] } }] }, spawned),
+    );
+    expect(r.issue.code).toBe("unknown-type");
+    expect(r.issue.message).not.toContain("ember");
+    expect(r.issue.hint ?? "").not.toContain("ember");
   });
 });

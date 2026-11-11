@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:input-script:v1",
-  "x-agent-surface": 10,
+  "x-agent-surface": 11,
   "title": "jams engine input script, format v1",
   "type": "object",
   "properties": {
@@ -36,6 +36,17 @@
       "description": "Advance time-driven entities (followers) by this much before tick 0.",
       "type": "number",
       "minimum": 0
+    },
+    "seed": {
+      "description": "Seeds the game's `ctx.random` for the run; omitted, the default for the game and scene, the same every run.",
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ]
     },
     "maxTicks": {
       "type": "integer",
@@ -207,11 +218,17 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 36000
+        },
+        "exists": {
+          "$ref": "#/$defs/ExistsMatch"
+        },
+        "count": {
+          "$ref": "#/$defs/CountMatch"
         }
       },
       "additionalProperties": false,
       "minProperties": 1,
-      "description": "Ends the step on the first tick where every key holds (AND), checked after each tick, so the step runs at least one tick. Predicates: event, tick."
+      "description": "Ends the step on the first tick where every key holds (AND), checked after each tick, so the step runs at least one tick. Predicates: event, tick, exists, count."
     },
     "EventMatch": {
       "anyOf": [
@@ -243,6 +260,99 @@
         }
       ],
       "description": "Holds on a tick that raised a matching event."
+    },
+    "ExistsMatch": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "description": "An entity id; holds while it exists and is enabled."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The entity id, e.g. `boss#1`."
+            },
+            "enabled": {
+              "description": "False holds while the entity exists, enabled or not.",
+              "type": "boolean",
+              "const": false
+            }
+          },
+          "required": ["id"],
+          "additionalProperties": false,
+          "description": "An entity id, and whether a disabled entity counts."
+        }
+      ],
+      "description": "Holds while an entity exists and is enabled, spawned ids (`boss#1`) included; it fails once the entity is destroyed."
+    },
+    "CountMatch": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "Only entities of this type, or of any of these.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityType"
+            },
+            {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/EntityType"
+              }
+            }
+          ]
+        },
+        "tag": {
+          "description": "Only entities with this tag.",
+          "type": "string",
+          "minLength": 1
+        },
+        "enabled": {
+          "description": "Default true: only enabled entities; false counts disabled ones too.",
+          "type": "boolean"
+        },
+        "min": {
+          "description": "Holds when at least this many match.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "max": {
+          "description": "Holds when at most this many match.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "eq": {
+          "description": "Holds when exactly this many match.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": ["min"]
+        },
+        {
+          "required": ["max"]
+        },
+        {
+          "required": ["eq"]
+        }
+      ],
+      "description": "Holds while the number of entities matching the selector (type, tag, enabled) keeps the bounds: `min`, `max` (both for a range) or `eq`."
+    },
+    "EntityType": {
+      "type": "string",
+      "enum": ["solid", "sensor", "marker", "prop", "follower", "decor", "nav", "note"],
+      "description": "An entity type: solid, sensor, marker, prop, follower, decor, nav, note."
     }
   }
 }

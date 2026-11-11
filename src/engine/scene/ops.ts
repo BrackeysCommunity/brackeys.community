@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD } from "../game/behaviors";
+import { isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, Z_LIMIT } from "../game/fields";
 import type { BulkKeyInfo, Registry } from "../game/types";
 import { closest } from "./did-you-mean";
@@ -63,6 +64,8 @@ import {
   geometryFields,
   gridFieldsOf,
   sceneRegistry,
+  spawnOnlyHint,
+  spawnOnlyMessage,
   unknownGameIssue,
   InstanceSchema,
 } from "./schema";
@@ -600,11 +603,19 @@ const inBulkItem =
 function validateEntity(w: Work, def: EntityDef, relocate: Relocate, label = def.id): void {
   const schema = entitySchemaFor(w.registry, def.type);
   if (!schema) {
+    const expected = placeableTypes(w.registry).join(" | ");
+    if (isSpawnOnly(w.registry, def.type))
+      fail("unknown-type", `${label}: ${spawnOnlyMessage(def.type)}`, {
+        entityIds: [label],
+        got: def.type,
+        expected,
+        hint: spawnOnlyHint(w.registry),
+      });
     const suggestion = suggestType(def.type, w.registry);
     fail(
       "unknown-type",
       `${label}: type "${def.type}" isn't registered${suggestion ? `; did you mean "${suggestion}"?` : "."}`,
-      { entityIds: [label], got: def.type, expected: w.registry.typeNames.join(" | ") },
+      { entityIds: [label], got: def.type, expected },
     );
   }
   const result = schema.safeParse(def);
@@ -687,24 +698,31 @@ function batchIssue(
   const got = valueAt(batch, segs);
   if (segs.at(-1) === "type" && segs.at(-2) === "entity") {
     const entity = valueAt(batch, segs.slice(0, -1));
+    const names = placeableTypes(registry);
     if (got === undefined && isObj(entity) && "b" in entity) {
       return makeIssue("op-invalid", {
         message: `${where}: the entity has "b" but no "type"; the discriminator is now "type".`,
         path,
-        expected: registry.typeNames.join(" | "),
+        expected: names.join(" | "),
         got: describeValue(got),
         hint: `Rename "b" to "type".`,
       });
     }
+    if (typeof got === "string" && isSpawnOnly(registry, got))
+      return makeIssue("unknown-type", {
+        message: `${spawnOnlyMessage(got)} (${where})`,
+        path,
+        expected: names.join(" | "),
+        got: describeValue(got),
+        hint: spawnOnlyHint(registry),
+      });
     const suggestion = typeof got === "string" ? suggestType(got, registry) : undefined;
     return makeIssue("unknown-type", {
       message: `unknown type ${describeValue(got)} at ${where}${suggestion ? `; did you mean "${suggestion}"?` : ""}`,
       path,
-      expected: registry.typeNames.join(" | "),
+      expected: names.join(" | "),
       got: describeValue(got),
-      hint: suggestion
-        ? `Use type: "${suggestion}".`
-        : `type is one of ${registry.typeNames.join(", ")}.`,
+      hint: suggestion ? `Use type: "${suggestion}".` : `type is one of ${names.join(", ")}.`,
     });
   }
   const expected = Array.isArray(issue.values)

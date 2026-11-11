@@ -166,7 +166,9 @@ function Panels({ link, picked }: { link: EditorProjectLink; picked: Store<Asset
   );
 }
 
-async function setup(opts: { readOnly?: boolean } = {}): Promise<Setup> {
+async function setup(
+  opts: Pick<EditorProjectLink, "readOnly" | "projects" | "onProjectChange"> = {},
+): Promise<Setup> {
   const host = memoryDocHost();
   seedProjectDoc(host.doc(`project:${PROJECT}`), state(), { kind: "migration" });
   sceneToDoc(scene(), { doc: host.doc(SCENE_DOC), key: sequentialKeys("s") });
@@ -180,6 +182,8 @@ async function setup(opts: { readOnly?: boolean } = {}): Promise<Setup> {
     doc: SCENE_DOC,
     blobs,
     ...(opts.readOnly ? { readOnly: true } : {}),
+    ...(opts.projects ? { projects: opts.projects } : {}),
+    ...(opts.onProjectChange ? { onProjectChange: opts.onProjectChange } : {}),
   };
   render(<Panels link={link} picked={picked} />);
   return { host, session, blobs, picked, other: () => open(host, bo) };
@@ -257,6 +261,36 @@ async function dropFiles(target: Element, list: File[]) {
     fireEvent.drop(target, { dataTransfer });
   });
 }
+
+describe("the Project panel's project switcher", () => {
+  const projects = [
+    { id: PROJECT, name: "Yard" },
+    { id: "engine", name: "Engine" },
+  ];
+
+  it("names the open project and opens another through the host", async () => {
+    const onProjectChange = vi.fn();
+    await setup({ projects, onProjectChange });
+    const trigger = screen.getByRole("combobox", { name: "Open project" });
+    expect(trigger.textContent).toContain("Yard");
+    fireEvent.click(trigger);
+    const options = await waitFor(() => screen.getAllByRole("option"));
+    expect(options.map((o) => o.textContent)).toEqual(["Yard", "Engine"]);
+    const engine = screen.getByRole("option", { name: "Engine" });
+    fireEvent.mouseMove(engine);
+    fireEvent.click(engine);
+    await waitFor(() => expect(onProjectChange).toHaveBeenCalledWith("engine"));
+    expect(onProjectChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("is left out with one project or no way to switch", async () => {
+    await setup({ projects: projects.slice(0, 1), onProjectChange: vi.fn() });
+    expect(screen.queryByRole("combobox", { name: "Open project" })).toBeNull();
+    cleanup();
+    await setup({ projects });
+    expect(screen.queryByRole("combobox", { name: "Open project" })).toBeNull();
+  });
+});
 
 describe("the editor's project tree", () => {
   it("renders the registry: folders, assets with kind icons, greyed code, the trash", async () => {

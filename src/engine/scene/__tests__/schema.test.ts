@@ -9,6 +9,7 @@ import {
   mirrorField,
   pointField,
   sideField,
+  tagsField,
   vectorField,
 } from "../../game/fields";
 import { PRIMITIVE_TYPES } from "../../game/types";
@@ -20,9 +21,11 @@ import {
   sceneGameOf,
   sceneRegistry,
   sceneSchemaFor,
+  spawnSchemaFor,
+  tagFieldsOf,
 } from "../schema";
 import { SCENE_FORMAT_VERSION } from "../types";
-import { engine, engineYardText, fake } from "./fixtures/fake-game";
+import { engine, engineYardText, fake, fakeGame } from "./fixtures/fake-game";
 
 const noAssets = { materials: [], materialDefs: new Map(), types: [], assets: () => [] };
 const yard = JSON.parse(engineYardText);
@@ -196,6 +199,28 @@ describe("field kinds", () => {
     expect(fieldKind(z.number().meta({ kind: "other" }))).toBe("value");
     expect(fieldKind(assetField(noAssets, "texture", "Pic."))).toBe("value");
   });
+
+  it("knows tag fields by their meta kind, and counts them as values, not geometry", () => {
+    expect(fieldKind(tagsField("Labels."))).toBe("tags");
+    expect(fieldKind(engine.types.get("marker")!.shape.tags!)).toBe("tags");
+    expect(tagFieldsOf(engine.types.get("sensor"))).toEqual(["tags"]);
+    expect(tagFieldsOf(engine.types.get("solid"))).toEqual([]);
+    expect(tagFieldsOf(undefined)).toEqual([]);
+    expect(geometryFields(engine.types.get("sensor")!)).toEqual([
+      { field: "shape", kind: "shape" },
+    ]);
+    expect(geometryFields(engine.types.get("nav")!)).toEqual([{ field: "shape", kind: "shape" }]);
+  });
+
+  it("parses tags as a plain list of ids", () => {
+    const schema = entitySchemaFor(engine, "marker")!;
+    expect(schema.safeParse({ id: "m", type: "marker", at: [0, 0], tags: ["spawn"] }).success).toBe(
+      true,
+    );
+    expect(
+      schema.safeParse({ id: "m", type: "marker", at: [0, 0], tags: ["Not An Id"] }).success,
+    ).toBe(false);
+  });
 });
 
 describe("one-way sides", () => {
@@ -364,5 +389,39 @@ describe("scene registry", () => {
     expect(ID_PATTERN.test("~solid:0")).toBe(false);
     expect(ID_PATTERN.test("-x")).toBe(false);
     expect(ID_PATTERN.test("a".repeat(49))).toBe(false);
+  });
+});
+
+describe("spawn-only types", () => {
+  const spark = defineEntityType({
+    type: "spark",
+    description: "A flash game code makes.",
+    base: "marker",
+    spawnOnly: true,
+    fields: { at: pointField("Where it flashes."), life: z.number().int().default(3) },
+  });
+  const r = createRegistry({ ...fakeGame, types: [...fakeGame.types, spark] });
+
+  it("are left out of the scene schema's entity union", () => {
+    const schema = sceneSchemaFor(r);
+    const spawned = { ...game, entities: [{ id: "s", type: "spark", at: [1, 1] }] };
+    expect(schema.safeParse(spawned).success).toBe(false);
+    const placed = { ...game, entities: [{ id: "f", type: "flag", at: [1, 1] }] };
+    expect(schema.safeParse(placed).success).toBe(true);
+  });
+
+  it("have no entity schema, but a spawn schema without the scene id", () => {
+    expect(entitySchemaFor(r, "spark")).toBeUndefined();
+    const spawn = spawnSchemaFor(r, "spark")!;
+    expect(spawn.safeParse({ type: "spark", at: [4, 5] }).success).toBe(true);
+    expect(spawn.safeParse({ type: "spark", id: "spark#boss", at: [4, 5] }).success).toBe(true);
+    expect(spawn.safeParse({ type: "spark", at: [4, 5], bogus: 1 }).success).toBe(false);
+    expect(spawn.safeParse({ type: "spark" }).success).toBe(false);
+  });
+
+  it("spawnSchemaFor takes placeable types too, and nothing that never loads", () => {
+    expect(spawnSchemaFor(r, "flag")!.safeParse({ type: "flag", at: [0, 0] }).success).toBe(true);
+    expect(spawnSchemaFor(r, "note")).toBeUndefined();
+    expect(spawnSchemaFor(r, "nope")).toBeUndefined();
   });
 });

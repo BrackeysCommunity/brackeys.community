@@ -49,4 +49,13 @@ describe("Rapier flavour parity on test-yard", () => {
     expect(b.events).toStrictEqual(a.events);
     expect(b.stats).toStrictEqual(a.stats);
   });
+
+  it("has the actor as player#1 under both flavours", () => {
+    for (const report of [probe(standard), probe(compat)]) {
+      expect(report.stats.perType.player).toBe(1);
+      const others = report.events.filter((e) => e.type.startsWith("sensor:")).map((e) => e.other);
+      expect(others.length).toBeGreaterThan(0);
+      expect(new Set(others)).toEqual(new Set(["player#1"]));
+    }
+  });
 });

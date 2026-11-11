@@ -26,6 +26,7 @@ import {
   SHELL_TICKS,
   type SmokeExpected,
 } from "../browser-compare";
+import { CONTACT_FLOOR, CONTACT_TICK, type ContactRead } from "../browser/contact";
 import type { EngineSmokeResult } from "../browser/main";
 import { runSmokeDigest } from "../browser/run";
 
@@ -45,10 +46,13 @@ const free: PhysicsFreeProbe = {
   shellTicks: SHELL_TICKS,
 };
 
+const touched: ContactRead = { tick: CONTACT_TICK, other: CONTACT_FLOOR };
+
 const passed = (
   digest: string,
   render: RenderProbe = drawn,
   physicsFree: PhysicsFreeProbe = free,
+  contact: ContactRead = touched,
 ): EngineSmokeResult => ({
   ok: true,
   flavour: "rapier2d-compat",
@@ -56,6 +60,7 @@ const passed = (
   digest,
   render,
   physicsFree,
+  contact,
   userAgent: "test-agent",
 });
 
@@ -75,6 +80,7 @@ describe("judgeResult", () => {
       userAgent: "test-agent",
       render: drawn,
       physicsFree: free,
+      contact: touched,
     });
   });
 
@@ -132,6 +138,24 @@ describe("judgeResult", () => {
     const { physicsFree: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
     const none = judgeResult("chromium", bare as unknown as EngineSmokeResult, want("abc"));
     expect(none).toMatchObject({ status: "fail", reason: "the page ran no physics-free run" });
+  });
+
+  it("fails a page whose contact read started on another tick, or ran none", () => {
+    const late = judgeResult(
+      "firefox",
+      passed("abc", drawn, free, { ...touched, tick: CONTACT_TICK + 2 }),
+      want("abc"),
+    );
+    expect(late).toMatchObject({
+      status: "fail",
+      reason: expect.stringContaining(`tick ${CONTACT_TICK + 2}`),
+      contact: { tick: CONTACT_TICK + 2 },
+    });
+    const missed = judgeResult("webkit", passed("abc", drawn, free, null), want("abc"));
+    expect(missed).toMatchObject({ status: "fail", reason: expect.stringContaining("no contact") });
+    const { contact: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
+    const none = judgeResult("chromium", bare as unknown as EngineSmokeResult, want("abc"));
+    expect(none).toMatchObject({ status: "fail", reason: "the page ran no contact read" });
   });
 });
 

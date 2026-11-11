@@ -29,6 +29,7 @@ import type { EditorProjectLink } from "../session/use-scene-editor";
 import { useStoreValue } from "../session/use-store-value";
 import type { SelectedAsset } from "./project-tree/asset-panel";
 import { filesLabel, planImport, type ImportProgress } from "./project-tree/import-files";
+import { ProjectSwitch } from "./project-tree/project-switch";
 import { ProjectTree } from "./project-tree/project-tree";
 import type { DeleteRefused, ProjectTreeProps } from "./project-tree/types";
 
@@ -228,7 +229,8 @@ function openKey(view: ProjectView, sceneDoc: string, prefab: string | undefined
  * files), each a pending task the tree shows on its row. Until the project
  * doc holds the server's state the tree shows its loading skeleton. Picking
  * an asset puts it in `selected`, for the inspector; asset and atlas frame
- * rows drag onto the scene canvas to place them.
+ * rows drag onto the scene canvas to place them. When the host offers more
+ * than one project, a switcher above the tree opens another.
  */
 export function EditorProject({
   project,
@@ -243,7 +245,7 @@ export function EditorProject({
   /** Where announcements, imports and failed edits are reported. */
   notify: EditorNotify;
 }) {
-  const { session, doc, blobs, readOnly = false } = project;
+  const { session, doc, blobs, readOnly = false, projects, onProjectChange } = project;
   const view = useProjectView(session);
   const peersByDoc = useProjectPeers(session);
   useProjectAnnouncements(session, doc, notify);
@@ -287,6 +289,17 @@ export function EditorProject({
     <ProjectTree
       projectId={session.project}
       projectName={view.state.meta.name || session.project}
+      {...(projects && projects.length > 1 && onProjectChange
+        ? {
+            head: (
+              <ProjectSwitch
+                current={session.project}
+                projects={projects}
+                onChange={onProjectChange}
+              />
+            ),
+          }
+        : {})}
       nodes={nodes}
       trash={view.deleted}
       peersByDoc={peersByDoc}

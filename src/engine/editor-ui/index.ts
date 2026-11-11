@@ -14,6 +14,7 @@ export type {
   EditorHost,
   EditorIdentityInput,
   EditorNotify,
+  EditorProjectChoice,
   EditorStorage,
   MintProjectToken,
   NotifyOptions,
@@ -23,6 +24,7 @@ export type {
   ProjectConnectionState,
   ProjectConnectionStatus,
   ProjectTokenRequest,
+  SceneHome,
 } from "./host";
 export type { CloseReason, ProjectSocket, ProjectTokenAnswer, ProjectTransport } from "./host";
 

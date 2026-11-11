@@ -15,7 +15,17 @@ export type {
   StepEvent,
   StepResult,
 } from "../runtime/types";
-export { SENSOR_ENTER, SENSOR_EXIT } from "../runtime/types";
+export {
+  CONTACT_END,
+  CONTACT_START,
+  ENTITY_DESTROYED,
+  ENTITY_DISABLED,
+  ENTITY_ENABLED,
+  ENTITY_SPAWNED,
+  SENSOR_ENTER,
+  SENSOR_EXIT,
+} from "../runtime/types";
+export { defaultSeed } from "../runtime/seed";
 export type { RapierModule } from "../types";
 export type { ProjectRuntimeView } from "../project/runtime-view";
 export { assetInfo, type AssetInfo } from "../project/asset-info";
@@ -28,8 +38,8 @@ export {
 } from "./load";
 export { SnapshotError, type ProjectSnapshot } from "../project/snapshot";
 export { compileInputScript, heldEdges } from "./compile-input-script";
-export { preparePlay, type PreparedPlay } from "../runtime/play-session";
-export { runPlaytest } from "./playtest";
+export { playWorld, preparePlay, type PreparedPlay } from "../runtime/play-session";
+export { runPlaytest, untilHolds, type PlaytestHooks } from "./playtest";
 export {
   recordingDivergence,
   replayRecording,
@@ -53,7 +63,7 @@ export {
   type RunRecording,
 } from "../scene/recording-schema";
 export { defaultFuzzMacro, fuzz } from "./fuzz";
-export { STUCK_PX, STUCK_TICKS } from "./play-loop";
+export { runBlocked, STUCK_PX, STUCK_TICKS } from "./play-loop";
 export {
   physicalEnv,
   runPhysicalChecks,

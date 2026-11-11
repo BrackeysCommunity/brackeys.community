@@ -1,3 +1,5 @@
+import { isPolygonField } from "../../game/fields";
+import type { Registry } from "../../game/types";
 import { isConvex } from "../../scene/shape-geometry";
 import type { Pt, ShapeObj } from "../../scene/types";
 import { pathBatch } from "../gizmos/batch";
@@ -13,7 +15,7 @@ import {
   type ToolModifiers,
   type ToolOverlay,
 } from "../tools";
-import { DEFAULT_DRAW_TYPE, drawBatch } from "./draw";
+import { drawBatch, drawField, drawTypeChoice, fieldTakes } from "./draw";
 
 /** Screen px from the first point that closes a pen stroke. */
 export const CLOSE_PX = 8;
@@ -48,16 +50,41 @@ function segmentText(from: Pt, to: Pt): string {
   return len > 0 ? `${readPoint(to)}  ${readLength(len)}` : readPoint(to);
 }
 
+/** What the shape field a stroke fills takes. */
+export type StrokeFit = {
+  /** Chains, open or closed. */
+  chain: boolean;
+  /** Concave polys (a `polygonField`). */
+  concavePoly: boolean;
+};
+
+const ANY_STROKE: StrokeFit = { chain: true, concavePoly: false };
+
+/** What `type`'s shape field takes; nothing for a type with none. */
+export function strokeFit(registry: Registry, type: string): StrokeFit {
+  const target = drawField(registry, type);
+  if (!target) return { chain: false, concavePoly: false };
+  return {
+    chain: fieldTakes(target.schema, ["chain", 0, 0, 16, 0]),
+    concavePoly: isPolygonField(target.schema),
+  };
+}
+
 /**
  * The shape a finished pen stroke makes: an open chain, or when closed on
- * its first point a poly if convex and a closed chain (its first point
- * repeated at the end) if not.
+ * its first point a poly if convex. A concave closed stroke stays a poly
+ * where the field takes concave polys, else becomes a closed chain (its
+ * first point repeated at the end) where it takes chains, else stays a
+ * poly for validation to judge.
  */
-export function strokeShape(pts: readonly Pt[], closed: boolean): ShapeObj {
+export function strokeShape(
+  pts: readonly Pt[],
+  closed: boolean,
+  fit: StrokeFit = ANY_STROKE,
+): ShapeObj {
   if (!closed) return { type: "chain", pts: [...pts] };
-  return isConvex(pts)
-    ? { type: "poly", pts: [...pts] }
-    : { type: "chain", pts: [...pts, pts[0]!] };
+  if (isConvex(pts) || fit.concavePoly || !fit.chain) return { type: "poly", pts: [...pts] };
+  return { type: "chain", pts: [...pts, pts[0]!] };
 }
 
 type StrokeOptions = {
@@ -181,24 +208,45 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
   };
 }
 
-/** The pen (`P`): a stroke of clicks becomes one solid chain or poly. */
+/**
+ * The pen (`P`): a stroke of clicks becomes one chain or poly of the picked
+ * type (`type:<name>`, offered in the overlay's `option`; default `solid`).
+ * For a type that takes no chain, an open stroke of three points or more
+ * closes, and a shorter one adds nothing.
+ */
 export function createPenTool(opts: { type?: string } = {}) {
-  const type = opts.type ?? DEFAULT_DRAW_TYPE;
   return defineEditorTool({
     id: "pen",
     label: "Pen",
     description:
       "Click to add points; Shift locks to 45°, Backspace removes the last, Enter finishes, clicking the first point closes the shape.",
     create(ctx) {
-      return strokeTool(ctx, {
+      const choice = drawTypeChoice(ctx, "pen", opts.type);
+      const tool = strokeTool(ctx, {
         closable: true,
         minPoints: 2,
         numbered: false,
         finish(pts, closed) {
-          const out = drawBatch(ctx.getDoc(), ctx.registry, type, strokeShape(pts, closed), "Pen");
+          const type = choice.type();
+          const fit = strokeFit(ctx.registry, type);
+          if (!closed && !fit.chain) {
+            if (pts.length < 3) return;
+            closed = true;
+          }
+          const shape = strokeShape(pts, closed, fit);
+          const out = drawBatch(ctx.getDoc(), ctx.registry, type, shape, "Pen");
           if (out) ctx.commit(out.batch, { selectionAfter: [out.select] });
         },
       });
+      return {
+        ...tool,
+        command: (command) => choice.command(command),
+        overlay(): ToolOverlay {
+          const own = tool.overlay?.() ?? {};
+          const option = choice.option();
+          return option ? { ...own, option } : own;
+        },
+      };
     },
   });
 }

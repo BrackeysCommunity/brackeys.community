@@ -22,6 +22,7 @@ import {
   type BehaviorName,
   type RegisteredBehavior,
 } from "./behaviors";
+import { LIFETIME } from "./behaviors/lifetime";
 import { OCCUPANT } from "./behaviors/occupant";
 import { SPRITE } from "./behaviors/sprite";
 import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
@@ -129,7 +130,7 @@ export type CreateRegistryOptions = {
 const noAssets: FieldEnv["assets"] = () => [];
 
 /** The engine's own behaviors, registered before a game's. */
-export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([SPRITE, OCCUPANT]);
+export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([SPRITE, OCCUPANT, LIFETIME]);
 
 /** A behavior's own field defaults: each field whose schema parses `undefined` to a value. */
 function shapeDefaults(shape: z.ZodRawShape): Record<string, unknown> {
@@ -291,11 +292,25 @@ function checkTime(time: TimeModel, problem: (msg: string) => void): void {
 }
 
 /**
+ * Whether `type` is registered spawn-only: it loads and `ctx.spawn` makes
+ * it, but no scene, prefab or op may place it.
+ */
+export function isSpawnOnly(registry: Registry, type: EntityTypeName): boolean {
+  return registry.types.get(type)?.spawnOnly === true;
+}
+
+/** The types a scene, prefab or op may place, in registration order: every type but the spawn-only ones. */
+export function placeableTypes(registry: Registry): EntityTypeName[] {
+  return registry.typeNames.filter((t) => !isSpawnOnly(registry, t));
+}
+
+/**
  * Merges the engine's primitives with a game's types, materials, actions,
  * collision groups and issue codes, and the project's materials over the
  * game's, and the engine's behaviors then the game's. Throws
  * `RegistryError` listing every problem: duplicate or reserved names, bulk
- * keys or codes, a type without a system, a spawn order that misses or
+ * keys or codes, a type without a system, a spawn-only type that never
+ * loads or has a bulk form, a spawn order that misses or
  * repeats a type, unknown groups, a game behavior outside the game's
  * namespace, behavior rules naming unknown behaviors or failing their
  * schemas, a grid field without a point `at`, a `time.rate` the clock can't run
@@ -422,6 +437,10 @@ export function createRegistry(
     const loads = def.loads !== false;
     if (origin !== ENGINE_REGISTRY_ID && loads && !def.system && !def.base) {
       problem(`type "${name}" loads but has neither a system nor a base primitive`);
+    }
+    if (def.spawnOnly) {
+      if (!loads) problem(`type "${name}" is spawn-only but never loads`);
+      if (def.bulk) problem(`type "${name}" is spawn-only and can't have a bulk form`);
     }
     if (def.base) {
       if (!isPrimitive(def.base) || def.base === ("note" as BasePrimitive)) {

@@ -207,6 +207,31 @@ describe("the inspector's label column", () => {
     );
     vi.restoreAllMocks();
   });
+
+  it("widens to fit its longest title, up to 45% of the panel", () => {
+    const resize = observeWidths();
+    let titleWidth = 0;
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollWidth")!;
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return this.classList.contains("je-insp-field-title")
+          ? titleWidth
+          : (original.get!.call(this) as number);
+      },
+    );
+    titleWidth = 87.4;
+    render(<EditorInspector session={sessionOf(["plank"])} />);
+    const panel = screen.getByLabelText("Inspector");
+    const column = () => panel.style.getPropertyValue("--je-label-col");
+    resize(250);
+    expect(column()).toBe("88px");
+    resize(180);
+    expect(column()).toBe("81px");
+    titleWidth = 40;
+    resize(320);
+    expect(column()).toBe("96px");
+    vi.restoreAllMocks();
+  });
 });
 
 describe("the inspector with nothing selected", () => {

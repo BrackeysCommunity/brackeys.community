@@ -25,8 +25,10 @@ function merged(structural: readonly SceneIssue[], physical: readonly SceneIssue
 /**
  * The scene's problems by severity: the session's structural issues and the
  * physical ones passed in. A row is one line (two when its message needs
- * them) of icon, message and code, its hint on hover; it selects and frames
- * what it names, and **Fix** applies the issue's own repair as one batch.
+ * them) of icon, message and code, its hint on hover; in a narrow panel the
+ * code moves to a line of its own under the message. A row selects and
+ * frames what it names, and **Fix** applies the issue's own repair as one
+ * batch.
  */
 export function ProblemsPanel({
   session,
@@ -56,7 +58,7 @@ export function ProblemsPanel({
   };
 
   return (
-    <section aria-label="Problems" className="je-scene-panel">
+    <section aria-label="Problems" className="je-scene-panel je-problems">
       {rows.length === 0 ? (
         <Text as="p" size="xs" variant="muted" className="je-scene-panel-empty">
           No problems found.

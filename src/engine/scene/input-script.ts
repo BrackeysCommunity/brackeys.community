@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import { resolveTime } from "../game/time";
-import { ENGINE_PREDICATES, type GameCommand, type Registry } from "../game/types";
+import {
+  ENGINE_PREDICATES,
+  type EntitySelector,
+  type GameCommand,
+  type Registry,
+} from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { closest } from "./did-you-mean";
 import { schemaIdFor, toJsonSchema } from "./json-schema";
@@ -26,6 +31,12 @@ const seconds = (ticks: number, rate: number) => `${Math.round((ticks / rate) * 
 export function elapsedCommand(ms: number, catchUp: { maxMs: number }): GameCommand {
   return { name: "@elapsed", args: { ms: Math.floor(Math.min(ms, catchUp.maxMs)) } };
 }
+
+/** The `exists` predicate: an id, holding while it exists and is enabled; `enabled: false` holds for a disabled one too. */
+export type ExistsMatch = string | { id: string; enabled?: false };
+
+/** The `count` predicate: an entity selector, and the bounds the number it matches must keep. */
+export type CountMatch = EntitySelector & { min?: number; max?: number; eq?: number };
 
 export type CheckedCommand =
   | { ok: true; command: GameCommand }
@@ -77,6 +88,88 @@ export function scriptCommandNames(registry: Registry): string[] {
   return registry.commandNames.filter((n) => !n.startsWith("@"));
 }
 
+const COUNT_BOUNDS = ["min", "max", "eq"] as const;
+
+/** The engine's `exists` and `count` predicates, over `registry`'s entity types. */
+function worldPredicates(registry: Registry) {
+  const names = registry.typeNames;
+  const typeName = (names.length > 0 ? z.enum(names as [string, ...string[]]) : z.never())
+    .describe(
+      names.length > 0
+        ? `An entity type: ${names.join(", ")}.`
+        : "An entity type; this registry has none.",
+    )
+    .meta({ id: "EntityType" });
+  /** "unknown entity type" with a guess, for the first name in `input` the registry lacks. */
+  const unknownType = (input: unknown): string | undefined => {
+    const list = Array.isArray(input) ? (input as unknown[]) : [input];
+    const bad = list.find((t) => typeof t === "string" && !names.includes(t));
+    if (typeof bad !== "string") return undefined;
+    const guess = closest(bad, names);
+    return `unknown entity type ${JSON.stringify(bad)}${guess ? `; did you mean "${guess}"?` : ""}`;
+  };
+  const bound = (description: string) => z.number().int().min(0).optional().describe(description);
+
+  const exists: z.ZodType<ExistsMatch> = z
+    .union([
+      z.string().min(1).describe("An entity id; holds while it exists and is enabled."),
+      z
+        .strictObject({
+          id: z.string().min(1).describe("The entity id, e.g. `boss#1`."),
+          enabled: z
+            .literal(false)
+            .optional()
+            .describe("False holds while the entity exists, enabled or not."),
+        })
+        .describe("An entity id, and whether a disabled entity counts."),
+    ])
+    .describe(
+      "Holds while an entity exists and is enabled, spawned ids (`boss#1`) included; it fails once the entity is destroyed.",
+    )
+    .meta({ id: "ExistsMatch" });
+
+  const count = z
+    .strictObject({
+      type: z
+        .union([typeName, z.array(typeName).min(1)], { error: (iss) => unknownType(iss.input) })
+        .optional()
+        .describe("Only entities of this type, or of any of these."),
+      tag: z.string().min(1).optional().describe("Only entities with this tag."),
+      enabled: z
+        .boolean()
+        .optional()
+        .describe("Default true: only enabled entities; false counts disabled ones too."),
+      min: bound("Holds when at least this many match."),
+      max: bound("Holds when at most this many match."),
+      eq: bound("Holds when exactly this many match."),
+    })
+    .superRefine((c, ctx) => {
+      if (COUNT_BOUNDS.every((k) => c[k] === undefined)) {
+        ctx.addIssue({ code: "custom", message: "a count needs min, max or eq" });
+      } else if (c.eq !== undefined && (c.min !== undefined || c.max !== undefined)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["eq"],
+          message: "eq goes alone, without min or max",
+        });
+      } else if (c.min !== undefined && c.max !== undefined && c.min > c.max) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["min"],
+          message: `min ${c.min} is over max ${c.max}`,
+        });
+      }
+    })
+    .meta({ anyOf: COUNT_BOUNDS.map((k) => ({ required: [k] })) })
+    .describe(
+      "Holds while the number of entities matching the selector (type, tag, enabled) keeps the bounds: `min`, `max` (both for a range) or `eq`.",
+    )
+    .meta({ id: "CountMatch" });
+  const checked: z.ZodType<CountMatch> = count;
+
+  return { exists, count: checked, countKeys: Object.keys(count.shape) };
+}
+
 function buildInputScriptSchemas(registry: Registry) {
   const names = registry.actionNames;
   const { rate, kind, catchUp } = resolveTime({ game: registry.time });
@@ -113,6 +206,8 @@ function buildInputScriptSchemas(registry: Registry) {
     .describe("Holds on a tick that raised a matching event.")
     .meta({ id: "EventMatch" });
 
+  const { exists, count, countKeys } = worldPredicates(registry);
+
   const predicates = registry.game?.play?.predicates ?? {};
   const until = z
     .strictObject({
@@ -124,6 +219,8 @@ function buildInputScriptSchemas(registry: Registry) {
         .max(MAX_SCRIPT_TICKS)
         .optional()
         .describe("Holds once this absolute tick (from 0) is reached or passed."),
+      exists: exists.optional(),
+      count: count.optional(),
       ...Object.fromEntries(
         Object.entries(predicates).map(([name, p]) => [
           name,
@@ -259,6 +356,12 @@ function buildInputScriptSchemas(registry: Registry) {
             .describe("The game's play options, as its `play.options` schema defines them."),
         }
       : {}),
+    seed: z
+      .union([z.number(), z.string()])
+      .optional()
+      .describe(
+        "Seeds the game's `ctx.random` for the run; omitted, the default for the game and scene, the same every run.",
+      ),
     maxTicks: ticks(
       `The run ends as \`timeout\` after this many ticks (default ${DEFAULT_SCRIPT_MAX_TICKS}, ${seconds(DEFAULT_SCRIPT_MAX_TICKS, rate)}).`,
     ).optional(),
@@ -286,6 +389,10 @@ function buildInputScriptSchemas(registry: Registry) {
     head,
     steps: { holdFor, holdForMs, holdUntil, press, wait, command, elapse },
     until,
+    exists,
+    count,
+    /** The keys a `count` predicate takes, for "did you mean". */
+    countKeys,
   };
 }
 

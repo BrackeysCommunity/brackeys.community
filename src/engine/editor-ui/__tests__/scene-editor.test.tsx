@@ -15,7 +15,7 @@ import { defineGame } from "../../game/index";
 import type { GameInstance } from "../../index";
 import { createKindRegistry, type AssetEntry } from "../../project/index";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/index";
-import type { EditorHost, ProjectConnection, ProjectConnectionState } from "../host";
+import type { EditorHost, EditorNotify, ProjectConnection, ProjectConnectionState } from "../host";
 import { mountSceneEditor, SceneEditor, type SceneEditorHandle } from "../index";
 
 // jsdom has no WebGL, so the Pixi application is a stand-in; the containers are real.
@@ -157,6 +157,15 @@ function fakeProject() {
 }
 
 const rapier = () => import("@dimforge/rapier2d");
+
+const fakeNotify = () =>
+  Object.assign(vi.fn(), {
+    success: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  }) satisfies EditorNotify;
+
+const cameraOf = (game: unknown) => (game as GameInstance).getStore().state.camera;
 
 const outliner = () => within(screen.getByRole("navigation", { name: "Outliner" }));
 
@@ -304,6 +313,150 @@ describe("SceneEditor", () => {
     );
     await waitFor(() => expect(onSceneChange).toHaveBeenCalledWith("yard"), { timeout: 10_000 });
   }, 20_000);
+
+  it("names the scene that opened instead, not its id, and the project it's in", async () => {
+    const { host } = fakeProject();
+    const notify = fakeNotify();
+    render(
+      <SceneEditor
+        host={{ ...host, notify, onSceneChange: vi.fn() }}
+        game={yardGame}
+        project="p"
+        scene="nowhere"
+        rapier={rapier}
+      />,
+    );
+    await waitFor(() => expect(notify.warning).toHaveBeenCalled(), { timeout: 10_000 });
+    expect(notify.warning).toHaveBeenCalledWith('There\'s no scene "nowhere" in P', {
+      id: "scene-fallback",
+      description: "yard opened instead.",
+    });
+  }, 20_000);
+
+  it("points to the project that holds the scene asked for, by the host's names", async () => {
+    const { host } = fakeProject();
+    const notify = fakeNotify();
+    const findScene = vi.fn(async () => ({ project: "e", id: "8a1f0c2d", name: "kitchen-sink" }));
+    render(
+      <SceneEditor
+        host={{
+          ...host,
+          notify,
+          findScene,
+          projects: [
+            { id: "p", name: "P" },
+            { id: "e", name: "Engine" },
+          ],
+        }}
+        game={yardGame}
+        project="p"
+        scene="8a1f0c2d"
+        rapier={rapier}
+      />,
+    );
+    await waitFor(() => expect(notify.warning).toHaveBeenCalled(), { timeout: 10_000 });
+    expect(findScene).toHaveBeenCalledWith("8a1f0c2d");
+    expect(notify.warning).toHaveBeenCalledWith('There\'s no scene "kitchen-sink" in P', {
+      id: "scene-fallback",
+      description:
+        "It's in Engine: switch to that project in the Project panel. yard opened instead.",
+    });
+  }, 20_000);
+
+  it("opens a scene asked for by name with no notice", async () => {
+    const { host } = fakeProject();
+    const notify = fakeNotify();
+    const onSceneChange = vi.fn();
+    render(
+      <SceneEditor
+        host={{ ...host, notify, onSceneChange }}
+        game={yardGame}
+        project="p"
+        scene="yard"
+        rapier={rapier}
+      />,
+    );
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    expect(notify.warning).not.toHaveBeenCalled();
+    expect(onSceneChange).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("offers the host's projects in the Project panel and hands the pick to the host", async () => {
+    const { host } = fakeProject();
+    const onProjectChange = vi.fn();
+    render(
+      <SceneEditor
+        host={{
+          ...host,
+          projects: [
+            { id: "p", name: "P" },
+            { id: "e", name: "Engine" },
+          ],
+          onProjectChange,
+        }}
+        game={yardGame}
+        project="p"
+        scene="yard"
+        rapier={rapier}
+      />,
+    );
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    fireEvent.click(screen.getByRole("tab", { name: /Project/ }));
+    const trigger = await waitFor(() => screen.getByRole("combobox", { name: "Open project" }));
+    fireEvent.click(trigger);
+    const engine = await waitFor(() => screen.getByRole("option", { name: "Engine" }));
+    fireEvent.mouseMove(engine);
+    fireEvent.click(engine);
+    await waitFor(() => expect(onProjectChange).toHaveBeenCalledWith("e"));
+  }, 20_000);
+
+  it("keeps the edit camera through a rebuild of the game", async () => {
+    const { host } = fakeProject();
+    const props = { host, project: "p", scene: "yard", rapier };
+    const view = render(<SceneEditor game={yardGame} {...props} />);
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    const first = games.made.at(-1)!.game as GameInstance;
+    act(() => {
+      first.zoomAt({ x: 0, y: 0 }, 1.5);
+      first.panBy({ x: -90, y: 60 });
+    });
+    const edited = cameraOf(first);
+
+    view.rerender(<SceneEditor game={defineGame({ ...yardGame })} {...props} />);
+    await waitFor(() => expect(games.made).toHaveLength(2), { timeout: 10_000 });
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    const rebuilt = cameraOf(games.made.at(-1)!.game);
+    expect(rebuilt.zoom).toBeCloseTo(edited.zoom, 6);
+    expect(rebuilt.position.x).toBeCloseTo(edited.position.x, 6);
+    expect(rebuilt.position.y).toBeCloseTo(edited.position.y, 6);
+  }, 30_000);
+
+  it("returns to the edit camera after Play and Stop, through the rebuild Stop lets in", async () => {
+    const { host } = fakeProject();
+    const props = { host, project: "p", scene: "yard", rapier };
+    const view = render(<SceneEditor game={yardGame} {...props} />);
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    const first = games.made.at(-1)!.game as GameInstance;
+    act(() => {
+      first.zoomAt({ x: 0, y: 0 }, 0.8);
+      first.panBy({ x: 140, y: -30 });
+    });
+    const edited = cameraOf(first);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    await waitFor(() => expect(first.getMode()).toBe("play"));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(first.getMode()).toBe("edit");
+    expect(cameraOf(first).position).toEqual(edited.position);
+
+    view.rerender(<SceneEditor game={defineGame({ ...yardGame })} {...props} />);
+    await waitFor(() => expect(games.made).toHaveLength(2), { timeout: 10_000 });
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    const rebuilt = cameraOf(games.made.at(-1)!.game);
+    expect(rebuilt.zoom).toBeCloseTo(edited.zoom, 6);
+    expect(rebuilt.position.x).toBeCloseTo(edited.position.x, 6);
+    expect(rebuilt.position.y).toBeCloseTo(edited.position.y, 6);
+  }, 30_000);
 
   it("keeps the scene doc open when the host's route follows the fallback", async () => {
     const { host, connections } = fakeProject();

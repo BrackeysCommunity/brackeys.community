@@ -83,6 +83,19 @@ export function recordedCommand(tick: number, command: GameCommand): RecordingCo
     : [tick, command.name, structuredClone(command.args)];
 }
 
+/**
+ * The play options a recording's `start` asks for, so a replay starts the
+ * world the same way. `game` is passed through unparsed.
+ */
+export function recordingStart(start: RunRecording["start"]): PlayOptions {
+  const play: PlayOptions = {};
+  if (start.at) play.at = { x: start.at[0], y: start.at[1] };
+  if (start.timeOffsetMs !== undefined) play.timeOffsetMs = start.timeOffsetMs;
+  if (start.game !== undefined) play.game = start.game;
+  if (start.seed !== undefined) play.seed = start.seed;
+  return play;
+}
+
 /** A digest of the game's snapshot, which a replay must reproduce. */
 export function snapshotDigest(snapshot: unknown): string {
   return hashText(JSON.stringify(snapshot ?? null));
@@ -123,6 +136,17 @@ export type RunRecorder = {
   finish(end: RecordingEnd, final: unknown): RunRecording;
 };
 
+/** Lifecycle events, which a game spawning bullets raises by the thousand, mark only when named. */
+const LIFECYCLE_PREFIX = "entity:";
+
+/**
+ * Whether a recording keeps an event of `type` as a marker: the types
+ * `play.markers` names; without that list, every type but `entity:*`.
+ */
+function marksEvent(type: string, markers: ReadonlySet<string> | null): boolean {
+  return markers ? markers.has(type) : !type.startsWith(LIFECYCLE_PREFIX);
+}
+
 export function createRunRecorder(opts: RecorderOptions): RunRecorder {
   const { game } = opts;
   const time = opts.time ?? gameTime(game);
@@ -143,6 +167,7 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
   if (opts.start.at) start.at = [opts.start.at.x, opts.start.at.y];
   if (opts.start.timeOffsetMs) start.timeOffsetMs = opts.start.timeOffsetMs;
   if (opts.start.game !== undefined) start.game = structuredClone(opts.start.game);
+  if (opts.start.seed !== undefined) start.seed = opts.start.seed;
 
   function actionIndex(name: string): number {
     let i = index.get(name);
@@ -159,7 +184,7 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
       for (const [t, action, pressed] of edges) inputs.push([t, actionIndex(action), pressed]);
       for (const c of stepped) commands.push(recordedCommand(state.tick, c));
       for (const e of state.events) {
-        if (marks && !marks.has(e.type)) continue;
+        if (!marksEvent(e.type, marks)) continue;
         if (markers.length >= maxMarkers) break;
         const m: RecordingMarker = { tick: e.tick, type: e.type, at: trailPoint(e.at) };
         if (e.entityId !== undefined) m.entityId = e.entityId;

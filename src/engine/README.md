@@ -299,13 +299,20 @@ if (!coverage.blocked) {
 
 - A script step names everything held during it (`hold`, `press`, `wait`)
   and lasts `for` ticks, `forMs`, or `until` every key of a clause holds:
-  the engine's `event` and `tick`, or a predicate the game declares in
-  `play.predicates`. `compileInputScript` checks a script and turns it into
-  `[tick, action, pressed]` edges; `inputScriptJsonSchema(registry)`
+  the engine's `event`, `tick`, `exists` (`"boss#1"` exists and is
+  enabled; `{ id, enabled: false }` exists at all) and `count` (a selector
+  plus `min`, `max` or `eq`: `{ "type": "enemy", "max": 0 }`), or a
+  predicate the game declares in `play.predicates`. A script's `seed`
+  seeds `ctx.random`. `compileInputScript` checks a script and turns it
+  into `[tick, action, pressed]` edges; `inputScriptJsonSchema(registry)`
   describes a game's scripts.
 - The outcome comes from the game's `play.outcome`; otherwise a run ends as
   `timeout`, `script-end`, or `stuck` (under 4px of movement over 120 ticks
-  while one of the game's `play.movementActions` is held).
+  while one of the game's `play.movementActions` is held). An
+  `EngineError` thrown out of a step (a bad spawn id, a prefab it can't
+  place) ends the run `blocked` at stage `"run"`, its code on the issue.
+- Reports carry every step event, the lifecycle and contact ones included;
+  `fuzz` counts only scene entities as `touched`, never a runtime `#` id.
 - The same seed gives the same fuzz report, apart from `timing`.
 
 ### Recordings and replay
@@ -314,7 +321,8 @@ Every playtest's report carries a `recording`, and every Play in the
 browser makes one (`GameInstance.recording()`, the `play:recorded` event):
 how the world started, each input edge as `[tick, actionIndex, pressed]`
 against an `actions` name table, the focus trail every 4 ticks, the game's
-markers (`play.markers`, or every event), the outcome and `end`, a digest of
+markers (`play.markers`, or every event but `entity:*`), the run's
+`start.seed` when it was given one, the outcome and `end`, a digest of
 the game's snapshot after the last tick. `replayRecording({ rapier, game,
 scene, recording })` steps the same edges on the same ticks and reports
 whether the run `matches` (same result, ticks and end digest) or how it
@@ -347,7 +355,9 @@ either backend; touching isn't overlapping.
 A `<scene>.checks.json` beside a scene lists what must stay true of it,
 outside the scene's hash; `runChecks` runs it. The engine's kinds are
 `valid` (no issues at or above a severity, optionally physical),
-`reaches` (an input script ends in a given result), `touches` (fuzz
+`reaches` (an input script ends in a given result, and its `expect`, an
+`until` clause such as `{ "count": { "type": "drop", "eq": 0 } }`, holds on
+the last tick), `touches` (fuzz
 reaches an entity in at least N rollouts) and `connected` (cells or
 entities reach each other on the grid; see
 [Grids at runtime](#grids-at-runtime)); a game adds `<id>/<kind>` kinds
@@ -1287,11 +1297,12 @@ the message; a hosted project picks up new art when a scene next loads.
   updates each block that changed, attaches the new ones and detaches the
   removed ones; a system without `update` is detached and attached again.
   A behavior that throws on attach rolls the whole call back, as a type
-  system's failed spawn does. Each tick runs the type systems'
-  `beforeStep`, the game's `beforeStep`, the physics step, the type
-  systems' `afterStep`, each behavior's `step`, then the game's
-  `afterStep` (so the game sees what behaviors did), then the sprites'
-  re-pose (so a pose the game wrote draws this tick), then `view.commit`.
+  system's failed spawn does. Each behavior's `step` runs after the type
+  systems' `afterStep` and the contacts, before the timers and the game's
+  `afterStep` (so the game sees what behaviors did); after the tick the
+  sprites re-pose (so a pose the game wrote draws this tick), then
+  `view.commit`. [Entity lifecycle](#entity-lifecycle) has the whole tick
+  order, and `ready`, `disable` and `enable`.
   `reset` and `seek` reach behaviors as they reach type systems, and
   `stats().behaviors` counts attachments per behavior.
 - **`ctx.behavior(name)`** gives a behavior's system, as `system(type)`
@@ -2183,6 +2194,721 @@ export function walkAround() {
 }
 ```
 
+## Entity lifecycle
+
+A scene's entities are only where a run starts: game code spawns,
+destroys, enables and disables entities while it runs, and every one it
+makes is a real entity, in its type's system, the pose index, the entity
+table, queries and events alike.
+
+- **Hooks.** `SceneSystem` and `BehaviorSystem` both have three optional
+  members. `ready(ids)` runs once a batch of entities has spawned and its
+  behaviors attached (a load's, a spawn's, a placed prefab's), with the
+  batch's ids of that type, or carrying that behavior, in spawn order: the
+  place to wire entities to each other, since all of them exist. `disable(id)`
+  stops simulating an entity and keeps its state (colliders out of queries,
+  visuals removed); `enable(id)` resumes it.
+- **Enable and disable.** `ctx.setEnabled(id, on)` is immediate.
+  Disabling runs the behaviors' `disable` in reverse registration order,
+  then the type system's, takes the entity out of queries and contacts,
+  pauses the timers it owns and raises `entity:disabled`; enabling runs the
+  same in the opposite order and raises `entity:enabled`.
+  `ctx.enabled(id)` is false for a disabled entity and for one that doesn't
+  exist; `ctx.exists(id)` and `ctx.get(id)` see disabled ones too.
+- **The fallbacks.** A type system without `disable` has the entity
+  despawned, its record and pose kept, and spawned again from the record
+  at its spawn pose on enable (so its state resets). A behavior without
+  `disable` is detached, and attached again on enable. The primitives
+  have their own: `solid`, `sensor` and `prop` switch their bodies and
+  colliders off (on Rapier or the geometry backend); a disabled sensor
+  forgets what was inside without raising exits and raises enters on
+  enable for what is inside then; a disabled `follower` keeps its path
+  clock running, posts no poses, and snaps to its current point on
+  enable; `marker`, `decor` and `nav` keep their record as it is.
+- **Load order.** Every scene entity spawns in spawn-group order, each
+  one's behaviors attaching right after it; then the systems' `ready` in
+  spawn-group order and the behaviors' `ready` in registration order; then
+  Play's `timeOffsetMs` seek (systems, behaviors, then timers, with
+  `ctx.seeking` true); then the game's `onLoad`. Timers made in `ready`
+  are sought with the rest; timers made in `onLoad` start at tick 0.
+- **The tick order.** Each `step` runs: the type systems' `beforeStep`
+  (spawn order); the game's `beforeStep` with the tick's actions and
+  commands; the physics step; the type systems' `afterStep` (sensors raise
+  their enters and exits here); contacts, for the pairs the game watches;
+  each behavior's `step`; the timers that fall due; the **first dispatch**,
+  delivering every event raised so far this tick to its subscribers; the
+  game's `afterStep` with the tick's events; the **flush** of the tick's
+  destroys; the **second dispatch**, delivering what `afterStep` and the
+  flush raised. Then sprites re-pose and the view commits.
+- **Spawning during a system's iteration.** A spawn is immediate, even
+  inside a system's `afterStep` or an event handler: the new entity is in
+  its system at once, so a `Map` iteration in progress may visit it (it is
+  appended, so it always does or always doesn't: deterministic either
+  way). A destroy inside a step waits for the flush, so a system iterating
+  its entities while game code destroys them sees each one until the end
+  of the tick. Outside a step (in `onLoad`, or from a host) both are
+  immediate and raise no events.
+
+Each hook a lantern's system and its game behavior see, logged in order:
+
+```ts lantern-lifecycle.ts
+import {
+  createRegistry,
+  defineBehavior,
+  defineEntityType,
+  defineGame,
+  ENTITY_DESTROYED,
+  ENTITY_DISABLED,
+  ENTITY_SPAWNED,
+  pointField,
+  type BehaviorSystem,
+  type SceneSystem,
+} from "@jams/engine/game";
+import { createHeadlessRuntime } from "@jams/engine/headless";
+import { expandScene, type SceneDefinition } from "@jams/engine/scene";
+import { z } from "zod";
+
+/** Every hook a lantern's system and its `night/glow` block see, in the order they ran. */
+export function lanternNight(): string[] {
+  const log: string[] = [];
+
+  const lantern = defineEntityType({
+    type: "lantern",
+    description: "A light on a post; its system keeps whether each one is lit.",
+    fields: { at: pointField("Where the post stands.") },
+    system: (): SceneSystem => {
+      const lit = new Map<string, boolean>();
+      return {
+        spawn: (e) => void lit.set(e.id, true),
+        despawn: (id) => void (lit.delete(id) && log.push(`despawn ${id}`)),
+        clear: () => lit.clear(),
+        size: () => lit.size,
+        ready: (ids) => void log.push(`ready lantern ${ids.join(",")}`),
+        // With `disable`, the entity keeps its state; without it the runtime
+        // despawns it and spawns it again from its record on enable.
+        disable: (id) => void (lit.set(id, false), log.push(`disable lantern ${id}`)),
+        enable: (id) => void (lit.set(id, true), log.push(`enable lantern ${id}`)),
+      };
+    },
+  });
+
+  const glow = defineBehavior({
+    name: "night/glow",
+    description: "A halo round a lantern.",
+    fields: { radius: z.number().positive().default(40).describe("Halo radius, px.") },
+    system: (): BehaviorSystem => {
+      const on = new Set<string>();
+      return {
+        attach: (id) => void (on.add(id), log.push(`attach glow ${id}`)),
+        detach: (id) => void on.delete(id),
+        clear: () => on.clear(),
+        size: () => on.size,
+        ready: (ids) => void log.push(`ready glow ${ids.join(",")}`),
+        disable: (id) => void log.push(`disable glow ${id}`),
+        enable: (id) => void log.push(`enable glow ${id}`),
+      };
+    },
+  });
+
+  const night = defineGame({
+    id: "night",
+    types: [lantern],
+    behaviors: [glow],
+    actions: [],
+    commands: {
+      light: { description: "Put up one more lantern." },
+      douse: { description: "Put a lantern out.", args: z.strictObject({ id: z.string() }) },
+      knock: { description: "Knock a lantern down.", args: z.strictObject({ id: z.string() }) },
+    },
+    createRuntime: (ctx) => ({
+      onLoad() {
+        log.push("onLoad");
+        // Subscriptions end at unload, so every load subscribes again here.
+        for (const type of [ENTITY_SPAWNED, ENTITY_DISABLED, ENTITY_DESTROYED])
+          ctx.events.on(type, (e) => void log.push(`${e.type} ${e.entityId}`));
+      },
+      beforeStep(_dtMs, _actions, commands) {
+        for (const c of commands) {
+          const { id } = (c.args ?? {}) as { id?: string };
+          if (c.name === "light")
+            ctx.spawn({ type: "lantern", at: [0, 0], behaviors: { "night/glow": {} } });
+          if (c.name === "douse" && id) ctx.setEnabled(id, false);
+          if (c.name === "knock" && id) {
+            ctx.destroy(id);
+            // Inside a step a destroy waits for the end of the tick.
+            log.push(`${id} exists after destroy: ${ctx.exists(id)}`);
+          }
+        }
+      },
+      snapshot: () => null,
+    }),
+  });
+
+  const registry = createRegistry(night);
+  const lane: SceneDefinition = {
+    v: 3,
+    game: "night",
+    name: "lane",
+    bounds: [0, 0, 200, 100],
+    settings: { physics: "none" },
+    entities: [
+      { id: "west", type: "lantern", at: [20, 50], behaviors: { "night/glow": {} } },
+      { id: "east", type: "lantern", at: [180, 50], behaviors: { "night/glow": { radius: 60 } } },
+    ],
+  };
+  const rt = createHeadlessRuntime({ game: night, registry, scene: expandScene(lane, registry) });
+  rt.step(rt.ctx.time.tickMs, [], [{ name: "light" }, { name: "douse", args: { id: "west" } }]);
+  rt.step(rt.ctx.time.tickMs, [], [{ name: "knock", args: { id: "east" } }]);
+  log.push(`east exists: ${rt.ctx.exists("east")}`);
+  rt.ctx.setEnabled("west", true);
+  rt.destroy();
+  return log;
+}
+```
+
+The log reads `attach glow west`, `attach glow east`, `ready lantern
+west,east`, `ready glow west,east`, `onLoad`; in the first step the spawn
+attaches and readies `lantern#1` at once, `douse` runs `disable glow west`
+then `disable lantern west`, and the first dispatch delivers
+`entity:spawned lantern#1` and `entity:disabled west`; in the second,
+`east` still exists right after `ctx.destroy`, and the flush despawns it
+and raises `entity:destroyed east`. The last `setEnabled`, outside a step,
+runs `enable lantern west` then `enable glow west` and raises nothing.
+
+### Spawning and prefabs at runtime
+
+`ctx.spawn(input)` takes an entity as a scene file writes it (shape
+tuples, `behaviors`, `z`, `layer`) with its `id` optional, and returns it
+live: in its system, posed, its behaviors attached and `ready` run, and
+inside a step an `entity:spawned` event raised. In dev and headless the
+input is checked against the type's schema first. A spawn that throws
+anywhere is undone and rethrown as an `EngineError` with a `code`:
+`spawn-id-invalid`, `unknown-type`, `schema` or `physics-required`. A
+spawn doesn't refresh Rapier's queries; its colliders join them at the
+next physics step.
+
+- **Runtime ids.** Omitted, the id is `<type>#<n>` from a counter per
+  name, starting at 1 and reset at each load (`runtimeId(name, n)`). A
+  type and a prefab of one name share their counter. An explicit id must
+  be `<name>#<label>` for that name (`RUNTIME_ID_PATTERN`) with a label
+  that isn't all digits and isn't live, or the spawn throws
+  `spawn-id-invalid`. `isRuntimeId(id)` (any id with a `#`, an instance's
+  children included) and `parseRuntimeId` tell runtime ids from scene refs:
+  no scene op names one, and `fuzz` never counts one as touched.
+- **Spawn-only types.** A type with `spawnOnly: true` loads and spawns but
+  can't be placed: the scene schema leaves it out, a file that names it is
+  `unknown-type`, and `placeableTypes(registry)` lists the others. A
+  game's actor is usually one, spawned in `onLoad` (as `<type>#1`).
+- **Destroy.** `ctx.destroy(id)` takes an entity id or an instance id,
+  whose live children go in reverse spawn order. At the flush each
+  entity's behaviors detach (reverse registration order), the timers and
+  subscriptions it owns end, its system despawns it, and `entity:destroyed`
+  is raised at its last pose. A handler that destroys another entity
+  during the flush has it flushed in the same pass.
+- **Instantiate.** `ctx.instantiate(prefab, at, opts?)` places a prefab
+  the way a load expands an instance (`expandInstance`, shared with
+  `expandScene`): `rot`, `flip`, `z`, `layer`, `params` and `overrides` as
+  an instance takes them, and `id` as a spawn does. The instance id is
+  `<prefab>#<n>` and its children are `<id>/<child>`, refs between them
+  remapped; each child raises its own `entity:spawned`. The prefabs it
+  resolves are the run's library, read once per load: the shell passes
+  its `setPrefabs` library, the editor's Play the project's, and headless
+  entries `library` (every prefab the game may place; it defaults to
+  `prefabs`, those the scene's instances name). A prefab it can't place
+  throws `prefab-not-spawnable`, its `cause` the reason with its own code:
+  `prefab-unknown`, `prefab-cycle`, `prefab-depth`, `physics-required` or
+  `unknown-type`.
+
+A game whose spouts let drops fall: `drop` is spawn-only, every drop
+carries a `lifetime`, and a `pour` command places a prefab of two more
+spouts:
+
+```ts fountain-game.ts
+import {
+  defineEntityType,
+  defineGame,
+  ENTITY_DESTROYED,
+  pointField,
+  type EngineContext,
+} from "@jams/engine/game";
+import type { Prefab, SceneDefinition } from "@jams/engine/scene";
+import { z } from "zod";
+
+export const DRY = "fountain:dry";
+/** Drops each spout lets fall before the fountain runs dry. */
+export const DROPS = 8;
+
+export type FountainSnapshot = {
+  /** Drops destroyed so far: each `lifetime` ran out. */
+  fell: number;
+  live: number;
+  /** The sum of every drop's sideways jitter, so a seed's draws show in the digest. */
+  jitter: number;
+  dry: boolean;
+};
+
+const spout = defineEntityType({
+  type: "spout",
+  description: "Where drops fall from.",
+  base: "marker",
+  fields: { at: pointField("The spout's mouth, absolute world px.") },
+});
+
+const drop = defineEntityType({
+  type: "drop",
+  description: "A drop of water; game code spawns it, a scene can't place it.",
+  base: "marker",
+  spawnOnly: true,
+  fields: { at: pointField("Where it is.") },
+});
+
+/** Every spout drips a drop each quarter second; each drop lasts a second; then the fountain runs dry. */
+export const fountainGame = defineGame<FountainSnapshot>({
+  id: "fountain",
+  types: [spout, drop],
+  actions: [],
+  world: { physics: "none" },
+  commands: {
+    spill: {
+      description: "Spill one drop under the first spout, with this id when given.",
+      args: z.strictObject({ id: z.string().optional() }),
+    },
+    pour: {
+      description: "Place a prefab of spouts above the basin.",
+      args: z.strictObject({ prefab: z.string() }),
+    },
+  },
+  play: {
+    results: ["dry"],
+    outcome: ({ snapshot }) => (snapshot.dry && snapshot.live === 0 ? { result: "dry" } : null),
+  },
+  createRuntime(ctx: EngineContext) {
+    let snap: FountainSnapshot = { fell: 0, live: 0, jitter: 0, dry: false };
+    // A fork per purpose: drawing more for one never shifts the other's numbers.
+    let drift = ctx.random.fork("drift");
+
+    const fall = (from: string, id?: string) => {
+      const pose = ctx.poses.get(from);
+      if (!pose) return;
+      const dx = drift.range(-6, 6);
+      snap.jitter += dx;
+      ctx.spawn({
+        type: "drop",
+        ...(id ? { id } : {}),
+        at: [pose.x + dx, pose.y + 8],
+        behaviors: { lifetime: { ms: 1000 } },
+      });
+    };
+
+    return {
+      onLoad() {
+        snap = { fell: 0, live: 0, jitter: 0, dry: false };
+        drift = ctx.random.fork("drift");
+        ctx.events.on(ENTITY_DESTROYED, (e) => {
+          if ((e.data as { type?: string } | undefined)?.type === "drop") snap.fell++;
+        });
+        ctx.events.on(DRY, () => void (snap.dry = true));
+        ctx.timers.every({ ms: 250 }, () => ctx.query.byType("spout").forEach((s) => fall(s)), {
+          times: DROPS,
+        });
+        // The emit form: a plain event, so a snapshot of pending timers could save it.
+        ctx.timers.after({ ms: 250 * DROPS + 1000 }, { emit: DRY, data: { drops: DROPS } });
+      },
+      beforeStep(_dtMs, _actions, commands) {
+        for (const c of commands) {
+          if (c.name === "spill") {
+            const first = ctx.query.byType("spout")[0];
+            if (first) fall(first, (c.args as { id?: string }).id);
+          }
+          if (c.name === "pour") {
+            const { prefab } = c.args as { prefab: string };
+            ctx.instantiate(prefab, [ctx.bounds[2] / 2, 16]);
+          }
+        }
+      },
+      snapshot: () => ({ ...snap, live: ctx.query.count({ type: "drop" }) }),
+    };
+  },
+});
+
+/** A basin with one spout over it. */
+export const basin: SceneDefinition = {
+  v: 3,
+  game: "fountain",
+  name: "basin",
+  bounds: [0, 0, 160, 120],
+  entities: [{ id: "spout", type: "spout", at: [80, 40] }],
+};
+
+/** Two spouts side by side, for `pour`. */
+export const twinSpout: Prefab = {
+  kind: "prefab",
+  v: 3,
+  game: "fountain",
+  id: "twin-spout",
+  entities: [
+    { id: "left", type: "spout", at: [-24, 0] },
+    { id: "right", type: "spout", at: [24, 0] },
+  ],
+};
+```
+
+A playtest of it, with a seed and the library `pour` places from, waits
+on the engine's `exists` and `count` predicates (see
+[Playtests and fuzz](#playtests-and-fuzz)), and an `EngineError` thrown
+out of a step ends a run blocked at stage `run` with its code:
+
+```ts fountain-playtest.ts
+import { createRegistry, isRuntimeId } from "@jams/engine/game";
+import {
+  ENTITY_SPAWNED,
+  replayRecording,
+  runPlaytest,
+  type InputScript,
+} from "@jams/engine/headless";
+import { prefabLibrary } from "@jams/engine/scene";
+
+import { basin, fountainGame, twinSpout, type FountainSnapshot } from "./fountain-game";
+
+const registry = createRegistry(fountainGame);
+// Every prefab `ctx.instantiate` may place; the scene's own instances need none.
+const library = prefabLibrary([twinSpout]);
+
+/** Pours a twin spout, waits for the drops to pile up, then for every one to be gone. */
+const script = (seed: number): InputScript => ({
+  v: 1,
+  scene: "basin",
+  seed,
+  steps: [
+    { command: "pour", args: { prefab: "twin-spout" } },
+    { hold: [], until: { exists: "twin-spout#1/left", count: { type: "drop", min: 6 } }, max: 60 },
+    { hold: [], until: { count: { type: "drop", max: 0 } }, max: 600 },
+  ],
+});
+
+function play(seed: number) {
+  const run = runPlaytest<FountainSnapshot>({
+    game: fountainGame,
+    registry,
+    scene: basin,
+    library,
+    script: script(seed),
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
+  return run;
+}
+
+export function pourTwice() {
+  const first = play(1);
+  const again = play(1);
+  const other = play(2);
+  const replay = replayRecording({
+    game: fountainGame,
+    scene: basin,
+    library,
+    recording: first.recording,
+  });
+  const spawned = first.events.filter((e) => e.type === ENTITY_SPAWNED).map((e) => e.entityId!);
+  return {
+    result: first.outcome.result,
+    final: first.final,
+    steps: first.steps.map((s) => s.end),
+    // The instance's children first, then the drops in spawn order.
+    spawned: spawned.slice(0, 4),
+    allRuntime: spawned.every(isRuntimeId),
+    sameSeedSameRun: again.recording.end === first.recording.end,
+    otherSeedJitter: other.final?.jitter,
+    // A run given a seed records it, so the replay draws the same numbers.
+    recordedSeed: first.recording.start.seed,
+    replayed: !replay.blocked && replay.matches,
+  };
+}
+
+/** The same id spilled twice: the second spawn throws, and the run ends blocked at stage `run`. */
+export function spillTwice() {
+  const run = runPlaytest({
+    game: fountainGame,
+    registry,
+    scene: basin,
+    script: {
+      v: 1,
+      steps: [
+        { command: "spill", args: { id: "drop#first" } },
+        { command: "spill", args: { id: "drop#first" } },
+      ],
+    },
+  });
+  return run.blocked ? { stage: run.stage, codes: run.issues.map((i) => i.code) } : null;
+}
+```
+
+`pourTwice()` ends `dry` with 24 drops fallen; the first ids it spawns are
+`twin-spout#1/left`, `twin-spout#1/right`, `drop#1`, `drop#2`; the same
+seed gives the same end digest, another seed other jitter, and the
+replay matches. `spillTwice()` is `{ stage: "run", codes:
+["spawn-id-invalid"] }`. The scene CLI runs the same game:
+`scripts/scene/README.md` §Lifecycle.
+
+### Events
+
+`ctx.events` subscribes to the run's step events: the engine's (sensors,
+`entity:*`, `contact:*`), the game's own `ctx.emit`s and the timers'.
+`on(type, handler, opts?)` returns the unsubscribe; `once` ends after the
+first match. `opts.entity` keeps only events whose `entityId` or `other`
+is that id (or a child of that instance id), and `opts.owner` ends the
+subscription when that entity is destroyed.
+
+- **Dispatch points.** Handlers run at the tick's two dispatch points (see
+  the tick order), never at the `emit`: the first delivers everything
+  raised since the tick began, the second everything the game's
+  `afterStep` and the flush raised. Within a pass, events go in raise
+  order and each to its subscribers in subscription order. A handler's own
+  events are delivered in the same pass; a pass delivering more than 4096
+  events throws `EngineError("event-loop")`, which is a handler raising
+  events in a loop.
+- **Subscribe in `onLoad`.** Every subscription, watch and timer ends at
+  unload, so a game subscribes in `onLoad` (or later), and again on each
+  load. Spawns at load and outside a step raise no events.
+- **The six events.** `entity:spawned`, `entity:destroyed`,
+  `entity:enabled` and `entity:disabled` (exported as `ENTITY_SPAWNED`
+  and so on) carry the entity as `entityId`, its pose as `at` and its type
+  as `data.type`; `contact:start` and `contact:end` (`CONTACT_START`,
+  `CONTACT_END`) carry the watched side as `entityId` and the other as
+  `other`. `StepEvent.data` is any plain JSON a game or timer attaches.
+  Reports carry them all; a recording's markers skip `entity:*` unless
+  `play.markers` names them.
+
+The lantern and fountain examples above subscribe in `onLoad`.
+
+### Timers
+
+`ctx.timers` counts simulated ticks: a `Delay` is a tick count, or `{ ms
+}` rounded to ticks once, when the timer is made, at the run's rate.
+`after(delay, action)` runs once, `every(period, action, { times? })`
+repeatedly, and `start(co)` a coroutine, a generator that yields a delay
+to wait or a predicate to wait on (checked each tick). Each returns an id
+for `cancel`; `size` is how many are pending.
+
+- Due timers run at the tick's timer phase, ordered by due tick, then by
+  creation. `after(0, …)` made before that phase runs in it, else in the
+  next tick's.
+- `{ owner }` ties a timer to an entity: cancelled when it is destroyed,
+  paused (its remaining ticks kept) while it is disabled.
+- **The emit form.** An action is a function or `{ emit, entityId?, data?
+}`, an event the timer raises. Only the emit form is plain data, so it
+  is the one to use for anything a snapshot of the game must be able to
+  save and restore; the fountain's `fountain:dry` is one.
+- **Seek.** Play's `timeOffsetMs` advances the timer clock by whole ticks
+  before tick 0, firing what falls due in order with `ctx.seeking` true.
+- A turns or event game's timers don't run while its clock idles; a game
+  whose timers must run then keeps `busy()` true. `@elapsed` catch-up
+  doesn't advance them either.
+
+### Randomness
+
+`ctx.random` is a seeded `Rng` (`./sim-kit`: `below`, `range`, `chance`,
+`weighted`), for game code to use instead of `Math.random`. It is seeded
+at each load from `PlayOptions.seed` (an input script's `seed`, the
+`play` options of `fuzz`, the shell's `play(doc, opts)`), or without one
+from `defaultSeed(gameId, sceneName)` (`./headless`), so
+a run that names no seed still draws the same numbers every time. A run
+given a seed records it as its recording's `start.seed`, and a replay
+draws the same. `fork(label)` gives each purpose its own stream, so
+drawing more for one never shifts another's numbers, as the fountain's
+`drift` does. No engine system, primitive or behavior draws from it (a
+boundary test holds `systems/` and `runtime/behaviors/` to that), so a
+game's draws are the only ones.
+
+### Queries
+
+`ctx.query` answers from the pose index and each entity's shape, never
+from Rapier or the geometry world, so it gives the same answers on both
+backends. Results are in spawn order (load order, then spawns appended),
+and only enabled entities count unless a selector says `enabled: false`.
+
+- `select(sel?)`, `byType(type)`, `byTag(tag)` and `count(sel?)`: an
+  `EntitySelector` is `{ type?, tag?, enabled? }`, `type` one name or a
+  list, `tag` a value of the entity's tags fields.
+- `inArea(area, sel?)` (an `Aabb` or a shape), `at(point, sel?)` and
+  `nearest(point, { maxDist?, …sel })` (by extent; ties go to the earlier
+  spawn) read a spatial hash of extents, refreshed only for entities whose
+  pose changed since the last area query.
+- `extent(id)`: the entity's shape moved and turned by its pose's change
+  since it spawned, or a point at its pose when it has no shape.
+
+`PlayState.world` (`exists`, `count`) is the same answers for a game's
+`outcome` hook and the script predicates.
+
+### Contacts
+
+`ctx.contacts.watch(a, b?)` raises `contact:start` and `contact:end`
+between entities matching `a` and `b`, each an id or `{ type?, tag? }`;
+without `b`, anything that isn't a sensor. It returns the unwatch. After
+the sensors' `afterStep`, for each watch in watch order and each enabled
+match in spawn order, a broad phase of every non-sensor collider's extent
+finds the candidates, and each pair is tested exactly: Rapier's
+`contactCollider` (touching at distance 0 or less) or the geometry
+backend's `shapesIntersect`. A pair reports once per tick, `at` the
+contact point. An entity destroyed or disabled mid-contact ends its
+contacts without a `contact:end` (its own event says why). Nothing is
+queried while nothing is watched.
+
+### `lifetime` and pools
+
+`lifetime` is an engine behavior: `{ "lifetime": { "ticks": 30 } }` (or
+`"ms"`, exactly one of them) destroys its entity that long after it
+spawns or is enabled, or with `"then": "disable"` disables it. It works
+on any type, placed or spawned: the kitchen sink's `spark` is a `decor`
+that fades after 30 ticks.
+
+`createPool(ctx, { spawn, max? })` (`./game`) reuses disabled entities
+before spawning new ones: `acquire()` enables the most recently freed one,
+or calls `spawn` (which returns a live id) while `max` allows, or returns
+null; `release(id)` disables one and frees it. An entity disabled any
+other way is free again too, so a `lifetime` with `then: "disable"` hands
+an entity back with no game code; a destroyed one leaves the pool. Make a
+pool in `onLoad`, as its subscriptions end with the load.
+
+A shuttle runs between two buffers: contacts with the walls light sparks
+from a pool of two, which their `lifetime` hands back, and queries read
+the yard, on either backend:
+
+```ts shuttle-contacts.ts
+import {
+  CONTACT_END,
+  CONTACT_START,
+  createPool,
+  defineEntityType,
+  defineGame,
+  pointField,
+  type EngineContext,
+  type Pool,
+} from "@jams/engine/game";
+import { runPlaytest, type RapierModule } from "@jams/engine/headless";
+import type { SceneDefinition } from "@jams/engine/scene";
+
+export type ShuttleSnapshot = {
+  /** Every contact start and end so far: `start west`, `end west`, … */
+  bumps: string[];
+  /** Sparks ever spawned; the pool hands disabled ones out again first. */
+  sparks: number;
+  /** Bumps that found both sparks still lit, so the pool's `max` gave none. */
+  refused: number;
+  /** Sparks lit right now, and the wall nearest the shuttle. */
+  lit: number;
+  nearest: string | undefined;
+  /** Entities whose extent reaches into the yard's west half. */
+  west: readonly string[];
+};
+
+const spark = defineEntityType({
+  type: "spark",
+  description: "A flash where the shuttle hits a buffer.",
+  base: "marker",
+  spawnOnly: true,
+  fields: { at: pointField("Where it flashes.") },
+});
+
+/** A shuttle runs between two buffers; each bump lights a spark from a pool of two. */
+export const shuttleGame = defineGame<ShuttleSnapshot>({
+  id: "shuttle",
+  types: [spark],
+  actions: [],
+  world: { gravity: [0, 0] },
+  createRuntime(ctx: EngineContext) {
+    let bumps: string[] = [];
+    let sparks = 0;
+    let refused = 0;
+    let pool: Pool | null = null;
+    return {
+      onLoad() {
+        bumps = [];
+        sparks = 0;
+        refused = 0;
+        // Watches, subscriptions and pools all end with the load: make them here.
+        ctx.contacts.watch("shuttle", { type: "solid" });
+        pool = createPool(ctx, {
+          max: 2,
+          spawn: () => {
+            sparks++;
+            const e = ctx.spawn({
+              type: "spark",
+              at: [0, 0],
+              // `then: "disable"` hands the spark back to the pool when it runs out.
+              behaviors: { lifetime: { ticks: 100, then: "disable" } },
+            });
+            return e.id;
+          },
+        });
+        ctx.events.on(CONTACT_START, (e) => {
+          bumps.push(`start ${e.other}`);
+          const id = pool?.acquire();
+          if (id) ctx.poses.set(id, e.at.x, e.at.y, 0, { snap: true });
+          else refused++;
+        });
+        ctx.events.on(CONTACT_END, (e) => void bumps.push(`end ${e.other}`));
+      },
+      onUnload() {
+        pool = null;
+      },
+      snapshot() {
+        const at = ctx.poses.get("shuttle");
+        return {
+          bumps: [...bumps],
+          sparks,
+          refused,
+          lit: ctx.query.count({ type: "spark" }),
+          nearest: at ? ctx.query.nearest({ x: at.x, y: at.y }, { type: "solid" }) : undefined,
+          west: ctx.query.inArea({ minX: 0, minY: 0, maxX: 100, maxY: 100 }),
+        };
+      },
+    };
+  },
+});
+
+const yard = (physics: "rapier" | "none"): SceneDefinition => ({
+  v: 3,
+  game: "shuttle",
+  name: "yard",
+  bounds: [0, 0, 200, 100],
+  settings: { physics },
+  entities: [
+    { id: "west", type: "solid", shape: ["box", 6, 50, 6, 30] },
+    { id: "east", type: "solid", shape: ["box", 194, 50, 6, 30] },
+    {
+      id: "shuttle",
+      type: "follower",
+      shape: ["circle", 0, 0, 8],
+      // Each end runs 4 px into a buffer, so the shuttle touches it there.
+      path: {
+        pts: [
+          [16, 50],
+          [184, 50],
+        ],
+        mode: "ping_pong",
+        speed: 240,
+      },
+    },
+  ],
+});
+
+/** Five seconds of shuttling, with Rapier or on the engine's own geometry. */
+export function shuttle(rapier: RapierModule | null) {
+  const run = runPlaytest<ShuttleSnapshot>({
+    rapier,
+    game: shuttleGame,
+    scene: yard(rapier ? "rapier" : "none"),
+    script: { v: 1, steps: [{ wait: 300 }] },
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
+  return run.final!;
+}
+```
+
+Both backends give the same sixteen bumps in five seconds (`start west`,
+`end west`, `start east`, …), two sparks spawned, two bumps refused
+while both were lit, and the same `nearest` and `west`.
+
 ## Genre probes
 
 The engine proves it isn't a platformer engine with small games built in
@@ -2190,16 +2916,20 @@ tests from the primitives and the APIs above, under
 `src/engine/__tests__/genres/`. Each probe is a game, a scene built in
 code, an input script and the result it must reach:
 
-| Probe          | Genres                       | Physics | Time  | What it plays                                                                            |
-| -------------- | ---------------------------- | ------- | ----- | ---------------------------------------------------------------------------------------- |
-| `grid-puzzle`  | puzzle, card and board games | none    | event | a square-grid Sokoban: arrow keys step a pusher; won with both crates on goals           |
-| `top-down`     | top-down, racing             | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor             |
-| `turn-tactics` | tactics, roguelikes          | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target |
+| Probe          | Genres                                    | Physics | Time  | What it plays                                                                                        |
+| -------------- | ----------------------------------------- | ------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `grid-puzzle`  | puzzle, card and board games              | none    | event | a square-grid Sokoban: arrow keys step a pusher; won with both crates on goals                       |
+| `top-down`     | top-down, racing                          | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor                         |
+| `turn-tactics` | tactics, roguelikes                       | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target             |
+| `shooter`      | twin-stick, endless runner, tower defense | rapier  | fixed | a turret spawns a thousand bullets with a `lifetime`; each is destroyed on its first wall contact    |
+| `roguelike`    | roguelikes                                | none    | turns | `ctx.random` places rooms by `ctx.instantiate` of two prefabs; field of view and A\* find the stairs |
 
 `runGenreProbe` plays each, replays its recording, and compares a digest of
 the run with a pinned one, so CI on other machines checks the same numbers.
 Probes also run under variants (gravity zero, gravity sideways, physics
-none) that must reach the same result. A physics-free probe never loads
+none, another seed) that must reach the same result; `shooter`'s replay
+also proves both runs name the same thousand ids, and `roguelike` pins one
+layout for each of seeds 1 and 2. A physics-free probe never loads
 Rapier: the harness hands it none and a mock fails if the wasm module ever
 initialises. A sweep test fails on side-view literals in engine source, and
 a matrix maps every genre row of the engine's roadmap to the probes that

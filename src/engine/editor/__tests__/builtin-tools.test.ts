@@ -54,6 +54,26 @@ describe("draw helpers", () => {
       { op: "add", entity: { id: "sensor", type: "sensor", shape: ["box", 32, 16, 32, 16] } },
     ]);
     expect(drawBatch(doc(), toolRegistry, "marker", box)).toBeNull();
+    const tri = {
+      type: "poly" as const,
+      pts: [
+        [0, 0],
+        [64, 0],
+        [0, 64],
+      ] as [number, number][],
+    };
+    expect(drawBatch(doc(), toolRegistry, "nav", tri)?.batch.ops).toEqual([
+      { op: "add", entity: { id: "nav", type: "nav", shape: ["poly", 0, 0, 64, 0, 0, 64] } },
+    ]);
+  });
+
+  it("offer their type choice in the overlay, solid unless another is picked", () => {
+    const ctx = fakeToolContext(toolRegistry, doc(), DEFAULT_SNAP);
+    const tool = boxTool.create(ctx);
+    expect(tool.overlay!().option).toMatchObject({ label: "Draw type", value: "solid" });
+    expect(tool.command!("type:sensor")).toBe(true);
+    expect(tool.overlay!().option?.value).toBe("sensor");
+    expect(tool.command!("rotate-cw")).toBe(false);
   });
 
   it("drop a stroke on Escape with no batch", () => {
@@ -86,6 +106,21 @@ describe("pen helpers", () => {
     const notch = [...square.slice(0, 3), [5, 5] as [number, number], [0, 10] as [number, number]];
     expect(strokeShape(notch, true)).toEqual({ type: "chain", pts: [...notch, [0, 0]] });
     expect(strokeShape(square, false)).toEqual({ type: "chain", pts: square });
+  });
+
+  it("keeps a concave stroke a poly where the field takes concave polys or no chains", () => {
+    const notch: [number, number][] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [5, 5],
+      [0, 10],
+    ];
+    expect(strokeShape(notch, true, { chain: true, concavePoly: true })).toEqual({
+      type: "poly",
+      pts: notch,
+    });
+    expect(strokeShape(notch, true, { chain: false, concavePoly: false }).type).toBe("poly");
   });
 });
 

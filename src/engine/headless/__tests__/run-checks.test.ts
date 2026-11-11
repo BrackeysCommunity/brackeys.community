@@ -237,6 +237,86 @@ describe("runChecks on engine-yard", () => {
   });
 });
 
+describe("a reaches check's expect", () => {
+  const settle = { v: 1, steps: [{ wait: 60 }] } as const;
+  const reaches = (expectClause: unknown, extra: Record<string, unknown> = {}) => ({
+    id: "r",
+    kind: "reaches",
+    script: settle,
+    result: "script-end",
+    expect: expectClause,
+    ...extra,
+  });
+
+  it("passes when every key holds on the last tick, with or without a game", () => {
+    for (const registry of [engine, game]) {
+      const [result] = run(
+        file([reaches({ exists: "avatar", count: { type: "prop", eq: 2 }, tick: 59 })], registry),
+        registry,
+      ).results;
+      expect(result).toMatchObject({ pass: true, detail: { expect: { failed: null } } });
+      expect(result!.message).toBe("ended script-end at t59; expect holds (exists, count, tick)");
+    }
+  });
+
+  it("judges count's bounds and a game's predicate on the last tick only", () => {
+    const report = run(
+      file([
+        reaches({ count: { type: "prop", min: 2, max: 2 } }, { id: "between" }),
+        reaches({ count: { type: ["prop", "sensor"], min: 3 } }, { id: "types" }),
+        reaches({ count: { type: "prop", max: 1 } }, { id: "over" }),
+        reaches({ count: { type: "prop", eq: 3 } }, { id: "eq" }),
+        reaches({ tick: 60 }, { id: "late" }),
+        {
+          id: "goal",
+          kind: "reaches",
+          script: toGoal,
+          result: "won",
+          expect: { event: GOAL_EVENT, past: 800 },
+        },
+      ]),
+    );
+    expect(report.results.map((r) => [r.id, r.pass])).toEqual([
+      ["between", true],
+      ["types", true],
+      ["over", false],
+      ["eq", false],
+      ["late", false],
+      ["goal", true],
+    ]);
+    expect(report.results[2]!.message).toBe(
+      'ended script-end at t59, but expect.count ({"type":"prop","max":1}) doesn\'t hold then',
+    );
+    expect(report.results[4]!.message).toBe(
+      "ended script-end at t59, but expect.tick (60) doesn't hold then",
+    );
+  });
+
+  it("names the first key that fails, in the order the check wrote them", () => {
+    const report = run(
+      file([
+        reaches({ tick: 0, exists: "nobody", count: { type: "prop", eq: 0 } }, { id: "a" }),
+        reaches({ count: { type: "prop", eq: 0 }, exists: "nobody" }, { id: "b" }),
+      ]),
+    );
+    expect(report.results.map((r) => r.pass)).toEqual([false, false]);
+    expect(report.results[0]!.message).toContain('expect.exists ("nobody")');
+    expect(report.results[0]!.detail).toMatchObject({ expect: { failed: "exists" } });
+    expect(report.results[1]!.message).toContain("expect.count (");
+  });
+
+  it("fails on the result first, and on an expect the registry can't read", () => {
+    const checks = [
+      reaches({ exists: "avatar" }, { id: "result", result: "timeout" }),
+      reaches({ past: 300 }, { id: "gameless" }),
+    ] as SceneCheck[];
+    const report = run({ v: 1, checks }, engine);
+    expect(report.results[0]!.message).toBe("ended script-end at t59, not timeout");
+    expect(report.results[1]).toMatchObject({ pass: false });
+    expect(report.results[1]!.message).toMatch(/^bad expect: /);
+  });
+});
+
 describe("the connected check", () => {
   /** A 5 × 5 grid of 100 px cells; a solid fills column 2 down to `wallTo`. */
   const walled = (wallTo: number, grid = true): SceneDefinition => ({

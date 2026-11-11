@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "scene": "basin",
+  "seed": 7,
+  "steps": [
+    { "command": "pour", "args": { "prefab": "twin-spout" } },
+    {
+      "hold": [],
+      "until": { "exists": "twin-spout#1/left", "count": { "type": "drop", "min": 6 } },
+      "max": 60
+    },
+    { "hold": [], "until": { "count": { "type": "drop", "max": 0 } }, "max": 600 }
+  ]
+}

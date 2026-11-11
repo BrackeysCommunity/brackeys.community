@@ -9,7 +9,7 @@ import {
 } from "@jams/engine/scene";
 
 import { GRAPPLE_RANGE } from "./entities/grapple-anchor";
-import { PLAYER_ENTITY_ID, PLAYER_HEIGHT, PLAYER_WIDTH } from "./entities/player";
+import { PLAYER_HEIGHT, PLAYER_TYPE, PLAYER_WIDTH } from "./entities/player";
 import { TYPE } from "./type-names";
 import { placedOf, platformerIssue, spawnsOf, type Spawn } from "./validate";
 
@@ -19,8 +19,9 @@ type Hit = ReturnType<PhysicalEnv["overlaps"]>[number];
 
 /** What a player can't stand inside: ground, clouds and Shaper constructs. */
 const BLOCKING: readonly string[] = ["solid", TYPE.cloud, TYPE.construct];
-/** The player's own collider, which the runtime places at the first spawn. */
-const SELF = [PLAYER_ENTITY_ID];
+/** The ids of the loaded world's actors, which the runtime spawns at the first spawn: never in the way of a check. */
+const selfOf = (env: PhysicalEnv) =>
+  env.scene.entities.filter((e) => e.type === PLAYER_TYPE).map((e) => e.id);
 /** How far up `spawn-in-solid`'s fix looks for room, per try; under half the player box, so no gap it fits is skipped. */
 const LIFT_STEP = PLAYER_HEIGHT / 4;
 
@@ -48,11 +49,12 @@ const dot = ([cx, cy]: Pt, r = 1): ShapeObj => ({ type: "circle", cx, cy, r });
  */
 function landing(env: PhysicalEnv, feet: Pt): Pt | null {
   const [, minY, , maxY] = env.def.bounds;
+  const self = selfOf(env);
   for (let y = feet[1] - LIFT_STEP; y - PLAYER_HEIGHT >= minY; y -= LIFT_STEP) {
     const box = playerBox([feet[0], y]);
-    if (blocking(env.overlaps(box, { exclude: SELF })).length > 0) continue;
+    if (blocking(env.overlaps(box, { exclude: self })).length > 0) continue;
     const fall = maxY - y;
-    const hit = env.cast(box, { x: 0, y: fall }, { exclude: SELF });
+    const hit = env.cast(box, { x: 0, y: fall }, { exclude: self });
     return hit ? [feet[0], Math.round(y + hit.toi * fall)] : null;
   }
   return null;
@@ -86,12 +88,13 @@ const spawnChecks: PhysicalCheck = {
   needsPhysics: true,
   run(env) {
     const out: SceneIssue[] = [];
+    const self = selfOf(env);
     for (const spawn of spawnsOf(env.def)) {
       const box = playerBox(spawn.at);
-      const solids = blocking(env.overlaps(box, { exclude: SELF }));
+      const solids = blocking(env.overlaps(box, { exclude: self }));
       if (solids.length > 0) out.push(spawnInSolid(env, spawn, solids));
       const hazards = env
-        .overlaps(box, { sensors: true, exclude: SELF })
+        .overlaps(box, { sensors: true, exclude: self })
         .filter((h) => h.tag.type === TYPE.hazard);
       if (hazards.length > 0) {
         out.push(
@@ -104,7 +107,7 @@ const spawnChecks: PhysicalCheck = {
         );
       }
       const fall = env.def.bounds[3] - spawn.at[1];
-      if (solids.length === 0 && fall > 0 && !env.cast(box, { x: 0, y: fall }, { exclude: SELF })) {
+      if (solids.length === 0 && fall > 0 && !env.cast(box, { x: 0, y: fall }, { exclude: self })) {
         out.push(
           platformerIssue("platformer/spawn-floating", {
             message: `nothing is under spawn ${spawn.ref} at ${fmt(spawn.at)} down to the bounds' bottom (y ${env.def.bounds[3]})`,
@@ -129,9 +132,10 @@ const anchorChecks: PhysicalCheck = {
       ...placedOf(env.def, TYPE.construct, "at", (e) => e.construct === "grapple_anchor"),
     ];
     const out: SceneIssue[] = [];
+    const self = selfOf(env);
     for (const { ref, value, path } of anchors) {
       const at = value as Pt;
-      const inside = blocking(env.overlaps(dot(at), { exclude: SELF }));
+      const inside = blocking(env.overlaps(dot(at), { exclude: self }));
       if (inside.length > 0) {
         out.push(
           platformerIssue("platformer/anchor-in-solid", {
@@ -142,7 +146,7 @@ const anchorChecks: PhysicalCheck = {
           }),
         );
       }
-      if (env.overlaps(dot(at, GRAPPLE_RANGE), { exclude: SELF }).length === 0) {
+      if (env.overlaps(dot(at, GRAPPLE_RANGE), { exclude: self }).length === 0) {
         out.push(
           platformerIssue("platformer/anchor-orphan", {
             message: `nothing to stand on within ${GRAPPLE_RANGE}px of anchor ${ref} at ${fmt(at)}`,
@@ -163,10 +167,11 @@ const cloudChecks: PhysicalCheck = {
   needsPhysics: true,
   run(env) {
     const out: SceneIssue[] = [];
+    const self = selfOf(env);
     for (const { ref, value, path } of placedOf(env.def, TYPE.cloud, "shape")) {
       const parsed = parseShape(value);
       if (!parsed.ok) continue;
-      const solids = env.overlaps(parsed.shape, { exclude: [ref, ...SELF] });
+      const solids = env.overlaps(parsed.shape, { exclude: [ref, ...self] });
       const hits = solids.filter((h) => h.tag.type === "solid");
       if (hits.length === 0) continue;
       out.push(

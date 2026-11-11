@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
+import type { SceneView } from "../context";
 import { DEFAULT_TICK_RATE, SIDE_VIEW_CONTROLLER, TOP_DOWN_CONTROLLER } from "../game/defaults";
 import {
   createPhysicsWorld,
@@ -10,9 +11,11 @@ import {
   type CharacterControllerOptions,
 } from "../physics";
 import { createSceneRuntime } from "../runtime/runtime";
+import type { StepEvent } from "../runtime/types";
 import type { ExpandedScene, RuntimeEntity, ShapeObj } from "../scene/types";
-import type { PropEntity } from "../systems/bodies";
+import type { PropEntity, SolidSystem } from "../systems/bodies";
 import type { RapierModule } from "../types";
+import { testGame } from "./fixtures/test-game";
 
 let rapier: RapierModule;
 
@@ -487,5 +490,211 @@ describe("prop body fields", () => {
     };
     expect(throwAt({})).toBeGreaterThan(200);
     expect(throwAt({ ccd: true })).toBeLessThan(200);
+  });
+});
+
+// ─── Disable and enable ──────────────────────────────────
+
+describe("disabling and enabling bodies on Rapier", () => {
+  const DT = 1000 / 60;
+
+  const box = (cx: number, cy: number, hw: number, hh: number): ShapeObj => ({
+    type: "box",
+    cx,
+    cy,
+    hw,
+    hh,
+    rotDeg: 0,
+  });
+
+  function yard(entities: RuntimeEntity[], gravity: [number, number] = [0, 1200]): ExpandedScene {
+    return {
+      name: "toggles",
+      bounds: [-1000, -1000, 1000, 1000],
+      settings: { gravity, physics: "rapier", grid: null, view: { projection: "orthogonal" } },
+      entities,
+    };
+  }
+
+  /** A view that logs what is drawn and removed. */
+  function loggingView() {
+    const log: string[] = [];
+    const view: SceneView = {
+      draw: (id) => void log.push(`draw ${id}`),
+      pose: () => {},
+      remove: (id) => void log.push(`remove ${id}`),
+      layer: () => ({ visible: true, setVisible: () => {} }) as never,
+    };
+    return { view, log };
+  }
+
+  function load(
+    entities: RuntimeEntity[],
+    opts: { gravity?: [number, number]; view?: SceneView } = {},
+  ) {
+    const rt = createSceneRuntime({ rapier, view: opts.view ?? null, game: testGame });
+    const report = rt.load(yard(entities, opts.gravity));
+    if (!report.ok) throw new Error(report.error);
+    const steps = (n: number): StepEvent[] => {
+      const events: StepEvent[] = [];
+      for (let i = 0; i < n; i++) events.push(...rt.step(DT, []).events);
+      return events;
+    };
+    const hits = (shape: ShapeObj) => rt.ctx.space.overlaps(shape).map((h) => h.tag.entityId);
+    return { rt, steps, hits };
+  }
+
+  const crate: RuntimeEntity = {
+    id: "crate",
+    type: "prop",
+    shape: box(0, 0, 10, 10),
+    density: 1,
+    restitution: 0,
+  };
+  const zone: RuntimeEntity = { id: "zone", type: "sensor", shape: box(0, 0, 40, 40) };
+  const sensorEvents = (events: StepEvent[]) =>
+    events.filter((e) => e.type.startsWith("sensor:")).map((e) => [e.type, e.entityId, e.other]);
+
+  it("a disabled sensor raises nothing, and raises one enter when enabled again", () => {
+    const { rt, steps } = load([zone, crate], { gravity: [0, 0] });
+    expect(sensorEvents(steps(1))).toEqual([["sensor:enter", "zone", "crate"]]);
+
+    rt.ctx.setEnabled("zone", false);
+    expect(rt.ctx.enabled("zone")).toBe(false);
+    rt.ctx.system("prop")!.despawn("crate");
+    expect(sensorEvents(steps(5))).toEqual([]);
+    rt.ctx.system("prop")!.spawn(crate);
+    expect(sensorEvents(steps(5))).toEqual([]);
+
+    rt.ctx.setEnabled("zone", true);
+    expect(sensorEvents(steps(10))).toEqual([["sensor:enter", "zone", "crate"]]);
+    rt.destroy();
+  });
+
+  it("a disabled sensor forgets what was inside without raising an exit", () => {
+    const { rt, steps } = load([zone, crate], { gravity: [0, 0] });
+    steps(1);
+    rt.ctx.setEnabled("zone", false);
+    rt.ctx.system("prop")!.despawn("crate");
+    rt.ctx.setEnabled("zone", true);
+    expect(sensorEvents(steps(5))).toEqual([]);
+    rt.destroy();
+  });
+
+  it("a disabled prop doesn't fall, leaves queries and falls again on enable", () => {
+    const { rt, steps, hits } = load([crate]);
+    const body = () => rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf("crate")[0]!)!;
+    rt.ctx.setEnabled("crate", false);
+    steps(30);
+    expect(body().parent()!.translation()).toEqual({ x: 0, y: 0 });
+    expect(rt.ctx.poses.get("crate")).toMatchObject({ x: 0, y: 0 });
+    expect(hits(box(0, 0, 5, 5))).toEqual([]);
+
+    rt.ctx.setEnabled("crate", true);
+    expect(hits(box(0, 0, 5, 5))).toEqual(["crate"]);
+    steps(30);
+    expect(body().parent()!.translation().y).toBeGreaterThan(100);
+    expect(rt.ctx.poses.get("crate")!.y).toBeGreaterThan(100);
+    rt.destroy();
+  });
+
+  it("a disabled solid holds nothing up and leaves queries", () => {
+    const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 40, 100, 10) };
+    const { rt, steps, hits } = load([floor, crate]);
+    rt.ctx.setEnabled("floor", false);
+    expect(hits(floor.shape as ShapeObj)).toEqual([]);
+    steps(60);
+    expect(rt.ctx.poses.get("crate")!.y).toBeGreaterThan(100);
+    rt.ctx.setEnabled("floor", true);
+    expect(hits(floor.shape as ShapeObj)).toEqual(["floor"]);
+    rt.destroy();
+  });
+
+  it("removes each primitive's visual on disable and redraws it on enable", () => {
+    const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 40, 100, 10) };
+    const { view, log } = loggingView();
+    const { rt } = load([floor, zone, crate], { view });
+    for (const id of ["floor", "zone", "crate"]) {
+      log.length = 0;
+      rt.ctx.setEnabled(id, false);
+      expect(log).toEqual([`remove ${id}`]);
+      log.length = 0;
+      rt.ctx.setEnabled(id, true);
+      expect(log).toEqual([`draw ${id}`]);
+    }
+    rt.destroy();
+  });
+
+  it("the one-way gate never re-enables a disabled solid, and enable restores its state", () => {
+    const ledge: RuntimeEntity = {
+      id: "ledge",
+      type: "solid",
+      shape: box(0, 0, 50, 5),
+      oneWay: true,
+    };
+    const { rt, steps, hits } = load([ledge]);
+    const solids = rt.ctx.system("solid") as SolidSystem;
+    rt.ctx.setEnabled("ledge", false);
+    solids.gateOneWay(-20, false);
+    steps(1);
+    expect(hits(ledge.shape as ShapeObj)).toEqual([]);
+    solids.gateOneWay(20, false);
+    rt.ctx.setEnabled("ledge", true);
+    steps(1);
+    expect(solids.isHidden("ledge")).toBe(true);
+    expect(hits(ledge.shape as ShapeObj)).toEqual([]);
+    solids.gateOneWay(-20, false);
+    steps(1);
+    expect(hits(ledge.shape as ShapeObj)).toEqual(["ledge"]);
+    rt.destroy();
+  });
+
+  describe("riders", () => {
+    const lift: RuntimeEntity = {
+      id: "lift",
+      type: "follower",
+      shape: box(0, 0, 30, 5),
+      path: {
+        pts: [
+          [0, 0],
+          [0, 1],
+        ],
+        mode: "ping_pong",
+        speed: 0.001,
+      },
+    };
+    const rail: RuntimeEntity = {
+      id: "rail",
+      type: "solid",
+      shape: box(0, -10, 30, 2),
+      attach: "lift",
+    };
+    const railBox = box(0, -10, 20, 1);
+
+    it("a disabled rider leaves queries while its carrier stays", () => {
+      const { rt, steps, hits } = load([lift, rail], { gravity: [0, 0] });
+      steps(1);
+      expect(hits(railBox)).toEqual(["rail"]);
+      rt.ctx.setEnabled("rail", false);
+      steps(1);
+      expect(hits(railBox)).toEqual([]);
+      expect(hits(box(0, 0, 20, 2))).toEqual(["lift"]);
+      rt.ctx.setEnabled("rail", true);
+      expect(hits(railBox)).toEqual(["rail"]);
+      rt.destroy();
+    });
+
+    it("disabling the carrier takes its riders' colliders with it; the riders stay enabled", () => {
+      const { rt, steps, hits } = load([lift, rail], { gravity: [0, 0] });
+      steps(1);
+      rt.ctx.setEnabled("lift", false);
+      steps(1);
+      expect(rt.ctx.enabled("rail")).toBe(true);
+      expect(hits(railBox)).toEqual([]);
+      rt.ctx.setEnabled("lift", true);
+      steps(1);
+      expect(hits(railBox)).toEqual(["rail"]);
+      rt.destroy();
+    });
   });
 });

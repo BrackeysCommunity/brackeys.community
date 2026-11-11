@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
 import { createRegistry, defineGame } from "../game/define";
@@ -958,5 +958,173 @@ describe("physics per load", () => {
     expect(rt.load(scene([floor]))).toMatchObject({ ok: false, reason: "physics-not-loaded" });
     expect(rt.get("start")).toBeDefined();
     rt.destroy();
+  });
+});
+
+describe("a disabled follower", () => {
+  const path = (x: number): RuntimeEntity["path"] => ({
+    pts: [
+      [x, 100],
+      [x, 0],
+    ],
+    mode: "ping_pong",
+    speed: 60,
+    pauseMs: 100,
+  });
+  const lift: RuntimeEntity = {
+    id: "lift",
+    type: "follower",
+    shape: box(0, 0, 20, 4),
+    path: path(0),
+  };
+  const twin: RuntimeEntity = { ...lift, id: "twin", path: path(200) };
+  const rider: RuntimeEntity = {
+    id: "rider",
+    type: "sensor",
+    shape: box(0, 90, 10, 4),
+    attach: "lift",
+  };
+  const withPhysics = (physics: "rapier" | "none", entities: RuntimeEntity[]): ExpandedScene => ({
+    ...scene(entities),
+    settings: { ...scene(entities).settings, physics },
+  });
+  const hits = (rt: ReturnType<typeof runtime>, at: { x: number; y: number }) =>
+    rt.ctx.space.overlaps(box(at.x, at.y, 2, 2), { sensors: true }).map((h) => h.tag.entityId);
+
+  for (const physics of ["rapier", "none"] as const) {
+    it(`leaves no collider while disabled and comes back in phase with its twin (${physics})`, () => {
+      const rt = runtime(null);
+      expect(rt.load(withPhysics(physics, [lift, twin])).ok).toBe(true);
+      const followers = rt.ctx.system<FollowerSystem>("follower")!;
+      steps(rt, 20);
+      const before = rt.ctx.poses.get("lift")!;
+      expect(hits(rt, before)).toEqual(["lift"]);
+
+      rt.ctx.setEnabled("lift", false);
+      expect(rt.ctx.enabled("lift")).toBe(false);
+      expect(hits(rt, before)).toEqual([]);
+      steps(rt, 97);
+      expect(rt.ctx.poses.get("lift")).toEqual(before);
+      expect(followers.frameDelta("lift")).toEqual({ x: 0, y: 0 });
+      expect(hits(rt, { x: 0, y: rt.ctx.poses.get("twin")!.y })).toEqual([]);
+
+      rt.ctx.setEnabled("lift", true);
+      const now = rt.ctx.poses.get("twin")!;
+      expect(rt.ctx.poses.get("lift")).toEqual({ ...now, x: now.x - 200 });
+      expect(hits(rt, { x: 0, y: now.y })).toEqual(["lift"]);
+      expect(followers.frameDelta("lift")).toEqual({ x: 0, y: 0 });
+
+      steps(rt, 41);
+      const later = rt.ctx.poses.get("twin")!;
+      expect(rt.ctx.poses.get("lift")).toEqual({ ...later, x: later.x - 200 });
+      expect(followers.frameDelta("lift")).toEqual(followers.frameDelta("twin"));
+      expect(hits(rt, { x: 0, y: later.y })).toEqual(["lift"]);
+      if (physics === "rapier") expect(bodyOf(rt, "lift").translation().y).toBe(later.y);
+      rt.destroy();
+    });
+  }
+
+  it("switches its riders' colliders off with its body and back on with it", () => {
+    const rt = runtime(null);
+    expect(rt.load(withPhysics("rapier", [lift, rider])).ok).toBe(true);
+    const zone = () => hits(rt, rt.ctx.poses.get("rider")!).filter((id) => id === "rider");
+    expect(zone()).toEqual(["rider"]);
+    rt.ctx.setEnabled("lift", false);
+    expect(rt.ctx.enabled("rider")).toBe(true);
+    expect(zone()).toEqual([]);
+    steps(rt, 30);
+    rt.ctx.setEnabled("lift", true);
+    expect(zone()).toEqual(["rider"]);
+    expect(rt.ctx.poses.get("rider")!.y).toBeCloseTo(rt.ctx.poses.get("lift")!.y - 10, 6);
+    rt.destroy();
+  });
+});
+
+describe("game-code spawns of primitives", () => {
+  const withGrid = (entities: RuntimeEntity[]): ExpandedScene => ({
+    ...scene(entities, [0, 0]),
+    settings: {
+      gravity: [0, 0],
+      physics: "none",
+      grid: { kind: "square", cell: [10, 10] },
+      view: { projection: "orthogonal" },
+    },
+  });
+
+  it("take a scene file's shape tuples, and join queries at the next step without a refresh", () => {
+    const rt = runtime(null);
+    expect(rt.load(scene([floor])).ok).toBe(true);
+    const refresh = vi.spyOn(rt.ctx.physics!, "refreshQueries");
+    const ledge = rt.ctx.spawn({ type: "solid", shape: ["box", 300, -200, 40, 10] });
+    expect(ledge).toMatchObject({ id: "solid#1", shape: box(300, -200, 40, 10) });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(rt.ctx.tags.handlesOf("solid#1")).toHaveLength(1);
+    rt.step(DT, []);
+    expect(rt.ctx.space.overlaps(box(300, -200, 2, 2)).map((h) => h.tag.entityId)).toEqual([
+      "solid#1",
+    ]);
+    expect(rt.stats().perType).toEqual({ solid: 2 });
+    rt.destroy();
+  });
+
+  it("refuse a prop in a physics-free scene with physics-required, leaving nothing behind", () => {
+    const rt = runtime(null);
+    expect(rt.load({ ...scene([]), settings: { ...scene([]).settings, physics: "none" } }).ok).toBe(
+      true,
+    );
+    const before = rt.stats();
+    let code: string | undefined;
+    try {
+      rt.ctx.spawn({ type: "prop", shape: ["circle", 0, 0, 5], density: 1, restitution: 0 });
+    } catch (err) {
+      code = (err as { code?: string }).code;
+    }
+    expect(code).toBe("physics-required");
+    expect(rt.ctx.exists("prop#1")).toBe(false);
+    expect(rt.stats()).toEqual(before);
+    rt.destroy();
+  });
+
+  it("re-sync the grid's walls after an outside-step spawn and after the flush", () => {
+    const rt = runtime(null);
+    expect(rt.load(withGrid([])).ok).toBe(true);
+    const occupancy = rt.ctx.grid!.occupancy;
+    rt.ctx.spawn({ type: "solid", shape: ["box", 15, 15, 5, 5] });
+    expect(occupancy.wall([1, 1])).toBe(true);
+    rt.ctx.spawn({ type: "marker", at: [35, 35] });
+    expect(occupancy.wall([3, 3])).toBe(false);
+
+    const game = defineGame({
+      id: "walls",
+      types: [],
+      actions: [],
+      createRuntime: (ctx) => ({
+        beforeStep() {
+          if (ctx.tick === 0) {
+            ctx.destroy("solid#1");
+            ctx.spawn({ type: "solid", shape: ["box", 55, 15, 5, 5] });
+          }
+        },
+        afterStep() {
+          seen.push(occupancy2().wall([1, 1]), occupancy2().wall([5, 1]));
+        },
+        snapshot: () => null,
+      }),
+    });
+    const seen: boolean[] = [];
+    const rt2 = runtime(game);
+    const occupancy2 = () => rt2.ctx.grid!.occupancy;
+    expect(rt2.load(withGrid([{ id: "w", type: "solid", shape: box(15, 15, 5, 5) }])).ok).toBe(
+      true,
+    );
+    rt2.ctx.destroy("w");
+    expect(occupancy2().wall([1, 1])).toBe(false);
+    rt2.ctx.spawn({ type: "solid", shape: ["box", 15, 15, 5, 5] });
+    rt2.step(DT, []);
+    expect(seen).toEqual([true, false]);
+    expect(occupancy2().wall([1, 1])).toBe(false);
+    expect(occupancy2().wall([5, 1])).toBe(true);
+    rt.destroy();
+    rt2.destroy();
   });
 });

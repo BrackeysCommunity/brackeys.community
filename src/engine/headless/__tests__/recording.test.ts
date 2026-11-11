@@ -10,8 +10,11 @@ import {
   type TestGameSnapshot,
 } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import { isRuntimeId } from "../../game/runtime-ids";
+import type { GameDefinition } from "../../game/types";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { createSessionRecording } from "../../runtime/play-session";
+import { ENTITY_DESTROYED, ENTITY_SPAWNED } from "../../runtime/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../../scene/agent-surface";
 import { formatScene } from "../../scene/format";
 import { hashText } from "../../scene/hash";
@@ -354,6 +357,96 @@ describe("commands in recordings", () => {
   });
 });
 
+describe("seeded runs", () => {
+  type DrawSnapshot = TestGameSnapshot & { draw: number };
+  /** The test game with one draw from `ctx.random` at load, kept in its snapshot. */
+  const drawGame: GameDefinition = {
+    ...testGame,
+    createRuntime(ctx) {
+      const base = testGame.createRuntime(ctx);
+      let draw = 0;
+      return {
+        ...base,
+        onLoad(scene) {
+          base.onLoad?.(scene);
+          draw = ctx.random.nextU32();
+        },
+        snapshot() {
+          const snap = base.snapshot?.();
+          return snap ? { ...snap, draw } : null;
+        },
+      };
+    },
+  };
+  const drawRegistry = createRegistry(drawGame);
+  const script = (seed?: number | string): InputScript => ({
+    v: 1,
+    ...(seed === undefined ? {} : { seed }),
+    steps: [{ hold: ["right"], for: 30 }],
+  });
+  const play = (s: InputScript) => {
+    const run = runPlaytest({
+      rapier,
+      game: drawGame,
+      registry: drawRegistry,
+      scene: yard,
+      script: s,
+    });
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    return run;
+  };
+  const drawOf = (run: { final: unknown }) => (run.final as DrawSnapshot).draw;
+  const replay = (recording: unknown) => {
+    const run = replayRecording({
+      rapier,
+      game: drawGame,
+      registry: drawRegistry,
+      scene: yard,
+      recording,
+    });
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    return run;
+  };
+
+  it("records the script's seed in start.seed, and it round-trips through JSON", () => {
+    for (const seed of [7, "seven"]) {
+      const rec = play(script(seed)).recording;
+      expect(rec.start.seed).toBe(seed);
+      const text = JSON.parse(JSON.stringify(rec));
+      expect(parseRecording(text)).toEqual({ ok: true, recording: rec });
+    }
+    expect(play(script()).recording.start).not.toHaveProperty("seed");
+  });
+
+  it("seeds ctx.random from the script, and two replays of a seeded run match it", () => {
+    const seeded = play(script(7));
+    const other = play(script(8));
+    const unseeded = play(script());
+    expect(drawOf(seeded)).not.toBe(drawOf(other));
+    expect(drawOf(seeded)).not.toBe(drawOf(unseeded));
+    expect(seeded.recording.end).not.toBe(other.recording.end);
+
+    const a = replay(seeded.recording);
+    const b = replay(JSON.stringify(seeded.recording));
+    for (const r of [a, b]) {
+      expect(r.matches, r.divergence ?? "").toBe(true);
+      expect(r.recording).toEqual(seeded.recording);
+      expect(drawOf(r)).toBe(drawOf(seeded));
+    }
+  });
+
+  it("replays a recording without a seed on the default seed", () => {
+    const rec = play(script()).recording;
+    expect(rec.start).not.toHaveProperty("seed");
+    const parsed = parseRecording(JSON.stringify(rec));
+    expect(parsed).toEqual({ ok: true, recording: rec });
+    const r = replay(rec);
+    expect(r.matches, r.divergence ?? "").toBe(true);
+    expect(r.recording.start).not.toHaveProperty("seed");
+    expect(drawOf(r)).toBe(drawOf(play(script())));
+  });
+});
+
 describe("timeOffsetMs", () => {
   const liftAt = (timeOffsetMs?: number) => {
     const prepared = prepareRun(yard, registry);
@@ -381,6 +474,62 @@ describe("timeOffsetMs", () => {
     expect(seeked.followers.frameDelta("lift")).toEqual({ x: 0, y: 0 });
     seeked.runtime.destroy();
     expect(liftAt(0).at).toEqual({ x: 1700, y: 900 });
+  });
+});
+
+describe("markers in a spawning game", () => {
+  const PER_TICK = 10;
+  const TICKS = 100;
+  /** The test game spawning ten markers a tick and destroying the last tick's. */
+  const spawning = (markers?: readonly string[]): GameDefinition => ({
+    ...testGame,
+    play: { ...testGame.play, ...(markers ? { markers } : {}) },
+    createRuntime(ctx) {
+      const base = testGame.createRuntime(ctx);
+      let last: string[] = [];
+      return {
+        ...base,
+        beforeStep(dtMs, actions, commands) {
+          base.beforeStep?.(dtMs, actions, commands);
+          for (const id of last) ctx.destroy(id);
+          last = [];
+          if (ctx.tick >= TICKS) return;
+          for (let i = 0; i < PER_TICK; i++)
+            last.push(ctx.spawn({ type: "plain", at: [100 + i * 10, 100] }).id);
+        },
+      };
+    },
+  });
+  const play = (game: GameDefinition) => {
+    const run = runPlaytest({
+      rapier,
+      game,
+      registry: createRegistry(game),
+      scene: yard,
+      script: { v: 1, steps: [{ hold: ["right"], for: TICKS + 5 }] },
+      maxEvents: 5000,
+    });
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    return run;
+  };
+
+  it("leaves a thousand spawns out of the markers, though the report lists them", () => {
+    const run = play(spawning());
+    const spawned = run.events.filter((e) => e.type === ENTITY_SPAWNED);
+    expect(spawned).toHaveLength(PER_TICK * TICKS);
+    expect(run.events.filter((e) => e.type === ENTITY_DESTROYED)).toHaveLength(PER_TICK * TICKS);
+    expect(spawned.every((e) => isRuntimeId(e.entityId!))).toBe(true);
+    expect(run.recording.markers.filter((m) => m.type.startsWith("entity:"))).toEqual([]);
+    expect(run.recording.markers).toEqual(
+      played({ v: 1, steps: [{ hold: ["right"], for: TICKS + 5 }] }).recording.markers,
+    );
+  });
+
+  it("marks lifecycle events a game names in play.markers, and only those", () => {
+    const run = play(spawning([ENTITY_SPAWNED]));
+    expect(run.recording.markers).toHaveLength(PER_TICK * TICKS);
+    expect(run.recording.markers.every((m) => m.type === ENTITY_SPAWNED)).toBe(true);
+    expect(run.recording.markers[0]).toMatchObject({ tick: 0, entityId: "plain#1" });
   });
 });
 

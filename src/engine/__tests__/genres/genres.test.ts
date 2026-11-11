@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vite-plus/test";
 
-import { probePhysics, probeRuns, probesFrom, runGenreProbe } from "./harness";
+import { probePhysics, probeRuns, probeTimeout, probesFrom, runGenreProbe } from "./harness";
 import { GENRE_PINS } from "./pins";
 
 const PROBES = probesFrom(
@@ -52,9 +52,10 @@ afterAll(() => {
 });
 
 describe("genre probes", () => {
-  it("finds the M14 probes", () => {
+  it("finds every probe", () => {
     const ids = PROBES.map((p) => p.id);
-    for (const id of ["grid-puzzle", "top-down", "turn-tactics"]) expect(ids).toContain(id);
+    for (const id of ["grid-puzzle", "roguelike", "shooter", "top-down", "turn-tactics"])
+      expect(ids).toContain(id);
   });
 
   it("pins exactly the probes and variants that exist", () => {
@@ -93,7 +94,7 @@ describe("genre probes", () => {
               GENRE_PINS[probe.id]?.[name],
             );
         },
-        60_000,
+        probeTimeout(probe),
       );
     });
   }

@@ -1126,12 +1126,12 @@
     background: var(--je-panel);
   }
 
-  .je-tab .je-tab-badge[data-tone="danger"] {
+  :is(.je-tab, .je-rail-item) .je-tab-badge[data-tone="danger"] {
     background: var(--je-danger);
     color: #fff;
   }
 
-  .je-tab .je-tab-badge[data-tone="warning"] {
+  :is(.je-tab, .je-rail-item) .je-tab-badge[data-tone="warning"] {
     background: var(--je-warning);
     color: #1b1b24;
   }
@@ -1527,6 +1527,24 @@
     padding: 0 4px;
   }
 
+  .je-rail-item {
+    position: relative;
+    display: flex;
+  }
+
+  /* The panel's count over its button's corner; the button's name carries it too. */
+  .je-rail-badge {
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    font-size: 9px;
+    line-height: 1;
+    pointer-events: none;
+  }
+
   /* The bottom row: status at its left, the dock centred in what remains */
 
   .je-frame-bottom {
@@ -1911,6 +1929,12 @@
 
   .je-save-state {
     white-space: nowrap;
+  }
+
+  .je-save-state[data-compact] {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .je-activity {
@@ -2751,6 +2775,28 @@
     margin-top: 1px;
   }
 
+  /* A column at its narrower widths: the message keeps the row, the code goes under it. */
+  .je-problems {
+    container: je-problems / inline-size;
+  }
+
+  @container je-problems (max-width: 288px) {
+    .je-problems-show {
+      flex-wrap: wrap;
+      row-gap: 0;
+    }
+
+    .je-problems-message {
+      flex-basis: calc(100% - 18px);
+    }
+
+    .je-problems-code {
+      flex-basis: 100%;
+      max-width: none;
+      padding-left: 18px;
+    }
+  }
+
   /* History */
 
   .je-history-row {
@@ -2825,9 +2871,10 @@
 
   /* Run: the summary stays put and the markers scroll inside the panel. */
 
+  /* Only as tall as the run needs: a short run leaves the rest of the panel, or the phone's sheet, free. */
   .je-run-summary {
     display: flex;
-    flex: 1;
+    flex: 0 1 auto;
     flex-direction: column;
     gap: 6px;
     min-height: 0;
@@ -2865,9 +2912,10 @@
     justify-content: flex-end;
   }
 
-  /* Scrolls as a .je-scene-panel-scroll. */
+  /* Scrolls as a .je-scene-panel-scroll once the markers outgrow the panel. */
   .je-run-markers {
     display: flex;
+    flex: 0 1 auto;
     flex-direction: column;
   }
 
@@ -2927,6 +2975,11 @@
     min-height: 0;
     padding: 4px;
     font-size: var(--je-text);
+  }
+
+  .je-ptree-head .je-ptree-switch {
+    flex: 1;
+    min-width: 0;
   }
 
   .je-ptree-drop,

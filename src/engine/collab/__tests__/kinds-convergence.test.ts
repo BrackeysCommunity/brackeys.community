@@ -360,9 +360,9 @@ describe("the engine's doc kinds and a game's converge", () => {
     });
   }
 
-  const offline = (name: string, edits: ((v: Obj) => Obj)[]) => {
+  const offline = (name: string, edits: ((v: Obj) => Obj)[], start: Obj = START[name]!) => {
     const { layout } = kind(name);
-    const s = network(layout, START[name]!, edits.length, rng(7));
+    const s = network(layout, start, edits.length, rng(7));
     s.net.partition([0]);
     edits.forEach((edit, i) => s.write(i, edit));
     s.net.settle();
@@ -496,6 +496,72 @@ describe("the engine's doc kinds and a game's converge", () => {
       },
       { id: "strict", kind: "valid", max: "warn" },
     ]);
+  });
+
+  it("checks: concurrent edits of one check's expect and another's atLeast merge", () => {
+    const script = { v: 1, steps: [{ wait: 60 }] };
+    const start: Obj = {
+      v: 1,
+      checks: [
+        {
+          id: "spawns",
+          kind: "reaches",
+          script,
+          result: "script-end",
+          expect: { exists: "lamp#1" },
+        },
+        { id: "touched", kind: "touches", entity: "post", atLeast: 1, rollouts: 10 },
+      ],
+    };
+    const check = (x: Obj, i: number) => items(x, "checks")[i]!;
+    const v = offline(
+      "checks",
+      [
+        (x) => ({
+          ...x,
+          checks: [
+            { ...check(x, 0), expect: { exists: "lamp#1", count: { type: "lamp", min: 2 } } },
+            check(x, 1),
+          ],
+        }),
+        (x) => ({ ...x, checks: [check(x, 0), { ...check(x, 1), atLeast: 4 }] }),
+        (x) => ({ ...x, checks: [{ ...check(x, 0), result: "timeout" }, check(x, 1)] }),
+      ],
+      start,
+    );
+    expect(v.checks).toEqual([
+      {
+        id: "spawns",
+        kind: "reaches",
+        script,
+        result: "timeout",
+        expect: { exists: "lamp#1", count: { type: "lamp", min: 2 } },
+      },
+      { id: "touched", kind: "touches", entity: "post", atLeast: 4, rollouts: 10 },
+    ]);
+  });
+
+  it("checks: two concurrent writes of one check's expect end on one of them, whole", () => {
+    const start: Obj = {
+      v: 1,
+      checks: [
+        {
+          id: "spawns",
+          kind: "reaches",
+          script: { v: 1, steps: [{ wait: 60 }] },
+          result: "script-end",
+          expect: { count: { type: "lamp", eq: 1 } },
+        },
+      ],
+    };
+    const a = { exists: { id: "lamp#2", enabled: false } };
+    const b = { count: { type: ["lamp", "plain"], max: 3 } };
+    const write = (expect: Obj) => (x: Obj) => ({
+      ...x,
+      checks: [{ ...items(x, "checks")[0]!, expect }],
+    });
+    const v = offline("checks", [write(a), write(b)], start);
+    expect([a, b]).toContainEqual(items(v, "checks")[0]!.expect);
   });
 
   it(`${deckKind.kind}: concurrent title edits, style keys, tags and card edits all land`, () => {

@@ -1,52 +1,12 @@
 /**
  * The standalone editor's page: `@jams/engine/editor-ui` mounted on the
  * engine project its dev server serves, the way a game outside jams.team
- * mounts it. This module is also read by the server for `engineEditorGame`,
- * so everything the page needs beyond that is imported when it mounts.
+ * mounts it. Everything the page needs beyond the game is imported when it
+ * mounts.
  */
-import { defineGame, type EngineContext } from "@jams/engine/game";
-import { z } from "zod";
+import { DEFAULT_SCENE, engineEditorGame } from "./game";
 
-/** The scene the editor opens when the URL names none. */
-export const DEFAULT_SCENE = "kitchen-sink";
-
-type Vec = { x: number; y: number };
-
-/**
- * Where Play's camera looks: the play start when Play began from a point,
- * else the centre of the scene's bounds. The engine's primitives have no
- * actor to follow, so without this the camera stays at the origin. An edit
- * world (no `play`) leaves the camera to the editor.
- */
-export function playCameraTarget(ctx: Pick<EngineContext, "play" | "bounds">): Vec | null {
-  if (!ctx.play) return null;
-  const at = ctx.play.at;
-  if (at) return { x: at.x, y: at.y };
-  const [minX, minY, maxX, maxY] = ctx.bounds;
-  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
-}
-
-/**
- * The engine project's game: no types, actions or settings of its own, so
- * its scenes hold only the engine's primitives, and the one data table the
- * project's `data/` holds. The server judges the project by it too, so the
- * build stamps both sides write agree.
- */
-export const engineEditorGame = defineGame<null>({
-  id: "engine-editor",
-  types: [],
-  actions: [],
-  tables: {
-    card: {
-      description: "Cards a deck holds.",
-      row: {
-        cost: z.number().int().min(0).describe("What playing it costs."),
-        damage: z.number().int().min(0).default(0).describe("What it deals; default 0."),
-      },
-    },
-  },
-  createRuntime: (ctx) => ({ snapshot: () => null, cameraTarget: () => playCameraTarget(ctx) }),
-});
+export { DEFAULT_SCENE, engineEditorGame, playCameraTarget } from "./game";
 
 const sceneOf = (url: URL): string => url.searchParams.get("scene") || DEFAULT_SCENE;
 

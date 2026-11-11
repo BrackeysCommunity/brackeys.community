@@ -1,7 +1,7 @@
 import type { GameCommand, GameOutcome } from "../game/types";
 import { inputAction, probeConfigHash } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "../runtime/runtime";
-import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
+import type { SceneRuntimeHandle, SceneRuntimeOptions, StepEvent } from "../runtime/types";
 import { closest } from "../scene/did-you-mean";
 import type { InputAction } from "../types";
 import type { HeadlessRuntimeOptions, ProbeOptions, ProbeReport } from "./types";
@@ -10,9 +10,12 @@ export { inputAction, probeConfigHash };
 
 const DEFAULT_MAX_EVENTS = 1000;
 
+/** The prefabs the game's `ctx.instantiate` places, as the scene runtime takes them. */
+type PrefabsOption = Pick<SceneRuntimeOptions, "prefabs">;
+
 /** A runtime with no view: nothing is drawn and nothing touches the DOM. */
 export function createHeadlessRuntime(
-  opts: HeadlessRuntimeOptions & ProjectOption,
+  opts: HeadlessRuntimeOptions & ProjectOption & PrefabsOption,
 ): SceneRuntimeHandle {
   const runtime = createSceneRuntime({
     rapier: opts.rapier ?? null,
@@ -21,6 +24,7 @@ export function createHeadlessRuntime(
     registry: opts.registry,
     dev: opts.dev,
     project: opts.project,
+    ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
   });
   if (opts.scene) {
     const report = runtime.load(opts.scene);
@@ -46,7 +50,7 @@ export function unknownActionError(action: string, actionNames: readonly string[
  * and report what happened. Every tick is simulated whatever the time model,
  * as the shell's `step(n)` does.
  */
-export function runProbe<S = unknown>(opts: ProbeOptions<S>): ProbeReport<S> {
+export function runProbe<S = unknown>(opts: ProbeOptions<S> & PrefabsOption): ProbeReport<S> {
   const { registry, game } = resolveGame(opts);
   for (const action of [...(opts.hold ?? []), ...(opts.inputs ?? []).map((e) => e[1])]) {
     const error = unknownActionError(action, registry.actionNames);
@@ -58,6 +62,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S>): ProbeReport<S> {
     game,
     registry,
     project: opts.project,
+    ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
   });
   try {
     const load = runtime.load(opts.scene);

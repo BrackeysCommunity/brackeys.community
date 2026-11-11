@@ -47,7 +47,7 @@ afterEach(async () => {
 
 describe("the standalone editor's page", () => {
   it("reaches the engine only by its package names, never the site", async () => {
-    for (const file of ["main.ts", "vite.config.ts", "run.ts"]) {
+    for (const file of ["main.ts", "game.ts", "vite.config.ts", "run.ts"]) {
       const text = await readFile(new URL(`../${file}`, import.meta.url), "utf8");
       expect(text, file).not.toMatch(/from "@\/|import\("@\/|src\/(components|lib|routes)\//);
     }

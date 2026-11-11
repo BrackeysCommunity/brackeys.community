@@ -188,7 +188,7 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     summary:
       'An entity needs physics (its type requires it, or it rides a follower with `attach`), but the scene\'s resolved physics is `"none"`.',
     hint: "Set `settings.physics` to `\"rapier\"` (or drop it so the project's or game's default applies), or remove the entity or its `attach`.",
-    fixable: false,
+    fixable: true,
   },
   "physics-skipped": {
     severity: "info",
@@ -327,6 +327,27 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     severity: "error",
     summary: "The project is out of room for what the op adds.",
     hint: "The message names the limit; empty the trash or remove unused assets, then retry.",
+    fixable: false,
+  },
+  "spawn-id-invalid": {
+    severity: "error",
+    summary:
+      "A runtime spawn or instantiate id isn't `<name>#<label>` for its type or prefab, has an all-digit label, or is already live.",
+    hint: "Omit `id` to get the next `<name>#<n>`, or pass `<name>#<word>` with a label that isn't all digits and isn't live.",
+    fixable: false,
+  },
+  "prefab-not-spawnable": {
+    severity: "error",
+    summary:
+      "`ctx.instantiate` can't place a prefab: it isn't in the run's library, its nesting is cyclic or too deep, or a child needs physics in a scene without it.",
+    hint: "Read the error's `cause` (its `code`: prefab-unknown, prefab-cycle, prefab-depth, physics-required or unknown-type) and fix the prefab, the library the host passes, or the scene's physics.",
+    fixable: false,
+  },
+  "event-loop": {
+    severity: "error",
+    summary:
+      "One event dispatch pass delivered more than the limit: handlers raise events in a loop.",
+    hint: "Find the handlers of the event the message names that raise it again (directly or through another event) and break the cycle, or raise it once per tick.",
     fixable: false,
   },
 };

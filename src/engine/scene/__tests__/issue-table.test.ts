@@ -420,6 +420,10 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
   "asset-too-large": null,
   "import-failed": null,
   "quota-exceeded": null,
+  // Runtime refusals are thrown as `EngineError`s by `ctx.spawn`, `ctx.instantiate` and the event bus, not reported by the scene tools.
+  "spawn-id-invalid": null,
+  "prefab-not-spawnable": null,
+  "event-loop": null,
 };
 
 /** `applyOps` codes point into the batch, which has no line map. */
@@ -452,6 +456,18 @@ describe("the engine's issue table", () => {
       }
     });
   }
+
+  it("physics-required: its fix applies and leaves the scene without the code", () => {
+    const def = scene({ settings: { physics: "none" } }, [
+      { id: "crate", type: "prop", shape: ["box", 200, 200, 20, 20], density: 1, restitution: 0 },
+    ]);
+    const [issue] = validated(def).filter((i) => i.code === "physics-required");
+    const applied = applyOps(def, issue!.fix!, engine);
+    expect(applied.ok, JSON.stringify(applied)).toBe(true);
+    if (!applied.ok) return;
+    expect(applied.def.settings?.physics).toBe("rapier");
+    expect(validated(applied.def).map((i) => i.code)).not.toContain("physics-required");
+  });
 
   it("every code any tool emits on the fixtures is registered, with a hint", () => {
     const yard = JSON.parse(engineYardText) as SceneDefinition;

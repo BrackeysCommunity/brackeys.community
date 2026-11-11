@@ -410,6 +410,41 @@ describe("SceneRuntime add, update and remove", () => {
     expect(rt.step(DT, []).tick).toBe(1);
     rt.destroy();
   });
+
+  it("share ctx.spawn's despawn: remove ends what an entity owns, an edit keeps it, none raise events", () => {
+    const rt = loaded();
+    const log: string[] = [];
+    const seams = rt.ctx as unknown as {
+      timers: { cancelOwner(id: string): void };
+      events: { dropOwner(id: string): void };
+    };
+    seams.timers.cancelOwner = (id) => void log.push(`cancel ${id}`);
+    seams.events.dropOwner = (id) => void log.push(`drop ${id}`);
+
+    rt.add([NEW[0]!, NEW[5]!]);
+    rt.update([{ ...NEW[5]!, at: [60, 60] }]);
+    rt.update([{ id: "shelf", type: "beacon", at: [1, 1] }]);
+    expect(log).toEqual([]);
+    rt.remove(["shelf", "light"]);
+    expect(log).toEqual(["cancel shelf", "drop shelf", "cancel light", "drop light"]);
+    expect(rt.step(DT, []).events.filter((e) => e.type.startsWith("entity:"))).toEqual([]);
+    rt.destroy();
+  });
+
+  it("an add after game code spawned keeps both, and remove takes a spawned entity too", () => {
+    const rt = loaded();
+    const spawned = rt.ctx.spawn({ type: "beacon", at: [5, 5] });
+    expect(spawned.id).toBe("beacon#1");
+    rt.add([NEW[5]!]);
+    const ids = rt.scene()!.entities.map((e) => e.id);
+    expect(ids.slice(-2)).toEqual(["beacon#1", "light"]);
+    expect(rt.ctx.tags.handlesOf("beacon#1")).toHaveLength(1);
+    rt.remove(["beacon#1"]);
+    expect(rt.ctx.exists("beacon#1")).toBe(false);
+    expect(rt.ctx.tags.handlesOf("beacon#1")).toEqual([]);
+    expect(rt.scene()!.entities.map((e) => e.id)).not.toContain("beacon#1");
+    rt.destroy();
+  });
 });
 
 describe("system fast paths", () => {

@@ -10,10 +10,12 @@ import {
 import { z } from "zod";
 
 import { createGrappleAnchorSystem, GRAPPLE_ANCHOR_COLOR } from "./entities/grapple-anchor";
+import { PLAYER_TYPE } from "./entities/player";
 import { CONSTRUCT_TYPES, createConstructSystem } from "./entities/shaper-constructs";
 import { SURFACES } from "./surfaces";
 import { CLOUD_LOOK, createCloudSystem } from "./systems/cloud";
 import { createMoverSystem } from "./systems/mover";
+import { createPlayerSystem } from "./systems/player";
 import { TYPE } from "./type-names";
 
 type EntityOfFields<F extends z.ZodRawShape> = EntityOf<EntityTypeDef<F>>;
@@ -61,11 +63,14 @@ const spawnFields = (env: FieldEnv) => ({
   ),
 });
 
+const playerFields = { at: pointField(`The player's feet. ${absolute}`) };
+
 export type CloudEntity = EntityOfFields<typeof cloudFields>;
 export type MoverEntity = EntityOfFields<ReturnType<typeof moverFields>>;
 export type AnchorEntity = EntityOfFields<typeof anchorFields>;
 export type ConstructEntity = EntityOfFields<typeof constructFields>;
 export type SpawnEntity = EntityOfFields<ReturnType<typeof spawnFields>>;
+export type PlayerTypeEntity = EntityOfFields<typeof playerFields>;
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -142,5 +147,14 @@ export const PLATFORMER_TYPES: readonly EntityTypeDef[] = [
     base: "marker",
     ascii: "S",
     bulk: { form: "point", description: "Player spawn points (feet), absolute px." },
+  }),
+  defineEntityType({
+    type: PLAYER_TYPE,
+    description:
+      "The runner the input drives. The game spawns it at the first spawn, or at Play's start.",
+    fields: playerFields,
+    system: createPlayerSystem,
+    spawnOnly: true,
+    physics: "required",
   }),
 ];

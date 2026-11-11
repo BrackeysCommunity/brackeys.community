@@ -4,14 +4,7 @@ import {
   SidebarLeftIcon,
   SidebarRightIcon,
 } from "@hugeicons/core-free-icons";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useSyncExternalStore,
-  type CSSProperties,
-} from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
 
 import {
   cx,
@@ -33,6 +26,7 @@ import {
 import type { LayoutState } from "../layout/use-layout";
 import { PANELS, type PanelContext, type PanelDef } from "../panels/registry";
 import { usePendingTasks } from "../pending/use-pending";
+import { usePanelBadges } from "./badges";
 
 export type PanelGroupProps = {
   side: Side;
@@ -51,26 +45,6 @@ export type PanelGroupProps = {
   /** The fitted position and size, as inline px. */
   style?: CSSProperties;
 };
-
-type Badge = NonNullable<TabItem["badge"]>;
-
-const sameBadges = (a: readonly (Badge | null)[], b: readonly (Badge | null)[]) =>
-  a.length === b.length &&
-  a.every((x, i) => {
-    const y = b[i];
-    return x === y || (x !== null && y !== null && x?.count === y?.count && x?.tone === y?.tone);
-  });
-
-/** Each tab's badge, read again whenever the context says what they read changed. */
-function useBadges(defs: readonly PanelDef[], ctx: PanelContext): readonly (Badge | null)[] {
-  const cache = useRef<readonly (Badge | null)[]>([]);
-  const read = useCallback(() => {
-    const next = defs.map((def) => def.badge?.(ctx) ?? null);
-    if (!sameBadges(cache.current, next)) cache.current = next;
-    return cache.current;
-  }, [defs, ctx]);
-  return useSyncExternalStore(ctx.subscribe, read, read);
-}
 
 /**
  * One tab group of a column: its strip (title, badge, busy spinner, the
@@ -100,7 +74,7 @@ export function PanelGroup({
       }),
     [ids, panels],
   );
-  const badges = useBadges(defs, ctx);
+  const badges = usePanelBadges(defs, ctx);
   const tasks = usePendingTasks();
 
   useEffect(() => {

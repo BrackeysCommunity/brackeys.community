@@ -31,6 +31,7 @@ import {
   PREFAB_MAX_DEPTH,
   type BulkEntry,
   type EntityDef,
+  type GroupDef,
   type InstanceDef,
   type OpBatch,
   type OverridePath,
@@ -98,7 +99,15 @@ export function groupTransform(def: SceneDefinition, group: string | undefined):
  * so a child resolves exactly as it would after `unpack` into the group.
  */
 export function instanceSteps(def: SceneDefinition, inst: InstanceDef): Transform2D[] {
-  return [dihedral(turnOf(inst), inst.at), groupTransform(def, inst.group)];
+  return instanceStepsIn(inst, inst.group === undefined ? undefined : def.groups?.[inst.group]);
+}
+
+/** `instanceSteps` with the instance's group given directly; none, or one without `at`, adds the identity. */
+export function instanceStepsIn(inst: InstanceDef, group: GroupDef | undefined): Transform2D[] {
+  return [
+    dihedral(turnOf(inst), inst.at),
+    group?.at ? dihedral(turnOf(group), group.at) : IDENTITY_2D,
+  ];
 }
 
 /** An instance's world transform: its group's after its own turn and flip at its `at`. */
@@ -756,22 +765,46 @@ export function placeChildren(
   cells: boolean,
   library?: PrefabLibrary,
 ): PlacedChild[] {
+  const out = placeInstance(prefab, inst, registry, steps, cells, library);
+  return out.ok ? out.children : [];
+}
+
+/** A placed child with the accumulated turn and flip of its instances and group. */
+export type PlacedInstanceChild = PlacedChild & { transform: Dihedral };
+
+/**
+ * `placeChildren`, with each child's accumulated turn and flip, or the issue
+ * when the prefab (with the instance's params and overrides) doesn't
+ * resolve: `prefab-unknown`, `prefab-cycle`, `prefab-depth`. The one
+ * per-instance step behind the resolved view, load and runtime spawning.
+ */
+export function placeInstance(
+  prefab: Prefab | undefined,
+  inst: InstanceDef,
+  registry: Registry,
+  steps: Transform2D | readonly Transform2D[],
+  cells: boolean,
+  library?: PrefabLibrary,
+): { ok: true; children: PlacedInstanceChild[] } | { ok: false; issue: SceneIssue } {
+  if (!prefab) return { ok: false, issue: unknownIssue(inst.prefab, []) };
   const each: readonly Transform2D[] = Array.isArray(steps) ? steps : [steps];
-  const children = localChildren(prefab, inst, registry, library, { cells });
-  const siblings = new Set(children.map((c) => c.child));
-  const out: PlacedChild[] = [];
-  for (const c of children) {
-    const local = childEntity(c, registry);
-    if (!local) continue;
-    const placed = each.reduce((e, t) => transformEntity(registry, e, t, cells), local);
+  const local = instanceLocal(prefab, inst, localCtx(registry, library, { cells }));
+  if (!local.ok) return local;
+  const outer = turnPart(composeSteps(each));
+  const siblings = new Set(local.children.map((c) => c.child));
+  const children: PlacedInstanceChild[] = [];
+  for (const c of local.children) {
+    const entity = childEntity(c, registry);
+    if (!entity) continue;
+    const placed = each.reduce((e, t) => transformEntity(registry, e, t, cells), entity);
     const def: EntityDef = { ...placed, id: childRef(inst.id, c.child) };
     delete def.group;
     if (inst.group !== undefined) def.group = inst.group;
     inherit(def, inst);
     remapChildRefs(def, inst.id, siblings, registry);
-    out.push({ child: c, def });
+    children.push({ child: c, def, transform: c.turn ? composeDihedral(outer, c.turn) : outer });
   }
-  return out;
+  return { ok: true, children };
 }
 
 /** Where a resolved entity came from, and the turn and flip it was placed with (absent: none). */
@@ -825,19 +858,11 @@ export function resolveSceneDetailed(
   (def.instances ?? []).forEach((inst, i) => {
     const prefab = prefabs?.get(inst.prefab);
     if (!prefab) return;
-    const steps = instanceSteps(def, inst);
-    const outer = turnPart(composeSteps(steps));
-    for (const { child, def: placed } of placeChildren(
-      prefab,
-      inst,
-      registry,
-      steps,
-      cells,
-      prefabs,
-    )) {
-      entities.push(placed);
+    const placed = placeInstance(prefab, inst, registry, instanceSteps(def, inst), cells, prefabs);
+    if (!placed.ok) return;
+    for (const { child, def: entity, transform } of placed.children) {
+      entities.push(entity);
       const nested = child.child.split(CHILD_SEPARATOR).slice(0, -1);
-      const transform = child.turn ? composeDihedral(outer, child.turn) : outer;
       origins.push({
         kind: "child",
         instance: i,

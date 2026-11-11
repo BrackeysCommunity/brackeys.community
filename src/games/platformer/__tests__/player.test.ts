@@ -1,7 +1,11 @@
-import type { InputAction } from "@jams/engine";
+import type { InputAction, RapierModule } from "@jams/engine";
 import { DEFAULT_GRAVITY } from "@jams/engine/game";
-import { describe, expect, it } from "vite-plus/test";
+import { createHeadlessRuntime } from "@jams/engine/headless";
+import type { ExpandedScene } from "@jams/engine/scene";
+import { beforeAll, describe, expect, it } from "vite-plus/test";
 
+import { platformerGame } from "..";
+import { PLAYER_HEIGHT, PLAYER_TYPE } from "../entities/player";
 import {
   computeDesiredMovement,
   deriveMovementState,
@@ -11,6 +15,7 @@ import {
   MAX_FALL_SPEED,
   MOVEMENT_CONFIG,
 } from "../entities/player";
+import type { PlayerSystem } from "../systems/player";
 
 const GRAVITY = DEFAULT_GRAVITY[1];
 
@@ -381,5 +386,75 @@ describe("cheese weight multiplier", () => {
 
     // Cheese jump should be less negative (weaker) than normal
     expect(cheese.newVelocity.y).toBeGreaterThan(normal.newVelocity.y);
+  });
+});
+
+// ─── The player type's system ───────────────────────────
+
+describe("the player system", () => {
+  let rapier: RapierModule;
+  beforeAll(async () => {
+    rapier = await import("@dimforge/rapier2d");
+  });
+
+  const empty: ExpandedScene = {
+    name: "t",
+    game: "platformer",
+    bounds: [-1000, -1000, 1000, 1000],
+    settings: {
+      gravity: [0, 1200],
+      physics: "rapier",
+      grid: null,
+      view: { projection: "orthogonal" },
+    },
+    entities: [],
+  };
+  const runtime = () => createHeadlessRuntime({ rapier, game: platformerGame, scene: empty });
+
+  it("has no step hooks, so its place in the spawn order can't change a step", () => {
+    const rt = runtime();
+    const system = rt.ctx.system<PlayerSystem>(PLAYER_TYPE)!;
+    expect("beforeStep" in system).toBe(false);
+    expect("afterStep" in system).toBe(false);
+    rt.destroy();
+  });
+
+  it("spawns an actor under the entity's id, posed at its feet, and despawn destroys it", () => {
+    const rt = runtime();
+    const system = rt.ctx.system<PlayerSystem>(PLAYER_TYPE)!;
+    const e = rt.ctx.spawn({ type: PLAYER_TYPE, id: "player#lead", at: [40, -100] });
+    expect(e.id).toBe("player#lead");
+    const actor = system.actor("player#lead")!;
+    expect(actor.getPosition()).toEqual({ x: 40, y: -100 - PLAYER_HEIGHT / 2 });
+    expect(rt.ctx.poses.get("player#lead")).toEqual({ x: 40, y: -100, rot: 0 });
+    const [handle] = rt.ctx.tags.handlesOf("player#lead");
+    expect(rt.ctx.tags.get(handle!)).toEqual({ entityId: "player#lead", type: PLAYER_TYPE });
+    expect(rt.stats()).toMatchObject({ bodies: 1, colliders: 1, perType: { player: 1 } });
+
+    rt.ctx.destroy("player#lead");
+    expect(system.actor("player#lead")).toBeUndefined();
+    expect(system.size()).toBe(0);
+    expect(rt.stats()).toMatchObject({ bodies: 0, colliders: 0, tags: 0 });
+    system.despawn("player#lead");
+    rt.destroy();
+  });
+
+  it("numbers further actors player#2, player#3 in spawn order", () => {
+    const rt = runtime();
+    const ids = [0, 1].map((i) => rt.ctx.spawn({ type: PLAYER_TYPE, at: [i * 100, 0] }).id);
+    expect(ids).toEqual(["player#1", "player#2"]);
+    expect(rt.ctx.query.byType(PLAYER_TYPE)).toEqual(ids);
+    rt.ctx.system<PlayerSystem>(PLAYER_TYPE)!.clear();
+    expect(rt.stats().bodies).toBe(0);
+    rt.destroy();
+  });
+
+  it("refuses a spawn without its feet", () => {
+    const rt = runtime();
+    expect(() => rt.ctx.spawn({ type: PLAYER_TYPE })).toThrow(
+      expect.objectContaining({ code: "schema" }),
+    );
+    expect(rt.ctx.exists("player#1")).toBe(false);
+    rt.destroy();
   });
 });

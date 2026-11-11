@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatScene, type SceneDefinition } from "@jams/engine/scene";
+import { formatPrefab, formatScene, type SceneDefinition } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "../../../src/games/platformer";
+import { basin, fountainGame, twinSpout } from "../../engine-readme/examples/fountain-game";
 import { meadow, orchardGame } from "../../engine-readme/examples/orchard-game";
 import { walkerGame } from "../../engine-readme/examples/walker-game";
 import { corridor } from "../../engine-readme/examples/walker-playtest";
@@ -193,6 +194,18 @@ const WORLD_CODES = [
   "nav-invalid",
 ];
 
+/** The codes entity lifecycle added: a running game throws them, and a doc playtest reproduces each. */
+const LIFECYCLE_CODES = ["spawn-id-invalid", "prefab-not-spawnable"];
+/** The step events entity lifecycle added, each in the README's table. */
+const LIFECYCLE_EVENTS = [
+  "entity:spawned",
+  "entity:destroyed",
+  "entity:enabled",
+  "entity:disabled",
+  "contact:start",
+  "contact:end",
+];
+
 /** The card game's scene: a square grid, a painted floor, a lamp and a plain marker. */
 const CARD_TABLE: SceneDefinition = {
   v: 3,
@@ -218,6 +231,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
     card: join(base, cardGame.id),
     walker: join(base, walkerGame.id),
     orchard: join(base, orchardGame.id),
+    fountain: join(base, fountainGame.id),
   };
   await cp(repoFile("src/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
@@ -227,6 +241,9 @@ async function projectsIn(base: string): Promise<ToolContext> {
   await writeFile(join(dirs.walker, "corridor.json"), formatScene(corridor).text);
   await mkdir(dirs.orchard);
   await writeFile(join(dirs.orchard, "meadow.json"), formatScene(meadow).text);
+  await mkdir(dirs.fountain);
+  await writeFile(join(dirs.fountain, "basin.json"), formatScene(basin).text);
+  await writeFile(join(dirs.fountain, "twin-spout.json"), formatPrefab(twinSpout));
   await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
@@ -238,6 +255,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
       await tempProject(dirs.card, { game: cardGame }),
       await tempProject(dirs.walker, { game: walkerGame }),
       await tempProject(dirs.orchard, { game: orchardGame }),
+      await tempProject(dirs.fountain, { game: fountainGame }),
     ],
     loadRapier: loadCompatRapier,
   };
@@ -385,6 +403,43 @@ describe("op batches in the docs", () => {
     expect(used("step", "--command")).toBe(true);
     expect(used("step", "--elapse")).toBe(true);
     expect(used("check", "--checks")).toBe(true);
+  });
+
+  it("reproduces every issue code lifecycle added, and lists each in the issue table", () => {
+    const expected = new Set(all.flat().map((e) => e.expect));
+    expect(LIFECYCLE_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of LIFECYCLE_CODES)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("lists every lifecycle event, and runs the lifecycle flags, predicates and expect", async () => {
+    for (const type of LIFECYCLE_EVENTS)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${type}\` +\\|`, "m"));
+    const run = all.flat().filter((e) => e.fenced && isPure(e.argv) && !e.expect);
+    const used = (name: string, flag: string) =>
+      run.some((e) => split(e.argv)[0] === name && e.argv.includes(flag));
+    expect(used("step", "--events")).toBe(true);
+    expect(used("playtest", "--events")).toBe(true);
+    const files = async (name: string, flag: string) =>
+      Promise.all(
+        run
+          .filter((e) => split(e.argv)[0] === name)
+          .map((e) => e.argv[e.argv.indexOf(flag) + 1])
+          .filter((f): f is string => !!f?.startsWith("scripts/scene/examples/"))
+          .map((f) => readFile(repoFile(f), "utf8")),
+      );
+    const scripts = (await files("playtest", "--script")).map((t) => JSON.parse(t));
+    const until = scripts.flatMap((s: { steps: { until?: object }[] }) =>
+      s.steps.flatMap((st) => (st.until ? [st.until] : [])),
+    );
+    expect(until.some((u) => "exists" in u)).toBe(true);
+    expect(until.some((u) => "count" in u)).toBe(true);
+    const checks = (await files("check", "--checks")).map((t) => JSON.parse(t));
+    expect(
+      checks.some((c: { checks: { kind: string; expect?: object }[] }) =>
+        c.checks.some((k) => k.kind === "reaches" && k.expect),
+      ),
+    ).toBe(true);
   });
 
   it("reproduces every issue code format v3 added, and lists each in the issue table", () => {

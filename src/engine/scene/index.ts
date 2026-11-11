@@ -1,6 +1,6 @@
 /** Scene format v2: parse, validate, format, hash, expand, prefabs, and the `SceneOp` command language. Server-safe. */
 export * from "./types";
-export { createRegistry, RegistryError } from "../game/define";
+export { createRegistry, isSpawnOnly, placeableTypes, RegistryError } from "../game/define";
 export type { Registry } from "../game/types";
 export { ENGINE_REGISTRY_ID } from "../game/types";
 export {
@@ -14,6 +14,7 @@ export {
   InstanceSchema,
   OVERRIDE_PATH,
   sceneSchemaFor,
+  spawnSchemaFor,
   unknownGameIssue,
   type FieldKind,
 } from "./schema";
@@ -59,6 +60,7 @@ export {
   behaviorBlocks,
   bulkKeyType,
   defaultPhysics,
+  expandInstance,
   expandScene,
   isExpandedScene,
   parseBulkId,
@@ -266,5 +268,7 @@ export {
   inputScriptSchemaId,
   inputScriptSchemasFor,
   MAX_SCRIPT_TICKS,
+  type CountMatch,
+  type ExistsMatch,
   type InputScriptSchemas,
 } from "./input-script";

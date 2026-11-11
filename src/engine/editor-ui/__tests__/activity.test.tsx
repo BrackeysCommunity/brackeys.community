@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { Activity, SaveState } from "../frame/Activity";
+import { Activity, SaveState, saveState } from "../frame/Activity";
 import type { EditorNotify } from "../host";
 import { Button } from "../kit/button";
 import { ACTIVITY_DELAY_MS, createPending, type PendingStep } from "../pending/pending";
@@ -128,6 +128,47 @@ describe("SaveState", () => {
     expect(screen.getByText("Connecting…")).toBeTruthy();
     rerender(<SaveState connection="failed" unsynced={0} />);
     expect(screen.getByText("Disconnected")).toBeTruthy();
+  });
+});
+
+describe("SaveState at a narrow width", () => {
+  const compact = () => document.querySelector<HTMLElement>(".je-save-state[data-compact]")!;
+
+  it("draws only the dot while the edits are saved or saving, the words kept for screen readers", () => {
+    const { rerender } = render(<SaveState connection="live" unsynced={0} compact />);
+    expect(compact().querySelector(".je-status-dot")?.getAttribute("data-tone")).toBe("success");
+    expect(compact().querySelector(".je-save-state-short")).toBeNull();
+    expect(screen.getByText("Saved").className).toBe("je-sr-only");
+    rerender(<SaveState connection="live" unsynced={2} compact />);
+    expect(compact().querySelector(".je-save-state-short")).toBeNull();
+    expect(screen.getByText("Saving…").className).toBe("je-sr-only");
+  });
+
+  it("names a connection that isn't live with a short word beside the dot", () => {
+    const { rerender } = render(<SaveState connection="reconnecting" unsynced={1} compact />);
+    const short = () => compact().querySelector<HTMLElement>(".je-save-state-short");
+    expect(short()?.textContent).toBe("Retrying");
+    expect(short()?.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByText("Reconnecting…").className).toBe("je-sr-only");
+    rerender(<SaveState connection="offline" unsynced={3} compact />);
+    expect(short()?.textContent).toBe("Offline");
+    expect(screen.getByText("Offline — changes will sync").className).toBe("je-sr-only");
+    rerender(<SaveState connection="failed" unsynced={0} compact />);
+    expect(short()?.textContent).toBe("Disconnected");
+    expect(compact().getAttribute("data-tone")).toBe("danger");
+    rerender(<SaveState connection="connecting" unsynced={0} compact />);
+    expect(short()?.textContent).toBe("Connecting");
+  });
+
+  it("keeps every short word shorter than its full words", () => {
+    const states = ["connecting", "reconnecting", "offline", "failed", "live"] as const;
+    for (const connection of states) {
+      for (const unsynced of [0, 1]) {
+        const { label, short } = saveState(connection, unsynced);
+        if (short !== null) expect(short.length).toBeLessThanOrEqual(label.length);
+        expect(short === null).toBe(connection === "live");
+      }
+    }
   });
 });
 

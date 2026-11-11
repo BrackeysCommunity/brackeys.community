@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:scene:platformer:v3",
-  "x-agent-surface": 10,
+  "x-agent-surface": 11,
   "title": "jams engine scene for platformer, format v3",
   "type": "object",
   "properties": {
@@ -932,6 +932,31 @@
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
                   "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -1176,6 +1201,31 @@
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
                   "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -1412,6 +1462,31 @@
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
                   "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -1488,17 +1563,21 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "description": "Density, mass per px²; heavier props are harder to push.",
-              "title": "Density"
+              "title": "Density",
+              "group": "body"
             },
             "restitution": {
               "type": "number",
               "minimum": 0,
               "description": "Bounciness: 0 doesn't bounce, 1 keeps all its speed.",
-              "title": "Restitution"
+              "title": "Restitution",
+              "group": "body"
             },
             "friction": {
               "description": "Surface friction; omitted uses the material's, else the physics default.",
               "title": "Friction",
+              "group": "body",
+              "placeholder": "material's",
               "type": "number",
               "minimum": 0
             },
@@ -1513,12 +1592,14 @@
               "description": "Multiplies the world's gravity on this body: 0 floats, -1 falls up; default 1.",
               "title": "Gravity scale",
               "group": "body",
+              "default": 1,
               "type": "number"
             },
             "linearDamping": {
               "description": "Slows the body's motion over time; default 0.",
               "title": "Linear damping",
               "group": "body",
+              "default": 0,
               "type": "number",
               "minimum": 0
             },
@@ -1526,6 +1607,7 @@
               "description": "Slows the body's spin over time; default 0.",
               "title": "Angular damping",
               "group": "body",
+              "default": 0,
               "type": "number",
               "minimum": 0
             },
@@ -1533,12 +1615,14 @@
               "description": "When true, the body never turns.",
               "title": "Fixed rotation",
               "group": "body",
+              "default": false,
               "type": "boolean"
             },
             "ccd": {
               "description": "Continuous collision detection: when true, a fast body can't pass through thin colliders between steps.",
               "title": "CCD",
               "group": "body",
+              "default": false,
               "type": "boolean"
             },
             "behaviors": {
@@ -1696,6 +1780,31 @@
                   "additionalProperties": false,
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
                   "group": "behaviors"
                 }
               },
@@ -1935,6 +2044,31 @@
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
                   "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -2161,6 +2295,31 @@
                   "additionalProperties": false,
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
                   "group": "behaviors"
                 }
               },
@@ -2404,6 +2563,31 @@
                   "additionalProperties": false,
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
                   "group": "behaviors"
                 }
               },
@@ -2702,6 +2886,31 @@
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
                   "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -2939,6 +3148,31 @@
                   "additionalProperties": false,
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
                   "group": "behaviors"
                 }
               },
@@ -3184,6 +3418,31 @@
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
                   "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -3427,6 +3686,31 @@
                   "additionalProperties": false,
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
                   "group": "behaviors"
                 }
               },
@@ -3672,6 +3956,31 @@
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
                   "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -3898,6 +4207,31 @@
                   "additionalProperties": false,
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
                   "group": "behaviors"
                 }
               },
@@ -4147,6 +4481,31 @@
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
                   "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -4382,6 +4741,31 @@
                   "additionalProperties": false,
                   "description": "Stands on the grid cell under its pose, where paths and game code see it.",
                   "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
                   "group": "behaviors"
                 }
               },

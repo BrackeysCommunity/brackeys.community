@@ -313,7 +313,7 @@ export function tagsField(description: string) {
     .array(z.string().regex(ID_PATTERN))
     .optional()
     .describe(description)
-    .meta({ title: "Tags" });
+    .meta({ title: "Tags", kind: "tags" });
 }
 
 /** Fields every entity has besides `type`. */

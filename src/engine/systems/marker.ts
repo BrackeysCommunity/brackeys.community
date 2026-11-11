@@ -22,6 +22,9 @@ export function createMarkerSystem(_ctx: EngineContext, _type: RegisteredType): 
     clear: () => markers.clear(),
     update: (e) => void markers.set(e.id, e),
     size: () => markers.size,
+    /** Nothing here simulates, so a disabled entity keeps its record as it is. */
+    disable() {},
+    enable() {},
     list: () => [...markers.values()],
     get: (id) => markers.get(id),
   };

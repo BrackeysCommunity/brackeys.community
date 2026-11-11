@@ -135,8 +135,10 @@ export type ModelField = {
   section: ModelSectionId;
   widget: FieldWidget;
   optional: boolean;
-  /** What an unset behavior field takes: the type's or the behavior's default. */
+  /** What an unset field takes: a behavior's or the type's default, else the schema's `meta.default`. */
   defaultValue?: unknown;
+  /** `meta.placeholder`: what an unset field without one fixed default falls back to, in words. */
+  placeholder?: string;
   /** Shown, not edited here: the id (renamed with the `rename` op), the type, computed values. */
   readonly: boolean;
   /** The value every target shares; undefined when unset or `mixed`. */
@@ -191,6 +193,8 @@ type FieldMeta = {
   unit?: unknown;
   widget?: unknown;
   accepts?: unknown;
+  default?: unknown;
+  placeholder?: unknown;
 };
 
 /** The field's metadata, inner wrappers first so an outer `.meta()` wins. */
@@ -359,6 +363,8 @@ function describeField(
     mixed: false,
     schema,
   };
+  if (field.optional && meta.default !== undefined) field.defaultValue = meta.default;
+  if (typeof meta.placeholder === "string") field.placeholder = meta.placeholder;
   const inner = unwrapSchema(schema);
   if ((widget.kind === "path" || widget.kind === "object") && inner instanceof z.ZodObject) {
     field.children = linkFrames(
@@ -576,6 +582,7 @@ function shared(lists: readonly ModelField[][]): ModelField[] {
     const mixed = all.some((g) => g.mixed || !same(g.value, f.value));
     const merged: ModelField = { ...f, value: mixed ? undefined : f.value, mixed };
     if (all.some((g) => !same(g.defaultValue, f.defaultValue))) delete merged.defaultValue;
+    if (all.some((g) => g.placeholder !== f.placeholder)) delete merged.placeholder;
     if (f.children) merged.children = shared(all.map((g) => g.children ?? []));
     out.push(merged);
   }

@@ -180,6 +180,64 @@ describe("compileInputScript", () => {
     expect(at("/steps/9")).toMatch(/a step is an object/);
   });
 
+  it("compiles the engine's exists and count predicates", () => {
+    const result = compileInputScript(
+      {
+        v: 1,
+        steps: [
+          { hold: [], until: { exists: "boss#1" }, max: 600 },
+          { hold: [], until: { exists: { id: "boss#1", enabled: false } } },
+          { hold: [], until: { count: { type: "lamp", max: 0 } } },
+          { hold: [], until: { count: { type: ["lamp", "sensor"], tag: "coin", min: 3, max: 5 } } },
+          { hold: [], until: { count: { tag: "coin", eq: 3, enabled: false }, tick: 9 } },
+        ],
+      },
+      game,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.issues));
+    expect(result.script.steps.map((s) => s.until)).toEqual([
+      { exists: "boss#1" },
+      { exists: { id: "boss#1", enabled: false } },
+      { count: { type: "lamp", max: 0 } },
+      { count: { type: ["lamp", "sensor"], tag: "coin", min: 3, max: 5 } },
+      { count: { tag: "coin", eq: 3, enabled: false }, tick: 9 },
+    ]);
+  });
+
+  it("refuses a malformed exists or count, with a guess for a misspelt key", () => {
+    const found = issues(
+      compileInputScript(
+        {
+          v: 1,
+          steps: [
+            { hold: [], until: { count: { type: "lamp" } } },
+            { hold: [], until: { count: { type: "lamp", eq: 1, min: 0 } } },
+            { hold: [], until: { count: { type: "lamp", min: 3, max: 1 } } },
+            { hold: [], until: { count: { tags: "coin", min: 1 } } },
+            { hold: [], until: { count: { type: "lampp", min: 1 } } },
+            { hold: [], until: { count: { min: -1 } } },
+            { hold: [], until: { exists: { id: "boss#1", enabled: true } } },
+            { hold: [], until: { exists: "" } },
+            { hold: [], until: { exist: "boss#1" } },
+          ],
+        },
+        game,
+      ),
+    );
+    const at = (path: string) => found.find((i) => i.path === path)?.message;
+    expect(at("/steps/0/until/count")).toBe("a count needs min, max or eq");
+    expect(at("/steps/1/until/count/eq")).toBe("eq goes alone, without min or max");
+    expect(at("/steps/2/until/count/min")).toBe("min 3 is over max 1");
+    expect(at("/steps/3/until/count/tags")).toBe('unknown key "tags"; did you mean "tag"?');
+    expect(at("/steps/4/until/count/type")).toBe(
+      'unknown entity type "lampp"; did you mean "lamp"?',
+    );
+    expect(at("/steps/5/until/count/min")).toMatch(/>=0/);
+    expect(at("/steps/6/until/exists")).toBeDefined();
+    expect(at("/steps/7/until/exists")).toBeDefined();
+    expect(at("/steps/8/until/exist")).toBe('unknown key "exist"; did you mean "exists"?');
+  });
+
   it("checks the header: version, steps, play options and caps", () => {
     expect(issues(compileInputScript({ steps: [{ wait: 1 }] }, game))[0]!.path).toBe("/v");
     expect(issues(compileInputScript({ v: 1, steps: [] }, game))[0]!.path).toBe("/steps");
@@ -302,6 +360,31 @@ describe("command and elapse steps", () => {
     expect(issues(compileInputScript({ v: 1, steps: [{ elapse: 0 }] }, catchUp))[0]!.path).toBe(
       "/steps/0/elapse",
     );
+  });
+
+  it("points a duration on a step other than hold at the hold step", () => {
+    const found = issues(
+      compileInputScript(
+        {
+          v: 1,
+          steps: [
+            { wait: 1, until: { tick: 5 } },
+            { press: "right", max: 10 },
+          ],
+        },
+        game,
+      ),
+    );
+    expect(found.map((i) => [i.path, i.message])).toEqual([
+      [
+        "/steps/0/until",
+        'until goes with a hold step; { "hold": [], "until": … } waits holding nothing',
+      ],
+      [
+        "/steps/1/max",
+        'max goes with a hold step; { "hold": [], "until": … } waits holding nothing',
+      ],
+    ]);
   });
 });
 

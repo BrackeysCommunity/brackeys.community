@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "checks": [
+    {
+      "id": "runs-dry",
+      "kind": "reaches",
+      "script": "fountain-pour.json",
+      "result": "dry",
+      "expect": { "exists": "twin-spout#1/right", "count": { "type": "drop", "eq": 0 } }
+    }
+  ]
+}

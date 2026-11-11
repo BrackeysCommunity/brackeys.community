@@ -1,22 +1,21 @@
 import type { PhysicsWorld } from "../physics";
 import type { RapierModule } from "../types";
-import type { EngineContext } from "./types";
+import { EngineError, type EngineContext } from "./types";
 
-/** Something that needs Rapier ran in a scene loaded without physics. */
-export class PhysicsRequiredError extends Error {
-  readonly code = "physics-required";
+/** Something that needs Rapier ran in a scene loaded without physics: an `EngineError` with code `physics-required`. */
+export class PhysicsRequiredError extends EngineError {
   /** A type, a system or a call. */
   readonly what: string;
-  readonly entityId: string | undefined;
   constructor(what: string, entityId?: string) {
     super(
+      "physics-required",
       entityId === undefined
         ? `${what} needs physics, and this scene has none`
         : `${what} "${entityId}" needs physics, and this scene has none`,
+      entityId,
     );
     this.name = "PhysicsRequiredError";
     this.what = what;
-    this.entityId = entityId;
   }
 }
 

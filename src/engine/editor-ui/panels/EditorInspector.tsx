@@ -158,11 +158,14 @@ class EditError {
   constructor(readonly message: string) {}
 }
 
-/** An unset field's placeholder: its default when it has one. */
-const unsetText = (fallback: unknown) =>
-  fallback === undefined || fallback === ""
-    ? "unset"
-    : `${typeof fallback === "string" ? fallback : JSON.stringify(fallback)} (default)`;
+/** An unset field's placeholder: its default when it has one, else what it falls back to. */
+const unsetText = ({
+  defaultValue,
+  placeholder,
+}: Pick<ModelField, "defaultValue" | "placeholder">) =>
+  defaultValue === undefined || defaultValue === ""
+    ? (placeholder ?? "unset")
+    : `${typeof defaultValue === "string" ? defaultValue : JSON.stringify(defaultValue)} (default)`;
 
 function valueAt(target: RefTarget, path: string): unknown {
   if (target.kind === "bulk") return path.includes(".") ? undefined : target.value;
@@ -284,29 +287,41 @@ const tidy = (n: number) => Number(n.toFixed(6));
 
 // ─── Building blocks ─────────────────────────────────────
 
-/** The label column's share of the inspector's width, and its bounds in px. */
-const LABEL_COLUMN = { min: 64, share: 0.3, max: 120 } as const;
+/**
+ * The label column's share of the inspector's width and its bounds in px;
+ * a longer title widens it up to `fit` of the width so it isn't clipped.
+ */
+const LABEL_COLUMN = { min: 64, share: 0.3, max: 120, fit: 0.45 } as const;
 
-/** The label column for an inspector `width` px wide. */
-const labelColumnPx = (width: number): number =>
-  Math.round(Math.min(LABEL_COLUMN.max, Math.max(LABEL_COLUMN.min, width * LABEL_COLUMN.share)));
+/** The label column for an inspector `width` px wide whose longest title is `longest` px. */
+const labelColumnPx = (width: number, longest: number): number => {
+  const base = Math.min(LABEL_COLUMN.max, Math.max(LABEL_COLUMN.min, width * LABEL_COLUMN.share));
+  return Math.round(Math.max(base, Math.min(Math.ceil(longest), width * LABEL_COLUMN.fit)));
+};
+
+function fitLabelColumn(el: HTMLElement) {
+  let longest = 0;
+  for (const t of el.querySelectorAll<HTMLElement>(".je-insp-field-title"))
+    longest = Math.max(longest, t.scrollWidth);
+  el.style.setProperty("--je-label-col", `${labelColumnPx(el.clientWidth, longest)}px`);
+}
 
 /**
- * Sets `--je-label-col` on the element from its own width as it resizes, so
- * nested fields line up with the top-level ones; without a `ResizeObserver`
- * the stylesheet's token sizes each row.
+ * Sets `--je-label-col` on the element from its own width and its titles as
+ * it resizes or re-renders, so nested fields line up with the top-level ones;
+ * without a `ResizeObserver` the stylesheet's token sizes each row.
  */
 function useLabelColumn() {
   const [el, setEl] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!el || typeof ResizeObserver === "undefined") return;
-    const apply = () =>
-      el.style.setProperty("--je-label-col", `${labelColumnPx(el.clientWidth)}px`);
-    apply();
-    const observer = new ResizeObserver(apply);
+    const observer = new ResizeObserver(() => fitLabelColumn(el));
     observer.observe(el);
     return () => observer.disconnect();
   }, [el]);
+  useLayoutEffect(() => {
+    if (el && typeof ResizeObserver !== "undefined") fitLabelColumn(el);
+  });
   return setEl;
 }
 
@@ -485,8 +500,8 @@ function NumberInput({
 }: {
   label: string;
   value: number | undefined;
-  /** What an unset value takes, shown in its place. */
-  fallback?: unknown;
+  /** The field whose default an unset value shows in its place. */
+  fallback?: Pick<ModelField, "defaultValue" | "placeholder">;
   mixed: boolean;
   step: number;
   bigStep: number;
@@ -509,7 +524,7 @@ function NumberInput({
           inputMode="decimal"
           aria-label={label}
           aria-invalid={error ? true : undefined}
-          placeholder={mixed ? MIXED : value === undefined ? unsetText(fallback) : undefined}
+          placeholder={mixed ? MIXED : value === undefined ? unsetText(fallback ?? {}) : undefined}
           value={shown}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => draft !== null && run(draft)}
@@ -549,9 +564,7 @@ function TextField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       <Input
         aria-label={field.path}
         aria-invalid={error ? true : undefined}
-        placeholder={
-          field.mixed ? MIXED : field.optional ? unsetText(field.defaultValue) : undefined
-        }
+        placeholder={field.mixed ? MIXED : field.optional ? unsetText(field) : undefined}
         maxLength={field.widget.kind === "text" ? field.widget.maxLength : undefined}
         value={draft ?? (field.mixed ? "" : value)}
         onChange={(e) => setDraft(e.target.value)}
@@ -595,7 +608,7 @@ function NumberField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       <NumberInput
         label={field.path}
         value={value}
-        fallback={field.defaultValue}
+        fallback={field}
         mixed={field.mixed}
         step={w.step}
         bigStep={w.bigStep}
@@ -663,7 +676,7 @@ function AngleField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         <NumberInput
           label={field.path}
           value={value}
-          fallback={field.defaultValue}
+          fallback={field}
           mixed={field.mixed}
           step={1}
           bigStep={w.snapDeg}
@@ -676,8 +689,8 @@ function AngleField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
-/** The segment that clears an optional side field. */
-const OFF = "\u0000off";
+/** The segment that clears an optional side field: no one side, so any side. */
+const ANY_SIDE = "\u0000any";
 
 function OptionsField({
   field,
@@ -692,12 +705,12 @@ function OptionsField({
 }) {
   const [error, setError] = useState<string | null>(null);
   // An optional side's unset state is a choice of its own, so it gets a segment.
-  const off = segmented && field.optional && fieldKind(field.schema) === "side";
+  const anySide = segmented && field.optional && fieldKind(field.schema) === "side";
   const set = typeof field.value === "string" || typeof field.value === "number";
-  const current = field.mixed ? "" : set ? String(field.value) : off ? OFF : "";
+  const current = field.mixed ? "" : set ? String(field.value) : anySide ? ANY_SIDE : "";
   const pick = (key: string) => {
     const option = options.find((o) => String(o.value) === key);
-    if (key === OFF) setError(commitField(ctx, field, undefined));
+    if (key === ANY_SIDE) setError(commitField(ctx, field, undefined));
     else if (key === current && field.optional) setError(commitField(ctx, field, undefined));
     else if (option) setError(commitField(ctx, field, option.value));
     else if (key === "" && field.optional) setError(commitField(ctx, field, undefined));
@@ -710,13 +723,13 @@ function OptionsField({
             size="xs"
             aria-label={field.path}
             value={current}
-            emitOnReselect={field.optional && !off}
+            emitOnReselect={field.optional && !anySide}
             onChange={pick}
             className="je-insp-wrap"
           >
-            {off ? (
-              <SegmentedControl.Item value={OFF} tooltip="Not set: no side">
-                off
+            {anySide ? (
+              <SegmentedControl.Item value={ANY_SIDE} tooltip="Unset: not limited to one side">
+                any
               </SegmentedControl.Item>
             ) : null}
             {options.map((o) => (
@@ -1186,9 +1199,7 @@ function ColorField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         mixed={field.mixed}
         optional={field.optional}
         numeric={field.schema.safeParse(0).success}
-        placeholder={
-          field.mixed ? MIXED : field.optional ? unsetText(field.defaultValue) : undefined
-        }
+        placeholder={field.mixed ? MIXED : field.optional ? unsetText(field) : undefined}
         onCommit={(value) => commitField(ctx, field, value)}
         onProblem={setError}
       />

@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 
 import type { RapierModule } from "@jams/engine";
 import type { PhysicalEnv } from "@jams/engine/game";
-import { runPhysicalChecks, validatePhysical } from "@jams/engine/headless";
+import {
+  createHeadlessRuntime,
+  physicalEnv,
+  runPhysicalChecks,
+  validatePhysical,
+} from "@jams/engine/headless";
 import {
   applyOps,
   createRegistry,
@@ -108,6 +113,25 @@ describe("the platformer's physical checks", () => {
         entityIds: ["~cloud:2", "~solid:4"],
       }),
     ]);
+  });
+
+  it("never counts the actor against a check, whatever its id", () => {
+    const sky = edit([{ op: "remove", refs: ["~solid:0"] }]);
+    const rt = createHeadlessRuntime({
+      rapier,
+      game: platformerGame,
+      scene: expandScene(sky, registry),
+    });
+    rt.ctx.destroy("player#1");
+    const [spawn] = sky.spawn as [number, number][];
+    rt.ctx.spawn({ type: "player", id: "player#again", at: spawn });
+    const env = physicalEnv(rt, sky)!;
+    expect(env.scene.entities.filter((e) => e.type === "player").map((e) => e.id)).toEqual([
+      "player#again",
+    ]);
+    const issues = PLATFORMER_PHYSICAL_CHECKS.flatMap((check) => check.run(env));
+    expect(issues.map((i) => i.code)).toEqual(["platformer/spawn-floating"]);
+    rt.destroy();
   });
 
   it("every code it emits is registered", () => {

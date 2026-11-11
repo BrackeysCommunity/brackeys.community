@@ -74,11 +74,7 @@ export const WALL_SLIDE_COYOTE_MS = MOVEMENT_CONFIG.wallSlideCoyoteMs;
 const WALL_NORMAL_THRESHOLD = 0.7; // |normal.x| must exceed this to count as a wall
 export const PLAYER_WIDTH = 60;
 export const PLAYER_HEIGHT = 60;
-/** Tag entity id of the local player's collider. */
-export const PLAYER_ENTITY_ID = "player";
-/** The player's view id: outside the scene id pattern, so no scene entity can share its visual. */
-export const PLAYER_VIEW_ID = "~player";
-/** Tag type and collision group of the player's collider. */
+/** The player's entity type, and its collider's tag type and collision group. */
 export const PLAYER_TYPE = "player";
 
 const PLAYER_SHAPE = {
@@ -250,20 +246,24 @@ export type PlayerDeps = {
   forces?: Pick<ForceFields, "sample">;
 };
 
-/** `feet` is the bottom-centre of the player's box, as scenes store spawns. */
+/**
+ * `feet` is the bottom-centre of the player's box, as scenes store spawns.
+ * `id` is the player entity's id: its collider's tag and its view id.
+ */
 export function createPlayerEntity(
   ctx: Pick<EngineContext, "rapier" | "physics" | "view" | "tags" | "registry" | "gravity">,
   feet: Vec2,
-  deps: PlayerDeps = {},
+  deps: PlayerDeps,
+  id: string,
 ): PlayerEntity {
-  const { rapier: RAPIER, physics } = physicsOf(ctx, PLAYER_TYPE, PLAYER_ENTITY_ID);
+  const { rapier: RAPIER, physics } = physicsOf(ctx, PLAYER_TYPE, id);
   const { view, tags } = ctx;
   const { anchors: grappleAnchors, forces } = deps;
   const spawn = { x: feet.x, y: feet.y - PLAYER_HEIGHT / 2 };
 
   // ─── Visual ──────────────────────────────────────────
-  view?.draw(PLAYER_VIEW_ID, PLAYER_SHAPE, PLAYER_STYLE, PLATFORMER_LAYERS.player);
-  view?.pose(PLAYER_VIEW_ID, spawn.x, spawn.y, 0, true);
+  view?.draw(id, PLAYER_SHAPE, PLAYER_STYLE, PLATFORMER_LAYERS.player);
+  view?.pose(id, spawn.x, spawn.y, 0, true);
 
   // ─── Physics body ────────────────────────────────────
   const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y);
@@ -274,7 +274,7 @@ export function createPlayerEntity(
     PLAYER_HEIGHT / 2,
   ).setCollisionGroups(ctx.registry.collisionGroups(PLAYER_TYPE));
   const collider = physics.addCollider(colliderDesc, body);
-  tags.set(collider.handle, { entityId: PLAYER_ENTITY_ID, type: PLAYER_TYPE });
+  tags.set(collider.handle, { entityId: id, type: PLAYER_TYPE });
 
   const controller = physics.createCharacterController(SIDE_VIEW_CONTROLLER);
 
@@ -517,7 +517,7 @@ export function createPlayerEntity(
       }
 
       const newPos = body.translation();
-      view?.pose(PLAYER_VIEW_ID, newPos.x, newPos.y);
+      view?.pose(id, newPos.x, newPos.y);
 
       // Update state
       grounded = false;
@@ -751,7 +751,7 @@ export function createPlayerEntity(
 
     // 14. Sync visual to physics body position
     const newPos = body.translation();
-    view?.pose(PLAYER_VIEW_ID, newPos.x, newPos.y);
+    view?.pose(id, newPos.x, newPos.y);
   }
 
   function getPosition(): Vec2 {
@@ -817,7 +817,7 @@ export function createPlayerEntity(
 
   function destroy(): void {
     tags.delete(collider.handle);
-    view?.remove(PLAYER_VIEW_ID);
+    view?.remove(id);
     try {
       physics.world.removeCharacterController(controller);
     } catch {

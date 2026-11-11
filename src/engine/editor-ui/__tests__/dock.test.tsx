@@ -9,12 +9,21 @@ import {
   createKeymap,
   defineEditorTool,
   type SceneDefinition,
+  type SceneIssue,
 } from "../../editor/index";
 import { createToolHost } from "../../editor/tool-host";
 import { DEFAULT_SNAP } from "../../editor/tools";
 import { createRegistry } from "../../game/index";
+import type { AssetKey } from "../../project/index";
 import { createToolRouter } from "../../tool-router";
-import { bottomRow, EditorFrame, editorChrome, Island, useBottomRow } from "../frame/EditorFrame";
+import {
+  bottomRow,
+  EditorFrame,
+  editorChrome,
+  Island,
+  useBottomRow,
+  type FramePanels,
+} from "../frame/EditorFrame";
 import type { EditorNotify } from "../host";
 import { DEFAULT_LAYOUT, fitLayout, type Viewport } from "../layout/model";
 import { EditorStatusBar } from "../panels/EditorStatusBar";
@@ -22,6 +31,7 @@ import { dockParts, dockWidth, EditorToolbar, fitDock } from "../panels/EditorTo
 import { ACTIVITY_DELAY_MS, createPending, type PendingStep } from "../pending/pending";
 import { PendingProvider } from "../pending/use-pending";
 import type { EditorHostState } from "../session/live-scene-editor";
+import type { LoadedRun } from "../session/loaded-run";
 import { fakeWorldGame } from "./fake-world-game";
 
 // jsdom has no WebGL, so the Pixi application is a stand-in; the containers are real.
@@ -119,7 +129,7 @@ function setup() {
       <canvas />
     </EditorFrame>,
   );
-  return { session, tools, onPlay };
+  return { session, tools, onPlay, host };
 }
 
 const toolbar = () => screen.getByRole("toolbar", { name: "Editor" });
@@ -275,6 +285,108 @@ describe("the status in the bottom row", () => {
     expect(within(row).getByText("1 warning").className).toBe("je-sr-only");
     expect(within(row).getByText("Saved").closest(".je-sr-only")).toBeTruthy();
     expect(within(row).getByText("dock-yard").className).toBe("je-sr-only");
+    expect(row.querySelector(".je-save-state-short")).toBeNull();
+  });
+
+  it("names a dropped connection in a short word beside the dot when the row is short", async () => {
+    resizeWindow(1024);
+    const { host } = setup();
+    act(() => host.setState((s) => ({ ...s, connection: "reconnecting", unsynced: 1 })));
+    await waitFor(() => expect(status().hasAttribute("data-compact")).toBe(true));
+    const save = status().querySelector<HTMLElement>(".je-save-state[data-compact]")!;
+    expect(save.querySelector(".je-status-dot")?.getAttribute("data-tone")).toBe("warning");
+    expect(save.querySelector(".je-save-state-short")?.textContent).toBe("Retrying");
+    expect(within(save).getByText("Reconnecting…").className).toBe("je-sr-only");
+  });
+});
+
+describe("the Problems count off the tab strip", () => {
+  function framed(width: number) {
+    resizeWindow(width, 800);
+    const session = createEditorSession({
+      doc: sceneToDoc(scene, { key: sequentialKeys("t") }),
+      origin: { kind: "user", userId: "ada", name: "Ada" },
+      name: "dock-yard",
+      registry: createRegistry(),
+      issuesDebounceMs: 0,
+    });
+    const physical = new Store<readonly SceneIssue[]>([]);
+    const panels: FramePanels = {
+      context: {
+        controls: {
+          session,
+          notify,
+          runStore: new Store<LoadedRun | null>(null),
+          playFrom: vi.fn(),
+          onReplay: vi.fn(),
+          frame: () => true,
+        },
+        physical,
+        pickedAsset: new Store<AssetKey | null>(null),
+      },
+    };
+    render(
+      <EditorFrame host={{ storage: null }} panels={panels} dock={<Island>dock</Island>}>
+        <canvas />
+      </EditorFrame>,
+    );
+    return { session, physical };
+  }
+
+  const badgeOf = (button: HTMLElement) =>
+    button.closest(".je-rail-item")?.querySelector<HTMLElement>(".je-rail-badge") ?? null;
+
+  it("shows the phone bar's Problems button with its count and tone, and drops it at zero", async () => {
+    const { session, physical } = framed(500);
+    const bar = screen.getByRole("navigation", { name: "Right panels" });
+    const problems = await within(bar).findByRole("button", { name: "Problems (1)" });
+    expect(badgeOf(problems)?.textContent).toBe("1");
+    expect(badgeOf(problems)?.getAttribute("data-tone")).toBe("warning");
+    expect(badgeOf(problems)?.getAttribute("aria-hidden")).toBe("true");
+    expect(badgeOf(within(bar).getByRole("button", { name: "Run" }))).toBeNull();
+
+    act(() =>
+      physical.setState(() => [
+        {
+          severity: "error",
+          code: "spawn-in-solid" as SceneIssue["code"],
+          message: "pad overlaps the ground",
+          entityIds: ["pad"],
+        },
+      ]),
+    );
+    const both = within(bar).getByRole("button", { name: "Problems (2)" });
+    expect(badgeOf(both)?.getAttribute("data-tone")).toBe("danger");
+
+    act(() => physical.setState(() => []));
+    const [rounding] = session.store.state.issues;
+    act(() => {
+      session.dispatch(rounding!.fix!);
+    });
+    await waitFor(() => expect(within(bar).getByRole("button", { name: "Problems" })).toBeTruthy());
+    expect(badgeOf(within(bar).getByRole("button", { name: "Problems" }))).toBeNull();
+  });
+
+  it("opens the Problems sheet from the badged button", async () => {
+    framed(500);
+    const bar = screen.getByRole("navigation", { name: "Right panels" });
+    fireEvent.click(await within(bar).findByRole("button", { name: "Problems (1)" }));
+    const sheet = document.querySelector<HTMLElement>(".je-frame-sheet")!;
+    expect(
+      within(sheet)
+        .getByRole("tab", { name: /Problems/ })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+  });
+
+  it("badges a single-column layout's rail too", async () => {
+    framed(760);
+    const left = screen.getByRole("navigation", { name: "Left panels" });
+    fireEvent.click(within(left).getByRole("button", { name: "Outliner" }));
+    const rail = screen.getByRole("navigation", { name: "Right panels" });
+    const problems = await within(rail).findByRole("button", { name: "Problems (1)" });
+    expect(badgeOf(problems)?.textContent).toBe("1");
+    expect(badgeOf(within(rail).getByRole("button", { name: "Inspector" }))).toBeNull();
   });
 });
 

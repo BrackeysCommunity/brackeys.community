@@ -355,7 +355,7 @@ describe("a scene the project doesn't hold", () => {
     await waitFor(() => expect(onSceneChange).toHaveBeenCalledWith("yard"), { timeout: 10_000 });
     expect(notify.warning).toHaveBeenCalledTimes(1);
     expect(notify.warning).toHaveBeenCalledWith(
-      "There's no scene kitchen-sink in this project",
+      'There\'s no scene "kitchen-sink" in P',
       expect.objectContaining({ description: "yard opened instead." }),
     );
 

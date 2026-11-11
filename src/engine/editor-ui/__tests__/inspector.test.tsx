@@ -210,7 +210,7 @@ describe("EditorInspector", () => {
     expect(entity(session, "gizmo").power).toBe(21);
   });
 
-  it("turns a one-way solid's side off through a segment of its own", () => {
+  it("clears a one-way solid's side through an 'any' segment of its own", () => {
     const def = scene();
     def.entities!.push({
       id: "ledge",
@@ -226,7 +226,7 @@ describe("EditorInspector", () => {
         .filter((b) => b.getAttribute("aria-pressed") === "true")
         .map((b) => b.textContent);
     expect(side.getAllByRole("button").map((b) => b.textContent)).toEqual([
-      "off",
+      "any",
       "up",
       "right",
       "down",
@@ -234,14 +234,36 @@ describe("EditorInspector", () => {
     ]);
     expect(pressed()).toEqual(["up"]);
 
-    fireEvent.click(side.getByRole("button", { name: "off" }));
+    fireEvent.click(side.getByRole("button", { name: "any" }));
     expect(entity(session, "ledge").oneWay).toBeUndefined();
-    expect(pressed()).toEqual(["off"]);
+    expect(pressed()).toEqual(["any"]);
 
     fireEvent.click(side.getByRole("button", { name: "left" }));
     expect(entity(session, "ledge").oneWay).toBe("left");
     fireEvent.click(side.getByRole("button", { name: "left" }));
     expect(entity(session, "ledge").oneWay).toBe("left");
+  });
+
+  it("shows a prop's body defaults as placeholders and keeps its body fields in Physics", () => {
+    const def = scene();
+    def.entities!.push({
+      id: "crate",
+      type: "prop",
+      shape: ["box", 400, 400, 20, 20],
+      density: 1,
+      restitution: 0,
+    });
+    setup(["crate"], undefined, def);
+    const physics = within(screen.getByRole("region", { name: "Physics" }));
+    const placeholder = (path: string) =>
+      (physics.getByLabelText(path) as HTMLInputElement).placeholder;
+    expect(placeholder("gravityScale")).toBe("1 (default)");
+    expect(placeholder("linearDamping")).toBe("0 (default)");
+    expect(placeholder("angularDamping")).toBe("0 (default)");
+    expect(placeholder("friction")).toBe("material's");
+    for (const path of ["density", "restitution"])
+      expect(physics.getByLabelText(path)).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Gameplay" })).toBeNull();
   });
 
   it("edits enums, switches and tags through their widgets, and shows a game widget", () => {
@@ -332,11 +354,12 @@ describe("EditorInspector", () => {
     expect(items.map((i) => i.textContent)).toEqual([
       "SpriteDraws a texture or an atlas frame at the entity's pose.",
       "OccupantStands on the grid cell under its pose, where paths and game code see it.",
+      "LifetimeDestroys or disables the entity a time after it spawns or is enabled.",
       "HumA low hum it gives off.",
       "SignWords written on it.",
     ]);
     await act(async () => {
-      fireEvent.click(items[2]!);
+      fireEvent.click(items[3]!);
     });
     expect(dispatch).toHaveBeenCalledOnce();
     expect(entity(session, "zone").behaviors).toEqual({ "panels/hum": {} });
@@ -354,6 +377,7 @@ describe("EditorInspector", () => {
     expect((await screen.findAllByRole("menuitem")).map((i) => i.textContent)).toEqual([
       "SpriteDraws a texture or an atlas frame at the entity's pose.",
       "OccupantStands on the grid cell under its pose, where paths and game code see it.",
+      "LifetimeDestroys or disables the entity a time after it spawns or is enabled.",
       "SignWords written on it.",
     ]);
   });

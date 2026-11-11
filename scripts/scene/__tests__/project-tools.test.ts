@@ -168,6 +168,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       project: "engine",
       asset: { id: "kitchen-sink", kind: "scene", path: "kitchen-sink.json", deleted: false },
       referrers: [
+        { id: "kitchen-sink-checks", kind: "checks", pointer: "/checks/@fades/script/scene" },
         { id: "kitchen-sink-checks", kind: "checks", pointer: "/checks/@settles/script/scene" },
       ],
       dangling: [],

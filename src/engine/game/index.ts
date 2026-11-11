@@ -32,6 +32,8 @@ export {
   type SpriteGeometry,
 } from "./behaviors/sprite";
 export { OCCUPANT, type OccupantBlock } from "./behaviors/occupant";
+export { LIFETIME, type LifetimeBlock } from "./behaviors/lifetime";
+export { isRuntimeId, parseRuntimeId, RUNTIME_ID_PATTERN, runtimeId } from "./runtime-ids";
 export {
   angleField,
   assetField,
@@ -89,6 +91,7 @@ export {
   ENGINE_REGISTRY_ID,
   ENGINE_RUN_RESULTS,
   ENGINE_TOOL_IDS,
+  EngineError,
   PRIMITIVE_TYPES,
 } from "./types";
 export type {
@@ -102,6 +105,10 @@ export type {
   ColliderTag,
   CommandDef,
   ColliderTags,
+  ContactSelector,
+  Contacts,
+  CoroutineYield,
+  Delay,
   EngineCheckKind,
   EngineCollisionGroup,
   EngineContext,
@@ -120,7 +127,13 @@ export type {
   GameTableDef,
   GameWorldDef,
   EngineToolId,
+  EntityQuery,
+  EntitySelector,
+  EventBus,
+  EventSubscribeOptions,
   InspectorWidgetDef,
+  InstantiateOptions,
+  InstantiateResult,
   IssueCodeDef,
   Macro,
   MacroRandom,
@@ -130,6 +143,8 @@ export type {
   PhysicalHit,
   PlayStart,
   PlayState,
+  PlayWorld,
+  Pool,
   PrimitiveType,
   RegisteredType,
   Registry,
@@ -139,10 +154,14 @@ export type {
   SceneTemplate,
   SceneValidator,
   Side,
+  SpawnInput,
   SpawnShape,
   Style,
   SystemFactory,
+  TimerAction,
+  Timers,
 } from "./types";
+export { createPool } from "../runtime/pool";
 export type { AssetKindDef } from "../project/kinds";
 export type { ProjectRuntimeView } from "../project/runtime-view";
 export type { Pose, PoseIndex } from "../runtime/poses";
@@ -234,7 +253,16 @@ export {
   type NavIssue,
   type NavMesh,
 } from "../nav/index";
-export { SENSOR_ENTER, SENSOR_EXIT } from "../runtime/types";
+export {
+  CONTACT_END,
+  CONTACT_START,
+  ENTITY_DESTROYED,
+  ENTITY_DISABLED,
+  ENTITY_ENABLED,
+  ENTITY_SPAWNED,
+  SENSOR_ENTER,
+  SENSOR_EXIT,
+} from "../runtime/types";
 export { TOOL_PRIORITY, type ToolConsumer, type ToolEvent, type ToolRouter } from "../tool-router";
 export type { EditorToolDef } from "../editor/tools";
 export {

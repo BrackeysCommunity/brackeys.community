@@ -70,9 +70,9 @@ Two scenes to practise on: `test-yard` (the platformer's) and
 | `apply <scene> --ops <file\|-> [--dry-run] [--base hash] [--live …]`                                                                                                                   | yes, unless dry run      | the `ApplyResult`: diff, inverse, created ids, ref remap, issues and the new `sceneHash`                                                                                         |
 | `diff <a> (<b> \| --git <rev> \| --ops <file\|->)`                                                                                                                                     | no                       | `changes`: what changed from the first side to the second, entity by entity                                                                                                      |
 | `new <name> [--game id] [--from scene]`                                                                                                                                                | yes                      | writes a new scene from the game's template, or a copy of `--from` under the new name, as a `createAsset` (an id or path another asset holds is refused)                         |
-| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]] [--elapse tick:ms] [--game id]`                                                           | no                       | a headless probe: events by entity id, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat                                                               |
+| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]] [--elapse tick:ms] [--events type,…] [--game id]`                                         | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat                                 |
 | `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                      | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                           |
-| `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--game id] [--record file]`                                                                                                  | with --record            | a headless run of an input script: outcome, steps, events, focus trail, `recording`; exit 1 when blocked                                                                         |
+| `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file]`                                                                                | with --record            | a headless run of an input script: outcome, steps, events, spawns and destroys per type, focus trail, `recording`; exit 1 when blocked                                           |
 | `replay <scene\|file\|-> --run <file\|-> [--game id]`                                                                                                                                  | no                       | replays a run recording (or a playtest report's) headless; exit 1 when it ends differently                                                                                       |
 | `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id]`                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second                                                                                  |
 | `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                          | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                        |
@@ -154,6 +154,10 @@ what crossed it) and the game's own (the platformer's `landed` and
 its tuning, so a stale report can be told from a fresh one. A scene without
 a game steps under one with `--game <id>`; `--game` on a scene that names a
 game is a usage error.
+
+`step` and `playtest` count spawns and destroys per entity type, and
+`--events type,…` prints only those event types; see
+[Lifecycle](#lifecycle).
 
 `apply` writes only when the batch applied and left no error-severity
 issue. `step --inputs` takes a JSON array of `[tick, action, 0|1]` edges;
@@ -313,10 +317,18 @@ inside a solid. `schema script --game <id>` is the reference; a script's
   `{ "elapse": ms }` send a command (see [Game commands](#game-commands)). A step names everything held during it;
   what the step before held and this one doesn't is released when it starts.
 - `until` keys AND together and are checked after each tick: `event` (a
-  type, or `{ type, entityId?, other? }`), `tick` (absolute), and the game's
-  predicates (the platformer's `grounded`).
+  type, or `{ type, entityId?, other? }`), `tick` (absolute), `exists` (an
+  id that exists and is enabled, `"boss#1"`; `{ "id": "boss#1", "enabled":
+false }` holds while it exists at all), `count` (entities matching a
+  selector of `type`, one or a list, `tag` and `enabled`, kept within
+  `min`/`max` or at `eq`: `{ "type": "enemy", "max": 0 }`), and the game's
+  predicates (the platformer's `grounded`). A game predicate can't be named
+  `exists` or `count`.
 - `maxTicks` (default 1800), `scene` (a run against another scene is
-  refused), `at`, `timeOffsetMs`, and `game` for the game's play options.
+  refused), `at`, `timeOffsetMs`, `game` for the game's play options, and
+  `seed` (a number or a string) for the game's `ctx.random`; without one the
+  run draws from a seed of the game's and the scene's names. A given seed is
+  the recording's `start.seed`, so `replay` draws the same numbers.
 
 The run ends with the game's outcome (its `play.outcome` hook; the
 platformer declares none yet), `stuck` (a movement action held while the
@@ -327,7 +339,9 @@ step's start tick, length and why it ended: `done`, `until`, `max` or
 4 ticks), `final` (the game's snapshot), `inputs` (the `[tick, action, 0|1]`
 edges played, `until` steps resolved), `sceneHash` and `configHash`. A
 script that doesn't compile, a scene with errors or a start that doesn't
-load is `blocked` with its `stage` and issues, and exits 1; an unknown
+load is `blocked` with its `stage` and issues, and exits 1, and so is a run
+an engine error stops mid-step (stage `run`, the error's code on its issue,
+such as `event-loop` or `spawn-id-invalid`); an unknown
 action or key gets a "did you mean". Pass the report to `render --overlay`
 to see its trail.
 
@@ -335,8 +349,8 @@ to see its trail.
 `--ticks`, default 600). Each starts like Play and holds one or two random
 actions for 4–60 ticks at a time, or the game's own macros. It reports each
 entity an event named (`touched`, by id or bulk ref, `reached` in how many
-rollouts, `firstTick` and `firstRollout`), the loadable entities nothing
-touched (`untouched`), how the rollouts ended (`results`) and the measured
+rollouts, `firstTick` and `firstRollout`; a runtime `#` id is never counted),
+the loadable entities nothing touched (`untouched`), how the rollouts ended (`results`) and the measured
 `timing`. The same `--seed` (a number or a string, default 1) gives the
 same report apart from `timing`, and a longer fuzz repeats a shorter one's
 first rollouts.
@@ -410,7 +424,11 @@ A scene's checks sit beside it as `<scene>.checks.json`, outside its hash;
 - `reaches`: the input script's playtest (`script` inline, or a file
   relative to the checks file; `at` overrides its start) ends with `result`,
   one of the run results (`timeout`, `script-end`, `stuck` and the game's).
-  A blocked run fails.
+  `expect` is an `until` clause every key of which must hold on the run's
+  last tick; the verdict names the first key that fails, in the order the
+  check wrote them. A blocked run fails, and so does an engine error thrown
+  out of a step (a `blocked` run at stage `run`, its issue carrying the
+  error's code).
 - `touches`: at least `atLeast` of `rollouts` (default 100) fuzz rollouts
   (`seed` default 1, `ticks` default 600) touch `entity`.
 - A game's kinds are `<game>/<kind>`, with the fields the game defines; the
@@ -639,6 +657,153 @@ exactly one walk area, or two walk areas that overlap is `nav-invalid`:
 }
 ```
 
+## Lifecycle
+
+A running game spawns, destroys, enables and disables entities, and places
+prefabs (the engine README's
+[Entity lifecycle](../../src/engine/README.md#entity-lifecycle)). What it
+spawns has a runtime id, `<name>#<n>` from a counter per type or prefab
+name (`drop#3`), or an explicit `<name>#<label>` (`drop#first`); a placed
+prefab's children are `<id>/<child>` (`twin-spout#1/left`). Runtime ids are
+never scene refs: no op takes one, `show` lists none, and `fuzz` never
+counts one as touched. A **spawn-only** type (the platformer's `player`)
+loads and spawns but can't be placed: the scene schema leaves it out, and
+`validate` and `apply` call it `unknown-type`.
+
+The engine raises six events for this, in `step` and `playtest` reports as
+any other:
+
+| Event              | When                                                                        | `entityId`       | `other`   |
+| ------------------ | --------------------------------------------------------------------------- | ---------------- | --------- |
+| `entity:spawned`   | a spawn inside a step; a placed prefab raises one per child                 | the new entity   | —         |
+| `entity:destroyed` | the end of the tick that destroyed it, `at` its last pose                   | the entity       | —         |
+| `entity:enabled`   | an entity is switched back on inside a step                                 | the entity       | —         |
+| `entity:disabled`  | an entity is switched off inside a step (a `lifetime` with `then: disable`) | the entity       | —         |
+| `contact:start`    | a pair the game watches starts touching, `at` the contact point             | the watched side | the other |
+| `contact:end`      | that pair stops touching                                                    | the watched side | the other |
+
+The four `entity:*` events carry the entity's type as `data.type`. A
+scene's own entities spawning at load raise nothing, and neither does
+anything a game does outside a step. A recording's markers leave `entity:*`
+out unless the game's `play.markers` names them.
+
+`step` and `playtest` count spawns and destroys per type from those
+events: the text prints a `spawned drop ×7, destroyed ×3` line per type,
+and `--json` carries `lifecycle: { <type>: { spawned, destroyed } }`.
+`--events type,…` keeps only those types in the printed and returned
+`events`, while `lifecycle` still counts every event the run reported (the
+first 1000; past that a summary line says it counted the reported ones).
+The examples here run on the README's fountain game
+(`scripts/engine-readme/examples/fountain-game.ts`): each spout lets a drop
+fall every 250 ms, eight times, each drop's `lifetime` destroys it a second
+later, and then the fountain runs dry.
+
+```sh
+# basin: the fountain example game's scene, not a repo scene
+vp run scene step basin --ticks 120
+vp run scene step basin --ticks 120 --events entity:destroyed
+```
+
+```text
+basin d2f605aa69b87c2f game fountain config 58b96218957b3001: 120 ticks at 60Hz
+  final {"fell":3,"live":4,"jitter":-20,"dry":false}
+  spawned drop ×7, destroyed ×3
+  t75 entity:destroyed drop#1
+  t90 entity:destroyed drop#2
+  t105 entity:destroyed drop#3
+```
+
+The kitchen sink's `spark` is a `decor` with a 30-tick `lifetime`, so a
+gameless scene shows it too:
+
+```sh
+vp run scene step kitchen-sink --ticks 40 --events entity:destroyed
+```
+
+**`exists` and `count`** are `until` predicates (see
+[Playtests and fuzz](#playtests-and-fuzz)) that read the live world after
+each tick: `exists` holds while an id exists and is enabled, and `count`
+while the number of entities matching a selector stays within `min`/`max`
+or at `eq`. `examples/fountain-pour.json` places the game's `twin-spout`
+prefab, waits until its left spout exists and six drops are falling, then
+until every drop is gone:
+
+```sh
+# basin: the fountain example game's scene, not a repo scene
+vp run scene playtest basin --script scripts/scene/examples/fountain-pour.json --events fountain:dry
+```
+
+```text
+basin d2f605aa69b87c2f game fountain config 58b96218957b3001: dry at t180 (181 ticks)
+  step 0 t0 +1 done
+  step 1 t1 +30 until
+  step 2 t31 +150 until
+  final {"fell":24,"live":0,"jitter":5,"dry":true}
+  spawned spout ×2
+  spawned drop ×24, destroyed ×24
+  t180 fountain:dry
+```
+
+**`expect`** on a `reaches` check is an `until` clause that must hold on
+the run's last tick, every key of it; the verdict names the first that
+doesn't. `examples/basin.checks.json` runs the script above and expects
+the right spout still there and no drop left:
+
+```json checks=basin
+{
+  "v": 1,
+  "checks": [
+    {
+      "id": "runs-dry",
+      "kind": "reaches",
+      "script": {
+        "v": 1,
+        "steps": [
+          { "command": "pour", "args": { "prefab": "twin-spout" } },
+          { "hold": [], "until": { "count": { "type": "drop", "min": 6 } }, "max": 60 },
+          { "hold": [], "until": { "count": { "type": "drop", "max": 0 } }, "max": 600 }
+        ]
+      },
+      "result": "dry",
+      "expect": { "exists": "twin-spout#1/right", "count": { "type": "drop", "eq": 0 } }
+    }
+  ]
+}
+```
+
+```sh
+# basin: the fountain example game's scene, not a repo scene
+vp run scene check basin --checks scripts/scene/examples/basin.checks.json
+vp run scene check kitchen-sink --only fades
+```
+
+The kitchen sink's `fades` check waits a second and expects `lamp` to exist
+and one `decor` left, its `spark` gone.
+
+**Engine errors.** A spawn or a prefab placement that can't happen throws
+an `EngineError` with an issue code, and a playtest (or a `reaches` check)
+that hits one ends `blocked` at stage `run`, the code on its issue:
+`spawn-id-invalid` for an explicit id that isn't `<name>#<label>` for its
+type, has an all-digit label or is already live, and
+`prefab-not-spawnable` for a prefab the run can't place (not in its
+library, nested in a cycle or too deep, or a child needing physics the
+scene lacks; the error's `cause` carries that code). The prefabs a run can
+place are the project's.
+
+```sh expect=spawn-id-invalid
+# basin: spills drop#first twice
+vp run scene playtest basin --script scripts/scene/examples/spill-twice.json --json
+```
+
+```sh expect=prefab-not-spawnable
+# basin: pours a prefab the fountain's project doesn't have
+vp run scene playtest basin --script scripts/scene/examples/pour-missing.json --json
+```
+
+Over MCP, `scene_playtest` and `scene_check` take and return the same: the
+events, `lifecycle`, `exists` and `count` in scripts, and `expect` in
+checks.
+
 ## Rendering
 
 `render` draws a scene so you can look at it: a schematic, not the game's
@@ -797,24 +962,24 @@ functions as the CLI (it never spawns it), versioned with the engine
 { "mcpServers": { "jams-scenes": { "command": "bun", "args": ["scripts/scene/mcp.ts"] } } }
 ```
 
-| Tool              | CLI command        | Notes                                                                                                  |
-| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
-| `scene_list`      | `list`             |                                                                                                        |
-| `scene_show`      | `show`             | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box; `time` and `physics`                 |
-| `scene_schema`    | `schema`           | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…)                          |
-| `scene_codes`     | `codes`            |                                                                                                        |
-| `scene_validate`  | `validate`         | `physical`                                                                                             |
-| `scene_diff`      | `diff`             | one of `other`, `git` or an inline `ops` batch                                                         |
-| `scene_apply_ops` | `apply` / `--live` | writes; `dryRun` defaults to `true`                                                                    |
-| `scene_playtest`  | `playtest`         | `script` inline or a path, command and elapse steps included; `at` is `[x, y]`                         |
-| `scene_replay`    | `replay`           | `run` inline or a path: a recording or a playtest result                                               |
-| `scene_fuzz`      | `fuzz`             | `seed`, `rollouts`, `ticks` as numbers                                                                 |
-| `scene_check`     | `check`            | every kind, `connected` included                                                                       |
-| `scene_render`    | `render`           | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes |
-| `project_tree`    | `project tree`     |                                                                                                        |
-| `asset_refs`      | `project refs`     | `id`; without one, every dangling reference                                                            |
-| `asset_import`    | `assets import`    | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                        |
-| `asset_apply_ops` | `assets apply`     | writes; `ops` inline or a path; `base` on files                                                        |
+| Tool              | CLI command        | Notes                                                                                                                         |
+| ----------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `scene_list`      | `list`             |                                                                                                                               |
+| `scene_show`      | `show`             | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box; `time` and `physics`                                        |
+| `scene_schema`    | `schema`           | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…)                                                 |
+| `scene_codes`     | `codes`            |                                                                                                                               |
+| `scene_validate`  | `validate`         | `physical`                                                                                                                    |
+| `scene_diff`      | `diff`             | one of `other`, `git` or an inline `ops` batch                                                                                |
+| `scene_apply_ops` | `apply` / `--live` | writes; `dryRun` defaults to `true`                                                                                           |
+| `scene_playtest`  | `playtest`         | `script` inline or a path, command and elapse steps included; `at` is `[x, y]`; `events` a list of types, returns `lifecycle` |
+| `scene_replay`    | `replay`           | `run` inline or a path: a recording or a playtest result                                                                      |
+| `scene_fuzz`      | `fuzz`             | `seed`, `rollouts`, `ticks` as numbers                                                                                        |
+| `scene_check`     | `check`            | every kind, `connected` included; `reaches` takes `expect`                                                                    |
+| `scene_render`    | `render`           | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes                        |
+| `project_tree`    | `project tree`     |                                                                                                                               |
+| `asset_refs`      | `project refs`     | `id`; without one, every dangling reference                                                                                   |
+| `asset_import`    | `assets import`    | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                                               |
+| `asset_apply_ops` | `assets apply`     | writes; `ops` inline or a path; `base` on files                                                                               |
 
 Each result is the command's `--json` output as compact JSON in a text block
 and as `structuredContent`, with `exitCode` added. A scene with error issues
@@ -1602,17 +1767,25 @@ Sprites add these; [Sprites](#sprites) has a batch that reports each:
 World models add these; [World models](#world-models) has an example that
 reports each:
 
-| Code                | Severity | Meaning                                                                                                    | Fix                      |
-| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `tick-rate-invalid` | error    | A tick rate (`engine.tickRate`, a game's `time.rate`) that isn't an integer from 1 to 240.                 | set one in range         |
-| `physics-required`  | error    | An entity needs physics (a `prop`, an `attach`, a type that requires it) in a scene whose physics is none. | remove it, or use Rapier |
-| `physics-skipped`   | info     | A game's physical check that needs physics was skipped in a scene without it.                              | —                        |
-| `grid-unreachable`  | error    | A `connected` check's target has no path from its start on the grid.                                       | open a path, or drop it  |
-| `nav-invalid`       | error    | A nav polygon crosses itself, a hole isn't inside exactly one walk area, or two walk areas overlap.        | reshape the polygons     |
+| Code                | Severity | Meaning                                                                                                    | Fix                                       |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `tick-rate-invalid` | error    | A tick rate (`engine.tickRate`, a game's `time.rate`) that isn't an integer from 1 to 240.                 | set one in range                          |
+| `physics-required`  | error    | An entity needs physics (a `prop`, an `attach`, a type that requires it) in a scene whose physics is none. | set physics to rapier (fix), or remove it |
+| `physics-skipped`   | info     | A game's physical check that needs physics was skipped in a scene without it.                              | —                                         |
+| `grid-unreachable`  | error    | A `connected` check's target has no path from its start on the grid.                                       | open a path, or drop it                   |
+| `nav-invalid`       | error    | A nav polygon crosses itself, a hole isn't inside exactly one walk area, or two walk areas overlap.        | reshape the polygons                      |
 
 Asset fields reuse `asset-missing` and `asset-kind`; a variant's child
 whose id its base already has is `dup-id`, and a nested or pasted instance
 of a missing prefab is `prefab-unknown`.
+
+Lifecycle adds these; a running game throws them as an `EngineError`, and
+[Lifecycle](#lifecycle) has a playtest that reports each:
+
+| Code                   | Severity | Meaning                                                                                                                                                  | Fix                                                  |
+| ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `spawn-id-invalid`     | error    | A spawn or prefab placement id isn't `<name>#<label>` for its type or prefab, has an all-digit label, or is already live.                                | omit `id` for the next `<name>#<n>`, or pick a label |
+| `prefab-not-spawnable` | error    | `ctx.instantiate` can't place a prefab: not in the run's library, cyclic or too deep, or a child needs physics; its `cause` carries the underlying code. | fix the prefab, the library or the scene's physics   |
 
 ## The agent surface version
 

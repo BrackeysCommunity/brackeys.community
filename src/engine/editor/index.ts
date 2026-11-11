@@ -95,6 +95,7 @@ export {
   type SpatialIndex,
   type ToolKeyEvent,
   type ToolModifiers,
+  type ToolOption,
   type ToolOverlay,
   type ToolPointerEvent,
 } from "./tools";
@@ -241,9 +242,13 @@ export {
   circleTool,
   createDrawTool,
   DEFAULT_DRAW_TYPE,
+  DRAW_TYPE_COMMAND,
   drawBatch,
   drawnShape,
+  drawTypeOptions,
+  type DrawToolKind,
   type DrawToolOptions,
+  type DrawTypeOption,
 } from "./builtin/draw";
 export {
   CLOSE_PX,
@@ -251,8 +256,10 @@ export {
   lock45,
   penTool,
   PICK_TOL_PX,
+  strokeFit,
   strokeShape,
   waypointsTool,
+  type StrokeFit,
 } from "./builtin/polyline";
 export { DRAG_THRESHOLD_PX, selectTool } from "./builtin/select";
 export { panTool, rotateTool } from "./builtin/transform";

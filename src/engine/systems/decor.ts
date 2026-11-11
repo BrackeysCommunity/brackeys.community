@@ -19,5 +19,8 @@ export function createDecorSystem(
     clear: () => live.clear(),
     update: (e) => void live.add(e.id),
     size: () => live.size,
+    /** Nothing here simulates, so a disabled entity keeps its record as it is. */
+    disable() {},
+    enable() {},
   };
 }

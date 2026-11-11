@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
-import { createRegistry } from "../../game/define";
+import { createRegistry, defineEntityType } from "../../game/define";
+import { pointField } from "../../game/fields";
 import type { Registry } from "../../game/types";
 import { formatScene } from "../format";
 import {
@@ -14,9 +15,9 @@ import {
   pointerLines,
   suggestType,
 } from "../parse";
-import { entitySchemaFor } from "../schema";
+import { entitySchemaFor, spawnSchemaFor } from "../schema";
 import { SCENE_FORMAT_VERSION, type SceneIssue } from "../types";
-import { engine, engineYardText, fake } from "./fixtures/fake-game";
+import { engine, engineYardText, fake, fakeGame } from "./fixtures/fake-game";
 
 function failIssues(input: unknown, registry: Registry = engine): [SceneIssue, ...SceneIssue[]] {
   const r = parseScene(input, registry);
@@ -318,5 +319,63 @@ describe("parseScene: grid fields", () => {
       path: "/entities/0/cells/0,0/0",
       got: '"1*20,2*20"',
     });
+  });
+});
+
+describe("spawn-only types in a scene", () => {
+  const beaconDef = {
+    type: "beacon",
+    description: "A light game code makes.",
+    base: "marker",
+    fields: { at: pointField("Where it shines.") },
+  } as const;
+  const spawned = createRegistry({
+    ...fakeGame,
+    types: [...fakeGame.types, defineEntityType({ ...beaconDef, spawnOnly: true })],
+  });
+  const placed = createRegistry({
+    ...fakeGame,
+    types: [...fakeGame.types, defineEntityType(beaconDef)],
+  });
+
+  it("report unknown-type, spawned by game code only, without the name in expected", () => {
+    const [issue, ...rest] = failIssues(
+      { ...game, entities: [{ id: "b", type: "beacon", at: [1, 1] }] },
+      spawned,
+    );
+    expect(rest).toEqual([]);
+    expect(issue).toMatchObject({
+      code: "unknown-type",
+      path: "/entities/0/type",
+      entityIds: ["b"],
+      got: '"beacon"',
+    });
+    expect(issue.message).toContain("spawned by game code only");
+    expect(issue.expected!.split(" | ")).toContain("flag");
+    expect(issue.expected!.split(" | ")).not.toContain("beacon");
+    expect(issue.hint).toContain("ctx.spawn");
+  });
+
+  it("never suggest a spawn-only type", () => {
+    expect(suggestType("beacan", placed)).toBe("beacon");
+    expect(suggestType("beacan", spawned)).not.toBe("beacon");
+    const [issue] = failIssues(
+      { ...game, entities: [{ id: "b", type: "beacan", at: [1, 1] }] },
+      spawned,
+    );
+    expect(issue.code).toBe("unknown-type");
+    expect(issue.message).not.toContain("beacon");
+    expect(issue.hint).not.toContain("beacon");
+  });
+
+  it("map a spawn input's failures against its spawn schema", () => {
+    const input = { type: "beacon", at: [1, 1], att: 2 };
+    const result = spawnSchemaFor(spawned, "beacon")!.safeParse(input);
+    expect(result.success).toBe(false);
+    const [issue] = entityIssues(result.error!.issues, input, (rel) => `/spawn${rel}`, spawned, {
+      spawn: true,
+    });
+    expect(issue).toMatchObject({ code: "unknown-key", path: "/spawn/att" });
+    expect(issue!.message).toContain('did you mean "at"?');
   });
 });

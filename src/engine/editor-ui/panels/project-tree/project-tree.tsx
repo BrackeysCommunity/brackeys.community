@@ -62,6 +62,7 @@ const CODE_OPEN_KEY = `${STORAGE_PREFIX}project-code-open`;
 export function ProjectTree({
   projectId,
   projectName,
+  head,
   nodes,
   trash = [],
   peersByDoc,
@@ -229,6 +230,7 @@ export function ProjectTree({
   return (
     <PendingProvider pending={pendingOps}>
       <nav aria-label="Project" className="je-ptree">
+        {head ? <div className="je-panel-toolbar je-ptree-head">{head}</div> : null}
         <FileDropTarget
           enabled={!readOnly && !!onDropFiles}
           busy={importing}

@@ -12,24 +12,29 @@ import type {
   PlayStart,
   Registry,
   SceneSystem,
+  SpawnInput,
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
 import { createPhysicsWorld, type PhysicsWorld } from "../physics";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import { geometryFields } from "../scene/schema";
 import type { EntityTypeName, ExpandedScene, RuntimeEntity } from "../scene/types";
 import { createAttachmentHub } from "../systems/attachments";
 import type { InputAction } from "../types";
 import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import type { SpriteSystem } from "./behaviors/sprite";
 import { castSpawn } from "./cast";
+import { createContacts, type RuntimeContacts } from "./contacts";
+import { createEventBus } from "./events";
 import { createGeometryWorld, type GeometryWorld } from "./geometry-world";
 import { createGridState, type GridState } from "./grid";
+import { createLifecycle, type Lifecycle } from "./lifecycle";
 import { runtimeNav } from "./nav";
 import { createPoseIndex } from "./poses";
 import { systemFactoryOf } from "./primitives";
+import { createQueryIndex, type RuntimeQueryIndex } from "./query-index";
+import { runRandom } from "./seed";
 import { geometrySpace, rapierSpace, type SpaceQuery } from "./space";
-import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
+import { createTimers, type RuntimeTimers } from "./timers";
 import type {
   LoadReport,
   ReconcileReport,
@@ -91,10 +96,17 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const byId = new Map<string, RuntimeEntity>();
 
   let tick = 0;
-  /** Events raised by systems, then by the game's hooks, for the tick being stepped. */
+  /**
+   * The tick's events in two buckets, which order `StepResult.events`:
+   * raised inside the game's hooks, and everything else. `raised` holds both
+   * in raise order, for the tick's dispatch points.
+   */
   let engineEvents: StepEvent[] = [];
   let gameEvents: StepEvent[] = [];
+  let raised: StepEvent[] = [];
   let inGameHook = false;
+  let stepping = false;
+  let seeking = false;
   let play: PlayStart | null = null;
   let project = opts.project ?? null;
 
@@ -121,6 +133,13 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let rapierQueries: SpaceQuery | null = null;
   let space: SpaceQuery | null = null;
   let grid: GridState | null = null;
+  const events = createEventBus({ dev: opts.dev ?? false });
+  /** Built once `ctx` exists, since each reads it; `lifecycle` once the systems and behaviors are. */
+  let timers: RuntimeTimers;
+  let query: RuntimeQueryIndex;
+  let contacts: RuntimeContacts;
+  let lifecycle: Lifecycle;
+  let random = runRandom(registry, "");
   const ctx: EngineContext = {
     get rapier() {
       return onRapier ? (rapier ?? null) : null;
@@ -156,7 +175,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       return tick;
     },
     emit(event) {
-      (inGameHook ? gameEvents : engineEvents).push({ ...event, tick });
+      const raisedEvent = { ...event, tick };
+      (inGameHook ? gameEvents : engineEvents).push(raisedEvent);
+      raised.push(raisedEvent);
     },
     system: <S extends SceneSystem>(type: EntityTypeName) => systems.get(type) as S | undefined,
     get play() {
@@ -168,11 +189,47 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     poses: createPoseIndex(() => tick),
     behavior: (name) => host?.system(name),
     sampling: opts.sampling ?? "linear",
+    spawn: <E extends RuntimeEntity = RuntimeEntity>(input: SpawnInput) =>
+      lifecycle.spawn(input) as E,
+    destroy: (id) => lifecycle.destroy(id),
+    setEnabled: (id, enabled) => lifecycle.setEnabled(id, enabled),
+    enabled: (id) => lifecycle.enabled(id),
+    exists: (id) => lifecycle.exists(id),
+    get: (id) => lifecycle.get(id),
+    get seeking() {
+      return seeking;
+    },
+    events,
+    instantiate: (prefab, at, instantiateOpts) =>
+      lifecycle.instantiate(prefab, at, instantiateOpts),
+    get timers() {
+      return timers;
+    },
+    get random() {
+      return random;
+    },
+    get query() {
+      return query;
+    },
+    get contacts() {
+      return contacts;
+    },
   };
+  timers = createTimers(ctx);
+  query = createQueryIndex(ctx);
+  contacts = createContacts(ctx);
   rapierQueries = rapierSpace(ctx);
   space = rapierQueries;
   const gridState = createGridState(ctx, registry);
   grid = gridState;
+  /** The types whose shapes are grid walls, as `createGridState` reads them. */
+  const wallTypes: ReadonlySet<EntityTypeName> = new Set(
+    registry.game?.world?.gridWalls ?? ["solid"],
+  );
+  /** A wall-type entity spawned or was destroyed since the grid last synced. */
+  let wallsMoved = false;
+  /** Game code spawned or destroyed since the load began, so the loaded scene's list is stale. */
+  let tableChanged = false;
 
   for (const name of registry.spawnGroups.flat()) {
     const type = registry.types.get(name)!;
@@ -182,32 +239,27 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const behaviors = createBehaviorHost(ctx, registry);
   host = behaviors;
   const sprites = behaviors.system<SpriteSystem>(SPRITE.name);
+  lifecycle = createLifecycle({
+    ctx,
+    registry,
+    systems,
+    behaviors,
+    entities: byId,
+    events,
+    timers,
+    query,
+    contacts,
+    stepping: () => stepping,
+    changed(type) {
+      cachedScene = null;
+      tableChanged = true;
+      if (wallTypes.has(type)) wallsMoved = true;
+    },
+    settled: syncMovedWalls,
+  });
+  const { posed, entered, leaving, checkEntities, spawnOrder, spawnEntity, despawnEntity } =
+    lifecycle;
   const game: GameRuntime | null = gameDef ? gameDef.createRuntime(ctx) : null;
-
-  /** Each loadable type's geometry fields, for spawn poses. */
-  const geometry = new Map<EntityTypeName, GeometryFields>(
-    [...systems.keys()].map((name) => [name, geometryFields(registry.types.get(name)!)]),
-  );
-
-  /** `e`'s spawn pose (snapped), unless its system posed it itself. */
-  function posed(e: RuntimeEntity): void {
-    if (!ctx.poses.has(e.id)) {
-      const p = spawnPoseOf(e, geometry.get(e.type) ?? []);
-      ctx.poses.set(e.id, p.x, p.y, p.rot, { snap: true });
-    }
-  }
-
-  /** Right after `e`'s system spawned it: its spawn pose, then its behaviors attach and may read it. */
-  function entered(e: RuntimeEntity): void {
-    posed(e);
-    behaviors.attach(e);
-  }
-
-  /** Right before `e`'s system despawns it: its behaviors detach, then its pose goes. */
-  function leaving(e: RuntimeEntity): void {
-    behaviors.detach(e);
-    ctx.poses.remove(e.id);
-  }
 
   function inGame<T>(hook: () => T): T {
     inGameHook = true;
@@ -233,6 +285,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     behaviors.clear();
     for (let i = ordered.length - 1; i >= 0; i--) ordered[i]!.clear();
     for (const id of [...ctx.poses.ids()]) ctx.poses.remove(id);
+    timers.reset();
+    events.clear();
+    query.clear();
+    contacts.clear();
+    lifecycle.reset();
     ctx.attachments.clear();
     ctx.tags.clear();
     gridState.clear();
@@ -243,41 +300,23 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     byId.clear();
     loadedScene = null;
     cachedScene = null;
+    wallsMoved = false;
+    tableChanged = false;
     play = null;
     tick = 0;
   }
 
-  /** Rejects a duplicate id (within `entities`, or loaded when `taken` says so) or an unknown type. */
-  function checkEntities(
-    entities: readonly RuntimeEntity[],
-    taken: (id: string) => boolean,
-  ): { ok: false; error: string; entityId: string } | null {
-    const seen = new Set<string>();
-    for (const e of entities) {
-      if (seen.has(e.id) || taken(e.id))
-        return { ok: false, error: `duplicate entity id "${e.id}"`, entityId: e.id };
-      if (!systems.has(e.type)) {
-        return { ok: false, error: `unknown type "${e.type}"`, entityId: e.id };
-      }
-      seen.add(e.id);
-    }
-    return null;
-  }
-
-  /** `entities` in spawn order: by spawn group, keeping their order inside one. */
-  function spawnOrder<T extends { type: EntityTypeName }>(entities: readonly T[]): T[] {
-    return entities
-      .map((e, i) => [e, i] as const)
-      .sort(
-        ([a, i], [b, j]) =>
-          registry.spawnGroupOf(a.type)! - registry.spawnGroupOf(b.type)! || i - j,
-      )
-      .map(([e]) => e);
+  /** Re-rasterises the grid's walls once a wall-type entity spawned or went outside a reconcile. */
+  function syncMovedWalls(): void {
+    if (!wallsMoved || !loadedScene) return;
+    wallsMoved = false;
+    gridState.sync(currentScene());
   }
 
   function reconciled(): void {
     ctx.physics?.refreshQueries();
     cachedScene = null;
+    wallsMoved = false;
     gridState.sync(currentScene());
   }
 
@@ -323,6 +362,10 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     }
     ctx.physics?.setGravity(ctx.gravity);
     gridState.load(next);
+    lifecycle.load(
+      typeof opts.prefabs === "function" ? opts.prefabs() : (opts.prefabs ?? new Map()),
+    );
+    random = runRandom(registry, next.name, playOpts?.seed);
 
     const counts: Record<EntityTypeName, number> = {};
     let current: string | undefined;
@@ -337,11 +380,18 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       }
       current = undefined;
       for (const e of next.entities) byId.set(e.id, e);
+      lifecycle.ready(spawned);
       const offset = playOpts?.timeOffsetMs ?? 0;
       behaviors.reset();
       if (offset > 0) {
-        for (const system of ordered) system.seek?.(offset);
-        behaviors.seek(offset);
+        seeking = true;
+        try {
+          for (const system of ordered) system.seek?.(offset);
+          behaviors.seek(offset);
+          timers.seek(Math.floor((offset * time.rate) / 1000));
+        } finally {
+          seeking = false;
+        }
       }
       if (playOpts) {
         const start = resolvePlay(playOpts);
@@ -365,7 +415,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     }
 
     loadedScene = next;
-    cachedScene = next;
+    cachedScene = tableChanged ? null : next;
+    syncMovedWalls();
     return { ok: true, counts, ms: now() - started };
   }
 
@@ -378,22 +429,16 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     const spawned: RuntimeEntity[] = [];
     for (const e of spawnOrder(entities)) {
       try {
-        systems.get(e.type)!.spawn(e);
-        entered(e);
+        spawnEntity(e);
       } catch (err) {
-        leaving(e);
-        systems.get(e.type)!.despawn(e.id);
-        for (let i = spawned.length - 1; i >= 0; i--) {
-          const s = spawned[i]!;
-          leaving(s);
-          systems.get(s.type)!.despawn(s.id);
-        }
+        for (let i = spawned.length - 1; i >= 0; i--) despawnEntity(spawned[i]!);
         ctx.physics?.refreshQueries();
         return { ok: false, error: errorOf(err), entityId: e.id };
       }
       spawned.push(e);
     }
     for (const e of entities) byId.set(e.id, e);
+    lifecycle.ready(spawned);
     reconciled();
     return { ok: true };
   }
@@ -409,12 +454,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       system.update(e, prev);
       posed(e);
       behaviors.update(e, prev);
+      lifecycle.updated(e);
       return;
     }
-    leaving(prev);
-    systems.get(prev.type)!.despawn(prev.id);
-    system.spawn(e);
-    entered(e);
+    despawnEntity(prev, { keepOwned: true });
+    spawnEntity(e);
   }
 
   function update(entities: RuntimeEntity[]): ReconcileReport {
@@ -440,8 +484,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
           if (i === n) behaviors.detach(change.prev);
           systems.get(change.e.type)!.despawn(change.e.id);
           systems.get(change.prev.type)!.despawn(change.prev.id);
-          systems.get(change.prev.type)!.spawn(change.prev);
-          entered(change.prev);
+          spawnEntity(change.prev);
         }
         ctx.physics?.refreshQueries();
         return { ok: false, error: errorOf(err), entityId: e.id };
@@ -457,8 +500,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     for (const id of ids) {
       const e = byId.get(id);
       if (!e) continue;
-      leaving(e);
-      systems.get(e.type)!.despawn(id);
+      despawnEntity(e);
       byId.delete(id);
       removed = true;
     }
@@ -473,13 +515,24 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     const t = tick;
     engineEvents = [];
     gameEvents = [];
+    raised = [];
 
-    for (const system of ordered) system.beforeStep?.(dtMs);
-    inGame(() => game?.beforeStep?.(dtMs, actions, commands ?? []));
-    ctx.physics?.step();
-    for (const system of ordered) system.afterStep?.(dtMs);
-    behaviors.step(dtMs);
-    inGame(() => game?.afterStep?.(dtMs, [...engineEvents, ...gameEvents]));
+    stepping = true;
+    try {
+      for (const system of ordered) system.beforeStep?.(dtMs);
+      inGame(() => game?.beforeStep?.(dtMs, actions, commands ?? []));
+      ctx.physics?.step();
+      for (const system of ordered) system.afterStep?.(dtMs);
+      contacts.read();
+      behaviors.step(dtMs);
+      timers.run();
+      const delivered = events.dispatch(raised, 0);
+      inGame(() => game?.afterStep?.(dtMs, [...engineEvents, ...gameEvents]));
+      lifecycle.flush();
+      events.dispatch(raised, delivered);
+    } finally {
+      stepping = false;
+    }
     sprites?.settle();
     ctx.view?.commit?.(t);
 

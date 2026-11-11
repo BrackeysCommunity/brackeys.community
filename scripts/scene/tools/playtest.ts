@@ -20,7 +20,7 @@ import {
   type ToolResult,
 } from "../context";
 import { projectRuntime } from "../projects";
-import { rapierFor, rounded } from "./step";
+import { eventsReport, eventTypes, rapierFor, rounded } from "./step";
 
 export type PlaytestInput = {
   scene?: string;
@@ -29,9 +29,12 @@ export type PlaytestInput = {
   game?: string;
   /** Writes the run's recording here, for `replay` and the editor's Load run. */
   record?: string;
+  /** `type,…`: print only events of these types. */
+  events?: string;
 };
 
-const USAGE = "playtest <scene|file|-> --script <file|-> [--at x,y] [--game id] [--record file]";
+const USAGE =
+  "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file]";
 
 /** `x,y` as two finite numbers, or null. */
 export function parsePoint(text: string): [number, number] | null {
@@ -55,17 +58,14 @@ export function blockedText(run: PlaytestBlocked): string {
   return lines.join("\n");
 }
 
-function reportText(r: PlaytestReport, runs: string): string {
+function reportText(r: PlaytestReport, runs: string, events: readonly string[]): string {
   const o = r.outcome;
   return [
     `${r.scene} ${r.sceneHash} ${runs} config ${r.configHash}: ${o.result} at t${o.tick} (${r.ticks} ticks)${o.cause ? `: ${o.cause}` : ""}`,
     ...(o.at ? [`  at ${rounded([o.at.x, o.at.y])}`] : []),
     ...r.steps.map((s) => `  step ${s.index} t${s.start} +${s.ticks} ${s.end}`),
     `  final ${rounded(r.final)}`,
-    ...r.events.map(
-      (e) =>
-        `  t${e.tick} ${e.type}${e.entityId ? ` ${e.entityId}` : ""}${e.other ? ` (${e.other})` : ""}`,
-    ),
+    ...events,
     ...(r.truncated ? ["  (events truncated)"] : []),
   ].join("\n");
 }
@@ -81,6 +81,8 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
     if (!point) return usage("--at takes x,y in world pixels, e.g. --at 640,900");
     at = point;
   }
+  const types = eventTypes(input.events);
+  if (typeof types === "string") return usage(types);
 
   const under = input.game === undefined ? undefined : gameFlag(ctx, input.game);
   if (isToolResult(under)) return under;
@@ -120,7 +122,17 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
   if (run.blocked) return blockedResult(run, game);
   if (input.record) await writeFile(input.record, `${JSON.stringify(run.recording)}\n`, "utf8");
   const runs = game ? `game ${game}` : "no game";
-  return { exitCode: 0, data: { game, ...run }, text: reportText(run, runs) };
+  const printed = eventsReport(run.events, run.truncated, types);
+  return {
+    exitCode: 0,
+    data: {
+      game,
+      ...run,
+      events: printed.events,
+      ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
+    },
+    text: reportText(run, runs, printed.lines),
+  };
 };
 
 function blockedResult(run: PlaytestBlocked, game: string | null): ToolResult {

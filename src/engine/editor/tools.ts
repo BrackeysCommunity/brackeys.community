@@ -111,6 +111,21 @@ export type ToolOverlay = {
    * **Convert to chain**); the tool's `accept-offer` command applies it.
    */
   offer?: { label: string; batch: OpBatch };
+  /** A setting of the active tool the host shows beside the tools (the type a draw tool adds). */
+  option?: ToolOption;
+};
+
+/**
+ * One choice the active tool offers. Picking a choice sends the tool the
+ * command `<command><value>` (`type:nav`), which `tool:<id>:<command><value>`
+ * also reaches from a key binding. Kept the same object while nothing in it
+ * changes, so a host can compare it by identity.
+ */
+export type ToolOption = {
+  label: string;
+  value: string;
+  choices: readonly { value: string; label: string; description?: string }[];
+  command: string;
 };
 
 // ─── Tool input ──────────────────────────────────────────

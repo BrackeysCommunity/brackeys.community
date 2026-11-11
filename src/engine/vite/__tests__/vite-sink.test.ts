@@ -114,7 +114,7 @@ describe("handleSceneRequest", () => {
 });
 
 describe("sceneCollabServer", () => {
-  it("is a serve-only plugin that registers one middleware and an upgrade listener", () => {
+  it("is a serve-only plugin that registers one middleware and its request, upgrade and close listeners", () => {
     const plugin = sceneCollabServer({ projects: [] });
     expect(plugin.apply).toBe("serve");
     const used: unknown[] = [];
@@ -124,6 +124,6 @@ describe("sceneCollabServer", () => {
       httpServer: { on: (event: string) => events.push(event) },
     });
     expect(used).toHaveLength(1);
-    expect(events.sort()).toEqual(["close", "upgrade"]);
+    expect(events.sort()).toEqual(["close", "request", "upgrade"]);
   });
 });

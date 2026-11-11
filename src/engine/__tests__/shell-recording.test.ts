@@ -249,3 +249,76 @@ describe("commands in a play session", () => {
     expect(headless.matches, headless.divergence ?? "").toBe(true);
   });
 });
+
+describe("seeds in a play session", () => {
+  /** The test game with one draw from `ctx.random` at load, kept in its snapshot. */
+  const drawGame: GameDefinition = {
+    ...testGame,
+    createRuntime(ctx) {
+      const base = testGame.createRuntime(ctx);
+      let draw = 0;
+      return {
+        ...base,
+        onLoad(scene) {
+          base.onLoad?.(scene);
+          draw = ctx.random.nextU32();
+        },
+        snapshot() {
+          const snap = base.snapshot?.();
+          return snap ? { ...snap, draw } : null;
+        },
+      };
+    },
+  };
+
+  async function editingDraws() {
+    const game = await editing(drawGame);
+    const recorded: RunRecording[] = [];
+    game.on("play:recorded", (r) => recorded.push(r));
+    return { game, recorded };
+  }
+
+  function walk(
+    { game, recorded }: { game: GameInstance; recorded: RunRecording[] },
+    doc: SceneDefinition,
+    seed?: number | string,
+  ): RunRecording {
+    const before = recorded.length;
+    expect(game.play(doc, seed === undefined ? {} : { seed })).toMatchObject({ ok: true });
+    game.router.dispatch(key("d"));
+    game.step(15);
+    game.router.dispatch(key("d", "up"));
+    game.step(5);
+    game.stop();
+    expect(recorded).toHaveLength(before + 1);
+    return recorded.at(-1)!;
+  }
+
+  it("records a seeded play's seed, and replays it in the shell and headless to the same digest", async () => {
+    const shell = await editingDraws();
+    const doc = yard();
+    const rec = walk(shell, doc, "lantern");
+    expect(rec.start).toEqual({ seed: "lantern" });
+    expect(walk(shell, doc, "moth").end).not.toBe(rec.end);
+    const unseeded = walk(shell, doc);
+    expect(unseeded.start).not.toHaveProperty("seed");
+    expect(unseeded.end).not.toBe(rec.end);
+
+    const { game, recorded } = shell;
+    const before = recorded.length;
+    expect(game.replay(doc, rec)).toMatchObject({ ok: true });
+    game.step(40);
+    expect(recorded).toHaveLength(before + 1);
+    expect(recorded.at(-1)!.start).toEqual({ seed: "lantern" });
+    expect(recorded.at(-1)!.end).toBe(rec.end);
+
+    const headless = replayRecording({
+      rapier,
+      game: drawGame,
+      scene: doc,
+      recording: rec,
+    });
+    if (headless.blocked) throw new Error("replay blocked");
+    expect(headless.matches, headless.divergence ?? "").toBe(true);
+  });
+});

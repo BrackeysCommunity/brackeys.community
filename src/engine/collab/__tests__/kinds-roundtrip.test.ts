@@ -209,6 +209,41 @@ describe("file → doc → file, per kind", () => {
     });
   });
 
+  const WORLD_PREDICATES: Record<string, string> = {
+    "input-script": lines(
+      "{",
+      '  "v": 1,',
+      '  "scene": "yard",',
+      '  "steps": [',
+      '    { "hold": ["right"], "until": { "exists": "lamp#1" } },',
+      '    { "hold": [], "until": { "count": { "enabled": false, "min": 1, "type": ["lamp", "plain"] }, "exists": { "enabled": false, "id": "lamp#2" } } },',
+      '    { "hold": ["push"], "until": { "count": { "eq": 0, "tag": "spawned" } } }',
+      "  ]",
+      "}",
+    ),
+    checks: lines(
+      "{",
+      '  "v": 1,',
+      '  "checks": [',
+      '    { "id": "cleared", "kind": "reaches", "expect": { "count": { "max": 2, "type": "lamp" }, "exists": "lamp#3" }, "result": "script-end", "script": { "steps": [{ "hold": [], "until": { "exists": "lamp#1" } }], "v": 1 } }',
+      "  ]",
+      "}",
+    ),
+  };
+
+  for (const [name, text] of Object.entries(WORLD_PREDICATES)) {
+    it(`${name}: a script with exists and count is byte-identical, also after the doc crosses the wire`, () => {
+      const kind = kinds.get(name) as DocKindDef;
+      const parsed = parseAssetDoc(kind, text, env);
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+      expect(formatAssetDoc(kind, parsed.value)).toBe(text);
+      for (const back of throughDocs(kind.layout as DocLayout, parsed.value)) {
+        expect(back).toEqual(parsed.value);
+        expect(formatAssetDoc(kind, back)).toBe(text);
+      }
+    });
+  }
+
   it("the game's deck keeps two items with one id through the doc, reported as dup-id", () => {
     const value = JSON.parse(FIXTURES[deckKind.kind]!) as { cards: { id: string }[] };
     value.cards.splice(1, 0, { id: "zap" });

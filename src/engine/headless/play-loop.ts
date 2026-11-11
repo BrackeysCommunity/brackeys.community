@@ -1,4 +1,3 @@
-import type { ResolvedTime } from "../game/time";
 /**
  * The run loop `runPlaytest` and `fuzz` share: a play world started the way
  * the editor's Play starts one, stepped on the runtime's clock from a source
@@ -6,12 +5,28 @@ import type { ResolvedTime } from "../game/time";
  * `timeout`. The input's slots stand in for wall time: a turns or event game
  * that nothing wakes skips the slot.
  */
-import type { GameCommand, GameDefinition, PlayState, Registry, RunResult } from "../game/types";
+
+import type { ResolvedTime } from "../game/time";
+import {
+  EngineError,
+  type GameCommand,
+  type GameDefinition,
+  type PlayState,
+  type Registry,
+  type RunResult,
+} from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import { preparePlay } from "../runtime/play-session";
+import { playWorld, preparePlay } from "../runtime/play-session";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { LoadReport, SceneRuntimeHandle } from "../runtime/types";
-import type { ExpandedScene, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
+import { makeIssue } from "../scene/issues";
+import type {
+  ExpandedScene,
+  IssueCode,
+  PrefabLibrary,
+  SceneDefinition,
+  SceneIssue,
+} from "../scene/types";
 import type { RapierModule, Vec2 } from "../types";
 import { heldEdges } from "./compile-input-script";
 import { inputAction } from "./headless";
@@ -31,6 +46,26 @@ export function blockedRun(
   const out: PlaytestBlocked = { blocked: true, stage, scene, issues, scriptIssues };
   if (load) out.load = load;
   return out;
+}
+
+/**
+ * A run that an `EngineError` thrown out of a step ended: blocked at `run`,
+ * with the scene's issues and the error as an issue carrying its code. Null
+ * for any other error, which the caller rethrows.
+ */
+export function runBlocked(
+  err: unknown,
+  scene: string,
+  issues: SceneIssue[],
+  registry: Registry,
+): PlaytestBlocked | null {
+  if (!(err instanceof EngineError)) return null;
+  const code = err.code as IssueCode;
+  const fields = { message: err.message, entityIds: err.entityId ? [err.entityId] : [] };
+  const issue: SceneIssue = registry.issueCodes[code]
+    ? makeIssue(code, fields, registry.issueCodes)
+    : { severity: "error", code, ...fields };
+  return blockedRun("run", scene, [...issues, issue]);
 }
 
 export type PreparedRun =
@@ -54,6 +89,18 @@ export function prepareRun(
   return { ok: true, scene: prepared.scene, hash: prepared.hash, issues: prepared.issues };
 }
 
+/**
+ * The prefabs a run's `ctx.instantiate` places: `library` when given (a
+ * loader's whole library), else `prefabs`. Hashing and validation read only
+ * the prefabs the scene's instances name, so either may hold more.
+ */
+export function runLibrary(opts: {
+  prefabs?: PrefabLibrary;
+  library?: PrefabLibrary;
+}): PrefabLibrary | undefined {
+  return opts.library ?? opts.prefabs;
+}
+
 export type StartOptions = {
   /** Needed only for a scene whose physics resolves to Rapier. */
   rapier?: RapierModule | null;
@@ -64,6 +111,8 @@ export type StartOptions = {
   dev?: boolean;
   /** The project's data the game reads as `EngineContext.project`; its `engine` block sets the clock. */
   project?: ProjectRuntimeView | null;
+  /** What `ctx.instantiate` places. */
+  prefabs?: PrefabLibrary;
 };
 
 /** A fresh headless play world for one run; the caller destroys the runtime. */
@@ -77,6 +126,7 @@ export function startRun(
     registry: opts.registry,
     dev: opts.dev,
     project: opts.project,
+    ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
   });
   const load = runtime.load(opts.scene, opts.play);
   if (load.ok) return { ok: true, runtime };
@@ -201,6 +251,7 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
   let held: readonly string[] = [];
   let carried: InputEdge[] = [];
   let tick = 0;
+  const world = playWorld(runtime.ctx);
 
   for (let slot = 0; ; slot++) {
     const last = { tick: tick - 1, ticks: tick, slots: slot };
@@ -236,7 +287,7 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
       commands,
     );
 
-    const state: PlayState = { tick, snapshot: result.game, events: result.events };
+    const state: PlayState = { tick, snapshot: result.game, events: result.events, world };
     const focus = play?.focus ? play.focus(result.game) : null;
     input.after?.(state);
     opts.onTick?.(state, focus, edges, commands);

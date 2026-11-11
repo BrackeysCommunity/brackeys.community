@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { ProjectPeer } from "../../../collab/index";
 import type {
   AssetEntry,
@@ -33,6 +35,8 @@ export type ProjectTreeProps = {
   projectId: ProjectId;
   /** Shown on the root row. */
   projectName: string;
+  /** Controls above the files, such as a project switcher. */
+  head?: ReactNode;
   /** `projectView(state).tree()`. */
   nodes: readonly ProjectTreeNode[];
   /** `projectView(state).deleted`. */

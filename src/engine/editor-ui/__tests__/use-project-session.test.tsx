@@ -266,6 +266,17 @@ describe("useProjectSession on the dev server", () => {
     ]);
   });
 
+  it("opens only scene:<id>.<key> and asset:<id>.<key> docs of its project, never a bare scene name", async () => {
+    const { hook, server } = mount(dev());
+    await waitFor(() => expect(hook.result.current.session).not.toBeNull());
+    const session = hook.result.current.session!;
+    for (const name of ["scene:test-yard", "scene:other.a", "test-yard", "asset:p"]) {
+      await expect(session.open(name)).rejects.toThrow(/isn't a doc of project "p"/);
+    }
+    await act(() => session.open("asset:p.a").then(() => {}));
+    expect(server.sockets[0]!.providers.map((p) => p.name)).toEqual(["project:p", "asset:p.a"]);
+  });
+
   it("closes every provider and the socket on unmount", async () => {
     const { hook, server } = mount(dev());
     await waitFor(() => expect(hook.result.current.session).not.toBeNull());

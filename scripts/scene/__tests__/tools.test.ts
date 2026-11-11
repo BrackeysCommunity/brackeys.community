@@ -1755,6 +1755,158 @@ describe("check", () => {
   });
 });
 
+/** Spawns a marker every tick and destroys the oldest once three are live; `refuse` spawns an unknown type. */
+const spawnerGame = defineGame({
+  id: "spawner-game",
+  types: [],
+  actions: [{ action: "right", keys: ["d"], description: "Unused." }],
+  commands: { refuse: { description: "Spawns a type nobody registered." } },
+  createRuntime(ctx) {
+    const live: string[] = [];
+    return {
+      beforeStep(_dt, _actions, commands) {
+        if (commands.some((c) => c.name === "refuse")) ctx.spawn({ type: "nope", at: [0, 0] });
+        if (live.length >= 3) ctx.destroy(live.shift()!);
+        live.push(ctx.spawn({ type: "marker", at: [16, 16] }).id);
+      },
+      snapshot: () => ({ live: live.length }),
+    };
+  },
+});
+
+describe("lifecycle events", () => {
+  type Reported = {
+    events: { type: string; entityId?: string; data?: unknown }[];
+    lifecycle?: Record<string, { spawned: number; destroyed: number }>;
+    stage?: string;
+    issues?: { code: string }[];
+  };
+
+  async function spawnerCtx(): Promise<ToolContext> {
+    const dir = join(root, spawnerGame.id);
+    await mkdir(dir);
+    await writeFile(
+      join(dir, "spawn-yard.json"),
+      JSON.stringify({
+        v: 1,
+        name: "spawn-yard",
+        game: spawnerGame.id,
+        bounds: [0, 0, 320, 240],
+        settings: { physics: "none" },
+        entities: [{ id: "start", type: "marker", at: [16, 16] }],
+      }),
+    );
+    return {
+      ...ctx,
+      projects: [...ctx.projects, await tempProject(dir, { game: spawnerGame })],
+      loadRapier: () => Promise.reject(new Error("a physics-free run loaded Rapier")),
+    };
+  }
+
+  it("step summarises spawns and destroys per type and --events filters the printed events", async () => {
+    const spawner = await spawnerCtx();
+    const r = await step({ scene: "spawn-yard", ticks: "20" }, spawner);
+    expect(r.exitCode, r.text).toBe(0);
+    const data = r.data as Reported;
+    expect(data.lifecycle).toEqual({ marker: { spawned: 20, destroyed: 17 } });
+    expect(r.text).toContain("  spawned marker ×20, destroyed ×17");
+    expect(data.events).toContainEqual(
+      expect.objectContaining({ type: "entity:spawned", entityId: "marker#1" }),
+    );
+    expect(r.text).toContain("entity:destroyed marker#1");
+
+    const only = await step(
+      { scene: "spawn-yard", ticks: "20", events: "entity:destroyed" },
+      spawner,
+    );
+    const filtered = only.data as Reported;
+    expect(filtered.events).toHaveLength(17);
+    expect(filtered.events.every((e) => e.type === "entity:destroyed")).toBe(true);
+    expect(filtered.lifecycle).toEqual(data.lifecycle);
+    expect(only.text).toContain("spawned marker ×20, destroyed ×17");
+    expect(only.text).not.toContain("entity:spawned");
+
+    const cli = await runCli(
+      ["step", "spawn-yard", "--ticks", "20", "--events", "entity:destroyed", "--json"],
+      spawner,
+    );
+    expect(cli.exitCode, cli.stderr).toBe(0);
+    expect((JSON.parse(cli.stdout) as Reported).events).toEqual(filtered.events);
+
+    expect((await step({ scene: "spawn-yard", events: " , " }, spawner)).exitCode).toBe(2);
+    const quiet = await step({ scene: "engine-yard", ticks: "10" }, ctx);
+    expect(quiet.data).not.toHaveProperty("lifecycle");
+  });
+
+  it("playtest summarises spawns, filters events and waits on exists and count", async () => {
+    const spawner = await spawnerCtx();
+    await writeFile(
+      join(root, "spawns.json"),
+      JSON.stringify({
+        v: 1,
+        steps: [
+          { hold: [], until: { exists: "marker#5" }, max: 100 },
+          { hold: [], until: { count: { type: "marker", min: 4 } }, max: 100 },
+          { wait: 10 },
+        ],
+      }),
+    );
+    const r = await playtest({ scene: "spawn-yard", script: join(root, "spawns.json") }, spawner);
+    expect(r.exitCode, r.text).toBe(0);
+    const data = r.data as Reported & { steps: { end: string }[] };
+    expect(data.steps.map((s) => s.end)).toEqual(["until", "until", "done"]);
+    const spawned = data.lifecycle?.marker?.spawned ?? 0;
+    expect(spawned).toBeGreaterThan(5);
+    expect(data.lifecycle?.marker?.destroyed).toBe(spawned - 3);
+    expect(r.text).toContain(`spawned marker ×${spawned}, destroyed ×${spawned - 3}`);
+
+    const only = await playtest(
+      { scene: "spawn-yard", script: join(root, "spawns.json"), events: "entity:spawned" },
+      spawner,
+    );
+    const kept = (only.data as Reported).events;
+    expect(kept).toHaveLength(spawned);
+    const cli = await runCli(
+      [
+        "playtest",
+        "spawn-yard",
+        "--script",
+        join(root, "spawns.json"),
+        "--events",
+        "entity:spawned",
+        "--json",
+      ],
+      spawner,
+    );
+    expect(cli.exitCode, cli.stderr).toBe(0);
+    expect((JSON.parse(cli.stdout) as Reported).events).toEqual(kept);
+    expect(kept.every((e) => e.type === "entity:spawned")).toBe(true);
+    expect(
+      (
+        await playtest(
+          { scene: "spawn-yard", script: join(root, "spawns.json"), events: "" },
+          spawner,
+        )
+      ).exitCode,
+    ).toBe(2);
+  });
+
+  it("blocks a playtest at stage run on a runtime refusal, with its code", async () => {
+    const spawner = await spawnerCtx();
+    await writeFile(
+      join(root, "refuse.json"),
+      JSON.stringify({ v: 1, steps: [{ wait: 5 }, { command: "refuse" }, { wait: 5 }] }),
+    );
+    const r = await playtest({ scene: "spawn-yard", script: join(root, "refuse.json") }, spawner);
+    expect(r.exitCode).toBe(1);
+    const data = r.data as Reported;
+    expect(data.stage).toBe("run");
+    expect(data.issues?.map((i) => i.code)).toContain("unknown-type");
+    expect(r.text).toContain("blocked at run");
+    expect(r.text).toContain("unknown-type");
+  });
+});
+
 describe("--game on playtest and fuzz", () => {
   it("plays and fuzzes a gameless scene under a chosen game", async () => {
     const goal = await goalCtx();

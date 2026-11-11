@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { placeableTypes } from "../game/define";
 import { AssetIdSchema as GameAssetIdSchema, BASE_FIELDS, Z_LIMIT } from "../game/fields";
 import type { Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
@@ -481,6 +482,7 @@ const nonEmpty = (xs: readonly string[]): [string, ...string[]] | null =>
 
 function buildOpSchemas(registry: Registry) {
   const settingsKeys = Object.keys(registry.settings);
+  const placeable = placeableTypes(registry);
 
   const AddOp = z
     .strictObject({
@@ -488,8 +490,8 @@ function buildOpSchemas(registry: Registry) {
       entity: z
         .looseObject({
           type: z
-            .enum(registry.typeNames as [string, ...string[]], {
-              error: (iss) => unknownValueMessage("type", iss.input, registry.typeNames),
+            .enum(placeable as [string, ...string[]], {
+              error: (iss) => unknownValueMessage("type", iss.input, placeable),
             })
             .describe(
               "The entity's registered type. The remaining fields depend on it, as in the scene schema.",

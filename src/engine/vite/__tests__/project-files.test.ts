@@ -610,6 +610,50 @@ describe("write-back: edits, for every declarative kind", () => {
     });
   });
 
+  it("checks: a disk edit adding expect to a reaches check is one disk transaction touching only it", async () => {
+    const reaches = {
+      id: "spawns",
+      kind: "reaches",
+      result: "script-end",
+      script: { v: 1, steps: [{ wait: 60 }] },
+    };
+    const withChecks = (checks: unknown[]) =>
+      formatAssetDoc(kindOf("checks"), { ...JSON.parse(FILES.checks.text), checks });
+    const base = JSON.parse(FILES.checks.text) as { checks: unknown[] };
+    await put(FILES.checks.path, withChecks([...base.checks, reaches]));
+    const s = await session();
+    const doc = await s.open("yard-checks");
+    const keyed = contentMap(doc).get("checks") as Y.Map<unknown>;
+    const keys = [...keyed.keys()].sort();
+    const touched: string[] = [];
+    contentMap(doc).observeDeep((events) => {
+      for (const e of events)
+        for (const key of e.changes.keys.keys()) touched.push([...e.path, key].join("."));
+    });
+
+    const expectClause = { exists: "lamp#1", count: { type: "lamp", min: 1 } };
+    const after = withChecks([...base.checks, { ...reaches, expect: expectClause }]);
+    expect(after).toContain(
+      '"expect": { "count": { "min": 1, "type": "lamp" }, "exists": "lamp#1" }',
+    );
+    await put(FILES.checks.path, after);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(FILES.checks.path, s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(touched).toHaveLength(1);
+    expect(touched[0]).toMatch(/\.expect$/);
+    expect([...keyed.keys()].sort()).toEqual(keys);
+    expect(textOf("checks", doc)).toBe(after);
+    expect(await s.adapter.syncPath(FILES.checks.path, s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry("yard-checks")!), doc)).toBe(false);
+  });
+
   it("refuses a disk edit that doesn't parse and keeps the doc", async () => {
     const s = await session();
     const doc = await s.open("ice");

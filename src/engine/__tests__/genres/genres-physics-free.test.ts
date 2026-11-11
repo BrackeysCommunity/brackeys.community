@@ -7,6 +7,7 @@ import {
   loadRapier,
   probePhysics,
   probeRuns,
+  probeTimeout,
   probesFrom,
   runGenreProbe,
   type GenreProbe,
@@ -47,6 +48,7 @@ const counter: GenreProbe<{ ticks: number }> = {
   variants: [
     { name: "gravity-zero", settings: { gravity: [0, 0] } },
     { name: "rapier", settings: { physics: "rapier" } },
+    { name: "seed-7", seed: 7 },
   ],
 };
 
@@ -81,6 +83,7 @@ describe("physics-free genre runs never load Rapier", () => {
     expect(physicsFree(counter as GenreProbe).map((r) => r.name)).toStrictEqual([
       "default",
       "gravity-zero",
+      "seed-7",
     ]);
   });
 
@@ -90,6 +93,8 @@ describe("physics-free genre runs never load Rapier", () => {
       const run = await expectPhysicsFree(counter as GenreProbe, name, variant);
       expect(run.report.recording.engine.physics).toBe("none");
       expect(run.digest).toMatch(/^[0-9a-f]{16}$/);
+      expect(run.report.recording.start.seed).toBe(variant?.seed);
+      expect(run.replay.recording.start.seed).toBe(variant?.seed);
     },
   );
 
@@ -103,7 +108,7 @@ describe("physics-free genre runs never load Rapier", () => {
           const run = await expectPhysicsFree(probe, name, variant);
           if (!process.env.UPDATE_GENRE_PINS) expect(run.digest).toBe(GENRE_PINS[probe.id]?.[name]);
         },
-        60_000,
+        probeTimeout(probe),
       );
     });
   }

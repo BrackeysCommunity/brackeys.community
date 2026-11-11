@@ -10,6 +10,7 @@ import {
   shapeField,
   sideField,
   SIDES,
+  tagsField,
   vectorField,
 } from "../../game/fields";
 import type { Registry, Side } from "../../game/types";
@@ -47,6 +48,7 @@ const schemas = {
   mirror: mirrorField("x", "Mirrored."),
   side: sideField("A side."),
   grid: gridSchema,
+  tags: tagsField("Labels."),
   tuple: z.tuple([z.number(), z.number()]).describe("A plain pair."),
   number: z.number().describe("A plain number."),
 };
@@ -87,6 +89,8 @@ describe("transformFieldValue: each kind under each element", () => {
       expect(transformFieldValue(schemas.mirror, false, t)).toBe(d.flip);
       expect(transformFieldValue(schemas.mirror, true, t)).toBe(!d.flip);
       expect(transformFieldValue(schemas.tuple, [3, 4], t)).toEqual([3, 4]);
+      const tags = ["up", "left", "spawn"];
+      expect(transformFieldValue(schemas.tags, tags, t)).toBe(tags);
       expect(transformFieldValue(schemas.number, 30, t)).toBe(30);
       expect(transformFieldValue(schemas.shape, ["circle", 3, 4, 7], t)).toEqual([
         "circle",
@@ -315,6 +319,18 @@ describe("transformEntityDef", () => {
       )?.oneWay,
     ).toBe("right");
     expect(translateEntityDef(registry, solid, [5, 5])?.oneWay).toBe(true);
+  });
+
+  it("leaves a marker's tags as written under every element", () => {
+    const registry = createRegistry();
+    const marker: EntityDef = { id: "m", type: "marker", at: [3, 4], tags: ["up", "left"] };
+    for (const d of ELEMENTS) {
+      const t = dihedral(d, AT);
+      expect(transformEntityDef(registry, marker, t)).toEqual({
+        ...marker,
+        at: applyPt(t, [3, 4]),
+      });
+    }
   });
 
   it("is null for an entity with nothing a transform acts on", () => {

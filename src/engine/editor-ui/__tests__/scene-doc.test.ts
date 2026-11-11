@@ -23,7 +23,13 @@ import {
   type AssetEntry,
 } from "../../project/index";
 import { SCENE_FORMAT_VERSION } from "../../scene/index";
-import { createSceneDocLink, pickScene, type SceneDocSource } from "../connect/scene-doc";
+import {
+  assetName,
+  createSceneDocLink,
+  findScene,
+  pickScene,
+  type SceneDocSource,
+} from "../connect/scene-doc";
 import type { ProjectConnectionState } from "../host";
 
 const registry = createRegistry();
@@ -109,6 +115,24 @@ describe("pickScene", () => {
     expect(pickScene(view, "b-yard")?.key).toBe("k2");
     expect(pickScene(view, "nope")?.key).toBe("k2");
     expect(pickScene(view, null)?.key).toBe("k2");
+    session.destroy();
+  });
+
+  it("takes a scene by its display name when no id matches: its own name, else its file's stem", async () => {
+    const { open } = project([
+      entry("k1", "scene", "a/first.json", "4f1c9e0a"),
+      { ...entry("k2", "scene", "b/hex.json", "9d2e7b11"), name: "Hex arena" },
+      entry("k3", "scene", "c/yard.json"),
+    ]);
+    const session = await open();
+    const view = projectView(session.state(), kinds);
+    expect(pickScene(view, "Hex arena")?.key).toBe("k2");
+    expect(pickScene(view, "first")?.key).toBe("k1");
+    expect(pickScene(view, "9d2e7b11")?.key).toBe("k2");
+    expect(findScene(view, "hex")).toBeNull();
+    expect(findScene(view, "nope")).toBeNull();
+    expect(assetName(view.byKey.get("k2")!)).toBe("Hex arena");
+    expect(assetName(view.byKey.get("k3")!)).toBe("yard");
     session.destroy();
   });
 
@@ -225,12 +249,40 @@ describe("createSceneDocLink", () => {
     expect(link.getState()).toMatchObject({
       status: "live",
       ready: { id: "b-yard" },
-      fellBack: { wanted: "gone", opened: "b-yard" },
+      fellBack: {
+        wanted: "gone",
+        opened: "b-yard",
+        openedName: "b-yard",
+        project: { id: "p", name: "P" },
+      },
     });
     const first = link.getState().fellBack;
     set({ status: "reconnecting" });
     expect(link.getState().fellBack).toBe(first);
     link.destroy();
+    session.destroy();
+  });
+
+  it("opens a scene asked for by name with no fallback, and names the one it fell back to", async () => {
+    const { open } = project([
+      { ...entry("k1", "scene", "a/arena.json", "7a0b3c9d"), name: "Arena" },
+      entry("k2", "scene", "b/yard.json", "5e6f1a2b"),
+    ]);
+    const { source, set } = fakeSource();
+    const session = await open();
+    set({ status: "live", session });
+    const byName = createSceneDocLink({ source, scene: "yard" });
+    const missing = createSceneDocLink({ source, scene: "gone" });
+    await settle();
+    expect(byName.getState()).toMatchObject({ ready: { id: "5e6f1a2b" }, fellBack: null });
+    expect(missing.getState().fellBack).toEqual({
+      wanted: "gone",
+      opened: "7a0b3c9d",
+      openedName: "Arena",
+      project: { id: "p", name: "P" },
+    });
+    byName.destroy();
+    missing.destroy();
     session.destroy();
   });
 

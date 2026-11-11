@@ -301,6 +301,47 @@ export function containsPoint(s: ShapeObj, p: Pt, tol = 0): boolean {
   }
 }
 
+/** The least squared distance from `p` to the segments joining `pts` in turn, closing the loop with `closed`. */
+function segmentsDist2(p: Pt, pts: readonly Pt[], closed: boolean): number {
+  if (pts.length === 1) return dist2(p, pts[0]!);
+  let best = Infinity;
+  const n = closed ? pts.length : pts.length - 1;
+  for (let i = 0; i < n; i++) {
+    const d2 = dist2(p, nearestOnSegment(p, pts[i]!, pts[(i + 1) % pts.length]!));
+    if (d2 < best) best = d2;
+  }
+  return best;
+}
+
+/**
+ * How far `p` is from `s`: 0 inside it or on its edge (a polygon's holes
+ * by its outline, concave or not; a chain has no inside). Square roots
+ * only, so every platform gives the same answer.
+ */
+export function distanceToShape(s: ShapeObj, p: Pt): number {
+  switch (s.type) {
+    case "box": {
+      const [lx, ly] = rotate([p[0] - s.cx, p[1] - s.cy], 0 - s.rotDeg);
+      const dx = Math.max(Math.abs(lx) - s.hw, 0);
+      const dy = Math.max(Math.abs(ly) - s.hh, 0);
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    case "circle": {
+      const d2 = dist2(p, [s.cx, s.cy]);
+      return d2 <= s.r * s.r ? 0 : Math.max(Math.sqrt(d2) - s.r, 0);
+    }
+    case "capsule": {
+      const [a, b] = capsuleEnds(s);
+      const d2 = dist2(p, nearestOnSegment(p, a, b));
+      return d2 <= s.r * s.r ? 0 : Math.max(Math.sqrt(d2) - s.r, 0);
+    }
+    case "poly":
+      return insidePolygon(p, s.pts) ? 0 : Math.sqrt(segmentsDist2(p, s.pts, true));
+    case "chain":
+      return Math.sqrt(segmentsDist2(p, s.pts, false));
+  }
+}
+
 const rectsOverlap = (a: Aabb, b: Aabb) =>
   a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
 

@@ -3,7 +3,14 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../../scene/index";
 import * as engineVite from "../../vite/index";
-import { devCollabUrl, devProjectHost, PROJECT_ROUTE, SCENE_COLLAB_PATH } from "../connect/dev";
+import {
+  devCollabUrl,
+  devProjectHost,
+  findDevScene,
+  PROJECT_ROUTE,
+  SCENE_COLLAB_PATH,
+  SCENE_ROUTE,
+} from "../connect/dev";
 import { CONNECTION_OFF, offConnection } from "../connect/project-session";
 import type { HocuspocusModule } from "../host";
 
@@ -33,6 +40,7 @@ describe("the dev server's routes", () => {
   it("match ./vite's", () => {
     expect(SCENE_COLLAB_PATH).toBe(engineVite.SCENE_COLLAB_PATH);
     expect(PROJECT_ROUTE).toBe(engineVite.PROJECT_ROUTE);
+    expect(SCENE_ROUTE).toBe(engineVite.SCENE_ROUTE);
   });
 
   it("build the websocket URL from the page's origin, or the one given", () => {
@@ -85,6 +93,78 @@ describe("devProjectHost", () => {
     const entry = { id: "sky", kind: "texture", sha256: "ab".repeat(32), bytes: 1 };
     expect(host.assetUrl("p", entry)).toMatch(/^https:\/\/dev\.test:8443\/__project\//);
     connection.destroy();
+  });
+});
+
+/** The dev server's listing routes over two projects, as `fetch` answers them. */
+function listingFetch(over: Record<string, unknown> = {}) {
+  const routes: Record<string, unknown> = {
+    "/__scene": { ok: true, scenes: ["7c1d2e3f", "kitchen-sink", "test-yard"] },
+    "/__scene/kitchen-sink": { v: 3, name: "kitchen-sink", bounds: [0, 0, 1, 1] },
+    "/__scene/test-yard": { v: 3, game: "platformer", name: "test-yard", bounds: [0, 0, 1, 1] },
+    "/__scene/7c1d2e3f": { v: 3, name: "grid-yard", bounds: [0, 0, 1, 1] },
+    "/__project": {
+      ok: true,
+      projects: [
+        { id: "engine", name: "Engine", game: null },
+        { id: "platformer", name: "Platformer", game: "platformer" },
+      ],
+    },
+    ...over,
+  };
+  const asked: string[] = [];
+  const fetch = async (url: string) => {
+    asked.push(url);
+    const body = routes[url];
+    return { ok: body !== undefined, json: async () => body };
+  };
+  return { fetch, asked };
+}
+
+describe("findDevScene", () => {
+  it("names the project that holds a scene, by id or by name", async () => {
+    const { fetch } = listingFetch();
+    expect(await findDevScene("kitchen-sink", { fetch })).toEqual({
+      project: "engine",
+      id: "kitchen-sink",
+      name: "kitchen-sink",
+    });
+    expect(await findDevScene("test-yard", { fetch })).toEqual({
+      project: "platformer",
+      id: "test-yard",
+      name: "test-yard",
+    });
+    expect(await findDevScene("grid-yard", { fetch })).toEqual({
+      project: "engine",
+      id: "7c1d2e3f",
+      name: "grid-yard",
+    });
+    expect(await findDevScene("7c1d2e3f", { fetch })).toMatchObject({ name: "grid-yard" });
+  });
+
+  it("says nothing when no scene matches, two projects play its game, or the server can't answer", async () => {
+    expect(await findDevScene("nowhere", listingFetch())).toBeNull();
+    const twoGameless = listingFetch({
+      "/__project": {
+        ok: true,
+        projects: [
+          { id: "engine", name: "Engine", game: null },
+          { id: "sandbox", name: "Sandbox", game: null },
+        ],
+      },
+    });
+    expect(await findDevScene("kitchen-sink", twoGameless)).toBeNull();
+    const down = async () => {
+      throw new Error("offline");
+    };
+    expect(await findDevScene("kitchen-sink", { fetch: down })).toBeNull();
+  });
+
+  it("asks the dev server's origin when the host was given one", async () => {
+    const { fetch, asked } = listingFetch();
+    await findDevScene("nowhere", { base: "http://dev.test:5173", fetch });
+    expect(asked).toContain("http://dev.test:5173/__scene");
+    expect(asked).toContain("http://dev.test:5173/__project");
   });
 });
 

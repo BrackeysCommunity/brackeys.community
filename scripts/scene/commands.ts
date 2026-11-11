@@ -189,8 +189,8 @@ const DEFINITIONS = {
   step: {
     usage: `step <scene|file|-> ${STEP_FLAGS}`,
     summary:
-      "run the headless runtime and report events and the game's final snapshot; --command and --elapse repeat, stepped on their ticks, each tick's @elapsed first, then its commands in flag order",
-    values: ["ticks", "hold", "inputs", "command", "elapse", "game"],
+      "run the headless runtime and report events and the game's final snapshot, with spawns and destroys counted per type; --events type,… prints only those event types; --command and --elapse repeat, stepped on their ticks, each tick's @elapsed first, then its commands in flag order",
+    values: ["ticks", "hold", "inputs", "command", "elapse", "events", "game"],
     repeatable: ["command", "elapse"],
     switches: [],
     maxPositionals: 1,
@@ -203,6 +203,7 @@ const DEFINITIONS = {
           inputs: str(flags.inputs),
           command: strs(flags.command),
           elapse: strs(flags.elapse),
+          events: str(flags.events),
           game: str(flags.game),
         },
         ctx,
@@ -228,10 +229,11 @@ const DEFINITIONS = {
       ),
   },
   playtest: {
-    usage: "playtest <scene|file|-> --script <file|-> [--at x,y] [--game id] [--record file]",
+    usage:
+      "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file]",
     summary:
-      "play an input script headless (actions, waits, game commands, time away): the outcome, steps, events and focus trail; exit 1 when blocked",
-    values: ["script", "at", "game", "record"],
+      "play an input script headless (actions, waits, game commands, time away): the outcome, steps, events with spawns and destroys counted per type, and focus trail; --events type,… prints only those event types; exit 1 when blocked",
+    values: ["script", "at", "events", "game", "record"],
     switches: [],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
@@ -240,6 +242,7 @@ const DEFINITIONS = {
           scene,
           script: str(flags.script),
           at: str(flags.at),
+          events: str(flags.events),
           game: str(flags.game),
           record: str(flags.record),
         },

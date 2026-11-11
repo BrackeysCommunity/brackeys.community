@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from "react";
 
 import type { SceneDocStatus } from "../connect/scene-doc";
+import { Hint } from "../kit/hint";
 import { Progress } from "../kit/progress";
 import { Spinner } from "../kit/spinner";
 import { ACTIVITY_DELAY_MS } from "../pending/pending";
@@ -8,44 +9,73 @@ import { usePendingTasks } from "../pending/use-pending";
 
 export type SaveTone = "muted" | "success" | "warning" | "danger";
 
+export type SaveStateView = {
+  label: string;
+  /** What a narrow status shows beside its dot; null while the dot's colour says enough. */
+  short: string | null;
+  tone: SaveTone;
+};
+
 /**
  * What the status island says about the server holding the edits, in the
  * canvas editor's words. The dev server's file write after its debounce
  * isn't part of it.
  */
-export function saveState(
-  connection: SceneDocStatus,
-  unsynced: number,
-): { label: string; tone: SaveTone } {
+export function saveState(connection: SceneDocStatus, unsynced: number): SaveStateView {
   switch (connection) {
     case "connecting":
-      return { label: "Connecting…", tone: "muted" };
+      return { label: "Connecting…", short: "Connecting", tone: "muted" };
     case "reconnecting":
-      return { label: "Reconnecting…", tone: "warning" };
+      return { label: "Reconnecting…", short: "Retrying", tone: "warning" };
     case "offline":
       return unsynced > 0
-        ? { label: "Offline — changes will sync", tone: "warning" }
-        : { label: "Offline", tone: "warning" };
+        ? { label: "Offline — changes will sync", short: "Offline", tone: "warning" }
+        : { label: "Offline", short: "Offline", tone: "warning" };
     case "failed":
-      return { label: "Disconnected", tone: "danger" };
+      return { label: "Disconnected", short: "Disconnected", tone: "danger" };
     case "live":
       return unsynced > 0
-        ? { label: "Saving…", tone: "muted" }
-        : { label: "Saved", tone: "success" };
+        ? { label: "Saving…", short: null, tone: "muted" }
+        : { label: "Saved", short: null, tone: "success" };
   }
 }
 
+/**
+ * The save state in words, or with `compact` as a dot and, while the
+ * connection is anything but live, its short word; the full words stay for
+ * screen readers and in the dot's hint.
+ */
 export function SaveState({
   connection,
   unsynced,
+  compact = false,
+  hint,
 }: {
   connection: SceneDocStatus;
   unsynced: number;
+  compact?: boolean;
+  /** The compact dot's hint; default the full words. */
+  hint?: string;
 }) {
-  const { label, tone } = saveState(connection, unsynced);
+  const { label, short, tone } = saveState(connection, unsynced);
+  if (!compact) {
+    return (
+      <span className="je-save-state" data-tone={tone}>
+        {label}
+      </span>
+    );
+  }
   return (
-    <span className="je-save-state" data-tone={tone}>
-      {label}
+    <span className="je-save-state" data-compact="" data-tone={tone}>
+      <Hint content={hint ?? label}>
+        <span className="je-status-dot" data-tone={tone} aria-hidden />
+      </Hint>
+      {short ? (
+        <span className="je-save-state-short" aria-hidden>
+          {short}
+        </span>
+      ) : null}
+      <span className="je-sr-only">{label}</span>
     </span>
   );
 }

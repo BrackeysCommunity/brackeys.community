@@ -14,6 +14,7 @@ import golden from "./fixtures/m1-golden.json";
  * `final` and the landings must match bit for bit; events match after M1's
  * sensor event names map onto `sensor:enter`, compared per tick as a
  * multiset because engine events now come before the game's within a tick.
+ * The actor is the spawned entity `player#1`.
  */
 
 type Script = (typeof golden.scripts)[keyof typeof golden.scripts];
@@ -65,6 +66,9 @@ describe("platformer golden trace", () => {
       const events = report.events.filter((e) => e.type !== SENSOR_EXIT);
       expect(landingsOf(events)).toEqual(script.landings);
       expect(perTick(events)).toEqual(perTick(script.events as M1Event[]));
+      expect(report.stats.perType.player).toBe(1);
+      for (const e of events.filter((e) => e.type === SENSOR_ENTER))
+        expect(e.other).toBe("player#1");
     });
   }
 });

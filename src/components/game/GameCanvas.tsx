@@ -31,15 +31,17 @@ type GameCanvasProps = {
   roomId: string;
   /** Opens the scene editor; dev builds only. */
   edit?: boolean;
-  /** The project scene the editor opens, by id; default the bundled one. */
+  /** The project the editor opens, by id; default the platformer. */
+  project?: string;
+  /** The project scene the editor opens, by id or name; default the project's own. */
   scene?: string;
 };
 
-export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
+export function GameCanvas({ roomId, edit = false, project, scene }: GameCanvasProps) {
   if (edit && SiteSceneEditor) {
     return (
       <Suspense fallback={<EditorLoading roomId={roomId} />}>
-        <SiteSceneEditor roomId={roomId} scene={scene} />
+        <SiteSceneEditor roomId={roomId} project={project} scene={scene} />
       </Suspense>
     );
   }

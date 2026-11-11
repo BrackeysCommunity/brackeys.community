@@ -4,6 +4,7 @@ import { Container } from "pixi.js";
 import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
+import { isRuntimeId } from "./game/runtime-ids";
 import { resolveTime, type ResolvedTime } from "./game/time";
 import type { GameAttachment, GameCommand, GameOutcome, GameShell } from "./game/types";
 import type { PlayOptions } from "./headless/playtest-types";
@@ -24,8 +25,13 @@ import type { LoadProgress } from "./render/asset-loader";
 import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
-import { createSessionRecording, preparePlay, type SessionRecording } from "./runtime/play-session";
-import { recordingRapier } from "./runtime/recorder";
+import {
+  createSessionRecording,
+  playWorld,
+  preparePlay,
+  type SessionRecording,
+} from "./runtime/play-session";
+import { recordingRapier, recordingStart } from "./runtime/recorder";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "./runtime/runtime";
 import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
 import { defaultPhysics, expandScene, isExpandedScene, scenePhysics } from "./scene/expand";
@@ -271,6 +277,7 @@ export async function createGame(
       dev: cfg.dev,
       now: () => performance.now(),
       project,
+      prefabs: () => prefabs,
       ...(resolution.sampling ? { sampling: resolution.sampling } : {}),
     });
     const report = runtime.load(scene, play);
@@ -348,6 +355,13 @@ export async function createGame(
     if (mode === "play" && store.state.phase === "running") focusInput();
   }
 
+  /** The loaded scene without what game code spawned, which the next load spawns again. */
+  function authoredScene(): ExpandedScene | null {
+    const scene = loaded?.runtime.scene();
+    if (!scene) return null;
+    return { ...scene, entities: scene.entities.filter((e) => !isRuntimeId(e.id)) };
+  }
+
   function startPlay(
     scene: ExpandedScene,
     bundle: AssetBundle | null,
@@ -357,7 +371,7 @@ export async function createGame(
     const remembered = playing
       ? editState
       : {
-          scene: loaded?.runtime.scene() ?? null,
+          scene: authoredScene(),
           camera: camera.getState(),
           bundle: loaded?.bundle ?? null,
         };
@@ -418,12 +432,7 @@ export async function createGame(
   }
 
   function replay(doc: SceneDefinition, recording: RunRecording): PlayReport {
-    const opts: PlayOptions = {};
-    if (recording.start.at) opts.at = { x: recording.start.at[0], y: recording.start.at[1] };
-    if (recording.start.timeOffsetMs !== undefined)
-      opts.timeOffsetMs = recording.start.timeOffsetMs;
-    if (recording.start.game !== undefined) opts.game = recording.start.game;
-    return playRecorded(doc, opts, recording);
+    return playRecorded(doc, recordingStart(recording.start), recording);
   }
 
   function stop(): void {
@@ -432,7 +441,7 @@ export async function createGame(
     session = null;
     const remembered = editState;
     editState = null;
-    const scene = remembered?.scene ?? loaded?.runtime.scene() ?? null;
+    const scene = remembered?.scene ?? authoredScene();
     const bundle = remembered?.scene ? remembered.bundle : (loaded?.bundle ?? null);
     if (!scene || !buildWorld(scene, bundle, undefined, false).ok) teardownScene();
     if (remembered?.bundle) assets?.loader.release(remembered.bundle);
@@ -458,13 +467,13 @@ export async function createGame(
     if (getMode() === mode) return;
     if (mode === "edit") return stop();
     session = null;
-    const scene = loaded?.runtime.scene();
+    const scene = authoredScene();
     if (scene) startPlay(scene, loaded?.bundle ?? null);
     else enterMode("play");
   }
 
   /** The game's first verdict on this tick, recorded once per session. */
-  function judge(result: StepResult): GameOutcome | null {
+  function judge(result: StepResult, runtime: SceneRuntimeHandle): GameOutcome | null {
     const current = store.state.session;
     const hooks = game.play;
     if (!current || current.outcome || !hooks?.outcome) return null;
@@ -472,6 +481,7 @@ export async function createGame(
       tick: result.tick,
       snapshot: result.game,
       events: result.events,
+      world: playWorld(runtime.ctx),
     });
     if (!verdict) return null;
     const recorded = { ...verdict, tick: result.tick };
@@ -587,7 +597,7 @@ export async function createGame(
         const result = loaded.runtime.step(dt, actions, commands);
         incrementTick(store);
         events.emit("scene:step", result);
-        const verdict = judge(result);
+        const verdict = judge(result, loaded.runtime);
         if (session) {
           const wasReplay = session.replaying;
           const finished = session.stepped(result, actions, verdict, commands);

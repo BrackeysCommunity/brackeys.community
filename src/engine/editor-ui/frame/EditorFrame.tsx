@@ -59,6 +59,7 @@ import { createLoadedRunStore } from "../session/loaded-run";
 import { useEditorStore } from "../session/use-editor-store";
 import { usePhysicalIssues } from "../session/use-physical-issues";
 import { useStoreValue, type ReadableStore } from "../session/use-store-value";
+import { usePanelBadges } from "./badges";
 import { Column, groupClass, type ColumnPanels } from "./Column";
 import {
   useEditorClipboard,
@@ -199,6 +200,8 @@ export type EditorFrameProps = EditorFrameSlots & {
   /** The game's canvas. */
   children: ReactNode;
 };
+
+const NO_PANELS: readonly PanelDef[] = Object.freeze([]);
 
 const NO_HOST: Pick<EditorHost, "cue" | "storage" | "peerColor"> = {};
 
@@ -589,12 +592,14 @@ function FrameBody({
     return { width: now.viewport.width, height: now.viewport.height, insets };
   }, []);
 
+  const badges = usePanelBadges(defs ?? NO_PANELS, ctx);
   const railPanels = (side: Side): RailPanel[] =>
     defs
       ? layout[side].groups.flatMap((g) =>
           g.panels.flatMap((id) => {
-            const def = defs.find((d) => d.id === id);
-            return def ? [def] : [];
+            const at = defs.findIndex((d) => d.id === id);
+            const def = defs[at];
+            return def ? [{ ...def, badge: badges[at] ?? null }] : [];
           }),
         )
       : [];
@@ -641,6 +646,7 @@ function FrameBody({
       return content ? <div className="je-frame-sheet">{content}</div> : null;
     }
     if (!columnPanels) return null;
+    // As tall as the open panel's content, up to half the window: a short run or list leaves the canvas free.
     return (
       <PanelGroup
         side={sheet.side}
@@ -651,7 +657,7 @@ function FrameBody({
         panels={columnPanels.defs}
         booting={columnPanels.booting}
         className={cx("je-frame-sheet", groupClass(sheet.side, sheet.group))}
-        style={{ height: Math.round(viewport.height / 2) }}
+        style={{ maxHeight: Math.round(viewport.height / 2) }}
       />
     );
   };

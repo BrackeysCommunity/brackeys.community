@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 
 import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { z } from "zod";
 
 import {
   AVATAR_SPEED,
@@ -11,7 +12,7 @@ import {
   type TestGameOptions,
   type TestGameSnapshot,
 } from "../../__tests__/fixtures/test-game";
-import { createRegistry } from "../../game/define";
+import { createRegistry, defineGame } from "../../game/define";
 import { hashText } from "../../scene/hash";
 import { parseSceneOrThrow } from "../../scene/parse";
 import type { SceneDefinition } from "../../scene/types";
@@ -491,5 +492,204 @@ describe("runLoop", () => {
     expect(slotWakes({ kind: "event" }, [], [])).toBe(false);
     expect(slotWakes({ kind: "turns" }, [[0, "a", 1]], [])).toBe(false);
     expect(slotWakes({ kind: "turns" }, [], [{ name: "@elapsed" }])).toBe(true);
+  });
+});
+
+/**
+ * The test game, plus a world that changes on known ticks (each after the
+ * tick's `afterStep`): lamp#1 spawns at 2, lamp#2 and a marker tagged coin
+ * at 4; lamp#1 is disabled at 6, lamp#2 destroyed at 8, lamp#1 enabled at 10.
+ * `boomAt` spawns a lamp with a bad id on that tick; `wonAt` makes the
+ * outcome hook win once the world has that many enabled lamps.
+ */
+function lifecycleGame(opts: { boomAt?: number; wonAt?: number } = {}) {
+  return defineGame<TestGameSnapshot, TestGameOptions>({
+    ...testGame,
+    play: {
+      ...testGame.play,
+      ...(opts.wonAt !== undefined && {
+        outcome: ({ world }) =>
+          world?.count({ type: "lamp" }) === opts.wonAt
+            ? { result: "won", cause: `${opts.wonAt} lamps` }
+            : null,
+      }),
+    },
+    createRuntime(ctx) {
+      const base = testGame.createRuntime(ctx);
+      let tick = 0;
+      return {
+        ...base,
+        onLoad(scene) {
+          tick = 0;
+          base.onLoad?.(scene);
+        },
+        afterStep(dtMs, events) {
+          base.afterStep?.(dtMs, events);
+          if (tick === 2) ctx.spawn({ type: "lamp", at: [0, 0] });
+          if (tick === 4) {
+            ctx.spawn({ type: "lamp", at: [10, 0] });
+            ctx.spawn({ type: "marker", at: [20, 0], tags: ["coin"] });
+          }
+          if (tick === 6) ctx.setEnabled("lamp#1", false);
+          if (tick === 8) ctx.destroy("lamp#2");
+          if (tick === 10) ctx.setEnabled("lamp#1", true);
+          if (tick === opts.boomAt) ctx.spawn({ type: "lamp", id: "7", at: [0, 0] });
+          tick++;
+        },
+      };
+    },
+  });
+}
+
+describe("runPlaytest's world predicates", () => {
+  const lifecycle = lifecycleGame();
+  const lifeRegistry = createRegistry(lifecycle);
+  const run = (steps: InputScript["steps"], game = lifecycle, reg = lifeRegistry) =>
+    report(
+      runPlaytest({
+        rapier,
+        game,
+        registry: reg,
+        scene: yard,
+        script: { v: 1, steps },
+      }) as PlaytestRun<TestGameSnapshot>,
+    );
+  /** The last tick of each step that ended on its `until`, else its end. */
+  const lastTicks = (r: Report) =>
+    r.steps.map((s) => (s.end === "until" ? s.start + s.ticks - 1 : s.end));
+
+  it("exists holds while an entity exists and is enabled", () => {
+    const r = run([
+      { hold: [], until: { exists: "lamp#1" } },
+      { hold: [], until: { exists: { id: "lamp#1", enabled: false } } },
+      { wait: 3 },
+      { hold: [], until: { exists: "lamp#1" } },
+      { hold: [], until: { exists: "lamp#2" }, max: 5 },
+    ]);
+    // Spawned at 2; disabled from 6, so the plain form waits for the enable at 10.
+    expect(lastTicks(r)).toEqual([2, 3, "done", 10, "max"]);
+  });
+
+  it("exists with enabled: false holds for a disabled entity, not a destroyed one", () => {
+    const r = run([
+      { wait: 7 },
+      { hold: [], until: { exists: { id: "lamp#1", enabled: false } } },
+      { hold: [], until: { exists: { id: "lamp#2", enabled: false } }, max: 3 },
+    ]);
+    // lamp#1 is disabled at 7; lamp#2 is gone once tick 8's destroy lands.
+    expect(lastTicks(r)).toEqual(["done", 7, "max"]);
+  });
+
+  it("count holds on min, max, eq and a range, by type and tag", () => {
+    const r = run([
+      { hold: [], until: { count: { tag: "coin", eq: 0 } } },
+      { hold: [], until: { count: { type: "lamp", min: 1 } } },
+      { hold: [], until: { count: { type: "lamp", eq: 2 } } },
+      { hold: [], until: { count: { tag: "coin", min: 1, max: 1 } } },
+      { hold: [], until: { count: { type: "lamp", max: 1 } } },
+      { hold: [], until: { count: { type: "lamp", enabled: false, max: 1 } } },
+    ]);
+    // 2 lamps at 4; lamp#1 disabled at 6 leaves 1 enabled; lamp#2 destroyed at 8.
+    expect(lastTicks(r)).toEqual([0, 2, 4, 5, 6, 8]);
+  });
+
+  it("count takes a list of types and holds a max of 0 before anything spawns", () => {
+    const r = run([
+      { hold: [], until: { count: { type: ["lamp", "plain"], max: 0 } } },
+      { hold: [], until: { count: { type: ["sensor", "lamp"], eq: 3 } } },
+    ]);
+    expect(lastTicks(r)).toEqual([0, 4]);
+  });
+
+  it("ANDs world predicates with the engine's and the game's", () => {
+    const r = run([
+      { hold: [], until: { tick: 5, count: { type: "lamp", min: 1 }, exists: "lamp#2", past: 0 } },
+    ]);
+    expect(lastTicks(r)).toEqual([5]);
+  });
+
+  it("gives the game's outcome hook the world", () => {
+    const won = lifecycleGame({ wonAt: 2 });
+    const r = run([{ wait: 100 }], won, createRegistry(won));
+    expect(r.outcome).toMatchObject({ result: "won", tick: 4, cause: "2 lamps" });
+  });
+
+  it("calls onLastTick with the last tick's live world", () => {
+    let seen: { tick: number; lamps: number; one: boolean } | null = null;
+    const r = runPlaytest({
+      rapier,
+      game: lifecycle,
+      registry: lifeRegistry,
+      scene: yard,
+      script: { v: 1, steps: [{ wait: 7 }] },
+      onLastTick: (state) => {
+        seen = {
+          tick: state.tick,
+          lamps: state.world!.count({ type: "lamp" }),
+          one: state.world!.exists("lamp#1"),
+        };
+      },
+    });
+    expect(r.blocked).toBe(false);
+    expect(seen).toEqual({ tick: 6, lamps: 1, one: false });
+  });
+
+  it("ends a run blocked at 'run' when a step throws an EngineError, its code in issues", () => {
+    const boom = lifecycleGame({ boomAt: 5 });
+    const r = blocked(
+      runPlaytest({
+        rapier,
+        game: boom,
+        registry: createRegistry(boom),
+        scene: yard,
+        script: { v: 1, steps: [{ wait: 20 }] },
+      }),
+    );
+    expect(r.stage).toBe("run");
+    expect(r.scriptIssues).toEqual([]);
+    const issue = r.issues.at(-1)!;
+    expect(issue).toMatchObject({ severity: "error", code: "spawn-id-invalid" });
+    expect(issue.message).toContain('"7"');
+  });
+
+  it("rethrows an error that isn't an EngineError", () => {
+    const game = defineGame<TestGameSnapshot, TestGameOptions>({
+      ...testGame,
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        return {
+          ...base,
+          afterStep() {
+            throw new Error("game bug");
+          },
+        };
+      },
+    });
+    expect(() =>
+      runPlaytest({
+        rapier,
+        game,
+        registry: createRegistry(game),
+        scene: yard,
+        script: { v: 1, steps: [{ wait: 2 }] },
+      }),
+    ).toThrow("game bug");
+  });
+
+  it("refuses a game predicate named like an engine one at registry build", () => {
+    for (const name of ["exists", "count"]) {
+      const game = defineGame({
+        ...testGame,
+        play: {
+          ...testGame.play,
+          predicates: {
+            [name]: { description: "Shadows the engine's.", arg: z.string(), test: () => true },
+          },
+        },
+      });
+      expect(() => createRegistry(game), name).toThrow(
+        `script predicate "${name}" is the engine's`,
+      );
+    }
   });
 });

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:material:v1",
-  "x-agent-surface": 10,
+  "x-agent-surface": 11,
   "title": "jams engine material, format v1",
   "type": "object",
   "properties": {

@@ -116,6 +116,7 @@ try {
 
   // ─── 3. Headless under Bun: dist matches source ────────
   copyInto(dir, {
+    "browser/contact.ts": "scripts/engine-smoke/browser/contact.ts",
     "game.ts": "scripts/engine-smoke/game.ts",
     "headless.ts": "scripts/engine-smoke/headless.ts",
     "consumer.test.ts": "scripts/engine-smoke/consumer.test.ts",

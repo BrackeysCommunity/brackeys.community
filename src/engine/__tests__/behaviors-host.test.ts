@@ -501,6 +501,56 @@ describe("behavior host", () => {
   });
 });
 
+describe("behavior host: disable and enable", () => {
+  it("detaches blocks without a disable in reverse, and attaches them afresh in order on enable", () => {
+    const { rt, log } = setup();
+    rt.load(
+      scene([probe("a", { [TICK]: { n: 1 }, [PLAIN]: { n: 2 } }), probe("b", { [TICK]: {} })]),
+    );
+    rt.step(DT, []);
+    log.length = 0;
+    rt.ctx.setEnabled("a", false);
+    expect(log).toEqual(["detach plain a", "detach tick a", "despawn a"]);
+    expect(rt.stats().behaviors).toEqual({ [TICK]: 1 });
+    log.length = 0;
+    rt.ctx.setEnabled("a", true);
+    expect(log).toEqual([
+      "spawn a",
+      'attach tick a {"n":1} pose=1,2',
+      'attach plain a {"n":2} pose=1,2',
+    ]);
+    expect(rt.stats().behaviors).toEqual({ [TICK]: 2, [PLAIN]: 1 });
+    rt.destroy();
+  });
+
+  it("leaves a disabled entity's detached blocks alone on an asset reload, and redraws them on enable", () => {
+    const { rt, log } = setup();
+    rt.load(
+      scene([probe("a", { [DECAL]: { art: "crate" } }), probe("b", { [DECAL]: { art: "crate" } })]),
+    );
+    rt.ctx.setEnabled("a", false);
+    log.length = 0;
+    rt.reloadAssets(null, ["crate"]);
+    expect(log).toEqual(["detach decal b", 'attach decal b {"art":"crate"} pose=1,2']);
+    log.length = 0;
+    rt.ctx.setEnabled("a", true);
+    expect(log).toEqual(["spawn a", 'attach decal a {"art":"crate"} pose=1,2']);
+    rt.destroy();
+  });
+
+  it("detaches every block when an entity is removed while disabled", () => {
+    const { rt, log } = setup();
+    rt.load(scene([probe("a", { [TICK]: {}, [PLAIN]: {} })]));
+    rt.ctx.setEnabled("a", false);
+    log.length = 0;
+    rt.remove(["a"]);
+    expect(log).toEqual([]);
+    expect(rt.stats().behaviors).toEqual({});
+    expect(rt.ctx.exists("a")).toBe(false);
+    rt.destroy();
+  });
+});
+
 describe("sprites and the game's afterStep", () => {
   it("poses a sprite the game moved in afterStep in that same tick, before the commit", () => {
     const { game: base } = loggingGame();

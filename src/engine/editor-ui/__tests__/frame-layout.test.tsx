@@ -335,6 +335,10 @@ describe("the frame's layout", () => {
       "true",
     );
     expect(screen.queryByRole("tablist", { name: "Right column, top group" })).toBeNull();
+    // As tall as the panel's content, up to half the window.
+    const sheet = strip.closest<HTMLElement>(".je-frame-sheet")!;
+    expect(sheet.style.height).toBe("");
+    expect(sheet.style.maxHeight).toBe("400px");
     fireEvent.click(within(bar).getByRole("button", { name: "Run" }));
     expect(screen.queryByRole("tablist", { name: "Right column, bottom group" })).toBeNull();
   });

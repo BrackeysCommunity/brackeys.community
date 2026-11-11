@@ -1,10 +1,18 @@
+import { isRuntimeId } from "../game/runtime-ids";
 import { resolveTime } from "../game/time";
 import type { GameDefinition, Macro, MacroRandom } from "../game/types";
 import { resolveGame } from "../runtime/runtime";
 import type { EntityTypeName, Ref } from "../scene/types";
 import { Rng } from "../sim-kit/rng";
 import { probeConfigHash, unknownActionError } from "./headless";
-import { blockedRun, prepareRun, runLoop, startRun, type InputSource } from "./play-loop";
+import {
+  blockedRun,
+  prepareRun,
+  runLibrary,
+  runLoop,
+  startRun,
+  type InputSource,
+} from "./play-loop";
 import type { FuzzOptions, FuzzRun, FuzzTouch } from "./playtest-types";
 
 const DEFAULT_ROLLOUTS = 100;
@@ -67,9 +75,9 @@ const byRef = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * does and plays macros (the game's `play.macro`, else `defaultFuzzMacro`)
  * drawn from `@jams/engine/sim-kit`'s `Rng`, until the game's outcome,
  * `stuck` or `ticks` slots (an idle turns or event game skips slots, so its
- * rollouts still end). Reports which entities the rollouts' events named,
- * how many rollouts reached each and how early, the ones never touched, and
- * how the rollouts ended. Rollout `i` draws from its own fork of the seed,
+ * rollouts still end). Reports which scene entities the rollouts' events
+ * named (never a runtime `#` id), how many rollouts reached each and how
+ * early, the ones never touched, and how the rollouts ended. Rollout `i` draws from its own fork of the seed,
  * so the first rollouts of a longer fuzz are the same as a shorter one's.
  */
 export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun {
@@ -83,7 +91,9 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
 
   const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs, opts.project?.engine);
   if (!prepared.ok) return prepared.blocked;
-  const types = new Map<Ref, EntityTypeName>(prepared.scene.entities.map((e) => [e.id, e.type]));
+  const types = new Map<Ref, EntityTypeName>(
+    prepared.scene.entities.filter((e) => !isRuntimeId(e.id)).map((e) => [e.id, e.type]),
+  );
 
   const root = Rng.from(opts.seed);
   const play = game?.play;
@@ -107,12 +117,13 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
       play: opts.play ?? {},
       dev: opts.dev,
       project: opts.project,
+      prefabs: runLibrary(opts),
     });
     if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
     time = started.runtime.ctx.time;
     const seen = new Set<Ref>();
     const touch = (id: string | undefined, tick: number) => {
-      if (id === undefined || seen.has(id) || !types.has(id)) return;
+      if (id === undefined || isRuntimeId(id) || seen.has(id) || !types.has(id)) return;
       seen.add(id);
       const entry = touched.get(id);
       if (!entry) touched.set(id, { reached: 1, firstTick: tick, firstRollout: rollout });

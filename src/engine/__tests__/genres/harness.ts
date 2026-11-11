@@ -34,7 +34,13 @@ export type GenreRow =
   | "local-multiplayer"
   | "online-multiplayer";
 
-export type ProbeVariant = { name: string; settings: Partial<SceneSettings> };
+/** Another run of a probe: settings over the scene's own, and the seed `ctx.random` gets. */
+export type ProbeVariant = {
+  name: string;
+  settings?: Partial<SceneSettings>;
+  /** Overrides the script's `seed` (`PlayOptions.seed`); omitted, the script's or the default. */
+  seed?: number | string;
+};
 
 export type GenreProbe<S = unknown> = {
   id: string;
@@ -44,11 +50,14 @@ export type GenreProbe<S = unknown> = {
   game: GameDefinition<S>;
   /** Built in code from primitives and the probe's own types. */
   scene: SceneDefinition;
+  /** Every prefab the run may place: the scene's instances and `ctx.instantiate` both draw on it. */
   prefabs?: PrefabLibrary;
   script: InputScript;
   expect: { result: string; maxTicks?: number };
   /** Settings the probe also runs under; the sweep needs gravity zero, sideways and physics none covered. */
   variants?: readonly ProbeVariant[];
+  /** How long one run (play and replay) may take in a test; default `PROBE_TIMEOUT_MS`. */
+  timeoutMs?: number;
 };
 
 export type ProbeRun = {
@@ -62,6 +71,14 @@ export type ProbeRun = {
 /** The name pins.ts files a probe's run without a variant under. */
 export const DEFAULT_VARIANT = "default";
 
+/** A probe run's test timeout when the probe names none. */
+export const PROBE_TIMEOUT_MS = 60_000;
+
+/** The test timeout for each of a probe's runs. */
+export function probeTimeout(probe: GenreProbe): number {
+  return probe.timeoutMs ?? PROBE_TIMEOUT_MS;
+}
+
 let compat: Promise<RapierModule> | null = null;
 
 /** Loads the `-compat` Rapier build once; a spy, so a file can assert it never ran. */
@@ -69,7 +86,7 @@ export const loadRapier = vi.fn(() => (compat ??= loadCompatRapier()));
 
 /** The probe's scene with the variant's settings over its own. */
 export function variantScene(probe: GenreProbe, variant?: ProbeVariant): SceneDefinition {
-  if (!variant) return probe.scene;
+  if (!variant?.settings) return probe.scene;
   return { ...probe.scene, settings: { ...probe.scene.settings, ...variant.settings } };
 }
 
@@ -77,6 +94,12 @@ export function variantScene(probe: GenreProbe, variant?: ProbeVariant): SceneDe
 export function probePhysics(probe: GenreProbe, variant?: ProbeVariant): "rapier" | "none" {
   const registry = createRegistry(probe.game as GameDefinition);
   return scenePhysics(variantScene(probe, variant), registry);
+}
+
+/** The probe's script with the variant's seed over its own. */
+export function variantScript(probe: GenreProbe, variant?: ProbeVariant): InputScript {
+  if (variant?.seed === undefined) return probe.script;
+  return { ...probe.script, seed: variant.seed };
 }
 
 /** What a run is pinned by: how it ended, what it emitted, and the game's end state. */
@@ -101,9 +124,11 @@ function blockedMessage(
 }
 
 /**
- * Plays a probe headless (under a variant's settings when given), replays its
- * recording, and digests the run. Rapier is loaded only when the scene's
- * physics resolves to it; a physics-free run gets `rapier: null`.
+ * Plays a probe headless (under a variant's settings and seed when given),
+ * replays its recording, and digests the run. The probe's prefabs go to both
+ * runs as the scene's and as the library `ctx.instantiate` draws on. Rapier is
+ * loaded only when the scene's physics resolves to it; a physics-free run
+ * gets `rapier: null`.
  */
 export async function runGenreProbe<S>(
   probe: GenreProbe<S>,
@@ -119,7 +144,8 @@ export async function runGenreProbe<S>(
     game: p.game,
     scene,
     prefabs: p.prefabs,
-    script: p.script,
+    library: p.prefabs,
+    script: variantScript(p, variant),
   });
   if (report.blocked) throw new Error(blockedMessage(`${label}: the playtest`, report));
 
@@ -128,6 +154,7 @@ export async function runGenreProbe<S>(
     game: p.game,
     scene,
     prefabs: p.prefabs,
+    library: p.prefabs,
     recording: report.recording,
   });
   if (replay.blocked) throw new Error(blockedMessage(`${label}: the replay`, replay));

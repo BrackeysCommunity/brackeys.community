@@ -5,7 +5,7 @@ import type { RuntimeEntity, ShapeObj } from "@jams/engine/scene";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createGrappleAnchorSystem } from "../entities/grapple-anchor";
-import { createPlayerEntity, PLAYER_VIEW_ID } from "../entities/player";
+import { createPlayerEntity } from "../entities/player";
 import { createConstructSystem } from "../entities/shaper-constructs";
 import { platformerGame, PLATFORMER_LAYERS, TYPE } from "../index";
 import { createCloudSystem } from "../systems/cloud";
@@ -217,11 +217,12 @@ describe("platformer visuals through the view", () => {
     rt.destroy();
   });
 
-  it("draws the player at its spawn and removes it on destroy", () => {
+  it("draws the player at its spawn under its entity id and removes it on destroy", () => {
     const rt = emptyRuntime();
     const { view, live } = recordingView();
-    const player = createPlayerEntity({ ...rt.ctx, view }, { x: 100, y: 500 });
-    const visual = live.get(PLAYER_VIEW_ID)!;
+    const player = createPlayerEntity({ ...rt.ctx, view }, { x: 100, y: 500 }, {}, "player#1");
+    expect([...live.keys()]).toEqual(["player#1"]);
+    const visual = live.get("player#1")!;
     expect(visual.layer).toBe(PLATFORMER_LAYERS.player);
     expect(visual.pose).toEqual([100, 470, 0]);
 
@@ -229,10 +230,10 @@ describe("platformer visuals through the view", () => {
       player.update(1000 / 60, []);
       rt.ctx.physics!.step();
     }
-    expect(live.get(PLAYER_VIEW_ID)!.pose[1]).toBeGreaterThan(470);
+    expect(live.get("player#1")!.pose[1]).toBeGreaterThan(470);
 
     player.destroy();
-    expect(live.has(PLAYER_VIEW_ID)).toBe(false);
+    expect(live.has("player#1")).toBe(false);
     rt.destroy();
   });
 });

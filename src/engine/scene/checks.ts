@@ -2,10 +2,15 @@ import { z } from "zod";
 
 import { ID_PATTERN } from "../game/fields";
 import { ENGINE_CHECK_KINDS, type Registry } from "../game/types";
-import type { InputScript } from "../headless/playtest-types";
+import type { InputScript, UntilClause } from "../headless/playtest-types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { closest } from "./did-you-mean";
-import { DEFAULT_SCRIPT_MAX_TICKS, inputScriptSchemaFor, MAX_SCRIPT_TICKS } from "./input-script";
+import {
+  DEFAULT_SCRIPT_MAX_TICKS,
+  inputScriptSchemaFor,
+  inputScriptSchemasFor,
+  MAX_SCRIPT_TICKS,
+} from "./input-script";
 import { jsonPointer, lineAt } from "./issues";
 import { schemaIdFor, toJsonSchema } from "./json-schema";
 import { pointerLines } from "./parse";
@@ -30,7 +35,7 @@ export type ValidCheck = CheckHead & {
   physical?: boolean;
   max?: "error" | "warn";
 };
-/** An input script's playtest ends with `result`; a blocked run fails. */
+/** An input script's playtest ends with `result` (and `expect` holds then); a blocked run fails. */
 export type ReachesCheck = CheckHead & {
   kind: "reaches";
   /** Inline, or a path relative to the checks file. */
@@ -38,6 +43,8 @@ export type ReachesCheck = CheckHead & {
   result: string;
   /** Play from here, over the script's own `at`. */
   at?: Pt;
+  /** Every key must hold on the run's last tick, judged as a script step's `until` is. */
+  expect?: UntilClause;
 };
 /** Seeded fuzz rollouts touch `entity` in at least `atLeast` of them. */
 export type TouchesCheck = CheckHead & {
@@ -139,9 +146,14 @@ function buildChecksSchemas(registry: Registry, strictScript: boolean) {
           ])
           .optional()
           .describe("Play from here, over the script's own `at`."),
+        expect: inputScriptSchemasFor(registry)
+          .until.optional()
+          .describe(
+            "Conditions that must all hold on the run's last tick, keyed as a script step's `until` (`event`, `tick`, `exists`, `count` and the game's predicates); the verdict names the first that fails.",
+          ),
       })
       .describe(
-        `Passes when the script's playtest ends with \`result\`; a blocked run fails. Runs time out after the script's \`maxTicks\` (default ${DEFAULT_SCRIPT_MAX_TICKS}).`,
+        `Passes when the script's playtest ends with \`result\` and every key of \`expect\` holds on its last tick; a blocked run fails. Runs time out after the script's \`maxTicks\` (default ${DEFAULT_SCRIPT_MAX_TICKS}).`,
       ),
     touches: z
       .strictObject({
@@ -298,7 +310,9 @@ function zodIssues(error: z.ZodError, base: (string | number)[]): ChecksIssue[] 
  * Parses a `.checks.json` file for `registry`: the header, then each check
  * by its `kind`, so a mistake is reported against the fields it was meant
  * to have. Ids must be unique. An inline input script is only checked to be
- * an object here; the playtest compiles it. Issues carry lines.
+ * an object here; the playtest compiles it. A `reaches` check's `expect`
+ * keeps the order it was written in, so a verdict names the first key that
+ * fails. Issues carry lines.
  */
 export function parseChecks(text: string, registry: Registry): ParseChecksResult {
   let raw: unknown;
@@ -350,6 +364,12 @@ export function parseChecks(text: string, registry: Registry): ParseChecksResult
         return;
       }
       const value = parsed.data as SceneCheck;
+      if (value.kind === "reaches" && isRecord(check.expect)) {
+        const out = (value as ReachesCheck).expect as Record<string, unknown>;
+        (value as ReachesCheck).expect = Object.fromEntries(
+          Object.keys(check.expect).map((key) => [key, out[key]]),
+        );
+      }
       if (seen.has(value.id)) {
         issues.push({
           path: jsonPointer(["checks", i, "id"]),

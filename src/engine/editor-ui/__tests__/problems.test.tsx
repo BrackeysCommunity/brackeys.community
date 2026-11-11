@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import {
   act,
   cleanup,
@@ -22,6 +25,7 @@ import {
 import { createRegistry } from "../../game/index";
 import type { RapierModule } from "../../headless/index";
 import type { EditorNotify } from "../host";
+import { DEFAULT_LAYOUT, fitLayout } from "../layout/model";
 import { ProblemsPanel } from "../panels/ProblemsPanel";
 import { usePhysicalIssues } from "../session/use-physical-issues";
 
@@ -111,6 +115,42 @@ describe("ProblemsPanel", () => {
     expect(session.getDoc().entities![1]).toMatchObject({ at: [1001, 1010] });
     expect(screen.queryByText("non-integer")).toBeNull();
     expect(toasts.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("ProblemsPanel in a narrow column", () => {
+  const styleCss = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+
+  it("is a size container, each row's code a sibling of its message", () => {
+    const session = sessionOf(scene());
+    render(
+      <ProblemsPanel session={session} physical={[crushed]} onFrame={() => {}} notify={notify} />,
+    );
+    const panel = screen.getByRole("region", { name: "Problems" });
+    expect(panel.classList.contains("je-problems")).toBe(true);
+    const code = within(panel).getByText("spawn-in-solid");
+    expect(code.className).toBe("je-problems-code");
+    expect(code.previousElementSibling?.className).toBe("je-problems-message");
+    expect(code.parentElement?.className).toBe("je-problems-show");
+  });
+
+  it("puts the rule code on a line of its own under a column's narrower widths", () => {
+    expect(styleCss).toMatch(/\.je-problems \{\s*container: je-problems \/ inline-size;/);
+    const at = styleCss.indexOf("@container je-problems (max-width: 288px)");
+    expect(at).toBeGreaterThan(0);
+    const block = styleCss.slice(at, styleCss.indexOf("\n  }\n", at));
+    expect(block).toMatch(/\.je-problems-show \{[^}]*flex-wrap: wrap;/);
+    expect(block).toMatch(/\.je-problems-code \{[^}]*flex-basis: 100%;[^}]*max-width: none;/);
+  });
+
+  it("wraps at the right column's width under 900 px and not at its default", () => {
+    // The panel's inline size is the column's less the group's border and the body's padding.
+    const bodyWidth = (column: number) => column - 2 * 1 - 2 * 6;
+    const right = (width: number) =>
+      fitLayout(DEFAULT_LAYOUT, { width, height: 900, topLeft: 0, topRight: 0, bottom: 0 }).right!
+        .width;
+    expect(bodyWidth(right(1440))).toBeGreaterThan(288);
+    expect(bodyWidth(right(899))).toBeLessThanOrEqual(288);
   });
 });
 

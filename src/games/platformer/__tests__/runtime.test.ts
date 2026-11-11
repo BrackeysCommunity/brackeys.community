@@ -6,7 +6,14 @@ import {
   type SolidSystem,
 } from "@jams/engine/game";
 import { createHeadlessRuntime } from "@jams/engine/headless";
-import type { ExpandedScene, Pt, RuntimeEntity } from "@jams/engine/scene";
+import {
+  isSpawnOnly,
+  parseScene,
+  placeableTypes,
+  type ExpandedScene,
+  type Pt,
+  type RuntimeEntity,
+} from "@jams/engine/scene";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { GrappleAnchorSystem } from "../entities/grapple-anchor";
@@ -63,6 +70,7 @@ describe("platformerGame registry", () => {
       ["anchor"],
       ["construct"],
       ["marker", "spawn"],
+      ["player"],
       ["decor"],
       ["nav"],
     ]);
@@ -153,7 +161,7 @@ describe("the player", () => {
     const rt = runtime(scene([floor, lava, spawnAt([0, -200])]));
     const results = steps(rt, 120);
     const entered = results.flatMap((r) => r.events).filter((e) => e.type === "sensor:enter");
-    expect(entered).toEqual([expect.objectContaining({ entityId: "lava", other: "player" })]);
+    expect(entered).toEqual([expect.objectContaining({ entityId: "lava", other: "player#1" })]);
     expect(player(rt)).toMatchObject({ grounded: true, groundId: "floor" });
     rt.destroy();
   });
@@ -168,6 +176,95 @@ describe("the player", () => {
     steps(rt, 3);
     expect(slice()).toBe(empty);
     expect(empty.player).toBeNull();
+    rt.destroy();
+  });
+});
+
+describe("the player entity", () => {
+  it("is player#1, spawned by the game in the entity table, stats, scene and queries", () => {
+    const rt = runtime(scene([floor, spawnAt([0, 0])]));
+    expect(rt.ctx.get("player#1")).toEqual({ id: "player#1", type: "player", at: [0, 0] });
+    expect(rt.ctx.exists("player#1")).toBe(true);
+    expect(rt.ctx.enabled("player#1")).toBe(true);
+    expect(rt.stats()).toMatchObject({ entities: 3, perType: { player: 1, spawn: 1 } });
+    expect(rt.scene()?.entities.map((e) => e.id)).toEqual(["floor", "~spawn:0", "player#1"]);
+    expect(rt.ctx.query.byType("player")).toEqual(["player#1"]);
+    const [handle] = rt.ctx.tags.handlesOf("player#1");
+    expect(rt.ctx.tags.get(handle!)).toEqual({ entityId: "player#1", type: "player" });
+    rt.destroy();
+  });
+
+  it("keeps its feet in the pose index as it moves", () => {
+    const rt = runtime(scene([floor, spawnAt([0, 0])]));
+    expect(rt.ctx.poses.get("player#1")).toEqual({ x: 0, y: 0, rot: 0 });
+    steps(rt, 20, [press("move_right")]);
+    const { position } = player(rt);
+    expect(position.x).toBeGreaterThan(0);
+    expect(rt.ctx.poses.get("player#1")).toEqual({
+      x: position.x,
+      y: position.y + PLAYER_HEIGHT / 2,
+      rot: 0,
+    });
+    rt.destroy();
+  });
+
+  it("spawns at Play's start, and again as player#1 after a reload", () => {
+    const rt = runtime(scene([floor, spawnAt([0, 0])]));
+    expect(rt.load(scene([floor, spawnAt([0, 0])]), { at: { x: 200, y: -100 } })).toMatchObject({
+      ok: true,
+    });
+    expect(rt.ctx.get("player#1")).toMatchObject({ at: [200, 0] });
+    expect(rt.stats().perType.player).toBe(1);
+    rt.destroy();
+  });
+
+  it("stays one actor when its own runtime scene is loaded back", () => {
+    const rt = runtime(scene([floor, spawnAt([0, 0])]));
+    const fresh = rt.stats();
+    expect(rt.load(rt.scene()!).ok).toBe(true);
+    expect(rt.stats()).toEqual({ ...fresh, behaviors: rt.stats().behaviors });
+    expect(rt.scene()?.entities.filter((e) => e.type === "player")).toHaveLength(1);
+    rt.destroy();
+  });
+
+  it("is spawn-only: a scene can't place it", () => {
+    const registry = createRegistry(platformerGame);
+    expect(isSpawnOnly(registry, "player")).toBe(true);
+    expect(placeableTypes(registry)).not.toContain("player");
+    const placed = parseScene(
+      JSON.stringify({
+        v: 3,
+        name: "t",
+        game: "platformer",
+        bounds: [0, 0, 100, 100],
+        entities: [{ id: "p", type: "player", at: [0, 0] }],
+      }),
+      registry,
+    );
+    expect(placed.ok).toBe(false);
+    if (!placed.ok)
+      expect(placed.issues).toContainEqual(expect.objectContaining({ code: "unknown-type" }));
+  });
+
+  it("is gone from the table and the world once game code destroys it", () => {
+    const rt = runtime(scene([floor, spawnAt([0, 0])]));
+    rt.step(DT, []);
+    const bodies = rt.stats().bodies;
+    rt.ctx.destroy("player#1");
+    expect(rt.ctx.exists("player#1")).toBe(false);
+    expect(rt.stats()).toMatchObject({ bodies: bodies - 1, perType: { spawn: 1 } });
+    expect(rt.stats().perType.player).toBeUndefined();
+    expect(rt.step(DT, []).game).toMatchObject({ position: { x: 0, y: 0 }, grounded: false });
+    expect(rt.game?.cameraTarget?.()).toBeNull();
+    rt.destroy();
+  });
+
+  it("leaves nothing behind at unload", () => {
+    const rt = runtime(scene([floor, spawnAt([0, 0])]));
+    rt.step(DT, []);
+    rt.unload();
+    expect(rt.stats()).toMatchObject({ bodies: 0, colliders: 0, tags: 0, entities: 0 });
+    expect(rt.stats().perType).toEqual({});
     rt.destroy();
   });
 });

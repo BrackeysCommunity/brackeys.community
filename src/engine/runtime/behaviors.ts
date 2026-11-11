@@ -37,6 +37,18 @@ export type BehaviorHost = {
   clear(): void;
   /** Each built system's live attachments, by behavior; zeros left out. */
   stats(): Record<BehaviorName, number>;
+  /** After a load's or a spawn's entities attached: each system's `ready` with the ids carrying it, in registration order. */
+  ready(ids: readonly string[]): void;
+  /**
+   * `e` is disabled: each of its blocks in reverse registration order, through
+   * the system's `disable`, or a detach when the system has none.
+   */
+  disable(e: RuntimeEntity): void;
+  /**
+   * `e` is enabled again, in registration order: `enable` where the system
+   * has a `disable`, else the block detached on disable attaches afresh.
+   */
+  enable(e: RuntimeEntity): void;
   /** The built system for `name`; undefined for a data-only behavior or a visual-only one headless. */
   system<S extends BehaviorSystem = BehaviorSystem>(name: BehaviorName): S | undefined;
   /**
@@ -76,6 +88,8 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
   const carriers = new Map<string, RuntimeEntity>();
   /** Per entity, the blocks a failed asset reload left detached. */
   const dropped = new Map<string, Set<BehaviorName>>();
+  /** Per disabled entity, the blocks detached because their system has no `disable`. */
+  const parked = new Map<string, Set<BehaviorName>>();
   for (const name of registry.behaviorNames) {
     const def = registry.behaviors.get(name);
     if (!def || (def.visualOnly && ctx.view === null)) continue;
@@ -116,6 +130,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
   return {
     attach(e) {
       dropped.delete(e.id);
+      parked.delete(e.id);
       if (!e.behaviors) return;
       carriers.set(e.id, e);
       attached(e, () => {
@@ -128,6 +143,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     detach(e) {
       carriers.delete(e.id);
       dropped.delete(e.id);
+      parked.delete(e.id);
       if (!e.behaviors) return;
       for (let i = built.length - 1; i >= 0; i--) {
         const { name, system } = built[i]!;
@@ -173,7 +189,47 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     clear() {
       carriers.clear();
       dropped.clear();
+      parked.clear();
       for (let i = built.length - 1; i >= 0; i--) built[i]!.system.clear();
+    },
+    ready(ids) {
+      for (const { name, system } of built) {
+        if (!system.ready) continue;
+        const carrying = ids.filter((id) => {
+          const e = carriers.get(id);
+          return e !== undefined && blockOf(e, name) && !dropped.get(id)?.has(name);
+        });
+        if (carrying.length > 0) system.ready(carrying);
+      }
+    },
+    disable(e) {
+      if (!e.behaviors) return;
+      const gone = dropped.get(e.id);
+      const off = new Set<BehaviorName>();
+      for (let i = built.length - 1; i >= 0; i--) {
+        const { name, system } = built[i]!;
+        if (!blockOf(e, name) || gone?.has(name)) continue;
+        if (system.disable) system.disable(e.id);
+        else {
+          system.detach(e.id);
+          off.add(name);
+        }
+      }
+      if (off.size > 0) parked.set(e.id, off);
+    },
+    enable(e) {
+      if (!e.behaviors) return;
+      const gone = dropped.get(e.id);
+      const off = parked.get(e.id);
+      parked.delete(e.id);
+      attached(e, () => {
+        for (const { name, system } of built) {
+          const block = blockOf(e, name);
+          if (!block || gone?.has(name)) continue;
+          if (off?.has(name)) system.attach(e.id, block, e);
+          else if (system.disable) system.enable?.(e.id);
+        }
+      });
     },
     stats() {
       const out: Record<BehaviorName, number> = {};
@@ -191,10 +247,11 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
       const errors: HostReloadError[] = [];
       for (const e of [...carriers.values()]) {
         const gone = dropped.get(e.id);
+        const off = parked.get(e.id);
         const touched: (Built & { block: BehaviorBlock })[] = [];
         for (const { name, system } of built) {
           const block = blockOf(e, name);
-          if (block && !gone?.has(name) && namesChanged(name, block, ids))
+          if (block && !gone?.has(name) && !off?.has(name) && namesChanged(name, block, ids))
             touched.push({ name, system, block });
         }
         const detachTouched = () => {

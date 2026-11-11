@@ -537,6 +537,118 @@ describe("world models", () => {
   });
 });
 
+/** Spawns a marker every tick and destroys the oldest once three are live. */
+const spawnerGame = defineGame({
+  id: "spawner-game",
+  types: [],
+  actions: [{ action: "right", keys: ["d"], description: "Unused." }],
+  createRuntime(ctx) {
+    const live: string[] = [];
+    return {
+      beforeStep() {
+        if (live.length >= 3) ctx.destroy(live.shift()!);
+        live.push(ctx.spawn({ type: "marker", at: [16, 16] }).id);
+      },
+      snapshot: () => ({ live: live.length }),
+    };
+  },
+});
+
+describe("lifecycle events", () => {
+  const SPAWNS = {
+    v: 1,
+    steps: [{ hold: [], until: { exists: "marker#5" }, max: 100 }, { wait: 4 }],
+  };
+  const reaches = (id: string, expect: Record<string, unknown>) => ({
+    id,
+    kind: "reaches",
+    result: "script-end",
+    script: { v: 1, steps: [{ wait: 10 }] },
+    expect,
+  });
+  let spawns: Client;
+  const callSpawns = async (name: string, args: Record<string, unknown>) =>
+    (await spawns.callTool({ name, arguments: args })) as Called;
+
+  beforeAll(async () => {
+    const dir = join(root, spawnerGame.id);
+    await mkdir(dir);
+    await writeFile(
+      join(dir, "spawn-yard.json"),
+      JSON.stringify({
+        v: 1,
+        name: "spawn-yard",
+        game: spawnerGame.id,
+        bounds: [0, 0, 320, 240],
+        settings: { physics: "none" },
+        entities: [{ id: "start", type: "marker", at: [16, 16] }],
+      }),
+    );
+    await writeFile(
+      join(dir, "spawn-yard.checks.json"),
+      JSON.stringify({
+        v: 1,
+        checks: [
+          reaches("three-live", { count: { type: "marker", eq: 4 }, exists: "marker#10" }),
+          reaches("all-gone", { count: { type: "marker", max: 0 } }),
+        ],
+      }),
+    );
+    const ctx: ToolContext = {
+      projects: [await tempProject(dir, { game: spawnerGame })],
+      loadRapier: () => Promise.reject(new Error("a physics-free tool loaded Rapier")),
+    };
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createSceneMcpServer(ctx).connect(serverSide);
+    spawns = new Client({ name: "scene-mcp-spawn-test", version: "0" });
+    await spawns.connect(clientSide);
+  });
+
+  afterAll(async () => {
+    await spawns.close();
+  });
+
+  it("scene_playtest waits on exists and carries the lifecycle events and counts", async () => {
+    const played = await callSpawns("scene_playtest", { scene: "spawn-yard", script: SPAWNS });
+    expect(played.isError).toBe(false);
+    const out = played.structuredContent as Called["structuredContent"] & {
+      steps: { end: string }[];
+      events: { type: string; entityId?: string }[];
+      lifecycle: Record<string, { spawned: number; destroyed: number }>;
+    };
+    expect(out.exitCode).toBe(0);
+    expect(out.steps.map((s) => s.end)).toEqual(["until", "done"]);
+    expect(out.lifecycle).toEqual({ marker: { spawned: 9, destroyed: 6 } });
+    expect(out.events).toContainEqual(
+      expect.objectContaining({ type: "entity:spawned", entityId: "marker#5" }),
+    );
+
+    const only = await callSpawns("scene_playtest", {
+      scene: "spawn-yard",
+      script: SPAWNS,
+      events: ["entity:destroyed"],
+    });
+    const kept = only.structuredContent.events as { type: string }[];
+    expect(kept.map((e) => e.type)).toEqual(Array(6).fill("entity:destroyed"));
+    expect(only.structuredContent.lifecycle).toEqual(out.lifecycle);
+  });
+
+  it("scene_check judges a reaches check's expect on the last tick", async () => {
+    const checked = await callSpawns("scene_check", { scene: "spawn-yard" });
+    expect(checked.isError).toBe(false);
+    expect(checked.structuredContent).toMatchObject({
+      exitCode: 1,
+      results: [
+        expect.objectContaining({ id: "three-live", pass: true }),
+        expect.objectContaining({ id: "all-gone", pass: false }),
+      ],
+    });
+    expect(JSON.stringify(checked.structuredContent)).toContain("count");
+    const one = await callSpawns("scene_check", { scene: "spawn-yard", only: "three-live" });
+    expect(one.structuredContent).toMatchObject({ exitCode: 0, ok: true });
+  });
+});
+
 describe("hosted URLs", () => {
   const SITE = "https://staging.example.test";
   const SECRET = "jat_mcpSecretThatMustStayHome";

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import { compileInputScript } from "../../headless/compile-input-script";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../agent-surface";
 import { inputScriptJsonSchema, inputScriptSchemaFor, inputScriptSchemaId } from "../input-script";
 import { SCHEMA_ID_BASE, undescribedProperties } from "../json-schema";
@@ -32,11 +33,22 @@ describe("input-script.schema.json", () => {
   it("names the game's actions, its predicates and its play options", () => {
     const schema = inputScriptJsonSchema(game) as Defs & { properties: Record<string, unknown> };
     expect(schema.$defs.Action!.enum).toEqual(["left", "right", "push"]);
-    expect(Object.keys(schema.$defs.Until!.properties!)).toEqual(["event", "tick", "past"]);
+    expect(Object.keys(schema.$defs.Until!.properties!)).toEqual([
+      "event",
+      "tick",
+      "exists",
+      "count",
+      "past",
+    ]);
     expect(schema.properties).toHaveProperty("game");
     const bare = inputScriptJsonSchema(engine) as Defs & { properties: Record<string, unknown> };
     expect(bare.properties).not.toHaveProperty("game");
-    expect(Object.keys(bare.$defs.Until!.properties!)).toEqual(["event", "tick"]);
+    expect(Object.keys(bare.$defs.Until!.properties!)).toEqual([
+      "event",
+      "tick",
+      "exists",
+      "count",
+    ]);
   });
 
   it("describes durations at the game's rate, and slots for an event or turns game", () => {
@@ -79,6 +91,32 @@ describe("input-script.schema.json", () => {
     expect(bare).toContain("this registry's game declares none");
   });
 
+  it("has exists and count predicates over the registry's entity types", () => {
+    const schema = inputScriptJsonSchema(game) as Defs;
+    expect(Object.keys(schema.$defs.CountMatch!.properties!)).toEqual([
+      "type",
+      "tag",
+      "enabled",
+      "min",
+      "max",
+      "eq",
+    ]);
+    const json = JSON.stringify(schema.$defs.CountMatch);
+    expect(json).toContain('"$ref":"#/$defs/EntityType"');
+    expect(JSON.stringify(schema.$defs.EntityType)).toContain('"lamp"');
+    expect(json).toContain('{"required":["eq"]}');
+    expect(JSON.stringify(schema.$defs.ExistsMatch)).toContain('"const":false');
+    const zod = inputScriptSchemaFor(game);
+    const until = (u: unknown) => zod.safeParse({ v: 1, steps: [{ hold: [], until: u }] }).success;
+    expect(until({ exists: "boss#1" })).toBe(true);
+    expect(until({ exists: { id: "boss#1", enabled: false } })).toBe(true);
+    expect(until({ exists: { id: "boss#1", enabled: true } })).toBe(false);
+    expect(until({ count: { type: "lamp", max: 0 } })).toBe(true);
+    expect(until({ count: { tag: "coin", min: 3, enabled: true } })).toBe(true);
+    expect(until({ count: { type: "lamp" } })).toBe(false);
+    expect(until({ count: { type: "ghost", min: 1 } })).toBe(false);
+  });
+
   it("describes every property", () => {
     expect(undescribedProperties(inputScriptJsonSchema(engine))).toEqual([]);
   });
@@ -97,5 +135,22 @@ describe("input-script.schema.json", () => {
     expect(ok.success).toBe(true);
     expect(schema.safeParse({ v: 1, steps: [{ hold: ["jump"], for: 1 }] }).success).toBe(false);
     expect(schema.safeParse({ v: 1, steps: [{ hold: [], for: 1, forMs: 3 }] }).success).toBe(false);
+  });
+
+  it("takes a seed, a number or a string, in its header and passes it to the run", () => {
+    const schema = inputScriptSchemaFor(game);
+    const steps = [{ wait: 1 }];
+    for (const seed of [7, "seven"]) {
+      expect(schema.safeParse({ v: 1, seed, steps }).success).toBe(true);
+      const compiled = compileInputScript({ v: 1, seed, steps }, game);
+      expect(compiled.ok && compiled.script.play).toEqual({ seed });
+    }
+    for (const seed of [true, null, { n: 1 }, Number.NaN])
+      expect(schema.safeParse({ v: 1, seed, steps }).success).toBe(false);
+    const unseeded = compileInputScript({ v: 1, steps }, game);
+    expect(unseeded.ok && unseeded.script.play).toEqual({});
+    const props = (inputScriptJsonSchema(engine) as { properties: Record<string, unknown> })
+      .properties;
+    expect(props.seed).toMatchObject({ anyOf: [{ type: "number" }, { type: "string" }] });
   });
 });

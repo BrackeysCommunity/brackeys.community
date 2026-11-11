@@ -1250,6 +1250,40 @@ describe("physics-required", () => {
     expect(required(scene({ settings: none }))).toEqual([]);
   });
 
+  it("fixes by setting the scene's physics to rapier, over a project that says none", () => {
+    const def = scene({ settings: { ...none, gravity: [0, 900] } }, [
+      crate,
+      { ...crate, id: "crate-2" },
+    ]);
+    const issues = required(def);
+    expect(issues).toHaveLength(2);
+    expect(engine.issueCodes["physics-required"]?.fixable).toBe(true);
+    for (const issue of issues) {
+      expect(issue.fix).toEqual({
+        label: 'Set the scene\'s physics to "rapier"',
+        ops: [{ op: "setSettings", set: { physics: "rapier" } }],
+      });
+    }
+    const applied = applyOps(def, issues[0]!.fix!, engine);
+    expect(applied.ok, JSON.stringify(applied)).toBe(true);
+    if (!applied.ok) return;
+    expect(applied.def.settings).toEqual({ physics: "rapier", gravity: [0, 900] });
+    expect(required(applied.def)).toEqual([]);
+    expect(required(applied.def, engine, { engine: none })).toEqual([]);
+
+    const rider = scene({}, [
+      lift([
+        [100, 100],
+        [300, 100],
+      ]),
+      { id: "deck", type: "sensor", shape: ["box", 100, 100, 20, 5], attach: "lift" },
+    ]);
+    const [attach] = required(rider, engine, { engine: none });
+    const fixed = applyOps(rider, attach!.fix!, engine);
+    expect(fixed.ok).toBe(true);
+    if (fixed.ok) expect(required(fixed.def, engine, { engine: none })).toEqual([]);
+  });
+
   it("resolves physics through the project's engine block and the game's world", () => {
     expect(required(scene({}, [crate]), engine, { engine: none }).map((i) => i.path)).toEqual([
       "/entities/1",
@@ -1782,3 +1816,60 @@ function expectFixClearsWith(def: SceneDefinition, issue: SceneIssue) {
   ]);
   expect(validateScene(fixed, fake, { prefabs }).filter((i) => i.code === issue.code)).toEqual([]);
 }
+
+describe("spawn-only types", () => {
+  const ember = defineEntityType({
+    type: "ember",
+    description: "A spark game code makes.",
+    base: "marker",
+    spawnOnly: true,
+    fields: { at: pointField("Where it glows.") },
+  });
+  const r = createRegistry({ ...testGame, types: [...testGame.types, ember] });
+  const yard = (over: Partial<SceneDefinition> = {}): SceneDefinition => ({
+    v: 3,
+    game: "test-game",
+    name: "embers",
+    bounds: [0, 0, 1000, 1000],
+    ...over,
+  });
+  const typeIssues = (def: SceneDefinition, prefabs?: ReadonlyMap<string, Prefab>) =>
+    validateScene(def, r, prefabs ? { prefabs } : {}).filter((i) => i.code === "unknown-type");
+
+  it("reports a scene entity of one as unknown-type, spawned by game code only", () => {
+    const [issue, ...rest] = typeIssues(
+      yard({ entities: [{ id: "e", type: "ember", at: [10, 10] }] }),
+    );
+    expect(rest).toEqual([]);
+    expect(issue).toMatchObject({
+      severity: "error",
+      path: "/entities/0/type",
+      entityIds: ["e"],
+      got: "ember",
+    });
+    expect(issue!.message).toContain("spawned by game code only");
+    expect(issue!.expected!.split(" | ")).not.toContain("ember");
+    expect(typeIssues(yard({ entities: [{ id: "l", type: "lamp", at: [10, 10] }] }))).toEqual([]);
+  });
+
+  it("reports a prefab child of one on the instance placing it", () => {
+    const prefabs = new Map<string, Prefab>([
+      [
+        "hearth",
+        {
+          kind: "prefab",
+          v: 3,
+          game: "test-game",
+          id: "hearth",
+          entities: [{ id: "spark", type: "ember", at: [0, 0] }],
+        },
+      ],
+    ]);
+    const [issue] = typeIssues(
+      yard({ instances: [{ id: "h1", prefab: "hearth", at: [100, 100] }] }),
+      prefabs,
+    );
+    expect(issue).toMatchObject({ code: "unknown-type", entityIds: ["h1/spark"] });
+    expect(issue!.path).toMatch(/^\/instances\/0/);
+  });
+});

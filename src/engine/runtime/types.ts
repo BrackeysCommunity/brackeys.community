@@ -10,7 +10,7 @@ import type {
 import type { PlayOptions } from "../headless/playtest-types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
-import type { EntityTypeName, ExpandedScene, RuntimeEntity } from "../scene/types";
+import type { EntityTypeName, ExpandedScene, PrefabLibrary, RuntimeEntity } from "../scene/types";
 import type { InputAction, RapierModule, Vec2 } from "../types";
 
 export type ReconcileReport = { ok: true } | { ok: false; error: string; entityId?: string };
@@ -39,8 +39,9 @@ export type LoadReport =
 /**
  * Something that happened during one tick, naming entities by id. The
  * engine raises `sensor:enter` and `sensor:exit` (`entityId` is the sensor,
- * `other` what entered or left it, `at` the other's position); a game raises
- * its own types through `EngineContext.emit`.
+ * `other` what entered or left it, `at` the other's position), the
+ * `entity:*` lifecycle events (`data: { type }`) and `contact:start` and
+ * `contact:end`; a game raises its own types through `EngineContext.emit`.
  */
 export type StepEvent = {
   tick: number;
@@ -48,11 +49,22 @@ export type StepEvent = {
   entityId?: string;
   other?: string;
   at: Vec2;
+  /** Plain JSON a game or a timer attaches. */
+  data?: unknown;
 };
 
 /** Engine event types. */
 export const SENSOR_ENTER = "sensor:enter";
 export const SENSOR_EXIT = "sensor:exit";
+/** An entity spawned inside a step, at its spawn pose. */
+export const ENTITY_SPAWNED = "entity:spawned";
+/** An entity destroyed at the end of a tick, at its last pose. */
+export const ENTITY_DESTROYED = "entity:destroyed";
+export const ENTITY_ENABLED = "entity:enabled";
+export const ENTITY_DISABLED = "entity:disabled";
+/** A watched pair started touching: `entityId` the watched side, `other` the other, `at` the contact point. */
+export const CONTACT_START = "contact:start";
+export const CONTACT_END = "contact:end";
 
 export type StepResult = {
   /** The tick just simulated, counting from 0 after each load. */
@@ -123,6 +135,8 @@ export type SceneRuntimeOptions = {
   now?: () => number;
   /** Texture sampling for sprites whose texture sets no import `filter`; default "linear". */
   sampling?: "linear" | "nearest";
+  /** The prefabs `ctx.instantiate` resolves, read once per load and frozen for the run. */
+  prefabs?: PrefabLibrary | (() => PrefabLibrary);
 };
 
 /** The runtime plus the parts the shell and a game's tools drive directly. */

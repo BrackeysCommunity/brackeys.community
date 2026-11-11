@@ -1,4 +1,5 @@
 import type { PhysicsFreeProbe, RenderProbe } from "../browser-compare";
+import { readContact, type ContactRead } from "./contact";
 import { rapierSpy, runPhysicsFree, startPhysicsFree } from "./physics-free";
 import { runRenderSmoke } from "./render";
 import { loadRapier, runSmokeDigest, SMOKE_FLAVOUR, SMOKE_TICKS } from "./run";
@@ -13,6 +14,8 @@ export type EngineSmokeResult =
       render: RenderProbe;
       /** The grid scene played headless with no physics, then started in a shell. */
       physicsFree: PhysicsFreeProbe;
+      /** A prop dropped onto a floor under `ctx.contacts`: its first contact:start. */
+      contact: ContactRead;
       userAgent: string;
     }
   | { ok: false; error: string };
@@ -29,6 +32,7 @@ try {
   const spy = rapierSpy(loadRapier);
   const run = await runPhysicsFree(spy.load);
   const shellTicks = await startPhysicsFree(spy.load);
+  const contact = readContact(await loadRapier());
   window.__engineSmoke = {
     ok: true,
     flavour: SMOKE_FLAVOUR,
@@ -36,6 +40,7 @@ try {
     digest,
     render,
     physicsFree: { ...run, shellTicks, rapierLoads: spy.calls() },
+    contact,
     userAgent: navigator.userAgent,
   };
 } catch (err) {

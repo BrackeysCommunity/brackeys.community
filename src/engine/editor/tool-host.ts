@@ -58,6 +58,7 @@ import {
   type SpatialIndex,
   type ToolKeyEvent,
   type ToolModifiers,
+  type ToolOption,
   type ToolOverlay,
   type ToolPointerEvent,
 } from "./tools";
@@ -124,6 +125,8 @@ export type ToolHost = {
   tools(): readonly EditorToolDef[];
   /** What to draw this frame: the selection's outlines (as previewed) and the active tool's overlay. */
   overlay(): ToolOverlay;
+  /** The active tool's setting (`overlay().option`), without building the selection's outlines. */
+  option(): ToolOption | undefined;
   /** The canvas cursor the active tool asks for. */
   cursor(): string | undefined;
   /** The parts of the keymap's context the host knows. */
@@ -680,6 +683,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
         ...(sel.bounds ? { bounds: sel.bounds } : {}),
       };
     },
+    option: () => active?.overlay?.()?.option,
     cursor: () => active?.cursor?.(),
     keyContext: () => ({
       gesture: active?.gesture?.() ?? false,

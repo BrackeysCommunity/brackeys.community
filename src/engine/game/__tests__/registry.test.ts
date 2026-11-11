@@ -5,11 +5,14 @@ import { z } from "zod";
 import type { AssetEntry, ProjectView } from "../../project/types";
 import { DEFAULT_LAYERS } from "../../scene/layers";
 import { parseScene } from "../../scene/parse";
+import { sceneSchemaFor } from "../../scene/schema";
 import { defineBehavior } from "../behaviors";
 import {
   createRegistry,
   defineEntityType,
   defineGame,
+  isSpawnOnly,
+  placeableTypes,
   RegistryError,
   withProject,
   type ProjectMaterialDef,
@@ -68,7 +71,7 @@ describe("createRegistry play hooks", () => {
   it("lists the engine's results and predicates, then the game's", () => {
     const r = createRegistry(game({ play: { results: ["won"], predicates: { grounded: pred } } }));
     expect(r.runResults).toEqual(["timeout", "script-end", "stuck", "quit", "won"]);
-    expect(r.predicateNames).toEqual(["event", "tick", "grounded"]);
+    expect(r.predicateNames).toEqual(["event", "tick", "exists", "count", "grounded"]);
     expect(createRegistry().runResults).toEqual(["timeout", "script-end", "stuck", "quit"]);
   });
 
@@ -773,5 +776,69 @@ describe("project materials", () => {
       ["ice", "rubber"],
       ["cards", "deck", "ice", "rubber"],
     ]);
+  });
+});
+
+describe("spawn-only types", () => {
+  const bolt = defineEntityType({
+    type: "bolt",
+    description: "A shot game code fires.",
+    base: "marker",
+    spawnOnly: true,
+    fields: { at: pointField("Where it starts.") },
+  });
+
+  it("load and take a spawn group, but aren't placeable", () => {
+    const r = createRegistry(game({ types: [crate, flag, bolt] }));
+    expect(r.spawnGroupOf("bolt")).toBeDefined();
+    expect(r.spawnGroups.flat()).toContain("bolt");
+    expect(isSpawnOnly(r, "bolt")).toBe(true);
+    expect(isSpawnOnly(r, "crate")).toBe(false);
+    expect(isSpawnOnly(r, "nope")).toBe(false);
+    expect(placeableTypes(r)).toEqual(r.typeNames.filter((t) => t !== "bolt"));
+  });
+
+  it("must be listed by an explicit spawnOrder like any loadable type", () => {
+    const order = ["solid", "sensor", "crate", "prop", "flag", "marker", "follower"];
+    expect(
+      problems(() => createRegistry(game({ types: [crate, flag, bolt], spawnOrder: order }))),
+    ).toEqual(['spawnOrder misses type "bolt"']);
+    const r = createRegistry(game({ types: [crate, flag, bolt], spawnOrder: [...order, "bolt"] }));
+    expect(r.spawnGroupOf("bolt")).toBe(order.length);
+  });
+
+  it("are refused when they never load or have a bulk form", () => {
+    const ghost = defineEntityType({ ...bolt, type: "ghost", loads: false });
+    const rain = defineEntityType({
+      ...bolt,
+      type: "rain",
+      bulk: { form: "point", description: "Drops." },
+    });
+    expect(problems(() => createRegistry(game({ types: [crate, flag, ghost, rain] })))).toEqual([
+      'type "ghost" is spawn-only but never loads',
+      'type "rain" is spawn-only and can\'t have a bulk form',
+    ]);
+  });
+
+  it("are absent from the scene schema, and a scene naming one doesn't parse", () => {
+    const r = createRegistry(game({ types: [crate, flag, bolt] }));
+    const entity = sceneSchemaFor(r).shape.entities.unwrap().element as unknown as {
+      options: { shape: { type: { value: string } } }[];
+    };
+    const types = entity.options.map((o) => o.shape.type.value);
+    expect(types).toContain("crate");
+    expect(types).not.toContain("bolt");
+    const parsed = parseScene(
+      {
+        v: 1,
+        game: "fake",
+        name: "s",
+        bounds: [0, 0, 100, 100],
+        entities: [{ id: "b", type: "bolt", at: [1, 1] }],
+      },
+      r,
+    );
+    expect(parsed.ok).toBe(false);
+    expect(parsed.issues.map((i) => i.code)).toEqual(["unknown-type"]);
   });
 });

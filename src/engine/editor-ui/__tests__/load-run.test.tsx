@@ -244,6 +244,28 @@ describe("LoadRunPanel", () => {
     expect(panel.getByRole("status").textContent).toContain("scene changed since this run");
   });
 
+  it("takes only the height a short run needs, its markers scrolling once they outgrow the panel", () => {
+    const { store } = setup();
+    const short = { ...report.recording, markers: [marker(), { ...marker(), tick: 30 }] };
+    act(() => store.setState(() => ({ recording: short, name: "short" })));
+    const panel = screen.getByRole("region", { name: "Run" });
+    const markers = within(panel).getByRole("list", { name: "Run markers" });
+    expect(within(markers).getAllByRole("listitem")).toHaveLength(2);
+    expect(markers.parentElement?.className).toBe("je-run-summary");
+
+    const css = readFileSync(resolve("src/engine/editor-ui/style.css"), "utf8");
+    const rule = (selector: string) => {
+      const at = css.indexOf(`  ${selector} {`);
+      expect(at).toBeGreaterThan(0);
+      return css.slice(at, css.indexOf("}", at));
+    };
+    expect(rule(".je-run-summary")).toMatch(/flex: 0 1 auto;/);
+    expect(rule(".je-run-markers")).toMatch(/flex: 0 1 auto;/);
+    expect(css.indexOf("  .je-run-markers {")).toBeGreaterThan(
+      css.indexOf("  .je-scene-panel-scroll {"),
+    );
+  });
+
   it("times the run and its markers at the recording's own tick rate", () => {
     const { store } = setup();
     const at60 = { ...report.recording, ticks: 300, markers: [{ ...marker(), tick: 90 }] };

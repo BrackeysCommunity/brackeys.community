@@ -30,6 +30,7 @@ const STEP_KINDS = ["hold", "press", "wait", "command", "elapse"] as const;
 const DURATIONS = ["for", "forMs", "until"] as const;
 const STEP_KEYS = [...STEP_KINDS, ...DURATIONS, "max", "args"];
 const KIND_LIST = "hold, press, wait, command or elapse";
+const EXISTS_KEYS = ["id", "enabled"];
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -44,7 +45,10 @@ function valueAt(value: unknown, path: readonly PropertyKey[]): unknown {
 }
 
 const guessed = (word: string, candidates: readonly string[]) => {
-  const guess = closest(word, candidates);
+  const guess = closest(
+    word,
+    candidates.filter((c) => c !== word),
+  );
   return guess ? `; did you mean "${guess}"?` : "";
 };
 
@@ -144,6 +148,18 @@ function parseStep(
       ],
     };
   }
+  const misplaced = [...DURATIONS, "max"].find((k) => k in raw);
+  if (misplaced && kinds[0] !== "hold") {
+    return {
+      ok: false,
+      issues: [
+        {
+          path: jsonPointer([...path, misplaced]),
+          message: `${misplaced} goes with a hold step; { "hold": [], "${misplaced === "max" ? "until" : misplaced}": … } waits holding nothing`,
+        },
+      ],
+    };
+  }
   if (kinds[0] === "command") {
     const problem = commandStepIssue(raw, path, registry);
     if (problem) return { ok: false, issues: [problem] };
@@ -176,7 +192,12 @@ function parseStep(
   }
   const parsed = shape.safeParse(raw);
   if (parsed.success) return { ok: true, step: parsed.data as ParsedStep };
-  const keysAt: KeysAt = (rel) => (rel.at(-1) === "until" ? registry.predicateNames : STEP_KEYS);
+  const keysAt: KeysAt = (rel) => {
+    if (rel.at(-1) === "until") return registry.predicateNames;
+    if (rel.at(-2) === "until" && rel.at(-1) === "count") return schemas.countKeys;
+    if (rel.at(-2) === "until" && rel.at(-1) === "exists") return EXISTS_KEYS;
+    return STEP_KEYS;
+  };
   return { ok: false, issues: fromZod(parsed.error, raw, path, registry, keysAt) };
 }
 
@@ -318,6 +339,7 @@ export function compileInputScript(
   if (timeOffsetMs !== undefined) play.timeOffsetMs = timeOffsetMs;
   const game = (head.data as { game?: unknown }).game;
   if (game !== undefined) play.game = game;
+  if (head.data.seed !== undefined) play.seed = head.data.seed;
   const compiled: CompiledInputScript = {
     steps,
     maxTicks,

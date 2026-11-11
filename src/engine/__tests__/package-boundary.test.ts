@@ -605,6 +605,21 @@ describe("package boundary", () => {
     violations(found);
   });
 
+  it("never draws from ctx.random in engine systems, primitives or behaviors", () => {
+    const reads = [/\bctx\s*\??\.\s*random\b/, /\{[^}]*\brandom\b[^}]*\}\s*=\s*ctx\b/];
+    const files = sourceFiles.filter((f) => /^(systems|runtime\/behaviors)\//.test(rel(f)));
+    expect(files.length).toBeGreaterThan(0);
+    const bad: string[] = [];
+    for (const file of files) {
+      stripComments(readFileSync(file, "utf8"))
+        .split("\n")
+        .forEach((line, i) => {
+          if (reads.some((re) => re.test(line))) bad.push(`${rel(file)}:${i + 1}: ${line.trim()}`);
+        });
+    }
+    violations(bad);
+  });
+
   it("is consumed by the site only through @jams/engine entries and game entries", () => {
     const entries = entrySpecs();
     const bad: string[] = [];

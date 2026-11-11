@@ -90,6 +90,62 @@ describe("the engine README", () => {
   });
 });
 
+describe("the entity lifecycle examples run", () => {
+  it("lantern-lifecycle.ts logs the hooks in load, step and flush order", async () => {
+    const { lanternNight } = await import("../examples/lantern-lifecycle");
+    expect(lanternNight()).toEqual([
+      "attach glow west",
+      "attach glow east",
+      "ready lantern west,east",
+      "ready glow west,east",
+      "onLoad",
+      "attach glow lantern#1",
+      "ready lantern lantern#1",
+      "ready glow lantern#1",
+      "disable glow west",
+      "disable lantern west",
+      "entity:spawned lantern#1",
+      "entity:disabled west",
+      "east exists after destroy: true",
+      "despawn east",
+      "entity:destroyed east",
+      "east exists: false",
+      "enable lantern west",
+      "enable glow west",
+    ]);
+  });
+
+  it("fountain-playtest.ts pours, runs dry, replays its seed and blocks on a reused id", async () => {
+    const { pourTwice, spillTwice } = await import("../examples/fountain-playtest");
+    const r = pourTwice();
+    expect(r.result).toBe("dry");
+    expect(r.final).toMatchObject({ fell: 24, live: 0, dry: true });
+    expect(r.steps).toEqual(["done", "until", "until"]);
+    expect(r.spawned).toEqual(["twin-spout#1/left", "twin-spout#1/right", "drop#1", "drop#2"]);
+    expect(r.allRuntime).toBe(true);
+    expect(r.sameSeedSameRun).toBe(true);
+    expect(r.otherSeedJitter).not.toBe(r.final?.jitter);
+    expect(r.recordedSeed).toBe(1);
+    expect(r.replayed).toBe(true);
+    expect(spillTwice()).toEqual({ stage: "run", codes: ["spawn-id-invalid"] });
+  });
+
+  it("shuttle-contacts.ts bumps, pools and queries alike on both backends", async () => {
+    const { shuttle } = await import("../examples/shuttle-contacts");
+    const geometry = shuttle(null);
+    expect(geometry.bumps).toHaveLength(16);
+    expect(geometry.bumps.slice(0, 4)).toEqual([
+      "start west",
+      "end west",
+      "start east",
+      "end east",
+    ]);
+    expect(geometry).toMatchObject({ sparks: 2, refused: 2, lit: 2, nearest: "east" });
+    expect(geometry.west).toEqual(["west", "spark#1"]);
+    expect(shuttle(await loadCompatRapier())).toEqual(geometry);
+  });
+});
+
 describe("the world-model examples run", () => {
   it("grid-tools.ts paths round the rocks, floods a field and casts sight", async () => {
     const { scout } = await import("../examples/grid-tools");

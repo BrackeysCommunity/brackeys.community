@@ -26,6 +26,7 @@ import {
   type EngineToolId,
   type Keymap,
   type ToolHost,
+  type ToolOption,
 } from "../../editor/index";
 import { useBottomRow } from "../frame/EditorFrame";
 import {
@@ -140,8 +141,20 @@ function StepItems({ host, snap }: { host: ToolHost; snap: Snap }) {
   );
 }
 
-/** The grid step snapping uses. */
-function GridStep({ host, snap }: { host: ToolHost; snap: Snap }) {
+/** A small button showing a value, opening a menu of the values to pick from. */
+function PickerMenu({
+  text,
+  label,
+  tooltip,
+  icon,
+  children,
+}: {
+  text: string;
+  label: string;
+  tooltip: string;
+  icon?: IconSvgElement;
+  children: ReactNode;
+}) {
   return (
     <Menu>
       <MenuTrigger
@@ -149,19 +162,61 @@ function GridStep({ host, snap }: { host: ToolHost; snap: Snap }) {
           <Button
             variant="ghost"
             size="sm"
-            icon={GridIcon}
-            aria-label={`Grid step ${snap.step}`}
-            tooltip="Grid step"
+            {...(icon ? { icon } : {})}
+            aria-label={label}
+            tooltip={tooltip}
           />
         }
       >
-        {snap.step}
+        {text}
         <Icon icon={ArrowDown01Icon} size={13} />
       </MenuTrigger>
       <MenuContent side="top" align="center" className="je-snap-menu">
-        <StepItems host={host} snap={snap} />
+        {children}
       </MenuContent>
     </Menu>
+  );
+}
+
+/** The grid step snapping uses. */
+function GridStep({ host, snap }: { host: ToolHost; snap: Snap }) {
+  return (
+    <PickerMenu
+      text={String(snap.step)}
+      label={`Grid step ${snap.step}`}
+      tooltip="Grid step"
+      icon={GridIcon}
+    >
+      <StepItems host={host} snap={snap} />
+    </PickerMenu>
+  );
+}
+
+const optionText = (option: ToolOption) =>
+  option.choices.find((c) => c.value === option.value)?.label ?? option.value;
+
+function OptionItems({ host, option }: { host: ToolHost; option: ToolOption }) {
+  return (
+    <MenuRadioGroup
+      value={option.value}
+      onValueChange={(value) => host.command(`${option.command}${String(value)}`)}
+    >
+      {option.choices.map((choice) => (
+        <MenuRadioItem key={choice.value} value={choice.value} closeOnClick>
+          {choice.label}
+        </MenuRadioItem>
+      ))}
+    </MenuRadioGroup>
+  );
+}
+
+/** The active tool's setting: the type a draw tool adds. */
+function ToolOptionMenu({ host, option }: { host: ToolHost; option: ToolOption }) {
+  const text = optionText(option);
+  return (
+    <PickerMenu text={text} label={`${option.label}: ${text}`} tooltip={option.label}>
+      <OptionItems host={host} option={option} />
+    </PickerMenu>
   );
 }
 
@@ -174,6 +229,9 @@ const textWidth = (label: string) => W.textPad + Math.ceil(label.length * W.char
 /** The grid step's button: its icon, the step, the chevron and the label's gaps. */
 const stepWidth = (step: number) =>
   W.textPad + 14 + 4 + Math.ceil(String(step).length * W.char) + 6 + 13;
+/** A tool option's button at its longest choice, so picking another doesn't refit the dock. */
+const optionWidth = (option: ToolOption) =>
+  W.textPad + Math.ceil(Math.max(...option.choices.map((c) => c.label.length)) * W.char) + 6 + 13;
 
 /** Tools that never move into the overflow menu. */
 const isPinned = (id: string) => id === "select" || id === "pan";
@@ -181,8 +239,12 @@ const isPinned = (id: string) => id === "select" || id === "pan";
 /** One control in the toolbar; `drop` orders what moves into the overflow menu, lowest first. */
 export type DockPart = { key: string; width: number; drop?: number; game?: true };
 
-/** What the toolbar draws, in order, before anything overflows. */
-export function dockParts(tools: readonly EditorToolDef[], step: number | null): DockPart[] {
+/** What the toolbar draws, in order, before anything overflows; `option` is the active tool's. */
+export function dockParts(
+  tools: readonly EditorToolDef[],
+  step: number | null,
+  option: ToolOption | null = null,
+): DockPart[] {
   const engine = tools.filter((t) => isEngineTool(t.id));
   const game = tools.filter((t) => !isEngineTool(t.id));
   const parts: DockPart[] = engine.map((t, i) => ({
@@ -199,6 +261,12 @@ export function dockParts(tools: readonly EditorToolDef[], step: number | null):
       game: true,
     }),
   );
+  if (option) {
+    parts.push(
+      { key: "divider:option", width: W.divider },
+      { key: "option", width: optionWidth(option), drop: 150 },
+    );
+  }
   if (step !== null) {
     parts.push(
       { key: "divider:snap", width: W.divider },
@@ -220,13 +288,21 @@ export function dockParts(tools: readonly EditorToolDef[], step: number | null):
 /** The toolbar's width with `hidden` in the overflow menu (and its trigger drawn when any is). */
 export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string>): number {
   const anyGame = parts.some((p) => p.game && !hidden.has(p.key));
-  const shown = parts.filter((p) => !hidden.has(p.key) && (p.key !== "divider:game" || anyGame));
+  const shown = parts.filter(
+    (p) =>
+      !hidden.has(p.key) &&
+      (p.key !== "divider:game" || anyGame) &&
+      (p.key !== "divider:option" || !hidden.has("option")),
+  );
   const widths = shown.map((p) => p.width);
   if (hidden.size > 0) widths.push(W.icon);
   return W.island + widths.reduce((a, b) => a + b, 0) + W.gap * Math.max(0, widths.length - 1);
 }
 
-/** What moves into the overflow menu so the toolbar fits in `room`: game tools, the grid step, then shape tools. */
+/**
+ * What moves into the overflow menu so the toolbar fits in `room`: game
+ * tools, the grid step, the tool's option, then shape tools.
+ */
 export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
   const hidden = new Set<string>();
   const order = parts
@@ -242,19 +318,21 @@ export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
 const allDroppable = (parts: readonly DockPart[]) =>
   new Set(parts.filter((p) => p.drop !== undefined).map((p) => p.key));
 
-/** The tools and the grid step that didn't fit, in a menu at the end of the tools. */
+/** The tools, the tool's option and the grid step that didn't fit, in a menu at the end of the tools. */
 function OverflowMenu({
   tools,
   active,
   keymap,
   host,
   snap,
+  option,
 }: {
   tools: readonly EditorToolDef[];
   active: string;
   keymap: Keymap;
   host: ToolHost;
   snap: Snap | null;
+  option: ToolOption | null;
 }) {
   return (
     <Menu>
@@ -289,9 +367,18 @@ function OverflowMenu({
             })}
           </MenuRadioGroup>
         ) : null}
-        {snap ? (
+        {option ? (
           <>
             {tools.length > 0 ? <MenuSeparator /> : null}
+            <MenuGroup>
+              <MenuLabel>{option.label}</MenuLabel>
+              <OptionItems host={host} option={option} />
+            </MenuGroup>
+          </>
+        ) : null}
+        {snap ? (
+          <>
+            {tools.length > 0 || option ? <MenuSeparator /> : null}
             <MenuGroup>
               <MenuLabel>Grid step</MenuLabel>
               <StepItems host={host} snap={snap} />
@@ -304,11 +391,13 @@ function OverflowMenu({
 }
 
 const NO_SNAP: Snap | null = null;
+const NO_OPTION: ToolOption | null = null;
 
 /**
- * The tools, snapping, undo and redo, and Play. What doesn't fit in the room
- * the frame leaves between the status and the columns moves into a "More
- * tools" menu: game tools first, then the grid step, then the shape tools.
+ * The tools, the active tool's option, snapping, undo and redo, and Play.
+ * What doesn't fit in the room the frame leaves between the status and the
+ * columns moves into a "More tools" menu: game tools first, then the grid
+ * step, the tool's option, then the shape tools.
  */
 export function EditorToolbar({
   session,
@@ -331,8 +420,12 @@ export function EditorToolbar({
   const active = useEditorStore(session, (s) => s.tool);
   const tools = useMemo(() => host?.tools() ?? [], [host]);
   const snap = useHostValue(host, (h) => h.snap(), host?.snap() ?? NO_SNAP);
+  const option = useHostValue(host, (h) => h.option() ?? NO_OPTION, NO_OPTION);
 
-  const parts = useMemo(() => dockParts(tools, snap?.step ?? null), [tools, snap?.step]);
+  const parts = useMemo(
+    () => dockParts(tools, snap?.step ?? null, option),
+    [tools, snap?.step, option],
+  );
   const full = useMemo(() => dockWidth(parts, new Set()), [parts]);
   const least = useMemo(() => dockWidth(parts, allDroppable(parts)), [parts]);
   const room = useBottomRow("dock", { full, least }).dock;
@@ -362,6 +455,7 @@ export function EditorToolbar({
         keymap={keymap}
         host={host}
         snap={hidden.has("step") ? snap : null}
+        option={hidden.has("option") ? option : null}
       />
     );
   }
@@ -374,6 +468,12 @@ export function EditorToolbar({
           {gameTools.length > 0 ? <Divider /> : null}
           {gameTools.map(toolButton)}
           {overflow}
+          {option && !hidden.has("option") ? (
+            <>
+              <Divider />
+              <ToolOptionMenu host={host} option={option} />
+            </>
+          ) : null}
           {snap ? (
             <>
               <Divider />

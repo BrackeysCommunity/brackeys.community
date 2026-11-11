@@ -1,5 +1,5 @@
 import { resolveTime } from "../game/time";
-import type { GameDefinition, PlayState, ScriptPredicate } from "../game/types";
+import type { GameDefinition, PlayState, Registry } from "../game/types";
 import {
   createRunRecorder,
   recordedCommand,
@@ -8,11 +8,19 @@ import {
 } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame } from "../runtime/runtime";
 import type { StepEvent } from "../runtime/types";
+import type { CountMatch, ExistsMatch } from "../scene/input-script";
 import type { RecordingCommand } from "../scene/recording-schema";
 import type { Pt } from "../scene/types";
 import { compileInputScript } from "./compile-input-script";
 import { probeConfigHash } from "./headless";
-import { blockedRun, prepareRun, runLoop, type InputSource } from "./play-loop";
+import {
+  blockedRun,
+  prepareRun,
+  runBlocked,
+  runLibrary,
+  runLoop,
+  type InputSource,
+} from "./play-loop";
 import type {
   CompiledInputScript,
   EventMatch,
@@ -48,20 +56,36 @@ function eventMatches(match: EventMatch, e: StepEvent): boolean {
   );
 }
 
-/** Whether every key of `until` holds after this tick. */
-function untilHolds(
-  until: UntilClause,
-  state: PlayState,
-  predicates: Readonly<Record<string, ScriptPredicate>>,
-): boolean {
+function existsHolds(match: ExistsMatch, state: PlayState): boolean {
+  if (!state.world) return false;
+  if (typeof match === "string") return state.world.exists(match);
+  return state.world.exists(match.id, match.enabled === false ? { enabled: false } : undefined);
+}
+
+function countHolds(match: CountMatch, state: PlayState): boolean {
+  if (!state.world) return false;
+  const { min, max, eq, ...sel } = match;
+  const n = state.world.count(sel);
+  if (eq !== undefined) return n === eq;
+  return (min === undefined || n >= min) && (max === undefined || n <= max);
+}
+
+/**
+ * Whether every key of `until` holds on `state` (AND): the engine's `event`,
+ * `tick`, `exists` and `count`, then `registry`'s game predicates. A key no
+ * predicate answers doesn't hold. `reaches` checks judge `expect` with it too.
+ */
+export function untilHolds(until: UntilClause, state: PlayState, registry: Registry): boolean {
+  const predicates = registry.game?.play?.predicates ?? {};
   for (const [key, arg] of Object.entries(until)) {
-    if (key === "event") {
-      if (!state.events.some((e) => eventMatches(arg as EventMatch, e))) return false;
-    } else if (key === "tick") {
-      if (state.tick < (arg as number)) return false;
-    } else if (!predicates[key]?.test(arg, state)) {
-      return false;
-    }
+    if (arg === undefined) continue;
+    let holds: boolean;
+    if (key === "event") holds = state.events.some((e) => eventMatches(arg as EventMatch, e));
+    else if (key === "tick") holds = state.tick >= (arg as number);
+    else if (key === "exists") holds = existsHolds(arg as ExistsMatch, state);
+    else if (key === "count") holds = countHolds(arg as CountMatch, state);
+    else holds = predicates[key]?.test(arg, state) ?? false;
+    if (!holds) return false;
   }
   return true;
 }
@@ -73,7 +97,7 @@ function untilHolds(
  */
 function scriptInput(
   script: CompiledInputScript,
-  predicates: Readonly<Record<string, ScriptPredicate>>,
+  registry: Registry,
 ): InputSource & { log(): PlaytestStep[] } {
   const { steps } = script;
   const log: PlaytestStep[] = [];
@@ -103,7 +127,7 @@ function scriptInput(
     after(state) {
       const step = steps[at]!;
       ran++;
-      if (step.ticks === undefined && untilHolds(step.until!, state, predicates)) advance("until");
+      if (step.ticks === undefined && untilHolds(step.until!, state, registry)) advance("until");
       else advance(lengthEnd(step));
     },
     skipped() {
@@ -115,6 +139,11 @@ function scriptInput(
   };
 }
 
+export type PlaytestHooks = {
+  /** After the run, with its last simulated tick's state while its world is still live; not called when no tick ran. */
+  onLastTick?(state: PlayState): void;
+};
+
 /**
  * Plays an input script on a scene headless, starting the run the way the
  * editor's Play does (validation errors block, the document is cloned and
@@ -122,7 +151,9 @@ function scriptInput(
  * ended: the game's outcome, else `stuck`, `script-end` or `timeout`.
  * Deterministic: the same scene, game and script give the same report.
  */
-export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G>): PlaytestRun<S> {
+export function runPlaytest<S = unknown, G = unknown>(
+  opts: PlaytestOptions<S, G> & PlaytestHooks,
+): PlaytestRun<S> {
   const { registry, game } = resolveGame({
     game: opts.game as GameDefinition | null | undefined,
     registry: opts.registry,
@@ -167,6 +198,7 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
     registry,
     dev: opts.dev,
     project: opts.project,
+    prefabs: runLibrary(opts),
   });
   const load = runtime.load(prepared.scene, script.play);
   if (!load.ok) {
@@ -183,7 +215,7 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
     let trailTruncated = false;
     const inputs: InputEdge[] = [];
     const commands: RecordingCommand[] = [];
-    const input = scriptInput(script, game?.play?.predicates ?? {});
+    const input = scriptInput(script, registry);
     const time = runtime.ctx.time;
     const recorder = createRunRecorder({
       rapier: recordingRapier(prepared.scene, opts.rapier),
@@ -195,25 +227,35 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
       maxTrail,
     });
 
-    const end = runLoop({
-      runtime,
-      game,
-      maxTicks: script.maxTicks,
-      input,
-      record: inputs,
-      onTick(state, focus, edges, stepped) {
-        recorder.tick(state, edges, focus, stepped);
-        for (const c of stepped) commands.push(recordedCommand(state.tick, c));
-        for (const e of state.events) {
-          if (events.length < maxEvents) events.push(e);
-          else eventsTruncated = true;
-        }
-        if (focus && state.tick % TRAIL_EVERY === 0) {
-          if (pts.length < maxTrail) pts.push(trailPoint(focus));
-          else trailTruncated = true;
-        }
-      },
-    });
+    let last = null as PlayState | null;
+    let end: ReturnType<typeof runLoop>;
+    try {
+      end = runLoop({
+        runtime,
+        game,
+        maxTicks: script.maxTicks,
+        input,
+        record: inputs,
+        onTick(state, focus, edges, stepped) {
+          last = state;
+          recorder.tick(state, edges, focus, stepped);
+          for (const c of stepped) commands.push(recordedCommand(state.tick, c));
+          for (const e of state.events) {
+            if (events.length < maxEvents) events.push(e);
+            else eventsTruncated = true;
+          }
+          if (focus && state.tick % TRAIL_EVERY === 0) {
+            if (pts.length < maxTrail) pts.push(trailPoint(focus));
+            else trailTruncated = true;
+          }
+        },
+      });
+    } catch (err) {
+      const blocked = runBlocked(err, name, prepared.issues, registry);
+      if (blocked) return blocked;
+      throw err;
+    }
+    if (last) opts.onLastTick?.(last);
 
     const final = runtime.snapshot() as S | null;
     const focus = game?.play?.focus && final !== null ? game.play.focus(final) : null;

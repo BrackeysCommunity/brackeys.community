@@ -7,7 +7,7 @@ import { ENGINE_SETTING_KEYS, ENGINE_SETTINGS } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
 import { bulkId } from "./bulk-ref";
-import { resolveSceneDetailed } from "./resolve";
+import { gridTurns, instanceStepsIn, placeInstance, resolveSceneDetailed } from "./resolve";
 import { fieldKind } from "./schema";
 import { parseShape } from "./shapes";
 import type { Dihedral } from "./transform";
@@ -18,11 +18,14 @@ import {
   type EntityDef,
   type EntityTypeName,
   type ExpandedScene,
+  type GroupDef,
+  type InstanceDef,
   type PrefabLibrary,
   type Pt,
   type ResolvedSettings,
   type RuntimeEntity,
   type SceneDefinition,
+  type SceneIssue,
   type SceneSettings,
   type ShapeObj,
   type ShapeTuple,
@@ -173,7 +176,12 @@ export function behaviorBlocks(
 
 const IDENTITY: Dihedral = { rot: 0, flip: false };
 
-function runtimeEntity(
+/**
+ * What the runtime loads for one scene entity of type `t`: the editor's
+ * fields dropped (`layer` and a non-zero `z` kept), shapes as objects, whole
+ * behavior blocks, and `transform` when `transform` turns or flips it.
+ */
+export function runtimeEntity(
   registry: Registry,
   e: EntityDef,
   t: RegisteredType,
@@ -198,6 +206,42 @@ function runtimeEntity(
   return out as RuntimeEntity;
 }
 
+/**
+ * One prefab instance's entities as a load expands them: ids
+ * `<instance>/<child>` (refs between its children remapped to them), fields,
+ * behaviors, `z`, layers and `transform`, in spawn-group order, `off`
+ * children and types that don't load dropped. `group` is the instance's
+ * group; `cells` says the scene's turns are grid turns (`gridTurns`). An
+ * issue when the prefab is missing, cyclic or too deep; a child of an
+ * unregistered type throws, as a load does.
+ */
+export function expandInstance(
+  inst: InstanceDef,
+  library: PrefabLibrary,
+  registry: Registry,
+  opts: { group?: GroupDef; cells?: boolean } = {},
+): { ok: true; entities: RuntimeEntity[] } | { ok: false; issue: SceneIssue } {
+  const placed = placeInstance(
+    library.get(inst.prefab),
+    inst,
+    registry,
+    instanceStepsIn(inst, opts.group),
+    opts.cells === true,
+    library,
+  );
+  if (!placed.ok) return placed;
+  const groups: RuntimeEntity[][] = registry.spawnGroups.map(() => []);
+  for (const { def, transform } of placed.children) {
+    if (def.off) continue;
+    const t = registry.types.get(def.type);
+    if (!t) throw new Error(`expandInstance: ${def.id} has unregistered type "${def.type}"`);
+    const group = registry.spawnGroupOf(def.type);
+    if (group === undefined) continue;
+    groups[group]?.push(runtimeEntity(registry, def, t, transform));
+  }
+  return { ok: true, entities: groups.flat() };
+}
+
 /** Whether `scene` is already expanded: an `ExpandedScene` has an `entities` list and, unlike a document, no `v`. */
 export function isExpandedScene(scene: SceneDefinition | ExpandedScene): scene is ExpandedScene {
   return !("v" in scene) && Array.isArray(scene.entities);
@@ -211,9 +255,9 @@ export type ExpandOptions = {
 };
 
 /**
- * What the runtime loads, from the scene's resolved view (`resolveScene`:
- * instances inlined as `<instance>/<child>`, group and instance transforms
- * applied): bulk entries become `~key:index` entities, `off` entities and
+ * What the runtime loads, as the scene's resolved view (`resolveScene`)
+ * holds it: group transforms applied, each instance's children through
+ * `expandInstance` (ids `<instance>/<child>`); bulk entries become `~key:index` entities, `off` entities and
  * types that don't load are dropped, along with the editor's fields (`layer`
  * and a non-zero `z` stay), shapes become objects, behavior blocks are whole
  * (`behaviorBlocks`), a turned or flipped entity records its `transform`,
@@ -226,7 +270,8 @@ export function expandScene(
   registry: Registry,
   opts: ExpandOptions = {},
 ): ExpandedScene {
-  const { def, origins } = resolveSceneDetailed(source, registry, opts.prefabs);
+  // the document's own entities with their groups applied; instances expand one by one below
+  const { def, origins } = resolveSceneDetailed({ ...source, instances: [] }, registry);
   if (def.game !== undefined && def.game !== registry.id) {
     throw new Error(
       `expandScene: scene "${def.name}" is for game "${def.game}", not "${registry.id}"`,
@@ -263,6 +308,19 @@ export function expandScene(
     const transform = origins[i]?.transform ?? IDENTITY;
     groups[group]?.push(runtimeEntity(registry, e, t, transform));
   });
+
+  const library = opts.prefabs;
+  const cells = gridTurns(source);
+  for (const inst of source.instances ?? []) {
+    if (!library) break;
+    const group = inst.group === undefined ? undefined : source.groups?.[inst.group];
+    const out = expandInstance(inst, library, registry, { group, cells });
+    if (!out.ok) continue;
+    for (const e of out.entities) {
+      const at = registry.spawnGroupOf(e.type);
+      if (at !== undefined) groups[at]?.push(e);
+    }
+  }
 
   return {
     name: def.name,

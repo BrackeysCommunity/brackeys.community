@@ -446,7 +446,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_playtest",
     title: "Playtest a scene",
     description:
-      "Play an input script headless: the outcome, steps, events, focus trail and the commands stepped. Steps hold or press actions, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`). exitCode 1 when the scene or script is blocked.",
+      "Play an input script headless: the outcome, steps, events, focus trail and the commands stepped. Steps hold or press actions, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`); an `until` can wait on `{ exists: id }` or `{ count: { type|tag, min|max|eq } }`. Events include `entity:spawned`, `entity:destroyed`, `entity:enabled`, `entity:disabled`, `contact:start` and `contact:end`, and `lifecycle` counts spawns and destroys per type. exitCode 1 when the scene or script is blocked, a runtime refusal included (stage `run`).",
     annotations: READ,
     input: {
       scene: sceneArg,
@@ -454,6 +454,10 @@ export const MCP_TOOLS: readonly McpTool[] = [
         "An input script (`scene_schema` with which `script`), command and elapse steps included",
       ),
       at: z.tuple([z.number(), z.number()]).optional().describe("[x, y]: start the player here."),
+      events: z
+        .array(z.string())
+        .optional()
+        .describe("Report only events of these types; `lifecycle` still counts every spawn."),
       game,
       ...liveFields,
     },
@@ -464,6 +468,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
             scene,
             script: await tmp.payload("script.json", i.script),
             at: opt(i.at, (p) => p.join(",")),
+            events: opt(i.events, (t) => t.join(",")),
             game: i.game,
           },
           c,
@@ -519,7 +524,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_check",
     title: "Run scene checks",
     description:
-      "Run a scene's `<scene>.checks.json` (validation, playtests, fuzz, and `connected`: a path on the scene's grid joins two places). exitCode 1 when a check fails.",
+      "Run a scene's `<scene>.checks.json` (validation, playtests, fuzz, and `connected`: a path on the scene's grid joins two places). A `reaches` check's `expect` is an `until` clause (`exists`, `count` and the game's predicates included) that must hold on the run's last tick. exitCode 1 when a check fails.",
     annotations: READ,
     input: {
       scene: sceneArg,

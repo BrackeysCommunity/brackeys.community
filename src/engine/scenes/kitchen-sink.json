@@ -62,6 +62,8 @@
     { "id": "pillar", "type": "nav", "shape": ["poly", 2120, 330, 2180, 330, 2180, 370, 2120, 370], "mode": "block" },
     { "id": "side-wall", "type": "solid", "shape": ["box", 300, 220, 8, 60], "oneWay": "left" },
     { "id": "upright", "type": "prop", "shape": ["box", 312, 140, 10, 10], "density": 1, "fixedRotation": true, "restitution": 0 },
-    { "id": "about-sides", "type": "note", "at": [200, 60], "text": "One-way sides and body fields: side-wall is one-way from the left, so an actor passes it moving left and stops on its left face; upright starts half past its top and slides off without turning (fixedRotation)." }
+    { "id": "about-sides", "type": "note", "at": [200, 60], "text": "One-way sides and body fields: side-wall is one-way from the left, so an actor passes it moving left and stops on its left face; upright starts half past its top and slides off without turning (fixedRotation)." },
+    { "id": "spark", "type": "decor", "layer": "decor", "at": [1340, 1040], "behaviors": { "lifetime": { "ticks": 30 }, "sprite": { "asset": "crates", "frame": "crate-1", "size": [24, 24] } } },
+    { "id": "about-lifetime", "type": "note", "at": [1260, 960], "text": "Lifetime: spark is a decor whose lifetime block destroys it 30 ticks after load; the fades check expects the lamp to remain the one decor left." }
   ]
 }

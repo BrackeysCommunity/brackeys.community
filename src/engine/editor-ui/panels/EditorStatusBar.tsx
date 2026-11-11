@@ -5,7 +5,7 @@ import { useEffect, useReducer } from "react";
 import type { EditorSession } from "../../editor/index";
 import { Activity, saveState, SaveState } from "../frame/Activity";
 import { useBottomRow } from "../frame/EditorFrame";
-import { Hint, Icon } from "../kit/index";
+import { Icon } from "../kit/index";
 import { ACTIVITY_DELAY_MS, type PendingTask } from "../pending/pending";
 import { usePendingTasks } from "../pending/use-pending";
 import type { EditorHostState } from "../session/live-scene-editor";
@@ -70,9 +70,10 @@ function useActivityWidths(now: () => number = Date.now): { full: number; least:
 
 /**
  * The scene, its save state, who is here, its errors and warnings and what is
- * running. When the bottom row is short it draws a save-state dot and counts,
- * keeping the full words for screen readers and in the dot's hint; what is
- * running keeps its label, cut short, and its count.
+ * running. When the bottom row is short it draws a save-state dot (with a
+ * short word while the connection isn't live) and counts, keeping the full
+ * words for screen readers and in the dot's hint; what is running keeps its
+ * label, cut short, and its count.
  */
 export function EditorStatusBar({
   session,
@@ -113,7 +114,7 @@ export function EditorStatusBar({
     W.pad +
     sum(
       [
-        W.dot,
+        W.dot + (save.short ? W.tight + text(save.short) : 0),
         errors > 0 ? countWidth(errors) : -1,
         warnings > 0 ? countWidth(warnings) : -1,
         others > 0 ? facesWidth(others, 1) : -1,
@@ -129,13 +130,13 @@ export function EditorStatusBar({
   if (compactStatus) {
     return (
       <div role="status" className="je-status" data-compact="">
-        <Hint content={`${sceneName} · ${save.label}`}>
-          <span className="je-status-dot" data-tone={save.tone} aria-hidden />
-        </Hint>
         <span className="je-sr-only">{sceneName}</span>
-        <span className="je-sr-only">
-          <SaveState connection={connection} unsynced={unsynced} />
-        </span>
+        <SaveState
+          connection={connection}
+          unsynced={unsynced}
+          compact
+          hint={`${sceneName} · ${save.label}`}
+        />
         {errors > 0 ? (
           <span className="je-status-count" data-tone="danger">
             <Icon icon={AlertCircleIcon} size={12} />

@@ -348,7 +348,7 @@ export type ValidatePhysicalOptions = PhysicalOptions & {
   rapier?: RapierModule | null;
   scene: SceneDefinition;
   registry: Registry;
-  /** The prefabs the scene's instances name. */
+  /** The prefabs the scene's instances name; the game's `ctx.instantiate` places from them too. */
   prefabs?: PrefabLibrary;
   /** The project's `engine` block, which the scene's settings resolve through. */
   engine?: Readonly<Record<string, unknown>>;
@@ -374,7 +374,12 @@ export function validatePhysical(opts: ValidatePhysicalOptions): SceneIssue[] {
   }
   const physicsFree = scene.settings.physics === "none";
   if (!physicsFree && !rapier) throw new PhysicsRequiredError("physical validation");
-  const runtime = createSceneRuntime({ rapier: physicsFree ? null : rapier, view: null, registry });
+  const runtime = createSceneRuntime({
+    rapier: physicsFree ? null : rapier,
+    view: null,
+    registry,
+    ...(prefabs ? { prefabs } : {}),
+  });
   try {
     if (!runtime.load(scene).ok) return [];
     const env = physicalEnv(runtime, resolved.def);

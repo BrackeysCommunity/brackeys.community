@@ -199,9 +199,11 @@ export function createBodyTable<T extends OwnedBody>(
   const owned = new Map<string, T>();
   const offsets = new Map<string, Pose>();
   const placed = new Map<string, { at: Vec2; handle: number | null }>();
+  const disabled = new Set<string>();
   const posesView = opts.view !== false;
 
   function despawn(id: string): void {
+    disabled.delete(id);
     const p = placed.get(id);
     if (p) {
       removeGeometryCollider(ctx, p.handle);
@@ -261,6 +263,7 @@ export function createBodyTable<T extends OwnedBody>(
       ctx.tags.delete(entry.collider.handle);
       physics.removeCollider(entry.collider);
       entry.collider = attach(entry.body);
+      if (disabled.has(e.id)) entry.collider.setEnabled(false);
       ctx.tags.set(entry.collider.handle, tag);
       offsets.set(e.id, bodyOffset(e, false));
     },
@@ -278,6 +281,45 @@ export function createBodyTable<T extends OwnedBody>(
     /** The geometry collider of a placed entity, else null. */
     placedHandle: (id: string): number | null => placed.get(id)?.handle ?? null,
     despawn,
+    /**
+     * Takes the entity's body and collider out of the world (or its geometry
+     * collider out of queries) and removes its visual, keeping both for
+     * `enable`. False for an unknown or already disabled id.
+     */
+    disable: (id: string): boolean => {
+      if (disabled.has(id)) return false;
+      const p = placed.get(id);
+      const entry = owned.get(id);
+      if (p) {
+        if (p.handle !== null) ctx.geometry?.setEnabled(p.handle, false);
+      } else if (entry) {
+        entry.body.setEnabled(false);
+        entry.collider.setEnabled(false);
+      } else return false;
+      disabled.add(id);
+      ctx.view?.remove(id);
+      return true;
+    },
+    /**
+     * Puts a disabled entity's body and collider back where they were; its
+     * system redraws it. `collider` false leaves a geometry collider out of
+     * queries (a one-way solid its gate hides). False unless `id` was disabled.
+     */
+    enable: (id: string, collider = true): boolean => {
+      if (!disabled.delete(id)) return false;
+      const p = placed.get(id);
+      if (p) {
+        if (p.handle !== null) ctx.geometry?.setEnabled(p.handle, collider);
+        return true;
+      }
+      const entry = owned.get(id);
+      if (entry) {
+        entry.body.setEnabled(true);
+        entry.collider.setEnabled(true);
+      }
+      return true;
+    },
+    disabled: (id: string): boolean => disabled.has(id),
     clear: (): void => {
       for (const id of [...placed.keys()]) despawn(id);
       for (const id of [...owned.keys()]) despawn(id);
@@ -298,7 +340,7 @@ export function createBodyTable<T extends OwnedBody>(
     },
     /** Poses every entity to its body, in the pose index and the view; `snap` after a jump. */
     poseAll: (snap = false): void => {
-      for (const [id, { body }] of owned) poseBody(id, body, snap);
+      for (const [id, { body }] of owned) if (!disabled.has(id)) poseBody(id, body, snap);
     },
   };
 }
@@ -320,7 +362,9 @@ export type Rider<E extends { id: string; shape: ShapeObj }> = {
  * goes on the host's body at the entity's offset from the host's origin,
  * so the host's motion carries it with no per-tick sync. Visuals are
  * drawn in the host's frame; poses and visuals follow the host's body
- * whenever the host reports it `moved`.
+ * whenever the host reports it `moved`. A disabled host takes its riders'
+ * colliders out of the world with its body, while the riders themselves
+ * stay enabled entities.
  */
 export function createRiders<
   E extends {
@@ -345,9 +389,10 @@ export function createRiders<
   },
 ) {
   const riders = new Map<string, Rider<E>>();
+  const disabled = new Set<string>();
 
   function draw(e: E, shape: ShapeObj): void {
-    if (!opts.draw) return;
+    if (!opts.draw || disabled.has(e.id)) return;
     ctx.view?.remove(e.id);
     drawEntity(
       ctx,
@@ -371,7 +416,7 @@ export function createRiders<
     const rot = host.body.rotation();
     const p = composePose(t.x, t.y, rot, r.offset);
     ctx.poses.set(r.entity.id, p.x, p.y, p.rot, snap ? { snap } : undefined);
-    ctx.view?.pose(r.entity.id, t.x, t.y, rot);
+    if (!disabled.has(r.entity.id)) ctx.view?.pose(r.entity.id, t.x, t.y, rot);
   }
 
   function add(e: E, hostId: string): void {
@@ -382,6 +427,7 @@ export function createRiders<
       rider.offset = shapeSpawnPose(local, e.transform);
       const { rapier } = physicsOf(ctx, type.type, e.id);
       const collider = opts.collider(host.body, shapeColliderDesc(rapier, local, true), e);
+      if (disabled.has(e.id)) collider.setEnabled(false);
       ctx.tags.set(collider.handle, {
         ...opts.tag(e),
         carrier: { entityId: host.id, type: host.type },
@@ -403,6 +449,7 @@ export function createRiders<
     r.attachment.detach();
     ctx.view?.remove(id);
     riders.delete(id);
+    disabled.delete(id);
     return true;
   }
 
@@ -410,8 +457,30 @@ export function createRiders<
     riders,
     add,
     remove,
+    /** Takes a rider's collider out of the world and removes its visual; false unless `id` rides and is enabled. */
+    disable(id: string): boolean {
+      if (!riders.has(id) || disabled.has(id)) return false;
+      riders.get(id)!.attachment.collider()?.setEnabled(false);
+      ctx.view?.remove(id);
+      disabled.add(id);
+      return true;
+    },
+    /** Puts a disabled rider's collider back and redraws it where its host is now. */
+    enable(id: string): boolean {
+      const r = riders.get(id);
+      if (!r || !disabled.delete(id)) return false;
+      const collider = r.attachment.collider();
+      collider?.setEnabled(true);
+      if (collider && r.local) {
+        draw(r.entity, r.local);
+        pose(r, true);
+      } else draw(r.entity, r.entity.shape);
+      return true;
+    },
+    disabled: (id: string): boolean => disabled.has(id),
     clear: () => {
       for (const id of [...riders.keys()]) remove(id);
+      disabled.clear();
     },
     /** Where a rider's collider is now, in world px; null while it waits for its host. */
     position: (id: string): Vec2 | null => {
@@ -510,6 +579,8 @@ export function createSolidSystem(
   const sideOf = (e: SolidEntity) => oneWaySideOf(e.oneWay, opts.oneWay);
   /** Attached one-way solids gated off: their collider's groups are 0 until the actor is above them again. */
   const gated = new Set<string>();
+  /** Each live entity's record, to redraw it on enable. */
+  const records = new Map<string, SolidEntity>();
   const riders = createRiders<SolidEntity>(ctx, type, {
     layer: (e) => opts.layer ?? entityDrawLayer(ctx, e, "terrain"),
     draw: opts.draw !== false,
@@ -560,24 +631,31 @@ export function createSolidSystem(
   }
 
   function draw(e: SolidEntity): void {
-    if (opts.draw !== false)
+    if (opts.draw !== false && !table.disabled(e.id))
       drawEntity(ctx, type, e, opts.layer ?? entityDrawLayer(ctx, e, "terrain"));
   }
 
   function despawn(id: string): void {
     gated.delete(id);
     placedOneWay.delete(id);
+    records.delete(id);
     if (!riders.remove(id)) table.despawn(id);
   }
 
-  function setPlacedHidden(solid: { handle: number; hidden: boolean }, hidden: boolean): void {
+  /** Gates a one-way solid in the geometry world; a disabled one keeps its collider off and only tracks the gate. */
+  function setPlacedHidden(
+    id: string,
+    solid: { handle: number; hidden: boolean },
+    hidden: boolean,
+  ): void {
     if (solid.hidden === hidden) return;
-    ctx.geometry?.setEnabled(solid.handle, !hidden);
+    if (!table.disabled(id)) ctx.geometry?.setEnabled(solid.handle, !hidden);
     solid.hidden = hidden;
   }
 
   function spawn(e: SolidEntity): void {
     despawn(e.id);
+    records.set(e.id, e);
     if (e.attach !== undefined) return riders.add(e, e.attach);
     if (!ctx.physics) {
       const handle = table.place(e, { body: "static", group }, tagOf(e));
@@ -599,6 +677,7 @@ export function createSolidSystem(
     update(e) {
       const solid = table.owned.get(e.id);
       if (!solid || e.attach !== undefined) return spawn(e);
+      records.set(e.id, e);
       const desc = colliderDesc(e);
       table.reshape(e, solid, (body) => physicsFor(e.id).physics.addCollider(desc, body), tagOf(e));
       Object.assign(solid, placement(e));
@@ -606,15 +685,26 @@ export function createSolidSystem(
       draw(e);
     },
     despawn,
+    disable(id) {
+      if (!riders.disable(id)) table.disable(id);
+    },
+    /** A one-way solid comes back as its gate holds it now, solid or passed through. */
+    enable(id) {
+      if (riders.enable(id)) return;
+      if (!table.enable(id, placedOneWay.get(id)?.hidden !== true)) return;
+      const e = records.get(id);
+      if (e) draw(e);
+    },
     clear() {
       riders.clear();
       gated.clear();
       placedOneWay.clear();
+      records.clear();
       table.clear();
     },
     reset() {
       for (const [id, solid] of table.owned) setHidden(id, solid, false);
-      for (const solid of placedOneWay.values()) setPlacedHidden(solid, false);
+      for (const [id, solid] of placedOneWay) setPlacedHidden(id, solid, false);
       for (const id of [...gated]) gate(id, false);
     },
     size: () => table.size() + riders.riders.size,
@@ -637,9 +727,9 @@ export function createSolidSystem(
       const hidden = hiddenFor(solid.oneWay, solid.box);
       if (hidden !== null) setHidden(id, solid, hidden);
     }
-    for (const solid of placedOneWay.values()) {
+    for (const [id, solid] of placedOneWay) {
       const hidden = hiddenFor(solid.side, solid.box);
-      if (hidden !== null) setPlacedHidden(solid, hidden);
+      if (hidden !== null) setPlacedHidden(id, solid, hidden);
     }
     for (const r of riders.riders.values()) {
       const host = r.attachment.host();
@@ -692,10 +782,15 @@ export function createPropSystem(
 ): SceneSystem<PropEntity> {
   const table = createBodyTable(ctx);
   const groups = ctx.registry.collisionGroups("dynamic");
+  const records = new Map<string, PropEntity>();
+
+  const draw = (e: PropEntity) =>
+    drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "body"), bodyLocalShape(e.shape));
 
   return {
     spawn(e) {
       table.despawn(e.id);
+      records.set(e.id, e);
       const { rapier, physics } = physicsOf(ctx, type.type, e.id);
       const surface = surfaceOf(ctx, e.material, {});
       const body = physics.addRigidBody(propBodyDesc(rapier.RigidBodyDesc.dynamic(), e));
@@ -707,11 +802,27 @@ export function createPropSystem(
       if (friction !== undefined) desc.setFriction(friction);
       const collider = physics.addCollider(desc, body);
       table.add(e, { body, collider }, surfaceTag(e.id, type, e.material));
-      drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "body"), bodyLocalShape(e.shape));
+      draw(e);
       table.pose(e.id);
     },
-    despawn: table.despawn,
-    clear: table.clear,
+    despawn(id) {
+      records.delete(id);
+      table.despawn(id);
+    },
+    /** The body stops where it is, keeping its velocity for `enable`. */
+    disable(id) {
+      table.disable(id);
+    },
+    enable(id) {
+      const e = records.get(id);
+      if (!table.enable(id) || !e) return;
+      draw(e);
+      table.pose(id);
+    },
+    clear() {
+      records.clear();
+      table.clear();
+    },
     size: table.size,
     afterStep: () => table.poseAll(),
   };
@@ -725,6 +836,12 @@ export type SensorSystem = SceneSystem<SensorEntity> & { afterStep(dtMs: number)
 /** Overlapping collider handle → the entity id its tag names. */
 type Overlaps = Map<number, string | undefined>;
 type SensorBody = OwnedBody & { inside: Overlaps };
+type PlacedSensor = {
+  handle: number;
+  inside: Overlaps;
+  next: Map<number, SpaceHit> | null;
+  fresh: boolean;
+};
 
 export function createSensorSystem(ctx: EngineContext, type: RegisteredType): SensorSystem {
   const table = createBodyTable<SensorBody>(ctx);
@@ -732,12 +849,13 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
   const inside = new Map<string, Overlaps>();
   /**
    * Sensors in the geometry world, in spawn order: what overlapped each at
-   * the last step, and what overlaps it at the start of this one.
+   * the last step, and what overlaps it at the start of this one. `fresh`
+   * after an enable that came too late for this step's `beforeStep`: its
+   * overlaps are taken at `afterStep` instead.
    */
-  const placedSensors = new Map<
-    string,
-    { handle: number; inside: Overlaps; next: Map<number, SpaceHit> | null }
-  >();
+  const placedSensors = new Map<string, PlacedSensor>();
+  const records = new Map<string, SensorEntity>();
+  const draw = (e: SensorEntity) => drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
   const riders = createRiders<SensorEntity>(ctx, type, {
     layer: (e) => entityDrawLayer(ctx, e, "terrain"),
     draw: true,
@@ -788,21 +906,32 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
    * order, against what the sensor group meets) before anything moves this
    * step, as Rapier's step finds intersections before it moves bodies.
    */
+  function overlapsOf(sensor: PlacedSensor): Map<number, SpaceHit> {
+    const next = new Map<number, SpaceHit>();
+    const shape = ctx.geometry?.shape(sensor.handle);
+    if (!shape) return next;
+    for (const hit of ctx.space.overlaps(shape, { group: "sensor" })) {
+      if (hit.handle !== sensor.handle) next.set(hit.handle, hit);
+    }
+    return next;
+  }
+
   function takePlaced(): void {
-    const world = ctx.geometry;
-    if (!world) return;
-    for (const sensor of placedSensors.values()) {
-      const shape = world.shape(sensor.handle);
-      sensor.next = new Map();
-      if (!shape) continue;
-      for (const hit of ctx.space.overlaps(shape, { group: "sensor" })) {
-        if (hit.handle !== sensor.handle) sensor.next.set(hit.handle, hit);
-      }
+    if (!ctx.geometry) return;
+    for (const [id, sensor] of placedSensors) {
+      if (table.disabled(id)) continue;
+      sensor.fresh = false;
+      sensor.next = overlapsOf(sensor);
     }
   }
 
   function raisePlaced(): void {
     for (const [id, sensor] of placedSensors) {
+      if (table.disabled(id)) continue;
+      if (sensor.fresh) {
+        sensor.fresh = false;
+        sensor.next = overlapsOf(sensor);
+      }
       const hits = sensor.next;
       if (!hits) continue;
       const now: Overlaps = new Map([...hits].map(([h, hit]) => [h, hit.tag.entityId]));
@@ -821,23 +950,26 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
   function despawn(id: string): void {
     inside.delete(id);
     placedSensors.delete(id);
+    records.delete(id);
     if (!riders.remove(id)) table.despawn(id);
   }
 
   function spawn(e: SensorEntity): void {
     despawn(e.id);
+    records.set(e.id, e);
     if (e.attach !== undefined) return riders.add(e, e.attach);
     if (!ctx.physics) {
       const handle = table.place(e, { body: "static", sensor: true, group: "sensor" }, tagOf(e));
-      if (handle !== null) placedSensors.set(e.id, { handle, inside: new Map(), next: null });
-      return drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
+      if (handle !== null)
+        placedSensors.set(e.id, { handle, inside: new Map(), next: null, fresh: false });
+      return draw(e);
     }
     const { rapier, physics } = physicsFor(e.id);
     const desc = shapeColliderDesc(rapier, e.shape);
     const body = physics.addRigidBody(posedBodyDesc(rapier.RigidBodyDesc.fixed(), e.shape));
     const collider = createSensorCollider(ctx, body, desc);
     table.add(e, { body, collider, inside: new Map() }, tagOf(e));
-    drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
+    draw(e);
   }
 
   return {
@@ -845,6 +977,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
     update(e, prev) {
       const sensor = table.owned.get(e.id);
       if (!sensor || e.attach !== undefined || prev.attach !== undefined) return spawn(e);
+      records.set(e.id, e);
       sensor.inside = new Map();
       if (sameShape(e.shape, prev.shape)) {
         ctx.tags.set(sensor.collider.handle, tagOf(e));
@@ -853,13 +986,38 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
       const desc = shapeColliderDesc(physicsFor(e.id).rapier, e.shape);
       table.reshape(e, sensor, (body) => createSensorCollider(ctx, body, desc), tagOf(e));
       ctx.view?.remove(e.id);
-      drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
+      if (!table.disabled(e.id)) draw(e);
     },
     despawn,
+    /** Forgets what is inside without raising exits. */
+    disable(id) {
+      if (riders.disable(id)) {
+        inside.delete(id);
+        return;
+      }
+      if (!table.disable(id)) return;
+      const owned = table.owned.get(id);
+      if (owned) owned.inside = new Map();
+      const placed = placedSensors.get(id);
+      if (placed) {
+        placed.inside = new Map();
+        placed.next = null;
+      }
+    },
+    /** What is inside at the next `afterStep` raises enters then. */
+    enable(id) {
+      const e = records.get(id);
+      if (riders.enable(id)) return;
+      if (!table.enable(id)) return;
+      const placed = placedSensors.get(id);
+      if (placed) placed.fresh = true;
+      if (e) draw(e);
+    },
     clear() {
       riders.clear();
       inside.clear();
       placedSensors.clear();
+      records.clear();
       table.clear();
     },
     reset() {
@@ -867,6 +1025,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
       for (const sensor of placedSensors.values()) {
         sensor.inside.clear();
         sensor.next = null;
+        sensor.fresh = false;
       }
       inside.clear();
     },
@@ -891,9 +1050,11 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
         diff(id, before, now, (handle) => positionOf(id, handle, collider));
         return now;
       };
-      for (const [id, sensor] of table.owned)
-        sensor.inside = check(id, sensor.collider, sensor.inside);
+      for (const [id, sensor] of table.owned) {
+        if (!table.disabled(id)) sensor.inside = check(id, sensor.collider, sensor.inside);
+      }
       for (const [id, r] of riders.riders) {
+        if (riders.disabled(id)) continue;
         const collider = r.attachment.collider();
         if (collider) inside.set(id, check(id, collider, inside.get(id) ?? new Map()));
       }

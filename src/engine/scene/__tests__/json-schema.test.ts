@@ -25,7 +25,7 @@ import {
 } from "../json-schema";
 import { opsJsonSchema } from "../ops-schema";
 import { sceneSchemaFor } from "../schema";
-import { engine, fake } from "./fixtures/fake-game";
+import { engine, fake, fakeGame } from "./fixtures/fake-game";
 
 const FILE = new URL("../scene.schema.json", import.meta.url);
 
@@ -273,6 +273,7 @@ describe("behaviors", () => {
     expect(Object.keys(slot("token").properties!)).toEqual([
       "sprite",
       "occupant",
+      "lifetime",
       tint.name,
       tag.name,
     ]);
@@ -349,5 +350,25 @@ describe("schemas as documentation", () => {
   it("carries the agent surface version", () => {
     expect(sceneJsonSchema(engine)[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);
     expect(opsJsonSchema(fake)[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);
+  });
+});
+
+describe("spawn-only types in the JSON Schema", () => {
+  const spark = defineEntityType({
+    type: "spark",
+    description: "A flash game code makes.",
+    base: "marker",
+    spawnOnly: true,
+    fields: { at: pointField("Where it flashes.") },
+  });
+  const r = createRegistry({ ...fakeGame, types: [...fakeGame.types, spark] });
+
+  it("are absent from the scene, fragment and prefab schemas", () => {
+    for (const schema of [sceneJsonSchema(r), fragmentJsonSchema(r), prefabJsonSchema(r)]) {
+      const text = JSON.stringify(schema);
+      expect(text).toContain('"const":"flag"');
+      expect(text).not.toContain('"spark"');
+    }
+    expect(sceneJsonSchema(r)).toEqual({ ...sceneJsonSchema(fake), $id: r.schemaId });
   });
 });

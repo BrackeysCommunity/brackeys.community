@@ -29,6 +29,7 @@ export const platformerGame = defineGame<PlayerSnapshot>({
     TYPE.anchor,
     TYPE.construct,
     ["marker", TYPE.spawn],
+    PLAYER_TYPE,
   ],
   actions: PLATFORMER_ACTIONS,
   materials: PLATFORMER_MATERIALS,
@@ -66,7 +67,14 @@ export { PLATFORMER_PLAY } from "./play";
 export { PLATFORMER_LAYERS } from "./layers";
 export { TYPE } from "./type-names";
 export { PLATFORMER_TYPES } from "./types";
-export type { AnchorEntity, CloudEntity, ConstructEntity, MoverEntity, SpawnEntity } from "./types";
+export type {
+  AnchorEntity,
+  CloudEntity,
+  ConstructEntity,
+  MoverEntity,
+  PlayerTypeEntity,
+  SpawnEntity,
+} from "./types";
 export {
   createPlatformerRuntime,
   type PlatformerDebugInfo,
@@ -77,8 +85,8 @@ export {
   JUMP_VELOCITY,
   MAX_FALL_SPEED,
   MOVEMENT_CONFIG,
-  PLAYER_ENTITY_ID,
   PLAYER_HEIGHT,
+  PLAYER_TYPE,
   PLAYER_WIDTH,
   type MovementState,
 } from "./entities/player";

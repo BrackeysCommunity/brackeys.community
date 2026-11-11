@@ -63,6 +63,12 @@ export const runRecordingSchema = z
           .unknown()
           .optional()
           .describe("The game's play options, as its `play.options` schema defines them."),
+        seed: z
+          .union([z.number(), z.string()])
+          .optional()
+          .describe(
+            "The seed `EngineContext.random` was given; omitted when the run named none and used the default for its game and scene.",
+          ),
       })
       .describe("How the play world started."),
     actions: z
@@ -120,7 +126,9 @@ export const runRecordingSchema = z
           })
           .describe("An event worth showing on the ghost."),
       )
-      .describe("Events the game marks (`play.markers`; every event when it names none), capped."),
+      .describe(
+        "Events the game marks (`play.markers`; every event but `entity:*` when it names none), capped.",
+      ),
     trail: z
       .strictObject({
         every: z.literal(RECORDING_TRAIL_EVERY).describe("Ticks between samples."),

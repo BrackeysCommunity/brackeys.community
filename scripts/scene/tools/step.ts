@@ -1,10 +1,13 @@
 import type { GameCommand } from "@jams/engine/game";
 import {
   compileInputScript,
+  ENTITY_DESTROYED,
+  ENTITY_SPAWNED,
   runProbe,
   unknownActionError,
   type ProbeInput,
   type RapierModule,
+  type StepEvent,
 } from "@jams/engine/headless";
 import {
   expandScene,
@@ -37,10 +40,12 @@ export type StepInput = {
   command?: string | readonly string[];
   /** `<tick>:<ms>`: time away, stepped as `@elapsed` on that tick before its commands. */
   elapse?: string | readonly string[];
+  /** `type,…`: print only events of these types. */
+  events?: string;
 };
 
 export const STEP_FLAGS =
-  "[--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]]… [--elapse tick:ms]… [--game id]";
+  "[--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]]… [--elapse tick:ms]… [--events type,…] [--game id]";
 const STEP_USAGE = `step ${STEP_FLAGS}`;
 
 const DEFAULT_TICKS = 120;
@@ -164,11 +169,79 @@ export const rounded = (value: unknown) =>
     typeof v === "number" ? Math.round(v * 100) / 100 : v,
   );
 
+/** `--events a,b` as the set of types to keep; undefined keeps every event. */
+export function eventTypes(flag: string | undefined): ReadonlySet<string> | undefined | string {
+  if (flag === undefined) return undefined;
+  const types = flag
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (types.length === 0)
+    return "--events takes a comma list of event types, e.g. entity:spawned,contact:start";
+  return new Set(types);
+}
+
+export const keepEvents = <E extends { type: string }>(
+  events: readonly E[],
+  types: ReadonlySet<string> | undefined,
+): E[] => (types ? events.filter((e) => types.has(e.type)) : [...events]);
+
+export const eventLine = (e: StepEvent) =>
+  `  t${e.tick} ${e.type}${e.entityId ? ` ${e.entityId}` : ""}${e.other ? ` (${e.other})` : ""}`;
+
+export type LifecycleCounts = Record<string, { spawned: number; destroyed: number }>;
+
+/** Spawns and destroys per entity type, read from the lifecycle events' `data.type`, in first-seen order. */
+export function lifecycleCounts(events: readonly StepEvent[]): LifecycleCounts {
+  const counts: LifecycleCounts = {};
+  for (const e of events) {
+    const key =
+      e.type === ENTITY_SPAWNED ? "spawned" : e.type === ENTITY_DESTROYED ? "destroyed" : null;
+    if (!key) continue;
+    const type = (e.data as { type?: unknown } | undefined)?.type;
+    const name = typeof type === "string" ? type : "?";
+    const row = (counts[name] ??= { spawned: 0, destroyed: 0 });
+    row[key]++;
+  }
+  return counts;
+}
+
+/** One `spawned bullet ×212, destroyed ×212` line per type; counted from the reported events when they were truncated. */
+export function lifecycleLines(counts: LifecycleCounts, truncated: boolean): string[] {
+  return Object.entries(counts).map(([type, { spawned, destroyed }]) => {
+    const parts = [
+      ...(spawned ? [`spawned ${type} ×${spawned}`] : []),
+      ...(destroyed
+        ? [spawned ? `destroyed ×${destroyed}` : `destroyed ${type} ×${destroyed}`]
+        : []),
+    ];
+    return `  ${parts.join(", ")}${truncated ? " (of the reported events)" : ""}`;
+  });
+}
+
+/** The events the report prints and the per-type lifecycle summary, both added to `data`. */
+export function eventsReport(
+  events: readonly StepEvent[],
+  truncated: boolean,
+  types: ReadonlySet<string> | undefined,
+): { events: StepEvent[]; lifecycle?: LifecycleCounts; lines: string[] } {
+  const counts = lifecycleCounts(events);
+  const kept = keepEvents(events, types);
+  const summary = Object.keys(counts).length > 0;
+  return {
+    events: kept,
+    ...(summary ? { lifecycle: counts } : {}),
+    lines: [...(summary ? lifecycleLines(counts, truncated) : []), ...kept.map(eventLine)],
+  };
+}
+
 export const step: Tool<StepInput> = async (input, ctx) => {
   const ticks = input.ticks === undefined ? DEFAULT_TICKS : Number(input.ticks);
   if (!Number.isInteger(ticks) || ticks < 1 || ticks > MAX_TICKS) {
     return usage(`--ticks must be an integer from 1 to ${MAX_TICKS}`);
   }
+  const types = eventTypes(input.events);
+  if (typeof types === "string") return usage(types);
   let under: Registry | undefined;
   if (input.game !== undefined) {
     const picked = gameFlag(ctx, input.game);
@@ -216,17 +289,21 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     registry,
     project,
     scene: expandScene(loaded.def, registry, { prefabs: loaded.prefabs, engine }),
+    prefabs: loaded.prefabs,
     ticks,
     hold,
     inputs,
     commands,
   });
   const hash = sceneHashWith(loaded.def, loaded.prefabs);
+  const printed = eventsReport(report.events, report.truncated, types);
   const data = {
     scene: loaded.name,
     game: registry.game?.id ?? null,
     sceneHash: hash,
     ...report,
+    events: printed.events,
+    ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
     commands: commands.map(([tick, c]) =>
       c.args === undefined ? [tick, c.name] : [tick, c.name, c.args],
     ),
@@ -246,10 +323,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
       ([tick, c]) =>
         `  t${tick} command ${c.name}${c.args === undefined ? "" : ` ${JSON.stringify(c.args)}`}`,
     ),
-    ...report.events.map(
-      (e) =>
-        `  t${e.tick} ${e.type}${e.entityId ? ` ${e.entityId}` : ""}${e.other ? ` (${e.other})` : ""}`,
-    ),
+    ...printed.lines,
     ...(report.truncated ? ["  (events truncated)"] : []),
     ...(report.outcome
       ? [

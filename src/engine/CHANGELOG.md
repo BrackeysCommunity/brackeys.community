@@ -7,6 +7,327 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.10.0] — unreleased
+
+Entity lifecycle, spawning and events. Game code spawns, destroys,
+disables and instantiates entities at runtime, subscribes to events, runs
+timers and coroutines, draws from a seeded `ctx.random`, queries entities
+and watches contacts; the platformer's actor is an entity. The release also
+fixes running and editing: the dev server survives aborted requests, the
+editor opens any project's scenes, and the draw tools, inspector, edit
+overlay and narrow layouts get a pass.
+
+### Added
+
+- The lifecycle surface of `EngineContext`: `spawn`, `destroy`,
+  `setEnabled`, `enabled`, `exists`, `get`, `seeking`, `events`,
+  `instantiate`, `timers`, `random`, `query` and `contacts`. New types in `./game`: `SpawnInput`, `EventBus`, `EventSubscribeOptions`,
+  `InstantiateOptions`, `InstantiateResult`, `Delay`, `TimerAction`,
+  `CoroutineYield`, `Timers`, `EntitySelector`, `EntityQuery`,
+  `ContactSelector`, `Contacts`, `Pool` and `PlayWorld` (optional
+  `PlayState.world`).
+- `EngineError(code, message, entityId?)` in `./game`: a runtime refusal
+  with an issue code.
+- Runtime ids in `./game`: `RUNTIME_ID_PATTERN`, `runtimeId(name, n)`,
+  `isRuntimeId(id)` and `parseRuntimeId(id)` (`gate#2/door` gives
+  `{ name, label, child }`).
+- Event types `ENTITY_SPAWNED`, `ENTITY_DESTROYED`, `ENTITY_ENABLED`,
+  `ENTITY_DISABLED`, `CONTACT_START` and `CONTACT_END` in `./game` and
+  `./headless`; `StepEvent.data?`.
+- `ctx.setEnabled(id, on)` and `ctx.enabled(id)`. A disabled entity's type
+  system runs its `disable` (without one the entity is despawned and its
+  record kept, and enable spawns it again from the record at its spawn pose,
+  state reset); its behaviors run `disable` in
+  reverse registration order, and a behavior without one is detached and
+  attached again on enable. `entity:disabled`/`entity:enabled` are raised
+  inside a step only, at the entity's pose with `data: { type }`. `marker`,
+  `decor` and `nav` keep their records while disabled.
+- `solid`, `sensor` and `prop` implement `disable`/`enable`: Rapier bodies
+  and colliders through `setEnabled`, geometry colliders through
+  `GeometryWorld.setEnabled`; visuals are removed on disable and redrawn on
+  enable. A disabled sensor forgets what was inside without raising exits
+  and raises enters at its next `afterStep`; a disabled one-way solid stays
+  out of the world whatever its gate says, and comes back as the gate holds
+  it now. A disabled carrier takes its riders' colliders out of the world
+  while the riders stay enabled.
+- `follower` implements `disable`/`enable`: a disabled follower's path clock
+  keeps running, it has no collider (riders' colliders on its body go off
+  with it), no visual and posts no poses; enabling snaps it to where its
+  path is now, on Rapier and in the geometry world.
+- `ctx.random` is seeded per load from `PlayOptions.seed` (new), or from
+  `defaultSeed(gameId, sceneName)` (in `./headless`) when the run names
+  none, so a seed gives one sequence. Engine systems and behaviors never
+  draw from it.
+- `BehaviorDef.refine?(block)`: a check across a block's fields, reported as
+  a `schema` issue.
+- The engine behavior `lifetime` (`LIFETIME` in `./game`:
+  `{ ticks | ms, then?: "destroy" | "disable" }`, exactly one of `ticks` or
+  `ms`; a `schema` issue otherwise). Attaching it, and each enable, schedules
+  a timer the entity owns (`ms` rounded with `ticksFor`). The timer pauses
+  while the entity is disabled, and enabling starts a fresh one. When it
+  falls due it destroys the entity (default) or disables it.
+  `ENGINE_BEHAVIORS` is now `[SPRITE, OCCUPANT, LIFETIME]`, so a game's
+  behaviors register from index 3.
+- `createPool(ctx, { spawn, max? })` (from `./game`): `acquire()` enables
+  the most recently freed entity (LIFO), else spawns while `max` allows,
+  else returns null; `release(id)` disables and frees it; `free`/`live`
+  counts. An entity disabled by any means (a `lifetime` with
+  `then: "disable"`) returns to its pool, and a destroyed one leaves it. A
+  pool's subscriptions end with the load, so create it in `onLoad`.
+- `ctx.instantiate(prefab, at, opts)` places a prefab at runtime as a load
+  does (ids `<prefab>#<n>` or `opts.id`, children `<id>/<child>`, refs
+  remapped, grid turns, spawn-group order, `ready`, one `entity:spawned` per
+  child inside a step, rollback on a throw); `ctx.destroy(instanceId)`
+  destroys every child. Failures are `EngineError("prefab-not-spawnable")`
+  with the reason in `cause`.
+- `SceneRuntimeOptions.prefabs` (a library, or a function read once per
+  load), frozen for the run: the library `ctx.instantiate` places from. The
+  shell passes its `setPrefabs` library, and every headless entry passes
+  one; `loadHeadless`
+  returns `library` (every prefab given, or pinned by the snapshot) beside
+  `prefabs` (the used ones `sceneHash` covers); `ReplayOptions.library`,
+  `RunChecksOptions.library`, `PlaytestOptions.library` and
+  `FuzzOptions.library` (default `prefabs`); `createHeadlessRuntime` and
+  `runProbe` take `prefabs`.
+- `EntityTypeDef.spawnOnly?: true`. Spawn-only types load and spawn and take
+  a spawn group (an explicit `spawnOrder` must list them), but are left out
+  of the scene, fragment, prefab and op schemas and their JSON Schemas; a
+  scene, prefab or op naming one reports `unknown-type` ("spawned by game
+  code only"), and did-you-mean and `expected` never name one.
+  `createRegistry` refuses a spawn-only type that never loads or has a bulk
+  form.
+- `spawnSchemaFor(registry, type)` (a type's entity schema without its
+  scene id, for `ctx.spawn`), `placeableTypes(registry)` and
+  `isSpawnOnly(registry, type)` in `./scene`; `entityIssues` takes a fifth
+  argument `{ spawn: true }` to map a spawn input's failures.
+- Runtime ids `<name>#<n>` from per-name counters shared by types and
+  prefabs and reset at each load, plus explicit `<name>#<label>` ids
+  (`spawn-id-invalid` otherwise).
+- `ctx.spawn` is immediate: the input is parsed in dev and headless, posed,
+  its behaviors attached and `ready` run, and `entity:spawned` raised with
+  `data: { type }` inside a step; on any throw the spawn is rolled back and
+  rethrown as an `EngineError`.
+- `ctx.destroy` is deferred to the end-of-tick flush inside a step and
+  immediate outside one; an instance id destroys its live children in
+  reverse spawn order, and `entity:destroyed` is raised at the last pose.
+- `ctx.exists` and `ctx.get` see spawned entities; `scene()` and `stats()`
+  include spawned entities and drop destroyed ones; grid walls re-sync after
+  spawns and destroys of `world.gridWalls` types.
+- Input scripts take an optional `seed` (number or string) in their v1
+  header, passed to the run as `PlayOptions.seed`.
+- Recordings record an explicit seed as v1's optional `start.seed`, written
+  only when the run was given one; `replayRecording` and the shell's
+  `replay` pass it back, so a seeded run replays to the same digest.
+  Recordings without it replay on the default seed.
+- `PlaytestBlocked.stage` gains `"run"`.
+- `expandInstance(inst, library, registry, opts?: { group?, cells? })` in
+  `./scene`: one prefab instance's children as runtime entities (ids
+  `<inst>/<child>`, refs between children remapped, fields, behaviors, z,
+  layers, transform) in spawn-group order, or `{ ok: false, issue }` for
+  `prefab-unknown`, `prefab-cycle` or `prefab-depth`. `expandScene` now
+  expands every instance through it; its output is unchanged.
+- `ctx.events.on`/`once(type, handler, { entity?, owner? })` deliver at two
+  points in the tick (after timers, and after the end-of-tick destroys), in
+  subscription order per event and raise order across events; events a
+  handler raises join the same pass, which throws `EngineError("event-loop")`
+  past 4,096 deliveries; `entity` matches `entityId` or `other` (or a child
+  of that instance id); `owner` ends the subscription when that entity is
+  destroyed; every subscription ends at unload.
+- `ctx.query` (`select`, `byType`, `byTag`, `count`, `inArea`, `at`,
+  `nearest`, `extent`): entities by type, tag, area, point and nearness,
+  read from the pose index and each entity's shape moved by its pose (never
+  Rapier or the geometry world, so both backends answer alike); results in
+  spawn order; disabled entities skipped unless the selector says
+  `enabled: false`; `nearest` ties go to the earlier spawn. `extent(id)` is
+  the entity's shape at spawn moved rigidly by its pose's change (translated
+  and turned about the spawn pose), or a zero-radius circle at its pose when
+  it has no shape.
+- `ctx.timers`: `after`, `every` (with `times`) and `start` for generator
+  coroutines that yield a tick count, `{ ms }` or a predicate; `cancel` and
+  `size`. Timers run in the tick's timer phase, ordered by due tick and then
+  by creation. `{ ms }` is rounded once, at creation, with `ticksFor`. The
+  `{ emit, entityId?, data? }` action form raises its event at the entity's
+  pose. Owned timers are cancelled when the owner is destroyed and paused
+  while it is disabled. Play's `timeOffsetMs` seek fires what falls due
+  before tick 0, with `ctx.seeking` true. Delays that aren't whole,
+  non-negative ticks throw `RangeError`.
+- `ctx.contacts.watch(a, b?)` raises `contact:start` and `contact:end`
+  between watched entities (by id, or `{ type?, tag? }`; `b` omitted means
+  anything that isn't a sensor), read after the sensors each tick with no
+  physics callback: a broad phase over the query index's extents (the same
+  on both backends), then `Collider.contactCollider(other, 0)` on Rapier
+  (touching at distance <= 0, `at` its `point1`) or `shapesIntersect` in the
+  geometry world (`at` the centre of the boxes' overlap). A pair reports once
+  per tick and `entityId` is the watched side; a destroyed or disabled
+  entity's contacts end without an event; sensors and colliders with
+  collision groups 0 never touch; with nothing watched no Rapier call is
+  made. `contactCollider` answers synchronously under Node on both
+  `@dimforge/rapier2d` and `@dimforge/rapier2d-compat`, and the browser
+  smoke and the Bun headless smoke each drop one prop onto a solid with
+  `ctx.contacts.watch` and require its first `contact:start` on tick 23
+  against the floor, through the public `@jams/engine/*` entries only, in
+  Chromium, Firefox, WebKit, Bun (source and dist) and Node.
+- The Box, Circle and Pen tools pick a draw type. `drawTypeOptions(registry,
+kind)` lists the types whose shape field takes what the tool draws, and the
+  tool command `type:<name>` picks one (also as `tool:<id>:type:<name>`). The
+  choice is kept per host and shared by the three tools, and the editor
+  toolbar shows it as a Draw type menu. `ToolOverlay.option` (`ToolOption`)
+  carries the active tool's setting to the host, and `ToolHost.option()` reads
+  it without building the selection's outlines. The pen keeps a concave
+  stroke as a `poly` when the type's field is a `polygonField` (a concave
+  `nav` area), and closes an open stroke of three or more points for a type
+  that takes no chain. `strokeShape` takes an optional `StrokeFit`, which
+  `strokeFit(registry, type)` returns.
+- Editor UI: `EditorHost` gains `projects` (a host's projects; with two or
+  more and an `onProjectChange`, the Project panel shows a project switcher),
+  `onProjectChange(id)` and `findScene(scene)` (which project holds a scene,
+  by id or name, as `SceneHome { project, id, name }`); new types
+  `EditorProjectChoice` and `SceneHome`. `devProjectHost` also returns
+  `findScene`, answered from the dev server's `/__scene` and `/__project`
+  listings. `SceneEditor`'s `scene` opens a scene by id or by display name.
+  The fallback notice names the scene that opened by name (never its id) and
+  the project asked about (`There's no scene "x" in <project>`), and points
+  to the project that holds the scene when the host can say. A rebuilt game
+  (materials, settings or tables changed, including the rebuild Stop lets
+  in) keeps the edit camera: the zoom and centre of the last edit view of the
+  same scene.
+- `exists` and `count` input-script predicates: `{ "exists": "boss#1" }`
+  holds while the entity exists and is enabled,
+  `{ "exists": { "id": "boss#1", "enabled": false } }` while it exists at
+  all, and `{ "count": { "type": "enemy", "max": 0 } }` while the number of
+  matching entities keeps its bounds. `count` takes `type` (one or a list),
+  `tag`, `enabled` and `min`/`max` (a range) or `eq`. `ExistsMatch` and
+  `CountMatch` in `./scene`; `UntilClause` gains `exists` and `count`.
+- `PlayState.world` (`exists`, `count`) in headless runs and in the browser
+  shell's outcome judging, so games' `outcome` hooks and predicates read
+  it; `PlayWorld.exists(id, { enabled: false })` answers for a disabled
+  entity too. `playWorld(ctx)` in `./headless` builds one.
+- `untilHolds(clause, state, registry)` in `./headless`, the one `until`
+  evaluator, and `runPlaytest`'s `onLastTick` hook (`PlaytestHooks`).
+- An `EngineError` thrown out of a step ends a playtest as
+  `PlaytestBlocked` with `stage: "run"` and the error as an issue carrying
+  its code; `runBlocked(err, ...)` in `./headless` builds that report.
+- `reaches` checks take `expect`, an `until` clause (`event`, `tick`,
+  `exists`, `count` and the game's predicates) every key of which must hold
+  on the run's last tick; the verdict names the first key that fails, in
+  the order the check wrote them (`checks:v1`, additive).
+- `scene step` and `scene playtest` count spawns and destroys per entity
+  type from the lifecycle events' `data.type` (a
+  `spawned bullet ×212, destroyed ×212` line per type, and
+  `lifecycle: { <type>: { spawned, destroyed } }` in `--json`);
+  `--events <type,…>` limits the printed and returned `events` to those
+  types, while `lifecycle` still counts every reported event. MCP
+  `scene_playtest` gains `events: string[]` with the same filter and
+  returns `lifecycle`; its and `scene_check`'s descriptions name the
+  `exists`/`count` predicates, the six lifecycle and contact events, stage
+  `run` and `reaches.expect` (tool names unchanged).
+- The `shooter` genre probe (twin-stick, endless-runner and tower-defense in
+  part). Zero gravity; a turret fires a thousand spawned `bullet`s with
+  `lifetime`, and each is destroyed on `contact:start` with a wall. It runs
+  on Rapier and on physics `none`.
+- The `roguelike` genre probe: on a square grid with no physics and a turns
+  clock, `ctx.random` places rooms by `ctx.instantiate` of two prefabs built
+  in code. A spawned `rogue` explores by field of view and A\* until it
+  reaches the stairs (`won`). One layout per seed, pinned for the default
+  seed and seeds 1 and 2.
+- The engine project's kitchen sink gains `spark`, a decor whose `lifetime`
+  block destroys it 30 ticks after load, and its checks a `fades` reaches
+  check whose `expect` holds an `exists` (`lamp`) and a `count`
+  (`{ type: "decor", eq: 1 }`).
+
+### Changed
+
+- `SceneSystem` and `BehaviorSystem` gain optional `ready?(ids)`,
+  `disable?(id)` and `enable?(id)`. The runtime calls each system's `ready`
+  after a load's, an `add`'s, a spawn's or an instantiate's entities
+  attach, in spawn-group order (at load before the seek and `onLoad`).
+  Systems without them behave as before.
+- A `BehaviorDef.refine` is applied wherever a block is checked: parse, ops,
+  `ctx.spawn`'s dev and headless check, and validation. It sees the written
+  block over the type's defaults.
+- `SceneRuntime.add`/`update`/`remove` share the spawn and despawn path with
+  game code, so `remove` also ends what the entity owns: its timers,
+  subscriptions and contacts.
+- `entitySchemaFor` returns `undefined` for a spawn-only type, and
+  `suggestType` suggests placeable types only.
+- `PhysicsRequiredError` extends `EngineError` (code `physics-required`);
+  its constructor is unchanged, and its `entityId` is absent rather than
+  `undefined` when it names none.
+- Inspector: a prop's density, restitution and friction sit in Physics with
+  the body settings; unset body fields show their default (`meta.default`)
+  or fallback (`meta.placeholder`, new `ModelField.placeholder`) as the
+  placeholder; long field titles widen the label column instead of clipping;
+  an optional side's clear segment reads `any`.
+- `FieldKind` gains `"tags"` (`tagsField` carries `meta({ kind: "tags" })`);
+  `geometryFields` leaves tag fields out, and transforms leave them as
+  written.
+- The platformer's actor is a spawn-only `player` entity, `player#1`. Its
+  collider tag and view id are its entity id (was `player` / `~player`), it
+  appears in `ctx.get`, `stats().perType`, `scene()` and `ctx.query`, and
+  sensor events name `other: "player#1"`. The platformer's
+  `PLAYER_ENTITY_ID` export is gone, and `PLAYER_TYPE` and
+  `PlayerTypeEntity` are exported.
+- Play and Stop remember the edit scene without the entities game code
+  spawned, so Stop restores the authored scene and its next load spawns
+  them again.
+- `physics-required` is now fixable: each issue carries a `fix` batch
+  `{ label: 'Set the scene's physics to "rapier"', ops: [{ op: "setSettings",
+set: { physics: "rapier" } }] }`, so the editor's Problems panel and
+  `vp run scene apply` repair it in one step.
+- A game predicate named `exists` or `count` is refused at registry build.
+- A recording's markers skip `entity:*` events unless the game's
+  `play.markers` names them; `contact:*` and every other type still mark
+  when the game names none.
+- `fuzz` counts only scene refs in `touched` and `untouched`, never a
+  runtime `#` id.
+
+### Fixed
+
+- `@jams/engine/vite`: the dev server no longer crashes when a client aborts
+  a request. `sceneCollabServer` keeps an `error` listener on every request,
+  response and upgrade socket the dev server's http server sees, whichever
+  middleware answers it. A `/__project` blob upload cut off mid-body ends
+  with no write and no error page. `SceneCollabPlugin`'s `httpServer` now
+  also takes a `request` listener.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 11, and every committed JSON Schema's
+  `x-agent-surface` with it. Schema ids are unchanged: every schema change
+  below is additive.
+- Issue code `spawn-id-invalid` (error): a runtime spawn or instantiate id
+  that isn't `<name>#<label>` for its type or prefab, has an all-digit
+  label, or is already live. Thrown by `ctx.spawn` as an `EngineError`.
+- Issue code `prefab-not-spawnable` (error): `ctx.instantiate` can't place a
+  prefab (not in the run's library, cyclic or too deep, or a child needs
+  physics in a scene without it). Thrown as an `EngineError` whose `cause`
+  carries the underlying code.
+- `scene.schema.json`: every loading type's behaviors slot gains `lifetime`
+  (`ticks`, `ms`, `then`).
+- `ops.schema.json`: an `add`'s `entity.type` lists placeable types only.
+- `input-script.schema.json`: the header gains an optional `seed` (number
+  or string).
+- `recording.schema.json`: `start` gains an optional `seed` (number or
+  string).
+- Issue code `event-loop` (error): one event dispatch pass delivered more
+  than the limit, so handlers raise events in a loop. Thrown by the event
+  bus as an `EngineError`; a playtest it stops is blocked at stage `run`.
+- `input-script.schema.json` (engine and platformer): `until` gains
+  `exists` (`$defs.ExistsMatch`) and `count` (`$defs.CountMatch`,
+  `$defs.EntityType`).
+- `recording.schema.json`: the `markers` description says which events a
+  game that names none keeps.
+- `checks:v1`: `reaches` gains optional `expect`.
+- CLI: `step` and `playtest` take `--events type,…`; MCP `scene_playtest`
+  takes `events`.
+- `scripts/scene/README.md` §Lifecycle documents the six lifecycle and
+  contact events, `exists`/`count`, `reaches.expect`, `step`/`playtest
+--events` and the lifecycle summaries, and the codes `spawn-id-invalid` and
+  `prefab-not-spawnable`, each with an example the docs test runs; the
+  engine README gains §Entity lifecycle (hooks, fallbacks, load and tick
+  order), §Spawning and prefabs at runtime, §Events, §Timers, §Randomness,
+  §Queries, §Contacts and §`lifetime` and pools.
+
 ## [0.9.0] — unreleased
 
 World models: optional physics, grids, turns and movement. Nothing in the

@@ -149,6 +149,39 @@ describe("Play and Stop", () => {
     expect(game.getStore().state.mode).toBe("edit");
   });
 
+  it("loads the authored scene on Play and Stop, leaving out what game code spawned", async () => {
+    const loadedRuntimeIds: string[][] = [];
+    const spawning: GameDefinition = {
+      ...testGame,
+      createRuntime(ctx) {
+        const inner = testGame.createRuntime(ctx);
+        return {
+          ...inner,
+          onLoad(scene) {
+            inner.onLoad?.(scene);
+            loadedRuntimeIds.push(
+              scene.entities.filter((e) => e.id.includes("#")).map((e) => e.id),
+            );
+            ctx.spawn({ type: "marker", at: [300, 900] });
+          },
+        };
+      },
+    };
+    const game = await editing({ game: spawning });
+    const editScene = world(game)!.scene()!;
+    expect(editScene.entities.filter((e) => e.id.includes("#")).map((e) => e.id)).toEqual([
+      "marker#1",
+    ]);
+    game.setMode("play");
+    game.step(5);
+    game.stop();
+    expect(world(game)!.scene()).toStrictEqual(editScene);
+    game.play(yard());
+    game.stop();
+    expect(world(game)!.scene()).toStrictEqual(editScene);
+    expect(loadedRuntimeIds.every((ids) => ids.length === 0)).toBe(true);
+  });
+
   it("throws on a mutation of the frozen play document in dev, and not outside it", async () => {
     let mutated = 0;
     const mutating: GameDefinition = {
@@ -276,6 +309,50 @@ describe("the play session", () => {
     expect(game.getStore().state.session).toBeNull();
     game.play(yard());
     expect(game.getStore().state.session).toEqual({ startTick: 200, outcome: null });
+  });
+
+  it("judges the outcome with the live world's exists and count", async () => {
+    const seen: { crate: boolean; ledge: boolean; anyLedge: boolean; props: number }[] = [];
+    const judged: GameDefinition = {
+      ...testGame,
+      createRuntime(ctx) {
+        const inner = testGame.createRuntime(ctx);
+        let ticks = 0;
+        return {
+          ...inner,
+          beforeStep(...args) {
+            inner.beforeStep?.(...args);
+            if (++ticks === 5) {
+              ctx.destroy("crate");
+              ctx.setEnabled("ledge", false);
+            }
+          },
+        };
+      },
+      play: {
+        ...testGame.play!,
+        outcome({ world }) {
+          if (!world) return null;
+          seen.push({
+            crate: world.exists("crate"),
+            ledge: world.exists("ledge"),
+            anyLedge: world.exists("ledge", { enabled: false }),
+            props: world.count({ type: "prop" }),
+          });
+          return world.exists("crate") ? null : { result: "won", cause: "the crate is gone" };
+        },
+      },
+    };
+    const game = await editing({ game: judged });
+    game.play(yard());
+    game.step(10);
+
+    expect(seen[0]).toEqual({ crate: true, ledge: true, anyLedge: true, props: 2 });
+    expect(seen.at(-1)).toEqual({ crate: false, ledge: false, anyLedge: true, props: 1 });
+    expect(game.getStore().state.session?.outcome).toMatchObject({
+      result: "won",
+      cause: "the crate is gone",
+    });
   });
 });
 

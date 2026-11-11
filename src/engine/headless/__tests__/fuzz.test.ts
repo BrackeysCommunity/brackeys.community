@@ -5,6 +5,8 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import { isRuntimeId } from "../../game/runtime-ids";
+import type { GameDefinition } from "../../game/types";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { Rng } from "../../sim-kit/rng";
@@ -167,4 +169,46 @@ describe("fuzz", () => {
       stage: "scene",
     });
   });
+
+  it("never lists a runtime id in a spawning game's report, as touched or untouched", () => {
+    const seen: string[] = [];
+    /** The test game spawning a marker every tick and naming it in its own events. */
+    const spawning: GameDefinition = {
+      ...testGame,
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        let last: string | null = null;
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            base.beforeStep?.(dtMs, actions, commands);
+            if (last) ctx.destroy(last);
+            last = ctx.spawn({ type: "plain", at: [100, 100] }).id;
+            seen.push(last);
+            ctx.emit({ type: "test:near", entityId: last, other: "zone", at: { x: 0, y: 0 } });
+          },
+        };
+      },
+    };
+    const r = report(
+      fuzz({
+        rapier,
+        game: spawning,
+        registry: createRegistry(spawning),
+        scene: yard,
+        seed: 1,
+        rollouts: 4,
+        ticks: 200,
+      }),
+    );
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every(isRuntimeId)).toBe(true);
+    const refs = [...r.touched.map((t) => t.ref), ...r.untouched];
+    expect(refs.filter((ref) => ref.includes("#"))).toEqual([]);
+    expect(r.touched.find((t) => t.ref === "zone")).toMatchObject({ reached: 4, firstTick: 0 });
+    const plain = run({ rollouts: 1, ticks: 10 });
+    expect(new Set(refs)).toEqual(
+      new Set([...plain.touched.map((t) => t.ref), ...plain.untouched]),
+    );
+  }, 30_000);
 });

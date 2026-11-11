@@ -6,7 +6,8 @@ import {
   type SpriteAssetLookup,
   type SpriteBlock,
 } from "../game/behaviors/sprite";
-import { PRIMITIVE_TYPES, type RegisteredType, type Registry } from "../game/types";
+import { SIDES, sideOf } from "../game/fields";
+import { PRIMITIVE_TYPES, type RegisteredType, type Registry, type Side } from "../game/types";
 import { assetInfo } from "../project/asset-info";
 import type { ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
@@ -205,6 +206,62 @@ export function num(v: number): string {
   const r = Math.round(v * 100) / 100;
   return Object.is(r, -0) ? "0" : String(r);
 }
+
+// ─── One-way sides ───────────────────────────────────────
+
+/** The face of a one-way solid that holds actors: the side of its world box the solid system judges. */
+export type OneWayEdge = {
+  entity: DrawnEntity;
+  side: Side;
+  /** The face's ends, clockwise around the solid. */
+  from: Pt;
+  to: Pt;
+  /** Unit vector out of the face, toward where actors land from. */
+  normal: Pt;
+};
+
+const SIDE_NORMALS: Record<Side, Pt> = { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] };
+
+/** A `oneWay` value's side: `true` is `"up"`; null when it isn't one-way. */
+export function oneWaySide(value: unknown): Side | null {
+  const valid =
+    value === true || (typeof value === "string" && (SIDES as readonly string[]).includes(value));
+  return valid ? sideOf(value as Side | true) : null;
+}
+
+/** Where a drawn entity lands actors, from its own `oneWay` (already turned and flipped with it); null when it has none or no shape. */
+export function oneWayEdge(d: DrawnEntity): OneWayEdge | null {
+  const side = oneWaySide(d.entity.oneWay);
+  if (!side || !d.shape) return null;
+  const { minX, minY, maxX, maxY } = aabb(d.shape);
+  const faces: Record<Side, [Pt, Pt]> = {
+    up: [
+      [minX, minY],
+      [maxX, minY],
+    ],
+    right: [
+      [maxX, minY],
+      [maxX, maxY],
+    ],
+    down: [
+      [maxX, maxY],
+      [minX, maxY],
+    ],
+    left: [
+      [minX, maxY],
+      [minX, minY],
+    ],
+  };
+  const [from, to] = faces[side];
+  return { entity: d, side, from, to, normal: SIDE_NORMALS[side] };
+}
+
+/** Every one-way face among `entities`, in their order. */
+export const oneWayEdges = (entities: readonly DrawnEntity[]): OneWayEdge[] =>
+  entities.flatMap((d) => {
+    const edge = oneWayEdge(d);
+    return edge ? [edge] : [];
+  });
 
 // ─── Grid fields ─────────────────────────────────────────
 

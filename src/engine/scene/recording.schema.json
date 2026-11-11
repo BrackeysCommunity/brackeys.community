@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:recording:v1",
-  "x-agent-surface": 10,
+  "x-agent-surface": 11,
   "title": "jams engine run recording, format v1",
   "type": "object",
   "properties": {
@@ -73,6 +73,17 @@
         },
         "game": {
           "description": "The game's play options, as its `play.options` schema defines them."
+        },
+        "seed": {
+          "description": "The seed `EngineContext.random` was given; omitted when the run named none and used the default for its game and scene.",
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -220,7 +231,7 @@
         "additionalProperties": false,
         "description": "An event worth showing on the ghost."
       },
-      "description": "Events the game marks (`play.markers`; every event when it names none), capped."
+      "description": "Events the game marks (`play.markers`; every event but `entity:*` when it names none), capped."
     },
     "trail": {
       "description": "The game's focus over the run, for the ghost.",

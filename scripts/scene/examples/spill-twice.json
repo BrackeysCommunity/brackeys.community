@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "scene": "basin",
+  "steps": [
+    { "command": "spill", "args": { "id": "drop#first" } },
+    { "command": "spill", "args": { "id": "drop#first" } }
+  ]
+}

@@ -140,6 +140,23 @@ describe("grid-yard, the engine's physics-free scene", () => {
   });
 });
 
+describe("kitchen-sink, the engine's feature scene", () => {
+  it("passes its checks through the CLI, a lifetime entity gone by the time its expect is judged", async () => {
+    const result = await check(
+      { scene: "kitchen-sink" },
+      { projects: PROJECTS, loadRapier: loadCompatRapier },
+    );
+    expect(result.exitCode, result.text).toBe(0);
+    const results = (
+      result.data as { results: { id: string; pass: boolean; skipped?: string; message: string }[] }
+    ).results;
+    const fades = results.find((r) => r.id === "fades");
+    expect(fades?.pass, fades?.message).toBe(true);
+    expect(fades?.message).toContain("expect holds (count, exists)");
+    for (const r of results.filter((r) => r.skipped === undefined)) expect(r.pass, r.id).toBe(true);
+  });
+});
+
 describe("every game's schemas read as documentation", () => {
   for (const game of PROJECTS.flatMap((p) => (p.game ? [p.game] : []))) {
     const registry = createRegistry(game);

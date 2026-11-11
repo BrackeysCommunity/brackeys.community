@@ -31,6 +31,12 @@ export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   /** Never changes simulation state: built only with a view, never headless. */
   visualOnly?: boolean;
   inspector?: { label?: string; order?: readonly string[] };
+  /**
+   * A check across the block's fields that a field shape can't say
+   * ("exactly one of `ticks` or `ms`"): the message of a `schema` issue, or
+   * undefined when the block is fine. Runs after the fields parse.
+   */
+  refine?(block: BehaviorBlock): string | undefined;
 };
 
 /** Identity at runtime; types the definition. Names and rules are checked when a registry is built. */
@@ -64,6 +70,11 @@ export interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
   seek?(ms: number): void;
   clear(): void;
   size(): number;
+  /** After a load's or a spawn's entities attached, with the ids carrying this behavior in spawn order. */
+  ready?(ids: readonly string[]): void;
+  /** The entity is disabled; without it the host detaches the block, and attaches it again on enable. */
+  disable?(entityId: string): void;
+  enable?(entityId: string): void;
 }
 
 export type BehaviorSystemFactory = (ctx: EngineContext, def: RegisteredBehavior) => BehaviorSystem;

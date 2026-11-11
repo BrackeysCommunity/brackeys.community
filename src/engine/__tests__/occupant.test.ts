@@ -72,9 +72,39 @@ const glider = defineEntityType({
   },
 });
 
+/** A walker whose system pauses it while disabled, keeping its pose. */
+const strider = defineEntityType({
+  type: "strider",
+  description: "A point that walks right and can be paused.",
+  fields: { at: pointField("Where it starts."), vx: z.number().describe("px per tick.") },
+  system: (ctx): SceneSystem => {
+    const live = new Map<string, number>();
+    const paused = new Set<string>();
+    return {
+      spawn(e) {
+        const [x, y] = e.at as [number, number];
+        ctx.poses.set(e.id, x, y, 0, { snap: true });
+        live.set(e.id, e.vx as number);
+      },
+      despawn: (id) => void (live.delete(id), paused.delete(id)),
+      clear: () => (live.clear(), paused.clear()),
+      size: () => live.size,
+      afterStep() {
+        for (const [id, vx] of live) {
+          if (paused.has(id)) continue;
+          const p = ctx.poses.get(id)!;
+          ctx.poses.set(id, p.x + vx, p.y);
+        }
+      },
+      disable: (id) => void paused.add(id),
+      enable: (id) => void paused.delete(id),
+    };
+  },
+});
+
 const game: GameDefinition = defineGame({
   id: "occ",
-  types: [walker, glider],
+  types: [walker, glider, strider],
   actions: [],
   createRuntime: () => ({ snapshot: () => null }),
 });
@@ -177,6 +207,39 @@ describe("the occupant behavior", () => {
     rt.remove(["b"]);
     expect(occ.cellOf("b")).toBeUndefined();
     expect(rt.stats().behaviors?.[OCCUPANT.name]).toBeUndefined();
+    rt.destroy();
+  });
+
+  it("leaves occupancy on disable and is re-placed at its pose's cell on enable", () => {
+    const stride = {
+      id: "s",
+      type: "strider",
+      at: [5, 5],
+      vx: 10,
+      behaviors: { [OCCUPANT.name]: {} },
+    };
+    const rt = loaded(scene([walk("w", [5, 5], 10), stride as EntityDef]));
+    const occ = rt.ctx.grid!.occupancy;
+    for (let i = 0; i < 3; i++) rt.step(DT, []);
+    expect(occ.cellOf("w")).toEqual([3, 0]);
+    expect(occ.cellOf("s")).toEqual([3, 0]);
+
+    rt.ctx.setEnabled("w", false);
+    rt.ctx.setEnabled("s", false);
+    expect(occ.cellOf("w")).toBeUndefined();
+    expect(occ.cellOf("s")).toBeUndefined();
+    expect(occ.at([3, 0])).toEqual([]);
+    rt.step(DT, []);
+    expect(occ.at([3, 0])).toEqual([]);
+
+    // The strider's system keeps its pose; the walker's has no hooks, so it spawns again from its record.
+    rt.ctx.setEnabled("s", true);
+    rt.ctx.setEnabled("w", true);
+    expect(occ.cellOf("s")).toEqual([3, 0]);
+    expect(occ.cellOf("w")).toEqual([0, 0]);
+    rt.step(DT, []);
+    expect(occ.cellOf("s")).toEqual([4, 0]);
+    expect(occ.cellOf("w")).toEqual([1, 0]);
     rt.destroy();
   });
 

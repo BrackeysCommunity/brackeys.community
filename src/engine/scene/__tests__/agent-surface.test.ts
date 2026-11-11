@@ -12,7 +12,7 @@ import { AGENT_SURFACE_VERSION } from "../agent-surface";
  * change, bump the version, update `src/engine/CHANGELOG.md` under **Agent
  * surface**, and pin the new hash here.
  */
-const PINNED = { version: 10, hash: "da00eac2dbdd828c" };
+const PINNED = { version: 11, hash: "4d5f1d08eee5aae6" };
 
 function agentLists() {
   const api = JSON.parse(

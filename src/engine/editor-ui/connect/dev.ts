@@ -1,6 +1,6 @@
 import type { AssetUrl } from "../../index";
 import { createKindRegistry, type ProjectId } from "../../project/index";
-import type { EditorHost, HocuspocusModule } from "../host";
+import type { EditorHost, HocuspocusModule, SceneHome } from "../host";
 import { blobContentStore, projectBlobs } from "./blobs";
 import { hocuspocusTransport } from "./hocuspocus";
 import { connectProjectSession } from "./project-session";
@@ -14,6 +14,9 @@ export const SCENE_COLLAB_PATH = "/__scene-collab";
 
 /** The dev server's project routes, blob uploads among them. */
 export const PROJECT_ROUTE = "/__project";
+
+/** The dev server's scene listing (`GET`, every project's scene ids) and each scene's JSON. */
+export const SCENE_ROUTE = "/__scene";
 
 type PageOrigin = Pick<Location, "protocol" | "host">;
 
@@ -43,11 +46,67 @@ export const devAssetUrl =
   (project, entry) =>
     `${devBlobRoute(project, origin)}/${entry.sha256}`;
 
+type Fetch = (url: string) => Promise<Pick<Response, "ok" | "json">>;
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Which of the dev server's projects holds `scene`, by id or by name: the
+ * scene's JSON names its game (none for the engine's primitives), and the
+ * project listing says which project plays that game. Null when no scene
+ * matches, when two projects play the game, or when the server can't say.
+ */
+export async function findDevScene(
+  scene: string,
+  opts: { base?: string; fetch?: Fetch } = {},
+): Promise<SceneHome | null> {
+  const base = opts.base ?? "";
+  const get = async (path: string): Promise<unknown> => {
+    try {
+      const res = await (opts.fetch ?? globalThis.fetch)(`${base}${path}`);
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
+  const [listing, served] = await Promise.all([get(SCENE_ROUTE), get(PROJECT_ROUTE)]);
+  const ids = isRecord(listing) && Array.isArray(listing.scenes) ? listing.scenes : [];
+  const projects = isRecord(served) && Array.isArray(served.projects) ? served.projects : [];
+  const read = async (id: string) => {
+    const doc = await get(`${SCENE_ROUTE}/${encodeURIComponent(id)}`);
+    return isRecord(doc) ? doc : null;
+  };
+  const candidates = ids.filter((id): id is string => typeof id === "string");
+  let found: { id: string; doc: Record<string, unknown> } | null = null;
+  if (candidates.includes(scene)) {
+    const doc = await read(scene);
+    if (doc) found = { id: scene, doc };
+  }
+  for (const id of found ? [] : candidates) {
+    const doc = await read(id);
+    if (doc?.name === scene) {
+      found = { id, doc };
+      break;
+    }
+  }
+  if (!found) return null;
+  const game = typeof found.doc.game === "string" ? found.doc.game : null;
+  const homes = projects.filter(
+    (p): p is { id: string } =>
+      isRecord(p) && typeof p.id === "string" && (p.game ?? null) === game,
+  );
+  if (homes.length !== 1) return null;
+  const name = typeof found.doc.name === "string" ? found.doc.name : found.id;
+  return { project: homes[0]!.id, id: found.id, name };
+}
+
 /**
  * The dev server's project session and asset route, on the paths `./vite`
  * serves: one Hocuspocus socket for the project doc and every scene and
  * prefab doc it opens, with the project's blob route as its content store
- * and import target. The dev server takes no tokens.
+ * and import target, and its scene listing to say which project holds a
+ * scene. The dev server takes no tokens.
  */
 export function devProjectHost(opts: {
   hocuspocus: HocuspocusModule;
@@ -59,7 +118,7 @@ export function devProjectHost(opts: {
   origin?: string;
   /** When the host's build was made; the dev server stamps with the same VITE_BUILD_AT. */
   buildAt?: number;
-}): Pick<EditorHost, "connect" | "assetUrl"> {
+}): Pick<EditorHost, "connect" | "assetUrl" | "findScene"> {
   const transport = hocuspocusTransport(opts.hocuspocus);
   const page = opts.origin === undefined ? undefined : new URL(opts.origin);
   // Blobs go over http(s) on the same host, whichever scheme the origin was given in.
@@ -67,6 +126,7 @@ export function devProjectHost(opts: {
   const url = page ? devCollabUrl(page) : undefined;
   return {
     assetUrl: devAssetUrl(base),
+    findScene: (scene) => findDevScene(scene, { base }),
     connect({ project, registry, origin }) {
       const blobs = projectBlobs(devBlobRoute(project, base));
       const link = connectProjectSession({

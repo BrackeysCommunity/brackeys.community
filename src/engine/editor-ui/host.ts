@@ -35,11 +35,20 @@ export type EditorHost = {
   chrome?: { topLeft?: ReactNode; topRight?: ReactNode };
   /** The editor opened another scene (a fallback, or a scene picker), so a route can follow. */
   onSceneChange?: (id: string) => void;
+  /** The projects the host can open; with two or more the Project panel offers a switcher. */
+  projects?: readonly EditorProjectChoice[];
+  /** A project picked in the switcher: the host opens it by giving the editor another `project`. */
+  onProjectChange?: (id: ProjectId) => void;
+  /** Which project holds a scene, by id or name, so a scene missing from this one can be pointed to. */
+  findScene?: (scene: string) => Promise<SceneHome | null>;
   /** The tree, inspector and licence fields take no edits. */
   readOnly?: boolean;
 };
 
 export type EditorIdentityInput = { name: string; avatarUrl?: string | null };
+export type EditorProjectChoice = { id: ProjectId; name: string };
+/** A scene's project, and its id and display name there. */
+export type SceneHome = { project: ProjectId; id: string; name: string };
 export type NotifyOptions = { description?: string; id?: string };
 export type EditorNotify = ((message: string, opts?: NotifyOptions) => unknown) & {
   success(message: string, opts?: NotifyOptions): unknown;

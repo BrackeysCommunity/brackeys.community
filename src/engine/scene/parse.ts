@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { isSpawnOnly, placeableTypes } from "../game/define";
 import { gridFieldInfo, ID_PATTERN } from "../game/fields";
 import type { Registry } from "../game/types";
 import { closest } from "./did-you-mean";
@@ -14,6 +15,9 @@ import {
   sceneGameOf,
   sceneRegistry,
   sceneSchemaFor,
+  spawnOnlyHint,
+  spawnSchemaFor,
+  spawnOnlyMessage,
   unknownGameIssue,
   unwrapSchema,
 } from "./schema";
@@ -180,15 +184,17 @@ function syntaxIssue(text: string, error: unknown): SceneIssue {
 
 // ─── Zod issues to SceneIssue ────────────────────────────
 
-/** The registered type nearest to `word`, for "did you mean". */
+/** The placeable type nearest to `word`, for "did you mean"; never a spawn-only type. */
 export function suggestType(word: string, registry: Registry): EntityTypeName | undefined {
-  return closest(word, registry.typeNames);
+  return closest(word, placeableTypes(registry));
 }
 
 type MapContext = {
   raw: unknown;
   registry: Registry;
   scene: () => z.ZodObject;
+  /** One entity's schema by its type; `entitySchemaFor` unless the entity is a spawn input. */
+  entity?: (type: string) => z.ZodObject | undefined;
   /** Grid fields already reported, by pointer: one field's problems are reported together. */
   grids?: Set<string>;
 };
@@ -227,11 +233,14 @@ function schemaAt(
   return s;
 }
 
+const entitySchemaOf = (ctx: MapContext, type: string) =>
+  ctx.entity ? ctx.entity(type) : entitySchemaFor(ctx.registry, type);
+
 function knownKeysAt(ctx: MapContext, segments: readonly PropertyKey[]): readonly string[] {
   let target: z.core.$ZodType | undefined;
   if (segments[0] === "entities" && typeof segments[1] === "number") {
     const type = at(ctx.raw, [...segments.slice(0, 2), "type"]);
-    const schema = typeof type === "string" ? entitySchemaFor(ctx.registry, type) : undefined;
+    const schema = typeof type === "string" ? entitySchemaOf(ctx, type) : undefined;
     target = schemaAt(schema, segments.slice(2));
   } else {
     target = schemaAt(ctx.scene(), segments);
@@ -259,7 +268,7 @@ function unknownType(
   const entityPath = segments.slice(0, -1);
   const got = at(ctx.raw, segments);
   const legacy = got === undefined ? at(ctx.raw, [...entityPath, "b"]) : undefined;
-  const names = ctx.registry.typeNames;
+  const names = placeableTypes(ctx.registry);
   const word = typeof got === "string" ? got : typeof legacy === "string" ? legacy : undefined;
   const suggestion = word === undefined ? undefined : suggestType(word, ctx.registry);
   const expected = names.join(" | ");
@@ -275,6 +284,15 @@ function unknownType(
     });
   }
   const path = jsonPointer(segments as (string | number)[]);
+  if (typeof got === "string" && isSpawnOnly(ctx.registry, got))
+    return makeIssue("unknown-type", {
+      message: `${spawnOnlyMessage(got)} (${path})`,
+      path,
+      entityIds,
+      expected,
+      got: describe(got),
+      hint: spawnOnlyHint(ctx.registry),
+    });
   return makeIssue("unknown-type", {
     message: `unknown type ${describe(got)} at ${path}${suggestion ? `; did you mean "${suggestion}"?` : ""}`,
     path,
@@ -306,7 +324,7 @@ function gridFieldAt(
   const [entities, index, field] = segments;
   if (entities !== "entities" || typeof index !== "number" || typeof field !== "string") return;
   const type = at(ctx.raw, ["entities", index, "type"]);
-  const schema = typeof type === "string" ? entitySchemaFor(ctx.registry, type) : undefined;
+  const schema = typeof type === "string" ? entitySchemaOf(ctx, type) : undefined;
   const fieldSchema = schema?.shape[field] as z.core.$ZodType | undefined;
   if (!fieldSchema || fieldKind(fieldSchema) !== "grid") return;
   const max = gridFieldInfo(fieldSchema)?.max ?? GRID_MAX_VALUE;
@@ -439,18 +457,21 @@ const ENTITY_POINTER = /\/entities\/0((?:\/[^\s;:,)"]+)*)/g;
  * Maps a schema failure of one entity checked on its own, as `parseScene`
  * would map it inside a document (did-you-mean for keys and types,
  * `expected` and `got`), with each pointer moved by `relocate` from the
- * entity-relative form (`""`, `/path/speed`).
+ * entity-relative form (`""`, `/path/speed`). With `spawn`, `def` is a
+ * `ctx.spawn` input judged by `spawnSchemaFor`.
  */
 export function entityIssues(
   issues: readonly z.core.$ZodIssue[],
   def: unknown,
   relocate: (rel: string) => string,
   registry: Registry,
+  opts: { spawn?: boolean } = {},
 ): SceneIssue[] {
   const ctx: MapContext = {
     raw: { entities: [def] },
     registry,
     scene: () => sceneSchemaFor(registry),
+    ...(opts.spawn ? { entity: (type: string) => spawnSchemaFor(registry, type) } : {}),
   };
   const move = (text: string) => text.replace(ENTITY_POINTER, (_, rel: string) => relocate(rel));
   return issues.flatMap((issue) =>

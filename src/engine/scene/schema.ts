@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD, type BehaviorBlock, type RegisteredBehavior } from "../game/behaviors";
+import { isSpawnOnly, placeableTypes } from "../game/define";
 import {
   AssetIdSchema,
   BASE_FIELDS,
@@ -60,14 +61,15 @@ export type FieldKind =
   | "mirror"
   | "side"
   | "grid"
+  | "tags"
   | "value";
 
-const META_KINDS: readonly string[] = ["vector", "angle", "mirror", "side", "grid"];
+const META_KINDS: readonly string[] = ["vector", "angle", "mirror", "side", "grid", "tags"];
 
 /**
  * Shape tuples, points and paths are recognised by the schema they were
- * built from, vectors, angles, mirrors, sides and grids by their builder's
- * `meta.kind` (`game/fields.ts`).
+ * built from, vectors, angles, mirrors, sides, grids and tags by their
+ * builder's `meta.kind` (`game/fields.ts`).
  */
 export function fieldKind(schema: z.core.$ZodType): FieldKind {
   const kind = fieldMeta(schema, "kind");
@@ -85,16 +87,24 @@ export function unwrapSchema(schema: z.core.$ZodType): z.core.$ZodType {
   return s;
 }
 
-/** A type's geometry fields, in declaration order. */
+/** A type's geometry fields, in declaration order. Tags are labels, not geometry. */
 export function geometryFields(
   t: RegisteredType,
-): { field: string; kind: Exclude<FieldKind, "value"> }[] {
-  const out: { field: string; kind: Exclude<FieldKind, "value"> }[] = [];
+): { field: string; kind: Exclude<FieldKind, "value" | "tags"> }[] {
+  const out: { field: string; kind: Exclude<FieldKind, "value" | "tags"> }[] = [];
   for (const [field, schema] of Object.entries(t.shape)) {
     const kind = fieldKind(schema);
-    if (kind !== "value") out.push({ field, kind });
+    if (kind !== "value" && kind !== "tags") out.push({ field, kind });
   }
   return out;
+}
+
+/** A type's tag fields (`tagsField`), in declaration order; what `ctx.query`'s `tag` reads. */
+export function tagFieldsOf(t: RegisteredType | undefined): string[] {
+  if (!t) return [];
+  return Object.entries(t.shape).flatMap(([field, schema]) =>
+    fieldKind(schema) === "tags" ? [field] : [],
+  );
 }
 
 /** A type's grid fields, in declaration order; none for an unregistered type. */
@@ -137,6 +147,24 @@ function withoutDefault(s: z.core.$ZodType): z.core.$ZodType {
 }
 
 /**
+ * `schema`, a behavior's block, with the behavior's `refine` applied to the
+ * block over `given` (the defaults it will carry): every path that checks a
+ * block goes through here.
+ */
+export function refineBlock<S extends z.ZodType>(
+  b: Pick<RegisteredBehavior, "refine">,
+  schema: S,
+  given: BehaviorBlock = {},
+): S {
+  const refine = b.refine;
+  if (!refine) return schema;
+  return schema.superRefine((block, issue) => {
+    const message = refine({ ...given, ...(block as BehaviorBlock) });
+    if (message !== undefined) issue.addIssue({ code: "custom", message, input: block });
+  });
+}
+
+/**
  * One behavior's block on a type: its fields, each optional when `given`
  * (the behavior's defaults under the type's) fills it. `needed` tells
  * whether some field has no default, so a required behavior's block must
@@ -155,8 +183,7 @@ function blockSchema(
     shape[field] =
       optional && kept._zod.optout !== "optional" ? (kept as z.ZodType).optional() : kept;
   }
-  const schema = z
-    .strictObject(shape)
+  const schema = refineBlock(b, z.strictObject(shape), given)
     .describe(b.description)
     .meta({ title: b.inspector?.label ?? b.name, group: "behaviors" });
   return { schema, needed };
@@ -192,10 +219,14 @@ function behaviorsSchema(registry: Registry, t: RegisteredType): z.ZodType {
 
 const { id: idField, ...editorFields } = BASE_FIELDS;
 
-function typeSchema(registry: Registry, t: RegisteredType): z.ZodObject {
+function typeSchema(
+  registry: Registry,
+  t: RegisteredType,
+  id: z.core.$ZodType = idField,
+): z.ZodObject {
   const schema = z
     .strictObject({
-      id: idField,
+      id,
       type: z.literal(t.type).describe(t.description).meta({ title: "Type", group: "identity" }),
       ...editorFields,
       ...t.shape,
@@ -205,10 +236,41 @@ function typeSchema(registry: Registry, t: RegisteredType): z.ZodObject {
   return t.loads === false ? schema.meta({ [BEHAVIOR_SLOT_META]: "none" }) : schema;
 }
 
-/** The on-disk schema of one registered type's entities; `undefined` for an unregistered type. */
+/**
+ * The on-disk schema of one placeable type's entities; `undefined` for an
+ * unregistered or spawn-only type, which no scene may name.
+ */
 export function entitySchemaFor(registry: Registry, type: EntityTypeName): z.ZodObject | undefined {
   const t = registry.types.get(type);
-  return t && typeSchema(registry, t);
+  return t && !isSpawnOnly(registry, type) ? typeSchema(registry, t) : undefined;
+}
+
+const SpawnIdSchema = z
+  .string()
+  .optional()
+  .describe(
+    "A runtime id `<name>#<label>`; omitted, the next `<type>#<n>`. The runtime checks it.",
+  );
+
+/**
+ * What `ctx.spawn` takes for `type`: the entity as a scene file writes it,
+ * without its scene id (a runtime id is checked by the runtime, not here).
+ * Placeable and spawn-only types alike; `undefined` for a type that is
+ * unregistered or never loads.
+ */
+export function spawnSchemaFor(registry: Registry, type: EntityTypeName): z.ZodObject | undefined {
+  const t = registry.types.get(type);
+  return t && t.loads !== false ? typeSchema(registry, t, SpawnIdSchema) : undefined;
+}
+
+/** Why a scene can't name `type`, worded once for parse, ops and validate. */
+export function spawnOnlyMessage(type: EntityTypeName): string {
+  return `type "${type}" is spawned by game code only; a scene can't place it`;
+}
+
+/** The hint for a spawn-only type named in a scene, prefab or op. */
+export function spawnOnlyHint(registry: Registry): string {
+  return `Make it with ctx.spawn in game code, or place one of ${placeableTypes(registry).join(", ")}.`;
 }
 
 const unwrapOptional = (schema: z.ZodType): z.ZodType =>
@@ -342,12 +404,14 @@ export const InstanceSchema = z
 
 /**
  * The schema of a scene judged by `registry`: header keys, one optional
- * array per bulk key, and `entities` discriminated by `type`, in canonical
- * key order. A game's schema requires `"game": "<id>"`; the engine's has no
+ * array per bulk key, and `entities` discriminated by `type` over the
+ * placeable types (spawn-only types are left out), in canonical key order. A game's schema requires `"game": "<id>"`; the engine's has no
  * `game` key.
  */
 export function sceneSchemaFor(registry: Registry): z.ZodObject {
-  const types = [...registry.types.values()].map((t) => typeSchema(registry, t));
+  const types = placeableTypes(registry).map((name) =>
+    typeSchema(registry, registry.types.get(name)!),
+  );
   const entity = z
     .discriminatedUnion(
       "type",

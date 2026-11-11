@@ -16,6 +16,7 @@ import type { SpaceQuery } from "../runtime/space";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type { SceneLayerDef } from "../scene/layers";
 import type {
+  Aabb,
   BulkForm,
   BulkKey,
   Bounds,
@@ -26,6 +27,7 @@ import type {
   GridSettings,
   InstanceInput,
   IssueCodeInfo,
+  OverridePath,
   PrefabLibrary,
   Pt,
   ResolvedSettings,
@@ -35,6 +37,7 @@ import type {
   SceneSettings,
   ShapeObj,
 } from "../scene/types";
+import type { Rng } from "../sim-kit/rng";
 import type { AttachmentHub } from "../systems/attachments";
 import type { ToolRouter } from "../tool-router";
 import type { GameMode, InputAction, InputBinding, RapierModule, Vec2 } from "../types";
@@ -158,6 +161,18 @@ export interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
   beforeStep?(dtMs: number): void;
   /** After the physics step, in spawn order, before the game's `afterStep`. */
   afterStep?(dtMs: number): void;
+  /**
+   * After a load's or a spawn's entities of this type spawned and their
+   * behaviors attached; ids in spawn order.
+   */
+  ready?(ids: readonly string[]): void;
+  /**
+   * Stop simulating `id`: colliders out of queries, visuals hidden, state
+   * kept. Without it the runtime despawns the entity and keeps its record.
+   */
+  disable?(id: string): void;
+  /** Simulate `id` again. Without it the runtime spawns it again from its record, state reset. */
+  enable?(id: string): void;
 }
 
 /** Everything a scene system or a game's runtime hooks need, scoped to one runtime. */
@@ -213,6 +228,189 @@ export type EngineContext = {
   behavior: <S extends BehaviorSystem = BehaviorSystem>(name: BehaviorName) => S | undefined;
   /** Texture sampling for a sprite whose texture's import sets no `filter`. */
   readonly sampling: "linear" | "nearest";
+  /**
+   * Spawns one entity now, through its type's system, and returns it live:
+   * posed, its behaviors attached and `ready` run. Throws an `EngineError`
+   * (`spawn-id-invalid`, `unknown-type`, `schema`, `physics-required`)
+   * after undoing what it did.
+   */
+  spawn: <E extends RuntimeEntity = RuntimeEntity>(input: SpawnInput) => E;
+  /**
+   * Destroys an entity, or every child of an instance id. Inside a step it
+   * happens at the end of the tick, after the game's `afterStep`; outside
+   * one, at once.
+   */
+  destroy: (id: string) => void;
+  /**
+   * Immediate. A disabled entity skips its systems, behaviors, contacts,
+   * queries and owned timers, and keeps its state.
+   */
+  setEnabled: (id: string, enabled: boolean) => void;
+  /** False for a disabled entity and for one that doesn't exist. */
+  enabled: (id: string) => boolean;
+  exists: (id: string) => boolean;
+  /** A live entity, loaded or spawned. */
+  get: (id: string) => RuntimeEntity | undefined;
+  /** True while Play's `timeOffsetMs` is being sought before tick 0. */
+  readonly seeking: boolean;
+  /** Subscriptions to this runtime's step events, delivered at the tick's dispatch points. */
+  events: EventBus;
+  /**
+   * Places a prefab now, as a load would: the instance id is
+   * `<prefab>#<n>` (or `opts.id`), its children `<id>/<child>`. Throws an
+   * `EngineError` (`prefab-not-spawnable`, `spawn-id-invalid`). A
+   * `prefab-not-spawnable` error's `cause` says why: an issue (`prefab-unknown`,
+   * `prefab-cycle`, `prefab-depth`) or an `EngineError` (`physics-required`,
+   * `unknown-type`), each with its `code`.
+   */
+  instantiate: (prefab: AssetId, at: Pt | Vec2, opts?: InstantiateOptions) => InstantiateResult;
+  /** Tick-counted timers and coroutines, reset at each load. */
+  timers: Timers;
+  /**
+   * Seeded at each load from `PlayOptions.seed`, else from the game's and
+   * the scene's names; `fork(label)` gives a system its own stream. Engine
+   * systems and behaviors never draw from it.
+   */
+  random: Rng;
+  /** Entities by type, tag, area, point and distance, read from poses and shapes. */
+  query: EntityQuery;
+  /** Contact starts and ends between watched entities, raised as step events. */
+  contacts: Contacts;
+};
+
+// ─── Lifecycle ───────────────────────────────────────────
+
+/**
+ * An entity to spawn, as it is written in a scene file (shape tuples,
+ * behaviors, `z`, `layer`), its id optional.
+ */
+export type SpawnInput = {
+  type: EntityTypeName;
+  /** `<name>#<label>`, the label not all digits; omitted, the next `<type>#<n>`. */
+  id?: string;
+  [field: string]: unknown;
+};
+
+/**
+ * A runtime refusal with an issue code: `spawn-id-invalid`,
+ * `prefab-not-spawnable`, `physics-required`, `unknown-type`, `schema`. A
+ * playtest that hits one ends blocked at stage `"run"` with its code.
+ */
+export class EngineError extends Error {
+  readonly code: string;
+  readonly entityId?: string;
+  constructor(code: string, message: string, entityId?: string) {
+    super(message);
+    this.name = "EngineError";
+    this.code = code;
+    if (entityId !== undefined) this.entityId = entityId;
+  }
+}
+
+/** Options for `EngineContext.events.on` and `once`. */
+export type EventSubscribeOptions = {
+  /** Only events whose `entityId` or `other` is this id, or a child of this instance id. */
+  entity?: string;
+  /** The subscription ends when this entity is destroyed. */
+  owner?: string;
+};
+
+export interface EventBus {
+  /**
+   * Handlers run at the tick's two dispatch points (after the timers, and
+   * after the end-of-tick destroys), in subscription order per event and
+   * raise order across events. Returns the unsubscribe. Subscriptions end
+   * at unload, so subscribe in `onLoad` or later.
+   */
+  on(type: string, handler: (e: StepEvent) => void, opts?: EventSubscribeOptions): () => void;
+  /** As `on`, for the first matching event only. */
+  once(type: string, handler: (e: StepEvent) => void, opts?: EventSubscribeOptions): () => void;
+}
+
+export type InstantiateOptions = {
+  rot?: 0 | 1 | 2 | 3;
+  flip?: boolean;
+  z?: number;
+  layer?: string;
+  params?: Readonly<Record<string, unknown>>;
+  overrides?: Readonly<Record<OverridePath, unknown>>;
+  /** `<prefab>#<label>`; omitted, the next `<prefab>#<n>`. */
+  id?: string;
+};
+
+/** The instance id and its children's ids, in spawn order. */
+export type InstantiateResult = { id: string; entities: readonly string[] };
+
+// ─── Timers ──────────────────────────────────────────────
+
+/** Ticks, or milliseconds rounded to ticks once, at creation, with the run's tick rate. */
+export type Delay = number | { ms: number };
+
+/**
+ * What a timer does when it falls due: a function, or an event it raises.
+ * Only the event form can be saved with a snapshot.
+ */
+export type TimerAction = (() => void) | { emit: string; entityId?: string; data?: unknown };
+
+/** What a coroutine yields: a delay to wait, or a predicate to wait on (checked each tick). */
+export type CoroutineYield = Delay | (() => boolean);
+
+export interface Timers {
+  /** Runs `action` once after `delay`; returns the timer's id. */
+  after(delay: Delay, action: TimerAction, opts?: { owner?: string }): number;
+  /** Runs `action` every `period`, `times` times when given. */
+  every(period: Delay, action: TimerAction, opts?: { owner?: string; times?: number }): number;
+  /** Runs `co` from the next timer phase; a yielded delay waits, a yielded predicate waits until it holds. */
+  start(co: () => Generator<CoroutineYield, void, void>, opts?: { owner?: string }): number;
+  cancel(id: number): void;
+  /** Timers and coroutines pending. */
+  readonly size: number;
+}
+
+// ─── Queries and contacts ────────────────────────────────
+
+export type EntitySelector = {
+  type?: EntityTypeName | readonly EntityTypeName[];
+  /** A value of the entity's `tagsField` fields. */
+  tag?: string;
+  /** Default true: only enabled entities. */
+  enabled?: boolean;
+};
+
+export interface EntityQuery {
+  /** In spawn order: load order, then spawns appended. */
+  select(sel?: EntitySelector): readonly string[];
+  byType(type: EntityTypeName): readonly string[];
+  byTag(tag: string): readonly string[];
+  count(sel?: EntitySelector): number;
+  /** Entities whose world extent intersects `area`. */
+  inArea(area: ShapeObj | Aabb, sel?: EntitySelector): readonly string[];
+  at(p: Vec2, sel?: EntitySelector): readonly string[];
+  /** Closest by extent; ties go to the earlier spawn. */
+  nearest(p: Vec2, sel?: EntitySelector & { maxDist?: number }): string | undefined;
+  /** The entity's shape moved by its pose's change since it spawned, or a point at its pose when it has no shape. */
+  extent(id: string): ShapeObj | undefined;
+}
+
+/** An entity id, or every entity of a type or with a tag. */
+export type ContactSelector = string | { type?: EntityTypeName; tag?: string };
+
+export interface Contacts {
+  /**
+   * Raises `contact:start` and `contact:end` between `a` and `b` (anything
+   * that isn't a sensor when omitted); returns the unwatch.
+   */
+  watch(a: ContactSelector, b?: ContactSelector): () => void;
+}
+
+/** Disabled entities handed out again before new ones spawn. */
+export type Pool = {
+  /** A free (disabled) entity, enabled; or a new one from `spawn` when none is free and `max` allows. */
+  acquire(): string | null;
+  /** Disables it and marks it free. */
+  release(id: string): void;
+  readonly free: number;
+  readonly live: number;
 };
 
 /** The resolved start of a play world, as the game's `onLoad` reads it from `EngineContext.play`. */
@@ -259,6 +457,11 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   system?: SystemFactory;
   /** False for editor-only types (notes): kept on disk, dropped by `expandScene`. */
   loads?: boolean;
+  /**
+   * Loads and spawns, but can't be placed in a scene: absent from the scene
+   * schema, and `unknown-type` in a file. Game code makes it with `ctx.spawn`.
+   */
+  spawnOnly?: true;
   /**
    * An id-less top-level array under the type's name. `shape` entries fill
    * the `shape` field and `point` entries the `at` field; with `materials`,
@@ -489,7 +692,7 @@ export type EngineRunResult = (typeof ENGINE_RUN_RESULTS)[number];
 export type RunResult = EngineRunResult | (string & {});
 
 /** `until` predicates the engine provides; a game's predicates can't take these names. */
-export const ENGINE_PREDICATES = ["event", "tick"] as const;
+export const ENGINE_PREDICATES = ["event", "tick", "exists", "count"] as const;
 
 /** What a game's outcome hook and script predicates see after each tick. */
 export type PlayState<S = unknown> = {
@@ -498,6 +701,15 @@ export type PlayState<S = unknown> = {
   snapshot: S;
   /** This tick's events only; a game that needs history keeps it in its runtime and snapshot. */
   events: readonly StepEvent[];
+  /** The live world after the tick: whether an entity exists (and is enabled), and how many match. */
+  world?: PlayWorld;
+};
+
+/** What `PlayState.world` answers about the entities live after a tick. */
+export type PlayWorld = {
+  /** True while `id` exists and is enabled; with `enabled: false`, while it exists at all. */
+  exists(id: string, opts?: { enabled?: boolean }): boolean;
+  count(sel: EntitySelector): number;
 };
 
 /** A game's verdict: one of its declared `results`, with what caused it. */
@@ -546,13 +758,13 @@ export type GamePlayDef<S = unknown, G = unknown> = {
   results?: readonly string[];
   /** Called after every tick; a non-null result ends the run with it. The engine never decides one. */
   outcome?(state: PlayState<S>): GameOutcome | null;
-  /** `until` predicates beside the engine's `event` and `tick`. */
+  /** `until` predicates beside the engine's `ENGINE_PREDICATES`. */
   predicates?: Readonly<Record<string, ScriptPredicate<S>>>;
   /** The next fuzz macro; omitted, fuzz holds one or two random actions for 4–60 ticks. */
   macro?(rng: MacroRandom, actions: readonly string[]): Macro;
   /** The schema of `PlayOptions.game` (abilities and the like) and of an input script's `game` key. */
   options?: z.ZodType<G>;
-  /** Event types a recording keeps as markers for the ghost; omitted, it keeps every event. */
+  /** Event types a recording keeps as markers for the ghost; omitted, every event but `entity:*`. */
   markers?: readonly string[];
 };
 

@@ -61,12 +61,14 @@
 <g data-ref="post-2/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1760" cy="1030" r="11.25"/><path d="M1742 1030H1778M1760 1012V1048"/></g>
 <g data-ref="room-1/lamp" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="2720" cy="700" r="11.25"/><path d="M2702 700H2738M2720 682V718"/></g>
 <g data-ref="lamp" data-type="decor" class="marker" fill="none" stroke="#cc99ff" stroke-width="3.38"><circle cx="600" cy="1040" r="11.25"/><path d="M582 1040H618M600 1022V1058"/></g>
+<g data-ref="spark" data-type="decor" class="marker" fill="none" stroke="#cc99ff" stroke-width="3.38"><circle cx="1340" cy="1040" r="11.25"/><path d="M1322 1040H1358M1340 1022V1058"/></g>
 </g>
 <g id="sprites" fill="none" stroke-width="2.81" stroke-dasharray="9 6.75">
 <path data-sprite="ledge" data-asset="hero" data-frame="hero-1" d="M740 890L900 890L900 910L740 910Z" stroke="#8899aa"/>
 <path data-sprite="crate" data-asset="crates" data-frame="crate-0" d="M844 1104L916 1104L916 1176L844 1176Z" stroke="#ddaa77"/>
 <path data-sprite="ball" data-asset="crates" data-frame="crate-1" d="M980 1030L1020 1030L1020 1070L980 1070Z" stroke="#ddaa77"/>
 <path data-sprite="lamp" data-asset="backdrop" d="M552 1008L648 1008L648 1072L552 1072Z" stroke="#cc99ff"/>
+<path data-sprite="spark" data-asset="crates" data-frame="crate-1" d="M1328 1028L1352 1028L1352 1052L1328 1052Z" stroke="#cc99ff"/>
 </g>
 <g id="paths" fill="none">
 <g data-path="carrier" stroke="#ffffff">
@@ -144,6 +146,8 @@
 <text x="3300" y="1068.59" font-size="24.75">door-2/panel</text>
 <text x="620.25" y="1019.75" font-size="24.75" text-anchor="start">lamp</text>
 <text class="sprite-label" x="600" y="1001.25" font-size="20.25" fill-opacity="0.8">backdrop</text>
+<text x="1360.25" y="1019.75" font-size="24.75" text-anchor="start">spark</text>
+<text class="sprite-label" x="1340" y="1021.25" font-size="20.25" fill-opacity="0.8">crates:crate-1</text>
 <text x="2100" y="433.84" font-size="24.75">floor-plan</text>
 <text x="2150" y="358.84" font-size="24.75">pillar</text>
 </g>

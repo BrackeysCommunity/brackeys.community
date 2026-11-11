@@ -11,6 +11,7 @@ import {
   hostPeerColor,
   type EditorHost,
   type EditorNotify,
+  type EditorProjectChoice,
   type ProjectBlobs,
   type ProjectConnection,
 } from "../host";
@@ -59,6 +60,9 @@ export type EditorProjectLink = {
   blobs?: ProjectBlobs;
   /** Viewers: the tree and the licence fields take no edits. */
   readOnly?: boolean;
+  /** The host's projects, offered in a switcher when there are two or more. */
+  projects?: readonly EditorProjectChoice[];
+  onProjectChange?: (id: ProjectId) => void;
 };
 
 /** Everything the editor's frame and panels are drawn from. */
@@ -105,9 +109,12 @@ export type SceneEditorOptions = {
   /**
    * The project connection and who is editing; read once, except `connect`,
    * which runs again when `project` or `registry` changes, and `identity`,
-   * read when the editor has loaded.
+   * read when the editor has loaded, and `onProjectChange`, called as it is now.
    */
-  host: Pick<EditorHost, "connect" | "identity" | "peerColor" | "notify" | "readOnly">;
+  host: Pick<
+    EditorHost,
+    "connect" | "identity" | "peerColor" | "notify" | "readOnly" | "projects" | "onProjectChange"
+  >;
   /** Where notices go when the host has no `notify`: the frame's own toast region. */
   notify?: EditorNotify;
   /** The editor's tasks: opening prefabs, creating variants and reloading art run through it. */
@@ -210,10 +217,17 @@ export function useSceneEditor({
   const [connect] = useState(() => host.connect);
   const [readOnly] = useState(() => host.readOnly);
   const [peerColor] = useState(() => hostPeerColor(host));
+  // The switcher shows only for a host that can open another project.
+  const [projects] = useState(() =>
+    host.onProjectChange && host.projects && host.projects.length > 1 ? host.projects : null,
+  );
+  const projectChange = useRef(host.onProjectChange);
+  const [switchProject] = useState(() => (id: ProjectId) => projectChange.current?.(id));
   // A host's profile can arrive after the editor mounts; whoever it names once Rapier is in is who joins.
   const identityInput = useRef(host.identity);
   useEffect(() => {
     identityInput.current = host.identity;
+    projectChange.current = host.onProjectChange;
   });
   const carried = useRef<Carried | null>(null);
   const [carrying, setCarrying] = useState(false);
@@ -396,11 +410,24 @@ export function useSceneEditor({
               doc: ready.name,
               ...(connection?.blobs ? { blobs: connection.blobs } : {}),
               ...(readOnly ? { readOnly } : {}),
+              ...(projects ? { projects, onProjectChange: switchProject } : {}),
             },
           }
         : {}),
     };
-  }, [live, loaded, game, runStore, getCanvas, open, ready, connection, readOnly]);
+  }, [
+    live,
+    loaded,
+    game,
+    runStore,
+    getCanvas,
+    open,
+    ready,
+    connection,
+    readOnly,
+    projects,
+    switchProject,
+  ]);
 
   const self = useMemo<EditorSelf | null>(
     () => (loaded ? { ...loaded.identity.user, avatarUrl: loaded.avatarUrl } : null),

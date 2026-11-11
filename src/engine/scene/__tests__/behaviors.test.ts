@@ -16,7 +16,7 @@ import type { EntityTypeDef, GameDefinition } from "../../game/types";
 import { expandScene } from "../expand";
 import { formatScene } from "../format";
 import { sceneJsonSchema } from "../json-schema";
-import { parseSceneOrThrow } from "../parse";
+import { parseScene, parseSceneOrThrow } from "../parse";
 import { fieldKind } from "../schema";
 import type { EntityDef, SceneDefinition } from "../types";
 import { validateScene } from "../validate";
@@ -79,11 +79,12 @@ const refused = (over: Partial<GameDefinition>) => problems(() => createRegistry
 
 describe("behavior registration", () => {
   it("registers the engine's behaviors, then the game's in order", () => {
-    expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(["sprite", "occupant"]);
+    expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(["sprite", "occupant", "lifetime"]);
     const r = createRegistry(game());
     expect(r.behaviorNames).toEqual([
       "sprite",
       "occupant",
+      "lifetime",
       "fake/tint",
       "fake/wobble",
       "fake/kinds",
@@ -98,7 +99,7 @@ describe("behavior registration", () => {
     expect(r.behaviors.get("occupant")?.visualOnly).toBeUndefined();
     const reg = r.behaviors.get("fake/wobble")!;
     expect(reg.origin).toBe("fake");
-    expect(reg.index).toBe(3);
+    expect(reg.index).toBe(4);
     expect(reg.requires).toEqual(["fake/tint"]);
     expect(Object.keys(reg.shape)).toEqual(["amount"]);
   });
@@ -111,8 +112,12 @@ describe("behavior registration", () => {
   });
 
   it("has only the engine's without a game, and the primitives registry has none of the game's", () => {
-    expect(createRegistry().behaviorNames).toEqual(["sprite", "occupant"]);
-    expect(createRegistry(game()).primitives.behaviorNames).toEqual(["sprite", "occupant"]);
+    expect(createRegistry().behaviorNames).toEqual(["sprite", "occupant", "lifetime"]);
+    expect(createRegistry(game()).primitives.behaviorNames).toEqual([
+      "sprite",
+      "occupant",
+      "lifetime",
+    ]);
   });
 
   it("defineBehavior is the identity", () => {
@@ -233,6 +238,7 @@ describe("behaviorRules", () => {
       expect(rules.allowed).toEqual([
         "sprite",
         "occupant",
+        "lifetime",
         "fake/tint",
         "fake/wobble",
         "fake/kinds",
@@ -264,6 +270,7 @@ describe("behaviorRules", () => {
     expect(r.behaviorRules("some").allowed).toEqual([
       "sprite",
       "occupant",
+      "lifetime",
       "fake/tint",
       "fake/wobble",
     ]);
@@ -291,6 +298,7 @@ describe("behaviorRules", () => {
     expect(Object.fromEntries(rules.defaults)).toEqual({
       sprite: {},
       occupant: {},
+      lifetime: {},
       "fake/tint": { color: "#ff0000", alpha: 0.5 },
       "fake/wobble": { amount: 3 },
       "fake/kinds": {},
@@ -316,7 +324,13 @@ describe("the test game's behaviors", () => {
   const r = createRegistry(testGame);
 
   it("registers glow and spin, prefixed with the game id", () => {
-    expect(r.behaviorNames).toEqual(["sprite", "occupant", "test-game/glow", "test-game/spin"]);
+    expect(r.behaviorNames).toEqual([
+      "sprite",
+      "occupant",
+      "lifetime",
+      "test-game/glow",
+      "test-game/spin",
+    ]);
     expect(r.behaviors.get(GLOW.name)?.system).toBeUndefined();
     expect(typeof r.behaviors.get(SPIN.name)?.system).toBe("function");
   });
@@ -513,5 +527,81 @@ describe("behavior defaults on parse", () => {
       description: expect.stringContaining("color"),
     });
     expect(glow.intensity).toMatchObject({ default: 1, minimum: 0 });
+  });
+});
+
+describe("the lifetime behavior's schema", () => {
+  const r = createRegistry(
+    game({ types: [marker("post"), marker("spark", { defaults: { lifetime: { ticks: 5 } } })] }),
+  );
+  const scene = (type: string, lifetime: Record<string, unknown>): SceneDefinition => ({
+    v: 3,
+    game: "fake",
+    name: "lifetime",
+    bounds: [0, 0, 640, 480],
+    entities: [{ id: "m", type, at: [10, 10], behaviors: { lifetime } } as EntityDef],
+  });
+  const parseIssues = (type: string, lifetime: Record<string, unknown>) => {
+    const res = parseScene(formatScene(scene(type, lifetime)).text, r);
+    return res.ok ? [] : res.issues.map((i) => [i.code, i.path, i.message]);
+  };
+  const validateIssues = (type: string, lifetime: Record<string, unknown>) =>
+    validateScene(scene(type, lifetime), r)
+      .filter((i) => i.code === "schema")
+      .map((i) => [i.path, i.message]);
+  const ONE_OF = /exactly one of `ticks` or `ms`/;
+  // oxlint-disable-next-line unicorn/no-thenable -- `then` is a lifetime block field
+  const withThen = (then: string, block: Record<string, unknown> = {}) => ({ ...block, then });
+
+  it("takes exactly one of ticks or ms, a schema issue otherwise", () => {
+    expect(parseIssues("post", { ticks: 3 })).toEqual([]);
+    expect(parseIssues("post", withThen("disable", { ms: 250 }))).toEqual([]);
+    for (const block of [{}, { ticks: 3, ms: 250 }, withThen("destroy")]) {
+      const found = parseIssues("post", block);
+      expect(found, JSON.stringify(block)).toHaveLength(1);
+      expect(found[0]![0]).toBe("schema");
+      expect(found[0]![1]).toBe("/entities/0/behaviors/lifetime");
+      expect(found[0]![2]).toMatch(ONE_OF);
+    }
+  });
+
+  it("keeps a valid block as written", () => {
+    const def = parseSceneOrThrow(formatScene(scene("post", { ms: 100 })).text, r);
+    expect(def.entities![0]!.behaviors).toEqual({ lifetime: { ms: 100 } });
+  });
+
+  it("counts the type's defaults under the written block", () => {
+    expect(parseIssues("spark", {})).toEqual([]);
+    expect(parseIssues("spark", withThen("disable"))).toEqual([]);
+    expect(parseIssues("spark", { ms: 100 })).toHaveLength(1);
+  });
+
+  it("still checks each field's own shape", () => {
+    for (const block of [
+      { ticks: 0 },
+      { ticks: 1.5 },
+      { ms: -5 },
+      withThen("vanish", { ticks: 2 }),
+    ]) {
+      expect(parseIssues("post", block), JSON.stringify(block)).toHaveLength(1);
+    }
+  });
+
+  it("validation reports the same rule", () => {
+    expect(validateIssues("post", { ticks: 3 })).toEqual([]);
+    expect(validateIssues("spark", {})).toEqual([]);
+    for (const block of [{}, { ticks: 3, ms: 250 }]) {
+      const found = validateIssues("post", block);
+      expect(found, JSON.stringify(block)).toHaveLength(1);
+      expect(found[0]![0]).toBe("/entities/0/behaviors/lifetime");
+      expect(found[0]![1]).toMatch(ONE_OF);
+    }
+  });
+
+  it("is the engine's third behavior, simulated headless", () => {
+    const b = r.behaviors.get("lifetime")!;
+    expect(b).toMatchObject({ origin: "engine", index: 2 });
+    expect(b.visualOnly).toBeUndefined();
+    expect(Object.keys(b.shape)).toEqual(["ticks", "ms", "then"]);
   });
 });

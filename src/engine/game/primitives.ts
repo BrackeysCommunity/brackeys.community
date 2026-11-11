@@ -83,48 +83,48 @@ export const PRIMITIVES = {
         .number()
         .positive()
         .describe("Density, mass per px²; heavier props are harder to push.")
-        .meta({ title: "Density" }),
+        .meta({ title: "Density", group: "body" }),
       restitution: z
         .number()
         .min(0)
         .describe("Bounciness: 0 doesn't bounce, 1 keeps all its speed.")
-        .meta({ title: "Restitution" }),
+        .meta({ title: "Restitution", group: "body" }),
       friction: z
         .number()
         .min(0)
         .optional()
         .describe("Surface friction; omitted uses the material's, else the physics default.")
-        .meta({ title: "Friction" }),
+        .meta({ title: "Friction", group: "body", placeholder: "material's" }),
       material: materialField(env),
       gravityScale: z
         .number()
         .optional()
         .describe("Multiplies the world's gravity on this body: 0 floats, -1 falls up; default 1.")
-        .meta({ title: "Gravity scale", group: "body" }),
+        .meta({ title: "Gravity scale", group: "body", default: 1 }),
       linearDamping: z
         .number()
         .min(0)
         .optional()
         .describe("Slows the body's motion over time; default 0.")
-        .meta({ title: "Linear damping", group: "body" }),
+        .meta({ title: "Linear damping", group: "body", default: 0 }),
       angularDamping: z
         .number()
         .min(0)
         .optional()
         .describe("Slows the body's spin over time; default 0.")
-        .meta({ title: "Angular damping", group: "body" }),
+        .meta({ title: "Angular damping", group: "body", default: 0 }),
       fixedRotation: z
         .boolean()
         .optional()
         .describe("When true, the body never turns.")
-        .meta({ title: "Fixed rotation", group: "body" }),
+        .meta({ title: "Fixed rotation", group: "body", default: false }),
       ccd: z
         .boolean()
         .optional()
         .describe(
           "Continuous collision detection: when true, a fast body can't pass through thin colliders between steps.",
         )
-        .meta({ title: "CCD", group: "body" }),
+        .meta({ title: "CCD", group: "body", default: false }),
     }),
     style: { fill: 0xaa7744, stroke: 0xddaa77, alpha: 0.9 },
     ascii: "p",

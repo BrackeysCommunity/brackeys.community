@@ -67,6 +67,9 @@ export function createNavSystem(_ctx: EngineContext, _type: RegisteredType): Nav
       rev++;
     },
     size: () => live.size,
+    /** Nothing here simulates, so a disabled entity keeps its record as it is. */
+    disable() {},
+    enable() {},
     areas: () => polygons("walk"),
     holes: () => polygons("block"),
     revision: () => rev,

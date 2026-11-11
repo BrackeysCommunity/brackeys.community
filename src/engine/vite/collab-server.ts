@@ -1,3 +1,4 @@
+import type { EventEmitter } from "node:events";
 import { watch, type FSWatcher } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -92,13 +93,35 @@ export type SceneCollab = {
 
 const pathOf = (req: IncomingMessage) => new URL(req.url ?? "/", "http://localhost").pathname;
 
-/** A client that already hung up resets the socket; without a listener that error would crash the host. */
-const ignoreErrors = (socket: Duplex) => {
-  if (socket.listenerCount("error") === 0) socket.on("error", () => undefined);
-};
+const swallow = () => undefined;
+
+/**
+ * Keeps an `error` listener on each stream for its whole life. A client that
+ * hangs up mid-request resets its socket and destroys the request with
+ * `aborted`; with no listener left (none added, or one a body reader removed
+ * once it was done) that `error` is unhandled and kills the dev server.
+ * Every request, response and upgraded socket the dev server sees goes
+ * through here.
+ */
+export function holdStreamErrors(...streams: readonly (EventEmitter | null | undefined)[]): void {
+  for (const stream of streams)
+    if (stream && !stream.listeners("error").includes(swallow)) stream.on("error", swallow);
+}
+
+/** The client has gone, or the answer was already sent: nothing more may be written. */
+const responseGone = (res: ServerResponse) =>
+  res.destroyed || res.writableEnded || res.socket?.destroyed === true;
+
+/** A request body the client stopped sending. */
+class RequestAbortedError extends Error {
+  constructor() {
+    super("the client aborted the request");
+    this.name = "RequestAbortedError";
+  }
+}
 
 function refuse(socket: Duplex, status: string): void {
-  ignoreErrors(socket);
+  holdStreamErrors(socket);
   if (socket.writable) socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\n\r\n`);
   else socket.destroy();
 }
@@ -502,6 +525,7 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     },
     handleUpgrade(req, socket, head) {
       if (pathOf(req) !== path) return false;
+      holdStreamErrors(req, socket);
       if (closed) {
         refuse(socket, "503 Service Unavailable");
         return true;
@@ -559,8 +583,12 @@ function projectSources(
   });
 }
 
+/** The body, or null past `limit`; rejects with `RequestAbortedError` when the client stops sending it. */
 function readBody(req: IncomingMessage, limit: number): Promise<Uint8Array | null> {
   return new Promise((resolve, reject) => {
+    holdStreamErrors(req);
+    const aborted = () => reject(new RequestAbortedError());
+    if (req.destroyed) return aborted();
     const chunks: Buffer[] = [];
     let size = 0;
     let over = false;
@@ -570,7 +598,10 @@ function readBody(req: IncomingMessage, limit: number): Promise<Uint8Array | nul
       else chunks.push(chunk);
     });
     req.on("end", () => resolve(over ? null : new Uint8Array(Buffer.concat(chunks))));
-    req.on("error", reject);
+    req.on("error", aborted);
+    req.on("close", () => {
+      if (!req.complete) aborted();
+    });
   });
 }
 
@@ -582,16 +613,25 @@ async function serveRequest(
   res: ServerResponse,
   cors?: ProjectCors,
 ): Promise<boolean> {
+  holdStreamErrors(req, res);
   const url = req.url ?? "";
   const method = req.method ?? "GET";
-  const result =
-    (await handleSceneRequest({ method, url }, scenes)) ??
-    (await handleProjectRequest(
-      { method, url, headers: req.headers, body: (limit) => readBody(req, limit) },
-      sources,
-      { cors },
-    ));
+  let result;
+  try {
+    result =
+      (await handleSceneRequest({ method, url }, scenes)) ??
+      (await handleProjectRequest(
+        { method, url, headers: req.headers, body: (limit) => readBody(req, limit) },
+        sources,
+        { cors },
+      ));
+  } catch (e) {
+    // A client that left gets no answer, and no error page either.
+    if (e instanceof RequestAbortedError || responseGone(res)) return true;
+    throw e;
+  }
   if (!result) return false;
+  if (responseGone(res)) return true;
   res.statusCode = result.status;
   const headers = "headers" in result ? result.headers : undefined;
   for (const [k, v] of Object.entries(headers ?? {})) res.setHeader(k, v);
@@ -622,6 +662,7 @@ export type SceneCollabPlugin = {
     config?: { server?: { cors?: ProjectCors } };
     middlewares: { use(fn: Middleware): unknown };
     httpServer?: {
+      on(event: "request", listener: (req: IncomingMessage, res: ServerResponse) => void): unknown;
       on(event: "upgrade", listener: UpgradeListener): unknown;
       on(event: "close", listener: () => void): unknown;
     } | null;
@@ -658,11 +699,13 @@ export function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugi
         );
         return;
       }
+      // Every request the dev server takes, whichever middleware answers it.
+      http.on("request", (req, res) => holdStreamErrors(req, res));
       // Fixed when the dev server starts, so the site's build stamp and the server's agree.
       const buildAt = options.buildAt ?? Date.now();
       http.on("upgrade", (req, socket, head) => {
+        holdStreamErrors(req, socket);
         if (pathOf(req) !== path) return;
-        ignoreErrors(socket);
         collab ??= createSceneCollab({ ...options, buildAt }).then((c) => (ready = c));
         collab
           .then((c) => c.handleUpgrade(req, socket, head))
@@ -702,6 +745,7 @@ export async function listenSceneCollab(
         res.end();
       })
       .catch(() => {
+        if (responseGone(res)) return;
         res.statusCode = 500;
         res.end();
       });
@@ -709,6 +753,7 @@ export async function listenSceneCollab(
   // Upgraded sockets leave the http server's bookkeeping, so `close` ends them itself.
   const upgraded = new Set<Duplex>();
   http.on("upgrade", (req, socket, head) => {
+    holdStreamErrors(req, socket);
     upgraded.add(socket);
     socket.once("close", () => upgraded.delete(socket));
     if (!collab.handleUpgrade(req, socket, head)) refuse(socket, "404 Not Found");

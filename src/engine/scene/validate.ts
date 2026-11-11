@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
 import { OCCUPANT } from "../game/behaviors/occupant";
 import { SPRITE } from "../game/behaviors/sprite";
+import { isSpawnOnly, placeableTypes } from "../game/define";
 import { isAttachField, isPolygonField } from "../game/fields";
 import { typePhysics } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
@@ -45,7 +46,10 @@ import {
   fieldKind,
   geometryFields,
   gridFieldsOf,
+  refineBlock,
   sceneRegistry,
+  spawnOnlyHint,
+  spawnOnlyMessage,
   unknownGameIssue,
 } from "./schema";
 import {
@@ -255,7 +259,8 @@ function extent(
  * naming a child), and grids
  * under a turned or flipped instance or group (square cells only). On its resolved view
  * (`resolveScene`, so instance children and group members are checked
- * where they land): references (each type's `refs`; a child ref
+ * where they land): spawn-only types, which game code alone may make
+ * (`unknown-type`), references (each type's `refs`; a child ref
  * `<instance>/<child>` is `ref-child-unknown` when the instance's prefab
  * lacks the child), behavior blocks
  * (registered, allowed by the type, their `requires` carried, their fields
@@ -318,6 +323,19 @@ export function validateScene(
 
   const entities = def.entities ?? [];
   const [minX, minY, maxX, maxY] = def.bounds;
+
+  // types only game code spawns, which no scene or prefab may place
+  entities.forEach((e, i) => {
+    if (!isSpawnOnly(r, e.type)) return;
+    push("unknown-type", {
+      message: `${e.id}: ${spawnOnlyMessage(e.type)}`,
+      path: jsonPointer(["entities", i, "type"]),
+      entityIds: [e.id],
+      expected: placeableTypes(r).join(" | "),
+      got: e.type,
+      hint: spawnOnlyHint(r),
+    });
+  });
 
   // references; a child ref's first segment is one of the document's instances
   const childRefTarget = (target: string): InstanceDef | "unresolved" | undefined => {
@@ -421,7 +439,15 @@ export function validateScene(
   // and for riders, a grid for occupants; a prefab view is judged by the
   // scene placing it
   if (opts.prefab === undefined) {
-    if (physics === "none") checkPhysics(r, def, push);
+    if (physics === "none") {
+      const fix = () =>
+        batch(
+          'Set the scene\'s physics to "rapier"',
+          [{ op: "setSettings", set: { physics: "rapier" } }],
+          [],
+        );
+      checkPhysics(r, def, push, fix);
+    }
     if (!isPlainObject(grid)) {
       entities.forEach((e, i) => {
         if (e.off || !(OCCUPANT.name in behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD]))) return;
@@ -638,7 +664,7 @@ export function validateScene(
 type Push = (code: IssueCode, fields: Partial<SceneIssue> & { message: string }) => void;
 
 /** `physics-required` on each loadable entry whose type needs physics, and each rider, in a scene whose physics is "none". */
-function checkPhysics(r: Registry, def: SceneDefinition, push: Push): void {
+function checkPhysics(r: Registry, def: SceneDefinition, push: Push, fix: () => OpBatch): void {
   const needs = (type: RegisteredType | undefined): type is RegisteredType =>
     type !== undefined && type.loads !== false && typePhysics(type) === "required";
   const message = (what: string) => `${what}, but the scene's physics resolves to "none"`;
@@ -651,6 +677,7 @@ function checkPhysics(r: Registry, def: SceneDefinition, push: Push): void {
         message: message(`${ref} is a ${b.type}, which needs physics`),
         path: jsonPointer([b.key, i]),
         entityIds: [ref],
+        fix: fix(),
       });
     });
   }
@@ -662,6 +689,7 @@ function checkPhysics(r: Registry, def: SceneDefinition, push: Push): void {
         message: message(`${e.id} is a ${e.type}, which needs physics`),
         path: jsonPointer(["entities", i]),
         entityIds: [e.id],
+        fix: fix(),
       });
     }
     for (const [field, schema] of Object.entries(type.shape)) {
@@ -670,6 +698,7 @@ function checkPhysics(r: Registry, def: SceneDefinition, push: Push): void {
         message: message(`${e.id}.${field} rides ${JSON.stringify(e[field])}, which needs physics`),
         path: jsonPointer(["entities", i, field]),
         entityIds: [e.id],
+        fix: fix(),
       });
     }
   });
@@ -820,7 +849,7 @@ function checkBehaviors(
     }
     const base = rules.required.get(name) ?? rules.defaults.get(name) ?? {};
     const merged: Record<string, unknown> = { ...base, ...block };
-    const result = z.strictObject(behavior.shape).safeParse(merged);
+    const result = refineBlock(behavior, z.strictObject(behavior.shape)).safeParse(merged);
     if (result.success) continue;
     for (const issue of result.error.issues) {
       const path = issue.path.map((s) => (typeof s === "number" ? s : String(s)));

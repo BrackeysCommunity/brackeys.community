@@ -718,7 +718,26 @@ describe("behavior sections", () => {
     expect(m.addBehaviors.map((o) => [o.name, o.label])).toEqual([
       ["sprite", "sprite"],
       ["occupant", "occupant"],
+      ["lifetime", "lifetime"],
       [SPIN.name, SPIN.name],
+    ]);
+  });
+
+  it("lists the engine's lifetime with its three fields and description, no special case", () => {
+    const timed: SceneDefinition = {
+      ...doc,
+      entities: [{ id: "spark", type: "marker", at: [5, 5], behaviors: { lifetime: { ms: 250 } } }],
+    };
+    const section = sectionOf(of(games, timed, "spark"), "behaviors:lifetime")!;
+    expect(section.title).toBe("lifetime");
+    expect(section.behavior).toMatchObject({
+      name: "lifetime",
+      description: "Destroys or disables the entity a time after it spawns or is enabled.",
+    });
+    expect(section.fields.map((f) => [f.path, f.value, f.optional])).toEqual([
+      ["behaviors.lifetime.ticks", undefined, true],
+      ["behaviors.lifetime.ms", 250, true],
+      ["behaviors.lifetime.then", undefined, true],
     ]);
   });
 
@@ -731,7 +750,7 @@ describe("behavior sections", () => {
       defaultValue: 30,
     });
     expect(fields(m).some((f) => f.path === "behaviors")).toBe(false);
-    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite", "occupant"]);
+    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite", "occupant", "lifetime"]);
     expect(of(games, doc, "spot").sections.at(-1)!.fields[0]).toMatchObject({
       value: 45,
       defaultValue: 90,
@@ -765,12 +784,18 @@ describe("behavior sections", () => {
   it("adds a behavior the types allow with one update per target lacking it", () => {
     const m = of(games, doc, "lamp", "spot");
     expect(m.sections.some((s) => s.id.startsWith("behaviors:"))).toBe(false);
-    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite", "occupant", GLOW.name, SPIN.name]);
-    expect(m.addBehaviors[2]!.batch).toEqual({
+    expect(m.addBehaviors.map((o) => o.name)).toEqual([
+      "sprite",
+      "occupant",
+      "lifetime",
+      GLOW.name,
+      SPIN.name,
+    ]);
+    expect(m.addBehaviors[3]!.batch).toEqual({
       label: "Add Glow to spot",
       ops: [{ op: "update", ref: "spot", set: { [`behaviors.${GLOW.name}`]: {} } }],
     });
-    const add = m.addBehaviors[3]!.batch;
+    const add = m.addBehaviors[4]!.batch;
     expect(add).toEqual({
       label: `Add ${SPIN.name} to lamp`,
       ops: [{ op: "update", ref: "lamp", set: { [`behaviors.${SPIN.name}`]: {} } }],

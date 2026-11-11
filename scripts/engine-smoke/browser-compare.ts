@@ -1,11 +1,12 @@
 /**
  * The browser smoke's verdicts, kept free of Playwright and Vite so the
  * runner's rules (a digest must equal Bun's, the physics-free run must
- * never load Rapier, the sprite's pixel must be
- * drawn and the empty one blank, the editor's islands must keep apart and
+ * never load Rapier, the contact read must start on its pinned tick, the
+ * sprite's pixel must be drawn and the empty one blank, the editor's islands must keep apart and
  * inside the window, a page must answer in time, a missing browser is never
  * a pass) are unit-tested without a browser.
  */
+import { judgeContact, type ContactRead } from "./browser/contact";
 import type { EngineSmokeResult } from "./browser/main";
 import { INSIDE_COLOUR, SMOKE_BACKGROUND } from "./browser/sink";
 
@@ -109,6 +110,7 @@ export type BrowserOutcome = {
   userAgent?: string;
   render?: RenderProbe;
   physicsFree?: PhysicsFreeProbe;
+  contact?: ContactRead;
   reason?: string;
   ms?: number;
   /** The editor page's run in the same browser. */
@@ -158,6 +160,7 @@ export function judgeResult(
     userAgent: result.userAgent,
     ...(result.render ? { render: result.render } : {}),
     ...(result.physicsFree ? { physicsFree: result.physicsFree } : {}),
+    ...(result.contact !== undefined ? { contact: result.contact } : {}),
   };
   if (result.flavour !== "rapier2d-compat" || result.ticks !== 120) {
     return {
@@ -177,6 +180,8 @@ export function judgeResult(
   if (drawn) return { ...seen, status: "fail", reason: drawn };
   const free = judgePhysicsFree(result.physicsFree, expected.physicsFree, true);
   if (free) return { ...seen, status: "fail", reason: free };
+  const touched = judgeContact(result.contact);
+  if (touched) return { ...seen, status: "fail", reason: touched };
   return { ...seen, status: "pass" };
 }
 

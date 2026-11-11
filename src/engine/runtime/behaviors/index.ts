@@ -1,7 +1,12 @@
 import type { BehaviorSystemFactory } from "../../game/behaviors";
+import { createLifetimeSystem } from "./lifetime";
 import { createOccupantSystem } from "./occupant";
 import { createSpriteSystem } from "./sprite";
 
 /** The engine's behavior systems by behavior name, as `runtime/primitives.ts` maps primitives. */
 export const ENGINE_BEHAVIOR_SYSTEMS: Readonly<Record<string, BehaviorSystemFactory>> =
-  Object.freeze({ sprite: createSpriteSystem, occupant: createOccupantSystem });
+  Object.freeze({
+    sprite: createSpriteSystem,
+    occupant: createOccupantSystem,
+    lifetime: createLifetimeSystem,
+  });

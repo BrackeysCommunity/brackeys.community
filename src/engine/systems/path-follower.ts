@@ -187,22 +187,27 @@ type Motion = {
   state: WaypointState;
   prevPos: Vec2;
   frameDelta: Vec2;
+  /** The entity's pose in the path point's frame. */
+  offset: Pose;
 };
 
 type Follower = OwnedBody & Motion;
 
 /**
- * A follower in a scene without physics: no body, its entity's pose in the
- * path point's frame, and its kinematic collider in the geometry world
- * when the runtime has one.
+ * A follower in a scene without physics: no body, and its kinematic
+ * collider in the geometry world when the runtime has one.
  */
-type BodilessFollower = Motion & { offset: Pose; handle: number | null };
+type BodilessFollower = Motion & { handle: number | null };
 
 /**
  * Kinematic bodies that follow their `path`, advanced in `beforeStep`;
  * poses and visuals follow in `afterStep`, and so do the entities attached
  * to them. In a scene without physics a follower has no body: its pose,
  * and its geometry collider, follow the path all the same.
+ *
+ * A disabled follower's path clock keeps running, but it has no collider
+ * (its body's riders lose theirs with it), no visual and posts no poses;
+ * enabling it snaps it to where its path is now.
  */
 export function createFollowerSystem(
   ctx: EngineContext,
@@ -213,6 +218,9 @@ export function createFollowerSystem(
   const table = createBodyTable<Follower>(ctx, { view: drawn });
   const groups = ctx.registry.collisionGroups("static");
   const bodiless = new Map<string, BodilessFollower>();
+  const disabled = new Set<string>();
+  /** Riders' colliders a disabled follower switched off with its body, by follower id. */
+  const parked = new Map<string, number[]>();
   const motions = (): (Follower | BodilessFollower)[] => [
     ...table.owned.values(),
     ...bodiless.values(),
@@ -231,11 +239,19 @@ export function createFollowerSystem(
     if (drawn) ctx.view?.pose(f.entity.id, at.x, at.y, 0);
   }
 
-  /** Poses every follower and what rides it; `snap` after a jump (reset, seek). */
+  /** Writes a follower's pose from its body, to the pose index and its visual. */
+  function poseBody(f: Follower, snap: boolean): void {
+    const t = f.body.translation();
+    const p = composePose(t.x, t.y, f.body.rotation(), f.offset);
+    ctx.poses.set(f.entity.id, p.x, p.y, p.rot, snap ? { snap } : undefined);
+    table.pose(f.entity.id);
+  }
+
+  /** Poses every enabled follower and what rides it; `snap` after a jump (reset, seek). */
   const follow = (snap = false) => {
-    table.poseAll(snap);
-    for (const id of table.owned.keys()) ctx.attachments.moved(id, snap);
-    for (const f of bodiless.values()) poseBodiless(f, snap);
+    for (const f of table.owned.values()) if (!disabled.has(f.entity.id)) poseBody(f, snap);
+    for (const id of table.owned.keys()) if (!disabled.has(id)) ctx.attachments.moved(id, snap);
+    for (const f of bodiless.values()) if (!disabled.has(f.entity.id)) poseBodiless(f, snap);
   };
 
   function advance(f: Motion, dtMs: number): void {
@@ -251,7 +267,19 @@ export function createFollowerSystem(
     );
   }
 
+  /** Switches back on the riders' colliders its disable switched off, for riders still enabled. */
+  function unpark(id: string): void {
+    const handles = parked.get(id);
+    parked.delete(id);
+    if (!handles || !ctx.physics) return;
+    for (const handle of handles) {
+      const tag = ctx.tags.get(handle);
+      if (tag && ctx.enabled(tag.entityId)) ctx.physics.world.getCollider(handle)?.setEnabled(true);
+    }
+  }
+
   function despawn(id: string): void {
+    if (disabled.delete(id)) unpark(id);
     const f = bodiless.get(id);
     if (f) {
       removeGeometryCollider(ctx, f.handle);
@@ -264,7 +292,7 @@ export function createFollowerSystem(
   }
 
   function place(f: Follower | BodilessFollower, pos: Vec2, teleport: boolean): void {
-    if (!("body" in f)) return;
+    if (!("body" in f) || disabled.has(f.entity.id)) return;
     const { rapier } = physicsOf(ctx, type.type, f.entity.id);
     const v = new rapier.Vector2(pos.x, pos.y);
     if (teleport) f.body.setTranslation(v, true);
@@ -318,6 +346,7 @@ export function createFollowerSystem(
         state: initialWaypointState(),
         prevPos: { ...start },
         frameDelta: { x: 0, y: 0 },
+        offset: shapeSpawnPose(e.shape, e.transform),
       };
       table.add(e, follower, surfaceTag(e.id, type, e.material), true);
       place(follower, start, true);
@@ -328,6 +357,45 @@ export function createFollowerSystem(
       }
     },
     despawn,
+    disable(id) {
+      const m = bodiless.get(id) ?? table.owned.get(id);
+      if (!m || disabled.has(id)) return;
+      disabled.add(id);
+      if ("body" in m) {
+        const riders: number[] = [];
+        for (let i = 0; i < m.body.numColliders(); i++) {
+          const c = m.body.collider(i);
+          if (c.handle === m.collider.handle || !c.isEnabled()) continue;
+          c.setEnabled(false);
+          riders.push(c.handle);
+        }
+        parked.set(id, riders);
+        m.collider.setEnabled(false);
+        m.body.setEnabled(false);
+      } else if (m.handle !== null) ctx.geometry?.setEnabled(m.handle, false);
+      m.frameDelta = { x: 0, y: 0 };
+      if (drawn) ctx.view?.remove(id);
+    },
+    enable(id) {
+      const m = bodiless.get(id) ?? table.owned.get(id);
+      if (!m || !disabled.delete(id)) return;
+      m.prevPos = poseOf(m);
+      m.frameDelta = { x: 0, y: 0 };
+      if ("body" in m) {
+        m.body.setEnabled(true);
+        m.collider.setEnabled(true);
+        unpark(id);
+        place(m, m.prevPos, true);
+        // Queries read colliders as they stand, so they move with the body now, not at the next step.
+        physicsOf(ctx, type.type, id).physics.world.propagateModifiedBodyPositionsToColliders();
+      } else if (m.handle !== null) ctx.geometry?.setEnabled(m.handle, true);
+      if (drawn)
+        drawEntity(ctx, type, m.entity, opts.layer ?? entityDrawLayer(ctx, m.entity, "body"));
+      if ("body" in m) {
+        poseBody(m, true);
+        ctx.attachments.moved(id, true);
+      } else poseBodiless(m, true);
+    },
     clear() {
       for (const id of [...bodiless.keys()]) despawn(id);
       for (const id of [...table.owned.keys()]) despawn(id);
@@ -361,7 +429,9 @@ export function createFollowerSystem(
       for (const f of motions()) {
         advance(f, dtMs);
         const pos = poseOf(f);
-        f.frameDelta = { x: pos.x - f.prevPos.x, y: pos.y - f.prevPos.y };
+        f.frameDelta = disabled.has(f.entity.id)
+          ? { x: 0, y: 0 }
+          : { x: pos.x - f.prevPos.x, y: pos.y - f.prevPos.y };
         f.prevPos = pos;
         place(f, pos, false);
       }

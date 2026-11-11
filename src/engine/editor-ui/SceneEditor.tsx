@@ -6,15 +6,16 @@ import { createRegistry } from "../game/index";
 import {
   createAssetLoader,
   createGame,
+  type CameraState,
   type GameDefinition,
   type GameInstance,
   type RapierModule,
 } from "../index";
 import type { ProjectId, ProjectRuntimeView } from "../project/index";
-import type { SceneDocStatus } from "./connect/scene-doc";
+import type { SceneDocStatus, SceneFallback } from "./connect/scene-doc";
 import { editorChrome, type EditorChrome, type EditorFrameHandle } from "./frame/EditorFrame";
 import { EditorBooting, EditorSkeleton } from "./frame/EditorSkeleton";
-import { hostCue, type EditorHost } from "./host";
+import { hostCue, type EditorHost, type SceneHome } from "./host";
 import { createToaster, hostNotify, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { InspectorReadOnly } from "./panels/EditorInspector";
@@ -27,7 +28,7 @@ export type SceneEditorProps = {
   /** The game the project's scenes are for; an engine-only project passes a minimal one. */
   game: GameDefinition;
   project: ProjectId;
-  /** The scene to open, by id; when the project has none of that id its first scene opens and `onSceneChange` reports it. */
+  /** The scene to open, by id or name; when the project has neither its first scene opens and `onSceneChange` reports it. */
   scene?: string;
   rapier: () => Promise<RapierModule>;
   /** Dev hosts: the debug overlay and the game's debug layers (F3). */
@@ -92,6 +93,39 @@ function displaySize(canvas: HTMLCanvasElement): { width: number; height: number
   return box.width > 0 && box.height > 0
     ? { width: Math.round(box.width), height: Math.round(box.height) }
     : { width: window.innerWidth, height: window.innerHeight };
+}
+
+/**
+ * Puts `game`'s editor camera where `view` had another game's: the same
+ * zoom, then the same centre, each within the camera's limits.
+ */
+export function restoreEditView(
+  game: Pick<GameInstance, "getStore" | "zoomAt" | "panBy">,
+  view: Pick<CameraState, "position" | "zoom">,
+): void {
+  const before = game.getStore().state.camera;
+  if (before.zoom > 0 && before.zoom !== view.zoom)
+    game.zoomAt({ x: 0, y: 0 }, view.zoom / before.zoom);
+  const { position, scale } = game.getStore().state.camera;
+  const dx = (position.x - view.position.x) * scale;
+  const dy = (position.y - view.position.y) * scale;
+  if (dx !== 0 || dy !== 0) game.panBy({ x: dx, y: dy });
+}
+
+/** The "There's no scene" notice: what was asked for, where it is when another project holds it, and what opened. */
+export function fallbackNotice(
+  fellBack: SceneFallback,
+  home: SceneHome | null,
+  projectName: (id: string) => string,
+): { message: string; description: string } {
+  const elsewhere = home && home.project !== fellBack.project.id ? home : null;
+  const opened = `${fellBack.openedName} opened instead.`;
+  return {
+    message: `There's no scene "${elsewhere?.name ?? fellBack.wanted}" in ${fellBack.project.name}`,
+    description: elsewhere
+      ? `It's in ${projectName(elsewhere.project)}: switch to that project in the Project panel. ${opened}`
+      : opened,
+  };
 }
 
 /** Textures that didn't load draw as the fallback box; the console says which. */
@@ -253,12 +287,40 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   const fellBack = editing.fellBack;
   useEffect(() => {
     if (!fellBack) return;
-    notify.warning(`There's no scene ${fellBack.wanted} in this project`, {
-      id: "scene-fallback",
-      description: `${fellBack.opened} opened instead.`,
-    });
-    latest.current.host.onSceneChange?.(fellBack.opened);
+    const { host: current } = latest.current;
+    current.onSceneChange?.(fellBack.opened);
+    let live = true;
+    const say = (home: SceneHome | null) => {
+      if (!live) return;
+      const nameOf = (id: string) => current.projects?.find((p) => p.id === id)?.name ?? id;
+      const { message, description } = fallbackNotice(fellBack, home, nameOf);
+      notify.warning(message, { id: "scene-fallback", description });
+    };
+    const find = current.findScene;
+    if (find) find(fellBack.wanted).then(say, () => say(null));
+    else say(null);
+    return () => {
+      live = false;
+    };
   }, [fellBack, notify]);
+
+  // A rebuilt game starts with its own camera: the editor puts the last
+  // edit view of the same scene back once it is open on the new game.
+  const editView = useRef<{ game: GameInstance; scene: string; camera: CameraState } | null>(null);
+  const editorUp = editing.editor !== null;
+  const openScene = editing.scene;
+  useEffect(() => {
+    if (!game || !editorUp || !openScene) return;
+    const held = editView.current;
+    if (held && held.game !== game && held.scene === openScene) restoreEditView(game, held.camera);
+    const store = game.getStore();
+    const keep = () => {
+      if (store.state.mode === "edit")
+        editView.current = { game, scene: openScene, camera: store.state.camera };
+    };
+    keep();
+    return store.subscribe(keep);
+  }, [game, editorUp, openScene]);
 
   // Once per game built over the project's loader: the opened scene's textures, and which failed.
   const editorSession = editing.editor?.session ?? null;

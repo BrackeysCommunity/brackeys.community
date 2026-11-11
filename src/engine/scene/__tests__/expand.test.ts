@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
@@ -5,7 +7,7 @@ import { GLOW, SPIN, testGame } from "../../__tests__/fixtures/test-game";
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { mirrorField, pointField, shapeField, vectorField } from "../../game/fields";
-import type { GameWorldDef } from "../../game/types";
+import type { GameWorldDef, Registry } from "../../game/types";
 import {
   behaviorBlocks,
   bulkId,
@@ -14,15 +16,21 @@ import {
   expandScene,
   parseBulkId,
   resolveSettings,
+  runtimeEntity,
   scenePhysics,
   settingsSources,
 } from "../expand";
 import { parseSceneOrThrow } from "../parse";
 import { prefabLibrary } from "../prefab";
+import { resolveSceneDetailed } from "../resolve";
+import { parseShape } from "../shapes";
 import { applyPt, applyVec, dihedral, type Dihedral } from "../transform";
 import type {
+  ExpandedScene,
   GridSettings,
   PathDef,
+  Prefab,
+  PrefabLibrary,
   Pt,
   RuntimeEntity,
   SceneDefinition,
@@ -30,6 +38,17 @@ import type {
   ShapeObj,
 } from "../types";
 import { engine, engineYardText, fake, fakeGame } from "./fixtures/fake-game";
+import door from "./fixtures/prefabs/door.json";
+import gate from "./fixtures/prefabs/gate.json";
+import room from "./fixtures/prefabs/room.json";
+import {
+  engineYard,
+  fake as fakeOps,
+  fakeYard,
+  testGameRegistry,
+  testGameYard,
+  yardPrefabs,
+} from "./fixtures/random-ops";
 
 const yard = parseSceneOrThrow(engineYardText, engine);
 const DEFAULTS = {
@@ -743,5 +762,96 @@ describe("expandScene: transforms", () => {
       transform: { turn: 2, flip: false },
     });
     expect(out.out).not.toHaveProperty("transform");
+  });
+});
+
+/**
+ * The load as the resolved view gives it: every instance inlined by
+ * `resolveSceneDetailed`, then each entity in spawn-group order. Expanding
+ * instance by instance must give exactly this.
+ */
+const shapeOf = (tuple: unknown): ShapeObj => {
+  const out = parseShape(tuple);
+  if (!out.ok) throw new Error(out.issue.message);
+  return out.shape;
+};
+
+function throughResolvedView(
+  source: SceneDefinition,
+  registry: Registry,
+  prefabs?: PrefabLibrary,
+): ExpandedScene["entities"] {
+  const { def, origins } = resolveSceneDetailed(source, registry, prefabs);
+  const groups: RuntimeEntity[][] = registry.spawnGroups.map(() => []);
+  for (const b of registry.bulkKeys) {
+    const group = registry.spawnGroupOf(b.type);
+    if (group === undefined || !Array.isArray(def[b.key])) continue;
+    const blocks = behaviorBlocks(registry, b.type);
+    (def[b.key] as unknown[]).forEach((value, index) => {
+      groups[group]!.push({
+        id: bulkId(b.key, index),
+        type: b.type,
+        [b.field]: b.form === "shape" ? shapeOf(value) : [...(value as Pt)],
+        ...(b.material ? { material: b.material } : {}),
+        ...(Object.keys(blocks).length > 0 ? { behaviors: blocks } : {}),
+      });
+    });
+  }
+  (def.entities ?? []).forEach((e, i) => {
+    const group = registry.spawnGroupOf(e.type);
+    if (e.off || group === undefined) return;
+    const transform = origins[i]?.transform ?? { rot: 0, flip: false };
+    groups[group]!.push(runtimeEntity(registry, e, registry.types.get(e.type)!, transform));
+  });
+  return groups.flat();
+}
+
+describe("expandScene: instance by instance", () => {
+  const scenesDir = new URL("../../scenes/", import.meta.url);
+  const readJson = (url: URL) => JSON.parse(readFileSync(url, "utf8")) as unknown;
+  const projectPrefabs = prefabLibrary(
+    readdirSync(new URL("prefabs/", scenesDir))
+      .filter((f) => f.endsWith(".json") && !f.endsWith(".asset.json"))
+      .map((f) => readJson(new URL(`prefabs/${f}`, scenesDir)) as Prefab),
+  );
+  const roomLib = prefabLibrary([room, door, gate] as unknown as Prefab[]);
+  const rooms = (game?: string): SceneDefinition => ({
+    v: 3,
+    ...(game !== undefined ? { game } : {}),
+    name: "rooms",
+    bounds: [-2000, -2000, 2000, 2000],
+    groups: { wing: { at: [300, -100], rot: 1, flip: true } },
+    entities: [{ id: "own", type: "solid", shape: ["box", 0, 0, 10, 10], group: "wing" }],
+    instances: [
+      { id: "r", prefab: "room", at: [0, 0] },
+      { id: "t", prefab: "room", at: [500, 200], rot: 3, flip: true, z: 4, layer: "decor" },
+      { id: "w", prefab: "room", at: [-400, 300], rot: 2, group: "wing" },
+      { id: "o", prefab: "room", at: [0, 900], off: true },
+      { id: "m", prefab: "missing", at: [0, 0] },
+    ],
+  });
+  const FIXTURES: [string, SceneDefinition, Registry, PrefabLibrary | undefined][] = [
+    ["engine-yard text", yard, engine, yardPrefabs()],
+    ["engine-yard text, no library", yard, engine, undefined],
+    ["engine yard", engineYard(), engine, yardPrefabs()],
+    ["engine yard with params", engineYard(), engine, yardPrefabs(undefined, { params: true })],
+    ["fake yard", fakeYard(), fakeOps, yardPrefabs("fake")],
+    ["test-game yard on a grid", testGameYard(), testGameRegistry, yardPrefabs("test-game")],
+    ["three-level rooms", rooms(), engine, roomLib],
+    ...(["engine-yard", "grid-yard", "kitchen-sink"] as const).map(
+      (name): [string, SceneDefinition, Registry, PrefabLibrary] => [
+        `project ${name}`,
+        readJson(new URL(`${name}.json`, scenesDir)) as SceneDefinition,
+        engine,
+        projectPrefabs,
+      ],
+    ),
+  ];
+
+  it.each(FIXTURES)("loads %s exactly as the resolved view does", (_, def, registry, prefabs) => {
+    const out = expandScene(def, registry, prefabs ? { prefabs } : {});
+    expect(out.entities).toEqual(throughResolvedView(def, registry, prefabs));
+    if ((def.instances ?? []).length > 0 && prefabs)
+      expect(out.entities.some((e) => e.id.includes("/"))).toBe(true);
   });
 });

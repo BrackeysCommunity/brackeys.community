@@ -114,6 +114,16 @@ async function until(check: () => boolean | Promise<boolean>, what: string, ms =
   }
 }
 
+/** A file's text, or "" while a write-back has it mid-move. */
+async function readOrEmpty(path: string): Promise<string> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw error;
+  }
+}
+
 let files = 0;
 async function jsonFile(value: unknown): Promise<string> {
   const file = join(root, `payload-${files++}.json`);
@@ -539,6 +549,62 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
   );
 
   it(
+    "input script: an agent's editAsset inserting a count step lands as the agent, off the human's undo stack",
+    { timeout: 60_000 },
+    async () => {
+      const scriptId = [...view().byId.values()].find((e) => e.path === SCRIPT_FILE)!.id;
+      const countStep = (eq: number) => ({ hold: [], until: { count: { type: "paint", eq } } });
+      const hasCount = (eq: number) =>
+        steps(scriptId).some(
+          (s) => (s.until as { count?: { eq?: number } } | undefined)?.count?.eq === eq,
+        );
+      const first = () => steps(scriptId)[0];
+
+      const own = await human.apply(
+        editAsset(scriptId, [{ set: "/steps/0", value: { wait: 45 } }]) as ProjectOpBatch,
+      );
+      expect(own.ok).toBe(true);
+      expect(first()).toEqual({ wait: 45 });
+      expect(human.session.canUndo()).toBe(true);
+
+      const viaCli = await cli(
+        "assets",
+        "apply",
+        "--ops",
+        await jsonFile(editAsset(scriptId, [{ insert: "/steps", value: countStep(1) }])),
+      );
+      expect(viaCli.exitCode, JSON.stringify(viaCli.data)).toBe(0);
+      await until(() => hasCount(1), "the CLI's count step");
+      expect(lastRow(scriptId)?.actor).toEqual(CLI_AGENT);
+
+      const viaMcp = await mcp("asset_apply_ops", {
+        ops: editAsset(scriptId, [{ insert: "/steps", value: countStep(0) }]),
+      });
+      expect(viaMcp.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await until(() => hasCount(0), "the MCP count step");
+      expect(lastRow(scriptId)?.actor).toEqual(MCP_AGENT);
+
+      const unbounded = await mcp("asset_apply_ops", {
+        ops: editAsset(scriptId, [
+          { insert: "/steps", value: { hold: [], until: { count: { type: "paint" } } } },
+        ]),
+      });
+      expect(unbounded.structuredContent).toMatchObject({ exitCode: 1, written: false });
+
+      expect(human.session.canUndo()).toBe(true);
+      human.session.undo();
+      expect(first()).toEqual({ wait: 30 });
+      expect(hasCount(1) && hasCount(0)).toBe(true);
+      expect(human.session.canUndo()).toBe(false);
+
+      await until(async () => {
+        const text = await readOrEmpty(join(deck, SCRIPT_FILE));
+        return text.includes('"eq": 0') && text.includes('"eq": 1');
+      }, "the server to write the count steps back");
+    },
+  );
+
+  it(
     "game settings: editAsset of /engine/tickRate lands as the agent; a bad rate is refused",
     { timeout: 60_000 },
     async () => {
@@ -866,8 +932,8 @@ describe("an agent renames an asset over MCP while a human edits a scene using i
 
       await until(
         async () =>
-          (await readFile(join(deck, "kitchen-sink.json"), "utf8")).includes('"post-3"') &&
-          (await readFile(join(deck, "prefabs/pillar.json"), "utf8").catch(() => "")) !== "",
+          (await readOrEmpty(join(deck, "kitchen-sink.json"))).includes('"post-3"') &&
+          (await readOrEmpty(join(deck, "prefabs/pillar.json"))) !== "",
         "the server to write both edits back",
       );
       const onDisk = (await mcpClient.callTool({

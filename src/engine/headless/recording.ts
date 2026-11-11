@@ -8,6 +8,7 @@ import {
   recordingCommands,
   recordingEdges,
   recordingRapier,
+  recordingStart,
 } from "../runtime/recorder";
 import { resolveGame } from "../runtime/runtime";
 import { checkCommand } from "../scene/input-script";
@@ -16,8 +17,15 @@ import type { PrefabLibrary, SceneDefinition } from "../scene/types";
 import type { RapierModule } from "../types";
 import { ENGINE_VERSION } from "../version";
 import { unknownActionError } from "./headless";
-import { blockedRun, prepareRun, runLoop, startRun, type InputSource } from "./play-loop";
-import type { PlaytestBlocked, PlayOptions, ScriptIssue } from "./playtest-types";
+import {
+  blockedRun,
+  prepareRun,
+  runLibrary,
+  runLoop,
+  startRun,
+  type InputSource,
+} from "./play-loop";
+import type { PlaytestBlocked, ScriptIssue } from "./playtest-types";
 
 export type ReplayOptions<S = unknown> = {
   /** Needed only for a scene whose physics resolves to Rapier. */
@@ -28,6 +36,8 @@ export type ReplayOptions<S = unknown> = {
   scene: SceneDefinition;
   /** The prefabs the scene's instances name. */
   prefabs?: PrefabLibrary;
+  /** Every prefab `ctx.instantiate` may place, as `loadHeadless` returns it; default `prefabs`. */
+  library?: PrefabLibrary;
   /** A recording, or its JSON (text or parsed), checked by `parseRecording`. */
   recording: RunRecording | unknown;
   dev?: boolean;
@@ -134,9 +144,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
   const refused = [...actionIssues, ...commandIssues];
   if (refused.length > 0) return blockedRun("script", name, [], refused);
 
-  const play: PlayOptions = {};
-  if (rec.start.at) play.at = { x: rec.start.at[0], y: rec.start.at[1] };
-  if (rec.start.timeOffsetMs !== undefined) play.timeOffsetMs = rec.start.timeOffsetMs;
+  const play = recordingStart(rec.start);
   if (rec.start.game !== undefined) {
     const options = game?.play?.options;
     const checked = options
@@ -162,6 +170,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     play,
     dev: opts.dev,
     project: opts.project,
+    prefabs: runLibrary(opts),
   });
   if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
   const { runtime } = started;

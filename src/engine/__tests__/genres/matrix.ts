@@ -5,36 +5,70 @@ export type GenreMatrixRow = {
   genre: string;
   /** Plan 53's "Delivered by" column, as written there. */
   deliveredBy: string;
+  /** The probes that prove part of the row, by id; matrix.test.ts holds the probes' own `rows` to it. */
+  probes: readonly string[];
 };
 
 /** Plan 53's genre coverage matrix: every row and the milestones that deliver it. */
 export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
-  platformer: { genre: "Platformer", deliveredBy: "M13, M14, M22, M23, M25" },
-  "top-down": { genre: "Top-down action / RPG", deliveredBy: "M13, M14, M18, M23, M25, M11" },
-  "twin-stick": { genre: "Twin-stick shooter", deliveredBy: "M15, M16, M22" },
-  puzzle: { genre: "Puzzle / match-3", deliveredBy: "M14, M15, M16, M22" },
-  "card-board": { genre: "Card / board game", deliveredBy: "M11, M14, M15, M17, M27" },
-  tactics: { genre: "Turn-based tactics on a grid", deliveredBy: "M14, M16, M17, M18" },
-  "visual-novel": { genre: "Visual novel", deliveredBy: "M13, M18, M23" },
-  racing: { genre: "Racing (top-down)", deliveredBy: "M14 (PHY-2), M15, M16, M22" },
-  "physics-sandbox": { genre: "Physics sandbox", deliveredBy: "M14, M15, M26" },
-  rts: { genre: "RTS / strategy", deliveredBy: "M14, M16, M22, M24, M25" },
-  "tower-defense": { genre: "Tower defense", deliveredBy: "M11, M14, M15, M17" },
-  rhythm: { genre: "Rhythm", deliveredBy: "M11, M16, M23" },
-  roguelike: { genre: "Roguelike", deliveredBy: "M14, M15, M18, M25" },
-  metroidvania: { genre: "Metroidvania", deliveredBy: "M18, M22, M25" },
-  "point-and-click": { genre: "Point-and-click adventure", deliveredBy: "M14, M16, M17, M23" },
-  idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18, M21" },
-  "endless-runner": { genre: "Endless runner", deliveredBy: "M15, M16, M19, M22" },
-  fighting: { genre: "Fighting game", deliveredBy: "M16, M22 (ANI-5, FX-2), M27" },
-  "local-multiplayer": { genre: "Local multiplayer", deliveredBy: "M16, M22" },
-  "online-multiplayer": { genre: "Online multiplayer", deliveredBy: "M27" },
+  platformer: { genre: "Platformer", deliveredBy: "M13, M14, M22, M23, M25", probes: [] },
+  "top-down": {
+    genre: "Top-down action / RPG",
+    deliveredBy: "M13, M14, M18, M23, M25, M11",
+    probes: ["top-down"],
+  },
+  "twin-stick": { genre: "Twin-stick shooter", deliveredBy: "M15, M16, M22", probes: ["shooter"] },
+  puzzle: { genre: "Puzzle / match-3", deliveredBy: "M14, M15, M16, M22", probes: ["grid-puzzle"] },
+  "card-board": {
+    genre: "Card / board game",
+    deliveredBy: "M11, M14, M15, M17, M27",
+    probes: ["grid-puzzle"],
+  },
+  tactics: {
+    genre: "Turn-based tactics on a grid",
+    deliveredBy: "M14, M16, M17, M18",
+    probes: ["turn-tactics"],
+  },
+  "visual-novel": { genre: "Visual novel", deliveredBy: "M13, M18, M23", probes: [] },
+  racing: {
+    genre: "Racing (top-down)",
+    deliveredBy: "M14 (PHY-2), M15, M16, M22",
+    probes: ["top-down"],
+  },
+  "physics-sandbox": { genre: "Physics sandbox", deliveredBy: "M14, M15, M26", probes: [] },
+  rts: { genre: "RTS / strategy", deliveredBy: "M14, M16, M22, M24, M25", probes: [] },
+  "tower-defense": {
+    genre: "Tower defense",
+    deliveredBy: "M11, M14, M15, M17",
+    probes: ["shooter"],
+  },
+  rhythm: { genre: "Rhythm", deliveredBy: "M11, M16, M23", probes: [] },
+  roguelike: {
+    genre: "Roguelike",
+    deliveredBy: "M14, M15, M18, M25",
+    probes: ["roguelike", "turn-tactics"],
+  },
+  metroidvania: { genre: "Metroidvania", deliveredBy: "M18, M22, M25", probes: [] },
+  "point-and-click": {
+    genre: "Point-and-click adventure",
+    deliveredBy: "M14, M16, M17, M23",
+    probes: [],
+  },
+  idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18, M21", probes: [] },
+  "endless-runner": {
+    genre: "Endless runner",
+    deliveredBy: "M15, M16, M19, M22",
+    probes: ["shooter"],
+  },
+  fighting: { genre: "Fighting game", deliveredBy: "M16, M22 (ANI-5, FX-2), M27", probes: [] },
+  "local-multiplayer": { genre: "Local multiplayer", deliveredBy: "M16, M22", probes: [] },
+  "online-multiplayer": { genre: "Online multiplayer", deliveredBy: "M27", probes: [] },
 };
 
 export const GENRE_ROWS = Object.keys(GENRE_MATRIX) as GenreRow[];
 
 /** Every milestone through this one has landed. */
-export const LANDED_THROUGH = 14;
+export const LANDED_THROUGH = 15;
 
 /** The milestone numbers a "Delivered by" cell names, ranges (`M19–M21`) expanded, sorted. */
 export function milestonesOf(deliveredBy: string): number[] {

@@ -10,6 +10,7 @@ import * as Y from "yjs";
 
 import { docToScene, sceneToDoc } from "../collab/convert";
 import { docToPrefab, prefabToDoc } from "../collab/prefab-doc";
+import { LIFETIME, type LifetimeBlock } from "../game/behaviors/lifetime";
 import { SPRITE, type SpriteBlock } from "../game/behaviors/sprite";
 import { createRegistry, defineGame, withProject } from "../game/define";
 import { PRIMITIVE_TYPES, type GameDefinition, type Registry } from "../game/types";
@@ -32,8 +33,8 @@ import { snapshotProject } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectView } from "../project/types";
 import { projectView } from "../project/view";
 import { createSceneRuntime } from "../runtime/runtime";
-import { SENSOR_ENTER } from "../runtime/types";
-import { parseChecks, type ChecksFile } from "../scene/checks";
+import { ENTITY_DESTROYED, SENSOR_ENTER } from "../runtime/types";
+import { parseChecks, type ChecksFile, type ReachesCheck } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatPrefab, formatScene } from "../scene/format";
 import { parseScene } from "../scene/parse";
@@ -352,6 +353,27 @@ describe("kitchen-sink.json", () => {
         expect(assetInfo(view, b.asset!, b.frame)?.rect, e.id).toBeDefined();
     });
 
+    it("an entity with a lifetime block", () => {
+      const timed = entities().filter(
+        (e) => (e.behaviors as Record<string, unknown> | undefined)?.[LIFETIME.name],
+      );
+      expect(timed.map((e) => e.id)).toEqual(["spark"]);
+      const block = (timed[0]!.behaviors as Record<string, LifetimeBlock>)[LIFETIME.name]!;
+      expect(block.ticks).toBeGreaterThan(0);
+      expect(block.then ?? "destroy").toBe("destroy");
+    });
+
+    it("a reaches check whose expect holds an exists and a count", () => {
+      const withExpect = checks.checks.filter(
+        (c): c is ReachesCheck => c.kind === "reaches" && c.expect !== undefined,
+      );
+      expect(withExpect.map((c) => c.id)).toEqual(["fades"]);
+      expect(withExpect[0]!.expect).toEqual({
+        exists: expect.any(String),
+        count: expect.objectContaining({ type: "decor" }),
+      });
+    });
+
     it("a sprite drawing a whole texture, on a decor", () => {
       const whole = sprites().filter(
         ([e, b]) => e.type === "decor" && view.byId.get(b.asset!)?.kind === TEXTURE_KIND,
@@ -638,6 +660,9 @@ describe("kitchen-sink.json", () => {
     expect(report.events).toContainEqual(
       expect.objectContaining({ type: SENSOR_ENTER, entityId: "zone", other: "ball" }),
     );
+    expect(report.events.filter((e) => e.type === ENTITY_DESTROYED)).toEqual([
+      expect.objectContaining({ entityId: "spark" }),
+    ]);
 
     const replay = replayRecording<Body[]>({
       rapier,
@@ -749,9 +774,32 @@ describe("kitchen-sink.json", () => {
       expect(report.results.map((r) => [r.id, r.kind, r.pass, r.skipped !== undefined])).toEqual([
         ["valid", "valid", true, false],
         ["settles", "reaches", true, false],
+        ["fades", "reaches", true, false],
         ["ball-in-zone", "touches", true, true],
       ]);
       expect(report.ok).toBe(true);
+    });
+
+    it("fail the expect while the lifetime entity is still there", () => {
+      const fades = checks.checks.find((c) => c.id === "fades") as ReachesCheck;
+      const lifetime = (
+        entities().find((e) => e.id === "spark")!.behaviors as Record<string, LifetimeBlock>
+      )[LIFETIME.name]!;
+      const early: ReachesCheck = {
+        ...fades,
+        script: { v: 1, scene: "kitchen-sink", steps: [{ wait: lifetime.ticks! - 10 }] },
+      };
+      const report = runChecks({
+        rapier,
+        scene: def,
+        prefabs,
+        registry: engine,
+        checks: { ...checks, checks: [early] },
+        readFile: (path) => readFileSync(new URL(path, scenesDir), "utf8"),
+      });
+      const [result] = report.results;
+      expect(result?.pass).toBe(false);
+      expect(result?.message).toContain("expect.count");
     });
 
     it("all pass under the test game, the touches check run", () => {
@@ -767,7 +815,7 @@ describe("kitchen-sink.json", () => {
         checks: unskipped,
         readFile: (path) => readFileSync(new URL(path, scenesDir), "utf8"),
       });
-      expect(report.results.map((r) => r.kind)).toEqual(["valid", "reaches", "touches"]);
+      expect(report.results.map((r) => r.kind)).toEqual(["valid", "reaches", "reaches", "touches"]);
       for (const r of report.results) {
         expect(r.skipped, r.id).toBeUndefined();
         expect(r.pass, `${r.id}: ${r.message}`).toBe(true);

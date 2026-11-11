@@ -8,12 +8,12 @@ import {
 
 import type { GrappleAnchorSystem } from "./entities/grapple-anchor";
 import {
-  createPlayerEntity,
   PLAYER_HEIGHT,
+  PLAYER_TYPE,
   type MovementState,
   type PlayerEntity,
 } from "./entities/player";
-import type { ConstructSystem } from "./entities/shaper-constructs";
+import type { PlayerSystem } from "./systems/player";
 import { TYPE } from "./type-names";
 import type { SpawnEntity } from "./types";
 
@@ -66,11 +66,12 @@ function sameSnapshot(a: PlayerSnapshot | null, b: PlayerSnapshot | null): boole
 }
 
 /**
- * The runner, per runtime: spawns at the first `spawn`, gates one-way
- * platforms, rides followers, and reports `landed` / `left-ground`.
+ * The runner, per runtime: spawns the `player` entity at the first `spawn`,
+ * gates one-way platforms, rides followers, and reports `landed` /
+ * `left-ground`. The actor's `update` runs from these hooks, not its system.
  */
 export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerSnapshot> {
-  let player: PlayerEntity | null = null;
+  let playerId: string | null = null;
   let prevGrounded = false;
   let prevGroundId: string | undefined;
   let slice: PlatformerStoreSlice = { player: null };
@@ -94,9 +95,16 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
     return handle !== null ? (carrierDelta(ctx, handle)?.y ?? 0) : 0;
   }
 
+  /** The live actor, or null when none spawned or game code destroyed it. */
+  function actor(): PlayerEntity | null {
+    if (playerId === null) return null;
+    return ctx.system<PlayerSystem>(PLAYER_TYPE)?.actor(playerId) ?? null;
+  }
+
   function onUnload(): void {
-    player?.destroy();
-    player = null;
+    // Before the engine clears the other systems, so Rapier frees the actor's handles first.
+    if (playerId !== null && ctx.exists(playerId)) ctx.destroy(playerId);
+    playerId = null;
     prevGrounded = false;
     prevGroundId = undefined;
     slice = { player: null };
@@ -111,13 +119,11 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
         ? { x: start.x, y: start.y + PLAYER_HEIGHT / 2 }
         : spawn && { x: spawn.at[0], y: spawn.at[1] };
       if (!feet) return;
-      player = createPlayerEntity(ctx, feet, {
-        anchors: ctx.system<GrappleAnchorSystem>(TYPE.anchor),
-        forces: ctx.system<ConstructSystem>(TYPE.construct)?.forces,
-      });
+      playerId = ctx.spawn({ type: PLAYER_TYPE, at: [feet.x, feet.y] }).id;
     },
     onUnload,
     beforeStep(dtMs, actions) {
+      const player = actor();
       if (!player) return;
       const bottom = player.getPosition().y + player.getHalfHeight();
       for (const type of ONE_WAY_TYPES) {
@@ -126,7 +132,9 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
       player.update(dtMs, actions, groundDeltaY(player));
     },
     afterStep() {
+      const player = actor();
       if (!player) return;
+      ctx.system<PlayerSystem>(PLAYER_TYPE)?.syncPoses();
       const snap = snapshotOf(player);
       const at = snap.position;
       if (snap.grounded) {
@@ -141,10 +149,14 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
       prevGrounded = snap.grounded;
       if (!sameSnapshot(slice.player, snap)) slice = { player: snap };
     },
-    snapshot: () => (player ? snapshotOf(player) : noPlayer()),
-    cameraTarget: () => player?.getPosition() ?? null,
+    snapshot() {
+      const player = actor();
+      return player ? snapshotOf(player) : noPlayer();
+    },
+    cameraTarget: () => actor()?.getPosition() ?? null,
     storeSlice: () => slice,
     debugInfo(): PlatformerDebugInfo {
+      const player = actor();
       if (!player) return null;
       return {
         position: player.getPosition(),
