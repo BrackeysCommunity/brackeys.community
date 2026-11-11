@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../project/input-map.schema.json",
+  "kind": "input-map",
+  "v": 1,
+  "players": {
+    "join": "press",
+    "max": 2
+  },
+  "actions": [
+    { "action": "push", "bindings": [{ "code": "Space", "device": "key" }, { "button": "south", "device": "pad" }, { "control": "jump", "device": "touch" }] },
+    { "action": "left", "bindings": [{ "code": "KeyA", "device": "key", "player": 1 }, { "code": "ArrowLeft", "device": "key" }] },
+    { "action": "right", "bindings": [{ "button": "primary", "device": "pointer" }] }
+  ],
+  "touch": [
+    { "id": "jump", "action": "push", "at": [0.85, 0.8], "kind": "button", "label": "Push", "radius": 0.08 },
+    { "id": "walk", "action": "left", "at": [0.15, 0.8], "kind": "dpad", "radius": 0.12 }
+  ],
+  "deadzone": 0.2
+}

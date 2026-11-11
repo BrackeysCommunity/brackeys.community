@@ -94,7 +94,8 @@ export const diff: Tool<DiffInput> = async (input, ctx) => {
       const why = (e as { stderr?: string }).stderr?.trim() || (e as Error).message;
       return failure(`git show ${input.git} failed: ${why.split("\n")[0]}`);
     }
-    const parsed = await parseSceneText(ctx, `${input.a}@${input.git}`, text, undefined, a.project);
+    // The revision migrates through today's prefabs, so a v3 revision compares in metres.
+    const parsed = await parseSceneText(ctx, `${input.a}@${input.git}`, text, a.home, a.project);
     if (!parsed.ok) return parsed.result;
     other = parsed;
   } else {

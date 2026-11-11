@@ -63,6 +63,7 @@ const project: ProjectRuntimeView = {
   engine: {},
   table: () => [],
   asset: () => undefined,
+  inputMap: null,
 };
 const sky: SceneDefinition = {
   v: 1,

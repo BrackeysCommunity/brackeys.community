@@ -10,22 +10,33 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "gravity-sideways": "8df0c7714f456fd0",
     "gravity-zero": "8df0c7714f456fd0",
   },
+  "local-versus": {
+    default: "12df0b2a076791a9",
+    "gravity-sideways": "12df0b2a076791a9",
+  },
+  "point-and-click": {
+    default: "d9278d37a14e284e",
+    "gravity-sideways": "d9278d37a14e284e",
+  },
+  "rhythm-tap": {
+    default: "127621617ae3b5ea",
+  },
   roguelike: {
     default: "972e5b44222b3c85",
     "seed-1": "9c62e6c6b4ca4279",
     "seed-2": "ffb15c3655faa69d",
   },
   shooter: {
-    default: "6ee5f194096c60ad",
-    "physics-none": "03517a7626c281e3",
+    default: "4dd470a4dc153377",
+    "physics-none": "b5661858ad5063c3",
   },
   "top-down": {
-    default: "9ee7c39df0029a3c",
-    "gravity-sideways": "9ee7c39df0029a3c",
-    "physics-none": "c25e4156baea41d7",
+    default: "6576f4399893ef40",
+    "gravity-sideways": "6576f4399893ef40",
+    "physics-none": "7606f4e008e235f1",
   },
   "turn-tactics": {
-    default: "02dbaee4275a508b",
-    "gravity-sideways": "02dbaee4275a508b",
+    default: "355be025a7f4aeda",
+    "gravity-sideways": "355be025a7f4aeda",
   },
 };

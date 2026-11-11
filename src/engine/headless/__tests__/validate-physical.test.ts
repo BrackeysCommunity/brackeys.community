@@ -126,8 +126,8 @@ describe("validatePhysical", () => {
     expect(issues[0]).toMatchObject({
       severity: "info",
       path: "/solid/1",
-      at: [20, 980],
-      message: "~solid:1 overlaps ~solid:0 by 40px at [20, 980]",
+      at: [0.2, 9.8],
+      message: "~solid:1 overlaps ~solid:0 by 0.4 m at [0.2, 9.8]",
     });
     expect(issues[0]!.line).toBeTypeOf("number");
   });
@@ -204,13 +204,14 @@ describe("validatePhysical", () => {
   it("runs the game's physical checks after the engine's", () => {
     const floating = parseSceneOrThrow(
       JSON.stringify({
+        // engine-yard is metric (v4), so the replacements are metres too.
         ...JSON.parse(yardText),
-        solid: [["box", 20, 500, 20, 500]],
+        solid: [["box", 0.2, 5, 0.2, 5]],
         entities: [
           {
             id: "avatar",
             type: "prop",
-            shape: ["box", 300, 940, 20, 20],
+            shape: ["box", 3, 9.4, 0.2, 0.2],
             density: 1,
             restitution: 0,
           },
@@ -242,15 +243,15 @@ describe("validatePhysical", () => {
       const before = runtime.stats();
       const env = physicalEnv(runtime, yard)!;
       expect(runPhysicalChecks(env)).toHaveLength(2);
-      expect(env.overlaps({ type: "circle", cx: 900, cy: 930, r: 5 })).toEqual([]);
+      expect(env.overlaps({ type: "circle", cx: 9, cy: 9.3, r: 0.05 })).toEqual([]);
       expect(
         env
-          .overlaps({ type: "circle", cx: 900, cy: 930, r: 5 }, { sensors: true })
+          .overlaps({ type: "circle", cx: 9, cy: 9.3, r: 0.05 }, { sensors: true })
           .map((h) => h.tag.entityId),
       ).toEqual(["zone"]);
       const hit = env.cast(
-        { type: "box", cx: 600, cy: 900, hw: 10, hh: 10, rotDeg: 0 },
-        { x: 0, y: 100 },
+        { type: "box", cx: 6, cy: 9, hw: 0.1, hh: 0.1, rotDeg: 0 },
+        { x: 0, y: 1 },
       );
       expect(hit?.tag.entityId).toBe("~solid:0");
       expect(hit!.toi).toBeCloseTo(0.5);
@@ -365,23 +366,23 @@ describe("validatePhysical on a scene without physics", () => {
       expect(env.physics).toBeNull();
       expect(env.space.backend).toBe("geometry");
       expect(runPhysicalChecks(env)).toHaveLength(2);
-      expect(env.overlaps({ type: "circle", cx: 900, cy: 930, r: 5 })).toEqual([]);
+      expect(env.overlaps({ type: "circle", cx: 9, cy: 9.3, r: 0.05 })).toEqual([]);
       expect(
         env
-          .overlaps({ type: "circle", cx: 900, cy: 930, r: 5 }, { sensors: true })
+          .overlaps({ type: "circle", cx: 9, cy: 9.3, r: 0.05 }, { sensors: true })
           .map((h) => h.tag.entityId),
       ).toEqual(["zone"]);
       // Resting on the floor's top edge touches it; touching isn't overlapping.
-      expect(env.overlaps({ type: "box", cx: 600, cy: 950, hw: 10, hh: 10, rotDeg: 0 })).toEqual(
+      expect(env.overlaps({ type: "box", cx: 6, cy: 9.5, hw: 0.1, hh: 0.1, rotDeg: 0 })).toEqual(
         [],
       );
       const hit = env.cast(
-        { type: "box", cx: 600, cy: 900, hw: 10, hh: 10, rotDeg: 0 },
-        { x: 0, y: 100 },
+        { type: "box", cx: 6, cy: 9, hw: 0.1, hh: 0.1, rotDeg: 0 },
+        { x: 0, y: 1 },
       );
       expect(hit?.tag.entityId).toBe("~solid:0");
       expect(hit!.toi).toBeCloseTo(0.5, 2);
-      expect(env.cast({ type: "circle", cx: 900, cy: 930, r: 5 }, { x: 0, y: -100 })).toBeNull();
+      expect(env.cast({ type: "circle", cx: 9, cy: 9.3, r: 0.05 }, { x: 0, y: -1 })).toBeNull();
     } finally {
       runtime.destroy();
     }

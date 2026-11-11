@@ -6,13 +6,7 @@ import { inflateSync } from "node:zlib";
 import { createRegistry, withProject } from "@jams/engine/game";
 import { assetInfo, createHeadlessRuntime } from "@jams/engine/headless";
 import { createKindRegistry, projectView, sceneBundle } from "@jams/engine/project";
-import {
-  expandScene,
-  parsePrefab,
-  parseSceneOrThrow,
-  sceneSprites,
-  type Prefab,
-} from "@jams/engine/scene";
+import { expandScene, sceneSprites } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { devAssetUrl } from "../../../src/engine/editor-ui/connect/dev";
@@ -29,6 +23,7 @@ import {
   SINK_SCENE,
   SMOKE_BACKGROUND,
 } from "../browser/sink";
+import { parseSinkScene, sinkPrefabs } from "../browser/sink-prefabs";
 import { smokeGame } from "../game";
 import { REPO } from "../pack";
 
@@ -48,14 +43,8 @@ function pageSide() {
   const view = projectView(sink.data.state, kinds);
   const values = new Map(Object.entries(sink.data.values));
   const registry = withProject(createRegistry(smokeGame), view, values);
-  const def = parseSceneOrThrow(values.get(SINK_SCENE), registry);
-  const prefabs = new Map<string, Prefab>();
-  for (const entry of view.byId.values()) {
-    if (entry.kind !== "prefab") continue;
-    const read = parsePrefab(values.get(entry.id), registry);
-    if (!read.ok) throw new Error(entry.id);
-    prefabs.set(read.prefab.id, read.prefab);
-  }
+  const prefabs = sinkPrefabs(view, values, registry);
+  const def = parseSinkScene(values.get(SINK_SCENE), registry, prefabs);
   return { kinds, view, values, registry, def, prefabs };
 }
 
@@ -135,7 +124,7 @@ describe("the render run's pinned points", () => {
     const crate = sprites.find((s) => s.ref === "crate")!;
     expect(crate).toMatchObject({ asset: "crates", frame: "crate-0" });
     expect(inBox(INSIDE_POINT, crate.box)).toBe(true);
-    const margin = 6;
+    const margin = 0.06;
     const [x, y] = INSIDE_POINT;
     expect(inBox([x + margin, y], crate.box) && inBox([x - margin, y], crate.box)).toBe(true);
     const drawn = drawnEntities(expandScene(def, registry, { prefabs }), registry);
@@ -162,7 +151,7 @@ describe("the render run's pinned points", () => {
 
   it("leave the outside point clear of every sprite, body, path and point the sink draws", () => {
     const { view, registry, def, prefabs } = pageSide();
-    const margin = 8;
+    const margin = 0.08;
     const near = (b: { minX: number; minY: number; maxX: number; maxY: number }) =>
       inBox(OUTSIDE_POINT, {
         minX: b.minX - margin,
@@ -191,8 +180,8 @@ describe("the render run's pinned points", () => {
     try {
       runtime.step(1000 / 60, []);
       const pose = runtime.ctx.poses.get("crate")!;
-      expect(Math.abs(pose.x - 880)).toBeLessThan(0.5);
-      expect(Math.abs(pose.y - 1140)).toBeLessThan(0.5);
+      expect(Math.abs(pose.x - 8.8)).toBeLessThan(0.005);
+      expect(Math.abs(pose.y - 11.4)).toBeLessThan(0.005);
       expect(Math.abs(pose.rot)).toBeLessThan(0.01);
     } finally {
       runtime.destroy();

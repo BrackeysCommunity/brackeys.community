@@ -274,7 +274,12 @@ describe("LoadRunPanel", () => {
     expect(panel.getByText(/300 ticks \(5\.0s\)/)).toBeTruthy();
     expect(panel.getByText("1.5s")).toBeTruthy();
 
-    act(() => store.setState(() => ({ recording: { ...at60, tickRate: 30 }, name: "thirty" })));
+    act(() =>
+      store.setState(() => ({
+        recording: { ...at60, time: { ...at60.time, rate: 30 } },
+        name: "thirty",
+      })),
+    );
     expect(panel.getByText(/300 ticks \(10\.0s\)/)).toBeTruthy();
     expect(panel.getByText("3.0s")).toBeTruthy();
   });

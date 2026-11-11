@@ -1,8 +1,10 @@
 import { z } from "zod";
 
 import { BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
+import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { assetKindsOf, SIDES } from "../game/fields";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import type { AssetKindName } from "../project/types";
 import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
@@ -26,6 +28,13 @@ import {
   type ShapeTuple,
   type ShapeType,
 } from "../scene/types";
+import {
+  LENGTH_UNITS,
+  lengthDecimals,
+  roundLength,
+  snapToPixel,
+  type LengthUnitName,
+} from "../scene/units";
 import { numberBounds } from "./inspector";
 import { nestedInstanceOf, prefabInstances } from "./prefab-commands";
 import { referableEntities, type RefTarget } from "./refs";
@@ -76,7 +85,11 @@ export type EnumOption = { value: string | number; label: string };
 
 /** How the site draws a field; the engine only describes it. */
 export type FieldWidget =
-  /** A number input; `scrub` adds drag-to-scrub on the label, arrows step by `step` (Shift: `bigStep`). */
+  /**
+   * A number input; `scrub` adds drag-to-scrub on the label, one `step` per
+   * screen px; arrows step by `step` (Shift: `bigStep`). An `m` field steps
+   * one world px, an `m/s` or `m/s²` field 0.01.
+   */
   | {
       kind: "number";
       integer: boolean;
@@ -88,6 +101,8 @@ export type FieldWidget =
       step: number;
       bigStep: number;
       scrub: boolean;
+      /** Decimals to show: for an `m` field, the ones one world px needs (`lengthDecimals`). */
+      decimals?: number;
     }
   /** Degrees, a dial plus a field; `snapDeg` is the dial's step. */
   | { kind: "angle"; integer: boolean; snapDeg: number }
@@ -96,8 +111,8 @@ export type FieldWidget =
   | { kind: "select"; options: EnumOption[] }
   | { kind: "switch" }
   | { kind: "text"; pattern?: string; maxLength?: number }
-  /** Paired x and y fields with a pick-in-canvas crosshair. */
-  | { kind: "point"; unit?: string; pick: true }
+  /** Paired x and y fields with a pick-in-canvas crosshair; a metric one steps and shows as an `m` number does. */
+  | { kind: "point"; unit?: string; pick: true; step?: number; decimals?: number }
   | { kind: "points"; min?: number }
   | { kind: "tags" }
   /** A combobox of ids whose type (or base) is in `accepts` (`refCandidates`), plus an eyedropper. */
@@ -231,6 +246,16 @@ function choice(values: readonly (string | number)[]): FieldWidget {
 
 type Ctx = { registry: Registry; type: RegisteredType | undefined };
 
+const isLengthUnit = (unit: unknown): unit is LengthUnitName =>
+  (LENGTH_UNITS as readonly unknown[]).includes(unit);
+
+/** How a length-unit field steps and how many decimals it shows, at `pxPerMetre`. */
+function lengthStep(unit: LengthUnitName, pxPerMetre: number): { step: number; decimals: number } {
+  return unit === "m"
+    ? { step: 1 / pxPerMetre, decimals: lengthDecimals(pxPerMetre) }
+    : { step: 0.01, decimals: 2 };
+}
+
 function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): FieldWidget {
   const meta = fieldMeta(schema);
   if (typeof meta.widget === "string") {
@@ -248,6 +273,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
       kind: "point",
       pick: true,
       ...(typeof meta.unit === "string" ? { unit: meta.unit } : {}),
+      ...(isLengthUnit(meta.unit) ? lengthStep(meta.unit, pxPerMetreOf(ctx.registry)) : {}),
     };
   if (kind === "path") return { kind: "path" };
   if (kind === "side") return choice(SIDES);
@@ -265,7 +291,9 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
     const b = numberBounds(inner);
     const unit = typeof meta.unit === "string" ? meta.unit : undefined;
     if (unit === "deg") return { kind: "angle", integer: b.integer, snapDeg: 15 };
-    const step = b.integer || unit === "px" ? 1 : 0.1;
+    const length =
+      !b.integer && isLengthUnit(unit) ? lengthStep(unit, pxPerMetreOf(ctx.registry)) : undefined;
+    const step = length?.step ?? (b.integer || unit === "px" ? 1 : 0.1);
     return {
       kind: "number",
       integer: b.integer,
@@ -276,6 +304,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
       step,
       bigStep: step * 10,
       scrub: unit !== undefined,
+      ...(length ? { decimals: length.decimals } : {}),
     };
   }
   if (inner instanceof z.ZodEnum) {
@@ -519,6 +548,25 @@ function seedBlock(shape: z.ZodRawShape, defaults: Readonly<Record<string, unkno
   return out;
 }
 
+/**
+ * The block Add behavior writes: the behavior's template, then a seed for each
+ * required field still unset. A type that sets its own defaults for the
+ * behavior skips the template, which could contradict them.
+ */
+function addedBlock(
+  registry: Registry,
+  s: BehaviorState,
+  name: BehaviorName,
+  template: Readonly<Record<string, unknown>> | undefined,
+) {
+  const defaults = s.rules.defaults.get(name) ?? {};
+  const base = template && Object.keys(defaults).length === 0 ? structuredClone(template) : {};
+  return {
+    ...base,
+    ...seedBlock(blockShape(registry, s.target.entity.type, name), { ...defaults, ...base }),
+  };
+}
+
 function removeBatch(states: readonly BehaviorState[], name: BehaviorName, title: string) {
   if (states.some((s) => s.rules.required.has(name))) return undefined;
   const ops: SceneOp[] = states.map(({ target, written }) => ({
@@ -544,12 +592,7 @@ function addOptions(registry: Registry, states: readonly BehaviorState[]): Behav
     const ops: SceneOp[] = lacking.map((s) => ({
       op: "update",
       ref: s.target.ref,
-      set: {
-        [`${BEHAVIORS_FIELD}.${name}`]: seedBlock(
-          blockShape(registry, s.target.entity.type, name),
-          s.rules.defaults.get(name) ?? {},
-        ),
-      },
+      set: { [`${BEHAVIORS_FIELD}.${name}`]: addedBlock(registry, s, name, b.template) },
     }));
     const who = lacking.length === 1 ? lacking[0]!.target.ref : `${lacking.length} entities`;
     out.push({
@@ -677,12 +720,28 @@ export type ModelEdit = { ok: true; ops: SceneOp[] } | { ok: false; error: strin
 
 const numeric = (w: FieldWidget) => w.kind === "number" || w.kind === "angle";
 
+/** A metric value as a file holds it (`roundLength`), whatever was typed or stepped. */
+function roundMetric(w: FieldWidget, value: unknown): unknown {
+  if (!("unit" in w) || !isLengthUnit(w.unit)) return value;
+  if (w.kind === "number" && typeof value === "number" && !w.integer) return roundLength(value);
+  if (
+    w.kind === "point" &&
+    Array.isArray(value) &&
+    value.length === 2 &&
+    value.every((v) => typeof v === "number")
+  )
+    return value.map((v: number) => roundLength(v));
+  return value;
+}
+
 /**
  * The update ops that set `field` to `input` on each target, one per
  * target whose value changes. On a number field a string is parsed by
  * `parseRelative` against each target's own value (or the field's default
- * when unset), so `+=16` moves every one. `undefined` unsets an optional field. Fails without ops when any
- * target's new value doesn't pass the field's schema.
+ * when unset), so `+=16` moves every one. A metric number or point is
+ * written to micrometres (`roundLength`). `undefined` unsets an optional
+ * field. Fails without ops when any target's new value doesn't pass the
+ * field's schema.
  */
 export function modelOps(
   field: ModelField,
@@ -704,6 +763,7 @@ export function modelOps(
         return { ok: false, error: `"${input}" isn't a number or a relative edit like +=16` };
       if (field.widget.kind !== "number" || field.widget.integer) next = Math.round(next as number);
     }
+    next = roundMetric(field.widget, next);
     if (same(next, current)) continue;
     if (next === undefined) {
       if (!field.optional || t.kind === "bulk")
@@ -1069,32 +1129,43 @@ export type ShapeConversion = {
 
 type Box = Extract<ShapeObj, { type: "box" }>;
 
-const round = (n: number) => Math.round(n);
-const pos = (n: number) => Math.max(1, round(n));
-const roundPts = (pts: readonly Pt[]): Pt[] => pts.map(([x, y]) => [round(x), round(y)]);
+/** Rounding a conversion writes: whole world px at `ppm`, sizes at least one px. */
+type Px = { at(n: number): number; size(n: number): number; pts(pts: readonly Pt[]): Pt[] };
+
+function pxRounding(ppm: number): Px {
+  const at = (n: number) => snapToPixel(n, ppm);
+  const one = snapToPixel(1 / ppm, ppm);
+  return {
+    at,
+    size: (n) => Math.max(one, at(n)),
+    pts: (pts) => pts.map(([x, y]) => [at(x), at(y)]),
+  };
+}
+
 const outline = (pts: Pt[], to: "poly" | "chain"): ShapeObj =>
   to === "poly" ? { type: "poly", pts } : { type: "chain", pts: [...pts, pts[0]!] };
 
-function boundingBox(s: ShapeObj): Box {
+function boundingBox(s: ShapeObj, px: Px): Box {
   const b = aabb(s);
   return {
     type: "box",
-    cx: round((b.minX + b.maxX) / 2),
-    cy: round((b.minY + b.maxY) / 2),
-    hw: pos((b.maxX - b.minX) / 2),
-    hh: pos((b.maxY - b.minY) / 2),
+    cx: px.at((b.minX + b.maxX) / 2),
+    cy: px.at((b.minY + b.maxY) / 2),
+    hw: px.size((b.maxX - b.minX) / 2),
+    hh: px.size((b.maxY - b.minY) / 2),
     rotDeg: 0,
   };
 }
 
-function roundFromBox(b: Box, to: "circle" | "capsule"): ShapeObj {
-  if (to === "circle") return { type: "circle", cx: b.cx, cy: b.cy, r: pos(Math.max(b.hw, b.hh)) };
+function roundFromBox(b: Box, to: "circle" | "capsule", px: Px): ShapeObj {
+  if (to === "circle")
+    return { type: "circle", cx: b.cx, cy: b.cy, r: px.size(Math.max(b.hw, b.hh)) };
   return {
     type: "capsule",
     cx: b.cx,
     cy: b.cy,
-    halfLen: pos(Math.abs(b.hw - b.hh)),
-    r: pos(Math.min(b.hw, b.hh)),
+    halfLen: px.size(Math.abs(b.hw - b.hh)),
+    r: px.size(Math.min(b.hw, b.hh)),
     // A capsule's axis is vertical before rotation.
     rotDeg: b.hw > b.hh ? (b.rotDeg + 90) % 360 : b.rotDeg,
   };
@@ -1115,28 +1186,28 @@ const isClosed = (pts: readonly Pt[]) =>
 
 type Converted = { shape: ShapeObj; lossless: boolean; note?: string };
 
-function convert(s: ShapeObj, to: ShapeType): Converted {
+function convert(s: ShapeObj, to: ShapeType, px: Px): Converted {
   const lossy = (shape: ShapeObj, note: string): Converted => ({ shape, lossless: false, note });
   const HOLLOW = "a chain is an outline with no inside";
   switch (s.type) {
     case "box": {
-      const corners = roundPts(boxCorners(s));
+      const corners = px.pts(boxCorners(s));
       if (to === "poly")
         return s.rotDeg % 90 === 0
           ? { shape: outline(corners, "poly"), lossless: true }
           : lossy(outline(corners, "poly"), "corners round to whole pixels");
       if (to === "chain") return lossy(outline(corners, "chain"), HOLLOW);
-      return lossy(roundFromBox(s, to as "circle" | "capsule"), "the corners become round");
+      return lossy(roundFromBox(s, to as "circle" | "capsule", px), "the corners become round");
     }
     case "circle": {
-      if (to === "box") return lossy(boundingBox(s), "the circle becomes a square");
+      if (to === "box") return lossy(boundingBox(s, px), "the circle becomes a square");
       if (to === "capsule")
         return lossy(
-          { type: "capsule", cx: s.cx, cy: s.cy, halfLen: 1, r: s.r, rotDeg: 0 },
+          { type: "capsule", cx: s.cx, cy: s.cy, halfLen: px.size(0), r: s.r, rotDeg: 0 },
           "it stretches by 2px",
         );
       const step = Math.PI / 4;
-      const pts = roundPts(
+      const pts = px.pts(
         Array.from(
           { length: 8 },
           (_, i): Pt => [s.cx + s.r * Math.cos(i * step), s.cy + s.r * Math.sin(i * step)],
@@ -1160,28 +1231,28 @@ function convert(s: ShapeObj, to: ShapeType): Converted {
           "it becomes a circle",
         );
       return lossy(
-        outline(roundPts(boxCorners(box)), to as "poly" | "chain"),
+        outline(px.pts(boxCorners(box)), to as "poly" | "chain"),
         "the ends become square",
       );
     }
     case "poly": {
       if (to === "chain") return lossy(outline(s.pts, "chain"), HOLLOW);
-      const box = boundingBox(s);
+      const box = boundingBox(s, px);
       if (to === "box")
         return isAxisRect(s.pts)
           ? { shape: box, lossless: true }
           : lossy(box, "it becomes its bounding box");
-      return lossy(roundFromBox(box, to as "circle" | "capsule"), "it becomes a round shape");
+      return lossy(roundFromBox(box, to as "circle" | "capsule", px), "it becomes a round shape");
     }
     case "chain": {
       const ring = isClosed(s.pts) ? s.pts.slice(0, -1) : s.pts;
       if (to === "poly")
         return isClosed(s.pts) && ring.length >= 3 && isConvex(ring)
           ? { shape: { type: "poly", pts: ring }, lossless: true }
-          : lossy({ type: "poly", pts: roundPts(convexHull(ring)) }, "it becomes its convex hull");
-      const box = boundingBox(s);
+          : lossy({ type: "poly", pts: px.pts(convexHull(ring)) }, "it becomes its convex hull");
+      const box = boundingBox(s, px);
       if (to === "box") return lossy(box, "it becomes its bounding box");
-      return lossy(roundFromBox(box, to as "circle" | "capsule"), "it becomes a round shape");
+      return lossy(roundFromBox(box, to as "circle" | "capsule", px), "it becomes a round shape");
     }
   }
 }
@@ -1189,19 +1260,22 @@ function convert(s: ShapeObj, to: ShapeType): Converted {
 /**
  * What the shape tag switcher offers for `tuple`: each of `types` other
  * than its own, converted, and whether converting is lossless (an
- * axis-aligned box to a poly and back) or what it loses.
+ * axis-aligned box to a poly and back) or what it loses. Converted points
+ * and sizes land on whole world px at the game's `pxPerMetre`.
  */
 export function shapeConversions(
   tuple: ShapeTuple,
   types: readonly ShapeType[] = SHAPE_TYPES,
+  pxPerMetre: number = DEFAULT_LENGTH_UNIT,
 ): ShapeConversion[] {
   const parsed = parseShape(tuple);
   if (!parsed.ok) return [];
   const s = parsed.shape;
+  const px = pxRounding(pxPerMetre);
   return types
     .filter((t) => t !== s.type)
     .map((to) => {
-      const { shape, ...rest } = convert(s, to);
+      const { shape, ...rest } = convert(s, to, px);
       return { to, tuple: shapeToTuple(shape), ...rest };
     });
 }

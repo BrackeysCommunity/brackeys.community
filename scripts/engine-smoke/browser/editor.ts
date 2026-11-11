@@ -12,7 +12,6 @@ import "@fontsource-variable/rubik";
 import "@jams/engine/editor-ui/style.css";
 import * as hocuspocus from "@hocuspocus/provider";
 import { devProjectHost, mountSceneEditor, type SceneEditorHandle } from "@jams/engine/editor-ui";
-import { RECORDING_VERSION } from "@jams/engine/scene";
 
 import {
   EDITOR_VIEWPORTS,
@@ -176,7 +175,7 @@ async function inspectorAfterPlay(): Promise<number | null> {
 /** A run of the kitchen sink with `markers` markers, as the Run panel's paste box takes it. */
 function longRun(markers: number): string {
   return JSON.stringify({
-    v: RECORDING_VERSION,
+    v: 1,
     engine: { version: "0.0.0", physics: "rapier smoke" },
     scene: SINK_SCENE,
     sceneHash: "smoke",
@@ -191,7 +190,7 @@ function longRun(markers: number): string {
     markers: Array.from({ length: markers }, (_, i) => ({
       tick: i * 10,
       type: "touch",
-      at: [900 + i, 1100],
+      at: [9 + i / 100, 11],
     })),
     end: "smoke",
   });

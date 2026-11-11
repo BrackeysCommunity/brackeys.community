@@ -5,8 +5,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type * as Y from "yjs";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
-import { defineEditorTool, type Pt, type SceneDefinition, type ToolHost } from "../../editor/index";
-import { defineGame } from "../../game/index";
+import {
+  DEFAULT_SNAP,
+  defineEditorTool,
+  type Pt,
+  type SceneDefinition,
+  type ToolHost,
+} from "../../editor/index";
+import { DEFAULT_LENGTH_UNIT, defineGame } from "../../game/index";
 import { createGame, type GameConfig, type GameInstance, type RapierModule } from "../../index";
 import { EditorFrame, editorChrome } from "../frame/EditorFrame";
 import { viewOf, toScreen } from "../panels/canvas-layer/view";
@@ -219,7 +225,7 @@ describe("the canvas layer", () => {
       fit: "letterbox",
     });
     const { camera } = g.getStore().state;
-    const fit = Math.min(window.innerWidth, window.innerHeight) / 400;
+    const fit = (Math.min(window.innerWidth, window.innerHeight) / 400) * DEFAULT_LENGTH_UNIT;
     expect(camera.scale).toBeCloseTo(fit);
     expect(viewOf(camera, window.innerWidth, window.innerHeight).scale).toBe(camera.scale);
     for (const at of [
@@ -365,7 +371,7 @@ describe("the canvas layer", () => {
     expect(snap.getAttribute("aria-pressed")).toBe("false");
     expect(JSON.parse(window.localStorage.getItem("jams-editor:snap")!)).toEqual({
       enabled: false,
-      step: 64,
+      step: DEFAULT_SNAP.step,
     });
 
     cleanup();

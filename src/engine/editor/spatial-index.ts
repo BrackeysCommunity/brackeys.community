@@ -1,6 +1,7 @@
 import { SPRITE } from "../game/behaviors/sprite";
 import { Z_LIMIT } from "../game/fields";
 import type { RegisteredType, Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import { behaviorBlocks, bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
 import { defaultLayer } from "../scene/layers";
 import { spriteBoxOf, type DrawnSprite, type SpriteAssetLookup } from "../scene/render-geometry";
@@ -11,7 +12,7 @@ import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, BulkKey, EntityDef, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";
 import type { IndexEntry, SpatialIndex } from "./tools";
 
-export const DEFAULT_CELL = 256;
+export const DEFAULT_CELL = 2.56;
 
 /** Where an entity's geometry lives in the document, and what it is in the world. */
 export type EditGeometry = {
@@ -23,10 +24,10 @@ export type EditGeometry = {
   pathField?: string;
   /** The shape as written: local to the path's first point when there is a path. */
   local?: ShapeObj;
-  /** The shape in world px. */
+  /** The shape in world metres. */
   shape?: ShapeObj;
   at?: Pt;
-  /** The path's waypoints, world px. */
+  /** The path's waypoints, world metres. */
   pts?: Pt[];
   /** The path runs a closing segment from its last point back to its first. */
   loop?: boolean;
@@ -124,6 +125,7 @@ export function editSpriteBox(
         block,
         { shape: g.shape, at: g.at, path: g.pts ? { pts: g.pts } : undefined },
         asset,
+        pxPerMetreOf(registry),
       )
     : undefined;
 }
@@ -145,7 +147,7 @@ const entityZ = (e: EntityDef | undefined) =>
     : 0;
 
 export type SpatialIndexOptions = {
-  /** World px per grid cell; default 256. */
+  /** Metres per grid cell; default 2.56. */
   cell?: number;
   /**
    * The doc key behind a ref (`EditorSession.keyOf`). Without it, or when it

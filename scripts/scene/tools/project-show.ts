@@ -24,7 +24,7 @@ import {
   type ProjectProblem as FileProblem,
 } from "@jams/engine/vite";
 
-import { issueLine, usage, type ToolResult } from "../context";
+import { issueLine, prefabLookup, prefabsOf, usage, type ToolResult } from "../context";
 import { overlayMaterials, projectById, scanProject, type ProjectHandle } from "../projects";
 
 /** What the project tools read: the discovered projects. */
@@ -70,7 +70,11 @@ export async function loadProject(project: ProjectHandle): Promise<LoadedProject
 
   const state: ProjectState = { ...scan.state, code: await codeModules(project) };
   const view = projectView(state, project.kinds);
-  const env: KindEnv = { registry, project: view };
+  const env: KindEnv = {
+    registry,
+    project: view,
+    prefab: prefabLookup(await prefabsOf({ project }, registry, scan)),
+  };
   const values = new Map<AssetId, unknown>();
   const texts = new Map<AssetId, string>();
   const fileBytes = new Map<AssetKey, number>();

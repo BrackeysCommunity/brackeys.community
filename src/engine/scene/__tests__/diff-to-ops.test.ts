@@ -297,14 +297,14 @@ describe("diffToOps", () => {
   describe("diffPrefabToOps", () => {
     const door: Prefab = {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "door",
       entities: [{ id: "knob", type: "marker", at: [8, 20] }],
       bulk: { solid: [["box", 0, 40, 10, 4]] },
     };
     const room = (instances: Prefab["instances"], extra: Partial<Prefab> = {}): Prefab => ({
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "room",
       entities: [{ id: "floor", type: "solid", shape: ["box", 0, 60, 100, 10] }],
       ...(instances ? { instances } : {}),
@@ -312,7 +312,7 @@ describe("diffToOps", () => {
     });
     /** The room as its doc reads: a scene named after it, bounds synthesised. */
     const view = (p: Prefab): SceneDefinition => ({
-      v: 3,
+      v: 4,
       name: p.id,
       bounds: [-500, -500, 1000, 1000],
       entities: structuredClone(p.entities),

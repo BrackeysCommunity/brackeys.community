@@ -52,7 +52,7 @@ import {
 
 const yard = parseSceneOrThrow(engineYardText, engine);
 const DEFAULTS = {
-  gravity: [0, 1200],
+  gravity: [0, 12],
   physics: "rapier",
   grid: null,
   view: { projection: "orthogonal" },
@@ -63,7 +63,7 @@ describe("expandScene", () => {
     const scene = expandScene(yard, engine);
     expect(scene.name).toBe("engine-yard");
     expect(scene).not.toHaveProperty("game");
-    expect(scene.bounds).toEqual([0, 0, 2000, 1000]);
+    expect(scene.bounds).toEqual([0, 0, 20, 10]);
     expect(scene.settings).toEqual(DEFAULTS);
     expect(scene.entities.map((e) => e.id)).toEqual([
       "~solid:0",
@@ -80,36 +80,36 @@ describe("expandScene", () => {
     expect(byId["~solid:0"]).toEqual({
       id: "~solid:0",
       type: "solid",
-      shape: { type: "box", cx: 1000, cy: 980, hw: 1000, hh: 20, rotDeg: 0 },
+      shape: { type: "box", cx: 10, cy: 9.8, hw: 10, hh: 0.2, rotDeg: 0 },
     });
     expect(byId.ledge).toEqual({
       id: "ledge",
       type: "solid",
-      shape: { type: "box", cx: 1400, cy: 800, hw: 120, hh: 10, rotDeg: 0 },
+      shape: { type: "box", cx: 14, cy: 8, hw: 1.2, hh: 0.1, rotDeg: 0 },
       oneWay: true,
     });
     expect(byId.crate).toEqual({
       id: "crate",
       type: "prop",
-      shape: { type: "circle", cx: 1200, cy: 940, r: 20 },
+      shape: { type: "circle", cx: 12, cy: 9.4, r: 0.2 },
       density: 2,
       restitution: 0.3,
     });
     expect(byId.lift).toEqual({
       id: "lift",
       type: "follower",
-      shape: { type: "box", cx: 0, cy: 0, hw: 60, hh: 8, rotDeg: 0 },
+      shape: { type: "box", cx: 0, cy: 0, hw: 0.6, hh: 0.08, rotDeg: 0 },
       path: {
         pts: [
-          [1700, 900],
-          [1700, 600],
+          [17, 9],
+          [17, 6],
         ],
         mode: "ping_pong",
-        speed: 80,
+        speed: 0.8,
         pauseMs: 400,
       },
     });
-    expect(byId.start).toEqual({ id: "start", type: "marker", at: [300, 960], tags: ["spawn"] });
+    expect(byId.start).toEqual({ id: "start", type: "marker", at: [3, 9.6], tags: ["spawn"] });
     expect(byId.zone).toMatchObject({ tags: ["goal"] });
   });
 
@@ -207,7 +207,7 @@ describe("settings resolution", () => {
     "gravity" | "physics" | "grid",
     { scene: unknown; project: unknown; game: unknown; engine: unknown }
   > = {
-    gravity: { scene: [1, 2], project: [3, 4], game: [5, 6], engine: [0, 1200] },
+    gravity: { scene: [1, 2], project: [3, 4], game: [5, 6], engine: [0, 12] },
     physics: { scene: "none", project: "rapier", game: "none", engine: "rapier" },
     grid: { scene: square, project: undefined, game: hex, engine: null },
   };
@@ -339,7 +339,7 @@ const NO_PLAY = { actions: [], createRuntime: () => ({ snapshot: () => null }) }
 
 const scene = (entities: SceneDefinition["entities"], extra: Partial<SceneDefinition> = {}) =>
   ({
-    v: 3,
+    v: 4,
     game: "test-game",
     name: "x",
     bounds: [0, 0, 1000, 1000],
@@ -422,7 +422,7 @@ describe("expandScene: behaviors", () => {
       defineGame({ id: "bx", types: [tile], behaviors: [tint, wobble], ...NO_PLAY }),
     );
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       game: "bx",
       name: "x",
       bounds: [0, 0, 100, 100],
@@ -454,7 +454,7 @@ describe("expandScene: z and layer", () => {
   const prefabs = prefabLibrary([
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "pair",
       entities: [
         { id: "low", type: "solid", shape: ["box", 0, 0, 5, 5] },
@@ -465,7 +465,7 @@ describe("expandScene: z and layer", () => {
 
   it("keeps a non-zero z and a set layer, after an instance's", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       name: "x",
       bounds: [0, 0, 1000, 1000],
       instances: [{ id: "p", prefab: "pair", at: [100, 100], z: 2, layer: "gameplay" }],
@@ -484,7 +484,7 @@ describe("expandScene: z and layer", () => {
 
   it("drops a z an instance's offset brings to 0", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       name: "x",
       bounds: [0, 0, 1000, 1000],
       instances: [{ id: "p", prefab: "pair", at: [100, 100], z: -4 }],
@@ -499,14 +499,14 @@ describe("expandScene: nested prefabs", () => {
   const prefabs = prefabLibrary([
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "cell",
       entities: [{ id: "post", type: "solid", z: 1, shape: ["box", 10, 0, 2, 4] }],
       bulk: { solid: [["box", 0, 8, 6, 1]] },
     },
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "row",
       instances: [
         { id: "c1", prefab: "cell", at: [0, 0], layer: "decor" },
@@ -516,14 +516,14 @@ describe("expandScene: nested prefabs", () => {
     },
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "block",
       instances: [{ id: "r", prefab: "row", at: [0, 50], flip: true }],
       entities: [{ id: "base", type: "solid", shape: ["box", 0, 0, 50, 5] }],
     },
   ]);
   const def: SceneDefinition = {
-    v: 3,
+    v: 4,
     name: "x",
     bounds: [-1000, -1000, 1000, 1000],
     instances: [{ id: "b", prefab: "block", at: [300, 300], z: 10 }],
@@ -584,7 +584,7 @@ describe("expandScene: child refs", () => {
   const prefabs = prefabLibrary([
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "gate",
       entities: [
         lift("door"),
@@ -593,7 +593,7 @@ describe("expandScene: child refs", () => {
     },
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "room",
       instances: [{ id: "gate-1", prefab: "gate", at: [0, 0] }],
       entities: [
@@ -602,7 +602,7 @@ describe("expandScene: child refs", () => {
     },
   ]);
   const def: SceneDefinition = {
-    v: 3,
+    v: 4,
     name: "x",
     bounds: [-1000, -1000, 1000, 1000],
     instances: [
@@ -660,7 +660,7 @@ describe("expandScene: transforms", () => {
   const prefabs = prefabLibrary([
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       game: "mg",
       id: "kite",
       entities: [
@@ -681,7 +681,7 @@ describe("expandScene: transforms", () => {
 
   const placed = (d: Dihedral) => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       game: "mg",
       name: "x",
       bounds: [0, 0, 1000, 1000],
@@ -745,7 +745,7 @@ describe("expandScene: transforms", () => {
 
   it("records a turned group's transform on its members", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       game: "mg",
       name: "x",
       bounds: [0, 0, 1000, 1000],
@@ -816,7 +816,7 @@ describe("expandScene: instance by instance", () => {
   );
   const roomLib = prefabLibrary([room, door, gate] as unknown as Prefab[]);
   const rooms = (game?: string): SceneDefinition => ({
-    v: 3,
+    v: 4,
     ...(game !== undefined ? { game } : {}),
     name: "rooms",
     bounds: [-2000, -2000, 2000, 2000],

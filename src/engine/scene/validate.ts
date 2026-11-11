@@ -7,6 +7,7 @@ import { isSpawnOnly, placeableTypes } from "../game/define";
 import { isPolygonField } from "../game/fields";
 import { physicsNeeds } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import { assetInfo } from "../project/asset-info";
 import { ATLAS_KIND } from "../project/kinds/atlas";
 import { isPlainObject } from "../project/kinds/define";
@@ -82,6 +83,7 @@ import {
   type ShapeObj,
   type ShapeTuple,
 } from "./types";
+import { isWholePixel, roundLength, snapToPixel } from "./units";
 
 export type ValidateOptions = {
   lines?: ReadonlyMap<string, number>;
@@ -211,17 +213,50 @@ function firstRepeat(pts: readonly Pt[], closed: boolean): number {
   return -1;
 }
 
-function roundTuple(t: ShapeTuple): ShapeTuple {
+/** The index of a tuple's angle, which is whole degrees rather than whole pixels. */
+const rotIndex = (tag: ShapeTuple[0]) => (tag === "box" || tag === "capsule" ? 5 : -1);
+
+/** Whether a tuple's value at `i` is off the grid it keeps: whole px for a length, whole degrees for the angle. */
+const offGrid = (t: ShapeTuple, i: number, ppm: number) => {
+  const n = t[i];
+  if (i === 0 || typeof n !== "number") return false;
+  return i === rotIndex(t[0]) ? !isInt(n) : !isWholePixel(n, ppm);
+};
+
+/** A tuple on whole px (sizes at least one px) and whole degrees. */
+function snapTuple(t: ShapeTuple, ppm: number): ShapeTuple {
   const [tag, ...nums] = t;
   const positive =
     tag === "box" ? [2, 3] : tag === "circle" ? [2] : tag === "capsule" ? [2, 3] : [];
+  const rot = rotIndex(tag) - 1;
   return [
     tag,
-    ...nums.map((n, i) => (positive.includes(i) ? Math.max(1, Math.round(n)) : Math.round(n))),
+    ...nums.map((n, i) =>
+      i === rot
+        ? Math.round(n)
+        : positive.includes(i)
+          ? Math.max(snapToPixel(1 / ppm, ppm), snapToPixel(n, ppm))
+          : snapToPixel(n, ppm),
+    ),
   ] as ShapeTuple;
 }
 
-const roundPt = ([x, y]: Pt): Pt => [Math.round(x), Math.round(y)];
+/** The whole world px at or below `m`, as a written length; a pixel lower when rounding lifts it past `m`. */
+function pixelFloor(m: number, ppm: number): number {
+  const px = Math.floor(m * ppm);
+  const out = roundLength(px / ppm);
+  return out > m ? roundLength((px - 1) / ppm) : out;
+}
+
+/** The whole world px at or above `m`, as a written length. */
+function pixelCeil(m: number, ppm: number): number {
+  const px = Math.ceil(m * ppm);
+  const out = roundLength(px / ppm);
+  return out < m ? roundLength((px + 1) / ppm) : out;
+}
+
+const snapPt = ([x, y]: Pt, ppm: number): Pt => [snapToPixel(x, ppm), snapToPixel(y, ppm)];
+const onPixels = ([x, y]: Pt, ppm: number) => isWholePixel(x, ppm) && isWholePixel(y, ppm);
 
 function center(b: Aabb): Pt {
   return [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2];
@@ -267,7 +302,7 @@ function extent(
  * valid), grid fields (only with a grid: the scene's, else the game's world's), asset ids and sprite
  * frames when `opts.project` is given, and the
  * geometry of every registered shape, point and path field (polys, chains,
- * paths, integer pixels, bounds), then the game's `registry.validators`. No
+ * paths, whole world pixels, bounds), then the game's `registry.validators`. No
  * physics. Each issue names the entity (bulk entries by their `~key:index`
  * reference, instance children as `<instance>/<child>`, pointing at the
  * instance) and carries a `fix` batch when one is mechanical; fixes are
@@ -323,6 +358,7 @@ export function validateScene(
 
   const entities = def.entities ?? [];
   const [minX, minY, maxX, maxY] = def.bounds;
+  const ppm = pxPerMetreOf(r);
 
   // types only game code spawns, which no scene or prefab may place
   entities.forEach((e, i) => {
@@ -429,7 +465,7 @@ export function validateScene(
           message: `${e.id}.${field} is a grid field, but the scene has no settings.grid, nor the game's world a grid, to size its cells`,
           path: jsonPointer(["entities", i, field]),
           entityIds: [e.id],
-          hint: 'Give the scene a grid with setSettings (e.g. { "grid": { "kind": "square", "cell": [32, 32] } }), or unset the field.',
+          hint: 'Give the scene a grid with setSettings (e.g. { "grid": { "kind": "square", "cell": [0.32, 0.32] } }), or unset the field.',
         });
       }
     });
@@ -455,7 +491,7 @@ export function validateScene(
           message: `${e.id} has the ${OCCUPANT.name} behavior, but the scene has no settings.grid, nor the game's world a grid, for it to occupy`,
           path: jsonPointer(["entities", i, BEHAVIORS_FIELD, OCCUPANT.name]),
           entityIds: [e.id],
-          hint: `Give the scene a grid with setSettings (e.g. { "grid": { "kind": "square", "cell": [32, 32] } }), or drop ${e.id}'s ${OCCUPANT.name} behavior.`,
+          hint: `Give the scene a grid with setSettings (e.g. { "grid": { "kind": "square", "cell": [0.32, 0.32] } }), or drop ${e.id}'s ${OCCUPANT.name} behavior.`,
         });
       });
     }
@@ -550,7 +586,7 @@ export function validateScene(
         push("path-invalid", {
           message: few
             ? `${ref}'s ${field} has ${path.pts.length} point${path.pts.length === 1 ? "" : "s"}; it needs at least 2`
-            : `${ref}'s ${field} speed is ${path.speed}; it must be > 0 px/s`,
+            : `${ref}'s ${field} speed is ${path.speed}; it must be > 0 m/s`,
           path: few ? `${at}/pts` : `${at}/speed`,
           entityIds: [ref],
           expected: few ? ">= 2 points" : "> 0",
@@ -579,7 +615,7 @@ export function validateScene(
       }
     }
 
-    // integer pixels
+    // whole world pixels
     const set: Record<string, unknown> = {};
     let firstBad: string | undefined;
     const flag = (field: string, bad: string, value: unknown) => {
@@ -587,33 +623,45 @@ export function validateScene(
       set[field] = value;
     };
     for (const { field, pointer: at, value } of item.shapes) {
-      const k = value.findIndex((n, i) => i > 0 && typeof n === "number" && !isInt(n));
-      if (k > 0) flag(field, `${at}/${k}`, roundTuple(value));
+      const k = value.findIndex((_, i) => offGrid(value, i, ppm));
+      if (k > 0) flag(field, `${at}/${k}`, snapTuple(value, ppm));
     }
     for (const { field, pointer: at, value } of item.points) {
-      if (!(isInt(value[0]) && isInt(value[1])))
-        flag(field, `${at}/${isInt(value[0]) ? 1 : 0}`, roundPt(value));
+      if (!onPixels(value, ppm))
+        flag(field, `${at}/${isWholePixel(value[0], ppm) ? 1 : 0}`, snapPt(value, ppm));
     }
     for (const { field, pointer: at, value } of item.paths) {
-      const k = value.pts.findIndex((p) => !(isInt(p[0]) && isInt(p[1])));
-      if (k >= 0) flag(`${field}.pts`, `${at}/pts/${k}`, value.pts.map(roundPt));
+      const k = value.pts.findIndex((p) => !onPixels(p, ppm));
+      if (k >= 0)
+        flag(
+          `${field}.pts`,
+          `${at}/pts/${k}`,
+          value.pts.map((p) => snapPt(p, ppm)),
+        );
     }
     if (firstBad !== undefined) {
       push("non-integer", {
-        message: `${ref} has a coordinate that isn't a whole pixel (${Object.keys(set).join(", ")})`,
+        message: `${ref} has a length that isn't a whole world pixel at ${ppm} px per metre (${Object.keys(set).join(", ")})`,
         path: firstBad,
         entityIds: [ref],
-        fix: batch(`Round ${ref} to whole pixels`, [{ op: "update", ref, set }], [ref]),
+        fix: batch(`Snap ${ref} to whole pixels`, [{ op: "update", ref, set }], [ref]),
       });
     }
 
     // bounds
     if (type.loads === false) continue;
-    const box = extent(
+    const raw = extent(
       parsed,
       item.points.map((p) => p.value),
       item.paths.map((p) => p.value),
     );
+    // Edges at the file's length precision: 3.68 + 0.16 sits on 3.84, not past it.
+    const box = raw && {
+      minX: roundLength(raw.minX),
+      minY: roundLength(raw.minY),
+      maxX: roundLength(raw.maxX),
+      maxY: roundLength(raw.maxY),
+    };
     if (box && (box.minX < minX || box.minY < minY || box.maxX > maxX || box.maxY > maxY)) {
       const grown = aabbUnion({ minX, minY, maxX, maxY }, box);
       push("out-of-bounds", {
@@ -628,10 +676,10 @@ export function validateScene(
               op: "setScene",
               set: {
                 bounds: [
-                  Math.floor(grown.minX),
-                  Math.floor(grown.minY),
-                  Math.ceil(grown.maxX),
-                  Math.ceil(grown.maxY),
+                  pixelFloor(grown.minX, ppm),
+                  pixelFloor(grown.minY, ppm),
+                  pixelCeil(grown.maxX, ppm),
+                  pixelCeil(grown.maxY, ppm),
                 ],
               },
             },
@@ -978,20 +1026,25 @@ function assetIssue(
   };
 }
 
-const isNonNegInt = (n: unknown): n is number => typeof n === "number" && isInt(n) && n >= 0;
+const isNum = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
-/** `settings.grid` beyond its shape: whole-pixel cells, a hex side that fits its axis, a whole-pixel origin. */
-function validateGrid(grid: Record<string, unknown>, push: Push): void {
+/**
+ * `settings.grid` beyond its shape, at `ppm` px per metre: cells of a
+ * positive whole number of px, a hex side of whole px that fits its axis, an
+ * origin on whole px. Tiles line up with art only on whole px.
+ */
+function validateGrid(grid: Record<string, unknown>, push: Push, ppm: number): void {
   const at = (...rest: (string | number)[]) => jsonPointer(["settings", "grid", ...rest]);
   const bad = (path: string, message: string, expected: string, got: unknown) =>
     push("grid-invalid", { message, path, expected, got: JSON.stringify(got) });
+  const px = `1 px is ${roundLength(1 / ppm)} m at ${ppm} px per metre`;
   const cell = Array.isArray(grid.cell) ? grid.cell : [];
   cell.forEach((n, k) => {
-    if (!isNonNegInt(n) || n === 0)
+    if (!isNum(n) || !(n > 0) || !isWholePixel(n, ppm) || Math.round(n * ppm) < 1)
       bad(
         at("cell", k),
-        `the grid's cell ${k === 0 ? "width" : "height"} is ${JSON.stringify(n)}; it must be a positive whole number of px`,
-        "a positive integer",
+        `the grid's cell ${k === 0 ? "width" : "height"} is ${JSON.stringify(n)} m; it must be a positive whole number of px (${px})`,
+        "a positive whole number of px, in metres",
         n,
       );
   });
@@ -999,22 +1052,24 @@ function validateGrid(grid: Record<string, unknown>, push: Push): void {
     const axis = grid.stagger === "x" ? 0 : 1;
     const span: unknown = cell[axis];
     const side = grid.side;
-    const max = isNonNegInt(span) && span > 0 ? span : undefined;
-    if (!isNonNegInt(side) || (max !== undefined && side > max))
+    const max = isNum(span) && span > 0 && isWholePixel(span, ppm) ? span : undefined;
+    if (!isNum(side) || side < 0 || !isWholePixel(side, ppm) || (max !== undefined && side > max))
       bad(
         at("side"),
-        `the hex grid's side is ${JSON.stringify(side)}; it must be a whole number of px from 0 to the cell ${axis === 0 ? "width" : "height"}${max !== undefined ? ` (${max})` : ""}`,
-        max !== undefined ? `an integer in [0, ${max}]` : "a non-negative integer",
+        `the hex grid's side is ${JSON.stringify(side)} m; it must be a whole number of px from 0 to the cell ${axis === 0 ? "width" : "height"}${max !== undefined ? ` (${max} m)` : ""} (${px})`,
+        max !== undefined
+          ? `a whole number of px in [0, ${max}] m`
+          : "a non-negative whole number of px, in metres",
         side,
       );
   }
   const origin = Array.isArray(grid.origin) ? grid.origin : [];
   origin.forEach((n, k) => {
-    if (typeof n !== "number" || !isInt(n))
+    if (!isNum(n) || !isWholePixel(n, ppm))
       bad(
         at("origin", k),
-        `the grid's origin ${k === 0 ? "x" : "y"} is ${JSON.stringify(n)}; it must be a whole number of px`,
-        "an integer",
+        `the grid's origin ${k === 0 ? "x" : "y"} is ${JSON.stringify(n)} m; it must be a whole number of px (${px})`,
+        "a whole number of px, in metres",
         n,
       );
   });
@@ -1080,7 +1135,7 @@ function validateSource(
 
   // settings
   const own = def.settings?.grid;
-  if (isPlainObject(own)) validateGrid(own, push);
+  if (isPlainObject(own)) validateGrid(own, push, pxPerMetreOf(registry));
 
   // the assets header
   const listed = new Set<string>();

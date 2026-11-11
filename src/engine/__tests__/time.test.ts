@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { DEFAULT_TICK_RATE } from "../game/defaults";
-import { MAX_TICK_RATE, MIN_TICK_RATE, resolveTime, tickRateProblem, ticksFor } from "../game/time";
+import {
+  MAX_TICK_RATE,
+  MIN_TICK_RATE,
+  resolveTime,
+  tickRateProblem,
+  ticksFor,
+  ticksIn,
+  wholeTicksIn,
+} from "../game/time";
 
 describe("resolveTime", () => {
   it("is fixed at the engine's rate with nothing given", () => {
@@ -79,5 +87,32 @@ describe("ticksFor", () => {
   it("is at least one tick", () => {
     expect(ticksFor(0, { rate: 60 })).toBe(1);
     expect(ticksFor(1, { rate: 1 })).toBe(1);
+  });
+});
+
+describe("ticksIn and wholeTicksIn", () => {
+  it("counts whole-number ms exactly at 60 and 30 Hz, where ms / tickMs undercounts", () => {
+    for (const [rate, ms, ticks] of [
+      [60, 1000, 60],
+      [60, 500, 30],
+      [60, 250, 15],
+      [30, 1000, 30],
+      [30, 500, 15],
+      [120, 1000, 120],
+    ] as const) {
+      const time = resolveTime({ game: { kind: "fixed", rate } });
+      expect(Math.floor(ms / time.tickMs)).toBe(ticks - 1);
+      expect(ticksIn(ms, time)).toBe(ticks);
+      expect(wholeTicksIn(ms, time)).toEqual({ ticks, restMs: 0 });
+      expect(ticksFor(ms, time)).toBe(ticks);
+    }
+  });
+
+  it("keeps the part of a tick left over", () => {
+    const at60 = { rate: 60 };
+    expect(wholeTicksIn(10, at60)).toEqual({ ticks: 0, restMs: 10 });
+    expect(wholeTicksIn(1010, at60)).toEqual({ ticks: 60, restMs: 10 });
+    expect(wholeTicksIn(0, at60)).toEqual({ ticks: 0, restMs: 0 });
+    expect(ticksIn(25, at60)).toBe(1.5);
   });
 });

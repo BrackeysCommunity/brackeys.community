@@ -1,3 +1,6 @@
+import { makeIssue } from "../../scene/issues";
+import type { SceneIssue } from "../../scene/types";
+import type { ProjectView } from "../types";
 import { atlasKind } from "./atlas";
 import { audioKind } from "./audio";
 import { checksKind } from "./checks";
@@ -6,6 +9,7 @@ import { dataTableKind } from "./data-table";
 import type { AssetKindDef } from "./define";
 import { fontKind } from "./font";
 import { gameSettingsKind } from "./game-settings";
+import { inputMapEntries, inputMapKind } from "./input-map";
 import { inputScriptKind } from "./input-script";
 import { materialKind } from "./material";
 import { prefabKind } from "./prefab";
@@ -63,6 +67,18 @@ export {
   gameSettingsValues,
   type GameSettingsFile,
 } from "./game-settings";
+export {
+  INPUT_MAP_KIND,
+  INPUT_MAP_SCHEMA_ID,
+  INPUT_MAP_VERSION,
+  inputMapEntries,
+  inputMapKind,
+  inputMapProblems,
+  usableInputMap,
+  type InputMapFile,
+  type InputMapProblem,
+  type InputMapTouchControl,
+} from "./input-map";
 export { INPUT_SCRIPT_SUFFIX, inputScriptKind } from "./input-script";
 export {
   MATERIAL_KIND,
@@ -102,6 +118,7 @@ export const ENGINE_ASSET_KINDS: readonly AssetKindDef[] = [
   gameSettingsKind,
   dataTableKind,
   inputScriptKind,
+  inputMapKind,
   checksKind,
   textureKind,
   atlasKind,
@@ -110,3 +127,16 @@ export const ENGINE_ASSET_KINDS: readonly AssetKindDef[] = [
   recordingKind,
   codeKind,
 ];
+
+/** `asset-kind` for every live input-map asset after the first by path: a project has at most one. */
+export function inputMapIssues(view: ProjectView): SceneIssue[] {
+  const [first, ...extra] = inputMapEntries(view);
+  return extra.map((entry) =>
+    makeIssue("asset-kind", {
+      message: `"${entry.id}" is a second input map; "${first!.id}" (${first!.path}) is the project's`,
+      entityIds: [entry.key],
+      got: entry.path,
+      hint: `Move its bindings into "${first!.id}" and delete it.`,
+    }),
+  );
+}

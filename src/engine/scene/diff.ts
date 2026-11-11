@@ -10,6 +10,7 @@ import {
   type SceneDefinition,
   type ShapeTuple,
 } from "./types";
+import { roundLength } from "./units";
 
 type Json = Record<string, unknown>;
 
@@ -164,19 +165,22 @@ export function lcsPairs(
 
 const isPoint = (v: BulkEntry): v is Pt => typeof v[0] === "number";
 
+/** `b - a` at the file's length precision. */
+const delta = (a: number, b: number) => roundLength(b - a);
+
 /** The offset from `a` to `b` when the two bulk entries differ only by position. */
 export function bulkOffset(a: BulkEntry, b: BulkEntry): Pt | null {
   if (isPoint(a) || isPoint(b)) {
-    return isPoint(a) && isPoint(b) ? [b[0] - a[0], b[1] - a[1]] : null;
+    return isPoint(a) && isPoint(b) ? [delta(a[0], b[0]), delta(a[1], b[1])] : null;
   }
   if (a[0] !== b[0] || a.length !== b.length) return null;
-  const dx = (b[1] as number) - (a[1] as number);
-  const dy = (b[2] as number) - (a[2] as number);
+  const dx = delta(a[1] as number, b[1] as number);
+  const dy = delta(a[2] as number, b[2] as number);
   if (a[0] === "poly" || a[0] === "chain") {
     for (let i = 1; i + 1 < a.length; i += 2) {
       if (
-        (b[i] as number) - (a[i] as number) !== dx ||
-        (b[i + 1] as number) - (a[i + 1] as number) !== dy
+        delta(a[i] as number, b[i] as number) !== dx ||
+        delta(a[i + 1] as number, b[i + 1] as number) !== dy
       )
         return null;
     }

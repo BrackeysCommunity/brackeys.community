@@ -2,7 +2,7 @@ import type { Store } from "@tanstack/store";
 import { useId, useMemo, useState } from "react";
 
 import type { EditorSession } from "../../editor/index";
-import { resolveTime, type TimeKind } from "../../game/index";
+import { resolveTime, type Registry, type TimeKind } from "../../game/index";
 import type { PlayOptions } from "../../index";
 import type { EditorNotify } from "../host";
 import {
@@ -55,8 +55,8 @@ const seconds = (tick: number, tickRate: number) => `${(tick / tickRate).toFixed
 function runTimes(recording: LoadedRun["recording"], kind: TimeKind) {
   if (kind === "fixed") {
     return {
-      length: `${recording.ticks} ticks (${seconds(recording.ticks, recording.tickRate)})`,
-      at: (tick: number) => seconds(tick, recording.tickRate),
+      length: `${recording.ticks} ticks (${seconds(recording.ticks, recording.time.rate)})`,
+      at: (tick: number) => seconds(tick, recording.time.rate),
     };
   }
   return {
@@ -75,11 +75,13 @@ function LoadRunDialog({
   onOpenChange,
   onLoaded,
   notify,
+  registry,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLoaded: (run: LoadedRun) => void;
   notify: EditorNotify;
+  registry: Pick<Registry, "time">;
 }) {
   const [pasted, setPasted] = useState("");
   const fileId = useId();
@@ -88,7 +90,7 @@ function LoadRunDialog({
   const reading = useBusy(READ_RUN_SCOPE);
 
   const load = (text: string, name: string) => {
-    const parsed = parseRun(text, name);
+    const parsed = parseRun(text, name, registry);
     if (!parsed.ok) {
       notify.error("Couldn't load that run", { description: parsed.error });
       return;
@@ -304,6 +306,7 @@ export function LoadRunPanel({
         <LoadRunDialog
           open={open}
           notify={notify}
+          registry={session.registry}
           onOpenChange={setOpen}
           onLoaded={(next) => {
             run.setState(() => next);

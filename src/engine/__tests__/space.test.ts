@@ -365,10 +365,10 @@ describe("space queries on both backends over one scene", () => {
         shapes,
       );
     }
-    const from = { x: 900.5, y: 0 };
-    const down = r.raycast(from, { x: 0, y: 1 }, 1000, filter);
+    const from = { x: 9.005, y: 0 };
+    const down = r.raycast(from, { x: 0, y: 1 }, 10, filter);
     expect(down?.tag.entityId).toBe("zone");
-    expectSameCast(down, g.raycast(from, { x: 0, y: 1 }, 1000, filter), "yard ray", 1e-4);
+    expectSameCast(down, g.raycast(from, { x: 0, y: 1 }, 10, filter), "yard ray", 1e-4);
   });
 });
 
@@ -447,5 +447,116 @@ describe("the geometry world", () => {
     expect(space.raycast({ x: -50, y: 0 }, { x: 1, y: 0 }, 100, { sensors: true })?.toi).toBe(0.4);
     add("wall", square());
     expect(space.sweep(probe, { x: 100, y: 0 })?.tag.entityId).toBe("wall");
+  });
+});
+
+describe("space queries over disabled bodies", () => {
+  /** A prop and a lift carrying a plank, apart from each other. */
+  const DISABLED: SceneDefinition = {
+    v: 4,
+    name: "disabled",
+    bounds: [0, 0, 40, 20],
+    entities: [
+      { id: "crate", type: "prop", shape: ["box", 5, 5, 1, 1], density: 1 },
+      {
+        id: "lift",
+        type: "follower",
+        shape: ["box", 0, 0, 2, 0.5],
+        path: {
+          pts: [
+            [20, 5],
+            [30, 5],
+          ],
+          mode: "loop",
+          speed: 1,
+        },
+      },
+      { id: "plank", type: "solid", attach: "lift", shape: ["box", 20, 4, 3, 0.25] },
+    ],
+  };
+
+  function loaded() {
+    const runtime = createSceneRuntime({ rapier, view: null, registry: engine });
+    const report = runtime.load(expandScene(DISABLED, engine));
+    if (!report.ok) throw new Error(report.error);
+    const collider = (id: string) =>
+      runtime.ctx.physics!.world.getCollider(runtime.ctx.tags.handlesOf(id)[0]!)!;
+    return { runtime, space: rapierSpace(runtime.ctx), collider };
+  }
+
+  const everything: ShapeObj = { type: "box", cx: 20, cy: 10, hw: 30, hh: 30, rotDeg: 0 };
+
+  /** The entity ids every query kind finds near the prop and the lift. */
+  function found(space: SpaceQuery): Record<string, string[] | string | null> {
+    const ids = (hits: SpaceHit[]) => hits.map((h) => h.tag.entityId);
+    return {
+      overlaps: ids(space.overlaps(everything)),
+      crateAt: ids(space.pointAt({ x: 5, y: 5 })),
+      plankAt: ids(space.pointAt({ x: 21, y: 4 })),
+      rayToCrate: space.raycast({ x: 0, y: 5 }, { x: 1, y: 0 }, 10)?.tag.entityId ?? null,
+      sweepToPlank:
+        space.sweep({ type: "circle", cx: 22, cy: 1, r: 0.2 }, { x: 0, y: 3 })?.tag.entityId ??
+        null,
+    };
+  }
+
+  it("finds the prop, the lift and its plank while their bodies are on", () => {
+    const { runtime, space } = loaded();
+    expect(found(space)).toEqual({
+      overlaps: ["crate", "lift", "plank"],
+      crateAt: ["crate"],
+      plankAt: ["plank"],
+      rayToCrate: "crate",
+      sweepToPlank: "plank",
+    });
+    runtime.destroy();
+  });
+
+  it("skips the colliders of a disabled prop's body, though the colliders stay on", () => {
+    const { runtime, space, collider } = loaded();
+    const crate = collider("crate");
+    crate.parent()!.setEnabled(false);
+    expect(crate.isEnabled()).toBe(true);
+    expect(found(space)).toEqual({
+      overlaps: ["lift", "plank"],
+      crateAt: [],
+      plankAt: ["plank"],
+      rayToCrate: null,
+      sweepToPlank: "plank",
+    });
+    crate.parent()!.setEnabled(true);
+    expect(found(space).overlaps).toEqual(["crate", "lift", "plank"]);
+    runtime.destroy();
+  });
+
+  it("skips every collider a disabled carrier's body holds, its riders' included", () => {
+    const { runtime, space, collider } = loaded();
+    const plank = collider("plank");
+    collider("lift").parent()!.setEnabled(false);
+    expect(plank.isEnabled()).toBe(true);
+    expect(found(space)).toEqual({
+      overlaps: ["crate"],
+      crateAt: ["crate"],
+      plankAt: [],
+      rayToCrate: "crate",
+      sweepToPlank: null,
+    });
+    runtime.destroy();
+  });
+
+  it("skips entities switched off through the context", () => {
+    const { runtime, space } = loaded();
+    runtime.ctx.setEnabled("crate", false);
+    runtime.ctx.setEnabled("lift", false);
+    expect(found(space)).toEqual({
+      overlaps: [],
+      crateAt: [],
+      plankAt: [],
+      rayToCrate: null,
+      sweepToPlank: null,
+    });
+    runtime.ctx.setEnabled("lift", true);
+    expect(found(space).overlaps).toEqual(["lift", "plank"]);
+    runtime.destroy();
   });
 });

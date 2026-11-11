@@ -19,8 +19,22 @@ export const coinGame = defineGame<CoinSnapshot>({
   id: "coin-game",
   types: [coin],
   actions: [
-    { action: "left", keys: ["a", "arrowleft"], description: "Walk left." },
-    { action: "right", keys: ["d", "arrowright"], description: "Walk right." },
+    {
+      action: "left",
+      bindings: [
+        { device: "key", code: "KeyA" },
+        { device: "key", code: "ArrowLeft" },
+      ],
+      description: "Walk left.",
+    },
+    {
+      action: "right",
+      bindings: [
+        { device: "key", code: "KeyD" },
+        { device: "key", code: "ArrowRight" },
+      ],
+      description: "Walk right.",
+    },
   ],
   // Props (the engine's dynamic group) don't touch sensors unless a game says so.
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },

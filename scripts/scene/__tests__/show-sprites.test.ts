@@ -27,22 +27,22 @@ async function run(...argv: string[]) {
 }
 
 const gallery = {
-  v: 3,
+  v: 4,
   name: "gallery",
-  bounds: [0, 0, 400, 200],
-  groups: { turned: { at: [300, 100], rot: 1 } },
+  bounds: [0, 0, 4, 2],
+  groups: { turned: { at: [3, 1], rot: 1 } },
   entities: [
-    { id: "pic", type: "marker", at: [100, 100], behaviors: { sprite: { asset: "tex" } } },
+    { id: "pic", type: "marker", at: [1, 1], behaviors: { sprite: { asset: "tex" } } },
     {
       id: "gem",
       type: "marker",
-      at: [200, 100],
+      at: [2, 1],
       behaviors: { sprite: { asset: "items", frame: "gem.png" } },
     },
     {
       id: "box",
       type: "prop",
-      shape: ["box", 50, 150, 8, 8],
+      shape: ["box", 0.5, 1.5, 0.08, 0.08],
       density: 1,
       restitution: 0,
       behaviors: { sprite: {} },
@@ -52,9 +52,9 @@ const gallery = {
       type: "marker",
       group: "turned",
       at: [0, 0],
-      behaviors: { sprite: { size: [10, 40], anchor: [0.5, 1] } },
+      behaviors: { sprite: { size: [0.1, 0.4], anchor: [0.5, 1] } },
     },
-    { id: "plain", type: "marker", at: [20, 20] },
+    { id: "plain", type: "marker", at: [0.2, 0.2] },
   ],
 };
 
@@ -90,38 +90,40 @@ describe("show: sprite boxes", { timeout: 60_000 }, () => {
     expect(spriteOf(rows, "pic")).toEqual({
       label: "tex",
       asset: "tex",
-      size: [12, 10],
-      aabb: { minX: 94, minY: 95, maxX: 106, maxY: 105 },
+      size: [0.12, 0.1],
+      aabb: { minX: 0.94, minY: 0.95, maxX: 1.06, maxY: 1.05 },
     });
     // The atlas frame's 8×8 at its bottom-centre pivot.
     expect(spriteOf(rows, "gem")).toMatchObject({
       label: "items:gem.png",
       frame: "gem.png",
-      size: [8, 8],
-      aabb: { minX: 196, minY: 92, maxX: 204, maxY: 100 },
+      size: [0.08, 0.08],
+      aabb: { minX: 1.96, minY: 0.92, maxX: 2.04, maxY: 1 },
     });
-    // No asset: the 32×32 fallback at the body's centre.
+    // No asset: the 0.32 × 0.32 m fallback at the body's centre.
     expect(spriteOf(rows, "box")).toEqual({
       label: "(no asset)",
-      size: [32, 32],
-      aabb: { minX: 34, minY: 134, maxX: 66, maxY: 166 },
+      size: [0.32, 0.32],
+      aabb: { minX: 0.34, minY: 1.34, maxX: 0.66, maxY: 1.66 },
     });
     // A quarter turn of its group turns the sprite with the point: it lies to the right of it.
-    expect(spriteOf(rows, "flag")?.aabb).toEqual({ minX: 300, minY: 95, maxX: 340, maxY: 105 });
+    expect(spriteOf(rows, "flag")?.aabb).toEqual({ minX: 3, minY: 0.95, maxX: 3.4, maxY: 1.05 });
     expect(spriteOf(rows, "plain")).toBeUndefined();
   });
 
   it("prints each sprite's label and box", async () => {
     const text = (await runCli(["show", "gallery", "--ref", "pic"], ctx)).stdout;
-    expect(text).toContain("pic  marker at 100,100 behaviors sprite sprite tex 94,95..106,105");
+    expect(text).toContain(
+      "pic  marker at 1,1 m behaviors sprite sprite tex 0.94,0.95..1.06,1.05 m",
+    );
   });
 
-  it("falls back to the block's size or 32×32 for a file outside every project", async () => {
+  it("falls back to the block's size or 0.32 × 0.32 m for a file outside every project", async () => {
     const r = await run("show", join(root, "loose.json"));
     expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
     expect(spriteOf(r.data.entities as Row[], "pic")).toMatchObject({
-      size: [32, 32],
-      aabb: { minX: 84, minY: 84, maxX: 116, maxY: 116 },
+      size: [0.32, 0.32],
+      aabb: { minX: 0.84, minY: 0.84, maxX: 1.16, maxY: 1.16 },
     });
   });
 
@@ -132,7 +134,7 @@ describe("show: sprite boxes", { timeout: 60_000 }, () => {
       ref: "gem",
       type: "marker",
       label: "items:gem.png",
-      box: { minX: 196, minY: 92, maxX: 204, maxY: 100 },
+      box: { minX: 1.96, minY: 0.92, maxX: 2.04, maxY: 1 },
     });
     expect(r.data.svg).toContain(">items:gem.png</text>");
   });

@@ -56,7 +56,7 @@ const handle = (id: string, kind: GizmoHandle["kind"], at: Pt, cursor?: string):
 
 /**
  * A shape's handles, at a constant screen size for `scale` (screen px per
- * world px): move at the pivot; a box's eight resize handles and rotate
+ * metre): move at the pivot; a box's eight resize handles and rotate
  * stalk; a circle's radius; a capsule's half-length, radius and rotate; a
  * poly's or chain's rotate. Later handles draw over earlier ones.
  */

@@ -1,6 +1,6 @@
 import type { Vec2 } from "./types";
 
-/** A template about to be placed: where and at what rotation. */
+/** A template about to be placed: where (world metres) and at what rotation. */
 export type PlacementGhost<T> = { template: T; at: Vec2; /** Radians. */ rotation: number };
 
 export type PlacementCheck = { valid: boolean; reason?: string };
@@ -29,7 +29,7 @@ export type PlacementTool<T> = {
   select: (template: T) => void;
   /** Drops the template and hides the ghost. */
   clear: () => void;
-  /** Follows the pointer; with `show` false the ghost stays hidden (the host isn't placing now). */
+  /** Follows the pointer, in world metres; with `show` false the ghost stays hidden (the host isn't placing now). */
   move: (at: Vec2, show?: boolean) => void;
   /** Turns the ghost by `delta` steps, for a rotatable template. */
   rotate: (delta: number) => void;

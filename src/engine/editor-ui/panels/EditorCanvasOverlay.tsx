@@ -17,6 +17,7 @@ import {
   POINT_RADIUS_PX,
   shapePath,
   useView,
+  worldNum,
   worldPx,
   worldTransform,
   type View,
@@ -57,7 +58,7 @@ function Marks({
   return (
     <g
       {...(by
-        ? { "data-ghost": label, transform: `translate(${num(by[0])} ${num(by[1])})` }
+        ? { "data-ghost": label, transform: `translate(${worldNum(by[0])} ${worldNum(by[1])})` }
         : { "data-selection": label })}
       fill="none"
       strokeWidth={2}

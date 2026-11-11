@@ -37,6 +37,11 @@ export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
    * undefined when the block is fine. Runs after the fields parse.
    */
   refine?(block: BehaviorBlock): string | undefined;
+  /**
+   * The block the editor's Add behavior writes, before required fields are
+   * seeded; default `{}`. Give one when `{}` fails `refine`.
+   */
+  template?: BehaviorBlock;
 };
 
 /** Identity at runtime; types the definition. Names and rules are checked when a registry is built. */

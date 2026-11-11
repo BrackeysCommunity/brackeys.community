@@ -14,7 +14,13 @@ import {
 
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
 import { createEditorSession, type SceneDefinition } from "../../editor/index";
-import { createRegistry, defineGame, type Registry } from "../../game/index";
+import {
+  createRegistry,
+  defineEntityType,
+  defineGame,
+  shapeField,
+  type Registry,
+} from "../../game/index";
 import { prefabLibrary, SCENE_FORMAT_VERSION, type PrefabLibrary } from "../../scene/index";
 import type { EditorStorage } from "../host";
 import { KitProvider } from "../kit/index";
@@ -32,7 +38,7 @@ function scene(): SceneDefinition {
     entities: [
       { id: "zone", type: "sensor", shape: ["circle", 900, 600, 12], tags: ["goal"] },
       { id: "gate", type: "sensor", shape: ["box", 300, 600, 20, 40], group: "doors" },
-      { id: "pad", type: "marker", at: [1000.5, 1010] },
+      { id: "pad", type: "marker", at: [1000.005, 1010] },
     ],
   };
 }
@@ -180,7 +186,7 @@ describe("EditorOutliner", () => {
       "doors",
       "gatebox",
       "zonecircle",
-      "pad1000.5, 1010",
+      "pad1000.005, 1010",
       "Editor",
     ]);
 
@@ -196,7 +202,7 @@ describe("EditorOutliner", () => {
         { op: "update", ref: "pad", set: { layer: "decor" } },
       ],
     });
-    expect(rowNames().slice(2, 5)).toEqual(["Decor", "zonecircle", "pad1000.5, 1010"]);
+    expect(rowNames().slice(2, 5)).toEqual(["Decor", "zonecircle", "pad1000.005, 1010"]);
   });
 
   it("takes its layer rows from the registry, empty ones included, defaulting through them", async () => {
@@ -385,6 +391,52 @@ describe("EditorOutliner attaching and nesting", () => {
     );
     expect(dispatch).not.toHaveBeenCalled();
     expect(cue).not.toHaveBeenCalledWith("drop");
+  });
+
+  it("never offers a stray spawn-only entity's row as an attach target", async () => {
+    const shooter = createRegistry(
+      defineGame({
+        id: "shooter",
+        types: [
+          defineEntityType({
+            type: "drone",
+            base: "follower",
+            description: "A moving body game code launches.",
+            spawnOnly: true,
+            fields: registry.types.get("follower")!.shape,
+          }),
+          defineEntityType({
+            type: "player",
+            base: "solid",
+            description: "The body the input drives, spawned at Play.",
+            spawnOnly: true,
+            fields: { shape: shapeField("Body.") },
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const { dispatch } = setup(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "strays",
+        bounds: [0, 0, 1000, 1000],
+        entities: [
+          { id: "deck", type: "solid", shape: ["box", 100, 100, 20, 4] },
+          { ...ride("d", 300), type: "drone" },
+          { id: "hero", type: "player", shape: ["box", 0, 0, 1, 1] },
+        ],
+      },
+      undefined,
+      shooter,
+    );
+    expect(rowNames()).toEqual(["solid", "deckbox", "drone", "dbox", "player", "herobox"]);
+    await drag(
+      outliner().getByRole("button", { name: /^deck/ }),
+      outliner().getByRole("button", { name: /^d\s*box/ }),
+    );
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it("shows nested instances' children as a tree that opens and closes", () => {

@@ -1,3 +1,4 @@
+import type { MigrationRefusal } from "./migrate";
 import type { EngineIssueCode, IssueCode, IssueCodeInfo, SceneIssue } from "./types";
 
 export type { IssueCodeInfo } from "./types";
@@ -51,6 +52,13 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Upgrade the engine; a newer file is never truncated or downgraded.",
     fixable: false,
   },
+  "migration-unresolved": {
+    severity: "error",
+    summary:
+      "A migration step can't run without the game's registry or the prefabs the file names.",
+    hint: "The v3 → v4 step needs the game's registry and the prefabs this file names; migrate it with its project: `vp run scene fmt`, or `project pull`, `fmt` and `push` for a hosted project.",
+    fixable: false,
+  },
   "dup-id": {
     severity: "error",
     summary: "Two entities share an id.",
@@ -84,7 +92,7 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   "path-invalid": {
     severity: "error",
     summary: "A path with fewer than 2 points or a speed that isn't positive.",
-    hint: "Give the path at least two distinct points and a speed > 0 (px/s).",
+    hint: "Give the path at least two distinct points and a speed > 0 (m/s).",
     fixable: false,
   },
   "prefab-unknown": {
@@ -101,8 +109,9 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   },
   "non-integer": {
     severity: "warn",
-    summary: "A coordinate or size isn't a whole number of pixels.",
-    hint: "Round it; scene geometry is integer pixels.",
+    summary:
+      "A length isn't a whole number of world pixels at the game's px per metre, or an angle isn't whole degrees.",
+    hint: "Snap it to whole pixels (the fix does): scene lengths are metres that land on whole world px.",
     fixable: true,
   },
   "out-of-bounds": {
@@ -174,7 +183,7 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   "grid-invalid": {
     severity: "error",
     summary: "A grid setting, grid value or grid placement is invalid.",
-    hint: "Fix the value at `path`: cells are positive integers, rows follow the run-length grammar, and only square cells turn or flip. `vp run scene fmt` rewrites rows canonically.",
+    hint: "Fix the value at `path`: cells, hex sides and origins are whole px at the game's px per metre, written in metres, rows follow the run-length grammar, and only square cells turn or flip. `vp run scene fmt` rewrites rows canonically.",
     fixable: false,
   },
   "ref-child-unknown": {
@@ -329,6 +338,19 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "The message names the limit; empty the trash or remove unused assets, then retry.",
     fixable: false,
   },
+  "binding-unknown": {
+    severity: "error",
+    summary:
+      "A binding names an action, key code, pad button or axis, pointer button or touch control that doesn't exist, or doesn't fit its action's kind.",
+    hint: "Use a `KeyboardEvent.code`, a standard pad button or axis, a pointer button, or a declared touch control, fitting the action's kind.",
+    fixable: false,
+  },
+  "player-unknown": {
+    severity: "error",
+    summary: "A binding's seat or a seats declaration is past the seats there are.",
+    hint: "Seats are 0 to `players.max` − 1, at most 8.",
+    fixable: false,
+  },
   "spawn-id-invalid": {
     severity: "error",
     summary:
@@ -341,6 +363,13 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     summary:
       "`ctx.instantiate` can't place a prefab: it isn't in the run's library, its nesting is cyclic or too deep, or a child needs physics in a scene without it.",
     hint: "Read the error's `cause` (its `code`: prefab-unknown, prefab-cycle, prefab-depth, physics-required or unknown-type) and fix the prefab, the library the host passes, or the scene's physics.",
+    fixable: false,
+  },
+  "recording-other-platform": {
+    severity: "warn",
+    summary:
+      "A Rapier recording is replayed on a different CPU architecture than the one that recorded it, so it may not replay bit for bit.",
+    hint: "Rapier replays are only guaranteed on the platform that recorded them.",
     fixable: false,
   },
 };
@@ -392,4 +421,17 @@ export function lineAt(lines: ReadonlyMap<string, number>, pointer: string): num
     if (p === "") return undefined;
     p = p.slice(0, p.lastIndexOf("/"));
   }
+}
+
+/**
+ * The refusal of a step that moves a px file to metres without the game's
+ * registry, which alone knows its px per metre and its fields' units.
+ */
+export function unitsRefusal(what: string): MigrationRefusal {
+  return {
+    refused: makeIssue("migration-unresolved", {
+      message: `the ${what} file is in px; moving it to metres needs the game's registry`,
+      path: "/v",
+    }),
+  };
 }

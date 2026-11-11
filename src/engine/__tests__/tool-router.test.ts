@@ -20,7 +20,8 @@ function consumer(
 }
 
 function keyEvent(key: string, type: "down" | "up" = "down"): ToolEvent {
-  return { kind: "key", type, key, native: new KeyboardEvent(`key${type}`, { key }) };
+  const native = new KeyboardEvent(`key${type}`, { key });
+  return { kind: "key", type, key, code: native.code, native };
 }
 
 const hosts: HTMLElement[] = [];
@@ -153,6 +154,41 @@ describe("attach", () => {
     router.destroy();
   });
 
+  it("carries the pointer's kind and id; a cancel ends like a release, a leave is a move", () => {
+    const canvas = mountCanvas();
+    const router = createToolRouter();
+    const tool = consumer("tool", 0);
+    router.register(tool);
+    router.attach(canvas);
+
+    const pointer = (type: string, pointerType?: string) => {
+      const e = new MouseEvent(type, { clientX: 5, clientY: 6, button: 0 });
+      if (pointerType) {
+        Object.defineProperties(e, {
+          pointerType: { value: pointerType },
+          pointerId: { value: 9 },
+        });
+      }
+      canvas.dispatchEvent(e);
+    };
+    pointer("pointerdown", "touch");
+    pointer("pointercancel", "touch");
+    pointer("pointerdown", "pen");
+    pointer("pointerleave", "pen");
+    pointer("pointerdown");
+
+    expect(
+      tool.seen.map((e) => e.kind === "pointer" && [e.type, e.pointerType, e.pointerId, !!e.left]),
+    ).toEqual([
+      ["down", "touch", 9, false],
+      ["up", "touch", 9, false],
+      ["down", "pen", 9, false],
+      ["move", "pen", 9, true],
+      ["down", "mouse", undefined, false],
+    ]);
+    router.destroy();
+  });
+
   it("routes key events, and drops a keydown typed into a field", () => {
     const host = document.createElement("div");
     const field = document.createElement("input");
@@ -171,6 +207,26 @@ describe("attach", () => {
     expect(tool.seen.map((e) => e.kind === "key" && `${e.type}:${e.key}`)).toEqual([
       "down:Tab",
       "up:d",
+    ]);
+    router.destroy();
+  });
+
+  it("carries both the layout key and the physical code", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    hosts.push(host);
+    const router = createToolRouter();
+    const tool = consumer("tool", 0);
+    router.register(tool);
+    router.attach(host);
+
+    // An AZERTY layout's z sits where QWERTY has w.
+    host.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyW", bubbles: true }));
+    host.dispatchEvent(new KeyboardEvent("keyup", { key: "z", code: "KeyW", bubbles: true }));
+
+    expect(tool.seen.map((e) => e.kind === "key" && [e.type, e.key, e.code])).toEqual([
+      ["down", "z", "KeyW"],
+      ["up", "z", "KeyW"],
     ]);
     router.destroy();
   });

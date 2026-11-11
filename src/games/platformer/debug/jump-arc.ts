@@ -1,5 +1,6 @@
 import type { Vec2 } from "@jams/engine";
 import type { DebugLayerFactory } from "@jams/engine/debug";
+import { DEFAULT_LENGTH_UNIT } from "@jams/engine/game";
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 
 import { JUMP_VELOCITY, MAX_FALL_SPEED } from "../entities/player";
@@ -14,7 +15,10 @@ const ARC_COLOR_STANDING = 0xffff00; // yellow — standing jump (vertical only)
 const ARC_COLOR_FROZEN = 0xff4444; // red — frozen arc during airborne
 const ARC_ALPHA = 0.5;
 const ARC_ALPHA_FROZEN = 0.35;
+/** Screen px. */
 const ARC_WIDTH = 2;
+/** Below this horizontal speed (m/s) a jump counts as standing. */
+const STANDING_SPEED = 0.01;
 
 const LABEL_STYLE = new TextStyle({
   fontFamily: "monospace",
@@ -23,7 +27,8 @@ const LABEL_STYLE = new TextStyle({
 });
 
 export type JumpArcOverlay = {
-  update: (player: PlayerDebugState) => void;
+  /** `scale` is canvas px per world metre, so strokes and labels keep their screen size. */
+  update: (player: PlayerDebugState, scale?: number) => void;
   setVisible: (visible: boolean) => void;
   destroy: () => void;
   container: Container;
@@ -101,6 +106,9 @@ function computeOptimisticArc(
   return points;
 }
 
+/** A label's length: metres to the centimetre, with the unit. */
+const metres = (m: number) => `${m.toFixed(2)} m`;
+
 export function createJumpArcOverlay(): JumpArcOverlay {
   const container = new Container();
   container.label = "debug-jump-arcs";
@@ -123,10 +131,12 @@ export function createJumpArcOverlay(): JumpArcOverlay {
   let frozenIsStandingJump = false;
   let actualTrail: Vec2[] = [];
 
+  let px = 1;
+
   function drawArc(gfx: Graphics, points: Vec2[], color: number, alpha: number): void {
     if (points.length < 2) return;
 
-    gfx.setStrokeStyle({ width: ARC_WIDTH, color, alpha });
+    gfx.setStrokeStyle({ width: ARC_WIDTH * px, color, alpha });
     gfx.moveTo(points[0].x, points[0].y);
 
     for (let i = 1; i < points.length; i++) {
@@ -135,7 +145,10 @@ export function createJumpArcOverlay(): JumpArcOverlay {
     gfx.stroke();
   }
 
-  function update(player: PlayerDebugState): void {
+  function update(player: PlayerDebugState, scale = DEFAULT_LENGTH_UNIT): void {
+    px = 1 / scale;
+    heightLabel.scale.set(px);
+    distLabel.scale.set(px);
     const {
       position: playerPos,
       velocity: playerVel,
@@ -148,7 +161,7 @@ export function createJumpArcOverlay(): JumpArcOverlay {
     // ── Freeze/unfreeze logic ────────────────────────
     if (preUpdate.grounded && !grounded) {
       frozenLaunchPos = { ...preUpdate.position };
-      frozenIsStandingJump = Math.abs(preUpdate.velocity.x) < 1;
+      frozenIsStandingJump = Math.abs(preUpdate.velocity.x) < STANDING_SPEED;
       actualTrail = [{ ...preUpdate.position }];
     }
 
@@ -217,31 +230,31 @@ export function createJumpArcOverlay(): JumpArcOverlay {
     for (const p of standingArc) {
       if (p.y < minY) minY = p.y;
     }
-    const maxHeight = Math.round(playerPos.y - minY);
+    const maxHeight = metres(playerPos.y - minY);
 
-    if (absVx < 1) {
+    if (absVx < STANDING_SPEED) {
       // Standing still — just the vertical line + height label
       heightLabel.text = `↑ ${maxHeight}`;
-      heightLabel.position.set(playerPos.x + 8, minY - 4);
+      heightLabel.position.set(playerPos.x + 8 * px, minY - 4 * px);
     } else {
       // Moving — add directional arc using actual velocity (optimistic: constant vx)
       const arc = computeJumpArc(playerPos.x, playerPos.y, vx, gravity);
       drawArc(liveGraphics, arc, ARC_COLOR_LIVE, ARC_ALPHA);
 
       const lastPt = arc[arc.length - 1];
-      const maxDist = lastPt ? Math.round(Math.abs(lastPt.x - playerPos.x)) : 0;
+      const maxDist = metres(lastPt ? Math.abs(lastPt.x - playerPos.x) : 0);
 
       const movingRight = vx > 0;
-      const labelOffsetX = movingRight ? 8 : -50;
+      const labelOffsetX = (movingRight ? 8 : -50) * px;
 
       heightLabel.text = `↑ ${maxHeight}`;
-      heightLabel.position.set(playerPos.x + labelOffsetX, minY - 4);
+      heightLabel.position.set(playerPos.x + labelOffsetX, minY - 4 * px);
 
       const arrow = movingRight ? "→" : "←";
       distLabel.text = `${arrow} ${maxDist}`;
       distLabel.position.set(
-        lastPt ? lastPt.x + (movingRight ? 4 : -50) : playerPos.x,
-        playerPos.y + 4,
+        lastPt ? lastPt.x + (movingRight ? 4 : -50) * px : playerPos.x,
+        playerPos.y + 4 * px,
       );
     }
   }
@@ -279,7 +292,7 @@ export const jumpArcLayer: DebugLayerFactory = {
     return {
       update: (frame) => {
         const info = frame.info as PlatformerDebugInfo;
-        if (info) overlay.update(info);
+        if (info) overlay.update(info, host.worldContainer.scale.x || 1);
       },
       setVisible: overlay.setVisible,
       destroy: overlay.destroy,

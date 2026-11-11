@@ -24,7 +24,7 @@ import {
 } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatScene } from "../scene/format";
-import { inputScriptSchemasFor } from "../scene/input-script";
+import { inputScriptSchemasFor, migrateInputScript } from "../scene/input-script";
 import { jsonPointer, lineAt, makeIssue } from "../scene/issues";
 import { parseChildRef } from "../scene/resolve";
 import type { PrefabLibrary, Ref, SceneDefinition, SceneIssue, Severity } from "../scene/types";
@@ -33,7 +33,7 @@ import type { RapierModule } from "../types";
 import { fuzz } from "./fuzz";
 import { runLibrary } from "./play-loop";
 import { runPlaytest, untilHolds } from "./playtest";
-import type { InputScript, PlaytestBlocked, UntilClause } from "./playtest-types";
+import type { InputScript, InputScriptV2, PlaytestBlocked, UntilClause } from "./playtest-types";
 import { validatePhysical } from "./validate-physical";
 
 export type CheckResult = {
@@ -160,14 +160,18 @@ function runReaches(
   env: RunEnv,
   project: ProjectRuntimeView | null,
 ): CheckVerdict {
-  let script: InputScript;
+  let script: InputScript | InputScriptV2;
   if (typeof check.script === "string") {
+    let raw: unknown;
     try {
-      script = JSON.parse(env.readFile(check.script)) as InputScript;
+      raw = JSON.parse(env.readFile(check.script));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return { pass: false, message: `can't read script ${check.script}: ${message}` };
     }
+    const lifted = migrateInputScript(raw, env.registry);
+    if (!lifted.ok) return { pass: false, message: lifted.issue.message };
+    script = lifted.script as InputScriptV2;
   } else script = check.script;
   if (check.at) script = { ...script, at: check.at };
 

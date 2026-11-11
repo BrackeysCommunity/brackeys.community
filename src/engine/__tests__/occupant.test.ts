@@ -114,7 +114,7 @@ const GRID: GridSettings = { kind: "square", cell: [10, 10] };
 
 function scene(entities: EntityDef[], over: Partial<SceneDefinition> = {}): SceneDefinition {
   return {
-    v: 3,
+    v: 4,
     game: "occ",
     name: "occupants",
     bounds: [0, 0, 200, 100],

@@ -1,10 +1,9 @@
 import { useMemo } from "react";
 
 import type { EditorSession, Pt, Ref, ToolOverlay } from "../../../editor/index";
-import { expandScene } from "../../../scene/expand";
 import { drawnEntities, oneWayEdges, type OneWayEdge } from "../../../scene/render-geometry";
 import { CHILD_SEPARATOR } from "../../../scene/resolve";
-import { useEditorDoc, useEditorPrefabs } from "../../session/use-editor-store";
+import { useExpandedScene } from "./EditLayers";
 import { num, worldPx, type View } from "./view";
 
 /** Screen px of the face's highlight and of each arrow. */
@@ -16,16 +15,11 @@ const MAX_ARROWS = 12;
 
 /** The scene's one-way faces, from its resolved view; none while the document doesn't expand. */
 function useOneWayEdges(session: EditorSession): OneWayEdge[] {
-  const def = useEditorDoc(session);
-  const prefabs = useEditorPrefabs(session);
-  return useMemo(() => {
-    try {
-      const scene = expandScene(def, session.registry, { prefabs });
-      return oneWayEdges(drawnEntities(scene, session.registry));
-    } catch {
-      return [];
-    }
-  }, [def, prefabs, session]);
+  const scene = useExpandedScene(session);
+  return useMemo(
+    () => (scene ? oneWayEdges(drawnEntities(scene, session.registry)) : []),
+    [scene, session],
+  );
 }
 
 /** The refs a drag in progress is moving: the overlay outlines them where the preview puts them. */

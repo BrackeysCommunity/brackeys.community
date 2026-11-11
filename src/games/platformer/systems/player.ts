@@ -35,8 +35,6 @@ export function createPlayerSystem(ctx: EngineContext): PlayerSystem {
 
   return {
     spawn(e) {
-      // A runtime scene loaded back (its table holds `player#1`) meets the game's own spawn of that id.
-      despawn(e.id);
       const actor = createPlayerEntity(
         ctx,
         { x: e.at[0], y: e.at[1] },

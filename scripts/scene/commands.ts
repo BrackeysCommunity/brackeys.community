@@ -20,6 +20,7 @@ import { diff } from "./tools/diff";
 import { fmt } from "./tools/fmt";
 import { fuzz } from "./tools/fuzz";
 import { grid } from "./tools/grid";
+import { input } from "./tools/input";
 import { list } from "./tools/list";
 import { newScene } from "./tools/new";
 import { playtest } from "./tools/playtest";
@@ -112,11 +113,21 @@ const DEFINITIONS = {
   },
   codes: {
     usage: "codes",
-    summary: "every issue code, the engine's then each game's, with severity and summary",
+    summary:
+      "every issue code, the engine's then each game's, with severity and summary, with migration-unresolved's hint and the 0.x keys deprecation note",
     values: [],
     switches: [],
     maxPositionals: 0,
     run: (_a, ctx) => codes({}, ctx),
+  },
+  input: {
+    usage: "input [--project p] [--player n] [--json]",
+    summary:
+      "each seat's bindings per action, layer by layer (the project's input map, then the game's), which one the seat uses, and their issues (binding-unknown, player-unknown); remaps live in browsers and never show; loads no Rapier; exit 1 on an error",
+    values: ["player"],
+    switches: [],
+    maxPositionals: 0,
+    run: ({ flags }, ctx) => input({ player: str(flags.player) }, ctx),
   },
   validate: {
     usage: "validate <scene|file|-> [--physical]",
@@ -232,7 +243,7 @@ const DEFINITIONS = {
     usage:
       "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file]",
     summary:
-      "play an input script headless (actions, waits, game commands, time away): the outcome, steps, events with spawns and destroys counted per type, and focus trail; --events type,… prints only those event types; exit 1 when blocked",
+      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; --at is in metres; --events type,… prints only those event types; exit 1 when blocked",
     values: ["script", "at", "events", "game", "record"],
     switches: [],
     maxPositionals: 1,
@@ -252,7 +263,7 @@ const DEFINITIONS = {
   replay: {
     usage: "replay <scene|file|-> --run <file|-> [--game id]",
     summary:
-      "replay a run recording (or a playtest report's) headless; exit 1 when it ends differently",
+      "replay a run recording (or a playtest report's) headless: the recorded engine version and physics, `migratedFrom 1` for a v1 file, the platform line (recorded vs replayed) and recording-other-platform; exit 1 when it ends differently",
     values: ["run", "game"],
     switches: [],
     maxPositionals: 1,

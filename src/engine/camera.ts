@@ -1,13 +1,15 @@
 import type { Container } from "pixi.js";
 
+import { DEFAULT_LENGTH_UNIT } from "./game/defaults";
 import { clampVec2, lerpVec2 } from "./math";
 import { DEFAULT_RESOLUTION, viewportFor, type ResolutionPolicy } from "./resolution";
 import type { Bounds } from "./scene/types";
 import type { CameraConfig, CameraMode, CameraState, Vec2 } from "./types";
 
-/** World units the camera may show past each edge of a scene's bounds. */
-export const CAMERA_SCENE_MARGIN = 100;
+/** Metres the camera may show past each edge of a scene's bounds. */
+export const CAMERA_SCENE_MARGIN = 1;
 
+/** The world area in view, metres. */
 export type Viewport = { x: number; y: number; width: number; height: number };
 
 export type Camera = {
@@ -15,10 +17,12 @@ export type Camera = {
   update: (dt: number, target: Vec2 | null) => void;
   getPosition: () => Vec2;
   getViewport: () => Viewport;
-  /** World units to canvas px at zoom 1, from the resolution policy. */
+  /** Canvas px per world metre at zoom 1: the game's px per metre times the policy's scale. */
   getDisplayScale: () => number;
+  /** The game's px per metre: world metres to the resolution's virtual px. */
+  getPxPerMetre: () => number;
   getState: () => CameraState;
-  /** Canvas pixels to world units, honouring zoom and position. The engine's only screen-to-world conversion. */
+  /** Canvas px to world metres, honouring zoom and position. The engine's only screen-to-world conversion. */
   screenToWorld: (screen: Vec2) => Vec2;
   /** Jumps to `p` (`null`: the bounds' center) and moves the view now, without easing. */
   snapTo: (p: Vec2 | null) => void;
@@ -32,20 +36,29 @@ export type Camera = {
   destroy: () => void;
 };
 
-/** The view is the policy's viewport, centred on the canvas; under `pixelSnap` the world lands on whole canvas px. */
+/**
+ * The view is the policy's viewport, centred on the canvas; under
+ * `pixelSnap` the world lands on whole canvas px. Positions, bounds and the
+ * viewport are world metres; `pxPerMetre` (the game's `world.lengthUnit`)
+ * turns them into the policy's virtual px, so `worldContainer` maps metres
+ * to canvas px.
+ */
 export function createCamera(
   worldContainer: Container,
   displayWidth: number,
   displayHeight: number,
   config: CameraConfig,
   resolution: ResolutionPolicy = DEFAULT_RESOLUTION,
+  pxPerMetre: number = DEFAULT_LENGTH_UNIT,
 ): Camera {
   let position: Vec2 = { x: 0, y: 0 };
   let zoom = 1;
   let mode: CameraMode = "follow";
   let bounds = { min: { ...config.bounds.min }, max: { ...config.bounds.max } };
 
+  /** Canvas px per metre at zoom 1. */
   let displayScale = 1;
+  /** The policy's view, metres. */
   let viewW = 0;
   let viewH = 0;
   let offset: Vec2 = { x: 0, y: 0 };
@@ -53,9 +66,9 @@ export function createCamera(
 
   function recomputeScale(dw: number, dh: number): void {
     const vp = viewportFor(resolution, { width: dw, height: dh });
-    displayScale = vp.scale;
-    viewW = vp.view.width;
-    viewH = vp.view.height;
+    displayScale = vp.scale * pxPerMetre;
+    viewW = vp.view.width / pxPerMetre;
+    viewH = vp.view.height / pxPerMetre;
     offset = vp.offset;
   }
 
@@ -172,6 +185,7 @@ export function createCamera(
     getPosition,
     getViewport,
     getDisplayScale,
+    getPxPerMetre: () => pxPerMetre,
     getState,
     screenToWorld,
     snapTo,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
-import { pointField } from "../../game/fields";
+import { pointField, shapeField } from "../../game/fields";
 import {
   SCENE_FORMAT_VERSION,
   type Prefab,
@@ -107,6 +107,46 @@ describe("buildOutline", () => {
       registry,
     );
     expect(odd.at(-2)).toMatchObject({ kind: "type", label: "mystery", count: 1 });
+  });
+
+  it("has no group for a spawn-only type, and lists a stray entity of one last", () => {
+    const spawned = createRegistry(
+      defineGame({
+        id: "pegs",
+        types: [
+          defineEntityType({
+            type: "player",
+            base: "solid",
+            description: "The body the input drives, spawned at Play.",
+            spawnOnly: true,
+            fields: { shape: shapeField("Body.") },
+          }),
+          defineEntityType({
+            type: "peg",
+            description: "A point to hang from.",
+            base: "marker",
+            fields: { at: pointField("Peg position.") },
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const stray = buildOutline(
+      {
+        ...def,
+        entities: [
+          { id: "hero", type: "player", shape: ["box", 0, 0, 1, 1] },
+          { id: "hook", type: "peg", at: [1, 1] },
+        ],
+      },
+      spawned,
+    );
+    expect(stray.filter((r) => r.kind === "type").map((r) => r.type)).toEqual([
+      "solid",
+      "peg",
+      "player",
+    ]);
   });
 
   it("has unique keys, and outlineOrder lists the selectable refs", () => {

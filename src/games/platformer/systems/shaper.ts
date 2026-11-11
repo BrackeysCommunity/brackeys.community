@@ -1,68 +1,40 @@
 /**
- * Shaper placement system — manages the Shaper's object placement flow.
- *
- * When in Shaper mode:
- *   - Number keys (1-6) select construct type
- *   - Mouse shows placement preview (ghost) at cursor
- *   - Scroll wheel rotates preview (for rotatable constructs)
- *   - Left click places the construct
- *   - Right click or Escape cancels selection
- *
- * The ghost, rotate and place mechanics are the engine's placement tool;
- * the Shaper adds its gameplay rules: cooldown, max per round, position
- * within the scene bounds. For now, single-player only (no server validation).
+ * The Shaper's play-mode preview: number keys pick a construct, the ghost
+ * follows the pointer, the wheel rotates it. Placing and removing don't
+ * touch the simulation: they send `shaper-place` and `shaper-remove`
+ * commands, which the runtime applies on the next tick (and a replay
+ * applies from the recording).
  */
 
 import type { Vec2 } from "@jams/engine";
-import { createPlacementTool, type PlacementCheck, type PlacementGhost } from "@jams/engine/game";
-import type { SceneView, Style } from "@jams/engine/game";
-import type { Bounds, ShapeObj } from "@jams/engine/scene";
+import {
+  createPlacementTool,
+  degToRad,
+  type GameCommand,
+  type PlacementGhost,
+  type SceneView,
+  type Style,
+} from "@jams/engine/game";
+import { roundLength, type Bounds, type ShapeObj } from "@jams/engine/scene";
 
 import type { GrappleAnchorSystem } from "../entities/grapple-anchor";
 import {
   CONSTRUCT_CONFIGS,
-  CONSTRUCT_TYPES,
   constructShape,
   type ConstructSystem,
   type ConstructType,
+  type PlacementValidation,
 } from "../entities/shaper-constructs";
 import { PLATFORMER_LAYERS } from "../layers";
 
-// ─── Placement validation ────────────────────────────────
+export {
+  validatePlacement,
+  zeroCounts,
+  type PlacementValidation,
+} from "../entities/shaper-constructs";
 
-export type PlacementValidation = PlacementCheck;
-
-const PLACEMENT_COOLDOWN_MS = 500; // ms between placements
-
-export function validatePlacement(
-  type: ConstructType,
-  position: Vec2,
-  placedCounts: Record<ConstructType, number>,
-  lastPlacementTimeMs: number,
-  currentTimeMs: number,
-  bounds: Bounds,
-): PlacementValidation {
-  const config = CONSTRUCT_CONFIGS[type];
-
-  // Cooldown
-  if (currentTimeMs - lastPlacementTimeMs < PLACEMENT_COOLDOWN_MS) {
-    const remaining =
-      Math.ceil((PLACEMENT_COOLDOWN_MS - (currentTimeMs - lastPlacementTimeMs)) / 100) / 10;
-    return { valid: false, reason: `Cooldown: ${remaining}s` };
-  }
-
-  // Max per round
-  if ((placedCounts[type] ?? 0) >= config.maxPerRound) {
-    return { valid: false, reason: `Max ${config.label}s reached (${config.maxPerRound})` };
-  }
-
-  const [minX, minY, maxX, maxY] = bounds;
-  if (position.x < minX || position.x > maxX || position.y < minY || position.y > maxY) {
-    return { valid: false, reason: "Out of bounds" };
-  }
-
-  return { valid: true };
-}
+export const SHAPER_PLACE = "shaper-place";
+export const SHAPER_REMOVE = "shaper-remove";
 
 // ─── Shaper system ───────────────────────────────────────
 
@@ -70,8 +42,10 @@ export function validatePlacement(
 const PREVIEW_ID = "~shaper#preview";
 /** The ghost's opacity over the construct it previews. */
 const PREVIEW_ALPHA = 0.4;
-/** Radians per scroll notch, about 8.6°. */
-const ROTATE_STEP = 0.15;
+/** Degrees per scroll notch: whole degrees, so the ghost turns as far as the command's `rot`. */
+const ROTATE_STEP_DEG = 9;
+/** How far outside a construct's outline a right click still removes it, metres. */
+const PICK_SLACK = 0.1;
 
 function previewLook(type: ConstructType, shape: ShapeObj): Style {
   const { color } = CONSTRUCT_CONFIGS[type];
@@ -85,9 +59,24 @@ function previewLook(type: ConstructType, shape: ShapeObj): Style {
   };
 }
 
-/** A count of 0 for every construct type. */
-export function zeroCounts(): Record<ConstructType, number> {
-  return Object.fromEntries(CONSTRUCT_TYPES.map((t) => [t, 0])) as Record<ConstructType, number>;
+/** Whether `at` lies on construct `type` centred at `centre`, turned `rotation` radians, within `slack`. */
+export function coversPoint(
+  type: ConstructType,
+  centre: Vec2,
+  rotation: number,
+  at: Vec2,
+  slack = 0,
+): boolean {
+  const shape = constructShape(type);
+  const dx = at.x - centre.x;
+  const dy = at.y - centre.y;
+  if (shape.type === "circle") return dx * dx + dy * dy <= (shape.r + slack) ** 2;
+  if (shape.type !== "box") return false;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const lx = dx * cos + dy * sin;
+  const ly = -dx * sin + dy * cos;
+  return Math.abs(lx) <= shape.hw + slack && Math.abs(ly) <= shape.hh + slack;
 }
 
 export type ShaperSystem = {
@@ -98,24 +87,31 @@ export type ShaperSystem = {
   getSelectedType: () => ConstructType | null;
   selectType: (type: ConstructType) => void;
   clearSelection: () => void;
-  /** Placement preview — call each tick with world-space mouse position */
-  updatePreview: (mouseWorldPos: Vec2, dtMs: number) => void;
-  /** Attempt to place at current preview position */
+  /** Each tick, with the world-space pointer; the ghost shows only while active. */
+  updatePreview: (mouseWorldPos: Vec2, dtMs?: number) => void;
+  /** Sends a `shaper-place` for the ghost when this tick's rules allow it. */
   place: () => PlacementValidation;
+  /** Sends a `shaper-remove` for the Shaper's construct under the pointer; false when there is none. */
+  remove: () => boolean;
+  /** The Shaper's construct at `at`, the latest placed first. */
+  removableAt: (at: Vec2) => string | undefined;
+  /** The Shaper's construct under the pointer. */
+  hovered: () => string | undefined;
   /** Rotate preview (scroll wheel delta) */
   rotatePreview: (delta: number) => void;
-  /** Ids of the constructs placed this round */
-  getPlacedConstructs: () => readonly string[];
-  /** Remove everything placed this round; the scene's own constructs stay */
-  clearAll: () => void;
   destroy: () => void;
 };
 
 export type ShaperDeps = {
   view: SceneView | null;
+  /** Read for the placement rules and the constructs a right click can remove. */
   constructs: ConstructSystem;
+  /** The grapple anchors, so a placed anchor is picked by its grapple point. */
   anchors: GrappleAnchorSystem;
+  /** The scene's bounds: the ghost hides outside them, where nothing can be placed. */
   bounds: Bounds;
+  /** Queues a command for the next tick; omitted, placing and removing send nothing. */
+  send?: (command: GameCommand) => boolean;
 };
 
 export function createShaperSystem({
@@ -123,20 +119,18 @@ export function createShaperSystem({
   constructs,
   anchors,
   bounds,
+  send,
 }: ShaperDeps): ShaperSystem {
   let active = false;
-  let lastPlacementTimeMs = -Infinity;
-  let elapsedMs = 0;
-
-  const placedConstructs: string[] = [];
-  const placedCounts = zeroCounts();
+  let pointer: Vec2 = { x: 0, y: 0 };
+  let sent = false;
 
   const pose = ({ at, rotation }: PlacementGhost<ConstructType>) =>
     view?.pose(PREVIEW_ID, at.x, at.y, rotation);
 
   const placement = createPlacementTool<ConstructType>({
     rotatable: (type) => CONSTRUCT_CONFIGS[type].rotatable,
-    rotateStep: ROTATE_STEP,
+    rotateStep: degToRad(ROTATE_STEP_DEG),
     draw: {
       show(ghost) {
         if (!view) return;
@@ -147,12 +141,17 @@ export function createShaperSystem({
       pose,
       hide: () => view?.remove(PREVIEW_ID),
     },
-    validate: ({ template, at }) =>
-      validatePlacement(template, at, placedCounts, lastPlacementTimeMs, elapsedMs, bounds),
+    validate: ({ template, at }) => constructs.checkShape(template, at),
     commit({ template, at, rotation }) {
-      placedConstructs.push(constructs.place(template, at, rotation));
-      placedCounts[template]++;
-      lastPlacementTimeMs = elapsedMs;
+      sent =
+        send?.({
+          name: SHAPER_PLACE,
+          args: {
+            type: template,
+            at: [roundLength(at.x), roundLength(at.y)],
+            rot: Math.round((rotation * 180) / Math.PI),
+          },
+        }) ?? false;
     },
   });
 
@@ -163,14 +162,23 @@ export function createShaperSystem({
 
   function place(): PlacementValidation {
     if (!placement.selected()) return { valid: false, reason: "No construct selected" };
-    return placement.place();
+    sent = false;
+    const check = placement.place();
+    if (check.valid && !sent) return { valid: false, reason: "The command was refused" };
+    return check;
   }
 
-  function clearAll(): void {
-    placedConstructs.length = 0;
-    Object.assign(placedCounts, zeroCounts());
-    constructs.clearRuntime();
-    anchors.clearRuntime();
+  function removableAt(at: Vec2): string | undefined {
+    const ids = constructs.shaped();
+    const anchor = anchors.findClosest(at, PICK_SLACK + CONSTRUCT_CONFIGS.grapple_anchor.hw);
+    if (anchor && ids.includes(anchor.id)) return anchor.id;
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const info = constructs.get(ids[i]!);
+      if (!info) continue;
+      const rotation = CONSTRUCT_CONFIGS[info.construct].rotatable ? info.rotation : 0;
+      if (coversPoint(info.construct, info.position, rotation, at, PICK_SLACK)) return info.id;
+    }
+    return undefined;
   }
 
   return {
@@ -179,14 +187,22 @@ export function createShaperSystem({
     getSelectedType: placement.selected,
     selectType: placement.select,
     clearSelection: placement.clear,
-    updatePreview(mouseWorldPos: Vec2, dtMs: number) {
-      elapsedMs += dtMs;
-      placement.move(mouseWorldPos, active);
+    updatePreview(mouseWorldPos: Vec2) {
+      pointer = { x: mouseWorldPos.x, y: mouseWorldPos.y };
+      const [minX, minY, maxX, maxY] = bounds;
+      const inside =
+        pointer.x >= minX && pointer.x <= maxX && pointer.y >= minY && pointer.y <= maxY;
+      placement.move(mouseWorldPos, active && inside);
     },
     place,
+    hovered: () => removableAt(pointer),
+    remove() {
+      const id = removableAt(pointer);
+      if (id === undefined || !send) return false;
+      return send({ name: SHAPER_REMOVE, args: { id } });
+    },
+    removableAt,
     rotatePreview: placement.rotate,
-    getPlacedConstructs: () => placedConstructs,
-    clearAll,
     destroy: placement.destroy,
   };
 }

@@ -11,11 +11,13 @@ import { ATLAS_KIND } from "../../project/kinds/atlas";
 import { turnBy } from "../../scene/shape-geometry";
 import type { Pt, RuntimeEntity, ShapeObj } from "../../scene/types";
 import { defineBehavior } from "../behaviors";
+import { DEFAULT_LENGTH_UNIT } from "../defaults";
 import { assetField, mirrorField, vectorField } from "../fields";
 import type { FieldEnv } from "../types";
 
 const unit = z.number().min(0).max(1);
-const int = z.number().int().min(0);
+const inset = (description: string) =>
+  z.number().int().min(0).describe(description).meta({ unit: "px" });
 
 const BLEND_MODES = ["normal", "add", "multiply", "screen"] as const satisfies readonly BlendMode[];
 /** Compiles only while `BLEND_MODES` lists every `BlendMode`. */
@@ -33,11 +35,14 @@ const spriteFields = (env: FieldEnv) => ({
   frame: z.string().optional().describe("The atlas frame's name; required for an atlas."),
   size: z
     .tuple([
-      z.number().int().positive().describe("Width, px."),
-      z.number().int().positive().describe("Height, px."),
+      z.number().positive().describe("Width, m.").meta({ unit: "m" }),
+      z.number().positive().describe("Height, m.").meta({ unit: "m" }),
     ])
     .optional()
-    .describe("Drawn size in world px; omitted, the frame's pixel size times scale."),
+    .describe(
+      "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+    )
+    .meta({ unit: "m" }),
   scale: z.number().positive().optional().describe("Used when size is omitted; default 1."),
   anchor: z
     .tuple([
@@ -47,7 +52,7 @@ const spriteFields = (env: FieldEnv) => ({
     .optional()
     .describe("0–1 in the frame; default its pivot, else the centre."),
   offset: vectorField(
-    "World px from the pose to the anchor; turns and flips with the instance.",
+    "World metres from the pose to the anchor; turns and flips with the instance.",
   ).optional(),
   tint: z
     .number()
@@ -67,13 +72,14 @@ const spriteFields = (env: FieldEnv) => ({
   tile: z.boolean().optional().describe("Repeat the frame across size."),
   nineSlice: z
     .tuple([
-      int.describe("Left inset, px."),
-      int.describe("Top inset, px."),
-      int.describe("Right inset, px."),
-      int.describe("Bottom inset, px."),
+      inset("Left inset, px."),
+      inset("Top inset, px."),
+      inset("Right inset, px."),
+      inset("Bottom inset, px."),
     ])
     .optional()
-    .describe("Insets in texture px; default the import's."),
+    .describe("Insets in texture px; default the import's.")
+    .meta({ unit: "px" }),
   turn: z.boolean().optional().describe("Turn with the pose; default true."),
 });
 
@@ -96,34 +102,36 @@ export type SpriteAssetInfo = Pick<AssetInfo, "size" | "pivot"> & { rect?: Frame
 export type SpriteGeometry = {
   /** The frame's rectangle in its texture; omitted, the whole texture. */
   frame?: FrameRect;
-  /** Drawn size, world px. */
+  /** Drawn size, world metres. */
   size: [w: number, h: number];
   /** In the frame's own 0–1 space. */
   anchor: [x: number, y: number];
-  /** From the pose to the anchor, world px, as the block writes it. */
+  /** From the pose to the anchor, world metres, as the block writes it. */
   offset: Pt;
   /** The drawn rectangle in the sprite's own space: the anchor at the origin, the block's flips applied. */
   box: Extract<ShapeObj, { type: "box" }>;
 };
 
-/** A sprite's size when neither its block nor its asset gives one. */
-export const SPRITE_FALLBACK_SIZE: readonly [w: number, h: number] = Object.freeze([32, 32]);
+/** A sprite's size in metres when neither its block nor its asset gives one. */
+export const SPRITE_FALLBACK_SIZE: readonly [w: number, h: number] = Object.freeze([0.32, 0.32]);
 
 /**
  * Where a sprite block draws, from `info` (`ProjectRuntimeView.asset` or
  * `assetInfo` of its asset and frame; omitted without one): its size is the
- * block's `size`, else the info's times `scale`, else 32×32; its anchor
+ * block's `size`, else the info's px over `pxPerMetre` (the game's,
+ * `pxPerMetreOf`) times `scale`, else `SPRITE_FALLBACK_SIZE`; its anchor
  * the block's, else the info's pivot, else the centre.
  */
 export function spriteGeometry(
   block: Partial<SpriteBlock>,
   info?: SpriteAssetInfo | null,
+  pxPerMetre: number = DEFAULT_LENGTH_UNIT,
 ): SpriteGeometry {
   const scale = block.scale ?? 1;
   const size: [number, number] = block.size
     ? [block.size[0], block.size[1]]
     : info?.size
-      ? [info.size[0] * scale, info.size[1] * scale]
+      ? [(info.size[0] * scale) / pxPerMetre, (info.size[1] * scale) / pxPerMetre]
       : [SPRITE_FALLBACK_SIZE[0], SPRITE_FALLBACK_SIZE[1]];
   const anchor: [number, number] = block.anchor
     ? [block.anchor[0], block.anchor[1]]
@@ -177,7 +185,7 @@ export function spriteAssets(
 }
 
 /**
- * Where a block's `offset` puts the anchor from the pose, world px:
+ * Where a block's `offset` puts the anchor from the pose, world metres:
  * mirrored by the entity's flip, then turned `rot` radians for a sprite
  * that turns with its pose, else (`rot` null) by the entity's quarter
  * turns only.

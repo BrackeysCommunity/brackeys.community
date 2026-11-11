@@ -35,20 +35,20 @@ const editorGame = defineGame({
   id: "editor-play",
   types: [],
   actions: [{ action: "right", keys: ["d"], description: "Right." }],
-  play: { spawnShape: { type: "box", hw: 20, hh: 20 } },
+  play: { spawnShape: { type: "box", hw: 0.2, hh: 0.2 } },
   createRuntime: () => ({ snapshot: () => null }),
 });
 
-/** A floor from y 1020 to 1060 across x 0 to 1000. */
+/** A floor from y 10.2 to 10.6 across x 0 to 10. */
 function yard(): SceneDefinition {
   return {
-    v: 1,
+    v: 4,
     name: "play-yard",
-    bounds: [0, 0, 2000, 1200],
-    solid: [["box", 500, 1040, 500, 20]],
+    bounds: [0, 0, 20, 12],
+    solid: [["box", 5, 10.4, 5, 0.2]],
     entities: [
-      { id: "zone", type: "sensor", shape: ["circle", 900, 600, 12], tags: ["goal"] },
-      { id: "pad", type: "marker", at: [1000, 1010] },
+      { id: "zone", type: "sensor", shape: ["circle", 9, 6, 0.12], tags: ["goal"] },
+      { id: "pad", type: "marker", at: [10, 10.1] },
     ],
   };
 }
@@ -143,22 +143,24 @@ describe("the editor driving a game", () => {
   it("plays from the pointer, and refuses inside a solid with a toast", async () => {
     const { canvas } = await setup();
     vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1920, 1080));
-    /** Points the pointer at a world position: the default display is 1920x1080 at scale 1. */
+    /** Points the pointer at a world position on the default 1920x1080 display. */
     const pointAt = (x: number, y: number) => {
-      const { position } = state().camera;
+      const { position, scale } = state().camera;
       fireEvent.pointerMove(canvas, {
-        clientX: x - position.x + 960,
-        clientY: y - position.y + 540,
+        clientX: (x - position.x) * scale + 960,
+        clientY: (y - position.y) * scale + 540,
       });
     };
 
-    pointAt(300, 500);
+    pointAt(3, 5);
     fireEvent.keyDown(window, { key: "Enter", ctrlKey: true, shiftKey: true });
     expect(state().mode).toBe("play");
-    expect(game!.runtime()).toMatchObject({ ctx: { play: { at: { x: 300, y: 1000 } } } });
+    expect(game!.runtime()).toMatchObject({
+      ctx: { play: { at: { x: expect.closeTo(3, 4), y: expect.closeTo(10, 4) } } },
+    });
     fireEvent.keyDown(window, { key: "Escape" });
 
-    pointAt(500, 1040);
+    pointAt(5, 10.4);
     fireEvent.keyDown(window, { key: "Enter", ctrlKey: true, shiftKey: true });
     expect(toast.error).toHaveBeenCalledWith("Can't play from here", {
       description: expect.stringMatching(/inside a solid/),

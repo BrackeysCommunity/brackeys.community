@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jams-engine:material:v1",
-  "x-agent-surface": 11,
-  "title": "jams engine material, format v1",
+  "$id": "urn:jams-engine:material:v2",
+  "x-agent-surface": 12,
+  "title": "jams engine material, format v2",
   "type": "object",
   "properties": {
     "$schema": {
@@ -16,7 +16,7 @@
     },
     "v": {
       "type": "number",
-      "const": 1,
+      "const": 2,
       "description": "Material format version."
     },
     "description": {
@@ -38,20 +38,23 @@
           "description": "Bounciness: 0 doesn't bounce, 1 keeps all its speed."
         },
         "impulse": {
-          "description": "Launch velocity on contact, px/s.",
           "type": "object",
           "properties": {
             "x": {
               "type": "number",
-              "description": "x, px/s."
+              "description": "x, m/s.",
+              "unit": "m/s"
             },
             "y": {
               "type": "number",
-              "description": "y, px/s; y is down, so a bounce is negative."
+              "description": "y, m/s; y is down, so a bounce is negative.",
+              "unit": "m/s"
             }
           },
           "required": ["x", "y"],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "Launch velocity on contact, m/s.",
+          "unit": "m/s"
         }
       },
       "required": ["friction", "restitution"],
@@ -89,7 +92,8 @@
             "strokeWidth": {
               "type": "number",
               "minimum": 0,
-              "description": "Outline width, px."
+              "description": "Outline width, px.",
+              "unit": "px"
             }
           },
           "additionalProperties": false,

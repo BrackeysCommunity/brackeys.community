@@ -1,3 +1,4 @@
+import { placeableTypes } from "../game/define";
 import type { Registry } from "../game/types";
 import { bulkEntries, bulkId, bulkKeysOf, bulkKeyType } from "../scene/expand";
 import { CHILD_SEPARATOR, childRef, localChildren, type LocalChild } from "../scene/resolve";
@@ -155,8 +156,8 @@ function instanceRows(
 /**
  * The outliner's rows, flattened depth-first: one row per registered type the
  * scene uses, in registration order, holding its bulk keys (each with a child
- * row per entry) and then its entities in file order. Types the registry
- * doesn't know come last, under their own names. Instances follow under one
+ * row per entry) and then its entities in file order. Types the scene can't
+ * place (unknown or spawn-only) come last, under their own names. Instances follow under one
  * `instances` row, each with a row per child of its prefab and per
  * instance nested in it, a level deeper each time.
  */
@@ -165,7 +166,9 @@ export function buildOutline(
   registry: Registry,
   prefabs?: PrefabLibrary,
 ): OutlineRow[] {
-  const groups = new Map<EntityTypeName, OutlineRow[]>(registry.typeNames.map((t) => [t, []]));
+  const groups = new Map<EntityTypeName, OutlineRow[]>(
+    placeableTypes(registry).map((t) => [t, []]),
+  );
   const counts = new Map<EntityTypeName, number>();
   const add = (type: EntityTypeName, rows: OutlineRow[], n: number) => {
     if (!groups.has(type)) groups.set(type, []);

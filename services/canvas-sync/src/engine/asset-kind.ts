@@ -9,6 +9,7 @@ import type {
 import * as Y from "yjs";
 
 import type { KindRegistry } from "../../../../src/engine/project/index.ts";
+import { PREFAB_KIND, SCENE_FORMAT_VERSION } from "../../../../src/engine/scene/index.ts";
 import { SYNC_LIMITS } from "../../../../src/lib/canvas/limits.ts";
 import { documentName, SYNC_CLOSE, syncClose } from "../../../../src/lib/canvas/sync-channels.ts";
 import type { CanvasTokenClaims } from "../../../../src/lib/canvas/token.ts";
@@ -25,7 +26,7 @@ import {
   seedAssetState,
 } from "../../../../src/lib/scene/project-bytes.ts";
 import { SERVER_APPLY_ORIGIN } from "../apply.ts";
-import type { DocumentKind, KindGrant } from "../kinds.ts";
+import { formatReadOnlyReason, type DocumentKind, type KindGrant } from "../kinds.ts";
 import { assetDocLimits, assetKindLimits, SyncRefusal, type AssetDocLimits } from "../limits.ts";
 import { SnapshotSchedule } from "../persistence.ts";
 import type { SyncMetrics } from "../telemetry.ts";
@@ -373,7 +374,20 @@ export function createAssetKind(options: AssetKindOptions): AssetKind {
       const live = options.documents().get(documentName("asset", id));
       const stored = live?.getMap("meta").get("layout");
       const layout = typeof stored === "number" ? stored : COLLAB_LAYOUT_VERSION;
-      return layoutGrant(claims, Math.max(layout, COLLAB_LAYOUT_VERSION));
+      const granted = layoutGrant(claims, Math.max(layout, COLLAB_LAYOUT_VERSION));
+      if (granted.readOnly || head.kind !== PREFAB_KIND || claims.f === undefined) return granted;
+      // Prefab docs carry the scene format, so a v3 doc this side can't migrate stays read-only.
+      const liveVersion = live?.getMap("meta").get("schemaVersion");
+      const version =
+        typeof liveVersion === "number"
+          ? liveVersion
+          : (head.schemaVersion ?? SCENE_FORMAT_VERSION);
+      const reason = formatReadOnlyReason(claims.f, version, SCENE_FORMAT_VERSION);
+      if (!reason) return {};
+      return {
+        readOnly: true,
+        notice: JSON.stringify({ type: "scene-read-only", reason, schemaVersion: version }),
+      };
     },
     persistence,
   };

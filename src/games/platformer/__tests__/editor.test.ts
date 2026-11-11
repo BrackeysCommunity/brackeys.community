@@ -61,8 +61,8 @@ const scene = (): SceneDefinition => ({
   v: 1,
   game: "platformer",
   name: "e",
-  bounds: [0, 0, 2000, 1000],
-  spawn: [[1000, 500]],
+  bounds: [0, 0, 20, 10],
+  spawn: [[10, 5]],
 });
 
 describe("the platformer's editor", () => {
@@ -81,28 +81,28 @@ describe("the platformer's editor", () => {
     expect((await platformerGame.editor!.tools!()).map((t) => t.id)).toEqual(["constructs"]);
   });
 
-  it("places a construct as a scene entity in one batch", () => {
+  it("places a construct as a scene entity in one batch, on a whole world px", () => {
     const { ctx, commits, doc } = context(scene());
     const tool = PLATFORMER_EDITOR_TOOLS[0]!.create(ctx);
     expect(tool.command!("bridge")).toBe(true);
-    tool.pointer!(pointer("move", [300.2, 400]));
-    tool.pointer!(pointer("wheel", [300.2, 400], 1));
-    tool.pointer!(pointer("down", [300.2, 400]));
+    tool.pointer!(pointer("move", [3.002, 4]));
+    tool.pointer!(pointer("wheel", [3.002, 4], 1));
+    tool.pointer!(pointer("down", [3.002, 4]));
     tool.command!("bounce_pad");
-    tool.pointer!(pointer("wheel", [500, 400], 1));
-    tool.pointer!(pointer("down", [500, 400]));
+    tool.pointer!(pointer("wheel", [5, 4], 1));
+    tool.pointer!(pointer("down", [5, 4]));
 
     expect(commits.map((b) => b.ops)).toEqual([
       [
         {
           op: "add",
-          entity: { id: "bridge", type: "construct", construct: "bridge", at: [300, 400], rot: 15 },
+          entity: { id: "bridge", type: "construct", construct: "bridge", at: [3, 4], rot: 15 },
         },
       ],
       [
         {
           op: "add",
-          entity: { id: "bounce-pad", type: "construct", construct: "bounce_pad", at: [500, 400] },
+          entity: { id: "bounce-pad", type: "construct", construct: "bounce_pad", at: [5, 4] },
         },
       ],
     ]);
@@ -113,12 +113,12 @@ describe("the platformer's editor", () => {
     const { ctx, commits } = context(scene());
     const tool = PLATFORMER_EDITOR_TOOLS[0]!.create(ctx);
     tool.command!("light_orb");
-    tool.pointer!(pointer("move", [1000, 480]));
+    tool.pointer!(pointer("move", [10, 4.8]));
     expect(tool.overlay!().ghosts?.[0]).toMatchObject({ valid: false, reason: "Overlaps a spawn" });
-    tool.pointer!(pointer("move", [1200, 480]));
+    tool.pointer!(pointer("move", [12, 4.8]));
     expect(tool.overlay!().ghosts?.[0]).toMatchObject({ valid: true });
-    tool.pointer!(pointer("move", [1000, 480]));
-    tool.pointer!(pointer("down", [1000, 480]));
+    tool.pointer!(pointer("move", [10, 4.8]));
+    tool.pointer!(pointer("down", [10, 4.8]));
     expect(commits).toHaveLength(1);
     expect(tool.cancel!()).toBe(true);
     expect(commits).toHaveLength(1);

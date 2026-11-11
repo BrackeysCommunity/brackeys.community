@@ -591,7 +591,7 @@ describe("over the engine's kinds", () => {
   it("counts a variant's own material overrides", () => {
     const variant = {
       kind: "prefab",
-      v: 3,
+      v: 4,
       game: "surfaces",
       id: "gate",
       base: "post",
@@ -812,7 +812,7 @@ describe("asset fields over the engine's kinds", () => {
   it("counts a variant's own overrides, and a rename rewrites them", () => {
     const red = {
       kind: "prefab",
-      v: 3,
+      v: 4,
       game: "art",
       id: "red-post",
       base: "post",
@@ -1016,7 +1016,7 @@ describe("a behavior's asset field", () => {
         id: "yard" as const,
         pointer: `/instances/@p1/overrides/${base}${leaf}`,
         doc: {
-          v: 3,
+          v: 4,
           game: "paint",
           name: "yard",
           bounds: [0, 0, 100, 100],
@@ -1030,7 +1030,7 @@ describe("a behavior's asset field", () => {
         pointer: `/overrides/${base}${leaf}`,
         doc: {
           kind: "prefab",
-          v: 3,
+          v: 4,
           game: "paint",
           id: "red-post",
           base: "post",
@@ -1041,7 +1041,7 @@ describe("a behavior's asset field", () => {
     ];
     const post = {
       kind: "prefab",
-      v: 3,
+      v: 4,
       game: "paint",
       id: "post",
       entities: [{ id: "board", type: "sign", at: [0, 0] }],

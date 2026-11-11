@@ -2,6 +2,7 @@ import { physicsOf } from "../game/physics-of";
 import type { EngineContext, SpawnShape } from "../game/types";
 import { shapeColliderDesc } from "../physics";
 import type { Bounds, ShapeObj } from "../scene/types";
+import { roundLength } from "../scene/units";
 import type { Vec2 } from "../types";
 
 export type CastResult = { ok: true; at: Vec2 } | { ok: false; error: string };
@@ -16,10 +17,10 @@ export const ALL_GROUPS = 0xffff_ffff;
 /**
  * Geometry sweeps after the first: each searches the last one's bracket
  * around the contact (a geometry sweep resolves 1/1024 of its length), until
- * the bracket is under `CAST_PRECISION` px.
+ * the bracket is under `CAST_PRECISION` m.
  */
 const CAST_REFINES = 4;
-const CAST_PRECISION = 1e-6;
+const CAST_PRECISION = 1e-8;
 const SWEEP_RESOLUTION = 1024;
 
 function shapeAt(shape: SpawnShape, at: Vec2): ShapeObj {
@@ -59,8 +60,8 @@ function reach(at: Vec2, dir: Vec2, [minX, minY, maxX, maxY]: Bounds): number {
 /**
  * How far along the unit `dir` the shape at `at` travels free before it
  * touches a non-sensor collider, within `distance`; null when it never does.
- * Rapier casts with a unit velocity so the time of impact is in pixels,
- * which keeps a straight-down cast bit for bit what it has always been.
+ * Rapier casts with a unit velocity so the time of impact is in metres,
+ * the distance travelled.
  * Queries see the colliders as of the last `refreshQueries`.
  */
 function rapierTravel(
@@ -116,7 +117,7 @@ export function castSpawn(ctx: EngineContext, at: Vec2, shape: SpawnShape): Cast
   if (inside) {
     return {
       ok: false,
-      error: `can't start inside a solid (${inside.tag.entityId}) at ${Math.round(at.x)}, ${Math.round(at.y)}`,
+      error: `can't start inside a solid (${inside.tag.entityId}) at ${roundLength(at.x)}, ${roundLength(at.y)} m`,
     };
   }
 

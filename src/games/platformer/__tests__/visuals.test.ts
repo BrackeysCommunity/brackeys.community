@@ -72,9 +72,9 @@ const emptyRuntime = () =>
     game: platformerGame,
     scene: {
       name: "t",
-      bounds: [0, 0, 1000, 1000],
+      bounds: [0, 0, 10, 10],
       settings: {
-        gravity: [0, 1200],
+        gravity: [0, 12],
         physics: "rapier",
         grid: null,
         view: { projection: "orthogonal" },
@@ -137,11 +137,11 @@ describe("platformer visuals through the view", () => {
     const rt = emptyRuntime();
     const { view, live } = recordingView();
     const clouds = createCloudSystem({ ...rt.ctx, view }, rt.ctx.registry.types.get(TYPE.cloud)!);
-    clouds.spawn({ id: "c", type: TYPE.cloud, shape: { ...shape, cx: 100, cy: 500, hw: 50 } });
+    clouds.spawn({ id: "c", type: TYPE.cloud, shape: { ...shape, cx: 1, cy: 5, hw: 0.5 } });
     const solid = live.get("c")!;
     expect(solid.layer).toBe(PLATFORMER_LAYERS.cloud);
 
-    (clouds as SolidSystem).gateOneWay(600, false);
+    (clouds as SolidSystem).gateOneWay(6, false);
     expect(live.get("c")!.style).not.toEqual(solid.style);
     clouds.reset?.();
     expect(live.get("c")!.style).toEqual(solid.style);
@@ -151,21 +151,21 @@ describe("platformer visuals through the view", () => {
   it("draws anchors as two circles and the tether as a chain", () => {
     const { view, live } = recordingView();
     const anchors = createGrappleAnchorSystem({ view });
-    anchors.add("a", { x: 10, y: 20 }, "scene");
+    anchors.add("a", { x: 0.1, y: 0.2 }, "scene");
     expect(live.get("a")).toMatchObject({
-      shape: { type: "circle", cx: 10, cy: 20 },
+      shape: { type: "circle", cx: 0.1, cy: 0.2, r: 0.08 },
       layer: PLATFORMER_LAYERS.anchor,
     });
-    expect(live.get("a#core")?.shape).toMatchObject({ type: "circle", cx: 10, cy: 20 });
+    expect(live.get("a#core")?.shape).toMatchObject({ type: "circle", cx: 0.1, cy: 0.2, r: 0.04 });
 
-    anchors.drawTether({ x: 0, y: 0 }, { x: 10, y: 20 });
+    anchors.drawTether({ x: 0, y: 0 }, { x: 0.1, y: 0.2 });
     const [tether] = [...live.entries()].filter(([id]) => id.includes("tether"));
     expect(tether[1]).toMatchObject({
       shape: {
         type: "chain",
         pts: [
           [0, 0],
-          [10, 20],
+          [0.1, 0.2],
         ],
       },
       layer: PLATFORMER_LAYERS.tether,
@@ -183,11 +183,11 @@ describe("platformer visuals through the view", () => {
       { ...rt.ctx, view },
       rt.ctx.registry.types.get(TYPE.construct)!,
     );
-    const id = constructs.place("wind_zone", { x: 300, y: 400 }, 0.5);
+    const id = constructs.place("wind_zone", { x: 3, y: 4 }, 0.5);
     const pieces = [...live.keys()].filter((k) => k === id || k.startsWith(`${id}#`));
     expect(pieces).toHaveLength(7);
-    for (const k of pieces) expect(live.get(k)!.pose).toEqual([300, 400, 0.5]);
-    expect(live.get(id)!.shape).toMatchObject({ type: "box", cx: 0, cy: 0 });
+    for (const k of pieces) expect(live.get(k)!.pose).toEqual([3, 4, 0.5]);
+    expect(live.get(id)!.shape).toMatchObject({ type: "box", cx: 0, cy: 0, hw: 0.5, hh: 0.8 });
 
     constructs.despawn(id);
     expect(live.size).toBe(0);
@@ -204,13 +204,13 @@ describe("platformer visuals through the view", () => {
         rt.ctx.registry.types.get(TYPE.construct)!,
       ),
       anchors: createGrappleAnchorSystem({ view: null }),
-      bounds: [0, 0, 1000, 1000],
+      bounds: [0, 0, 10, 10],
     });
     shaper.setActive(true);
     shaper.selectType("bridge");
-    shaper.updatePreview({ x: 50, y: 60 }, 16);
+    shaper.updatePreview({ x: 0.5, y: 0.6 }, 16);
     const [ghost] = [...live.values()];
-    expect(ghost).toMatchObject({ layer: PLATFORMER_LAYERS.preview, pose: [50, 60, 0] });
+    expect(ghost).toMatchObject({ layer: PLATFORMER_LAYERS.preview, pose: [0.5, 0.6, 0] });
 
     shaper.setActive(false);
     expect(live.size).toBe(0);
@@ -220,17 +220,17 @@ describe("platformer visuals through the view", () => {
   it("draws the player at its spawn under its entity id and removes it on destroy", () => {
     const rt = emptyRuntime();
     const { view, live } = recordingView();
-    const player = createPlayerEntity({ ...rt.ctx, view }, { x: 100, y: 500 }, {}, "player#1");
+    const player = createPlayerEntity({ ...rt.ctx, view }, { x: 1, y: 5 }, {}, "player#1");
     expect([...live.keys()]).toEqual(["player#1"]);
     const visual = live.get("player#1")!;
     expect(visual.layer).toBe(PLATFORMER_LAYERS.player);
-    expect(visual.pose).toEqual([100, 470, 0]);
+    expect(visual.pose).toEqual([1, 4.7, 0]);
 
     for (let i = 0; i < 3; i++) {
       player.update(1000 / 60, []);
       rt.ctx.physics!.step();
     }
-    expect(live.get("player#1")!.pose[1]).toBeGreaterThan(470);
+    expect(live.get("player#1")!.pose[1]).toBeGreaterThan(4.7);
 
     player.destroy();
     expect(live.has("player#1")).toBe(false);

@@ -33,7 +33,7 @@ export const balloon = defineEntityType({
         const body = physics.addRigidBody(
           rapier.RigidBodyDesc.dynamic().setTranslation(x, y).setGravityScale(-Number(e.lift)),
         );
-        const desc = rapier.ColliderDesc.ball(10);
+        const desc = rapier.ColliderDesc.ball(0.1);
         desc.setCollisionGroups(ctx.registry.collisionGroups("dynamic"));
         ctx.tags.set(physics.addCollider(desc, body).handle, { entityId: e.id, type: type.type });
         ctx.poses.set(e.id, x, y, 0, { snap: true });
@@ -71,12 +71,12 @@ const registry = createRegistry(party);
 /** The codes a physics-free scene with a balloon gets: `physics-required`, before anything loads. */
 export function balloonIssues(): string[] {
   const scene: SceneDefinition = {
-    v: 3,
+    v: 4,
     game: "party",
     name: "party",
-    bounds: [0, 0, 400, 300],
+    bounds: [0, 0, 4, 3],
     settings: { physics: "none" },
-    entities: [{ id: "red", type: "balloon", at: [200, 250] }],
+    entities: [{ id: "red", type: "balloon", at: [2, 2.5] }],
   };
   return validateScene(scene, registry).map((i) => i.code);
 }

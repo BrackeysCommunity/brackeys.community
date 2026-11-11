@@ -25,7 +25,7 @@ export const sceneKind = defineAssetKind({
   schema: (env) => sceneSchemaFor(env.registry) as unknown as z.ZodType<SceneDefinition>,
   layout: "custom",
   parse(input, env) {
-    const result = parseScene(input, env.registry);
+    const result = parseScene(input, env.registry, { prefab: env.prefab });
     if (!result.ok) return result;
     const { def, issues, migratedFrom } = result;
     return migratedFrom === undefined

@@ -46,11 +46,10 @@ import {
 import { withProject, type Registry } from "../../game/index";
 import type { GameInstance, PlayOptions, PlayReport, RunRecording } from "../../index";
 import {
-  DATA_TABLE_KIND,
-  GAME_SETTINGS_KIND,
   MATERIAL_KIND,
   parseDocName,
   prefabKind,
+  RUNTIME_VIEW_KINDS,
   runtimeView,
   stableJson,
   type AssetEntry,
@@ -284,7 +283,7 @@ function reloadName(view: ReturnType<ProjectSession["view"]>, changed: readonly 
 }
 
 const isWatchedKind = (kind: string): boolean =>
-  kind === MATERIAL_KIND || kind === GAME_SETTINGS_KIND || kind === DATA_TABLE_KIND;
+  kind === MATERIAL_KIND || RUNTIME_VIEW_KINDS.includes(kind);
 
 /**
  * The registry a project's docs are read, validated and built with: the

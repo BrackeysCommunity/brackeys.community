@@ -1,11 +1,52 @@
-import { makeIssue } from "./issues";
-import { SCENE_FORMAT_VERSION, type SceneIssue } from "./types";
+import type { z } from "zod";
+
+import { BEHAVIORS_FIELD } from "../game/behaviors";
+import { BASE_FIELDS } from "../game/fields";
+import { ENGINE_SETTING_KEYS } from "../game/primitives";
+import type { Registry } from "../game/types";
+import { pxPerMetreOf, scaleLengths, scaleLengthsAt } from "../game/units";
+import { parseBulkId } from "./bulk-ref";
+import { splitFieldPath, splitOverridePath } from "./field-path";
+import { jsonPointer, makeIssue } from "./issues";
+import { unknownGameIssue } from "./schema";
+import { isShapeSchema, mapShapeLengths } from "./shapes";
+import {
+  PREFAB_KIND,
+  PREFAB_MAX_DEPTH,
+  RESERVED_SCENE_KEYS,
+  SCENE_FORMAT_VERSION,
+  type Prefab,
+  type SceneIssue,
+} from "./types";
+import { pxToMetres } from "./units";
+
+/** What a migration step may need beyond the document: the game, and the prefabs its instances name. */
+export type MigrateEnv = {
+  registry?: Registry;
+  /** The prefab an instance names, for the units of its overrides and exposed params. */
+  prefab?: (id: string) => Prefab | undefined;
+};
+
+/** A step that can't run without what `env` lacks returns this; `migrate` reports its issue. */
+export type MigrationRefusal = { readonly refused: SceneIssue };
 
 /**
- * `MIGRATIONS[n]` lifts an untyped v`n` document to v`n + 1`. Each step ships
- * with a frozen fixture test; only the current version exists as Zod.
+ * `MIGRATIONS[n]` lifts an untyped v`n` document to v`n + 1`, or refuses.
+ * Each step ships with a frozen fixture test; only the current version
+ * exists as Zod.
  */
-export type Migration = (raw: unknown) => unknown;
+export type Migration = (raw: unknown, env: MigrateEnv) => unknown;
+
+/** Whether a step's result is a refusal rather than the lifted document. */
+export function isMigrationRefusal(value: unknown): value is MigrationRefusal {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 1 &&
+    "refused" in value
+  );
+}
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -38,9 +79,360 @@ function v2ToV3(raw: unknown): unknown {
   return { ...(raw as Record<string, unknown>), v: 3 };
 }
 
+// ─── v3 → v4: lengths in metres ──────────────────────────
+
+/** Why a length's unit can't be read; the site that met it turns it into the refusal. */
+class Unresolved extends Error {}
+
+const unresolved = (path: string, message: string): MigrationRefusal => ({
+  refused: makeIssue("migration-unresolved", { message, path }),
+});
+
+const hasNumber = (v: unknown): boolean =>
+  typeof v === "number" ||
+  (Array.isArray(v) && v.some(hasNumber)) ||
+  (isRecord(v) && Object.values(v).some(hasNumber));
+
+/** Raw prefab-like bodies the step reads children from: a prefab file, or the document being migrated. */
+type Body = Record<string, unknown>;
+
+const listOf = (v: unknown): Record<string, unknown>[] =>
+  Array.isArray(v) ? v.filter(isRecord) : [];
+
+/**
+ * The v3 → v4 step for one document, over the registry it is read with.
+ * Throws `Unresolved` where a value's unit can't be read; `v3ToV4` reports
+ * it at the site that holds the value.
+ */
+function metricStep(registry: Registry, env: MigrateEnv) {
+  const ppm = pxPerMetreOf(registry);
+  const len = (v: unknown) => (typeof v === "number" ? pxToMetres(v, ppm) : v);
+  const pt = (v: unknown) => (Array.isArray(v) ? v.map(len) : v);
+  const field = (schema: z.core.$ZodType, v: unknown) =>
+    isShapeSchema(schema)
+      ? mapShapeLengths(v, (n) => pxToMetres(n, ppm))
+      : scaleLengths(v, schema, ppm);
+
+  const prefab = (id: unknown): Body => {
+    if (typeof id !== "string") throw new Unresolved("its prefab id isn't a string");
+    const found = env.prefab?.(id);
+    if (!found)
+      throw new Unresolved(
+        env.prefab
+          ? `prefab "${id}" isn't in the project`
+          : `the step wasn't given prefab "${id}" to read the field's unit from`,
+      );
+    return found as unknown as Body;
+  };
+
+  function behaviors(blocks: unknown): unknown {
+    if (!isRecord(blocks)) return blocks;
+    const out: Record<string, unknown> = {};
+    for (const [name, block] of Object.entries(blocks)) {
+      const b = registry.behaviors.get(name);
+      out[name] = b && isRecord(block) ? fieldsOf(b.shape, block) : block;
+    }
+    return out;
+  }
+
+  function fieldsOf(shape: z.ZodRawShape, value: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      const s = shape[k];
+      out[k] = s ? field(s, v) : v;
+    }
+    return out;
+  }
+
+  function entity(e: unknown): unknown {
+    if (!isRecord(e) || typeof e.type !== "string") return e;
+    const t = registry.types.get(e.type);
+    if (!t) return e;
+    const out = fieldsOf(t.shape, e);
+    if (e[BEHAVIORS_FIELD] !== undefined) out[BEHAVIORS_FIELD] = behaviors(e[BEHAVIORS_FIELD]);
+    return out;
+  }
+
+  function bulk(rows: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [key, entries] of Object.entries(rows)) {
+      const info = registry.bulkKey(key);
+      const s = info && registry.types.get(info.type)?.shape[info.field];
+      out[key] = s && Array.isArray(entries) ? entries.map((v) => field(s, v)) : entries;
+    }
+    return out;
+  }
+
+  function grid(g: unknown): unknown {
+    if (!isRecord(g)) return g;
+    const out = { ...g };
+    for (const k of ["cell", "origin"]) if (out[k] !== undefined) out[k] = pt(out[k]);
+    if (out.side !== undefined) out.side = len(out.side);
+    return out;
+  }
+
+  function settings(s: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(s)) {
+      if (k === "gravity") out[k] = pt(v);
+      else if (k === "grid") out[k] = grid(v);
+      else if ((ENGINE_SETTING_KEYS as readonly string[]).includes(k)) out[k] = v;
+      else {
+        const schema = registry.settings[k];
+        out[k] = schema ? field(schema, v) : v;
+      }
+    }
+    return out;
+  }
+
+  /** A field of an entity or bulk child of type `type`, at field path `path`. */
+  function childField(type: string, path: string, value: unknown, current: unknown): unknown {
+    const t = registry.types.get(type);
+    if (!t) throw new Unresolved(`the child's type "${type}" isn't registered`);
+    const segs = splitFieldPath(path);
+    if (!segs) throw new Unresolved(`"${path}" isn't a field path`);
+    const [head, ...rest] = segs as [string, ...string[]];
+    if (head === BEHAVIORS_FIELD) {
+      if (rest.length === 0) return behaviors(value);
+      const b = registry.behaviors.get(rest[0]!);
+      if (!b) throw new Unresolved(`behavior "${rest[0]}" isn't registered`);
+      if (rest.length === 1) return isRecord(value) ? fieldsOf(b.shape, value) : value;
+      const s = b.shape[rest[1]!];
+      const hit = s && scaleLengthsAt(value, s, rest.slice(2), ppm);
+      if (!hit)
+        throw new Unresolved(`behavior "${rest[0]}" has no field "${rest.slice(1).join(".")}"`);
+      return hit.value;
+    }
+    const s = t.shape[head] ?? (BASE_FIELDS as Record<string, z.core.$ZodType>)[head];
+    if (!s) throw new Unresolved(`type "${type}" has no field "${head}"`);
+    if (isShapeSchema(s)) {
+      if (rest.length === 0) return field(s, value);
+      const tag = isRecord(current) && Array.isArray(current[head]) ? current[head][0] : undefined;
+      const at = rest.length === 1 ? Number(rest[0]) : NaN;
+      if (typeof tag !== "string" || !Number.isInteger(at) || at < 1)
+        throw new Unresolved(`"${path}" points into a shape whose tag the step can't see`);
+      return (tag === "box" || tag === "capsule") && at === 5 ? value : len(value);
+    }
+    const hit = scaleLengthsAt(value, s, rest, ppm);
+    if (!hit) throw new Unresolved(`type "${type}" has no field "${path}"`);
+    return hit.value;
+  }
+
+  /** An override of `child` (a ref relative to `body`) at field path `path`. */
+  function override(
+    body: Body,
+    child: string,
+    path: string,
+    value: unknown,
+    depth: number,
+  ): unknown {
+    if (depth > PREFAB_MAX_DEPTH * 2) throw new Unresolved("its prefabs nest too deep to follow");
+    const segs = child.split("/");
+    const head = segs[0]!;
+    const nested = listOf(body.instances).find((i) => i.id === head);
+    if (segs.length > 1) {
+      if (nested)
+        return override(prefab(nested.prefab), segs.slice(1).join("/"), path, value, depth + 1);
+    } else {
+      const ref = parseBulkId(head);
+      if (ref) {
+        const info = registry.bulkKey(ref.key);
+        if (!info) throw new Unresolved(`bulk key "${ref.key}" isn't registered`);
+        return childField(info.type, path, value, undefined);
+      }
+      const e = listOf(body.entities).find((x) => x.id === head);
+      if (e && typeof e.type === "string") return childField(e.type, path, value, e);
+      if (nested) return instanceField(nested, path, value, depth);
+    }
+    if (typeof body.base === "string")
+      return override(prefab(body.base), child, path, value, depth + 1);
+    throw new Unresolved(`it names no child "${child}"`);
+  }
+
+  /** A nested instance's own field, set by an override (`door-1.at`, `door-1.params.speed`). */
+  function instanceField(inst: Body, path: string, value: unknown, depth: number): unknown {
+    if (path === "at") return pt(value);
+    const param = /^params\.(.+)$/.exec(path)?.[1];
+    if (param !== undefined) return paramValue(prefab(inst.prefab), param, value, depth + 1);
+    if (["rot", "flip", "z", "off", "layer"].includes(path)) return value;
+    throw new Unresolved(`an instance has no field "${path}"`);
+  }
+
+  /** A value of `body`'s exposed param `name`, in the unit of the field its first target names. */
+  function paramValue(body: Body, name: string, value: unknown, depth: number): unknown {
+    for (let b: Body | undefined = body, d = depth; b; d++) {
+      if (d > PREFAB_MAX_DEPTH * 2) break;
+      const param = isRecord(b.params) ? b.params[name] : undefined;
+      if (isRecord(param)) {
+        const target = Array.isArray(param.targets) ? param.targets[0] : undefined;
+        const split = typeof target === "string" ? splitOverridePath(target) : null;
+        if (!split) throw new Unresolved(`param "${name}" has no target to read the unit from`);
+        return override(b, split.child, split.field, value, d);
+      }
+      b = typeof b.base === "string" ? prefab(b.base) : undefined;
+    }
+    throw new Unresolved(`its prefab exposes no param "${name}"`);
+  }
+
+  /** Every override and param value of `overrides` and `params` against `body`, under `pointer`. */
+  function overridesOf(
+    body: () => Body,
+    overrides: unknown,
+    pointer: (string | number)[],
+    who: string,
+  ): unknown {
+    if (!isRecord(overrides)) return overrides;
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(overrides)) {
+      const split = splitOverridePath(key);
+      out[key] =
+        hasNumber(value) && split
+          ? at([...pointer, key], `${who} override "${key}"`, () =>
+              override(body(), split.child, split.field, value, 0),
+            )
+          : value;
+    }
+    return out;
+  }
+
+  function instance(inst: unknown, pointer: (string | number)[]): unknown {
+    if (!isRecord(inst)) return inst;
+    const out = { ...inst };
+    if (inst.at !== undefined) out.at = pt(inst.at);
+    const who = `instance "${String(inst.id)}"'s`;
+    if (isRecord(inst.params)) {
+      const params: Record<string, unknown> = {};
+      for (const [name, value] of Object.entries(inst.params))
+        params[name] = hasNumber(value)
+          ? at([...pointer, "params", name], `${who} param "${name}"`, () =>
+              paramValue(prefab(inst.prefab), name, value, 0),
+            )
+          : value;
+      out.params = params;
+    }
+    if (inst.overrides !== undefined)
+      out.overrides = overridesOf(
+        () => prefab(inst.prefab),
+        inst.overrides,
+        [...pointer, "overrides"],
+        who,
+      );
+    return out;
+  }
+
+  /** A prefab file's own header: its variant overrides through its base, its params' defaults through itself. */
+  function prefabHeader(doc: Body, out: Record<string, unknown>): void {
+    if (doc.overrides !== undefined && typeof doc.base === "string") {
+      const base = doc.base;
+      out.overrides = overridesOf(
+        () => prefab(base),
+        doc.overrides,
+        ["overrides"],
+        "the variant's",
+      );
+    }
+    if (isRecord(doc.params)) {
+      const params: Record<string, unknown> = {};
+      for (const [name, p] of Object.entries(doc.params)) {
+        const target = isRecord(p) && Array.isArray(p.targets) ? p.targets[0] : undefined;
+        const split = typeof target === "string" ? splitOverridePath(target) : null;
+        params[name] =
+          isRecord(p) && hasNumber(p.default) && split
+            ? {
+                ...p,
+                default: at(["params", name, "default"], `param "${name}"'s default`, () =>
+                  override(doc, split.child, split.field, p.default, 0),
+                ),
+              }
+            : p;
+      }
+      out.params = params;
+    }
+    if (isRecord(doc.contract)) out.contract = fieldsOf(registry.prefabContract, doc.contract);
+  }
+
+  return function lift(doc: Body): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...doc, v: 4 };
+    const isFile = doc.kind !== undefined;
+    if (Array.isArray(doc.bounds)) out.bounds = doc.bounds.map(len);
+    if (isRecord(doc.settings)) out.settings = settings(doc.settings);
+    if (isRecord(doc.groups)) {
+      const groups: Record<string, unknown> = {};
+      for (const [id, g] of Object.entries(doc.groups))
+        groups[id] = isRecord(g) && g.at !== undefined ? { ...g, at: pt(g.at) } : g;
+      out.groups = groups;
+    }
+    if (Array.isArray(doc.instances))
+      out.instances = doc.instances.map((inst, i) => instance(inst, ["instances", i]));
+    if (Array.isArray(doc.entities)) out.entities = doc.entities.map(entity);
+    if (isFile) {
+      if (isRecord(doc.bulk)) out.bulk = bulk(doc.bulk);
+    } else {
+      const rows = Object.fromEntries(
+        Object.entries(doc).filter(
+          ([k]) => !RESERVED_SCENE_KEYS.includes(k) && registry.bulkKey(k),
+        ),
+      );
+      Object.assign(out, bulk(rows));
+    }
+    if (doc.kind === PREFAB_KIND) prefabHeader(doc, out);
+    return out;
+  };
+}
+
+/** Runs `fn` for the value at `pointer`, turning an unreadable unit into a refusal that names the site. */
+function at<T>(pointer: (string | number)[], what: string, fn: () => T): T {
+  try {
+    return fn();
+  } catch (error) {
+    if (!(error instanceof Unresolved)) throw error;
+    throw new Refused(
+      unresolved(jsonPointer(pointer), `${what} can't move to metres: ${error.message}`),
+    );
+  }
+}
+
+class Refused extends Error {
+  constructor(readonly refusal: MigrationRefusal) {
+    super(refusal.refused.message);
+  }
+}
+
+/**
+ * v3 → v4: lengths in metres. Every length is divided by the game's px per
+ * metre (`roundLength`): the format's own (`bounds`, `settings.gravity`,
+ * the grid's cell, origin and hex side, groups' and instances' `at`, bulk
+ * entries) and every number under a field whose `meta.unit` is a length
+ * unit, in entities, behavior blocks, the game's settings and a prefab's
+ * contract. An instance's overrides and params, and a variant's overrides
+ * and param defaults, take the unit of the child field they name, read
+ * through `env.prefab`. Refuses (`migration-unresolved`) without a
+ * registry, or when a number's field can't be resolved; a value with no
+ * number in it needs no field.
+ */
+function v3ToV4(raw: unknown, env: MigrateEnv): unknown {
+  const doc = raw as Record<string, unknown>;
+  const registry = env.registry;
+  if (!registry)
+    return unresolved(
+      "/v",
+      "the v3 → v4 step moves lengths to metres with the game's px per metre and field units, and wasn't given the game's registry",
+    );
+  const game = typeof doc.game === "string" ? doc.game : undefined;
+  if (game !== undefined && game !== registry.id)
+    return { refused: unknownGameIssue(game, registry) };
+  try {
+    return metricStep(registry, env)(doc);
+  } catch (error) {
+    if (error instanceof Refused) return error.refusal;
+    throw error;
+  }
+}
+
 export const MIGRATIONS: Readonly<Record<number, Migration>> = Object.freeze({
   1: v1ToV2,
   2: v2ToV3,
+  3: v3ToV4,
 });
 
 export type MigrateResult =
@@ -51,6 +443,7 @@ export function migrate(
   raw: unknown,
   migrations: Readonly<Record<number, Migration>> = MIGRATIONS,
   target: number = SCENE_FORMAT_VERSION,
+  env: MigrateEnv = {},
 ): MigrateResult {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     return {
@@ -103,7 +496,9 @@ export function migrate(
         }),
       };
     }
-    doc = lift(doc);
+    const lifted = lift(doc, env);
+    if (isMigrationRefusal(lifted)) return { ok: false, issue: lifted.refused };
+    doc = lifted;
   }
   return { ok: true, raw: doc, from: v };
 }

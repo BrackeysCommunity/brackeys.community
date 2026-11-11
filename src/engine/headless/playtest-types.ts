@@ -1,8 +1,8 @@
-import type { GameCommand, GameDefinition, Registry, RunResult } from "../game/types";
+import type { DeviceId, GameCommand, GameDefinition, Registry, RunResult } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { LoadReport, StepEvent } from "../runtime/types";
-import type { CountMatch, ExistsMatch } from "../scene/input-script";
-import type { RecordingCommand, RunRecording } from "../scene/recording-schema";
+import type { AnalogSet, CountMatch, ExistsMatch, ScriptPointer } from "../scene/input-script";
+import type { RecordingCommand, RecordingStream, RunRecording } from "../scene/recording-schema";
 import type {
   EntityTypeName,
   PrefabLibrary,
@@ -95,6 +95,38 @@ export type InputScript<G = unknown> = {
   steps: InputScriptStep[];
 };
 
+/**
+ * A v2 step: v1's, plus `set` (axis values and vector pairs held for the
+ * step, alone or with `hold`), `pointer`, and a seat's `join` and `leave`.
+ */
+export type InputScriptStepV2 =
+  | ({ hold: string[]; set?: AnalogSet } & StepDuration)
+  | ({ set: AnalogSet } & StepDuration)
+  | ({ pointer: ScriptPointer } & StepDuration)
+  | { press: string | string[] }
+  | { wait: number }
+  | { command: string; args?: unknown }
+  | { elapse: number }
+  /** A device for the track's seat. */
+  | { join: DeviceId }
+  | { leave: DeviceId };
+
+/** One seat's steps, run concurrently with the other tracks from slot 0. */
+export type InputScriptTrack = { player: number; steps: InputScriptStepV2[] };
+
+/**
+ * A v2 script: exactly one of `steps` (one track for seat 0, v1's form) or
+ * `tracks`. It ends (`script-end`) when every track's steps ran out.
+ */
+export type InputScriptV2<G = unknown> = Omit<InputScript<G>, "v" | "steps"> & {
+  v: 2;
+  /** Seats the run has; default the game's. */
+  players?: number;
+} & (
+    | { steps: InputScriptStepV2[]; tracks?: never }
+    | { tracks: InputScriptTrack[]; steps?: never }
+  );
+
 /** A step with its duration in ticks and its held set resolved. */
 export type CompiledStep = {
   /** Index into the script's `steps`. */
@@ -116,7 +148,7 @@ export type CompiledInputScript = {
   maxTicks: number;
   play: PlayOptions;
   /**
-   * Every edge before `maxTicks`, stamped with its slot, when no step waits
+   * Seat 0's button edges before `maxTicks`, stamped with its slot, when no step waits
    * on `until`; otherwise edges are only known by running. Nothing is
    * released after the last step. For a fixed game these are the ticks played.
    */
@@ -150,7 +182,7 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
   prefabs?: PrefabLibrary;
   /** Every prefab the game's `ctx.instantiate` may place, as `loadHeadless` returns it; default `prefabs`. */
   library?: PrefabLibrary;
-  script: InputScript<G> | CompiledInputScript;
+  script: InputScript<G> | InputScriptV2<G> | CompiledInputScript;
   /** Cap on `events`; default 1000. */
   maxEvents?: number;
   /** Cap on `trail.pts`; default 2000. */
@@ -163,8 +195,10 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
 
 /** How one script step went. */
 export type PlaytestStep = {
-  /** Index into the script's `steps`. */
+  /** Index into the script's steps, or into its track's steps. */
   index: number;
+  /** The track's seat, for a script written with tracks; absent for one written with steps. */
+  player?: number;
   /** The slot it started on: its tick, for a fixed game. */
   start: number;
   /** Slots it ran: ticks, for a fixed game; a turns or event game may skip some. */
@@ -209,8 +243,10 @@ export type PlaytestReport<S = unknown> = {
   steps: PlaytestStep[];
   /** The game's snapshot after the last tick; `null` without a game. */
   final: S | null;
-  /** The edges actually played, `until` steps resolved. */
+  /** The button edges actually played, `until` steps resolved; `stream` holds every seat's input. */
   inputs: InputEdge[];
+  /** Every seat's input and the system events, as a v2 recording holds them. */
+  stream?: RecordingStream;
   /** The commands stepped, oldest first, stamped with the tick that stepped them. */
   commands: RecordingCommand[];
   /** Warnings and info the scene had; errors block instead. */

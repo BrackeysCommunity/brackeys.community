@@ -8,6 +8,8 @@ import { createRegistry } from "../game/define";
 import type { TimeModel } from "../game/time";
 import type { GameCommand, GameDefinition, GameShell } from "../game/types";
 import { createKindRegistry } from "../project/kinds";
+import { INPUT_MAP_KIND, INPUT_MAP_VERSION } from "../project/kinds/input-map";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetEntry, Sha256 } from "../project/types";
 import { projectView } from "../project/view";
 import { createAssetLoader } from "../render/asset-loader";
@@ -791,5 +793,539 @@ describe("the clock", () => {
       wall(frames, 100);
       expect(steps).toHaveLength(0);
     });
+  });
+});
+
+describe("devices", () => {
+  type Pad = { axes: number[]; pressed: boolean[] };
+  /** A standard pad behind a fake `navigator.getGamepads`, counting its reads. */
+  function fakePads() {
+    const pad: Pad = { axes: [0, 0, 0, 0], pressed: Array.from({ length: 17 }, () => false) };
+    const reads = { count: 0 };
+    const getGamepads = () => {
+      reads.count++;
+      return [
+        {
+          index: 0,
+          id: "fake",
+          mapping: "standard",
+          connected: true,
+          buttons: pad.pressed.map((pressed) => ({ pressed, value: pressed ? 1 : 0 })),
+          axes: [...pad.axes],
+        },
+      ];
+    };
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: getGamepads });
+    return { pad, reads };
+  }
+
+  afterEach(() => {
+    delete (navigator as { getGamepads?: unknown }).getGamepads;
+    vi.restoreAllMocks();
+  });
+
+  /** The test game plus a pad stick axis, a pad button, pointer buttons and a touch button. */
+  function deviceGame(time: TimeModel = { kind: "fixed" }) {
+    const steps: string[][] = [];
+    const mouse: { x: number; y: number }[] = [];
+    const game: GameDefinition = {
+      ...testGame,
+      time,
+      actions: [
+        ...testGame.actions!,
+        {
+          action: "steer",
+          kind: "axis",
+          description: "Steer.",
+          bindings: [{ device: "pad", axis: "left-x" }],
+        },
+        {
+          action: "jump",
+          description: "Jump.",
+          bindings: [
+            { device: "pad", button: "south" },
+            { device: "key", code: "KeyJ" },
+            { device: "touch", control: "jump" },
+          ],
+        },
+        {
+          action: "poke",
+          description: "Poke.",
+          bindings: [{ device: "pointer", button: "primary" }],
+        },
+      ],
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        return {
+          ...base,
+          // A still camera, so one screen point stays one world point.
+          cameraTarget: () => null,
+          beforeStep(dtMs, actions, commands) {
+            steps.push(actions.map((a) => `${a.action}:${a.value ?? (a.pressed ? 1 : 0)}`));
+            base.beforeStep?.(dtMs, actions, commands);
+          },
+        };
+      },
+      attach: () => ({ onTick: (_dt, at) => void mouse.push(at), destroy() {} }),
+    };
+    return { game, steps, mouse };
+  }
+
+  /** The `TickInput` of every step the shell takes. */
+  function spySteps(game: GameInstance) {
+    const inputs: { pointers: unknown[]; actions: string[] }[] = [];
+    const runtime = game.runtime()!;
+    const step = runtime.step;
+    runtime.step = (dt, input, commands) => {
+      if (!Array.isArray(input))
+        inputs.push({ pointers: [...input.pointers], actions: input.actions.map((a) => a.action) });
+      return step(dt, input, commands);
+    };
+    return inputs;
+  }
+
+  const pointer = (
+    game: GameInstance,
+    type: "down" | "move" | "up",
+    x: number,
+    y: number,
+    extra: Partial<Extract<ToolEvent, { kind: "pointer" }>> = {},
+  ) =>
+    game.router.dispatch({
+      kind: "pointer",
+      type,
+      screen: { x, y },
+      button: type === "move" ? -1 : 0,
+      deltaY: 0,
+      native: new MouseEvent(`pointer${type}`),
+      ...extra,
+    });
+
+  it("polls the pads once per simulated tick, and not while editing", async () => {
+    const frames = manualFrames();
+    const { reads } = fakePads();
+    const { game: def, steps } = deviceGame({ kind: "fixed", rate: 30 });
+    const game = await makeGame({ game: def });
+    game.start();
+    game.stop();
+    frames.advance(0);
+    for (let t = 0; t < 500; t += 1000 / 120) frames.advance(1000 / 120);
+    expect(reads.count).toBe(0);
+
+    expect(game.play(sceneB).ok).toBe(true);
+    for (let t = 0; t < 1000; t += 1000 / 120) frames.advance(1000 / 120);
+    expect(steps.length).toBeGreaterThan(25);
+    expect(reads.count).toBe(steps.length);
+  });
+
+  it("turns pad changes into actions, combined with the keyboard's", async () => {
+    const { pad } = fakePads();
+    const { game: def, steps } = deviceGame();
+    const game = await makeGame({ game: def });
+    game.play(sceneB);
+    pad.axes[0] = 0.6;
+    pad.pressed[0] = true;
+    game.step();
+    game.router.dispatch({
+      kind: "key",
+      type: "down",
+      key: "j",
+      code: "KeyJ",
+      native: new KeyboardEvent("keydown", { key: "j", code: "KeyJ" }),
+    });
+    pad.pressed[0] = false;
+    game.step();
+    game.step();
+    expect(steps[0]).toEqual(expect.arrayContaining(["steer:0.529", "jump:1"]));
+    // J still holds jump when the pad lets go, so nothing changes.
+    expect(steps.slice(1)).toEqual([[], []]);
+  });
+
+  it("queues a pointer sample only on ticks where it changed, and hands the attachment its position", async () => {
+    const { game: def, mouse } = deviceGame();
+    const game = await makeGame({ game: def });
+    game.play(sceneB);
+    const inputs = spySteps(game);
+    game.step();
+    pointer(game, "move", 40, 10);
+    game.step(3);
+    pointer(game, "move", 40, 10);
+    game.step();
+    pointer(game, "down", 40, 10);
+    game.step();
+    pointer(game, "move", 60, 10);
+    game.step();
+
+    const at = game.screenToWorld({ x: 40, y: 10 });
+    const sample = (x: number, buttons: number) => [
+      { x: expect.closeTo(x, 4), y: expect.closeTo(at.y, 4), buttons, over: true },
+    ];
+    const moved = game.screenToWorld({ x: 60, y: 10 });
+    expect(inputs.map((i) => i.pointers)).toEqual([
+      [],
+      sample(at.x, 0),
+      [],
+      [],
+      [],
+      sample(at.x, 1),
+      sample(moved.x, 1),
+    ]);
+    expect(inputs[5]!.actions).toEqual(["poke"]);
+    const last = inputs[6]!.pointers[0] as { x: number; y: number };
+    // Quantised to 1/10,000 m, and what the attachment saw that tick.
+    expect(last.x).toBe(Math.round(last.x * 10_000) / 10_000);
+    expect(mouse.at(-1)).toEqual({ x: last.x, y: last.y });
+  });
+
+  it("wakes an event game on an analog change, and never a turns game", async () => {
+    const frames = manualFrames();
+    const { pad } = fakePads();
+    const { game: def, steps } = deviceGame({ kind: "event", rate: 30 });
+    const game = await makeGame({ game: def });
+    game.play(sceneB);
+    game.start();
+    frames.advance(0);
+    for (let t = 0; t < 300; t += 1000 / 120) frames.advance(1000 / 120);
+    expect(steps).toHaveLength(0);
+    pad.axes[0] = -1;
+    frames.advance(1000 / 120);
+    expect(steps).toEqual([["steer:-1"]]);
+    for (let t = 0; t < 300; t += 1000 / 120) frames.advance(1000 / 120);
+    expect(steps).toHaveLength(1);
+    pointer(game, "move", 30, 30);
+    frames.advance(1000 / 120);
+    expect(steps).toHaveLength(1);
+    pointer(game, "down", 30, 30);
+    frames.advance(1000 / 120);
+    expect(steps.at(-1)).toEqual(["poke:1"]);
+
+    const turns = deviceGame({ kind: "turns", rate: 30 });
+    const other = await makeGame({ game: turns.game });
+    other.play(sceneB);
+    other.start();
+    pad.axes[0] = 0.8;
+    for (let t = 0; t < 300; t += 1000 / 120) frames.advance(1000 / 120);
+    expect(turns.steps).toHaveLength(0);
+  });
+
+  describe("touch controls", () => {
+    const inputMap: ProjectRuntimeView["inputMap"] = {
+      kind: INPUT_MAP_KIND,
+      v: INPUT_MAP_VERSION,
+      touch: [{ id: "jump", kind: "button", action: "jump", at: [0.1, 0.1], radius: 0.1 }],
+    };
+    const project: ProjectRuntimeView = {
+      settings: {},
+      engine: {},
+      table: () => [],
+      asset: () => undefined,
+      inputMap,
+    };
+    const overlay = () => document.querySelector<HTMLElement>("[data-touch-controls]");
+    const rect = { left: 0, top: 0, right: 1000, bottom: 500, width: 1000, height: 500 };
+
+    beforeEach(() => {
+      const box = () => ({ ...rect, x: 0, y: 0, toJSON() {} });
+      document.body.getBoundingClientRect = box;
+      canvas.getBoundingClientRect = box;
+    });
+
+    function coarse(matches: boolean) {
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches: query === "(pointer: coarse)" && matches,
+        addEventListener() {},
+        removeEventListener() {},
+      }));
+    }
+
+    it('mounts the overlay with touch: "always", shown in play only', async () => {
+      const game = await makeGame({
+        game: deviceGame().game,
+        project,
+        input: { touch: "always" },
+      });
+      expect(overlay()?.parentElement).toBe(canvas.parentElement);
+      game.play(sceneB);
+      expect(overlay()!.style.display).toBe("");
+      game.stop();
+      expect(overlay()!.style.display).toBe("none");
+      game.destroy();
+      expect(overlay()).toBeNull();
+    });
+
+    it('follows a coarse pointer with "auto", and mounts nothing with "never"', async () => {
+      coarse(false);
+      const fine = await makeGame({ game: deviceGame().game, project });
+      fine.play(sceneB);
+      expect(overlay()!.style.display).toBe("none");
+      fine.destroy();
+
+      coarse(true);
+      const touchy = await makeGame({ game: deviceGame().game, project, input: { touch: "auto" } });
+      touchy.play(sceneB);
+      expect(overlay()!.style.display).toBe("");
+      touchy.destroy();
+
+      await makeGame({ game: deviceGame().game, project, input: { touch: "never" } });
+      expect(overlay()).toBeNull();
+    });
+
+    it("drives the control under a touch, and makes a touch away from every control the pointer", async () => {
+      const { game: def, steps } = deviceGame();
+      const game = await makeGame({ game: def, project, input: { touch: "always" } });
+      game.play(sceneB);
+      const inputs = spySteps(game);
+      const node = document.querySelector<HTMLElement>('[data-touch-control="jump"]')!;
+      node.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          pointerId: 3,
+          pointerType: "touch",
+          clientX: 50,
+          clientY: 50,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      game.step();
+      expect(steps.at(-1)).toEqual(["jump:1"]);
+
+      const touch = { pointerType: "touch" as const };
+      // On the control (its centre is 0.1 of the shorter side in): the control's, not the pointer's.
+      pointer(game, "down", 50, 50, { ...touch, pointerId: 4 });
+      game.step();
+      expect(inputs.at(-1)!.pointers).toEqual([]);
+      expect(steps.at(-1)).toEqual([]);
+
+      pointer(game, "down", 800, 400, { ...touch, pointerId: 5 });
+      game.step();
+      expect(steps.at(-1)).toEqual(["poke:1"]);
+      expect(inputs.at(-1)!.pointers).toEqual([expect.objectContaining({ buttons: 1 })]);
+    });
+  });
+});
+
+describe("seats", () => {
+  /** Standard pads behind a fake `navigator.getGamepads`; a pad is listed while `connected`. */
+  function fakePads(count: number) {
+    const pads = Array.from({ length: count }, (_, index) => ({
+      index,
+      connected: true,
+      pressed: Array.from({ length: 17 }, () => false),
+    }));
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () =>
+        pads.map((p) =>
+          p.connected
+            ? {
+                index: p.index,
+                id: `fake-${p.index}`,
+                mapping: "standard",
+                connected: true,
+                buttons: p.pressed.map((pressed) => ({ pressed, value: pressed ? 1 : 0 })),
+                axes: [0, 0, 0, 0],
+              }
+            : null,
+        ),
+    });
+    return pads;
+  }
+
+  afterEach(() => {
+    delete (navigator as { getGamepads?: unknown }).getGamepads;
+  });
+
+  /** Two seats: WASD's left and right for seat 0, the arrows' for seat 1, and a pad button for whichever seat holds the pad. */
+  function twoSeatGame(join: "auto" | "press" | "host") {
+    const steps: string[][] = [];
+    const joins: string[][] = [];
+    const game: GameDefinition = {
+      ...testGame,
+      input: { players: { max: 2, join } },
+      actions: [
+        {
+          action: "left",
+          description: "Walk left.",
+          bindings: [
+            { device: "key", code: "KeyA", player: 0 },
+            { device: "key", code: "ArrowLeft", player: 1 },
+          ],
+        },
+        {
+          action: "right",
+          description: "Walk right.",
+          bindings: [
+            { device: "key", code: "KeyD", player: 0 },
+            { device: "key", code: "ArrowRight", player: 1 },
+          ],
+        },
+        { action: "push", description: "Push.", bindings: [{ device: "key", code: "Space" }] },
+        { action: "jump", description: "Jump.", bindings: [{ device: "pad", button: "south" }] },
+      ],
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            steps.push(actions.map((a) => `${a.action}@${a.player ?? 0}:${a.pressed ? 1 : 0}`));
+            base.beforeStep?.(dtMs, actions, commands);
+          },
+        };
+      },
+    };
+    return { game, steps, joins };
+  }
+
+  /** Each step's `TickInput.joins`, as `device>seat` or `device<seat`. */
+  function spyJoins(game: GameInstance) {
+    const joins: string[][] = [];
+    const runtime = game.runtime()!;
+    const step = runtime.step;
+    runtime.step = (dt, input, commands) => {
+      if (!Array.isArray(input))
+        joins.push(input.joins.map((j) => `${j.device}${j.joined ? ">" : "<"}${j.player}`));
+      return step(dt, input, commands);
+    };
+    return joins;
+  }
+
+  const key = (game: GameInstance, code: string, type: "down" | "up" = "down") =>
+    game.router.dispatch({
+      kind: "key",
+      type,
+      key: code,
+      code,
+      native: new KeyboardEvent(`key${type}`, { code }),
+    });
+
+  it("drives seat 0 from WASD and seat 1 from the arrows on one keyboard", async () => {
+    const { game: def, steps } = twoSeatGame("auto");
+    const game = await makeGame({ game: def });
+    game.play(sceneB);
+    key(game, "KeyA");
+    key(game, "ArrowRight");
+    game.step();
+    key(game, "KeyA", "up");
+    key(game, "ArrowLeft");
+    key(game, "Space");
+    game.step();
+    expect(steps).toEqual([
+      ["left@0:1", "right@1:1"],
+      // A binding without a seat follows the keyboard's owner, seat 0.
+      ["left@0:0", "left@1:1", "push@0:1"],
+    ]);
+  });
+
+  it('seats a pad by its first press under "press", after the keyboard took seat 0', async () => {
+    const pads = fakePads(1);
+    const { game: def, steps } = twoSeatGame("press");
+    const game = await makeGame({ game: def });
+    game.play(sceneB);
+    const joins = spyJoins(game);
+    expect(game.input.players().map((p) => p.joined)).toEqual([false, false]);
+
+    key(game, "KeyD");
+    game.step();
+    pads[0]!.pressed[0] = true;
+    game.step();
+    game.step();
+    expect(joins).toEqual([["keyboard>0"], ["pad:0>1"], []]);
+    // The press that seats the pad is already that seat's.
+    expect(steps).toEqual([["right@0:1"], ["jump@1:1"], []]);
+    expect(game.input.players()).toEqual([
+      { index: 0, devices: ["keyboard"], joined: true },
+      { index: 1, devices: ["pad:0"], joined: true },
+    ]);
+  });
+
+  it('gives pads free seats in connection order under "auto", and frees a disconnected pad\'s seat', async () => {
+    const pads = fakePads(2);
+    const { game: def, steps } = twoSeatGame("auto");
+    const game = await makeGame({ game: def });
+    game.play(sceneB);
+    const joins = spyJoins(game);
+    pads[0]!.pressed[0] = true;
+    game.step();
+    expect(joins[0]).toEqual(["pad:0>1"]);
+    expect(game.input.players()[1]!.devices).toEqual(["pad:0"]);
+    // Pad 1 has no free seat: it drives nothing.
+    pads[1]!.pressed[0] = true;
+    expect(steps.at(-1)).toEqual(["jump@1:1"]);
+
+    pads[0]!.connected = false;
+    game.step();
+    // The pad is released on its seat, then the seat goes to the waiting pad.
+    expect(joins[1]).toEqual(["pad:0<1", "pad:1>1"]);
+    expect(steps.at(-1)).toEqual(["jump@1:0"]);
+    // Held from before it had the seat, its button counts once it is pressed again.
+    pads[1]!.pressed[0] = false;
+    game.step();
+    pads[1]!.pressed[0] = true;
+    game.step();
+    expect(steps.slice(-2)).toEqual([[], ["jump@1:1"]]);
+  });
+
+  it("keeps a held key reading through another device taking a seat", async () => {
+    const pads = fakePads(1);
+    pads[0]!.connected = false;
+    const { game: def, steps } = twoSeatGame("auto");
+    const game = await makeGame({ game: def });
+    game.play(sceneB);
+    key(game, "KeyD");
+    game.step();
+    pads[0]!.connected = true;
+    game.step();
+    expect(game.input.players()[1]!.devices).toEqual(["pad:0"]);
+    key(game, "KeyD", "up");
+    game.step();
+    expect(steps).toEqual([["right@0:1"], [], ["right@0:0"]]);
+  });
+
+  it('lets the host assign devices under "host", refusing a seat past max', async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    fakePads(1)[0]!.pressed[0] = true;
+    const { game: def, steps } = twoSeatGame("host");
+    const game = await makeGame({ game: def, dev: true });
+    game.play(sceneB);
+    const joins = spyJoins(game);
+    game.step();
+    expect(steps.at(-1)).toEqual([]);
+
+    game.input.assign("pad:0", 0);
+    game.input.assign("keyboard", 5);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("player-unknown"));
+    game.step();
+    expect(joins.at(-1)).toEqual(["pad:0>0"]);
+    expect(game.input.players()[0]!.devices).toEqual(["pad:0"]);
+    warn.mockRestore();
+  });
+
+  it("starts a new world with the live seats as its first tick's joins", async () => {
+    fakePads(1)[0]!.pressed[0] = true;
+    const { game: def } = twoSeatGame("auto");
+    const game = await makeGame({ game: def });
+    game.play(sceneB);
+    game.step();
+    expect(game.input.players()[1]!.devices).toEqual(["pad:0"]);
+    game.stop();
+    game.play(sceneB);
+    const joins = spyJoins(game);
+    game.step();
+    game.step();
+    expect(joins).toEqual([["pad:0>1"], []]);
+  });
+
+  it("keeps one seat's behaviour with max 1: every pad drives seat 0", async () => {
+    fakePads(2).forEach((p) => (p.pressed[0] = true));
+    const { game: def, steps } = twoSeatGame("auto");
+    const game = await makeGame({
+      game: { ...def, input: {}, actions: [...testGame.actions!, def.actions.at(-1)!] },
+    });
+    game.play(sceneB);
+    game.step();
+    expect(steps).toEqual([["jump@0:1"]]);
+    expect(game.input.players()).toEqual([
+      { index: 0, devices: ["keyboard", "pointer", "touch", "pad:0", "pad:1"], joined: true },
+    ]);
   });
 });

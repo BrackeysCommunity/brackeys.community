@@ -1,0 +1,38 @@
+{
+  "v": 2,
+  "engine": { "version": "0.11.0", "physics": null },
+  "platform": { "arch": "arm64", "runtime": "node 22.11.0", "flavour": null },
+  "game": "test-game",
+  "scene": "yard",
+  "sceneHash": "5a1d2c3e",
+  "runHash": "b7e4f019",
+  "project": { "id": "demo", "snapshot": null },
+  "configHash": "1f2e3d4c",
+  "time": { "kind": "fixed", "rate": 60 },
+  "seed": 1,
+  "start": {},
+  "players": [
+    { "index": 0, "devices": ["keyboard"] },
+    { "index": 1, "devices": ["pad:0"] }
+  ],
+  "actions": ["right", "push"],
+  "commands": [],
+  "inputs": [
+    [
+      [0, "b", 0, 1],
+      [30, "b", 0, 0]
+    ],
+    [
+      [2, "b", 1, 1],
+      [3, "b", 1, 0]
+    ]
+  ],
+  "system": [
+    [0, "j", 0, "keyboard"],
+    [2, "j", 1, "pad:0"]
+  ],
+  "ticks": 60,
+  "outcome": { "result": "timeout", "tick": 59, "at": null },
+  "markers": [],
+  "end": "c0ffee12"
+}

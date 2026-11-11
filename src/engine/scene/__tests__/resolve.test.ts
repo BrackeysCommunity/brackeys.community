@@ -565,20 +565,20 @@ describe("nested instances on the resolved view", () => {
   const nested: PrefabLibrary = prefabLibrary([
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "leaf",
       entities: [{ id: "pin", type: "marker", at: [4, 0] }],
     },
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "shell",
       entities: [],
       instances: [{ id: "l", prefab: "leaf", at: [20, 0], rot: 1 }],
     },
   ]);
   const shellScene = (inst: Partial<InstanceDef> = {}): SceneDefinition => ({
-    v: 3,
+    v: 4,
     name: "nested",
     bounds: [0, 0, 1000, 1000],
     instances: [{ id: "s", prefab: "shell", at: [500, 500], ...inst }],

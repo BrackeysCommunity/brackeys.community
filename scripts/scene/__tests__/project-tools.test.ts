@@ -57,6 +57,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "data/cards.json",
       "materials/bouncy.json",
       "game-settings.json",
+      "input-map.json",
     ];
     const art = [
       "art/backdrop.png",
@@ -76,12 +77,13 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       name: "Engine",
       game: null,
       dir: join(ROOT, "src/engine/scenes"),
-      assets: 20,
+      assets: 21,
       counts: {
         atlas: 2,
         checks: 3,
         "data-table": 1,
         "game-settings": 1,
+        "input-map": 1,
         material: 1,
         prefab: 6,
         scene: 3,
@@ -92,7 +94,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       problems: [],
       issues: [],
       usage: {
-        docs: 15,
+        docs: 16,
         docBytes: await size(files),
         blobs: 5,
         blobBytes: await size(art),
@@ -142,6 +144,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "game-settings.json",
       "grid-yard.checks.json",
       "grid-yard.json",
+      "input-map.json",
       "kitchen-sink.checks.json",
       "kitchen-sink.json",
     ]);
@@ -232,6 +235,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         "gate",
         "grid-yard",
         "grid-yard-checks",
+        "input-map",
         "kitchen-sink",
         "kitchen-sink-checks",
         "latch",
@@ -328,7 +332,7 @@ export const deckGame = {
 `;
 
   const arena = {
-    v: 3,
+    v: 4,
     name: "arena",
     game: "deck",
     bounds: [0, 0, 200, 100],

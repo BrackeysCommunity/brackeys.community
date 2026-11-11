@@ -20,10 +20,9 @@ const scene = expandScene(
 
 let standard: RapierModule;
 let compat: RapierModule;
+let deterministic: RapierModule;
 
-beforeAll(async () => {
-  standard = await import("@dimforge/rapier2d");
-  const mod = await import("@dimforge/rapier2d-compat");
+async function initialised(mod: { default: { init: () => Promise<void> } }): Promise<RapierModule> {
   const warn = console.warn;
   console.warn = () => {};
   try {
@@ -31,7 +30,13 @@ beforeAll(async () => {
   } finally {
     console.warn = warn;
   }
-  compat = mod.default as unknown as RapierModule;
+  return mod.default as unknown as RapierModule;
+}
+
+beforeAll(async () => {
+  standard = await import("@dimforge/rapier2d");
+  compat = await initialised(await import("@dimforge/rapier2d-compat"));
+  deterministic = await initialised(await import("@dimforge/rapier2d-deterministic-compat"));
 });
 
 const probe = (rapier: RapierModule): ProbeReport =>
@@ -45,6 +50,14 @@ describe("Rapier flavour parity on test-yard", () => {
     expect(a.ticks).toBe(600);
     expect(a.truncated).toBe(false);
     expect(a.events.filter((e) => e.type === "landed").length).toBeGreaterThanOrEqual(5);
+    expect(b.final).toStrictEqual(a.final);
+    expect(b.events).toStrictEqual(a.events);
+    expect(b.stats).toStrictEqual(a.stats);
+  });
+
+  it("runs it identically under both -compat flavours", () => {
+    const a = probe(compat);
+    const b = probe(deterministic);
     expect(b.final).toStrictEqual(a.final);
     expect(b.events).toStrictEqual(a.events);
     expect(b.stats).toStrictEqual(a.stats);

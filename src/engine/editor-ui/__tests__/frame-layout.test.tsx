@@ -57,7 +57,7 @@ const scene: SceneDefinition = {
   v: 1,
   name: "layout-yard",
   bounds: [0, 0, 2000, 1200],
-  entities: [{ id: "pad", type: "marker", at: [1000.5, 1010] }],
+  entities: [{ id: "pad", type: "marker", at: [1000.005, 1010] }],
 };
 
 const newSession = () =>

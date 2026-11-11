@@ -1,9 +1,16 @@
-import { replayRecording, type ReplayReport } from "@jams/engine/headless";
+import {
+  parseRecording,
+  replayRecording,
+  type RecordingPlatform,
+  type ReplayReport,
+  type RunRecording,
+} from "@jams/engine/headless";
 
 import {
   failure,
   gameFlag,
   isToolResult,
+  issueLine,
   openScene,
   readArg,
   usage,
@@ -11,7 +18,7 @@ import {
   type Tool,
 } from "../context";
 import { projectRuntime } from "../projects";
-import { blockedText } from "./playtest";
+import { blockedText, projectRef } from "./playtest";
 import { rapierFor, rounded } from "./step";
 
 export type ReplayInput = { scene?: string; run?: string; game?: string };
@@ -21,19 +28,38 @@ const USAGE = "replay <scene|file|-> --run <file|-> [--game id]";
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
-function reportText(scene: string, r: ReplayReport): string {
+/** Where and on what a recording was made, as its file says. */
+export type Recorded = Pick<RunRecording, "engine" | "platform">;
+
+/** `arm64, node 22.1.0, rapier2d-compat`; a platform a v1 recording never named reads `unknown`. */
+const platformText = (p: RecordingPlatform) =>
+  p.arch === "unknown" && p.runtime === "unknown"
+    ? "unknown"
+    : [p.arch, p.runtime, ...(p.flavour ? [p.flavour] : [])].join(", ");
+
+/** A replay's text: how it ended, what it was recorded on, its warnings and issues. */
+export function replayText(scene: string, r: ReplayReport, recorded: Recorded | null): string {
   const o = r.recording.outcome;
   return [
     `${scene}: ${r.matches ? "replays" : "diverges"}: ${o.result} at t${o.tick} (${r.recording.ticks} ticks)${r.divergence ? `: ${r.divergence}` : ""}`,
+    ...(recorded
+      ? [
+          `  recorded on engine ${recorded.engine.version}, physics ${recorded.engine.physics ?? "none"}${r.migratedFrom === undefined ? "" : `; migratedFrom ${r.migratedFrom}`}`,
+          `  platform recorded ${platformText(recorded.platform)}; replayed ${platformText(r.recording.platform)}`,
+        ]
+      : []),
     ...r.warnings.map((w) => `  warning ${w}`),
+    ...r.issues.map(issueLine),
     `  final ${rounded(r.final)}`,
   ].join("\n");
 }
 
 /**
- * Replays a run recording (or the `recording` of a `playtest --json` report)
- * on a scene headless. Exit 1 when it doesn't end the way it was recorded;
- * a stale scene is a warning.
+ * Replays a run recording, v1 or v2 (or the `recording` of a `playtest
+ * --json` report), on a scene headless, and says what it was recorded on:
+ * the engine version and physics, the platform beside this one, and the
+ * format a v1 file was migrated from. Exit 1 when it doesn't end the way it
+ * was recorded; a stale scene or another platform is a warning.
  */
 export const replay: Tool<ReplayInput> = async (input, ctx) => {
   if (!input.run) return usage(`scene ${USAGE}`);
@@ -65,13 +91,19 @@ export const replay: Tool<ReplayInput> = async (input, ctx) => {
     prefabs: loaded.prefabs,
     project,
     recording,
+    projectRef: projectRef(loaded.project),
+    ...(ctx.rapierFlavour ? { platform: { flavour: ctx.rapierFlavour } } : {}),
   });
   const game = registry.game?.id ?? null;
   if (run.blocked)
     return { exitCode: 1, data: { ok: false, game, ...run }, text: blockedText(run) };
+  const read = parseRecording(recording, registry);
+  const recorded: Recorded | null = read.ok
+    ? { engine: read.recording.engine, platform: read.recording.platform }
+    : null;
   return {
     exitCode: run.matches ? 0 : 1,
-    data: { game, ...run },
-    text: reportText(loaded.def.name, run),
+    data: { game, ...run, ...(recorded ? { recorded } : {}) },
+    text: replayText(loaded.def.name, run, recorded),
   };
 };

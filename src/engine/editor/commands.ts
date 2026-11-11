@@ -1,7 +1,9 @@
 import type { Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import { parseBulkId } from "../scene/expand";
 import { CHILD_SEPARATOR, parseChildRef } from "../scene/resolve";
 import type { Aabb, OpBatch, Pt, Ref, SceneDefinition, SceneOp } from "../scene/types";
+import { snapToPixel } from "../scene/units";
 import { moveBatch } from "./gizmos/batch";
 import { shapePivot } from "./gizmos/handles";
 import { rotateTargetsBatch, selectionBox } from "./gizmos/multi";
@@ -11,8 +13,8 @@ import type { PickLayers } from "./picking";
 import { docRefs } from "./refs";
 import type { SpatialIndex } from "./tools";
 
-/** Grid steps a coarse (Shift) nudge moves. */
-export const COARSE_NUDGE_STEPS = 4;
+/** World px a coarse (Shift) nudge moves. */
+export const COARSE_NUDGE_STEPS = 10;
 
 const DIRECTIONS: Record<string, Pt> = {
   up: [0, -1],
@@ -22,15 +24,15 @@ const DIRECTIONS: Record<string, Pt> = {
 };
 
 /**
- * The offset a `nudge-<dir>[-coarse|-fine]` command moves by: one grid
- * `step`, four with `-coarse`, one px with `-fine`. `null` for any other
- * command.
+ * The offset, in metres, a `nudge-<dir>[-coarse|-fine]` command moves by:
+ * one world px at `pxPerMetre` (also with `-fine`), ten with `-coarse`.
+ * `null` for any other command.
  */
-export function nudgeDelta(command: string, step: number): Pt | null {
+export function nudgeDelta(command: string, pxPerMetre: number): Pt | null {
   const m = /^nudge-(up|down|left|right)(?:-(coarse|fine))?$/.exec(command);
   if (!m) return null;
   const [dx, dy] = DIRECTIONS[m[1]!]!;
-  const by = m[2] === "fine" ? 1 : m[2] === "coarse" ? step * COARSE_NUDGE_STEPS : step;
+  const by = snapToPixel((m[2] === "coarse" ? COARSE_NUDGE_STEPS : 1) / pxPerMetre, pxPerMetre);
   return [dx * by + 0, dy * by + 0];
 }
 
@@ -54,9 +56,10 @@ export function rotationPivot(targets: readonly GizmoTarget[]): Pt | null {
   return [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2];
 }
 
-/** One batch moving `refs` by `delta`; `null` when nothing moves. */
-export function nudgeBatch(refs: readonly Ref[], delta: Pt): OpBatch | null {
-  return moveBatch(refs, delta, `Nudge ${refs.length === 1 ? refs[0] : `${refs.length} entities`}`);
+/** One batch moving `refs` by `delta`, on whole world px; `null` when nothing moves. */
+export function nudgeBatch(refs: readonly Ref[], delta: Pt, pxPerMetre: number): OpBatch | null {
+  const label = `Nudge ${refs.length === 1 ? refs[0] : `${refs.length} entities`}`;
+  return moveBatch(refs, delta, pxPerMetre, label);
 }
 
 /** One batch turning the selection `deg` degrees (clockwise on screen) about its pivot. */
@@ -68,7 +71,7 @@ export function rotateSelectionBatch(
 ): OpBatch | null {
   const targets = targetsOf(def, registry, refs);
   const about = rotationPivot(targets);
-  return about ? rotateTargetsBatch(targets, about, deg) : null;
+  return about ? rotateTargetsBatch(targets, about, deg, pxPerMetreOf(registry)) : null;
 }
 
 /** The box around the selection's geometry; `null` when none of it has any. */

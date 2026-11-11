@@ -50,7 +50,10 @@ function keyCommand(e: KeyboardEvent): string | undefined {
 
 /**
  * The Shaper in play mode: Tab toggles it, 1-6 pick a construct, the wheel
- * rotates it, left click places, right click or Escape cancels.
+ * rotates it, left click places, right click or Escape cancels; with nothing
+ * picked, right click removes a construct the Shaper placed. Placing and
+ * removing go through `shell.send` as commands; the attachment only draws
+ * the ghost.
  */
 export function attachShaper(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment {
   const constructs = runtime.ctx.system<ConstructSystem>(TYPE.construct);
@@ -62,6 +65,7 @@ export function attachShaper(shell: GameShell, runtime: SceneRuntimeHandle): Gam
     constructs,
     anchors,
     bounds: runtime.ctx.bounds,
+    send: shell.send,
   });
   let active = false;
   const playing = () => shell.getMode() === "play";
@@ -106,7 +110,9 @@ export function attachShaper(shell: GameShell, runtime: SceneRuntimeHandle): Gam
       }
       if (!active) return false;
       if (e.type === "wheel") return true;
-      return e.type === "down" && (e.button === 0 || e.button === 2) && !!shaper.getSelectedType();
+      if (e.type !== "down") return false;
+      if (e.button === 0) return shaper.getSelectedType() != null;
+      return e.button === 2 && (shaper.getSelectedType() != null || shaper.hovered() !== undefined);
     },
     handle(e) {
       if (e.kind === "key") {
@@ -120,16 +126,18 @@ export function attachShaper(shell: GameShell, runtime: SceneRuntimeHandle): Gam
         const result = shaper.place();
         if (!result.valid && shell.dev)
           console.log(`[shaper] placement rejected: ${result.reason}`);
-      } else {
+      } else if (shaper.getSelectedType() != null) {
         shaper.clearSelection();
+      } else {
+        shaper.remove();
       }
     },
   };
   const unregister = shell.router.register(consumer);
 
   return {
-    onTick(dtMs, mouseWorld) {
-      if (active) shaper.updatePreview(mouseWorld, dtMs);
+    onTick(_dtMs, mouseWorld) {
+      shaper.updatePreview(mouseWorld);
     },
     onModeChange(mode) {
       if (mode === "edit") setActive(false);

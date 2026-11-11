@@ -482,7 +482,7 @@ export function createRiders<
       for (const id of [...riders.keys()]) remove(id);
       disabled.clear();
     },
-    /** Where a rider's collider is now, in world px; null while it waits for its host. */
+    /** Where a rider's collider is now, in metres; null while it waits for its host. */
     position: (id: string): Vec2 | null => {
       const c = riders.get(id)?.attachment.collider();
       if (!c) return null;
@@ -514,7 +514,7 @@ export type SolidOptions = SurfaceDefaults &
 export type SolidSystem = SceneSystem<SolidEntity> & {
   /**
    * Gates this system's one-way entities for one actor's box: each stays
-   * solid while the actor is on its one-way side (within 4 px of that face)
+   * solid while the actor is on its one-way side (within 0.04 m of that face)
    * and isn't `passing` through, and otherwise moves its body out of the
    * world so queries and contacts skip it. An attached one is gated by its
    * collider's collision groups instead, and one in the geometry world by
@@ -528,8 +528,10 @@ export type SolidSystem = SceneSystem<SolidEntity> & {
   position(id: string): Vec2 | null;
 };
 
-const ONE_WAY_TOLERANCE = 4;
-const HIDDEN_Y = -99999;
+/** m. */
+const ONE_WAY_TOLERANCE = 0.04;
+/** Where a hidden one-way body waits, m: far outside any scene. */
+const HIDDEN_Y = -999.99;
 
 /** A one-way solid's side: the entity's own when it names one, else the type's; `true` is `"up"`, null when not one-way. */
 function oneWaySideOf(

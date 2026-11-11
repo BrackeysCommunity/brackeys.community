@@ -1,5 +1,5 @@
 import { BEHAVIORS_FIELD } from "../game/behaviors";
-import type { InputScript } from "../headless/playtest-types";
+import type { InputScript, InputScriptV2 } from "../headless/playtest-types";
 import { canonicalJson } from "../project/canonical";
 import { byCodeUnit, isPlainObject, type DocLayout } from "../project/kinds/define";
 import type { ChecksFile } from "./checks";
@@ -377,9 +377,14 @@ export function formatPrefab(prefab: Prefab): string {
 
 const ATOMIC: DocLayout = { as: "atomic" };
 
+/** A list of whole steps: concurrent inserts merge, an edited step is replaced whole. */
+const STEPS: DocLayout = { as: "list", item: ATOMIC };
+
 /**
- * An input script in Yjs and on disk: steps merge by insert, each step
- * replaced whole; the header keys before `steps` in this order.
+ * An input script in Yjs and on disk: the header keys in this order, then
+ * `steps` or `tracks`. Steps merge by insert, each step replaced whole.
+ * Tracks are matched by `player` and merge per field, so two people adding
+ * steps to one track, or to two, both keep their steps.
  */
 export const INPUT_SCRIPT_LAYOUT = {
   as: "map",
@@ -388,8 +393,15 @@ export const INPUT_SCRIPT_LAYOUT = {
     at: ATOMIC,
     timeOffsetMs: ATOMIC,
     game: ATOMIC,
+    seed: ATOMIC,
+    players: ATOMIC,
     maxTicks: ATOMIC,
-    steps: { as: "list", item: ATOMIC },
+    steps: STEPS,
+    tracks: {
+      as: "keyed",
+      id: "player",
+      item: { as: "map", fields: { player: ATOMIC, steps: STEPS }, rest: ATOMIC },
+    },
   },
   rest: ATOMIC,
 } as const satisfies DocLayout;
@@ -404,9 +416,30 @@ export const CHECKS_LAYOUT = {
   rest: ATOMIC,
 } as const satisfies DocLayout;
 
-/** The canonical text of an input script: `canonicalJson` over `INPUT_SCRIPT_LAYOUT`, one step per line. */
-export function formatInputScript(script: InputScript): string {
-  return canonicalJson(script, INPUT_SCRIPT_LAYOUT);
+/**
+ * The canonical text of an input script: `canonicalJson` over
+ * `INPUT_SCRIPT_LAYOUT`, one step per line; each track opens on a line with
+ * its `player` and holds one step per line.
+ */
+export function formatInputScript(script: InputScript | InputScriptV2): string {
+  const { tracks, ...rest } = script as InputScriptV2 & { tracks?: unknown };
+  if (!Array.isArray(tracks)) return canonicalJson(script, INPUT_SCRIPT_LAYOUT);
+  const head = canonicalJson(rest, INPUT_SCRIPT_LAYOUT).replace(/\n}\n$/, "");
+  const step = (v: unknown) => canonicalJson(v, ATOMIC).trimEnd();
+  const rows = tracks.map((track: unknown) => {
+    if (!isPlainObject(track) || !Array.isArray(track.steps)) return `    ${step(track)}`;
+    const { player, steps, ...more } = track;
+    const extra = Object.keys(more)
+      .filter((k) => more[k] !== undefined)
+      .sort(byCodeUnit)
+      .map((k) => `, ${JSON.stringify(k)}: ${step(more[k])}`)
+      .join("");
+    const lead = `    { "player": ${JSON.stringify(player ?? null)}${extra}, "steps": [`;
+    if (steps.length === 0) return `${lead}] }`;
+    return [lead, steps.map((s) => `      ${step(s)}`).join(",\n"), "    ] }"].join("\n");
+  });
+  const open = head === "{}\n" ? "{\n" : `${head},\n`;
+  return `${open}  "tracks": [\n${rows.join(",\n")}\n  ]\n}\n`;
 }
 
 /** The canonical text of a checks file: `canonicalJson` over `CHECKS_LAYOUT`, one check per line. */

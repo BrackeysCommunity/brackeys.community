@@ -218,12 +218,12 @@ function battery(q: EngineContext["query"]) {
     all: q.select(),
     solids: q.byType("solid"),
     goal: q.byTag("goal"),
-    liftColumn: q.inArea({ minX: 1600, minY: 550, maxX: 1800, maxY: 950 }),
-    upper: q.inArea({ minX: 1500, minY: 550, maxX: 1900, maxY: 750 }),
-    lower: q.inArea({ type: "circle", cx: 1700, cy: 850, r: 60 }),
-    floor: q.at({ x: 1000, y: 990 }),
-    nearSky: q.nearest({ x: 1700, y: 100 }),
-    nearLedge: q.nearest({ x: 1400, y: 760 }, { maxDist: 100 }),
+    liftColumn: q.inArea({ minX: 16, minY: 5.5, maxX: 18, maxY: 9.5 }),
+    upper: q.inArea({ minX: 15, minY: 5.5, maxX: 19, maxY: 7.5 }),
+    lower: q.inArea({ type: "circle", cx: 17, cy: 8.5, r: 0.6 }),
+    floor: q.at({ x: 10, y: 9.9 }),
+    nearSky: q.nearest({ x: 17, y: 1 }),
+    nearLedge: q.nearest({ x: 14, y: 7.6 }, { maxDist: 1 }),
     extent: q.extent("lift"),
   };
 }
@@ -268,25 +268,30 @@ describe("queries in a runtime", () => {
   it("follows a falling, turning body through its pose", () => {
     const scene = engineYard();
     scene.entities = scene.entities.map((e) =>
-      e.id === "crate" ? { ...e, shape: box(1100, 300, 20, 10, 30) } : e,
+      e.id === "crate" ? { ...e, shape: box(11, 3, 0.2, 0.1, 30) } : e,
     );
     const rt = createSceneRuntime({ rapier, view: null, game: watcher });
     const report = rt.load(scene);
     if (!report.ok) throw new Error(report.error);
     const q = rt.ctx.query;
-    expect(q.at({ x: 1100, y: 300 })).toEqual(["crate"]);
+    expect(q.at({ x: 11, y: 3 })).toEqual(["crate"]);
     for (let i = 0; i < 120; i++) rt.step(DT, []);
     const pose = rt.ctx.poses.get("crate")!;
-    expect(pose.y).toBeGreaterThan(900);
+    expect(pose.y).toBeGreaterThan(9);
     const ext = q.extent("crate") as Extract<ShapeObj, { type: "box" }>;
     expect(ext.cx).toBe(pose.x);
     expect(ext.cy).toBe(pose.y);
     expect(ext.rotDeg).toBeCloseTo(((((pose.rot * 180) / Math.PI) % 360) + 360) % 360, 6);
-    expect(q.at({ x: 1100, y: 300 })).toEqual([]);
+    expect(q.at({ x: 11, y: 3 })).toEqual([]);
     expect(q.at({ x: pose.x, y: pose.y }, { type: "prop" })).toEqual(["crate"]);
-    const around = { minX: pose.x - 1, minY: pose.y - 1, maxX: pose.x + 1, maxY: pose.y + 1 };
+    const around = {
+      minX: pose.x - 0.01,
+      minY: pose.y - 0.01,
+      maxX: pose.x + 0.01,
+      maxY: pose.y + 0.01,
+    };
     expect(q.inArea(around, { type: "prop" })).toEqual(["crate"]);
-    expect(q.nearest({ x: pose.x, y: pose.y - 200 }, { type: "prop" })).toBe("crate");
+    expect(q.nearest({ x: pose.x, y: pose.y - 2 }, { type: "prop" })).toBe("crate");
     rt.ctx.setEnabled("crate", false);
     expect(q.byType("prop")).toEqual(["avatar"]);
     expect(q.select({ type: "prop", enabled: false })).toEqual(["avatar", "crate"]);

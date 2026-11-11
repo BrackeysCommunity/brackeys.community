@@ -22,7 +22,7 @@ import { engine } from "./fixtures/random-ops";
 
 const prefab = (id: string, body: Partial<Prefab> = {}): Prefab => ({
   kind: "prefab",
-  v: 3,
+  v: 4,
   id,
   entities: [],
   ...body,
@@ -106,7 +106,7 @@ describe("params: precedence", () => {
 
   it("reaches the resolved scene", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       name: "params",
       bounds: [-500, -500, 500, 500],
       instances: [{ id: "g", prefab: "gate", at: [0, 0], params: { speed: 33 } }],
@@ -253,7 +253,7 @@ describe("params: unpack", () => {
     it(`keeps the resolved scene when the outer params are ${label}`, () => {
       const prefabs = lib();
       const def: SceneDefinition = {
-        v: 3,
+        v: 4,
         name: "params",
         bounds: [-500, -500, 500, 500],
         instances: [
@@ -318,7 +318,7 @@ describe("params: unpack a variant", () => {
     it(`keeps the base's children and params when ${label}`, () => {
       const prefabs = lib();
       const def: SceneDefinition = {
-        v: 3,
+        v: 4,
         name: "variant",
         bounds: [-500, -500, 500, 500],
         instances: [{ id: "x", prefab: "var", at: [100, 5], ...structuredClone(inst) }],

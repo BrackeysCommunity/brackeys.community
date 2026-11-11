@@ -55,11 +55,11 @@ export const roverGame = defineGame<RoverSnapshot>({
           { id, type: start.type },
           { x, y },
           {
-            shape: { type: "circle", cx: 0, cy: 0, r: 8 },
+            shape: { type: "circle", cx: 0, cy: 0, r: 0.08 },
           },
         );
         position = () => body.position();
-        rover = createTopDownController(body, { maxSpeed: 180, accel: 900, decel: 900 });
+        rover = createTopDownController(body, { maxSpeed: 1.8, accel: 9, decel: 9 });
       },
       beforeStep(dtMs, actions) {
         for (const a of actions) {
@@ -83,11 +83,11 @@ export const roverGame = defineGame<RoverSnapshot>({
         const at = position();
         const v = rover.velocity();
         // ctx.space answers on Rapier and on the geometry backend alike.
-        const hit = ctx.space.raycast(at, { x: 1, y: 0 }, 1000, { exclude: [id] });
+        const hit = ctx.space.raycast(at, { x: 1, y: 0 }, 10, { exclude: [id] });
         return {
           at,
           speed: Math.sqrt(v.x * v.x + v.y * v.y),
-          wallAhead: hit ? hit.toi * 1000 : null,
+          wallAhead: hit ? hit.toi * 10 : null,
         };
       },
     };
@@ -95,16 +95,16 @@ export const roverGame = defineGame<RoverSnapshot>({
 });
 
 const yard = (physics: "rapier" | "none"): SceneDefinition => ({
-  v: 3,
+  v: 4,
   game: "rover",
   name: "yard",
-  bounds: [0, 0, 400, 300],
+  bounds: [0, 0, 4, 3],
   settings: { physics },
   entities: [
-    { id: "east", type: "solid", shape: ["box", 392, 150, 8, 150] },
-    { id: "south", type: "solid", shape: ["box", 200, 292, 200, 8] },
-    { id: "start", type: "marker", at: [40, 40] },
-    { id: "home", type: "sensor", shape: ["box", 360, 260, 24, 24] },
+    { id: "east", type: "solid", shape: ["box", 3.92, 1.5, 0.08, 1.5] },
+    { id: "south", type: "solid", shape: ["box", 2, 2.92, 2, 0.08] },
+    { id: "start", type: "marker", at: [0.4, 0.4] },
+    { id: "home", type: "sensor", shape: ["box", 3.6, 2.6, 0.24, 0.24] },
   ],
 });
 

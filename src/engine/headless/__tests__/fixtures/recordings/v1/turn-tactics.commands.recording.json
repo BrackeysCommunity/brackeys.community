@@ -1,0 +1,200 @@
+{
+  "v": 1,
+  "engine": {
+    "version": "0.10.0",
+    "physics": "none"
+  },
+  "scene": "turn-tactics",
+  "sceneHash": "51b37368f5827313",
+  "game": "turn-tactics",
+  "configHash": "d05a8221f34c5aaa",
+  "tickRate": 60,
+  "start": {},
+  "actions": [
+    "inspect"
+  ],
+  "inputs": [
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "commands": [
+    [
+      0,
+      "move",
+      {
+        "unit": "scout",
+        "to": [
+          7,
+          3
+        ]
+      }
+    ],
+    [
+      1,
+      "move",
+      {
+        "unit": "scout",
+        "to": [
+          4,
+          0
+        ]
+      }
+    ],
+    [
+      26,
+      "end-turn"
+    ],
+    [
+      27,
+      "move",
+      {
+        "unit": "scout",
+        "to": [
+          4,
+          0
+        ]
+      }
+    ],
+    [
+      34,
+      "move",
+      {
+        "unit": "scout",
+        "to": [
+          7,
+          3
+        ]
+      }
+    ],
+    [
+      53,
+      "end-turn"
+    ],
+    [
+      54,
+      "move",
+      {
+        "unit": "scout",
+        "to": [
+          7,
+          3
+        ]
+      }
+    ]
+  ],
+  "ticks": 67,
+  "outcome": {
+    "result": "won",
+    "tick": 66,
+    "at": [
+      1.84,
+      1.12
+    ],
+    "cause": "a unit reached the target"
+  },
+  "markers": [
+    {
+      "tick": 33,
+      "type": "turn-tactics:revealed",
+      "at": [
+        1.12,
+        0.14
+      ],
+      "entityId": "target",
+      "other": "scout"
+    },
+    {
+      "tick": 66,
+      "type": "turn-tactics:reached",
+      "at": [
+        1.84,
+        1.12
+      ],
+      "entityId": "target",
+      "other": "scout"
+    }
+  ],
+  "end": "04ecec0eeb883cad",
+  "trail": {
+    "every": 4,
+    "pts": [
+      [
+        0.4,
+        1.12
+      ],
+      [
+        0.4,
+        0.98
+      ],
+      [
+        0.4,
+        0.79
+      ],
+      [
+        0.4,
+        0.61
+      ],
+      [
+        0.52,
+        0.49
+      ],
+      [
+        0.68,
+        0.4
+      ],
+      [
+        0.84,
+        0.3
+      ],
+      [
+        0.92,
+        0.26
+      ],
+      [
+        1.08,
+        0.16
+      ],
+      [
+        1.2,
+        0.19
+      ],
+      [
+        1.36,
+        0.28
+      ],
+      [
+        1.52,
+        0.37
+      ],
+      [
+        1.68,
+        0.47
+      ],
+      [
+        1.84,
+        0.56
+      ],
+      [
+        1.84,
+        0.65
+      ],
+      [
+        1.84,
+        0.84
+      ],
+      [
+        1.84,
+        1.03
+      ]
+    ],
+    "truncated": false
+  }
+}

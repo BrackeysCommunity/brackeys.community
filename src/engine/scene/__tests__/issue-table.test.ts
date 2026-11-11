@@ -200,6 +200,9 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
   "bad-shape": () => parsed(scene({ solid: [["box", 0, 0, -1, 2]] })),
   "bad-id": () => parsed(scene({}, [{ id: "Bad Id", type: "marker", at: [0, 0] }])),
   "version-newer": () => parsed({ ...scene(), v: 99 }),
+  // The v3 → v4 step (scene/migrate.ts) refuses without a registry, or when an override or param
+  // names a prefab or child it can't resolve; the hosted service reports it for docs it can't migrate.
+  "migration-unresolved": null,
   "dup-id": () => validated(scene({}, [{ id: "start", type: "marker", at: [10, 900] }])),
   "dangling-ref": () =>
     validated(
@@ -255,7 +258,7 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
         },
       ]),
     ),
-  "non-integer": () => validated(scene({ solid: [["box", 500.5, 920, 400, 20]] })),
+  "non-integer": () => validated(scene({ solid: [["box", 500.005, 920, 400, 20]] })),
   "out-of-bounds": () => validated(scene({ solid: [["box", 500, 990, 400, 20]] })),
   "follower-hits-solid": () =>
     physical(
@@ -406,7 +409,7 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
       rapier: null,
       scene: def,
       registry: engine,
-      checks: { v: 1, checks: [{ id: "joined", kind: "connected", from: "start", to: ["exit"] }] },
+      checks: { v: 3, checks: [{ id: "joined", kind: "connected", from: "start", to: ["exit"] }] },
       readFile: () => "",
     });
     return (results[0]?.detail as { issues?: SceneIssue[] } | undefined)?.issues ?? [];
@@ -420,6 +423,11 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
   "asset-too-large": null,
   "import-failed": null,
   "quota-exceeded": null,
+  // Binding problems come from `createRegistry` and the input-map kind's schema, not the scene tools.
+  "binding-unknown": null,
+  "player-unknown": null,
+  // Replay warns about a recording from another platform; the scene tools never see one.
+  "recording-other-platform": null,
   // Runtime refusals are thrown as `EngineError`s by `ctx.spawn` and `ctx.instantiate`, not reported by the scene tools.
   "spawn-id-invalid": null,
   "prefab-not-spawnable": null,

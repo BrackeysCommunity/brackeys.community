@@ -6,10 +6,12 @@ import type { AnchorEntity } from "../types";
 
 // ─── Config ──────────────────────────────────────────────
 
-export const GRAPPLE_RANGE = 400; // max distance to attach
+/** The farthest the grapple reaches to attach, metres. */
+export const GRAPPLE_RANGE = 4;
 export const GRAPPLE_ROPE_COLOR = 0x88ddff;
 export const GRAPPLE_ANCHOR_COLOR = 0x88ddff;
-export const GRAPPLE_ANCHOR_RADIUS = 8;
+/** An anchor's drawn radius, metres. */
+export const GRAPPLE_ANCHOR_RADIUS = 0.08;
 
 /** The view id of the rope; `#` keeps it apart from scene and bulk ids. */
 const TETHER_ID = "~grapple#tether";

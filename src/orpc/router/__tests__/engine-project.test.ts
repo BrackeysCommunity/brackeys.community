@@ -296,7 +296,7 @@ describe("agent tokens", () => {
 const SCENE = formatScene(createScene("yard", createRegistry(null))).text;
 const RUBBER = formatAssetDoc(materialKind, {
   kind: "material",
-  v: 1,
+  v: 2,
   description: "Bouncy rubber.",
   physics: { friction: 0.4, restitution: 0.9 },
 });

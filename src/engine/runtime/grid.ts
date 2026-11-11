@@ -15,6 +15,7 @@ import { makeIssue } from "../scene/issues";
 import { geometryFields } from "../scene/schema";
 import { translateShape } from "../scene/shape-geometry";
 import type {
+  EntityTypeName,
   ExpandedScene,
   PathDef,
   Pt,
@@ -46,7 +47,12 @@ export type GridState = {
   clear(): void;
 };
 
-const DEFAULT_GRID_WALLS = ["solid"] as const;
+const DEFAULT_GRID_WALLS: readonly EntityTypeName[] = ["solid"];
+
+/** The types whose shapes are grid walls: `GameDefinition.world.gridWalls`, default `["solid"]`. */
+export function gridWallTypes(registry: Registry): ReadonlySet<EntityTypeName> {
+  return new Set(registry.game?.world?.gridWalls ?? DEFAULT_GRID_WALLS);
+}
 
 /** `e`'s shapes in world space: each shape field, carried to its path's first point when it has one. */
 function worldShapes(registry: Registry, e: RuntimeEntity): ShapeObj[] {
@@ -66,15 +72,16 @@ function worldShapes(registry: Registry, e: RuntimeEntity): ShapeObj[] {
 /**
  * The grid state for a runtime: the geometry from the scene's resolved
  * `settings.grid`, walls on the cells whose centre a wall type's shape
- * holds (`GameDefinition.world.gridWalls`, default `["solid"]`), and the
+ * holds (`wallTypes`, default `gridWallTypes(registry)`), and the
  * scene bounds in cells. Walls follow the scene's entities after each
  * reconcile batch; walls game code set itself stay unless an entity's wall
  * on that cell goes.
  */
-export function createGridState(ctx: EngineContext, registry: Registry): GridState {
-  const wallTypes: ReadonlySet<string> = new Set(
-    registry.game?.world?.gridWalls ?? DEFAULT_GRID_WALLS,
-  );
+export function createGridState(
+  ctx: EngineContext,
+  registry: Registry,
+  wallTypes: ReadonlySet<EntityTypeName> = gridWallTypes(registry),
+): GridState {
   let current: RuntimeGrid | null = null;
   /** Per wall entity, the entity as last rasterised and the wall cells it gave. */
   let rasterised = new Map<string, { entity: RuntimeEntity; keys: readonly CellKey[] }>();
@@ -148,22 +155,18 @@ const NO_RUNTIME = { behavior: () => undefined } as unknown as EngineContext;
 
 /**
  * The scene's grid outside a runtime, rasterised as a load does: walls from
- * `wallTypes` (default the game's `world.gridWalls`, else `["solid"]`), no occupants.
+ * `wallTypes` (default `gridWallTypes(registry)`), no occupants.
  */
 export function sceneGrid(
   scene: ExpandedScene,
   registry: Registry,
   wallTypes?: readonly string[],
 ): RuntimeGrid | null {
-  const walls =
-    wallTypes === undefined
-      ? registry
-      : (Object.create(registry, {
-          game: {
-            value: { ...registry.game, world: { ...registry.game?.world, gridWalls: wallTypes } },
-          },
-        }) as Registry);
-  const state = createGridState(NO_RUNTIME, walls);
+  const state = createGridState(
+    NO_RUNTIME,
+    registry,
+    wallTypes === undefined ? undefined : new Set(wallTypes),
+  );
   state.load(scene);
   return state.current;
 }
@@ -173,7 +176,7 @@ export function gridMissingIssue(sceneName: string, what: string): SceneIssue {
   return makeIssue("grid-invalid", {
     message: `scene "${sceneName}" has no settings.grid ${what}`,
     path: "/settings/grid",
-    hint: 'Give the scene a grid, e.g. `settings.grid: { "kind": "square", "cell": [32, 32] }`.',
+    hint: 'Give the scene a grid, e.g. `settings.grid: { "kind": "square", "cell": [0.32, 0.32] }`.',
   });
 }
 

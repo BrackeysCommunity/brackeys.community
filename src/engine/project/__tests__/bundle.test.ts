@@ -113,7 +113,7 @@ const view = projectView(state(entries), kinds);
 const bytesOf = (id: string) => entries.find((e) => e.id === id)!.bytes!;
 
 function prefab(raw: Record<string, unknown>): Prefab {
-  const parsed = parsePrefab({ kind: "prefab", v: 3, game: "art", entities: [], ...raw }, registry);
+  const parsed = parsePrefab({ kind: "prefab", v: 4, game: "art", entities: [], ...raw }, registry);
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
   return parsed.prefab;
 }
@@ -126,7 +126,7 @@ const prefabs = prefabLibrary([
 
 function scene(raw: Record<string, unknown>): SceneDefinition {
   const parsed = parseScene(
-    { v: 3, game: "art", name: "yard", bounds: [0, 0, 1000, 1000], ...raw },
+    { v: 4, game: "art", name: "yard", bounds: [0, 0, 1000, 1000], ...raw },
     registry,
   );
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));

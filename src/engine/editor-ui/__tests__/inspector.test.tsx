@@ -16,6 +16,8 @@ import {
   defineBehavior,
   defineEntityType,
   defineGame,
+  pointField,
+  polygonField,
   shapeField,
   tagsField,
 } from "../../game/index";
@@ -382,6 +384,23 @@ describe("EditorInspector", () => {
     ]);
   });
 
+  it("adds Lifetime from the Add behavior menu as a valid block", async () => {
+    const { session, dispatch } = setup(["zone"]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add behavior" }));
+    });
+    const lifetime = (await screen.findAllByRole("menuitem")).find((i) =>
+      i.textContent?.startsWith("Lifetime"),
+    )!;
+    await act(async () => {
+      fireEvent.click(lifetime);
+    });
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(entity(session, "zone").behaviors).toEqual({ lifetime: { ticks: 60 } });
+    expect(screen.getByRole("region", { name: "Lifetime" })).toBeTruthy();
+    expect(input("behaviors.lifetime.ticks").value).toBe("60");
+  });
+
   it("hints with tooltips, never a native title", () => {
     setup(["bell"]);
     expect(document.querySelectorAll("[title]")).toHaveLength(0);
@@ -598,5 +617,114 @@ describe("EditorInspector: an instance's placement", () => {
   it("hints with tooltips, never a native title", () => {
     placed(["post-2"]);
     expect(document.querySelectorAll("[title]")).toHaveLength(0);
+  });
+});
+
+describe("EditorInspector in metres", () => {
+  const metricRegistry = (ppm: number) =>
+    createRegistry(
+      defineGame({
+        id: "metric",
+        world: { lengthUnit: ppm },
+        types: [
+          defineEntityType({
+            type: "launcher",
+            description: "Throws things.",
+            base: "sensor",
+            fields: {
+              shape: shapeField("Launcher shape."),
+              aim: pointField("Where it aims."),
+              outline: polygonField("Its outline.").optional(),
+              speed: z
+                .number()
+                .describe("Launch speed, m/s.")
+                .meta({ title: "Speed", unit: "m/s" }),
+            },
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+
+  function metricSetup(ppm: number) {
+    const def: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      game: "metric",
+      name: "metric-yard",
+      bounds: [0, 0, 20, 12],
+      entities: [
+        {
+          id: "cannon",
+          type: "launcher",
+          shape: ["box", 3, 2, 0.5, 0.25],
+          aim: [4, 1],
+          outline: ["poly", 1, 1, 2, 1, 1.5, 0.5],
+          speed: 4,
+        },
+      ],
+    };
+    const session = createEditorSession({
+      doc: sceneToDoc(def, { key: sequentialKeys("t") }),
+      origin: ada,
+      name: "metric-yard",
+      registry: metricRegistry(ppm),
+      issuesDebounceMs: 0,
+    });
+    session.select(["cannon"]);
+    render(<EditorInspector session={session} />);
+    const cannon = () => session.getDoc().entities!.find((e) => e.id === "cannon")!;
+    return { session, cannon };
+  }
+
+  /** The unit drawn after one number input. */
+  const suffixOf = (label: string) =>
+    input(label).closest(".je-insp-row")?.querySelector(".je-insp-suffix")?.textContent;
+
+  it.each([100, 32])(
+    "steps a shape's sizes and a point by one world px at %i px per metre",
+    (ppm) => {
+      const { cannon } = metricSetup(ppm);
+      expect(suffixOf("shape.hw")).toBe("m");
+      fireEvent.keyDown(input("shape.hw"), { key: "ArrowUp" });
+      expect((cannon().shape as number[])[3]).toBeCloseTo(0.5 + 1 / ppm, 6);
+      fireEvent.keyDown(input("shape.cx"), { key: "ArrowDown", shiftKey: true });
+      expect((cannon().shape as number[])[1]).toBeCloseTo(3 - 10 / ppm, 6);
+
+      fireEvent.keyDown(input("aim.x"), { key: "ArrowUp" });
+      expect((cannon().aim as number[])[0]).toBeCloseTo(4 + 1 / ppm, 6);
+      // Each written length is whole world px, by the rounding rule.
+      for (const n of [...(cannon().shape as number[]).slice(1, 5), ...(cannon().aim as number[])])
+        expect(Math.abs(n * ppm - Math.round(n * ppm))).toBeLessThan(1e-6);
+    },
+  );
+
+  it.each([
+    [100, 1.82],
+    [32, 2.5],
+  ])("adds a polygon point 32 world px on at %i px per metre", (ppm, x) => {
+    const { cannon } = metricSetup(ppm);
+    fireEvent.click(screen.getAllByRole("button", { name: "Add point" }).at(-1)!);
+    const outline = cannon().outline as (string | number)[];
+    expect(outline.slice(-2)).toEqual([x, 0.5]);
+  });
+
+  it("takes a typed length to micrometres, never to whole metres", () => {
+    const { cannon } = metricSetup(32);
+    fireEvent.change(input("shape.hh"), { target: { value: "0.1234567" } });
+    fireEvent.keyDown(input("shape.hh"), { key: "Enter" });
+    expect((cannon().shape as number[])[4]).toBe(0.123457);
+  });
+
+  it("shows each metric unit beside its value", () => {
+    metricSetup(100);
+    expect(suffixOf("speed")).toBe("m/s");
+    expect(suffixOf("aim.x")).toBe("x");
+    const aimRow = input("aim.x").closest('.je-insp-row[data-align="start"]')!;
+    expect([...aimRow.querySelectorAll(".je-insp-suffix")].map((s) => s.textContent)).toEqual([
+      "x",
+      "y",
+      "m",
+    ]);
   });
 });

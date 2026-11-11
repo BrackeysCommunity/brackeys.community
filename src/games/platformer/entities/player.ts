@@ -37,21 +37,21 @@ export type MovementConfig = {
 };
 
 export const MOVEMENT_CONFIG: MovementConfig = {
-  moveSpeed: 300, // game units/sec
-  jumpVelocity: -500, // game units/sec (negative = up)
-  groundDecel: 2400, // game units/sec² — rapid decel when no input
+  moveSpeed: 3, // m/s
+  jumpVelocity: -5, // m/s (negative = up)
+  groundDecel: 24, // m/s² — rapid decel when no input
   jumpCutMultiplier: 0.4, // multiply vy on jump release (variable height)
   airControl: 0.6, // horizontal influence multiplier while airborne (0–1)
   airReversalMultiplier: 8.0, // extra accel multiplier when input opposes velocity in air
-  airAccel: 300 * 8, // game units/sec² — acceleration rate in air
-  maxFallSpeed: 900, // game units/sec — terminal velocity cap
+  airAccel: 3 * 8, // m/s² — acceleration rate in air
+  maxFallSpeed: 9, // m/s — terminal velocity cap
   coyoteTimeMs: 100, // ms — grace period to jump after leaving ground
-  wallSlideSpeed: 120, // game units/sec — capped fall speed when wall-sliding
-  wallJumpForce: { x: 350, y: -500 }, // launch velocity away from wall (1.5× normal jump)
+  wallSlideSpeed: 1.2, // m/s — capped fall speed when wall-sliding
+  wallJumpForce: { x: 3.5, y: -5 }, // m/s launch velocity away from wall (1.5× normal jump)
   wallJumpLockoutMs: 180, // ms — input lockout toward wall after wall-jump
   wallSlideCoyoteMs: 300, // ms — wall-slide state maintained after releasing dir input
   cheeseWeightMultiplier: 0.85, // jump velocity multiplier when carrying cheese
-  dashSpeed: 600, // game units/sec — 2× move speed
+  dashSpeed: 6, // m/s — 2× move speed
   dashDurationMs: 180, // ms — dash burst duration
   dashCooldownMs: 800, // ms — time before next dash
 };
@@ -72,8 +72,11 @@ export const WALL_JUMP_LOCKOUT_MS = MOVEMENT_CONFIG.wallJumpLockoutMs;
 export const WALL_SLIDE_COYOTE_MS = MOVEMENT_CONFIG.wallSlideCoyoteMs;
 
 const WALL_NORMAL_THRESHOLD = 0.7; // |normal.x| must exceed this to count as a wall
-export const PLAYER_WIDTH = 60;
-export const PLAYER_HEIGHT = 60;
+/** Below this speed (m/s) the player counts as standing still. */
+const STILL_SPEED = 0.01;
+/** The player's box, metres. */
+export const PLAYER_WIDTH = 0.6;
+export const PLAYER_HEIGHT = 0.6;
 /** The player's entity type, and its collider's tag type and collision group. */
 export const PLAYER_TYPE = "player";
 
@@ -111,13 +114,13 @@ export function deriveMovementState(
   if (isDashing) return "dashing";
   if (wallSliding) return "wall_sliding";
   if (grounded) {
-    return Math.abs(vx) > 1 ? "walking" : "idle";
+    return Math.abs(vx) > STILL_SPEED ? "walking" : "idle";
   }
   return vy < 0 ? "jumping" : "falling";
 }
 
 export type PlayerEntity = {
-  /** @param groundDeltaY — optional Y delta of the platform we're standing on (positive = down). Used to adjust ground stick velocity for moving platforms. */
+  /** @param groundDeltaY — optional Y delta (m) of the platform we're standing on (positive = down). Used to adjust ground stick velocity for moving platforms. */
   update: (dt: number, actions: InputAction[], groundDeltaY?: number) => void;
   getPosition: () => Vec2;
   getVelocity: () => Vec2;
@@ -142,7 +145,7 @@ export type PlayerEntity = {
 };
 
 /**
- * Compute the desired movement vector from input + gravity (px/s², down).
+ * Compute the desired movement vector from input + gravity (m/s², down).
  * Pure function — no Rapier dependency — for testability.
  * Returns the desired translation delta (not final position).
  */
@@ -196,7 +199,7 @@ export function computeDesiredMovement(
       // Reversing direction? (input opposes current velocity) — use higher multiplier
       const reversing = (vx > 0 && inputDir < 0) || (vx < 0 && inputDir > 0);
       const multiplier = reversing ? AIR_REVERSAL_MULTIPLIER : 1.0;
-      if (Math.abs(diff) > 1) {
+      if (Math.abs(diff) > STILL_SPEED) {
         const accel = AIR_ACCEL * AIR_CONTROL * multiplier * dtSec;
         if (Math.abs(diff) < accel) {
           vx = targetVx;
@@ -492,7 +495,7 @@ export function createPlayerEntity(
       // Check if movement was significantly blocked
       const desiredDist = Math.sqrt(pendulumDelta.x ** 2 + pendulumDelta.y ** 2);
       const actualDist = Math.sqrt(corrected.x ** 2 + corrected.y ** 2);
-      const blocked = desiredDist > 1 && actualDist < desiredDist * 0.5;
+      const blocked = desiredDist > 0.01 && actualDist < desiredDist * 0.5;
 
       if (blocked) {
         // Hit something — detach, kill velocity
@@ -644,7 +647,7 @@ export function createPlayerEntity(
         // Blend: less decel = closer to preVx
         newVelocity.x = preVx + (postVx - preVx) * currentSurface.decelMultiplier;
         // Snap to zero to prevent floating-point oscillation
-        if (Math.abs(newVelocity.x) < 0.5) newVelocity.x = 0;
+        if (Math.abs(newVelocity.x) < STILL_SPEED / 2) newVelocity.x = 0;
       }
 
       // Trampoline bounce
@@ -676,16 +679,16 @@ export function createPlayerEntity(
     //     For moving platforms: scale relative to the platform's Y delta so
     //     downward platforms are tracked. Skip entirely when the platform moves
     //     up — collision resolution handles upward push naturally.
-    const BASE_STICK_VELOCITY = 100; // game units/sec — baseline for static ground
+    const BASE_STICK_VELOCITY = 1; // m/s — baseline for static ground
     let finalVx = newVelocity.x;
     let finalVy: number;
     if (grounded && newVelocity.y > 0 && (!currentSurface || currentSurface.bounceVelocity === 0)) {
-      if (groundDeltaY < -0.01) {
+      if (groundDeltaY < -0.0001) {
         // Platform moving UP — don't apply stick velocity, collision handles it
         finalVy = 0;
-      } else if (groundDeltaY > 0.01) {
+      } else if (groundDeltaY > 0.0001) {
         // Platform moving DOWN — stick velocity must exceed platform speed
-        // Convert delta (units/frame) to velocity (units/sec) and add margin
+        // Convert delta (m/frame) to velocity (m/s) and add margin
         const platformVyPerSec = groundDeltaY * 60; // approximate at 60fps
         finalVy = platformVyPerSec + BASE_STICK_VELOCITY;
       } else {

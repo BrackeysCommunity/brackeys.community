@@ -34,7 +34,7 @@ export type SpaceCastHit = SpaceHit & { toi: number; normal: Vec2 };
  * Point, shape, ray and sweep queries over whichever backend is loaded.
  * Overlap hits are ordered by handle; casts by time of impact, then handle.
  * Only tagged colliders are hits, and a collider gated off with collision
- * groups 0 never is. Touching counts. `at` is `p` for `pointAt`, the point
+ * groups 0, disabled, or on a disabled body never is. Touching counts. `at` is `p` for `pointAt`, the point
  * of the collider nearest the query shape's centre for `overlaps`, and the
  * point of impact for casts. A cast's `toi` is a fraction (0–1) of
  * `maxDist` or `by`, and its `normal` is the hit surface's, facing the
@@ -110,6 +110,16 @@ function firstWithin<H extends { toi: number; handle: number }>(hits: readonly H
   );
 }
 
+/**
+ * A Rapier collider that takes part in the world: enabled itself and, when it
+ * has a parent, on an enabled body. Rapier keeps a collider's own flag apart
+ * from its body's, so a body switched off with its colliders left on (a rider
+ * on a disabled carrier, say) would otherwise still be found.
+ */
+export function colliderLive(collider: Collider): boolean {
+  return collider.isEnabled() && collider.parent()?.isEnabled() !== false;
+}
+
 /** Turns a collider-local vector into world space. */
 function toWorld(collider: Collider, v: Vec2, point: boolean): Vec2 {
   const r = collider.rotation();
@@ -139,7 +149,7 @@ export function rapierSpace(ctx: EngineContext): SpaceQuery {
     const admit = admitter(ctx.tags, ctx.registry, filter, sweeping);
     const out: { collider: Collider; tag: ColliderTag; handle: number }[] = [];
     for (const collider of physics.world.colliders.getAll()) {
-      if (!collider.isEnabled()) continue;
+      if (!colliderLive(collider)) continue;
       const tag = admit({
         handle: collider.handle,
         sensor: collider.isSensor(),

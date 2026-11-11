@@ -223,6 +223,40 @@ describe("runtime ids", () => {
     expect(rt.ctx.spawn({ type: "crate", at: [0, 0] }).id).toBe("crate#1");
     rt.destroy();
   });
+
+  it("skip ids a loaded-back scene already holds", () => {
+    const { game } = loggingGame();
+    const spawnsOnLoad = defineGame({
+      ...game,
+      createRuntime: (ctx) => ({
+        onLoad: () => void ctx.spawn({ type: "shell", at: [0, 0] }),
+        snapshot: () => null,
+      }),
+    });
+    const rt = createSceneRuntime({ rapier: undefined, view: null, game: spawnsOnLoad });
+    expect(rt.load(scene([ghostAt("g1")])).ok).toBe(true);
+    expect(rt.scene()!.entities.map((e) => e.id)).toEqual(["g1", "shell#1"]);
+
+    expect(rt.load(rt.scene()!).ok).toBe(true);
+    expect(rt.scene()!.entities.map((e) => e.id)).toEqual(["g1", "shell#1", "shell#2"]);
+    expect(rt.ctx.query.byType("shell")).toEqual(["shell#1", "shell#2"]);
+    expect(rt.ctx.spawn({ type: "shell", at: [0, 0] }).id).toBe("shell#3");
+    rt.destroy();
+  });
+
+  it("skip a live counter id however it arrived, and an instance's children", () => {
+    const { rt } = setup([
+      { id: "crate#2", type: "crate", at: [0, 0] },
+      { id: "crate#3/lid", type: "crate", at: [0, 0] },
+    ]);
+    const ids = [0, 1].map(() => rt.ctx.spawn({ type: "crate", at: [0, 0] }).id);
+    expect(ids).toEqual(["crate#1", "crate#4"]);
+    expect(rt.add([{ id: "crate#5", type: "crate", at: [0, 0] }])).toEqual({ ok: true });
+    expect(rt.ctx.spawn({ type: "crate", at: [0, 0] }).id).toBe("crate#6");
+    rt.ctx.destroy("crate#1");
+    expect(rt.ctx.spawn({ type: "crate", at: [0, 0] }).id).toBe("crate#7");
+    rt.destroy();
+  });
 });
 
 describe("ctx.spawn", () => {

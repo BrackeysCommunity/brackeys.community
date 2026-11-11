@@ -37,6 +37,32 @@ const overlapCentre = (a: Aabb, b: Aabb): Vec2 => ({
   y: (Math.max(a.minY, b.minY) + Math.min(a.maxY, b.maxY)) / 2,
 });
 
+/**
+ * The sizes Rapier's in-place setters (`setRadius`, `setHalfExtents`,
+ * `setHalfHeight`, `setRoundRadius`) change without replacing
+ * `Collider.shape`, so a pose key holding only the shape would miss them.
+ */
+function rapierSizes(c: Collider, ShapeType: RapierModule["ShapeType"]): number[] {
+  switch (c.shapeType()) {
+    case ShapeType.Ball:
+      return [c.radius()];
+    case ShapeType.Cuboid: {
+      const { x, y } = c.halfExtents();
+      return [x, y];
+    }
+    case ShapeType.RoundCuboid: {
+      const { x, y } = c.halfExtents();
+      return [x, y, c.roundRadius()];
+    }
+    case ShapeType.Capsule:
+      return [c.halfHeight(), c.radius()];
+    case ShapeType.RoundConvexPolygon:
+      return [c.roundRadius()];
+    default:
+      return [];
+  }
+}
+
 /** A Rapier collider's world bounds, or null for a shape kind with no cheap box (it is a candidate of every query). */
 function rapierBounds(c: Collider, ShapeType: RapierModule["ShapeType"]): Aabb | null {
   const { x, y } = c.translation();
@@ -107,6 +133,8 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
   const hash = createSpatialHash<number>();
   /** Each hashed collider: its entity, its bounds (null when unbounded) and the pose they were computed at. */
   const placed = new Map<number, { entityId: string; box: Aabb | null; at: unknown[] }>();
+  /** Each entity's hashed colliders, so a destroy unplaces them without a scan. */
+  const placedOf = new Map<string, Set<number>>();
   /** Hashed colliders without bounds, a candidate of every query. */
   const unbounded = new Set<number>();
   /** Whether each collider handle is a solid's rather than a sensor's; a handle is never reused for another collider. */
@@ -161,7 +189,10 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
           const c = physics.world.getCollider(handle);
           if (!c) return undefined;
           const { x, y } = c.translation();
-          return { at: [x, y, c.rotation(), c.shape], box: () => rapierBounds(c, ShapeType) };
+          return {
+            at: [x, y, c.rotation(), c.shape, ...rapierSizes(c, ShapeType)],
+            box: () => rapierBounds(c, ShapeType),
+          };
         },
       };
     }
@@ -196,8 +227,27 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
   const samePose = (a: readonly unknown[], b: readonly unknown[]) =>
     a.length === b.length && a.every((v, i) => v === b[i]);
 
+  function unowned(handle: number, entityId: string): void {
+    const handles = placedOf.get(entityId);
+    if (!handles) return;
+    handles.delete(handle);
+    if (handles.size === 0) placedOf.delete(entityId);
+  }
+
+  function place(handle: number, entry: { entityId: string; box: Aabb | null; at: unknown[] }) {
+    const was = placed.get(handle);
+    if (was && was.entityId !== entry.entityId) unowned(handle, was.entityId);
+    placed.set(handle, entry);
+    let handles = placedOf.get(entry.entityId);
+    if (!handles) placedOf.set(entry.entityId, (handles = new Set()));
+    handles.add(handle);
+  }
+
   function unplace(handle: number): void {
-    if (!placed.delete(handle)) return;
+    const was = placed.get(handle);
+    if (!was) return;
+    placed.delete(handle);
+    unowned(handle, was.entityId);
     hash.remove(handle);
     unbounded.delete(handle);
   }
@@ -224,7 +274,7 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
         const was = placed.get(handle);
         if (was && was.entityId === id && samePose(was.at, where.at)) continue;
         const box = where.box();
-        placed.set(handle, { entityId: id, box, at: where.at });
+        place(handle, { entityId: id, box, at: where.at });
         if (box) {
           unbounded.delete(handle);
           hash.update(handle, box);
@@ -321,12 +371,14 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
           if (t.entityId === id || t.other === id) watch.touching.delete(key);
         }
       }
-      for (const [handle, p] of [...placed]) if (p.entityId === id) unplace(handle);
+      const handles = placedOf.get(id);
+      if (handles) for (const handle of [...handles]) unplace(handle);
     },
     clear() {
       watches.length = 0;
       hash.clear();
       placed.clear();
+      placedOf.clear();
       unbounded.clear();
       solid.clear();
     },

@@ -1,9 +1,18 @@
 import type { GameCommand, GameOutcome } from "../game/types";
+import { playWorld } from "../runtime/play-session";
 import { inputAction, probeConfigHash } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "../runtime/runtime";
-import type { SceneRuntimeHandle, SceneRuntimeOptions, StepEvent } from "../runtime/types";
+import type {
+  SceneRuntimeHandle,
+  SceneRuntimeOptions,
+  StepEvent,
+  StepResult,
+} from "../runtime/types";
 import { closest } from "../scene/did-you-mean";
+import type { PrefabLibrary } from "../scene/types";
 import type { InputAction } from "../types";
+import { runBlocked, runLibrary } from "./play-loop";
+import type { PlaytestBlocked } from "./playtest-types";
 import type { HeadlessRuntimeOptions, ProbeOptions, ProbeReport } from "./types";
 
 export { inputAction, probeConfigHash };
@@ -45,12 +54,21 @@ export function unknownActionError(action: string, actionNames: readonly string[
   return `unknown action ${JSON.stringify(action)}${guess ? `; did you mean "${guess}"?` : ""} (actions: ${known})`;
 }
 
+/** The prefabs a probe's `ctx.instantiate` places: `library` when given, else `prefabs`. */
+type LibraryOption = {
+  prefabs?: PrefabLibrary;
+  /** Every prefab the game's `ctx.instantiate` may place; default `prefabs`. */
+  library?: PrefabLibrary;
+};
+
 /**
  * Load `scene`, play scripted input for `ticks` ticks on the runtime's clock,
  * and report what happened. Every tick is simulated whatever the time model,
- * as the shell's `step(n)` does.
+ * as the shell's `step(n)` does. An `EngineError` out of a step ends the run
+ * as `runPlaytest`'s does: `blocked` at stage `run` with the error's code,
+ * the report covering the ticks before it.
  */
-export function runProbe<S = unknown>(opts: ProbeOptions<S> & PrefabsOption): ProbeReport<S> {
+export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S> {
   const { registry, game } = resolveGame(opts);
   for (const action of [...(opts.hold ?? []), ...(opts.inputs ?? []).map((e) => e[1])]) {
     const error = unknownActionError(action, registry.actionNames);
@@ -62,15 +80,17 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & PrefabsOption): Pr
     game,
     registry,
     project: opts.project,
-    ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
+    prefabs: runLibrary(opts),
   });
   try {
     const load = runtime.load(opts.scene);
     const events: StepEvent[] = [];
     let ticks = 0;
     let outcome: (GameOutcome & { tick: number }) | undefined;
+    let blocked: PlaytestBlocked | undefined;
     const play = game?.play;
     const time = runtime.ctx.time;
+    const world = playWorld(runtime.ctx);
 
     if (load.ok) {
       const byTick = new Map<number, InputAction[]>();
@@ -90,11 +110,23 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & PrefabsOption): Pr
         const actions =
           tick === 0 ? (opts.hold ?? []).map((a) => inputAction(a, true, 0, time)) : [];
         actions.push(...(byTick.get(tick) ?? []));
-        const result = runtime.step(time.tickMs, actions, commandsAt.get(tick));
+        let result: StepResult;
+        try {
+          result = runtime.step(time.tickMs, actions, commandsAt.get(tick));
+        } catch (err) {
+          blocked = runBlocked(err, opts.scene.name, [], registry) ?? undefined;
+          if (blocked) break;
+          throw err;
+        }
         events.push(...result.events);
         ticks++;
         if (play?.outcome && !outcome) {
-          const verdict = play.outcome({ tick, snapshot: result.game as S, events: result.events });
+          const verdict = play.outcome({
+            tick,
+            snapshot: result.game as S,
+            events: result.events,
+            world,
+          });
           if (verdict) outcome = { ...verdict, tick };
         }
       }
@@ -113,6 +145,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & PrefabsOption): Pr
       stats: runtime.stats(),
     };
     if (outcome) report.outcome = outcome;
+    if (blocked) report.blocked = blocked;
     return report;
   } finally {
     runtime.destroy();

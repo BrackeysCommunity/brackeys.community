@@ -1,27 +1,27 @@
 /**
  * The length-unit probe for the platformer: each golden script on
- * `test-yard` (`m1-golden.json`) with Rapier's `world.lengthUnit` unset and
- * set to 50 and 100 px per metre, comparing the final state and the landings
- * with the unset run. The unset run is also checked against the golden file,
- * so the baseline is the trace the golden test holds.
+ * `test-yard` (`m1-golden.json`) with the game drawn at several px per metre
+ * (`GameDefinition.world.lengthUnit`). The simulation runs in metres and px
+ * per metre only reaches drawing, so every run must reproduce the golden
+ * trace: the final state and every event.
  *
- * A script, not a test: `bun src/games/platformer/__tests__/probes/length-unit-probe.ts`
- * prints `{ changed, per }` as JSON. Only the `-compat` builds run under Bun.
+ * `golden.test.ts` runs it; under Bun it prints the verdict as JSON:
+ * `bun src/games/platformer/__tests__/probes/length-unit-probe.ts` (only the
+ * `-compat` builds run under Bun).
  */
 import { readFileSync } from "node:fs";
 
 import type { RapierModule } from "@jams/engine";
-import { runProbe, type StepEvent } from "@jams/engine/headless";
+import { runProbe } from "@jams/engine/headless";
 import { createRegistry, expandScene, parseSceneOrThrow } from "@jams/engine/scene";
 
 import { platformerGame } from "../..";
 import golden from "../fixtures/m1-golden.json";
 
 type Flavour = "rapier2d-compat" | "rapier2d-deterministic-compat";
-type Unit = "unset" | "50" | "100";
-type Landing = { tick: number; on: string; at: { x: number; y: number } };
+type Script = (typeof golden.scripts)[keyof typeof golden.scripts];
 
-const UNITS: Record<Unit, number | null> = { unset: null, "50": 50, "100": 100 };
+export const LENGTH_UNITS = [100, 32, 48] as const;
 
 async function loadFlavour(flavour: Flavour): Promise<RapierModule | null> {
   try {
@@ -42,102 +42,60 @@ async function loadFlavour(flavour: Flavour): Promise<RapierModule | null> {
   }
 }
 
-/** `rapier` with every new `World` created at `unit` px per metre, before any body exists. */
-function withLengthUnit(rapier: RapierModule, unit: number | null): RapierModule {
-  if (unit === null) return rapier;
-  const perMetre = unit;
-  class World extends rapier.World {
-    constructor(...args: ConstructorParameters<typeof rapier.World>) {
-      super(...args);
-      this.lengthUnit = perMetre;
-      if (this.lengthUnit !== perMetre) throw new Error(`lengthUnit did not take ${perMetre}`);
-    }
-  }
-  return { ...rapier, World } as RapierModule;
-}
-
-const registry = createRegistry(platformerGame);
+const baseRegistry = createRegistry(platformerGame);
 const scene = expandScene(
   parseSceneOrThrow(
     readFileSync(new URL("../../scenes/test-yard.json", import.meta.url), "utf8"),
-    registry,
+    baseRegistry,
   ),
-  registry,
+  baseRegistry,
 );
 
-const landingsOf = (events: readonly StepEvent[]): Landing[] =>
-  events
-    .filter((e) => e.type === "landed")
-    .map((e) => ({ tick: e.tick, on: e.entityId ?? "", at: e.at }));
+/** The platformer drawn at `lengthUnit` px per metre. */
+export function platformerAt(lengthUnit: number): typeof platformerGame {
+  return { ...platformerGame, world: { ...platformerGame.world, lengthUnit } };
+}
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
-function run(rapier: RapierModule, script: (typeof golden.scripts)[keyof typeof golden.scripts]) {
+/** The script's final state and events, through JSON as the golden file holds them. */
+export function traceOf(rapier: RapierModule, game: typeof platformerGame, script: Script) {
   const report = runProbe({
     rapier,
-    game: platformerGame,
-    registry,
+    game,
+    registry: createRegistry(game),
     scene,
     ticks: script.ticks,
     inputs: script.inputs as [number, string, 0 | 1][],
   });
   if (!report.load.ok) throw new Error("test-yard failed to load");
-  return { final: report.final, landings: landingsOf(report.events) };
+  return JSON.parse(JSON.stringify({ final: report.final, events: report.events })) as {
+    final: Script["final"];
+    events: Script["events"];
+  };
 }
 
-type Row = {
-  final: unknown;
-  landings: number;
-  finalChanged: boolean;
-  landingsChanged: boolean;
-  /** The first landing that differs from the unset run's, by index. */
-  firstLandingDiff?: { index: number; unset: Landing | null; got: Landing | null };
-};
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Per script, the px per metre values whose trace differs from the golden one. */
+export function platformerLengthUnitRows(rapier: RapierModule): Record<string, number[]> {
+  const rows: Record<string, number[]> = {};
+  for (const [name, script] of Object.entries(golden.scripts) as [string, Script][]) {
+    const want = { final: script.final, events: script.events };
+    rows[name] = LENGTH_UNITS.filter(
+      (unit) => !same(traceOf(rapier, platformerAt(unit), script), want),
+    );
+  }
+  return rows;
+}
 
 export async function runPlatformerLengthUnitProbe(
   flavours: readonly Flavour[] = ["rapier2d-compat", "rapier2d-deterministic-compat"],
 ) {
-  const per: Partial<
-    Record<Flavour, Record<string, Record<Unit, Row> & { goldenHolds: boolean }>>
-  > = {};
-  let changed = false;
+  const per: Partial<Record<Flavour, Record<string, number[]>>> = {};
   for (const flavour of flavours) {
     const rapier = await loadFlavour(flavour);
-    if (!rapier) continue;
-    const scripts: Record<string, Record<Unit, Row> & { goldenHolds: boolean }> = {};
-    for (const [name, script] of Object.entries(golden.scripts)) {
-      const base = run(rapier, script);
-      const rows = {} as Record<Unit, Row>;
-      for (const [unit, value] of Object.entries(UNITS) as [Unit, number | null][]) {
-        const got = value === null ? base : run(withLengthUnit(rapier, value), script);
-        const finalChanged = !same(got.final, base.final);
-        const landingsChanged = !same(got.landings, base.landings);
-        changed ||= finalChanged || landingsChanged;
-        const row: Row = {
-          final: got.final,
-          landings: got.landings.length,
-          finalChanged,
-          landingsChanged,
-        };
-        if (landingsChanged) {
-          const n = Math.max(got.landings.length, base.landings.length);
-          let index = 0;
-          while (index < n && same(got.landings[index], base.landings[index])) index++;
-          row.firstLandingDiff = {
-            index,
-            unset: base.landings[index] ?? null,
-            got: got.landings[index] ?? null,
-          };
-        }
-        rows[unit] = row;
-      }
-      scripts[name] = {
-        ...rows,
-        goldenHolds: same(base.final, script.final) && same(base.landings, script.landings),
-      };
-    }
-    per[flavour] = scripts;
+    if (rapier) per[flavour] = platformerLengthUnitRows(rapier);
   }
+  const changed = Object.values(per).some((rows) => Object.values(rows).some((u) => u.length > 0));
   return { changed, per };
 }
 

@@ -21,7 +21,7 @@ describe("game-settings.schema.json", () => {
 
   it("has its URN, draft 2020-12, the agent surface and no domain", () => {
     const schema = fresh();
-    expect(GAME_SETTINGS_SCHEMA_ID).toBe("urn:jams-engine:game-settings:v1");
+    expect(GAME_SETTINGS_SCHEMA_ID).toBe("urn:jams-engine:game-settings:v2");
     expect(schema.$id).toBe(GAME_SETTINGS_SCHEMA_ID);
     expect(schema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(schema[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);

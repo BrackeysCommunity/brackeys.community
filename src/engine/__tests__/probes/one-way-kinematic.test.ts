@@ -266,7 +266,7 @@ describe("one-way sides", () => {
     const prefabs = prefabLibrary([
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "gate",
         entities: [
           { id: "up", type: "solid", shape: ["box", 0, 0, 20, 20], oneWay: true },
@@ -282,7 +282,7 @@ describe("one-way sides", () => {
       for (const d of elements) {
         const expanded = expandScene(
           {
-            v: 3,
+            v: 4,
             name: "turned",
             bounds: [-1000, -1000, 1000, 1000],
             instances: [

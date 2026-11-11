@@ -65,30 +65,30 @@ afterEach(() => {
 describe("the packed @jams/engine", () => {
   it("is the version its package.json says", () => {
     expect(ENGINE_VERSION).toBe(pkg.version);
-    expect(SCENE_FORMAT_VERSION).toBe(3);
+    expect(SCENE_FORMAT_VERSION).toBe(4);
     expect(sceneJsonSchema(registry)).toHaveProperty("$id");
   });
 
   it("expands prefab instances and group offsets from dist", () => {
     const parsed = parsePrefab(
-      { kind: "prefab", v: 3, id: "pad", entities: [{ id: "top", type: "marker", at: [0, -10] }] },
+      { kind: "prefab", v: 4, id: "pad", entities: [{ id: "top", type: "marker", at: [0, -0.5] }] },
       registry,
     );
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     const scene = expandScene(
       {
-        v: 3,
+        v: 4,
         game: registry.id,
         name: "pads",
-        bounds: [0, 0, 100, 100],
-        groups: { row: { at: [10, 0] } },
-        instances: [{ id: "pad-1", prefab: "pad", at: [20, 50], group: "row" }],
+        bounds: [0, 0, 4, 4],
+        groups: { row: { at: [0.5, 0] } },
+        instances: [{ id: "pad-1", prefab: "pad", at: [1, 2], group: "row" }],
       },
       registry,
       { prefabs: prefabLibrary([parsed.prefab]) },
     );
-    expect(scene.entities).toEqual([{ id: "pad-1/top", type: "marker", at: [30, 40] }]);
+    expect(scene.entities).toEqual([{ id: "pad-1/top", type: "marker", at: [1.5, 1.5] }]);
   });
 
   it("loads, steps and unloads a scene in a DOM host with standard Rapier injected", async () => {
@@ -141,7 +141,7 @@ describe("the packed @jams/engine", () => {
 
     const result = applyOpsToDoc(
       b,
-      { ops: [{ op: "move", refs: ["crate"], by: [10, 0] }] },
+      { ops: [{ op: "move", refs: ["crate"], by: [0.1, 0] }] },
       { kind: "agent", agentId: "smoke" },
       registry,
     );

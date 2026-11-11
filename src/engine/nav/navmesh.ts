@@ -72,7 +72,7 @@ const inTriangle = (p: Pt, [a, b, c]: readonly [Pt, Pt, Pt]) =>
   cross3(a, b, p) >= 0 && cross3(b, c, p) >= 0 && cross3(c, a, p) >= 0;
 
 /** Points this close to the mesh count as on it, so `navNearest`'s rounded answers still path. */
-const ON_MESH_D2 = 1e-12;
+const ON_MESH_D2 = 1e-16;
 
 function nearestOnMesh(mesh: NavMesh, p: Pt): { at: Pt; d2: number; tri: number } {
   let best = { at: [p[0], p[1]] as Pt, d2: Infinity, tri: -1 };

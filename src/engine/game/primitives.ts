@@ -16,7 +16,7 @@ import type { EntityTypeDef, FieldEnv, PrimitiveType, RegisteredType } from "./t
 
 export { DEFAULT_GRAVITY } from "./defaults";
 
-const absolute = "Absolute world px; y is down.";
+const absolute = "Absolute world metres; y is down.";
 
 /**
  * The engine's own entity types, as schema. Their systems are the runtime's
@@ -43,7 +43,7 @@ export const PRIMITIVES = {
     bulk: {
       form: "shape",
       materials: true,
-      description: "Static ground shapes, absolute px; `solid:<material>` for a material.",
+      description: "Static ground shapes, absolute metres; `solid:<material>` for a material.",
     },
     style: { fill: 0x445566, stroke: 0x8899aa, alpha: 0.8 },
     ascii: "#",
@@ -83,7 +83,7 @@ export const PRIMITIVES = {
       density: z
         .number()
         .positive()
-        .describe("Density, mass per px²; heavier props are harder to push.")
+        .describe("Density in kg/m²; heavier props are harder to push.")
         .meta({ title: "Density", group: "body" }),
       restitution: z
         .number()
@@ -136,7 +136,7 @@ export const PRIMITIVES = {
     physics: "optional",
     fields: (env) => ({
       shape: bodyShapeField(
-        'Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. ["box", 0, 0, 40, 6]). Not chain.',
+        'Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. ["box", 0, 0, 0.4, 0.06]). Not chain.',
       ),
       path: PathSchema,
       material: materialField(env),
@@ -176,7 +176,7 @@ export const PRIMITIVES = {
     description: "Editor note: text pinned to a point. Never loaded into the game.",
     loads: false,
     fields: {
-      at: pointField("Where the note shows, absolute world px."),
+      at: pointField("Where the note shows, absolute world metres."),
       text: z
         .string()
         .describe("The note, for whoever edits the scene next.")
@@ -246,24 +246,30 @@ export const BASE_REQUIRED_FIELDS: Record<Exclude<PrimitiveType, "note">, readon
   nav: ["shape"],
 };
 
-function px2(description: string, [a, b]: [string, string] = ["x", "y"]) {
+function metres2(description: string, [a, b]: [string, string] = ["x", "y"]) {
   return z
-    .tuple([z.number().describe(`${a}, px.`), z.number().describe(`${b}, px.`)])
-    .describe(description);
+    .tuple([
+      z.number().describe(`${a}, m.`).meta({ unit: "m" }),
+      z.number().describe(`${b}, m.`).meta({ unit: "m" }),
+    ])
+    .describe(description)
+    .meta({ unit: "m" });
 }
+
+const WHOLE_PX = "each a whole number of px at the game's px per metre";
 
 /** The engine's settings fields; a game's sit beside them. */
 export const ENGINE_SETTINGS = {
   gravity: z
     .tuple([
-      z.number().describe("x, px/s²; positive pulls right."),
-      z.number().describe("y, px/s²; positive pulls down."),
+      z.number().describe("x, m/s²; positive pulls right.").meta({ unit: "m/s²" }),
+      z.number().describe("y, m/s²; positive pulls down.").meta({ unit: "m/s²" }),
     ])
     .optional()
     .describe(
-      "World gravity [x, y] in px/s²; y is down. Omitted: the project's, else the game's default.",
+      "World gravity [x, y] in m/s²; y is down. Omitted: the project's, else the game's default.",
     )
-    .meta({ title: "Gravity", unit: "px/s²" }),
+    .meta({ title: "Gravity", unit: "m/s²" }),
   physics: z
     .enum(["rapier", "none"])
     .optional()
@@ -275,25 +281,30 @@ export const ENGINE_SETTINGS = {
     .discriminatedUnion("kind", [
       z.strictObject({
         kind: z.literal("square").describe("Square (or rectangular) cells."),
-        cell: px2("Cell size [w, h], px; positive integers.", ["w", "h"]),
-        origin: px2("Where cell 0, 0 starts, world px; integers. Omitted means 0, 0.").optional(),
+        cell: metres2(`Cell size [w, h], m; positive, ${WHOLE_PX}.`, ["w", "h"]),
+        origin: metres2(
+          `Where cell 0, 0 starts, world m; ${WHOLE_PX}. Omitted means 0, 0.`,
+        ).optional(),
       }),
       z.strictObject({
         kind: z.literal("hex").describe("Hexagonal cells, parameterized like Tiled's."),
-        cell: px2(
-          "The hex's bounding box [w, h], px (Tiled's tilewidth, tileheight); positive integers.",
+        cell: metres2(
+          `The hex's bounding box [w, h], m (Tiled's tilewidth, tileheight, over px per metre); positive, ${WHOLE_PX}.`,
           ["w", "h"],
         ),
         side: z
           .number()
           .describe(
-            "The length of the flat sides, px (Tiled's hexsidelength): an integer from 0 to the cell's size on the stagger axis.",
-          ),
+            "The length of the flat sides, m (Tiled's hexsidelength over px per metre): from 0 to the cell's size on the stagger axis, a whole number of px at the game's px per metre.",
+          )
+          .meta({ unit: "m" }),
         stagger: z.enum(["x", "y"]).describe("Which axis is staggered (Tiled's staggeraxis)."),
         index: z
           .enum(["odd", "even"])
           .describe("Whether odd or even rows (or columns) are shifted (Tiled's staggerindex)."),
-        origin: px2("Where cell 0, 0 starts, world px; integers. Omitted means 0, 0.").optional(),
+        origin: metres2(
+          `Where cell 0, 0 starts, world m; ${WHOLE_PX}. Omitted means 0, 0.`,
+        ).optional(),
       }),
     ])
     .optional()

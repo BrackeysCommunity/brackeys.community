@@ -45,9 +45,10 @@ export function dragVertex(
   const start = isPointShape(s) ? s.pts[index] : undefined;
   if (!isPointShape(s) || !start) return null;
   const { at, guides } = snapDraggedPoint(t, start, from, to, opts);
-  const moved = roundPt([at[0] - start[0], at[1] - start[1]]);
+  const ppm = opts.pxPerMetre;
+  const moved = roundPt([at[0] - start[0], at[1] - start[1]], ppm);
   return {
-    ...shapeEdit(t, moveVertex(s, index, at), `Edit ${t.ref} points`, readDelta(moved)),
+    ...shapeEdit(t, moveVertex(s, index, at), ppm, `Edit ${t.ref} points`, readDelta(moved, ppm)),
     guides,
   };
 }
@@ -71,15 +72,20 @@ export function dragInsertVertex(
     ...shapeEdit(
       t,
       insertVertex(s, segment, at),
+      opts.pxPerMetre,
       `Add a point to ${t.ref}`,
-      readPoint(roundPt(at)),
+      readPoint(roundPt(at, opts.pxPerMetre), opts.pxPerMetre),
     ),
     guides,
   };
 }
 
 /** Deleting vertices `indices`; `null` (refused) when that would leave a poly under 3 or a chain under 2. */
-export function removeVertices(t: GizmoTarget, indices: readonly number[]): GizmoEdit | null {
+export function removeVertices(
+  t: GizmoTarget,
+  indices: readonly number[],
+  pxPerMetre: number,
+): GizmoEdit | null {
   const s = t.shape;
   if (!isPointShape(s)) return null;
   const next = deleteVertices(s, indices);
@@ -88,6 +94,7 @@ export function removeVertices(t: GizmoTarget, indices: readonly number[]): Gizm
   return shapeEdit(
     t,
     next,
+    pxPerMetre,
     `Delete ${n === 1 ? "a point" : `${n} points`} of ${t.ref}`,
     `${next.pts.length} points`,
   );

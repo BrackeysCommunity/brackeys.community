@@ -1,4 +1,4 @@
-import type { GameCommand } from "@jams/engine/game";
+import { pxPerMetreOf, type GameCommand } from "@jams/engine/game";
 import {
   compileInputScript,
   ENTITY_DESTROYED,
@@ -29,6 +29,7 @@ import {
   type ToolContext,
 } from "../context";
 import { projectRuntime, type ProjectHandle } from "../projects";
+import { blockedText } from "./playtest";
 
 export type StepInput = {
   scene?: string;
@@ -163,11 +164,18 @@ export async function rapierFor(
   return scenePhysics(def, registry, engine) === "rapier" ? ctx.loadRapier() : null;
 }
 
-/** Numbers to two decimals, for the text report only. */
+/**
+ * Numbers to four decimals, for the text report only: a ten-thousandth of
+ * a metre, 1/100 world px at the default 100 px per metre.
+ */
 export const rounded = (value: unknown) =>
   JSON.stringify(value, (_k, v: unknown) =>
-    typeof v === "number" ? Math.round(v * 100) / 100 : v,
+    typeof v === "number" ? Math.round(v * 1e4) / 1e4 + 0 : v,
   );
+
+/** `lengths in m (100 px/m)`: how a report's positions and speeds read. */
+export const unitsNote = (registry: Registry) =>
+  `lengths in m, speeds in m/s (${pxPerMetreOf(registry)} px/m)`;
 
 /** `--events a,b` as the set of types to keep; undefined keeps every event. */
 export function eventTypes(flag: string | undefined): ReadonlySet<string> | undefined | string {
@@ -289,7 +297,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     registry,
     project,
     scene: expandScene(loaded.def, registry, { prefabs: loaded.prefabs, engine }),
-    prefabs: loaded.prefabs,
+    library: loaded.prefabs,
     ticks,
     hold,
     inputs,
@@ -301,6 +309,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     scene: loaded.name,
     game: registry.game?.id ?? null,
     sceneHash: hash,
+    pxPerMetre: pxPerMetreOf(registry),
     ...report,
     events: printed.events,
     ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
@@ -316,8 +325,15 @@ export const step: Tool<StepInput> = async (input, ctx) => {
       text: `${loaded.name}: failed to load: ${report.load.error}${report.load.entityId ? ` (${report.load.entityId})` : ""}`,
     };
   }
+  if (report.blocked) {
+    return {
+      exitCode: 1,
+      data: { ok: false, ...data, ...report.blocked },
+      text: `${blockedText(report.blocked)}\n  after ${report.ticks} ticks`,
+    };
+  }
   const lines = [
-    `${loaded.name} ${hash} ${runs} config ${report.configHash}: ${report.ticks} ticks at ${report.tickRate}Hz`,
+    `${loaded.name} ${hash} ${runs} config ${report.configHash}: ${report.ticks} ticks at ${report.tickRate}Hz; ${unitsNote(registry)}`,
     `  final ${rounded(report.final)}`,
     ...commands.map(
       ([tick, c]) =>

@@ -18,8 +18,9 @@ import {
   type ProjectMaterialDef,
 } from "../define";
 import { pointField, shapeField } from "../fields";
+import { bindingProblems } from "../input-bindings";
 import type { TimeModel } from "../time";
-import { PRIMITIVE_TYPES, type GameDefinition } from "../types";
+import { PRIMITIVE_TYPES, type ActionDef, type Binding, type GameDefinition } from "../types";
 
 const crate = defineEntityType({
   type: "crate",
@@ -95,12 +96,163 @@ describe("createRegistry play hooks", () => {
   });
 });
 
+describe("createRegistry bindings", () => {
+  const bound = (bindings: Binding[], kind?: ActionDef["kind"]): ActionDef[] => [
+    { action: "act", description: "Act.", bindings, ...(kind ? { kind } : {}) },
+  ];
+  /** A binding as an input map or a host might send it, wrong on purpose. */
+  const loose = (b: object): Binding => b as Binding;
+  const refused = (actions: ActionDef[], over: Partial<GameDefinition> = {}) =>
+    problems(() => createRegistry(game({ actions, ...over })));
+
+  it("accepts every device's vocabulary and 0.x keys through the table", () => {
+    expect(
+      refused([
+        { action: "jump", keys: ["ArrowUp", "w", " ", "Shift"], description: "Jump." },
+        {
+          action: "fire",
+          description: "Fire.",
+          bindings: [
+            { device: "key", code: "Space" },
+            { device: "pad", button: "south" },
+            { device: "pad", button: 17 },
+            { device: "pointer", button: "primary" },
+            { device: "touch", control: "fire" },
+          ],
+        },
+        {
+          action: "move",
+          kind: "vector",
+          description: "Move.",
+          bindings: [
+            { device: "key", code: "KeyW", axis: "y", value: -1 },
+            { device: "pad", button: "dpad-left", axis: "x", value: -1 },
+            { device: "pad", stick: "left" },
+          ],
+        },
+        {
+          action: "throttle",
+          kind: "axis",
+          description: "Throttle.",
+          bindings: [
+            { device: "pad", axis: "rt" },
+            { device: "pad", axis: "left-y", scale: -1 },
+            { device: "pad", axis: 5 },
+            { device: "key", code: "KeyS", value: -1 },
+          ],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("refuses an unknown key code, pad button, pad axis or pointer button, with did-you-mean", () => {
+    expect(
+      refused(
+        bound([
+          loose({ device: "key", code: "keyw" }),
+          loose({ device: "key", code: "Spce" }),
+          loose({ device: "pad", button: "soth" }),
+          loose({ device: "pointer", button: "primery" }),
+        ]),
+      ),
+    ).toEqual([
+      'action "act" binding 0/code: unknown key code "keyw"; did you mean "KeyW"? (binding-unknown)',
+      'action "act" binding 1/code: unknown key code "Spce"; did you mean "Space"? (binding-unknown)',
+      'action "act" binding 2/button: unknown pad button "soth"; did you mean "south"? (binding-unknown)',
+      'action "act" binding 3/button: unknown pointer button "primery"; did you mean "primary"? (binding-unknown)',
+    ]);
+    expect(refused(bound([loose({ device: "pad", axis: "left-z" })], "axis"))).toEqual([
+      'action "act" binding 0/axis: unknown pad axis "left-z"; did you mean "left-x"? (binding-unknown)',
+    ]);
+    expect(refused(bound([{ device: "key", code: "Hyper" }]))).toEqual([
+      'action "act" binding 0/code: unknown key code "Hyper" (binding-unknown)',
+    ]);
+  });
+
+  it("refuses a binding whose shape doesn't fit its action's kind", () => {
+    expect(
+      refused(
+        bound([
+          { device: "pad", stick: "left" },
+          { device: "pad", axis: "lt" },
+          { device: "key", code: "KeyA", axis: "x", value: -1 },
+        ]),
+      ),
+    ).toEqual([
+      'action "act" binding 0/stick: a stick binds a vector action, not a button action (binding-unknown)',
+      'action "act" binding 1/axis: a pad axis binds an axis action, not a button action (binding-unknown)',
+      'action "act" binding 2/axis: a key on a button action takes no axis (binding-unknown)',
+      'action "act" binding 2/value: a key on a button action takes no value (binding-unknown)',
+    ]);
+    expect(
+      refused(
+        bound(
+          [
+            { device: "key", code: "KeyA" },
+            { device: "pointer", button: "primary" },
+            { device: "key", code: "KeyD", axis: "x", value: 2 },
+          ],
+          "vector",
+        ),
+      ),
+    ).toEqual([
+      'action "act" binding 0/axis: a key on a vector action needs axis "x" or "y" (binding-unknown)',
+      'action "act" binding 1/button: a pointer button binds a button action, not a vector action (binding-unknown)',
+      'action "act" binding 2/value: a key\'s value must be a number in −1…1 (binding-unknown)',
+    ]);
+    expect(refused(bound([{ device: "key", code: "KeyA", axis: "x" }], "axis"))).toEqual([
+      'action "act" binding 0/axis: a key on an axis action takes no axis; its value is the axis (binding-unknown)',
+    ]);
+  });
+
+  it("refuses an unknown device or kind, a seat past max and seats outside 1–8", () => {
+    expect(refused(bound([loose({ device: "mouse" })]))).toEqual([
+      'action "act" binding 0/device: unknown device "mouse" (binding-unknown)',
+    ]);
+    expect(refused(bound([], "trigger" as ActionDef["kind"]))).toEqual([
+      'action "act" has unknown kind "trigger"',
+    ]);
+    expect(refused(bound([{ device: "key", code: "KeyW", player: 1 }]))).toEqual([
+      'action "act" binding 0/player: seat 1 is past the last seat, 0 (player-unknown)',
+    ]);
+    expect(
+      refused(bound([{ device: "key", code: "KeyW", player: 1 }]), {
+        input: { players: { max: 2, join: "auto" } },
+      }),
+    ).toEqual([]);
+    expect(
+      refused([], { input: { players: { max: 9, join: "party" as "auto" }, deadzone: 2 } }),
+    ).toEqual([
+      "input.players: players.max must be a whole number from 1 to 8; got 9 (player-unknown)",
+      'input.players: unknown join policy "party" (player-unknown)',
+      "input.deadzone must be a number from 0 to 1; got 2",
+    ]);
+  });
+
+  it("judges a touch control against the declared controls when it has them", () => {
+    const touch: Binding = { device: "touch", control: "fyre" };
+    expect(bindingProblems(touch, { kind: "button", max: 1 })).toEqual([]);
+    expect(bindingProblems(touch, { kind: "button", max: 1, controls: ["fire", "stick"] })).toEqual(
+      [
+        {
+          code: "binding-unknown",
+          message: 'unknown touch control "fyre"; did you mean "fire"?',
+          path: "/control",
+          expected: '"fire" | "stick"',
+          got: '"fyre"',
+          hint: 'did you mean "fire"?',
+        },
+      ],
+    );
+  });
+});
+
 describe("createRegistry", () => {
   it("always has the primitives, first, without a game", () => {
     const r = createRegistry();
     expect(r.id).toBe("engine");
     expect(r.typeNames).toEqual([...PRIMITIVE_TYPES]);
-    expect(r.schemaId).toBe("urn:jams-engine:scene:v3");
+    expect(r.schemaId).toBe("urn:jams-engine:scene:v4");
     expect(r.spawnGroups).toEqual([
       ["solid"],
       ["sensor"],
@@ -119,7 +271,7 @@ describe("createRegistry", () => {
     expect(r.typeNames).toEqual([...PRIMITIVE_TYPES, "crate", "flag"]);
     expect(r.types.get("crate")).toMatchObject({ origin: "fake", base: "prop" });
     expect(r.types.get("solid")?.origin).toBe("engine");
-    expect(r.schemaId).toBe("urn:jams-engine:scene:fake:v3");
+    expect(r.schemaId).toBe("urn:jams-engine:scene:fake:v4");
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid", "solid:mud", "flag"]);
     expect(r.bulkKey("solid:mud")).toEqual({
       key: "solid:mud",

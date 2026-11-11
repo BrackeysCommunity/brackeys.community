@@ -152,7 +152,7 @@ describe("runChecks on engine-yard", () => {
 
     const floating: SceneDefinition = {
       ...yard,
-      solid: [["box", 20, 500, 20, 500]],
+      solid: [["box", 0.2, 5, 0.2, 5]],
     };
     const physical = runChecks({
       rapier,
@@ -202,6 +202,7 @@ describe("runChecks on engine-yard", () => {
       engine: { physics: "none" },
       table: () => [],
       asset: () => undefined,
+      inputMap: null,
     };
     const played = runChecks({ scene, registry: engine, checks, readFile: () => "", project });
     expect(played.results[0]).toMatchObject({ pass: true });
@@ -218,7 +219,7 @@ describe("runChecks on engine-yard", () => {
       { id: "two", kind: "test-game/props", atLeast: 2 },
       { id: "three", kind: "test-game/props", atLeast: 3 },
     ]).checks;
-    const report = run({ v: 1, checks });
+    const report = run({ v: 3, checks });
     expect(report.results).toEqual([
       { id: "two", kind: "test-game/props", pass: true, message: "2 props", detail: { props: 2 } },
       {
@@ -229,7 +230,7 @@ describe("runChecks on engine-yard", () => {
         detail: { props: 2 },
       },
     ]);
-    const unknown = run({ v: 1, checks }, engine);
+    const unknown = run({ v: 3, checks }, engine);
     expect(unknown.results[0]).toMatchObject({
       pass: false,
       message: 'unknown check kind "test-game/props"',
@@ -310,7 +311,7 @@ describe("a reaches check's expect", () => {
       reaches({ exists: "avatar" }, { id: "result", result: "timeout" }),
       reaches({ past: 300 }, { id: "gameless" }),
     ] as SceneCheck[];
-    const report = run({ v: 1, checks }, engine);
+    const report = run({ v: 3, checks }, engine);
     expect(report.results[0]!.message).toBe("ended script-end at t59, not timeout");
     expect(report.results[1]).toMatchObject({ pass: false });
     expect(report.results[1]!.message).toMatch(/^bad expect: /);

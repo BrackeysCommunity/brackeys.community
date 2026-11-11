@@ -16,6 +16,9 @@
 <path data-ref="lift" data-type="follower" d="M1640 892L1760 892L1760 908L1640 908Z" fill="#6677aa" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.8" stroke-width="1.56" stroke-linejoin="round"/>
 <g data-ref="start" data-type="marker" class="spawn"><path d="M300 960V932.5L315 938.75L300 945" fill="#ffcc44" fill-opacity="0.85" stroke="#ffcc44" stroke-width="1.88"/><circle cx="300" cy="960" r="3.75" fill="#ffcc44"/></g>
 </g>
+<g id="one-way" fill="none" stroke="#4da3ff" stroke-width="3.75" stroke-linecap="round">
+<path data-one-way="ledge" data-side="up" d="M1280 790L1520 790"/>
+</g>
 <g id="paths" fill="none">
 <g data-path="lift" stroke="#ffffff">
 <path d="M1700 900L1700 600" stroke-opacity="0.7" stroke-width="1.88" stroke-dasharray="7.5 5"/>

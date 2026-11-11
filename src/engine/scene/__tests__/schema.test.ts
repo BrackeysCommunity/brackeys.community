@@ -6,13 +6,19 @@ import { createRegistry, defineEntityType, defineGame } from "../../game/define"
 import {
   angleField,
   assetField,
+  bodyShapeField,
   mirrorField,
+  PathSchema,
   pointField,
+  polygonField,
+  shapeField,
   sideField,
   tagsField,
   vectorField,
 } from "../../game/fields";
+import { ENGINE_SETTINGS } from "../../game/primitives";
 import { PRIMITIVE_TYPES } from "../../game/types";
+import { lengthUnitOf } from "../../game/units";
 import {
   ID_PATTERN,
   entitySchemaFor,
@@ -29,19 +35,20 @@ import { engine, engineYardText, fake, fakeGame } from "./fixtures/fake-game";
 
 const noAssets = { materials: [], materialDefs: new Map(), types: [], assets: () => [] };
 const yard = JSON.parse(engineYardText);
-const minimal = { v: SCENE_FORMAT_VERSION, name: "s", bounds: [0, 0, 100, 100] };
+const minimal = { v: SCENE_FORMAT_VERSION, name: "s", bounds: [0, 0, 1, 1] };
 const game = { ...minimal, game: "fake" };
 
 describe("sceneSchemaFor", () => {
   it("accepts engine-yard against the engine registry", () => {
-    expect(sceneSchemaFor(engine).safeParse(yard).success).toBe(true);
+    expect(sceneSchemaFor(engine).safeParse({ ...yard, v: SCENE_FORMAT_VERSION }).success).toBe(
+      true,
+    );
   });
 
-  it("takes only the current format version, v3; a v2 document migrates first", () => {
-    expect(SCENE_FORMAT_VERSION).toBe(3);
+  it("takes only the current format version; an older document migrates first", () => {
     const schema = sceneSchemaFor(engine);
-    expect(schema.safeParse({ ...minimal, v: 3 }).success).toBe(true);
-    expect(schema.safeParse({ ...minimal, v: 2 }).success).toBe(false);
+    expect(schema.safeParse({ ...minimal, v: SCENE_FORMAT_VERSION }).success).toBe(true);
+    expect(schema.safeParse({ ...minimal, v: SCENE_FORMAT_VERSION - 1 }).success).toBe(false);
   });
 
   it("has bulk keys from registered types only", () => {
@@ -106,8 +113,19 @@ describe("sceneSchemaFor", () => {
   it("is strict and checks bounds order", () => {
     const schema = sceneSchemaFor(engine);
     expect(schema.safeParse({ ...minimal, extra: 1 }).success).toBe(false);
-    expect(schema.safeParse({ ...minimal, bounds: [100, 0, 0, 100] }).success).toBe(false);
-    expect(schema.safeParse({ ...minimal, bounds: [0, 0, 100.5, 100] }).success).toBe(false);
+    expect(schema.safeParse({ ...minimal, bounds: [1, 0, 0, 1] }).success).toBe(false);
+  });
+
+  it("takes bounds, group and instance origins in metres, not only whole numbers", () => {
+    const schema = sceneSchemaFor(engine);
+    expect(schema.safeParse({ ...minimal, bounds: [-0.5, 0, 12.34, 7.205] }).success).toBe(true);
+    expect(schema.safeParse({ ...minimal, groups: { room: { at: [0.32, 1.5] } } }).success).toBe(
+      true,
+    );
+    expect(
+      schema.safeParse({ ...minimal, instances: [{ id: "g", prefab: "gate", at: [0.5, 0.25] }] })
+        .success,
+    ).toBe(true);
   });
 
   it("allows duplicate ids (validateScene reports dup-id)", () => {
@@ -423,5 +441,32 @@ describe("spawn-only types", () => {
     expect(spawnSchemaFor(r, "flag")!.safeParse({ type: "flag", at: [0, 0] }).success).toBe(true);
     expect(spawnSchemaFor(r, "note")).toBeUndefined();
     expect(spawnSchemaFor(r, "nope")).toBeUndefined();
+  });
+});
+
+describe("length units", () => {
+  it("every engine field builder that holds a length declares its unit", () => {
+    expect(lengthUnitOf(pointField("A point."))).toBe("m");
+    expect(lengthUnitOf(pointField("A point.").optional())).toBe("m");
+    expect(lengthUnitOf(vectorField("An offset."))).toBe("m");
+    expect(lengthUnitOf(shapeField("A shape."))).toBe("m");
+    expect(lengthUnitOf(bodyShapeField("A body."))).toBe("m");
+    expect(lengthUnitOf(polygonField("A polygon."))).toBe("m");
+    expect(lengthUnitOf(PathSchema.shape.pts.element)).toBe("m");
+    expect(lengthUnitOf(PathSchema.shape.speed)).toBe("m/s");
+    expect(lengthUnitOf(PathSchema.shape.pauseMs)).toBeUndefined();
+    expect(lengthUnitOf(angleField("A turn.", "deg"))).toBeUndefined();
+  });
+
+  it("the scene's own lengths are metres, gravity m/s²", () => {
+    const shape = sceneSchemaFor(engine).shape;
+    expect(lengthUnitOf(shape.bounds as z.ZodType)).toBe("m");
+    expect(lengthUnitOf(ENGINE_SETTINGS.gravity)).toBe("m/s²");
+    const grid = ENGINE_SETTINGS.grid.unwrap().options;
+    for (const option of grid) {
+      expect(lengthUnitOf(option.shape.cell)).toBe("m");
+      expect(lengthUnitOf(option.shape.origin)).toBe("m");
+    }
+    expect(lengthUnitOf(grid[1]!.shape.side)).toBe("m");
   });
 });

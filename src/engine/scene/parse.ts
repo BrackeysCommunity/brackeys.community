@@ -8,7 +8,7 @@ import { bulkId } from "./expand";
 import { withoutEmptyMaps } from "./format";
 import { GRID_MAX_VALUE, gridProblems } from "./grid";
 import { jsonPointer, lineAt, makeIssue } from "./issues";
-import { migrate } from "./migrate";
+import { migrate, type MigrateEnv } from "./migrate";
 import {
   entitySchemaFor,
   fieldKind,
@@ -505,14 +505,27 @@ function withoutEmptyRowMaps(def: SceneDefinition): SceneDefinition {
   return out;
 }
 
+/** What the scene, prefab and fragment parsers take beside the registry. */
+export type ParseOptions = { prefab?: MigrateEnv["prefab"] };
+
+/** The migration env a parse passes: its registry and prefab lookup. */
+export function migrateEnvOf(registry: Registry, opts: ParseOptions): MigrateEnv {
+  return opts.prefab ? { registry, prefab: opts.prefab } : { registry };
+}
+
 /**
  * Parses a scene from JSON text or an already-parsed value: migrate, pick
  * the registry from the scene's `game` (`sceneRegistry`), then that
  * registry's schema. Never throws; every failure is a `SceneIssue` with a
  * JSON Pointer `path`, plus `line` when the input was text. Structural
- * checks (duplicate ids, geometry) are `validateScene`'s.
+ * checks (duplicate ids, geometry) are `validateScene`'s. `opts.prefab`
+ * looks up the prefabs instances name, for migrations that need them.
  */
-export function parseScene(input: unknown, registry: Registry): ParseSceneResult {
+export function parseScene(
+  input: unknown,
+  registry: Registry,
+  opts: ParseOptions = {},
+): ParseSceneResult {
   let raw = input;
   let text: string | undefined;
   if (typeof input === "string") {
@@ -531,7 +544,7 @@ export function parseScene(input: unknown, registry: Registry): ParseSceneResult
     return line === undefined ? issue : { ...issue, line };
   };
 
-  const migrated = migrate(raw);
+  const migrated = migrate(raw, undefined, undefined, migrateEnvOf(registry, opts));
   if (!migrated.ok) return { ok: false, issues: [withLine(migrated.issue)] };
 
   const declared = (migrated.raw as Record<string, unknown>).game;
@@ -581,8 +594,12 @@ export class SceneVersionError extends SceneParseError {
   }
 }
 
-export function parseSceneOrThrow(input: unknown, registry: Registry): SceneDefinition {
-  const result = parseScene(input, registry);
+export function parseSceneOrThrow(
+  input: unknown,
+  registry: Registry,
+  opts: ParseOptions = {},
+): SceneDefinition {
+  const result = parseScene(input, registry, opts);
   if (result.ok) return result.def;
   if (result.issues.some((i) => i.code === "version-newer"))
     throw new SceneVersionError(result.issues);

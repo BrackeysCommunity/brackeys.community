@@ -14,6 +14,8 @@ import {
   failure,
   inScope,
   issueLine,
+  prefabLookup,
+  prefabsOf,
   scopeError,
   usage,
   writeSceneText,
@@ -24,7 +26,14 @@ import { locateInProjects, scanProject, type ProjectHandle } from "../projects";
 
 export type FmtInput = { scene?: string; check?: boolean };
 
-type DocAsset = { project: ProjectHandle; entry: AssetEntry; def: DocKindDef; file: string };
+type DocAsset = {
+  project: ProjectHandle;
+  entry: AssetEntry;
+  def: DocKindDef;
+  file: string;
+  /** The project's kind env: its registry and its prefabs, which an older scene or prefab migrates through. */
+  env: KindEnv;
+};
 
 type Formatted =
   | { asset: DocAsset; ok: true; text: string; changed: boolean; migratedFrom?: number }
@@ -32,12 +41,15 @@ type Formatted =
 
 /** A project's live doc assets: scenes, prefabs, checks, input scripts and every declarative kind. */
 async function docAssets(project: ProjectHandle): Promise<DocAsset[]> {
-  const { state } = await scanProject(project);
+  const scan = await scanProject(project);
+  const { registry } = project;
+  const prefab = prefabLookup(await prefabsOf({ project }, registry, scan));
+  const env: KindEnv = { registry, project: null, prefab };
   const out: DocAsset[] = [];
-  for (const entry of Object.values(state.assets)) {
+  for (const entry of Object.values(scan.state.assets)) {
     const def = project.kinds.get(entry.kind);
     if (entry.deleted !== undefined || def?.storage !== "doc") continue;
-    out.push({ project, entry, def, file: join(project.dir, ...entry.path.split("/")) });
+    out.push({ project, entry, def, file: join(project.dir, ...entry.path.split("/")), env });
   }
   return out.sort((a, b) => (a.entry.id < b.entry.id ? -1 : a.entry.id > b.entry.id ? 1 : 0));
 }
@@ -45,8 +57,7 @@ async function docAssets(project: ProjectHandle): Promise<DocAsset[]> {
 /** The asset's canonical text, through its kind's `parse` and `format`. */
 async function format(asset: DocAsset): Promise<Formatted> {
   const text = await readFile(asset.file, "utf8");
-  const env: KindEnv = { registry: asset.project.registry, project: null };
-  const parsed = parseAssetDoc(asset.def, text, env);
+  const parsed = parseAssetDoc(asset.def, text, asset.env);
   if (!parsed.ok) return { asset, ok: false, issues: parsed.issues };
   const canonical = formatAssetDoc(asset.def, parsed.value);
   const changed = canonical !== text;
@@ -56,7 +67,7 @@ async function format(asset: DocAsset): Promise<Formatted> {
     : { asset, ok: true, text: canonical, changed, migratedFrom };
 }
 
-/** ` (from v2 to v3)` when the file is at an older format version that formatting migrates. */
+/** ` (from v3 to v4)` when the file is at an older format version that formatting migrates. */
 function fromNote(result: Formatted): string {
   if (!result.ok || result.migratedFrom === undefined) return "";
   return ` (from v${result.migratedFrom} to v${result.asset.def.version})`;
@@ -95,8 +106,10 @@ function one(result: Formatted, check: boolean): ToolResult {
  * Rewrites a doc asset (a scene, prefab, checks file, input script or any
  * declarative kind) in its kind's canonical form, found by id across the
  * projects; without an id, every doc asset of the projects in scope. A file
- * at an older format version (a v2 scene or prefab) is migrated to the
- * current one, and the result says `migratedFrom`.
+ * at an older format version (a v3 scene or prefab, a v1 input script, all
+ * in px) is migrated to the current one through the project's game and
+ * prefabs (lengths become metres at the game's px per metre), and the
+ * result says `migratedFrom`.
  * `--check` only reports, exit 1 when something isn't canonical.
  */
 export const fmt: Tool<FmtInput> = async (input, ctx) => {

@@ -6,8 +6,6 @@ import { readFileProject, sceneCollabServer } from "@jams/engine/vite";
 import wasm from "vite-plugin-wasm";
 import type { InlineConfig } from "vite-plus";
 
-import { engineEditorGame } from "./game";
-
 const PAGE_DIR = fileURLToPath(new URL(".", import.meta.url));
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const ENGINE = fileURLToPath(new URL("../../src/engine/", import.meta.url));
@@ -32,16 +30,13 @@ export type EngineEditorConfigOptions = {
 /**
  * The standalone editor's dev server: this directory's page, the engine
  * resolved from source as `@jams/engine/*`, and `./vite`'s collab server over
- * the engine project in `scenesDir`, judged by the same game the page edits
- * with. No site module is reachable from it.
+ * the engine project in `scenesDir`, judged as the page judges it: by the
+ * engine alone, since the project names no game. No site module is reachable from it.
  */
 export async function engineEditorConfig(opts: EngineEditorConfigOptions): Promise<InlineConfig> {
   const port = opts.port ?? 5173;
   if (port === RESERVED_PORT) throw new Error(`port ${RESERVED_PORT} is reserved; pick another`);
-  const project = await readFileProject(opts.scenesDir, {
-    game: engineEditorGame,
-    cacheDir: opts.cacheDir,
-  });
+  const project = await readFileProject(opts.scenesDir, { game: null, cacheDir: opts.cacheDir });
   return {
     configFile: false,
     root: PAGE_DIR,

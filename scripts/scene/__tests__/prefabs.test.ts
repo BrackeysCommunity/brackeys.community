@@ -18,7 +18,7 @@ import { tempProject } from "./fixtures";
 
 const GATE: Prefab = {
   kind: "prefab",
-  v: 3,
+  v: 4,
   id: "gate",
   entities: [
     {
@@ -40,7 +40,7 @@ const GATE: Prefab = {
 };
 
 const SCENE: SceneDefinition = {
-  v: 3,
+  v: 4,
   name: "gates",
   bounds: [0, 0, 2000, 1000],
   groups: { east: { at: [1000, 0] } },
@@ -170,7 +170,7 @@ describe("scenes with prefabs", () => {
     };
     await writeFile(
       join(root, "prefabs", "red-gate.json"),
-      formatPrefab({ kind: "prefab", v: 3, id: "red-gate", entities: [] }),
+      formatPrefab({ kind: "prefab", v: 4, id: "red-gate", entities: [] }),
     );
     const header = await cli(
       "assets",
@@ -211,7 +211,7 @@ describe("scenes with prefabs", () => {
     expect(JSON.stringify(header.data)).not.toContain("param-unknown");
     expect(
       JSON.parse(await readFile(join(root, "prefabs", "dark-blue-gate.json"), "utf8")),
-    ).toEqual({ kind: "prefab", v: 3, id: "dark-blue-gate", base: "blue-gate", entities: [] });
+    ).toEqual({ kind: "prefab", v: 4, id: "dark-blue-gate", base: "blue-gate", entities: [] });
     expect(
       (JSON.parse(await readFile(join(root, "prefabs", "blue-gate.json"), "utf8")) as Prefab).id,
     ).toBe("blue-gate");

@@ -5,9 +5,11 @@ import type { StepEvent } from "./types";
 export type RuntimeEventBus = EventBus & {
   /**
    * Delivers `raised[from..]` to the handlers, events handlers raise
-   * included; returns the index after the last event delivered.
+   * included; returns the index after the last event delivered. Calls given
+   * the same `pass` share its delivery count, so a dispatch point that runs
+   * in several calls (the second, between end-of-tick flushes) is one pass.
    */
-  dispatch(raised: StepEvent[], from: number): number;
+  dispatch(raised: StepEvent[], from: number, pass?: DispatchPass): number;
   /** Ends every subscription `id` owns. */
   dropOwner(id: string): void;
   /** Ends every subscription; at unload. */
@@ -21,6 +23,9 @@ export type EventBusOptions = {
 
 /** More deliveries than this in one dispatch pass means handlers are raising each other's events forever. */
 export const EVENT_PASS_LIMIT = 4096;
+
+/** One dispatch pass's deliveries so far, which `EVENT_PASS_LIMIT` bounds. */
+export type DispatchPass = { delivered: number };
 
 type Subscription = {
   type: string;
@@ -99,8 +104,7 @@ export function createEventBus(opts: EventBusOptions = {}): RuntimeEventBus {
     on: (type, handler, subscribeOpts) => subscribe(type, handler, subscribeOpts, false),
     once: (type, handler, subscribeOpts) => subscribe(type, handler, subscribeOpts, true),
 
-    dispatch(raised, from) {
-      let delivered = 0;
+    dispatch(raised, from, pass = { delivered: 0 }) {
       for (let i = from; i < raised.length && count > 0; i++) {
         const e = raised[i]!;
         const list = byType.get(e.type);
@@ -110,7 +114,7 @@ export function createEventBus(opts: EventBusOptions = {}): RuntimeEventBus {
           if (!sub.active || !matches(sub, e)) continue;
           if (!reached) {
             reached = true;
-            if (++delivered > EVENT_PASS_LIMIT) {
+            if (++pass.delivered > EVENT_PASS_LIMIT) {
               throw new EngineError(
                 "event-loop",
                 `one dispatch pass delivered more than ${EVENT_PASS_LIMIT} events (last "${e.type}"); handlers are raising events in a loop`,

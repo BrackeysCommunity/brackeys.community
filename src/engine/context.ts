@@ -18,7 +18,7 @@ export const DRAW_LAYERS = {
 export type DrawLayer = keyof typeof DRAW_LAYERS;
 export type ViewLayer = DrawLayer | number;
 
-/** An opaque handle to one draw layer, for games that draw their own; the Pixi view's is a Container. */
+/** An opaque handle to one draw layer, for games that draw their own; the Pixi view's is a Container in world px. */
 export type ViewLayerHandle = { readonly __viewLayer: true };
 
 export type BlendMode = "normal" | "add" | "multiply" | "screen";
@@ -29,7 +29,7 @@ export type SpriteVisual = {
   texture: Sha256 | null;
   /** The frame in texture px; omitted, the whole texture. */
   frame?: { x: number; y: number; w: number; h: number };
-  /** Drawn size, world px. */
+  /** Drawn size, metres; the view draws it at the game's px per metre. */
   size: [w: number, h: number];
   /** In the frame's own 0–1 space. */
   anchor: [x: number, y: number];
@@ -40,7 +40,7 @@ export type SpriteVisual = {
   blend?: BlendMode;
   /** Repeat the frame across `size` instead of stretching it. */
   tile?: boolean;
-  /** Border insets in texture px: nine-slice scaling. */
+  /** Border insets in texture px, drawn one texture px to one world px: nine-slice scaling. */
   nineSlice?: [left: number, top: number, right: number, bottom: number];
   sampling: "nearest" | "linear";
   /** What `draw` shows when the view can't draw sprites or the texture isn't loaded yet. */
@@ -49,22 +49,24 @@ export type SpriteVisual = {
 
 /**
  * Where a runtime's systems draw, one visual per id; `null` in headless
- * runs. Ids are unique per runtime: an entity's id, or `${id}#<part>` for a
+ * runs. Shapes, poses and sprite sizes are world metres; a style's
+ * `strokeWidth` is world px, so a line keeps its weight at any px per metre. Ids are unique per runtime: an entity's id, or `${id}#<part>` for a
  * system that draws several pieces of one entity. The optional members are
  * additive: a view without them still draws everything, sprites as their
  * fallback boxes.
  */
 export interface SceneView {
-  /** Draws `shape` in the visual's local space, replacing `id`'s drawing; a redraw keeps its pose. */
+  /** Draws `shape` (metres) in the visual's local space, replacing `id`'s drawing; a redraw keeps its pose. */
   draw(id: string, shape: ShapeObj, style: Style, layer: ViewLayer): void;
   /**
-   * Moves `id`'s local origin to (x, y) and turns it by `rot` radians. New
+   * Moves `id`'s local origin to (x, y) metres and turns it by `rot` radians. New
    * visuals start at (0, 0, 0). `snap`: no interpolation from the previous
    * pose (new visuals always snap).
    */
   pose(id: string, x: number, y: number, rot?: number, snap?: boolean): void;
   /** Idempotent. */
   remove(id: string): void;
+  /** The layer's own handle; what a game draws there is in world px (metres × the game's px per metre). */
   layer(layer: ViewLayer): ViewLayerHandle;
   /** A sprite under `id`, replacing what was drawn. */
   sprite?(id: string, visual: SpriteVisual, layer: ViewLayer): void;
@@ -72,7 +74,7 @@ export interface SceneView {
   depth?(id: string, z: number): void;
   /** The runtime finished tick `tick`; poses set since belong to it. */
   commit?(tick: number): void;
-  /** Each rendered frame: interpolated poses, y-sort, parallax. */
+  /** Each rendered frame: interpolated poses, y-sort, parallax; `camera` is the camera's position in metres. */
   frame?(f: { alpha: number; camera: { x: number; y: number; zoom: number } }): void;
 }
 

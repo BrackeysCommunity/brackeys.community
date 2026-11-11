@@ -63,8 +63,11 @@ import {
   type SceneDefinition,
   type ShapeTuple,
 } from "../../editor/index";
+import { pxPerMetreOf } from "../../game/units";
 import { fieldKind } from "../../scene/index";
+import { LENGTH_UNITS, roundLength, snapToPixel, type LengthUnitName } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
+import { formatQuantity } from "../kit/format";
 import {
   Button,
   Combobox,
@@ -249,7 +252,14 @@ function commitEach(
   return dispatch(ctx, { label: `Set ${field.title}`, ...(base ? { base } : {}), ops });
 }
 
-type Bounds = { integer: boolean; min?: number; max?: number; exclusiveMin?: boolean };
+type Bounds = {
+  integer: boolean;
+  min?: number;
+  max?: number;
+  exclusiveMin?: boolean;
+  /** A length in metres: written by the one rounding rule (micrometres). */
+  length?: boolean;
+};
 
 function numberProblem(b: Bounds, n: number): string | null {
   if (!Number.isFinite(n)) return "Enter a number.";
@@ -265,7 +275,7 @@ function resolveNumber(text: string, current: unknown, b: Bounds): number | Edit
   const n = parseRelative(text, current);
   if (n === undefined)
     return new EditError(text.trim() === "" ? "Enter a number." : "Enter a number, or +=16.");
-  const out = b.integer && /[+\-*/]=/.test(text) ? Math.round(n) : n;
+  const out = b.integer && /[+\-*/]=/.test(text) ? Math.round(n) : b.length ? roundLength(n) : n;
   const problem = numberProblem(b, out);
   return problem ? new EditError(problem) : out;
 }
@@ -283,7 +293,23 @@ function draftProblem(text: string, b: Bounds): string | null {
 }
 
 const relative = (delta: number) => (delta >= 0 ? `+=${delta}` : `-=${-delta}`);
-const tidy = (n: number) => Number(n.toFixed(6));
+
+/** A metric unit a field declares, or undefined for any other. */
+const metricUnit = (unit: unknown): LengthUnitName | undefined =>
+  (LENGTH_UNITS as readonly unknown[]).includes(unit) ? (unit as LengthUnitName) : undefined;
+
+/**
+ * Arrow steps for a metric value: one world px at the game's px per metre
+ * for a length (ten with Shift), hundredths for a speed or an acceleration.
+ */
+function metricSteps(unit: LengthUnitName, ppm: number): { step: number; bigStep: number } {
+  return unit === "m" ? { step: 1 / ppm, bigStep: 10 / ppm } : { step: 0.01, bigStep: 0.1 };
+}
+
+const ppmOf = (ctx: Ctx) => pxPerMetreOf(ctx.session.registry);
+
+/** A unit after a row of number inputs. */
+const UnitSuffix = ({ unit }: { unit: string }) => <span className="je-insp-suffix">{unit}</span>;
 
 // ─── Building blocks ─────────────────────────────────────
 
@@ -474,7 +500,9 @@ function ScrubLabel({
         onPointerMove={(e) => {
           const d = drag.current;
           if (!d) return;
-          d.delta = tidy(Math.round((e.clientX - d.x) / SCRUB_PX) * (e.shiftKey ? bigStep : step));
+          d.delta = roundLength(
+            Math.round((e.clientX - d.x) / SCRUB_PX) * (e.shiftKey ? bigStep : step),
+          );
           onPreview(d.delta);
         }}
         onPointerUp={end}
@@ -625,7 +653,7 @@ function NumberField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           preview === null
             ? null
             : value !== undefined
-              ? String(tidy(value + preview))
+              ? String(roundLength(value + preview))
               : relative(preview)
         }
         onCommit={commit}
@@ -798,9 +826,12 @@ const asPt = (v: unknown): Pt | undefined =>
     ? [v[0], v[1]]
     : undefined;
 
-const PT_BOUNDS: Bounds = { integer: true };
+const PT_BOUNDS: Bounds = { integer: false, length: true };
 
 function PointField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+  const w = field.widget as Extract<FieldWidget, { kind: "point" }>;
+  const unit = metricUnit(w.unit) ?? "m";
+  const { step, bigStep } = metricSteps(unit, ppmOf(ctx));
   const at = asPt(field.value);
   const axis = (i: 0 | 1) => (text: string) =>
     commitEach(ctx, field, (cur) => {
@@ -820,12 +851,13 @@ function PointField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
             label={`${field.path}.${name}`}
             value={at?.[i]}
             mixed={field.mixed}
-            step={1}
-            bigStep={10}
+            step={step}
+            bigStep={bigStep}
             suffix={name}
             onCommit={axis(i as 0 | 1)}
           />
         ))}
+        <UnitSuffix unit={unit} />
       </div>
     </FieldRow>
   );
@@ -836,13 +868,17 @@ function PointsEditor({
   path,
   pts,
   min = 0,
+  ppm,
   onCommit,
 }: {
   path: string;
   pts: Pt[];
   min?: number;
+  /** The game's px per metre: arrows step one world px, a new point lands 32 px on. */
+  ppm: number;
   onCommit: (next: Pt[]) => string | null;
 }) {
+  const { step, bigStep } = metricSteps("m", ppm);
   const [error, setError] = useState<string | null>(null);
   const set = (next: Pt[]) => {
     const problem = onCommit(next);
@@ -860,8 +896,8 @@ function PointsEditor({
               label={`${path}.${i}.${name}`}
               value={pt[axis]}
               mixed={false}
-              step={1}
-              bigStep={10}
+              step={step}
+              bigStep={bigStep}
               onCommit={(text) => {
                 const n = resolveNumber(text, pt[axis], PT_BOUNDS);
                 if (n instanceof EditError) return n.message;
@@ -871,6 +907,7 @@ function PointsEditor({
               }}
             />
           ))}
+          <UnitSuffix unit="m" />
           <IconButton
             icon={Cancel01Icon}
             size="icon-xs"
@@ -887,7 +924,7 @@ function PointsEditor({
         className="je-insp-start"
         onClick={() => {
           const last = pts.at(-1) ?? [0, 0];
-          set([...pts, [last[0] + 32, last[1]]]);
+          set([...pts, [snapToPixel(last[0] + NEW_POINT_PX / ppm, ppm), last[1]]]);
         }}
       >
         Add point
@@ -896,6 +933,9 @@ function PointsEditor({
     </div>
   );
 }
+
+/** World px between the last point and one Add point appends. */
+const NEW_POINT_PX = 32;
 
 const asPts = (v: unknown): Pt[] | undefined =>
   Array.isArray(v) && v.every((p) => asPt(p)) ? (v as Pt[]) : undefined;
@@ -914,6 +954,7 @@ function PointsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           path={field.path}
           pts={pts}
           min={min}
+          ppm={ppmOf(ctx)}
           onCommit={(next) => commitField(ctx, field, next)}
         />
       )}
@@ -1061,8 +1102,15 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
-const SHAPE_BOUNDS = (size: boolean): Bounds =>
-  size ? { integer: true, min: 0, exclusiveMin: true } : { integer: true };
+/** A shape tuple's turn, in degrees; every other slot is a length. */
+const isTurnSlot = (name: string) => name === "rotDeg";
+
+const SHAPE_BOUNDS = (slot: { name: string; size: boolean }): Bounds =>
+  isTurnSlot(slot.name)
+    ? { integer: true }
+    : slot.size
+      ? { integer: false, length: true, min: 0, exclusiveMin: true }
+      : { integer: false, length: true };
 
 const tupleOf = (v: unknown): ShapeTuple | undefined =>
   Array.isArray(v) && typeof v[0] === "string" ? (v as ShapeTuple) : undefined;
@@ -1090,7 +1138,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     for (const [i, t] of ctx.targets.entries()) {
       const tuple = tuples[i];
       if (!tuple || tuple[0] === to) continue;
-      const conv = shapeConversions(tuple, w.types).find((c) => c.to === to);
+      const conv = shapeConversions(tuple, w.types, ppmOf(ctx)).find((c) => c.to === to);
       if (!conv) return setError(`A ${tuple[0]} can't become a ${to}.`);
       if (!conv.lossless && conv.note) notes.add(conv.note);
       const edit = batchFor(ctx, field, conv.tuple, [t]);
@@ -1104,6 +1152,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   };
 
   const slots = tag && first ? shapeSlots(first) : null;
+  const { step, bigStep } = metricSteps("m", ppmOf(ctx));
   return (
     <div className="je-insp-stack">
       <FieldRow field={field} error={error}>
@@ -1126,6 +1175,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           {slots.map((slot) => {
             const vals = tuples.map((t) => (t?.[slot.index] as number | undefined) ?? 0);
             const mixed = vals.some((v) => v !== vals[0]);
+            const turn = isTurnSlot(slot.name);
             return (
               <label key={slot.name} className="je-insp-row" data-gap="tight" data-align="start">
                 <span className="je-insp-slot-name">{slot.name}</span>
@@ -1133,17 +1183,14 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
                   label={`${field.path}.${slot.name}`}
                   value={vals[0]}
                   mixed={mixed}
-                  step={1}
-                  bigStep={10}
+                  step={turn ? 1 : step}
+                  bigStep={turn ? 15 : bigStep}
+                  suffix={turn ? "°" : "m"}
                   onCommit={(text) =>
                     commitEach(ctx, field, (cur) => {
                       const tuple = tupleOf(cur);
                       if (!tuple) return new EditError("No shape to edit.");
-                      const n = resolveNumber(
-                        text,
-                        tuple[slot.index] ?? 0,
-                        SHAPE_BOUNDS(slot.size),
-                      );
+                      const n = resolveNumber(text, tuple[slot.index] ?? 0, SHAPE_BOUNDS(slot));
                       return typeof n === "number" ? withShapeSlot(tuple, slot.index, n) : n;
                     })
                   }
@@ -1157,6 +1204,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           path={field.path}
           pts={tuplePts(first)}
           min={tag === "poly" ? 3 : 2}
+          ppm={ppmOf(ctx)}
           onCommit={(pts) => commitField(ctx, field, [tag, ...pts.flat()])}
         />
       ) : (
@@ -1348,14 +1396,17 @@ function SliderField({
   );
 }
 
-function ReadonlyField({ field, json }: { field: ModelField; json: boolean }) {
+function ReadonlyField({ field, json, ppm }: { field: ModelField; json: boolean; ppm: number }) {
+  const unit = "unit" in field.widget ? metricUnit(field.widget.unit) : undefined;
   const text = field.mixed
     ? MIXED
     : field.value === undefined
       ? "unset"
-      : json || typeof field.value !== "string"
-        ? JSON.stringify(field.value)
-        : field.value;
+      : unit && typeof field.value === "number"
+        ? formatQuantity(field.value, unit, ppm)
+        : json || typeof field.value !== "string"
+          ? JSON.stringify(field.value)
+          : field.value;
   return (
     <FieldRow field={field}>
       <span className="je-insp-line je-sp-truncate">{text}</span>
@@ -1381,7 +1432,7 @@ function CustomField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     case "color":
       return <ColorField field={field} ctx={ctx} />;
     case "readonly":
-      return <ReadonlyField field={field} json={def.format === "json"} />;
+      return <ReadonlyField field={field} json={def.format === "json"} ppm={ppmOf(ctx)} />;
   }
 }
 
@@ -1415,7 +1466,13 @@ function FieldView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget;
   if (field.readonly && w.kind !== "custom")
-    return <ReadonlyField field={field} json={w.kind === "readonly" && w.format === "json"} />;
+    return (
+      <ReadonlyField
+        field={field}
+        json={w.kind === "readonly" && w.format === "json"}
+        ppm={ppmOf(ctx)}
+      />
+    );
   switch (w.kind) {
     case "number":
       return <NumberField field={field} ctx={ctx} />;
@@ -1455,7 +1512,7 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     case "custom":
       return <CustomField field={field} ctx={ctx} />;
     case "readonly":
-      return <ReadonlyField field={field} json={w.format === "json"} />;
+      return <ReadonlyField field={field} json={w.format === "json"} ppm={ppmOf(ctx)} />;
   }
 }
 

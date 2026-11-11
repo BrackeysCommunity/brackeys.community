@@ -20,24 +20,25 @@ const jsonIn = (rel: string) =>
     .map((f) => [`${rel}${f}`, readFileSync(dir(`${rel}${f}`), "utf8")] as const)
     .filter(([, text]) => !("kind" in (JSON.parse(text) as object)));
 
-const V3 = "../../scene/__tests__/fixtures/v3/";
+const V4 = "../../scene/__tests__/fixtures/v4/";
 
 /** Every scene file and frozen fixture the engine owns (other project files name their kind); the platformer checks its own. */
 const FILES = [
   ...jsonIn("../../scenes/"),
   ...jsonIn("../../scene/__tests__/fixtures/v1/"),
-  ...jsonIn(V3),
+  ...jsonIn("../../scene/__tests__/fixtures/v3/"),
+  ...jsonIn(V4),
 ];
 
 describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
-  it("covers the engine yard, the frozen fixtures and both v3 sinks", () => {
+  it("covers the engine yard, the frozen fixtures and both current sinks", () => {
     const names = FILES.map(([name]) => name);
     expect(names).toEqual(
       expect.arrayContaining([
         "../../scenes/engine-yard.json",
         "../../scenes/kitchen-sink.json",
-        `${V3}kitchen-sink.json`,
-        `${V3}test-game-sink.json`,
+        `${V4}kitchen-sink.json`,
+        `${V4}test-game-sink.json`,
       ]),
     );
   });
@@ -53,9 +54,9 @@ describe(`file → doc → file, on layout ${COLLAB_LAYOUT_VERSION}`, () => {
     expect(sprites.some((e) => e.type !== "decor")).toBe(true);
   });
 
-  it("reads the v3 sinks as the current format", () => {
+  it("reads the v4 sinks as the current format", () => {
     for (const name of ["kitchen-sink", "test-game-sink"]) {
-      const def = JSON.parse(readFileSync(dir(`${V3}${name}.json`), "utf8")) as SceneDefinition;
+      const def = JSON.parse(readFileSync(dir(`${V4}${name}.json`), "utf8")) as SceneDefinition;
       expect(def.v).toBe(SCENE_FORMAT_VERSION);
     }
   });

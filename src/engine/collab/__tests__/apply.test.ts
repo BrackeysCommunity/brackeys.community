@@ -581,13 +581,13 @@ describe("applyOpsToDoc: a prefab doc's header ops", () => {
   const engineReg = createRegistry();
   const post: Prefab = {
     kind: "prefab",
-    v: 3,
+    v: 4,
     id: "post",
     entities: [{ id: "cap", type: "marker", at: [0, -130] }],
   };
   const tall: Prefab = {
     kind: "prefab",
-    v: 3,
+    v: 4,
     id: "tall",
     base: "post",
     overrides: { "cap.at": [0, -150] },
@@ -694,7 +694,7 @@ describe("applyOpsToDoc: a prefab doc's header ops", () => {
     ).toEqual({ code: "prefab-cycle", failedAt: 1, path: "/ops/1/base" });
     const holder: Prefab = {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "holder",
       entities: [],
       instances: [{ id: "p-1", prefab: "post", at: [0, 0] }],
@@ -772,7 +772,7 @@ describe("applyOpsToDoc: a prefab doc's header ops", () => {
   });
 
   it("refuses header ops on a scene with op-invalid", () => {
-    const doc = sceneToDoc({ v: 3, name: "yard", bounds: [0, 0, 100, 100] });
+    const doc = sceneToDoc({ v: 4, name: "yard", bounds: [0, 0, 100, 100] });
     const vector = Y.encodeStateVector(doc);
     for (const op of [
       { op: "setPrefabBase", base: "post" },

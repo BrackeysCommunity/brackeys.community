@@ -14,6 +14,7 @@ import { sceneHash } from "../../scene/hash";
 import { prefabLibrary } from "../../scene/prefab";
 import { resolveScene } from "../../scene/resolve";
 import type { Bounds, Prefab, SceneDefinition } from "../../scene/types";
+import { roundLength } from "../../scene/units";
 import {
   assetsMap,
   contentMaps,
@@ -505,7 +506,7 @@ describe("prefabSceneBounds", () => {
   const parent: Bounds = [0, 0, 20, 20];
   const wrap: Prefab = {
     kind: "prefab",
-    v: 3,
+    v: 4,
     id: "wrap",
     entities: [],
     instances: [{ id: "room-1", prefab: "room", at: [300, -50], rot: 1 }],
@@ -513,20 +514,20 @@ describe("prefabSceneBounds", () => {
 
   it("holds a nested instance's resolved children when given the library", () => {
     const resolved = resolveScene(
-      { v: 3, name: "w", bounds: [0, 0, 1, 1], instances: wrap.instances },
+      { v: 4, name: "w", bounds: [0, 0, 1, 1], instances: wrap.instances },
       engine,
       lib,
     );
     const box = fragmentBounds(
-      { kind: "scene-fragment", v: 3, entities: resolved.entities ?? [] },
+      { kind: "scene-fragment", v: 4, entities: resolved.entities ?? [] },
       engine,
     )!;
-    const atOnly: Bounds = [-10, -114, 364, 14];
+    const atOnly: Bounds = [-10, -50.64, 300.64, 10];
     const held: Bounds = [
-      Math.min(atOnly[0], Math.floor(box.minX) - 64),
-      Math.min(atOnly[1], Math.floor(box.minY) - 64),
-      Math.max(atOnly[2], Math.ceil(box.maxX) + 64),
-      Math.max(atOnly[3], Math.ceil(box.maxY) + 64),
+      Math.min(atOnly[0], roundLength(Math.floor(box.minX) - 0.64)),
+      Math.min(atOnly[1], roundLength(Math.floor(box.minY) - 0.64)),
+      Math.max(atOnly[2], roundLength(Math.ceil(box.maxX) + 0.64)),
+      Math.max(atOnly[3], roundLength(Math.ceil(box.maxY) + 0.64)),
     ];
     expect(held).not.toEqual(atOnly);
     expect(prefabSceneBounds(wrap, parent, engine, lib)).toEqual(held);

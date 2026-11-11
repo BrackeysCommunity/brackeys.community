@@ -12,19 +12,21 @@ export type DragOptions = {
   /** Shift keeps aspect or rotates freely, Alt works from the centre, mod (Ctrl/Cmd) bypasses snapping. */
   mods: ToolModifiers;
   snap: SnapSettings;
-  /** Screen px per world px. */
+  /** Screen px per metre. */
   scale: number;
+  /** The game's px per metre: every edit lands on whole world px. */
+  pxPerMetre: number;
   /** Other entities, for geometry snapping of moves, vertices and waypoints. */
   index?: SpatialIndex;
 };
 
 /** What one gizmo gesture does so far: preview it while dragging, commit `batch` at pointer-up. */
 export type GizmoEdit = {
-  /** The whole gesture as one batch, rounded to whole px; `null` when it changes nothing. */
+  /** The whole gesture as one batch, on whole world px; `null` when it changes nothing. */
   batch: OpBatch | null;
-  /** The drag readout: `Δ 64, 0`, `W 160 H 16`, `37°`. */
+  /** The drag readout: `Δ 0.64, 0 m`, `W 1.6 H 0.16 m`, `37°`. */
   readout: string;
-  /** The shape as the batch commits it, world px. */
+  /** The shape as the batch commits it, world metres. */
   shape?: ShapeObj;
   /** A point entity's position as the batch commits it. */
   at?: Pt;
@@ -43,12 +45,13 @@ export type GizmoEdit = {
 export function shapeEdit(
   t: GizmoTarget,
   world: ShapeObj,
+  pxPerMetre: number,
   label: string,
-  readout = readShapeSize(roundShape(world)),
+  readout = readShapeSize(roundShape(world, pxPerMetre), pxPerMetre),
 ): GizmoEdit {
-  const shape = roundShape(world);
+  const shape = roundShape(world, pxPerMetre);
   return {
-    batch: shapeBatch(t, world, label),
+    batch: shapeBatch(t, world, pxPerMetre, label),
     readout,
     shape,
     ...(shape.type === "poly" && !isConvex(shape.pts) ? { concave: true } : {}),
@@ -91,6 +94,7 @@ export function snapDraggedPoint(
     index: opts.index,
     exclude: [t.ref],
     scale: opts.scale,
+    pxPerMetre: opts.pxPerMetre,
     bypass: opts.mods.mod,
   });
   return { at: [start[0] + r.delta[0], start[1] + r.delta[1]], guides: r.guides };

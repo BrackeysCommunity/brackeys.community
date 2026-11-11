@@ -27,7 +27,7 @@ type Snapshot = { ticks: number };
 const board = defineGame<Snapshot>({
   id: "board",
   types: [],
-  actions: [{ action: "go", keys: ["space"], description: "Go." }],
+  actions: [{ action: "go", keys: [" "], description: "Go." }],
   world: { physics: "none" },
   createRuntime: () => {
     let ticks = 0;

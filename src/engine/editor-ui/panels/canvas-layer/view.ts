@@ -4,17 +4,22 @@ import { useSyncExternalStore } from "react";
 import type { Pt, ShapeObj } from "../../../editor/index";
 import type { GameStoreState } from "../../../index";
 import { shapeOutline, type PathCommand } from "../../../scene/index";
+import { roundLength } from "../../../scene/units";
 import { useStoreValue } from "../../session/use-store-value";
 
-/** World to screen: `screen = world * scale + (tx, ty)`, in CSS px from the canvas's corner. */
+/**
+ * World to screen: `screen = world * scale + (tx, ty)`, in CSS px from the
+ * canvas's corner. The world is in metres, so `scale` is screen px per metre.
+ */
 export type View = { width: number; height: number; scale: number; tx: number; ty: number };
 
 type Camera = Pick<GameStoreState["camera"], "position" | "scale">;
 
 /**
  * World to screen as the engine's camera draws it: `camera.scale` canvas px
- * per world unit, the camera's position at the canvas's centre. The game is
- * sized to the window, so the overlay is too.
+ * per metre (the game's px per metre, the display scale and the zoom), the
+ * camera's position at the canvas's centre. The game is sized to the window,
+ * so the overlay is too.
  */
 export function viewOf(camera: Camera, width: number, height: number): View {
   const { scale } = camera;
@@ -27,7 +32,7 @@ export function viewOf(camera: Camera, width: number, height: number): View {
   };
 }
 
-/** Screen px per world px for the camera now. */
+/** Screen px per metre for the camera now. */
 export function viewScale(camera: Camera): number {
   return camera.scale;
 }
@@ -53,7 +58,11 @@ export function useView(store: Store<GameStoreState>): View {
 /** A point entity's mark, in screen pixels. */
 export const POINT_RADIUS_PX = 8;
 
+/** A screen coordinate, to 1/100 px. */
 export const num = (n: number) => Math.round(n * 100) / 100;
+
+/** A world coordinate in metres, by the rounding rule lengths are written with. */
+export const worldNum = roundLength;
 
 /** A world point in screen px. */
 export const toScreen = (view: View, [x, y]: Pt): Pt => [
@@ -61,7 +70,7 @@ export const toScreen = (view: View, [x, y]: Pt): Pt => [
   view.ty + y * view.scale,
 ];
 
-/** World px that come out as `px` on screen, for marks that keep a constant screen size. */
+/** Metres that come out as `px` on screen, for marks that keep a constant screen size. */
 export const worldPx = (view: View, px: number) => px / (view.scale || 1);
 
 /** The group transform that draws world coordinates in screen space. */
@@ -74,10 +83,10 @@ export function outlinePath(commands: readonly PathCommand[]): string {
   for (const c of commands) {
     switch (c.op) {
       case "moveTo":
-        out.push(`M${num(c.x)} ${num(c.y)}`);
+        out.push(`M${worldNum(c.x)} ${worldNum(c.y)}`);
         break;
       case "lineTo":
-        out.push(`L${num(c.x)} ${num(c.y)}`);
+        out.push(`L${worldNum(c.x)} ${worldNum(c.y)}`);
         break;
       case "arc": {
         const steps = Math.max(1, Math.ceil(Math.abs(c.end - c.start) / Math.PI));
@@ -85,7 +94,7 @@ export function outlinePath(commands: readonly PathCommand[]): string {
           const a = c.start + ((c.end - c.start) * i) / steps;
           const sweep = c.end >= c.start ? 1 : 0;
           out.push(
-            `A${num(c.r)} ${num(c.r)} 0 0 ${sweep} ${num(c.cx + c.r * Math.cos(a))} ${num(c.cy + c.r * Math.sin(a))}`,
+            `A${worldNum(c.r)} ${worldNum(c.r)} 0 0 ${sweep} ${worldNum(c.cx + c.r * Math.cos(a))} ${worldNum(c.cy + c.r * Math.sin(a))}`,
           );
         }
         break;
@@ -102,8 +111,8 @@ export function outlinePath(commands: readonly PathCommand[]): string {
 export const shapePath = (shape: ShapeObj) => outlinePath(shapeOutline(shape));
 
 /** SVG path data through `pts`, closed back to the first when `closed`. */
-export function polylinePath(pts: readonly Pt[], closed = false): string {
+export function polylinePath(pts: readonly (readonly [number, number])[], closed = false): string {
   if (pts.length === 0) return "";
-  const d = pts.map(([x, y], i) => `${i ? "L" : "M"}${num(x)} ${num(y)}`).join(" ");
+  const d = pts.map(([x, y], i) => `${i ? "L" : "M"}${worldNum(x)} ${worldNum(y)}`).join(" ");
   return closed ? `${d} Z` : d;
 }

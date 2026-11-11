@@ -296,7 +296,7 @@ describe("buildInspectorModel", () => {
     ]);
     expect(field(lift, "path.speed")).toMatchObject({
       value: 20,
-      widget: { unit: "px/s", scrub: true },
+      widget: { unit: "m/s", scrub: true, step: 0.01, bigStep: 0.1, decimals: 2 },
     });
     const marker = buildInspectorModel(registry, [
       { kind: "entity", ref: "m", index: 0, entity: { id: "m", type: "marker", at: [1, 2] } },
@@ -304,7 +304,7 @@ describe("buildInspectorModel", () => {
     expect(field(marker, "at")).toMatchObject({
       section: "transform",
       value: [1, 2],
-      widget: { kind: "point", pick: true, unit: "px" },
+      widget: { kind: "point", pick: true, unit: "m", step: 0.01, decimals: 2 },
     });
   });
 
@@ -488,7 +488,7 @@ describe("instance parameters", () => {
         name: "speed",
         title: "speed",
         description: "How fast the lift goes.",
-        widget: { kind: "number", unit: "px/s" },
+        widget: { kind: "number", unit: "m/s" },
         value: 40,
         defaultValue: 20,
         optional: true,
@@ -549,7 +549,7 @@ describe("instance parameters", () => {
   it("types a param that feeds a nested instance's param by that param's first target", () => {
     expect(param("room-1", "pace").field).toMatchObject({
       path: "params.pace",
-      widget: { kind: "number", unit: "px/s" },
+      widget: { kind: "number", unit: "m/s" },
       defaultValue: 20,
     });
   });
@@ -613,6 +613,70 @@ describe("instance placement", () => {
   });
 });
 
+describe("metric fields", () => {
+  const metric = (lengthUnit?: number) =>
+    createRegistry(
+      defineGame({
+        id: "metric",
+        ...(lengthUnit ? { world: { lengthUnit } } : {}),
+        types: [
+          defineEntityType({
+            type: "probe",
+            description: "Lengths in metres.",
+            base: "marker",
+            fields: {
+              at: pointField("Where it sits."),
+              reach: z.number().describe("How far it reaches, m.").meta({ unit: "m" }),
+              pace: z.number().describe("How fast it goes, m/s.").meta({ unit: "m/s" }),
+              pull: z.number().describe("How hard it pulls, m/s².").meta({ unit: "m/s²" }),
+            },
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+  const probe = { id: "p", type: "probe", at: [1, 2], reach: 1.5, pace: 2, pull: 9.8 };
+  const target = { kind: "entity" as const, ref: "p", index: 0, entity: probe };
+  const of = (lengthUnit?: number) => buildInspectorModel(metric(lengthUnit), [target]);
+
+  it("steps an m field one world px and shows the decimals one px needs", () => {
+    expect(field(of(), "reach").widget).toMatchObject({
+      kind: "number",
+      unit: "m",
+      step: 0.01,
+      bigStep: 0.1,
+      decimals: 2,
+      scrub: true,
+    });
+    expect(field(of(32), "reach").widget).toMatchObject({ step: 1 / 32, decimals: 5 });
+    expect(field(of(48), "reach").widget).toMatchObject({ step: 1 / 48, decimals: 6 });
+    expect(field(of(32), "at").widget).toMatchObject({ unit: "m", step: 1 / 32, decimals: 5 });
+  });
+
+  it("steps m/s and m/s² fields 0.01 at any px per metre", () => {
+    for (const ppm of [undefined, 32]) {
+      expect(field(of(ppm), "pace").widget).toMatchObject({ step: 0.01, decimals: 2 });
+      expect(field(of(ppm), "pull").widget).toMatchObject({ step: 0.01, decimals: 2 });
+    }
+  });
+
+  it("writes typed and stepped metric values to micrometres", () => {
+    const m = of(48);
+    const reach = field(m, "reach");
+    const step = reach.widget.kind === "number" ? reach.widget.step : NaN;
+    expect(modelOps(reach, (reach.value as number) + step, [target])).toEqual({
+      ok: true,
+      ops: [{ op: "update", ref: "p", set: { reach: 1.520833 } }],
+    });
+    expect(modelOps(reach, "+=0.0000004", [target])).toEqual({ ok: true, ops: [] });
+    expect(modelOps(field(m, "at"), [1.23456789, 2], [target])).toEqual({
+      ok: true,
+      ops: [{ op: "update", ref: "p", set: { at: [1.234568, 2] } }],
+    });
+  });
+});
+
 describe("shapeConversions", () => {
   it("says which tag switches are lossless", () => {
     const box = shapeConversions(["box", 0, 0, 4, 2]);
@@ -642,6 +706,42 @@ describe("shapeConversions", () => {
       6,
       2,
       90,
+    ]);
+  });
+
+  it("lands converted points and sizes on whole world px", () => {
+    // An octagon from a 0.1 m circle: its corners at 100 px per metre, then at 32.
+    const at100 = shapeConversions(["circle", 0, 0, 0.1], ["poly"])[0]!.tuple;
+    expect(at100).toEqual([
+      "poly",
+      0.1,
+      0,
+      0.07,
+      0.07,
+      0,
+      0.1,
+      -0.07,
+      0.07,
+      -0.1,
+      0,
+      -0.07,
+      -0.07,
+      0,
+      -0.1,
+      0.07,
+      -0.07,
+    ]);
+    const at32 = shapeConversions(["circle", 0, 0, 0.1], ["poly"], 32)[0]!.tuple;
+    expect(
+      (at32.slice(1) as number[]).every((v) => Math.abs(v * 32 - Math.round(v * 32)) < 1e-4),
+    ).toBe(true);
+    // A circle becomes a capsule one world px longer each way.
+    expect(shapeConversions(["circle", 0, 0, 0.2], ["capsule"], 100)[0]!.tuple).toEqual([
+      "capsule",
+      0,
+      0,
+      0.01,
+      0.2,
     ]);
   });
 });
@@ -806,6 +906,17 @@ describe("behavior sections", () => {
     // `plain` forbids every behavior, so nothing is offered alongside it.
     expect(of(games, doc, "dull").addBehaviors).toEqual([]);
     expect(of(games, doc, "spot", "dull").addBehaviors).toEqual([]);
+  });
+
+  it("adds a behavior from its template, so a block `{}` would fail is still valid", () => {
+    const add = of(games, doc, "lamp").addBehaviors.find((o) => o.name === "lifetime")!.batch;
+    expect(add).toEqual({
+      label: "Add lifetime to lamp",
+      ops: [{ op: "update", ref: "lamp", set: { "behaviors.lifetime": { ticks: 60 } } }],
+    });
+    const r = applyOps(doc, add, games);
+    if (!r.ok) throw new Error(r.issue.message);
+    expect(r.def.entities![0]!.behaviors).toMatchObject({ lifetime: { ticks: 60 } });
   });
 
   it("gives the engine's sprite a section of its fields, its asset a picker and its tint a colour", () => {

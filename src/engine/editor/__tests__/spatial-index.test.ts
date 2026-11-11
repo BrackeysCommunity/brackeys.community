@@ -4,6 +4,7 @@ import { createRegistry, defineGame } from "../../game/define";
 import { sceneHash } from "../../scene/hash";
 import { applyOps } from "../../scene/ops";
 import type { OpBatch, SceneDefinition, SceneOp } from "../../scene/types";
+import { roundLength } from "../../scene/units";
 import yard from "../../scenes/engine-yard.json";
 import sink from "../../scenes/kitchen-sink.json";
 import { dropBatch, dropPreview, type AssetDrop } from "../asset-drop";
@@ -227,45 +228,55 @@ describe("createSpatialIndex", () => {
 });
 
 describe("sprite boxes", () => {
-  const withSprites = (): SceneDefinition => {
-    const def = engineYard();
-    def.entities!.push(
+  /** The yard in metres with a sign and a barrel that carry sprites. */
+  const withSprites = (): SceneDefinition => ({
+    v: 3,
+    name: "sprites",
+    bounds: [0, 0, 20, 10],
+    entities: [
+      { id: "start", type: "marker", at: [3, 9.6] },
       {
         id: "sign",
         type: "marker",
-        at: [600, 960],
-        behaviors: { sprite: { size: [64, 32], anchor: [0.5, 1] } },
+        at: [6, 9.6],
+        behaviors: { sprite: { size: [0.64, 0.32], anchor: [0.5, 1] } },
       },
       {
         id: "barrel",
         type: "prop",
-        shape: ["circle", 800, 940, 10],
+        shape: ["circle", 8, 9.4, 0.1],
         density: 1,
         restitution: 0,
         behaviors: { sprite: { asset: "barrel" } },
       },
-    );
-    return def;
-  };
+    ],
+  });
+  const r6 = (box: Record<string, number> | undefined) =>
+    box && Object.fromEntries(Object.entries(box).map(([k, v]) => [k, roundLength(v)]));
 
   it("indexes a point entity by its sprite's box, and a body by its body and sprite", () => {
     const index = createSpatialIndex();
     index.rebuild(withSprites(), registry);
+    expect(r6(index.get("sign")?.aabb)).toEqual({ minX: 5.68, minY: 9.28, maxX: 6.32, maxY: 9.6 });
     expect(index.get("sign")).toMatchObject({
-      aabb: { minX: 568, minY: 928, maxX: 632, maxY: 960 },
-      geometry: { type: "box", cx: 600, cy: 944, hw: 32, hh: 16 },
-      sprite: { type: "box", cx: 600, cy: 944 },
+      geometry: { type: "box", cx: 6, hw: 0.32, hh: 0.16 },
+      sprite: { type: "box", cx: 6 },
     });
-    // No asset info: the 32×32 fallback, wider than the 10px ball.
+    // No asset info: the 32 × 32 px fallback, 0.32 m at 100 px per metre, wider than the 0.1 m ball.
+    expect(r6(index.get("barrel")?.aabb)).toEqual({
+      minX: 7.84,
+      minY: 9.24,
+      maxX: 8.16,
+      maxY: 9.56,
+    });
     expect(index.get("barrel")).toMatchObject({
-      aabb: { minX: 784, minY: 924, maxX: 816, maxY: 956 },
-      geometry: { type: "circle", cx: 800, cy: 940, r: 10 },
+      geometry: { type: "circle", cx: 8, cy: 9.4, r: 0.1 },
     });
-    expect(index.query({ minX: 812, minY: 925, maxX: 813, maxY: 926 }).map((e) => e.ref)).toEqual([
-      "barrel",
-    ]);
+    expect(
+      index.query({ minX: 8.12, minY: 9.25, maxX: 8.13, maxY: 9.26 }).map((e) => e.ref),
+    ).toEqual(["barrel"]);
     // Entities without sprites are as before.
-    expect(index.get("start")).toMatchObject({ geometry: [300, 960] });
+    expect(index.get("start")).toMatchObject({ geometry: [3, 9.6] });
   });
 
   it("sizes sprite boxes from the asset lookup", () => {
@@ -274,7 +285,7 @@ describe("sprite boxes", () => {
         id === "barrel" ? { id, kind: "texture", size: [40, 20], pivot: [0.5, 1] } : undefined,
     });
     index.rebuild(withSprites(), registry);
-    expect(index.get("barrel")?.aabb).toEqual({ minX: 780, minY: 920, maxX: 820, maxY: 950 });
+    expect(r6(index.get("barrel")?.aabb)).toEqual({ minX: 7.8, minY: 9.2, maxX: 8.2, maxY: 9.5 });
   });
 
   it("keeps sprite boxes current through updates", () => {
@@ -282,14 +293,14 @@ describe("sprite boxes", () => {
     const index = createSpatialIndex();
     index.rebuild(def, registry);
     const result = apply(def, [
-      { op: "update", ref: "sign", set: { behaviors: { sprite: { size: [16, 16] } } } },
-      { op: "move", refs: ["barrel"], by: [100, 0] },
+      { op: "update", ref: "sign", set: { behaviors: { sprite: { size: [0.16, 0.16] } } } },
+      { op: "move", refs: ["barrel"], by: [1, 0] },
     ]);
     def = result.def;
     index.update(def, registry, result.touched);
     expectSameAsRebuild(index, def);
-    expect(index.get("sign")?.aabb).toEqual({ minX: 592, minY: 952, maxX: 608, maxY: 968 });
-    expect(index.get("barrel")?.aabb.minX).toBe(884);
+    expect(r6(index.get("sign")?.aabb)).toEqual({ minX: 5.92, minY: 9.52, maxX: 6.08, maxY: 9.68 });
+    expect(roundLength(index.get("barrel")!.aabb.minX)).toBe(8.84);
   });
 });
 

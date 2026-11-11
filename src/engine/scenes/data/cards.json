@@ -1,7 +1,7 @@
 {
   "$schema": "../../project/data-table.schema.json",
   "kind": "data-table",
-  "v": 1,
+  "v": 2,
   "table": "card",
   "rows": [
     { "id": "fireball", "cost": 3, "damage": 5 },

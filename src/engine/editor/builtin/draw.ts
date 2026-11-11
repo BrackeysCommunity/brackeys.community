@@ -1,12 +1,15 @@
 import { z } from "zod";
 
+import { placeableTypes } from "../../game/define";
 import type { Registry } from "../../game/types";
+import { pxPerMetreOf } from "../../game/units";
 import type { PlacementCheck } from "../../placement";
 import { bulkEntries, bulkId } from "../../scene/expand";
 import { geometryFields } from "../../scene/schema";
 import { aabb } from "../../scene/shape-geometry";
 import { shapeToTuple } from "../../scene/shapes";
 import type { OpBatch, Pt, Ref, SceneDefinition, ShapeObj, ShapeTuple } from "../../scene/types";
+import { snapToPixel } from "../../scene/units";
 import { nextFreeId } from "../clipboard";
 import { roundShape } from "../gizmos/batch";
 import { readShapeSize } from "../gizmos/readout";
@@ -23,7 +26,7 @@ import {
 /** Screen px each arm of the crosshair before a press reaches from the snapped start. */
 const CROSSHAIR_PX = 12;
 
-/** A crosshair on `at`, `arm` world px each way, in the selection's tone so it reads over the scene. */
+/** A crosshair on `at`, `arm` metres each way, in the selection's tone so it reads over the scene. */
 function crosshair([x, y]: Pt, arm: number): NonNullable<ToolOverlay["polylines"]> {
   const line = (from: Pt, to: Pt) => ({
     pts: [from, to],
@@ -68,12 +71,13 @@ export const fieldTakes = (schema: z.core.$ZodType, shape: ShapeTuple): boolean 
   z.safeParse(schema, shape).success;
 
 /**
- * The types a draw tool can add, in registry order: those whose shape field
- * takes what the tool draws (a box, a circle, or a pen's poly or chain).
+ * The types a draw tool can add, in registry order: the placeable ones whose
+ * shape field takes what the tool draws (a box, a circle, or a pen's poly or chain).
  */
 export function drawTypeOptions(registry: Registry, kind: DrawToolKind): DrawTypeOption[] {
   const out: DrawTypeOption[] = [];
-  for (const [type, t] of registry.types) {
+  for (const type of placeableTypes(registry)) {
+    const t = registry.types.get(type)!;
     const target = drawField(registry, type);
     if (!target || !SAMPLES[kind].some((s) => fieldTakes(target.schema, s))) continue;
     out.push({ type, label: t.inspector?.label ?? type, description: t.description });
@@ -152,7 +156,7 @@ export function drawBatch(
   shape: ShapeObj,
   label = `Draw ${shape.type}`,
 ): { batch: OpBatch; select: Ref } | null {
-  const tuple = shapeToTuple(roundShape(shape));
+  const tuple = shapeToTuple(roundShape(shape, pxPerMetreOf(registry)));
   const bulk = registry.bulkKey(type);
   if (bulk?.form === "shape" && bulk.type === type) {
     return {
@@ -181,19 +185,22 @@ export type DrawToolOptions = {
 /**
  * The drawn shape from a press at `a` to the pointer at `b`, both snapped: a
  * box between the corners (Shift: a square, Alt: from the centre), or a
- * circle centred on `a` through `b`. `null` while it is too small to keep.
+ * circle centred on `a` through `b`, on whole world px at `pxPerMetre`.
+ * `null` while it is smaller than one world px.
  */
 export function drawnShape(
   kind: "box" | "circle",
   a: Pt,
   b: Pt,
   mods: { shift: boolean; alt: boolean },
+  pxPerMetre: number,
 ): ShapeObj | null {
   let dx = b[0] - a[0];
   let dy = b[1] - a[1];
+  const atLeastPixel = (m: number) => m * pxPerMetre >= 1 - 1e-6;
   if (kind === "circle") {
-    const r = Math.round(Math.hypot(dx, dy));
-    return r >= 1 ? { type: "circle", cx: a[0], cy: a[1], r } : null;
+    const r = snapToPixel(Math.hypot(dx, dy), pxPerMetre);
+    return atLeastPixel(r) ? { type: "circle", cx: a[0], cy: a[1], r } : null;
   }
   if (mods.shift) {
     const side = Math.max(Math.abs(dx), Math.abs(dy));
@@ -210,7 +217,7 @@ export function drawnShape(
         hh: Math.abs(dy) / 2,
         rotDeg: 0,
       };
-  return box.hw >= 1 && box.hh >= 1 ? roundShape(box) : null;
+  return atLeastPixel(box.hw) && atLeastPixel(box.hh) ? roundShape(box, pxPerMetre) : null;
 }
 
 /**
@@ -232,6 +239,7 @@ export function createDrawTool(opts: DrawToolOptions): EditorToolDef {
       let start: Pt | null = null;
       let shape: ShapeObj | null = null;
       let cursor: Pt | null = null;
+      const ppm = pxPerMetreOf(ctx.registry);
       const drop = () => {
         start = null;
         shape = null;
@@ -244,7 +252,7 @@ export function createDrawTool(opts: DrawToolOptions): EditorToolDef {
       };
       return {
         pointer(e) {
-          const p = snapPoint(e.world, ctx.snap(), { bypass: e.mod });
+          const p = snapPoint(e.world, ctx.snap(), ppm, { bypass: e.mod });
           if (e.type === "down") {
             if (e.button !== 0) return false;
             start = p;
@@ -259,12 +267,12 @@ export function createDrawTool(opts: DrawToolOptions): EditorToolDef {
           }
           if (e.type === "move") {
             cursor = p;
-            shape = drawnShape(opts.shape, start, p, e);
+            shape = drawnShape(opts.shape, start, p, e, ppm);
             ctx.invalidate();
             return true;
           }
           if (e.type === "up") {
-            const drawn = drawnShape(opts.shape, start, p, e);
+            const drawn = drawnShape(opts.shape, start, p, e, ppm);
             drop();
             const out = drawn && drawBatch(ctx.getDoc(), ctx.registry, choice.type(), drawn);
             if (out) ctx.commit(out.batch, { selectionAfter: [out.select] });
@@ -298,7 +306,7 @@ export function createDrawTool(opts: DrawToolOptions): EditorToolDef {
             ghosts: [
               { shape, valid: check.valid, ...(check.reason ? { reason: check.reason } : {}) },
             ],
-            readout: { at: cursor ?? start, text: readShapeSize(shape) },
+            readout: { at: cursor ?? start, text: readShapeSize(shape, ppm) },
           });
         },
         cursor: () => "crosshair",

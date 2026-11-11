@@ -30,7 +30,7 @@ import { engine, fake } from "./fixtures/random-ops";
 
 const prefab = (id: string, body: Partial<Prefab> = {}): Prefab => ({
   kind: "prefab",
-  v: 3,
+  v: 4,
   id,
   entities: [],
   ...body,
@@ -40,7 +40,7 @@ const prefab = (id: string, body: Partial<Prefab> = {}): Prefab => ({
 const fixtures = () => prefabLibrary([room, door, gate] as unknown as Prefab[]);
 
 const scene = (instances: InstanceDef[], game?: string): SceneDefinition => ({
-  v: 3,
+  v: 4,
   ...(game !== undefined ? { game } : {}),
   name: "nest",
   bounds: [-2000, -2000, 2000, 2000],

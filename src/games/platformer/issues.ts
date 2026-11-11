@@ -1,5 +1,13 @@
 import type { IssueCodeDef } from "@jams/engine/game";
 
+import { GRAPPLE_RANGE } from "./entities/grapple-anchor";
+import { PLAYER_HEIGHT, PLAYER_WIDTH } from "./entities/player";
+
+/** Half the height of the hazard `platformer/no-kill-plane`'s fix adds, metres. */
+export const KILL_PLANE_HALF_HEIGHT = 0.08;
+
+const PLAYER_BOX = `${PLAYER_WIDTH} × ${PLAYER_HEIGHT} m`;
+
 /** The platformer's own issue codes; the engine's are in `ISSUE_CODES`. */
 export const PLATFORMER_ISSUES = {
   "platformer/spawn-missing": {
@@ -10,8 +18,8 @@ export const PLATFORMER_ISSUES = {
   },
   "platformer/spawn-overlap": {
     severity: "error",
-    summary: "Two spawns' 60x60 player boxes overlap.",
-    hint: "Move one spawn at least 60px from the other horizontally or vertically.",
+    summary: `Two spawns' ${PLAYER_BOX} player boxes overlap.`,
+    hint: `Move one spawn at least ${PLAYER_WIDTH} m from the other horizontally or vertically.`,
     fixable: false,
   },
   "platformer/wind-rotation": {
@@ -29,12 +37,12 @@ export const PLATFORMER_ISSUES = {
   "platformer/no-kill-plane": {
     severity: "info",
     summary: "Nothing stops a fall: no hazard spans the bottom of the bounds.",
-    hint: 'Add a hazard across the full width of bounds near maxY, e.g. ["box", cx, maxY - 8, halfWidth, 8].',
+    hint: `Add a hazard across the full width of bounds near maxY, e.g. ["box", cx, maxY - ${KILL_PLANE_HALF_HEIGHT}, halfWidth, ${KILL_PLANE_HALF_HEIGHT}] (metres).`,
     fixable: true,
   },
   "platformer/spawn-in-solid": {
     severity: "error",
-    summary: "A spawn's 60x60 player box starts inside a solid, cloud or construct.",
+    summary: `A spawn's ${PLAYER_BOX} player box starts inside a solid, cloud or construct.`,
     hint: "Move the spawn onto a floor's top edge; the fix drops it onto the surface under the obstruction.",
     fixable: true,
   },
@@ -58,8 +66,8 @@ export const PLATFORMER_ISSUES = {
   },
   "platformer/anchor-orphan": {
     severity: "warn",
-    summary: "No surface to stand on within grapple range (400px) of an anchor.",
-    hint: "Add a platform within 400px of the anchor, or move the anchor nearer one.",
+    summary: `No surface to stand on within grapple range (${GRAPPLE_RANGE} m) of an anchor.`,
+    hint: `Add a platform within ${GRAPPLE_RANGE} m of the anchor, or move the anchor nearer one.`,
     fixable: false,
   },
   "platformer/cloud-in-solid": {

@@ -24,6 +24,7 @@ import {
   type PrefabParam,
   type SceneDefinition,
 } from "../scene/types";
+import { roundLength } from "../scene/units";
 import { randomKey, type KeyGen } from "./keys";
 import { sameValue as same } from "./log";
 import { compareZ, initialZ } from "./order";
@@ -377,8 +378,8 @@ export function prefabsReachedBy(view: DocView, prefabs: PrefabLibrary): Set<str
   return out;
 }
 
-/** Room around a prefab's children in the scene a prefab doc reads as. */
-const PREFAB_MARGIN = 64;
+/** Room around a prefab's children in the scene a prefab doc reads as, in metres. */
+const PREFAB_MARGIN = 0.64;
 
 /**
  * The bounds a prefab is edited in: `parent`'s size centred on the
@@ -396,10 +397,10 @@ export function prefabSceneBounds(
   const h = parent[3] - parent[1];
   const out: Bounds = [-Math.floor(w / 2), -Math.floor(h / 2), Math.ceil(w / 2), Math.ceil(h / 2)];
   const grow = (minX: number, minY: number, maxX: number, maxY: number) => {
-    out[0] = Math.min(out[0], Math.floor(minX) - PREFAB_MARGIN);
-    out[1] = Math.min(out[1], Math.floor(minY) - PREFAB_MARGIN);
-    out[2] = Math.max(out[2], Math.ceil(maxX) + PREFAB_MARGIN);
-    out[3] = Math.max(out[3], Math.ceil(maxY) + PREFAB_MARGIN);
+    out[0] = Math.min(out[0], roundLength(Math.floor(minX) - PREFAB_MARGIN));
+    out[1] = Math.min(out[1], roundLength(Math.floor(minY) - PREFAB_MARGIN));
+    out[2] = Math.max(out[2], roundLength(Math.ceil(maxX) + PREFAB_MARGIN));
+    out[3] = Math.max(out[3], roundLength(Math.ceil(maxY) + PREFAB_MARGIN));
   };
   for (const inst of prefab.instances ?? []) {
     const [x, y] = inst.at;

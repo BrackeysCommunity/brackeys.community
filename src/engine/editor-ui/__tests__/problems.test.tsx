@@ -43,7 +43,7 @@ function scene(): SceneDefinition {
     solid: [["box", 1000, 1180, 1000, 20]],
     entities: [
       { id: "zone", type: "sensor", shape: ["circle", 900, 600, 12], tags: ["goal"] },
-      { id: "pad", type: "marker", at: [1000.5, 1010] },
+      { id: "pad", type: "marker", at: [1000.005, 1010] },
     ],
   };
 }
@@ -112,7 +112,7 @@ describe("ProblemsPanel", () => {
       fireEvent.click(within(offGrid).getByRole("button", { name: "Fix" }));
     });
     expect(dispatch).toHaveBeenCalledOnce();
-    expect(session.getDoc().entities![1]).toMatchObject({ at: [1001, 1010] });
+    expect(session.getDoc().entities![1]).toMatchObject({ at: [1000.01, 1010] });
     expect(screen.queryByText("non-integer")).toBeNull();
     expect(toasts.error).not.toHaveBeenCalled();
   });
@@ -133,6 +133,18 @@ describe("ProblemsPanel in a narrow column", () => {
     expect(code.previousElementSibling?.className).toBe("je-problems-message");
     expect(code.parentElement?.className).toBe("je-problems-text");
     expect(code.parentElement?.parentElement?.className).toBe("je-problems-show");
+  });
+
+  it("names the rule code on hover, where a long message can clip it", async () => {
+    const session = sessionOf(scene());
+    render(
+      <ProblemsPanel session={session} physical={[crushed]} onFrame={() => {}} notify={notify} />,
+    );
+    await act(async () => {
+      fireEvent.focus(screen.getByRole("button", { name: /zone overlaps the ground/ }));
+    });
+    expect((await screen.findByText("Move it up. (spawn-in-solid)")).textContent).toBeTruthy();
+    expect(document.querySelectorAll("[title]")).toHaveLength(0);
   });
 
   it("keeps the rule code on the message's lines under a column's narrower widths", () => {

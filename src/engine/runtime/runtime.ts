@@ -3,7 +3,7 @@ import { SPRITE } from "../game/behaviors/sprite";
 import { DEFAULT_GRAVITY } from "../game/defaults";
 import { createRegistry } from "../game/define";
 import { physicsOf, PhysicsRequiredError } from "../game/physics-of";
-import { resolveTime } from "../game/time";
+import { resolveTime, wholeTicksIn } from "../game/time";
 import {
   EngineError,
   type EngineContext,
@@ -16,6 +16,9 @@ import {
   type SpawnInput,
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
+import { resolvePlayers } from "../input/players";
+import { createInputState } from "../input/state";
+import { tickInputOf, type TickInput } from "../input/stream";
 import { createPhysicsWorld, type PhysicsWorld } from "../physics";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { EntityTypeName, ExpandedScene, RuntimeEntity } from "../scene/types";
@@ -27,9 +30,10 @@ import { castSpawn } from "./cast";
 import { createContacts, type RuntimeContacts } from "./contacts";
 import { createEventBus, EVENT_PASS_LIMIT } from "./events";
 import { createGeometryWorld, type GeometryWorld } from "./geometry-world";
-import { createGridState, type GridState } from "./grid";
+import { createGridState, gridWallTypes, type GridState } from "./grid";
 import { createLifecycle, type Lifecycle } from "./lifecycle";
 import { runtimeNav } from "./nav";
+import { LOAD_GENERATION } from "./pool";
 import { createPoseIndex } from "./poses";
 import { systemFactoryOf } from "./primitives";
 import { createQueryIndex, type RuntimeQueryIndex } from "./query-index";
@@ -141,6 +145,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let contacts: RuntimeContacts;
   let lifecycle: Lifecycle;
   let random = runRandom(registry, "");
+  const input = createInputState(registry, resolvePlayers(opts.project?.inputMap, registry.game));
   const ctx: EngineContext = {
     get rapier() {
       return onRapier ? (rapier ?? null) : null;
@@ -215,18 +220,16 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     get contacts() {
       return contacts;
     },
+    input,
   };
   timers = createTimers(ctx);
   query = createQueryIndex(ctx);
   contacts = createContacts(ctx);
   rapierQueries = rapierSpace(ctx);
   space = rapierQueries;
-  const gridState = createGridState(ctx, registry);
+  const wallTypes = gridWallTypes(registry);
+  const gridState = createGridState(ctx, registry, wallTypes);
   grid = gridState;
-  /** The types whose shapes are grid walls, as `createGridState` reads them. */
-  const wallTypes: ReadonlySet<EntityTypeName> = new Set(
-    registry.game?.world?.gridWalls ?? ["solid"],
-  );
   /** A wall-type entity spawned or was destroyed since the grid last synced. */
   let wallsMoved = false;
   /** Game code spawned or destroyed since the load began, so the loaded scene's list is stale. */
@@ -260,6 +263,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   });
   const { posed, entered, leaving, checkEntities, spawnOrder, spawnEntity, despawnEntity } =
     lifecycle;
+  Object.defineProperty(ctx, LOAD_GENERATION, { value: () => lifecycle.generation });
   const game: GameRuntime | null = gameDef ? gameDef.createRuntime(ctx) : null;
 
   function inGame<T>(hook: () => T): T {
@@ -389,7 +393,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         try {
           for (const system of ordered) system.seek?.(offset);
           behaviors.seek(offset);
-          timers.seek(Math.floor((offset * time.rate) / 1000));
+          timers.seek(wholeTicksIn(offset, time).ticks);
         } finally {
           seeking = false;
         }
@@ -514,18 +518,20 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
 
   function step(
     dtMs: number,
-    actions: InputAction[],
+    given: TickInput | InputAction[],
     commands?: readonly GameCommand[],
   ): StepResult {
     const t = tick;
     engineEvents = [];
     gameEvents = [];
     raised = [];
+    const tickInput = tickInputOf(given, commands, t);
 
     stepping = true;
     try {
+      for (const event of input.update(tickInput)) ctx.emit(event);
       for (const system of ordered) system.beforeStep?.(dtMs);
-      inGame(() => game?.beforeStep?.(dtMs, actions, commands ?? []));
+      inGame(() => game?.beforeStep?.(dtMs, tickInput.actions, tickInput.commands));
       ctx.physics?.step();
       for (const system of ordered) system.afterStep?.(dtMs);
       contacts.read();
@@ -534,7 +540,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       const delivered = events.dispatch(raised, 0);
       inGame(() => game?.afterStep?.(dtMs, [...engineEvents, ...gameEvents]));
       lifecycle.flush();
-      let next = events.dispatch(raised, delivered);
+      const second = { delivered: 0 };
+      let next = events.dispatch(raised, delivered, second);
       for (let flushes = 1; lifecycle.pending(); flushes++) {
         if (flushes >= EVENT_PASS_LIMIT) {
           throw new EngineError(
@@ -543,7 +550,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
           );
         }
         lifecycle.flush();
-        next = events.dispatch(raised, next);
+        next = events.dispatch(raised, next, second);
       }
     } finally {
       stepping = false;

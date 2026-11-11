@@ -173,6 +173,7 @@ function idOf(held: unknown, idField: string): string | undefined {
   const id =
     held instanceof Y.Map ? held.get(idField) : isPlainObject(held) ? held[idField] : undefined;
   if (typeof id === "string") return id;
+  if (typeof id === "number" && Number.isFinite(id)) return String(id);
   return id instanceof Y.Text ? id.toJSON() : undefined;
 }
 
@@ -355,7 +356,7 @@ function patchKeyed(
   const items = next.map((v) => v ?? null);
   const taken = new Set<string>();
   const planned = items.map((item) => {
-    const id = isPlainObject(item) && typeof item[idField] === "string" ? item[idField] : undefined;
+    const id = idOf(item, idField);
     const match = id === undefined ? idless.shift() : byId.get(id)?.shift();
     const key = match?.key ?? freshKey(map, ctx.key, taken);
     taken.add(key);

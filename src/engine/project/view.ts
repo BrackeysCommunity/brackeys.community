@@ -4,6 +4,7 @@ import type { SceneIssue } from "../scene/types";
 import type { KindRegistry } from "./kinds";
 import { byCodeUnit } from "./kinds/define";
 import { gameSettingsIssues } from "./kinds/game-settings";
+import { inputMapIssues } from "./kinds/index";
 import type {
   AssetEntry,
   AssetId,
@@ -266,6 +267,7 @@ export function projectView(state: ProjectState, kinds?: KindRegistry): ProjectV
       );
     }
     issues.push(...gameSettingsIssues(view));
+    issues.push(...inputMapIssues(view));
   }
   return view;
 }

@@ -27,6 +27,7 @@ export const LIFETIME = defineBehavior({
   name: "lifetime",
   description: "Destroys or disables the entity a time after it spawns or is enabled.",
   fields: lifetimeFields,
+  template: { ticks: 60 },
   refine(block) {
     const given = (block.ticks === undefined ? 0 : 1) + (block.ms === undefined ? 0 : 1);
     return given === 1 ? undefined : "lifetime takes exactly one of `ticks` or `ms`";

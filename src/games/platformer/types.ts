@@ -10,7 +10,7 @@ import {
 import { z } from "zod";
 
 import { createGrappleAnchorSystem, GRAPPLE_ANCHOR_COLOR } from "./entities/grapple-anchor";
-import { PLAYER_TYPE } from "./entities/player";
+import { PLAYER_TYPE, PLAYER_WIDTH } from "./entities/player";
 import { CONSTRUCT_TYPES, createConstructSystem } from "./entities/shaper-constructs";
 import { SURFACES } from "./surfaces";
 import { CLOUD_LOOK, createCloudSystem } from "./systems/cloud";
@@ -20,7 +20,7 @@ import { TYPE } from "./type-names";
 
 type EntityOfFields<F extends z.ZodRawShape> = EntityOf<EntityTypeDef<F>>;
 
-const absolute = "Absolute world px; y is down.";
+const absolute = "Absolute world metres; y is down.";
 
 // ─── Fields ──────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ const constructFields = {
 const spawnFields = (env: FieldEnv) => ({
   ...primitiveFields("marker", env),
   at: pointField(
-    "The player's FEET, so put it on a floor's top edge. One per player; spawns 60px apart or more.",
+    `The player's FEET, so put it on a floor's top edge. One per player; spawns ${PLAYER_WIDTH} m apart or more.`,
   ),
 });
 
@@ -80,7 +80,7 @@ export const PLATFORMER_TYPES: readonly EntityTypeDef[] = [
     description: "One-way platform: the player jumps up through it and lands on top.",
     fields: cloudFields,
     system: createCloudSystem,
-    bulk: { form: "shape", description: "One-way cloud platforms, box only, absolute px." },
+    bulk: { form: "shape", description: "One-way cloud platforms, box only, absolute metres." },
     style: { fill: CLOUD_LOOK.color, stroke: CLOUD_LOOK.color, alpha: CLOUD_LOOK.alpha },
     ascii: "=",
   }),
@@ -127,7 +127,7 @@ export const PLATFORMER_TYPES: readonly EntityTypeDef[] = [
     system: createGrappleAnchorSystem,
     bulk: {
       form: "point",
-      description: "Grapple anchor points, absolute px; ops refer to them as ~anchor:<index>.",
+      description: "Grapple anchor points, absolute metres; ops refer to them as ~anchor:<index>.",
     },
     style: { stroke: GRAPPLE_ANCHOR_COLOR },
     ascii: "o",
@@ -146,7 +146,7 @@ export const PLATFORMER_TYPES: readonly EntityTypeDef[] = [
     fields: spawnFields,
     base: "marker",
     ascii: "S",
-    bulk: { form: "point", description: "Player spawn points (feet), absolute px." },
+    bulk: { form: "point", description: "Player spawn points (feet), absolute metres." },
   }),
   defineEntityType({
     type: PLAYER_TYPE,

@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { pasteFragment } from "../../editor/clipboard";
 import { parseFragment } from "../fragment";
+import type { MigrateEnv } from "../migrate";
 import { SCENE_FORMAT_VERSION } from "../types";
 import { fake } from "./fixtures/fake-game";
 
 // Pretend v2 renamed a door's v1 `rate` to `speed`, to show a fragment from
-// an older version goes through every scene migration up to the current one.
+// an older version goes through every scene migration up to the current one,
+// v3 → v4's metres included.
 vi.mock("../migrate", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../migrate")>();
   const steps = {
@@ -22,8 +24,8 @@ vi.mock("../migrate", async (importOriginal) => {
   return {
     ...orig,
     MIGRATIONS: steps,
-    migrate: (raw: unknown, migrations = steps, target?: number) =>
-      orig.migrate(raw, migrations, target),
+    migrate: (raw: unknown, migrations = steps, target?: number, env?: MigrateEnv) =>
+      orig.migrate(raw, migrations, target, env),
   };
 });
 
@@ -38,12 +40,18 @@ const lifted = {
   kind: "scene-fragment",
   v: SCENE_FORMAT_VERSION,
   game: "fake",
+  entities: [{ id: "door", type: "door", shape: ["box", 0, 0, 0.1, 0.4], speed: 0.6 }],
+};
+
+const v3 = {
+  ...lifted,
+  v: 3,
   entities: [{ id: "door", type: "door", shape: ["box", 0, 0, 10, 40], speed: 60 }],
 };
 
 describe("a fragment with a stale v", () => {
   it("is lifted by the scene migrations", () => {
-    expect(SCENE_FORMAT_VERSION).toBe(3);
+    expect(SCENE_FORMAT_VERSION).toBe(4);
     expect(parseFragment(JSON.stringify(stale), fake)).toEqual({
       ok: true,
       fragment: lifted,
@@ -52,14 +60,14 @@ describe("a fragment with a stale v", () => {
     });
   });
 
-  it("is lifted from v2 with only its v changed", () => {
-    const v2 = { ...lifted, v: 2 };
-    expect(parseFragment(JSON.stringify(v2), fake)).toEqual({
-      ok: true,
-      fragment: lifted,
-      migratedFrom: 2,
-      issues: [],
-    });
+  it("is lifted from v2 and v3 into metres", () => {
+    for (const from of [2, 3])
+      expect(parseFragment(JSON.stringify({ ...v3, v: from }), fake)).toEqual({
+        ok: true,
+        fragment: lifted,
+        migratedFrom: from,
+        issues: [],
+      });
     expect(parseFragment(JSON.stringify(lifted), fake)).toEqual({
       ok: true,
       fragment: lifted,
@@ -76,7 +84,10 @@ describe("a fragment with a stale v", () => {
     };
     const r = pasteFragment(JSON.stringify(stale), { def, registry: fake });
     expect(r.ok && r.batch.ops).toEqual([
-      { op: "add", entity: { id: "door", type: "door", shape: ["box", 0, 0, 10, 40], speed: 60 } },
+      {
+        op: "add",
+        entity: { id: "door", type: "door", shape: ["box", 0, 0, 0.1, 0.4], speed: 0.6 },
+      },
     ]);
   });
 });

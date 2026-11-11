@@ -25,7 +25,7 @@ import {
 } from "../../../../src/lib/scene/project-bytes.ts";
 import { SERVER_APPLY_ORIGIN } from "../apply.ts";
 import type { DocWriteOutcome } from "../engine/doc-store.ts";
-import type { DocumentKind } from "../kinds.ts";
+import { formatReadOnlyReason, type DocumentKind, type FormatReadOnlyReason } from "../kinds.ts";
 import { SyncRefusal } from "../limits.ts";
 import { SnapshotSchedule } from "../persistence.ts";
 import type { SyncMetrics } from "../telemetry.ts";
@@ -41,13 +41,12 @@ export interface SceneLimits {
 /**
  * Sent once connected to a client the scene kind connected read-only
  * because its engine reads another format version or collab layout than
- * the doc holds. `engine-outdated`: reload to update. `server-outdated`:
- * the doc is older than the client's engine and this instance can't
- * migrate it yet.
+ * the doc holds (`formatReadOnlyReason`); a newer layout than the doc's
+ * is `server-outdated`, an older one `engine-outdated`.
  */
 export type SceneReadOnlyNotice = {
   type: "scene-read-only";
-  reason: "engine-outdated" | "server-outdated";
+  reason: FormatReadOnlyReason;
   schemaVersion: number;
   /** The doc's collab layout, when the client's differs. */
   layout?: number;
@@ -93,11 +92,13 @@ const liveLayout = (doc: Y.Doc | undefined): number | null => {
 
 /**
  * `scene:<project>.<key>`: a hosted scene. Only the server fills a new doc
- * (from the row's seed), migrates an older one at load (its format, and a
- * layout-1 doc's prefabs out into prefab docs of its project), and merges
- * every store into what's stored through a scratch doc. A client whose
- * engine reads another format or collab layout than the doc holds
- * connects read-only.
+ * (from the row's seed), migrates an older one at load (its format as far
+ * as it can without the game's code, and a layout-1 doc's prefabs out into
+ * prefab docs of its project), and merges every store into what's stored
+ * through a scratch doc. A client whose engine reads another format or
+ * collab layout than the doc holds connects read-only, so a doc left at
+ * an older format by a step that needs its game stays read-only to
+ * current clients until a tool with the game migrates it.
  */
 export function createSceneKind(options: SceneKindOptions): DocumentKind & {
   snapshots: SnapshotSchedule;
@@ -227,6 +228,24 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
     return migration.scene;
   }
 
+  /**
+   * The format a doc not open here holds once loaded. A current or newer
+   * stored doc keeps its version. An unseeded or older one is prepared as
+   * the load would, since it lifts only as far as this side can without
+   * its game. The layout isn't lifted first: only the version is read.
+   */
+  async function loadedVersion(sceneId: string, stored: number | null): Promise<number> {
+    if (stored !== null && stored >= format.version) return stored;
+    const row = await store.load(sceneId);
+    if (!row) return format.version;
+    try {
+      return prepareLoadedState(sceneId, row.state, row.seed, format).schemaVersion;
+    } catch {
+      // The load refuses it with its own reason.
+      return format.version;
+    }
+  }
+
   function closeAll(document: Document, event: { code: number; reason: string }): void {
     for (const connection of document.getConnections()) connection.close(event);
   }
@@ -242,6 +261,11 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
       const lifted = await liftLayout(sceneId, row.state);
       const prepared = prepareLoadedState(sceneId, lifted ?? row.state, row.seed, format);
       const state = prepared.state;
+      if (prepared.unresolved) {
+        console.log(
+          `[load] scene ${sceneId} stays at v${prepared.schemaVersion}, read-only to v${format.version} clients: ${prepared.unresolved.message}`,
+        );
+      }
       if (prepared.seeded || prepared.migratedFrom !== null || lifted) {
         // Stored at once, so every instance and the next load start from it.
         const { outcome } = await persist(sceneId, state, {
@@ -342,17 +366,18 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
       }
       const head = await store.head(id);
       if (!head) throw new SyncRefusal(SYNC_CLOSE.revoked, "scene not found", "auth");
-      // A doc migrates to this instance's format and layout at load, so once
-      // loaded it holds at least those, and more when a newer instance wrote it.
       const live = options.documents().get(documentName("scene", id));
-      const version = liveVersion(live) ?? Math.max(format.version, head.schemaVersion ?? 0);
+      const version = liveVersion(live) ?? (await loadedVersion(id, head.schemaVersion));
       const layout = Math.max(liveLayout(live) ?? COLLAB_LAYOUT_VERSION, COLLAB_LAYOUT_VERSION);
       // A token without `l` comes from an engine older than collab layouts.
       const clientLayout = claims.l ?? 1;
       if (claims.f === version && clientLayout === layout) return {};
       const notice: SceneReadOnlyNotice = {
         type: "scene-read-only",
-        reason: claims.f < version || clientLayout < layout ? "engine-outdated" : "server-outdated",
+        reason:
+          clientLayout < layout
+            ? "engine-outdated"
+            : (formatReadOnlyReason(claims.f, version, format.version) ?? "server-outdated"),
         schemaVersion: version,
         ...(clientLayout !== layout ? { layout } : {}),
       };

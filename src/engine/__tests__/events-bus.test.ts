@@ -347,6 +347,30 @@ describe("the loop guard", () => {
     rt.destroy();
   }, 30_000);
 
+  it("counts the second point's deliveries across its flushes as one pass", () => {
+    const { ctx, step, hooks, rt } = setup();
+    let delivered = 0;
+    ctx.events.on("noise", () => void delivered++);
+    ctx.events.on(ENTITY_DESTROYED, () => {
+      delivered++;
+      for (let i = 0; i < 64; i++) ctx.emit({ type: "noise", at });
+      ctx.destroy(ctx.spawn({ type: "dot", at: [0, 0] }).id);
+    });
+    hooks.gameAfter = (c) => {
+      c.destroy("a");
+      hooks.gameAfter = null;
+    };
+    let caught: unknown;
+    try {
+      step();
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as EngineError).code).toBe("event-loop");
+    expect(delivered).toBe(EVENT_PASS_LIMIT);
+    rt.destroy();
+  }, 30_000);
+
   it("counts deliveries, so a pass of events nobody hears passes", () => {
     const { ctx, step, hooks, rt } = setup();
     let heard = 0;

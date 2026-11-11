@@ -30,7 +30,7 @@ export const prefabKind = defineAssetKind({
   layout: "custom",
   idField: "id",
   parse(input, env) {
-    const result = parsePrefab(input, env.registry);
+    const result = parsePrefab(input, env.registry, { prefab: env.prefab });
     if (!result.ok) return result;
     const { prefab, issues, migratedFrom } = result;
     return migratedFrom === undefined

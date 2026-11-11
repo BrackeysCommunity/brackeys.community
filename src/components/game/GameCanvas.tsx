@@ -1,4 +1,5 @@
 import {
+  browserRemapStore,
   createGame,
   selectDebugMode,
   selectFPS,
@@ -93,6 +94,8 @@ function GameRoom({ roomId }: { roomId: string }) {
         // The page is the game: debug keys work with focus fallen to the body,
         // while play input still needs the canvas focused.
         keyTarget: window,
+        // A player's remaps stay in their own browser.
+        input: { touch: "auto", remaps: browserRemapStore() },
         prefabs: BUNDLED_PREFABS,
         scene: BUNDLED_SCENE,
         ...(resolution ? { resolution } : {}),

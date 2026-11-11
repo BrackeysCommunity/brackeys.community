@@ -27,15 +27,16 @@ describe("a game's editor tools", () => {
   it("commit exactly one batch per stroke, previewing on the way", () => {
     const ctx = fakeToolContext(toolRegistry, doc());
     const tool = testStrokeTool.create(ctx);
-    expect(tool.pointer!(pointer("down", [62, 70]))).toBe(true);
+    expect(tool.pointer!(pointer("down", [0.62, 0.7]))).toBe(true);
     expect(tool.gesture!()).toBe(true);
-    tool.pointer!(pointer("move", [130, 64]));
-    tool.pointer!(pointer("move", [200, 130]));
-    tool.pointer!(pointer("up", [200, 130]));
+    tool.pointer!(pointer("move", [1.3, 0.64]));
+    tool.pointer!(pointer("move", [2, 1.3]));
+    tool.pointer!(pointer("up", [2, 1.3]));
 
     expect(ctx.commits).toHaveLength(1);
+    // On the default 0.5 m grid.
     expect(ctx.commits[0]!.ops).toEqual([
-      { op: "add", entity: { type: "solid", shape: ["chain", 64, 64, 128, 64, 192, 128] } },
+      { op: "add", entity: { type: "solid", shape: ["chain", 0.5, 0.5, 1.5, 0.5, 2, 1.5] } },
     ]);
     expect(ctx.previews.length).toBeGreaterThan(1);
     expect(ctx.previews.at(-1)).toBeNull();
@@ -64,9 +65,9 @@ describe("placementEditorTool", () => {
     const tool = testCrateTool.create(ctx);
     expect(tool.command!("barrel")).toBe(false);
     expect(tool.command!("crate")).toBe(true);
-    tool.pointer!(pointer("move", [100.4, 200.6]));
-    tool.pointer!(pointer("down", [100.4, 200.6]));
-    tool.pointer!(pointer("up", [100.4, 200.6]));
+    tool.pointer!(pointer("move", [100.004, 200.006]));
+    tool.pointer!(pointer("down", [100.004, 200.006]));
+    tool.pointer!(pointer("up", [100.004, 200.006]));
     tool.pointer!(pointer("down", [300, 200]));
 
     expect(ctx.commits.map((b) => b.ops)).toEqual([
@@ -76,7 +77,7 @@ describe("placementEditorTool", () => {
           entity: {
             id: "crate",
             type: "prop",
-            shape: ["box", 100, 201, 20, 20, 0],
+            shape: ["box", 100, 200.01, 20, 20, 0],
             density: 1,
             restitution: 0,
           },
@@ -91,12 +92,13 @@ describe("placementEditorTool", () => {
     const ctx = fakeToolContext(toolRegistry, doc());
     const tool = testCrateTool.create(ctx);
     tool.command!("crate");
-    tool.pointer!(pointer("move", [100, 230]));
+    tool.pointer!(pointer("move", [100.2, 230.3]));
     tool.command!("rotate-cw");
-    tool.pointer!(pointer("wheel", [100, 230], { deltaY: 1 }));
-    tool.pointer!(pointer("wheel", [100, 230], { deltaY: -1, shift: true }));
+    tool.pointer!(pointer("wheel", [100.2, 230.3], { deltaY: 1 }));
+    tool.pointer!(pointer("wheel", [100.2, 230.3], { deltaY: -1, shift: true }));
+    // On the default 0.5 m grid.
     expect(tool.overlay!().ghosts).toEqual([
-      { shape: { type: "box", cx: 128, cy: 256, hw: 20, hh: 20, rotDeg: 29 }, valid: true },
+      { shape: { type: "box", cx: 100, cy: 230.5, hw: 20, hh: 20, rotDeg: 29 }, valid: true },
     ]);
     expect(tool.cursor!()).toBe("crosshair");
   });

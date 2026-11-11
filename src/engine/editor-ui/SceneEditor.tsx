@@ -25,8 +25,12 @@ import { useSceneEditor, type BootPhase, type EditorAssets } from "./session/use
 
 export type SceneEditorProps = {
   host: EditorHost;
-  /** The game the project's scenes are for; an engine-only project passes a minimal one. */
-  game: GameDefinition;
+  /**
+   * The game the project's scenes are for, as its `jams.project.json` names
+   * it; null for an engine-only project, whose scenes the dev server and the
+   * CLI judge by `createRegistry(null)`.
+   */
+  game: GameDefinition | null;
   project: ProjectId;
   /** The scene to open, by id or name; when the project has neither its first scene opens and `onSceneChange` reports it. */
   scene?: string;

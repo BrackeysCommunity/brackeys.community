@@ -5,10 +5,11 @@ import type { GameConfig, GameInstance, Vec2 } from "./types";
 
 export type Renderer = {
   app: Application;
+  /** The camera maps it from world metres to canvas px. */
   worldContainer: Container;
   uiContainer: Container;
   resize: (width: number, height: number) => void;
-  /** The canvas pixel under each world point, through the world container's current transform. */
+  /** The canvas pixel under each world point (metres), through the world container's current transform. */
   extractPixels: GameInstance["extractPixels"];
   destroy: () => void;
 };

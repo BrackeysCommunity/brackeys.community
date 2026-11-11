@@ -1,6 +1,10 @@
-/** How the world maps onto the canvas: what the camera shows, how it fits, and how it samples. */
+/**
+ * How the world maps onto the canvas: what the camera shows, how it fits,
+ * and how it samples. Its sizes are virtual px; the camera reaches them from
+ * world metres through the game's px per metre (`world.lengthUnit`).
+ */
 export type ResolutionPolicy = {
-  /** World units the camera shows at zoom 1 on the fixed axis or axes. */
+  /** Virtual px the camera shows at zoom 1 on the fixed axis or axes. */
   virtual: { height: number } | { width: number } | { width: number; height: number };
   /**
    * expand: the fixed axis fills the canvas and the other shows more;
@@ -20,7 +24,7 @@ export type ResolutionPolicy = {
   bars?: number;
 };
 
-/** A fixed 1080-unit height, the width expanding with the canvas's aspect. */
+/** A fixed 1080 virtual px height (10.8 m at 100 px per metre), the width expanding with the canvas's aspect. */
 export const DEFAULT_RESOLUTION: ResolutionPolicy = Object.freeze({
   virtual: Object.freeze({ height: 1080 }),
   fit: "expand",
@@ -29,9 +33,9 @@ export const DEFAULT_RESOLUTION: ResolutionPolicy = Object.freeze({
 });
 
 export type ResolutionViewport = {
-  /** World units to canvas px at zoom 1. */
+  /** Canvas px per virtual px at zoom 1. */
   scale: number;
-  /** The world area the camera shows at zoom 1, in world units. */
+  /** The area the camera shows at zoom 1, virtual px. */
   view: { width: number; height: number };
   /** Canvas px from the canvas's corner to the shown area's; the bars' size on each side. */
   offset: { x: number; y: number };
@@ -48,7 +52,7 @@ function wholeScale(raw: number): number {
 }
 
 /**
- * Pure: world-to-canvas scale, the visible world size, the viewport's offset
+ * Pure: the virtual-to-canvas scale, the visible virtual size, the viewport's offset
  * and bars. The shown area is centred on the canvas. `letterbox` and `crop`
  * need a width and a height; given one, they fit as `expand` does. Under
  * `integer` the scale is a whole multiple and the fixed axes take bars for

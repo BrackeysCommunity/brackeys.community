@@ -51,10 +51,10 @@ describe("scene.schema.json", () => {
 
   it("has the registry's URN id and no domain", () => {
     const schema = sceneJsonSchema(engine);
-    expect(schema.$id).toBe(`${SCHEMA_ID_BASE}scene:v3`);
+    expect(schema.$id).toBe(`${SCHEMA_ID_BASE}scene:v4`);
     expect(schema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(JSON.stringify(schema)).not.toMatch(/brackeys\.(community|dev)/);
-    expect(sceneJsonSchema(fake).$id).toBe(`${SCHEMA_ID_BASE}scene:fake:v3`);
+    expect(sceneJsonSchema(fake).$id).toBe(`${SCHEMA_ID_BASE}scene:fake:v4`);
   });
 
   it("lists registered types and bulk keys only", () => {
@@ -82,14 +82,14 @@ describe("scene.schema.json", () => {
 
   it("carries custom meta and describes every shape tuple form", () => {
     const schema = sceneJsonSchema(engine) as Schema;
-    expect(schema.properties.bounds.unit).toBe("px");
+    expect(schema.properties.bounds.unit).toBe("m");
     expect(schema.properties.bounds.description).toMatch(/y is down/);
     const shape = schema.$defs.ShapeTuple;
     expect(shape.oneOf?.map((o) => o.title)).toEqual(["box", "circle", "capsule", "poly", "chain"]);
     expect(shape.oneOf?.[0]?.prefixItems[0]).toEqual({ const: "box" });
     expect(shape.id).toBeUndefined();
     expect(schema.$defs.BodyShape.oneOf?.map((o) => o.title)).not.toContain("chain");
-    expect(JSON.stringify(schema.$defs.Path)).toContain('"unit":"px/s"');
+    expect(JSON.stringify(schema.$defs.Path)).toContain('"unit":"m/s"');
     expect((sceneJsonSchema(fake) as Schema).$defs.PadShape.oneOf?.map((o) => o.title)).toEqual([
       "box",
     ]);

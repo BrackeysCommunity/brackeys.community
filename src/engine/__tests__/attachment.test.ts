@@ -37,7 +37,7 @@ const DT = 1000 / 60;
 /** A lift on a loop with a plank and a trigger attached, a prop riding the plank. */
 function yard(more: SceneDefinition["entities"] = []): SceneDefinition {
   return {
-    v: 3,
+    v: 4,
     name: "attached",
     bounds: [-500, -500, 2000, 1500],
     solid: [["box", 500, 1000, 1000, 20]],
@@ -185,7 +185,7 @@ describe("attachment to a path follower", () => {
   it("refuses an attach on props and markers, and one that names no follower", () => {
     const bad = parseScene(
       {
-        v: 3,
+        v: 4,
         name: "bad",
         bounds: [0, 0, 100, 100],
         entities: [
@@ -317,4 +317,61 @@ describe("attachment to a follower inside an instance", () => {
     const issues = validateScene(lost, game, { prefabs });
     expect(issues.find((i) => i.entityIds.includes("plank"))?.code).toBe("dangling-ref");
   });
+});
+
+describe("a follower's seek", () => {
+  const paced = (rate: number) =>
+    createRegistry(
+      defineGame({
+        id: `paced-${rate}`,
+        types: [],
+        actions: [],
+        time: { kind: "fixed", rate },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+  // Bodiless, so positions are the follower's own f64s; ticks of 1/60 s and 1/30 s
+  // land a hair short of the waypoint, so one short last step shows.
+  const shuttle = (reg: ReturnType<typeof paced>): SceneDefinition => ({
+    v: 4,
+    name: "shuttle",
+    game: reg.id,
+    bounds: [-10, -10, 20, 20],
+    settings: { physics: "none" },
+    entities: [
+      {
+        id: "car",
+        type: "follower",
+        shape: ["box", 0, 0, 0.4, 0.2],
+        path: {
+          pts: [
+            [0, 0],
+            [2, 0],
+          ],
+          mode: "loop",
+          speed: 2,
+        },
+      },
+    ],
+  });
+
+  for (const [rate, ms, ticks] of [
+    [60, 500, 30],
+    [60, 1000, 60],
+    [30, 1000, 30],
+    [30, 2000, 60],
+  ] as const) {
+    it(`lands where ${ticks} steps do for ${ms} ms at ${rate} Hz`, () => {
+      const reg = paced(rate);
+      const stepped = createSceneRuntime({ rapier, view: null, registry: reg });
+      expect(stepped.load(expandScene(shuttle(reg), reg))).toMatchObject({ ok: true });
+      for (let i = 0; i < ticks; i++) stepped.step(stepped.ctx.time.tickMs, []);
+      const seeked = createSceneRuntime({ rapier, view: null, registry: reg });
+      expect(seeked.load(expandScene(shuttle(reg), reg), { timeOffsetMs: ms }).ok).toBe(true);
+      const at = (rt: typeof stepped) => rt.ctx.system<FollowerSystem>("follower")!.position("car");
+      expect(at(seeked)).toEqual(at(stepped));
+      seeked.destroy();
+      stepped.destroy();
+    });
+  }
 });

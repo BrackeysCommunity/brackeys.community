@@ -18,7 +18,7 @@ import room from "./fixtures/prefabs/room.json";
 import { fake as yardFake, engine as yardEngine, yardPrefabs } from "./fixtures/random-ops";
 
 const def: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "fake",
   name: "f",
   bounds: [0, 0, 1000, 1000],
@@ -54,7 +54,7 @@ describe("fragmentOf", () => {
     const f = fragmentOf(def, ["btn", "~solid:1", "door", "~flag:0", "nope", "~nope:0"], fake);
     expect(f).toEqual({
       kind: "scene-fragment",
-      v: 3,
+      v: 4,
       game: "fake",
       entities: [def.entities![0], def.entities![1]],
       bulk: { flag: [[10, 10]], solid: [["box", 300, 100, 50, 10]] },
@@ -66,7 +66,7 @@ describe("fragmentOf", () => {
   it("leaves out empty parts", () => {
     expect(fragmentOf({ ...def, game: undefined }, ["lift"], fake)).toEqual({
       kind: "scene-fragment",
-      v: 3,
+      v: 4,
       entities: [def.entities![2]],
     });
   });
@@ -75,7 +75,7 @@ describe("fragmentOf", () => {
 describe("fragmentSchemaFor", () => {
   it("checks entities and bulk entries against the registry", () => {
     const schema = fragmentSchemaFor(fake);
-    const base = { kind: "scene-fragment", v: 3 };
+    const base = { kind: "scene-fragment", v: 4 };
     expect(schema.safeParse({ ...base, entities: [] }).success).toBe(true);
     expect(schema.safeParse({ ...base, bulk: { pad: [["box", 0, 0, 1, 1]] } }).success).toBe(true);
     expect(schema.safeParse({ ...base, bulk: { pad: [["circle", 0, 0, 1]] } }).success).toBe(false);
@@ -109,7 +109,7 @@ describe("parseFragment", () => {
   it("maps schema problems to scene issues pointing into the fragment", () => {
     const bad = {
       kind: "scene-fragment",
-      v: 3,
+      v: 4,
       entities: [{ id: "door", type: "door", shape: ["box", 0, 0, 1, 1], speed: 1, sped: 2 }],
       bulk: { flag: [[1, "x"]] },
     };
@@ -151,18 +151,18 @@ describe("fragmentBounds", () => {
       for (const rot of [0, 1, 2, 3] as const) {
         const inst = { id: "gate-1", prefab: "gate", at: [100, 200] as Pt, ...turn(rot, flip) };
         const box = fragmentBounds(
-          { kind: "scene-fragment", v: 3, entities: [], instances: [inst] },
+          { kind: "scene-fragment", v: 4, entities: [], instances: [inst] },
           yardEngine,
           prefabs,
         )!;
         for (const n of Object.values(box)) expect(Number.isInteger(n)).toBe(true);
         const resolved = resolveScene(
-          { v: 3, name: "g", bounds: [0, 0, 1000, 1000], instances: [inst] },
+          { v: 4, name: "g", bounds: [0, 0, 1000, 1000], instances: [inst] },
           yardEngine,
           prefabs,
         );
         const reference = fragmentBounds(
-          { kind: "scene-fragment", v: 3, entities: resolved.entities ?? [] },
+          { kind: "scene-fragment", v: 4, entities: resolved.entities ?? [] },
           yardEngine,
         )!;
         for (const k of ["minX", "minY", "maxX", "maxY"] as const)
@@ -171,7 +171,7 @@ describe("fragmentBounds", () => {
     const flipped = fragmentBounds(
       {
         kind: "scene-fragment",
-        v: 3,
+        v: 4,
         entities: [],
         instances: [{ id: "g", prefab: "gate", at: [0, 0], flip: true }],
       },
@@ -184,10 +184,10 @@ describe("fragmentBounds", () => {
   it("boxes a variant's base and nested instances' children", () => {
     const lib = prefabLibrary([
       ...yardPrefabs().values(),
-      { kind: "prefab", v: 3, id: "tall-post", base: "post", entities: [] },
+      { kind: "prefab", v: 4, id: "tall-post", base: "post", entities: [] },
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "pair",
         entities: [],
         instances: [
@@ -199,7 +199,7 @@ describe("fragmentBounds", () => {
     ]);
     const boxOf = (inst: InstanceDef) =>
       fragmentBounds(
-        { kind: "scene-fragment", v: 3, entities: [], instances: [inst] },
+        { kind: "scene-fragment", v: 4, entities: [], instances: [inst] },
         yardEngine,
         lib,
       );
@@ -207,10 +207,10 @@ describe("fragmentBounds", () => {
       fragmentBounds(
         {
           kind: "scene-fragment",
-          v: 3,
+          v: 4,
           entities:
             resolveScene(
-              { v: 3, name: "r", bounds: [0, 0, 1, 1], instances: [inst] },
+              { v: 4, name: "r", bounds: [0, 0, 1, 1], instances: [inst] },
               yardEngine,
               lib,
             ).entities ?? [],
@@ -223,7 +223,7 @@ describe("fragmentBounds", () => {
     expect(boxOf(pair)).toEqual({ minX: 360, minY: 460, maxX: 606, maxY: 540 });
     const room1: InstanceDef = { id: "room-1", prefab: "room", at: [0, 0], rot: 3 };
     const own = fragmentBounds(
-      { kind: "scene-fragment", v: 3, entities: [], instances: [room1] },
+      { kind: "scene-fragment", v: 4, entities: [], instances: [room1] },
       yardEngine,
       prefabLibrary([{ ...(room as unknown as Prefab), instances: [] }]),
     );
@@ -234,7 +234,7 @@ describe("fragmentBounds", () => {
   it("skips an instance whose prefab isn't given", () => {
     const f = {
       kind: "scene-fragment" as const,
-      v: 3,
+      v: 4,
       entities: [],
       instances: [{ id: "g", prefab: "gate", at: [0, 0] as Pt }],
     };
@@ -251,7 +251,7 @@ const turn = (rot: 0 | 1 | 2 | 3, flip: boolean) => ({
 describe("fragments with instances", () => {
   const prefabs = yardPrefabs("fake");
   const yard: SceneDefinition = {
-    v: 3,
+    v: 4,
     game: "fake",
     name: "y",
     bounds: [0, 0, 2000, 1000],
@@ -335,7 +335,7 @@ describe("fragments with instances", () => {
   it("keeps a child ref into an instance the scene has, and drops one into nothing", () => {
     const lever = (target: string): SceneFragment => ({
       kind: "scene-fragment",
-      v: 3,
+      v: 4,
       entities: [{ id: "l", type: "lever", at: [0, 0], target }],
     });
     const kept = placeFragment(lever("gate-2/door"), yard, yardFake, [0, 0], prefabs);
@@ -349,7 +349,7 @@ describe("fragments with instances", () => {
   it("places nothing for an instance whose prefab the project lacks", () => {
     const f: SceneFragment = {
       kind: "scene-fragment",
-      v: 3,
+      v: 4,
       entities: [{ id: "lever", type: "lever", at: [0, 0], target: "arch-1/door" }],
       instances: [
         { id: "arch-1", prefab: "arch", at: [0, 0] },

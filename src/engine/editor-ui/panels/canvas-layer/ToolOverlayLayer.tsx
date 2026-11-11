@@ -56,7 +56,7 @@ function styleTone(style: Style | undefined): string | undefined {
   return c === undefined ? undefined : `#${(c & 0xffffff).toString(16).padStart(6, "0")}`;
 }
 
-/** A rectangle's attributes in world px. */
+/** A rectangle's attributes in metres. */
 const rectOf = (r: Aabb) => ({
   x: r.minX,
   y: r.minY,

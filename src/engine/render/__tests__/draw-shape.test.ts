@@ -43,6 +43,11 @@ const SHAPES: ShapeObj[] = [
 ];
 
 const box = SHAPES[0]!;
+
+function shapeOutlineStart(shape: ShapeObj, scale: number): [number, number] {
+  const first = shapeOutline(shape)[0] as { x: number; y: number };
+  return [first.x * scale, first.y * scale];
+}
 const chain = SHAPES[4]!;
 
 describe("traceShape", () => {
@@ -62,6 +67,23 @@ describe("traceShape", () => {
     });
     expect(calls).toEqual(expected);
   });
+
+  it.each(SHAPES.map((s) => [s.type, s] as const))(
+    "scales the %s outline's coordinates and radii, not its angles",
+    (_, shape) => {
+      const { g, calls } = recordingGraphics();
+      traceShape(g, shape, 32);
+      const plain = recordingGraphics();
+      traceShape(plain.g, shape);
+      expect(calls).toEqual(
+        plain.calls.map(([method, ...args]) =>
+          method === "arc"
+            ? [method, ...(args as number[]).map((v, i) => (i < 3 ? v * 32 : v))]
+            : [method, ...(args as number[]).map((v) => v * 32)],
+        ),
+      );
+    },
+  );
 
   it("neither fills nor strokes", () => {
     const { g, calls } = recordingGraphics();
@@ -86,6 +108,13 @@ describe("drawShape", () => {
       ["fill", { color: 0x112233, alpha: 0.5 }],
       ["stroke", { color: 0x445566, alpha: 0.5, width: 3 }],
     ]);
+  });
+
+  it("keeps the stroke width in px at any scale", () => {
+    const { g, calls } = recordingGraphics();
+    drawShape(g, box, { stroke: 0x445566, strokeWidth: 3 }, 100);
+    expect(calls[0]).toEqual(["moveTo", ...shapeOutlineStart(box, 100)]);
+    expect(calls.at(-1)).toEqual(["stroke", { color: 0x445566, alpha: 1, width: 3 }]);
   });
 
   it("defaults alpha to 1 and the stroke width to 1", () => {

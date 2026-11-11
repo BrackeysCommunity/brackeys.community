@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -69,7 +70,7 @@ const FILES = {
     text: lines(
       "{",
       '  "kind": "material",',
-      '  "v": 1,',
+      '  "v": 2,',
       '  "description": "Ice.",',
       '  "physics": { "friction": 0, "restitution": 0 }',
       "}",
@@ -81,7 +82,7 @@ const FILES = {
     text: lines(
       "{",
       '  "kind": "game-settings",',
-      '  "v": 1,',
+      '  "v": 2,',
       '  "engine": {},',
       '  "game": {',
       '    "avatarSpeed": 180',
@@ -95,7 +96,7 @@ const FILES = {
     text: lines(
       "{",
       '  "kind": "data-table",',
-      '  "v": 1,',
+      '  "v": 2,',
       '  "table": "card",',
       '  "rows": [',
       '    { "id": "zap", "cost": 0, "damage": 1 },',
@@ -112,7 +113,7 @@ const FILES = {
     path: "far.script.json",
     text: lines(
       "{",
-      '  "v": 1,',
+      '  "v": 2,',
       '  "scene": "yard",',
       '  "steps": [',
       '    { "for": 10, "hold": ["left"] },',
@@ -129,7 +130,7 @@ const FILES = {
     path: "yard.checks.json",
     text: lines(
       "{",
-      '  "v": 1,',
+      '  "v": 3,',
       '  "checks": [',
       '    { "id": "valid", "kind": "valid" },',
       '    { "id": "props", "kind": "test-game/props", "atLeast": 1 }',
@@ -143,6 +144,30 @@ const FILES = {
       ),
     }),
   },
+  "input-map": {
+    path: "input-map.json",
+    text: lines(
+      "{",
+      '  "kind": "input-map",',
+      '  "v": 1,',
+      '  "players": {',
+      '    "join": "press",',
+      '    "max": 2',
+      "  },",
+      '  "actions": [',
+      '    { "action": "push", "bindings": [{ "code": "Space", "device": "key" }, { "button": "south", "device": "pad" }] },',
+      '    { "action": "left", "bindings": [{ "code": "KeyA", "device": "key" }] }',
+      "  ]",
+      "}",
+    ),
+    edit: (v: Record<string, unknown>) => ({
+      ...v,
+      actions: [
+        ...(v.actions as unknown[]),
+        { action: "right", bindings: [{ device: "key", code: "KeyD" }] },
+      ],
+    }),
+  },
 } as const;
 
 const KIND_NAMES = Object.keys(FILES) as (keyof typeof FILES)[];
@@ -152,6 +177,7 @@ const IDS: Record<keyof typeof FILES, string> = {
   "data-table": "cards",
   "input-script": "far-script",
   checks: "yard-checks",
+  "input-map": "input-map",
 };
 
 const projectFile: ProjectFile = {
@@ -574,6 +600,74 @@ describe("write-back: edits, for every declarative kind", () => {
     expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry("settings")!), doc)).toBe(false);
   });
 
+  it("input-map: a disk edit of one binding is one disk transaction touching only it", async () => {
+    const s = await session();
+    const doc = await s.open("input-map");
+    const actions = contentMap(doc).get("actions") as Y.Map<unknown>;
+    const keys = [...actions.keys()].sort();
+    const touched: { path: string; keys: string[]; delta: unknown }[] = [];
+    contentMap(doc).observeDeep((events) => {
+      for (const e of events)
+        touched.push({
+          path: e.path.join("."),
+          keys: [...e.changes.keys.keys()],
+          delta: e.target instanceof Y.Array ? e.changes.delta : null,
+        });
+    });
+    const value = JSON.parse(FILES["input-map"].text) as {
+      actions: { action: string; bindings: Record<string, unknown>[] }[];
+    };
+    value.actions[0]!.bindings[1] = { device: "pad", button: "east" };
+    const after = formatAssetDoc(kindOf("input-map"), value);
+    await put(FILES["input-map"].path, after);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(FILES["input-map"].path, s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(touched).toHaveLength(1);
+    expect(touched[0]!.path).toMatch(/^actions\.[^.]+\.item\.bindings$/);
+    expect(touched[0]!.delta).toEqual([
+      { retain: 1 },
+      { insert: [{ device: "pad", button: "east" }] },
+      { delete: 1 },
+    ]);
+    expect([...actions.keys()].sort()).toEqual(keys);
+    expect(textOf("input-map", doc)).toBe(after);
+    expect(await s.adapter.syncPath(FILES["input-map"].path, s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry("input-map")!), doc)).toBe(false);
+  });
+
+  it("input-script: a v1 script on disk opens as v2 and is rewritten as v2 on the next store", async () => {
+    const v1 = lines(
+      "{",
+      '  "v": 1,',
+      '  "scene": "yard",',
+      '  "steps": [',
+      '    { "for": 10, "hold": ["left"] },',
+      '    { "forMs": 250, "hold": [] }',
+      "  ]",
+      "}",
+    );
+    await put(FILES["input-script"].path, v1);
+    const s = await session();
+    const doc = await s.open("far-script");
+    expect(layoutFromDoc(doc, layoutOf("input-script")).v).toBe(2);
+    const v2 = FILES["input-script"].text;
+    expect(textOf("input-script", doc)).toBe(v2);
+    const name = s.adapter.docNameOf(s.entry("far-script")!);
+    expect(await s.adapter.storeDoc(name, doc)).toBe(true);
+    expect(await read(FILES["input-script"].path)).toBe(v2);
+    expect(await s.adapter.storeDoc(name, doc)).toBe(false);
+    expect(await s.adapter.syncPath(FILES["input-script"].path, s.lookup, s.project)).toEqual({
+      kind: "unchanged",
+    });
+  });
+
   it("checks: a hand-written connected check is formatted canonically on the next store", async () => {
     const s = await session();
     const doc = await s.open("yard-checks");
@@ -615,7 +709,7 @@ describe("write-back: edits, for every declarative kind", () => {
       id: "spawns",
       kind: "reaches",
       result: "script-end",
-      script: { v: 1, steps: [{ wait: 60 }] },
+      script: { v: 2, steps: [{ wait: 60 }] },
     };
     const withChecks = (checks: unknown[]) =>
       formatAssetDoc(kindOf("checks"), { ...JSON.parse(FILES.checks.text), checks });
@@ -797,7 +891,7 @@ describe("write-back: the registry", () => {
     expect(contentMap(doc).size).toBe(0);
     expect(doc.getMap("meta").toJSON()).toEqual({
       kind: "material",
-      schemaVersion: 1,
+      schemaVersion: 2,
       layout: COLLAB_LAYOUT_VERSION,
       project: "demo",
       key: "k0rubber",
@@ -1338,6 +1432,32 @@ describe("write-back: binaries", () => {
     ]);
   });
 
+  it("a new v2 recording on disk is imported with its meta", async () => {
+    const s = await session();
+    const recording = await readFile(
+      new URL("../../collab/__tests__/fixtures/run.v2.recording.json", import.meta.url),
+    );
+    await putBytes("runs/versus.recording.json", recording);
+    expect(await s.adapter.syncPath("runs/versus.recording.json", s.lookup, s.project)).toEqual({
+      kind: "pending",
+    });
+    await s.adapter.settle(s.lookup, s.project);
+    expect(s.entry("versus-recording")).toMatchObject({
+      kind: "recording",
+      path: "runs/versus.recording.json",
+      sha256: sha(recording),
+      bytes: recording.byteLength,
+      meta: { scene: "yard", ticks: 60, sceneHash: "5a1d2c3e", v: 2, players: 2 },
+      created: { by: "disk" },
+    });
+    expect(await s.adapter.storeProject(s.project)).toBe(true);
+    expect(await sidecarAt("runs/versus.recording.json")).toMatchObject({
+      id: "versus-recording",
+      sha256: sha(recording),
+      meta: { v: 2, players: 2 },
+    });
+  });
+
   it("two replaces merged from two clients write the winner's bytes, its sidecar, and keep every blob", async () => {
     const s = await session();
     await s.adapter.storeProject(s.project);
@@ -1811,7 +1931,15 @@ describe("write-back: v3 grids and nested prefabs", () => {
   const SINK = "scene:demo.test-game-sink";
   const ROOM = "asset:demo.room";
   const sceneText = (doc: Y.Doc) => formatScene(docToScene(doc)).text;
-  const env = { registry, project: null };
+  /** The v3 prefab fixtures, read raw: a migration reads its children's field units from them. */
+  const fixturePrefab = (id: string): Prefab | undefined => {
+    try {
+      return JSON.parse(readFileSync(join(V3, "prefabs", `${id}.json`), "utf8")) as Prefab;
+    } catch {
+      return undefined;
+    }
+  };
+  const env = { registry, project: null, prefab: fixturePrefab };
 
   /** A fixture's value in its kind's canonical text. */
   async function canonicalFixture(kind: string, path: string): Promise<string> {

@@ -4,9 +4,12 @@
  * comes from a registry (`game/define.ts`), not from this file.
  */
 
-export const SCENE_FORMAT_VERSION = 3;
+/** Lengths are metres from v4; a game's `world.lengthUnit` (px per metre) draws them. */
+export const SCENE_FORMAT_VERSION = 4;
 
+/** A point in world metres; y is down. */
 export type Pt = [x: number, y: number];
+/** The world rectangle in metres; y is down. */
 export type Bounds = [minX: number, minY: number, maxX: number, maxY: number];
 /** 16 lowercase hex characters over the canonical text. */
 export type SceneHash = string;
@@ -61,6 +64,7 @@ export type ShapeInput = ShapeTuple | ShapeObj | RectInput;
 export type Aabb = { minX: number; minY: number; maxX: number; maxY: number };
 
 // ─── Entities on disk ────────────────────────────────────
+/** Waypoints in metres; `speed` in m/s. */
 export type PathDef = { pts: Pt[]; mode: "ping_pong" | "loop"; speed: number; pauseMs?: number };
 
 /** A registered entity type's name, e.g. `solid`, or a game's own `crate`. */
@@ -129,23 +133,26 @@ export type InstanceDef = {
   off?: boolean;
 };
 
-/** The scene's one cell grid; the hex parameters match Tiled's. */
+/**
+ * The scene's one cell grid, in metres, each length a whole number of px at
+ * the game's px per metre; the hex parameters match Tiled's.
+ */
 export type GridSettings =
   | { kind: "square"; cell: [w: number, h: number]; origin?: Pt }
   | {
       kind: "hex";
-      /** The hex's bounding box, px (Tiled's tilewidth, tileheight). */
+      /** The hex's bounding box, m (Tiled's tilewidth, tileheight over px per metre). */
       cell: [w: number, h: number];
-      /** The length of the flat sides, px (Tiled's hexsidelength). */
+      /** The length of the flat sides, m (Tiled's hexsidelength over px per metre). */
       side: number;
       stagger: "x" | "y";
       index: "odd" | "even";
       origin?: Pt;
     };
 
-/** The engine's settings; a game's settings schema adds its own keys beside them. */
+/** The engine's settings, lengths in metres; a game's settings schema adds its own keys beside them. */
 export type SceneSettings = {
-  /** World gravity, px/s²; y is down. Omitted: the project's, else the game's default. */
+  /** World gravity, m/s²; y is down. Omitted: the project's, else the game's default. */
   gravity?: Pt;
   /** "none" runs without Rapier; omitted resolves through the project and game defaults to "rapier". */
   physics?: "rapier" | "none";
@@ -228,6 +235,7 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "bad-shape",
   "bad-id",
   "version-newer",
+  "migration-unresolved",
   // structural
   "dup-id",
   "dangling-ref",
@@ -277,9 +285,14 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "asset-too-large",
   "import-failed",
   "quota-exceeded",
+  // input
+  "binding-unknown",
+  "player-unknown",
   // runtime
   "spawn-id-invalid",
   "prefab-not-spawnable",
+  // replay
+  "recording-other-platform",
 ] as const;
 export type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 /** An engine code, or a game's `<game-id>/<code>`. */

@@ -1,0 +1,44 @@
+{
+  "kind": "input-map",
+  "v": 1,
+  "players": { "max": 2, "join": "press" },
+  "deadzone": 0.2,
+  "actions": [
+    {
+      "action": "move",
+      "kind": "vector",
+      "bindings": [
+        { "device": "key", "code": "KeyA", "axis": "x", "value": -1, "player": 0 },
+        { "device": "key", "code": "KeyD", "axis": "x", "value": 1, "player": 0 },
+        { "device": "key", "code": "KeyW", "axis": "y", "value": -1, "player": 0 },
+        { "device": "key", "code": "KeyS", "axis": "y", "value": 1, "player": 0 },
+        { "device": "key", "code": "ArrowLeft", "axis": "x", "value": -1, "player": 1 },
+        { "device": "key", "code": "ArrowRight", "axis": "x", "value": 1, "player": 1 },
+        { "device": "key", "code": "ArrowUp", "axis": "y", "value": -1, "player": 1 },
+        { "device": "key", "code": "ArrowDown", "axis": "y", "value": 1, "player": 1 },
+        { "device": "pad", "stick": "left" },
+        { "device": "touch", "control": "stick" }
+      ]
+    },
+    {
+      "action": "taunt",
+      "bindings": [
+        { "device": "key", "code": "KeyQ", "player": 0 },
+        { "device": "key", "code": "Slash", "player": 1 },
+        { "device": "pad", "button": "north" },
+        { "device": "touch", "control": "taunt" }
+      ]
+    }
+  ],
+  "touch": [
+    { "id": "stick", "kind": "stick", "action": "move", "at": [0.2, 0.8], "radius": 0.15 },
+    {
+      "id": "taunt",
+      "kind": "button",
+      "action": "taunt",
+      "at": [1.55, 0.8],
+      "radius": 0.1,
+      "label": "Hi"
+    }
+  ]
+}

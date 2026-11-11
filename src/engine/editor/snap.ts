@@ -1,5 +1,6 @@
 import { shapeVertices } from "../scene/shape-geometry";
 import type { Aabb, Pt, Ref } from "../scene/types";
+import { snapToPixel } from "../scene/units";
 import type { SnapSettings, SpatialIndex } from "./tools";
 
 /** How close, in screen px, another entity's edge, vertex or centre must be to pull a drag onto it. */
@@ -12,18 +13,36 @@ const GRID_GUIDE_PX = 16;
 export type SnapTarget = "grid" | "edge" | "vertex" | "center";
 export type SnapGuide = { from: Pt; to: Pt };
 
-const round = (v: number) => Math.round(v) + 0;
-
-/** Both coordinates rounded to whole px, without `-0`. */
-export function roundPt([x, y]: Pt): Pt {
-  return [round(x), round(y)];
+/** Both coordinates, in metres, on the nearest whole world px at `pxPerMetre`, without `-0`. */
+export function roundPt([x, y]: Pt, pxPerMetre: number): Pt {
+  return [snapToPixel(x, pxPerMetre), snapToPixel(y, pxPerMetre)];
 }
 
-/** `p` on the nearest grid point; with `bypass` (Ctrl/Cmd) or snapping off, only rounded. */
-export function snapPoint(p: Pt, settings: SnapSettings, opts: { bypass?: boolean } = {}): Pt {
-  if (opts.bypass || !settings.enabled || !(settings.step > 0)) return roundPt(p);
+/** One world px at `pxPerMetre`, in metres: the smallest size an editor edit writes. */
+export function onePixel(pxPerMetre: number): number {
+  return snapToPixel(1 / pxPerMetre, pxPerMetre);
+}
+
+/** A size on whole world px, at least one. */
+export function pixelSize(m: number, pxPerMetre: number): number {
+  return Math.max(onePixel(pxPerMetre), snapToPixel(m, pxPerMetre));
+}
+
+/** `v` on the nearest line of a grid `step` metres apart, landing on a whole world px. */
+export function snapToGrid(v: number, step: number, pxPerMetre: number): number {
+  return snapToPixel(Math.round(v / step) * step, pxPerMetre);
+}
+
+/** `p` on the nearest grid point; with `bypass` (Ctrl/Cmd) or snapping off, only on whole world px. */
+export function snapPoint(
+  p: Pt,
+  settings: SnapSettings,
+  pxPerMetre: number,
+  opts: { bypass?: boolean } = {},
+): Pt {
+  if (opts.bypass || !settings.enabled || !(settings.step > 0)) return roundPt(p, pxPerMetre);
   const s = settings.step;
-  return [round(Math.round(p[0] / s) * s), round(Math.round(p[1] / s) * s)];
+  return [snapToGrid(p[0], s, pxPerMetre), snapToGrid(p[1], s, pxPerMetre)];
 }
 
 /** An angle on the nearest `angleDeg` step; `free` (Shift) leaves it as it is. */
@@ -35,7 +54,7 @@ export function snapAngle(deg: number, settings: SnapSettings, free: boolean): n
 export type SnapMoveInput = {
   /** The moved selection's box before the drag. */
   aabb: Aabb;
-  /** World px where the drag started. */
+  /** Where the drag started, metres. */
   grab: Pt;
   /** The pointer's raw offset since the drag started. */
   delta: Pt;
@@ -44,16 +63,18 @@ export type SnapMoveInput = {
   index?: SpatialIndex;
   /** Refs that move with the drag and so are never targets. */
   exclude?: readonly Ref[];
-  /** Screen px per world px. */
+  /** Screen px per metre. */
   scale: number;
-  /** Ctrl/Cmd: no snapping, still whole px. */
+  /** The game's px per metre: the result lands on whole world px. */
+  pxPerMetre: number;
+  /** Ctrl/Cmd: no snapping, still whole world px. */
   bypass: boolean;
   /** Where to look for targets; default the moved box plus `SNAP_REACH_PX`. */
   view?: Aabb;
 };
 
 export type SnapMoveResult = {
-  /** Whole px. */
+  /** Metres, on whole world px. */
   delta: Pt;
   /**
    * One line per snapped axis: along the target from the moved box to the
@@ -77,8 +98,9 @@ const RANK: Record<SnapTarget, number> = { grid: 0, edge: 1, vertex: 1, center: 
  * false` turns all of it off; `geometry: false` leaves only the grid.
  */
 export function snapMove(input: SnapMoveInput): SnapMoveResult {
-  const { aabb: box, grab, delta, settings, scale } = input;
-  if (input.bypass || !settings.enabled) return { delta: roundPt(delta), guides: [], by: {} };
+  const { aabb: box, grab, delta, settings, scale, pxPerMetre } = input;
+  if (input.bypass || !settings.enabled)
+    return { delta: roundPt(delta, pxPerMetre), guides: [], by: {} };
 
   const tol = SNAP_PX / scale;
   const moved: Aabb = {
@@ -148,7 +170,7 @@ export function snapMove(input: SnapMoveInput): SnapMoveResult {
     }
   }
 
-  const final = roundPt(out);
+  const final = roundPt(out, pxPerMetre);
   const guides: SnapGuide[] = [];
   const pad = GRID_GUIDE_PX / scale;
   for (const axis of [0, 1] as const) {

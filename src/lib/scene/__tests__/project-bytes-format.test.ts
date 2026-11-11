@@ -39,25 +39,39 @@ function storedAs(meta: Record<string, number>): Uint8Array {
 const entityKeys = (state: Uint8Array) => [...docOf(state).getMap("entities").keys()].sort();
 
 describe("prefab doc format version at load", () => {
-  it("lifts a v2 prefab doc at this layout to v3, writing only meta", async () => {
-    const old = storedAs({ schemaVersion: 2 });
-    expect(prefabDocValue(old)?.v).toBe(SCENE_FORMAT_VERSION);
+  it("leaves a doc whose next step needs its game at its version, with no snapshot", async () => {
+    expect(SCENE_FORMAT_VERSION).toBe(4);
+    const old = storedAs({ schemaVersion: SCENE_FORMAT_VERSION - 1 });
+    expect(migrateAssetLayoutState(old)).toBeNull();
+    expect(prefabDocValue(old)?.v).toBe(SCENE_FORMAT_VERSION - 1);
+    expect(assetSchemaVersion(old)).toBe(SCENE_FORMAT_VERSION - 1);
+    expect(await assetSnapshot(old)).toBeNull();
+  });
+
+  it("lifts an older doc as far as this side can, writing only meta", async () => {
+    const old = storedAs({ schemaVersion: SCENE_FORMAT_VERSION - 2 });
     const lifted = migrateAssetLayoutState(old)!;
     expect(lifted).not.toBeNull();
-    expect(assetSchemaVersion(lifted)).toBe(SCENE_FORMAT_VERSION);
+    expect(assetSchemaVersion(lifted)).toBe(SCENE_FORMAT_VERSION - 1);
     expect(entityKeys(lifted)).toEqual(entityKeys(old));
-    expect(prefabDocValue(lifted)).toEqual(CRATE);
-    expect((await assetSnapshot(lifted))?.text).toBe(formatPrefab(CRATE));
+    expect(prefabDocValue(lifted)).toEqual({ ...CRATE, v: SCENE_FORMAT_VERSION - 1 });
+    expect(await assetSnapshot(lifted)).toBeNull();
     expect(migrateAssetLayoutState(lifted)).toBeNull();
+  });
+
+  it("snapshots a current doc", async () => {
+    const current = storedAs({});
+    expect(migrateAssetLayoutState(current)).toBeNull();
+    expect((await assetSnapshot(current))?.text).toBe(formatPrefab(CRATE));
   });
 
   it("lifts the layout and the format version of an older doc together", () => {
     const lifted = migrateAssetLayoutState(
-      storedAs({ schemaVersion: 2, layout: COLLAB_LAYOUT_VERSION - 1 }),
+      storedAs({ schemaVersion: SCENE_FORMAT_VERSION - 2, layout: COLLAB_LAYOUT_VERSION - 1 }),
     )!;
     const meta = docOf(lifted).getMap("meta");
     expect(meta.get("layout")).toBe(COLLAB_LAYOUT_VERSION);
-    expect(meta.get("schemaVersion")).toBe(SCENE_FORMAT_VERSION);
+    expect(meta.get("schemaVersion")).toBe(SCENE_FORMAT_VERSION - 1);
   });
 
   it("leaves a doc from a newer engine's format as stored", () => {

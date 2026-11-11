@@ -3,11 +3,12 @@ import type { Vec2 } from "@jams/engine";
 /** A rectangular area that accelerates the player while inside it. */
 export type ForceZone = {
   center: Vec2;
+  /** Half extents, metres. */
   hw: number;
   hh: number;
   /** Radians. */
   rotation: number;
-  /** Acceleration in game units/sec². */
+  /** Acceleration, m/s². */
   force: Vec2;
 };
 

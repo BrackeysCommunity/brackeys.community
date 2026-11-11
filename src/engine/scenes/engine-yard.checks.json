@@ -1,8 +1,8 @@
 {
-  "v": 1,
+  "v": 3,
   "checks": [
     { "id": "valid", "kind": "valid", "physical": true },
-    { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "scene": "engine-yard", "steps": [{ "wait": 60 }], "v": 1 } },
-    { "id": "times-out", "kind": "reaches", "result": "timeout", "script": { "maxTicks": 30, "steps": [{ "wait": 60 }], "v": 1 } }
+    { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "scene": "engine-yard", "steps": [{ "wait": 60 }], "v": 2 } },
+    { "id": "times-out", "kind": "reaches", "result": "timeout", "script": { "maxTicks": 30, "steps": [{ "wait": 60 }], "v": 2 } }
   ]
 }

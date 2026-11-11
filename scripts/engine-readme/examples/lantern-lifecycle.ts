@@ -41,7 +41,7 @@ export function lanternNight(): string[] {
   const glow = defineBehavior({
     name: "night/glow",
     description: "A halo round a lantern.",
-    fields: { radius: z.number().positive().default(40).describe("Halo radius, px.") },
+    fields: { radius: z.number().positive().default(0.4).describe("Halo radius, m.") },
     system: (): BehaviorSystem => {
       const on = new Set<string>();
       return {
@@ -92,14 +92,14 @@ export function lanternNight(): string[] {
 
   const registry = createRegistry(night);
   const lane: SceneDefinition = {
-    v: 3,
+    v: 4,
     game: "night",
     name: "lane",
-    bounds: [0, 0, 200, 100],
+    bounds: [0, 0, 2, 1],
     settings: { physics: "none" },
     entities: [
-      { id: "west", type: "lantern", at: [20, 50], behaviors: { "night/glow": {} } },
-      { id: "east", type: "lantern", at: [180, 50], behaviors: { "night/glow": { radius: 60 } } },
+      { id: "west", type: "lantern", at: [0.2, 0.5], behaviors: { "night/glow": {} } },
+      { id: "east", type: "lantern", at: [1.8, 0.5], behaviors: { "night/glow": { radius: 0.6 } } },
     ],
   };
   const rt = createHeadlessRuntime({ game: night, registry, scene: expandScene(lane, registry) });

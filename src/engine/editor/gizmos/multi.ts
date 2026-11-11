@@ -33,13 +33,14 @@ export function rotateTargetsBatch(
   targets: readonly GizmoTarget[],
   about: Pt,
   deg: number,
+  pxPerMetre: number,
   label = `Rotate ${targets.length === 1 ? targets[0]!.ref : `${targets.length} entities`}`,
 ): OpBatch | null {
   const ops: SceneOp[] = [];
   for (const t of targets) {
     const set: Record<string, unknown> = {};
     if (t.path && t.local && t.shapeField) {
-      const pts = t.path.pts.map((p) => roundPt(turnPt(p, about, deg)));
+      const pts = t.path.pts.map((p) => roundPt(turnPt(p, about, deg), pxPerMetre));
       if (JSON.stringify(pts) !== JSON.stringify(t.path.pts)) set[`${t.path.field}.pts`] = pts;
       const local = rotateShape(t.local, [0, 0], deg);
       const shape =
@@ -47,16 +48,16 @@ export function rotateTargetsBatch(
           ? { ...local, rotDeg: normDeg(local.rotDeg) }
           : local;
       // The local shape is relative to the first waypoint, so it is set as given, not re-based.
-      Object.assign(set, shapeSet({ ...t, path: undefined }, shape) ?? {});
+      Object.assign(set, shapeSet({ ...t, path: undefined }, shape, pxPerMetre) ?? {});
     } else if (t.shape) {
       const turned = rotateShape(t.shape, about, deg);
       const shape =
         turned.type === "box" || turned.type === "capsule"
           ? { ...turned, rotDeg: normDeg(turned.rotDeg) }
           : turned;
-      Object.assign(set, shapeSet(t, shape) ?? {});
+      Object.assign(set, shapeSet(t, shape, pxPerMetre) ?? {});
     } else if (t.at && t.pointField) {
-      const at = roundPt(turnPt(t.at, about, deg));
+      const at = roundPt(turnPt(t.at, about, deg), pxPerMetre);
       if (at[0] !== t.at[0] || at[1] !== t.at[1]) set[t.pointField] = at;
     }
     if (Object.keys(set).length > 0) ops.push({ op: "update", ref: t.ref, set });
@@ -89,14 +90,22 @@ export function dragSelection(
       index: opts.index,
       exclude: refs,
       scale: opts.scale,
+      pxPerMetre: opts.pxPerMetre,
       bypass: opts.mods.mod,
     });
-    return { batch: moveBatch(refs, r.delta), readout: readDelta(r.delta), guides: r.guides };
+    return {
+      batch: moveBatch(refs, r.delta, opts.pxPerMetre),
+      readout: readDelta(r.delta, opts.pxPerMetre),
+      guides: r.guides,
+    };
   }
   if (handleId === "rotate") {
     const about = centreOf(box);
     const deg = Math.round(snapAngle(dragAngle(about, from, to), opts.snap, opts.mods.shift)) + 0;
-    return { batch: rotateTargetsBatch(targets, about, deg), readout: readAngle(deg) };
+    return {
+      batch: rotateTargetsBatch(targets, about, deg, opts.pxPerMetre),
+      readout: readAngle(deg),
+    };
   }
   return null;
 }

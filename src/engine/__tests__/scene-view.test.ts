@@ -39,7 +39,7 @@ describe("systems draw through the scene view", () => {
   it("draws static geometry in place, in its type's style, on the terrain layer", () => {
     const { live } = loaded();
     expect(live.get("~solid:0")).toEqual({
-      shape: { type: "box", cx: 1000, cy: 980, hw: 1000, hh: 20, rotDeg: 0 },
+      shape: { type: "box", cx: 10, cy: 9.8, hw: 10, hh: 0.2, rotDeg: 0 },
       style: PRIMITIVES.solid.style,
       layer: "terrain",
       pose: { x: 0, y: 0, rot: 0 },
@@ -49,16 +49,16 @@ describe("systems draw through the scene view", () => {
 
   it("draws a prop in its body's frame and poses it there", () => {
     const { live } = loaded();
-    expect(live.get("crate")).toMatchObject({
-      shape: { type: "circle", cx: 0, cy: 0, r: 20 },
-      layer: "body",
-      pose: { x: 1200, y: 940, rot: 0 },
-    });
+    const crate = live.get("crate");
+    expect(crate).toMatchObject({ shape: { type: "circle", cx: 0, cy: 0, r: 0.2 }, layer: "body" });
+    expect(crate?.pose.x).toBeCloseTo(12, 5);
+    expect(crate?.pose.y).toBeCloseTo(9.4, 5);
+    expect(crate?.pose.rot).toBe(0);
   });
 
   it("poses a follower at its path start, then once per tick as it moves", () => {
     const { rt, live, callsFor } = loaded();
-    expect(live.get("lift")?.pose).toEqual({ x: 1700, y: 900, rot: 0 });
+    expect(live.get("lift")?.pose).toEqual({ x: 17, y: 9, rot: 0 });
     const before = callsFor("lift", "pose").length;
 
     for (let i = 0; i < 60; i++) rt.step(DT, []);
@@ -66,8 +66,8 @@ describe("systems draw through the scene view", () => {
     expect(callsFor("lift", "pose")).toHaveLength(before + 60);
     expect(callsFor("lift", "draw")).toHaveLength(1);
     const lift = live.get("lift")!;
-    expect(lift.pose.x).toBe(1700);
-    expect(lift.pose.y).toBeLessThan(900);
+    expect(lift.pose.x).toBe(17);
+    expect(lift.pose.y).toBeLessThan(9);
   });
 
   it("removes a visual on despawn, and every visual on unload", () => {
@@ -83,10 +83,10 @@ describe("systems draw through the scene view", () => {
   it("keeps a hidden one-way solid drawn where it is", () => {
     const { rt, live, callsFor } = loaded();
     const solids = rt.ctx.system<SolidSystem>("solid")!;
-    solids.gateOneWay(2000, false);
+    solids.gateOneWay(20, false);
     expect(solids.isHidden("ledge")).toBe(true);
     expect(callsFor("ledge", "pose")).toEqual([]);
-    expect(live.get("ledge")?.shape).toMatchObject({ cx: 1400, cy: 800 });
+    expect(live.get("ledge")?.shape).toMatchObject({ cx: 14, cy: 8 });
   });
 
   it("leaves the simulation as a headless run plays it", () => {

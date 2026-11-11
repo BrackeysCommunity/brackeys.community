@@ -294,10 +294,10 @@ function bulkSchemas(registry: Registry): Record<string, z.ZodType> {
 
 const BoundsSchema = z
   .tuple([
-    z.number().int().describe("minX, px."),
-    z.number().int().describe("minY, px (top; y is down)."),
-    z.number().int().describe("maxX, px."),
-    z.number().int().describe("maxY, px (bottom)."),
+    z.number().describe("minX, m.").meta({ unit: "m" }),
+    z.number().describe("minY, m (top; y is down).").meta({ unit: "m" }),
+    z.number().describe("maxX, m.").meta({ unit: "m" }),
+    z.number().describe("maxY, m (bottom).").meta({ unit: "m" }),
   ])
   .superRefine(([minX, minY, maxX, maxY], ctx) => {
     if (!(minX < maxX))
@@ -314,16 +314,17 @@ const BoundsSchema = z
       });
   })
   .describe(
-    "World rectangle [minX, minY, maxX, maxY] in px; y is down. Limits the camera; anything outside it is flagged.",
+    "World rectangle [minX, minY, maxX, maxY] in metres; y is down. Limits the camera; anything outside it is flagged.",
   )
-  .meta({ title: "Bounds", unit: "px" });
+  .meta({ title: "Bounds", unit: "m" });
 
-const IntPt = z
+const MetrePt = z
   .tuple([
-    z.number().int().describe("x, px.").meta({ unit: "px" }),
-    z.number().int().describe("y, px; y is down.").meta({ unit: "px" }),
+    z.number().describe("x, m.").meta({ unit: "m" }),
+    z.number().describe("y, m; y is down.").meta({ unit: "m" }),
   ])
-  .describe("A point [x, y] in integer world pixels; y is down.");
+  .describe("A point [x, y] in world metres; y is down.")
+  .meta({ unit: "m" });
 
 const RotSchema = z
   .literal([1, 2, 3])
@@ -339,9 +340,9 @@ const FlipSchema = z
 
 export const GroupSchema = z
   .strictObject({
-    at: IntPt.describe(
-      "The group's origin in world px. Members store their geometry relative to it, so moving the group is one edit here.",
-    ).meta({ title: "Origin", unit: "px", group: "geometry" }),
+    at: MetrePt.describe(
+      "The group's origin in world metres. Members store their geometry relative to it, so moving the group is one edit here.",
+    ).meta({ title: "Origin", unit: "m", group: "geometry" }),
     rot: RotSchema,
     flip: FlipSchema,
     name: BASE_FIELDS.name,
@@ -374,9 +375,9 @@ export const InstanceSchema = z
     z: BASE_FIELDS.z.describe(
       `Added to the z of every child, an integer in [-${Z_LIMIT}, ${Z_LIMIT}]. Omitted means 0.`,
     ),
-    at: IntPt.describe(
-      "Where the prefab's origin lands, in world px (relative to the group's origin when in a group).",
-    ).meta({ title: "Position", unit: "px", group: "geometry" }),
+    at: MetrePt.describe(
+      "Where the prefab's origin lands, in world metres (relative to the group's origin when in a group).",
+    ).meta({ title: "Position", unit: "m", group: "geometry" }),
     rot: RotSchema,
     flip: FlipSchema,
     params: z
@@ -477,6 +478,6 @@ export function sceneSchemaFor(registry: Registry): z.ZodObject {
         ),
     })
     .describe(
-      "A jams engine scene. Units are integer pixels with y pointing down. Simple static geometry lives in the bulk arrays; everything else is an entity.",
+      "A jams engine scene. Lengths are metres with y pointing down; the game's px per metre draws them. Simple static geometry lives in the bulk arrays; everything else is an entity.",
     );
 }

@@ -6,8 +6,10 @@ import {
   type SpriteAssetLookup,
   type SpriteBlock,
 } from "../game/behaviors/sprite";
+import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { SIDES, sideOf } from "../game/fields";
 import { PRIMITIVE_TYPES, type RegisteredType, type Registry, type Side } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import { assetInfo } from "../project/asset-info";
 import type { ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
@@ -37,13 +39,13 @@ import type {
   ShapeObj,
 } from "./types";
 
-/** What part of the world a render covers. */
+/** What part of the world a render covers, in metres. */
 export type SceneRegionOptions = {
-  /** A world rectangle `[x0, y0, x1, y1]`; wins over `around`. */
+  /** A world rectangle `[x0, y0, x1, y1]`, metres; wins over `around`. */
   region?: Bounds;
   /** Frame one entity (an id or a `~key:index` bulk ref) and everything within `margin` of it. */
   around?: Ref;
-  /** World px around `around`'s box; default 128. */
+  /** Metres around `around`'s box; default `DEFAULT_MARGIN`. */
   margin?: number;
   /** The prefabs a document's instances name; a document is drawn from its resolved view. */
   prefabs?: PrefabLibrary;
@@ -77,8 +79,9 @@ export type DrawnEntity = {
 export type OverlayPoint = Pt | { x: number; y: number };
 
 /**
- * What a render draws over the scene. A `PlaytestReport` fits as it is:
- * its `issues`, `trail`, `events` and `outcome` are these fields.
+ * What a render draws over the scene, its points in metres. A
+ * `PlaytestReport` fits as it is: its `issues`, `trail`, `events` and
+ * `outcome` are these fields.
  */
 export type SceneOverlay = {
   issues?: readonly Pick<SceneIssue, "severity" | "code" | "entityIds" | "at">[];
@@ -88,7 +91,8 @@ export type SceneOverlay = {
   outcome?: { result: string; at: OverlayPoint | null; tick?: number; cause?: string } | null;
 };
 
-export const DEFAULT_MARGIN = 128;
+/** Metres of margin around an `around` entity: 128 world px at the default 100 px per metre. */
+export const DEFAULT_MARGIN = 1.28;
 
 export function expandedOf(
   scene: SceneDefinition | ExpandedScene,
@@ -104,7 +108,8 @@ const isPrimitive = (name: string) => (PRIMITIVE_TYPES as readonly string[]).inc
 
 /**
  * Every entity of `scene` with a registered type, in spawn order, with its
- * world geometry; sprites are sized from `assets` when given.
+ * world geometry in metres; sprites are sized from `assets` when given, at
+ * the game's px per metre.
  */
 export function drawnEntities(
   scene: ExpandedScene,
@@ -141,6 +146,7 @@ export function drawnEntities(
       e.behaviors?.[SPRITE.name],
       { shape, at, path, transform: e.transform },
       assets,
+      pxPerMetreOf(registry),
     );
     if (sprite) box = aabbUnion(box, sprite.box);
     const tags = Array.isArray(e.tags)
@@ -167,17 +173,19 @@ export function drawnEntities(
 export const overlaps = (b: Aabb, [x0, y0, x1, y1]: Bounds) =>
   b.maxX >= x0 && b.minX <= x1 && b.maxY >= y0 && b.minY <= y1;
 
-/** The world rectangle a render covers: `region`, else `around` plus `margin`, else the scene's bounds. */
-export function resolveRegion(
-  scene: ExpandedScene,
+/**
+ * The world rectangle a render covers: `region`, else `around` plus
+ * `margin`, else `bounds`. Every length here, the options' included, is in
+ * world px.
+ */
+function resolveRegion(
+  bounds: Bounds,
   entities: readonly DrawnEntity[],
-  opts: SceneRegionOptions,
+  opts: Pick<SceneRegionOptions, "region" | "around">,
+  margin: number,
 ): Bounds {
   if (opts.region) {
     const [x0, y0, x1, y1] = opts.region;
-    if (![x0, y0, x1, y1].every(Number.isFinite) || x1 <= x0 || y1 <= y0) {
-      throw new Error(`region [${opts.region.join(", ")}] must be finite with x1 > x0 and y1 > y0`);
-    }
     return [x0, y0, x1, y1];
   }
   if (opts.around !== undefined) {
@@ -191,13 +199,13 @@ export function resolveRegion(
         `no entity ${JSON.stringify(opts.around)} to frame${guess ? `; did you mean "${guess}"?` : ""}`,
       );
     }
-    const m = Math.max(opts.margin ?? DEFAULT_MARGIN, 0);
-    // A point with no margin still needs an area to draw.
+    const m = Math.max(margin, 0);
+    // A point with no margin still needs an area to draw: a world px around it.
     const w = hit.box.maxX - hit.box.minX < 1 ? 0.5 : 0;
     const h = hit.box.maxY - hit.box.minY < 1 ? 0.5 : 0;
     return [hit.box.minX - m - w, hit.box.minY - m - h, hit.box.maxX + m + w, hit.box.maxY + m + h];
   }
-  const [x0, y0, x1, y1] = scene.bounds;
+  const [x0, y0, x1, y1] = bounds;
   return [x0, y0, x1, y1];
 }
 
@@ -205,6 +213,159 @@ export function resolveRegion(
 export function num(v: number): string {
   const r = Math.round(v * 100) / 100;
   return Object.is(r, -0) ? "0" : String(r);
+}
+
+// ─── Drawing space ───────────────────────────────────────
+
+/**
+ * Metres as world px at `pxPerMetre`, to a millionth of a px, so a length
+ * the format wrote from whole px (`0.29` m) draws on that px (`29`, not
+ * `28.999999999999996`).
+ */
+export const metresToPx = (m: number, pxPerMetre: number): number =>
+  Math.round(m * pxPerMetre * 1e6) / 1e6 + 0;
+
+const ptInPx = ([x, y]: Pt, k: number): Pt => [metresToPx(x, k), metresToPx(y, k)];
+const boxInPx = (b: Aabb, k: number): Aabb => ({
+  minX: metresToPx(b.minX, k),
+  minY: metresToPx(b.minY, k),
+  maxX: metresToPx(b.maxX, k),
+  maxY: metresToPx(b.maxY, k),
+});
+
+/** A shape in metres as world px; angles stay. */
+export function shapeInPx<S extends ShapeObj>(s: S, pxPerMetre: number): S {
+  const k = pxPerMetre;
+  const px = (m: number) => metresToPx(m, k);
+  switch (s.type) {
+    case "box":
+      return { ...s, cx: px(s.cx), cy: px(s.cy), hw: px(s.hw), hh: px(s.hh) };
+    case "circle":
+      return { ...s, cx: px(s.cx), cy: px(s.cy), r: px(s.r) };
+    case "capsule":
+      return { ...s, cx: px(s.cx), cy: px(s.cy), halfLen: px(s.halfLen), r: px(s.r) };
+    case "poly":
+    case "chain":
+      return { ...s, pts: s.pts.map((p) => ptInPx(p, k)) };
+  }
+}
+
+/** A scene grid in metres as world px. */
+export function gridInPx(grid: GridSettings, pxPerMetre: number): GridSettings {
+  const k = pxPerMetre;
+  const cell: [number, number] = [metresToPx(grid.cell[0], k), metresToPx(grid.cell[1], k)];
+  const origin = grid.origin ? { origin: ptInPx(grid.origin, k) } : {};
+  return grid.kind === "square"
+    ? { ...grid, cell, ...origin }
+    : { ...grid, cell, side: metresToPx(grid.side, k), ...origin };
+}
+
+/** A drawn entity's geometry in world px; its `entity` stays as the scene holds it. */
+export function drawnInPx(d: DrawnEntity, pxPerMetre: number): DrawnEntity {
+  const k = pxPerMetre;
+  const { sprite } = d;
+  return {
+    ...d,
+    ...(d.shape ? { shape: shapeInPx(d.shape, k) } : {}),
+    ...(d.localShape ? { localShape: shapeInPx(d.localShape, k) } : {}),
+    ...(d.at ? { at: ptInPx(d.at, k) } : {}),
+    ...(d.path ? { path: { ...d.path, pts: d.path.pts.map((p) => ptInPx(p, k)) } } : {}),
+    ...(sprite
+      ? {
+          sprite: {
+            ...sprite,
+            size: [metresToPx(sprite.size[0], k), metresToPx(sprite.size[1], k)],
+            shape: shapeInPx(sprite.shape, k),
+            box: boxInPx(sprite.box, k),
+          },
+        }
+      : {}),
+    box: boxInPx(d.box, k),
+  };
+}
+
+const overlayPtInPx = (p: OverlayPoint, k: number): Pt =>
+  ptInPx(Array.isArray(p) ? [p[0], p[1]] : [p.x, p.y], k);
+
+/** An overlay's world points (a playtest report's, in metres) as world px. */
+export function overlayInPx(overlay: SceneOverlay, pxPerMetre: number): SceneOverlay {
+  const k = pxPerMetre;
+  const trail = overlay.trail ? ("pts" in overlay.trail ? overlay.trail.pts : overlay.trail) : [];
+  const { outcome } = overlay;
+  return {
+    ...(overlay.issues
+      ? { issues: overlay.issues.map((i) => (i.at ? { ...i, at: ptInPx(i.at, k) } : i)) }
+      : {}),
+    ...(overlay.trail ? { trail: trail.map((p) => ptInPx(p, k)) } : {}),
+    ...(overlay.events
+      ? { events: overlay.events.map((e) => ({ ...e, at: overlayPtInPx(e.at, k) })) }
+      : {}),
+    ...(outcome !== undefined
+      ? {
+          outcome: outcome && {
+            ...outcome,
+            at: outcome.at === null ? null : overlayPtInPx(outcome.at, k),
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * A scene as the renderers draw it: in world px, its metres times the
+ * game's px per metre, so a scene draws the same at any px per metre it
+ * was authored for and a render's own sizes (strokes, labels, ticks, the
+ * ASCII cell) stay in px.
+ */
+export type SceneDrawing = {
+  scene: ExpandedScene;
+  pxPerMetre: number;
+  /** The scene's bounds, world px. */
+  bounds: Bounds;
+  /** The scene grid, world px. */
+  grid: GridSettings | null;
+  /** Every drawn entity, world px. */
+  entities: DrawnEntity[];
+  /** The rectangle the options frame, world px. */
+  region: Bounds;
+};
+
+/** `scene` in world px with the region `opts` frame (given in metres). */
+export function sceneDrawing(
+  scene: SceneDefinition | ExpandedScene,
+  opts: SceneRegionOptions & { registry: Registry },
+): SceneDrawing {
+  const { registry } = opts;
+  const k = pxPerMetreOf(registry);
+  const expanded = expandedOf(scene, registry, opts.prefabs);
+  const entities = drawnEntities(expanded, registry, renderAssets(opts)).map((d) =>
+    drawnInPx(d, k),
+  );
+  const [bx0, by0, bx1, by1] = expanded.bounds;
+  const bounds: Bounds = [
+    metresToPx(bx0, k),
+    metresToPx(by0, k),
+    metresToPx(bx1, k),
+    metresToPx(by1, k),
+  ];
+  let region: Bounds | undefined;
+  if (opts.region) {
+    const [x0, y0, x1, y1] = opts.region;
+    if (![x0, y0, x1, y1].every(Number.isFinite) || x1 <= x0 || y1 <= y0)
+      throw new Error(`region [${opts.region.join(", ")}] must be finite with x1 > x0 and y1 > y0`);
+    region = [metresToPx(x0, k), metresToPx(y0, k), metresToPx(x1, k), metresToPx(y1, k)];
+  }
+  region = resolveRegion(
+    bounds,
+    entities,
+    {
+      ...(region ? { region } : {}),
+      ...(opts.around !== undefined ? { around: opts.around } : {}),
+    },
+    metresToPx(opts.margin ?? DEFAULT_MARGIN, k),
+  );
+  const grid = expanded.settings.grid ? gridInPx(expanded.settings.grid, k) : null;
+  return { scene: expanded, pxPerMetre: k, bounds, grid, entities, region };
 }
 
 // ─── One-way sides ───────────────────────────────────────
@@ -442,9 +603,9 @@ export type DrawnSprite = {
   frame?: string;
   /** `asset`, `asset:frame`, or `(no asset)`: what the renders print on the box. */
   label: string;
-  /** Drawn size, world px: the block's, else its asset's times `scale`, else 32×32. */
+  /** Drawn size, metres: the block's, else its asset's px over px per metre times `scale`, else `SPRITE_FALLBACK_SIZE`. */
   size: [w: number, h: number];
-  /** The drawn rectangle in world px, turned with the entity when the sprite turns. */
+  /** The drawn rectangle in metres, turned with the entity when the sprite turns. */
   shape: Extract<ShapeObj, { type: "box" }>;
   box: Aabb;
 };
@@ -492,17 +653,19 @@ function spritePose(src: SpritePoseSource): { at: Pt; deg: number } | null {
 }
 
 /**
- * Where a `sprite` block draws for an entity posed by `src`, as the sprite
- * system places it: `spriteGeometry` of the block (its flip toggled by the
- * entity's) and its asset's info from `assets`, at the pose plus the
- * offset. The offset mirrors with the entity's flip and turns with the
- * pose, or with `turn: false` with the quarter turns only. Undefined for a
- * value that isn't a block or an entity with no pose.
+ * Where a `sprite` block draws for an entity posed by `src`, in metres, as
+ * the sprite system places it: `spriteGeometry` of the block (its flip
+ * toggled by the entity's) and its asset's info from `assets`, its asset's
+ * px over `pxPerMetre`, at the pose plus the offset. The offset mirrors
+ * with the entity's flip and turns with the pose, or with `turn: false`
+ * with the quarter turns only. Undefined for a value that isn't a block or
+ * an entity with no pose.
  */
 export function spriteBoxOf(
   block: unknown,
   src: SpritePoseSource,
   assets?: SpriteAssetLookup,
+  pxPerMetre: number = DEFAULT_LENGTH_UNIT,
 ): DrawnSprite | undefined {
   const read = readSpriteBlock(block);
   const pose = read && spritePose(src);
@@ -511,6 +674,7 @@ export function spriteBoxOf(
   const g = spriteGeometry(
     { ...read, flipX: (read.flipX ?? false) !== flip },
     spriteAssets(assets, read).info,
+    pxPerMetre,
   );
   const turn = read.turn !== false;
   const deg = turn ? pose.deg : 0;

@@ -1,7 +1,6 @@
 import { validatePhysical } from "@jams/engine/headless";
 import { projectView } from "@jams/engine/project";
 import {
-  parseScene,
   pointerLines,
   sceneHash,
   validateScene,
@@ -12,6 +11,7 @@ import {
 import {
   issueLine,
   judgeScene,
+  parseSceneWith,
   prefabHomeOf,
   prefabsOf,
   readSource,
@@ -42,14 +42,14 @@ export const validate: Tool<ValidateInput> = async (input, ctx) => {
   let def: SceneDefinition | undefined;
   if (!judged.ok) issues = [judged.issue];
   else {
-    const parsed = parseScene(text, judged.registry);
+    const scan = source.project ? await scanProject(source.project) : undefined;
+    const prefabs = await prefabsOf(prefabHomeOf(source, target), judged.registry, scan);
+    const parsed = parseSceneWith(text, judged.registry, prefabs);
     if (parsed.ok) {
       def = parsed.def;
       const lines = pointerLines(text);
-      const scan = source.project ? await scanProject(source.project) : undefined;
       const project =
         source.project && scan ? projectView(scan.state, source.project.kinds) : undefined;
-      const prefabs = await prefabsOf(prefabHomeOf(source, target), judged.registry, scan);
       const engine =
         source.project && scan
           ? (await projectRuntime(source.project, judged.registry, scan)).engine

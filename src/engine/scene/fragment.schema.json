@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jams-engine:fragment:v3",
-  "x-agent-surface": 11,
-  "title": "jams engine scene fragment, format v3",
+  "$id": "urn:jams-engine:fragment:v4",
+  "x-agent-surface": 12,
+  "title": "jams engine scene fragment, format v4",
   "type": "object",
   "properties": {
     "kind": {
@@ -11,7 +11,7 @@
     },
     "v": {
       "type": "number",
-      "const": 3,
+      "const": 4,
       "description": "The scene format version it was written at."
     },
     "entities": {
@@ -27,10 +27,10 @@
       "type": "object",
       "properties": {
         "solid": {
-          "description": "Static ground shapes, absolute px; `solid:<material>` for a material. Entries have no id; ops refer to them as ~solid:<index>.",
+          "description": "Static ground shapes, absolute metres; `solid:<material>` for a material. Entries have no id; ops refer to them as ~solid:<index>.",
           "type": "array",
           "items": {
-            "description": "Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.",
+            "description": "Collider shape. Absolute world metres; y is down. Any tag, including chain for outlines.",
             "title": "Shape",
             "group": "geometry",
             "$ref": "#/$defs/ShapeTuple"
@@ -108,7 +108,7 @@
               "maximum": 10000
             },
             "shape": {
-              "description": "Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.",
+              "description": "Collider shape. Absolute world metres; y is down. Any tag, including chain for outlines.",
               "title": "Shape",
               "group": "geometry",
               "$ref": "#/$defs/ShapeTuple"
@@ -160,20 +160,21 @@
                       "type": "string"
                     },
                     "size": {
-                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
                       "type": "array",
                       "prefixItems": [
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Width, px."
+                          "description": "Width, m.",
+                          "unit": "m"
                         },
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Height, px."
+                          "description": "Height, m.",
+                          "unit": "m"
                         }
                       ]
                     },
@@ -205,15 +206,17 @@
                       "prefixItems": [
                         {
                           "type": "number",
-                          "description": "dx, px."
+                          "description": "dx, m.",
+                          "unit": "m"
                         },
                         {
                           "type": "number",
-                          "description": "dy, px; y is down."
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
                         }
                       ],
-                      "unit": "px",
-                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
                     },
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
@@ -247,31 +250,36 @@
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
                       "type": "array",
                       "prefixItems": [
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Left inset, px."
+                          "description": "Left inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Top inset, px."
+                          "description": "Top inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Right inset, px."
+                          "description": "Right inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Bottom inset, px."
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
                         }
                       ]
                     },
@@ -389,7 +397,7 @@
               "maximum": 10000
             },
             "shape": {
-              "description": "Trigger shape. Absolute world px; y is down.",
+              "description": "Trigger shape. Absolute world metres; y is down.",
               "title": "Shape",
               "group": "geometry",
               "$ref": "#/$defs/ShapeTuple"
@@ -429,20 +437,21 @@
                       "type": "string"
                     },
                     "size": {
-                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
                       "type": "array",
                       "prefixItems": [
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Width, px."
+                          "description": "Width, m.",
+                          "unit": "m"
                         },
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Height, px."
+                          "description": "Height, m.",
+                          "unit": "m"
                         }
                       ]
                     },
@@ -474,15 +483,17 @@
                       "prefixItems": [
                         {
                           "type": "number",
-                          "description": "dx, px."
+                          "description": "dx, m.",
+                          "unit": "m"
                         },
                         {
                           "type": "number",
-                          "description": "dy, px; y is down."
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
                         }
                       ],
-                      "unit": "px",
-                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
                     },
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
@@ -516,31 +527,36 @@
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
                       "type": "array",
                       "prefixItems": [
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Left inset, px."
+                          "description": "Left inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Top inset, px."
+                          "description": "Top inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Right inset, px."
+                          "description": "Right inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Bottom inset, px."
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
                         }
                       ]
                     },
@@ -658,7 +674,7 @@
               "maximum": 10000
             },
             "at": {
-              "description": "Marker position. Absolute world px; y is down.",
+              "description": "Marker position. Absolute world metres; y is down.",
               "title": "Position",
               "$ref": "#/$defs/Pt"
             },
@@ -690,20 +706,21 @@
                       "type": "string"
                     },
                     "size": {
-                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
                       "type": "array",
                       "prefixItems": [
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Width, px."
+                          "description": "Width, m.",
+                          "unit": "m"
                         },
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Height, px."
+                          "description": "Height, m.",
+                          "unit": "m"
                         }
                       ]
                     },
@@ -735,15 +752,17 @@
                       "prefixItems": [
                         {
                           "type": "number",
-                          "description": "dx, px."
+                          "description": "dx, m.",
+                          "unit": "m"
                         },
                         {
                           "type": "number",
-                          "description": "dy, px; y is down."
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
                         }
                       ],
-                      "unit": "px",
-                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
                     },
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
@@ -777,31 +796,36 @@
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
                       "type": "array",
                       "prefixItems": [
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Left inset, px."
+                          "description": "Left inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Top inset, px."
+                          "description": "Top inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Right inset, px."
+                          "description": "Right inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Bottom inset, px."
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
                         }
                       ]
                     },
@@ -919,7 +943,7 @@
               "maximum": 10000
             },
             "shape": {
-              "description": "Starting collider shape. Absolute world px; y is down. Not chain.",
+              "description": "Starting collider shape. Absolute world metres; y is down. Not chain.",
               "title": "Shape",
               "group": "geometry",
               "$ref": "#/$defs/BodyShape"
@@ -927,7 +951,7 @@
             "density": {
               "type": "number",
               "exclusiveMinimum": 0,
-              "description": "Density, mass per px²; heavier props are harder to push.",
+              "description": "Density in kg/m²; heavier props are harder to push.",
               "title": "Density",
               "group": "body"
             },
@@ -1008,20 +1032,21 @@
                       "type": "string"
                     },
                     "size": {
-                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
                       "type": "array",
                       "prefixItems": [
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Width, px."
+                          "description": "Width, m.",
+                          "unit": "m"
                         },
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Height, px."
+                          "description": "Height, m.",
+                          "unit": "m"
                         }
                       ]
                     },
@@ -1053,15 +1078,17 @@
                       "prefixItems": [
                         {
                           "type": "number",
-                          "description": "dx, px."
+                          "description": "dx, m.",
+                          "unit": "m"
                         },
                         {
                           "type": "number",
-                          "description": "dy, px; y is down."
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
                         }
                       ],
-                      "unit": "px",
-                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
                     },
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
@@ -1095,31 +1122,36 @@
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
                       "type": "array",
                       "prefixItems": [
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Left inset, px."
+                          "description": "Left inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Top inset, px."
+                          "description": "Top inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Right inset, px."
+                          "description": "Right inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Bottom inset, px."
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
                         }
                       ]
                     },
@@ -1237,7 +1269,7 @@
               "maximum": 10000
             },
             "shape": {
-              "description": "Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. [\"box\", 0, 0, 40, 6]). Not chain.",
+              "description": "Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. [\"box\", 0, 0, 0.4, 0.06]). Not chain.",
               "title": "Shape",
               "group": "geometry",
               "$ref": "#/$defs/BodyShape"
@@ -1270,20 +1302,21 @@
                       "type": "string"
                     },
                     "size": {
-                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
                       "type": "array",
                       "prefixItems": [
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Width, px."
+                          "description": "Width, m.",
+                          "unit": "m"
                         },
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Height, px."
+                          "description": "Height, m.",
+                          "unit": "m"
                         }
                       ]
                     },
@@ -1315,15 +1348,17 @@
                       "prefixItems": [
                         {
                           "type": "number",
-                          "description": "dx, px."
+                          "description": "dx, m.",
+                          "unit": "m"
                         },
                         {
                           "type": "number",
-                          "description": "dy, px; y is down."
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
                         }
                       ],
-                      "unit": "px",
-                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
                     },
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
@@ -1357,31 +1392,36 @@
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
                       "type": "array",
                       "prefixItems": [
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Left inset, px."
+                          "description": "Left inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Top inset, px."
+                          "description": "Top inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Right inset, px."
+                          "description": "Right inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Bottom inset, px."
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
                         }
                       ]
                     },
@@ -1499,7 +1539,7 @@
               "maximum": 10000
             },
             "at": {
-              "description": "Where the sprite's pose is. Absolute world px; y is down.",
+              "description": "Where the sprite's pose is. Absolute world metres; y is down.",
               "title": "Position",
               "$ref": "#/$defs/Pt"
             },
@@ -1522,20 +1562,21 @@
                       "type": "string"
                     },
                     "size": {
-                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
                       "type": "array",
                       "prefixItems": [
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Width, px."
+                          "description": "Width, m.",
+                          "unit": "m"
                         },
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Height, px."
+                          "description": "Height, m.",
+                          "unit": "m"
                         }
                       ]
                     },
@@ -1567,15 +1608,17 @@
                       "prefixItems": [
                         {
                           "type": "number",
-                          "description": "dx, px."
+                          "description": "dx, m.",
+                          "unit": "m"
                         },
                         {
                           "type": "number",
-                          "description": "dy, px; y is down."
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
                         }
                       ],
-                      "unit": "px",
-                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
                     },
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
@@ -1609,31 +1652,36 @@
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
                       "type": "array",
                       "prefixItems": [
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Left inset, px."
+                          "description": "Left inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Top inset, px."
+                          "description": "Top inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Right inset, px."
+                          "description": "Right inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Bottom inset, px."
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
                         }
                       ]
                     },
@@ -1751,7 +1799,7 @@
               "maximum": 10000
             },
             "shape": {
-              "description": "A simple polygon, concave allowed. Absolute world px; y is down.",
+              "description": "A simple polygon, concave allowed. Absolute world metres; y is down.",
               "title": "Shape",
               "group": "geometry",
               "$ref": "#/$defs/Polygon"
@@ -1790,20 +1838,21 @@
                       "type": "string"
                     },
                     "size": {
-                      "description": "Drawn size in world px; omitted, the frame's pixel size times scale.",
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
                       "type": "array",
                       "prefixItems": [
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Width, px."
+                          "description": "Width, m.",
+                          "unit": "m"
                         },
                         {
-                          "type": "integer",
+                          "type": "number",
                           "exclusiveMinimum": 0,
-                          "maximum": 9007199254740991,
-                          "description": "Height, px."
+                          "description": "Height, m.",
+                          "unit": "m"
                         }
                       ]
                     },
@@ -1835,15 +1884,17 @@
                       "prefixItems": [
                         {
                           "type": "number",
-                          "description": "dx, px."
+                          "description": "dx, m.",
+                          "unit": "m"
                         },
                         {
                           "type": "number",
-                          "description": "dy, px; y is down."
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
                         }
                       ],
-                      "unit": "px",
-                      "description": "World px from the pose to the anchor; turns and flips with the instance."
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
                     },
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
@@ -1877,31 +1928,36 @@
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
                       "type": "array",
                       "prefixItems": [
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Left inset, px."
+                          "description": "Left inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Top inset, px."
+                          "description": "Top inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Right inset, px."
+                          "description": "Right inset, px.",
+                          "unit": "px"
                         },
                         {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991,
-                          "description": "Bottom inset, px."
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
                         }
                       ]
                     },
@@ -2019,7 +2075,7 @@
               "maximum": 10000
             },
             "at": {
-              "description": "Where the note shows, absolute world px.",
+              "description": "Where the note shows, absolute world metres.",
               "title": "Position",
               "$ref": "#/$defs/Pt"
             },
@@ -2037,7 +2093,8 @@
       "description": "An entity with a stable id. `type` picks the registered type and which fields apply."
     },
     "ShapeTuple": {
-      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...] | [\"chain\", x1, y1, x2, y2, ...]. Integer pixels, y is down.",
+      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...] | [\"chain\", x1, y1, x2, y2, ...]. Metres, y is down; rotDeg in degrees.",
+      "unit": "m",
       "oneOf": [
         {
           "title": "box",
@@ -2049,24 +2106,24 @@
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre x."
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre y (y is down)."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Half-width; the box is 2*hw wide."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Half-height; the box is 2*hh tall."
             },
             {
@@ -2089,18 +2146,18 @@
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre x."
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre y (y is down)."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Radius."
             }
           ],
@@ -2118,24 +2175,24 @@
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre x."
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre y (y is down)."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Half the length of the inner segment."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Radius."
             },
             {
@@ -2159,7 +2216,7 @@
           ],
           "items": {
             "type": "number",
-            "unit": "px"
+            "unit": "m"
           },
           "minItems": 7
         },
@@ -2174,7 +2231,7 @@
           ],
           "items": {
             "type": "number",
-            "unit": "px"
+            "unit": "m"
           },
           "minItems": 5
         }
@@ -2185,20 +2242,21 @@
       "prefixItems": [
         {
           "type": "number",
-          "description": "x, px.",
-          "unit": "px"
+          "description": "x, m.",
+          "unit": "m"
         },
         {
           "type": "number",
-          "description": "y, px; y is down.",
-          "unit": "px"
+          "description": "y, m; y is down.",
+          "unit": "m"
         }
       ],
-      "description": "A point [x, y] in integer world pixels; y is down.",
-      "unit": "px"
+      "description": "A point [x, y] in world metres; y is down.",
+      "unit": "m"
     },
     "BodyShape": {
-      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...]. Integer pixels, y is down.",
+      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...]. Metres, y is down; rotDeg in degrees.",
+      "unit": "m",
       "oneOf": [
         {
           "title": "box",
@@ -2210,24 +2268,24 @@
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre x."
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre y (y is down)."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Half-width; the box is 2*hw wide."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Half-height; the box is 2*hh tall."
             },
             {
@@ -2250,18 +2308,18 @@
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre x."
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre y (y is down)."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Radius."
             }
           ],
@@ -2279,24 +2337,24 @@
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre x."
             },
             {
               "type": "number",
-              "unit": "px",
+              "unit": "m",
               "description": "Centre y (y is down)."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Half the length of the inner segment."
             },
             {
               "type": "number",
               "exclusiveMinimum": 0,
-              "unit": "px",
+              "unit": "m",
               "description": "Radius."
             },
             {
@@ -2320,7 +2378,7 @@
           ],
           "items": {
             "type": "number",
-            "unit": "px"
+            "unit": "m"
           },
           "minItems": 7
         }
@@ -2334,7 +2392,7 @@
           "items": {
             "$ref": "#/$defs/Pt"
           },
-          "description": "Waypoints in absolute world px. The entity's shape is centred on each point in turn. At least 2, no repeats.",
+          "description": "Waypoints in absolute world metres. The entity's shape is centred on each point in turn. At least 2, no repeats.",
           "title": "Waypoints"
         },
         "mode": {
@@ -2345,9 +2403,9 @@
         },
         "speed": {
           "type": "number",
-          "description": "Travel speed along the path, px per second; must be > 0.",
+          "description": "Travel speed along the path, m/s; must be > 0.",
           "title": "Speed",
-          "unit": "px/s"
+          "unit": "m/s"
         },
         "pauseMs": {
           "description": "How long it waits at each waypoint, in milliseconds. Omitted means 0.",
@@ -2364,7 +2422,8 @@
       "group": "motion"
     },
     "Polygon": {
-      "description": "A simple polygon: [\"poly\", x1, y1, x2, y2, x3, y3, ...], concave allowed. Integer pixels, y is down.",
+      "description": "A simple polygon: [\"poly\", x1, y1, x2, y2, x3, y3, ...], concave allowed. Metres, y is down.",
+      "unit": "m",
       "oneOf": [
         {
           "title": "poly",
@@ -2377,7 +2436,7 @@
           ],
           "items": {
             "type": "number",
-            "unit": "px"
+            "unit": "m"
           },
           "minItems": 7
         }
@@ -2441,23 +2500,19 @@
           "type": "array",
           "prefixItems": [
             {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "x, px.",
-              "unit": "px"
+              "type": "number",
+              "description": "x, m.",
+              "unit": "m"
             },
             {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "y, px; y is down.",
-              "unit": "px"
+              "type": "number",
+              "description": "y, m; y is down.",
+              "unit": "m"
             }
           ],
-          "description": "Where the prefab's origin lands, in world px (relative to the group's origin when in a group).",
+          "description": "Where the prefab's origin lands, in world metres (relative to the group's origin when in a group).",
+          "unit": "m",
           "title": "Position",
-          "unit": "px",
           "group": "geometry"
         },
         "rot": {

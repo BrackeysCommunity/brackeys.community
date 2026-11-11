@@ -1,12 +1,12 @@
 {
-  "v": 3,
+  "v": 4,
   "game": "platformer",
   "name": "flat-yard",
-  "bounds": [0, 0, 640, 384],
+  "bounds": [0, 0, 6.4, 3.84],
   "settings": { "physics": "none" },
-  "solid": [["box", 320, 368, 320, 16]],
+  "solid": [["box", 3.2, 3.68, 3.2, 0.16]],
   "entities": [
-    { "id": "goal", "type": "goal", "shape": ["circle", 560, 330, 12] },
-    { "id": "kill-plane", "type": "hazard", "shape": ["box", 320, 376, 320, 8] }
+    { "id": "goal", "type": "goal", "shape": ["circle", 5.6, 3.3, 0.12] },
+    { "id": "kill-plane", "type": "hazard", "shape": ["box", 3.2, 3.76, 3.2, 0.08] }
   ]
 }

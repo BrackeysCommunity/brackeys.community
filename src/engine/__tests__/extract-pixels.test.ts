@@ -108,9 +108,9 @@ describe("extractPixels", () => {
       displayHeight: 600,
       backgroundColor: 0x0a0b0c,
     });
-    game.frame({ minX: 1000, minY: 400, maxX: 1200, maxY: 500 }, 0);
-    // The framed rect's centre sits at the canvas centre.
-    const read = game.extractPixels([{ x: 1100.25, y: 450.25 }]);
+    game.frame({ minX: 10, minY: 4, maxX: 12, maxY: 5 }, 0);
+    // The framed rect's centre (metres) sits at the canvas centre.
+    const read = game.extractPixels([{ x: 11.0025, y: 4.5025 }]);
 
     expect(read).toEqual({ renderer: "webgl", pixels: [[10, 20, 30, 255]] });
     expect(fake.pixels).toHaveBeenCalledTimes(1);

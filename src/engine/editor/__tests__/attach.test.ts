@@ -131,6 +131,58 @@ describe("attachBatch", () => {
     ]);
   });
 
+  it("never offers a spawn-only type as a rider or a target", () => {
+    const game = createRegistry(
+      defineGame({
+        id: "shooter",
+        types: [
+          defineEntityType({
+            type: "hook",
+            base: "marker",
+            description: "A point a player can hang from.",
+            fields: { at: registry.types.get("marker")!.shape.at! },
+          }),
+          defineEntityType({
+            type: "player",
+            base: "solid",
+            description: "The body the input drives, spawned at Play.",
+            spawnOnly: true,
+            fields: {
+              shape: shapeField("Body."),
+              hang: attachField("The hook it hangs from."),
+            },
+            refs: [{ field: "hang", targets: ["hook"] }],
+          }),
+          defineEntityType({
+            type: "drone",
+            base: "follower",
+            description: "A moving body game code launches.",
+            spawnOnly: true,
+            fields: registry.types.get("follower")!.shape,
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    expect(attachFieldOf(game, "player")).toBeNull();
+    expect(isFollowerType(game, "hook")).toBe(false);
+    expect(isFollowerType(game, "drone")).toBe(false);
+    expect(isFollowerType(game, "follower")).toBe(true);
+    const def: SceneDefinition = {
+      ...scene(),
+      entities: [
+        { id: "deck", type: "solid", shape: ["box", 0, 0, 4, 4] },
+        { ...follower("d", 0), type: "drone" },
+        { id: "hero", type: "player", shape: ["box", 0, 0, 1, 1] },
+        { id: "h", type: "hook", at: [0, 0] },
+      ] as SceneDefinition["entities"],
+      instances: [],
+    };
+    expect(attachBatch(def, "deck", "d", game)).toBeNull();
+    expect(attachBatch(def, "hero", "h", game)).toBeNull();
+  });
+
   it("dispatches as one undo step and one history row", () => {
     const session = createEditorSession({
       doc: sceneToDoc(scene(), { key: sequentialKeys("t") }),

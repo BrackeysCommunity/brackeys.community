@@ -58,6 +58,7 @@ export {
   gameSettingsIssues,
   gameSettingsKind,
   gameSettingsValues,
+  inputMapIssues,
   INPUT_SCRIPT_SUFFIX,
   inputScriptKind,
   MATERIAL_KIND,
@@ -99,6 +100,18 @@ export {
 } from "./kinds/index";
 export { atlasExportApp } from "./kinds/atlas";
 export { engineResolution, type GameSettingsEngine } from "./kinds/game-settings";
+export {
+  INPUT_MAP_KIND,
+  INPUT_MAP_SCHEMA_ID,
+  INPUT_MAP_VERSION,
+  inputMapEntries,
+  inputMapKind,
+  inputMapProblems,
+  usableInputMap,
+  type InputMapFile,
+  type InputMapProblem,
+  type InputMapTouchControl,
+} from "./kinds/input-map";
 export { canonicalJson, stableJson } from "./canonical";
 export { byCodeUnit } from "./kinds/define";
 export {
@@ -178,7 +191,7 @@ export {
   type QuotaPolicy,
   type QuotaVerdict,
 } from "./usage";
-export { runtimeView, type ProjectRuntimeView } from "./runtime-view";
+export { RUNTIME_VIEW_KINDS, runtimeView, type ProjectRuntimeView } from "./runtime-view";
 export { assetInfo, type AssetInfo } from "./asset-info";
 export { projectBundle, sceneBundle, type AssetBundle, type BundleEntry } from "./bundle";
 export {

@@ -45,7 +45,7 @@ const FIXTURES: Record<string, string> = {
   material: lines(
     "{",
     '  "kind": "material",',
-    '  "v": 1,',
+    '  "v": 2,',
     '  "description": "Ice.",',
     '  "physics": { "friction": 0, "restitution": 0 },',
     '  "render": { "blend": "add", "style": { "fill": "#ccf", "stroke": "#ffffff", "strokeWidth": 2 }, "tint": "#88ccff" }',
@@ -54,7 +54,7 @@ const FIXTURES: Record<string, string> = {
   "game-settings": lines(
     "{",
     '  "kind": "game-settings",',
-    '  "v": 1,',
+    '  "v": 2,',
     '  "engine": {},',
     '  "game": {',
     '    "avatarSpeed": 180',
@@ -65,7 +65,7 @@ const FIXTURES: Record<string, string> = {
     "{",
     '  "$schema": "../../engine/project/data-table.schema.json",',
     '  "kind": "data-table",',
-    '  "v": 1,',
+    '  "v": 2,',
     '  "table": "card",',
     '  "rows": [',
     '    { "id": "zap", "cost": 0, "damage": 1 },',
@@ -76,18 +76,20 @@ const FIXTURES: Record<string, string> = {
   ),
   "input-script": lines(
     "{",
-    '  "v": 1,',
+    '  "v": 2,',
     '  "scene": "yard",',
     '  "steps": [',
     '    { "for": 10, "hold": ["left"] },',
-    '    { "hold": ["right", "push"], "until": { "past": 400 } },',
+    '    { "hold": ["right", "push"], "until": { "past": 4 } },',
     '    { "forMs": 250, "hold": [] }',
     "  ]",
     "}",
   ),
+  /** Frozen: a change to the input-map's layout or formatter that moves a byte of it is a format change. */
+  "input-map": readFileSync(new URL("./fixtures/input-map.json", import.meta.url), "utf8"),
   checks: lines(
     "{",
-    '  "v": 1,',
+    '  "v": 3,',
     '  "checks": [',
     '    { "id": "valid", "kind": "valid" },',
     '    { "id": "props", "kind": "test-game/props", "atLeast": 1 },',
@@ -212,7 +214,7 @@ describe("file → doc → file, per kind", () => {
   const WORLD_PREDICATES: Record<string, string> = {
     "input-script": lines(
       "{",
-      '  "v": 1,',
+      '  "v": 2,',
       '  "scene": "yard",',
       '  "steps": [',
       '    { "hold": ["right"], "until": { "exists": "lamp#1" } },',
@@ -223,13 +225,54 @@ describe("file → doc → file, per kind", () => {
     ),
     checks: lines(
       "{",
-      '  "v": 1,',
+      '  "v": 3,',
       '  "checks": [',
-      '    { "id": "cleared", "kind": "reaches", "expect": { "count": { "max": 2, "type": "lamp" }, "exists": "lamp#3" }, "result": "script-end", "script": { "steps": [{ "hold": [], "until": { "exists": "lamp#1" } }], "v": 1 } }',
+      '    { "id": "cleared", "kind": "reaches", "expect": { "count": { "max": 2, "type": "lamp" }, "exists": "lamp#3" }, "result": "script-end", "script": { "steps": [{ "hold": [], "until": { "exists": "lamp#1" } }], "v": 2 } }',
       "  ]",
       "}",
     ),
   };
+
+  it("input-script: a v2 script with a track per seat is byte-identical, also after the doc crosses the wire", () => {
+    const text = lines(
+      "{",
+      '  "v": 2,',
+      '  "scene": "yard",',
+      '  "players": 2,',
+      '  "tracks": [',
+      '    { "player": 0, "steps": [',
+      '      { "for": 10, "hold": ["left"] },',
+      '      { "hold": ["right", "push"], "until": { "past": 4 } }',
+      "    ] },",
+      '    { "player": 1, "steps": [',
+      '      { "wait": 5 },',
+      '      { "for": 20, "hold": ["push"] }',
+      "    ] }",
+      "  ]",
+      "}",
+    );
+    const kind = kinds.get("input-script") as DocKindDef;
+    const parsed = parseAssetDoc(kind, text, env);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    expect(formatAssetDoc(kind, parsed.value)).toBe(text);
+    for (const back of throughDocs(kind.layout as DocLayout, parsed.value)) {
+      expect(back).toEqual(parsed.value);
+      expect(formatAssetDoc(kind, back)).toBe(text);
+    }
+  });
+
+  it("input-map: the frozen fixture binds every device kind and holds two seats", () => {
+    const parsed = parseAssetDoc(kinds.get("input-map") as DocKindDef, FIXTURES["input-map"]!, env);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    const { actions, players } = parsed.value as {
+      actions: { bindings: { device: string }[] }[];
+      players: { max: number };
+    };
+    expect(new Set(actions.flatMap((a) => a.bindings.map((b) => b.device)))).toEqual(
+      new Set(["key", "pad", "pointer", "touch"]),
+    );
+    expect(players.max).toBe(2);
+  });
 
   for (const [name, text] of Object.entries(WORLD_PREDICATES)) {
     it(`${name}: a script with exists and count is byte-identical, also after the doc crosses the wire`, () => {
@@ -275,7 +318,7 @@ describe("file → doc → file, per kind", () => {
 
   const PAINTED = lines(
     "{",
-    '  "v": 3,',
+    '  "v": 4,',
     '  "game": "test-game",',
     '  "name": "paint-yard",',
     '  "bounds": [0, 0, 4096, 4096],',
@@ -359,13 +402,25 @@ describe("file → doc → file, per kind", () => {
 // ─── Blob kinds: sidecar → registry → sidecar ────────────
 
 const blobFixture = (name: string) =>
-  readFile(new URL(`../../project/__tests__/fixtures/${name}`, import.meta.url));
+  readFile(
+    new URL(
+      name.startsWith("./") ? name : `../../project/__tests__/fixtures/${name}`,
+      import.meta.url,
+    ),
+  );
 const sha = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
-/** Each blob kind's file, the files its import resolves beside it, and the settings its sidecar sets. */
+/** Each blob kind's file (by its kind, or a case naming `kind`), the files its import resolves beside it, the settings its sidecar sets and the meta it inspects to. */
 const BLOBS: Record<
   string,
-  { path: string; file: string; beside?: Record<string, string>; import?: object }
+  {
+    kind?: string;
+    path: string;
+    file: string;
+    beside?: Record<string, string>;
+    import?: object;
+    meta?: object;
+  }
 > = {
   texture: {
     path: "art/crate.png",
@@ -380,7 +435,17 @@ const BLOBS: Record<
   },
   font: { path: "fonts/font.fnt", file: "font.fnt", beside: { "fonts/font_0.png": "font_0.png" } },
   audio: { path: "sfx/tone.wav", file: "tone.wav" },
-  recording: { path: "runs/run.recording.json", file: "run.recording.json" },
+  recording: {
+    path: "runs/run.recording.json",
+    file: "run.recording.json",
+    meta: { scene: "kitchen-sink", ticks: 120, sceneHash: "3f1c9a2b", v: 1, players: 1 },
+  },
+  "recording v2": {
+    kind: "recording",
+    path: "runs/versus.recording.json",
+    file: "./fixtures/run.v2.recording.json",
+    meta: { scene: "yard", ticks: 60, sceneHash: "5a1d2c3e", v: 2, players: 2 },
+  },
 };
 
 describe("sidecar → registry → sidecar, per blob kind", () => {
@@ -395,12 +460,14 @@ describe("sidecar → registry → sidecar, per blob kind", () => {
   };
 
   it("covers every blob kind", () => {
-    expect(blobKinds.map((k) => k.kind).sort()).toEqual(Object.keys(BLOBS).sort());
+    expect(blobKinds.map((k) => k.kind).sort()).toEqual(
+      [...new Set(Object.entries(BLOBS).map(([name, b]) => b.kind ?? name))].sort(),
+    );
   });
 
-  for (const { kind } of blobKinds) {
-    it(`${kind}: its sidecar crosses the wire and a move writes it back byte-identical`, async () => {
-      const spec = BLOBS[kind]!;
+  for (const [name, spec] of Object.entries(BLOBS)) {
+    const kind = spec.kind ?? name;
+    it(`${name}: its sidecar crosses the wire and a move writes it back byte-identical`, async () => {
       const root = await mkdtemp(join(tmpdir(), "kinds-roundtrip-"));
       const dir = join(root, "demo");
       const put = async (path: string, data: string | Uint8Array) => {
@@ -452,6 +519,7 @@ describe("sidecar → registry → sidecar, per blob kind", () => {
           ...(spec.import ? { import: spec.import } : {}),
         });
         expect(parsed.sidecar.meta).toBeDefined();
+        if (spec.meta) expect(parsed.sidecar.meta).toEqual(spec.meta);
         expect(formatSidecar(parsed.sidecar, { detectedKind: kind })).toBe(text);
 
         const host = createProjectFileAdapter(project("cache-b"));
@@ -462,6 +530,28 @@ describe("sidecar → registry → sidecar, per blob kind", () => {
         const remote = new Y.Doc();
         Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
         expect(readProject(remote).assets[key]).toEqual(entry);
+
+        if (kind === "recording") {
+          const edited = new Uint8Array([...bytes, 0x0a]);
+          const replaced = applyRegistryBatch(
+            remote,
+            {
+              v: 1,
+              ops: [
+                {
+                  op: "replaceContent",
+                  id: `my-${kind}`,
+                  sha256: sha(edited),
+                  bytes: edited.byteLength,
+                },
+              ],
+            },
+            { kind: "user", userId: "ada" },
+            { registry: env.registry, kinds },
+          );
+          expect(!replaced.ok && replaced.issue.code).toBe("asset-kind");
+          expect(readProject(remote).assets[key]).toEqual(entry);
+        }
 
         // What its import resolves beside it moves along, so its meta stays put.
         const near = new Set([spec.path, ...Object.keys(spec.beside ?? {})]);

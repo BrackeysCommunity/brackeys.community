@@ -21,7 +21,7 @@ describe("data-table.schema.json", () => {
 
   it("has its URN, draft 2020-12, the agent surface and no domain", () => {
     const schema = fresh();
-    expect(DATA_TABLE_SCHEMA_ID).toBe("urn:jams-engine:data-table:v1");
+    expect(DATA_TABLE_SCHEMA_ID).toBe("urn:jams-engine:data-table:v2");
     expect(schema.$id).toBe(DATA_TABLE_SCHEMA_ID);
     expect(schema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(schema[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);
@@ -35,7 +35,7 @@ describe("data-table.schema.json", () => {
   it("describes rows by id without a game, and takes any table name", () => {
     const issues = validateAssetDoc(
       dataTableKind,
-      { kind: "data-table", v: 1, table: "card", rows: [{ id: "a", anything: 1 }] },
+      { kind: "data-table", v: 2, table: "card", rows: [{ id: "a", anything: 1 }] },
       env,
     );
     expect(issues).toEqual([]);

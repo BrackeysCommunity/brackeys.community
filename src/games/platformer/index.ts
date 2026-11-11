@@ -1,20 +1,40 @@
-import { defineGame } from "@jams/engine/game";
+import { defineGame, type CommandDef } from "@jams/engine/game";
+import { z } from "zod";
 
 import { PLATFORMER_ACTIONS } from "./actions";
 import { PLATFORMER_EDIT_KEYS } from "./edit-keys";
 import { GRAPPLE_RANGE } from "./entities/grapple-anchor";
 import { MOVEMENT_CONFIG, PLAYER_HEIGHT, PLAYER_TYPE, PLAYER_WIDTH } from "./entities/player";
+import { CONSTRUCT_TYPES } from "./entities/shaper-constructs";
 import { PLATFORMER_ISSUES } from "./issues";
 import { PLATFORMER_MATERIALS } from "./materials";
 import { PLATFORMER_PHYSICAL_CHECKS } from "./physical";
 import { PLATFORMER_PLAY } from "./play";
 import { createPlatformerRuntime, type PlayerSnapshot } from "./runtime";
 import { CLOUD_GROUP } from "./systems/cloud";
+import { SHAPER_PLACE, SHAPER_REMOVE } from "./systems/shaper";
 import { attachShaper, SHAPER_KEYS } from "./systems/shaper-attach";
 import { PLATFORMER_TEMPLATE } from "./template";
 import { TYPE } from "./type-names";
 import { PLATFORMER_TYPES } from "./types";
 import { PLATFORMER_VALIDATORS } from "./validate";
+
+/** The Shaper's placements, as commands so a recording replays them. */
+const PLATFORMER_COMMANDS: Record<string, CommandDef> = {
+  [SHAPER_PLACE]: {
+    description:
+      "Places a Shaper construct centred at `at` (metres), turned `rot` whole degrees clockwise; refused inside the cooldown, past the type's per-round limit or outside the scene's bounds.",
+    args: z.strictObject({
+      type: z.enum(CONSTRUCT_TYPES),
+      at: z.tuple([z.number(), z.number()]),
+      rot: z.number().int(),
+    }),
+  },
+  [SHAPER_REMOVE]: {
+    description: "Removes a construct the Shaper placed, by its id (`construct#<n>`).",
+    args: z.strictObject({ id: z.string() }),
+  },
+};
 
 /** A Transformice-style runner: run, jump, wall-jump, dash and grapple to the cheese. */
 export const platformerGame = defineGame<PlayerSnapshot>({
@@ -47,7 +67,9 @@ export const platformerGame = defineGame<PlayerSnapshot>({
     player: { width: PLAYER_WIDTH, height: PLAYER_HEIGHT },
   }),
   createRuntime: createPlatformerRuntime,
-  world: { gravity: [0, 1200] },
+  commands: PLATFORMER_COMMANDS,
+  // Authored in metres, drawn at 100 px per metre.
+  world: { gravity: [0, 12], lengthUnit: 100 },
   time: { kind: "fixed", rate: 60 },
   play: PLATFORMER_PLAY,
   editorKeys: [...SHAPER_KEYS, ...PLATFORMER_EDIT_KEYS],
@@ -77,6 +99,7 @@ export type {
 } from "./types";
 export {
   createPlatformerRuntime,
+  SHAPER_REFUSED,
   type PlatformerDebugInfo,
   type PlatformerStoreSlice,
   type PlayerSnapshot,
@@ -96,3 +119,4 @@ export {
   CONSTRUCT_TYPES,
   type ConstructType,
 } from "./entities/shaper-constructs";
+export { SHAPER_PLACE, SHAPER_REMOVE } from "./systems/shaper";

@@ -12,6 +12,7 @@ import {
   makeIssue,
   parseScene,
   sceneGameOf,
+  type Prefab,
   type PrefabLibrary,
   type Registry,
   type SceneDefinition,
@@ -42,6 +43,8 @@ export type ToolContext = {
   /** Each project's scene JSON Schema file, for the `$schema` that `new` writes; a project without one copies its other scenes'. */
   schemaFiles?: Readonly<Record<ProjectId, string>>;
   loadRapier: () => Promise<RapierModule>;
+  /** The Rapier package `loadRapier` loads, which recordings name as `platform.flavour`; null when unset. */
+  rapierFlavour?: string;
   /** Reads `-` arguments; the CLI passes stdin. */
   readStdin?: () => Promise<string>;
   /** A file's text at a git revision; defaults to `git show <rev>:./<file>` beside the file. */
@@ -407,6 +410,19 @@ export async function prefabsOf(
 }
 
 /**
+ * A prefab lookup over `prefabs`, for a migration that reads the fields an
+ * instance overrides (a v3 file's lengths become metres through them).
+ */
+export const prefabLookup =
+  (prefabs: PrefabLibrary) =>
+  (id: string): Prefab | undefined =>
+    prefabs.get(id);
+
+/** `parseScene` with the scene's prefabs at hand, so an older file migrates its overrides and params. */
+export const parseSceneWith = (text: string, registry: Registry, prefabs: PrefabLibrary) =>
+  parseScene(text, registry, { prefab: prefabLookup(prefabs) });
+
+/**
  * Parses a scene with its game's registry. `under` is the game a scene
  * without a `game` key runs under; it is a usage error on a scene that
  * names another.
@@ -429,9 +445,9 @@ async function parseWithGame(
       ),
     };
   }
-  const parsed = parseScene(text, judged.registry);
-  if (!parsed.ok) return { ok: false, result: issuesFailure(name, parsed.issues) };
   const prefabs = await prefabsOf(home, judged.registry);
+  const parsed = parseSceneWith(text, judged.registry, prefabs);
+  if (!parsed.ok) return { ok: false, result: issuesFailure(name, parsed.issues) };
   const registry = judged.registry;
   return { ok: true, name, text, def: parsed.def, registry, prefabs, home, project };
 }

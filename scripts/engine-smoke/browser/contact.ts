@@ -18,18 +18,18 @@ export const CONTACT_TICK = 23;
 /** Ticks the read steps before it gives up on a contact. */
 export const CONTACT_MAX_TICKS = 120;
 
-/** A prop 90 px above a floor, nothing else: gameless, so only the engine's primitives load. */
+/** A prop 0.9 m above a floor, nothing else: gameless, so only the engine's primitives load. */
 export const contactScene: SceneDefinition = {
-  v: 3,
+  v: 4,
   name: "smoke-contact",
-  bounds: [0, 0, 400, 300],
-  settings: { physics: "rapier", gravity: [0, 1200] },
+  bounds: [0, 0, 4, 3],
+  settings: { physics: "rapier", gravity: [0, 12] },
   entities: [
-    { id: CONTACT_FLOOR, type: "solid", shape: ["box", 200, 220, 180, 20] },
+    { id: CONTACT_FLOOR, type: "solid", shape: ["box", 2, 2.2, 1.8, 0.2] },
     {
       id: CONTACT_PROP,
       type: "prop",
-      shape: ["box", 200, 100, 10, 10],
+      shape: ["box", 2, 1, 0.1, 0.1],
       density: 1,
       restitution: 0,
     },

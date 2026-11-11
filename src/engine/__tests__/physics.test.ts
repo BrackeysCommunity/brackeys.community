@@ -23,9 +23,10 @@ beforeAll(async () => {
   rapier = await import("@dimforge/rapier2d");
 });
 
+/** A 40 m wide, 0.4 m deep floor whose top is at `topY`, m. */
 function addFloor(pw: ReturnType<typeof createPhysicsWorld>, topY: number): void {
-  const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(1000, topY + 20));
-  pw.addCollider(rapier.ColliderDesc.cuboid(2000, 20), body);
+  const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(10, topY + 0.2));
+  pw.addCollider(rapier.ColliderDesc.cuboid(20, 0.2), body);
 }
 
 // ─── Physics world lifecycle ─────────────────────────────
@@ -38,11 +39,11 @@ describe("createPhysicsWorld", () => {
     pw.destroy();
   });
 
-  it("creates a world with correct gravity", () => {
+  it("creates a world with the default gravity, in m/s²", () => {
     const pw = createPhysicsWorld(rapier);
     const gravity = pw.world.gravity;
     expect(gravity.x).toBe(0);
-    expect(gravity.y).toBe(1200);
+    expect(gravity.y).toBe(12);
     pw.destroy();
   });
 
@@ -56,28 +57,28 @@ describe("createPhysicsWorld", () => {
     const pw = createPhysicsWorld(rapier, { timestep: 1 / 30 });
     expect(pw.world.timestep).toBe(Math.fround(1 / 30));
     const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic());
-    pw.addCollider(rapier.ColliderDesc.ball(5), body);
+    pw.addCollider(rapier.ColliderDesc.ball(0.05), body);
     pw.step();
-    expect(body.linvel().y).toBeCloseTo(1200 / 30, 3);
+    expect(body.linvel().y).toBeCloseTo(12 / 30, 5);
     pw.destroy();
   });
 
   it("accepts custom gravity", () => {
-    const pw = createPhysicsWorld(rapier, { gravity: { x: 0, y: 800 } });
-    expect(pw.world.gravity.y).toBe(800);
+    const pw = createPhysicsWorld(rapier, { gravity: { x: 0, y: 8 } });
+    expect(pw.world.gravity.y).toBe(8);
     pw.destroy();
   });
 
   it("changes gravity for later steps", () => {
     const pw = createPhysicsWorld(rapier);
     const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic());
-    pw.addCollider(rapier.ColliderDesc.ball(5), body);
+    pw.addCollider(rapier.ColliderDesc.ball(0.05), body);
     pw.setGravity({ x: 0, y: 0 });
     for (let i = 0; i < 10; i++) pw.step();
     expect(body.translation()).toEqual({ x: 0, y: 0 });
-    pw.setGravity({ x: -600, y: 0 });
+    pw.setGravity({ x: -6, y: 0 });
     pw.step();
-    expect(pw.world.gravity).toMatchObject({ x: -600, y: 0 });
+    expect(pw.world.gravity).toMatchObject({ x: -6, y: 0 });
     expect(body.translation().x).toBeLessThan(0);
     pw.destroy();
   });
@@ -99,8 +100,8 @@ describe("createPhysicsWorld", () => {
 describe("body management", () => {
   it("adds a dynamic rigid body", () => {
     const pw = createPhysicsWorld(rapier);
-    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(100, 0));
-    expect(body.translation().x).toBe(100);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(1, 0));
+    expect(body.translation().x).toBe(1);
     expect(body.translation().y).toBe(0);
     pw.destroy();
   });
@@ -108,7 +109,7 @@ describe("body management", () => {
   it("adds a collider to a body", () => {
     const pw = createPhysicsWorld(rapier);
     const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(0, 0));
-    const collider = pw.addCollider(rapier.ColliderDesc.ball(10), body);
+    const collider = pw.addCollider(rapier.ColliderDesc.ball(0.1), body);
     expect(collider).toBeDefined();
     expect(pw.world.colliders.len()).toBe(1);
     pw.destroy();
@@ -117,7 +118,7 @@ describe("body management", () => {
   it("removing a rigid body removes its colliders", () => {
     const pw = createPhysicsWorld(rapier);
     const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic());
-    pw.addCollider(rapier.ColliderDesc.ball(10), body);
+    pw.addCollider(rapier.ColliderDesc.ball(0.1), body);
     pw.removeRigidBody(body);
     expect(pw.world.bodies.len()).toBe(0);
     expect(pw.world.colliders.len()).toBe(0);
@@ -131,7 +132,7 @@ describe("simulation", () => {
   it("gravity causes a dynamic body to fall", () => {
     const pw = createPhysicsWorld(rapier);
     const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(0, 0));
-    pw.addCollider(rapier.ColliderDesc.ball(5), body);
+    pw.addCollider(rapier.ColliderDesc.ball(0.05), body);
 
     for (let i = 0; i < 10; i++) pw.step();
 
@@ -141,26 +142,26 @@ describe("simulation", () => {
 
   it("static bodies do not move", () => {
     const pw = createPhysicsWorld(rapier);
-    const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(500, 500));
-    pw.addCollider(rapier.ColliderDesc.cuboid(50, 50), body);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(5, 5));
+    pw.addCollider(rapier.ColliderDesc.cuboid(0.5, 0.5), body);
 
     for (let i = 0; i < 10; i++) pw.step();
 
-    expect(body.translation().x).toBe(500);
-    expect(body.translation().y).toBe(500);
+    expect(body.translation().x).toBe(5);
+    expect(body.translation().y).toBe(5);
     pw.destroy();
   });
 
   it("a falling body comes to rest on a floor", () => {
     const pw = createPhysicsWorld(rapier);
-    addFloor(pw, 1020);
-    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(1000, 0));
-    pw.addCollider(rapier.ColliderDesc.ball(5), body);
+    addFloor(pw, 10.2);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(10, 0));
+    pw.addCollider(rapier.ColliderDesc.ball(0.05), body);
 
     for (let i = 0; i < 600; i++) pw.step();
 
-    expect(body.translation().y).toBeLessThan(1100);
-    expect(body.translation().y).toBeGreaterThan(900);
+    expect(body.translation().y).toBeLessThan(11);
+    expect(body.translation().y).toBeGreaterThan(9);
     pw.destroy();
   });
 });
@@ -176,30 +177,30 @@ describe("character controller", () => {
 
   it("resolves collider movement against a floor", () => {
     const pw = createPhysicsWorld(rapier);
-    addFloor(pw, 1020);
+    addFloor(pw, 10.2);
     const controller = pw.createCharacterController(SIDE_VIEW_CONTROLLER);
     const body = pw.addRigidBody(
-      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 900),
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(10, 9),
     );
-    const collider = pw.addCollider(rapier.ColliderDesc.cuboid(30, 30), body);
+    const collider = pw.addCollider(rapier.ColliderDesc.cuboid(0.3, 0.3), body);
     pw.step();
 
-    controller.computeColliderMovement(collider, new rapier.Vector2(0, 200));
-    expect(controller.computedMovement().y).toBeLessThan(200);
+    controller.computeColliderMovement(collider, new rapier.Vector2(0, 2));
+    expect(controller.computedMovement().y).toBeLessThan(2);
     pw.destroy();
   });
 
   it("reports grounded after landing", () => {
     const pw = createPhysicsWorld(rapier);
-    addFloor(pw, 1020);
+    addFloor(pw, 10.2);
     const controller = pw.createCharacterController(SIDE_VIEW_CONTROLLER);
     const body = pw.addRigidBody(
-      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(1000, 989),
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(10, 9.89),
     );
-    const collider = pw.addCollider(rapier.ColliderDesc.cuboid(30, 30), body);
+    const collider = pw.addCollider(rapier.ColliderDesc.cuboid(0.3, 0.3), body);
     pw.step();
 
-    controller.computeColliderMovement(collider, new rapier.Vector2(0, 5));
+    controller.computeColliderMovement(collider, new rapier.Vector2(0, 0.05));
     expect(controller.computedGrounded()).toBe(true);
     pw.destroy();
   });
@@ -228,31 +229,36 @@ describe("character controller", () => {
     return out;
   }
 
-  it("options reach the controller", () => {
+  // Rapier keeps these as f32, so metric values read back within float rounding.
+  it("options reach the controller, in metres", () => {
     const side = readBack(SIDE_VIEW_CONTROLLER);
-    expect(side.offset).toBeCloseTo(0.01, 6);
+    expect(side.offset).toBeCloseTo(0.0001, 8);
     expect(side.up).toEqual({ x: 0, y: -1 });
     expect(side.climbDeg).toBeCloseTo(50, 4);
     expect(side.slideDeg).toBeCloseTo(30, 4);
-    expect(side.autostep).toEqual({ maxHeight: 4, minWidth: 2, dynamic: true });
-    expect(side.snap).toBeCloseTo(4, 6);
+    expect(side.autostep!.maxHeight).toBeCloseTo(0.04, 8);
+    expect(side.autostep!.minWidth).toBeCloseTo(0.02, 8);
+    expect(side.autostep!.dynamic).toBe(true);
+    expect(side.snap).toBeCloseTo(0.04, 8);
     expect(side.push).toBe(true);
 
     const custom = readBack({
-      offset: 0.5,
+      offset: 0.005,
       up: [1, 0],
       maxSlopeClimbDeg: 20,
       minSlopeSlideDeg: 10,
-      autostep: { maxHeight: 8, minWidth: 3, dynamic: false },
-      snapToGround: 2,
+      autostep: { maxHeight: 0.08, minWidth: 0.03, dynamic: false },
+      snapToGround: 0.02,
       pushDynamic: false,
     });
-    expect(custom.offset).toBeCloseTo(0.5, 6);
+    expect(custom.offset).toBeCloseTo(0.005, 8);
     expect(custom.up).toEqual({ x: 1, y: 0 });
     expect(custom.climbDeg).toBeCloseTo(20, 4);
     expect(custom.slideDeg).toBeCloseTo(10, 4);
-    expect(custom.autostep).toEqual({ maxHeight: 8, minWidth: 3, dynamic: false });
-    expect(custom.snap).toBeCloseTo(2, 6);
+    expect(custom.autostep!.maxHeight).toBeCloseTo(0.08, 8);
+    expect(custom.autostep!.minWidth).toBeCloseTo(0.03, 8);
+    expect(custom.autostep!.dynamic).toBe(false);
+    expect(custom.snap).toBeCloseTo(0.02, 8);
     expect(custom.push).toBe(false);
   });
 
@@ -263,7 +269,7 @@ describe("character controller", () => {
     expect(off({ minSlopeSlideDeg: null }).slideDeg).toBeCloseTo(90, 4);
     expect(off({ autostep: null }).autostep).toBeNull();
     expect(off({ snapToGround: null }).snap).toBeNull();
-    expect(off({ offset: undefined }).offset).toBeCloseTo(0.01, 6);
+    expect(off({ offset: undefined }).offset).toBeCloseTo(0.0001, 8);
 
     const top = readBack(TOP_DOWN_CONTROLLER);
     expect(top).toMatchObject({ autostep: null, snap: null, push: false, up: { x: 0, y: -1 } });
@@ -363,10 +369,10 @@ describe("debugRender", () => {
 describe("prop body fields", () => {
   const DT = 1000 / 60;
 
-  function yard(entities: RuntimeEntity[], gravity: [number, number] = [0, 1200]): ExpandedScene {
+  function yard(entities: RuntimeEntity[], gravity: [number, number] = [0, 12]): ExpandedScene {
     return {
       name: "props",
-      bounds: [-1000, -1000, 1000, 1000],
+      bounds: [-10, -10, 10, 10],
       settings: { gravity, physics: "rapier", grid: null, view: { projection: "orthogonal" } },
       entities,
     };
@@ -384,7 +390,7 @@ describe("prop body fields", () => {
   const crate = (fields: Partial<PropEntity> = {}): RuntimeEntity => ({
     id: "crate",
     type: "prop",
-    shape: box(0, 0, 10, 10),
+    shape: box(0, 0, 0.1, 0.1),
     density: 1,
     restitution: 0,
     ...fields,
@@ -426,14 +432,14 @@ describe("prop body fields", () => {
   it("linear damping slows a moving prop", () => {
     const speed = (fields: Partial<PropEntity>) => {
       const { rt, body, step } = run([crate(fields)], [0, 0]);
-      body.setLinvel({ x: 300, y: 0 }, true);
+      body.setLinvel({ x: 3, y: 0 }, true);
       step(30);
       const v = body.linvel().x;
       rt.destroy();
       return v;
     };
-    expect(speed({})).toBeCloseTo(300, 3);
-    expect(speed({ linearDamping: 2 })).toBeLessThan(150);
+    expect(speed({})).toBeCloseTo(3, 5);
+    expect(speed({ linearDamping: 2 })).toBeLessThan(1.5);
   });
 
   it("angular damping slows a spinning prop", () => {
@@ -452,8 +458,12 @@ describe("prop body fields", () => {
   it("a prop with fixedRotation never turns", () => {
     /** A crate dropped with most of it past a ledge's edge: free, it tips over. */
     const tip = (fields: Partial<PropEntity>) => {
-      const ledge: RuntimeEntity = { id: "ledge", type: "solid", shape: box(-50, 40, 50, 10) };
-      const { rt, body, step } = run([ledge, crate({ shape: box(5, 0, 10, 10), ...fields })]);
+      const ledge: RuntimeEntity = {
+        id: "ledge",
+        type: "solid",
+        shape: box(-0.5, 0.4, 0.5, 0.1),
+      };
+      const { rt, body, step } = run([ledge, crate({ shape: box(0.05, 0, 0.1, 0.1), ...fields })]);
       const rots: number[] = [];
       for (let i = 0; i < 90; i++) {
         step(1);
@@ -474,22 +484,25 @@ describe("prop body fields", () => {
       rt.destroy();
       return y;
     };
-    expect(fall({})).toBeGreaterThan(400);
+    expect(fall({})).toBeGreaterThan(4);
     expect(fall({ gravityScale: 0 })).toBe(0);
   });
 
-  it("with ccd a prop doesn't tunnel through a 2 px wall at 6000 px/s", () => {
-    const wall: RuntimeEntity = { id: "wall", type: "solid", shape: box(200, 0, 1, 100) };
+  it("with ccd a prop doesn't tunnel through a 0.02 m wall at 60 m/s", () => {
+    const wall: RuntimeEntity = { id: "wall", type: "solid", shape: box(2, 0, 0.01, 1) };
     const throwAt = (fields: Partial<PropEntity>) => {
-      const { rt, body, step } = run([wall, crate({ shape: box(0, 0, 5, 5), ...fields })], [0, 0]);
-      body.setLinvel({ x: 6000, y: 0 }, true);
+      const { rt, body, step } = run(
+        [wall, crate({ shape: box(0, 0, 0.05, 0.05), ...fields })],
+        [0, 0],
+      );
+      body.setLinvel({ x: 60, y: 0 }, true);
       step(10);
       const x = body.translation().x;
       rt.destroy();
       return x;
     };
-    expect(throwAt({})).toBeGreaterThan(200);
-    expect(throwAt({ ccd: true })).toBeLessThan(200);
+    expect(throwAt({})).toBeGreaterThan(2);
+    expect(throwAt({ ccd: true })).toBeLessThan(2);
   });
 });
 
@@ -507,10 +520,10 @@ describe("disabling and enabling bodies on Rapier", () => {
     rotDeg: 0,
   });
 
-  function yard(entities: RuntimeEntity[], gravity: [number, number] = [0, 1200]): ExpandedScene {
+  function yard(entities: RuntimeEntity[], gravity: [number, number] = [0, 12]): ExpandedScene {
     return {
       name: "toggles",
-      bounds: [-1000, -1000, 1000, 1000],
+      bounds: [-10, -10, 10, 10],
       settings: { gravity, physics: "rapier", grid: null, view: { projection: "orthogonal" } },
       entities,
     };
@@ -547,11 +560,11 @@ describe("disabling and enabling bodies on Rapier", () => {
   const crate: RuntimeEntity = {
     id: "crate",
     type: "prop",
-    shape: box(0, 0, 10, 10),
+    shape: box(0, 0, 0.1, 0.1),
     density: 1,
     restitution: 0,
   };
-  const zone: RuntimeEntity = { id: "zone", type: "sensor", shape: box(0, 0, 40, 40) };
+  const zone: RuntimeEntity = { id: "zone", type: "sensor", shape: box(0, 0, 0.4, 0.4) };
   const sensorEvents = (events: StepEvent[]) =>
     events.filter((e) => e.type.startsWith("sensor:")).map((e) => [e.type, e.entityId, e.other]);
 
@@ -588,30 +601,30 @@ describe("disabling and enabling bodies on Rapier", () => {
     steps(30);
     expect(body().parent()!.translation()).toEqual({ x: 0, y: 0 });
     expect(rt.ctx.poses.get("crate")).toMatchObject({ x: 0, y: 0 });
-    expect(hits(box(0, 0, 5, 5))).toEqual([]);
+    expect(hits(box(0, 0, 0.05, 0.05))).toEqual([]);
 
     rt.ctx.setEnabled("crate", true);
-    expect(hits(box(0, 0, 5, 5))).toEqual(["crate"]);
+    expect(hits(box(0, 0, 0.05, 0.05))).toEqual(["crate"]);
     steps(30);
-    expect(body().parent()!.translation().y).toBeGreaterThan(100);
-    expect(rt.ctx.poses.get("crate")!.y).toBeGreaterThan(100);
+    expect(body().parent()!.translation().y).toBeGreaterThan(1);
+    expect(rt.ctx.poses.get("crate")!.y).toBeGreaterThan(1);
     rt.destroy();
   });
 
   it("a disabled solid holds nothing up and leaves queries", () => {
-    const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 40, 100, 10) };
+    const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 0.4, 1, 0.1) };
     const { rt, steps, hits } = load([floor, crate]);
     rt.ctx.setEnabled("floor", false);
     expect(hits(floor.shape as ShapeObj)).toEqual([]);
     steps(60);
-    expect(rt.ctx.poses.get("crate")!.y).toBeGreaterThan(100);
+    expect(rt.ctx.poses.get("crate")!.y).toBeGreaterThan(1);
     rt.ctx.setEnabled("floor", true);
     expect(hits(floor.shape as ShapeObj)).toEqual(["floor"]);
     rt.destroy();
   });
 
   it("removes each primitive's visual on disable and redraws it on enable", () => {
-    const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 40, 100, 10) };
+    const floor: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 0.4, 1, 0.1) };
     const { view, log } = loggingView();
     const { rt } = load([floor, zone, crate], { view });
     for (const id of ["floor", "zone", "crate"]) {
@@ -629,21 +642,21 @@ describe("disabling and enabling bodies on Rapier", () => {
     const ledge: RuntimeEntity = {
       id: "ledge",
       type: "solid",
-      shape: box(0, 0, 50, 5),
+      shape: box(0, 0, 0.5, 0.05),
       oneWay: true,
     };
     const { rt, steps, hits } = load([ledge]);
     const solids = rt.ctx.system("solid") as SolidSystem;
     rt.ctx.setEnabled("ledge", false);
-    solids.gateOneWay(-20, false);
+    solids.gateOneWay(-0.2, false);
     steps(1);
     expect(hits(ledge.shape as ShapeObj)).toEqual([]);
-    solids.gateOneWay(20, false);
+    solids.gateOneWay(0.2, false);
     rt.ctx.setEnabled("ledge", true);
     steps(1);
     expect(solids.isHidden("ledge")).toBe(true);
     expect(hits(ledge.shape as ShapeObj)).toEqual([]);
-    solids.gateOneWay(-20, false);
+    solids.gateOneWay(-0.2, false);
     steps(1);
     expect(hits(ledge.shape as ShapeObj)).toEqual(["ledge"]);
     rt.destroy();
@@ -653,23 +666,23 @@ describe("disabling and enabling bodies on Rapier", () => {
     const lift: RuntimeEntity = {
       id: "lift",
       type: "follower",
-      shape: box(0, 0, 30, 5),
+      shape: box(0, 0, 0.3, 0.05),
       path: {
         pts: [
           [0, 0],
-          [0, 1],
+          [0, 0.01],
         ],
         mode: "ping_pong",
-        speed: 0.001,
+        speed: 0.00001,
       },
     };
     const rail: RuntimeEntity = {
       id: "rail",
       type: "solid",
-      shape: box(0, -10, 30, 2),
+      shape: box(0, -0.1, 0.3, 0.02),
       attach: "lift",
     };
-    const railBox = box(0, -10, 20, 1);
+    const railBox = box(0, -0.1, 0.2, 0.01);
 
     it("a disabled rider leaves queries while its carrier stays", () => {
       const { rt, steps, hits } = load([lift, rail], { gravity: [0, 0] });
@@ -678,7 +691,7 @@ describe("disabling and enabling bodies on Rapier", () => {
       rt.ctx.setEnabled("rail", false);
       steps(1);
       expect(hits(railBox)).toEqual([]);
-      expect(hits(box(0, 0, 20, 2))).toEqual(["lift"]);
+      expect(hits(box(0, 0, 0.2, 0.02))).toEqual(["lift"]);
       rt.ctx.setEnabled("rail", true);
       expect(hits(railBox)).toEqual(["rail"]);
       rt.destroy();

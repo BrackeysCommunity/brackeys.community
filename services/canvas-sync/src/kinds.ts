@@ -34,6 +34,27 @@ export interface KindGrant {
 }
 
 /**
+ * Why a client reading scene format `client` connects read-only to a doc
+ * at format `doc` on an instance that migrates up to `server`; null when
+ * the formats match. `engine-outdated`: the doc is newer than the client,
+ * reload to update. `migration-unresolved`: the doc is older than this
+ * instance's format and its next step needs the game's code, which this
+ * service never holds; a tool with the game migrates it. `server-outdated`:
+ * the doc is older than the client and this instance can't migrate it yet.
+ */
+export type FormatReadOnlyReason = "engine-outdated" | "server-outdated" | "migration-unresolved";
+
+export function formatReadOnlyReason(
+  client: number,
+  doc: number,
+  server: number,
+): FormatReadOnlyReason | null {
+  if (client === doc) return null;
+  if (client < doc) return "engine-outdated";
+  return doc < server ? "migration-unresolved" : "server-outdated";
+}
+
+/**
  * One kind of document the service hosts, by name prefix: its own access
  * check, load, store, migration and limits. Its hooks only ever see its own
  * documents.

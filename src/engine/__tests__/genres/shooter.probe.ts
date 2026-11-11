@@ -72,7 +72,7 @@ const game = defineGame<ShooterSnapshot>({
   id: ID,
   types: [turret, bullet],
   actions: [
-    { action: "fire", keys: ["space"], description: "Fire one bullet a tick." },
+    { action: "fire", keys: [" "], description: "Fire one bullet a tick." },
     ...Object.keys(AIM).map((action) => ({
       action,
       keys: [`arrow${action.slice(4)}`],

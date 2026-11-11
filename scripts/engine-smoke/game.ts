@@ -9,6 +9,11 @@ function avatarBody(ctx: EngineContext): RigidBody | null {
   return ctx.physics?.world.getCollider(handle)?.parent() ?? null;
 }
 
+/** Walking speed, m/s. */
+const WALK = 3;
+/** The upward speed a push adds, m/s. */
+const PUSH = 4;
+
 /**
  * A minimal game written only against `@jams/engine/game`: the prop `avatar`
  * walks with `left`/`right` and is shoved up on `push`, and wins when it
@@ -20,7 +25,7 @@ export const smokeGame = defineGame<SmokeSnapshot>({
   actions: [
     { action: "left", keys: ["a"], description: "Walk left." },
     { action: "right", keys: ["d"], description: "Walk right." },
-    { action: "push", keys: ["space"], description: "Push the avatar up." },
+    { action: "push", keys: [" "], description: "Push the avatar up." },
   ],
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
   play: {
@@ -52,8 +57,8 @@ export const smokeGame = defineGame<SmokeSnapshot>({
         }
         if (!avatar) return;
         const dir = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
-        avatar.setLinvel({ x: dir * 300, y: avatar.linvel().y }, true);
-        if (pushed) avatar.applyImpulse({ x: 0, y: -400 * avatar.mass() }, true);
+        avatar.setLinvel({ x: dir * WALK, y: avatar.linvel().y }, true);
+        if (pushed) avatar.applyImpulse({ x: 0, y: -PUSH * avatar.mass() }, true);
       },
       snapshot() {
         if (!avatar) return null;

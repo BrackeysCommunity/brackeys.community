@@ -55,11 +55,14 @@ const PAINT = defineEntityType({
   },
 });
 
-/** A game with the card table and the settings the copied project's files use, a grid type, and nothing to play. */
+/** A game with the card table and the settings the copied project's files use, a grid type, two actions, and nothing to play. */
 const deckGame = defineGame({
   id: "deck-game",
   types: [PAINT],
-  actions: [{ action: "right", keys: ["d"], description: "Walk right." }],
+  actions: [
+    { action: "right", keys: ["d"], description: "Walk right." },
+    { action: "fire", keys: [" "], description: "Fire." },
+  ],
   tables: {
     card: {
       description: "Cards a deck holds.",
@@ -74,9 +77,10 @@ const deckGame = defineGame({
 });
 
 const SCRIPT_FILE = "kitchen-sink.script.json";
+const INPUT_MAP = "input-map";
 /** A scene of the deck game, so its grid type is there to paint. */
 const TILES_ROOM = {
-  v: 3,
+  v: 4,
   game: "deck-game",
   name: "tiles-room",
   bounds: [0, 0, 1200, 800],
@@ -286,6 +290,7 @@ beforeAll(async () => {
     script.id,
     "kitchen-sink-checks",
     "engine-yard-checks",
+    INPUT_MAP,
   ])
     await hold(id);
 });
@@ -522,7 +527,7 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
                 id: "settles-long",
                 kind: "reaches",
                 result: "script-end",
-                script: { v: 1, scene: "kitchen-sink", steps: [{ wait: 120 }] },
+                script: { v: 2, scene: "kitchen-sink", steps: [{ wait: 120 }] },
               },
             },
           ],
@@ -601,6 +606,72 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
         const text = await readOrEmpty(join(deck, SCRIPT_FILE));
         return text.includes('"eq": 0') && text.includes('"eq": 1');
       }, "the server to write the count steps back");
+    },
+  );
+
+  it(
+    "input map: an agent's editAsset inserting a binding lands as the agent, off the human's undo stack; an unknown code is refused",
+    { timeout: 60_000 },
+    async () => {
+      type Action = { action: string; bindings: Record<string, unknown>[] };
+      const fire = () =>
+        (valueOf(INPUT_MAP).actions as Action[] | undefined)?.find((a) => a.action === "fire");
+      const appendBinding = (binding: object) =>
+        editAsset(INPUT_MAP, [{ insert: "/actions/@fire/bindings", value: binding }]);
+
+      const viaCli = await cli(
+        "assets",
+        "apply",
+        "--ops",
+        await jsonFile(
+          editAsset(INPUT_MAP, [
+            {
+              insert: "/actions",
+              value: { action: "fire", bindings: [{ device: "key", code: "Space" }] },
+            },
+          ]),
+        ),
+      );
+      expect(viaCli.exitCode, JSON.stringify(viaCli.data)).toBe(0);
+      await landsInDoc(
+        INPUT_MAP,
+        () => fire()?.bindings.length === 1,
+        CLI_AGENT,
+        "the CLI's fire action",
+      );
+
+      const viaMcp = await mcp("asset_apply_ops", {
+        ops: appendBinding({ device: "pad", button: "south" }),
+      });
+      expect(viaMcp.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(
+        INPUT_MAP,
+        () => fire()?.bindings.length === 2,
+        MCP_AGENT,
+        "the MCP fire binding",
+      );
+      expect(fire()?.bindings).toEqual([
+        { device: "key", code: "Space" },
+        { device: "pad", button: "south" },
+      ]);
+
+      const typo = appendBinding({ device: "key", code: "Spcae" });
+      const badCli = await cli("assets", "apply", "--ops", await jsonFile(typo));
+      expect(badCli.exitCode).toBe(1);
+      expect(badCli.data).toMatchObject({ written: false, issue: { code: "binding-unknown" } });
+      const badMcp = await mcp("asset_apply_ops", { ops: typo });
+      expect(badMcp.structuredContent).toMatchObject({
+        exitCode: 1,
+        written: false,
+        issue: { code: "binding-unknown" },
+      });
+      expect(fire()?.bindings).toHaveLength(2);
+      expect(human.session.canUndo()).toBe(false);
+
+      await until(async () => {
+        const text = await readOrEmpty(join(deck, "input-map.json"));
+        return text.includes('"action": "fire"') && text.includes('"button": "south"');
+      }, "the server to write the fire bindings back");
     },
   );
 
@@ -867,14 +938,14 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
     async () => {
       expect(human.session.canUndo()).toBe(false);
       const own = await human.apply(
-        editScene("kitchen-sink", [{ op: "move", refs: ["crate"], by: [5, 0] }]),
+        editScene("kitchen-sink", [{ op: "move", refs: ["crate"], by: [0.05, 0] }]),
       );
       expect(own.ok).toBe(true);
       expect(human.session.canUndo()).toBe(true);
       const crateX = () => (entity(valueOf("kitchen-sink"), "crate")!.shape as number[])[1];
-      expect(crateX()).toBe(885);
+      expect(crateX()).toBe(8.85);
       human.session.undo();
-      expect(crateX()).toBe(880);
+      expect(crateX()).toBe(8.8);
       expect(entity(valueOf("kitchen-sink"), "crate")?.density).toBe(2);
       expect(human.session.canUndo()).toBe(false);
     },

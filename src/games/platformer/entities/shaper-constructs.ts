@@ -1,6 +1,8 @@
 /**
  * Shaper constructs: the objects the Shaper places during play, which a
- * scene can also pre-place.
+ * scene can also pre-place. The Shaper's placements arrive as commands and
+ * become `construct#<n>` entities through `ctx.spawn`, so a replay of the
+ * commands places the same constructs.
  *
  * Each construct type has:
  *   - A Rapier rigid body (fixed) unless it is visual-only or an anchor
@@ -19,11 +21,12 @@ import {
   degToRad,
   physicsOf,
   type EngineContext,
+  type PlacementCheck,
   type RegisteredType,
   type SceneSystem,
   type Style,
 } from "@jams/engine/game";
-import type { ShapeObj } from "@jams/engine/scene";
+import type { Bounds, ShapeObj } from "@jams/engine/scene";
 
 import { createForceFields, type ForceFields } from "../force-fields";
 import { PLATFORMER_LAYERS } from "../layers";
@@ -55,9 +58,9 @@ export type ConstructConfig = {
   rotatable: boolean;
   /** Visual color (placeholder rendering) */
   color: number;
-  /** Half-width of collider */
+  /** Half-width of collider, metres */
   hw: number;
-  /** Half-height of collider */
+  /** Half-height of collider, metres */
   hh: number;
 };
 
@@ -69,8 +72,8 @@ export const CONSTRUCT_CONFIGS: Record<ConstructType, ConstructConfig> = {
     isPhysical: true,
     rotatable: true,
     color: 0xdeb887, // burlywood
-    hw: 60,
-    hh: 6,
+    hw: 0.6,
+    hh: 0.06,
   },
   bounce_pad: {
     label: "Bounce Pad",
@@ -79,8 +82,8 @@ export const CONSTRUCT_CONFIGS: Record<ConstructType, ConstructConfig> = {
     isPhysical: true,
     rotatable: false,
     color: 0xff1493, // deep pink
-    hw: 40,
-    hh: 5,
+    hw: 0.4,
+    hh: 0.05,
   },
   wind_zone: {
     label: "Wind Zone",
@@ -89,8 +92,8 @@ export const CONSTRUCT_CONFIGS: Record<ConstructType, ConstructConfig> = {
     isPhysical: false, // sensor — applies force, no collision
     rotatable: true,
     color: 0x87ceeb, // sky blue
-    hw: 50,
-    hh: 80,
+    hw: 0.5,
+    hh: 0.8,
   },
   grapple_anchor: {
     label: "Grapple Anchor",
@@ -99,8 +102,8 @@ export const CONSTRUCT_CONFIGS: Record<ConstructType, ConstructConfig> = {
     isPhysical: false, // an anchor, not a body
     rotatable: false,
     color: 0x00ffff, // cyan
-    hw: 8,
-    hh: 8,
+    hw: 0.08,
+    hh: 0.08,
   },
   light_orb: {
     label: "Light Orb",
@@ -109,8 +112,8 @@ export const CONSTRUCT_CONFIGS: Record<ConstructType, ConstructConfig> = {
     isPhysical: false, // visual only
     rotatable: false,
     color: 0xffd700, // gold
-    hw: 12,
-    hh: 12,
+    hw: 0.12,
+    hh: 0.12,
   },
   shield_barrier: {
     label: "Shield Barrier",
@@ -119,15 +122,55 @@ export const CONSTRUCT_CONFIGS: Record<ConstructType, ConstructConfig> = {
     isPhysical: true,
     rotatable: true,
     color: 0x9370db, // medium purple
-    hw: 8,
-    hh: 50,
+    hw: 0.08,
+    hh: 0.5,
   },
 };
 
+// ─── Placement rules ─────────────────────────────────────
+
+export type PlacementValidation = PlacementCheck;
+
+/** Ms between two Shaper placements. */
+export const PLACEMENT_COOLDOWN_MS = 500;
+
+export function validatePlacement(
+  type: ConstructType,
+  position: Vec2,
+  placedCounts: Record<ConstructType, number>,
+  lastPlacementTimeMs: number,
+  currentTimeMs: number,
+  bounds: Bounds,
+): PlacementValidation {
+  const config = CONSTRUCT_CONFIGS[type];
+
+  if (currentTimeMs - lastPlacementTimeMs < PLACEMENT_COOLDOWN_MS) {
+    const remaining =
+      Math.ceil((PLACEMENT_COOLDOWN_MS - (currentTimeMs - lastPlacementTimeMs)) / 100) / 10;
+    return { valid: false, reason: `Cooldown: ${remaining}s` };
+  }
+
+  if ((placedCounts[type] ?? 0) >= config.maxPerRound) {
+    return { valid: false, reason: `Max ${config.label}s reached (${config.maxPerRound})` };
+  }
+
+  const [minX, minY, maxX, maxY] = bounds;
+  if (position.x < minX || position.x > maxX || position.y < minY || position.y > maxY) {
+    return { valid: false, reason: "Out of bounds" };
+  }
+
+  return { valid: true };
+}
+
+/** A count of 0 for every construct type. */
+export function zeroCounts(): Record<ConstructType, number> {
+  return Object.fromEntries(CONSTRUCT_TYPES.map((t) => [t, 0])) as Record<ConstructType, number>;
+}
+
 // ─── Construct system ────────────────────────────────────
 
-const BOUNCE_PAD_VELOCITY = -650; // upward launch velocity
-const WIND_FORCE_STRENGTH = 800; // game units/sec² applied to player
+const BOUNCE_PAD_VELOCITY = -6.5; // m/s, upward launch velocity
+const WIND_FORCE_STRENGTH = 8; // m/s² applied to player
 
 export type ShaperConstruct = {
   id: string;
@@ -141,11 +184,27 @@ export type ShaperConstruct = {
 export type ConstructSystem = SceneSystem<ConstructEntity> & {
   /** Wind from the wind zones this system placed. */
   readonly forces: Pick<ForceFields, "sample" | "size">;
-  /** Place a construct during play; returns its generated id. */
+  /**
+   * Places a construct outside the entity table, for tools and tests that
+   * drive the system directly; returns its generated id. The Shaper goes
+   * through `shape` instead.
+   */
   place: (type: ConstructType, position: Vec2, rotation: number) => string;
   get: (id: string) => ShaperConstruct | undefined;
-  /** Remove constructs placed during play, keeping the scene's (round reset) */
+  /** Remove constructs `place` made, keeping the scene's. */
   clearRuntime: () => void;
+  /** Whether the Shaper may place `type` at `at` this tick: the cooldown, the per-round limit, the scene's bounds. */
+  checkShape: (type: ConstructType, at: Vec2) => PlacementValidation;
+  /**
+   * A `shaper-place`: spawns a `construct#<n>` entity through `ctx.spawn`
+   * when `checkShape` allows it. `rotDeg` is whole degrees; a type that
+   * doesn't rotate ignores it.
+   */
+  shape: (type: ConstructType, at: Vec2, rotDeg: number) => PlacementValidation & { id?: string };
+  /** A `shaper-remove`: destroys a construct the Shaper placed; false for any other id. */
+  unshape: (id: string) => boolean;
+  /** The live constructs the Shaper placed, oldest first. */
+  shaped: () => readonly string[];
 };
 
 type Placed = {
@@ -165,6 +224,9 @@ export function constructShape(type: ConstructType): ShapeObj {
 }
 
 type Piece = { part: string; shape: ShapeObj; style: Style };
+
+/** How far a wind arrow's barbs reach either side of its shaft, metres. */
+const BARB_HALF_WIDTH = 0.05;
 
 /** What a construct draws, in its own frame; `part` suffixes the construct's id. */
 function constructPieces(type: ConstructType): Piece[] {
@@ -189,14 +251,14 @@ function constructPieces(type: ConstructType): Piece[] {
       pts: [
         [ax, hh * 0.3],
         [ax, tip],
-        [ax - 5, barb],
+        [ax - BARB_HALF_WIDTH, barb],
       ],
     };
     const right: ShapeObj = {
       type: "chain",
       pts: [
         [ax, tip],
-        [ax + 5, barb],
+        [ax + BARB_HALF_WIDTH, barb],
       ],
     };
     pieces.push(
@@ -212,6 +274,25 @@ export function createConstructSystem(ctx: EngineContext, type: RegisteredType):
   const fields = createForceFields();
   const placed = new Map<string, Placed>();
   let nextRuntimeId = 0;
+  /** Ids `shape` spawned this load, kept across a disable so a re-enable is still the Shaper's. */
+  const shapedIds = new Set<string>();
+  let shaping = false;
+  let lastShapedMs = -Infinity;
+
+  const nowMs = () => ctx.tick * ctx.time.tickMs;
+
+  function shaped(): string[] {
+    return [...shapedIds].filter((id) => ctx.exists(id));
+  }
+
+  function checkShape(kind: ConstructType, at: Vec2): PlacementValidation {
+    const counts = zeroCounts();
+    for (const id of shaped()) {
+      const info = placed.get(id)?.info;
+      if (info) counts[info.construct]++;
+    }
+    return validatePlacement(kind, at, counts, lastShapedMs, nowMs(), ctx.bounds);
+  }
 
   function anchors(): GrappleAnchorSystem {
     const system = ctx.system<GrappleAnchorSystem>(TYPE.anchor);
@@ -292,17 +373,20 @@ export function createConstructSystem(ctx: EngineContext, type: RegisteredType):
   return {
     forces: fields,
     spawn(e) {
+      if (shaping) shapedIds.add(e.id);
       create({
         id: e.id,
         construct: e.construct,
         position: { x: e.at[0], y: e.at[1] },
         rotation: degToRad(e.rot ?? 0),
-        source: "scene",
+        source: shapedIds.has(e.id) ? "runtime" : "scene",
       });
     },
     despawn,
     clear() {
       for (const id of [...placed.keys()]) despawn(id);
+      shapedIds.clear();
+      lastShapedMs = -Infinity;
     },
     size: () => placed.size,
     place(kind, position, rotation) {
@@ -313,8 +397,35 @@ export function createConstructSystem(ctx: EngineContext, type: RegisteredType):
     get: (id) => placed.get(id)?.info,
     clearRuntime() {
       for (const { info } of [...placed.values()]) {
-        if (info.source === "runtime") despawn(info.id);
+        if (info.source === "runtime" && !shapedIds.has(info.id)) despawn(info.id);
       }
     },
+    checkShape,
+    shape(kind, at, rotDeg) {
+      const check = checkShape(kind, at);
+      if (!check.valid) return check;
+      const rot = CONSTRUCT_CONFIGS[kind].rotatable ? rotDeg : 0;
+      shaping = true;
+      let id: string;
+      try {
+        id = ctx.spawn({
+          type: type.type,
+          construct: kind,
+          at: [at.x, at.y],
+          ...(rot !== 0 && { rot }),
+        }).id;
+      } finally {
+        shaping = false;
+      }
+      lastShapedMs = nowMs();
+      return { valid: true, id };
+    },
+    unshape(id) {
+      if (!shapedIds.has(id) || !ctx.exists(id)) return false;
+      shapedIds.delete(id);
+      ctx.destroy(id);
+      return true;
+    },
+    shaped,
   };
 }

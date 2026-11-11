@@ -120,12 +120,15 @@ export {
   type PickOptions,
 } from "./picking";
 export {
+  onePixel,
+  pixelSize,
   roundPt,
   SNAP_PX,
   SNAP_REACH_PX,
   snapAngle,
   snapMove,
   snapPoint,
+  snapToGrid,
   type SnapGuide,
   type SnapMoveInput,
   type SnapMoveResult,

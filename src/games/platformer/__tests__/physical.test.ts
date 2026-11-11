@@ -55,7 +55,7 @@ describe("the platformer's physical checks", () => {
   });
 
   it("spawn-in-solid: a spawn inside the floor, fixed by dropping it onto the floor", () => {
-    const def = edit([{ op: "move", refs: ["~spawn:0"], by: [0, 20] }]);
+    const def = edit([{ op: "move", refs: ["~spawn:0"], by: [0, 0.2] }]);
     const [issue] = physical(def);
     expect(issue).toMatchObject({
       code: "platformer/spawn-in-solid",
@@ -63,16 +63,16 @@ describe("the platformer's physical checks", () => {
       path: "/spawn/0",
       entityIds: ["~spawn:0", "~solid:0"],
     });
-    expect(issue!.message).toContain("it would land at [960, 1020]");
+    expect(issue!.message).toContain("it would land at [9.6, 10.2]");
     const fixed = applyOps(def, issue!.fix!, registry, { validate: "none" });
-    expect(fixed.ok && fixed.def.spawn).toEqual([[960, 1020]]);
+    expect(fixed.ok && fixed.def.spawn).toEqual([[9.6, 10.2]]);
     expect(fixed.ok && physical(fixed.def)).toEqual([]);
   });
 
   it("spawn-in-solid: a spawn entity inside a cloud, fixed without a base hash", () => {
     const def = edit([
       { op: "remove", refs: ["~spawn:0"] },
-      { op: "add", entity: { id: "start", type: "spawn", at: [960, 920] } },
+      { op: "add", entity: { id: "start", type: "spawn", at: [9.6, 9.2] } },
     ]);
     const [issue] = physical(def);
     expect(issue).toMatchObject({ code: "platformer/spawn-in-solid", path: "/entities/8/at" });
@@ -83,14 +83,14 @@ describe("the platformer's physical checks", () => {
   });
 
   it("spawn-in-hazard and spawn-floating", () => {
-    const lava = edit([{ op: "move", refs: ["~spawn:0"], by: [640, 140] }]);
+    const lava = edit([{ op: "move", refs: ["~spawn:0"], by: [6.4, 1.4] }]);
     expect(codes(lava)).toContain("platformer/spawn-in-hazard");
     const sky = edit([{ op: "remove", refs: ["~solid:0"] }]);
     expect(codes(sky)).toEqual(["platformer/spawn-floating"]);
   });
 
   it("anchor-in-solid and anchor-orphan", () => {
-    const buried = edit([{ op: "move", refs: ["~anchor:0"], by: [100, 440] }]);
+    const buried = edit([{ op: "move", refs: ["~anchor:0"], by: [1, 4.4] }]);
     expect(physical(buried)).toEqual([
       expect.objectContaining({
         code: "platformer/anchor-in-solid",
@@ -98,14 +98,14 @@ describe("the platformer's physical checks", () => {
         entityIds: ["~anchor:0", "~solid:0"],
       }),
     ]);
-    const lonely = edit([{ op: "move", refs: ["~anchor:1"], by: [-2800, -900] }]);
+    const lonely = edit([{ op: "move", refs: ["~anchor:1"], by: [-28, -9] }]);
     expect(physical(lonely)).toEqual([
       expect.objectContaining({ code: "platformer/anchor-orphan", path: "/anchor/1" }),
     ]);
   });
 
   it("cloud-in-solid", () => {
-    const def = edit([{ op: "move", refs: ["~cloud:2"], by: [20, 90] }]);
+    const def = edit([{ op: "move", refs: ["~cloud:2"], by: [0.2, 0.9] }]);
     expect(physical(def)).toEqual([
       expect.objectContaining({
         code: "platformer/cloud-in-solid",

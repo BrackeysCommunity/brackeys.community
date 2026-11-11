@@ -1,0 +1,18 @@
+{
+  "kind": "prefab",
+  "v": 3,
+  "id": "red-gate",
+  "base": "gate",
+  "params": {
+    "speed": {
+      "default": 90,
+      "description": "How fast the door opens, in px per second.",
+      "targets": ["door.path.speed"]
+    }
+  },
+  "overrides": {
+    "door.z": 1,
+    "trigger.tags": ["gate", "red"]
+  },
+  "entities": [{ "id": "lamp", "type": "marker", "at": [20, -90], "tags": ["light"] }]
+}

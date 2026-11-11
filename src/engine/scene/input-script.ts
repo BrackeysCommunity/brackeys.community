@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { bindingProblems, playersProblems } from "../game/input-bindings";
+import { POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { resolveTime } from "../game/time";
 import {
   ENGINE_PREDICATES,
@@ -7,12 +9,18 @@ import {
   type GameCommand,
   type Registry,
 } from "../game/types";
+import { pxPerMetreOf, scaleLengths } from "../game/units";
+import type { InputScriptV2, ScriptIssue } from "../headless/playtest-types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { closest } from "./did-you-mean";
+import { jsonPointer, lineAt, pointerSegments, unitsRefusal } from "./issues";
 import { schemaIdFor, toJsonSchema } from "./json-schema";
+import { migrate, type MigrateEnv, type Migration } from "./migrate";
+import { pointerLines } from "./parse";
+import type { Pt } from "./types";
 
 /** The input-script format version, the `v` every script carries. */
-export const INPUT_SCRIPT_VERSION = 1;
+export const INPUT_SCRIPT_VERSION = 2;
 
 /** A run ends as `timeout` after this many simulated ticks unless the script sets `maxTicks`. */
 export const DEFAULT_SCRIPT_MAX_TICKS = 1800;
@@ -37,6 +45,43 @@ export type ExistsMatch = string | { id: string; enabled?: false };
 
 /** The `count` predicate: an entity selector, and the bounds the number it matches must keep. */
 export type CountMatch = EntitySelector & { min?: number; max?: number; eq?: number };
+
+/** Axis values and vector pairs held for a step, by action name. */
+export type AnalogSet = Readonly<Record<string, number | Pt>>;
+
+/** A pointer step: at `at`, pressing or releasing a button, and with `drag`, moving linearly to it over the step. */
+export type ScriptPointer = {
+  at: Pt;
+  press?: PointerButton;
+  release?: PointerButton;
+  drag?: Pt;
+};
+
+/**
+ * Why a pointer step can't play as written: `drag` and `release` land over a
+ * fixed length, so an `until` step refuses them, and a button pressed and
+ * released on a step's only slot shows neither. `slots` is the step's length,
+ * or "until". The schema judges the lengths it can see (`for`, one slot,
+ * `until`); the compiler judges `forMs` once it has the run's rate.
+ */
+export function pointerStepProblem(
+  pointer: { press?: PointerButton; release?: PointerButton; drag?: unknown },
+  slots: number | "until",
+): { key?: "drag" | "release"; message: string } | null {
+  if (slots === "until") {
+    const key = (["drag", "release"] as const).find((k) => pointer[k] !== undefined);
+    if (!key) return null;
+    return {
+      key,
+      message: `${key === "drag" ? "a drag moves" : "a release lands"} over a fixed length; give the step for or forMs instead of until`,
+    };
+  }
+  if (pointer.press !== undefined && pointer.press === pointer.release && slots === 1)
+    return {
+      message: `pressing and releasing ${pointer.press} on one slot shows neither; give the step for: 2 or more`,
+    };
+  return null;
+}
 
 export type CheckedCommand =
   | { ok: true; command: GameCommand }
@@ -170,6 +215,90 @@ function worldPredicates(registry: Registry) {
   return { exists, count: checked, countKeys: Object.keys(count.shape) };
 }
 
+/** A point in world metres, `[x, y]`, y down. */
+export function worldPointSchema() {
+  return z
+    .tuple([
+      z.number().describe("x in world metres.").meta({ unit: "m" }),
+      z.number().describe("y in world metres; y is down.").meta({ unit: "m" }),
+    ])
+    .meta({ unit: "m" });
+}
+
+const PAD_ID = /^pad:\d+$/;
+
+const deviceSchema = z
+  .union([
+    z.enum(["keyboard", "pointer", "touch"]),
+    z
+      .templateLiteral(["pad:", z.number().int()])
+      .refine((d) => PAD_ID.test(d), "a pad is `pad:<n>`, n a whole number from 0")
+      .meta({ pattern: PAD_ID.source }),
+  ])
+  .describe("A device: `keyboard`, `pointer`, `touch` or `pad:<n>`, n in connection order.")
+  .meta({ id: "Device" });
+
+/** A script's step lists and seats: one of `steps` or `tracks`; a seat `players` and the game allow; one track per seat. */
+export function scriptShapeIssues(
+  script: { players?: unknown; steps?: unknown; tracks?: unknown },
+  registry: Registry,
+): ScriptIssue[] {
+  const issues: ScriptIssue[] = [];
+  const hasSteps = script.steps !== undefined;
+  const hasTracks = script.tracks !== undefined;
+  if (hasSteps === hasTracks)
+    issues.push({
+      path: hasSteps ? "/tracks" : "",
+      message: hasSteps
+        ? "a script has `steps` or `tracks`, not both"
+        : "a script needs `steps` (seat 0's) or `tracks` (one per seat)",
+    });
+  let seats = registry.game?.input?.players?.max ?? 1;
+  if (script.players !== undefined) {
+    const problem = playersProblems({ max: script.players as number, join: "auto" }).at(0);
+    if (problem)
+      issues.push({
+        path: "/players",
+        message: problem.message.replace("players.max", "players"),
+        ...(problem.expected !== undefined && { expected: problem.expected }),
+        ...(problem.got !== undefined && { got: problem.got }),
+      });
+    else seats = script.players as number;
+  }
+  if (!Array.isArray(script.tracks)) return issues;
+  const seen = new Map<number, number>();
+  script.tracks.forEach((track, i) => {
+    const player = (track as { player?: unknown } | null)?.player;
+    if (typeof player !== "number" || !Number.isInteger(player) || player < 0) return;
+    const problem = bindingProblems(
+      { device: "key", code: "Space", player },
+      { kind: "button", max: seats },
+    ).find((p) => p.code === "player-unknown");
+    if (problem)
+      issues.push({
+        path: jsonPointer(["tracks", i, "player"]),
+        message: problem.message,
+        ...(problem.expected !== undefined && { expected: problem.expected }),
+        ...(problem.got !== undefined && { got: problem.got }),
+        hint: "Raise the script's `players`, or drive a seat the game has.",
+      });
+    const first = seen.get(player);
+    if (first !== undefined)
+      issues.push({
+        path: jsonPointer(["tracks", i, "player"]),
+        message: `tracks ${first} and ${i} both drive seat ${player}; a seat has one track`,
+        hint: `Move the steps of track ${i} into track ${first}.`,
+      });
+    else seen.set(player, i);
+  });
+  return issues;
+}
+
+function addIssues(ctx: z.RefinementCtx, issues: readonly ScriptIssue[]): void {
+  for (const issue of issues)
+    ctx.addIssue({ code: "custom", path: pointerSegments(issue.path), message: issue.message });
+}
+
 function buildInputScriptSchemas(registry: Registry) {
   const names = registry.actionNames;
   const { rate, kind, catchUp } = resolveTime({ game: registry.time });
@@ -185,6 +314,57 @@ function buildInputScriptSchemas(registry: Registry) {
     .describe(
       "Every action held during the step; what the step before held and this one doesn't is released when it starts. Empty holds nothing.",
     );
+
+  const unitValue = (description: string) => z.number().min(-1).max(1).describe(description);
+  const analogActions = registry.actions.filter((a) => a.kind === "axis" || a.kind === "vector");
+  const analog = z
+    .strictObject(
+      Object.fromEntries(
+        analogActions.map((a) => [
+          a.action,
+          (a.kind === "axis"
+            ? unitValue(`${a.description} An axis value, −1…1.`)
+            : z
+                .tuple([unitValue("x, −1…1."), unitValue("y, −1…1; y is down.")])
+                .refine(([x, y]) => Math.sqrt(x * x + y * y) <= 1 + 1e-9, {
+                  message: "a vector lies in the unit disc: x² + y² is at most 1",
+                })
+                .describe(`${a.description} A vector \`[x, y]\` in the unit disc.`)
+          ).optional(),
+        ]),
+      ),
+    )
+    .refine((s) => Object.values(s).some((v) => v !== undefined), {
+      message: "set names at least one axis or vector action",
+    })
+    .meta({ minProperties: 1 })
+    .describe(
+      analogActions.length > 0
+        ? `Axis values and vector pairs held for the step, by action: ${analogActions.map((a) => `${a.action} (${a.kind})`).join(", ")}. An action the step leaves out rests at 0.`
+        : "Axis values and vector pairs held for the step, by action; this game declares no axis or vector actions.",
+    )
+    .meta({ id: "AnalogSet" });
+
+  const pointerButton = z
+    .enum(POINTER_BUTTONS)
+    .describe(`A pointer button: ${POINTER_BUTTONS.join(", ")}.`);
+  const pointerSpec = z
+    .strictObject({
+      at: worldPointSchema().describe(
+        "Where the pointer is when the step starts, in world metres.",
+      ),
+      press: pointerButton
+        .optional()
+        .describe("A button that goes down when the step starts and stays down until a release."),
+      release: pointerButton.optional().describe("A button that lets go when the step ends."),
+      drag: worldPointSchema()
+        .optional()
+        .describe(
+          "Moves the pointer linearly from `at` to here over the step's length, reaching it on the step's last slot.",
+        ),
+    })
+    .describe("The seat's pointer: its position, a button pressed or released, and a drag.")
+    .meta({ id: "ScriptPointer" });
 
   const eventMatch = z
     .union([
@@ -237,30 +417,51 @@ function buildInputScriptSchemas(registry: Registry) {
     )
     .meta({ id: "Until" });
 
-  const holdFor = z
-    .strictObject({ hold: held, for: ticks(`Hold for this many ticks (${rate} a second).`) })
-    .describe("Hold actions for a fixed number of ticks.");
-  const holdForMs = z
-    .strictObject({
+  const forTicks = ticks(`Run for this many ticks (${rate} a second).`);
+  const forMs = z
+    .number()
+    .positive()
+    .max((MAX_SCRIPT_TICKS * 1000) / rate)
+    .describe(`Run for this many milliseconds, rounded to whole ${rate} Hz ticks (at least one).`);
+  const untilMax = ticks(
+    `Give up waiting after this many ticks and go on to the next step (default ${DEFAULT_UNTIL_MAX}).`,
+  ).optional();
+  /** A step's three timed forms: `for` ticks, `forMs` milliseconds, or `until` capped by `max`. */
+  const timed = <S extends z.ZodRawShape>(base: S, what: string) => ({
+    for: z
+      .strictObject({ ...base, for: forTicks })
+      .describe(`${what} for a fixed number of ticks.`),
+    forMs: z.strictObject({ ...base, forMs }).describe(`${what} for a duration in milliseconds.`),
+    until: z
+      .strictObject({ ...base, until, max: untilMax })
+      .describe(`${what} until a condition holds, capped by \`max\` ticks.`),
+  });
+
+  const hold = timed(
+    {
       hold: held,
-      forMs: z
-        .number()
-        .positive()
-        .max((MAX_SCRIPT_TICKS * 1000) / rate)
-        .describe(
-          `Hold for this many milliseconds, rounded to whole ${rate} Hz ticks (at least one).`,
-        ),
-    })
-    .describe("Hold actions for a duration in milliseconds.");
-  const holdUntil = z
-    .strictObject({
-      hold: held,
-      until,
-      max: ticks(
-        `Give up waiting after this many ticks and go on to the next step (default ${DEFAULT_UNTIL_MAX}).`,
-      ).optional(),
-    })
-    .describe("Hold actions until a condition holds, capped by `max` ticks.");
+      set: analog.optional().describe("Axis values and vector pairs held beside the actions."),
+    },
+    "Hold actions, and with `set` analog values,",
+  );
+  const set = timed({ set: analog }, "Hold analog values");
+  const pointerTimed = timed({ pointer: pointerSpec }, "Drive the pointer");
+  const pointerRefine =
+    (slots: (step: Record<string, unknown>) => number | "until") =>
+    (step: { pointer: ScriptPointer } & Record<string, unknown>, ctx: z.RefinementCtx) => {
+      const problem = pointerStepProblem(step.pointer, slots(step));
+      if (problem)
+        ctx.addIssue({
+          code: "custom",
+          path: problem.key ? ["pointer", problem.key] : ["pointer"],
+          message: problem.message,
+        });
+    };
+  const pointer = {
+    for: pointerTimed.for.superRefine(pointerRefine((step) => step.for as number)),
+    forMs: pointerTimed.forMs,
+    until: pointerTimed.until.superRefine(pointerRefine(() => "until")),
+  };
   const press = z
     .strictObject({
       press: z.union([action, z.array(action).min(1)]).describe("The action or actions to press."),
@@ -271,6 +472,10 @@ function buildInputScriptSchemas(registry: Registry) {
   const wait = z
     .strictObject({ wait: ticks("Hold nothing for this many ticks.") })
     .describe("Release everything for a number of ticks.");
+  const pointerOnce = z
+    .strictObject({ pointer: pointerSpec })
+    .superRefine(pointerRefine(() => 1))
+    .describe("Drive the pointer for one slot.");
 
   const commandNames = scriptCommandNames(registry);
   const command = z
@@ -300,7 +505,7 @@ function buildInputScriptSchemas(registry: Registry) {
         });
     })
     .describe(
-      "Send a command for one slot, still holding what the hold step before it held (nothing after a press or wait). It wakes a turns or event game.",
+      "Send a command from the track's seat for one slot, still holding what the hold step before it held (nothing after a press or wait). It wakes a turns or event game.",
     );
   const elapse = z
     .strictObject({
@@ -319,13 +524,66 @@ function buildInputScriptSchemas(registry: Registry) {
     .describe(
       "Report wall time away for one slot, as `@elapsed`, still holding what the hold step before it held (nothing after a press or wait). It wakes every game.",
     );
+  const join = z
+    .strictObject({ join: deviceSchema.describe("The device that takes the track's seat.") })
+    .describe("A device joins the track's seat, for one slot; it leaves the seat it held before.");
+  const leave = z
+    .strictObject({ leave: deviceSchema.describe("The device the track's seat gives up.") })
+    .describe("The track's seat gives up a device, for one slot.");
 
+  const steps = {
+    holdFor: hold.for,
+    holdForMs: hold.forMs,
+    holdUntil: hold.until,
+    setFor: set.for,
+    setForMs: set.forMs,
+    setUntil: set.until,
+    pointer: pointerOnce,
+    pointerFor: pointer.for,
+    pointerForMs: pointer.forMs,
+    pointerUntil: pointer.until,
+    press,
+    wait,
+    command,
+    elapse,
+    join,
+    leave,
+  };
   const step = z
-    .union([holdFor, holdForMs, holdUntil, press, wait, command, elapse])
+    .union([
+      hold.for,
+      hold.forMs,
+      hold.until,
+      set.for,
+      set.forMs,
+      set.until,
+      pointerOnce,
+      pointer.for,
+      pointer.forMs,
+      pointer.until,
+      press,
+      wait,
+      command,
+      elapse,
+      join,
+      leave,
+    ])
     .describe(
-      "One step: `hold` with exactly one of `for`, `forMs` or `until`; `press`; `wait`; `command`; or `elapse`.",
+      "One step: `hold` (with `set` beside it or not) or `set`, with exactly one of `for`, `forMs` or `until`; `pointer`, alone for one slot or with one of them; `press`; `wait`; `command`; `elapse`; `join`; or `leave`.",
     )
     .meta({ id: "Step" });
+
+  const track = z
+    .strictObject({
+      player: z.number().int().min(0).describe("The seat these steps drive, from 0."),
+      steps: z.array(step).min(1).describe("The seat's steps, played in order from tick 0."),
+    })
+    .describe("One seat's steps; every track runs at once from tick 0, each with its own `until`s.")
+    .meta({ id: "Track" });
+  const trackHead = z.strictObject({
+    player: track.shape.player,
+    steps: z.array(z.unknown()).min(1),
+  });
 
   const options = registry.game?.play?.options;
   const header = {
@@ -335,11 +593,7 @@ function buildInputScriptSchemas(registry: Registry) {
       .string()
       .optional()
       .describe("The scene this script was written for; a run against another scene is refused."),
-    at: z
-      .tuple([
-        z.number().describe("x in world pixels."),
-        z.number().describe("y in world pixels; y is down."),
-      ])
+    at: worldPointSchema()
       .optional()
       .describe(
         "Play from here instead of the game's spawn, cast along the game's spawn direction (gravity by default) onto the first surface it meets; refused inside a solid.",
@@ -362,32 +616,64 @@ function buildInputScriptSchemas(registry: Registry) {
       .describe(
         "Seeds the game's `ctx.random` for the run; omitted, the default for the game and scene, the same every run.",
       ),
+    players: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("The seats the run has, 1 to 8; default the game's (`input.players.max`, else 1)."),
     maxTicks: ticks(
       `The run ends as \`timeout\` after this many ticks (default ${DEFAULT_SCRIPT_MAX_TICKS}, ${seconds(DEFAULT_SCRIPT_MAX_TICKS, rate)}).`,
     ).optional(),
   };
+  const oneOfLists = { oneOf: [{ required: ["steps"] }, { required: ["tracks"] }] };
+  const shapeRefine = (s: Record<string, unknown>, ctx: z.RefinementCtx) =>
+    addIssues(ctx, scriptShapeIssues(s, registry));
 
   const script = z
     .strictObject({
       ...header,
-      steps: z.array(step).min(1).describe("The steps, played in order from tick 0."),
+      steps: z
+        .array(step)
+        .min(1)
+        .optional()
+        .describe("Seat 0's steps, played in order from tick 0; a script has these or `tracks`."),
+      tracks: z
+        .array(track)
+        .min(1)
+        .optional()
+        .describe("One track of steps per seat, all run at once from tick 0; or `steps`."),
     })
+    .superRefine(shapeRefine)
+    .meta(oneOfLists)
     .describe(
-      `A headless playtest: steps of held actions at ${rate} ticks a second. The run ends when the game's outcome hook decides, ` +
-        "when the steps run out (`script-end`), at `maxTicks` (`timeout`), or `stuck` (a movement action held with the focus " +
-        "moving under 4 px in 120 ticks)." +
+      `A headless playtest: steps of held actions, analog values, pointer moves and seat changes at ${rate} ticks a second, ` +
+        "as `steps` for seat 0 or as `tracks`, one per seat, run at once. The run ends when the game's outcome hook decides, " +
+        "when every track's steps ran out (`script-end`), at `maxTicks` (`timeout`), or `stuck` (a movement action held with the focus " +
+        "moving under 0.04 m in 120 ticks)." +
         (kind === "fixed"
           ? ""
           : ` Step lengths count slots: in this ${kind} game a slot nothing wakes while it isn't busy simulates no tick.`),
     );
 
   /** The script with its steps unchecked, so each step can be checked by its own shape. */
-  const head = z.strictObject({ ...header, steps: z.array(z.unknown()).min(1) });
+  const head = z
+    .strictObject({
+      ...header,
+      steps: z.array(z.unknown()).min(1).optional(),
+      tracks: z.array(z.unknown()).min(1).optional(),
+    })
+    .superRefine(shapeRefine);
 
   return {
     script,
     head,
-    steps: { holdFor, holdForMs, holdUntil, press, wait, command, elapse },
+    /** A track with its steps unchecked. */
+    trackHead,
+    track,
+    steps,
+    analog,
+    pointer: pointerSpec,
     until,
     exists,
     count,
@@ -415,7 +701,7 @@ export function inputScriptSchemaFor(registry: Registry): InputScriptSchemas["sc
   return inputScriptSchemasFor(registry).script;
 }
 
-/** `urn:jams-engine:input-script:v1`, or `urn:jams-engine:input-script:<game>:v1`. */
+/** `urn:jams-engine:input-script:v2`, or `urn:jams-engine:input-script:<game>:v2`. */
 export function inputScriptSchemaId(registry: Registry): string {
   return schemaIdFor(registry, "input-script", INPUT_SCRIPT_VERSION);
 }
@@ -431,4 +717,123 @@ export function inputScriptJsonSchema(registry: Registry): Record<string, unknow
     title: `jams engine input script${of}, format v${INPUT_SCRIPT_VERSION}`,
     ...rest,
   };
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * v1 → v2: `v` becomes 2 and lengths become metres. The header's `at`, the
+ * game's play options, every `until` predicate and every command's args are
+ * divided by the game's px per metre wherever their schema declares a length
+ * unit; steps keep their v1 form, seat 0's track.
+ */
+function inputScriptV1ToV2(raw: unknown, env: MigrateEnv): unknown {
+  const registry = env.registry;
+  if (!registry) return unitsRefusal("input script");
+  const ppm = pxPerMetreOf(registry);
+  const doc = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...doc, v: 2 };
+  if (doc.at !== undefined) out.at = scaleLengths(doc.at, worldPointSchema(), ppm);
+  const options = registry.game?.play?.options;
+  if (options && doc.game !== undefined) out.game = scaleLengths(doc.game, options, ppm);
+  if (Array.isArray(doc.steps)) {
+    const { until } = inputScriptSchemasFor(registry);
+    out.steps = doc.steps.map((step) => {
+      if (!isRecord(step)) return step;
+      const lifted = { ...step };
+      if (step.until !== undefined) lifted.until = scaleLengths(step.until, until, ppm);
+      const args =
+        typeof step.command === "string" ? registry.commands.get(step.command)?.args : undefined;
+      if (args && step.args !== undefined) lifted.args = scaleLengths(step.args, args, ppm);
+      return lifted;
+    });
+  }
+  return out;
+}
+
+/** `INPUT_SCRIPT_MIGRATIONS[n]` lifts a v`n` input script to v`n + 1`; every reader goes through them. */
+export const INPUT_SCRIPT_MIGRATIONS: Readonly<Record<number, Migration>> = Object.freeze({
+  1: inputScriptV1ToV2,
+});
+
+export type MigrateInputScriptResult =
+  | { ok: true; script: unknown; from: number }
+  | { ok: false; issue: ScriptIssue };
+
+/**
+ * Lifts an older input script to the current format for `registry`'s game
+ * (its px per metre and field units). A value with no usable `v`, or one at
+ * or past the current version, comes back unchanged for the schema to judge.
+ */
+export function migrateInputScript(raw: unknown, registry: Registry): MigrateInputScriptResult {
+  const v = isRecord(raw) ? raw.v : undefined;
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v >= INPUT_SCRIPT_VERSION)
+    return { ok: true, script: raw, from: typeof v === "number" ? v : INPUT_SCRIPT_VERSION };
+  const lifted = migrate(raw, INPUT_SCRIPT_MIGRATIONS, INPUT_SCRIPT_VERSION, { registry });
+  if (lifted.ok) return { ok: true, script: lifted.raw, from: lifted.from };
+  const { path = "", message, expected, got, hint } = lifted.issue;
+  return {
+    ok: false,
+    issue: {
+      path,
+      message,
+      ...(expected !== undefined && { expected }),
+      ...(got !== undefined && { got }),
+      ...(hint !== undefined && { hint }),
+    },
+  };
+}
+
+export type ParseInputScriptResult<G = unknown> =
+  | { ok: true; script: InputScriptV2<G>; migratedFrom?: number }
+  | { ok: false; issues: (ScriptIssue & { line?: number })[] };
+
+/**
+ * Reads an input script, as text or a parsed value, for `registry`'s game:
+ * migrated to the current format, then judged by its schema. Issues carry
+ * JSON Pointers into the script as written, and lines when read from text.
+ */
+export function parseInputScript<G = unknown>(
+  input: unknown,
+  registry: Registry,
+): ParseInputScriptResult<G> {
+  let raw = input;
+  let lines: Map<string, number> | undefined;
+  if (typeof input === "string") {
+    try {
+      raw = JSON.parse(input);
+      lines = pointerLines(input);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { ok: false, issues: [{ path: "", message: `the script is not JSON: ${message}` }] };
+    }
+  }
+  const withLine = (issue: ScriptIssue) => {
+    const line = lines && lineAt(lines, issue.path);
+    return line === undefined ? issue : { ...issue, line };
+  };
+  const lifted = migrateInputScript(raw, registry);
+  if (!lifted.ok) return { ok: false, issues: [withLine(lifted.issue)] };
+  const parsed = inputScriptSchemaFor(registry).safeParse(lifted.script);
+  if (!parsed.success)
+    return {
+      ok: false,
+      issues: parsed.error.issues.flatMap((issue) => {
+        const path = issue.path as (string | number)[];
+        if (issue.code === "unrecognized_keys")
+          return issue.keys.map((key) =>
+            withLine({
+              path: jsonPointer([...path, key]),
+              message: `unknown key ${JSON.stringify(key)}`,
+              got: JSON.stringify(key),
+            }),
+          );
+        return [withLine({ path: jsonPointer(path), message: issue.message })];
+      }),
+    };
+  const script = parsed.data as InputScriptV2<G>;
+  return lifted.from < INPUT_SCRIPT_VERSION
+    ? { ok: true, script, migratedFrom: lifted.from }
+    : { ok: true, script };
 }

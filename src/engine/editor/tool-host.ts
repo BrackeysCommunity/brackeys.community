@@ -1,4 +1,5 @@
 import { ENGINE_TOOL_IDS, type Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import type { GridCells } from "../scene/grid";
 import { growOverGrid, type SpriteAssetLookup } from "../scene/render-geometry";
 import { CHILD_SEPARATOR } from "../scene/resolve";
@@ -40,6 +41,7 @@ import {
 import { createGesturePreview, type PreviewRuntime } from "./gesture";
 import type { KeyContext } from "./keymap";
 import type { EditorSession } from "./session";
+import { roundPt } from "./snap";
 import {
   createSpatialIndex,
   entityGeometry,
@@ -82,9 +84,9 @@ export type ToolHostOptions = {
   session: EditorSession;
   /** The shell's router; the host registers one pointer consumer at `TOOL_PRIORITY.editor`. */
   router: ToolRouter;
-  /** Router screen px to world px: the shell's `screenToWorld`. */
+  /** Router screen px to world metres: the shell's `screenToWorld`. */
   toWorld: (screen: Vec2) => Pt;
-  /** Screen px per world px now. */
+  /** Screen px per metre now. */
   scale: () => number;
   /**
    * A runtime to show previews in as well as the overlay. The editor leaves
@@ -172,7 +174,7 @@ export type ToolHost = {
   selectionBounds(): Aabb | null;
   /** Applies the active tool's overlay offer (**Convert to chain**). */
   acceptOffer(): boolean;
-  /** The last pointer position in world px; `null` before any. */
+  /** The last pointer position in world metres; `null` before any. */
   pointerWorld(): Pt | null;
   subscribe(listener: () => void): () => void;
   destroy(): void;
@@ -476,7 +478,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       const t = now();
       if (t - lastCursorAt >= CURSOR_THROTTLE_MS) {
         lastCursorAt = t;
-        session.setCursor([Math.round(world[0]), Math.round(world[1])]);
+        session.setCursor(roundPt(world, pxPerMetreOf(registry)));
       }
     }
 
@@ -564,8 +566,9 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
   function defaults(command: string): boolean {
     const def = session.getResolved();
     const sel = selection();
-    const delta = nudgeDelta(command, snap.step);
-    if (delta) return apply(nudgeBatch(sel, delta));
+    const ppm = pxPerMetreOf(registry);
+    const delta = nudgeDelta(command, ppm);
+    if (delta) return apply(nudgeBatch(sel, delta, ppm));
     switch (command) {
       case "rotate-cw":
       case "rotate-ccw": {

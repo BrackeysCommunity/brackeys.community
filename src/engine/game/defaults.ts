@@ -4,27 +4,29 @@
  */
 import type { CharacterControllerOptions } from "../physics";
 
-/** World gravity, px/s²; y is down. */
-export const DEFAULT_GRAVITY: [number, number] = [0, 1200];
+/** World gravity, m/s²; y is down. */
+export const DEFAULT_GRAVITY: [number, number] = [0, 12];
 export const DEFAULT_TICK_RATE = 60;
 export const DEFAULT_PHYSICS = "rapier";
 export const DEFAULT_TIME = { kind: "fixed", rate: DEFAULT_TICK_RATE } as const;
 export const DEFAULT_SPAWN_CAST = "gravity";
+/** A game's px per metre when its `world.lengthUnit` sets none. */
+export const DEFAULT_LENGTH_UNIT = 100;
 
-/** Side-view tuning, the controller every game had through 0.8: up −y, climb 50°, slide 30°, autostep 4×2, snap 4, push. */
+/** Side-view tuning in metres: up −y, climb 50°, slide 30°, autostep 0.04 × 0.02, snap 0.04, push. */
 export const SIDE_VIEW_CONTROLLER: CharacterControllerOptions = {
-  offset: 0.01,
+  offset: 0.0001,
   up: [0, -1],
   maxSlopeClimbDeg: 50,
   minSlopeSlideDeg: 30,
-  autostep: { maxHeight: 4, minWidth: 2, dynamic: true },
-  snapToGround: 4,
+  autostep: { maxHeight: 0.04, minWidth: 0.02, dynamic: true },
+  snapToGround: 0.04,
   pushDynamic: true,
 };
 
 /** No slopes, autostep or snap: walls stop you, nothing lifts you. */
 export const TOP_DOWN_CONTROLLER: CharacterControllerOptions = {
-  offset: 0.01,
+  offset: 0.0001,
   up: [0, -1],
   maxSlopeClimbDeg: null,
   minSlopeSlideDeg: null,

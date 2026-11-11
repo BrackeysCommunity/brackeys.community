@@ -1,5 +1,6 @@
 import { PhysicsRequiredError } from "../game/physics-of";
 import type { ColliderTag, PhysicalCheck, PhysicalEnv, Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { SpaceHit } from "../runtime/space";
 import type { SceneRuntimeHandle } from "../runtime/types";
@@ -21,12 +22,13 @@ import type {
   SceneIssue,
   ShapeObj,
 } from "../scene/types";
+import { snapToPixel } from "../scene/units";
 import type { RapierModule, Vec2 } from "../types";
 
 /** Penetration deeper than this counts as an overlap; touching doesn't. */
-const OVERLAP_EPS = 0.01;
-/** A swept shape is inset by this, so sliding flush along a surface isn't a hit; world geometry is whole pixels. */
-const SWEEP_SKIN = 0.5;
+const OVERLAP_EPS = 0.0001;
+/** A swept shape is inset by this, m, so sliding flush along a surface isn't a hit; world geometry is whole pixels. */
+const SWEEP_SKIN = 0.005;
 /**
  * A physical check that needs physics, skipped in a scene without it, is
  * reported under this code at `info`.
@@ -34,7 +36,11 @@ const SWEEP_SKIN = 0.5;
 const SKIPPED_CODE = "physics-skipped";
 
 const vec = (x: number, y: number) => ({ x, y });
-const rounded = (p: Vec2): Pt => [Math.round(p.x), Math.round(p.y)];
+/** `p` on the game's nearest whole world px, for an issue's `at`. */
+const rounded = (p: Vec2, registry: Registry): Pt => {
+  const ppm = pxPerMetreOf(registry);
+  return [snapToPixel(p.x, ppm), snapToPixel(p.y, ppm)];
+};
 
 /** `shape` shrunk by `d` on every side (a poly toward its centroid); a chain is unchanged. */
 function inset(shape: ShapeObj, d: number): ShapeObj {
@@ -177,7 +183,7 @@ const fmtPt = ([x, y]: Pt) => `[${x}, ${y}]`;
 /**
  * Each follower's shape, and every solid riding it, swept along every path
  * segment (the loop's closing one too) into a static solid. Riders are in
- * world px with the host at its first path point.
+ * world metres with the host at its first path point.
  */
 function followerHitsSolid(env: PhysicalEnv, solids: readonly Solid[]): SceneIssue[] {
   const fixedIds = new Set(solids.filter((s) => s.fixed).map((s) => s.tag.entityId));
@@ -216,7 +222,7 @@ function followerHitsSolid(env: PhysicalEnv, solids: readonly Solid[]): SceneIss
         const hit = env.cast(inset(part.at(a), SWEEP_SKIN), by, { exclude });
         if (!hit) continue;
         const closing = i === pts.length - 1 ? "closing " : "";
-        const at = rounded(hit.at);
+        const at = rounded(hit.at, env.registry);
         const who =
           part.id === id
             ? `${id}'s path runs into ${hit.tag.entityId} on its`
@@ -284,10 +290,10 @@ function solidOverlap(env: PhysicalEnv, solids: readonly Solid[]): SceneIssue[] 
       const otherShape = shapes.get(other);
       const box = otherShape ? intersection(aabb(shape), aabb(otherShape)) : null;
       const at = box
-        ? rounded(vec((box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2))
-        : rounded(hit.at);
+        ? rounded(vec((box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2), env.registry)
+        : rounded(hit.at, env.registry);
       const depth = box
-        ? ` by ${Math.round(Math.min(box.maxX - box.minX, box.maxY - box.minY))}px`
+        ? ` by ${snapToPixel(Math.min(box.maxX - box.minX, box.maxY - box.minY), pxPerMetreOf(env.registry))} m`
         : "";
       out.push(
         makeIssue("solid-overlap", {

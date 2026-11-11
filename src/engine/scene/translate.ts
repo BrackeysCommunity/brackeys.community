@@ -15,6 +15,7 @@ import {
   type Transform2D,
 } from "./transform";
 import type { BulkEntry, EntityDef, PathDef, Pt, ShapeTuple } from "./types";
+import { roundLength } from "./units";
 
 export const isPt = (v: unknown): v is Pt =>
   Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number");
@@ -41,8 +42,14 @@ const TRANSFORM_KINDS: readonly string[] = [
 
 const clone = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
 
-export const addPt = (p: Pt, [dx, dy]: Pt): Pt => [p[0] + dx, p[1] + dy];
-export const subPt = (p: Pt, [dx, dy]: Pt): Pt => [p[0] - dx, p[1] - dy];
+export const addPt = (p: Pt, [dx, dy]: Pt): Pt => [roundLength(p[0] + dx), roundLength(p[1] + dy)];
+export const subPt = (p: Pt, [dx, dy]: Pt): Pt => [roundLength(p[0] - dx), roundLength(p[1] - dy)];
+
+/** `p` under `t`, kept to the file's length precision so a move and its inverse round-trip. */
+const placePt = (t: Transform2D, p: Pt): Pt => {
+  const [x, y] = applyPt(t, p);
+  return [roundLength(x), roundLength(y)];
+};
 export const isZeroPt = ([x, y]: Pt) => x === 0 && y === 0;
 
 const isShapeTuple = (v: unknown): v is ShapeTuple => Array.isArray(v) && typeof v[0] === "string";
@@ -69,12 +76,12 @@ export function transformTuple(tuple: ShapeTuple, t: Transform2D): ShapeTuple {
   if (tuple[0] === "poly" || tuple[0] === "chain") {
     const pts: Pt[] = [];
     for (let i = 1; i + 1 < out.length; i += 2) {
-      pts.push(applyPt(t, [out[i] as number, out[i + 1] as number]));
+      pts.push(placePt(t, [out[i] as number, out[i + 1] as number]));
     }
     if (t.a * t.d - t.b * t.c < 0) pts.reverse();
     return [tuple[0], ...pts.flat()] as ShapeTuple;
   }
-  const [cx, cy] = applyPt(t, [out[1] as number, out[2] as number]);
+  const [cx, cy] = placePt(t, [out[1] as number, out[2] as number]);
   out[1] = cx;
   out[2] = cy;
   if (tuple[0] === "box" || tuple[0] === "capsule") {
@@ -94,7 +101,7 @@ export function translateTuple(t: ShapeTuple, by: Pt): ShapeTuple {
 
 /** A bulk entry under `t`: a shape tuple or a point. */
 export function transformBulkEntry(value: BulkEntry, t: Transform2D): BulkEntry {
-  return isShapeTuple(value) ? transformTuple(value, t) : applyPt(t, value as Pt);
+  return isShapeTuple(value) ? transformTuple(value, t) : placePt(t, value as Pt);
 }
 
 /** A bulk entry moved by `by`: a shape tuple or a point. */
@@ -116,7 +123,7 @@ function transformSide(value: Side | true, t: Transform2D): Side | true {
 }
 
 function transformPath(p: PathDef, t: Transform2D): PathDef {
-  return Array.isArray(p.pts) ? { ...p, pts: p.pts.map((q) => (isPt(q) ? applyPt(t, q) : q)) } : p;
+  return Array.isArray(p.pts) ? { ...p, pts: p.pts.map((q) => (isPt(q) ? placePt(t, q) : q)) } : p;
 }
 
 function transformByKind(kind: string, value: unknown, t: Transform2D): unknown {
@@ -124,7 +131,7 @@ function transformByKind(kind: string, value: unknown, t: Transform2D): unknown 
     case "shape":
       return isShapeTuple(value) ? transformTuple(value, t) : value;
     case "point":
-      return isPt(value) ? applyPt(t, value) : value;
+      return isPt(value) ? placePt(t, value) : value;
     case "path":
       return value !== null && typeof value === "object" && "pts" in value
         ? transformPath(value as PathDef, t)
@@ -264,8 +271,8 @@ export function translateFieldValue(
   }
   if (kind !== "path" || segs[1] !== "pts") return value;
   if (segs.length === 2 && Array.isArray(value)) {
-    return value.map((q) => (isPt(q) ? applyPt(t, q) : q));
+    return value.map((q) => (isPt(q) ? placePt(t, q) : q));
   }
-  if (segs.length === 3 && isPt(value)) return applyPt(t, value);
+  if (segs.length === 3 && isPt(value)) return placePt(t, value);
   return value;
 }

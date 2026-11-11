@@ -165,22 +165,6 @@ function parseRect(input: Record<string, unknown>, path: string | undefined): Pa
       got: `${width}x${height}`,
     });
   }
-  const oddW = Number.isInteger(width) && width % 2 !== 0;
-  const oddH = Number.isInteger(height) && height % 2 !== 0;
-  if (oddW || oddH) {
-    const widen = [oddW ? `right: ${right + 1}` : null, oddH ? `bottom: ${bottom + 1}` : null]
-      .filter(Boolean)
-      .join(", ");
-    return fail(
-      path,
-      `rect is ${width}x${height}; box half-extents must be whole pixels, so each side must be even`,
-      {
-        expected: "even width and height",
-        got: `${width}x${height}`,
-        hint: `Widen it by 1px (${widen}).`,
-      },
-    );
-  }
   return {
     ok: true,
     shape: {
@@ -275,13 +259,27 @@ export function shapeToTuple(s: ShapeObj): ShapeTuple {
   }
 }
 
+/**
+ * A shape tuple with `f` applied to each of its lengths (centres, sizes and
+ * points), never to `rotDeg`: how a unit walker scales a shape field, whose
+ * `meta.unit` covers every number but the angle. Anything that isn't a
+ * tuple with a known tag comes back as it is.
+ */
+export function mapShapeLengths(value: unknown, f: (length: number) => number): unknown {
+  if (!Array.isArray(value)) return value;
+  const tag = value[0];
+  if (typeof tag !== "string" || !(SHAPE_TYPES as readonly string[]).includes(tag)) return value;
+  const rotAt = tag === "box" || tag === "capsule" ? 5 : -1;
+  return value.map((v, i) => (i > 0 && i !== rotAt && typeof v === "number" ? f(v) : v));
+}
+
 // ─── Zod and JSON Schema ─────────────────────────────────
 
-const px = (description: string) => ({ type: "number", unit: "px", description });
+const metres = (description: string) => ({ type: "number", unit: "m", description });
 const size = (description: string) => ({
   type: "number",
   exclusiveMinimum: 0,
-  unit: "px",
+  unit: "m",
   description,
 });
 const rot = {
@@ -298,8 +296,8 @@ const TUPLE_JSON: Record<ShapeType, Record<string, unknown>> = {
     type: "array",
     prefixItems: [
       { const: "box" },
-      px("Centre x."),
-      px("Centre y (y is down)."),
+      metres("Centre x."),
+      metres("Centre y (y is down)."),
       size("Half-width; the box is 2*hw wide."),
       size("Half-height; the box is 2*hh tall."),
       rot,
@@ -314,8 +312,8 @@ const TUPLE_JSON: Record<ShapeType, Record<string, unknown>> = {
     type: "array",
     prefixItems: [
       { const: "circle" },
-      px("Centre x."),
-      px("Centre y (y is down)."),
+      metres("Centre x."),
+      metres("Centre y (y is down)."),
       size("Radius."),
     ],
     items: false,
@@ -329,8 +327,8 @@ const TUPLE_JSON: Record<ShapeType, Record<string, unknown>> = {
     type: "array",
     prefixItems: [
       { const: "capsule" },
-      px("Centre x."),
-      px("Centre y (y is down)."),
+      metres("Centre x."),
+      metres("Centre y (y is down)."),
       size("Half the length of the inner segment."),
       size("Radius."),
       rot,
@@ -345,7 +343,7 @@ const TUPLE_JSON: Record<ShapeType, Record<string, unknown>> = {
       "Convex polygon as flat x, y pairs (at least 3 points). Points are absolute; the loader centres the body on their centroid. Concave outlines must be split or drawn as a chain.",
     type: "array",
     prefixItems: [{ const: "poly" }],
-    items: { type: "number", unit: "px" },
+    items: { type: "number", unit: "m" },
     minItems: 7,
   },
   chain: {
@@ -354,7 +352,7 @@ const TUPLE_JSON: Record<ShapeType, Record<string, unknown>> = {
       "Open polyline as flat x, y pairs (at least 2 points), for static terrain. Allowed on solid and sensor only.",
     type: "array",
     prefixItems: [{ const: "chain" }],
-    items: { type: "number", unit: "px" },
+    items: { type: "number", unit: "m" },
     minItems: 5,
   },
 };
@@ -429,7 +427,8 @@ export function shapeTupleSchemaOf(
     }
   }).meta({
     id,
-    description: `A shape tuple: ${signatures.join(" | ")}. Integer pixels, y is down.`,
+    description: `A shape tuple: ${signatures.join(" | ")}. Metres, y is down; rotDeg in degrees.`,
+    unit: "m",
     oneOf: types.map((t) => TUPLE_JSON[t]),
   });
   return schema as unknown as z.ZodType<ShapeTuple>;

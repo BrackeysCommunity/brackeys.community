@@ -54,7 +54,16 @@ afterAll(() => {
 describe("genre probes", () => {
   it("finds every probe", () => {
     const ids = PROBES.map((p) => p.id);
-    for (const id of ["grid-puzzle", "roguelike", "shooter", "top-down", "turn-tactics"])
+    for (const id of [
+      "grid-puzzle",
+      "local-versus",
+      "point-and-click",
+      "rhythm-tap",
+      "roguelike",
+      "shooter",
+      "top-down",
+      "turn-tactics",
+    ])
       expect(ids).toContain(id);
   });
 

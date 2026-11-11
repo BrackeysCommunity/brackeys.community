@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jams-engine:game-settings:v1",
-  "x-agent-surface": 11,
-  "title": "jams engine game settings, format v1",
+  "$id": "urn:jams-engine:game-settings:v2",
+  "x-agent-surface": 12,
+  "title": "jams engine game settings, format v2",
   "type": "object",
   "properties": {
     "$schema": {
@@ -16,7 +16,7 @@
     },
     "v": {
       "type": "number",
-      "const": 1,
+      "const": 2,
       "description": "Game-settings format version."
     },
     "engine": {
@@ -33,12 +33,14 @@
                     "width": {
                       "type": "number",
                       "exclusiveMinimum": 0,
-                      "description": "World units across."
+                      "description": "Virtual px across.",
+                      "unit": "px"
                     },
                     "height": {
                       "type": "number",
                       "exclusiveMinimum": 0,
-                      "description": "World units down."
+                      "description": "Virtual px down.",
+                      "unit": "px"
                     }
                   },
                   "required": ["width", "height"],
@@ -50,7 +52,8 @@
                     "height": {
                       "type": "number",
                       "exclusiveMinimum": 0,
-                      "description": "World units down; the width follows the canvas."
+                      "description": "Virtual px down; the width follows the canvas.",
+                      "unit": "px"
                     }
                   },
                   "required": ["height"],
@@ -62,14 +65,15 @@
                     "width": {
                       "type": "number",
                       "exclusiveMinimum": 0,
-                      "description": "World units across; the height follows the canvas."
+                      "description": "Virtual px across; the height follows the canvas.",
+                      "unit": "px"
                     }
                   },
                   "required": ["width"],
                   "additionalProperties": false
                 }
               ],
-              "description": "World units the camera shows at zoom 1 on the fixed axis or axes."
+              "description": "Virtual px the camera shows at zoom 1 on the fixed axis or axes; the game's px per metre maps world metres onto them."
             },
             "fit": {
               "description": "expand: the fixed axis fills the canvas and the other shows more; letterbox: the whole virtual area shows, bars fill the rest; crop: the virtual area covers the canvas, the overflow is cut. letterbox and crop need a width and a height.",
@@ -109,18 +113,21 @@
           "enum": ["rapier", "none"]
         },
         "gravity": {
-          "description": "World gravity [x, y] in px/s² for every scene that doesn't set its own; y is down. Omitted: the game's.",
+          "description": "World gravity [x, y] in m/s² for every scene that doesn't set its own; y is down. Omitted: the game's.",
           "type": "array",
           "prefixItems": [
             {
               "type": "number",
-              "description": "x, px/s²; positive pulls right."
+              "description": "x, m/s²; positive pulls right.",
+              "unit": "m/s²"
             },
             {
               "type": "number",
-              "description": "y, px/s²; positive pulls down."
+              "description": "y, m/s²; positive pulls down.",
+              "unit": "m/s²"
             }
-          ]
+          ],
+          "unit": "m/s²"
         },
         "tickRate": {
           "description": "Ticks per second for every scene, an integer from 1 to 240; the game's time model keeps its kind. Omitted: the game's rate.",

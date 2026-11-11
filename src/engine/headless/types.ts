@@ -3,6 +3,7 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { LoadReport, RuntimeStats, StepEvent } from "../runtime/types";
 import type { ExpandedScene } from "../scene/types";
 import type { RapierModule } from "../types";
+import type { PlaytestBlocked } from "./playtest-types";
 
 export type HeadlessRuntimeOptions = {
   /** Needed for a scene that runs on Rapier; a scene without physics loads with none. */
@@ -51,5 +52,7 @@ export type ProbeReport<S = unknown> = {
   final: S | null;
   /** The game's first verdict (`play.outcome`) and its tick; the probe still runs every tick. */
   outcome?: GameOutcome & { tick: number };
+  /** Set when an `EngineError` out of a step ended the run: stage `run`, the error's code on its issue; `ticks`, `events` and `final` cover the ticks before it. */
+  blocked?: PlaytestBlocked;
   stats: RuntimeStats;
 };

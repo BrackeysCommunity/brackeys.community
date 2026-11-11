@@ -362,7 +362,7 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
     for (const [i, j] of step.pairs) {
       const ref = bulkId(key, i);
       const by = bulkOffset(va[i]!, vb[j]!);
-      if (by && Number.isInteger(by[0]) && Number.isInteger(by[1])) {
+      if (by && Number.isFinite(by[0]) && Number.isFinite(by[1])) {
         const id = `${by[0]},${by[1]}`;
         const move = moves.get(id);
         if (move) move.refs.push(ref);

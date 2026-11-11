@@ -1,13 +1,26 @@
 import type { z } from "zod";
 
 import type { Registry } from "../../game/types";
-import type { Migration } from "../../scene/migrate";
+import type { Migration, MigrateEnv } from "../../scene/migrate";
 import type { SceneIssue } from "../../scene/types";
 import type { RefSite } from "../refs";
 import type { AssetEntry, AssetId, AssetKindName, AssetPath, ProjectView } from "../types";
 
 /** What a kind's schema, defaults and checks may depend on. */
-export type KindEnv = { registry: Registry; project: ProjectView | null };
+export type KindEnv = {
+  registry: Registry;
+  project: ProjectView | null;
+  /**
+   * The project's prefabs by id, parsed, for a host that holds their docs:
+   * a scene or prefab migration reads the fields its instances override.
+   */
+  prefab?: MigrateEnv["prefab"];
+};
+
+/** The migration env of a kind's file: the registry, and the project's prefabs when the host gave them. */
+export function kindMigrateEnv(env: KindEnv): MigrateEnv {
+  return env.prefab ? { registry: env.registry, prefab: env.prefab } : { registry: env.registry };
+}
 
 export type AssetMatch = {
   /** File-name suffixes; the longest match across kinds wins. */

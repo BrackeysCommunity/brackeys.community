@@ -54,8 +54,8 @@ describe("fragment.schema.json and prefab.schema.json", () => {
 
     it(`${name}: has a URN id per game, the agent surface version, and describes every field`, () => {
       const schema = make(engine);
-      expect(schema.$id).toBe(`${SCHEMA_ID_BASE}${name}:v3`);
-      expect(make(fake).$id).toBe(`${SCHEMA_ID_BASE}${name}:fake:v3`);
+      expect(schema.$id).toBe(`${SCHEMA_ID_BASE}${name}:v4`);
+      expect(make(fake).$id).toBe(`${SCHEMA_ID_BASE}${name}:fake:v4`);
       expect(schema[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);
       expect(undescribedProperties(schema)).toEqual([]);
     });
@@ -63,7 +63,7 @@ describe("fragment.schema.json and prefab.schema.json", () => {
 });
 
 describe("the prefab contract slot", () => {
-  const prefab = { kind: "prefab", v: 3, id: "chunk", entities: [] };
+  const prefab = { kind: "prefab", v: 4, id: "chunk", entities: [] };
 
   it("refuses a contract when the game declares none", () => {
     const r = parsePrefab({ ...prefab, contract: { exits: ["left"] } }, engine);
@@ -90,8 +90,11 @@ describe("the prefab contract slot", () => {
   });
 });
 
+const fixtureText = (name: string) =>
+  readFileSync(new URL(`./fixtures/prefabs/${name}.json`, import.meta.url), "utf8");
+
 describe("nested instances in a prefab", () => {
-  const room = readFileSync(new URL("./fixtures/prefabs/room.json", import.meta.url), "utf8");
+  const room = fixtureText("room");
   const parsed = parsePrefab(room, engine);
   if (!parsed.ok) throw new Error(parsed.issues[0]!.message);
   const prefab = parsed.prefab;
@@ -107,10 +110,7 @@ describe("nested instances in a prefab", () => {
       "panel.path.speed": 50,
     });
     expect(Object.keys(prefab)).toEqual(["kind", "v", "id", "bulk", "instances", "entities"]);
-    const door = parsePrefab(
-      readFileSync(new URL("./fixtures/prefabs/door.json", import.meta.url), "utf8"),
-      engine,
-    );
+    const door = parsePrefab(fixtureText("door"), engine);
     expect(door.ok && door.prefab.instances).toEqual([
       { id: "latch", prefab: "gate", at: [40, 0] },
     ]);
@@ -138,7 +138,7 @@ describe("nested instances in a prefab", () => {
 
   it("leaves an empty instance list out", () => {
     const r = parsePrefab(
-      { kind: "prefab", v: 3, id: "bare", instances: [], entities: [] },
+      { kind: "prefab", v: 4, id: "bare", instances: [], entities: [] },
       engine,
     );
     expect(r.ok && "instances" in r.prefab).toBe(false);
@@ -191,11 +191,11 @@ describe("a prefab as a scene of its own", () => {
 });
 
 describe("variants and exposed parameters in a prefab", () => {
-  const text = readFileSync(new URL("./fixtures/prefabs/red-gate.json", import.meta.url), "utf8");
+  const text = fixtureText("red-gate");
   const parsed = parsePrefab(text, engine);
   if (!parsed.ok) throw new Error(parsed.issues[0]!.message);
   const red = parsed.prefab;
-  const bare = { kind: "prefab", v: 3, id: "red-door", entities: [] };
+  const bare = { kind: "prefab", v: 4, id: "red-door", entities: [] };
 
   it("parses base, params and overrides in file order", () => {
     expect(Object.keys(red)).toEqual([

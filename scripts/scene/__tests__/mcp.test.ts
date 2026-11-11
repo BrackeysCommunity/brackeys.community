@@ -8,6 +8,7 @@ import { HocuspocusProvider } from "@hocuspocus/provider";
 import { docToScene, readLog, readProject, readProjectLog } from "@jams/engine/collab";
 import { defineGame } from "@jams/engine/game";
 import { docNameOf } from "@jams/engine/project";
+import { SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -30,6 +31,9 @@ const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
 const HOP_LEFT = repoFile("scripts/scene/examples/hop-left.json");
 const DOT = repoFile("scripts/scene/examples/dot.png");
 const SPRITES = repoFile("src/engine/scene/__tests__/fixtures/sprites.json");
+const V1_RECORDINGS = "src/engine/headless/__tests__/fixtures/recordings/v1";
+const V1_ENGINE_YARD = repoFile(`${V1_RECORDINGS}/scenes/engine-yard.json`);
+const V1_SETTLES = repoFile(`${V1_RECORDINGS}/engine-yard.settles.recording.json`);
 
 type Called = {
   content: { type: string; text?: string; data?: string; mimeType?: string }[];
@@ -45,7 +49,7 @@ async function call(name: string, args: Record<string, unknown> = {}): Promise<C
   return (await client.callTool({ name, arguments: args })) as Called;
 }
 
-const SLOW_LIFT = { ops: [{ op: "update", ref: "lift", set: { "path.speed": 30 } }] };
+const SLOW_LIFT = { ops: [{ op: "update", ref: "lift", set: { "path.speed": 0.3 } }] };
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "scene-mcp-"));
@@ -117,6 +121,25 @@ describe("scene MCP server", () => {
     }
   });
 
+  it("describes every length an agent passes or reads in metres", async () => {
+    const { tools } = await client.listTools();
+    const tool = (name: string) => tools.find((t) => t.name === name)!;
+    const field = (name: string, key: string) =>
+      (tool(name).inputSchema.properties as Record<string, { description?: string }>)[key]
+        ?.description;
+    expect(field("scene_render", "region")).toBe("[x0, y0, x1, y1] in metres.");
+    expect(field("scene_render", "margin")).toMatch(/^With around: metres of margin/);
+    expect(field("scene_show", "near")).toMatch(/in metres/);
+    expect(field("scene_playtest", "at")).toMatch(/in metres/);
+    expect(field("scene_apply_ops", "ops")).toContain(
+      `format v${SCENE_FORMAT_VERSION}, lengths in metres`,
+    );
+    expect(tool("scene_show").description).toContain("Every length is metres");
+    expect(tool("scene_list").description).toContain("bounds (metres)");
+    const all = JSON.stringify(tools);
+    expect(all).not.toMatch(/in world px\.|px of margin|within r px|Pixels per world px/);
+  });
+
   it("lists, shows, and prints schemas and codes", async () => {
     const listed = await call("scene_list");
     expect(listed.isError).toBe(false);
@@ -126,7 +149,7 @@ describe("scene MCP server", () => {
       expect.objectContaining({ scenes: listed.structuredContent.scenes }),
     );
 
-    const shown = await call("scene_show", { scene: "engine-yard", near: [1200, 940, 30] });
+    const shown = await call("scene_show", { scene: "engine-yard", near: [12, 9.4, 0.3] });
     expect(shown.structuredContent).toMatchObject({ exitCode: 0, scene: "engine-yard" });
     expect((shown.structuredContent.entities as { ref: string }[]).map((e) => e.ref)).toContain(
       "crate",
@@ -178,7 +201,7 @@ describe("scene MCP server", () => {
     const lift = JSON.parse(
       await readFile(join(dirs.engine, "engine-yard.json"), "utf8"),
     ).entities.find((e: { id: string }) => e.id === "lift");
-    expect(lift.path.speed).toBe(30);
+    expect(lift.path.speed).toBe(0.3);
   });
 
   it("playtests, fuzzes and runs checks", { timeout: 20_000 }, async () => {
@@ -230,13 +253,13 @@ describe("scene MCP server", () => {
       ref: "hero",
       type: "prop",
       label: "hero-sheet:idle-0",
-      box: { minX: 80, minY: 240, maxX: 112, maxY: 272 },
+      box: { minX: 0.8, minY: 2.4, maxX: 1.12, maxY: 2.72 },
     });
     const shown = await call("scene_show", { scene: "sprites", ref: "lamp" });
     expect(shown.structuredContent.entities).toMatchObject([
       {
         ref: "lamp",
-        sprite: { label: "lamp", aabb: { minX: 308, minY: 224, maxX: 332, maxY: 288 } },
+        sprite: { label: "lamp", aabb: { minX: 3.08, minY: 2.24, maxX: 3.32, maxY: 2.88 } },
       },
     ]);
   }
@@ -324,18 +347,18 @@ describe("scene MCP server", () => {
     expect(stale).toMatchObject({ isError: true, structuredContent: { exitCode: 3 } });
   });
 
-  it("takes v3 ops in scene_apply_ops and shows the fields they set", async () => {
+  it("takes current-format ops in metres in scene_apply_ops and shows the fields they set", async () => {
     const file = join(dirs.engine, "z-yard.json");
     const def = JSON.parse(await readFile(ENGINE_YARD, "utf8"));
     await writeFile(file, JSON.stringify({ ...def, name: "z-yard" }));
     try {
       const ops = await call("scene_schema", { which: "ops" });
-      expect(ops.structuredContent.$id).toBe("urn:jams-engine:ops:v3");
+      expect(ops.structuredContent.$id).toBe(`urn:jams-engine:ops:v${SCENE_FORMAT_VERSION}`);
       const batch = {
         ops: [
           { op: "useAssets", add: ["dot"] },
           { op: "setZ", refs: ["zone"], z: 3 },
-          { op: "setGroup", id: "west", at: [200, 0] },
+          { op: "setGroup", id: "west", at: [2, 0] },
           { op: "update", ref: "start", set: { group: "west" } },
           { op: "transform", groups: ["west"], flip: "x" },
         ],
@@ -347,13 +370,13 @@ describe("scene MCP server", () => {
       });
       const saved = JSON.parse(await readFile(file, "utf8"));
       expect(saved.assets).toEqual(["dot"]);
-      expect(saved.groups.west).toMatchObject({ at: [200, 0], flip: true });
+      expect(saved.groups.west).toMatchObject({ at: [2, 0], flip: true });
 
       const zone = await call("scene_show", { scene: "z-yard", ref: "zone" });
       expect(zone.structuredContent.entities).toEqual([expect.objectContaining({ z: 3 })]);
       const start = await call("scene_show", { scene: "z-yard", ref: "start" });
       expect(start.structuredContent.entities).toEqual([
-        expect.objectContaining({ origin: [200, 0], transform: { rot: 0, flip: true } }),
+        expect.objectContaining({ origin: [2, 0], transform: { rot: 0, flip: true } }),
       ]);
     } finally {
       await rm(file, { force: true });
@@ -377,7 +400,7 @@ describe("scene MCP server", () => {
       ops: [
         {
           op: "add",
-          entity: { id: "pic", type: "marker", at: [100, 100], behaviors: { sprite } },
+          entity: { id: "pic", type: "marker", at: [1, 1], behaviors: { sprite } },
         },
       ],
     });
@@ -649,6 +672,275 @@ describe("lifecycle events", () => {
   });
 });
 
+/** Two seats: each adds up its `move` stick's x, counts its `fire` presses and primary clicks, and keeps its pointer. */
+const seatsGame = defineGame({
+  id: "seats-game",
+  types: [],
+  actions: [
+    {
+      action: "move",
+      kind: "vector",
+      bindings: [
+        { device: "key", code: "KeyA", axis: "x", value: -1 },
+        { device: "key", code: "KeyD", axis: "x", value: 1 },
+        { device: "pad", stick: "left" },
+      ],
+      description: "Move the seat.",
+    },
+    {
+      action: "fire",
+      bindings: [
+        { device: "key", code: "Space" },
+        { device: "pad", button: "south" },
+      ],
+      description: "Fire.",
+    },
+  ],
+  input: { players: { max: 2, join: "press" } },
+  world: { physics: "none" },
+  time: { kind: "fixed" },
+  createRuntime(ctx) {
+    const seats = [0, 1].map(() => ({
+      x: 0,
+      fires: 0,
+      clicks: 0,
+      down: false,
+      pointer: null as number[] | null,
+    }));
+    return {
+      beforeStep() {
+        seats.forEach((s, seat) => {
+          s.x += ctx.input.vector("move", seat).x;
+          if (ctx.input.pressed("fire", seat)) s.fires++;
+          const p = ctx.input.pointer(seat);
+          const down = !!p && (p.buttons & 1) === 1;
+          if (down && !s.down) s.clicks++;
+          s.down = down;
+          if (p) s.pointer = [p.x, p.y];
+        });
+      },
+      snapshot: () =>
+        seats.map((s, seat) => ({
+          x: Math.round(s.x * 1000) / 1000,
+          fires: s.fires,
+          clicks: s.clicks,
+          pointer: s.pointer,
+          joined: ctx.input.players()[seat]?.joined ?? false,
+        })),
+    };
+  },
+});
+
+describe("input v2", () => {
+  const TWO_SEATS = {
+    v: 2,
+    players: 2,
+    tracks: [
+      {
+        player: 0,
+        steps: [
+          { join: "keyboard" },
+          { set: { move: [1, 0] }, for: 10 },
+          { press: "fire" },
+          { wait: 1 },
+          { pointer: { at: [2.5, 3], press: "primary" }, for: 2 },
+          { pointer: { at: [2.5, 3], drag: [4.5, 3], release: "primary" }, for: 5 },
+        ],
+      },
+      {
+        player: 1,
+        steps: [{ wait: 3 }, { join: "pad:0" }, { set: { move: [-0.5, 0] }, for: 8 }, { wait: 1 }],
+      },
+    ],
+  };
+  let seats: Client;
+  let dir: string;
+  const callSeats = async (name: string, args: Record<string, unknown>) =>
+    (await seats.callTool({ name, arguments: args })) as Called;
+
+  beforeAll(async () => {
+    dir = join(root, seatsGame.id);
+    await mkdir(dir);
+    await writeFile(
+      join(dir, "seat-yard.json"),
+      JSON.stringify({
+        v: SCENE_FORMAT_VERSION,
+        name: "seat-yard",
+        game: seatsGame.id,
+        bounds: [0, 0, 10, 6],
+        entities: [{ id: "start", type: "marker", at: [1, 1] }],
+      }),
+    );
+    const ctx: ToolContext = {
+      projects: [await tempProject(dir, { game: seatsGame })],
+      loadRapier: () => Promise.reject(new Error("a physics-free tool loaded Rapier")),
+    };
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createSceneMcpServer(ctx).connect(serverSide);
+    seats = new Client({ name: "scene-mcp-seats-test", version: "0" });
+    await seats.connect(clientSide);
+  });
+
+  afterAll(async () => {
+    await seats.close();
+  });
+
+  it("describes v2 scripts, v1 migration and input-map edits", async () => {
+    const { tools } = await client.listTools();
+    const tool = (name: string) => tools.find((t) => t.name === name)!;
+    const field = (name: string, key: string) =>
+      (tool(name).inputSchema.properties as Record<string, { description?: string }>)[key]
+        ?.description;
+    const playtest = tool("scene_playtest").description!;
+    for (const word of ["format v2", "v1 script migrates", "`tracks`", "`set`", "`pointer`"])
+      expect(playtest).toContain(word);
+    expect(playtest).toMatch(/`join` a device .*`leave`/);
+    expect(field("scene_playtest", "script")).toMatch(/v2 or v1/);
+    const replay = tool("scene_replay").description!;
+    expect(replay).toContain("`migratedFrom: 1`");
+    expect(replay).toContain("recording-other-platform");
+    expect(field("scene_replay", "run")).toMatch(/v2 or v1/);
+    const assets = tool("asset_apply_ops").description!;
+    expect(assets).toContain("/actions/@fire/bindings");
+    expect(assets).toContain("binding-unknown");
+    expect(assets).toContain("player-unknown");
+  });
+
+  it("scene_playtest plays a two-track v2 script: sticks, pointer and joins per seat", async () => {
+    const played = await callSeats("scene_playtest", { scene: "seat-yard", script: TWO_SEATS });
+    expect(played.isError, JSON.stringify(played.structuredContent)).toBe(false);
+    expect(played.structuredContent).toMatchObject({
+      exitCode: 0,
+      outcome: { result: "script-end" },
+      final: [
+        { x: 10, fires: 1, clicks: 1, pointer: [4.5, 3], joined: true },
+        { x: -4, fires: 0, clicks: 0, pointer: null, joined: true },
+      ],
+    });
+    const recording = played.structuredContent.recording as { v: number; inputs: unknown[] };
+    expect(recording.v).toBe(2);
+    expect(recording.inputs).toHaveLength(2);
+
+    const replayed = await callSeats("scene_replay", { scene: "seat-yard", run: recording });
+    expect(replayed.structuredContent).toMatchObject({
+      exitCode: 0,
+      matches: true,
+      stale: false,
+      issues: [],
+      final: played.structuredContent.final,
+    });
+    expect(replayed.structuredContent).not.toHaveProperty("migratedFrom");
+    const fromResult = await callSeats("scene_replay", {
+      scene: "seat-yard",
+      run: { ...played.structuredContent, blocked: false },
+    });
+    expect(fromResult.structuredContent).toMatchObject({ exitCode: 0, matches: true });
+  });
+
+  it("scene_playtest migrates a v1 script and refuses a v2 step the game can't play", async () => {
+    const v1 = await callSeats("scene_playtest", {
+      scene: "seat-yard",
+      script: { v: 1, steps: [{ press: "fire" }, { wait: 2 }] },
+    });
+    expect(v1.structuredContent).toMatchObject({
+      exitCode: 0,
+      final: [{ fires: 1 }, { fires: 0 }],
+    });
+
+    const tooMany = await callSeats("scene_playtest", {
+      scene: "seat-yard",
+      script: { v: 2, tracks: [{ player: 2, steps: [{ wait: 1 }] }] },
+    });
+    expect(tooMany.isError).toBe(false);
+    expect(tooMany.structuredContent).toMatchObject({ exitCode: 1, stage: "script" });
+  });
+
+  it("scene_replay migrates a frozen v1 recording", { timeout: 20_000 }, async () => {
+    const replayed = await call("scene_replay", {
+      scene: V1_ENGINE_YARD,
+      run: V1_SETTLES,
+    });
+    expect(replayed.isError).toBe(false);
+    expect(replayed.structuredContent).toMatchObject({
+      exitCode: 0,
+      migratedFrom: 1,
+      matches: true,
+      recording: { v: 2 },
+    });
+  });
+
+  it("asset_apply_ops appends an input-map binding and refuses one the game can't read", async () => {
+    const created = await callSeats("asset_apply_ops", {
+      ops: {
+        v: 1,
+        ops: [
+          {
+            op: "createAsset",
+            kind: "input-map",
+            path: "input-map.json",
+            content: {
+              kind: "input-map",
+              v: 1,
+              actions: [{ action: "fire", bindings: [{ device: "key", code: "Space" }] }],
+            },
+          },
+        ],
+      },
+      dryRun: false,
+    });
+    expect(created.structuredContent, JSON.stringify(created.structuredContent)).toMatchObject({
+      exitCode: 0,
+      written: true,
+    });
+    const append = (value: object) => ({
+      v: 1,
+      ops: [
+        { op: "editAsset", id: "input-map", edits: [{ insert: "/actions/@fire/bindings", value }] },
+      ],
+    });
+    const fire = async () =>
+      JSON.parse(await readFile(join(dir, "input-map.json"), "utf8")).actions.find(
+        (a: { action: string }) => a.action === "fire",
+      ).bindings;
+
+    const planned = await callSeats("asset_apply_ops", {
+      ops: append({ device: "pad", button: "south" }),
+    });
+    expect(planned.structuredContent).toMatchObject({ exitCode: 0, written: false });
+    expect(await fire()).toHaveLength(1);
+
+    const added = await callSeats("asset_apply_ops", {
+      ops: append({ device: "pad", button: "south" }),
+      dryRun: false,
+    });
+    expect(added.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    expect(await fire()).toEqual([
+      { device: "key", code: "Space" },
+      { device: "pad", button: "south" },
+    ]);
+
+    for (const value of [
+      { device: "key", code: "Spcae" },
+      { device: "pad", stick: "left" },
+      { device: "key", code: "KeyF", player: 5 },
+    ]) {
+      const refused = await callSeats("asset_apply_ops", { ops: append(value), dryRun: false });
+      expect(refused.structuredContent, JSON.stringify(value)).toMatchObject({
+        exitCode: 1,
+        written: false,
+        issue: { code: value.player === undefined ? "binding-unknown" : "player-unknown" },
+      });
+    }
+    const typo = await callSeats("asset_apply_ops", {
+      ops: append({ device: "key", code: "Spcae" }),
+    });
+    expect(typo.structuredContent.issue).toMatchObject({
+      message: expect.stringContaining('unknown key code "Spcae"'),
+    });
+    expect(await fire()).toHaveLength(2);
+  });
+});
+
 describe("hosted URLs", () => {
   const SITE = "https://staging.example.test";
   const SECRET = "jat_mcpSecretThatMustStayHome";
@@ -776,7 +1068,7 @@ describe("live docs", { timeout: 60_000 }, () => {
       url: server.url,
     });
     expect(dry.structuredContent).toMatchObject({ dryRun: true, written: false, live: true });
-    expect(speedOf(human.doc)).toBe(80);
+    expect(speedOf(human.doc)).toBe(0.8);
 
     const r = await call("scene_apply_ops", {
       scene: "engine-yard",
@@ -788,7 +1080,7 @@ describe("live docs", { timeout: 60_000 }, () => {
     });
     expect(r.isError).toBe(false);
     expect(r.structuredContent).toMatchObject({ exitCode: 0, written: true });
-    await until(() => speedOf(human.doc) === 30, "the batch to reach the human");
+    await until(() => speedOf(human.doc) === 0.3, "the batch to reach the human");
     const entry = readLog(human.doc).at(-1)!;
     expect(entry.actor).toEqual({
       kind: "agent",

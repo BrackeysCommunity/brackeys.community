@@ -83,7 +83,7 @@ export const shuttleGame = defineGame<ShuttleSnapshot>({
           refused,
           lit: ctx.query.count({ type: "spark" }),
           nearest: at ? ctx.query.nearest({ x: at.x, y: at.y }, { type: "solid" }) : undefined,
-          west: ctx.query.inArea({ minX: 0, minY: 0, maxX: 100, maxY: 100 }),
+          west: ctx.query.inArea({ minX: 0, minY: 0, maxX: 1, maxY: 1 }),
         };
       },
     };
@@ -91,26 +91,26 @@ export const shuttleGame = defineGame<ShuttleSnapshot>({
 });
 
 const yard = (physics: "rapier" | "none"): SceneDefinition => ({
-  v: 3,
+  v: 4,
   game: "shuttle",
   name: "yard",
-  bounds: [0, 0, 200, 100],
+  bounds: [0, 0, 2, 1],
   settings: { physics },
   entities: [
-    { id: "west", type: "solid", shape: ["box", 6, 50, 6, 30] },
-    { id: "east", type: "solid", shape: ["box", 194, 50, 6, 30] },
+    { id: "west", type: "solid", shape: ["box", 0.07, 0.5, 0.07, 0.3] },
+    { id: "east", type: "solid", shape: ["box", 1.93, 0.5, 0.07, 0.3] },
     {
       id: "shuttle",
       type: "follower",
-      shape: ["circle", 0, 0, 8],
-      // Each end runs 4 px into a buffer, so the shuttle touches it there.
+      shape: ["circle", 0, 0, 0.08],
+      // Each end runs 6 cm into a buffer, so the shuttle touches it there.
       path: {
         pts: [
-          [16, 50],
-          [184, 50],
+          [0.16, 0.5],
+          [1.84, 0.5],
         ],
         mode: "ping_pong",
-        speed: 240,
+        speed: 2.4,
       },
     },
   ],

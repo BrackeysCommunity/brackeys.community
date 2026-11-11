@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type { EditorHost } from "@jams/engine/editor-ui";
+import { createRegistry, type GameDefinition } from "@jams/engine/game";
+import { createKindRegistry, type KindRegistry } from "@jams/engine/project";
 import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -42,8 +47,8 @@ const {
   SiteSceneEditor,
   useSiteEditorHost,
 } = await import("../editor-host");
-const { engineEditorGame } = await import("@/games/engine-editor");
 const { platformerGame } = await import("@/games/platformer");
+const { discoverProjects } = await import("../../../../scripts/scene/projects");
 
 type EditorProps = {
   host: EditorHost;
@@ -197,14 +202,14 @@ describe("SiteSceneEditor", () => {
   const projectFile = (path: string) =>
     JSON.parse(readFileSync(path, "utf8")) as { id: string; name: string };
 
-  it("offers the projects whose jams.project.json the site knows, each with the game it edits with", () => {
+  it("offers the projects whose jams.project.json the site knows, each with the game its file names", () => {
     const platformer = projectFile("src/games/platformer/jams.project.json");
     const engine = projectFile("src/engine/scenes/jams.project.json");
     expect(SITE_PROJECTS.map(({ id }) => id)).toEqual([platformer.id, engine.id]);
     expect(DEFAULT_PROJECT).toBe(platformer.id);
     expect(SITE_PROJECTS.map((p) => [p.game, p.defaultScene])).toEqual([
       [platformerGame, "test-yard"],
-      [engineEditorGame, "kitchen-sink"],
+      [null, "kitchen-sink"],
     ]);
   });
 
@@ -239,12 +244,39 @@ describe("SiteSceneEditor", () => {
   it("opens the engine project from ?project=engine, its scenes by name or id", () => {
     const { rerender } = render(<SiteSceneEditor roomId="lobby-1" project="engine" />);
     expect(lastEditor()).toMatchObject({ project: "engine", scene: "kitchen-sink" });
-    expect(lastEditor().game).toBe(engineEditorGame);
+    expect(lastEditor().game).toBeNull();
+    expect(lastEditor().host.readOnly).toBeUndefined();
     for (const scene of ["grid-yard", "engine-yard", "kitchen-sink", "7c1d2e3f"]) {
       rerender(<SiteSceneEditor roomId="lobby-1" project="engine" scene={scene} />);
       expect(lastEditor()).toMatchObject({ project: "engine", scene });
     }
   });
+
+  it("judges each project as the dev server does, so its scenes open editable", async () => {
+    // Code skew compares these hashes: a page whose differ from the server's opens read-only.
+    const hashes = (kinds: KindRegistry, game: GameDefinition | null) =>
+      kinds.schemaHashes({ registry: createRegistry(game), project: null });
+    const cache = await mkdtemp(join(tmpdir(), "site-projects-"));
+    try {
+      const served = await discoverProjects(
+        process.cwd(),
+        ["src/games/platformer/jams.project.json", "src/engine/scenes/jams.project.json"],
+        { cacheDirOf: (id) => join(cache, id) },
+      );
+      for (const project of SITE_PROJECTS) {
+        const server = served.find((p) => p.file.id === project.id)!;
+        expect(server, project.id).toBeDefined();
+        expect(project.game, project.id).toBe(server.game);
+        expect(createRegistry(project.game).id).toBe(server.registry.id);
+        expect(await hashes(createKindRegistry(project.game), project.game)).toEqual(
+          await hashes(server.kinds, server.game),
+        );
+      }
+      expect(served.find((p) => p.file.id === "engine")?.game).toBeNull();
+    } finally {
+      await rm(cache, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   it("names the projects as the dev server's listing does, so the project files are the one source", async () => {
     serve({

@@ -1,12 +1,12 @@
 /**
  * The standalone editor's page: `@jams/engine/editor-ui` mounted on the
  * engine project its dev server serves, the way a game outside jams.team
- * mounts it. Everything the page needs beyond the game is imported when it
+ * mounts it. Everything the page needs is imported when it
  * mounts.
  */
-import { DEFAULT_SCENE, engineEditorGame } from "../../src/games/engine-editor";
+import { DEFAULT_SCENE } from "../../src/games/engine-editor";
 
-export { DEFAULT_SCENE, engineEditorGame, playCameraTarget } from "../../src/games/engine-editor";
+export { DEFAULT_SCENE } from "../../src/games/engine-editor";
 
 const sceneOf = (url: URL): string => url.searchParams.get("scene") || DEFAULT_SCENE;
 
@@ -31,7 +31,8 @@ export async function mountEngineEditor(element: HTMLElement) {
         document.title = `${id} · engine editor`;
       },
     },
-    game: engineEditorGame,
+    // The project names no game: the page and its server judge it by the engine alone.
+    game: null,
     project: "engine",
     scene,
     rapier: () => import("@dimforge/rapier2d"),

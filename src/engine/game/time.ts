@@ -62,7 +62,25 @@ export function resolveTime(sources: {
   });
 }
 
+/**
+ * Ticks in `ms` at this rate, fractional. Every ms-to-ticks conversion goes
+ * through here: `ms * rate / 1000` is exact for whole-number ms where
+ * `ms / tickMs` is not (at 60 Hz, 1000 ms over a 16.67 ms tick is 59.999…).
+ */
+export function ticksIn(ms: number, time: Pick<ResolvedTime, "rate">): number {
+  return (ms * time.rate) / 1000;
+}
+
 /** Whole ticks for `ms` at this rate, at least 1: what `forMs`, `{ ms }` timers and `msPerStep` use. */
 export function ticksFor(ms: number, time: Pick<ResolvedTime, "rate">): number {
-  return Math.max(1, Math.round((ms * time.rate) / 1000));
+  return Math.max(1, Math.round(ticksIn(ms, time)));
+}
+
+/** The whole ticks that fit in `ms` (rounded down) and the ms left over: what a seek runs. */
+export function wholeTicksIn(
+  ms: number,
+  time: Pick<ResolvedTime, "rate">,
+): { ticks: number; restMs: number } {
+  const ticks = Math.floor(ticksIn(ms, time));
+  return { ticks, restMs: (ms * time.rate - ticks * 1000) / time.rate };
 }

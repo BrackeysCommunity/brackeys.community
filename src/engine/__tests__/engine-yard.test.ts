@@ -54,7 +54,7 @@ describe("engine-yard.json", () => {
       hold: ["right"],
     });
     expect(report.load.ok).toBe(true);
-    expect(report.final!.position.x).toBeGreaterThan(300);
+    expect(report.final!.position.x).toBeGreaterThan(3);
     expect(report.events).toContainEqual(
       expect.objectContaining({ type: SENSOR_ENTER, entityId: "zone", other: "avatar" }),
     );

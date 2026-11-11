@@ -1,14 +1,24 @@
 import type { Store } from "@tanstack/store";
 
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
-import type { GameCommand, GameDefinition, GameOutcome, Registry } from "./game/types";
+import type {
+  Binding,
+  DeviceId,
+  GameCommand,
+  GameDefinition,
+  GameOutcome,
+  PlayerInfo,
+  Registry,
+} from "./game/types";
 import type { PlayOptions } from "./headless/playtest-types";
+import type { RemapStore } from "./input/remap";
 import type { BundleEntry } from "./project/bundle";
 import type { KindRegistry } from "./project/kinds";
 import type { ProjectRuntimeView } from "./project/runtime-view";
 import type { AssetId, ProjectView } from "./project/types";
 import type { AssetLoader, LoadProgress } from "./render/asset-loader";
 import type { ResolutionPolicy } from "./resolution";
+import type { RecordingHost } from "./runtime/recorder";
 import type {
   AssetReloadError,
   LoadFailureReason,
@@ -35,8 +45,8 @@ export type RapierModule = typeof import("@dimforge/rapier2d");
 // ─── Config ──────────────────────────────────────────────
 
 export type GameConfig = {
-  /** What the shell plays: its entity types, actions, hooks and play-mode tools. */
-  game: GameDefinition;
+  /** What the shell plays: its entity types, actions, hooks and play-mode tools; null plays an engine-only project's scenes under createRegistry(null). */
+  game: GameDefinition | null;
   /** A registry the host already built from `game`, so host and shell share one; built here when omitted. */
   registry?: Registry;
   displayWidth: number;
@@ -46,8 +56,19 @@ export type GameConfig = {
   targetFPS: number;
   maxDeltaTime: number;
   camera: CameraConfig;
-  /** Overrides the game's default bindings. */
+  /**
+   * The host's bindings: one of four layers per action and seat (the
+   * player's remap, these, the project's input map, the game's `actions`).
+   * The first layer that binds an action wins and replaces its bindings whole.
+   */
   bindings?: readonly InputBinding[];
+  /** On-screen controls and where a player's remaps persist. */
+  input?: {
+    /** When the input map's on-screen controls show; auto: on a coarse pointer (`matchMedia("(pointer: coarse)")`). */
+    touch?: "auto" | "always" | "never";
+    /** Where the player's remaps are saved and restored; none without one. */
+    remaps?: RemapStore;
+  };
   /** Where pointer and key input is read. Defaults to the canvas, made focusable. */
   inputTarget?: HTMLElement;
   /**
@@ -71,6 +92,8 @@ export type GameConfig = {
    * A game whose scenes all run without physics needs none.
    */
   rapier?: () => Promise<RapierModule>;
+  /** The Rapier package and the project's snapshot, for Play's recordings; the engine fills the arch and runtime. */
+  recording?: RecordingHost;
   /** Loaded on start, expanded through `registry` when it is a document. Without one the world is empty. */
   scene?: SceneDefinition | ExpandedScene;
   /** The prefabs scene documents' instances name; `setPrefabs` replaces them. */
@@ -97,8 +120,8 @@ export const DEFAULT_GAME_CONFIG: Omit<GameConfig, "game" | "rapier"> = {
   camera: {
     lerpSpeed: 0.1,
     bounds: {
-      min: { x: -2000, y: -2000 },
-      max: { x: 4000, y: 2000 },
+      min: { x: -20, y: -20 },
+      max: { x: 40, y: 20 },
     },
   },
 };
@@ -107,7 +130,7 @@ export const DEFAULT_GAME_CONFIG: Omit<GameConfig, "game" | "rapier"> = {
 
 export type CameraConfig = {
   lerpSpeed: number;
-  /** Used until a scene loads; each load replaces them with the scene's bounds plus a margin. */
+  /** World metres; used until a scene loads; each load replaces them with the scene's bounds plus a margin. */
   bounds: { min: Vec2; max: Vec2 };
 };
 
@@ -117,7 +140,7 @@ export type CameraMode = "follow" | "free";
 export type CameraState = {
   position: Vec2;
   zoom: number;
-  /** World units to canvas pixels: the display scale times `zoom`. */
+  /** Canvas px per world metre: the display scale (the policy's scale × the game's px per metre) times `zoom`. */
   scale: number;
   bounds: { min: Vec2; max: Vec2 };
   mode: CameraMode;
@@ -133,14 +156,56 @@ export type SimState = {
 
 export type InputBinding = {
   action: string;
-  keys: string[];
+  bindings?: readonly Binding[];
+  /**
+   * @deprecated 0.x layout keys, read as `{ device: "key", code }` for each
+   * code `KEY_TO_CODE` gives the key; use `bindings`.
+   */
+  keys?: readonly string[];
 };
 
 export type InputAction = {
   action: string;
+  /** Buttons: down. Axes and vectors: the value isn't zero. */
   pressed: boolean;
+  /** An axis's value in −1…1, quantised to 1/1000. */
+  value?: number;
+  /** A vector's components, in the unit disc, quantised to 1/1000. */
+  x?: number;
+  y?: number;
+  /** The seat; 0 when absent. */
+  player?: number;
   tick: number;
   timestamp: number;
+  /** Where in the tick it happened, 0…1 in thousandths; only with `GameDefinition.input.subTick`. */
+  offset?: number;
+};
+
+/** A seat's bindings by action. */
+export type ActionBindings = Readonly<Record<string, readonly Binding[]>>;
+
+/** The shell's input: bindings per seat, remapping, seats and the pointer. */
+export type GameInput = {
+  /** A seat's bindings by action (default seat 0). */
+  bindings: (player?: number) => ActionBindings;
+  /** Replaces an action's bindings for a seat, saved through `GameConfig.input.remaps` and applied from the next tick. */
+  rebind: (
+    action: string,
+    bindings: readonly Binding[],
+    opts?: { player?: number },
+  ) => { ok: true } | { ok: false; issue: SceneIssue };
+  /** Drops a seat's remap of `action`, or of every action. */
+  reset: (action?: string, opts?: { player?: number }) => void;
+  /** The next key, pad button or pointer press, for a "press a key" prompt; null on timeout or Escape. */
+  capture: (opts?: {
+    devices?: readonly ("key" | "pad" | "pointer")[];
+    timeoutMs?: number;
+  }) => Promise<Binding | null>;
+  /** Gives a device to a seat, or frees it with null (`join: "host"`). */
+  assign: (device: DeviceId, player: number | null) => void;
+  players: () => readonly PlayerInfo[];
+  /** While on, pointer moves anywhere in the document update the pointer sample, so a DOM drag shows in the world. */
+  trackPointer: (on: boolean) => void;
 };
 
 // ─── Events ──────────────────────────────────────────────
@@ -294,16 +359,18 @@ export type GameInstance = {
   /** Runs a game command (its `editorKeys`, or a host button); false when the game didn't apply it. */
   command: (name: string) => boolean;
   /**
-   * Queues a command for the next simulated tick, waking a turns or event
-   * game; false (and a dev warning) when not playing, while a replay plays
-   * its recorded commands, for an unknown name, or when its args don't parse.
+   * Queues a command for the next simulated tick as the sending seat's
+   * (`player`, default 0), recorded on that seat's stream, waking a turns or
+   * event game; false (and a dev warning) when not playing, while a replay
+   * plays its recorded commands, for a seat past `players.max`
+   * (player-unknown), for an unknown name, or when its args don't parse.
    */
   send: (command: GameCommand) => boolean;
   /** Wall time away, e.g. a restored save's last-seen gap; becomes `@elapsed` when the game has `time.catchUp`. */
   elapse: (ms: number) => void;
   /** Offers Escape to the game in play (a tool's selection); true when it used it, so play goes on. */
   cancel: () => boolean;
-  /** The last pointer position over the input target in world units, for "play from here"; null before any. */
+  /** The last pointer position over the input target in world metres, for "play from here"; null before any. */
   pointerWorld: () => Vec2 | null;
   /**
    * Kept for hosts without a document: `play` plays the loaded scene as it
@@ -316,8 +383,12 @@ export type GameInstance = {
    * editor tools register at `TOOL_PRIORITY.editor`.
    */
   router: ToolRouter;
-  /** Router screen px (from the input target's corner) to world px, through the camera. */
+  /** Router screen px (from the input target's corner) to world metres, through the camera. */
   screenToWorld: (screen: Vec2) => Vec2;
+  /** Page coordinates (a DOM event's `clientX`, `clientY`) to world metres, through the input target's rect and the camera. */
+  clientToWorld: (clientX: number, clientY: number) => Vec2;
+  /** Bindings, remapping, seats and pointer tracking. */
+  input: GameInput;
   /**
    * The editor camera, for edit mode (play's camera follows the game). Each
    * call moves the view now, within the camera's bounds and zoom limits, and
@@ -328,10 +399,10 @@ export type GameInstance = {
   panBy: (screenDelta: Vec2) => void;
   /** Zooms by `factor` about a screen point, keeping the world point under it fixed. */
   zoomAt: (screen: Vec2, factor: number) => void;
-  /** Centres `rect` (world px) and zooms so it fits with `marginPx` screen px around it (default 48). */
+  /** Centres `rect` (world metres) and zooms so it fits with `marginPx` screen px around it (default 48). */
   frame: (rect: Aabb, marginPx?: number) => void;
   /**
-   * Reads back the canvas pixel (RGBA bytes) under each world point, through
+   * Reads back the canvas pixel (RGBA bytes) under each point (world metres), through
    * the camera, from the stage at resolution 1 over the game's background
    * colour; a point off the canvas reads null. `renderer` is the renderer
    * that drew them, `webgl` or `webgpu`.

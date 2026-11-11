@@ -1,6 +1,7 @@
 import type { Collider } from "@dimforge/rapier2d";
 import { Container, Graphics } from "pixi.js";
 
+import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { ColliderTag, Registry } from "../game/types";
 import { traceShape } from "../render/draw-shape";
 import type { GeometryWorld } from "../runtime/geometry-world";
@@ -19,7 +20,7 @@ export function colliderTint(tag: ColliderTag | undefined, registry: Registry): 
 }
 
 /**
- * The collider's shape in world space, pose applied. Null for shapes the
+ * The collider's shape in world metres, pose applied. Null for shapes the
  * scene format has no equivalent for.
  */
 export function colliderShape(
@@ -69,6 +70,10 @@ function worldPoints(flat: Float32Array, tx: number, ty: number, rot: number): P
 /** The outline of a geometry-world collider with no tint; Rapier's own debug lines are drawn in a like grey. */
 const GEOMETRY_LINE = 0xb0b0b0;
 
+/** Line widths, screen px. */
+const LINE_WIDTH = 1.5;
+const TINT_WIDTH = 2;
+
 /** The loaded world; `geometry` is drawn when the scene runs without physics. */
 export type WireframeSource = DebugSceneSource;
 
@@ -87,15 +92,23 @@ export function geometryWireframes(
 }
 
 export type PhysicsWireframes = {
-  update: (source: WireframeSource | null) => void;
+  /** `scale` is canvas px per metre, zoom included; default one screen px per world px. */
+  update: (source: WireframeSource | null, scale?: number) => void;
   setVisible: (visible: boolean) => void;
   destroy: () => void;
   container: Container;
 };
 
-export function createPhysicsWireframes(): PhysicsWireframes {
+/**
+ * Drawn in world px (metres × `pxPerMetre`) inside a container scaled back
+ * to metres, so circles and capsules tessellate as they look on screen.
+ */
+export function createPhysicsWireframes(pxPerMetre = DEFAULT_LENGTH_UNIT): PhysicsWireframes {
   const container = new Container();
   container.label = "debug-physics";
+  container.scale.set(1 / pxPerMetre);
+  /** World px per screen px this frame. */
+  let perScreenPx = 1;
 
   const graphics = new Graphics();
   const tintGraphics = new Graphics();
@@ -103,20 +116,21 @@ export function createPhysicsWireframes(): PhysicsWireframes {
   container.addChild(tintGraphics);
 
   function drawTinted(shape: ShapeObj, color: number): void {
-    traceShape(tintGraphics, shape);
+    traceShape(tintGraphics, shape, pxPerMetre);
     if (shapeIsClosed(shape)) tintGraphics.fill({ color, alpha: 0.15 });
-    tintGraphics.stroke({ width: 2, color, alpha: 0.8 });
+    tintGraphics.stroke({ width: TINT_WIDTH * perScreenPx, color, alpha: 0.8 });
   }
 
   function drawGeometry(geometry: GeometryWorld, source: WireframeSource): void {
     for (const { shape, tint } of geometryWireframes(geometry, source)) {
-      traceShape(graphics, shape);
-      graphics.stroke({ width: 1.5, color: GEOMETRY_LINE, alpha: 0.8 });
+      traceShape(graphics, shape, pxPerMetre);
+      graphics.stroke({ width: LINE_WIDTH * perScreenPx, color: GEOMETRY_LINE, alpha: 0.8 });
       if (tint !== undefined) drawTinted(shape, tint);
     }
   }
 
-  function update(source: WireframeSource | null): void {
+  function update(source: WireframeSource | null, scale = pxPerMetre): void {
+    perScreenPx = scale > 0 && Number.isFinite(scale) ? pxPerMetre / scale : 1;
     graphics.clear();
     tintGraphics.clear();
     if (!source) return;
@@ -151,9 +165,9 @@ export function createPhysicsWireframes(): PhysicsWireframes {
         ((Math.round(g * 255) & 0xff) << 8) |
         (Math.round(b * 255) & 0xff);
 
-      graphics.setStrokeStyle({ width: 1.5, color, alpha: a * 0.8 });
-      graphics.moveTo(x1, y1);
-      graphics.lineTo(x2, y2);
+      graphics.setStrokeStyle({ width: LINE_WIDTH * perScreenPx, color, alpha: a * 0.8 });
+      graphics.moveTo(x1 * pxPerMetre, y1 * pxPerMetre);
+      graphics.lineTo(x2 * pxPerMetre, y2 * pxPerMetre);
       graphics.stroke();
     }
 
@@ -187,10 +201,10 @@ export function createPhysicsWireframes(): PhysicsWireframes {
 export const physicsLayer: DebugLayerFactory = {
   id: "physics",
   create(host) {
-    const wireframes = createPhysicsWireframes();
+    const wireframes = createPhysicsWireframes(host.pxPerMetre);
     host.worldContainer.addChild(wireframes.container);
     return {
-      update: (frame) => wireframes.update(frame.scene),
+      update: (frame) => wireframes.update(frame.scene, frame.scale),
       setVisible: wireframes.setVisible,
       destroy: wireframes.destroy,
     };

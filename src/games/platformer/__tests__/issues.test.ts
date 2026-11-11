@@ -12,7 +12,8 @@ import {
 } from "@jams/engine/scene";
 import { describe, expect, it } from "vite-plus/test";
 
-import { platformerGame, PLATFORMER_ISSUES } from "..";
+import { platformerGame, PLATFORMER_ISSUES, PLATFORMER_TYPES } from "..";
+import { PLATFORMER_PHYSICAL_CHECKS } from "../physical";
 
 const registry = createRegistry(platformerGame);
 const yard = parseSceneOrThrow(
@@ -38,6 +39,17 @@ describe("platformer issue codes", () => {
     }
   });
 
+  it("speaks in metres: no summary, hint, check or type description names px", () => {
+    const texts = [
+      ...Object.values(PLATFORMER_ISSUES).flatMap((i) => [i.summary, i.hint]),
+      ...PLATFORMER_PHYSICAL_CHECKS.map((c) => c.description),
+      ...PLATFORMER_TYPES.flatMap((t) => [t.description, t.bulk?.description ?? ""]),
+    ];
+    for (const text of texts) expect(text).not.toMatch(/\bpx\b|\dpx/);
+    expect(PLATFORMER_ISSUES["platformer/anchor-orphan"].hint).toContain("4 m");
+    expect(PLATFORMER_ISSUES["platformer/spawn-overlap"].hint).toContain("0.6 m");
+  });
+
   it("platformer/spawn-missing: no spawn point", () => {
     expect(codes(yard)).not.toContain("platformer/spawn-missing");
     expect(codes(edit([{ op: "remove", refs: ["~spawn:0"] }]))).toContain(
@@ -47,7 +59,7 @@ describe("platformer issue codes", () => {
 
   it("platformer/spawn-overlap: two spawns closer than a player", () => {
     const issues = validateScene(
-      edit([{ op: "addBulk", key: "spawn", points: [[980, 1020]] }]),
+      edit([{ op: "addBulk", key: "spawn", points: [[9.8, 10.2]] }]),
       registry,
     );
     const overlap = issues.find((i) => i.code === "platformer/spawn-overlap");
@@ -56,7 +68,7 @@ describe("platformer issue codes", () => {
       path: "/spawn/1",
       entityIds: ["~spawn:1", "~spawn:0"],
     });
-    const apart = edit([{ op: "addBulk", key: "spawn", points: [[1040, 1020]] }]);
+    const apart = edit([{ op: "addBulk", key: "spawn", points: [[10.4, 10.2]] }]);
     expect(codes(apart)).not.toContain("platformer/spawn-overlap");
   });
 
@@ -64,7 +76,7 @@ describe("platformer issue codes", () => {
     const def = edit([
       {
         op: "add",
-        entity: { id: "gust", type: "construct", construct: "wind_zone", at: [300, 900], rot: 45 },
+        entity: { id: "gust", type: "construct", construct: "wind_zone", at: [3, 9], rot: 45 },
       },
     ]);
     const issue = validateScene(def, registry).find((i) => i.code === "platformer/wind-rotation");
@@ -80,11 +92,17 @@ describe("platformer issue codes", () => {
   });
 
   it("platformer/no-kill-plane: no hazard across the bounds", () => {
-    expect(codes(yard)).toContain("platformer/no-kill-plane");
+    const issue = validateScene(yard, registry).find((i) => i.code === "platformer/no-kill-plane");
+    expect(issue?.fix?.ops).toEqual([
+      {
+        op: "add",
+        entity: { id: "kill-plane", type: "hazard", shape: ["box", 10, 11.92, 30, 0.08] },
+      },
+    ]);
     const covered = edit([
       {
         op: "add",
-        entity: { id: "floor-lava", type: "hazard", shape: ["box", 1000, 1190, 3000, 8] },
+        entity: { id: "floor-lava", type: "hazard", shape: ["box", 10, 11.9, 30, 0.08] },
       },
     ]);
     expect(codes(covered)).not.toContain("platformer/no-kill-plane");
@@ -94,7 +112,7 @@ describe("platformer issue codes", () => {
     const broken = edit([
       {
         op: "add",
-        entity: { id: "gust", type: "construct", construct: "wind_zone", at: [300, 900], rot: 45 },
+        entity: { id: "gust", type: "construct", construct: "wind_zone", at: [3, 9], rot: 45 },
       },
     ]);
     const issues = validateScene(broken, registry);

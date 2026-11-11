@@ -14,14 +14,14 @@ export const SMOKE_BACKGROUND = 0x1a1a2e;
 /** crate-0's one colour in `art/crates.png`. */
 export const INSIDE_COLOUR = 0xff8800;
 
-/** World px inside the crate's 72 px sprite and 8 px clear of its 40 px body, so only the sprite colours it. */
-export const INSIDE_POINT: readonly [x: number, y: number] = [908, 1140];
+/** World metres inside the crate's 0.72 m sprite and 0.08 m clear of its 0.4 m body, so only the sprite colours it. */
+export const INSIDE_POINT: readonly [x: number, y: number] = [9.08, 11.4];
 
-/** World px of empty air above the crate: no sprite, body or path is drawn there. */
-export const OUTSIDE_POINT: readonly [x: number, y: number] = [880, 1060];
+/** World metres of empty air above the crate: no sprite, body or path is drawn there. */
+export const OUTSIDE_POINT: readonly [x: number, y: number] = [8.8, 10.6];
 
-/** The world rectangle the camera frames: both points with room around them. */
-export const SINK_FRAME = { minX: 800, minY: 1020, maxX: 980, maxY: 1180 } as const;
+/** The world rectangle the camera frames, metres: both points with room around them. */
+export const SINK_FRAME = { minX: 8, minY: 10.2, maxX: 9.8, maxY: 11.8 } as const;
 
 /** The canvas the render run draws on, CSS px. */
 export const SINK_CANVAS = { width: 640, height: 360 } as const;

@@ -11,7 +11,7 @@ export const POINT_PICK_PX = 8;
 export type PickOptions = {
   /** Screen px of slack around shapes. */
   tolPx: number;
-  /** Screen px per world px. */
+  /** Screen px per metre. */
   scale: number;
   /** Screen px around a point entity that picks it; default `POINT_PICK_PX`, never less than `tolPx`. */
   pointPx?: number;

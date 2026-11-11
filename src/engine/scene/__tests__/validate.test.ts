@@ -328,13 +328,13 @@ describe("validateScene", () => {
     expectFixClears(loop, only(validateScene(loop, engine), "path-degenerate"));
   });
 
-  it("non-integer on shape and point bulk, entity points and paths", () => {
-    const def = gameScene({ solid: [["box", 500.5, 920, 400, 20]], flag: [[800, 900.25]] }, [
+  it("non-integer on shape and point bulk, entity points and paths: lengths off whole px", () => {
+    const def = gameScene({ solid: [["box", 500.005, 920, 400, 20]], flag: [[800, 900.0025]] }, [
       lift([
         [200, 700],
-        [400.5, 700],
+        [400.005, 700],
       ]),
-      { id: "spot", type: "marker", at: [10.5, 10] },
+      { id: "spot", type: "marker", at: [10.005, 10] },
     ]);
     const issues = validateScene(def, fake, { lines: formatScene(def).lines }).filter(
       (i) => i.code === "non-integer",
@@ -384,7 +384,7 @@ describe("validateScene", () => {
   it("orders by severity, then engine and game issues together in document order, and adds lines", () => {
     const def = gameScene({ flag: [] }, [
       { id: "start", type: "marker", at: [1, 1] },
-      { id: "spot", type: "marker", at: [10.5, 10] },
+      { id: "spot", type: "marker", at: [10.005, 10] },
     ]);
     const issues = validateScene(def, fake, { lines: formatScene(def).lines });
     expect(issues.map((i) => [i.severity, i.code])).toEqual([
@@ -448,44 +448,92 @@ describe("validateScene", () => {
     const hex = (grid: Record<string, unknown>) =>
       scene({
         settings: {
-          grid: { kind: "hex", cell: [32, 28], side: 16, stagger: "x", index: "odd", ...grid },
+          grid: {
+            kind: "hex",
+            cell: [0.32, 0.28],
+            side: 0.16,
+            stagger: "x",
+            index: "odd",
+            ...grid,
+          },
         } as never,
       });
     const codes = (def: SceneDefinition) =>
       validateScene(def, engine).filter((i) => i.code === "grid-invalid");
     expect(codes(hex({}))).toEqual([]);
     expect(codes(hex({ side: 0 }))).toEqual([]);
-    expect(codes(hex({ side: 32 }))).toEqual([]);
-    expect(codes(hex({ stagger: "y", side: 28, origin: [-4, 8] }))).toEqual([]);
+    expect(codes(hex({ side: 0.32 }))).toEqual([]);
+    expect(codes(hex({ stagger: "y", side: 0.28, origin: [-0.04, 0.08] }))).toEqual([]);
     expect(
-      codes(scene({ settings: { grid: { kind: "square", cell: [16, 16] } } as never })),
+      codes(scene({ settings: { grid: { kind: "square", cell: [0.16, 0.16] } } as never })),
     ).toEqual([]);
 
-    const tooWide = only(validateScene(hex({ side: 33 }), engine), "grid-invalid");
+    const tooWide = only(validateScene(hex({ side: 0.33 }), engine), "grid-invalid");
     expect(tooWide).toMatchObject({
       path: "/settings/grid/side",
-      expected: "an integer in [0, 32]",
-      got: "33",
+      expected: "a whole number of px in [0, 0.32] m",
+      got: "0.33",
     });
     expect(tooWide.fix).toBeUndefined();
     expect(
-      only(validateScene(hex({ stagger: "y", side: 30 }), engine), "grid-invalid"),
-    ).toMatchObject({ path: "/settings/grid/side", expected: "an integer in [0, 28]" });
-    expect(only(validateScene(hex({ side: 7.5 }), engine), "grid-invalid").path).toBe(
+      only(validateScene(hex({ stagger: "y", side: 0.3 }), engine), "grid-invalid"),
+    ).toMatchObject({
+      path: "/settings/grid/side",
+      expected: "a whole number of px in [0, 0.28] m",
+    });
+    expect(only(validateScene(hex({ side: 0.0755 }), engine), "grid-invalid").path).toBe(
       "/settings/grid/side",
     );
-    expect(only(validateScene(hex({ side: -1 }), engine), "grid-invalid").path).toBe(
+    expect(only(validateScene(hex({ side: -0.01 }), engine), "grid-invalid").path).toBe(
       "/settings/grid/side",
     );
 
     const square = scene({
-      settings: { grid: { kind: "square", cell: [0, 12.5], origin: [0.5, 3] } } as never,
+      settings: { grid: { kind: "square", cell: [0, 0.125], origin: [0.005, 0.03] } } as never,
     });
     expect(
       validateScene(square, engine)
         .filter((i) => i.code === "grid-invalid")
         .map((i) => i.path),
     ).toEqual(["/settings/grid/cell/0", "/settings/grid/cell/1", "/settings/grid/origin/0"]);
+  });
+
+  it("non-integer judges whole px at the game's px per metre, and its fix snaps to them", () => {
+    const at32 = createRegistry(
+      defineGame({
+        id: "coarse",
+        types: [],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+        world: { lengthUnit: 32 },
+      }),
+    );
+    const def: SceneDefinition = {
+      v: 1,
+      game: "coarse",
+      name: "t",
+      bounds: [0, 0, 10, 10],
+      solid: [["box", 5, 9.5, 4, 0.25, 45]],
+      entities: [
+        { id: "on", type: "marker", at: [0.03125, 1.5] },
+        { id: "off", type: "marker", at: [0.32, 1] },
+      ],
+    };
+    const issues = validateScene(def, at32).filter((i) => i.code === "non-integer");
+    expect(issues.map((i) => [i.path, i.entityIds])).toEqual([["/entities/1/at/0", ["off"]]]);
+    expect(issues[0]?.message).toContain("at 32 px per metre");
+    expect(issues[0]?.fix?.ops).toEqual([{ op: "update", ref: "off", set: { at: [0.3125, 1] } }]);
+    const turned = validateScene({ ...def, solid: [["box", 5, 9.5, 4, 0.25, 45.5]] }, at32).filter(
+      (i) => i.code === "non-integer",
+    );
+    expect(turned.map((i) => i.path)).toContain("/solid/0/5");
+    const far = validateScene(
+      { ...def, solid: [], entities: [{ id: "far", type: "marker", at: [10.04, -0.01] }] },
+      at32,
+    ).find((i) => i.code === "out-of-bounds");
+    expect(far?.fix?.ops).toEqual([
+      { op: "setScene", set: { bounds: [0, -0.03125, 10.0625, 10] } },
+    ]);
   });
 
   it("schema on a duplicated id in the assets header, with or without a project", () => {

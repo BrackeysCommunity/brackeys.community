@@ -9,6 +9,7 @@ import { PRESENCE_FIELD, type AwarenessLike, type SceneOrigin } from "../../coll
 import { parseSceneOrThrow } from "../../scene/parse";
 import { parseShape } from "../../scene/shapes";
 import type { ShapeObj } from "../../scene/types";
+import { roundLength } from "../../scene/units";
 import yard from "../../scenes/engine-yard.json";
 import { createToolRouter } from "../../tool-router";
 import { readAngle, readDelta, readShapeSize } from "../gizmos/readout";
@@ -22,6 +23,17 @@ const registry = toolRegistry;
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 const free: SnapSettings = { ...DEFAULT_SNAP, enabled: false };
 const grid: SnapSettings = { ...DEFAULT_SNAP, geometry: false };
+/** Screen px per metre: the yard at zoom 1 in a 100 px per metre game, so a screen px is a world px. */
+const S = 100;
+const PPM = 100;
+/** A screen coordinate in world metres. */
+const m = (screen: number) => screen / S;
+/** `shape` with its numbers as a file holds them. */
+const clean = (shape: ShapeObj | undefined) =>
+  shape &&
+  JSON.parse(JSON.stringify(shape), (_, v: unknown) =>
+    typeof v === "number" ? roundLength(v) : v,
+  );
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
@@ -62,8 +74,8 @@ function rig(snap: SnapSettings = free) {
   const host: ToolHost = createToolHost({
     session,
     router,
-    toWorld: ({ x, y }) => [x, y],
-    scale: () => 1,
+    toWorld: ({ x, y }) => [m(x), m(y)],
+    scale: () => S,
     snap,
     now: () => (clock += 1000),
   });
@@ -126,16 +138,16 @@ describe("a drag previews in the overlay and writes once on release", () => {
       r.ptr("move", x, y);
       expect(r.seen.length).toBeGreaterThan(before);
       const o = r.seen.at(-1)!;
-      expect(previewOf(o, "avatar")).toMatchObject({ cx: x, cy: y });
+      expect(clean(previewOf(o, "avatar"))).toMatchObject({ cx: m(x), cy: m(y) });
       expect(ghostOf(o, "avatar")).toMatchObject({ cx: start.cx, cy: start.cy });
-      expect(o.readout?.text).toBe(readDelta([x - 300, y - 940]));
+      expect(o.readout?.text).toBe(readDelta([m(x - 300), m(y - 940)], PPM));
       expect(r.writes()).toBe(0);
       expect(r.shapeOf("avatar")).toEqual(start);
     }
     r.ptr("up", 360, 970);
     expect(r.writes()).toBe(1);
     expect(r.log()).toBe(log + 1);
-    expect(r.shapeOf("avatar")).toMatchObject({ cx: 360, cy: 970 });
+    expect(clean(r.shapeOf("avatar"))).toMatchObject({ cx: 3.6, cy: 9.7 });
     const after = r.host.overlay();
     expect(after.outlines?.some((m) => m.preview || m.tone === "ghost")).toBe(false);
     expect(after.readout).toBeUndefined();
@@ -148,7 +160,7 @@ describe("a drag previews in the overlay and writes once on release", () => {
     const r = rig(grid);
     r.session.select(["avatar"]);
     const se = r.host.overlay().handles!.find((h) => h.id === "resize:se")!;
-    expect(se.at).toEqual([320, 960]);
+    expect(se.at.map(roundLength)).toEqual([3.2, 9.6]);
     r.ptr("down", 320, 960);
     for (const [x, y] of [
       [370, 1010],
@@ -164,18 +176,18 @@ describe("a drag previews in the overlay and writes once on release", () => {
       const handle = o.handles?.find((h) => h.id === "resize:se");
       expect(handle?.active).toBe(true);
       expect(handle?.at).toEqual([box.cx + box.hw, box.cy + box.hh]);
-      expect(o.readout?.text).toBe(readShapeSize(shape));
+      expect(o.readout?.text).toBe(readShapeSize(shape, PPM));
       expect(r.writes()).toBe(0);
     }
     const shown = r.host.overlay().readout?.text;
     r.ptr("up", 420, 1060);
     expect(r.writes()).toBe(1);
     const done = r.shapeOf("avatar");
-    expect(readShapeSize(done)).toBe(shown);
-    // The far corner lands on the 64px grid.
+    expect(readShapeSize(done, PPM)).toBe(shown);
+    // The far corner lands on the 0.5 m grid.
     const box = done as Box;
-    expect((box.cx + box.hw) % 64).toBe(0);
-    expect((box.cy + box.hh) % 64).toBe(0);
+    expect(roundLength((box.cx + box.hw) / 0.5) % 1).toBe(0);
+    expect(roundLength((box.cy + box.hh) / 0.5) % 1).toBe(0);
   });
 
   it("rotates with the rotate tool: preview per move, readout the snapped angle", () => {
@@ -211,8 +223,9 @@ describe("a drag previews in the overlay and writes once on release", () => {
     r.session.select(["avatar", "start"]);
     const startBounds = r.host.overlay().bounds!;
     const rot = r.host.overlay().handles!.find((h) => h.id === "rotate")!;
-    r.ptr("down", rot.at[0], rot.at[1]);
-    r.ptr("move", rot.at[0] + 120, rot.at[1] + 80);
+    const [hx, hy] = [rot.at[0] * S, rot.at[1] * S];
+    r.ptr("down", hx, hy);
+    r.ptr("move", hx + 120, hy + 80);
     const o = r.host.overlay();
     expect(o.bounds).toBeDefined();
     expect(o.bounds).not.toEqual(startBounds);
@@ -220,7 +233,7 @@ describe("a drag previews in the overlay and writes once on release", () => {
     expect(o.points?.some((p) => p.ref === "start" && p.tone === "ghost")).toBe(true);
     expect(o.readout?.text).toMatch(/°$/);
     expect(r.writes()).toBe(0);
-    r.ptr("up", rot.at[0] + 120, rot.at[1] + 80);
+    r.ptr("up", hx + 120, hy + 80);
     expect(r.writes()).toBe(1);
   });
 
@@ -230,7 +243,7 @@ describe("a drag previews in the overlay and writes once on release", () => {
     const log = r.log();
     r.ptr("down", 300, 940);
     r.ptr("move", 380, 900);
-    expect(previewOf(r.host.overlay(), "avatar")).toMatchObject({ cx: 380, cy: 900 });
+    expect(clean(previewOf(r.host.overlay(), "avatar"))).toMatchObject({ cx: 3.8, cy: 9 });
     expect(r.host.cancel()).toBe(true);
     const o = r.host.overlay();
     expect(o.outlines?.some((m) => m.preview || m.tone === "ghost")).toBe(false);
@@ -249,7 +262,7 @@ describe("a drag previews in the overlay and writes once on release", () => {
     const r = rig();
     r.ptr("down", 300, 940);
     r.ptr("move", 340, 940);
-    expect(r.ghost()).toMatchObject({ by: [40, 0] });
+    expect(r.ghost()).toMatchObject({ by: [0.4, 0] });
     expect(r.writes()).toBe(0);
     r.ptr("up", 340, 940);
     expect(r.ghost()).toBeUndefined();

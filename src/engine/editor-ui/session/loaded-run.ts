@@ -1,5 +1,6 @@
 import { Store } from "@tanstack/store";
 
+import type { Registry } from "../../game/index";
 import type { PlayOptions } from "../../index";
 import {
   parseRecording,
@@ -66,9 +67,10 @@ export type ParsedRun = { ok: true; run: LoadedRun } | { ok: false; error: strin
 /**
  * A run recording, or a playtest report that carries one (as `scene
  * playtest --json` prints it), from a file or pasted. A blocked run never
- * played, so it has nothing to show: the error says why.
+ * played, so it has nothing to show: the error says why. A v1 file takes
+ * its clock's kind from `registry`.
  */
-export function parseRun(text: string, name: string): ParsedRun {
+export function parseRun(text: string, name: string, registry?: Pick<Registry, "time">): ParsedRun {
   let json: unknown;
   try {
     json = JSON.parse(text);
@@ -87,7 +89,7 @@ export function parseRun(text: string, name: string): ParsedRun {
     return { ok: false, error: `That run never played: ${why}${first ? ` (${first})` : ""}.` };
   }
   const candidate = isRecord(json) && json.blocked === false ? json.recording : json;
-  const parsed = parseRecording(candidate);
+  const parsed = parseRecording(candidate, registry);
   if (!parsed.ok) {
     const issue = parsed.issues[0];
     const where = issue?.path ? ` at ${issue.path}` : "";

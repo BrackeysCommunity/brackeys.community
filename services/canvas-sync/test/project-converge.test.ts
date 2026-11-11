@@ -4,10 +4,18 @@ import { eq } from "drizzle-orm";
 import * as Y from "yjs";
 
 import { engineAssetDocs, engineBlobs, engineProjects } from "../../../src/db/schema.ts";
-import { projectView } from "../../../src/engine/project/index.ts";
+import { CONTENT_MAP, KEYED_ITEM, KEYED_Z } from "../../../src/engine/collab/index.ts";
+import {
+  formatAssetDoc,
+  INPUT_MAP_KIND,
+  inputMapKind,
+  projectView,
+  type InputMapFile,
+} from "../../../src/engine/project/index.ts";
 import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
 import { SCENE_FORMAT_VERSION } from "../../../src/engine/scene/types.ts";
 import {
+  assetDocValue,
   emptyProjectState,
   readProjectState,
   seedProjectState,
@@ -21,10 +29,14 @@ import {
 import { startServer, type ServerOptions, type SyncServer } from "../src/index.ts";
 import { MemorySceneStore } from "../src/scene/store.ts";
 import {
+  assetSnapshotOf,
+  connectAsset,
   connectProject,
   connectScene,
+  createMemoryProject,
   editEntry,
   type EngineClient,
+  memoryEngineStores,
   newEntry,
   newProjectId,
   projectLogOf,
@@ -451,5 +463,134 @@ describe("the registry's one writer", () => {
     expect(state.assets.first).toMatchObject({ id: "gem", path: "gem.json" });
     expect(state.assets.second).toMatchObject({ id: "gem-2", path: "Gem-2.json" });
     expect(reasons(a)).toContain("registry");
+  });
+});
+
+describe("an input-map asset doc through the real server", () => {
+  const stores = memoryEngineStores();
+  let server: SyncServer;
+  const clients: EngineClient[] = [];
+
+  const SEED: InputMapFile = {
+    kind: INPUT_MAP_KIND,
+    v: 1,
+    players: { max: 2, join: "press" },
+    actions: [{ action: "jump", bindings: [{ device: "key", code: "Space" }] }],
+  };
+
+  beforeAll(async () => {
+    server = await startServer({
+      port: 0,
+      secret: SECRET,
+      ...stores.options,
+      instanceId: "project-converge-input-map",
+      telemetry: quiet,
+      debounceMs: 100,
+      maxDebounceMs: 400,
+    });
+  });
+
+  afterAll(async () => {
+    for (const client of clients) client.destroy();
+    await server?.stop(3000);
+  });
+
+  // Client docs come from the service's yjs, not the engine's: read them through
+  // their bytes, and write them as a provider's client does, by their Y types.
+  const valueOf = (doc: Y.Doc) =>
+    assetDocValue(Y.encodeStateAsUpdate(doc)) as unknown as InputMapFile;
+  const content = (doc: Y.Doc) => doc.getMap<unknown>(CONTENT_MAP);
+  const keyedItem = (doc: Y.Doc, field: string, match: (item: Y.Map<unknown>) => boolean) => {
+    const keyed = content(doc).get(field) as Y.Map<Y.Map<unknown>>;
+    for (const entry of keyed.values()) {
+      const item = entry.get(KEYED_ITEM) as Y.Map<unknown>;
+      if (match(item)) return item;
+    }
+    throw new Error(`no ${field} item matches`);
+  };
+  const addBinding = (doc: Y.Doc, action: string, binding: Record<string, unknown>) => {
+    const item = keyedItem(doc, "actions", (i) => i.get("action") === action);
+    (item.get("bindings") as Y.Array<unknown>).push([binding]);
+  };
+  const addTouch = (doc: Y.Doc, key: string, control: Record<string, unknown>) =>
+    doc.transact(() => {
+      const touch = new Y.Map<Y.Map<unknown>>();
+      const entry = new Y.Map<unknown>();
+      const item = new Y.Map<unknown>();
+      for (const [field, value] of Object.entries(control)) item.set(field, value);
+      entry.set(KEYED_Z, "a0");
+      entry.set(KEYED_ITEM, item);
+      touch.set(key, entry);
+      content(doc).set("touch", touch);
+    });
+
+  it("seeds once, merges two clients' edits and snapshots the canonical text", async () => {
+    const projectId = newProjectId();
+    createMemoryProject(
+      stores,
+      {
+        ...emptyProjectState(projectId, "Versus"),
+        assets: { input: entry("input", { kind: INPUT_MAP_KIND, path: "input.json" }) },
+      },
+      { input: JSON.stringify(SEED) },
+    );
+    const docId = `${projectId}.input`;
+    const [a, b] = ["alice", "bob"].map((user) => connectAsset(server.port, docId, user));
+    clients.push(a!, b!);
+    expect(await synced(a!)).toBe(true);
+    expect(await synced(b!)).toBe(true);
+
+    // One seed: both clients hold the server's single copy of each item.
+    expect(valueOf(a!.doc)).toEqual(SEED);
+    expect(Y.encodeStateVector(a!.doc)).toEqual(Y.encodeStateVector(b!.doc));
+    expect(a!.doc.getMap("meta").get("kind")).toBe(INPUT_MAP_KIND);
+
+    // Concurrent, before either sees the other: two bindings on one action,
+    // a seat count against a new touch control.
+    a!.doc.transact(() => {
+      addBinding(a!.doc, "jump", { device: "key", code: "KeyW" });
+      addTouch(a!.doc, "a-touch", {
+        id: "jump-btn",
+        kind: "button",
+        action: "jump",
+        at: [0.85, 0.8],
+        radius: 0.1,
+      });
+    });
+    b!.doc.transact(() => {
+      addBinding(b!.doc, "jump", { device: "pad", button: "south" });
+      (content(b!.doc).get("players") as Y.Map<unknown>).set("max", 4);
+    });
+
+    const live = () => server.hocuspocus.documents.get(`asset:${docId}`)!;
+    const texts = () => [a!.doc, b!.doc, live()].map((doc) => JSON.stringify(valueOf(doc)));
+    expect(
+      await until(() => {
+        const [first, ...rest] = texts();
+        return rest.every((t) => t === first) && valueOf(a!.doc).touch !== undefined;
+      }, 10_000),
+    ).toBe(true);
+
+    const merged = valueOf(a!.doc);
+    expect(merged.players).toEqual({ max: 4, join: "press" });
+    expect(merged.touch?.map((t) => t.id)).toEqual(["jump-btn"]);
+    const bindings = merged.actions![0]!.bindings;
+    expect(bindings[0]).toEqual({ device: "key", code: "Space" });
+    expect(bindings).toHaveLength(3);
+    expect(bindings).toContainEqual({ device: "key", code: "KeyW" });
+    expect(bindings).toContainEqual({ device: "pad", button: "south" });
+
+    // An engine kind: the service formats the snapshot itself, as the engine does.
+    const expected = await assetSnapshotOf(a!.doc);
+    expect(expected?.text).toBe(formatAssetDoc(inputMapKind, merged));
+    expect(await assetSnapshotOf(b!.doc)).toEqual(expected);
+
+    a!.destroy();
+    b!.destroy();
+    const row = () => stores.assets.rows.get(docId);
+    expect(await until(() => row()?.snapshot === expected!.text, 10_000)).toBe(true);
+    expect(row()?.contentSha256).toBe(expected!.sha256);
+    expect(row()?.kind).toBe(INPUT_MAP_KIND);
+    expect(JSON.parse(row()!.snapshot!)).toEqual(merged);
   });
 });

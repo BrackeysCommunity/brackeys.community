@@ -1,7 +1,9 @@
-import type { GameDefinition } from "@jams/engine/game";
+import { pxPerMetreOf, type GameDefinition } from "@jams/engine/game";
 import {
   parseShape,
+  roundLength,
   sceneHash,
+  snapToPixel,
   type Pt,
   type SceneIssue,
   type SceneOp,
@@ -28,7 +30,9 @@ const LIFT_STEP = PLAYER_HEIGHT / 4;
 const fmt = ([x, y]: Pt) => `[${x}, ${y}]`;
 const ids = (hits: readonly Hit[]) => [...new Set(hits.map((h) => h.tag.entityId))];
 const blocking = (hits: readonly Hit[]) => hits.filter((h) => BLOCKING.includes(h.tag.type));
-const pointOf = (h: Hit): Pt => [Math.round(h.at.x), Math.round(h.at.y)];
+/** A length on the nearest whole world px, as the scene would hold it. */
+const toPixel = (env: PhysicalEnv, m: number) => snapToPixel(m, pxPerMetreOf(env.registry));
+const pointOf = (env: PhysicalEnv, h: Hit): Pt => [toPixel(env, h.at.x), toPixel(env, h.at.y)];
 
 /** The player's box standing with its feet at `feet`. */
 const playerBox = ([x, y]: Pt): ShapeObj => ({
@@ -40,8 +44,8 @@ const playerBox = ([x, y]: Pt): ShapeObj => ({
   rotDeg: 0,
 });
 
-/** A point as a tiny circle, for "is this inside something". */
-const dot = ([cx, cy]: Pt, r = 1): ShapeObj => ({ type: "circle", cx, cy, r });
+/** A point as a tiny circle (1 cm), for "is this inside something". */
+const dot = ([cx, cy]: Pt, r = 0.01): ShapeObj => ({ type: "circle", cx, cy, r });
 
 /**
  * Where the player lands when dropped from the first spot above `feet`
@@ -55,7 +59,7 @@ function landing(env: PhysicalEnv, feet: Pt): Pt | null {
     if (blocking(env.overlaps(box, { exclude: self })).length > 0) continue;
     const fall = maxY - y;
     const hit = env.cast(box, { x: 0, y: fall }, { exclude: self });
-    return hit ? [feet[0], Math.round(y + hit.toi * fall)] : null;
+    return hit ? [feet[0], toPixel(env, y + hit.toi * fall)] : null;
   }
   return null;
 }
@@ -65,13 +69,13 @@ function spawnInSolid(env: PhysicalEnv, spawn: Spawn, hits: readonly Hit[]): Sce
   const move: SceneOp | null = to && {
     op: "move",
     refs: [spawn.ref],
-    by: [0, to[1] - spawn.at[1]],
+    by: [0, roundLength(to[1] - spawn.at[1])],
   };
   return platformerIssue("platformer/spawn-in-solid", {
     message: `spawn ${spawn.ref} at ${fmt(spawn.at)} puts the player inside ${ids(hits).join(", ")}${to ? `; it would land at ${fmt(to)}` : ""}`,
     path: spawn.path,
     entityIds: [spawn.ref, ...ids(hits)],
-    at: pointOf(hits[0]!),
+    at: pointOf(env, hits[0]!),
     ...(move && {
       fix: {
         label: `Drop ${spawn.ref} onto the surface at ${fmt(to!)}`,
@@ -102,7 +106,7 @@ const spawnChecks: PhysicalCheck = {
             message: `spawn ${spawn.ref} at ${fmt(spawn.at)} puts the player in hazard ${ids(hazards).join(", ")}`,
             path: spawn.path,
             entityIds: [spawn.ref, ...ids(hazards)],
-            at: pointOf(hazards[0]!),
+            at: pointOf(env, hazards[0]!),
           }),
         );
       }
@@ -124,7 +128,7 @@ const spawnChecks: PhysicalCheck = {
 
 const anchorChecks: PhysicalCheck = {
   id: "anchors",
-  description: `Each grapple anchor is in open air with something to stand on within ${GRAPPLE_RANGE}px.`,
+  description: `Each grapple anchor is in open air with something to stand on within ${GRAPPLE_RANGE} m.`,
   needsPhysics: true,
   run(env) {
     const anchors = [
@@ -149,7 +153,7 @@ const anchorChecks: PhysicalCheck = {
       if (env.overlaps(dot(at, GRAPPLE_RANGE), { exclude: self }).length === 0) {
         out.push(
           platformerIssue("platformer/anchor-orphan", {
-            message: `nothing to stand on within ${GRAPPLE_RANGE}px of anchor ${ref} at ${fmt(at)}`,
+            message: `nothing to stand on within ${GRAPPLE_RANGE} m of anchor ${ref} at ${fmt(at)}`,
             path,
             entityIds: [ref],
             at,
@@ -179,7 +183,7 @@ const cloudChecks: PhysicalCheck = {
           message: `cloud ${ref} overlaps ${ids(hits).join(", ")}`,
           path,
           entityIds: [ref, ...ids(hits)],
-          at: pointOf(hits[0]!),
+          at: pointOf(env, hits[0]!),
         }),
       );
     }

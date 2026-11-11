@@ -22,7 +22,7 @@ export const walkerGame = defineGame<WalkerSnapshot>({
   types: [],
   actions: [],
   time: { kind: "turns", rate: 30 },
-  world: { physics: "none", grid: { kind: "square", cell: [32, 32] } },
+  world: { physics: "none", grid: { kind: "square", cell: [0.32, 0.32] } },
   commands: {
     walk: {
       description: "Walk the hero to a cell along the shortest open path.",

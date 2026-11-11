@@ -27,6 +27,7 @@ import { formatAssetDoc, parseAssetDoc, type DocKindDef } from "../project/kinds
 import { ATLAS_KIND } from "../project/kinds/atlas";
 import { DATA_TABLE_KIND } from "../project/kinds/data-table";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
+import { INPUT_MAP_KIND } from "../project/kinds/input-map";
 import { MATERIAL_KIND } from "../project/kinds/material";
 import { TEXTURE_KIND } from "../project/kinds/texture";
 import { snapshotProject } from "../project/snapshot";
@@ -473,6 +474,16 @@ describe("kitchen-sink.json", () => {
       );
       expect(Object.keys(testGame.tables ?? {})).toContain(CARD_TABLE);
     });
+
+    it("an input map that parses with no issues under the engine and the test game", () => {
+      const maps = entriesOf(INPUT_MAP_KIND);
+      expect(maps).toHaveLength(1);
+      const kind = project.kinds.get(INPUT_MAP_KIND) as DocKindDef;
+      for (const registry of [engine, game]) {
+        const parsed = parseAssetDoc(kind, values.get(maps[0]!.id), { registry, project: view });
+        expect(parsed.ok && parsed.issues).toEqual([]);
+      }
+    });
   });
 
   it("validates with no errors, structural and physical", () => {
@@ -523,8 +534,9 @@ describe("kitchen-sink.json", () => {
     expect(rt.load(expanded()).ok).toBe(true);
     for (const e of nav) expect(rt.ctx.tags.handlesOf(e.id)).toEqual([]);
     expect(rt.stats().perType.nav).toBe(nav.length);
-    const from = { x: 2250, y: 350 };
-    const to = { x: 1950, y: 500 };
+    // Metres: the scene's v4 form holds the walk area in metres.
+    const from = { x: 22.5, y: 3.5 };
+    const to = { x: 19.5, y: 5 };
     const path = rt.ctx.nav!.path(from, to)!;
     expect(path[0]).toEqual(from);
     expect(path.at(-1)).toEqual(to);
@@ -836,6 +848,7 @@ describe("the engine project", () => {
         "checks",
         MATERIAL_KIND,
         GAME_SETTINGS_KIND,
+        INPUT_MAP_KIND,
         DATA_TABLE_KIND,
         TEXTURE_KIND,
         ATLAS_KIND,

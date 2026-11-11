@@ -43,7 +43,7 @@ const tinyKind = defineAssetKind({
 });
 const KINDS = createKindRegistry(null, [...ENGINE_ASSET_KINDS, tinyKind]);
 const TINY_SEED = JSON.stringify({ kind: "tiny-table", v: 1, rows: [] });
-const MATERIAL = formatAssetDoc(materialKind, { kind: "material", v: 1, description: "Rubber." });
+const MATERIAL = formatAssetDoc(materialKind, { kind: "material", v: 2, description: "Rubber." });
 
 /** A row as the keyed layout holds one: its order key and the item's own map. */
 function addRow(doc: Y.Doc, key: string, note: string): void {

@@ -7,10 +7,12 @@ import { createGame } from "../engine";
 import { createRegistry } from "../game/define";
 import type { TimeModel } from "../game/time";
 import type { GameAttachment, GameCommand, GameDefinition } from "../game/types";
+import { replayRecording } from "../headless/recording";
 import type { SceneRuntimeHandle, StepResult } from "../runtime/types";
 import { formatScene } from "../scene/format";
 import { sceneHash } from "../scene/hash";
 import { parseSceneOrThrow } from "../scene/parse";
+import type { RunRecording } from "../scene/recording-schema";
 import type { SceneDefinition } from "../scene/types";
 import engineYardJson from "../scenes/engine-yard.json";
 import type { ToolEvent } from "../tool-router";
@@ -128,7 +130,7 @@ describe("Play and Stop", () => {
     expect(first[0]!.tick).toBe(0);
     expect(second).toStrictEqual(first);
     const moved = first.at(-1)!.game as { position: { x: number } };
-    expect(moved.position.x).toBeGreaterThan(500);
+    expect(moved.position.x).toBeGreaterThan(5);
   });
 
   it("builds a fresh world per Play and rebuilds the edit world on Stop", async () => {
@@ -228,14 +230,15 @@ describe("Play and Stop", () => {
 
   it("plays from a point, cast onto the floor, and refuses one inside a solid", async () => {
     const game = await editing();
-    const ok = game.play(yard(), { at: { x: 600, y: 500 } });
+    const ok = game.play(yard(), { at: { x: 6, y: 5 } });
     expect(ok.ok).toBe(true);
-    // The floor's top is y 960; the avatar's half-height is 20.
-    expect(world(game)!.ctx.play?.at).toEqual({ x: 600, y: 940 });
+    // The floor's top is y 9.6; the avatar's half-height is 0.2.
+    expect(world(game)!.ctx.play?.at?.x).toBe(6);
+    expect(world(game)!.ctx.play?.at?.y).toBeCloseTo(9.4, 6);
     game.stop();
 
     const edit = world(game);
-    const blocked = game.play(yard(), { at: { x: 1000, y: 980 } });
+    const blocked = game.play(yard(), { at: { x: 10, y: 9.8 } });
     expect(blocked).toMatchObject({ ok: false, reason: "spawn-blocked" });
     expect(blocked.ok ? "" : blocked.error).toMatch(/inside a solid/);
     expect(game.getMode()).toBe("edit");
@@ -265,7 +268,7 @@ describe("Play and Stop", () => {
     const before = structuredClone(game.getStore().state.camera);
     expect(before.mode).toBe("free");
 
-    game.play(yard(), { at: { x: 1500, y: 300 } });
+    game.play(yard(), { at: { x: 15, y: 3 } });
     const camera = game.getStore().state.camera;
     expect(camera.mode).toBe("follow");
     expect(camera.position).not.toEqual(before.position);
@@ -420,6 +423,52 @@ describe("game commands", () => {
     game.play(yard());
     expect(game.cancel()).toBe(true);
     expect(game.cancel()).toBe(false);
+  });
+});
+
+describe("DOM to world", () => {
+  it("follows document-wide moves into the pointer sample only while trackPointer is on", async () => {
+    const mouse: { x: number; y: number }[] = [];
+    const def: GameDefinition = {
+      ...testGame,
+      attach: () => ({ onTick: (_dt, at) => void mouse.push(at), destroy() {} }),
+    };
+    const game = await makeGame({ game: def });
+    canvas.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 50,
+        right: 740,
+        bottom: 410,
+        width: 640,
+        height: 360,
+        x: 100,
+        y: 50,
+      }) as DOMRect;
+    const hud = document.createElement("div");
+    document.body.appendChild(hud);
+    const move = (clientX: number, clientY: number) =>
+      hud.dispatchEvent(new PointerEvent("pointermove", { clientX, clientY, bubbles: true }));
+    game.play(yard());
+
+    move(300, 200);
+    expect(game.pointerWorld()).toBeNull();
+
+    game.input.trackPointer(true);
+    move(300, 200);
+    const inside = game.clientToWorld(300, 200);
+    expect(game.pointerWorld()).toEqual(inside);
+    game.step();
+    expect(mouse.at(-1)!.x).toBeCloseTo(inside.x, 4);
+    expect(mouse.at(-1)!.y).toBeCloseTo(inside.y, 4);
+
+    // Off the canvas it still moves, so a drag from the HUD shows in the world.
+    move(20, 20);
+    expect(game.pointerWorld()).toEqual(game.clientToWorld(20, 20));
+
+    game.input.trackPointer(false);
+    move(400, 300);
+    expect(game.pointerWorld()).toEqual(game.clientToWorld(20, 20));
   });
 });
 
@@ -605,6 +654,129 @@ describe("send", () => {
     game.send({ name: "wait" });
     wall(500);
     expect(delivered).toEqual([[{ name: "wait" }]]);
+  });
+});
+
+describe("commands per seat", () => {
+  /** Two seats; each step's commands land in `delivered` and the snapshot, so the digest covers them. */
+  function seatedGame() {
+    const delivered: [number, GameCommand[]][] = [];
+    let shellSend: ((c: GameCommand) => boolean) | null = null;
+    const game: GameDefinition = {
+      ...testGame,
+      input: { players: { max: 2, join: "host" } },
+      commands: {
+        shove: { description: "Moves by `by`.", args: z.strictObject({ by: z.number() }) },
+        drop: { description: "A card dropped from the page." },
+      },
+      createRuntime(ctx) {
+        const base = testGame.createRuntime(ctx);
+        const seen: string[] = [];
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            if (commands.length > 0) delivered.push([ctx.tick, structuredClone([...commands])]);
+            for (const c of commands) seen.push(`${ctx.tick}:${c.player ?? 0}:${c.name}`);
+            base.beforeStep?.(dtMs, actions, commands);
+          },
+          snapshot() {
+            const snap = base.snapshot?.();
+            return snap ? { ...snap, seen: [...seen] } : null;
+          },
+        };
+      },
+      attach(shell) {
+        shellSend = shell.send;
+        return { destroy() {} };
+      },
+    };
+    return { game, delivered, shellSend: (c: GameCommand) => shellSend!(c) };
+  }
+
+  it("records each send as a c event on its seat and replays it in the shell and headless", async () => {
+    const { game: def, delivered, shellSend } = seatedGame();
+    const game = await editing({ game: def });
+    const recorded: RunRecording[] = [];
+    game.on("play:recorded", (r) => recorded.push(r));
+    const doc = yard();
+
+    expect(game.play(doc)).toMatchObject({ ok: true });
+    game.step(2);
+    // The host's send, the game's shell and a page drop all go through one queue.
+    expect(game.send({ name: "shove", args: { by: 1 }, player: 1 })).toBe(true);
+    expect(shellSend({ name: "shove", args: { by: 2 } })).toBe(true);
+    expect(game.send({ name: "drop", player: 0 })).toBe(true);
+    game.step(3);
+    expect(shellSend({ name: "drop", player: 1 })).toBe(true);
+    game.step(2);
+    game.stop();
+
+    expect(recorded).toHaveLength(1);
+    const rec = recorded[0]!;
+    expect(rec.commands).toEqual(["shove", "drop"]);
+    const cs = (seat: number) => (rec.inputs[seat] ?? []).filter((e) => e[1] === "c");
+    expect(cs(0)).toEqual([
+      [2, "c", 0, { by: 2 }],
+      [2, "c", 1],
+    ]);
+    expect(cs(1)).toEqual([
+      [2, "c", 0, { by: 1 }],
+      [5, "c", 1],
+    ]);
+    // Seat 0 first, then seat 1, each in the order sent: the order a replay decodes.
+    const live = structuredClone(delivered);
+    expect(live).toEqual([
+      [
+        2,
+        [
+          { name: "shove", args: { by: 2 } },
+          { name: "drop" },
+          { name: "shove", args: { by: 1 }, player: 1 },
+        ],
+      ],
+      [5, [{ name: "drop", player: 1 }]],
+    ]);
+
+    delivered.length = 0;
+    expect(game.replay(doc, rec)).toMatchObject({ ok: true });
+    expect(game.send({ name: "drop", player: 1 })).toBe(false);
+    game.step(rec.ticks);
+    expect(delivered).toEqual(live);
+    expect(recorded).toHaveLength(2);
+    expect(recorded[1]!.inputs).toEqual(rec.inputs);
+    expect(recorded[1]!.end).toBe(rec.end);
+
+    const headless = replayRecording({ rapier, game: def, scene: doc, recording: rec });
+    if (headless.blocked) throw new Error("replay blocked");
+    expect(headless.matches, headless.divergence ?? "").toBe(true);
+  });
+
+  it("refuses a seat past max with player-unknown, queueing nothing", async () => {
+    const { game: def, delivered, shellSend } = seatedGame();
+    const game = await editing({ game: def, dev: true });
+    game.play(yard());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(game.send({ name: "drop", player: 2 })).toBe(false);
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/send\("drop"\): player-unknown/));
+    expect(shellSend({ name: "drop", player: -1 })).toBe(false);
+    expect(game.send({ name: "drop", player: 0.5 })).toBe(false);
+    warn.mockRestore();
+    game.step(1);
+    expect(delivered).toEqual([]);
+  });
+
+  it("puts a one-seat game's seat 1 past max", async () => {
+    const { game: def, delivered } = (() => {
+      const seated = seatedGame();
+      const { input: _input, ...rest } = seated.game;
+      return { ...seated, game: rest };
+    })();
+    const game = await editing({ game: def });
+    game.play(yard());
+    expect(game.send({ name: "drop", player: 1 })).toBe(false);
+    expect(game.send({ name: "drop" })).toBe(true);
+    game.step(1);
+    expect(delivered).toEqual([[0, [{ name: "drop" }]]]);
   });
 });
 

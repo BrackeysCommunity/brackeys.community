@@ -57,7 +57,7 @@ const scene: SceneDefinition = {
   v: 1,
   name: "dock-yard",
   bounds: [0, 0, 2000, 1200],
-  entities: [{ id: "pad", type: "marker", at: [1000.5, 1010] }],
+  entities: [{ id: "pad", type: "marker", at: [1000.005, 1010] }],
 };
 
 const gameTool = (id: string, label: string) =>
@@ -254,7 +254,7 @@ describe("the dock in the frame", () => {
         "tool:circle",
       ]),
     );
-    expect(drawn.has(`Grid step ${DEFAULT_SNAP.step}`)).toBe(false);
+    expect([...drawn].some((l) => l?.startsWith("Grid step"))).toBe(false);
     hidden.add("step");
     const shown = dockParts(tools.tools(), DEFAULT_SNAP.step);
     expect(dockWidth(shown, hidden)).toBeLessThanOrEqual(rowAt(760));

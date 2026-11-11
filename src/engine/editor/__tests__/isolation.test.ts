@@ -239,7 +239,7 @@ describe("openPrefabIsolation", () => {
 
   it("grows the bounds to hold children far from the origin", () => {
     const far: Prefab = { ...POST, entities: [{ id: "top", type: "marker", at: [3000, 0] }] };
-    expect(isolationBounds(far, [0, 0, 200, 400], registry)).toEqual([-100, -200, 3064, 200]);
+    expect(isolationBounds(far, [0, 0, 200, 400], registry)).toEqual([-100, -200, 3000.64, 200]);
   });
 });
 

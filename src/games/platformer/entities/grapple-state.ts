@@ -39,7 +39,7 @@ export function initSwingState(
   // Convert linear velocity to angular velocity
   // angular_vel = (v × r) / |r|² — 2D cross product
   let angularVel =
-    ropeLength > 1
+    ropeLength > 0.01
       ? (playerVelocity.x * dy - playerVelocity.y * dx) / (ropeLength * ropeLength)
       : 0;
 
@@ -55,7 +55,7 @@ export function initSwingState(
 }
 
 /**
- * Step the pendulum physics by dt seconds under `gravity` (px/s², down).
+ * Step the pendulum physics by dt seconds under `gravity` (m/s², down).
  * Returns the new swing state and the player's world position.
  */
 export function stepSwing(

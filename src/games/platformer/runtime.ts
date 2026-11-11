@@ -2,6 +2,7 @@ import type { Vec2 } from "@jams/engine";
 import {
   carrierDelta,
   type EngineContext,
+  type GameCommand,
   type GameRuntime,
   type SolidSystem,
 } from "@jams/engine/game";
@@ -13,7 +14,9 @@ import {
   type MovementState,
   type PlayerEntity,
 } from "./entities/player";
+import type { ConstructSystem, ConstructType } from "./entities/shaper-constructs";
 import type { PlayerSystem } from "./systems/player";
+import { SHAPER_PLACE, SHAPER_REMOVE } from "./systems/shaper";
 import { TYPE } from "./type-names";
 import type { SpawnEntity } from "./types";
 
@@ -25,7 +28,15 @@ export type PlayerSnapshot = {
   grounded: boolean;
   /** The entity the player stands on. */
   groundId?: string;
+  /** The constructs the Shaper placed, oldest first; absent when there are none. */
+  constructs?: string[];
 };
+
+/** A refused `shaper-place` or `shaper-remove`, with why. */
+export const SHAPER_REFUSED = "shaper-refused";
+
+type ShaperPlaceArgs = { type: ConstructType; at: [number, number]; rot: number };
+type ShaperRemoveArgs = { id: string };
 
 /** What the jump-arc and player-scale debug layers read each tick; `null` without a player. */
 export type PlatformerDebugInfo = {
@@ -38,7 +49,7 @@ export type PlatformerDebugInfo = {
   wallDirection: -1 | 0 | 1;
   /** State before this tick's update, the arc's frozen origin. */
   preUpdate: { position: Vec2; velocity: Vec2; grounded: boolean };
-  /** The world's gravity, px/s², down. */
+  /** The world's gravity, m/s², down. */
   gravity: number;
 } | null;
 
@@ -61,7 +72,8 @@ function sameSnapshot(a: PlayerSnapshot | null, b: PlayerSnapshot | null): boole
     a.velocity.y === b.velocity.y &&
     a.state === b.state &&
     a.grounded === b.grounded &&
-    a.groundId === b.groundId
+    a.groundId === b.groundId &&
+    (a.constructs ?? []).join() === (b.constructs ?? []).join()
   );
 }
 
@@ -76,6 +88,48 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
   let prevGroundId: string | undefined;
   let slice: PlatformerStoreSlice = { player: null };
 
+  const constructs = () => ctx.system<ConstructSystem>(TYPE.construct);
+
+  /** The Shaper's commands, in the order the tick delivers them; a refusal raises `shaper-refused`. */
+  function applyShaper(commands: readonly GameCommand[]): void {
+    for (const command of commands) {
+      if (command.name !== SHAPER_PLACE && command.name !== SHAPER_REMOVE) continue;
+      const system = constructs();
+      if (!system) return;
+      const seat = command.player ?? 0;
+      if (command.name === SHAPER_PLACE) {
+        const { type, at, rot } = command.args as ShaperPlaceArgs;
+        const point = { x: at[0], y: at[1] };
+        const result = system.shape(type, point, rot);
+        if (!result.valid) {
+          ctx.emit({
+            type: SHAPER_REFUSED,
+            at: point,
+            player: seat,
+            data: { command: command.name, reason: result.reason ?? "refused" },
+          });
+        }
+      } else {
+        const { id } = command.args as ShaperRemoveArgs;
+        if (!system.unshape(id)) {
+          const pose = ctx.poses.get(id);
+          ctx.emit({
+            type: SHAPER_REFUSED,
+            entityId: id,
+            at: pose ? { x: pose.x, y: pose.y } : { x: 0, y: 0 },
+            player: seat,
+            data: { command: command.name, reason: `"${id}" isn't a construct the Shaper placed` },
+          });
+        }
+      }
+    }
+  }
+
+  function withConstructs(snap: PlayerSnapshot): PlayerSnapshot {
+    const shaped = constructs()?.shaped() ?? [];
+    return shaped.length > 0 ? { ...snap, constructs: [...shaped] } : snap;
+  }
+
   function snapshotOf(p: PlayerEntity): PlayerSnapshot {
     const handle = p.getGroundColliderHandle();
     const groundId = p.isGrounded() && handle !== null ? ctx.tags.get(handle)?.entityId : undefined;
@@ -86,7 +140,7 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
       grounded: p.isGrounded(),
     };
     if (groundId !== undefined) snap.groundId = groundId;
-    return snap;
+    return withConstructs(snap);
   }
 
   /** The vertical distance the follower under the player moved this frame, or the one carrying what it stands on. */
@@ -112,6 +166,12 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
 
   return {
     onLoad(scene) {
+      // A runtime scene loaded back already holds its player; adopt it rather than spawning a second.
+      const loadedBack = scene.entities.find((e) => e.type === PLAYER_TYPE);
+      if (loadedBack) {
+        playerId = loadedBack.id;
+        return;
+      }
       // A play start is the centre of the spawn shape; a spawn marker is the player's feet.
       const start = ctx.play?.at;
       const spawn = scene.entities.find((e): e is SpawnEntity => e.type === TYPE.spawn);
@@ -122,7 +182,8 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
       playerId = ctx.spawn({ type: PLAYER_TYPE, at: [feet.x, feet.y] }).id;
     },
     onUnload,
-    beforeStep(dtMs, actions) {
+    beforeStep(dtMs, actions, commands) {
+      applyShaper(commands);
       const player = actor();
       if (!player) return;
       const bottom = player.getPosition().y + player.getHalfHeight();
@@ -151,7 +212,7 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
     },
     snapshot() {
       const player = actor();
-      return player ? snapshotOf(player) : noPlayer();
+      return player ? snapshotOf(player) : withConstructs(noPlayer());
     },
     cameraTarget: () => actor()?.getPosition() ?? null,
     storeSlice: () => slice,

@@ -1,27 +1,28 @@
-import { DEFAULT_GRAVITY } from "@jams/engine/game";
 import { describe, expect, it } from "vite-plus/test";
 
+import { platformerGame } from "..";
+import { createGrappleAnchorSystem, GRAPPLE_RANGE } from "../entities/grapple-anchor";
 import { initSwingState, stepSwing, getSwingReleaseVelocity } from "../entities/grapple-state";
 
-const GRAVITY = DEFAULT_GRAVITY[1];
+const GRAVITY = platformerGame.world!.gravity![1];
 
 describe("initSwingState", () => {
   it("computes correct rope length", () => {
     const state = initSwingState(
-      { x: 100, y: 200 }, // player
-      { x: 100, y: 100 }, // anchor directly above
+      { x: 1, y: 2 }, // player
+      { x: 1, y: 1 }, // anchor directly above
       { x: 0, y: 0 },
     );
-    expect(state.ropeLength).toBeCloseTo(100, 1);
+    expect(state.ropeLength).toBeCloseTo(1, 6);
   });
 
   it("angle is 0 when player is directly below anchor", () => {
-    const state = initSwingState({ x: 100, y: 300 }, { x: 100, y: 100 }, { x: 0, y: 0 });
+    const state = initSwingState({ x: 1, y: 3 }, { x: 1, y: 1 }, { x: 0, y: 0 });
     expect(state.angle).toBeCloseTo(0, 3);
   });
 
   it("angle is positive when player is right of anchor", () => {
-    const state = initSwingState({ x: 200, y: 200 }, { x: 100, y: 100 }, { x: 0, y: 0 });
+    const state = initSwingState({ x: 2, y: 2 }, { x: 1, y: 1 }, { x: 0, y: 0 });
     // Player is right and below — angle should be ~π/4 (45°)
     expect(state.angle).toBeGreaterThan(0);
     expect(state.angle).toBeCloseTo(Math.PI / 4, 1);
@@ -29,16 +30,16 @@ describe("initSwingState", () => {
 
   it("converts rightward velocity into positive angular velocity", () => {
     const state = initSwingState(
-      { x: 100, y: 300 }, // directly below anchor
-      { x: 100, y: 100 },
-      { x: 300, y: 0 }, // moving right
+      { x: 1, y: 3 }, // directly below anchor
+      { x: 1, y: 1 },
+      { x: 3, y: 0 }, // moving right
     );
     // Rightward velocity at bottom of pendulum = clockwise = positive angular vel
     expect(state.angularVel).toBeGreaterThan(0);
   });
 
   it("converts leftward velocity into negative angular velocity", () => {
-    const state = initSwingState({ x: 100, y: 300 }, { x: 100, y: 100 }, { x: -300, y: 0 });
+    const state = initSwingState({ x: 1, y: 3 }, { x: 1, y: 1 }, { x: -3, y: 0 });
     expect(state.angularVel).toBeLessThan(0);
   });
 });
@@ -46,8 +47,8 @@ describe("initSwingState", () => {
 describe("stepSwing", () => {
   it("player remains at same distance from anchor", () => {
     const initial = initSwingState(
-      { x: 200, y: 200 }, // offset from anchor
-      { x: 100, y: 100 },
+      { x: 2, y: 2 }, // offset from anchor
+      { x: 1, y: 1 },
       { x: 0, y: 0 },
     );
 
@@ -61,13 +62,13 @@ describe("stepSwing", () => {
       const dx = result.position.x - state.anchorPos.x;
       const dy = result.position.y - state.anchorPos.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      expect(dist).toBeCloseTo(initial.ropeLength, 0);
+      expect(dist).toBeCloseTo(initial.ropeLength, 2);
     }
   });
 
   it("pendulum swings back and forth (angle changes sign)", () => {
     // Start offset to the right
-    const initial = initSwingState({ x: 200, y: 200 }, { x: 100, y: 100 }, { x: 0, y: 0 });
+    const initial = initSwingState({ x: 2, y: 2 }, { x: 1, y: 1 }, { x: 0, y: 0 });
 
     let state = initial;
     let sawNegative = false;
@@ -87,7 +88,7 @@ describe("stepSwing", () => {
   });
 
   it("velocity is tangent to the swing arc", () => {
-    const initial = initSwingState({ x: 200, y: 200 }, { x: 100, y: 100 }, { x: 100, y: 0 });
+    const initial = initSwingState({ x: 2, y: 2 }, { x: 1, y: 1 }, { x: 1, y: 0 });
 
     const result = stepSwing(initial, 1 / 60, GRAVITY);
     const { position, velocity } = result;
@@ -107,7 +108,7 @@ describe("stepSwing", () => {
 
 describe("getSwingReleaseVelocity", () => {
   it("returns non-zero velocity when swinging", () => {
-    const state = initSwingState({ x: 200, y: 200 }, { x: 100, y: 100 }, { x: 300, y: 0 });
+    const state = initSwingState({ x: 2, y: 2 }, { x: 1, y: 1 }, { x: 3, y: 0 });
 
     // Step a few frames to build up swing
     let current = state;
@@ -118,19 +119,31 @@ describe("getSwingReleaseVelocity", () => {
 
     const release = getSwingReleaseVelocity(current);
     const speed = Math.sqrt(release.x * release.x + release.y * release.y);
-    expect(speed).toBeGreaterThan(10);
+    expect(speed).toBeGreaterThan(0.1);
   });
 
   it("has minimum swing speed even with zero initial velocity", () => {
     const state = initSwingState(
-      { x: 100, y: 300 }, // directly below
-      { x: 100, y: 100 },
+      { x: 1, y: 3 }, // directly below
+      { x: 1, y: 1 },
       { x: 0, y: 0 }, // no velocity
     );
 
     const release = getSwingReleaseVelocity(state);
     const speed = Math.sqrt(release.x * release.x + release.y * release.y);
     // Minimum angular velocity ensures meaningful swing even from standstill
-    expect(speed).toBeGreaterThan(100);
+    expect(speed).toBeGreaterThan(1);
+  });
+});
+
+describe("the grapple's reach", () => {
+  it("is 4 m", () => {
+    expect(GRAPPLE_RANGE).toBe(4);
+    const anchors = createGrappleAnchorSystem({ view: null });
+    anchors.add("near", { x: 3.99, y: 0 }, "scene");
+    expect(anchors.findClosest({ x: 0, y: 0 })?.id).toBe("near");
+    anchors.clear();
+    anchors.add("far", { x: 0, y: -4.01 }, "scene");
+    expect(anchors.findClosest({ x: 0, y: 0 })).toBeNull();
   });
 });

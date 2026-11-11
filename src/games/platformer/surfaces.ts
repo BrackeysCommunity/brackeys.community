@@ -13,7 +13,7 @@ export type Surface = {
   decelMultiplier: number;
   /** Multiplier on move speed (1 = normal, 0.5 = chocolate). */
   speedMultiplier: number;
-  /** Vertical launch velocity when standing on it, px/s; 0 for none, negative is up. */
+  /** Vertical launch velocity when standing on it, m/s; 0 for none, negative is up. */
   bounceVelocity: number;
   /** Fallback fill for bodies drawn in this surface: the material's style, else orange. */
   color: number;

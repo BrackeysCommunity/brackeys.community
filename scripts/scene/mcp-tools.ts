@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { checksPathOf } from "@jams/engine/scene";
+import { checksPathOf, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { z } from "zod";
 
 import {
@@ -125,7 +125,9 @@ const opBatch = z
     label: z.string().optional(),
     base: z.string().optional(),
   })
-  .describe("An OpBatch at format v3; `scene_schema` with which `ops` gives its full schema.");
+  .describe(
+    `An OpBatch at format v${SCENE_FORMAT_VERSION}, lengths in metres; \`scene_schema\` with which \`ops\` gives its full schema.`,
+  );
 const jsonOrPath = (what: string) =>
   z.union([z.string(), z.record(z.string(), z.unknown())]).describe(`${what}, or a path to one.`);
 
@@ -291,7 +293,8 @@ export const MCP_TOOLS: readonly McpTool[] = [
   defineTool({
     name: "scene_list",
     title: "List scenes",
-    description: "Every scene with its game, hash, issue counts, entity counts and bounds.",
+    description:
+      "Every scene with its game, hash, issue counts, entity counts and bounds (metres).",
     annotations: READ,
     input: {},
     run: (_i, ctx) => list({}, ctx),
@@ -300,7 +303,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_show",
     title: "Show a scene",
     description:
-      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash, with `time` (its clock as Play resolves it: kind, rate, catch-up) and `physics` (`rapier`, or `none`: no wasm loads): instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world turn and flip, behavior blocks, an instance's params and the params its prefab exposes, each grid field's filled cells and bounds, and each sprite's `asset[:frame]` and world box (sized from the project's assets). Filter by ref, type or a circle.",
+      "A scene's entities and bulk entries with refs, derived AABB and top span, and the scene hash, with `time` (its clock as Play resolves it: kind, rate, catch-up) and `physics` (`rapier`, or `none`: no wasm loads): instance children (nested ones as `a/b/c`) in world coordinates, with `z`, the world turn and flip, behavior blocks, an instance's params and the params its prefab exposes, each grid field's filled cells and bounds, and each sprite's `asset[:frame]` and world box (sized from the project's assets). Every length is metres (speeds m/s); `pxPerMetre` is the game's px per metre. Filter by ref, type or a circle.",
     annotations: READ,
     input: {
       scene: sceneArg,
@@ -309,7 +312,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       near: z
         .tuple([z.number(), z.number(), z.number()])
         .optional()
-        .describe("[x, y, r]: only entities within r px of (x, y)."),
+        .describe("[x, y, r] in metres: only entities within r of (x, y)."),
       ...liveFields,
     },
     run: (i, ctx) =>
@@ -321,7 +324,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_schema",
     title: "JSON Schema",
     description:
-      "The JSON Schema of a scene, an op batch, an input script, a checks file, a run recording, a scene fragment (clipboard JSON), a prefab file, the project file, a sidecar, a project op batch, a project snapshot or any doc kind: a game's with `game` (or `project`), the engine's without.",
+      "The JSON Schema of a scene, an op batch, an input script, a checks file, a run recording, a scene fragment (clipboard JSON), a prefab file, the project file, a sidecar, a project op batch, a project snapshot or any doc kind (`input-map` among them): a game's with `game` (or `project`), the engine's without.",
     annotations: READ,
     input: {
       which: z
@@ -446,14 +449,17 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_playtest",
     title: "Playtest a scene",
     description:
-      "Play an input script headless: the outcome, steps, events, focus trail and the commands stepped. Steps hold or press actions, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`); an `until` can wait on `{ exists: id }` or `{ count: { type|tag, min|max|eq } }`. Events include `entity:spawned`, `entity:destroyed`, `entity:enabled`, `entity:disabled`, `contact:start` and `contact:end`, and `lifecycle` counts spawns and destroys per type. exitCode 1 when the scene or script is blocked, a runtime refusal included (stage `run`).",
+      "Play an input script headless (format v2; a v1 script migrates on read): the outcome, steps, events, focus trail (positions in metres), the commands stepped and the run's `recording` (v2). `steps` drive seat 0; `tracks` (`[{ player, steps }]`, up to the script's `players`) drive one seat each, side by side from tick 0. Steps hold or press actions, `set` axis values and vectors for the step (`{ set: { move: [1, 0] } }`), drive the pointer (`{ pointer: { at, press?, release?, drag? } }`, `at` and `drag` in metres; a drag moves from `at` to `drag` over the step; its buttons show in `ctx.input.pointer`, and scripts drive actions by name, so an action bound to a pointer button still needs its own `press` or `hold`), `join` a device (`keyboard`, `pointer`, `touch` or `pad:<n>`) to the track's seat or `leave` one, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`); an `until` can wait on `{ exists: id }` or `{ count: { type|tag, min|max|eq } }`. Events include `entity:spawned`, `entity:destroyed`, `entity:enabled`, `entity:disabled`, `contact:start` and `contact:end`, and `lifecycle` counts spawns and destroys per type. exitCode 1 when the scene or script is blocked, a runtime refusal included (stage `run`).",
     annotations: READ,
     input: {
       scene: sceneArg,
       script: jsonOrPath(
-        "An input script (`scene_schema` with which `script`), command and elapse steps included",
+        "An input script, v2 or v1 (`scene_schema` with which `script`): `steps` or `tracks`, analog, pointer, join, command and elapse steps included",
       ),
-      at: z.tuple([z.number(), z.number()]).optional().describe("[x, y]: start the player here."),
+      at: z
+        .tuple([z.number(), z.number()])
+        .optional()
+        .describe("[x, y] in metres: start the player here."),
       events: z
         .array(z.string())
         .optional()
@@ -479,11 +485,13 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_replay",
     title: "Replay a run",
     description:
-      "Replay a run recording (a `scene_playtest` result's `recording`, or the editor's) headless. exitCode 1 when it ends differently; a changed scene is a warning.",
+      "Replay a run recording headless: v2 (a `scene_playtest` result's `recording`, or the editor's), or v1, which migrates on read and reports `migratedFrom: 1`. The report carries `matches`, `divergence`, `stale` (what the run runs changed since it was recorded), `warnings` and `issues`, where `recording-other-platform` warns that a Rapier run recorded on another architecture may step differently. exitCode 1 when it ends differently; a stale run or another platform is a warning.",
     annotations: READ,
     input: {
       scene: sceneArg,
-      run: jsonOrPath("A run recording (`scene_schema` with which `recording`)"),
+      run: jsonOrPath(
+        "A run recording, v2 or v1 (`scene_schema` with which `recording`), or a `scene_playtest` result holding one",
+      ),
       game,
       ...liveFields,
     },
@@ -557,18 +565,18 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_render",
     title: "Render a scene",
     description:
-      "A schematic PNG of the scene (longest side 1600px) with axis ticks, entity labels and each sprite's box labelled `asset[:frame]`, or with `ascii` a character map; `sprites` lists the boxes. Overlay a playtest or validate result.",
+      "A schematic PNG of the scene (longest side 1600px), drawn in world px (metres times the game's px per metre) with axis ticks labelled in world px, entity labels and each sprite's box labelled `asset[:frame]`, or with `ascii` a character map whose cells and ruler are world px; `sprites` lists the boxes in metres. Overlay a playtest or validate result.",
     annotations: READ,
     input: {
       scene: sceneArg,
       region: z
         .tuple([z.number(), z.number(), z.number(), z.number()])
         .optional()
-        .describe("[x0, y0, x1, y1] in world px."),
+        .describe("[x0, y0, x1, y1] in metres."),
       around: z.string().optional().describe("Frame this entity ref."),
-      margin: z.number().optional().describe("With around: px of margin."),
+      margin: z.number().optional().describe("With around: metres of margin; default 1.28."),
       labels: z.enum(["entities", "all", "none"]).optional().describe("Default `entities`."),
-      scale: z.number().optional().describe("Pixels per world px."),
+      scale: z.number().optional().describe("Image px per world px."),
       ascii: z.boolean().optional().describe("A character map instead of an image."),
       overlay: jsonOrPath("A `scene_playtest` or `scene_validate` result").optional(),
       ...liveFields,
@@ -597,7 +605,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       return {
         exitCode: 0,
         data,
-        text: `${scene}: ${width}x${height}px, scale ${Math.round(scale * 1000) / 1000}, region ${region.join(",")}, ticks every ${tick}px`,
+        text: `${scene}: ${width}x${height}px, scale ${Math.round(scale * 1000) / 1000}, region ${region.join(",")} m, ticks every ${tick}px`,
         image: { data: Buffer.from(png).toString("base64"), mimeType: "image/png" },
       };
     },
@@ -671,7 +679,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "asset_apply_ops",
     title: "Apply a project op batch",
     description:
-      "Apply a project op batch (`scene_schema` with which `project-ops`), which may span docs. A dry run unless dryRun is false. With live, edits the dev server's docs (or a hosted project's) as one undoable entry under an agent actor; otherwise writes the files. A batch the engine refuses writes nothing.",
+      'Apply a project op batch (`scene_schema` with which `project-ops`), which may span docs. A dry run unless dryRun is false. With live, edits the dev server\'s docs (or a hosted project\'s) as one undoable entry under an agent actor; otherwise writes the files. A batch the engine refuses writes nothing. The input map is a doc like any other: `{ op: "editAsset", id, edits: [{ insert: "/actions/@fire/bindings", value: { device: "key", code: "KeyF" } }] }` appends a binding to `fire` (the insert names the list; `before` an index places it), and a binding the game can\'t read (an unknown code, button, axis or control, or a shape that doesn\'t fit the action\'s kind) is refused as `binding-unknown`, a seat past the map\'s as `player-unknown`.',
     annotations: { ...WRITE, destructiveHint: true },
     input: {
       ops: z

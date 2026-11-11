@@ -20,7 +20,7 @@ export type PhysicsWorld = {
   world: World;
   /** Advance simulation by one fixed timestep */
   step: () => void;
-  /** World gravity from the next step on, px/s²; y is down. */
+  /** World gravity from the next step on, m/s²; y is down. */
   setGravity: (gravity: Vec2) => void;
   /** Make newly added colliders visible to scene queries without advancing time. */
   refreshQueries: () => void;
@@ -40,7 +40,7 @@ export type PhysicsWorld = {
 
 /** How a Rapier character controller moves; each null turns that behaviour off. */
 export type CharacterControllerOptions = {
-  /** The gap kept from what it touches; default 0.01. */
+  /** The gap kept from what it touches, m; default 0.0001. */
   offset?: number;
   /** Unit vector pointing up. */
   up: Pt;
@@ -48,7 +48,9 @@ export type CharacterControllerOptions = {
   maxSlopeClimbDeg: number | null;
   /** null: never slides. */
   minSlopeSlideDeg: number | null;
+  /** Step height and width, m. */
   autostep: { maxHeight: number; minWidth: number; dynamic: boolean } | null;
+  /** How far down it snaps to the ground, m. */
   snapToGround: number | null;
   pushDynamic: boolean;
 };
@@ -59,12 +61,19 @@ export type PhysicsConfig = {
   timestep: number;
 };
 
+/** A controller's gap from what it touches when its options set none, m. */
+const DEFAULT_CONTROLLER_OFFSET = 0.0001;
+
 const DEFAULT_PHYSICS_CONFIG: PhysicsConfig = {
   gravity: { x: DEFAULT_GRAVITY[0], y: DEFAULT_GRAVITY[1] },
   timestep: 1 / DEFAULT_TICK_RATE,
 };
 
-/** Create an empty Rapier world; scene systems add every body. */
+/**
+ * Create an empty Rapier world; scene systems add every body. The world
+ * holds metres at Rapier's default length unit, so its tolerances fit
+ * whatever px per metre the game draws at.
+ */
 export function createPhysicsWorld(
   rapier: RapierModule,
   config: Partial<PhysicsConfig> = {},
@@ -102,7 +111,7 @@ export function createPhysicsWorld(
   function createCharacterController(
     opts: CharacterControllerOptions,
   ): KinematicCharacterController {
-    const controller = world.createCharacterController(opts.offset ?? 0.01);
+    const controller = world.createCharacterController(opts.offset ?? DEFAULT_CONTROLLER_OFFSET);
     controller.setUp(new rapier.Vector2(opts.up[0], opts.up[1]));
     // A right angle from `up` is any slope: no climbing limit, and nothing slides.
     controller.setMaxSlopeClimbAngle(

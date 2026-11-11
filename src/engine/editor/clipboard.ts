@@ -1,4 +1,5 @@
 import type { Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import {
   fragmentBounds,
   fragmentOf,
@@ -18,6 +19,8 @@ import type {
   SceneIssue,
   SceneOp,
 } from "../scene/types";
+import { snapToPixel } from "../scene/units";
+import { snapToGrid } from "./snap";
 import type { SnapSettings } from "./tools";
 
 export { nextFreeId } from "../scene/fragment";
@@ -41,11 +44,11 @@ export type PasteOptions = {
   registry: Registry;
   /** The project's prefabs: a pasted instance needs its prefab here, and its box counts in centring. */
   prefabs?: PrefabLibrary;
-  /** Centre the fragment's box here (the cursor, world px). Omitted, it keeps its own position. */
+  /** Centre the fragment's box here (the cursor, world metres). Omitted, it keeps its own position. */
   at?: Pt;
   /** Grid snapping for `at`: the move is a whole number of grid steps, so grid-aligned pieces stay aligned. */
   snap?: SnapSettings;
-  /** Added after centring, e.g. one grid step for duplicate. */
+  /** Added after centring, metres on whole world px, e.g. one grid step for duplicate. */
   offset?: Pt;
 };
 
@@ -53,8 +56,10 @@ export type PasteResult =
   | { ok: true; batch: OpBatch; select: Ref[]; issues: SceneIssue[] }
   | { ok: false; issues: SceneIssue[] };
 
-function snapDelta(d: number, snap: SnapSettings | undefined): number {
-  return snap?.enabled ? Math.round(d / snap.step) * snap.step : Math.round(d);
+function snapDelta(d: number, snap: SnapSettings | undefined, pxPerMetre: number): number {
+  return snap?.enabled && snap.step > 0
+    ? snapToGrid(d, snap.step, pxPerMetre)
+    : snapToPixel(d, pxPerMetre);
 }
 
 /**
@@ -70,6 +75,7 @@ function snapDelta(d: number, snap: SnapSettings | undefined): number {
  */
 export function pasteFragment(input: string | SceneFragment, opts: PasteOptions): PasteResult {
   const { def, registry, prefabs } = opts;
+  const ppm = pxPerMetreOf(registry);
   const parsed = parseFragment(input, registry);
   if (!parsed.ok) return parsed;
   const fragment = parsed.fragment;
@@ -85,11 +91,12 @@ export function pasteFragment(input: string | SceneFragment, opts: PasteOptions)
   const box = opts.at && fragmentBounds(fragment, registry, prefabs);
   if (opts.at && box) {
     by = [
-      snapDelta(opts.at[0] - (box.minX + box.maxX) / 2, opts.snap),
-      snapDelta(opts.at[1] - (box.minY + box.maxY) / 2, opts.snap),
+      snapDelta(opts.at[0] - (box.minX + box.maxX) / 2, opts.snap, ppm),
+      snapDelta(opts.at[1] - (box.minY + box.maxY) / 2, opts.snap, ppm),
     ];
   }
-  if (opts.offset) by = [by[0] + Math.round(opts.offset[0]), by[1] + Math.round(opts.offset[1])];
+  if (opts.offset)
+    by = [snapToPixel(by[0] + opts.offset[0], ppm), snapToPixel(by[1] + opts.offset[1], ppm)];
 
   const { ops, select, issues } = placeFragment(fragment, def, registry, by, prefabs);
   if (ops.length === 0) return { ok: false, issues };
@@ -103,7 +110,7 @@ export function pasteFragment(input: string | SceneFragment, opts: PasteOptions)
 }
 
 /**
- * The selection copied and pasted one grid `step` down and to the right
+ * The selection copied and pasted one grid `step` (metres) down and to the right
  * (Mod+D), instances included. `from` is the scene the selection is read
  * from when it differs from `def`.
  */

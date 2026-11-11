@@ -15,8 +15,11 @@ import type { SceneLayerDef } from "../../scene/layers";
 import type { ShapeObj } from "../../scene/types";
 import { createPixiView, pixiContainer, type TextureSource as TextureSource_ } from "../pixi-view";
 
-const box: ShapeObj = { type: "box", cx: 0, cy: 0, hw: 10, hh: 5, rotDeg: 0 };
+const box: ShapeObj = { type: "box", cx: 0, cy: 0, hw: 0.1, hh: 0.05, rotDeg: 0 };
 const style = { fill: 0x112233, stroke: 0xffffff, alpha: 0.5 };
+
+/** The default px per metre: a view draws metres in world px inside its container. */
+const PPM = 100;
 
 function graphicsOf(view: ReturnType<typeof createPixiView>, id: string): Graphics | undefined {
   for (const layer of view.container.children) {
@@ -43,12 +46,13 @@ describe("createPixiView", () => {
     const view = createPixiView(new Container());
     view.draw("a", box, style, "body");
     const g = graphicsOf(view, "a")!;
-    view.pose("a", 40, 50, 0.5);
-    view.draw("a", { ...box, hw: 20 }, style, "body");
+    view.pose("a", 0.4, 0.5, 0.5);
+    view.draw("a", { ...box, hw: 0.2 }, style, "body");
 
     expect(graphicsOf(view, "a")).toBe(g);
     expect([g.position.x, g.position.y, g.rotation]).toEqual([40, 50, 0.5]);
     expect(g.bounds.width).toBeGreaterThanOrEqual(40);
+    expect(view.container.scale.x).toBe(1 / PPM);
   });
 
   it("gives the stroke its own alpha when the style has one", () => {
@@ -110,7 +114,8 @@ function displayOf(view: ReturnType<typeof createPixiView>, id: string): Contain
   return undefined;
 }
 
-const xyr = (d: Container) => [d.position.x, d.position.y, d.rotation];
+/** A display's pose in metres: its world px over the view's px per metre. */
+const xyr = (d: Container) => [d.position.x / PPM, d.position.y / PPM, d.rotation];
 
 describe("interpolation", () => {
   /** A view with `a` posed at (0, 0) in one committed tick and (10, 20, rot) in the next. */
@@ -172,16 +177,22 @@ describe("interpolation", () => {
   });
 
   it("rounds placed positions to whole canvas pixels with pixelSnap", () => {
+    // The camera's world container: 2 canvas px per world px, 200 per metre.
+    const world = new Container();
+    world.scale.set(2 * PPM);
+    world.position.set(0.25, 0.5);
     const container = new Container();
-    container.scale.set(2);
-    container.position.set(0.25, 0.5);
+    world.addChild(container);
     const view = createPixiView(container, { pixelSnap: true });
     view.draw("a", box, style, "body");
-    view.pose("a", 10.3, 4.1);
+    view.pose("a", 0.103, 0.041);
     frame(view, 1);
     const d = displayOf(view, "a")!;
-    // Canvas x = 2 · 10.3 + 0.25 = 20.85 → 21; y = 2 · 4.1 + 0.5 = 8.7 → 9.
-    expect([d.position.x, d.position.y]).toEqual([(21 - 0.25) / 2, (9 - 0.5) / 2]);
+    // Canvas x = 200 · 0.103 + 0.25 = 20.85 → 21; y = 200 · 0.041 + 0.5 = 8.7 → 9.
+    expect(d.position.x).toBeCloseTo((21 - 0.25) / 2, 9);
+    expect(d.position.y).toBeCloseTo((9 - 0.5) / 2, 9);
+    expect(d.getGlobalPosition().x).toBeCloseTo(21, 9);
+    expect(d.getGlobalPosition().y).toBeCloseTo(9, 9);
   });
 });
 
@@ -191,7 +202,7 @@ describe("sprites", () => {
   const fallback = { shape: box, style };
   const visual = (over: Partial<SpriteVisual> = {}): SpriteVisual => ({
     texture: hash,
-    size: [32, 16],
+    size: [0.32, 0.16],
     anchor: [0.5, 1],
     sampling: "linear",
     fallback,
@@ -266,8 +277,8 @@ describe("sprites", () => {
   it("draws tiling and nine-slice sprites at their size", () => {
     const src = source();
     const view = createPixiView(new Container(), { textures: src.textures });
-    view.sprite!("t", visual({ tile: true, size: [200, 40], flipY: true }), "terrain");
-    view.sprite!("n", visual({ nineSlice: [4, 5, 6, 7], size: [120, 60] }), "overlay");
+    view.sprite!("t", visual({ tile: true, size: [2, 0.4], flipY: true }), "terrain");
+    view.sprite!("n", visual({ nineSlice: [4, 5, 6, 7], size: [1.2, 0.6] }), "overlay");
     const t = displayOf(view, "t") as TilingSprite;
     const n = displayOf(view, "n") as NineSliceSprite;
     expect(t).toBeInstanceOf(TilingSprite);
@@ -386,7 +397,7 @@ describe("scene layers", () => {
       "a",
       {
         texture: hash,
-        size: [8, 8],
+        size: [0.08, 0.08],
         anchor: [0.5, 0.5],
         sampling: "linear",
         fallback: { shape: box, style },
@@ -428,13 +439,14 @@ describe("scene layers", () => {
     view.draw("hill", box, style, 2);
     view.draw("rock", box, style, 0);
     view.draw("plain", box, style, 35);
-    frame(view, at(200, -80));
+    frame(view, at(2, -0.8));
     const back = pixiContainer(view.layer(2));
+    // World px: half the camera's 200, −80 px from the origin.
     expect([back.position.x, back.position.y]).toEqual([100, -40]);
     expect(pixiContainer(view.layer(0)).position.x).toBe(0);
     expect(pixiContainer(view.layer(35)).position.x).toBe(0);
     // On screen the layer moves by camera · scroll: world shift 200 − offset 100.
-    frame(view, at(300, -80));
+    frame(view, at(3, -0.8));
     expect(back.position.x).toBe(150);
   });
 
@@ -460,5 +472,98 @@ describe("scene layers", () => {
     view.draw("b", box, style, 35);
     expect(view.container.children.map((l) => l.zIndex)).toEqual([DRAW_LAYERS.actor, 35]);
     expect(pixiContainer(view.layer("actor")).sortableChildren).toBe(true);
+  });
+});
+
+describe("px per metre", () => {
+  const hash = "d".repeat(64) as Sha256;
+  const texture = new Texture({ source: new TextureSource({ width: 48, height: 24 }) });
+  const textures = { get: () => texture, onLoad: () => () => {} };
+  const layers: SceneLayerDef[] = [
+    { name: "far", description: "Hills.", draw: 2, scroll: [0.5, 0.25] },
+  ];
+
+  /**
+   * One scene's visuals in `k` world px per unit: `k = 100` is its metric form
+   * at the default px per metre, `k = 1` its px form, which a view at one px
+   * per metre draws exactly as the px-only view did.
+   */
+  function drawScene(pxPerMetre: number, k: number) {
+    // The camera's world container, mapping world units to canvas px.
+    const world = new Container();
+    world.scale.set(1.5 * k);
+    world.position.set(-12.25, 40.5);
+    const view = createPixiView(world.addChild(new Container()), {
+      textures,
+      layers,
+      pxPerMetre,
+    });
+    const u = (px: number) => px / k;
+    const fallback = { shape: box, style };
+    view.draw(
+      "box",
+      { type: "box", cx: u(10), cy: u(-6), hw: u(25), hh: u(7.5), rotDeg: 30 },
+      style,
+      0,
+    );
+    view.draw("disc", { type: "circle", cx: u(3), cy: u(4), r: u(18) }, style, 10);
+    view.pose("disc", u(123.4), u(-56.75), 0.3);
+    const sprite = (size: [number, number], over: Partial<SpriteVisual> = {}): SpriteVisual => ({
+      texture: hash,
+      size: [u(size[0]), u(size[1])],
+      anchor: [0.25, 1],
+      sampling: "nearest",
+      fallback,
+      ...over,
+    });
+    view.sprite!("crate", sprite([72, 36], { flipX: true }), 10);
+    view.pose("crate", u(880), u(1140));
+    view.sprite!("floor", sprite([200, 48], { tile: true }), 0);
+    view.pose("floor", u(-64), u(320), 0.5);
+    view.sprite!("panel", sprite([120, 60], { nineSlice: [4, 5, 6, 7] }), 10);
+    view.pose("panel", u(400.5), u(12.25));
+    view.draw(
+      "hill",
+      { type: "capsule", cx: 0, cy: u(30), r: u(12), halfLen: u(40), rotDeg: 0 },
+      style,
+      2,
+    );
+    view.commit!(0);
+    view.frame!({ alpha: 1, camera: { x: u(333), y: u(-41), zoom: 1 } });
+    return view;
+  }
+
+  const ids = ["box", "disc", "crate", "floor", "panel", "hill"];
+
+  it("at 100 px per metre puts every display object where its px form drew it", () => {
+    const metric = drawScene(100, 100);
+    const px = drawScene(1, 1);
+    for (const id of ids) {
+      const a = displayOf(metric, id)!.getBounds();
+      const b = displayOf(px, id)!.getBounds();
+      for (const key of ["x", "y", "width", "height"] as const) {
+        expect(Math.abs(a[key] - b[key]), `${id}.${key}`).toBeLessThan(1e-6);
+      }
+      const pa = displayOf(metric, id)!.getGlobalPosition();
+      const pb = displayOf(px, id)!.getGlobalPosition();
+      expect(Math.abs(pa.x - pb.x), id).toBeLessThan(1e-6);
+      expect(Math.abs(pa.y - pb.y), id).toBeLessThan(1e-6);
+    }
+    const nine = displayOf(metric, "panel") as NineSliceSprite;
+    expect([nine.leftWidth, nine.width, nine.height]).toEqual([4, 120, 60]);
+  });
+
+  it("at 32 px per metre draws a 1 m box 32 world px wide, its stroke still 1 px", () => {
+    const view = createPixiView(new Container(), { pxPerMetre: 32 });
+    view.draw("cell", { type: "box", cx: 0.5, cy: 0.5, hw: 0.5, hh: 0.5, rotDeg: 0 }, style, 0);
+    view.pose("cell", 2, 1);
+    const g = displayOf(view, "cell") as Graphics;
+    expect([g.position.x, g.position.y]).toEqual([64, 32]);
+    const stroke = g.context.instructions.find((i) => i.action === "stroke")!;
+    expect((stroke.data.style as { width: number }).width).toBe(1);
+    // The outline is traced in world px; the stroke only adds its own px around it.
+    expect(g.getLocalBounds().width).toBeGreaterThanOrEqual(32);
+    expect(g.getLocalBounds().width).toBeLessThan(34);
+    expect(view.container.scale.x).toBe(1 / 32);
   });
 });

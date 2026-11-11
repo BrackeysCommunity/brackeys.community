@@ -16,8 +16,8 @@ beforeAll(async () => {
 });
 
 const DT = 1000 / 60;
-const BOX = { type: "box", cx: 0, cy: 0, hw: 6, hh: 6, rotDeg: 0 } as const;
-const TUNING = { maxSpeed: 120, accel: 600, decel: 300 };
+const BOX = { type: "box", cx: 0, cy: 0, hw: 0.06, hh: 0.06, rotDeg: 0 } as const;
+const TUNING = { maxSpeed: 1.2, accel: 6, decel: 3 };
 
 const game: GameDefinition = defineGame({
   id: "topdown",
@@ -27,14 +27,14 @@ const game: GameDefinition = defineGame({
 });
 const registry = createRegistry(game);
 
-/** A wall whose left face is at x = 160, from y = 0 to 200, in a 320 × 320 room of 32 px cells. */
+/** A wall whose left face is at x = 1.6, from y = 0 to 2, in a 3.2 × 3.2 m room of 0.32 m cells. */
 function loaded(physics: "rapier" | "none", entities: EntityDef[] = []) {
   const def: SceneDefinition = {
     v: 3,
     game: "topdown",
     name: "top-down",
-    bounds: [0, 0, 320, 320],
-    settings: { gravity: [0, 0], physics, grid: { kind: "square", cell: [32, 32] } },
+    bounds: [0, 0, 3.2, 3.2],
+    settings: { gravity: [0, 0], physics, grid: { kind: "square", cell: [0.32, 0.32] } },
     entities,
   };
   const rt = createSceneRuntime({ rapier, view: null, game });
@@ -42,9 +42,9 @@ function loaded(physics: "rapier" | "none", entities: EntityDef[] = []) {
   return rt;
 }
 
-const WALL = { id: "wall", type: "solid", shape: ["box", 165, 100, 5, 100] } as EntityDef;
+const WALL = { id: "wall", type: "solid", shape: ["box", 1.65, 1, 0.05, 1] } as EntityDef;
 
-function rig(physics: "rapier" | "none", at: Vec2 = { x: 48, y: 48 }) {
+function rig(physics: "rapier" | "none", at: Vec2 = { x: 0.48, y: 0.48 }) {
   const rt = loaded(physics, [WALL]);
   const body = createMotionBody(rt.ctx, { id: "rover", type: "rover" }, at, { shape: BOX });
   return { rt, body, ctl: createTopDownController(body, TUNING) };
@@ -61,8 +61,8 @@ describe("the top-down controller", () => {
       speeds.push(ctl.velocity().x);
       expect(r.moved.x).toBeCloseTo((ctl.velocity().x * DT) / 1000, 9);
     }
-    expect(speeds.map((s) => Math.round(s * 1000) / 1000)).toEqual([
-      10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 120, 120,
+    expect(speeds.map((s) => Math.round(s * 1e5) / 1e5)).toEqual([
+      0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.2, 1.2,
     ]);
     expect(ctl.velocity().y).toBe(0);
     expect(rt.ctx.poses.get("rover")).toMatchObject(body.position());
@@ -72,14 +72,14 @@ describe("the top-down controller", () => {
   it("decelerates to rest without overshooting", () => {
     const { rt, ctl } = rig("none");
     for (let i = 0; i < 12; i++) ctl.step(DT, { x: 0, y: 1 });
-    expect(ctl.velocity().y).toBeCloseTo(120, 9);
+    expect(ctl.velocity().y).toBeCloseTo(1.2, 11);
     const speeds: number[] = [];
     for (let i = 0; i < 26; i++) {
       ctl.step(DT, { x: 0, y: 0 });
-      speeds.push(Math.round(ctl.velocity().y * 1000) / 1000);
+      speeds.push(Math.round(ctl.velocity().y * 1e5) / 1e5);
     }
-    expect(speeds.slice(0, 3)).toEqual([115, 110, 105]);
-    expect(speeds.slice(22)).toEqual([5, 0, 0, 0]);
+    expect(speeds.slice(0, 3)).toEqual([1.15, 1.1, 1.05]);
+    expect(speeds.slice(22)).toEqual([0.05, 0, 0, 0]);
     expect(ctl.step(DT, { x: 0, y: 0 })).toEqual({
       moved: { x: 0, y: 0 },
       hits: [],
@@ -89,29 +89,30 @@ describe("the top-down controller", () => {
   });
 
   it("clamps a diagonal intent to the unit disc, and takes a short one as it is", () => {
-    const { rt, ctl } = rig("none", { x: 20, y: 20 });
+    const { rt, ctl } = rig("none", { x: 0.2, y: 0.2 });
     for (let i = 0; i < 30; i++) ctl.step(DT, { x: 1, y: 1 });
-    expect(speed(ctl.velocity())).toBeCloseTo(120, 9);
-    expect(ctl.velocity().x).toBeCloseTo(120 / Math.sqrt(2), 9);
-    expect(ctl.velocity().y).toBeCloseTo(ctl.velocity().x, 12);
+    expect(speed(ctl.velocity())).toBeCloseTo(1.2, 11);
+    expect(ctl.velocity().x).toBeCloseTo(1.2 / Math.sqrt(2), 11);
+    expect(ctl.velocity().y).toBeCloseTo(ctl.velocity().x, 14);
     for (let i = 0; i < 30; i++) ctl.step(DT, { x: 0, y: 0.5 });
-    expect(ctl.velocity().x).toBeCloseTo(0, 9);
-    expect(ctl.velocity().y).toBeCloseTo(60, 9);
+    expect(ctl.velocity().x).toBeCloseTo(0, 11);
+    expect(ctl.velocity().y).toBeCloseTo(0.6, 11);
     for (let i = 0; i < 30; i++) ctl.step(DT, { x: -3, y: 4 });
-    expect(ctl.velocity().x).toBeCloseTo(-72, 9);
-    expect(ctl.velocity().y).toBeCloseTo(96, 9);
+    expect(ctl.velocity().x).toBeCloseTo(-0.72, 11);
+    expect(ctl.velocity().y).toBeCloseTo(0.96, 11);
     rt.destroy();
   });
 
   it("loses the velocity that heads into a wall and keeps the rest", () => {
     for (const physics of ["rapier", "none"] as const) {
-      const { rt, ctl } = rig(physics, { x: 140, y: 48 });
+      const { rt, ctl } = rig(physics, { x: 1.4, y: 0.48 });
       for (let i = 0; i < 30; i++) {
         ctl.step(DT, { x: 1, y: 1 });
         rt.step(DT, []);
       }
-      expect(ctl.velocity().x, physics).toBeCloseTo(0, 6);
-      expect(ctl.velocity().y, physics).toBeCloseTo(120 / Math.sqrt(2), 2);
+      // Against the wall Rapier's controller, at its metre tolerances, gains or loses a few µm a tick.
+      expect(ctl.velocity().x, physics).toBeCloseTo(0, physics === "rapier" ? 3 : 8);
+      expect(ctl.velocity().y, physics).toBeCloseTo(1.2 / Math.sqrt(2), 3);
       rt.destroy();
     }
   });
@@ -151,7 +152,7 @@ describe("the top-down controller", () => {
     expect(onGeometry.cell).toEqual(onRapier.cell);
     expect(onRapier.cell).toEqual([6, 8]);
     // Rapier's controller loses a little travel on the ticks it meets the wall.
-    expect(Math.abs(onGeometry.at.x - onRapier.at.x)).toBeLessThan(2);
-    expect(Math.abs(onGeometry.at.y - onRapier.at.y)).toBeLessThan(2);
+    expect(Math.abs(onGeometry.at.x - onRapier.at.x)).toBeLessThan(0.02);
+    expect(Math.abs(onGeometry.at.y - onRapier.at.y)).toBeLessThan(0.02);
   });
 });

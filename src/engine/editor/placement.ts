@@ -1,9 +1,11 @@
 import type { Style } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import { createPlacementTool, type PlacementCheck, type PlacementGhost } from "../placement";
 import { aabb, translateShape } from "../scene/shape-geometry";
 import type { Aabb, EntityInput, Pt, SceneDefinition, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 import { nextFreeId } from "./clipboard";
+import { snapPoint } from "./snap";
 import type { EditorTool, EditorToolContext, EditorToolDef, ToolOverlay } from "./tools";
 
 // ─── As an editor tool ───────────────────────────────────
@@ -23,7 +25,7 @@ export type PlacementEditorToolOptions<T extends PlacementTemplate> = {
   label: string;
   description: string;
   templates: readonly T[];
-  /** The entity a placement adds, at a whole-pixel centre and whole-degree rotation. */
+  /** The entity a placement adds, at a centre on whole world px (metres) and a whole-degree rotation. */
   toEntity(template: T, at: Pt, rotDeg: number, ctx: EditorToolContext): EntityInput;
   /**
    * A game's warnings beside the engine's bounds check (a spawn overlap).
@@ -33,7 +35,7 @@ export type PlacementEditorToolOptions<T extends PlacementTemplate> = {
   validate?(placed: PlacedTemplate<T>, ctx: EditorToolContext): PlacementCheck;
 };
 
-/** A ghost as the editor places it: whole pixels and degrees, and its world shape. */
+/** A ghost as the editor places it: whole world px and degrees, and its world shape in metres. */
 export type PlacedTemplate<T> = { template: T; at: Pt; rotDeg: number; shape: ShapeObj };
 
 const DEG = Math.PI / 180;
@@ -130,10 +132,8 @@ export function placementEditorTool<T extends PlacementTemplate>(
       });
 
       function snapped(world: Pt, free: boolean): Vec2 {
-        const snap = ctx.snap();
-        const grid = (v: number) =>
-          !free && snap.enabled ? Math.round(v / snap.step) * snap.step : Math.round(v);
-        return { x: grid(world[0]), y: grid(world[1]) };
+        const [x, y] = snapPoint(world, ctx.snap(), pxPerMetreOf(ctx.registry), { bypass: free });
+        return { x, y };
       }
 
       /** One notch is the snap angle; `free` (Shift) turns by a degree. */

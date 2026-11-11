@@ -15,6 +15,7 @@ import {
   sceneSnapshot,
   seedState,
   stateLayout,
+  seedDefinition,
   stateSchemaVersion,
 } from "../doc-bytes";
 
@@ -65,8 +66,25 @@ describe("seeding", () => {
 
     const empty = prepareLoadedState("engine.blank", null, null);
     expect(docToScene(docOf(empty.state))).toEqual(emptyScene("engine.blank"));
-    expect(emptyScene("engine.blank")).toEqual({ v: V, name: "blank", bounds: [0, 0, 1920, 1080] });
+    expect(emptyScene("engine.blank")).toEqual({ v: V, name: "blank", bounds: [0, 0, 19.2, 10.8] });
     expect(emptyScene("platformer.blank")).toMatchObject({ game: "platformer" });
+  });
+
+  it("writes the engine's format from an empty doc or a current seed", () => {
+    expect(stateSchemaVersion(prepareLoadedState("engine.blank", null, null).state)).toBe(V);
+    expect(
+      stateSchemaVersion(prepareLoadedState("test.bytes", null, JSON.stringify(SCENE)).state),
+    ).toBe(V);
+  });
+
+  it("seeds a seed whose next step needs its game at the version it reached, unresolved", () => {
+    const seed = JSON.stringify({ ...SCENE, v: V - 1 });
+    const seeded = prepareLoadedState("test.bytes", null, seed);
+    expect(seeded).toMatchObject({ seeded: true, schemaVersion: V - 1 });
+    expect(seeded.unresolved?.code).toBe("migration-unresolved");
+    expect(docToScene(docOf(seeded.state))).toEqual({ ...SCENE, v: V - 1 });
+    // A bundle can't seed one: seedDefinition is the check it runs.
+    expect(() => seedDefinition("test.bytes", seed)).toThrow(/bad seed/);
   });
 
   it("refuses a seed that isn't a scene", () => {
@@ -148,6 +166,38 @@ describe("loading a stored doc", () => {
       state,
       schemaVersion: V + 1,
       migratedFrom: null,
+    });
+  });
+});
+
+describe("a stored doc whose next step needs its game", () => {
+  it("stays at its version, unresolved, its bytes untouched", () => {
+    expect(V).toBe(4);
+    const state = seedState("test.bytes", { ...SCENE, v: V - 1 });
+    const prepared = prepareLoadedState("test.bytes", state, null);
+    expect(prepared).toMatchObject({
+      state,
+      schemaVersion: V - 1,
+      seeded: false,
+      migratedFrom: null,
+    });
+    expect(prepared.unresolved).toMatchObject({ code: "migration-unresolved", path: "/v" });
+    expect(stateSchemaVersion(prepared.state)).toBe(V - 1);
+  });
+
+  it("lifts an older doc as far as this side can, keeping its keys", () => {
+    const state = seedState("test.bytes", { ...SCENE, v: V - 2 });
+    const keys = [...docOf(state).getMap("entities").keys()].sort();
+    const prepared = prepareLoadedState("test.bytes", state, null);
+    expect(prepared).toMatchObject({ schemaVersion: V - 1, migratedFrom: V - 2 });
+    expect(prepared.unresolved?.code).toBe("migration-unresolved");
+    expect(stateSchemaVersion(prepared.state)).toBe(V - 1);
+    expect([...docOf(prepared.state).getMap("entities").keys()].sort()).toEqual(keys);
+  });
+
+  it("has no snapshot text, as for a newer doc", () => {
+    expect(sceneSnapshot(seedState("test.bytes", { ...SCENE, v: V - 1 }))).toEqual({
+      schemaVersion: V - 1,
     });
   });
 });

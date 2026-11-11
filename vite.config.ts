@@ -288,6 +288,9 @@ const config = defineConfig({
       // Frozen copies of each scene format version, compared byte for byte.
       "src/engine/scene/__tests__/fixtures/v*/**",
       "src/games/*/__tests__/fixtures/v*/**",
+      "src/engine/headless/__tests__/fixtures/recordings/v*/**/*.json",
+      // Frozen asset files, compared byte for byte with the engine's formatter.
+      "src/engine/collab/__tests__/fixtures/*.json",
     ],
   },
 

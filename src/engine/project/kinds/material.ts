@@ -2,12 +2,15 @@ import { z } from "zod";
 
 import type { BlendMode } from "../../context";
 import type { ProjectMaterialDef } from "../../game/define";
-import type { Style } from "../../game/types";
+import type { Registry, Style } from "../../game/types";
+import { pxPerMetreOf, scaleLengths } from "../../game/units";
+import { unitsRefusal } from "../../scene/issues";
+import type { MigrateEnv } from "../../scene/migrate";
 import { canonicalJson } from "../canonical";
-import { defineAssetKind, type DocLayout } from "./define";
+import { defineAssetKind, isPlainObject, type DocLayout } from "./define";
 
 export const MATERIAL_KIND = "material";
-export const MATERIAL_VERSION = 1;
+export const MATERIAL_VERSION = 2;
 export const MATERIAL_SCHEMA_ID = `urn:jams-engine:material:v${MATERIAL_VERSION}`;
 
 const color = (description: string) =>
@@ -23,21 +26,34 @@ const StyleSchema = z
     stroke: color("Outline color, #rgb or #rrggbb.").optional(),
     alpha: unit("Opacity of the whole shape, 0 to 1.").optional(),
     strokeAlpha: unit("Opacity of the outline, 0 to 1; the shape's alpha when omitted.").optional(),
-    strokeWidth: z.number().min(0).describe("Outline width, px.").optional(),
+    strokeWidth: z.number().min(0).describe("Outline width, px.").meta({ unit: "px" }).optional(),
   })
   .describe("A fallback look; wins over the entity type's style field by field.");
+
+const ImpulseSchema = z
+  .strictObject({
+    x: z.number().describe("x, m/s.").meta({ unit: "m/s" }),
+    y: z.number().describe("y, m/s; y is down, so a bounce is negative.").meta({ unit: "m/s" }),
+  })
+  .describe("Launch velocity on contact, m/s.")
+  .meta({ unit: "m/s" });
+
+/** v1 → v2: the launch velocity becomes m/s, divided by the game's px per metre. */
+function materialV1ToV2(raw: unknown, env: MigrateEnv): unknown {
+  if (!env.registry) return unitsRefusal("material");
+  const doc = raw as Record<string, unknown>;
+  const physics = doc.physics;
+  const out = { ...doc, v: 2 };
+  if (!isPlainObject(physics) || physics.impulse === undefined) return out;
+  const impulse = scaleLengths(physics.impulse, ImpulseSchema, pxPerMetreOf(env.registry));
+  return { ...out, physics: { ...physics, impulse } };
+}
 
 const PhysicsSchema = z
   .strictObject({
     friction: z.number().min(0).describe("Surface friction."),
     restitution: z.number().min(0).describe("Bounciness: 0 doesn't bounce, 1 keeps all its speed."),
-    impulse: z
-      .strictObject({
-        x: z.number().describe("x, px/s."),
-        y: z.number().describe("y, px/s; y is down, so a bounce is negative."),
-      })
-      .optional()
-      .describe("Launch velocity on contact, px/s."),
+    impulse: ImpulseSchema.optional(),
   })
   .describe(
     "How bodies of this material collide. Required when a physics body uses the material; without it the material is render data only.",
@@ -91,9 +107,15 @@ function styleOf(style: z.infer<typeof StyleSchema>): Style {
   return out;
 }
 
-/** A material file as the registry overlays it; null when it isn't a valid material. */
-export function projectMaterialOf(value: unknown): ProjectMaterialDef | null {
-  const parsed = materialSchema.safeParse(value);
+/**
+ * A material file as the registry overlays it; null when it isn't a valid
+ * material. A v1 file is lifted to v2 first when `registry` gives its game's
+ * px per metre.
+ */
+export function projectMaterialOf(value: unknown, registry?: Registry): ProjectMaterialDef | null {
+  const lifted =
+    registry && isPlainObject(value) && value.v === 1 ? materialV1ToV2(value, { registry }) : value;
+  const parsed = materialSchema.safeParse(lifted);
   if (!parsed.success) return null;
   const { description, physics, render } = parsed.data;
   return {
@@ -117,6 +139,7 @@ export const materialKind = defineAssetKind({
   defaultFolder: () => "materials",
   storage: "doc",
   version: MATERIAL_VERSION,
+  migrations: { 1: materialV1ToV2 },
   schemaId: MATERIAL_SCHEMA_ID,
   schema: () => materialSchema,
   // `render`'s fields merge one by one, so concurrent tint and blend edits both survive.

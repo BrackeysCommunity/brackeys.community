@@ -13,16 +13,17 @@ import { OP_NAMES, type OpBatch, type Ref, type SceneOp } from "./types";
 const SPOT_ANCHORS = ["center", "top", "bottom", "left", "right"] as const;
 
 const int = (description: string) => z.number().int().describe(description);
+const metres = (description: string) => z.number().describe(description).meta({ unit: "m" });
 
-const IntPtSchema = z
-  .tuple([int("x in world pixels."), int("y in world pixels; y is down.")])
-  .describe("A point [x, y] in integer world pixels. y is down, so a larger y is lower on screen.");
+const PtSchema = z
+  .tuple([metres("x in world metres."), metres("y in world metres; y is down.")])
+  .describe("A point [x, y] in world metres. y is down, so a larger y is lower on screen.")
+  .meta({ unit: "m" });
 
 const BoundsSchema = z
-  .tuple([int("minX"), int("minY"), int("maxX"), int("maxY")])
-  .describe(
-    "The scene's playable area as [minX, minY, maxX, maxY] in integer world pixels; y is down.",
-  );
+  .tuple([metres("minX, m."), metres("minY, m."), metres("maxX, m."), metres("maxY, m.")])
+  .describe("The scene's playable area as [minX, minY, maxX, maxY] in world metres; y is down.")
+  .meta({ unit: "m" });
 
 const RefSchema = z
   .string()
@@ -55,13 +56,13 @@ const ShapeInputSchema = z
       .describe(
         'A shape tuple: ["box", cx, cy, hw, hh, rotDeg?], ["circle", cx, cy, r], ["capsule", cx, cy, halfLen, r, rotDeg?], ' +
           '["poly", x1, y1, x2, y2, x3, y3, ...] (convex) or ["chain", x1, y1, ..., xn, yn] (static polyline). ' +
-          "Box and capsule sizes are half-extents. Integer pixels, integer degrees, y down.",
+          "Box and capsule sizes are half-extents. Metres, integer degrees, y down.",
       ),
     z
       .looseObject({ type: z.string().describe("box, circle, capsule, poly, chain or rect.") })
       .describe(
         'A shape object with named fields, or `{ type: "rect", left, top, right, bottom }` for a box given by its edges ' +
-          "(width and height must be even so the half-extents are integers).",
+          "(in metres; its half-extents are half its width and height).",
       ),
   ])
   .describe(
@@ -105,7 +106,7 @@ const UpdateOp = z
       .record(z.string(), z.unknown())
       .optional()
       .describe(
-        'Field path to new value, e.g. `{ "path.speed": 140 }` or `{ "shape": ["box", 0, 0, 40, 6] }`. ' +
+        'Field path to new value, e.g. `{ "path.speed": 1.4 }` or `{ "shape": ["box", 0, 0, 0.4, 0.06] }`. ' +
           "Paths are dot-separated, with numeric segments for array items (`path.pts.1`); missing objects on the way are created. " +
           "Behavior fields are `behaviors.<behavior>.<field>`, e.g. `behaviors.tactics/selectable.team`; set `behaviors.<behavior>` to `{}` to add a block. " +
           "On an instance, set `rot`, `flip`, `z` or `params.<name>` (null clears a param); its overrides change through override and revertOverride. " +
@@ -125,7 +126,7 @@ const MoveOp = z
   .strictObject({
     op: opName("move"),
     refs: z.array(RefSchema).min(1).describe("What to move."),
-    by: IntPtSchema.describe("The offset [dx, dy] in integer pixels; positive dy moves down."),
+    by: PtSchema.describe("The offset [dx, dy] in metres; positive dy moves down."),
   })
   .describe(
     "Translate entities. An entity with a `path` moves its path points (its shape stays local to them); " +
@@ -136,7 +137,7 @@ const PlaceOp = z
   .strictObject({
     op: opName("place"),
     ref: RefSchema,
-    at: IntPtSchema.describe("Where the chosen spot of the shape should end up."),
+    at: PtSchema.describe("Where the chosen spot of the shape should end up."),
     anchor: z
       .enum(SPOT_ANCHORS)
       .optional()
@@ -224,7 +225,7 @@ const SetGroupOp = z
     id: IdSchema.describe(
       "The group's id; a new id declares a group (at [0, 0] unless `at` says).",
     ),
-    at: IntPtSchema.optional().describe(
+    at: PtSchema.optional().describe(
       "The group's origin. Members store geometry relative to it, so changing it moves every member.",
     ),
     rot: z
@@ -255,7 +256,7 @@ const OverrideOp = z
     set: z
       .record(OverridePathSchema, z.unknown())
       .describe(
-        "Override key to value, in the prefab's own frame (before the instance's `at`): `{ \"door.path.speed\": 140 }`. Replaces any override of the same field or inside it.",
+        "Override key to value, in the prefab's own frame (before the instance's `at`): `{ \"door.path.speed\": 1.4 }`. Replaces any override of the same field or inside it.",
       ),
   })
   .describe(
@@ -312,8 +313,8 @@ const CreatePrefabOp = z
         "Entities, bulk entries and instances to move into the prefab; instances become nested instances.",
       ),
     id: IdSchema.describe("The new prefab's id; it becomes prefabs/<id>.json."),
-    at: IntPtSchema.optional().describe(
-      "The prefab's origin in world px; omitted, the top-left of the entries' box.",
+    at: PtSchema.optional().describe(
+      "The prefab's origin in world metres; omitted, the top-left of the entries' box.",
     ),
     instance: IdSchema.optional().describe(
       "The id of the instance that replaces them; omitted, `<id>-<n>`.",
@@ -336,12 +337,12 @@ const TransformOp = z
       .enum(["x", "y"])
       .optional()
       .describe("A mirror in world terms: `x` swaps left and right, `y` swaps up and down."),
-    about: IntPtSchema.optional().describe(
+    about: PtSchema.optional().describe(
       "The point to turn and flip about; omitted, each instance's or group's own `at`.",
     ),
   })
   .describe(
-    "Turn and flip instances and groups, composing onto what they already have. Turns and flips keep integer geometry exact.",
+    "Turn and flip instances and groups, composing onto what they already have. Turns and flips about a whole-pixel point keep whole-pixel geometry exact.",
   );
 
 const SetZOp = z
@@ -520,7 +521,7 @@ function buildOpSchemas(registry: Registry) {
           shapes: z
             .array(ShapeInputSchema)
             .min(1)
-            .describe("Shapes to append, in order. Absolute world pixels."),
+            .describe("Shapes to append, in order. Absolute world metres."),
           index: IndexSchema.optional(),
         })
         .describe("Add id-less shapes to a bulk array."),
@@ -529,7 +530,7 @@ function buildOpSchemas(registry: Registry) {
         .strictObject({
           op: opName("addBulk"),
           key: z.enum(pointKeys).describe("A bulk key whose entries are points."),
-          points: z.array(IntPtSchema).min(1).describe("Points to append, in order."),
+          points: z.array(PtSchema).min(1).describe("Points to append, in order."),
           index: IndexSchema.optional(),
         })
         .describe("Add id-less points to a bulk array."),
@@ -553,7 +554,7 @@ function buildOpSchemas(registry: Registry) {
         .record(z.string(), z.unknown())
         .optional()
         .describe(
-          `Settings path to new value, e.g. \`{ "gravity": [0, 900] }\`. Dot-separated like update's \`set\`. Settings fields: ${settingsKeys.map((k) => `\`${k}\``).join(", ")}.`,
+          `Settings path to new value, e.g. \`{ "gravity": [0, 9] }\`. Dot-separated like update's \`set\`. Settings fields: ${settingsKeys.map((k) => `\`${k}\``).join(", ")}.`,
         ),
       unset: PathsSchema.optional().describe("Settings paths to delete, back to their defaults."),
     })
@@ -566,7 +567,7 @@ function buildOpSchemas(registry: Registry) {
         .looseObject({
           prefab: IdSchema.describe("The prefab to place."),
           id: IdSchema.optional().describe("Optional; without one it is `<prefab>-<n>`."),
-          at: IntPtSchema.describe("Where the prefab's origin lands."),
+          at: PtSchema.describe("Where the prefab's origin lands."),
           rot: z
             .literal([1, 2, 3])
             .optional()
@@ -683,7 +684,7 @@ function buildOpSchemas(registry: Registry) {
       ops: z.array(op).describe("Applied in order, atomically: if one fails, none apply."),
     })
     .describe(
-      "A batch of scene edits. Coordinates are integer world pixels with y down, rotations are integer degrees, " +
+      "A batch of scene edits. Coordinates are world metres with y down, rotations are integer degrees, " +
         "and sizes of boxes and capsules are half-extents.",
     );
 

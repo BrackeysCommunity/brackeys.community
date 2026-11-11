@@ -418,4 +418,23 @@ describe("an entity whose colliders come from its system", () => {
       r.rt.destroy();
     });
   }
+
+  it("finds a Rapier collider resized in place, which keeps its shape object", () => {
+    const r = run(
+      "rapier",
+      [
+        { id: "puck", type: "puck", at: [400, 500] },
+        { id: "wall", type: "stone", shape: box(545, 500, 20, 100), tags: [] },
+      ],
+      { game: pucks },
+    );
+    r.rt.ctx.contacts.watch("puck", { type: "stone" });
+    expect(r.step(1)).toEqual([]);
+    const [handle] = r.rt.ctx.tags.handlesOf("puck");
+    r.rt.ctx.physics!.world.getCollider(handle!).setHalfExtents({ x: 130, y: 30 });
+    const started = r.step(1);
+    expect(started).toHaveLength(1);
+    expect(started[0]).toMatchObject({ type: CONTACT_START, entityId: "puck", other: "wall" });
+    r.rt.destroy();
+  });
 });

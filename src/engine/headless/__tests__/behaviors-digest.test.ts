@@ -46,7 +46,7 @@ const halo = defineBehavior({
     const system: BehaviorSystem = {
       attach(entityId) {
         live.add(entityId);
-        view.draw(id(entityId), box(0, 0, 4, 4), { fill: 0xffcc00 }, "overlay");
+        view.draw(id(entityId), box(0, 0, 0.04, 0.04), { fill: 0xffcc00 }, "overlay");
       },
       detach(entityId) {
         if (live.delete(entityId)) view.remove(id(entityId));
@@ -85,38 +85,38 @@ function scene(): ExpandedScene {
   const lamps: RuntimeEntity[] = Array.from({ length: LAMPS }, (_, i) => ({
     id: `lamp-${i}`,
     type: "lamp",
-    at: [i * 12, 900 - (i % 7) * 10],
+    at: [i * 0.12, 9 - (i % 7) * 0.1],
     behaviors: { [HALO]: {} },
   }));
   return {
     name: "halos",
-    bounds: [-1000, -1000, 2000, 2000],
+    bounds: [-10, -10, 20, 20],
     settings: {
-      gravity: [0, 1200],
+      gravity: [0, 12],
       physics: "rapier",
       grid: null,
       view: { projection: "orthogonal" },
     },
     entities: [
-      { id: "floor", type: "solid", shape: box(500, 1000, 1000, 20) },
+      { id: "floor", type: "solid", shape: box(5, 10, 10, 0.2) },
       {
         id: "avatar",
         type: "prop",
-        shape: box(0, 960, 10, 10),
+        shape: box(0, 9.6, 0.1, 0.1),
         density: 1,
         restitution: 0,
         behaviors: { [HALO]: {} },
       },
-      { id: "goal", type: "sensor", shape: box(600, 960, 20, 40), tags: ["goal"] },
+      { id: "goal", type: "sensor", shape: box(6, 9.6, 0.2, 0.4), tags: ["goal"] },
       ...lamps,
       ...Array.from(
         { length: DECOR },
         (_, i): RuntimeEntity => ({
           id: `decor-${i}`,
           type: "decor",
-          at: [i * 25, 940],
+          at: [i * 0.25, 9.4],
           ...(i % 3 === 0 ? { z: i - 20 } : {}),
-          behaviors: { sprite: { size: [16, 16] } },
+          behaviors: { sprite: { size: [0.16, 0.16] } },
         }),
       ),
     ],

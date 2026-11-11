@@ -60,11 +60,11 @@ const PROJECT_FILE: ProjectFile = {
 const SCENE = formatScene(createScene("yard", createRegistry(null))).text;
 const RUBBER = formatAssetDoc(materialKind, {
   kind: "material",
-  v: 1,
+  v: 2,
   description: "Bouncy rubber.",
   physics: { friction: 0.4, restitution: 0.9 },
 });
-const ICE = formatAssetDoc(materialKind, { kind: "material", v: 1, description: "Slick." });
+const ICE = formatAssetDoc(materialKind, { kind: "material", v: 2, description: "Slick." });
 const POST = `${JSON.stringify({
   kind: "prefab",
   v: 2,

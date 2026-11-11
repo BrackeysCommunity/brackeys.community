@@ -367,14 +367,14 @@ describe("recording", () => {
   it("reads the scene, ticks and scene hash", () => {
     expect(meta(recordingKind, fixture("run.recording.json"))).toEqual({
       ok: true,
-      meta: { scene: "kitchen-sink", ticks: 120, sceneHash: "3f1c9a2b" },
+      meta: { scene: "kitchen-sink", ticks: 120, sceneHash: "3f1c9a2b", v: 1, players: 1 },
     });
   });
 
-  it("refuses a file that isn't recording:v1, saying where", () => {
+  it("refuses a file that isn't recording:v1 or v2, saying where", () => {
     const json = fixtureJson("run.recording.json");
-    json.v = 2;
-    expect(failure(recordingKind, encode(json)).message).toMatch(/recording:v1 file \(\/v: /);
+    json.v = 3;
+    expect(failure(recordingKind, encode(json)).message).toMatch(/recording:v1 or v2 file \(\/v: /);
     failure(recordingKind, fixture("hero.json"));
   });
 
@@ -504,6 +504,8 @@ describe("through project ops", { timeout: 60_000 }, () => {
       scene: "kitchen-sink",
       ticks: 120,
       sceneHash: "3f1c9a2b",
+      v: 1,
+      players: 1,
     });
 
     const replaced = apply([

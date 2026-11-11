@@ -1,3 +1,4 @@
+import { pxPerMetreOf } from "../../game/units";
 import type { OpBatch, Pt } from "../../scene/types";
 import { rotationPivot, targetsOf } from "../commands";
 import { dragAngle } from "../gizmos/drag";
@@ -56,7 +57,12 @@ export const rotateTool = defineEditorTool({
           drag.deg =
             Math.round(snapAngle(dragAngle(drag.about, drag.from, e.world), ctx.snap(), e.shift)) +
             0;
-          drag.batch = rotateTargetsBatch(drag.targets, drag.about, drag.deg);
+          drag.batch = rotateTargetsBatch(
+            drag.targets,
+            drag.about,
+            drag.deg,
+            pxPerMetreOf(ctx.registry),
+          );
           ctx.preview(drag.batch);
           ctx.invalidate();
           return true;

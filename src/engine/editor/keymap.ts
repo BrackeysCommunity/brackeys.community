@@ -174,13 +174,13 @@ export const ENGINE_KEYS: readonly EngineKeyBinding[] = [
       key: arrowKey(d),
       scope: "edit",
       command: `nudge-${d}`,
-      description: `Nudge ${d} one grid step`,
+      description: `Nudge ${d} one pixel`,
     },
     {
       key: `Shift+${arrowKey(d)}`,
       scope: "edit",
       command: `nudge-${d}-coarse`,
-      description: `Nudge ${d} four grid steps`,
+      description: `Nudge ${d} ten pixels`,
     },
     {
       key: `Alt+${arrowKey(d)}`,

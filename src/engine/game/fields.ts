@@ -33,19 +33,19 @@ export const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}$/;
 /** An id, or `<instance>/<child>` at any depth: what a reference field may name. */
 export const CHILD_REF_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}(?:\/[a-z0-9][a-z0-9-]{0,47}){0,8}$/;
 
-const coord = (description: string) => z.number().describe(description).meta({ unit: "px" });
+const coord = (description: string) => z.number().describe(description).meta({ unit: "m" });
 
 export const PtSchema = z
-  .tuple([coord("x, px."), coord("y, px; y is down.")])
-  .describe("A point [x, y] in integer world pixels; y is down.")
-  .meta({ id: "Pt", unit: "px" });
+  .tuple([coord("x, m."), coord("y, m; y is down.")])
+  .describe("A point [x, y] in world metres; y is down.")
+  .meta({ id: "Pt", unit: "m" });
 
 export const PathSchema = z
   .strictObject({
     pts: z
       .array(PtSchema)
       .describe(
-        "Waypoints in absolute world px. The entity's shape is centred on each point in turn. At least 2, no repeats.",
+        "Waypoints in absolute world metres. The entity's shape is centred on each point in turn. At least 2, no repeats.",
       )
       .meta({ title: "Waypoints" }),
     mode: z
@@ -56,8 +56,8 @@ export const PathSchema = z
       .meta({ title: "Mode" }),
     speed: z
       .number()
-      .describe("Travel speed along the path, px per second; must be > 0.")
-      .meta({ title: "Speed", unit: "px/s" }),
+      .describe("Travel speed along the path, m/s; must be > 0.")
+      .meta({ title: "Speed", unit: "m/s" }),
     pauseMs: z
       .number()
       .min(0)
@@ -68,9 +68,9 @@ export const PathSchema = z
   .describe("A waypoint path with linear segments.")
   .meta({ id: "Path", title: "Path", group: "motion" });
 
-/** A point field, absolute world px. */
+/** A point field, absolute world metres. */
 export function pointField(description: string) {
-  return PtSchema.meta({ title: "Position", unit: "px", description });
+  return PtSchema.meta({ title: "Position", unit: "m", description });
 }
 
 /** A meta key of `schema`, looking through its optional, nullable, default and other wrappers. */
@@ -86,9 +86,7 @@ export function fieldMeta(schema: z.core.$ZodType, key: string): unknown {
 /** Meta keys the field builders set for the engine's own use, which aren't JSON Schema keywords. */
 export const FIELD_KIND_META_KEYS = ["kind", "axis"] as const;
 
-const VectorSchema = z
-  .tuple([z.number().describe("dx, px."), z.number().describe("dy, px; y is down.")])
-  .meta({ unit: "px" });
+const VectorSchema = z.tuple([coord("dx, m."), coord("dy, m; y is down.")]).meta({ unit: "m" });
 
 /** A direction or offset [dx, dy]: turned and mirrored with its entity, never translated. */
 export function vectorField(description: string): z.ZodType<Pt> {
@@ -236,7 +234,7 @@ export function shapeField(
 const PolygonSchema = shapeTupleSchemaOf(["poly"], "Polygon", "a polygon field's");
 z.globalRegistry.add(PolygonSchema, {
   ...z.globalRegistry.get(PolygonSchema),
-  description: `A simple polygon: ${SHAPE_SIGNATURES.poly}, concave allowed. Integer pixels, y is down.`,
+  description: `A simple polygon: ${SHAPE_SIGNATURES.poly}, concave allowed. Metres, y is down.`,
   oneOf: [
     {
       title: "poly",
@@ -244,7 +242,7 @@ z.globalRegistry.add(PolygonSchema, {
         "Simple polygon as flat x, y pairs (at least 3 points), convex or concave; its edges may not cross. Points are absolute.",
       type: "array",
       prefixItems: [{ const: "poly" }],
-      items: { type: "number", unit: "px" },
+      items: { type: "number", unit: "m" },
       minItems: 7,
     },
   ],
@@ -295,7 +293,7 @@ const AttachSchema = z.string().regex(CHILD_REF_PATTERN);
 /**
  * `attach`: the id of a path follower whose body this entity's collider
  * rides (an instance's child by its resolved ref, `gate-2/lift`), at its offset from the follower's first path point. Its shape
- * stays in world px, as placed with the follower at that point. A type
+ * stays in world metres, as placed with the follower at that point. A type
  * with this field gets the reference to `follower` without declaring it.
  */
 export function attachField(description: string) {

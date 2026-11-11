@@ -1,0 +1,24 @@
+{
+  "v": 4,
+  "name": "kitchen-sink",
+  "bounds": [0, 0, 40, 20],
+  "settings": { "gravity": [0, 12], "grid": { "cell": [0.32, 0.32], "kind": "square" }, "physics": "rapier", "view": { "projection": "orthogonal" } },
+  "assets": ["boom", "crates"],
+  "groups": {
+    "left-wing": { "name": "Left wing", "at": [4, 0], "rot": 2, "flip": true },
+    "shelf": { "at": [14, 7], "rot": 1 }
+  },
+  "instances": [
+    { "id": "gate-1", "prefab": "gate", "at": [8, 9] },
+    { "id": "gate-2", "prefab": "gate", "z": 5, "at": [16, 9], "rot": 1, "flip": true, "params": { "speed": 1.2 } },
+    { "id": "post-1", "prefab": "post", "group": "left-wing", "z": -3, "at": [1, 9], "rot": 3, "overrides": { "bar.oneWay": true } }
+  ],
+  "solid": [
+    ["box", 20, 19.8, 20, 0.2]
+  ],
+  "entities": [
+    { "id": "lever", "type": "sensor", "z": 2, "shape": ["box", 7, 9.5, 0.1, 0.2], "tags": ["switch"] },
+    { "id": "crate", "type": "prop", "layer": "gameplay", "shape": ["box", 12, 9.4, 0.2, 0.2], "density": 2, "restitution": 0.3 },
+    { "id": "shelf-mark", "type": "marker", "layer": "decor", "group": "shelf", "z": -7, "at": [0.4, -0.2], "tags": ["shelf"] }
+  ]
+}

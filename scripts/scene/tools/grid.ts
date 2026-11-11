@@ -43,11 +43,12 @@ const CELL_ARG = /^(-?\d+),(-?\d+)$/;
 
 const fmtCell = ([c, r]: Cell) => `[${c}, ${r}]`;
 
+/** `square 0.32×0.32 m`: the grid's cell (and a hex's side) in metres. */
 function describeGrid(s: GridGeometry["settings"]): string {
   const size = `${s.cell[0]}×${s.cell[1]}`;
   return s.kind === "square"
-    ? `square ${size}`
-    : `hex ${size} side ${s.side}, stagger ${s.stagger} ${s.index}`;
+    ? `square ${size} m`
+    : `hex ${size} m side ${s.side} m, stagger ${s.stagger} ${s.index}`;
 }
 
 /**

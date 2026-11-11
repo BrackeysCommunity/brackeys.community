@@ -40,7 +40,7 @@ export interface GridGeometry {
   heuristic(a: Cell, b: Cell): number;
   /** Steps between cells (Chebyshev with diagonals, else Manhattan; hex distance). */
   distance(a: Cell, b: Cell, diagonals?: boolean): number;
-  /** World px, as Tiled places cells (origin, cell size, hex side and stagger). */
+  /** World metres, as Tiled places cells (origin, cell size, hex side and stagger). */
   center(c: Cell): Pt;
   /** The cell whose centre is nearest, as Tiled picks it; a point on a square's edge goes to the higher cell. */
   cellAt(p: Pt): Cell;
@@ -125,20 +125,25 @@ function insidePolygon([px, py]: Pt, pts: readonly Pt[]): boolean {
 }
 
 /** Whether `p` lies in `s`, edges included; a chain has no inside, only its own segments. */
+/** Metres a cell centre may sit past a shape's edge and still count as on it: float noise in metric sums. */
+const EDGE_SLACK = 1e-9;
+
 function containsCentre(s: ShapeObj, p: Pt): boolean {
   switch (s.type) {
     case "box": {
       const [lx, ly] = turnBy([p[0] - s.cx, p[1] - s.cy], (0 - s.rotDeg) * DEG);
-      return abs(lx) <= s.hw && abs(ly) <= s.hh;
+      return abs(lx) <= s.hw + EDGE_SLACK && abs(ly) <= s.hh + EDGE_SLACK;
     }
     case "circle": {
       const dx = p[0] - s.cx;
       const dy = p[1] - s.cy;
-      return dx * dx + dy * dy <= s.r * s.r;
+      const r = s.r + EDGE_SLACK;
+      return dx * dx + dy * dy <= r * r;
     }
     case "capsule": {
       const [dx, dy] = turnBy([0, s.halfLen], s.rotDeg * DEG);
-      return segmentDist2(p, [s.cx - dx, s.cy - dy], [s.cx + dx, s.cy + dy]) <= s.r * s.r;
+      const r = s.r + EDGE_SLACK;
+      return segmentDist2(p, [s.cx - dx, s.cy - dy], [s.cx + dx, s.cy + dy]) <= r * r;
     }
     case "poly":
       return insidePolygon(p, s.pts);

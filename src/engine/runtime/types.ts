@@ -8,6 +8,7 @@ import type {
   Registry,
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
+import type { TickInput } from "../input/stream";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import type { EntityTypeName, ExpandedScene, PrefabLibrary, RuntimeEntity } from "../scene/types";
@@ -41,7 +42,9 @@ export type LoadReport =
  * engine raises `sensor:enter` and `sensor:exit` (`entityId` is the sensor,
  * `other` what entered or left it, `at` the other's position), the
  * `entity:*` lifecycle events (`data: { type }`) and `contact:start` and
- * `contact:end`; a game raises its own types through `EngineContext.emit`.
+ * `contact:end`, and `player:joined` and `player:left` (`player` the seat,
+ * `data: { device }`, `at` the origin, since a seat has no position); a
+ * game raises its own types through `EngineContext.emit`.
  */
 export type StepEvent = {
   tick: number;
@@ -49,6 +52,8 @@ export type StepEvent = {
   entityId?: string;
   other?: string;
   at: Vec2;
+  /** The seat the event is about. */
+  player?: number;
   /** Plain JSON a game or a timer attaches. */
   data?: unknown;
 };
@@ -65,6 +70,10 @@ export const ENTITY_DISABLED = "entity:disabled";
 /** A watched pair started touching: `entityId` the watched side, `other` the other, `at` the contact point. */
 export const CONTACT_START = "contact:start";
 export const CONTACT_END = "contact:end";
+/** A device took a seat. */
+export const PLAYER_JOINED = "player:joined";
+/** A seat's device left it (a pad disconnected, or the host freed it). */
+export const PLAYER_LEFT = "player:left";
 
 export type StepResult = {
   /** The tick just simulated, counting from 0 after each load. */
@@ -112,8 +121,16 @@ export type SceneRuntime = {
   /** Despawns by id; unknown ids are no-ops. */
   remove: (ids: string[]) => void;
   get: (id: string) => RuntimeEntity | undefined;
-  /** One tick; `commands` reach the game's `beforeStep`. */
-  step: (dtMs: number, actions: InputAction[], commands?: readonly GameCommand[]) => StepResult;
+  /**
+   * One tick of `input`: `ctx.input` is updated from it before the systems'
+   * `beforeStep`, and its actions and commands reach the game's
+   * `beforeStep`. The array form (with `commands` beside it) is 0.x's.
+   */
+  step: (
+    dtMs: number,
+    input: TickInput | InputAction[],
+    commands?: readonly GameCommand[],
+  ) => StepResult;
   /** The game's `busy()`: false without a game or the hook. */
   busy: () => boolean;
   /** The game's snapshot now; `null` without a game. */

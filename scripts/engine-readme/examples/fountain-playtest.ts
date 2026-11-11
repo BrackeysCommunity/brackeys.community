@@ -58,7 +58,7 @@ export function pourTwice() {
     sameSeedSameRun: again.recording.end === first.recording.end,
     otherSeedJitter: other.final?.jitter,
     // A run given a seed records it, so the replay draws the same numbers.
-    recordedSeed: first.recording.start.seed,
+    recordedSeed: first.recording.seed,
     replayed: !replay.blocked && replay.matches,
   };
 }

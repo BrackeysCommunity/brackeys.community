@@ -35,7 +35,7 @@ const freshId = (def: SceneDefinition, stem: string) => {
 const MUTATIONS: Record<string, Mutation> = {
   halfPixel(def, r) {
     const row = r.pick(solids(def));
-    row[1 + r.int(2)] = (row[1 + r.int(2)] as number) + 0.5;
+    row[1 + r.int(2)] = (row[1 + r.int(2)] as number) + 0.005;
   },
   offEdge(def, r) {
     const [, , maxX, maxY] = def.bounds;
@@ -150,7 +150,7 @@ describe("validator fixes", () => {
       }),
     );
     const base: SceneDefinition = {
-      v: 3,
+      v: 4,
       game: "test-game",
       name: "behaviors",
       bounds: [0, 0, 1000, 1000],

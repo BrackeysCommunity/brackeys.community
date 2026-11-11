@@ -2,22 +2,27 @@ import { z } from "zod";
 
 import { ID_PATTERN } from "../game/fields";
 import { ENGINE_CHECK_KINDS, type Registry } from "../game/types";
-import type { InputScript, UntilClause } from "../headless/playtest-types";
+import { pxPerMetreOf, scaleLengths } from "../game/units";
+import type { InputScript, InputScriptV2, UntilClause } from "../headless/playtest-types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { closest } from "./did-you-mean";
 import {
   DEFAULT_SCRIPT_MAX_TICKS,
+  INPUT_SCRIPT_VERSION,
   inputScriptSchemaFor,
   inputScriptSchemasFor,
   MAX_SCRIPT_TICKS,
+  migrateInputScript,
+  worldPointSchema,
 } from "./input-script";
-import { jsonPointer, lineAt } from "./issues";
+import { jsonPointer, lineAt, makeIssue, unitsRefusal } from "./issues";
 import { schemaIdFor, toJsonSchema } from "./json-schema";
+import { migrate, type MigrateEnv, type Migration } from "./migrate";
 import { pointerLines } from "./parse";
 import type { Pt, Ref } from "./types";
 
 /** The `.checks.json` format version, the `v` every checks file carries. */
-export const CHECKS_FORMAT_VERSION = 1;
+export const CHECKS_FORMAT_VERSION = 3;
 /** A scene's checks sit beside it as `<scene>.checks.json`, outside the scene's hash. */
 export const CHECKS_SUFFIX = ".checks.json";
 
@@ -38,8 +43,8 @@ export type ValidCheck = CheckHead & {
 /** An input script's playtest ends with `result` (and `expect` holds then); a blocked run fails. */
 export type ReachesCheck = CheckHead & {
   kind: "reaches";
-  /** Inline, or a path relative to the checks file. */
-  script: InputScript | string;
+  /** Inline, or a path relative to the checks file; a parsed file's inline script is the current format. */
+  script: InputScriptV2 | InputScript | string;
   result: string;
   /** Play from here, over the script's own `at`. */
   at?: Pt;
@@ -75,7 +80,11 @@ export type GameCheck = CheckHead & { [field: string]: unknown };
 
 export type SceneCheck = ValidCheck | ReachesCheck | TouchesCheck | ConnectedCheck | GameCheck;
 
-export type ChecksFile = { $schema?: string; v: 1; checks: SceneCheck[] };
+export type ChecksFile = {
+  $schema?: string;
+  v: typeof CHECKS_FORMAT_VERSION;
+  checks: SceneCheck[];
+};
 
 /** A problem in a checks file: a JSON Pointer into it, its line, and one sentence. */
 export type ChecksIssue = {
@@ -95,6 +104,79 @@ export type ParseChecksResult =
 export function checksPathOf(sceneFile: string): string {
   return sceneFile.replace(/\.json$/, "") + CHECKS_SUFFIX;
 }
+
+/** A `reaches` check's `at`: world metres. */
+const ReachesAtSchema = worldPointSchema();
+
+/**
+ * v1 → v2: lengths become metres. A `reaches` check's `at` and every
+ * length field of a game check's `arg` (by its `meta.unit`) are divided by
+ * the game's px per metre; nothing else changes. Inline scripts keep their
+ * own format here; v2 → v3 lifts them.
+ */
+function checksV1ToV2(raw: unknown, env: MigrateEnv): unknown {
+  const registry = env.registry;
+  if (!registry) return unitsRefusal("checks");
+  const ppm = pxPerMetreOf(registry);
+  const doc = raw as Record<string, unknown>;
+  const games = registry.game?.checks ?? {};
+  const checks = Array.isArray(doc.checks)
+    ? doc.checks.map((check) => {
+        if (!isRecord(check)) return check;
+        if (check.kind === "reaches") {
+          const out = { ...check };
+          if (check.at !== undefined) out.at = scaleLengths(check.at, ReachesAtSchema, ppm);
+          if (check.expect !== undefined)
+            out.expect = scaleLengths(check.expect, inputScriptSchemasFor(registry).until, ppm);
+          return out;
+        }
+        const game = typeof check.kind === "string" ? games[check.kind] : undefined;
+        return game ? scaleLengths(check, game.arg, ppm) : check;
+      })
+    : doc.checks;
+  return { ...doc, v: 2, checks };
+}
+
+/**
+ * v2 → v3: every inline script is lifted to the current input-script
+ * format through the script migrations (its lengths in metres); scripts
+ * given by path are files of their own and migrate when read.
+ */
+function checksV2ToV3(raw: unknown, env: MigrateEnv): unknown {
+  const registry = env.registry;
+  if (!registry) return unitsRefusal("checks");
+  const doc = raw as Record<string, unknown>;
+  if (!Array.isArray(doc.checks)) return { ...doc, v: 3 };
+  const checks: unknown[] = [];
+  for (const [i, check] of doc.checks.entries()) {
+    const script = isRecord(check) ? check.script : undefined;
+    if (!isRecord(script) || !(typeof script.v === "number" && script.v < INPUT_SCRIPT_VERSION)) {
+      checks.push(check);
+      continue;
+    }
+    const lifted = migrateInputScript(script, registry);
+    if (!lifted.ok) {
+      const { path, message, expected, got, hint } = lifted.issue;
+      return {
+        refused: makeIssue("migration-unresolved", {
+          message: `check ${JSON.stringify((check as Record<string, unknown>).id)}'s script: ${message}`,
+          path: `${jsonPointer(["checks", i, "script"])}${path}`,
+          ...(expected !== undefined && { expected }),
+          ...(got !== undefined && { got }),
+          ...(hint !== undefined && { hint }),
+        }),
+      };
+    }
+    checks.push({ ...(check as Record<string, unknown>), script: lifted.script });
+  }
+  return { ...doc, v: 3, checks };
+}
+
+/** `CHECKS_MIGRATIONS[n]` lifts a v`n` checks file to v`n + 1`; every reader goes through them. */
+export const CHECKS_MIGRATIONS: Readonly<Record<number, Migration>> = Object.freeze({
+  1: checksV1ToV2,
+  2: checksV2ToV3,
+});
 
 const head = (kind: z.ZodType) => ({
   id: z
@@ -139,13 +221,9 @@ function buildChecksSchemas(registry: Registry, strictScript: boolean) {
         result: z
           .enum(results)
           .describe(`The run result the playtest must end with: ${results.join(", ")}.`),
-        at: z
-          .tuple([
-            z.number().describe("x in world pixels."),
-            z.number().describe("y in world pixels; y is down."),
-          ])
-          .optional()
-          .describe("Play from here, over the script's own `at`."),
+        at: ReachesAtSchema.optional().describe(
+          "Play from here, in world metres, over the script's own `at`.",
+        ),
         expect: inputScriptSchemasFor(registry)
           .until.optional()
           .describe(
@@ -271,7 +349,7 @@ export function checksSchemaFor(registry: Registry): z.ZodType<ChecksFile> {
   return schemasFor(registry, true).file as unknown as z.ZodType<ChecksFile>;
 }
 
-/** `urn:jams-engine:checks:v1`, or `urn:jams-engine:checks:<game>:v1`. */
+/** `urn:jams-engine:checks:v3`, or `urn:jams-engine:checks:<game>:v3`. */
 export function checksSchemaId(registry: Registry): string {
   return schemaIdFor(registry, "checks", CHECKS_FORMAT_VERSION);
 }
@@ -331,6 +409,17 @@ export function parseChecks(text: string, registry: Registry): ParseChecksResult
   const { kinds, headOnly } = schemasFor(registry, false);
   const issues: ChecksIssue[] = [];
   const checks: SceneCheck[] = [];
+  if (isRecord(raw) && typeof raw.v === "number" && raw.v < CHECKS_FORMAT_VERSION) {
+    const lifted = migrate(raw, CHECKS_MIGRATIONS, CHECKS_FORMAT_VERSION, { registry });
+    if (!lifted.ok) {
+      const { path = "", message, expected, got, hint } = lifted.issue;
+      const issue: ChecksIssue = { path, message, expected, got, hint };
+      for (const key of ["expected", "got", "hint"] as const)
+        if (issue[key] === undefined) delete issue[key];
+      return { ok: false, issues: [issue] };
+    }
+    raw = lifted.raw;
+  }
   const parsedHead = headOnly.safeParse(raw);
   if (!parsedHead.success) issues.push(...zodIssues(parsedHead.error, []));
   else {

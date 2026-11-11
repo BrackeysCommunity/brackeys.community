@@ -121,7 +121,7 @@ async function setup(project: ProjectSession | null = null) {
     prefabs: staticPrefabSource(prefabLibrary([LAMP])),
   });
   rigs.push(session);
-  // The camera centred on the window at scale 1, so screen px are world px.
+  // The camera centred on the window at one screen px per metre.
   const store = new Store({
     camera: { position: { x: window.innerWidth / 2, y: window.innerHeight / 2 }, scale: 1 },
   } as unknown as GameStoreState);
@@ -219,9 +219,10 @@ describe("a prefab dragged over the canvas", () => {
     const { canvas } = await setup(fakeProject());
     dragOver(canvas, 1000, 300);
     const ghost = layer().querySelector('[data-placement="ghost"]');
-    // The instance lands snapped to the grid at 1024, 320; its bulb is the 40x24 picture there.
+    // The instance lands snapped to the 0.5 m grid at 1000, 300; its bulb is the 40 × 24 px picture
+    // there, 0.4 × 0.24 m at 100 px per metre.
     expect(ghost?.querySelector(".je-ov-stroke")?.getAttribute("d")).toBe(
-      shapePath({ type: "box", cx: 1024, cy: 320, hw: 20, hh: 12, rotDeg: 0 }),
+      shapePath({ type: "box", cx: 1000, cy: 300, hw: 0.2, hh: 0.12, rotDeg: 0 }),
     );
     expect(layer().querySelector('[data-point="ghost"]')).toBeNull();
   });
@@ -231,7 +232,7 @@ describe("a prefab dragged over the canvas", () => {
     dragOver(canvas, 1000, 300);
     const ghost = layer().querySelector('[data-placement="ghost"]');
     expect(ghost?.querySelector(".je-ov-stroke")?.getAttribute("d")).toBe(
-      shapePath({ type: "box", cx: 1024, cy: 320, hw: 16, hh: 16, rotDeg: 0 }),
+      shapePath({ type: "box", cx: 1000, cy: 300, hw: 0.16, hh: 0.16, rotDeg: 0 }),
     );
   });
 });

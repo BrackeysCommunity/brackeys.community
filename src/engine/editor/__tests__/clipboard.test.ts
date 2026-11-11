@@ -21,16 +21,16 @@ const scene = (over: Partial<SceneDefinition> = {}): SceneDefinition => ({
   v: 2,
   game: "fake",
   name: "c",
-  bounds: [0, 0, 2000, 2000],
+  bounds: [0, 0, 20, 20],
   ...over,
 });
 
 const def = scene({
-  solid: [["box", 100, 100, 50, 10]],
-  flag: [[10, 10]],
+  solid: [["box", 1, 1, 0.5, 0.1]],
+  flag: [[0.1, 0.1]],
   entities: [
-    { id: "door", type: "door", shape: ["box", 500, 500, 10, 40], opens: "btn", speed: 60 },
-    { id: "btn", type: "button", shape: ["box", 400, 540, 10, 4] },
+    { id: "door", type: "door", shape: ["box", 5, 5, 0.1, 0.4], opens: "btn", speed: 0.6 },
+    { id: "btn", type: "button", shape: ["box", 4, 5.4, 0.1, 0.04] },
   ],
 });
 
@@ -56,7 +56,7 @@ describe("copySelection", () => {
 describe("pasteFragment", () => {
   it("round-trips a selection into another scene in one batch", () => {
     const text = copySelection(def, ["door", "btn", "~solid:0", "~flag:0"], fake);
-    const target = scene({ solid: [["box", 0, 0, 5, 5]] });
+    const target = scene({ solid: [["box", 0, 0, 0.05, 0.05]] });
     const r = pasteFragment(text, { def: target, registry: fake });
     if (!r.ok) throw new Error(JSON.stringify(r.issues));
     expect(r.issues).toEqual([]);
@@ -65,10 +65,10 @@ describe("pasteFragment", () => {
     const after = apply(target, r.batch).def;
     expect(after.entities).toEqual(def.entities);
     expect(after.solid).toEqual([
-      ["box", 0, 0, 5, 5],
-      ["box", 100, 100, 50, 10],
+      ["box", 0, 0, 0.05, 0.05],
+      ["box", 1, 1, 0.5, 0.1],
     ]);
-    expect(after.flag).toEqual([[10, 10]]);
+    expect(after.flag).toEqual([[0.1, 0.1]]);
   });
 
   it("centres the fragment under the cursor, moving by whole grid steps", () => {
@@ -76,22 +76,23 @@ describe("pasteFragment", () => {
     const r = pasteFragment(text, {
       def: scene(),
       registry: fake,
-      at: [1000, 1000],
-      snap: DEFAULT_SNAP,
+      at: [10, 10],
+      snap: { ...DEFAULT_SNAP, step: 0.64 },
     });
     if (!r.ok) throw new Error();
-    // The button's box centre (400, 540) moves by (600, 460), rounded to 64s: (576, 448).
+    // The button's box centre (4, 5.4) moves by (6, 4.6), rounded to 0.64s: (5.76, 4.48).
     expect(r.batch.ops).toEqual([
-      { op: "add", entity: { id: "btn", type: "button", shape: ["box", 976, 988, 10, 4] } },
+      { op: "add", entity: { id: "btn", type: "button", shape: ["box", 9.76, 9.88, 0.1, 0.04] } },
     ]);
-    const unsnapped = pasteFragment(text, { def: scene(), registry: fake, at: [1000.4, 1000] });
+    // Unsnapped, the move still lands on whole world px.
+    const unsnapped = pasteFragment(text, { def: scene(), registry: fake, at: [10.004, 10] });
     expect(unsnapped.ok && unsnapped.batch.ops[0]).toMatchObject({
-      entity: { shape: ["box", 1000, 1000, 10, 4] },
+      entity: { shape: ["box", 10, 10, 0.1, 0.04] },
     });
   });
 
   it("renames clashing ids and remaps references inside the fragment", () => {
-    const r = duplicateSelection(def, ["door", "btn"], fake, 64);
+    const r = duplicateSelection(def, ["door", "btn"], fake, 0.64);
     if (!r.ok) throw new Error();
     expect(r.batch.label).toBe("Duplicate");
     expect(r.select).toEqual(["door-2", "btn-2"]);
@@ -101,12 +102,12 @@ describe("pasteFragment", () => {
         entity: {
           id: "door-2",
           type: "door",
-          shape: ["box", 564, 564, 10, 40],
+          shape: ["box", 5.64, 5.64, 0.1, 0.4],
           opens: "btn-2",
-          speed: 60,
+          speed: 0.6,
         },
       },
-      { op: "add", entity: { id: "btn-2", type: "button", shape: ["box", 464, 604, 10, 4] } },
+      { op: "add", entity: { id: "btn-2", type: "button", shape: ["box", 4.64, 6.04, 0.1, 0.04] } },
     ]);
     expect(apply(def, r.batch).def.entities!.map((e) => e.id)).toEqual([
       "door",
@@ -117,7 +118,7 @@ describe("pasteFragment", () => {
   });
 
   it("keeps a reference out of the fragment when its target exists here", () => {
-    const r = duplicateSelection(def, ["door"], fake, 16);
+    const r = duplicateSelection(def, ["door"], fake, 0.16);
     expect(r.ok && r.issues).toEqual([]);
     expect(r.ok && r.batch.ops[0]).toMatchObject({ entity: { id: "door-2", opens: "btn" } });
   });
@@ -128,7 +129,7 @@ describe("pasteFragment", () => {
     if (!r.ok) throw new Error();
     expect(r.batch.ops[0]).toEqual({
       op: "add",
-      entity: { id: "door", type: "door", shape: ["box", 500, 500, 10, 40], speed: 60 },
+      entity: { id: "door", type: "door", shape: ["box", 5, 5, 0.1, 0.4], speed: 0.6 },
     });
     expect(r.issues).toMatchObject([
       { code: "dangling-ref", severity: "warn", path: "/ops/0/entity/opens", entityIds: ["door"] },

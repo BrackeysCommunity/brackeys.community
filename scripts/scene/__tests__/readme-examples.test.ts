@@ -8,6 +8,7 @@ import { formatPrefab, formatScene, type SceneDefinition } from "@jams/engine/sc
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "../../../src/games/platformer";
+import { duelGame, field } from "../../engine-readme/examples/duel-game";
 import { basin, fountainGame, twinSpout } from "../../engine-readme/examples/fountain-game";
 import { meadow, orchardGame } from "../../engine-readme/examples/orchard-game";
 import { walkerGame } from "../../engine-readme/examples/walker-game";
@@ -89,10 +90,16 @@ function isPure(argv: string[]): boolean {
 
 const placeholder = (arg: string) => arg.startsWith("<") || arg.includes("...");
 
-/** A recording a doc example writes and the next one reads, kept in the scratch root, not the repo. */
+/**
+ * A recording a doc example writes and the next one reads, kept in the
+ * scratch root, not the repo; one the repo ships under `scripts/` is read
+ * where it is.
+ */
 const SCRATCH_FLAGS = new Set(["--record", "--run"]);
 const inRoot = (argv: readonly string[]) =>
-  argv.map((arg, i) => (i > 0 && SCRATCH_FLAGS.has(argv[i - 1]!) ? join(root, arg) : arg));
+  argv.map((arg, i) =>
+    i > 0 && SCRATCH_FLAGS.has(argv[i - 1]!) && !arg.startsWith("scripts/") ? join(root, arg) : arg,
+  );
 
 /**
  * An op batch in a document: a `json` fence whose info string names what it
@@ -197,6 +204,12 @@ const WORLD_CODES = [
 /** The codes entity lifecycle added: a running game throws them, and a doc playtest reproduces each. */
 const LIFECYCLE_CODES = ["spawn-id-invalid", "prefab-not-spawnable"];
 /** The step events entity lifecycle added, each in the README's table. */
+/** The codes input v2 added; the first two are reproduced by a doc example, and all three are in the issue table. */
+const INPUT_CODES = ["binding-unknown", "player-unknown"];
+const INPUT_LISTED = [...INPUT_CODES, "recording-other-platform"];
+/** The units and format v4 codes: `out-of-bounds` reproduced by a px-sized op, `migration-unresolved` listed. */
+const UNITS_CODES = ["out-of-bounds"];
+const UNITS_LISTED = ["migration-unresolved"];
 const LIFECYCLE_EVENTS = [
   "entity:spawned",
   "entity:destroyed",
@@ -206,17 +219,17 @@ const LIFECYCLE_EVENTS = [
   "contact:end",
 ];
 
-/** The card game's scene: a square grid, a painted floor, a lamp and a plain marker. */
+/** The card game's scene: a square 0.32 m grid, a painted floor, a lamp and a plain marker. */
 const CARD_TABLE: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: cardGame.id,
   name: "card-table",
-  bounds: [0, 0, 1024, 768],
-  settings: { grid: { kind: "square", cell: [32, 32] } },
+  bounds: [0, 0, 10.24, 7.68],
+  settings: { grid: { kind: "square", cell: [0.32, 0.32] } },
   entities: [
     { id: "floor", type: "tiles", at: [0, 0], cells: { "0,0": ["1*16", "1*16", "1*4,2*8,1*4"] } },
-    { id: "lamp", type: "lamp", at: [200, 100] },
-    { id: "spot", type: "marker", at: [400, 100] },
+    { id: "lamp", type: "lamp", at: [2, 1] },
+    { id: "spot", type: "marker", at: [4, 1] },
   ],
 };
 
@@ -232,6 +245,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
     walker: join(base, walkerGame.id),
     orchard: join(base, orchardGame.id),
     fountain: join(base, fountainGame.id),
+    duel: join(base, duelGame.id),
   };
   await cp(repoFile("src/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
@@ -244,6 +258,12 @@ async function projectsIn(base: string): Promise<ToolContext> {
   await mkdir(dirs.fountain);
   await writeFile(join(dirs.fountain, "basin.json"), formatScene(basin).text);
   await writeFile(join(dirs.fountain, "twin-spout.json"), formatPrefab(twinSpout));
+  await mkdir(dirs.duel);
+  await writeFile(join(dirs.duel, "field.json"), formatScene(field).text);
+  await copyFile(
+    repoFile("scripts/scene/examples/duel.input-map.json"),
+    join(dirs.duel, "input-map.json"),
+  );
   await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
@@ -256,6 +276,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
       await tempProject(dirs.walker, { game: walkerGame }),
       await tempProject(dirs.orchard, { game: orchardGame }),
       await tempProject(dirs.fountain, { game: fountainGame }),
+      await tempProject(dirs.duel, { game: duelGame }),
     ],
     loadRapier: loadCompatRapier,
   };
@@ -428,9 +449,12 @@ describe("op batches in the docs", () => {
           .filter((f): f is string => !!f?.startsWith("scripts/scene/examples/"))
           .map((f) => readFile(repoFile(f), "utf8")),
       );
+    type Steps = { until?: object }[];
     const scripts = (await files("playtest", "--script")).map((t) => JSON.parse(t));
-    const until = scripts.flatMap((s: { steps: { until?: object }[] }) =>
-      s.steps.flatMap((st) => (st.until ? [st.until] : [])),
+    const until = scripts.flatMap((s: { steps?: Steps; tracks?: { steps: Steps }[] }) =>
+      [s.steps ?? [], ...(s.tracks ?? []).map((t) => t.steps)]
+        .flat()
+        .flatMap((st) => (st.until ? [st.until] : [])),
     );
     expect(until.some((u) => "exists" in u)).toBe(true);
     expect(until.some((u) => "count" in u)).toBe(true);
@@ -447,5 +471,46 @@ describe("op batches in the docs", () => {
     expect(V3_CODES.filter((code) => !expected.has(code))).toEqual([]);
     const readme = texts[0]!;
     for (const code of V3_CODES) expect(readme).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("reproduces the input codes, lists all three in the issue table, and runs input v2's commands", async () => {
+    const expected = new Set([
+      ...allBatches.map((b) => b.expect),
+      ...all.flat().map((e) => e.expect),
+    ]);
+    expect(INPUT_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of INPUT_LISTED)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+    const run = all.flat().filter((e) => e.fenced && isPure(e.argv) && !e.expect);
+    const used = (name: string, flag?: string, value?: string) =>
+      run.filter(
+        (e) =>
+          split(e.argv)[0] === name &&
+          (!flag || e.argv.includes(flag)) &&
+          (!value || e.argv.some((a) => a.includes(value))),
+      );
+    expect(used("input").length).toBeGreaterThan(0);
+    expect(used("input", "--player").length).toBeGreaterThan(0);
+    expect(used("replay", "--run", ".v1.").length).toBeGreaterThan(0);
+    const scripts = await Promise.all(
+      used("playtest", "--script").map((e) =>
+        readFile(repoFile(e.argv[e.argv.indexOf("--script") + 1]!), "utf8").then(
+          (t) => JSON.parse(t) as { v: number; tracks?: { steps: Record<string, unknown>[] }[] },
+        ),
+      ),
+    );
+    const v2 = scripts.filter((s) => s.v === 2 && (s.tracks?.length ?? 0) > 1);
+    expect(v2.length).toBeGreaterThan(0);
+    const kinds = new Set(
+      v2.flatMap((s) => s.tracks!.flatMap((t) => t.steps.flatMap(Object.keys))),
+    );
+    for (const kind of ["set", "pointer", "join", "leave"]) expect(kinds).toContain(kind);
+  });
+
+  it("reproduces a px-sized op landing out of bounds, and lists migration-unresolved", () => {
+    const expected = new Set(allBatches.map((b) => b.expect));
+    expect(UNITS_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of UNITS_LISTED)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
   });
 });

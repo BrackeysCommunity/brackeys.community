@@ -44,8 +44,8 @@ describe("ops JSON Schema", () => {
   });
 
   it("carries a URN id beside the registry's scene schema and draft 2020-12", () => {
-    expect(opsJsonSchema(engine).$id).toBe("urn:jams-engine:ops:v3");
-    expect(opsSchemaId(game)).toBe("urn:jams-engine:ops:pegs:v3");
+    expect(opsJsonSchema(engine).$id).toBe("urn:jams-engine:ops:v4");
+    expect(opsSchemaId(game)).toBe("urn:jams-engine:ops:pegs:v4");
     expect(opsJsonSchema(engine).$schema).toBe("https://json-schema.org/draft/2020-12/schema");
   });
 
@@ -265,13 +265,13 @@ describe("opBatchSchemaFor", () => {
     expect(result.error!.issues[0]!.message).toContain('did you mean "peg"?');
   });
 
-  it("rejects unknown fields, fractional coordinates and a malformed base", () => {
+  it("rejects unknown fields and a malformed base, and takes metric coordinates", () => {
     const schema = opBatchSchemaFor(engine);
     expect(
       schema.safeParse({ ops: [{ op: "move", refs: ["a"], by: [1, 2], extra: 1 }] }).success,
     ).toBe(false);
-    expect(schema.safeParse({ ops: [{ op: "move", refs: ["a"], by: [1.5, 2] }] }).success).toBe(
-      false,
+    expect(schema.safeParse({ ops: [{ op: "move", refs: ["a"], by: [0.16, 2] }] }).success).toBe(
+      true,
     );
     expect(schema.safeParse({ base: "nope", ops: [] }).success).toBe(false);
   });

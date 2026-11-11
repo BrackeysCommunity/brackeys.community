@@ -63,6 +63,12 @@
 <g data-ref="lamp" data-type="decor" class="marker" fill="none" stroke="#cc99ff" stroke-width="3.38"><circle cx="600" cy="1040" r="11.25"/><path d="M582 1040H618M600 1022V1058"/></g>
 <g data-ref="spark" data-type="decor" class="marker" fill="none" stroke="#cc99ff" stroke-width="3.38"><circle cx="1340" cy="1040" r="11.25"/><path d="M1322 1040H1358M1340 1022V1058"/></g>
 </g>
+<g id="one-way" fill="none" stroke="#4da3ff" stroke-width="6.75" stroke-linecap="round">
+<path data-one-way="ledge" data-side="up" d="M740 890L900 890"/>
+<path data-one-way="side-wall" data-side="left" d="M292 280L292 160"/>
+<path data-one-way="gate-2/bar" data-side="up" d="M2140 1140L2260 1140"/>
+<path data-one-way="latch-3/bar" data-side="up" d="M3420 1140L3500 1140"/>
+</g>
 <g id="sprites" fill="none" stroke-width="2.81" stroke-dasharray="9 6.75">
 <path data-sprite="ledge" data-asset="hero" data-frame="hero-1" d="M740 890L900 890L900 910L740 910Z" stroke="#8899aa"/>
 <path data-sprite="crate" data-asset="crates" data-frame="crate-0" d="M844 1104L916 1104L916 1176L844 1176Z" stroke="#ddaa77"/>

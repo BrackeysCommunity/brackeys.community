@@ -23,9 +23,9 @@ describe("SURFACES", () => {
     expect(PLATFORMER_MATERIALS.ice.friction).toBeLessThan(0.1);
   });
 
-  it("trampoline bounces with its material's impulse", () => {
+  it("trampoline bounces with its material's impulse, 7 m/s up", () => {
     expect(SURFACES.trampoline.bounceVelocity).toBe(PLATFORMER_MATERIALS.trampoline.impulse.y);
-    expect(SURFACES.trampoline.bounceVelocity).toBeLessThan(0);
+    expect(SURFACES.trampoline.bounceVelocity).toBe(-7);
   });
 
   it("chocolate slows movement", () => {

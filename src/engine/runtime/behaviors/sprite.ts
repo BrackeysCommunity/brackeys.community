@@ -9,6 +9,7 @@ import {
 } from "../../game/behaviors/sprite";
 import { styleOf } from "../../game/style";
 import type { EngineContext } from "../../game/types";
+import { pxPerMetreOf } from "../../game/units";
 import { parseBulkId } from "../../scene/bulk-ref";
 import { defaultLayer } from "../../scene/layers";
 import type { Pt, RuntimeEntity } from "../../scene/types";
@@ -56,7 +57,7 @@ function visualOf(ctx: EngineContext, e: RuntimeEntity, block: SpriteBlock): Spr
     project ? (id, frame) => project.asset(id, frame) : undefined,
     block,
   );
-  const geometry = spriteGeometry({ ...block, flipX, flipY }, info);
+  const geometry = spriteGeometry({ ...block, flipX, flipY }, info, pxPerMetreOf(ctx.registry));
   const material = typeof e.material === "string" ? e.material : undefined;
   const materialDef = material === undefined ? undefined : ctx.registry.materials.get(material);
   const tint = block.tint ?? materialDef?.tint;
@@ -83,6 +84,7 @@ function visualOf(ctx: EngineContext, e: RuntimeEntity, block: SpriteBlock): Spr
 
 /**
  * The sprite system: one sprite per entity carrying a `sprite` block,
+ * sized in metres (a frame's px over the game's px per metre by default),
  * drawn on its layer's draw order and posed at its pose-index pose plus
  * the offset. The offset is mirrored by the entity's flip and turned by
  * the pose's angle, or with `turn: false` by the entity's quarter turns

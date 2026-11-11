@@ -95,7 +95,7 @@ describe("scene render", () => {
       ctx,
     );
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toContain("region 1640,592,1760,908");
+    expect(r.stdout).toContain("region 16.4,5.92,17.6,9.08 m");
     expect(await readFile(out, "utf8")).toContain('data-path="lift"');
   });
 
@@ -112,26 +112,23 @@ describe("scene render", () => {
     expect(json).toMatchObject({ ok: true, scene: "test-yard", cell: 64, cols: 95, rows: 27 });
     expect(json.legend).toContainEqual({ char: "=", label: "cloud" });
 
-    const region = await runCli(
-      ["render", "test-yard", "--ascii", "--region", "1400,900,1800,1200"],
-      ctx,
-    );
+    const region = await runCli(["render", "test-yard", "--ascii", "--region", "14,9,18,12"], ctx);
     expect(region.stdout).toContain("x 1344..1856");
   });
 
-  it("draws a playtest report's overlay from a file or stdin", async () => {
+  it("draws a playtest report's overlay (in metres) from a file or stdin", async () => {
     const report = {
       blocked: false,
       trail: {
         every: 4,
         pts: [
-          [300, 940],
-          [880, 930],
+          [3, 9.4],
+          [8.8, 9.3],
         ],
         truncated: false,
       },
-      events: [{ tick: 3, type: "sensor:enter", entityId: "zone", at: { x: 880, y: 930 } }],
-      outcome: { result: "won", tick: 90, at: { x: 880, y: 930 } },
+      events: [{ tick: 3, type: "sensor:enter", entityId: "zone", at: { x: 8.8, y: 9.3 } }],
+      outcome: { result: "won", tick: 90, at: { x: 8.8, y: 9.3 } },
       issues: [],
     };
     const file = join(root, "report.json");
@@ -156,7 +153,7 @@ describe("scene render", () => {
       ref: "lamp",
       type: "marker",
       label: "lamp",
-      box: { minX: 308, minY: 224, maxX: 332, maxY: 288 },
+      box: { minX: 3.08, minY: 2.24, maxX: 3.32, maxY: 2.88 },
     });
     const yardJson = JSON.parse((await runCli(["render", "engine-yard", "--json"], ctx)).stdout);
     expect(yardJson).not.toHaveProperty("sprites");

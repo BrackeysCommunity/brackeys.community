@@ -8,7 +8,7 @@ export type GizmoTarget = {
   ref: Ref;
   type: string;
   bulk: boolean;
-  /** The shape in world px; on a path, placed at the path's first point. */
+  /** The shape in world metres; on a path, placed at the path's first point. */
   shape?: ShapeObj;
   /** The shape as the document holds it: local to the path's first point when there is a path. */
   local?: ShapeObj;
@@ -16,7 +16,7 @@ export type GizmoTarget = {
   /** A point entity's position, when it has no shape. */
   at?: Pt;
   pointField?: string;
-  /** The path the shape rides, waypoints in world px. */
+  /** The path the shape rides, waypoints in world metres. */
   path?: { field: string; pts: Pt[]; loop: boolean };
 };
 

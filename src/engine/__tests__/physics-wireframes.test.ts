@@ -1,3 +1,4 @@
+import type { Graphics } from "pixi.js";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createColliderTags } from "../collider-tags";
@@ -157,22 +158,22 @@ describe("wireframes over a geometry world", () => {
     const geometry = createGeometryWorld(registry);
     const tags = createColliderTags();
     const floor = geometry.add({
-      shape: { type: "box", cx: 0, cy: 0, hw: 100, hh: 10, rotDeg: 0 },
+      shape: { type: "box", cx: 0, cy: 0, hw: 1, hh: 0.1, rotDeg: 0 },
       body: "static",
-      pose: { x: 200, y: 300, rot: 0 },
+      pose: { x: 2, y: 3, rot: 0 },
     });
     const zone = geometry.add({
-      shape: { type: "circle", cx: 0, cy: 0, r: 20 },
+      shape: { type: "circle", cx: 0, cy: 0, r: 0.2 },
       body: "static",
       sensor: true,
-      pose: { x: 50, y: 60, rot: 0 },
+      pose: { x: 0.5, y: 0.6, rot: 0 },
     });
     const loose = geometry.add({
       shape: {
         type: "chain",
         pts: [
           [0, 0],
-          [40, 0],
+          [0.4, 0],
         ],
       },
       body: "static",
@@ -187,12 +188,12 @@ describe("wireframes over a geometry world", () => {
     expect(geometryWireframes(geometry, { tags, registry })).toEqual([
       {
         handle: floor,
-        shape: expect.objectContaining({ type: "box", cx: 200, cy: 300, hw: 100, hh: 10 }),
+        shape: expect.objectContaining({ type: "box", cx: 2, cy: 3, hw: 1, hh: 0.1 }),
         tint: style("solid").stroke,
       },
       {
         handle: zone,
-        shape: expect.objectContaining({ type: "circle", cx: 50, cy: 60, r: 20 }),
+        shape: expect.objectContaining({ type: "circle", cx: 0.5, cy: 0.6, r: 0.2 }),
         tint: style("sensor").stroke,
       },
       {
@@ -201,19 +202,19 @@ describe("wireframes over a geometry world", () => {
           type: "chain",
           pts: [
             [0, 0],
-            [40, 0],
+            [0.4, 0],
           ],
         },
         tint: undefined,
       },
     ]);
     geometry.remove(zone);
-    geometry.setPose(floor, 210, 300);
+    geometry.setPose(floor, 2.1, 3);
     expect(geometryWireframes(geometry, { tags, registry }).map((w) => w.handle)).toEqual([
       floor,
       loose,
     ]);
-    expect(geometryWireframes(geometry, { tags, registry })[0]!.shape).toMatchObject({ cx: 210 });
+    expect(geometryWireframes(geometry, { tags, registry })[0]!.shape).toMatchObject({ cx: 2.1 });
   });
 
   it("draws the geometry world when the scene has no physics, and nothing without a world", () => {
@@ -221,6 +222,8 @@ describe("wireframes over a geometry world", () => {
     const wireframes = createPhysicsWireframes();
     try {
       wireframes.update({ physics: null, geometry, tags, registry });
+      // Traced in world px inside a container scaled back to metres.
+      expect(wireframes.container.scale.x).toBe(1 / 100);
       const box = wireframes.container.getLocalBounds();
       expect(box.minX).toBeLessThanOrEqual(0);
       expect(box.maxX).toBeGreaterThanOrEqual(300);
@@ -234,12 +237,12 @@ describe("wireframes over a geometry world", () => {
 
   it("draws a physics-free runtime's colliders from its context", () => {
     const def: SceneDefinition = {
-      v: 1,
+      v: 4,
       name: "free",
-      bounds: [0, 0, 1000, 1000],
+      bounds: [0, 0, 10, 10],
       settings: { physics: "none" },
-      solid: [["box", 500, 920, 400, 20]],
-      entities: [{ id: "zone", type: "sensor", shape: ["box", 900, 830, 40, 30] }],
+      solid: [["box", 5, 9.2, 4, 0.2]],
+      entities: [{ id: "zone", type: "sensor", shape: ["box", 9, 8.3, 0.4, 0.3] }],
     };
     const runtime = createSceneRuntime({ rapier: null, view: null, registry });
     const wireframes = createPhysicsWireframes();
@@ -251,7 +254,7 @@ describe("wireframes over a geometry world", () => {
       expect(drawn.map((w) => ctx.tags.get(w.handle)?.entityId)).toEqual(["~solid:0", "zone"]);
       wireframes.update(ctx);
       const box = wireframes.container.getLocalBounds();
-      // The strokes reach a couple of px past the shapes.
+      // In world px: the strokes reach a couple of px past the shapes.
       expect(box.minX).toBeGreaterThan(95);
       expect(box.minX).toBeLessThanOrEqual(100);
       expect(box.maxX).toBeGreaterThanOrEqual(940);
@@ -259,6 +262,29 @@ describe("wireframes over a geometry world", () => {
     } finally {
       wireframes.destroy();
       runtime.destroy();
+    }
+  });
+
+  it("strokes in screen px at the camera's scale", () => {
+    const { geometry, tags } = world();
+    const wireframes = createPhysicsWireframes(100);
+    const widths = () =>
+      wireframes.container.children.flatMap((g) =>
+        (g as Graphics).context.instructions
+          .filter((i) => i.action === "stroke")
+          .map((i) => (i.data.style as { width: number }).width),
+      );
+    try {
+      wireframes.update({ physics: null, geometry, tags, registry });
+      expect(new Set(widths())).toEqual(new Set([1.5, 2]));
+      // 250 canvas px per metre: 2.5 per world px, so 1.5 screen px is 0.6 world px.
+      wireframes.update({ physics: null, geometry, tags, registry }, 250);
+      const scaled = [...new Set(widths().map((w) => Math.round(w * 1e9) / 1e9))].sort(
+        (a, b) => a - b,
+      );
+      expect(scaled).toEqual([0.6, 0.8]);
+    } finally {
+      wireframes.destroy();
     }
   });
 });

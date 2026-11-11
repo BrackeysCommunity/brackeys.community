@@ -32,6 +32,20 @@ describe("the genre matrix", () => {
     expect(landed).toStrictEqual([]);
   });
 
+  it("completes no row with the milestone after the last landed one", () => {
+    const next = LANDED_THROUGH + 1;
+    const complete = GENRE_ROWS.filter((row) => MATRIX[row].milestones.every((m) => m <= next));
+    expect(complete).toStrictEqual([]);
+  });
+
+  it("names the input probes on the rows they prove", () => {
+    expect(GENRE_MATRIX["local-multiplayer"].probes).toContain("local-versus");
+    expect(GENRE_MATRIX.fighting.probes).toContain("local-versus");
+    expect(GENRE_MATRIX["point-and-click"].probes).toContain("point-and-click");
+    expect(GENRE_MATRIX.rts.probes).toContain("point-and-click");
+    expect(GENRE_MATRIX.rhythm.probes).toContain("rhythm-tap");
+  });
+
   it("names, on each row, exactly the probes that list it", () => {
     for (const row of GENRE_ROWS)
       expect(MATRIX[row].probes, row).toStrictEqual([...GENRE_MATRIX[row].probes].sort());

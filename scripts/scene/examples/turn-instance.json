@@ -1,4 +1,4 @@
 {
   "label": "Stand gate-2 on its side",
-  "ops": [{ "op": "transform", "refs": ["gate-2"], "turn": 1, "about": [2200, 1100] }]
+  "ops": [{ "op": "transform", "refs": ["gate-2"], "turn": 1, "about": [22, 11] }]
 }

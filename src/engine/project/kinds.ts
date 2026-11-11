@@ -5,6 +5,7 @@ import type { GameDefinition } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { ISSUE_CODES, jsonPointer, makeIssue } from "../scene/issues";
 import { layerNames, toJsonSchema } from "../scene/json-schema";
+import { isMigrationRefusal } from "../scene/migrate";
 import { locatePointer } from "../scene/parse";
 import type { IssueCode, SceneIssue } from "../scene/types";
 import { canonicalJson, fieldLayout, stableJson } from "./canonical";
@@ -13,6 +14,7 @@ import { ATLAS_KIND, atlasExportApp } from "./kinds/atlas";
 import {
   byCodeUnit,
   isPlainObject,
+  kindMigrateEnv,
   type AssetKindDef,
   type DocKindDef,
   type DocLayout,
@@ -321,6 +323,7 @@ export function validateAssetDoc(kind: DocKindDef, value: unknown, env: KindEnv)
 function migrateAsset(
   kind: DocKindDef,
   raw: Record<string, unknown>,
+  env: KindEnv,
 ): { ok: true; raw: Record<string, unknown>; from: number } | { ok: false; issue: SceneIssue } {
   const what = `the ${kind.title.toLowerCase()} file`;
   const v = raw.v;
@@ -360,7 +363,9 @@ function migrateAsset(
           got: String(v),
         }),
       };
-    doc = lift(doc);
+    const lifted = lift(doc, kindMigrateEnv(env));
+    if (isMigrationRefusal(lifted)) return { ok: false, issue: lifted.refused };
+    doc = lifted;
   }
   if (!isPlainObject(doc)) throw new Error(`${kind.kind}'s migration from v${v} lost the object`);
   return { ok: true, raw: doc, from: v };
@@ -425,7 +430,7 @@ export function parseAssetDoc<J>(
         ),
       ],
     };
-  const migrated = migrateAsset(kind, raw);
+  const migrated = migrateAsset(kind, raw, env);
   if (!migrated.ok) return { ok: false, issues: [withLine(migrated.issue)] };
   const issues = validateAssetDoc(kind, migrated.raw, env).map(withLine);
   if (issues.some((i) => i.severity === "error")) return { ok: false, issues };

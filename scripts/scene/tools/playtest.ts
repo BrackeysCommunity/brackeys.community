@@ -6,6 +6,7 @@ import {
   type PlaytestBlocked,
   type PlaytestReport,
 } from "@jams/engine/headless";
+import { INPUT_SCRIPT_VERSION, migrateInputScript } from "@jams/engine/scene";
 
 import {
   failure,
@@ -19,7 +20,7 @@ import {
   type Tool,
   type ToolResult,
 } from "../context";
-import { projectRuntime } from "../projects";
+import { projectRuntime, type ProjectHandle } from "../projects";
 import { eventsReport, eventTypes, rapierFor, rounded } from "./step";
 
 export type PlaytestInput = {
@@ -42,6 +43,10 @@ export function parsePoint(text: string): [number, number] | null {
   return parts.length === 2 && parts.every(Number.isFinite) ? (parts as [number, number]) : null;
 }
 
+/** The project a run plays in, as a recording names it; the CLI has no snapshot hash. */
+export const projectRef = (project: ProjectHandle | null | undefined) =>
+  project ? { id: project.file.id, snapshot: null } : null;
+
 /** A blocked run's text: where it stopped and every issue. */
 export function blockedText(run: PlaytestBlocked): string {
   const lines = [`${run.scene}: blocked at ${run.stage}`];
@@ -58,19 +63,32 @@ export function blockedText(run: PlaytestBlocked): string {
   return lines.join("\n");
 }
 
-function reportText(r: PlaytestReport, runs: string, events: readonly string[]): string {
+function reportText(
+  r: PlaytestReport,
+  runs: string,
+  events: readonly string[],
+  migratedFrom: number | undefined,
+): string {
   const o = r.outcome;
   return [
     `${r.scene} ${r.sceneHash} ${runs} config ${r.configHash}: ${o.result} at t${o.tick} (${r.ticks} ticks)${o.cause ? `: ${o.cause}` : ""}`,
+    ...(migratedFrom === undefined ? [] : [`  script migratedFrom ${migratedFrom}`]),
     ...(o.at ? [`  at ${rounded([o.at.x, o.at.y])}`] : []),
-    ...r.steps.map((s) => `  step ${s.index} t${s.start} +${s.ticks} ${s.end}`),
+    ...r.steps.map(
+      (s) =>
+        `  step ${s.player === undefined ? "" : `p${s.player}/`}${s.index} t${s.start} +${s.ticks} ${s.end}`,
+    ),
     `  final ${rounded(r.final)}`,
     ...events,
     ...(r.truncated ? ["  (events truncated)"] : []),
   ].join("\n");
 }
 
-/** Plays an input script on a scene headless and reports how the run ended. */
+/**
+ * Plays an input script, v1 or v2 (one seat's steps or a track per seat,
+ * with analog values, pointer moves and seat changes), on a scene headless
+ * and reports how the run ended; a v1 script is migrated first and says so.
+ */
 export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
   if (!input.script) return usage(`scene ${USAGE}`);
   if (input.scene === "-" && input.script === "-")
@@ -78,7 +96,7 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
   let at: [number, number] | undefined;
   if (input.at !== undefined) {
     const point = parsePoint(input.at);
-    if (!point) return usage("--at takes x,y in world pixels, e.g. --at 640,900");
+    if (!point) return usage("--at takes x,y in metres, e.g. --at 6.4,9");
     at = point;
   }
   const types = eventTypes(input.events);
@@ -105,6 +123,21 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
     };
     return blockedResult(blocked, registry.game?.id ?? null);
   }
+  // Migrated before `--at` lands, so a v1 script's px never rescale a point given in metres.
+  const lifted = migrateInputScript(script, registry);
+  if (!lifted.ok)
+    return blockedResult(
+      {
+        blocked: true,
+        stage: "script",
+        scene: loaded.def.name,
+        issues: [],
+        scriptIssues: [lifted.issue],
+      },
+      registry.game?.id ?? null,
+    );
+  const migratedFrom = lifted.from < INPUT_SCRIPT_VERSION ? lifted.from : undefined;
+  script = lifted.script;
   if (at && script !== null && typeof script === "object" && !Array.isArray(script))
     script = { ...script, at };
 
@@ -117,6 +150,8 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
     prefabs: loaded.prefabs,
     project,
     script: script as InputScript,
+    projectRef: projectRef(loaded.project),
+    ...(ctx.rapierFlavour ? { platform: { flavour: ctx.rapierFlavour } } : {}),
   });
   const game = registry.game?.id ?? null;
   if (run.blocked) return blockedResult(run, game);
@@ -130,8 +165,9 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
       ...run,
       events: printed.events,
       ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
+      ...(migratedFrom === undefined ? {} : { scriptMigratedFrom: migratedFrom }),
     },
-    text: reportText(run, runs, printed.lines),
+    text: reportText(run, runs, printed.lines, migratedFrom),
   };
 };
 

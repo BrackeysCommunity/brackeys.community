@@ -83,7 +83,7 @@ export function yardPrefabs(game?: string, options: YardPrefabOptions = {}): Pre
   return prefabLibrary([
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       ...home,
       id: "gate",
       ...params("gate"),
@@ -107,7 +107,7 @@ export function yardPrefabs(game?: string, options: YardPrefabOptions = {}): Pre
     },
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       ...home,
       id: "post",
       ...params("post"),
@@ -121,7 +121,7 @@ export function yardPrefabs(game?: string, options: YardPrefabOptions = {}): Pre
 export function engineYard(): SceneDefinition {
   return {
     $schema: "../../scene/scene.schema.json",
-    v: 3,
+    v: 4,
     name: "engine-yard",
     bounds: [0, 0, 2000, 1000],
     settings: { gravity: [0, 1200] },

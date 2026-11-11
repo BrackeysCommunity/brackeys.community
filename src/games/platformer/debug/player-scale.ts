@@ -1,10 +1,12 @@
 import type { DebugLayerFactory } from "@jams/engine/debug";
+import { DEFAULT_LENGTH_UNIT } from "@jams/engine/game";
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 
 import { PLAYER_HEIGHT, PLAYER_WIDTH } from "../entities/player";
 
 const OUTLINE_COLOR = 0x00ffff;
 const OUTLINE_ALPHA = 0.6;
+/** Screen px. */
 const OUTLINE_WIDTH = 2;
 const DASH_LENGTH = 6;
 const GAP_LENGTH = 4;
@@ -16,15 +18,16 @@ const LABEL_STYLE = new TextStyle({
 });
 
 export type PlayerScaleRef = {
-  update: (mouseWorldX: number, mouseWorldY: number) => void;
+  /** `scale` is canvas px per world metre: the corner reference shows the player at it, and the cursor's strokes keep their screen size. */
+  update: (mouseWorldX: number, mouseWorldY: number, scale?: number) => void;
   setVisible: (visible: boolean) => void;
   destroy: () => void;
   worldContainer: Container;
   uiContainer: Container;
 };
 
-/** Draw a dashed rectangle outline (batched into a single stroke) */
-function drawDashedRect(g: Graphics, x: number, y: number, w: number, h: number): void {
+/** Draw a dashed rectangle outline (batched into a single stroke); `px` is one screen px in `g`'s units. */
+function drawDashedRect(g: Graphics, x: number, y: number, w: number, h: number, px = 1): void {
   const sides: [number, number, number, number][] = [
     [x, y, x + w, y], // top
     [x + w, y, x + w, y + h], // right
@@ -41,10 +44,10 @@ function drawDashedRect(g: Graphics, x: number, y: number, w: number, h: number)
     let drawn = 0;
 
     while (drawn < length) {
-      const segEnd = Math.min(drawn + DASH_LENGTH, length);
+      const segEnd = Math.min(drawn + DASH_LENGTH * px, length);
       g.moveTo(x1 + nx * drawn, y1 + ny * drawn);
       g.lineTo(x1 + nx * segEnd, y1 + ny * segEnd);
-      drawn = segEnd + GAP_LENGTH;
+      drawn = segEnd + GAP_LENGTH * px;
     }
   }
 
@@ -67,17 +70,23 @@ export function createPlayerScaleRef(): PlayerScaleRef {
   uiCont.addChild(cornerGraphics);
 
   const cornerLabel = new Text({
-    text: `${PLAYER_WIDTH}×${PLAYER_HEIGHT} px`,
+    text: `${PLAYER_WIDTH}×${PLAYER_HEIGHT} m`,
     style: LABEL_STYLE,
   });
   cornerLabel.alpha = 0.7;
   uiCont.addChild(cornerLabel);
 
-  // Draw the fixed corner reference (top-right area)
-  function drawCornerRef(): void {
+  let cornerScale = 0;
+
+  // Draw the fixed corner reference (top-right area), the player as big as it shows on screen
+  function drawCornerRef(scale: number): void {
+    if (scale === cornerScale) return;
+    cornerScale = scale;
     const margin = 16;
     const x = margin;
     const y = margin;
+    const w = PLAYER_WIDTH * scale;
+    const h = PLAYER_HEIGHT * scale;
 
     cornerGraphics.clear();
     cornerGraphics.setStrokeStyle({
@@ -85,22 +94,24 @@ export function createPlayerScaleRef(): PlayerScaleRef {
       color: OUTLINE_COLOR,
       alpha: OUTLINE_ALPHA,
     });
-    drawDashedRect(cornerGraphics, x, y, PLAYER_WIDTH, PLAYER_HEIGHT);
+    drawDashedRect(cornerGraphics, x, y, w, h);
 
     // Dimension labels
-    cornerLabel.position.set(x, y + PLAYER_HEIGHT + 4);
+    cornerLabel.position.set(x, y + h + 4);
   }
 
-  drawCornerRef();
+  drawCornerRef(DEFAULT_LENGTH_UNIT);
 
   // Position the UI container — caller should position in top-right
   // We'll use a fixed offset from top-right; the parent positions this
   uiCont.position.set(0, 0);
 
-  function update(mouseWorldX: number, mouseWorldY: number): void {
+  function update(mouseWorldX: number, mouseWorldY: number, scale = DEFAULT_LENGTH_UNIT): void {
+    drawCornerRef(scale);
+    const px = 1 / scale;
     cursorGraphics.clear();
     cursorGraphics.setStrokeStyle({
-      width: OUTLINE_WIDTH,
+      width: OUTLINE_WIDTH * px,
       color: OUTLINE_COLOR,
       alpha: OUTLINE_ALPHA * 0.7,
     });
@@ -110,6 +121,7 @@ export function createPlayerScaleRef(): PlayerScaleRef {
       mouseWorldY - PLAYER_HEIGHT / 2,
       PLAYER_WIDTH,
       PLAYER_HEIGHT,
+      px,
     );
   }
 
@@ -145,7 +157,8 @@ export const playerScaleLayer: DebugLayerFactory = {
     const parent = host.uiContainer.parent as Container | null;
     ref.uiContainer.position.set(parent ? parent.width - 100 : 700, 0);
     return {
-      update: (frame) => ref.update(frame.mouseWorld.x, frame.mouseWorld.y),
+      update: (frame) =>
+        ref.update(frame.mouseWorld.x, frame.mouseWorld.y, host.worldContainer.scale.x || 1),
       setVisible: ref.setVisible,
       destroy: ref.destroy,
     };

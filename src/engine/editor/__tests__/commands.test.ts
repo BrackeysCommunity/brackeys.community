@@ -4,8 +4,8 @@ import { createRegistry } from "../../game/define";
 import { applyOps } from "../../scene/ops";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { prefabLibrary } from "../../scene/prefab";
-import type { OpBatch, SceneDefinition } from "../../scene/types";
-import yard from "../../scenes/engine-yard.json";
+import { SCENE_FORMAT_VERSION, type OpBatch, type SceneDefinition } from "../../scene/types";
+import { isWholePixel, roundLength } from "../../scene/units";
 import {
   deleteBatch,
   flipBatch,
@@ -26,6 +26,24 @@ import {
 import { createSpatialIndex } from "../spatial-index";
 
 const registry = createRegistry();
+/** The engine yard's entities in metres. */
+const yard = {
+  v: SCENE_FORMAT_VERSION,
+  name: "engine-yard",
+  bounds: [0, 0, 20, 10],
+  solid: [
+    ["box", 10, 9.8, 10, 0.2],
+    ["box", 0.2, 5, 0.2, 5],
+    ["box", 19.8, 5, 0.2, 5],
+  ],
+  entities: [
+    { id: "ledge", type: "solid", shape: ["box", 14, 8, 1.2, 0.1], oneWay: true },
+    { id: "avatar", type: "prop", shape: ["box", 3, 9.4, 0.2, 0.2], density: 1, restitution: 0 },
+    { id: "crate", type: "prop", shape: ["circle", 12, 9.4, 0.2], density: 2, restitution: 0.3 },
+    { id: "start", type: "marker", at: [3, 9.6], tags: ["spawn"] },
+    { id: "readme", type: "note", at: [1, 1], text: "Engine fixture: primitives only." },
+  ],
+};
 const doc: SceneDefinition = parseSceneOrThrow(yard, registry);
 const run = (batch: OpBatch | null, def = doc) => {
   const r = applyOps(def, batch!, registry);
@@ -35,32 +53,45 @@ const run = (batch: OpBatch | null, def = doc) => {
 const entity = (def: SceneDefinition, id: string) => def.entities!.find((e) => e.id === id)!;
 
 describe("nudge", () => {
-  it("moves one grid step, four with -coarse, one px with -fine", () => {
-    expect(nudgeDelta("nudge-left", 64)).toEqual([-64, 0]);
-    expect(nudgeDelta("nudge-down-coarse", 16)).toEqual([0, 64]);
-    expect(nudgeDelta("nudge-up-fine", 64)).toEqual([0, -1]);
-    expect(nudgeDelta("rotate-cw", 64)).toBeNull();
+  it("moves one world px, ten with -coarse, one with -fine, in metres", () => {
+    expect(nudgeDelta("nudge-left", 100)).toEqual([-0.01, 0]);
+    expect(nudgeDelta("nudge-down-coarse", 100)).toEqual([0, 0.1]);
+    expect(nudgeDelta("nudge-up-fine", 100)).toEqual([0, -0.01]);
+    expect(nudgeDelta("nudge-right", 32)).toEqual([0.03125, 0]);
+    expect(nudgeDelta("rotate-cw", 100)).toBeNull();
   });
 
-  it("is one move of the selection", () => {
-    expect(nudgeBatch(["crate", "~solid:1"], [16, 0])).toEqual({
+  it("lands on whole world px at 100, 32 and 48 px per metre", () => {
+    for (const ppm of [100, 32, 48])
+      for (const command of ["nudge-up", "nudge-left-coarse", "nudge-down-fine"]) {
+        const d = nudgeDelta(command, ppm)!;
+        expect(d.every((v) => isWholePixel(v, ppm))).toBe(true);
+        expect(Math.abs(d[0] + d[1]) * ppm).toBeCloseTo(command.endsWith("coarse") ? 10 : 1, 4);
+      }
+  });
+
+  it("is one move of the selection, on whole world px", () => {
+    expect(nudgeBatch(["crate", "~solid:1"], [0.16, 0], 100)).toEqual({
       label: "Nudge 2 entities",
-      ops: [{ op: "move", refs: ["crate", "~solid:1"], by: [16, 0] }],
+      ops: [{ op: "move", refs: ["crate", "~solid:1"], by: [0.16, 0] }],
     });
-    expect(nudgeBatch([], [16, 0])).toBeNull();
+    expect(nudgeBatch(["crate"], [0.1, 0], 48)?.ops).toEqual([
+      { op: "move", refs: ["crate"], by: [0.104167, 0] },
+    ]);
+    expect(nudgeBatch([], [0.16, 0], 100)).toBeNull();
   });
 });
 
 describe("rotateSelectionBatch", () => {
   it("turns one box about its centre", () => {
     const after = run(rotateSelectionBatch(doc, registry, ["ledge"], 15));
-    expect(entity(after, "ledge").shape).toEqual(["box", 1400, 800, 120, 10, 15]);
+    expect(entity(after, "ledge").shape).toEqual(["box", 14, 8, 1.2, 0.1, 15]);
   });
 
   it("orbits several about the box around them", () => {
     const after = run(rotateSelectionBatch(doc, registry, ["avatar", "start"], 180));
-    // The box around both spans x 280..320, y 920..960: the centre is 300, 940.
-    expect(entity(after, "start").at).toEqual([300, 920]);
+    // The box around both spans x 2.8..3.2, y 9.2..9.6: the centre is 3, 9.4.
+    expect(entity(after, "start").at).toEqual([3, 9.2]);
   });
 });
 
@@ -269,11 +300,12 @@ describe("select-all, delete and bounds", () => {
   });
 
   it("frames the box around the selection", () => {
-    expect(selectionBounds(doc, registry, ["avatar", "start"])).toEqual({
-      minX: 280,
-      minY: 920,
-      maxX: 320,
-      maxY: 960,
+    const box = selectionBounds(doc, registry, ["avatar", "start"])!;
+    expect(Object.fromEntries(Object.entries(box).map(([k, v]) => [k, roundLength(v)]))).toEqual({
+      minX: 2.8,
+      minY: 9.2,
+      maxX: 3.2,
+      maxY: 9.6,
     });
     expect(selectionBounds(doc, registry, [])).toBeNull();
   });

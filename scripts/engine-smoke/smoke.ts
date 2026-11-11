@@ -159,6 +159,7 @@ try {
       "project-ops",
       "material",
       "game-settings",
+      "input-map",
       "data-table",
       "project-snapshot",
     ]) {

@@ -28,14 +28,14 @@ const library = (prefabs: Prefab[]) => new Map(prefabs.map((p) => [p.id, p]));
 
 const prefab = (id: string, body: Partial<Prefab> = {}): Prefab => ({
   kind: "prefab",
-  v: 3,
+  v: 4,
   id,
   entities: [],
   ...body,
 });
 
 const scene = (instances: InstanceDef[]): SceneDefinition => ({
-  v: 3,
+  v: 4,
   name: "variants",
   bounds: [-2000, -2000, 2000, 2000],
   instances,

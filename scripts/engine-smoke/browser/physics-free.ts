@@ -44,12 +44,13 @@ export const WALKER = "walker";
 export const GATE = "gate";
 export const GOAL = "goal";
 
-const CELL = 32;
+/** Metres: 32 px at the default 100 px per metre. */
+const CELL = 0.32;
 const COLUMNS = 8;
 const ROWS = 5;
 const MS_PER_STEP = 100;
-/** Half the walker's body: smaller than a cell, so it reaches a sensor only on that sensor's cell. */
-const BODY_HALF = 10;
+/** Half the walker's body, metres: smaller than a cell, so it reaches a sensor only on that sensor's cell. */
+const BODY_HALF = 0.1;
 
 type Cell = [col: number, row: number];
 
@@ -172,7 +173,7 @@ export const gridGame = defineGame<GridSnapshot>({
  *   . . . . . . . .
  */
 export const gridScene: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: GRID_GAME_ID,
   name: GRID_SCENE,
   bounds: [0, 0, COLUMNS * CELL, ROWS * CELL],

@@ -34,7 +34,7 @@ const registry = createRegistry(game);
 
 const prefab = (id: string, x: number): Prefab => ({
   kind: "prefab",
-  v: 3,
+  v: 4,
   id,
   entities: [{ id: "pin", type: "marker", at: [x, 0] }],
 });
@@ -42,7 +42,7 @@ const used = prefab("used", 0);
 const spare = prefab("spare", 5);
 
 const def: SceneDefinition = {
-  v: 3,
+  v: 4,
   name: "spares",
   bounds: [-100, -100, 100, 100],
   settings: { physics: "none" },

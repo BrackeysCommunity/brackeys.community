@@ -1,15 +1,16 @@
+import { isSpawnOnly, placeableTypes } from "../game/define";
 import { isAttachField } from "../game/fields";
 import type { Registry } from "../game/types";
 import type { EntityTypeName, OpBatch, PrefabLibrary, Ref, SceneDefinition } from "../scene/types";
 import { lookupRef, referableEntities } from "./refs";
 
-/** A type's `attachField` and the types it may ride, or null when it has none. */
+/** A placeable type's `attachField` and the types it may ride, or null when it has none. */
 export function attachFieldOf(
   registry: Registry,
   type: EntityTypeName,
 ): { field: string; targets: readonly EntityTypeName[] } | null {
   const t = registry.types.get(type);
-  if (!t) return null;
+  if (!t || isSpawnOnly(registry, type)) return null;
   for (const [field, schema] of Object.entries(t.shape)) {
     if (!isAttachField(schema)) continue;
     const targets = t.refs?.find((r) => r.field === field)?.targets ?? ["follower"];
@@ -18,10 +19,11 @@ export function attachFieldOf(
   return null;
 }
 
-/** Whether entities of `type` can be named by some type's `attachField`. */
+/** Whether entities of placeable `type` can be named by some placeable type's `attachField`. */
 export function isFollowerType(registry: Registry, type: EntityTypeName): boolean {
+  if (isSpawnOnly(registry, type)) return false;
   const base = registry.types.get(type)?.base;
-  return registry.typeNames.some((name) => {
+  return placeableTypes(registry).some((name) => {
     const targets = attachFieldOf(registry, name)?.targets ?? [];
     return targets.includes(type) || (base !== undefined && targets.includes(base));
   });
@@ -53,7 +55,7 @@ export function attachBatch(
   }
   if (follower === ref || current === follower) return null;
   const target = referableEntities(def, registry, prefabs).find((e) => e.id === follower);
-  if (!target) return null;
+  if (!target || isSpawnOnly(registry, target.type)) return null;
   const base = registry.types.get(target.type)?.base;
   const allowed =
     attach.targets.includes(target.type) || (base !== undefined && attach.targets.includes(base));

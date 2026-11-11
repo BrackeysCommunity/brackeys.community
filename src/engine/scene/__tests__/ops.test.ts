@@ -900,7 +900,7 @@ const SPIN = "test-game/spin";
 /** A test-game scene on a square grid: a lamp, a painted floor and an instance of a prefab holding both. */
 function gameYard(): SceneDefinition {
   return {
-    v: 3,
+    v: 4,
     game: "test-game",
     name: "game-yard",
     bounds: [0, 0, 1000, 1000],
@@ -916,7 +916,7 @@ function gameYard(): SceneDefinition {
 const gamePrefabs = prefabLibrary([
   {
     kind: "prefab",
-    v: 3,
+    v: 4,
     game: "test-game",
     id: "room",
     entities: [
@@ -1387,7 +1387,7 @@ describe("applyOps: nested prefabs", () => {
     prefabLibrary([
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "door",
         entities: [
           {
@@ -1409,7 +1409,7 @@ describe("applyOps: nested prefabs", () => {
       },
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "room",
         entities: [{ id: "floor", type: "solid", shape: ["box", 0, 60, 100, 10] }],
         instances: [
@@ -1425,7 +1425,7 @@ describe("applyOps: nested prefabs", () => {
       },
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "wing",
         entities: [],
         instances: [{ id: "room-1", prefab: "room", at: [0, 100] }],
@@ -1433,7 +1433,7 @@ describe("applyOps: nested prefabs", () => {
     ]);
 
   const hall = (): SceneDefinition => ({
-    v: 3,
+    v: 4,
     name: "hall",
     bounds: [0, 0, 2000, 1000],
     groups: { turned: { at: [500, 500], rot: 1 } },
@@ -1447,7 +1447,7 @@ describe("applyOps: nested prefabs", () => {
   const roomView = (prefabs: PrefabLibrary): SceneDefinition => {
     const room = prefabs.get("room")!;
     return {
-      v: 3,
+      v: 4,
       name: "room",
       bounds: [-500, -500, 1000, 1000],
       entities: structuredClone(room.entities),
@@ -1780,7 +1780,7 @@ describe("applyOps: prefab header and params", () => {
     prefabLibrary([
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "door",
         entities: [
           {
@@ -1803,14 +1803,14 @@ describe("applyOps: prefab header and params", () => {
       },
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "red-door",
         base: "door",
         entities: [{ id: "lamp", type: "marker", at: [0, -10] }],
       },
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "room",
         entities: [{ id: "floor", type: "solid", shape: ["box", 0, 60, 100, 10] }],
         instances: [{ id: "door-1", prefab: "door", at: [10, 0] }],
@@ -1821,7 +1821,7 @@ describe("applyOps: prefab header and params", () => {
   const viewOf = (prefabs: PrefabLibrary, id: string): SceneDefinition => {
     const p = prefabs.get(id)!;
     return {
-      v: 3,
+      v: 4,
       name: id,
       bounds: [-500, -500, 1000, 1000],
       ...structuredClone(p.bulk ?? {}),
@@ -1831,7 +1831,7 @@ describe("applyOps: prefab header and params", () => {
   };
 
   const hall = (extra: Partial<InstanceDef> = {}): SceneDefinition => ({
-    v: 3,
+    v: 4,
     name: "hall",
     bounds: [0, 0, 2000, 1000],
     instances: [{ id: "door-1", prefab: "door", at: [100, 100], ...extra }],
@@ -1962,7 +1962,7 @@ describe("applyOps: prefab header and params", () => {
       ...library().values(),
       {
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "blue-door",
         base: "door",
         entities: [],
@@ -2203,17 +2203,17 @@ describe("applyOps: place an instance", () => {
   const prefabs = prefabLibrary([
     {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "ell",
       entities: [
         { id: "arm", type: "solid", shape: ["box", 0, 0, 100, 10] },
         { id: "leg", type: "solid", shape: ["box", 90, 10, 10, 30] },
       ],
     },
-    { kind: "prefab", v: 3, id: "ell-red", base: "ell", entities: [] },
+    { kind: "prefab", v: 4, id: "ell-red", base: "ell", entities: [] },
   ]);
   const scene = (inst: Partial<InstanceDef>): SceneDefinition => ({
-    v: 3,
+    v: 4,
     name: "place",
     bounds: [-1000, -1000, 1000, 1000],
     instances: [{ id: "x", prefab: "ell", at: [7, 3], ...inst }],

@@ -981,12 +981,12 @@ describe("prefabs created and edited in one live batch", () => {
   const registry = createRegistry();
   const GATE: Prefab = {
     kind: "prefab",
-    v: 3,
+    v: 4,
     id: "gate",
     entities: [{ id: "pole", type: "marker", at: [0, -60] }],
   };
   const YARD: SceneDefinition = {
-    v: 3,
+    v: 4,
     name: "yard",
     bounds: [0, 0, 2000, 1200],
     instances: [{ id: "gate-1", prefab: "gate", at: [100, 900] }],
@@ -1062,10 +1062,10 @@ describe("prefabs created and edited in one live batch", () => {
     const entry = (id: string) => session.view().byId.get(id)!;
     expect(entry("red-post")).toMatchObject({ kind: "prefab", path: "prefabs/red-post.json" });
     const doc = (id: string) => host.doc(`asset:p.${keyOf(session, id)}`);
-    expect(docToPrefab(doc("post"))).toEqual({ kind: "prefab", v: 3, id: "post", entities: [] });
+    expect(docToPrefab(doc("post"))).toEqual({ kind: "prefab", v: 4, id: "post", entities: [] });
     expect(docToPrefab(doc("red-post"))).toEqual({
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "red-post",
       base: "post",
       entities: [],
@@ -1107,7 +1107,7 @@ describe("prefabs created and edited in one live batch", () => {
     );
     expect(docToPrefab(host.doc(`asset:p.${keyOf(session, "red-gate")}`))).toEqual({
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "red-gate",
       base: "gate",
       entities: [],

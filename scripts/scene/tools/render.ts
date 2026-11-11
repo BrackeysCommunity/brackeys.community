@@ -6,7 +6,9 @@ import {
   renderSceneSvg,
   sceneAsciiMap,
   sceneSprites,
+  roundLength,
   sceneViewport,
+  type Aabb,
   type Bounds,
   type PrefabLibrary,
   type Registry,
@@ -36,7 +38,15 @@ export async function sceneProjectView(
   return projectView((await scanProject(project)).state, project.kinds);
 }
 
-/** Each sprite's ref, label and world box, for a render's data; omitted when the scene has none. */
+/** A derived box in metres, each side to the format's rounding rule. */
+export const roundBox = (b: Aabb): Aabb => ({
+  minX: roundLength(b.minX),
+  minY: roundLength(b.minY),
+  maxX: roundLength(b.maxX),
+  maxY: roundLength(b.maxY),
+});
+
+/** Each sprite's ref, label and world box in metres, for a render's data; omitted when the scene has none. */
 function spriteRows(
   def: SceneDefinition,
   opts: { registry: Registry; prefabs?: PrefabLibrary; project?: ProjectView },
@@ -45,7 +55,7 @@ function spriteRows(
     ref,
     type,
     label,
-    box,
+    box: roundBox(box),
   }));
   return sprites.length > 0 ? { sprites } : {};
 }
@@ -64,6 +74,7 @@ export type RenderInput = {
 
 const LABELS: readonly SceneLabels[] = ["entities", "all", "none"];
 
+/** `x0,y0,x1,y1` in metres. */
 function parseRegion(text: string): Bounds | null {
   const parts = text.split(",").map((p) => Number(p.trim()));
   if (parts.length !== 4 || !parts.every(Number.isFinite)) return null;
@@ -106,14 +117,14 @@ function parseFlags(input: RenderInput): Parsed | ToolResult {
   const out: Parsed = {};
   if (input.region !== undefined) {
     const region = parseRegion(input.region);
-    if (!region) return usage("--region takes x0,y0,x1,y1 with x1 > x0 and y1 > y0");
+    if (!region) return usage("--region takes x0,y0,x1,y1 in metres with x1 > x0 and y1 > y0");
     out.region = region;
   }
   if (input.around !== undefined) out.around = input.around;
   if (input.margin !== undefined) {
     const margin = Number(input.margin);
     if (!Number.isFinite(margin) || margin < 0)
-      return usage("--margin takes a number of px, 0 or more");
+      return usage("--margin takes a number of metres, 0 or more");
     if (input.around === undefined) return usage("--margin needs --around");
     out.margin = margin;
   }
@@ -194,8 +205,8 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
       ...(overlay ? { overlay } : {}),
     };
     const svg = renderSceneSvg(def, opts);
-    const { region, scale, width, height, tick } = sceneViewport(def, opts);
-    const view = { region, scale, width, height, tick, ...spriteRows(def, opts) };
+    const { region, pxPerMetre, scale, width, height, tick } = sceneViewport(def, opts);
+    const view = { region, pxPerMetre, scale, width, height, tick, ...spriteRows(def, opts) };
     if (!input.out) {
       return { exitCode: 0, data: { ok: true, scene: name, ...view, svg }, text: svg.trimEnd() };
     }
@@ -204,7 +215,7 @@ export const render: Tool<RenderInput> = async (input, ctx) => {
     return {
       exitCode: 0,
       data: { ok: true, scene: name, out: input.out, format, ...view },
-      text: `wrote ${input.out} (${width}x${height}, scale ${Math.round(scale * 1000) / 1000}, region ${region.join(",")}, ticks every ${tick}px)`,
+      text: `wrote ${input.out} (${width}x${height}, scale ${Math.round(scale * 1000) / 1000}, region ${region.join(",")} m, ticks every ${tick}px)`,
     };
   } catch (e) {
     if (e instanceof Error && /^(no entity|region|scale)/.test(e.message)) return usage(e.message);

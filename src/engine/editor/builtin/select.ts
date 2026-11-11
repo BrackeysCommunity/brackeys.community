@@ -1,3 +1,4 @@
+import { pxPerMetreOf } from "../../game/units";
 import type { OpBatch, Pt, Ref, SceneDefinition } from "../../scene/types";
 import { targetsOf } from "../commands";
 import { convertToChainFix } from "../gizmos/batch";
@@ -77,6 +78,7 @@ export const selectTool = defineEditorTool({
       mods: { shift: e.shift, alt: e.alt, mod: e.mod },
       snap: ctx.snap(),
       scale: ctx.scale(),
+      pxPerMetre: pxPerMetreOf(ctx.registry),
       index: ctx.index(),
     });
     const selectedTargets = (doc = ctx.getDoc()) => targetsOf(doc, ctx.registry, ctx.selection());
@@ -301,7 +303,9 @@ export const selectTool = defineEditorTool({
       const t = subTarget();
       if (!sub || !t) return false;
       if (sub.points.length > 0) {
-        const edit = t.path ? removeWaypoints(t, sub.points) : removeVertices(t, sub.points);
+        const edit = t.path
+          ? removeWaypoints(t, sub.points, pxPerMetreOf(ctx.registry))
+          : removeVertices(t, sub.points, pxPerMetreOf(ctx.registry));
         if (edit?.batch && ctx.commit(edit.batch)) sub.points = [];
         ctx.invalidate();
       }

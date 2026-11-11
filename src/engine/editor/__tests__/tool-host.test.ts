@@ -23,6 +23,7 @@ import type {
   SceneDefinition,
   ShapeTuple,
 } from "../../scene/types";
+import { roundLength } from "../../scene/units";
 import yard from "../../scenes/engine-yard.json";
 import { createToolRouter, type ToolRouter } from "../../tool-router";
 import { dropBatch, dropPreview, type AssetDrop } from "../asset-drop";
@@ -33,6 +34,13 @@ import { DEFAULT_SNAP, type EditorToolDef } from "../tools";
 const registry = toolRegistry;
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 const free = { ...DEFAULT_SNAP, enabled: false };
+/** Screen px per metre: zoom 1 in the 100 px per metre test game, so one screen px is one world px. */
+const S = 100;
+/** `value` with every number as a file holds it, so sums that drift in the last bit compare. */
+const clean = <T>(value: T): T =>
+  JSON.parse(JSON.stringify(value), (_, v: unknown) =>
+    typeof v === "number" ? roundLength(v) : v,
+  );
 
 /** The edit world's runtime, recording what reaches it. */
 function fakeRuntime() {
@@ -123,8 +131,8 @@ function rig(
   const host = createToolHost({
     session,
     router,
-    toWorld: ({ x, y }) => [x, y],
-    scale: () => 1,
+    toWorld: ({ x, y }) => [x / S, y / S],
+    scale: () => S,
     runtime,
     snap: free,
     now: () => clock,
@@ -192,16 +200,16 @@ describe("a drag with the select tool", () => {
     expect(r.session.store.state.selection).toEqual(["crate"]);
     expect(r.host.keyContext()).toMatchObject({ gesture: true, tool: "select" });
     // The runtime shows the drag; the doc doesn't have it yet.
-    expect(r.runtime.held.get("crate")).toMatchObject({ shape: { cx: 1264, cy: 950 } });
-    expect(r.entity("crate")?.shape).toEqual(["circle", 1200, 940, 20]);
+    expect(clean(r.runtime.held.get("crate"))).toMatchObject({ shape: { cx: 12.64, cy: 9.5 } });
+    expect(r.entity("crate")?.shape).toEqual(["circle", 12, 9.4, 0.2]);
     expect(r.writes()).toBe(0);
     expect(r.runtime.calls.filter((c) => c !== "update")).toEqual(["load"]);
-    expect(r.host.overlay().readout?.text).toBe("Δ 64, 10");
+    expect(r.host.overlay().readout?.text).toBe("Δ 0.64, 0.1 m");
 
     r.ptr("up", 1264, 950);
     expect(r.writes()).toBe(1);
     expect(readLog(r.doc)).toHaveLength(logBefore + 1);
-    expect(r.entity("crate")?.shape).toEqual(["circle", 1264, 950, 20]);
+    expect(clean(r.entity("crate")?.shape)).toEqual(["circle", 12.64, 9.5, 0.2]);
     expect(r.runtime.held).toEqual(expanded(r.def()));
     expect(r.host.keyContext().gesture).toBe(false);
   });
@@ -209,8 +217,8 @@ describe("a drag with the select tool", () => {
   it("snaps the dragged box's edge to the grid", () => {
     const r = rig({ snap: { ...DEFAULT_SNAP, geometry: false } });
     r.drag([1200, 940], [1250, 940]);
-    // The crate's edges nearest the grab (left 1180, top 920) land on the nearest 64px lines.
-    expect(r.entity("crate")?.shape).toEqual(["circle", 1236, 916, 20]);
+    // The crate's edges nearest the grab (left 11.8, top 9.2) land on the nearest 0.5 m lines.
+    expect(clean(r.entity("crate")?.shape)).toEqual(["circle", 12.7, 9.2, 0.2]);
     expect(r.writes()).toBe(1);
   });
 
@@ -240,8 +248,8 @@ describe("a drag with the select tool", () => {
     expect(r.session.store.state.selection).toEqual(["crate", "avatar"]);
     r.drag([300, 940], [300, 900]);
     expect(r.writes()).toBe(1);
-    expect(r.entity("crate")?.shape).toEqual(["circle", 1200, 900, 20]);
-    expect(r.entity("avatar")?.shape).toEqual(["box", 300, 900, 20, 20]);
+    expect(clean(r.entity("crate")?.shape)).toEqual(["circle", 12, 9, 0.2]);
+    expect(clean(r.entity("avatar")?.shape)).toEqual(["box", 3, 9, 0.2, 0.2]);
   });
 });
 
@@ -286,10 +294,10 @@ describe("selection", () => {
 });
 
 describe("point editing", () => {
+  /** Adds a poly whose points are given in screen px. */
   function withRock(r: Rig, pts: number[]) {
-    r.session.dispatch({
-      ops: [{ op: "add", entity: { id: "rock", type: "solid", shape: ["poly", ...pts] } }],
-    });
+    const shape = ["poly", ...pts.map((v) => v / S)];
+    r.session.dispatch({ ops: [{ op: "add", entity: { id: "rock", type: "solid", shape } }] });
     return r.writes();
   }
 
@@ -302,7 +310,7 @@ describe("point editing", () => {
     expect(r.host.overlay().handles?.map((h) => h.id)).toContain("vertex:0");
     r.drag([600, 600], [580, 620]);
     expect(r.writes()).toBe(start + 1);
-    expect(r.entity("rock")?.shape).toEqual(["poly", 580, 620, 700, 600, 650, 500]);
+    expect(r.entity("rock")?.shape).toEqual(["poly", 5.8, 6.2, 7, 6, 6.5, 5]);
     // A triangle keeps its three points.
     expect(r.host.command("delete-points")).toBe(true);
     expect(r.writes()).toBe(start + 1);
@@ -352,7 +360,7 @@ describe("point editing", () => {
           entity: {
             id: "walk",
             type: "nav",
-            shape: ["poly", 600, 600, 700, 600, 700, 500, 600, 500],
+            shape: ["poly", 6, 6, 7, 6, 7, 5, 6, 5],
           },
         },
       ],
@@ -362,7 +370,7 @@ describe("point editing", () => {
     const outlines = dragVertexConcave(r);
     expect(outlines.some((o) => o.tone === "invalid")).toBe(false);
     r.ptr("up", 680, 520);
-    expect(r.entity("walk")?.shape).toEqual(["poly", 680, 520, 700, 600, 700, 500, 600, 500]);
+    expect(r.entity("walk")?.shape).toEqual(["poly", 6.8, 5.2, 7, 6, 7, 5, 6, 5]);
   });
 });
 
@@ -373,7 +381,7 @@ describe("drawing tools", () => {
     expect(r.session.store.state.tool).toBe("box");
     r.drag([400, 400], [464, 432]);
     expect(r.writes()).toBe(1);
-    expect((r.def().solid as ShapeTuple[]).at(-1)).toEqual(["box", 432, 416, 32, 16]);
+    expect((r.def().solid as ShapeTuple[]).at(-1)).toEqual(["box", 4.32, 4.16, 0.32, 0.16]);
     expect(r.session.store.state.selection).toEqual(["~solid:3"]);
   });
 
@@ -392,7 +400,7 @@ describe("drawing tools", () => {
     });
     r.host.setTool("circle");
     r.drag([500, 500], [530, 540]);
-    expect(r.entity("sensor")?.shape).toEqual(["circle", 500, 500, 50]);
+    expect(r.entity("sensor")?.shape).toEqual(["circle", 5, 5, 0.5]);
   });
 
   it("makes a pen stroke one batch, and Escape drops one with none", () => {
@@ -409,7 +417,7 @@ describe("drawing tools", () => {
     expect(r.key("Enter")).toBe(true);
     expect(r.writes()).toBe(1);
     // Shift held the third point on the 45° line from the second.
-    expect((r.def().solid as ShapeTuple[]).at(-1)).toEqual(["chain", 100, 300, 200, 300, 255, 245]);
+    expect((r.def().solid as ShapeTuple[]).at(-1)).toEqual(["chain", 1, 3, 2, 3, 2.55, 2.45]);
 
     r.click(100, 100);
     r.later();
@@ -437,17 +445,7 @@ describe("drawing tools", () => {
       r.later();
     }
     expect(r.writes()).toBe(1);
-    expect((r.def().solid as ShapeTuple[]).at(-1)).toEqual([
-      "poly",
-      100,
-      100,
-      200,
-      100,
-      200,
-      200,
-      100,
-      200,
-    ]);
+    expect((r.def().solid as ShapeTuple[]).at(-1)).toEqual(["poly", 1, 1, 2, 1, 2, 2, 1, 2]);
   });
 
   it("lays out the selected path's waypoints in one batch", () => {
@@ -463,8 +461,8 @@ describe("drawing tools", () => {
     r.key("Enter");
     expect(r.writes()).toBe(1);
     expect((r.entity("lift")!.path as { pts: unknown }).pts).toEqual([
-      [1600, 900],
-      [1600, 500],
+      [16, 9],
+      [16, 5],
     ]);
   });
 
@@ -475,7 +473,7 @@ describe("drawing tools", () => {
     r.host.setTool("rotate");
     r.drag([1500, 800], [1404, 700]);
     expect(r.writes()).toBe(1);
-    expect(r.entity("ledge")?.shape).toEqual(["box", 1400, 800, 120, 10, 270]);
+    expect(r.entity("ledge")?.shape).toEqual(["box", 14, 8, 1.2, 0.1, 270]);
   });
 });
 
@@ -484,8 +482,11 @@ describe("host commands", () => {
     const r = rig({ snap: DEFAULT_SNAP });
     r.click(1200, 940);
     r.later();
+    // One world px.
     expect(r.host.command("nudge-left")).toBe(true);
-    expect(r.entity("crate")?.shape).toEqual(["circle", 1136, 940, 20]);
+    expect(r.entity("crate")?.shape).toEqual(["circle", 11.99, 9.4, 0.2]);
+    expect(r.host.command("nudge-up-coarse")).toBe(true);
+    expect(clean(r.entity("crate")?.shape)).toEqual(["circle", 11.99, 9.3, 0.2]);
     expect(r.host.command("nudge-up-fine")).toBe(true);
     expect(r.host.duplicate()).toBe(true);
     expect(r.session.store.state.selection).toEqual(["crate-2"]);
@@ -494,12 +495,12 @@ describe("host commands", () => {
     r.click(1400, 800);
     r.later();
     expect(r.host.command("rotate-cw")).toBe(true);
-    expect(r.entity("ledge")?.shape).toEqual(["box", 1400, 800, 120, 10, 15]);
+    expect(r.entity("ledge")?.shape).toEqual(["box", 14, 8, 1.2, 0.1, 15]);
     const text = r.host.copy();
-    expect(r.host.paste(text, [640, 320])).toBe(true);
-    // Centred on the cursor by whole grid steps, so it stays on the grid it was on.
-    expect(r.entity("ledge-2")?.shape).toEqual(["box", 632, 352, 120, 10, 15]);
-    expect(r.writes()).toBe(6);
+    expect(r.host.paste(text, [6.4, 3.2])).toBe(true);
+    // Centred on the cursor by whole 0.5 m grid steps, so it stays on the grid it was on.
+    expect(clean(r.entity("ledge-2")?.shape)).toEqual(["box", 6.5, 3, 1.2, 0.1, 15]);
+    expect(r.writes()).toBe(7);
     expect(r.host.command("toggle-snap")).toBe(true);
     expect(r.host.snap().enabled).toBe(false);
   });
@@ -627,7 +628,7 @@ describe("host commands", () => {
     expect(zooms[0]).toBeCloseTo(1 / 1.15);
     r.click(300, 940);
     expect(r.host.command("frame")).toBe(true);
-    expect(frames).toEqual([{ minX: 280, minY: 920, maxX: 320, maxY: 960 }]);
+    expect(clean(frames)).toEqual([{ minX: 2.8, minY: 9.2, maxX: 3.2, maxY: 9.6 }]);
   });
 
   it("ignores pointers outside edit mode", () => {
@@ -663,7 +664,7 @@ describe("game tools", () => {
     expect(r.writes()).toBe(1);
     expect(r.entity("crate-2")).toMatchObject({
       type: "prop",
-      shape: ["box", 800, 400, 20, 20, 0],
+      shape: ["box", 8, 4, 20, 20, 0],
     });
     // Escape drops the template first, then the tool.
     expect(r.host.cancel()).toBe(true);
@@ -685,7 +686,7 @@ describe("sprite boxes", () => {
     def.entities!.push({
       id: "sign",
       type: "marker",
-      at: [600, 960],
+      at: [6, 9.6],
       behaviors: { sprite: { asset: "sign", anchor: [0.5, 1] } },
     });
     let size: [number, number] = [40, 20];
@@ -694,19 +695,20 @@ describe("sprite boxes", () => {
       undefined,
       { def, prefabs: prefabLibrary([]) },
     );
-    expect(r.host.index().get("sign")?.aabb).toEqual({
-      minX: 580,
-      minY: 940,
-      maxX: 620,
-      maxY: 960,
+    // Texture px are world px: 40 × 20 px is 0.4 × 0.2 m.
+    expect(clean(r.host.index().get("sign")?.aabb)).toEqual({
+      minX: 5.8,
+      minY: 9.4,
+      maxX: 6.2,
+      maxY: 9.6,
     });
     size = [80, 40];
     r.host.reindex();
-    expect(r.host.index().get("sign")?.aabb).toEqual({
-      minX: 560,
-      minY: 920,
-      maxX: 640,
-      maxY: 960,
+    expect(clean(r.host.index().get("sign")?.aabb)).toEqual({
+      minX: 5.6,
+      minY: 9.2,
+      maxX: 6.4,
+      maxY: 9.6,
     });
   });
 });
@@ -738,16 +740,18 @@ describe("outlines", () => {
   it("draws a drop preview with the selection's outlines for the same ref", () => {
     const r = rig({ asset });
     const opts = { def: r.def(), registry, snap: free };
-    const preview = dropPreview(tree, [700, 500], { ...opts, asset });
-    const placed = dropBatch(tree, [700, 500], opts);
+    const preview = dropPreview(tree, [7, 5], { ...opts, asset });
+    const placed = dropBatch(tree, [7, 5], opts);
     if (!placed.ok) throw new Error("the drop was refused");
     expect(r.session.dispatch(placed.batch, { selectionAfter: placed.select }).ok).toBe(true);
     const ref = placed.select[0]!;
     const { shapes, points } = selected(r, ref);
-    expect(shapes).toEqual([{ type: "box", cx: 700, cy: 488, hw: 24, hh: 12, rotDeg: 0 }]);
+    expect(clean(shapes)).toEqual([
+      { type: "box", cx: 7, cy: 4.88, hw: 0.24, hh: 0.12, rotDeg: 0 },
+    ]);
     expect(preview.ghosts.map((g) => g.shape)).toEqual(shapes);
     // The selection marks the point under the sprite too; a drop's ghost shows the picture only.
-    expect(points).toEqual([[700, 500]]);
+    expect(points).toEqual([[7, 5]]);
     expect(preview.points).toBeUndefined();
   });
 
@@ -783,7 +787,7 @@ describe("outlines", () => {
             system: () => ({ spawn: () => {}, despawn: () => {}, clear: () => {}, size: () => 0 }),
             fields: { at: pointField("Where the lamp stands.") },
             bulk: { form: "point", description: "Lamps." },
-            behaviors: { required: { sprite: { size: [40, 20] } } },
+            behaviors: { required: { sprite: { size: [0.4, 0.2] } } },
           }),
         ],
         actions: [],
@@ -794,8 +798,8 @@ describe("outlines", () => {
       v: 3,
       game: "lamps",
       name: "lamps",
-      bounds: [0, 0, 2000, 2000],
-      lamp: [[400, 400]],
+      bounds: [0, 0, 20, 20],
+      lamp: [[4, 4]],
     } as unknown as SceneDefinition;
     const r = rig({}, undefined, { def, prefabs: prefabLibrary([]), registry: lamps });
     const ref = "~lamp:0";
@@ -805,11 +809,11 @@ describe("outlines", () => {
     r.ptr("move", 460, 430);
     const o = r.host.overlay();
     const mine = (o.outlines ?? []).filter((x) => x.ref === ref);
-    expect(mine.filter((x) => x.preview).map((x) => x.shape)).toEqual([
-      { type: "box", cx: 450, cy: 430, hw: 20, hh: 10, rotDeg: 0 },
+    expect(clean(mine.filter((x) => x.preview).map((x) => x.shape))).toEqual([
+      { type: "box", cx: 4.5, cy: 4.3, hw: 0.2, hh: 0.1, rotDeg: 0 },
     ]);
-    expect(mine.filter((x) => x.tone === "ghost").map((x) => x.shape)).toEqual([
-      { type: "box", cx: 400, cy: 400, hw: 20, hh: 10, rotDeg: 0 },
+    expect(clean(mine.filter((x) => x.tone === "ghost").map((x) => x.shape))).toEqual([
+      { type: "box", cx: 4, cy: 4, hw: 0.2, hh: 0.1, rotDeg: 0 },
     ]);
     r.ptr("up", 460, 430);
   });

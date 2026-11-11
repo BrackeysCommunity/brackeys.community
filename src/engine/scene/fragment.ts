@@ -4,7 +4,7 @@ import { ENGINE_REGISTRY_ID, type Registry } from "../game/types";
 import { bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "./expand";
 import { jsonPointer, makeIssue } from "./issues";
 import { migrate } from "./migrate";
-import { parseScene } from "./parse";
+import { migrateEnvOf, parseScene, type ParseOptions } from "./parse";
 import {
   childEntity,
   childRef,
@@ -237,7 +237,11 @@ function relocate(pointer: string, bulk: ReadonlySet<string>): string {
  * registry's scene schema. A fragment naming another game fails with
  * `unknown-game`; one naming none is judged by `registry`. Never throws.
  */
-export function parseFragment(input: unknown, registry: Registry): ParseFragmentResult {
+export function parseFragment(
+  input: unknown,
+  registry: Registry,
+  opts: ParseOptions = {},
+): ParseFragmentResult {
   let raw = input;
   if (typeof input === "string") {
     try {
@@ -292,7 +296,7 @@ export function parseFragment(input: unknown, registry: Registry): ParseFragment
     };
   }
 
-  const migrated = migrate(asScene(raw, bulk));
+  const migrated = migrate(asScene(raw, bulk), undefined, undefined, migrateEnvOf(registry, opts));
   if (!migrated.ok) return { ok: false, issues: [migrated.issue] };
   const doc = migrated.raw as Record<string, unknown>;
 
@@ -302,7 +306,7 @@ export function parseFragment(input: unknown, registry: Registry): ParseFragment
 
   const judged =
     game === undefined && judge.id !== ENGINE_REGISTRY_ID ? { ...doc, game: judge.id } : doc;
-  const parsed = parseScene(judged, judge);
+  const parsed = parseScene(judged, judge, opts);
   const bulkKeys = new Set(bulkKeysOf(judged as SceneDefinition));
   if (!parsed.ok) {
     return {

@@ -4,7 +4,7 @@ import { expect, it } from "vite-plus/test";
 
 import type { Registry } from "../../../game/types";
 import { formatScene } from "../../format";
-import { MIGRATIONS } from "../../migrate";
+import { MIGRATIONS, type MigrateEnv } from "../../migrate";
 import { parseScene } from "../../parse";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../types";
 
@@ -13,11 +13,17 @@ export interface MigrationHarnessOptions {
   fixtures: URL;
   /** The registry a fixture's text parses against. */
   registryOf: (text: string) => Registry;
+  /** The prefabs a fixture's instances name, for the steps that read their fields' units. */
+  prefabOf?: (text: string) => MigrateEnv["prefab"];
   /**
-   * Current-version fixtures with no older source, written from these
-   * definitions and checked against them.
+   * Fixtures written from a definition rather than by an older engine: the
+   * file `v<def.v>/<name>` is checked to hold `def`. At the current version
+   * that is all; at an older one the file is a source like any other, and
+   * its current-version file must also parse to `current(def)`.
    */
   sinks?: Record<string, SceneDefinition>;
+  /** What an older sink's definition is at the current version; required with older sinks. */
+  current?: (def: SceneDefinition, registry: Registry) => SceneDefinition;
   /**
    * Requires a fixture starting at every `MIGRATIONS` step. The engine's own
    * fixtures carry this; a game's set may start at only some steps.
@@ -40,8 +46,10 @@ function filesIn(fixtures: URL, folder: string, dir = ""): string[] {
 /**
  * Registers the migration harness's tests, inside the caller's `describe`:
  * every file under `v<n>/**` older than the current version parses with
- * `migratedFrom === n` and formats to the frozen `v<current>/<name>`; every
- * current-version file reads as current and round-trips byte for byte.
+ * `migratedFrom === n` and formats to the frozen `v<current>/<name>`; a name
+ * in several older folders (a file and what an older engine migrated it
+ * to) lands on that one file from each. Every current-version file reads as
+ * current and round-trips byte for byte.
  *
  * `UPDATE_FIXTURES=1` writes a missing current-version fixture once. It never
  * rewrites one that exists: a frozen fixture is read-only.
@@ -49,15 +57,21 @@ function filesIn(fixtures: URL, folder: string, dir = ""): string[] {
 export function migrationHarness({
   fixtures,
   registryOf,
+  prefabOf = () => undefined,
   sinks = {},
+  current: currentOf,
   everyStep = false,
 }: MigrationHarnessOptions): void {
   const current = `v${SCENE_FORMAT_VERSION}`;
   const update = process.env.UPDATE_FIXTURES === "1";
   const read = (file: string) => readFileSync(new URL(file, fixtures), "utf8");
-  const writeOnce = (name: string, text: string) => {
-    const url = new URL(`${current}/${name}`, fixtures);
+  const writeOnce = (file: string, text: string) => {
+    const url = new URL(file, fixtures);
     if (update && !existsSync(url)) writeFileSync(url, text);
+  };
+  const parse = (text: string) => {
+    const prefab = prefabOf(text);
+    return parseScene(text, registryOf(text), prefab ? { prefab } : {});
   };
 
   const sources = readdirSync(fixtures)
@@ -66,6 +80,7 @@ export function migrationHarness({
     .filter((n) => n < SCENE_FORMAT_VERSION)
     .sort((a, b) => a - b)
     .flatMap((n) => filesIn(fixtures, `v${n}`).map((name) => ({ n, name })));
+  const currentSinks = Object.keys(sinks).filter((name) => sinks[name]!.v === SCENE_FORMAT_VERSION);
 
   it("has an older-version fixture", () => {
     expect(sources.length).toBeGreaterThan(0);
@@ -82,21 +97,16 @@ export function migrationHarness({
         ).toBe(true);
     });
 
-  it("names each source once across the older versions", () => {
-    const names = sources.map((s) => s.name);
-    expect(new Set(names).size).toBe(names.length);
-  });
-
   for (const { n, name } of sources) {
     it(`v${n}/${name} migrates to the frozen ${current}/${name}`, () => {
       const text = read(`v${n}/${name}`);
-      const parsed = parseScene(text, registryOf(text));
+      const parsed = parse(text);
       expect(parsed.ok, JSON.stringify(parsed.issues)).toBe(true);
       if (!parsed.ok) return;
       expect(parsed.migratedFrom).toBe(n);
       expect(parsed.def.v).toBe(SCENE_FORMAT_VERSION);
       const out = formatScene(parsed.def).text;
-      writeOnce(name, out);
+      writeOnce(`${current}/${name}`, out);
       expect(
         existsSync(new URL(`${current}/${name}`, fixtures)),
         "run with UPDATE_FIXTURES=1",
@@ -106,24 +116,35 @@ export function migrationHarness({
   }
 
   for (const [name, def] of Object.entries(sinks)) {
-    it(`${current}/${name} is written from its definition`, () => {
-      expect(sources.some((s) => s.name === name)).toBe(false);
-      writeOnce(name, formatScene(def).text);
-      const text = read(`${current}/${name}`);
-      const parsed = parseScene(text, registryOf(text));
+    const folder = `v${def.v}`;
+    it(`${folder}/${name} is written from its definition`, () => {
+      if (def.v === SCENE_FORMAT_VERSION) {
+        expect(sources.some((s) => s.name === name)).toBe(false);
+        writeOnce(`${folder}/${name}`, formatScene(def).text);
+      }
+      const text = read(`${folder}/${name}`);
+      expect(JSON.parse(text)).toEqual(JSON.parse(formatScene(def).text));
+      if (def.v !== SCENE_FORMAT_VERSION) return;
+      const parsed = parse(text);
       expect(parsed.ok, JSON.stringify(parsed.issues)).toBe(true);
       if (parsed.ok) expect(parsed.def).toEqual(def);
     });
+    if (def.v !== SCENE_FORMAT_VERSION)
+      it(`${current}/${name} holds its ${folder} definition at the current version`, () => {
+        expect(currentOf, "pass `current` for an older sink").toBeDefined();
+        const text = read(`${current}/${name}`);
+        const parsed = parse(text);
+        expect(parsed.ok, JSON.stringify(parsed.issues)).toBe(true);
+        if (parsed.ok) expect(parsed.def).toEqual(currentOf!(def, registryOf(text)));
+      });
   }
 
   it("reads every current-version fixture as current and round-trips it byte for byte", () => {
     const names = filesIn(fixtures, current);
-    expect(names).toEqual(
-      [...new Set([...sources.map((s) => s.name), ...Object.keys(sinks)])].sort(),
-    );
+    expect(names).toEqual([...new Set([...sources.map((s) => s.name), ...currentSinks])].sort());
     for (const name of names) {
       const text = read(`${current}/${name}`);
-      const parsed = parseScene(text, registryOf(text));
+      const parsed = parse(text);
       expect(parsed.ok, `${name}: ${JSON.stringify(parsed.issues)}`).toBe(true);
       if (!parsed.ok) continue;
       expect(parsed.migratedFrom, name).toBeUndefined();

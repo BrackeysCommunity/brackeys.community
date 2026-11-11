@@ -65,6 +65,7 @@ export { DEFAULT_LAYERS, type SceneLayerDef } from "../scene/layers";
 export { primitiveFields } from "./primitives";
 export {
   DEFAULT_GRAVITY,
+  DEFAULT_LENGTH_UNIT,
   DEFAULT_PHYSICS,
   DEFAULT_SPAWN_CAST,
   DEFAULT_TICK_RATE,
@@ -83,6 +84,26 @@ export {
   type TimeModel,
 } from "./time";
 export { PhysicsRequiredError, physicsOf } from "./physics-of";
+export { lengthUnitOf, pxPerMetreOf, scaleLengths } from "./units";
+export {
+  KEY_CODES,
+  KEY_TO_CODE,
+  PAD_AXES,
+  PAD_BUTTONS,
+  POINTER_BUTTONS,
+  type PadAxis,
+  type PadButton,
+  type PointerButton,
+} from "./input-codes";
+export {
+  ACTION_KINDS,
+  bindingProblems,
+  declaredBindings,
+  playersProblems,
+  type BindingContext,
+  type BindingProblem,
+} from "./input-bindings";
+export type { InputState, PointerState } from "../input/state";
 export { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
 export {
   ENGINE_CHECK_KINDS,
@@ -96,7 +117,9 @@ export {
 } from "./types";
 export type {
   ActionDef,
+  ActionKind,
   BasePrimitive,
+  Binding,
   BehaviorRules,
   BulkKeyInfo,
   CheckEnv,
@@ -109,6 +132,7 @@ export type {
   Contacts,
   CoroutineYield,
   Delay,
+  DeviceId,
   EngineCheckKind,
   EngineCollisionGroup,
   EngineContext,
@@ -119,6 +143,7 @@ export type {
   GameCommand,
   GameDefinition,
   GameEditorDef,
+  GameInputDef,
   GameKeyBinding,
   GameOutcome,
   GamePlayDef,
@@ -141,6 +166,8 @@ export type {
   PhysicalCheck,
   PhysicalEnv,
   PhysicalHit,
+  PlayerInfo,
+  PlayersDef,
   PlayStart,
   PlayState,
   PlayWorld,
@@ -260,10 +287,18 @@ export {
   ENTITY_DISABLED,
   ENTITY_ENABLED,
   ENTITY_SPAWNED,
+  PLAYER_JOINED,
+  PLAYER_LEFT,
   SENSOR_ENTER,
   SENSOR_EXIT,
 } from "../runtime/types";
-export { TOOL_PRIORITY, type ToolConsumer, type ToolEvent, type ToolRouter } from "../tool-router";
+export {
+  TOOL_PRIORITY,
+  type PointerKind,
+  type ToolConsumer,
+  type ToolEvent,
+  type ToolRouter,
+} from "../tool-router";
 export type { EditorToolDef } from "../editor/tools";
 export {
   createPlacementTool,

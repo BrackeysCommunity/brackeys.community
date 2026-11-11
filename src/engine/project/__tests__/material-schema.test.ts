@@ -21,7 +21,7 @@ describe("material.schema.json", () => {
 
   it("has its URN, draft 2020-12, the agent surface and no domain", () => {
     const schema = fresh();
-    expect(MATERIAL_SCHEMA_ID).toBe("urn:jams-engine:material:v1");
+    expect(MATERIAL_SCHEMA_ID).toBe("urn:jams-engine:material:v2");
     expect(schema.$id).toBe(MATERIAL_SCHEMA_ID);
     expect(schema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(schema[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);
@@ -34,7 +34,7 @@ describe("material.schema.json", () => {
 
   it("reads the engine's material file shape", () => {
     expect(
-      validateAssetDoc(materialKind, { kind: "material", v: 1, description: "Ink." }, env),
+      validateAssetDoc(materialKind, { kind: "material", v: 2, description: "Ink." }, env),
     ).toEqual([]);
   });
 });

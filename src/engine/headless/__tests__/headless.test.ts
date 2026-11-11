@@ -2,10 +2,19 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { engineYard } from "../../__tests__/fixtures/engine-yard.expanded";
-import { testGame } from "../../__tests__/fixtures/test-game";
+import {
+  testGame,
+  type TestGameOptions,
+  type TestGameSnapshot,
+} from "../../__tests__/fixtures/test-game";
+import { createRegistry, defineGame } from "../../game/define";
+import type { GameCommand, PlayState } from "../../game/types";
 import { SENSOR_ENTER } from "../../runtime/types";
+import { prefabLibrary } from "../../scene/prefab";
+import type { Prefab } from "../../scene/types";
 import type { RapierModule } from "../../types";
 import { createHeadlessRuntime, probeConfigHash, runProbe, unknownActionError } from "../headless";
+import { runLoop, startRun } from "../play-loop";
 
 let rapier: RapierModule;
 
@@ -31,7 +40,7 @@ describe("headless runtime", () => {
     expect(report.load.ok).toBe(true);
     expect(report.ticks).toBe(150);
     expect(report.tickRate).toBe(60);
-    expect(report.final?.position.x).toBeGreaterThan(300);
+    expect(report.final?.position.x).toBeGreaterThan(3);
     expect(report.events).toContainEqual(
       expect.objectContaining({ type: SENSOR_ENTER, entityId: "zone", other: "avatar" }),
     );
@@ -56,7 +65,7 @@ describe("headless runtime", () => {
   it("applies scripted edges at their tick", () => {
     const final = (inputs: [number, string, 0 | 1][]) =>
       runProbe({ rapier, game: testGame, scene: engineYard(), ticks: 40, inputs }).final!;
-    expect(final([]).position.x).toBe(300);
+    expect(final([]).position.x).toBe(3);
     expect(final([[5, "right", 1]]).position.x).toBeGreaterThan(
       final([[20, "right", 1]]).position.x,
     );
@@ -171,7 +180,7 @@ describe("headless runtime", () => {
   it("createHeadlessRuntime loads the scene it is given", () => {
     const rt = createHeadlessRuntime({ rapier, game: testGame, scene: engineYard() });
     expect(rt.stats().entities).toBe(9);
-    expect(rt.step(1000 / 60, []).game).toMatchObject({ position: { x: 300 } });
+    expect(rt.step(1000 / 60, []).game).toMatchObject({ position: { x: 3 } });
     rt.destroy();
   });
 
@@ -189,5 +198,140 @@ describe("headless runtime", () => {
     expect(() => createHeadlessRuntime({ game: testGame, scene: engineYard() })).toThrow(
       /no Rapier module/,
     );
+  });
+});
+
+const BEACON: Prefab = {
+  kind: "prefab",
+  v: 4,
+  id: "beacon",
+  entities: [{ id: "light", type: "marker", at: [0, 0] }],
+};
+const PLACE = "place";
+
+/** What a state's world answered while the run was live. */
+type Seen = { tick: number; avatar: boolean; markers: number };
+const seenOf = (state: PlayState): Seen => ({
+  tick: state.tick,
+  avatar: state.world?.exists("avatar") ?? false,
+  markers: state.world?.count({ type: "marker" }) ?? -1,
+});
+
+/**
+ * The test game with a `place` command that instantiates the beacon, and an
+ * outcome hook that records what each state's world answers and wins once the beacon is live.
+ */
+function beaconGame(seen: Seen[]) {
+  return defineGame<TestGameSnapshot, TestGameOptions>({
+    ...testGame,
+    commands: { ...testGame.commands, [PLACE]: { description: "Places a beacon." } },
+    play: {
+      ...testGame.play,
+      results: [...(testGame.play?.results ?? []), "lit"],
+      outcome: (state) => {
+        seen.push(seenOf(state));
+        return state.world?.exists("beacon#1") ? { result: "lit", entityId: "beacon#1" } : null;
+      },
+    },
+    createRuntime(ctx) {
+      const base = testGame.createRuntime(ctx);
+      return {
+        ...base,
+        beforeStep(dt, actions, commands) {
+          base.beforeStep?.(dt, actions, commands);
+          if (commands.some((c) => c.name === PLACE)) ctx.instantiate("beacon", [1, 1]);
+        },
+      };
+    },
+  });
+}
+
+describe("the world a run's states carry", () => {
+  const placeAt = (tick: number): [number, GameCommand][] => [[tick, { name: PLACE }]];
+
+  it("runProbe gives the outcome hook the live world on every tick", () => {
+    const seen: Seen[] = [];
+    const game = beaconGame(seen);
+    const report = runProbe({
+      rapier,
+      game,
+      registry: createRegistry(game),
+      scene: engineYard(),
+      ticks: 6,
+      commands: placeAt(3),
+      library: prefabLibrary([BEACON]),
+    });
+    expect(report.blocked).toBeUndefined();
+    expect(report.outcome).toMatchObject({ result: "lit", tick: 3, entityId: "beacon#1" });
+    expect(seen).toEqual([
+      { tick: 0, avatar: true, markers: 1 },
+      { tick: 1, avatar: true, markers: 1 },
+      { tick: 2, avatar: true, markers: 1 },
+      { tick: 3, avatar: true, markers: 2 },
+    ]);
+  });
+
+  it("the run loop playtest, fuzz and replay share gives every state the live world", () => {
+    const seen: Seen[] = [];
+    const game = beaconGame([]);
+    const registry = createRegistry(game);
+    const started = startRun({ rapier, game, registry, scene: engineYard(), play: {} });
+    if (!started.ok) throw new Error(started.load.ok ? "" : started.load.error);
+    try {
+      runLoop({
+        runtime: started.runtime,
+        game,
+        maxTicks: 4,
+        input: { done: () => false, after: (s) => seen.push(seenOf(s)) },
+      });
+    } finally {
+      started.runtime.destroy();
+    }
+    expect(seen.map((s) => s.tick)).toEqual([0, 1, 2, 3]);
+    expect(seen.every((s) => s.avatar && s.markers === 1)).toBe(true);
+  });
+});
+
+describe("runProbe blocked", () => {
+  it("ends at stage run with the code of an EngineError out of a step, keeping the ticks before it", () => {
+    const game = beaconGame([]);
+    const report = runProbe({
+      rapier,
+      game,
+      registry: createRegistry(game),
+      scene: engineYard(),
+      ticks: 10,
+      hold: ["right"],
+      commands: [[4, { name: PLACE }]],
+    });
+    expect(report.ticks).toBe(4);
+    expect(report.blocked).toMatchObject({
+      blocked: true,
+      stage: "run",
+      scene: "engine-yard",
+      scriptIssues: [],
+    });
+    const issue = report.blocked!.issues.at(-1)!;
+    expect(issue).toMatchObject({ severity: "error", code: "prefab-not-spawnable" });
+    expect(issue.message).toContain('"beacon"');
+    expect(report.final?.position.x).toBeGreaterThan(3);
+    expect(report.outcome).toBeUndefined();
+  });
+
+  it("rethrows an error that isn't an EngineError", () => {
+    const game = defineGame<TestGameSnapshot, TestGameOptions>({
+      ...testGame,
+      createRuntime(ctx) {
+        return {
+          ...testGame.createRuntime(ctx),
+          afterStep() {
+            throw new Error("game bug");
+          },
+        };
+      },
+    });
+    expect(() =>
+      runProbe({ rapier, game, registry: createRegistry(game), scene: engineYard(), ticks: 3 }),
+    ).toThrow("game bug");
   });
 });

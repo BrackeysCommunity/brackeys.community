@@ -4,8 +4,11 @@ import { describe } from "vite-plus/test";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import type { Registry } from "../../game/types";
-import type { SceneDefinition } from "../types";
-import { engine } from "./fixtures/fake-game";
+import { pxPerMetreOf, scaleLengths } from "../../game/units";
+import { sceneSchemaFor } from "../schema";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../types";
+import { pxToMetres } from "../units";
+import { engine, prefabFixture } from "./fixtures/fake-game";
 import { migrationHarness } from "./fixtures/migration-harness";
 
 const registries: Record<string, Registry> = { "test-game": createRegistry(testGame) };
@@ -15,8 +18,9 @@ const registryOf = (text: string): Registry => {
 };
 
 /**
- * The current-version sinks: files with no older source, written from these
- * definitions. Together they hold every v3 field that has no v1 or v2 form.
+ * Sinks: files written from these definitions rather than by an older
+ * engine. Together they hold every v3 field that has no v1 or v2 form; at
+ * v4 they are sources like the rest.
  */
 const SINKS: Record<string, SceneDefinition> = {
   "kitchen-sink.json": {
@@ -117,11 +121,27 @@ const SINKS: Record<string, SceneDefinition> = {
   },
 };
 
+/**
+ * A v3 sink at v4: every length under the scene schema's units in metres,
+ * and the param the schema can't see scaled through its prefab's target
+ * (`door.path.speed`, m/s).
+ */
+function current(def: SceneDefinition, registry: Registry): SceneDefinition {
+  const ppm = pxPerMetreOf(registry);
+  const out = scaleLengths(def, sceneSchemaFor(registry), ppm) as SceneDefinition;
+  for (const inst of out.instances ?? [])
+    if (typeof inst.params?.speed === "number")
+      inst.params.speed = pxToMetres(inst.params.speed, ppm);
+  return { ...out, v: SCENE_FORMAT_VERSION };
+}
+
 describe("the migration harness", () => {
   migrationHarness({
     fixtures: new URL("./fixtures/", import.meta.url),
     registryOf,
+    prefabOf: () => prefabFixture,
     sinks: SINKS,
+    current,
     everyStep: true,
   });
 });

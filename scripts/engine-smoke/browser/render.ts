@@ -8,7 +8,6 @@
 import { createAssetLoader, createGame, type GameInstance } from "@jams/engine";
 import { createRegistry, withProject } from "@jams/engine/game";
 import { createKindRegistry, projectView, runtimeView } from "@jams/engine/project";
-import { parsePrefab, parseSceneOrThrow, type Prefab } from "@jams/engine/scene";
 
 import { devAssetUrl } from "../../../src/engine/editor-ui/connect/dev";
 import type { RenderProbe } from "../browser-compare";
@@ -24,6 +23,7 @@ import {
   SINK_SCENE,
   SMOKE_BACKGROUND,
 } from "./sink";
+import { parseSinkScene, sinkPrefabs } from "./sink-prefabs";
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
@@ -39,14 +39,8 @@ export async function runRenderSmoke(): Promise<RenderProbe> {
   const view = projectView(data.state, kinds);
   const values = new Map(Object.entries(data.values));
   const registry = withProject(createRegistry(smokeGame), view, values);
-  const scene = parseSceneOrThrow(values.get(SINK_SCENE), registry);
-  const prefabs = new Map<string, Prefab>();
-  for (const entry of view.byId.values()) {
-    if (entry.kind !== "prefab") continue;
-    const read = parsePrefab(values.get(entry.id), registry);
-    if (!read.ok) throw new Error(`prefab ${entry.id} doesn't parse: ${read.issues[0]?.message}`);
-    prefabs.set(read.prefab.id, read.prefab);
-  }
+  const prefabs = sinkPrefabs(view, values, registry);
+  const scene = parseSinkScene(values.get(SINK_SCENE), registry, prefabs);
 
   const canvas = document.createElement("canvas");
   document.body.append(canvas);

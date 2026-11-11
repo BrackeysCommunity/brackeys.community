@@ -1,24 +1,36 @@
 import type { z } from "zod";
 
+import { POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { resolveTime, ticksFor, type ResolvedTime } from "../game/time";
-import type { Registry } from "../game/types";
+import type { DeviceId, GameCommand, PlayState, Registry } from "../game/types";
+import { qAxis, qVector } from "../input/quantize";
+import type { PointerState } from "../input/state";
+import type { SeatChange, TickInput } from "../input/stream";
+import { inputAction } from "../runtime/recorder";
 import { closest } from "../scene/did-you-mean";
 import {
   checkCommand,
   DEFAULT_SCRIPT_MAX_TICKS,
   DEFAULT_UNTIL_MAX,
   elapsedCommand,
+  INPUT_SCRIPT_VERSION,
   inputScriptSchemasFor,
+  pointerStepProblem,
   scriptCommandNames,
+  type AnalogSet,
   type InputScriptSchemas,
+  type ScriptPointer,
 } from "../scene/input-script";
 import { jsonPointer } from "../scene/issues";
+import type { InputAction, Vec2 } from "../types";
 import { unknownActionError } from "./headless";
+import type { InputSource } from "./play-loop";
 import type {
   CompiledInputScript,
   CompiledStep,
   CompileResult,
   InputEdge,
+  PlaytestStep,
   PlayOptions,
   ScriptIssue,
   UntilClause,
@@ -26,11 +38,73 @@ import type {
 
 type Path = (string | number)[];
 
-const STEP_KINDS = ["hold", "press", "wait", "command", "elapse"] as const;
+// ─── Compiled form ───────────────────────────────────────
+
+/** Axis values and vector components by action, quantised: what a seat holds besides its buttons. */
+export type AnalogValues = Readonly<Record<string, number | Vec2>>;
+
+/** A pointer step as it plays: `at`, or a line from `at` to `drag` over the step. */
+export type CompiledPointer = {
+  at: Vec2;
+  drag?: Vec2;
+  /** Goes down on the step's first slot. */
+  press?: PointerButton;
+  /** Goes up on the step's last slot. */
+  release?: PointerButton;
+};
+
+/** A step of either format: v1's fields, plus what it sets, points at and changes on its seat. */
+export type CompiledScriptStep = CompiledStep & {
+  /** Axis and vector values held for the step; what the step before set and this one doesn't returns to 0. */
+  set?: AnalogValues;
+  pointer?: CompiledPointer;
+  /** Devices joining (`join`) or leaving (`leave`) the track's seat on the step's one slot. */
+  joins?: { device: DeviceId; joined: boolean }[];
+};
+
+/** One seat's steps, played concurrently with the other tracks from slot 0. */
+export type CompiledTrack = { player: number; steps: CompiledScriptStep[] };
+
+/**
+ * A compiled script of either format. A script written with `steps` keeps
+ * them there (seat 0's track); one written with `tracks` has every seat's
+ * steps in `tracks` and none in `steps`.
+ */
+export type CompiledScript = CompiledInputScript & {
+  steps: CompiledScriptStep[];
+  tracks?: CompiledTrack[];
+  /** The script's `players`, when it names them. */
+  players?: number;
+};
+
+/** How one step of a track went; `player` names the track for a script with `tracks`. */
+export type ScriptStepLog = PlaytestStep & { player?: number };
+
+// ─── Parsing ─────────────────────────────────────────────
+
+const V1_KINDS = ["hold", "press", "wait", "command", "elapse"] as const;
+const V2_KINDS = [...V1_KINDS, "set", "pointer", "join", "leave"] as const;
+type StepKind = (typeof V2_KINDS)[number];
 const DURATIONS = ["for", "forMs", "until"] as const;
-const STEP_KEYS = [...STEP_KINDS, ...DURATIONS, "max", "args"];
-const KIND_LIST = "hold, press, wait, command or elapse";
+const V1_STEP_KEYS = [...V1_KINDS, ...DURATIONS, "max", "args"];
+const V2_STEP_KEYS = [...V2_KINDS, ...DURATIONS, "max", "args"];
+const V1_KIND_LIST = "hold, press, wait, command or elapse";
+const V2_KIND_LIST = "hold, set, pointer, press, wait, command, elapse, join or leave";
+/** Kinds that take `for`, `forMs` or `until`. */
+const TIMED: readonly StepKind[] = ["hold", "set", "pointer"];
 const EXISTS_KEYS = ["id", "enabled"];
+
+type Format = {
+  v2: boolean;
+  kinds: readonly StepKind[];
+  keys: readonly string[];
+  kindList: string;
+};
+
+const FORMATS: Record<1 | 2, Format> = {
+  1: { v2: false, kinds: V1_KINDS, keys: V1_STEP_KEYS, kindList: V1_KIND_LIST },
+  2: { v2: true, kinds: V2_KINDS, keys: V2_STEP_KEYS, kindList: V2_KIND_LIST },
+};
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -52,22 +126,24 @@ const guessed = (word: string, candidates: readonly string[]) => {
   return guess ? `; did you mean "${guess}"?` : "";
 };
 
+const issueAt = (path: Path, message: string, extra: Partial<ScriptIssue> = {}): ScriptIssue => ({
+  path: jsonPointer(path),
+  message,
+  ...extra,
+});
+
 function unknownKey(path: Path, key: string, candidates: readonly string[]): ScriptIssue {
-  return {
-    path: jsonPointer([...path, key]),
-    message: `unknown key ${JSON.stringify(key)}${guessed(key, candidates)}`,
+  return issueAt([...path, key], `unknown key ${JSON.stringify(key)}${guessed(key, candidates)}`, {
     expected: candidates.join(" | "),
     got: JSON.stringify(key),
-  };
+  });
 }
 
 function unknownAction(path: Path, action: string, registry: Registry): ScriptIssue {
-  return {
-    path: jsonPointer(path),
-    message: unknownActionError(action, registry.actionNames)!,
+  return issueAt(path, unknownActionError(action, registry.actionNames)!, {
     expected: registry.actionNames.map((a) => JSON.stringify(a)).join(" | "),
     got: JSON.stringify(action),
-  };
+  });
 }
 
 /** The keys an object at `path` (relative to what was parsed) may have, for "did you mean". */
@@ -89,7 +165,12 @@ function fromZod(
     const value = valueAt(input, rel);
     const actionSlot = rel.includes("hold") || rel.includes("press");
     if (issue.code === "unrecognized_keys") {
-      for (const key of issue.keys) out.push(unknownKey(path, key, keysAt(rel)));
+      for (const key of issue.keys) {
+        if (rel.at(-1) === "set" && actions.includes(key)) {
+          out.push(issueAt([...path, key], `${key} is a button; hold it instead of setting it`));
+        } else if (rel.at(-1) === "set") out.push(unknownAction([...path, key], key, registry));
+        else out.push(unknownKey(path, key, keysAt(rel)));
+      }
     } else if (actionSlot && typeof value === "string" && !actions.includes(value)) {
       out.push(unknownAction(path, value, registry));
     } else if (actionSlot && Array.isArray(value) && issue.code === "invalid_union") {
@@ -98,107 +179,196 @@ function fromZod(
           ? [unknownAction([...path, i], a, registry)]
           : [],
       );
-      out.push(...(bad.length > 0 ? bad : [{ path: jsonPointer(path), message: issue.message }]));
+      out.push(...(bad.length > 0 ? bad : [issueAt(path, issue.message)]));
     } else {
-      out.push({ path: jsonPointer(path), message: issue.message });
+      out.push(issueAt(path, issue.message));
     }
   }
   return out;
 }
 
-type ParsedStep = z.output<InputScriptSchemas["script"]>["steps"][number];
+type Duration = { for: number } | { forMs: number } | { until: UntilClause; max?: number };
+
+/** A step checked, before its length is resolved to ticks. */
+type ParsedStep =
+  | { kind: "hold"; hold: string[]; set?: AnalogValues; duration: Duration }
+  | { kind: "pointer"; pointer: CompiledPointer; duration: Duration | null }
+  | { kind: "press"; press: string[] }
+  | { kind: "wait"; ticks: number }
+  | { kind: "command"; command: GameCommand }
+  | { kind: "elapse"; ms: number }
+  | { kind: "join" | "leave"; device: DeviceId };
+
+type Parsed<T> = { ok: true; value: T } | { ok: false; issues: ScriptIssue[] };
+const failed = (...issues: ScriptIssue[]) => ({ ok: false as const, issues });
+
+const shapeKeys = (schema: unknown): string[] =>
+  Object.keys((schema as { shape?: object }).shape ?? {});
+
+/** Which of `for`, `forMs` or `until` a timed step takes, or why it takes none. */
+function durationOf(
+  raw: Record<string, unknown>,
+  label: string,
+  path: Path,
+): Parsed<(typeof DURATIONS)[number]> {
+  const durations = DURATIONS.filter((k) => k in raw);
+  if (durations.length !== 1) {
+    return failed(
+      issueAt(
+        path,
+        durations.length === 0
+          ? `${label} needs one of for, forMs or until`
+          : `${label} takes one of for, forMs or until, not ${durations.join(" and ")}`,
+      ),
+    );
+  }
+  if ("max" in raw && durations[0] !== "until") {
+    return failed(
+      issueAt([...path, "max"], "max caps an until step; this step has a fixed length"),
+    );
+  }
+  return { ok: true, value: durations[0]! };
+}
+
+const capitalised = (kind: string) => kind.charAt(0).toUpperCase() + kind.slice(1);
 
 /** Picks a step's shape by its keys, so a mistake is reported against the step it was meant to be. */
 function parseStep(
   raw: unknown,
-  index: number,
+  path: Path,
+  format: Format,
   schemas: InputScriptSchemas,
   registry: Registry,
-): { ok: true; step: ParsedStep } | { ok: false; issues: ScriptIssue[] } {
-  const path: Path = ["steps", index];
-  const fail = (message: string, extra: Partial<ScriptIssue> = {}) => ({
-    ok: false as const,
-    issues: [{ path: jsonPointer(path), message, ...extra }],
-  });
-  if (!isRecord(raw))
+): Parsed<ParsedStep> {
+  const fail = (message: string, extra: Partial<ScriptIssue> = {}) =>
+    failed(issueAt(path, message, extra));
+  if (!isRecord(raw)) {
     return fail(
-      "a step is an object: { hold, for | forMs | until }, { press }, { wait }, { command, args? } or { elapse }",
+      format.v2
+        ? "a step is an object: { hold, set?, for | forMs | until }, { set, for | forMs | until }, { pointer }, { press }, { wait }, { command, args? }, { elapse }, { join } or { leave }"
+        : "a step is an object: { hold, for | forMs | until }, { press }, { wait }, { command, args? } or { elapse }",
     );
+  }
 
-  const unknown = Object.keys(raw).filter((k) => !STEP_KEYS.includes(k));
+  const unknown = Object.keys(raw).filter((k) => !format.keys.includes(k));
   if (unknown.length > 0) {
-    return { ok: false, issues: unknown.map((k) => unknownKey(path, k, STEP_KEYS)) };
-  }
-  const kinds = STEP_KINDS.filter((k) => k in raw);
-  if (kinds.length !== 1) {
-    return fail(
-      kinds.length === 0
-        ? `a step needs one of ${KIND_LIST}`
-        : `a step is one of ${KIND_LIST}, not ${kinds.join(" and ")}`,
+    return failed(
+      ...unknown.map((k) => {
+        const issue = unknownKey(path, k, format.keys);
+        if (!format.v2 && (V2_KINDS as readonly string[]).includes(k)) {
+          issue.hint = `${k} steps need input-script v2: set "v": 2.`;
+        }
+        return issue;
+      }),
     );
   }
-  if ("args" in raw && kinds[0] !== "command") {
-    return {
-      ok: false,
-      issues: [
-        {
-          path: jsonPointer([...path, "args"]),
-          message: "args goes with a command step",
-        },
-      ],
-    };
+  const found = format.kinds.filter((k) => k in raw);
+  const withSet = found.length === 2 && found.includes("hold") && found.includes("set");
+  if (found.length !== 1 && !withSet) {
+    return fail(
+      found.length === 0
+        ? `a step needs one of ${format.kindList}`
+        : `a step is one of ${format.kindList}, not ${found.join(" and ")}`,
+    );
+  }
+  const kind: StepKind = withSet ? "hold" : found[0]!;
+  if ("args" in raw && kind !== "command") {
+    return failed(issueAt([...path, "args"], "args goes with a command step"));
   }
   const misplaced = [...DURATIONS, "max"].find((k) => k in raw);
-  if (misplaced && kinds[0] !== "hold") {
-    return {
-      ok: false,
-      issues: [
-        {
-          path: jsonPointer([...path, misplaced]),
-          message: `${misplaced} goes with a hold step; { "hold": [], "${misplaced === "max" ? "until" : misplaced}": … } waits holding nothing`,
-        },
-      ],
-    };
+  if (misplaced && !TIMED.includes(kind)) {
+    const timed = format.v2 ? "a hold, set or pointer step" : "a hold step";
+    return failed(
+      issueAt(
+        [...path, misplaced],
+        `${misplaced} goes with ${timed}; { "hold": [], "${misplaced === "max" ? "until" : misplaced}": … } waits holding nothing`,
+      ),
+    );
   }
-  if (kinds[0] === "command") {
+  if (kind === "command") {
     const problem = commandStepIssue(raw, path, registry);
-    if (problem) return { ok: false, issues: [problem] };
+    if (problem) return failed(problem);
   }
+
   let shape: z.ZodType;
-  if (kinds[0] === "hold") {
-    const durations = DURATIONS.filter((k) => k in raw);
-    if (durations.length !== 1) {
-      return fail(
-        durations.length === 0
-          ? "a hold step needs one of for, forMs or until"
-          : `a hold step takes one of for, forMs or until, not ${durations.join(" and ")}`,
-      );
-    }
-    if ("max" in raw && durations[0] !== "until") {
-      return {
-        ok: false,
-        issues: [
-          {
-            path: jsonPointer([...path, "max"]),
-            message: "max caps an until step; this step has a fixed length",
-          },
-        ],
-      };
-    }
-    const { holdFor, holdForMs, holdUntil } = schemas.steps;
-    shape = { for: holdFor, forMs: holdForMs, until: holdUntil }[durations[0]!];
+  if (TIMED.includes(kind) && (kind !== "pointer" || misplaced)) {
+    const duration = durationOf(raw, `a ${kind} step`, path);
+    if (!duration.ok) return duration;
+    const named = `${kind}${capitalised(duration.value)}` as keyof InputScriptSchemas["steps"];
+    shape = schemas.steps[named];
   } else {
-    shape = schemas.steps[kinds[0]!];
+    shape = schemas.steps[kind as keyof InputScriptSchemas["steps"]];
   }
   const parsed = shape.safeParse(raw);
-  if (parsed.success) return { ok: true, step: parsed.data as ParsedStep };
-  const keysAt: KeysAt = (rel) => {
-    if (rel.at(-1) === "until") return registry.predicateNames;
-    if (rel.at(-2) === "until" && rel.at(-1) === "count") return schemas.countKeys;
-    if (rel.at(-2) === "until" && rel.at(-1) === "exists") return EXISTS_KEYS;
-    return STEP_KEYS;
+  if (!parsed.success) {
+    const keysAt: KeysAt = (rel) => {
+      if (rel.at(-1) === "until") return registry.predicateNames;
+      if (rel.at(-2) === "until" && rel.at(-1) === "count") return schemas.countKeys;
+      if (rel.at(-2) === "until" && rel.at(-1) === "exists") return EXISTS_KEYS;
+      if (rel.at(-1) === "set") return shapeKeys(schemas.analog);
+      if (rel.at(-1) === "pointer") return shapeKeys(schemas.pointer);
+      return format.keys;
+    };
+    return failed(...fromZod(parsed.error, raw, path, registry, keysAt));
+  }
+  return stepOf(kind, parsed.data as Record<string, unknown>, path, registry);
+}
+
+/** A step its shape accepted, with what no shape can see checked: a value held and set. */
+function stepOf(
+  kind: StepKind,
+  data: Record<string, unknown>,
+  path: Path,
+  registry: Registry,
+): Parsed<ParsedStep> {
+  const duration = (): Duration | null => {
+    if (data.for !== undefined) return { for: data.for as number };
+    if (data.forMs !== undefined) return { forMs: data.forMs as number };
+    if (data.until === undefined) return null;
+    const until = { until: data.until as UntilClause } as Duration & { max?: number };
+    if (data.max !== undefined) until.max = data.max as number;
+    return until;
   };
-  return { ok: false, issues: fromZod(parsed.error, raw, path, registry, keysAt) };
+  switch (kind) {
+    case "command": {
+      const checked = checkCommand(registry, { name: data.command as string, args: data.args });
+      if (!checked.ok) return failed(issueAt(path, checked.message));
+      return { ok: true, value: { kind, command: checked.command } };
+    }
+    case "elapse":
+      return { ok: true, value: { kind, ms: data.elapse as number } };
+    case "wait":
+      return { ok: true, value: { kind, ticks: data.wait as number } };
+    case "press": {
+      const press = data.press as string | string[];
+      return {
+        ok: true,
+        value: { kind, press: unique(typeof press === "string" ? [press] : press) },
+      };
+    }
+    case "join":
+    case "leave":
+      return { ok: true, value: { kind, device: data[kind] as DeviceId } };
+    case "pointer": {
+      const pointer = compiledPointer(data.pointer as ScriptPointer);
+      return { ok: true, value: { kind, pointer, duration: duration() } };
+    }
+    case "set":
+    case "hold": {
+      const hold = unique((data.hold as string[] | undefined) ?? []);
+      const set = data.set as AnalogSet | undefined;
+      const values = set ? analogValues(set) : undefined;
+      const both = values ? hold.find((a) => a in values) : undefined;
+      if (both !== undefined) {
+        return failed(
+          issueAt([...path, "set", both], `${both} is held and set; a step does one or the other`),
+        );
+      }
+      const step: ParsedStep = { kind: "hold", hold, duration: duration()! };
+      if (values) step.set = values;
+      return { ok: true, value: step };
+    }
+  }
 }
 
 /** An unknown command (with a guess) or args its schema refuses, as one issue. */
@@ -211,21 +381,17 @@ function commandStepIssue(
   if (typeof name !== "string") return null;
   const names = scriptCommandNames(registry);
   if (name.startsWith("@") && registry.commands.has(name)) {
-    return {
-      path: jsonPointer([...path, "command"]),
-      message:
-        name === "@elapsed"
-          ? "@elapsed is the engine's; send it with an elapse step"
-          : `${name} is the engine's; a command step sends the game's`,
-      got: JSON.stringify(name),
-    };
+    return issueAt(
+      [...path, "command"],
+      name === "@elapsed"
+        ? "@elapsed is the engine's; send it with an elapse step"
+        : `${name} is the engine's; a command step sends the game's`,
+      { got: JSON.stringify(name) },
+    );
   }
   const checked = checkCommand(registry, { name, args: raw.args }, names);
   if (checked.ok) return null;
-  const issue: ScriptIssue = {
-    path: jsonPointer([...path, checked.at === "name" ? "command" : "args"]),
-    message: checked.message,
-  };
+  const issue = issueAt([...path, checked.at === "name" ? "command" : "args"], checked.message);
   if (checked.at === "name") {
     issue.expected = names.map((n) => JSON.stringify(n)).join(" | ");
     issue.got = JSON.stringify(name);
@@ -235,40 +401,98 @@ function commandStepIssue(
 
 const unique = (actions: readonly string[]) => [...new Set(actions)];
 
+/** What a one-slot step goes on holding: the timed step before it's buttons and values. */
+type Carried = { hold: readonly string[]; set?: AnalogValues };
+
+function lengthOf(duration: Duration, time: Pick<ResolvedTime, "rate">): Partial<CompiledStep> {
+  if ("for" in duration) return { ticks: duration.for };
+  if ("forMs" in duration) return { ticks: ticksFor(duration.forMs, time) };
+  const until = Object.fromEntries(
+    Object.entries(duration.until).filter(([, v]) => v !== undefined),
+  ) as UntilClause;
+  return { until, max: duration.max ?? DEFAULT_UNTIL_MAX };
+}
+
 function compileStep(
   step: ParsedStep,
   index: number,
   time: Pick<ResolvedTime, "rate">,
   registry: Registry,
-  held: readonly string[],
-): CompiledStep {
-  if ("wait" in step) return { index, hold: [], ticks: step.wait };
-  if ("command" in step) {
-    const checked = checkCommand(registry, { name: step.command, args: step.args });
-    if (!checked.ok) throw new Error(checked.message);
-    return { index, hold: [...held], ticks: 1, commands: [checked.command] };
+  carried: Carried,
+): CompiledScriptStep {
+  const held = (extra: Partial<CompiledScriptStep>): CompiledScriptStep => {
+    const out: CompiledScriptStep = { index, hold: [...carried.hold], ticks: 1, ...extra };
+    if (carried.set) out.set = carried.set;
+    return out;
+  };
+  switch (step.kind) {
+    case "wait":
+      return { index, hold: [], ticks: step.ticks };
+    case "press":
+      return { index, hold: step.press, ticks: 1 };
+    case "command":
+      return held({ commands: [step.command] });
+    case "elapse": {
+      const { catchUp } = resolveTime({ game: registry.time });
+      if (!catchUp) throw new Error("elapse needs the game's time.catchUp");
+      return held({ commands: [elapsedCommand(step.ms, catchUp)] });
+    }
+    case "join":
+    case "leave":
+      return held({ joins: [{ device: step.device, joined: step.kind === "join" }] });
+    case "pointer": {
+      const out = held({ pointer: step.pointer });
+      if (step.duration) {
+        delete out.ticks;
+        Object.assign(out, lengthOf(step.duration, time));
+      }
+      return out;
+    }
+    case "hold": {
+      const out: CompiledScriptStep = { index, hold: step.hold, ...lengthOf(step.duration, time) };
+      if (step.set) out.set = step.set;
+      return out;
+    }
   }
-  if ("elapse" in step) {
-    const { catchUp } = resolveTime({ game: registry.time });
-    if (!catchUp) throw new Error("elapse needs the game's time.catchUp");
-    return { index, hold: [...held], ticks: 1, commands: [elapsedCommand(step.elapse, catchUp)] };
-  }
-  if ("press" in step) {
-    return {
-      index,
-      hold: unique(typeof step.press === "string" ? [step.press] : step.press),
-      ticks: 1,
-    };
-  }
-  const hold = unique(step.hold);
-  if ("for" in step) return { index, hold, ticks: step.for };
-  if ("forMs" in step) {
-    return { index, hold, ticks: ticksFor(step.forMs, time) };
-  }
-  const until = Object.fromEntries(
-    Object.entries(step.until).filter(([, v]) => v !== undefined),
-  ) as UntilClause;
-  return { index, hold, until, max: step.max ?? DEFAULT_UNTIL_MAX };
+}
+
+/** What the next one-slot step carries after `step`: a timed step's buttons and values; nothing after a press or wait. */
+function carriedAfter(step: ParsedStep, compiled: CompiledScriptStep, was: Carried): Carried {
+  if (step.kind === "hold")
+    return compiled.set ? { hold: compiled.hold, set: compiled.set } : { hold: compiled.hold };
+  if (step.kind === "press" || step.kind === "wait") return { hold: [] };
+  return was;
+}
+
+/** Checks and compiles one track's steps, from `base` (`["steps"]` or `["tracks", i, "steps"]`). */
+function compileSteps(
+  rawSteps: readonly unknown[],
+  base: Path,
+  format: Format,
+  schemas: InputScriptSchemas,
+  registry: Registry,
+  time: Pick<ResolvedTime, "rate">,
+  issues: ScriptIssue[],
+): CompiledScriptStep[] {
+  const steps: CompiledScriptStep[] = [];
+  let carried: Carried = { hold: [] };
+  rawSteps.forEach((raw, index) => {
+    const path = [...base, index];
+    const parsed = parseStep(raw, path, format, schemas, registry);
+    if (!parsed.ok) return void issues.push(...parsed.issues);
+    const step = compileStep(parsed.value, index, time, registry, carried);
+    const problem =
+      step.pointer && step.ticks !== undefined
+        ? pointerStepProblem(step.pointer, step.ticks)
+        : null;
+    if (problem) {
+      issues.push(issueAt([...path, "pointer"], problem.message));
+      return;
+    }
+    carried = carriedAfter(parsed.value, step, carried);
+    steps.push(step);
+  });
+  return steps;
 }
 
 /**
@@ -286,7 +510,7 @@ export function heldEdges(
   return edges;
 }
 
-/** Every edge of a script whose steps all have fixed lengths, up to `maxTicks`; null when one waits on `until`. */
+/** Every button edge of steps that all have fixed lengths, up to `maxTicks` slots; null when one waits on `until`. */
 function staticEdges(steps: readonly CompiledStep[], maxTicks: number): InputEdge[] | null {
   if (steps.some((s) => s.ticks === undefined)) return null;
   const edges: InputEdge[] = [];
@@ -302,10 +526,49 @@ function staticEdges(steps: readonly CompiledStep[], maxTicks: number): InputEdg
 }
 
 /**
- * Checks an input script against `registry`'s game (its actions, commands,
- * `until` predicates and play options) and resolves every step to ticks at
- * `time`'s rate, by default the game's own. Issues carry JSON Pointers into
- * the script; an unknown action, command or key gets a "did you mean".
+ * A script's `tracks`, each checked as `{ player, steps }` and its steps
+ * compiled; the list's shape and its seats are the header's to judge.
+ */
+function compileTracks(
+  raw: unknown,
+  format: Format,
+  schemas: InputScriptSchemas,
+  registry: Registry,
+  time: Pick<ResolvedTime, "rate">,
+  issues: ScriptIssue[],
+): CompiledTrack[] {
+  if (!Array.isArray(raw)) return [];
+  const tracks: CompiledTrack[] = [];
+  raw.forEach((track, i) => {
+    const path: Path = ["tracks", i];
+    const head = schemas.trackHead.safeParse(track);
+    if (!head.success) {
+      const keys = shapeKeys(schemas.trackHead);
+      issues.push(...fromZod(head.error, track, path, registry, () => keys));
+    }
+    if (!isRecord(track) || !Array.isArray(track.steps)) return;
+    const steps = compileSteps(
+      track.steps,
+      [...path, "steps"],
+      format,
+      schemas,
+      registry,
+      time,
+      issues,
+    );
+    if (head.success) tracks.push({ player: head.data.player, steps });
+  });
+  return tracks;
+}
+
+/**
+ * Checks an input script against `registry`'s game (its actions and their
+ * kinds, commands, `until` predicates, play options and seats) and resolves
+ * every step to ticks at `time`'s rate, by default the game's own. Issues
+ * carry JSON Pointers into the script; an unknown action, command or key
+ * gets a "did you mean". A v1 script compiles as written, as the v2 subset
+ * it is: lengths in a script handed here are metres in either version, and
+ * reading a v1 file (`parseInputScript`) is what migrates its px.
  */
 export function compileInputScript(
   script: unknown,
@@ -314,23 +577,32 @@ export function compileInputScript(
 ): CompileResult {
   const schemas = inputScriptSchemasFor(registry);
   const issues: ScriptIssue[] = [];
-  const head = schemas.head.safeParse(script);
-  if (!head.success) {
-    const topKeys = Object.keys(schemas.script.shape);
-    issues.push(...fromZod(head.error, script, [], registry, () => topKeys));
+  const raw = isRecord(script) ? script : null;
+  const format = raw?.v === 2 ? FORMATS[2] : FORMATS[1];
+
+  let headInput: unknown = script;
+  if (raw?.v === 1) {
+    const { tracks: _tracks, players: _players, ...rest } = raw;
+    headInput = { ...rest, v: INPUT_SCRIPT_VERSION };
+    for (const key of ["tracks", "players"] as const) {
+      if (key in raw) {
+        issues.push(issueAt([key], `${key} needs input-script v2`, { hint: 'Set "v": 2.' }));
+      }
+    }
   }
-  const rawSteps = isRecord(script) && Array.isArray(script.steps) ? script.steps : [];
-  const steps: CompiledStep[] = [];
-  /** What a command or elapse step goes on holding: a hold step's set; nothing after a press or wait. */
-  let carried: readonly string[] = [];
-  rawSteps.forEach((raw, index) => {
-    const parsed = parseStep(raw, index, schemas, registry);
-    if (!parsed.ok) return void issues.push(...parsed.issues);
-    const step = compileStep(parsed.step, index, time, registry, carried);
-    if ("hold" in parsed.step) carried = step.hold;
-    else if ("press" in parsed.step || "wait" in parsed.step) carried = [];
-    steps.push(step);
-  });
+  const head = schemas.head.safeParse(headInput);
+  if (!head.success) {
+    const topKeys = shapeKeys(schemas.head);
+    issues.push(...fromZod(head.error, headInput, [], registry, () => topKeys));
+  }
+
+  let steps: CompiledScriptStep[] = [];
+  let tracks: CompiledTrack[] | undefined;
+  if (raw && Array.isArray(raw.steps)) {
+    steps = compileSteps(raw.steps, ["steps"], format, schemas, registry, time, issues);
+  } else if (raw && format.v2 && raw.tracks !== undefined) {
+    tracks = compileTracks(raw.tracks, format, schemas, registry, time, issues);
+  }
   if (!head.success || issues.length > 0) return { ok: false, issues };
 
   const { at, timeOffsetMs, scene, maxTicks = DEFAULT_SCRIPT_MAX_TICKS } = head.data;
@@ -340,12 +612,225 @@ export function compileInputScript(
   const game = (head.data as { game?: unknown }).game;
   if (game !== undefined) play.game = game;
   if (head.data.seed !== undefined) play.seed = head.data.seed;
-  const compiled: CompiledInputScript = {
+  const seat0 = tracks ? (tracks.find((t) => t.player === 0)?.steps ?? []) : steps;
+  const compiled: CompiledScript = {
     steps,
     maxTicks,
     play,
-    edges: staticEdges(steps, maxTicks),
+    edges: staticEdges(seat0, maxTicks),
   };
+  if (tracks) compiled.tracks = tracks;
+  if (head.data.players !== undefined) compiled.players = head.data.players;
   if (scene !== undefined) compiled.scene = scene;
   return { ok: true, script: compiled };
+}
+
+// ─── Playing ─────────────────────────────────────────────
+
+const withSeat = <T extends { player?: number }>(item: T, player: number): T =>
+  player === 0 ? item : { ...item, player };
+
+const sameValue = (a: number | Vec2 | undefined, b: number | Vec2): boolean =>
+  typeof a === "number" || typeof b === "number"
+    ? a === b
+    : a !== undefined && a.x === b.x && a.y === b.y;
+
+/** `set`'s values as the runtime takes them: axis numbers and vector pairs quantised. */
+export function analogValues(set: AnalogSet): AnalogValues {
+  const out: Record<string, number | Vec2> = {};
+  for (const [action, v] of Object.entries(set)) {
+    out[action] = typeof v === "number" ? qAxis(v) : qVector({ x: v[0], y: v[1] });
+  }
+  return out;
+}
+
+/** A script or macro pointer as it plays. */
+export function compiledPointer(pointer: ScriptPointer): CompiledPointer {
+  const out: CompiledPointer = { at: { x: pointer.at[0], y: pointer.at[1] } };
+  if (pointer.drag) out.drag = { x: pointer.drag[0], y: pointer.drag[1] };
+  if (pointer.press) out.press = pointer.press;
+  if (pointer.release) out.release = pointer.release;
+  return out;
+}
+
+/**
+ * The actions that move a seat's values from `prev` to `next` at `tick`:
+ * one returning to 0 for each value `next` drops, in `prev`'s order, then
+ * one for each value `next` changes or adds, in its order. Pressed means
+ * not 0.
+ */
+export function analogActions(
+  prev: AnalogValues,
+  next: AnalogValues,
+  tick: number,
+  player = 0,
+  time?: Pick<ResolvedTime, "tickMs">,
+): InputAction[] {
+  const actions: InputAction[] = [];
+  const action = (name: string, value: number | Vec2): InputAction => {
+    const zero = typeof value === "number" ? value === 0 : value.x === 0 && value.y === 0;
+    const a = inputAction(name, !zero, tick, time);
+    if (typeof value === "number") a.value = value;
+    else {
+      a.x = value.x;
+      a.y = value.y;
+    }
+    return withSeat(a, player);
+  };
+  for (const [name, value] of Object.entries(prev)) {
+    if (!(name in next)) actions.push(action(name, typeof value === "number" ? 0 : { x: 0, y: 0 }));
+  }
+  for (const [name, value] of Object.entries(next)) {
+    if (!sameValue(prev[name], value)) actions.push(action(name, value));
+  }
+  return actions;
+}
+
+const bit = (button: PointerButton): number => 1 << POINTER_BUTTONS.indexOf(button);
+
+/**
+ * The pointer on slot `k` of a pointer step `slots` long, from `buttons`
+ * (what was down before the slot): at `at`, or along the line to `drag`,
+ * reaching it on the last slot; `press` goes down on the first slot and
+ * `release` up on the last. `slots` is undefined for an `until` step, which
+ * stays at `at`.
+ */
+export function pointerAt(
+  pointer: CompiledPointer,
+  k: number,
+  slots: number | undefined,
+  buttons: number,
+): PointerState {
+  const last = slots !== undefined && k >= slots - 1;
+  let down = buttons;
+  if (k === 0 && pointer.press) down |= bit(pointer.press);
+  if (last && pointer.release) down &= ~bit(pointer.release);
+  let { x, y } = pointer.at;
+  if (pointer.drag && slots !== undefined) {
+    const t = slots <= 1 ? 1 : Math.min(1, k / (slots - 1));
+    x += (pointer.drag.x - pointer.at.x) * t;
+    y += (pointer.drag.y - pointer.at.y) * t;
+  }
+  return { x, y, buttons: down, over: true };
+}
+
+const samePointer = (a: PointerState | null, b: PointerState): boolean =>
+  a !== null && a.x === b.x && a.y === b.y && a.buttons === b.buttons && a.over === b.over;
+
+/** Where one track is: its step, the slots that step ran, and what its seat holds. */
+type Cursor = {
+  player: number;
+  steps: readonly CompiledScriptStep[];
+  at: number;
+  ran: number;
+  start: number;
+  held: readonly string[];
+  values: AnalogValues;
+  pointer: PointerState | null;
+};
+
+export type ScriptSource = InputSource & {
+  tick(slot: number): TickInput;
+  /** Every step that started: how it went, oldest end first; a step still running ends as `run`. */
+  log(): ScriptStepLog[];
+};
+
+/**
+ * Plays a compiled script one slot at a time: every track from slot 0 at
+ * once, each `TickInput` holding each seat's button edges (releases first),
+ * analog values, pointer (only when it changed), seat changes and commands,
+ * all on its step's first slot but the pointer. A step's length counts
+ * slots, so an idle turns or event game still moves through it; `until` is
+ * judged by `holds` after each simulated tick. The input runs out
+ * (`script-end`) once every track's steps have; nothing is released then.
+ * A script written with `steps` plays as seat 0's one track.
+ */
+export function scriptSource(
+  script: CompiledInputScript,
+  holds: (until: UntilClause, state: PlayState) => boolean,
+  time?: Pick<ResolvedTime, "tickMs">,
+): ScriptSource {
+  const { tracks } = script as CompiledScript;
+  const named = tracks !== undefined;
+  const cursors: Cursor[] = (tracks ?? [{ player: 0, steps: script.steps }]).map((t) => ({
+    player: t.player,
+    steps: t.steps,
+    at: 0,
+    ran: 0,
+    start: 0,
+    held: [],
+    values: {},
+    pointer: null,
+  }));
+  const log: ScriptStepLog[] = [];
+  const entry = (c: Cursor, end: PlaytestStep["end"]): ScriptStepLog => {
+    const e: ScriptStepLog = { index: c.steps[c.at]!.index, start: c.start, ticks: c.ran, end };
+    if (named) e.player = c.player;
+    return e;
+  };
+  const advance = (c: Cursor, end: PlaytestStep["end"] | null) => {
+    if (!end) return;
+    log.push(entry(c, end));
+    c.at++;
+    c.ran = 0;
+  };
+  /** The step's end once its slots or its `max` run out. */
+  const lengthEnd = (c: Cursor, step: CompiledStep): PlaytestStep["end"] | null => {
+    if (step.ticks !== undefined) return c.ran >= step.ticks ? "done" : null;
+    return c.ran >= step.max! ? "max" : null;
+  };
+  const running = () => cursors.filter((c) => c.at < c.steps.length);
+
+  return {
+    done: () => running().length === 0,
+    tick(slot) {
+      const input: TickInput = { tick: slot, actions: [], commands: [], pointers: [], joins: [] };
+      const joins: SeatChange[] = [];
+      for (const c of running()) {
+        const step = c.steps[c.at]!;
+        const first = c.ran === 0;
+        if (first) c.start = slot;
+        for (const [, action, pressed] of heldEdges(c.held, step.hold, slot)) {
+          input.actions.push(withSeat(inputAction(action, pressed === 1, slot, time), c.player));
+        }
+        const values = step.set ?? {};
+        input.actions.push(...analogActions(c.values, values, slot, c.player, time));
+        c.held = step.hold;
+        c.values = values;
+        if (first) {
+          for (const command of step.commands ?? []) {
+            input.commands.push(
+              command.name.startsWith("@") ? command : withSeat(command, c.player),
+            );
+          }
+          for (const j of step.joins ?? []) joins.push({ player: c.player, ...j });
+        }
+        if (step.pointer) {
+          const sample = pointerAt(step.pointer, c.ran, step.ticks, c.pointer?.buttons ?? 0);
+          if (!samePointer(c.pointer, sample)) {
+            while (input.pointers.length < c.player) input.pointers.push(undefined);
+            input.pointers[c.player] = sample;
+            c.pointer = sample;
+          }
+        }
+      }
+      input.joins = joins;
+      return input;
+    },
+    after(state) {
+      for (const c of running()) {
+        const step = c.steps[c.at]!;
+        c.ran++;
+        if (step.ticks === undefined && holds(step.until!, state)) advance(c, "until");
+        else advance(c, lengthEnd(c, step));
+      }
+    },
+    skipped() {
+      for (const c of running()) {
+        c.ran++;
+        advance(c, lengthEnd(c, c.steps[c.at]!));
+      }
+    },
+    log: () => [...log, ...running().flatMap((c) => (c.ran > 0 ? [entry(c, "run")] : []))],
+  };
 }

@@ -213,7 +213,7 @@ describe("bindSceneDoc", () => {
     const game = createRegistry(testGame);
     const prefab = (id: string, over: Partial<Prefab> = {}): Prefab => ({
       kind: "prefab",
-      v: 3,
+      v: 4,
       game: "test-game",
       id,
       entities: [],
@@ -223,12 +223,12 @@ describe("bindSceneDoc", () => {
       prefabLibrary([
         prefab("outer", { instances: [{ id: "m", prefab: "mid", at: [0, 0] }] }),
         prefab("mid", { instances: [{ id: "i", prefab: "inner", at: [0, 0] }] }),
-        prefab("inner", { entities: [{ id: "light", type: "lamp", at: [10, 0] }] }),
-        prefab("room", { entities: [{ id: "light", type: "lamp", at: [10, 0] }] }),
+        prefab("inner", { entities: [{ id: "light", type: "lamp", at: [1, 0] }] }),
+        prefab("room", { entities: [{ id: "light", type: "lamp", at: [1, 0] }] }),
         prefab("red", { base: "room" }),
       ]);
     const scene = (prefabId: string): SceneDefinition => ({
-      v: 3,
+      v: 4,
       game: "test-game",
       name: "reach",
       bounds: [0, 0, 1000, 1000],
@@ -238,7 +238,7 @@ describe("bindSceneDoc", () => {
     const moveLight = (prefabs: ReturnType<typeof localPrefabSource>, id: string) => {
       const doc = prefabs.docs().get(id)!;
       const cur = docToPrefab(doc);
-      prefabPatch(doc, { ...cur, id, entities: [{ ...cur.entities[0]!, at: [40, 0] }] }, ada);
+      prefabPatch(doc, { ...cur, id, entities: [{ ...cur.entities[0]!, at: [4, 0] }] }, ada);
     };
     const lightAt = (scene: ExpandedScene) =>
       scene.entities.find((e) => e.id.endsWith("light"))!.at;
@@ -248,10 +248,10 @@ describe("bindSceneDoc", () => {
       const [a] = pair(scene("outer"));
       const rt = spyRuntime();
       const binding = bindSceneDoc(a, rt, game, { prefabs });
-      expect(lightAt(binding.scene())).toEqual([110, 100]);
+      expect(lightAt(binding.scene())).toEqual([101, 100]);
       moveLight(prefabs, "inner");
       expect(rt.update).toHaveBeenCalledTimes(1);
-      expect(lightAt(binding.scene())).toEqual([140, 100]);
+      expect(lightAt(binding.scene())).toEqual([104, 100]);
       binding.destroy();
     });
 
@@ -260,10 +260,10 @@ describe("bindSceneDoc", () => {
       const [a] = pair(scene("red"));
       const rt = spyRuntime();
       const binding = bindSceneDoc(a, rt, game, { prefabs });
-      expect(lightAt(binding.scene())).toEqual([110, 100]);
+      expect(lightAt(binding.scene())).toEqual([101, 100]);
       moveLight(prefabs, "room");
       expect(rt.update).toHaveBeenCalledTimes(1);
-      expect(lightAt(binding.scene())).toEqual([140, 100]);
+      expect(lightAt(binding.scene())).toEqual([104, 100]);
       binding.destroy();
     });
 
@@ -271,15 +271,15 @@ describe("bindSceneDoc", () => {
       const prefabs = localPrefabSource(
         new Map([
           ...library(),
-          ["hall", prefab("hall", { instances: [{ id: "r", prefab: "red", at: [5, 5] }] })],
+          ["hall", prefab("hall", { instances: [{ id: "r", prefab: "red", at: [0.5, 0.5] }] })],
         ]),
       );
       const rt = spyRuntime();
       const binding = bindSceneDoc(prefabs.docs().get("hall")!, rt, game, { prefabs });
-      expect(lightAt(binding.scene())).toEqual([15, 5]);
+      expect(lightAt(binding.scene())).toEqual([1.5, 0.5]);
       moveLight(prefabs, "room");
       expect(rt.update).toHaveBeenCalledTimes(1);
-      expect(lightAt(binding.scene())).toEqual([45, 5]);
+      expect(lightAt(binding.scene())).toEqual([4.5, 0.5]);
       binding.destroy();
     });
 

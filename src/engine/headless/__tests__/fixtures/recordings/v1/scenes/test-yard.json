@@ -1,0 +1,56 @@
+{
+  "$schema": "../scene.schema.json",
+  "v": 4,
+  "game": "platformer",
+  "name": "test-yard",
+  "bounds": [-20, -5, 40, 12],
+  "anchor": [
+    [6, 6],
+    [9, 5],
+    [11, 5.5],
+    [4, 5]
+  ],
+  "cloud": [
+    ["box", 9.6, 9, 0.6, 0.06],
+    ["box", 9.6, 7.8, 0.6, 0.06],
+    ["box", 6.8, 8.5, 0.5, 0.06]
+  ],
+  "solid": [
+    ["box", -2.55, 10.4, 17.45, 0.2],
+    ["box", 28.55, 10.4, 11.45, 0.2],
+    ["box", 12, 7.7, 0.1, 2.5],
+    ["box", 14, 7.7, 0.1, 2.5],
+    ["box", 7, 9.4, 0.8, 0.08],
+    ["box", 5, 8.4, 0.8, 0.08],
+    ["box", 3.5, 7.2, 0.8, 0.08],
+    ["box", 8.2, 9.7, 0.4, 0.08],
+    ["box", 7.4, 9.2, 0.4, 0.08],
+    ["box", 6.6, 8.7, 0.4, 0.08],
+    ["box", 16, 11.6, 1.2, 0.1],
+    ["box", 14.9, 11, 0.1, 0.8],
+    ["box", 17.1, 11, 0.1, 0.8],
+    ["box", 2, 9.2, 0.1, 1]
+  ],
+  "solid:chocolate": [
+    ["box", 5.5, 9.7, 0.6, 0.08]
+  ],
+  "solid:ice": [
+    ["box", 1, 10, 1, 0.08]
+  ],
+  "solid:trampoline": [
+    ["box", 16, 11.2, 0.4, 0.08]
+  ],
+  "spawn": [
+    [9.6, 10.2]
+  ],
+  "entities": [
+    { "id": "pit-shuttle", "type": "mover", "shape": ["box", 0, 0, 0.5, 0.06], "path": { "pts": [[15, 9.5], [17, 9.5]], "mode": "ping_pong", "speed": 0.8, "pauseMs": 500 } },
+    { "id": "elevator", "type": "mover", "shape": ["box", 0, 0, 0.4, 0.06], "path": { "pts": [[13, 10], [13, 7], [13.32, 7]], "mode": "ping_pong", "speed": 1, "pauseMs": 800 } },
+    { "id": "diagonal", "type": "mover", "shape": ["box", 0, 0, 0.35, 0.06], "path": { "pts": [[2, 8], [4, 7], [6, 7.5]], "mode": "loop", "speed": 1.2, "pauseMs": 300 } },
+    { "id": "plank", "type": "prop", "shape": ["box", 3.5, 7, 0.5, 0.06], "density": 2, "restitution": 0.2 },
+    { "id": "ball", "type": "prop", "shape": ["circle", 7.8, 9, 0.15], "density": 1.5, "restitution": 0.6 },
+    { "id": "cheese", "type": "goal", "shape": ["circle", 5, 8, 0.12] },
+    { "id": "hole", "type": "exit", "shape": ["circle", 18.5, 10.1, 0.2] },
+    { "id": "lava", "type": "hazard", "shape": ["box", 16, 11.6, 1, 0.08] }
+  ]
+}

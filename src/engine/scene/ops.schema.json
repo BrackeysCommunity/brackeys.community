@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jams-engine:ops:v3",
-  "x-agent-surface": 11,
+  "$id": "urn:jams-engine:ops:v4",
+  "x-agent-surface": 12,
   "type": "object",
   "properties": {
     "label": {
@@ -99,7 +99,7 @@
                               }
                             ]
                           },
-                          "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?], [\"circle\", cx, cy, r], [\"capsule\", cx, cy, halfLen, r, rotDeg?], [\"poly\", x1, y1, x2, y2, x3, y3, ...] (convex) or [\"chain\", x1, y1, ..., xn, yn] (static polyline). Box and capsule sizes are half-extents. Integer pixels, integer degrees, y down."
+                          "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?], [\"circle\", cx, cy, r], [\"capsule\", cx, cy, halfLen, r, rotDeg?], [\"poly\", x1, y1, x2, y2, x3, y3, ...] (convex) or [\"chain\", x1, y1, ..., xn, yn] (static polyline). Box and capsule sizes are half-extents. Metres, integer degrees, y down."
                         },
                         {
                           "type": "object",
@@ -111,12 +111,12 @@
                           },
                           "required": ["type"],
                           "additionalProperties": {},
-                          "description": "A shape object with named fields, or `{ type: \"rect\", left, top, right, bottom }` for a box given by its edges (width and height must be even so the half-extents are integers)."
+                          "description": "A shape object with named fields, or `{ type: \"rect\", left, top, right, bottom }` for a box given by its edges (in metres; its half-extents are half its width and height)."
                         }
                       ],
                       "description": "A shape in any accepted form. It is checked when the op applies and stored as a tuple."
                     },
-                    "description": "Shapes to append, in order. Absolute world pixels."
+                    "description": "Shapes to append, in order. Absolute world metres."
                   },
                   "index": {
                     "type": "integer",
@@ -145,7 +145,7 @@
                 "description": "An entity id such as `lift`, or a bulk reference `~<bulkKey>:<index>` such as `~solid:3` or `~solid:ice:0`. Bulk references shift when an earlier entry is removed, so a batch that uses one must carry `base`. All references in a batch resolve against the document the batch started from."
               },
               "set": {
-                "description": "Field path to new value, e.g. `{ \"path.speed\": 140 }` or `{ \"shape\": [\"box\", 0, 0, 40, 6] }`. Paths are dot-separated, with numeric segments for array items (`path.pts.1`); missing objects on the way are created. Behavior fields are `behaviors.<behavior>.<field>`, e.g. `behaviors.tactics/selectable.team`; set `behaviors.<behavior>` to `{}` to add a block. On an instance, set `rot`, `flip`, `z` or `params.<name>` (null clears a param); its overrides change through override and revertOverride. On a bulk reference only its bulk field (`shape`, or `at` for a point bulk key) can be set. A grid field is set whole, never below the field: paint its cells with paintCells. `id` and `type` can't be set: use rename, or remove and add.",
+                "description": "Field path to new value, e.g. `{ \"path.speed\": 1.4 }` or `{ \"shape\": [\"box\", 0, 0, 0.4, 0.06] }`. Paths are dot-separated, with numeric segments for array items (`path.pts.1`); missing objects on the way are created. Behavior fields are `behaviors.<behavior>.<field>`, e.g. `behaviors.tactics/selectable.team`; set `behaviors.<behavior>` to `{}` to add a block. On an instance, set `rot`, `flip`, `z` or `params.<name>` (null clears a param); its overrides change through override and revertOverride. On a bulk reference only its bulk field (`shape`, or `at` for a point bulk key) can be set. A grid field is set whole, never below the field: paint its cells with paintCells. `id` and `type` can't be set: use rename, or remove and add.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -186,19 +186,18 @@
                 "type": "array",
                 "prefixItems": [
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "x in world pixels."
+                    "type": "number",
+                    "description": "x in world metres.",
+                    "unit": "m"
                   },
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "y in world pixels; y is down."
+                    "type": "number",
+                    "description": "y in world metres; y is down.",
+                    "unit": "m"
                   }
                 ],
-                "description": "The offset [dx, dy] in integer pixels; positive dy moves down."
+                "description": "The offset [dx, dy] in metres; positive dy moves down.",
+                "unit": "m"
               }
             },
             "required": ["op", "refs", "by"],
@@ -222,19 +221,18 @@
                 "type": "array",
                 "prefixItems": [
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "x in world pixels."
+                    "type": "number",
+                    "description": "x in world metres.",
+                    "unit": "m"
                   },
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "y in world pixels; y is down."
+                    "type": "number",
+                    "description": "y in world metres; y is down.",
+                    "unit": "m"
                   }
                 ],
-                "description": "Where the chosen spot of the shape should end up."
+                "description": "Where the chosen spot of the shape should end up.",
+                "unit": "m"
               },
               "anchor": {
                 "description": "Which spot of the shape's bounding box lands on `at`: `center` (default), or the middle of the `top`, `bottom`, `left` or `right` edge. `top` puts the top edge at y without knowing the half-height. Point entities ignore it.",
@@ -349,31 +347,28 @@
                     "type": "array",
                     "prefixItems": [
                       {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "description": "minX"
+                        "type": "number",
+                        "description": "minX, m.",
+                        "unit": "m"
                       },
                       {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "description": "minY"
+                        "type": "number",
+                        "description": "minY, m.",
+                        "unit": "m"
                       },
                       {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "description": "maxX"
+                        "type": "number",
+                        "description": "maxX, m.",
+                        "unit": "m"
                       },
                       {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "description": "maxY"
+                        "type": "number",
+                        "description": "maxY, m.",
+                        "unit": "m"
                       }
                     ],
-                    "description": "The scene's playable area as [minX, minY, maxX, maxY] in integer world pixels; y is down."
+                    "description": "The scene's playable area as [minX, minY, maxX, maxY] in world metres; y is down.",
+                    "unit": "m"
                   }
                 },
                 "additionalProperties": false,
@@ -393,7 +388,7 @@
                 "description": "The op: setSettings."
               },
               "set": {
-                "description": "Settings path to new value, e.g. `{ \"gravity\": [0, 900] }`. Dot-separated like update's `set`. Settings fields: `gravity`, `physics`, `grid`, `view`.",
+                "description": "Settings path to new value, e.g. `{ \"gravity\": [0, 9] }`. Dot-separated like update's `set`. Settings fields: `gravity`, `physics`, `grid`, `view`.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -464,19 +459,18 @@
                     "type": "array",
                     "prefixItems": [
                       {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "description": "x in world pixels."
+                        "type": "number",
+                        "description": "x in world metres.",
+                        "unit": "m"
                       },
                       {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "description": "y in world pixels; y is down."
+                        "type": "number",
+                        "description": "y in world metres; y is down.",
+                        "unit": "m"
                       }
                     ],
-                    "description": "Where the prefab's origin lands."
+                    "description": "Where the prefab's origin lands.",
+                    "unit": "m"
                   },
                   "rot": {
                     "description": "Quarter turns clockwise (y down); omitted is 0.",
@@ -535,18 +529,17 @@
                 "type": "array",
                 "prefixItems": [
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "x in world pixels."
+                    "type": "number",
+                    "description": "x in world metres.",
+                    "unit": "m"
                   },
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "y in world pixels; y is down."
+                    "type": "number",
+                    "description": "y in world metres; y is down.",
+                    "unit": "m"
                   }
-                ]
+                ],
+                "unit": "m"
               },
               "rot": {
                 "description": "Quarter turns clockwise (y down), absolute; 0 is written as absent.",
@@ -599,7 +592,7 @@
                   "description": "An override key: a child's id in the prefab (or `~<bulkKey>:<index>` for a bulk child), a dot, then a field path, e.g. `door.path.speed`. A child of a nested instance is reached through it with `/`, e.g. `door-1/panel.path.speed`; a nested instance's own fields are `door-1.rot`, `door-1.flip`, `door-1.z` or `door-1.params.speed`."
                 },
                 "additionalProperties": {},
-                "description": "Override key to value, in the prefab's own frame (before the instance's `at`): `{ \"door.path.speed\": 140 }`. Replaces any override of the same field or inside it."
+                "description": "Override key to value, in the prefab's own frame (before the instance's `at`): `{ \"door.path.speed\": 1.4 }`. Replaces any override of the same field or inside it."
               }
             },
             "required": ["op", "set"],
@@ -702,22 +695,21 @@
                 "description": "The new prefab's id; it becomes prefabs/<id>.json."
               },
               "at": {
-                "description": "The prefab's origin in world px; omitted, the top-left of the entries' box.",
+                "description": "The prefab's origin in world metres; omitted, the top-left of the entries' box.",
                 "type": "array",
                 "prefixItems": [
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "x in world pixels."
+                    "type": "number",
+                    "description": "x in world metres.",
+                    "unit": "m"
                   },
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "y in world pixels; y is down."
+                    "type": "number",
+                    "description": "y in world metres; y is down.",
+                    "unit": "m"
                   }
-                ]
+                ],
+                "unit": "m"
               },
               "instance": {
                 "description": "The id of the instance that replaces them; omitted, `<id>-<n>`.",
@@ -889,23 +881,22 @@
                 "type": "array",
                 "prefixItems": [
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "x in world pixels."
+                    "type": "number",
+                    "description": "x in world metres.",
+                    "unit": "m"
                   },
                   {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "y in world pixels; y is down."
+                    "type": "number",
+                    "description": "y in world metres; y is down.",
+                    "unit": "m"
                   }
-                ]
+                ],
+                "unit": "m"
               }
             },
             "required": ["op"],
             "additionalProperties": false,
-            "description": "Turn and flip instances and groups, composing onto what they already have. Turns and flips keep integer geometry exact."
+            "description": "Turn and flip instances and groups, composing onto what they already have. Turns and flips about a whole-pixel point keep whole-pixel geometry exact."
           },
           {
             "type": "object",
@@ -1174,5 +1165,5 @@
   },
   "required": ["ops"],
   "additionalProperties": false,
-  "description": "A batch of scene edits. Coordinates are integer world pixels with y down, rotations are integer degrees, and sizes of boxes and capsules are half-extents."
+  "description": "A batch of scene edits. Coordinates are world metres with y down, rotations are integer degrees, and sizes of boxes and capsules are half-extents."
 }

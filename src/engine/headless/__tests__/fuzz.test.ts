@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { beforeAll, describe, expect, it } from "vite-plus/test";
@@ -6,11 +7,12 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { isRuntimeId } from "../../game/runtime-ids";
-import type { GameDefinition } from "../../game/types";
+import type { ActionDef, GameDefinition, Macro } from "../../game/types";
+import type { PointerState } from "../../input/state";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { Rng } from "../../sim-kit/rng";
-import type { RapierModule } from "../../types";
+import type { InputAction, RapierModule } from "../../types";
 import { defaultFuzzMacro, fuzz } from "../fuzz";
 import { probeConfigHash } from "../headless";
 import type { FuzzOptions, FuzzReport, FuzzRun } from "../playtest-types";
@@ -56,6 +58,7 @@ describe("fuzz", () => {
       engine: { tickRate: 30 },
       table: () => [],
       asset: () => undefined,
+      inputMap: null,
     };
     const opts = { rollouts: 1, ticks: 10 };
     expect(run(opts).configHash).toBe(probeConfigHash(testGame));
@@ -147,7 +150,7 @@ describe("fuzz", () => {
   });
 
   it("starts each rollout like Play, and blocks a scene with errors or a bad start", () => {
-    const from = run({ play: { at: { x: 800, y: 500 } }, rollouts: 4 });
+    const from = run({ play: { at: { x: 8, y: 5 } }, rollouts: 4 });
     expect(from.touched.find((t) => t.ref === "zone")?.firstTick ?? Infinity).toBeLessThan(
       run({ rollouts: 4 }).touched.find((t) => t.ref === "zone")?.firstTick ?? Infinity,
     );
@@ -156,7 +159,7 @@ describe("fuzz", () => {
       game: testGame,
       scene: yard,
       seed: 1,
-      play: { at: { x: 1000, y: 975 } },
+      play: { at: { x: 10, y: 9.75 } },
     });
     expect(inside).toMatchObject({
       blocked: true,
@@ -239,5 +242,274 @@ describe("fuzz", () => {
     expect(r).toMatchObject({ blocked: true, stage: "run", scene: "engine-yard" });
     if (!r.blocked) throw new Error("expected a blocked run");
     expect(r.issues.at(-1)).toMatchObject({ severity: "error", code: "spawn-id-invalid" });
+  });
+
+  describe("analog and pointer moves", () => {
+    type Seen = { value: number; vector: { x: number; y: number }; pointer: PointerState | null };
+
+    /**
+     * The test game reading `actions` instead of its buttons: `drive` turns
+     * each tick's input into a walking direction, and every tick's readings
+     * land in `seen`.
+     */
+    function drivenGame(
+      actions: ActionDef[],
+      drive: (input: Seen) => number,
+      seen: Seen[],
+      macro?: () => Macro,
+    ): GameDefinition {
+      return {
+        ...testGame,
+        actions,
+        play: { ...testGame.play, macro, movementActions: actions.map((a) => a.action) },
+        createRuntime(ctx) {
+          const base = testGame.createRuntime(ctx);
+          return {
+            ...base,
+            beforeStep(dtMs, _actions, commands) {
+              const reading: Seen = {
+                value: ctx.input.value("walk"),
+                vector: ctx.input.vector("move"),
+                pointer: ctx.input.pointer(),
+              };
+              seen.push(reading);
+              const dir = drive(reading);
+              const walk: InputAction[] = [
+                { action: "right", pressed: dir > 0, tick: 0, timestamp: 0 },
+                { action: "left", pressed: dir < 0, tick: 0, timestamp: 0 },
+              ];
+              base.beforeStep?.(dtMs, walk, commands);
+            },
+          };
+        },
+      };
+    }
+
+    const fuzzOf = (game: GameDefinition, opts: Partial<FuzzOptions> = {}) =>
+      report(
+        fuzz({
+          rapier,
+          game,
+          registry: createRegistry(game),
+          scene: yard,
+          seed: 2,
+          rollouts: 12,
+          ticks: 300,
+          ...opts,
+        }),
+      );
+
+    const AXIS: ActionDef = {
+      action: "walk",
+      kind: "axis",
+      description: "Walk.",
+      bindings: [{ device: "key", code: "KeyD" }],
+    };
+    const VECTOR: ActionDef = {
+      action: "move",
+      kind: "vector",
+      description: "Move.",
+      bindings: [{ device: "key", code: "KeyD", axis: "x", value: 1 }],
+    };
+    const POKE: ActionDef = {
+      action: "poke",
+      description: "Poke.",
+      bindings: [{ device: "pointer", button: "primary" }],
+    };
+
+    it("sets an axis game's axis, and its rollouts move", () => {
+      const seen: Seen[] = [];
+      const r = fuzzOf(drivenGame([AXIS], (s) => s.value, seen));
+      const values = new Set(seen.map((s) => s.value));
+      expect([...values].some((v) => v < 0)).toBe(true);
+      expect([...values].some((v) => v > 0 && v < 1)).toBe(true);
+      expect([...values].every((v) => v >= -1 && v <= 1 && Math.round(v * 1000) === v * 1000)).toBe(
+        true,
+      );
+      expect(r.results.won).toBeGreaterThan(0);
+      expect(r.touched.find((t) => t.ref === "zone")).toBeDefined();
+    }, 30_000);
+
+    it("sets a vector game's vector inside the unit disc, and its rollouts move", () => {
+      const seen: Seen[] = [];
+      const r = fuzzOf(drivenGame([VECTOR], (s) => s.vector.x, seen));
+      const moving = seen.filter((s) => s.vector.x !== 0 || s.vector.y !== 0);
+      expect(moving.length).toBeGreaterThan(0);
+      for (const { vector } of moving) {
+        expect(vector.x * vector.x + vector.y * vector.y).toBeLessThanOrEqual(1);
+      }
+      expect(moving.some((s) => s.vector.x < 0)).toBe(true);
+      expect(moving.some((s) => s.vector.y !== 0)).toBe(true);
+      expect(r.results.won).toBeGreaterThan(0);
+    }, 30_000);
+
+    it("moves, clicks and drags a pointer game's pointer inside the scene", () => {
+      const seen: Seen[] = [];
+      const pokes: boolean[] = [];
+      const game = drivenGame([POKE], () => 0, seen);
+      const driven = drivenGame([POKE], () => 0, seen);
+      game.createRuntime = (ctx) => {
+        const runtime = driven.createRuntime(ctx);
+        return {
+          ...runtime,
+          beforeStep(dtMs, actions, commands) {
+            pokes.push(ctx.input.held("poke"));
+            runtime.beforeStep?.(dtMs, actions, commands);
+          },
+        };
+      };
+      const a = fuzzOf(game, { rollouts: 6 });
+      const pointers = seen.map((s) => s.pointer).filter((p) => p !== null);
+      expect(pointers.length).toBeGreaterThan(0);
+      for (const p of pointers) {
+        expect(p.x).toBeGreaterThanOrEqual(0);
+        expect(p.x).toBeLessThanOrEqual(20);
+        expect(p.y).toBeGreaterThanOrEqual(0);
+        expect(p.y).toBeLessThanOrEqual(10);
+        expect(p.over).toBe(true);
+      }
+      const down = seen.map((s, i) => ({ s, poke: pokes[i] })).filter(({ poke }) => poke);
+      expect(down.length).toBeGreaterThan(0);
+      expect(down.every(({ s }) => ((s.pointer?.buttons ?? 0) & 1) === 1)).toBe(true);
+      expect(seen.some((s, i) => !pokes[i] && s.pointer !== null)).toBe(true);
+      const dragged = down.some(
+        ({ s }, i) =>
+          i > 0 &&
+          down[i - 1]!.s.pointer !== null &&
+          (down[i - 1]!.s.pointer!.x !== s.pointer!.x ||
+            down[i - 1]!.s.pointer!.y !== s.pointer!.y),
+      );
+      expect(dragged).toBe(true);
+
+      seen.length = 0;
+      pokes.length = 0;
+      expect(withoutTiming(fuzzOf(game, { rollouts: 6 }))).toEqual(withoutTiming(a));
+    }, 30_000);
+
+    it("leaves a button-only game's rollouts as they were", () => {
+      const digest = (r: FuzzReport) =>
+        createHash("sha256")
+          .update(JSON.stringify(withoutTiming(r)))
+          .digest("hex")
+          .slice(0, 16);
+      const opts = { seed: 5, rollouts: 8, ticks: 300 };
+      const plain = { ...testGame, play: { ...testGame.play, macro: undefined } };
+      expect(digest(report(fuzz({ rapier, game: testGame, scene: yard, ...opts })))).toBe(
+        "f195a9c283c297ea",
+      );
+      expect(digest(report(fuzz({ rapier, game: plain, scene: yard, ...opts })))).toBe(
+        "4ce394498b84bc6a",
+      );
+
+      const a = Rng.from(9);
+      const b = Rng.from(9);
+      for (let i = 0; i < 50; i++) {
+        expect(
+          defaultFuzzMacro(a, ["left", "right"], { axes: [], vectors: [], pointer: null }),
+        ).toEqual(defaultFuzzMacro(b, ["left", "right"]));
+      }
+    }, 30_000);
+
+    it("draws analog values and pointer moves from what it's given", () => {
+      const rng = Rng.from(4);
+      const macros = Array.from({ length: 200 }, () =>
+        defaultFuzzMacro(rng, ["jump", "walk", "move", "poke"], {
+          axes: ["walk"],
+          vectors: ["move"],
+          pointer: { buttons: ["primary", "secondary"], actions: ["poke"], bounds: [-2, 1, 4, 3] },
+        }),
+      );
+      for (const m of macros) {
+        expect(m.hold.filter((a) => a !== "jump")).toEqual([]);
+        for (const [name, v] of Object.entries(m.set ?? {})) {
+          if (name === "walk") expect(typeof v).toBe("number");
+          else expect(name === "move" && Array.isArray(v) && v.length === 2).toBe(true);
+        }
+        if (m.pointer) {
+          const { at, drag, press, release } = m.pointer;
+          for (const [x, y] of drag ? [at, drag] : [at]) {
+            expect(x).toBeGreaterThanOrEqual(-2);
+            expect(x).toBeLessThanOrEqual(4);
+            expect(y).toBeGreaterThanOrEqual(1);
+            expect(y).toBeLessThanOrEqual(3);
+          }
+          expect(press).toBe(release);
+          if (drag) expect(press).toBeDefined();
+        }
+      }
+      expect(macros.filter((m) => m.set).length).toBeGreaterThan(100);
+      expect(macros.filter((m) => m.pointer?.press).length).toBeGreaterThan(20);
+      expect(macros.filter((m) => m.pointer && !m.pointer.press).length).toBeGreaterThan(20);
+      expect(macros.filter((m) => m.pointer?.drag).length).toBeGreaterThan(10);
+    });
+
+    it("lets a game's macro win, and checks the values it sets", () => {
+      const seen: Seen[] = [];
+      fuzzOf(
+        drivenGame(
+          [AXIS],
+          (s) => s.value,
+          seen,
+          () => ({ hold: [], ticks: 10 }),
+        ),
+        { rollouts: 2, ticks: 60 },
+      );
+      expect(seen.every((s) => s.value === 0 && s.pointer === null)).toBe(true);
+
+      const set = (value: Macro["set"]) =>
+        fuzzOf(
+          drivenGame(
+            [AXIS, VECTOR, { ...POKE, bindings: [] }],
+            () => 0,
+            [],
+            () => ({
+              hold: [],
+              ticks: 5,
+              set: value,
+            }),
+          ),
+          { rollouts: 1, ticks: 10 },
+        );
+      expect(() => set({ wlak: 1 })).toThrow(/fuzz macro: set: unknown action "wlak"/);
+      expect(() => set({ poke: 1 })).toThrow(/set\.poke: it is a button/);
+      expect(() => set({ move: 1 })).toThrow(/set\.move: a vector takes an \[x, y\] pair/);
+      expect(() => set({ walk: [1, 0] })).toThrow(/set\.walk: an axis takes a number/);
+
+      const halfway: Seen[] = [];
+      fuzzOf(
+        drivenGame(
+          [AXIS],
+          (s) => s.value,
+          halfway,
+          () => ({
+            hold: [],
+            ticks: 5,
+            set: { walk: -0.25 },
+            pointer: { at: [1, 2], drag: [3, 2], press: "primary", release: "primary" },
+          }),
+        ),
+        { rollouts: 1, ticks: 5 },
+      );
+      expect(halfway.map((s) => s.value)).toEqual([-0.25, -0.25, -0.25, -0.25, -0.25]);
+      expect(halfway.map((s) => [s.pointer?.x, s.pointer?.buttons])).toEqual([
+        [1, 1],
+        [1.5, 1],
+        [2, 1],
+        [2.5, 1],
+        [3, 0],
+      ]);
+
+      const quick = drivenGame(
+        [AXIS],
+        () => 0,
+        [],
+        () => ({
+          hold: [],
+          ticks: 1,
+          pointer: { at: [1, 1], press: "primary", release: "primary" },
+        }),
+      );
+      expect(() => fuzzOf(quick, { rollouts: 1, ticks: 5 })).toThrow(/at least 2 ticks/);
+    }, 30_000);
   });
 });

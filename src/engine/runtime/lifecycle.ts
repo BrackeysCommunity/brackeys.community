@@ -63,7 +63,12 @@ export type Lifecycle = {
   entered: (e: RuntimeEntity) => void;
   /** Right before `e`'s system despawns it: its behaviors detach, then its pose goes. */
   leaving: (e: RuntimeEntity) => void;
-  /** An edit replaced `e`'s record in place, through its system's `update`. */
+  /**
+   * The edit fast path: an edit replaced `e`'s record in place, through its
+   * system's `update` and then the behaviors'. Re-indexes the new record in
+   * the query index (its fields and tags may have changed); nothing spawns,
+   * despawns or raises an event, and owned timers and subscriptions stay.
+   */
   updated: (e: RuntimeEntity) => void;
   /**
    * `e` into its system, posed, its behaviors attached and indexed; with
@@ -79,7 +84,8 @@ export type Lifecycle = {
   /**
    * The id a spawn or an instantiate of `name` gets: `explicit` when it is a
    * free `<name>#<label>` with a label not all digits, else the name's next
-   * counter id. Throws `EngineError("spawn-id-invalid")`.
+   * counter id that isn't live (a scene loaded back from `scene()` may hold
+   * some). Throws `EngineError("spawn-id-invalid")`.
    */
   claimId: (name: string, explicit?: string) => string;
   /** Rejects a duplicate id (within `entities`, or live when `taken` says so) or an unknown type. */
@@ -116,6 +122,12 @@ export type Lifecycle = {
   reset: () => void;
   /** The library `load` froze; empty before a load. */
   readonly library: PrefabLibrary;
+  /**
+   * Which load the runtime is in: it changes at every `load` and `reset`, so
+   * state bound to one load (a pool, whose counter ids the next load gives
+   * out again) can tell it outlived it.
+   */
+  readonly generation: number;
 };
 
 /** Why a prefab can't be placed: an issue or a refusal, each with its own `code`. */
@@ -146,6 +158,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   const counters = new Map<string, number>();
   /** Destroys requested inside a step, in request order, until the flush. */
   let doomed: string[] = [];
+  let generation = 0;
 
   function posed(e: RuntimeEntity): void {
     if (!ctx.poses.has(e.id)) {
@@ -221,7 +234,9 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
 
   function claimId(name: string, explicit?: string): string {
     if (explicit === undefined) {
-      const n = (counters.get(name) ?? 0) + 1;
+      let n = counters.get(name) ?? 0;
+      do n++;
+      while (live(runtimeId(name, n)));
       counters.set(name, n);
       return runtimeId(name, n);
     }
@@ -363,9 +378,13 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     return { id, entities: spawned.map((e) => e.id) };
   }
 
+  /** Per type, its spawn schema, built at the first checked spawn; the registry never changes. */
+  const spawnSchemas = new Map<EntityTypeName, ReturnType<typeof spawnSchemaFor>>();
+
   /** The dev and headless check of a spawn's fields: the type's spawn schema, its id aside. */
   function parseSpawn(type: EntityTypeName, fields: Record<string, unknown>, id: string): void {
-    const schema = spawnSchemaFor(registry, type);
+    let schema = spawnSchemas.get(type);
+    if (!spawnSchemas.has(type)) spawnSchemas.set(type, (schema = spawnSchemaFor(registry, type)));
     if (!schema) return;
     const parsed = schema.safeParse(fields);
     if (parsed.success) return;
@@ -511,15 +530,20 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       library = new Map(next);
       counters.clear();
       doomed = [];
+      generation++;
     },
     reset() {
       library = new Map();
       disabled.clear();
       counters.clear();
       doomed = [];
+      generation++;
     },
     get library() {
       return library;
+    },
+    get generation() {
+      return generation;
     },
   };
   return lifecycle;

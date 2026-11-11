@@ -1,7 +1,9 @@
 import { isPolygonField } from "../../game/fields";
 import type { Registry } from "../../game/types";
+import { pxPerMetreOf } from "../../game/units";
 import { isConvex } from "../../scene/shape-geometry";
 import type { Pt, ShapeObj } from "../../scene/types";
+import { snapToPixel } from "../../scene/units";
 import { pathBatch } from "../gizmos/batch";
 import { readLength, readPoint } from "../gizmos/readout";
 import { gizmoTarget, type GizmoTarget } from "../gizmos/target";
@@ -34,20 +36,21 @@ const OCTANTS: readonly Pt[] = [
   [1, -1],
 ];
 
-/** `p` pulled onto the nearest 45° line through `from`, whole px. */
-export function lock45(from: Pt, p: Pt): Pt {
+/** `p` pulled onto the nearest 45° line through `from`, a whole number of world px along each axis. */
+export function lock45(from: Pt, p: Pt, pxPerMetre: number): Pt {
   const dx = p[0] - from[0];
   const dy = p[1] - from[1];
   const octant = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
   const u = OCTANTS[octant]!;
-  const t = Math.round((dx * u[0] + dy * u[1]) / (u[0] * u[0] + u[1] * u[1]));
-  return roundPt([from[0] + t * u[0], from[1] + t * u[1]]);
+  const t = snapToPixel((dx * u[0] + dy * u[1]) / (u[0] * u[0] + u[1] * u[1]), pxPerMetre);
+  return roundPt([from[0] + t * u[0], from[1] + t * u[1]], pxPerMetre);
 }
 
 /** The next segment's readout: where it ends, and its length when it has one. */
-function segmentText(from: Pt, to: Pt): string {
-  const len = Math.round(Math.hypot(to[0] - from[0], to[1] - from[1]));
-  return len > 0 ? `${readPoint(to)}  ${readLength(len)}` : readPoint(to);
+function segmentText(from: Pt, to: Pt, pxPerMetre: number): string {
+  const len = snapToPixel(Math.hypot(to[0] - from[0], to[1] - from[1]), pxPerMetre);
+  const at = readPoint(to, pxPerMetre);
+  return len > 0 ? `${at}  ${readLength(len, pxPerMetre)}` : at;
 }
 
 /** What the shape field a stroke fills takes. */
@@ -111,15 +114,16 @@ type StrokeOptions = {
  * invalid with the reason in the readout, until a point is added or removed.
  */
 function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
+  const ppm = pxPerMetreOf(ctx.registry);
   let pts: Pt[] = [];
   let hover: Pt | null = null;
   /** The finish last refused (open or closed), until the points change. */
   let refused: { closed: boolean } | null = null;
 
   const place = (world: Pt, mods: ToolModifiers): Pt => {
-    const p = snapPoint(world, ctx.snap(), { bypass: mods.mod });
+    const p = snapPoint(world, ctx.snap(), ppm, { bypass: mods.mod });
     const last = pts[pts.length - 1];
-    return mods.shift && last ? lock45(last, p) : p;
+    return mods.shift && last ? lock45(last, p, ppm) : p;
   };
   const reset = () => {
     pts = [];
@@ -214,7 +218,7 @@ function strokeTool(ctx: EditorToolContext, opts: StrokeOptions): EditorTool {
       const readout = reason
         ? { at: hover ?? last, text: reason }
         : hover && next
-          ? { at: hover, text: segmentText(last, next) }
+          ? { at: hover, text: segmentText(last, next, ppm) }
           : null;
       return {
         ...base,
@@ -331,7 +335,7 @@ export const waypointsTool = defineEditorTool({
       },
       finish(pts) {
         const t = target();
-        const batch = t && pathBatch(t, pts, `Lay out ${t.ref} path`);
+        const batch = t && pathBatch(t, pts, pxPerMetreOf(ctx.registry), `Lay out ${t.ref} path`);
         if (batch) ctx.commit(batch);
       },
     });

@@ -71,6 +71,7 @@ import {
   type Prefab,
   type SceneDefinition,
 } from "../../engine/scene/index.ts";
+import { liftReachable } from "./doc-bytes";
 
 const SEED_ORIGIN: DocOrigin = { kind: "migration" };
 
@@ -406,18 +407,22 @@ function liftAssetLayout(doc: Y.Doc, kinds: KindRegistry): boolean {
 }
 
 /**
- * Lifts a prefab doc's `meta.schemaVersion` to this engine's scene format.
- * A doc from a newer engine is left as stored rather than refused here.
+ * Lifts a prefab doc's `meta.schemaVersion` toward this engine's scene
+ * format, as far as this side can without the game: a doc whose next step
+ * needs its game's registry stays where it is (`liftReachable`). A doc from
+ * a newer engine is left as stored rather than refused here.
  */
 function liftPrefabFormat(doc: Y.Doc): boolean {
   const v = doc.getMap<unknown>("meta").get("schemaVersion");
   if (typeof v !== "number" || v >= SCENE_FORMAT_VERSION) return false;
-  return migrateDoc(doc, { target: SCENE_FORMAT_VERSION }) !== null;
+  const lifted = liftReachable(docToPrefab(doc));
+  if (lifted.version <= v) return false;
+  return migrateDoc(doc, { target: lifted.version }) !== null;
 }
 
 /**
  * A stored prefab or declarative asset doc lifted to this engine's collab
- * layout (and a prefab doc to its scene format version), in `migration`
+ * layout (and a prefab doc toward its scene format version), in `migration`
  * transactions that keep every key: the doc's whole state. Null when it
  * needs nothing: unseeded, current already, or a kind `kinds` doesn't lay
  * out (a game's).
@@ -548,6 +553,8 @@ export async function assetSnapshot(
 ): Promise<{ text: string; sha256: Sha256 } | null> {
   const prefab = prefabDocValue(state);
   if (prefab) {
+    // Canonical text exists only at this engine's format, as for scenes.
+    if (prefab.v !== SCENE_FORMAT_VERSION) return null;
     const text = formatPrefab(prefab);
     return { text, sha256: await sha256(text) };
   }

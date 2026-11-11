@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createRegistry, defineGame } from "../game/define";
 import { shapeField } from "../game/fields";
 import type { GameDefinition } from "../game/types";
+import type { TickInput } from "../input/stream";
 import { runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetEntry, ProjectView } from "../project/types";
 import { createSceneRuntime } from "../runtime/runtime";
@@ -319,21 +320,24 @@ describe("primitive systems", () => {
       createRuntime: () => ({ snapshot: () => null }),
     });
     const rt = runtime(game);
-    rt.load(scene([{ id: "c", type: "cloud", shape: box(0, 100, 50, 6) }, floor]));
+    rt.load(scene([{ id: "c", type: "cloud", shape: box(0, 1, 0.5, 0.06) }, floor]));
     const clouds = rt.ctx.system<SolidSystem>("cloud")!;
     const solids = rt.ctx.system<SolidSystem>("solid")!;
     expect(rt.ctx.tags.get(handleOf(rt, "c"))).toMatchObject({ oneWay: true });
     expect(bodyOf(rt, "c").collider(0).friction()).toBeCloseTo(0.7, 6);
 
-    clouds.gateOneWay(98, false);
+    // The cloud's top is at 0.94 m; it holds an actor whose feet are within 0.04 m below it.
+    clouds.gateOneWay(0.97, false);
     expect(clouds.isHidden("c")).toBe(false);
-    clouds.gateOneWay(99, false);
+    clouds.gateOneWay(0.99, false);
     expect(clouds.isHidden("c")).toBe(true);
-    expect(clouds.position("c")).toEqual({ x: 0, y: -99999 });
-    clouds.gateOneWay(50, true);
+    expect(clouds.position("c")?.x).toBe(0);
+    expect(clouds.position("c")?.y).toBeCloseTo(-999.99, 3);
+    clouds.gateOneWay(0.5, true);
     expect(clouds.isHidden("c")).toBe(true);
-    clouds.gateOneWay(50, false);
-    expect(clouds.position("c")).toEqual({ x: 0, y: 100 });
+    clouds.gateOneWay(0.5, false);
+    expect(clouds.position("c")?.x).toBe(0);
+    expect(clouds.position("c")?.y).toBeCloseTo(1, 6);
 
     solids.gateOneWay(1000, false);
     expect(solids.isHidden("floor")).toBe(false);
@@ -365,7 +369,9 @@ describe("primitive systems", () => {
   it("leaves props at their authored pose after load", () => {
     const rt = runtime();
     rt.load(engineYard());
-    expect(bodyOf(rt, "crate").translation()).toEqual({ x: 1200, y: 940 });
+    const crate = bodyOf(rt, "crate").translation();
+    expect(crate.x).toBeCloseTo(12, 5);
+    expect(crate.y).toBeCloseTo(9.4, 5);
     rt.destroy();
   });
 
@@ -374,9 +380,9 @@ describe("primitive systems", () => {
     rt.load(engineYard());
     const lift = rt.ctx.system<FollowerSystem>("follower")!;
     steps(rt, 60);
-    expect(bodyOf(rt, "lift").translation().y).toBeCloseTo(820, 3);
-    expect(lift.position("lift")?.x).toBe(1700);
-    expect(lift.frameDelta("lift")?.y).toBeCloseTo(-80 / 60, 6);
+    expect(bodyOf(rt, "lift").translation().y).toBeCloseTo(8.2, 5);
+    expect(lift.position("lift")?.x).toBe(17);
+    expect(lift.frameDelta("lift")?.y).toBeCloseTo(-0.8 / 60, 6);
     expect(lift.frameDelta("nope")).toBeNull();
     rt.destroy();
   });
@@ -431,7 +437,7 @@ describe("the runtime's clock", () => {
     expect(seekY(30)).toBeCloseTo(seekY(60), 6);
     expect(stepY(30)).toBeCloseTo(stepY(60), 6);
     expect(seekY(60)).toBeCloseTo(stepY(60), 6);
-    expect(seekY(60)).toBeLessThan(900);
+    expect(seekY(60)).toBeLessThan(9);
   });
 });
 
@@ -445,7 +451,7 @@ describe("SceneRuntime step", () => {
       [SENSOR_ENTER, "avatar"],
       [SENSOR_EXIT, "avatar"],
     ]);
-    expect(crossings[0]!.at.x).toBeGreaterThan(840);
+    expect(crossings[0]!.at.x).toBeGreaterThan(8.4);
     expect(crossings[0]!.tick).toBeLessThan(crossings[1]!.tick);
     rt.destroy();
   });
@@ -454,7 +460,7 @@ describe("SceneRuntime step", () => {
     const rt = runtime(null);
     rt.load(engineYard());
     const avatar = bodyOf(rt, "avatar");
-    avatar.setTranslation({ x: 900, y: 940 }, true);
+    avatar.setTranslation({ x: 9, y: 9.4 }, true);
     expect(steps(rt, 10).flatMap((r) => r.events)).toEqual([]);
     rt.destroy();
   });
@@ -464,7 +470,7 @@ describe("SceneRuntime step", () => {
     rt.load(engineYard());
     const results = steps(rt, 30, [press("right")]);
     const last = results.at(-1)!.game as TestGameSnapshot;
-    expect(last?.position.x).toBeGreaterThan(300);
+    expect(last?.position.x).toBeGreaterThan(3);
     expect(rt.snapshot()).toEqual(last);
     expect(results.map((r) => r.tick)).toEqual(Array.from({ length: 30 }, (_, i) => i));
     rt.destroy();
@@ -1126,5 +1132,159 @@ describe("game-code spawns of primitives", () => {
     expect(occupancy2().wall([5, 1])).toBe(true);
     rt.destroy();
     rt2.destroy();
+  });
+});
+
+describe("EngineContext.input", () => {
+  const inputGame = (log: unknown[]) =>
+    defineGame({
+      id: "input",
+      types: [
+        {
+          type: "reader",
+          description: "Reads the input state before the game does.",
+          fields: {},
+          system: (ctx) => ({
+            spawn: () => {},
+            despawn: () => {},
+            clear: () => {},
+            size: () => 0,
+            beforeStep: () => log.push(["system", ctx.tick, ctx.input.held("jump")]),
+          }),
+        },
+      ],
+      actions: [
+        { action: "jump", bindings: [{ device: "key", code: "Space" }], description: "Jump." },
+        {
+          action: "steer",
+          kind: "axis",
+          bindings: [{ device: "pad", axis: "left-x" }],
+          description: "Steer.",
+        },
+        {
+          action: "move",
+          kind: "vector",
+          bindings: [{ device: "pad", stick: "left" }],
+          description: "Move.",
+        },
+      ],
+      createRuntime: (ctx) => ({
+        beforeStep: (_dt, actions) => {
+          const i = ctx.input;
+          log.push([
+            "game",
+            ctx.tick,
+            actions.length,
+            [0, 1].map((p) => [
+              i.held("jump", p),
+              i.pressed("jump", p),
+              i.released("jump", p),
+              i.value("steer", p),
+              i.vector("move", p),
+              i.pointer(p),
+            ]),
+          ]);
+        },
+        snapshot: () => null,
+      }),
+    });
+
+  const act = (action: string, tick: number, fields: Partial<InputAction> = {}): InputAction => ({
+    action,
+    pressed: true,
+    tick,
+    timestamp: tick * DT,
+    ...fields,
+  });
+
+  const ticks: TickInput[] = [
+    {
+      tick: 0,
+      actions: [act("jump", 0), act("steer", 0, { value: -0.25 })],
+      commands: [],
+      pointers: [{ x: 1.5, y: -0.25, buttons: 1, over: true }],
+      joins: [],
+    },
+    {
+      tick: 1,
+      actions: [act("move", 1, { x: 0.6, y: 0.8, player: 1 })],
+      commands: [],
+      pointers: [],
+      joins: [],
+    },
+    { tick: 2, actions: [], commands: [], pointers: [], joins: [] },
+    {
+      tick: 3,
+      actions: [act("jump", 3, { pressed: false }), act("jump", 3, { player: 1 })],
+      commands: [],
+      pointers: [undefined, { x: 0.0001, y: 2, buttons: 0, over: false }],
+      joins: [],
+    },
+    {
+      tick: 4,
+      actions: [act("move", 4, { x: 0, y: 0, pressed: false, player: 1 })],
+      commands: [],
+      pointers: [],
+      joins: [],
+    },
+  ];
+
+  const play = (sequence: readonly TickInput[]) => {
+    const log: unknown[] = [];
+    const rt = runtime(inputGame(log));
+    rt.load(scene([{ id: "r", type: "reader" }]));
+    for (const t of sequence) rt.step(DT, t);
+    rt.destroy();
+    return log;
+  };
+
+  it("is updated from the tick's input before the systems' beforeStep", () => {
+    const log = play(ticks);
+    expect(log.filter((l) => (l as unknown[])[0] === "system")).toEqual([
+      ["system", 0, true],
+      ["system", 1, true],
+      ["system", 2, true],
+      ["system", 3, false],
+      ["system", 4, false],
+    ]);
+    expect(log[1]).toEqual([
+      "game",
+      0,
+      2,
+      [
+        [true, true, false, -0.25, { x: 0, y: 0 }, { x: 1.5, y: -0.25, buttons: 1, over: true }],
+        [false, false, false, 0, { x: 0, y: 0 }, null],
+      ],
+    ]);
+    expect(log[7]).toEqual([
+      "game",
+      3,
+      2,
+      [
+        [false, false, true, -0.25, { x: 0, y: 0 }, { x: 1.5, y: -0.25, buttons: 1, over: true }],
+        [true, true, false, 0, { x: 0.6, y: 0.8 }, { x: 0.0001, y: 2, buttons: 0, over: false }],
+      ],
+    ]);
+  });
+
+  it("is rebuilt identically from a recorded TickInput sequence", () => {
+    const live = play(ticks);
+    const recorded = JSON.parse(JSON.stringify(ticks)) as TickInput[];
+    const replayed = play(
+      recorded.map((t) => ({ ...t, pointers: t.pointers.map((p) => p ?? undefined) })),
+    );
+    expect(replayed).toEqual(live);
+    expect(JSON.stringify(replayed)).toBe(JSON.stringify(live));
+  });
+
+  it("reads 0.x action arrays as seat 0", () => {
+    const log: unknown[] = [];
+    const rt = runtime(inputGame(log));
+    rt.load(scene([{ id: "r", type: "reader" }]));
+    rt.step(DT, [act("jump", 0)]);
+    expect(rt.ctx.input.pressed("jump")).toBe(true);
+    rt.step(DT, []);
+    expect([rt.ctx.input.pressed("jump"), rt.ctx.input.held("jump")]).toEqual([false, true]);
+    rt.destroy();
   });
 });

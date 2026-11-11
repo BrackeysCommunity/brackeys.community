@@ -13,7 +13,7 @@ import { ada } from "./helpers";
 const lamp = { id: "lamp", type: "marker", at: [0, 0] as [number, number] };
 const prefab = (id: string, over: Partial<Prefab> = {}): Prefab => ({
   kind: "prefab",
-  v: 3,
+  v: 4,
   id,
   entities: [lamp],
   ...over,
@@ -105,7 +105,7 @@ describe("watchIssues", () => {
   }
   const scene = (prefabId: string) =>
     sceneToDoc({
-      v: 3,
+      v: 4,
       name: "reach",
       bounds: [0, 0, 1000, 1000],
       instances: [{ id: "o", prefab: prefabId, at: [100, 100] }],

@@ -1,12 +1,11 @@
 import type { Registry } from "../game/types";
 import {
-  drawnEntities,
-  expandedOf,
   gridCellsIn,
+  metresToPx,
   num,
+  oneWaySide,
   overlaps,
-  renderAssets,
-  resolveRegion,
+  sceneDrawing,
   type DrawnEntity,
   type OverlayPoint,
   type SceneOverlay,
@@ -25,7 +24,7 @@ export const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>> = {
 
 export type SceneAsciiOptions = SceneRegionOptions & {
   registry: Registry;
-  /** World px per character; default 64. Grows in steps of 64 when the map would pass `maxCells`. */
+  /** World px per character (metres times px per metre); default 64. Grows in steps of 64 when the map would pass `maxCells`. */
   cell?: number;
   /** Cap on columns and on rows; default 200. */
   maxCells?: number;
@@ -39,7 +38,10 @@ export type SceneAsciiOptions = SceneRegionOptions & {
 
 export type SceneAsciiMap = {
   name: string;
+  /** The rectangle drawn, world px: metres times `pxPerMetre`. */
   region: Bounds;
+  /** The game's px per metre. */
+  pxPerMetre: number;
   /** World px per character. */
   cell: number;
   cols: number;
@@ -89,8 +91,7 @@ function markOf(
       : d.path || d.base === "prop" || d.base === "follower"
         ? PRIORITY.moving
         : PRIORITY.static;
-  if (d.entity.oneWay === true || typeof d.entity.oneWay === "string")
-    return { char: "=", label: `${name} one-way`, priority };
+  if (oneWaySide(d.entity.oneWay)) return { char: "=", label: `${name} one-way`, priority };
   const tag = d.tags.find((t) => Object.hasOwn(tagChars, t));
   if (tag !== undefined) return { char: tagChars[tag]!, label: `${name} [${tag}]`, priority };
   const base = d.base === undefined ? undefined : registry.types.get(d.base);
@@ -141,7 +142,8 @@ function* sampleLine(pts: readonly Pt[], step: number): Generator<Pt> {
 }
 
 /**
- * The scene as a character map, one character per `cell` world px: each
+ * The scene as a character map, one character per `cell` world px (the
+ * scene's metres times the game's px per metre): each
  * entity in its type's character (`EntityTypeDef.ascii`, else its base
  * primitive's), `=` for one-way solids, tag characters for tagged ones,
  * `~` along paths, each sprite's box in its entity's character under
@@ -153,9 +155,9 @@ export function sceneAsciiMap(
   opts: SceneAsciiOptions,
 ): SceneAsciiMap {
   const { registry } = opts;
-  const expanded = expandedOf(scene, registry, opts.prefabs);
-  const all = drawnEntities(expanded, registry, renderAssets(opts));
-  const wanted = resolveRegion(expanded, all, opts);
+  const drawing = sceneDrawing(scene, opts);
+  const { entities: all, scene: expanded, pxPerMetre } = drawing;
+  const wanted = drawing.region;
   const maxCells = opts.maxCells ?? 200;
   let cell = opts.cell ?? 64;
   if (!(cell > 0)) throw new Error(`cell must be positive, not ${cell}`);
@@ -168,7 +170,7 @@ export function sceneAsciiMap(
   const rows = Math.max(1, Math.ceil((wanted[3] - y0) / cell));
   const region: Bounds = [x0, y0, x0 + cols * cell, y0 + rows * cell];
 
-  const [bx0, by0, bx1, by1] = expanded.bounds;
+  const [bx0, by0, bx1, by1] = drawing.bounds;
   const inBounds = (c: number, r: number) => {
     const cx = x0 + (c + 0.5) * cell;
     const cy = y0 + (r + 0.5) * cell;
@@ -207,12 +209,14 @@ export function sceneAsciiMap(
     }
   }
   const trail = opts.overlay?.trail;
-  const trailPts = trail ? ("pts" in trail ? trail.pts : trail) : [];
+  const trailPts = (trail ? ("pts" in trail ? trail.pts : trail) : []).map(
+    ([x, y]): Pt => [metresToPx(x, pxPerMetre), metresToPx(y, pxPerMetre)],
+  );
   for (const p of sampleLine(trailPts, step))
     put(p, { char: TRAIL, label: "trail", priority: PRIORITY.trail });
 
   const tagChars = opts.tagChars ?? DEFAULT_ASCII_TAG_CHARS;
-  const grid = gridCellsIn(visible, expanded.settings.grid, region);
+  const grid = gridCellsIn(visible, drawing.grid, region);
   const cellMarks = new Map<DrawnEntity, Mark>();
   for (const g of grid.cells) {
     let m = cellMarks.get(g.entity);
@@ -283,7 +287,8 @@ export function sceneAsciiMap(
   const outcome = opts.overlay?.outcome;
   if (outcome?.at) {
     const p: OverlayPoint = outcome.at;
-    put(Array.isArray(p) ? [p[0], p[1]] : [p.x, p.y], {
+    const [x, y] = Array.isArray(p) ? [p[0], p[1]] : [p.x, p.y];
+    put([metresToPx(x, pxPerMetre), metresToPx(y, pxPerMetre)], {
       char: OUTCOME,
       label: `outcome ${outcome.result}`,
       priority: PRIORITY.outcome,
@@ -306,6 +311,7 @@ export function sceneAsciiMap(
   return {
     name: expanded.name,
     region,
+    pxPerMetre,
     cell,
     cols,
     rows,

@@ -1,0 +1,24 @@
+{
+  "kind": "prefab",
+  "v": 3,
+  "id": "gate",
+  "bulk": {
+    "solid": [["box", 0, 50, 40, 6]]
+  },
+  "entities": [
+    {
+      "id": "door",
+      "type": "follower",
+      "shape": ["box", 0, 0, 10, 40],
+      "path": {
+        "pts": [
+          [0, 0],
+          [0, -80]
+        ],
+        "mode": "ping_pong",
+        "speed": 60
+      }
+    },
+    { "id": "trigger", "type": "sensor", "shape": ["box", 60, 20, 20, 20], "tags": ["gate"] }
+  ]
+}

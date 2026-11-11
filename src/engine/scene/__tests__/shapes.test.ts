@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { ShapeTupleSchema, parseShape, shapeToTuple } from "../shapes";
+import { lengthUnitOf } from "../../game/units";
+import { ShapeTupleSchema, mapShapeLengths, parseShape, shapeToTuple } from "../shapes";
 import type { ShapeObj } from "../types";
 
 function issueOf(input: unknown, path?: string) {
@@ -107,17 +108,18 @@ describe("parseShape objects and rect sugar", () => {
     expect(parseShape({ type: "circle", cx: 0, cy: 0, r: 0 }).ok).toBe(false);
   });
 
-  it("turns an even rect into a box", () => {
-    expect(parseShape({ type: "rect", left: 100, top: 900, right: 200, bottom: 916 })).toEqual({
+  it("turns a rect into a box, in metres", () => {
+    expect(parseShape({ type: "rect", left: 1, top: 9, right: 2, bottom: 9.16 })).toMatchObject({
       ok: true,
-      shape: { type: "box", cx: 150, cy: 908, hw: 50, hh: 8, rotDeg: 0 },
+      shape: { type: "box", cx: 1.5, hw: 0.5, rotDeg: 0 },
     });
   });
 
-  it("rejects an odd rect with a widen-by-1 hint instead of rounding", () => {
-    const issue = issueOf({ type: "rect", left: 100, top: 900, right: 201, bottom: 915 });
-    expect(issue.code).toBe("bad-shape");
-    expect(issue.hint).toBe("Widen it by 1px (right: 202, bottom: 916).");
+  it("takes any width a rect gives, odd or not (the validator judges whole pixels)", () => {
+    expect(parseShape({ type: "rect", left: 0, top: 0, right: 1, bottom: 3 })).toEqual({
+      ok: true,
+      shape: { type: "box", cx: 0.5, cy: 1.5, hw: 0.5, hh: 1.5, rotDeg: 0 },
+    });
     expect(issueOf({ type: "rect", left: 0, top: 0, right: 0, bottom: 2 }).message).toContain(
       "right > left",
     );
@@ -174,5 +176,23 @@ describe("ShapeTupleSchema", () => {
     expect(
       ShapeTupleSchema.safeParse({ type: "box", cx: 0, cy: 0, hw: 1, hh: 1, rotDeg: 0 }).success,
     ).toBe(false);
+  });
+});
+
+describe("shape units", () => {
+  it("a shape field declares metres", () => {
+    expect(lengthUnitOf(ShapeTupleSchema)).toBe("m");
+    expect(lengthUnitOf(ShapeTupleSchema.optional())).toBe("m");
+  });
+
+  it("mapShapeLengths scales every length and never the angle", () => {
+    const half = (n: number) => n / 2;
+    expect(mapShapeLengths(["box", 2, 4, 6, 8, 90], half)).toEqual(["box", 1, 2, 3, 4, 90]);
+    expect(mapShapeLengths(["capsule", 2, 4, 6, 8, 30], half)).toEqual(["capsule", 1, 2, 3, 4, 30]);
+    expect(mapShapeLengths(["circle", 2, 4, 6], half)).toEqual(["circle", 1, 2, 3]);
+    expect(mapShapeLengths(["poly", 0, 0, 4, 0, 0, 4], half)).toEqual(["poly", 0, 0, 2, 0, 0, 2]);
+    expect(mapShapeLengths(["chain", 2, 2, 4, 4, 6, 6], half)).toEqual(["chain", 1, 1, 2, 2, 3, 3]);
+    expect(mapShapeLengths(["rekt", 2], half)).toEqual(["rekt", 2]);
+    expect(mapShapeLengths("box", half)).toBe("box");
   });
 });

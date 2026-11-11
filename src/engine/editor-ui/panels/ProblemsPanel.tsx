@@ -25,8 +25,9 @@ function merged(structural: readonly SceneIssue[], physical: readonly SceneIssue
 /**
  * The scene's problems by severity: the session's structural issues and the
  * physical ones passed in. A row is one line (two when its message needs
- * them) of icon, message and code, its hint on hover; in a narrow panel the
- * code follows the message inline, inside the same two-line clamp. A row
+ * them) of icon, message and code, its hint and code on hover; in a narrow
+ * panel the code follows the message inline, inside the same two-line clamp,
+ * where a long message can clip it, so the hover names it too. A row
  * selects and frames what it names, and **Fix** applies the issue's own
  * repair as one batch.
  */
@@ -82,7 +83,10 @@ export function ProblemsPanel({
                 <ul>
                   {group.map(({ issue, key }) => (
                     <li key={key} aria-label={issue.message} className="je-problems-row">
-                      <Hint content={issue.hint} disabled={!issue.hint} side="left">
+                      <Hint
+                        content={issue.hint ? `${issue.hint} (${issue.code})` : issue.code}
+                        side="left"
+                      >
                         <button
                           type="button"
                           disabled={issue.entityIds.length === 0}

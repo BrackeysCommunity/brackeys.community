@@ -31,7 +31,7 @@ const DT = 1000 / 60;
 
 const prefab = (id: string, body: Partial<Prefab> = {}): Prefab => ({
   kind: "prefab",
-  v: 3,
+  v: 4,
   id,
   entities: [],
   ...body,
@@ -153,7 +153,7 @@ const SETTINGS: SceneSettings = { physics: "none" };
 
 function sceneDef(instances: InstanceDef[], settings: SceneSettings = SETTINGS): SceneDefinition {
   return {
-    v: 3,
+    v: 4,
     name: "inst",
     bounds: [-3000, -3000, 3000, 3000],
     settings,

@@ -21,7 +21,7 @@ import { engine, fake } from "./fixtures/random-ops";
 
 const prefab = (id: string, body: Partial<Prefab> = {}): Prefab => ({
   kind: "prefab",
-  v: 3,
+  v: 4,
   id,
   entities: [],
   ...body,
@@ -51,7 +51,7 @@ const sceneOf = (
   settings?: SceneSettings,
   group: GroupDef = GROUP,
 ): SceneDefinition => ({
-  v: 3,
+  v: 4,
   name: "one",
   bounds: [-3000, -3000, 3000, 3000],
   ...(settings ? { settings } : {}),

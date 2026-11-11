@@ -26,6 +26,7 @@ export {
   SceneParseError,
   SceneVersionError,
   suggestType,
+  type ParseOptions,
   type ParseSceneResult,
 } from "./parse";
 export { parseShape, shapeToTuple, ShapeTupleSchema, type ParseShapeResult } from "./shapes";
@@ -161,7 +162,24 @@ export {
   INPUT_SCRIPT_LAYOUT,
 } from "./format";
 export { hashText, sceneHash } from "./hash";
-export { migrate, MIGRATIONS, type MigrateResult, type Migration } from "./migrate";
+export {
+  isMigrationRefusal,
+  migrate,
+  MIGRATIONS,
+  type MigrateEnv,
+  type MigrateResult,
+  type Migration,
+  type MigrationRefusal,
+} from "./migrate";
+export {
+  isWholePixel,
+  LENGTH_UNITS,
+  lengthDecimals,
+  pxToMetres,
+  roundLength,
+  snapToPixel,
+  type LengthUnitName,
+} from "./units";
 export { closest } from "./did-you-mean";
 export { validateScene, type ValidateOptions } from "./validate";
 export { ISSUE_CODES, jsonPointer, makeIssue } from "./issues";
@@ -247,28 +265,45 @@ export type {
   SpritePoseSource,
 } from "./render-geometry";
 export {
+  migrateRecordingV1,
   parseRecording,
   RECORDING_SCHEMA_ID,
   RECORDING_TRAIL_EVERY,
   RECORDING_VERSION,
   recordingJsonSchema,
   runRecordingSchema,
+  runRecordingV1Schema,
   type ParseRecordingResult,
   type RecordingCommand,
   type RecordingIssue,
   type RecordingMarker,
+  type RecordingPlatform,
+  type RecordingStream,
   type RunRecording,
+  type RunRecordingV1,
+  type RunRecordingV2,
+  type SeatEvent,
+  type SystemEvent,
 } from "./recording-schema";
 export {
   DEFAULT_SCRIPT_MAX_TICKS,
   DEFAULT_UNTIL_MAX,
+  INPUT_SCRIPT_MIGRATIONS,
   INPUT_SCRIPT_VERSION,
   inputScriptJsonSchema,
   inputScriptSchemaFor,
   inputScriptSchemaId,
   inputScriptSchemasFor,
   MAX_SCRIPT_TICKS,
+  migrateInputScript,
+  parseInputScript,
+  scriptShapeIssues,
+  worldPointSchema,
+  type AnalogSet,
   type CountMatch,
   type ExistsMatch,
   type InputScriptSchemas,
+  type MigrateInputScriptResult,
+  type ParseInputScriptResult,
+  type ScriptPointer,
 } from "./input-script";

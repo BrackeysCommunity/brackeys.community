@@ -2,6 +2,7 @@ import type { z } from "zod";
 
 import {
   CHECKS_FORMAT_VERSION,
+  CHECKS_MIGRATIONS,
   CHECKS_SUFFIX,
   checksPathOf,
   checksSchemaFor,
@@ -22,6 +23,7 @@ export const checksKind = defineAssetKind({
   defaultFolder: (_env, near) => folderOf(near),
   storage: "doc",
   version: CHECKS_FORMAT_VERSION,
+  migrations: CHECKS_MIGRATIONS,
   schemaId: `urn:jams-engine:checks:v${CHECKS_FORMAT_VERSION}`,
   schema: (env) => checksSchemaFor(env.registry) as unknown as z.ZodType<ChecksFile>,
   layout: CHECKS_LAYOUT,

@@ -25,7 +25,7 @@ const spout = defineEntityType({
   type: "spout",
   description: "Where drops fall from.",
   base: "marker",
-  fields: { at: pointField("The spout's mouth, absolute world px.") },
+  fields: { at: pointField("The spout's mouth, absolute world metres.") },
 });
 
 const drop = defineEntityType({
@@ -64,12 +64,12 @@ export const fountainGame = defineGame<FountainSnapshot>({
     const fall = (from: string, id?: string) => {
       const pose = ctx.poses.get(from);
       if (!pose) return;
-      const dx = drift.range(-6, 6);
+      const dx = drift.range(-6, 6) / 100;
       snap.jitter += dx;
       ctx.spawn({
         type: "drop",
         ...(id ? { id } : {}),
-        at: [pose.x + dx, pose.y + 8],
+        at: [pose.x + dx, pose.y + 0.08],
         behaviors: { lifetime: { ms: 1000 } },
       });
     };
@@ -96,7 +96,7 @@ export const fountainGame = defineGame<FountainSnapshot>({
           }
           if (c.name === "pour") {
             const { prefab } = c.args as { prefab: string };
-            ctx.instantiate(prefab, [ctx.bounds[2] / 2, 16]);
+            ctx.instantiate(prefab, [ctx.bounds[2] / 2, 0.16]);
           }
         }
       },
@@ -107,21 +107,21 @@ export const fountainGame = defineGame<FountainSnapshot>({
 
 /** A basin with one spout over it. */
 export const basin: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "fountain",
   name: "basin",
-  bounds: [0, 0, 160, 120],
-  entities: [{ id: "spout", type: "spout", at: [80, 40] }],
+  bounds: [0, 0, 1.6, 1.2],
+  entities: [{ id: "spout", type: "spout", at: [0.8, 0.4] }],
 };
 
 /** Two spouts side by side, for `pour`. */
 export const twinSpout: Prefab = {
   kind: "prefab",
-  v: 3,
+  v: 4,
   game: "fountain",
   id: "twin-spout",
   entities: [
-    { id: "left", type: "spout", at: [-24, 0] },
-    { id: "right", type: "spout", at: [24, 0] },
+    { id: "left", type: "spout", at: [-0.24, 0] },
+    { id: "right", type: "spout", at: [0.24, 0] },
   ],
 };

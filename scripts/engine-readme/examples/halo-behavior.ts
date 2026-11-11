@@ -8,7 +8,7 @@ export const halo = defineBehavior({
   name: "coin-game/halo",
   description: "A ring drawn around the entity.",
   visualOnly: true,
-  fields: { radius: z.number().positive().default(24).describe("Ring radius, px; default 24.") },
+  fields: { radius: z.number().positive().default(0.24).describe("Ring radius, m; default 0.24.") },
   system(ctx): BehaviorSystem {
     const rings = new Set<string>();
     const ringOf = (id: string) => `${id}#halo`;

@@ -1,23 +1,24 @@
 import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
 import {
-  drawnEntities,
   type DrawnGridCell,
   type DrawnGridCells,
-  expandedOf,
   gridCellsIn,
   num,
+  oneWayEdges,
   overlaps,
-  renderAssets,
-  resolveRegion,
+  overlayInPx,
+  sceneDrawing,
   type DrawnEntity,
   type OverlayPoint,
+  type SceneDrawing,
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
 import { aabb, translateShape } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline, type PathCommand } from "./shape-outline";
 import type { Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
+import { pxToMetres } from "./units";
 
 /** The longest side of a rendered scene, in image px. */
 export const SCENE_SVG_MAX_SIZE = 1600;
@@ -42,14 +43,20 @@ export type SceneSvgOptions = SceneRegionOptions & {
 
 /** The world rectangle a render covers and the image size it gets. */
 export type SceneViewport = {
+  /** The world rectangle, metres. */
   region: Bounds;
+  /** The game's px per metre: world px are metres times this. */
+  pxPerMetre: number;
   /** Image px per world px. */
   scale: number;
   width: number;
   height: number;
-  /** World px between grid lines and axis ticks. */
+  /** World px between grid lines and axis ticks; the ticks are labelled in world px. */
   tick: number;
 };
+
+/** A viewport with its region in world px, as the drawing uses it. */
+type PxViewport = Omit<SceneViewport, "pxPerMetre">;
 
 const FALLBACK_STYLE: Style = { fill: 0x888888, stroke: 0xcccccc, alpha: 0.5 };
 const POINT_COLOR = 0xffcc44;
@@ -66,6 +73,7 @@ const CATEGORY_COLORS = [
 const BACKGROUND = "#101218";
 const SCENE_FILL = "#181b22";
 const INK = "#f2f4f8";
+const ONE_WAY_COLOR = "#4da3ff";
 
 const hex = (c: number) => `#${(c & 0xffffff).toString(16).padStart(6, "0")}`;
 const esc = (s: string) =>
@@ -80,11 +88,9 @@ function tickSpacing(scale: number): number {
 }
 
 function viewportOf(
-  scene: ExpandedScene,
-  entities: readonly DrawnEntity[],
-  opts: Omit<SceneSvgOptions, "registry">,
-): SceneViewport {
-  const region = resolveRegion(scene, entities, opts);
+  { region }: SceneDrawing,
+  opts: Pick<SceneSvgOptions, "maxSize" | "scale">,
+): PxViewport {
   const w = region[2] - region[0];
   const h = region[3] - region[1];
   const max = opts.maxSize ?? SCENE_SVG_MAX_SIZE;
@@ -106,9 +112,15 @@ export function sceneViewport(
   scene: SceneDefinition | ExpandedScene,
   opts: SceneSvgOptions,
 ): SceneViewport {
-  const expanded = expandedOf(scene, opts.registry, opts.prefabs);
-  const all = drawnEntities(expanded, opts.registry, renderAssets(opts));
-  return viewportOf(expanded, all, opts);
+  const drawing = sceneDrawing(scene, opts);
+  const vp = viewportOf(drawing, opts);
+  const k = drawing.pxPerMetre;
+  const [x0, y0, x1, y1] = vp.region;
+  return {
+    ...vp,
+    region: [pxToMetres(x0, k), pxToMetres(y0, k), pxToMetres(x1, k), pxToMetres(y1, k)],
+    pxPerMetre: k,
+  };
 }
 
 /** SVG path data for an outline; arcs are split into quarter turns so a full circle draws. */
@@ -149,9 +161,11 @@ export function svgPathData(cmds: readonly PathCommand[]): string {
 const isSpawnLike = (d: DrawnEntity) => d.tags.includes("spawn") || d.type.type === "spawn";
 
 /**
- * A schematic of the scene as SVG text: every entity through `shapeOutline`
- * in its registered type's (and material's) style, a grid with axis ticks in
- * world px, id labels, each sprite's box labelled `asset[:frame]` (sized
+ * A schematic of the scene as SVG text, drawn in world px (the scene's
+ * metres times the game's px per metre, written to 1/100 px): every entity
+ * through `shapeOutline` in its registered type's (and material's) style, each
+ * one-way solid's landing face (as the edit overlay marks it), a
+ * grid with axis ticks in world px, id labels, each sprite's box labelled `asset[:frame]` (sized
  * from `opts.project` when given), path waypoints with numbered ghosts, and overlays
  * (issues, a playtest's trail, events and outcome). Pure and deterministic:
  * the same scene and options give the same text.
@@ -161,9 +175,9 @@ export function renderSceneSvg(
   opts: SceneSvgOptions,
 ): string {
   const { registry } = opts;
-  const expanded = expandedOf(scene, registry, opts.prefabs);
-  const all = drawnEntities(expanded, registry, renderAssets(opts));
-  const vp = viewportOf(expanded, all, opts);
+  const drawing = sceneDrawing(scene, opts);
+  const { entities: all, scene: expanded } = drawing;
+  const vp = viewportOf(drawing, opts);
   const [x0, y0, x1, y1] = vp.region;
   const u = 1 / vp.scale;
   const px = (n: number) => num(n * u);
@@ -182,7 +196,7 @@ export function renderSceneSvg(
   out.push(
     `<rect x="${num(x0)}" y="${num(y0)}" width="${num(x1 - x0)}" height="${num(y1 - y0)}" fill="${BACKGROUND}"/>`,
   );
-  const [bx0, by0, bx1, by1] = expanded.bounds;
+  const [bx0, by0, bx1, by1] = drawing.bounds;
   out.push(
     `<rect id="bounds" x="${num(bx0)}" y="${num(by0)}" width="${num(bx1 - bx0)}" height="${num(by1 - by0)}" ` +
       `fill="${SCENE_FILL}" stroke="#4a5060" stroke-width="${px(1)}"/>`,
@@ -207,7 +221,7 @@ export function renderSceneSvg(
   out.push(`</g>`);
 
   // Grid fields' cells, under the entities
-  const cells = gridCellsIn(visible, expanded.settings.grid, vp.region);
+  const cells = gridCellsIn(visible, drawing.grid, vp.region);
   if (cells.cells.length > 0 || cells.more > 0)
     out.push(...gridCellElements(cells, registry, px, u));
 
@@ -242,6 +256,19 @@ export function renderSceneSvg(
     }
   }
   out.push(`</g>`);
+
+  // One-way solids' landing faces: actors pass through every other side
+  const faces = oneWayEdges(visible);
+  if (faces.length > 0) {
+    out.push(
+      `<g id="one-way" fill="none" stroke="${ONE_WAY_COLOR}" stroke-width="${px(3)}" stroke-linecap="round">`,
+    );
+    for (const { entity, side, from, to } of faces)
+      out.push(
+        `<path data-one-way="${esc(entity.id)}" data-side="${side}" d="M${num(from[0])} ${num(from[1])}L${num(to[0])} ${num(to[1])}"/>`,
+      );
+    out.push(`</g>`);
+  }
 
   // Sprites: the box each draws, over the bodies they dress
   const sprites = visible.filter((d) => d.sprite);
@@ -326,7 +353,8 @@ export function renderSceneSvg(
   }
 
   // Overlays, over the labels so a report reads first
-  if (opts.overlay) out.push(...overlayElements(opts.overlay, byId, px, u, vp));
+  if (opts.overlay)
+    out.push(...overlayElements(overlayInPx(opts.overlay, drawing.pxPerMetre), byId, px, u, vp));
 
   // Axis ticks, along the top and left edges
   out.push(
@@ -433,7 +461,7 @@ function overlayElements(
   byId: ReadonlyMap<string, DrawnEntity>,
   px: (n: number) => string,
   u: number,
-  vp: SceneViewport,
+  vp: PxViewport,
 ): string[] {
   const out: string[] = [`<g id="overlay">`];
   const text = (x: number, y: number, size: number, fill: string, body: string, anchor = "start") =>

@@ -2,6 +2,7 @@ import type { Store } from "@tanstack/store";
 import type { Container } from "pixi.js";
 
 import type { Viewport } from "../camera";
+import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { EngineContext } from "../game/types";
 import { setDebugMode } from "../store";
 import type { ToolRouter } from "../tool-router";
@@ -10,14 +11,19 @@ import { createDebugPanel, type DebugPanel } from "./debug-panel";
 import { gridLayer } from "./grid-overlay";
 import { physicsLayer } from "./physics-wireframes";
 
-/** The loaded scene's world, as the physics wireframes read it. */
-export type DebugSceneSource = Pick<EngineContext, "physics" | "geometry" | "tags" | "registry">;
+/** The loaded scene's world, as the physics wireframes and the grid read it. */
+export type DebugSceneSource = Pick<EngineContext, "physics" | "geometry" | "tags" | "registry"> &
+  Partial<Pick<EngineContext, "grid">>;
 
 /** What every visible layer gets each shell tick. */
 export type DebugFrame = {
   dtMs: number;
+  /** World metres. */
   mouseWorld: Vec2;
+  /** World metres. */
   viewport: Viewport;
+  /** Canvas px per world metre, zoom included: a layer's line widths and labels divide screen px by it. */
+  scale: number;
   /** The game's `debugInfo()`; null without a scene or when the game supplies none. */
   info: unknown;
   /** The world bound by `setPhysics`; null without a scene. */
@@ -27,8 +33,15 @@ export type DebugFrame = {
 /** What the shell hands the overlay each tick; the overlay adds the bound scene. */
 export type DebugTick = Omit<DebugFrame, "scene">;
 
-/** Where a layer adds its containers: the camera-affected world, or the screen-fixed UI. */
-export type DebugLayerHost = { worldContainer: Container; uiContainer: Container };
+/**
+ * Where a layer adds its containers: the camera-affected world (world
+ * metres), or the screen-fixed UI (canvas px). `pxPerMetre` is the game's.
+ */
+export type DebugLayerHost = {
+  worldContainer: Container;
+  uiContainer: Container;
+  pxPerMetre: number;
+};
 
 export type DebugLayer = {
   update: (frame: DebugFrame) => void;
@@ -69,7 +82,9 @@ export type DebugOverlay = {
 
 export type DebugOverlayFactory = (deps: DebugDeps) => DebugOverlay;
 
-export type DebugDeps = DebugLayerHost & {
+export type DebugDeps = Omit<DebugLayerHost, "pxPerMetre"> & {
+  /** The game's px per metre; default 100. */
+  pxPerMetre?: number;
   store: Store<GameStoreState>;
   /** The shell's router; F3 registers on it above every tool. */
   router: ToolRouter;
@@ -83,6 +98,7 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay {
   const host: DebugLayerHost = {
     worldContainer: deps.worldContainer,
     uiContainer: deps.uiContainer,
+    pxPerMetre: deps.pxPerMetre ?? DEFAULT_LENGTH_UNIT,
   };
   const factories = [...ENGINE_DEBUG_LAYERS, ...(deps.layers ?? [])];
   const modes = debugModes(factories);

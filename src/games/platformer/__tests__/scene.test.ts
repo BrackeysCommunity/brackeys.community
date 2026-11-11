@@ -62,7 +62,7 @@ describe("test-yard.json", () => {
       hold: ["move_right"],
     });
     expect(report.load.ok).toBe(true);
-    expect(report.final!.position.x).toBeGreaterThan(960);
+    expect(report.final!.position.x).toBeGreaterThan(9.6);
     const landed = report.events.find((e) => e.type === "landed");
     expect(scene.entities.map((e) => e.id)).toContain(landed?.entityId);
   });
@@ -86,7 +86,7 @@ describe("scene.schema.json", () => {
   });
 
   it("has the platformer's URN id", () => {
-    expect(sceneJsonSchema(registry).$id).toBe("urn:jams-engine:scene:platformer:v3");
+    expect(sceneJsonSchema(registry).$id).toBe("urn:jams-engine:scene:platformer:v4");
   });
 });
 
@@ -100,7 +100,7 @@ describe("input-script.schema.json", () => {
 
   it("has the platformer's URN id and describes every property", () => {
     const schema = inputScriptJsonSchema(registry);
-    expect(schema.$id).toBe("urn:jams-engine:input-script:platformer:v1");
+    expect(schema.$id).toBe("urn:jams-engine:input-script:platformer:v2");
     expect(undescribedProperties(schema)).toEqual([]);
   });
 });

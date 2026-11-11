@@ -30,7 +30,7 @@ function scene(): SceneDefinition {
     solid: [["box", 1000, 1180, 1000, 20]],
     entities: [
       { id: "zone", type: "sensor", shape: ["circle", 900, 600, 12], tags: ["goal"] },
-      { id: "pad", type: "marker", at: [1000.5, 1010] },
+      { id: "pad", type: "marker", at: [1000.005, 1010] },
     ],
   };
 }

@@ -11,7 +11,6 @@ import { createRegistry } from "../../../src/engine/game/index";
 import { docNameOf } from "../../../src/engine/project/doc-names";
 import { connect, pushed, until } from "../../../src/engine/vite/__tests__/dev-server-fixture";
 import { createProjectFileAdapter, readFileProject } from "../../../src/engine/vite/project-files";
-import { engineEditorGame } from "../main";
 import { engineScenes, REPO_SCENES, startEngineEditor, type EngineEditor } from "../run";
 
 /** Every file under `dir` with its content hash, by relative path. */
@@ -47,7 +46,7 @@ afterEach(async () => {
 
 describe("the standalone editor's page", () => {
   it("reaches the engine only by its package names, never the site", async () => {
-    for (const file of ["main.ts", "game.ts", "vite.config.ts", "run.ts"]) {
+    for (const file of ["main.ts", "vite.config.ts", "run.ts"]) {
       const text = await readFile(new URL(`../${file}`, import.meta.url), "utf8");
       expect(text, file).not.toMatch(/from "@\/|import\("@\/|src\/(components|lib|routes)\//);
     }
@@ -61,11 +60,8 @@ describe("the standalone editor's scratch copy", () => {
       expect(scenes.inPlace).toBe(false);
       expect(scenes.dir).not.toBe(REPO_SCENES);
       expect(await tree(scenes.dir)).toEqual(await tree(REPO_SCENES));
-      // The editor's game reads every file of the project, its data tables among them.
-      const project = await readFileProject(scenes.dir, {
-        game: engineEditorGame,
-        cacheDir: scenes.cacheDir,
-      });
+      // The project names no game: every file reads under the engine alone, its data tables among them.
+      const project = await readFileProject(scenes.dir, { game: null, cacheDir: scenes.cacheDir });
       expect((await createProjectFileAdapter(project).scan()).problems).toEqual([]);
     } finally {
       await scenes.remove();
@@ -109,7 +105,7 @@ describe("the standalone editor's scratch copy", () => {
       doc,
       { ops: [{ op: "add", entity: { id: "scratch-flag", type: "marker", at: [12, 34] } }] },
       { kind: "user", userId: "scratch-test" },
-      createRegistry(engineEditorGame),
+      createRegistry(null),
     );
     expect(applied.ok).toBe(true);
     await pushed(provider);
@@ -120,7 +116,7 @@ describe("the standalone editor's scratch copy", () => {
     );
 
     expect(original).not.toContain('"scratch-flag"');
-    // Every file of the project reads under the editor's game.
+    // Every file of the project reads under the engine alone.
     expect(warnings).toEqual([]);
     expect(await tree(REPO_SCENES)).toEqual(before);
   }, 60_000);

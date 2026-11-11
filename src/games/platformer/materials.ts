@@ -17,7 +17,7 @@ export const PLATFORMER_MATERIALS = {
   trampoline: {
     friction: 0.5,
     restitution: 1.2,
-    impulse: { x: 0, y: -700 },
+    impulse: { x: 0, y: -7 },
     description: "bounces the player up.",
     style: { fill: 0xff00ff },
   },

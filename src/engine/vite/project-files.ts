@@ -62,6 +62,7 @@ import {
 import { dataTableIssues } from "../project/kinds/data-table";
 import { byCodeUnit } from "../project/kinds/define";
 import { gameSettingsIssues } from "../project/kinds/game-settings";
+import { inputMapIssues } from "../project/kinds/index";
 import { MATERIAL_KIND } from "../project/kinds/material";
 import { prefabKind } from "../project/kinds/prefab";
 import type { BlobInspect, ProjectOp } from "../project/ops";
@@ -87,7 +88,7 @@ import {
 import { fileNameOf, folderPrefixOf, projectView, splitExtension } from "../project/view";
 import { diffToOps } from "../scene/diff-to-ops";
 import { makeIssue } from "../scene/issues";
-import { parsePrefab, PREFABS_DIR } from "../scene/prefab";
+import { parsePrefab, PREFABS_DIR, type ParsePrefabResult } from "../scene/prefab";
 import {
   PREFAB_KIND,
   type Prefab,
@@ -454,7 +455,41 @@ export function createProjectFileAdapter(
   }
   const registryNow = () =>
     registryOf(projectDoc ? Object.values(readProject(projectDoc).assets) : scanned.values());
-  const envNow = (): KindEnv => ({ registry: registryNow(), project: null });
+  const liveEntries = () =>
+    projectDoc ? Object.values(readProject(projectDoc).assets) : [...scanned.values()];
+  /** A loaded, seeded prefab doc's value by id. */
+  const loadedPrefab = (byId: ReadonlyMap<string, AssetEntry>) => (id: string) => {
+    const entry = byId.get(id);
+    const doc = entry && loaded.get(entry.key);
+    return doc && prefabCodec.seeded(doc) ? { ...docToPrefab(doc), id } : undefined;
+  };
+  const livePrefabEntries = () =>
+    new Map(
+      liveEntries()
+        .filter((e) => e.kind === PREFAB_KIND && !e.deleted)
+        .map((e) => [e.id, e]),
+    );
+  /** The project's prefabs by id, from their loaded docs, else their last-read files. */
+  function prefabNow(registry: Registry): (id: string) => Prefab | undefined {
+    const byId = livePrefabEntries();
+    const texts = new Map<string, string>();
+    for (const [id, entry] of byId) {
+      const text = files.get(entry.key)?.text;
+      if (text != null) texts.set(id, text);
+    }
+    const known = loadedPrefab(byId);
+    const parsed = prefabResolver(texts, registry, known);
+    return (id) => {
+      const hit = known(id);
+      if (hit) return hit;
+      const r = parsed(id);
+      return r?.ok ? { ...r.prefab, id } : undefined;
+    };
+  }
+  const envNow = (): KindEnv => {
+    const registry = registryNow();
+    return { registry, project: null, prefab: prefabNow(registry) };
+  };
 
   const abs = (path: AssetPath) => join(dir, ...path.split("/"));
   const nameOf = (entry: Pick<AssetEntry, "key" | "kind">) => {
@@ -547,22 +582,23 @@ export function createProjectFileAdapter(
   /** Every live prefab by id: from its loaded doc, else its file; a file that doesn't parse is left out. */
   async function prefabLibrary(): Promise<PrefabLibrary> {
     const out = new Map<string, Prefab>();
-    const entries = projectDoc
-      ? Object.values(readProject(projectDoc).assets)
-      : [...scanned.values()];
-    const def = kinds.get(PREFAB_KIND);
-    if (!isDocKind(def)) return out;
-    const env = envNow();
-    for (const entry of entries.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-      if (entry.kind !== PREFAB_KIND || entry.deleted || out.has(entry.id)) continue;
-      const doc = loaded.get(entry.key);
-      if (doc && prefabCodec.seeded(doc)) {
-        out.set(entry.id, { ...docToPrefab(doc), id: entry.id });
+    const byId = livePrefabEntries();
+    const known = loadedPrefab(byId);
+    const texts = new Map<string, string>();
+    for (const [id, entry] of byId) {
+      if (known(id)) continue;
+      const text = await readText(abs(files.get(entry.key)?.path ?? entry.path));
+      if (text !== null) texts.set(id, text);
+    }
+    const parsed = prefabResolver(texts, registryNow(), known);
+    for (const id of [...byId.keys()].sort(byCodeUnit)) {
+      const hit = known(id);
+      if (hit) {
+        out.set(id, hit);
         continue;
       }
-      const text = await readText(abs(files.get(entry.key)?.path ?? entry.path));
-      const parsed = text === null ? null : parseAssetDoc(def, text, env);
-      if (parsed?.ok) out.set(entry.id, { ...(parsed.value as Prefab), id: entry.id });
+      const r = parsed(id);
+      if (r?.ok) out.set(id, { ...r.prefab, id });
     }
     return out;
   }
@@ -724,7 +760,19 @@ export function createProjectFileAdapter(
         created: SEEDED,
       }),
     );
-    const env: KindEnv = { registry: registryOf(listed, (e) => json.get(e.key)), project: null };
+    const registry = registryOf(listed, (e) => json.get(e.key));
+    const prefabTexts = new Map<string, string>();
+    for (const { file } of keyed)
+      if (file.def.kind === PREFAB_KIND && file.text !== null) prefabTexts.set(file.id, file.text);
+    const prefabs = prefabResolver(prefabTexts, registry);
+    const env: KindEnv = {
+      registry,
+      project: null,
+      prefab: (id) => {
+        const r = prefabs(id);
+        return r?.ok ? { ...r.prefab, id } : undefined;
+      },
+    };
     for (const { at, read } of docs.reverse()) {
       const parsed = parseAssetDoc(read.def as DocKindDef, read.text!, env);
       if (!parsed.ok) problems.splice(at, 0, { path: read.path, issues: parsed.issues });
@@ -1118,12 +1166,16 @@ export function createProjectFileAdapter(
     }, DISK_ORIGIN);
   }
 
-  /** What the scan's files fail on together: a second game-settings asset, a table row id two assets hold. */
+  /** What the scan's files fail on together: a second game-settings asset or input map, a table row id two assets hold. */
   function acrossAssets(entries: readonly AssetEntry[]): ProjectProblem[] {
     const view = projectView(stateOf(entries));
     const values = new Map<AssetId, unknown>();
     for (const entry of view.byId.values()) values.set(entry.id, scannedJson.get(entry.key));
-    return [...gameSettingsIssues(view), ...dataTableIssues(view, values)].map((issue) => ({
+    return [
+      ...gameSettingsIssues(view),
+      ...inputMapIssues(view),
+      ...dataTableIssues(view, values),
+    ].map((issue) => ({
       path: view.byKey.get(issue.entityIds[0] ?? "")?.path ?? "",
       issues: [issue],
     }));
@@ -1718,6 +1770,62 @@ const badPrefabId = (message: string): SceneIssue[] => [
 ];
 
 /**
+ * Parses prefab texts by id on demand, each with the others (and `known`,
+ * tried first) as its lookup, so a migration reads the units of the
+ * prefabs its instances and variants name. A cycle reads as unresolved.
+ */
+function prefabResolver(
+  texts: ReadonlyMap<string, string>,
+  registry: Registry,
+  known: (id: string) => Prefab | undefined = () => undefined,
+): (id: string) => ParsePrefabResult | undefined {
+  const done = new Map<string, ParsePrefabResult>();
+  const open = new Set<string>();
+  const lookup = (id: string): Prefab | undefined => {
+    const hit = known(id);
+    if (hit) return hit;
+    const r = get(id);
+    return r?.ok ? r.prefab : undefined;
+  };
+  const get = (id: string): ParsePrefabResult | undefined => {
+    const hit = done.get(id);
+    if (hit) return hit;
+    const text = texts.get(id);
+    if (text === undefined || open.has(id)) return undefined;
+    open.add(id);
+    const r = parsePrefab(text, registry, { prefab: lookup });
+    open.delete(id);
+    done.set(id, r);
+    return r;
+  };
+  return get;
+}
+
+/** Fills `out` from prefab texts read by id, checking each parsed id against `idProblem`. */
+function collectPrefabs(
+  out: PrefabRead,
+  read: ReadonlyMap<string, { text: string; path: string }>,
+  registry: Registry,
+  idProblem: (id: string, got: string) => string,
+): void {
+  const parsed = prefabResolver(new Map([...read].map(([id, r]) => [id, r.text])), registry);
+  for (const [id, { text, path }] of read) {
+    const result = parsed(id)!;
+    if (!result.ok) {
+      out.problems.push({ id, issues: result.issues });
+      continue;
+    }
+    if (result.prefab.id !== id) {
+      out.problems.push({ id, issues: badPrefabId(idProblem(id, result.prefab.id)) });
+      continue;
+    }
+    out.prefabs.set(id, result.prefab);
+    out.texts.set(id, text);
+    out.files.set(id, path);
+  }
+}
+
+/**
  * Reads every prefab in `prefabs/` of a scenes directory outside any
  * project, where a prefab's id is its file name; a missing `prefabs/` is an
  * empty library.
@@ -1725,30 +1833,21 @@ const badPrefabId = (message: string): SceneIssue[] => [
 export async function readPrefabFiles(scenesDir: string, registry: Registry): Promise<PrefabFiles> {
   const dir = prefabsDirOf(scenesDir);
   const names = await readdir(dir).catch(() => [] as string[]);
-  const out = emptyPrefabRead();
+  const read = new Map<string, { text: string; path: string; file: string }>();
   for (const file of names.sort()) {
     const id = sceneNameOf(file);
     if (!id) continue;
     const path = join(dir, file);
-    const text = await readFile(path, "utf8");
-    const parsed = parsePrefab(text, registry);
-    if (!parsed.ok) {
-      out.problems.push({ id, issues: parsed.issues });
-      continue;
-    }
-    if (parsed.prefab.id !== id) {
-      out.problems.push({
-        id,
-        issues: badPrefabId(
-          `prefabs/${file} has the id "${parsed.prefab.id}"; a prefab's id is its file name`,
-        ),
-      });
-      continue;
-    }
-    out.prefabs.set(id, parsed.prefab);
-    out.texts.set(id, text);
-    out.files.set(id, path);
+    read.set(id, { text: await readFile(path, "utf8"), path, file });
   }
+  const out = emptyPrefabRead();
+  collectPrefabs(
+    out,
+    read,
+    registry,
+    (id, got) =>
+      `prefabs/${read.get(id)!.file} has the id "${got}"; a prefab's id is its file name`,
+  );
   return out;
 }
 
@@ -1762,29 +1861,19 @@ export async function readProjectPrefabFiles(
   registry: Registry,
 ): Promise<PrefabFiles> {
   const view = projectView(state, project.kinds);
-  const out = emptyPrefabRead();
+  const read = new Map<string, { text: string; path: string; asset: string }>();
   for (const entry of [...view.byId.values()].sort((a, b) => byCodeUnit(a.id, b.id))) {
     if (entry.kind !== prefabKind.kind) continue;
     const path = join(project.dir, ...entry.path.split("/"));
     const text = await readText(path);
-    if (text === null) continue;
-    const parsed = parsePrefab(text, registry);
-    if (!parsed.ok) {
-      out.problems.push({ id: entry.id, issues: parsed.issues });
-      continue;
-    }
-    if (parsed.prefab.id !== entry.id) {
-      out.problems.push({
-        id: entry.id,
-        issues: badPrefabId(
-          `${entry.path} has the id "${parsed.prefab.id}"; its asset's id is "${entry.id}"`,
-        ),
-      });
-      continue;
-    }
-    out.prefabs.set(entry.id, parsed.prefab);
-    out.texts.set(entry.id, text);
-    out.files.set(entry.id, path);
+    if (text !== null) read.set(entry.id, { text, path, asset: entry.path });
   }
+  const out = emptyPrefabRead();
+  collectPrefabs(
+    out,
+    read,
+    registry,
+    (id, got) => `${read.get(id)!.asset} has the id "${got}"; its asset's id is "${id}"`,
+  );
   return out;
 }

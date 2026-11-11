@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "scene": "field",
+  "players": 2,
+  "maxTicks": 600,
+  "tracks": [
+    {
+      "player": 0,
+      "steps": [{ "join": "keyboard" }, { "set": { "move": [1, 0] }, "for": 150 }]
+    },
+    {
+      "player": 1,
+      "steps": [
+        { "wait": 10 },
+        { "join": "pad:0" },
+        { "set": { "move": [0.8, -0.6] }, "for": 60 },
+        {
+          "pointer": { "at": [5, 2], "press": "primary", "drag": [6, 2], "release": "primary" },
+          "for": 10
+        },
+        { "set": { "move": [1, 0] }, "for": 100 },
+        { "leave": "pad:0" }
+      ]
+    }
+  ]
+}

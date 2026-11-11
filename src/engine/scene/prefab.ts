@@ -7,7 +7,8 @@ import { formatPrefab, formatScene } from "./format";
 import { FRAGMENT_KIND, fragmentSchemaFor, parseFragment } from "./fragment";
 import { hashText } from "./hash";
 import { jsonPointer, makeIssue } from "./issues";
-import { parseScene } from "./parse";
+import { migrate, MIGRATIONS } from "./migrate";
+import { migrateEnvOf, parseScene, type ParseOptions } from "./parse";
 import { InstanceSchema, OVERRIDE_PATH } from "./schema";
 import {
   PREFAB_KIND,
@@ -170,7 +171,11 @@ const SCRATCH_BOUNDS = [0, 0, 1, 1];
  * and the base name, cycles, depth and whether overrides and param targets
  * reach a child are `validateScene`'s. Never throws.
  */
-export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResult {
+export function parsePrefab(
+  input: unknown,
+  registry: Registry,
+  opts: ParseOptions = {},
+): ParsePrefabResult {
   let raw = input;
   if (typeof input === "string") {
     try {
@@ -225,20 +230,34 @@ export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResu
       ],
     };
   }
+  let doc: Record<string, unknown> = raw;
+  let migratedFrom: number | undefined;
+  if (
+    typeof raw.v === "number" &&
+    Number.isInteger(raw.v) &&
+    raw.v >= 1 &&
+    raw.v < SCENE_FORMAT_VERSION
+  ) {
+    const lifted = migrate(raw, MIGRATIONS, SCENE_FORMAT_VERSION, migrateEnvOf(registry, opts));
+    if (!lifted.ok) return { ok: false, issues: [lifted.issue] };
+    migratedFrom = lifted.from;
+    doc = lifted.raw as Record<string, unknown>;
+  }
   const fragment = parseFragment(
     {
       kind: FRAGMENT_KIND,
-      v: raw.v,
-      ...(raw.game !== undefined ? { game: raw.game } : {}),
-      entities: raw.entities ?? [],
-      ...(raw.bulk !== undefined ? { bulk: raw.bulk } : {}),
+      v: doc.v,
+      ...(doc.game !== undefined ? { game: doc.game } : {}),
+      entities: doc.entities ?? [],
+      ...(doc.bulk !== undefined ? { bulk: doc.bulk } : {}),
     },
     registry,
+    opts,
   );
   if (!fragment.ok) return fragment;
-  const instances = parseInstances(raw, registry);
+  const instances = parseInstances(doc, registry, opts);
   if (!instances.ok) return instances;
-  const contract = contractSchema(registry).safeParse(raw.contract);
+  const contract = contractSchema(registry).safeParse(doc.contract);
   if (!contract.success) {
     const first = contract.error.issues[0]!;
     return {
@@ -252,10 +271,10 @@ export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResu
     };
   }
   const header = VariantHeaderSchema.safeParse({
-    base: raw.base,
-    params: raw.params,
-    assets: raw.assets,
-    overrides: raw.overrides,
+    base: doc.base,
+    params: doc.params,
+    assets: doc.assets,
+    overrides: doc.overrides,
   });
   if (!header.success) {
     const first = header.error.issues[0]!;
@@ -274,7 +293,7 @@ export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResu
   const { base, params, assets, overrides } = header.data;
   const f = fragment.fragment;
   const prefab: Prefab = {
-    ...(typeof raw.$schema === "string" ? { $schema: raw.$schema } : {}),
+    ...(typeof doc.$schema === "string" ? { $schema: doc.$schema } : {}),
     kind: PREFAB_KIND,
     v: f.v,
     ...(f.game !== undefined ? { game: f.game } : {}),
@@ -288,9 +307,10 @@ export function parsePrefab(input: unknown, registry: Registry): ParsePrefabResu
     ...(instances.instances ? { instances: instances.instances } : {}),
     entities: f.entities,
   };
-  return fragment.migratedFrom === undefined
+  const from = migratedFrom ?? fragment.migratedFrom;
+  return from === undefined
     ? { ok: true, prefab, issues: [] }
-    : { ok: true, prefab, migratedFrom: fragment.migratedFrom, issues: [] };
+    : { ok: true, prefab, migratedFrom: from, issues: [] };
 }
 
 /** Parsed params with an absent `default` left out rather than kept as `undefined`. */
@@ -312,6 +332,7 @@ function paramsOf(params: Record<string, PrefabParam>): Record<string, PrefabPar
 function parseInstances(
   raw: Record<string, unknown>,
   registry: Registry,
+  opts: ParseOptions,
 ): { ok: true; instances?: InstanceDef[] } | { ok: false; issues: SceneIssue[] } {
   if (raw.instances === undefined) return { ok: true };
   const game =
@@ -325,6 +346,7 @@ function parseInstances(
       instances: raw.instances,
     },
     registry,
+    opts,
   );
   if (!parsed.ok) return parsed;
   const instances = parsed.def.instances ?? [];

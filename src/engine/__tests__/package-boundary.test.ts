@@ -10,6 +10,7 @@ import { createRegistry } from "../game/define";
 import { docKindJsonSchema } from "../project/kinds";
 import { dataTableKind } from "../project/kinds/data-table";
 import { gameSettingsKind } from "../project/kinds/game-settings";
+import { inputMapKind } from "../project/kinds/input-map";
 import { materialKind } from "../project/kinds/material";
 import { PROJECT_OP_NAMES, projectOpsJsonSchema } from "../project/ops";
 import { projectJsonSchema } from "../project/project-file";
@@ -125,8 +126,12 @@ const RAPIER_VALUE_ALLOWLIST: string[] = [];
 const PIXI_VALUE_DIRS = ["render/", "debug/"];
 const PIXI_VALUE_SHELL = ["engine.ts", "renderer.ts"];
 
-/** Words that name the first game's features; none may reach the built package. */
-const GAME_WORDS = /\b(player|players|shaper|grapple|wind|constructs?|cheese|cloud|mover)\b/i;
+/** Words that name the first game's features; none may reach the built package. Seats are the engine's own players. */
+const GAME_WORDS = /\b(shaper|grapple|wind|constructs?|cheese|cloud|mover)\b/i;
+
+/** Globals only a browser has, which the pure input modules never touch. */
+const DOM_GLOBALS =
+  /\b(window|document|navigator|localStorage|sessionStorage|matchMedia|requestAnimationFrame|HTMLElement|KeyboardEvent|PointerEvent|Gamepad)\b/;
 
 /** Module-level empty arrays, Maps and Sets that are constants, not registries. */
 const MODULE_STATE_ALLOWLIST: string[] = [];
@@ -485,6 +490,61 @@ describe("package boundary", () => {
     }
   });
 
+  it("keeps the input code tables and the units maths import-free", () => {
+    expect(importsOf(join(ENGINE, "game/input-codes.ts"))).toEqual([]);
+    expect(importsOf(join(ENGINE, "scene/units.ts"))).toEqual([]);
+  });
+
+  it("keeps the binding check, the input-map kind and the unit walker inside what canvas-sync copies", () => {
+    const outside = (file: string, allowed: (target: string, spec: string) => boolean) =>
+      importsOf(join(ENGINE, file))
+        .filter((imp) => {
+          if (!imp.spec.startsWith(".")) return !allowed("", imp.spec);
+          const target = rel(resolveRelative(join(ENGINE, file), imp.spec) ?? imp.spec);
+          return !allowed(target, imp.spec);
+        })
+        .map((imp) => `${file}:${imp.line} imports ${imp.spec}`);
+    violations([
+      ...outside(
+        "game/input-bindings.ts",
+        (t) => t.startsWith("game/") || t === "scene/did-you-mean.ts",
+      ),
+      ...outside(
+        "project/kinds/input-map.ts",
+        (t, spec) => spec === "zod" || t.startsWith("game/") || t.startsWith("project/"),
+      ),
+      ...outside(
+        "game/units.ts",
+        (t, spec) =>
+          spec === "zod" ||
+          t.startsWith("game/") ||
+          t === "scene/units.ts" ||
+          t === "scene/shapes.ts",
+      ),
+    ]);
+  });
+
+  it("keeps input/ off Pixi and Rapier values, and its state, stream and quantising pure", () => {
+    const inputFiles = sourceFiles.map((f) => rel(f)).filter((p) => p.startsWith("input/"));
+    expect(inputFiles).toContain("input/system.ts");
+    const bad: string[] = [];
+    for (const path of inputFiles) {
+      for (const [spec, from] of runtimeGraph(path).bare) {
+        if (spec === "pixi.js" || spec.startsWith("@dimforge/"))
+          bad.push(`${path} reaches ${spec} via ${from.join(", ")}`);
+      }
+    }
+    for (const path of ["input/state.ts", "input/stream.ts", "input/quantize.ts"]) {
+      const { files, bare } = runtimeGraph(path);
+      if (bare.size > 0) bad.push(`${path} reaches ${[...bare.keys()].join(", ")}`);
+      for (const file of files) {
+        const dom = DOM_GLOBALS.exec(stripComments(readFileSync(join(ENGINE, file), "utf8")));
+        if (dom) bad.push(`${path} reaches ${dom[1]} in ${file}`);
+      }
+    }
+    violations(bad);
+  });
+
   it("loads game/behaviors.ts on a server: zod and the game and scene files only", () => {
     const { files, bare } = runtimeGraph("game/behaviors.ts");
     expect([...bare.keys()].filter((s) => s !== "zod")).toEqual([]);
@@ -697,6 +757,7 @@ describe("package boundary", () => {
       join(ENGINE, "project/project-ops.schema.json"),
       join(ENGINE, "project/material.schema.json"),
       join(ENGINE, "project/game-settings.schema.json"),
+      join(ENGINE, "project/input-map.schema.json"),
       join(ENGINE, "project/data-table.schema.json"),
       join(ENGINE, "project/project-snapshot.schema.json"),
       ...walk(join(ENGINE, "scenes"), /\.json$/),
@@ -820,6 +881,7 @@ async function surface() {
       docKindJsonSchema(materialKind, kindEnv).$id as string,
       docKindJsonSchema(gameSettingsKind, kindEnv).$id as string,
       docKindJsonSchema(dataTableKind, kindEnv).$id as string,
+      docKindJsonSchema(inputMapKind, kindEnv).$id as string,
     ],
     cliCommands: Object.fromEntries(
       Object.entries(cli.COMMANDS)

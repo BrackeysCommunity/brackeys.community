@@ -100,9 +100,9 @@ describe("devProjectHost", () => {
 function listingFetch(over: Record<string, unknown> = {}) {
   const routes: Record<string, unknown> = {
     "/__scene": { ok: true, scenes: ["7c1d2e3f", "kitchen-sink", "test-yard"] },
-    "/__scene/kitchen-sink": { v: 3, name: "kitchen-sink", bounds: [0, 0, 1, 1] },
-    "/__scene/test-yard": { v: 3, game: "platformer", name: "test-yard", bounds: [0, 0, 1, 1] },
-    "/__scene/7c1d2e3f": { v: 3, name: "grid-yard", bounds: [0, 0, 1, 1] },
+    "/__scene/kitchen-sink": { v: 4, name: "kitchen-sink", bounds: [0, 0, 1, 1] },
+    "/__scene/test-yard": { v: 4, game: "platformer", name: "test-yard", bounds: [0, 0, 1, 1] },
+    "/__scene/7c1d2e3f": { v: 4, name: "grid-yard", bounds: [0, 0, 1, 1] },
     "/__project": {
       ok: true,
       projects: [
@@ -144,7 +144,7 @@ describe("findDevScene", () => {
 
   it("reads the scenes together to match a name, and takes the first match in listing order", async () => {
     const { fetch: answer } = listingFetch({
-      "/__scene/kitchen-sink": { v: 3, name: "grid-yard", bounds: [0, 0, 1, 1] },
+      "/__scene/kitchen-sink": { v: 4, name: "grid-yard", bounds: [0, 0, 1, 1] },
     });
     let open = 0;
     let most = 0;

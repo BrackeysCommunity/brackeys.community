@@ -20,8 +20,11 @@ type Slot<K> = { key: K; box: Aabb; seq: number; cells: string[] | null };
 const overlaps = (a: Aabb, b: Aabb) =>
   a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
 
-/** A hash with square cells of `cell` px (default 256). */
-export function createSpatialHash<K>(cell = 256): SpatialHash<K> {
+/** The default cell's side, m. */
+const DEFAULT_CELL = 2.56;
+
+/** A hash with square cells of side `cell` (default 2.56 m). */
+export function createSpatialHash<K>(cell = DEFAULT_CELL): SpatialHash<K> {
   if (!(cell > 0) || !Number.isFinite(cell)) {
     throw new RangeError(`createSpatialHash: cell must be a positive number, got ${cell}`);
   }

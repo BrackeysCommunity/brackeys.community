@@ -24,7 +24,7 @@ const DOT = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64",
 );
-const RUBBER = { kind: "material", v: 1, description: "Bouncy." };
+const RUBBER = { kind: "material", v: 2, description: "Bouncy." };
 
 let root: string;
 let deck: string;
@@ -83,6 +83,7 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "game-settings",
       "grid-yard-checks",
       "grid-yard",
+      "input-map",
       "kitchen-sink-checks",
       "kitchen-sink",
       "bouncy",

@@ -6,14 +6,28 @@ export type ToolEvent =
       type: "down" | "move" | "up" | "wheel";
       /** CSS pixels from the input target's top-left corner. */
       screen: Vec2;
+      /** The DOM button that changed (0 primary, 1 middle, 2 secondary), -1 for a plain move. */
       button: number;
       deltaY: number;
+      /** The device: absent for an event the router didn't build, which reads as a mouse. */
+      pointerType?: PointerKind;
+      /** Tells simultaneous touches apart; absent outside pointer events. */
+      pointerId?: number;
+      /** A move that is the pointer leaving the target (a `pointerleave`); `screen` is where it left. */
+      left?: boolean;
       native: PointerEvent | WheelEvent | MouseEvent;
     }
   | {
       kind: "key";
       type: "down" | "up";
+      /** The layout's character or key name (`KeyboardEvent.key`); editor chords match it. */
       key: string;
+      /**
+       * The physical key (`KeyboardEvent.code`, "KeyW"), the same on every
+       * layout; play input matches it. Empty or absent for a key with no
+       * physical position, such as a virtual keyboard's.
+       */
+      code?: string;
       native: KeyboardEvent;
       /** Focus was outside the input target (a panel elsewhere in the key target); play input ignores it. */
       outsideTarget?: boolean;
@@ -46,6 +60,14 @@ export type ToolRouter = {
   detach(): void;
   destroy(): void;
 };
+
+export type PointerKind = "mouse" | "pen" | "touch";
+
+/** A pointer event's device; a plain `MouseEvent` or an unknown kind is the mouse. */
+export function pointerKindOf(native: Event): PointerKind {
+  const type = (native as { pointerType?: unknown }).pointerType;
+  return type === "touch" || type === "pen" ? type : "mouse";
+}
 
 export const TOOL_PRIORITY = { play: 0, game: 100, editor: 200, debug: 300 } as const;
 
@@ -110,25 +132,31 @@ export function createToolRouter(): ToolRouter {
     const inside = (node: EventTarget | null): boolean =>
       !("contains" in target) || (node instanceof Node && target.contains(node));
 
+    // A cancelled touch (the browser took it for a scroll) ends like a release.
     const pointer =
-      (type: "down" | "move" | "up" | "wheel") =>
+      (type: "down" | "move" | "up" | "wheel", left = false) =>
       (native: PointerEvent | WheelEvent | MouseEvent): void => {
         const origin =
           "getBoundingClientRect" in target ? target.getBoundingClientRect() : { left: 0, top: 0 };
-        dispatch({
+        const e: ToolEvent = {
           kind: "pointer",
           type,
           screen: { x: native.clientX - origin.left, y: native.clientY - origin.top },
           button: native.button,
           deltaY: "deltaY" in native ? native.deltaY : 0,
+          pointerType: pointerKindOf(native),
           native,
-        });
+        };
+        const id = (native as { pointerId?: unknown }).pointerId;
+        if (typeof id === "number") e.pointerId = id;
+        if (left) e.left = true;
+        dispatch(e);
       };
     // A release always routes, so a key pressed before focus moved into a field still lets go.
     const key =
       (type: "down" | "up") =>
       (native: KeyboardEvent): void => {
-        const e: ToolEvent = { kind: "key", type, key: native.key, native };
+        const e: ToolEvent = { kind: "key", type, key: native.key, code: native.code, native };
         if (type === "down" && isEditableTarget(native.target)) e.editable = true;
         if (!inside(native.target)) e.outsideTarget = true;
         dispatch(e);
@@ -138,6 +166,8 @@ export function createToolRouter(): ToolRouter {
       [target, "pointerdown", pointer("down") as EventListener],
       [target, "pointermove", pointer("move") as EventListener],
       [target, "pointerup", pointer("up") as EventListener],
+      [target, "pointercancel", pointer("up") as EventListener],
+      [target, "pointerleave", pointer("move", true) as EventListener],
       [target, "wheel", pointer("wheel") as EventListener, { passive: false }],
       [keyTarget, "keydown", key("down") as EventListener],
       [keyTarget, "keyup", key("up") as EventListener],

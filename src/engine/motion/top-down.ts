@@ -2,11 +2,11 @@ import type { Vec2 } from "../types";
 import type { MotionBody, MotionResult } from "./body";
 
 export type TopDownOptions = {
-  /** px/s. */
+  /** m/s. */
   maxSpeed: number;
-  /** px/s² toward the intended velocity. */
+  /** m/s² toward the intended velocity. */
   accel: number;
-  /** px/s² back to rest when there is no intent. */
+  /** m/s² back to rest when there is no intent. */
   decel: number;
 };
 

@@ -23,7 +23,7 @@ setDefaultTimeout(30_000);
 
 const quiet = { captureException() {}, capture() {}, async shutdown() {} };
 
-const TABLE = JSON.stringify({ kind: "data-table", v: 1, table: "card", rows: [{ id: "a" }] });
+const TABLE = JSON.stringify({ kind: "data-table", v: 2, table: "card", rows: [{ id: "a" }] });
 
 const entry = (key: string, kind: string, path: string): AssetEntry => ({
   key,

@@ -15,6 +15,7 @@ import {
   type ViewLayer,
   type ViewLayerHandle,
 } from "../context";
+import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { Sha256 } from "../project/types";
 import type { SceneLayerDef } from "../scene/layers";
 import { drawShape } from "./draw-shape";
@@ -43,6 +44,14 @@ export type PixiViewOptions = {
   editing?: () => boolean;
   /** Round visual positions to whole canvas pixels each frame. */
   pixelSnap?: boolean;
+  /**
+   * The game's px per metre (`world.lengthUnit`), default 100. Shapes,
+   * poses and sprite sizes arrive in metres and are drawn in world px inside
+   * `container`, which the view scales by 1 / pxPerMetre, so under a camera
+   * mapping metres to canvas px a stroke, a tile and a nine-slice border
+   * keep their px and arcs their smoothness.
+   */
+  pxPerMetre?: number;
 };
 
 export type PixiView = SceneView & {
@@ -72,7 +81,7 @@ type Visual = {
   z: number | null;
   /** When it was first drawn: the tiebreak inside a layer. */
   seq: number;
-  /** The y it was last placed at in a frame, before pixel snapping. */
+  /** The y it was last placed at in a frame, metres, before pixel snapping. */
   y: number;
 };
 
@@ -93,8 +102,14 @@ function spriteDisplay(current: Container | undefined, visual: SpriteVisual, tex
   return current instanceof Sprite ? current : new Sprite({ texture });
 }
 
-function applySprite(display: SpriteDisplay, visual: SpriteVisual, texture: Texture): void {
-  const [w, h] = visual.size;
+function applySprite(
+  display: SpriteDisplay,
+  visual: SpriteVisual,
+  texture: Texture,
+  pxPerMetre: number,
+): void {
+  const w = visual.size[0] * pxPerMetre;
+  const h = visual.size[1] * pxPerMetre;
   const fx = visual.flipX ? -1 : 1;
   const fy = visual.flipY ? -1 : 1;
   display.texture = texture;
@@ -121,9 +136,11 @@ function applySprite(display: SpriteDisplay, visual: SpriteVisual, texture: Text
  * A scene view drawing into `container`: one child per layer, one display
  * object per id inside it (`Graphics` for drawings, a sprite kind for
  * sprites). Poses interpolate between the last two committed ticks in
- * `frame`.
+ * `frame`. `container` is scaled to `opts.pxPerMetre`'s world px; its
+ * parent maps metres.
  */
 export function createPixiView(container: Container, opts: PixiViewOptions = {}): PixiView {
+  const ppm = opts.pxPerMetre ?? DEFAULT_LENGTH_UNIT;
   const layers = new Map<number, Container>();
   const visuals = new Map<string, Visual>();
   const sceneLayers = new Map<number, SceneLayerDef>();
@@ -143,6 +160,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
   let open = 0;
   let committed = -1;
   container.sortableChildren = true;
+  container.scale.set(1 / ppm);
 
   function layerContainer(layer: ViewLayer): Container {
     const order = layerOrder(layer);
@@ -159,7 +177,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
   }
 
   function place(display: Container, p: Pose): void {
-    display.position.set(p.x, p.y);
+    display.position.set(p.x * ppm, p.y * ppm);
     display.rotation = p.rot;
   }
 
@@ -209,7 +227,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
 
   function sortKey(child: Container): [z: number, y: number, seq: number] {
     const v = byDisplay.get(child);
-    if (v && visuals.get(child.label) === v) return [v.z ?? 0, v.y, v.seq];
+    if (v && visuals.get(child.label) === v) return [v.z ?? 0, v.y * ppm, v.seq];
     let first = firstSeen.get(child);
     if (first === undefined) {
       first = seq++;
@@ -269,12 +287,12 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
     let v: Visual;
     if (texture) {
       const display = spriteDisplay(previous?.display, visual, texture);
-      applySprite(display, visual, texture);
+      applySprite(display, visual, texture, ppm);
       v = show(id, display, layer);
       settle(id);
     } else {
       const g = graphicsFor(id);
-      drawShape(g, visual.fallback.shape, visual.fallback.style);
+      drawShape(g, visual.fallback.shape, visual.fallback.style, ppm);
       v = show(id, g, layer);
       if (visual.texture && textures) waitForTexture(id);
       else settle(id);
@@ -308,11 +326,13 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
           toCanvas.set(parent, m);
         }
         if (m) {
-          place(v.display, {
-            x: (Math.round(m.a * p.x + m.tx) - m.tx) / m.a,
-            y: (Math.round(m.d * p.y + m.ty) - m.ty) / m.d,
-            rot: p.rot,
-          });
+          const x = p.x * ppm;
+          const y = p.y * ppm;
+          v.display.position.set(
+            (Math.round(m.a * x + m.tx) - m.tx) / m.a,
+            (Math.round(m.d * y + m.ty) - m.ty) / m.d,
+          );
+          v.display.rotation = p.rot;
           continue;
         }
       }
@@ -324,7 +344,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
     container,
     draw(id, shape, style, layer) {
       const g = graphicsFor(id);
-      drawShape(g, shape, style);
+      drawShape(g, shape, style, ppm);
       const v = show(id, g, layer);
       releaseSprite(v);
       settle(id);
@@ -351,7 +371,9 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
     frame({ alpha, camera }) {
       for (const [order, layer] of layers) {
         const scroll = sceneLayers.get(order)?.scroll;
-        if (scroll) layer.position.set(camera.x * (1 - scroll[0]), camera.y * (1 - scroll[1]));
+        if (scroll) {
+          layer.position.set(camera.x * ppm * (1 - scroll[0]), camera.y * ppm * (1 - scroll[1]));
+        }
       }
       placeVisuals(alpha);
       for (const [order, layer] of layers) if (ySorted(order)) ySort(layer);
@@ -386,7 +408,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
   };
 }
 
-/** The Pixi container behind a Pixi view's layer handle, for a game drawing what the view can't. */
+/** The Pixi container behind a Pixi view's layer handle, in world px, for a game drawing what the view can't. */
 export function pixiContainer(handle: ViewLayerHandle): Container {
   if (!(handle instanceof Container)) throw new Error("not a Pixi view layer");
   return handle;

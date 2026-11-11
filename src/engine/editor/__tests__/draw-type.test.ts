@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { fakeToolContext, pointer, toolRegistry } from "../../__tests__/fixtures/test-tool";
 import { sceneToDoc } from "../../collab/convert";
 import { sequentialKeys } from "../../collab/keys";
+import { createRegistry, defineEntityType, defineGame } from "../../game/define";
+import { shapeField } from "../../game/fields";
 import type { Pt, SceneDefinition } from "../../scene/types";
 import { validateScene } from "../../scene/validate";
 import { createToolRouter } from "../../tool-router";
@@ -54,6 +56,41 @@ describe("the types a draw tool offers", () => {
     expect(option.value).toBe("solid");
     expect(option.choices.map((c) => c.value)).not.toContain("nav");
     expect(option.choices.map((c) => c.value)).toContain("sensor");
+  });
+});
+
+describe("spawn-only types", () => {
+  const spawned = createRegistry(
+    defineGame({
+      id: "shooter",
+      types: [
+        defineEntityType({
+          type: "player",
+          base: "solid",
+          description: "The body the input drives, spawned at Play.",
+          spawnOnly: true,
+          fields: { shape: shapeField("Body.") },
+        }),
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+
+  it("are never offered by a draw tool, though their shape field takes what it draws", () => {
+    for (const kind of ["box", "circle", "pen"] as const) {
+      const types = drawTypeOptions(spawned, kind).map((o) => o.type);
+      expect(types).toContain("solid");
+      expect(types).not.toContain("player");
+    }
+  });
+
+  it("are refused by the type command and missing from the toolbar choice", () => {
+    const ctx = fakeToolContext(spawned, doc(), free);
+    const box = boxTool.create(ctx);
+    expect(box.command!("type:player")).toBe(false);
+    box.pointer!(pointer("move", [10, 10]));
+    expect(box.overlay!().option?.choices.map((c) => c.value)).not.toContain("player");
   });
 });
 

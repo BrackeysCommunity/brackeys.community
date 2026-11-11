@@ -42,9 +42,9 @@ export interface MotionBody {
 /** Sweep-and-slide passes per move. */
 const MAX_SLIDES = 4;
 /** The gap kept from what a move hits, the same as the Rapier controller's. */
-const SKIN = TOP_DOWN_CONTROLLER.offset ?? 0.01;
-/** Travel lost along the delta, px, below which a move counts as complete. */
-const BLOCK_EPSILON = 1e-3;
+const SKIN = TOP_DOWN_CONTROLLER.offset ?? 0.0001;
+/** Travel lost along the delta, m, below which a move counts as complete. */
+const BLOCK_EPSILON = 1e-5;
 
 const ZERO: Vec2 = { x: 0, y: 0 };
 const dot = (a: Vec2, b: Vec2) => a.x * b.x + a.y * b.y;

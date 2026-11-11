@@ -1,4 +1,4 @@
-import { ticksFor } from "../game/time";
+import { ticksFor, ticksIn } from "../game/time";
 import type { EngineContext } from "../game/types";
 import type { Cell } from "../grid/geometry";
 import type { MotionBody } from "./body";
@@ -68,7 +68,7 @@ export function createGridStepper(
     update(dtMs) {
       const grid = ctx.grid;
       if (!current || !grid) return;
-      const ticks = Math.round((dtMs * ctx.time.rate) / 1000);
+      const ticks = Math.round(ticksIn(dtMs, ctx.time));
       if (ticks <= 0) return;
       const s = current;
       s.done = Math.min(s.ticks, s.done + ticks);

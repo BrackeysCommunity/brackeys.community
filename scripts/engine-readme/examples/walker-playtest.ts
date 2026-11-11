@@ -8,14 +8,14 @@ const registry = createRegistry(walkerGame);
 
 /** Ten cells by five; a wall over the top four rows of column 4 sends the hero round the bottom. */
 export const corridor: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "walker",
   name: "corridor",
-  bounds: [0, 0, 320, 160],
+  bounds: [0, 0, 3.2, 1.6],
   entities: [
-    { id: "wall", type: "solid", shape: ["box", 144, 64, 16, 64] },
-    { id: "hero", type: "marker", at: [16, 16], tags: ["hero"] },
-    { id: "goal", type: "marker", at: [304, 16], tags: ["goal"] },
+    { id: "wall", type: "solid", shape: ["box", 1.44, 0.64, 0.16, 0.64] },
+    { id: "hero", type: "marker", at: [0.16, 0.16], tags: ["hero"] },
+    { id: "goal", type: "marker", at: [3.04, 0.16], tags: ["goal"] },
   ],
 };
 

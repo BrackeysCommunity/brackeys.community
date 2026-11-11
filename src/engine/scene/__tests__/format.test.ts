@@ -31,7 +31,7 @@ const messy: SceneDefinition = {
   ],
   settings: { lives: 2, gravity: [0, 900] },
   name: "messy",
-  v: 3,
+  v: 4,
   pad: [["box", 5, 5, 4, 1]],
   bounds: [-10, -10, 200, 200],
   solid: [
@@ -51,7 +51,7 @@ describe("formatScene", () => {
     expect(formatScene(messy).text).toBe(
       [
         "{",
-        '  "v": 3,',
+        '  "v": 4,',
         '  "game": "fake",',
         '  "name": "messy",',
         '  "bounds": [-10, -10, 200, 200],',
@@ -137,7 +137,7 @@ describe("formatScene", () => {
 describe("formatScene: v3 keys", () => {
   it("writes the assets header on one line after settings, sorted and unique, and drops it empty", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       name: "x",
       bounds: [0, 0, 1, 1],
       groups: { g: { at: [0, 0] } },
@@ -157,7 +157,7 @@ describe("formatScene: v3 keys", () => {
 
   it("orders z, rot, flip and params among an entity's and an instance's keys", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       name: "x",
       bounds: [0, 0, 1, 1],
       instances: [
@@ -186,7 +186,7 @@ describe("formatScene: v3 keys", () => {
 
 describe("formatScene: empty nested maps", () => {
   const empties: SceneDefinition = {
-    v: 3,
+    v: 4,
     name: "empties",
     bounds: [0, 0, 640, 480],
     instances: [{ id: "room-1", prefab: "room", at: [64, 64], params: {}, overrides: {} }],
@@ -220,7 +220,7 @@ describe("formatScene: empty nested maps", () => {
 describe("formatScene: behaviors and grids", () => {
   it("writes behaviors after the other keys, its blocks by name in code-unit order", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       name: "x",
       bounds: [0, 0, 1, 1],
       entities: [
@@ -241,7 +241,7 @@ describe("formatScene: behaviors and grids", () => {
 
   it("writes a behavior block's fields by code unit, whatever their names", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       name: "x",
       bounds: [0, 0, 1, 1],
       entities: [
@@ -275,7 +275,7 @@ describe("formatScene: behaviors and grids", () => {
 
   it("writes objects nested in a behavior block by code unit too, as comparePointers orders them", () => {
     const def: SceneDefinition = {
-      v: 3,
+      v: 4,
       name: "x",
       bounds: [0, 0, 1, 1],
       entities: [
@@ -319,7 +319,7 @@ describe("formatScene: behaviors and grids", () => {
   });
 
   const painted: SceneDefinition = {
-    v: 3,
+    v: 4,
     name: "x",
     bounds: [0, 0, 1, 1],
     entities: [
@@ -412,7 +412,7 @@ describe("formatPrefab", () => {
       base: "door",
       id: "red-door",
       game: "fake",
-      v: 3,
+      v: 4,
       kind: "prefab" as const,
       $schema: "../prefab.schema.json",
     };
@@ -421,7 +421,7 @@ describe("formatPrefab", () => {
         "{",
         '  "$schema": "../prefab.schema.json",',
         '  "kind": "prefab",',
-        '  "v": 3,',
+        '  "v": 4,',
         '  "game": "fake",',
         '  "id": "red-door",',
         '  "base": "door",',
@@ -457,7 +457,7 @@ describe("formatPrefab", () => {
     expect(
       formatPrefab({
         kind: "prefab",
-        v: 3,
+        v: 4,
         id: "red-door",
         base: "door",
         params: {},
@@ -467,14 +467,14 @@ describe("formatPrefab", () => {
         entities: [],
       }),
     ).toBe(
-      '{\n  "kind": "prefab",\n  "v": 3,\n  "id": "red-door",\n  "base": "door",\n  "entities": []\n}\n',
+      '{\n  "kind": "prefab",\n  "v": 4,\n  "id": "red-door",\n  "base": "door",\n  "entities": []\n}\n',
     );
   });
 
   it("leaves a child's or nested instance's empty nested maps out, keeping an empty behavior block", () => {
     const text = formatPrefab({
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "hall",
       instances: [{ id: "in", prefab: "door", at: [0, 0], params: {}, overrides: {} }],
       entities: [
@@ -502,7 +502,7 @@ describe("formatPrefab", () => {
   it("writes assets after the contract, sorted and unique, and leaves an empty list out", () => {
     const prefab = {
       kind: "prefab" as const,
-      v: 3,
+      v: 4,
       id: "gate",
       assets: ["zap", "boom", "zap"],
       contract: { size: 1 },
@@ -511,7 +511,7 @@ describe("formatPrefab", () => {
     expect(formatPrefab(prefab).split("\n").slice(0, 7)).toEqual([
       "{",
       '  "kind": "prefab",',
-      '  "v": 3,',
+      '  "v": 4,',
       '  "id": "gate",',
       '  "contract": { "size": 1 },',
       '  "assets": ["boom", "zap"],',
@@ -523,7 +523,7 @@ describe("formatPrefab", () => {
   it("spans a grid entity over lines", () => {
     const text = formatPrefab({
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "room",
       entities: [
         { id: "floor", type: "test/paint", at: [0, 0], cells: { "0,0": ["1"] } },
@@ -611,10 +611,10 @@ describe("formatInputScript", () => {
 describe("formatChecks", () => {
   const text = [
     "{",
-    '  "v": 1,',
+    '  "v": 3,',
     '  "checks": [',
     '    { "id": "valid", "kind": "valid", "max": "warn", "physical": true },',
-    '    { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "steps": [{ "wait": 60 }], "v": 1 } },',
+    '    { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "steps": [{ "wait": 60 }], "v": 2 } },',
     '    { "id": "from-file", "kind": "reaches", "result": "goal", "script": "walk.script.json" },',
     '    { "id": "touch", "kind": "touches", "atLeast": 1, "entity": "zone" }',
     "  ]",
@@ -623,10 +623,10 @@ describe("formatChecks", () => {
   ].join("\n");
 
   it("writes one check per line, its id and kind first", () => {
-    const file = JSON.parse(text) as { v: 1; checks: Record<string, unknown>[] };
+    const file = JSON.parse(text) as { v: 3; checks: Record<string, unknown>[] };
     const reordered = {
       checks: file.checks.map((c) => Object.fromEntries(Object.entries(c).reverse())),
-      v: 1 as const,
+      v: 3 as const,
     };
     expect(formatChecks(reordered as ChecksFile)).toBe(text);
   });

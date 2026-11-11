@@ -1,6 +1,6 @@
 {
   "name": "@jams/engine",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "files": [
     "dist",
@@ -71,6 +71,7 @@
     "./schemas/project-ops.schema.json": "./project/project-ops.schema.json",
     "./schemas/material.schema.json": "./project/material.schema.json",
     "./schemas/game-settings.schema.json": "./project/game-settings.schema.json",
+    "./schemas/input-map.schema.json": "./project/input-map.schema.json",
     "./schemas/data-table.schema.json": "./project/data-table.schema.json",
     "./schemas/project-snapshot.schema.json": "./project/project-snapshot.schema.json",
     "./package.json": "./package.json"

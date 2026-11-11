@@ -1,7 +1,20 @@
-import type { EngineContext, Pool } from "../game/types";
+import { EngineError, type EngineContext, type Pool } from "../game/types";
 import { ENTITY_DESTROYED, ENTITY_DISABLED } from "./types";
 
 export type { Pool };
+
+/**
+ * The key under which a scene runtime's context reads its current load
+ * generation, kept off the public `EngineContext` type. A context without it
+ * (a host's own) gets pools that never go stale.
+ */
+export const LOAD_GENERATION: unique symbol = Symbol.for("@jams/engine:load-generation");
+
+type GenerationCarrier = { [LOAD_GENERATION]?: () => number };
+
+function generationOf(ctx: EngineContext): (() => number) | undefined {
+  return (ctx as EngineContext & GenerationCarrier)[LOAD_GENERATION];
+}
 
 /**
  * A pool over `spawn`: `acquire` enables the most recently freed (disabled)
@@ -9,8 +22,10 @@ export type { Pool };
  * disabled by any means (a `lifetime` with `then: "disable"`) is free
  * again, and a destroyed one leaves the pool.
  *
- * Its subscriptions end with the load, like every subscription, so create
- * the pool in `onLoad` (or later) and drop it at unload.
+ * It belongs to the load it was made in: its subscriptions end with that
+ * load, and the next load gives out the same counter ids again, so after it
+ * `acquire` and `release` throw `EngineError("pool-stale")` and `free` and
+ * `live` read 0. Create the pool in `onLoad` (or later) and drop it at unload.
  */
 export function createPool(ctx: EngineContext, opts: { spawn: () => string; max?: number }): Pool {
   const { spawn, max } = opts;
@@ -21,6 +36,18 @@ export function createPool(ctx: EngineContext, opts: { spawn: () => string; max?
   const members = new Set<string>();
   /** The free members, the most recently freed last. */
   const free: string[] = [];
+  const generation = generationOf(ctx);
+  const madeIn = generation?.();
+
+  const stale = () => generation !== undefined && generation() !== madeIn;
+
+  function current(what: string): void {
+    if (!stale()) return;
+    throw new EngineError(
+      "pool-stale",
+      `can't ${what} on a pool made in an earlier load: its entities are gone and their ids are the new load's; create pools in onLoad and drop them at unload`,
+    );
+  }
 
   function drop(id: string): void {
     members.delete(id);
@@ -58,6 +85,7 @@ export function createPool(ctx: EngineContext, opts: { spawn: () => string; max?
 
   return {
     acquire() {
+      current("acquire");
       settle();
       const reused = free.pop();
       if (reused !== undefined) {
@@ -74,6 +102,7 @@ export function createPool(ctx: EngineContext, opts: { spawn: () => string; max?
     },
 
     release(id) {
+      current("release");
       if (!members.has(id)) return;
       if (!ctx.exists(id)) {
         drop(id);
@@ -84,11 +113,13 @@ export function createPool(ctx: EngineContext, opts: { spawn: () => string; max?
     },
 
     get free() {
+      if (stale()) return 0;
       settle();
       return free.length;
     },
 
     get live() {
+      if (stale()) return 0;
       settle();
       return members.size - free.length;
     },

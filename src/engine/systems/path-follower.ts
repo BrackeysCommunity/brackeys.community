@@ -1,4 +1,5 @@
 import { physicsOf } from "../game/physics-of";
+import { wholeTicksIn } from "../game/time";
 import type { EngineContext, RegisteredType, SceneSystem } from "../game/types";
 import { shapeColliderDesc } from "../physics";
 import { composePose, type Pose } from "../runtime/poses";
@@ -25,6 +26,9 @@ import {
 export type WaypointMode = "ping_pong" | "loop";
 
 // ─── Waypoint interpolation (pure, testable) ────────────
+
+/** A segment shorter than this, m, is skipped. */
+const MIN_SEGMENT_METRES = 0.0001;
 
 export type WaypointState = {
   currentIndex: number;
@@ -69,7 +73,7 @@ export function advanceWaypoint(
   const dy = b.y - a.y;
   const segmentLength = Math.sqrt(dx * dx + dy * dy);
 
-  if (segmentLength < 0.01) {
+  if (segmentLength < MIN_SEGMENT_METRES) {
     // Degenerate segment — skip to next
     return advanceToNextSegment(currentIndex, nextIndex, direction, waypoints, pauseMs, mode);
   }
@@ -413,11 +417,10 @@ export function createFollowerSystem(
     size: () => table.size() + bodiless.size,
     seek(ms) {
       const { tickMs } = ctx.time;
-      const whole = Math.floor(ms / tickMs);
-      const rest = ms - whole * tickMs;
+      const { ticks, restMs } = wholeTicksIn(ms, ctx.time);
       for (const f of motions()) {
-        for (let i = 0; i < whole; i++) advance(f, tickMs);
-        if (rest > 0) advance(f, rest);
+        for (let i = 0; i < ticks; i++) advance(f, tickMs);
+        if (restMs > 0) advance(f, restMs);
         const pos = poseOf(f);
         f.prevPos = pos;
         f.frameDelta = { x: 0, y: 0 };

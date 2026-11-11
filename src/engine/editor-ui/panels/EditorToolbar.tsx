@@ -17,6 +17,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useMemo, type ReactNode } from "react";
 
+import { formatMetres } from "../../editor/gizmos/readout";
 import {
   drawTypeOptions,
   ENGINE_TOOL_IDS,
@@ -30,8 +31,11 @@ import {
   type ToolHost,
   type ToolOption,
 } from "../../editor/index";
+import { DEFAULT_LENGTH_UNIT } from "../../game/defaults";
+import { pxPerMetreOf } from "../../game/units";
 import type { Registry } from "../../scene/index";
 import { useBottomRow } from "../frame/EditorFrame";
+import { formatLength } from "../kit/format";
 import {
   Button,
   cx,
@@ -40,6 +44,7 @@ import {
   IconButton,
   KeyHint,
   Menu,
+  MenuCheckboxItem,
   MenuContent,
   MenuGroup,
   MenuLabel,
@@ -51,6 +56,8 @@ import {
   type IconSvgElement,
 } from "../kit/index";
 import { useEditorStore } from "../session/use-editor-store";
+import { EDIT_LAYERS } from "./canvas-layer/edit-layers";
+import { useEditLayers } from "./canvas-layer/EditLayers";
 import { useHostValue } from "./canvas-layer/tool-host";
 
 const TOOL_ICONS: Record<EngineToolId, IconSvgElement> = {
@@ -130,7 +137,7 @@ function SnapToggle({ host, snap, keymap }: { host: ToolHost; snap: Snap; keymap
   );
 }
 
-function StepItems({ host, snap }: { host: ToolHost; snap: Snap }) {
+function StepItems({ host, snap, ppm }: { host: ToolHost; snap: Snap; ppm: number }) {
   return (
     <MenuRadioGroup
       value={String(snap.step)}
@@ -138,7 +145,7 @@ function StepItems({ host, snap }: { host: ToolHost; snap: Snap }) {
     >
       {SNAP_STEPS.map((step) => (
         <MenuRadioItem key={step} value={String(step)} closeOnClick>
-          {step} px
+          {formatLength(step, ppm)}
         </MenuRadioItem>
       ))}
     </MenuRadioGroup>
@@ -188,17 +195,57 @@ function PickerMenu({
   );
 }
 
-/** The grid step snapping uses. */
-function GridStep({ host, snap }: { host: ToolHost; snap: Snap }) {
+/**
+ * The grid step snapping uses, and the View layers drawn over the canvas:
+ * the button shows the step's number, its label and menu the metres.
+ */
+function GridStep({
+  session,
+  host,
+  snap,
+  ppm,
+}: {
+  session: EditorSession;
+  host: ToolHost;
+  snap: Snap;
+  ppm: number;
+}) {
   return (
     <PickerMenu
-      text={String(snap.step)}
-      label={`Grid step ${snap.step}`}
-      tooltip="Grid step"
+      text={formatMetres(snap.step, ppm)}
+      label={`Grid step ${formatLength(snap.step, ppm)}`}
+      tooltip="Grid step, metres, and the View layers"
       icon={GridIcon}
     >
-      <StepItems host={host} snap={snap} />
+      <MenuGroup>
+        <MenuLabel>Grid step</MenuLabel>
+        <StepItems host={host} snap={snap} ppm={ppm} />
+      </MenuGroup>
+      <MenuSeparator />
+      <ViewItems session={session} />
     </PickerMenu>
+  );
+}
+
+/** The edit overlay's View layers, each on or off for this viewer. */
+function ViewItems({ session }: { session: EditorSession }) {
+  const [layers, setLayer] = useEditLayers(session);
+  return (
+    <MenuGroup>
+      <MenuLabel>View</MenuLabel>
+      {EDIT_LAYERS.map(({ id, label, description }) => (
+        <MenuCheckboxItem
+          key={id}
+          checked={layers[id]}
+          onCheckedChange={(checked) => setLayer(id, checked)}
+        >
+          <span className="je-option-choice">
+            {label}
+            <span className="je-option-choice-description">{description}</span>
+          </span>
+        </MenuCheckboxItem>
+      ))}
+    </MenuGroup>
   );
 }
 
@@ -293,12 +340,24 @@ export function optionSlot(
 // The toolbar's widths, matching the stylesheet: an island's padding and
 // border, the toolbar's gap, a small icon button, a divider with its margins,
 // and a small text button's padding plus a generous 12 px glyph.
-const W = { island: 10, gap: 4, icon: 24, divider: 5, char: 6.5, textPad: 16 } as const;
+const W = {
+  island: 10,
+  gap: 4,
+  icon: 24,
+  divider: 5,
+  char: 6.5,
+  narrow: 3.5,
+  textPad: 16,
+} as const;
+
+/** A label's glyphs at `W.char`, its points at `W.narrow`. */
+const glyphs = (label: string) =>
+  [...label].reduce((sum, ch) => sum + (ch === "." ? W.narrow : W.char), 0);
 
 const textWidth = (label: string) => W.textPad + Math.ceil(label.length * W.char);
-/** The grid step's button: its icon, the step, the chevron and the label's gaps. */
-const stepWidth = (step: number) =>
-  W.textPad + 14 + 4 + Math.ceil(String(step).length * W.char) + 6 + 13;
+/** The grid step's button: its icon, the step's number, the chevron and the label's gaps. */
+const stepWidth = (step: number, ppm: number) =>
+  W.textPad + 14 + 4 + Math.ceil(glyphs(formatMetres(step, ppm))) + 6 + 13;
 /** A tool option's button at its longest choice, so picking another doesn't refit the dock. */
 const optionWidth = (option: OptionChoices) =>
   W.textPad + Math.ceil(Math.max(...option.choices.map((c) => c.label.length)) * W.char) + 6 + 13;
@@ -309,11 +368,15 @@ const isPinned = (id: string) => id === "select" || id === "pan";
 /** One control in the toolbar; `drop` orders what moves into the overflow menu, lowest first. */
 export type DockPart = { key: string; width: number; drop?: number; game?: true };
 
-/** What the toolbar draws, in order, before anything overflows; `option` is the slot's (`optionSlot`). */
+/**
+ * What the toolbar draws, in order, before anything overflows; `option` is
+ * the slot's (`optionSlot`), and the grid step is shown in metres at `ppm`.
+ */
 export function dockParts(
   tools: readonly EditorToolDef[],
   step: number | null,
   option: OptionChoices | null = null,
+  ppm: number = DEFAULT_LENGTH_UNIT,
 ): DockPart[] {
   const engine = tools.filter((t) => isEngineTool(t.id));
   const game = tools.filter((t) => !isEngineTool(t.id));
@@ -341,7 +404,7 @@ export function dockParts(
     parts.push(
       { key: "divider:snap", width: W.divider },
       { key: "snap", width: W.icon },
-      { key: "step", width: stepWidth(step), drop: 100 },
+      { key: "step", width: stepWidth(step, ppm), drop: 100 },
     );
   }
   if (parts.length > 0) parts.push({ key: "divider:history", width: W.divider });
@@ -388,21 +451,28 @@ export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
 const allDroppable = (parts: readonly DockPart[]) =>
   new Set(parts.filter((p) => p.drop !== undefined).map((p) => p.key));
 
-/** The tools, the tool's option and the grid step that didn't fit, in a menu at the end of the tools. */
+/**
+ * The tools, the tool's option and the grid menu (the step and the View
+ * layers) that didn't fit, in a menu at the end of the tools.
+ */
 function OverflowMenu({
+  session,
   tools,
   active,
   keymap,
   host,
   snap,
   option,
+  ppm,
 }: {
+  session: EditorSession;
   tools: readonly EditorToolDef[];
   active: string;
   keymap: Keymap;
   host: ToolHost;
   snap: Snap | null;
   option: ToolOption | null;
+  ppm: number;
 }) {
   return (
     <Menu>
@@ -451,8 +521,10 @@ function OverflowMenu({
             {tools.length > 0 || option ? <MenuSeparator /> : null}
             <MenuGroup>
               <MenuLabel>Grid step</MenuLabel>
-              <StepItems host={host} snap={snap} />
+              <StepItems host={host} snap={snap} ppm={ppm} />
             </MenuGroup>
+            <MenuSeparator />
+            <ViewItems session={session} />
           </>
         ) : null}
       </MenuContent>
@@ -464,7 +536,8 @@ const NO_SNAP: Snap | null = null;
 const NO_OPTION: ToolOption | null = null;
 
 /**
- * The tools, the active tool's option, snapping, undo and redo, and Play.
+ * The tools, the active tool's option, snapping, the grid menu (the step
+ * and the View layers), undo and redo, and Play.
  * What doesn't fit in the room the frame leaves between the status and the
  * columns moves into a "More tools" menu: game tools first, then the grid
  * step, the tool's option, then the shape tools.
@@ -497,9 +570,10 @@ export function EditorToolbar({
   );
   const slotWidth = slot ? optionWidth(slot) : 0;
 
+  const ppm = pxPerMetreOf(session.registry);
   const parts = useMemo(
-    () => dockParts(tools, snap?.step ?? null, slot),
-    [tools, snap?.step, slot],
+    () => dockParts(tools, snap?.step ?? null, slot, ppm),
+    [tools, snap?.step, slot, ppm],
   );
   const full = useMemo(() => dockWidth(parts, new Set()), [parts]);
   const least = useMemo(() => dockWidth(parts, allDroppable(parts)), [parts]);
@@ -525,12 +599,14 @@ export function EditorToolbar({
   if (host && hidden.size > 0) {
     overflow = (
       <OverflowMenu
+        session={session}
         tools={hiddenTools}
         active={active}
         keymap={keymap}
         host={host}
         snap={hidden.has("step") ? snap : null}
         option={hidden.has("option") ? option : null}
+        ppm={ppm}
       />
     );
   }
@@ -557,12 +633,15 @@ export function EditorToolbar({
             <>
               <Divider />
               <SnapToggle host={host} snap={snap} keymap={keymap} />
-              {hidden.has("step") ? null : <GridStep host={host} snap={snap} />}
+              {hidden.has("step") ? null : (
+                <GridStep session={session} host={host} snap={snap} ppm={ppm} />
+              )}
             </>
           ) : null}
           <Divider />
         </>
       ) : null}
+      <Divider />
       <IconButton
         icon={Undo02Icon}
         label="Undo"

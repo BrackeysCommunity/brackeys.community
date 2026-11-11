@@ -7,6 +7,576 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.11.0] — unreleased
+
+Input v2, local multiplayer and recording v2, with the world authored in
+metres. Bindings name physical keys by `KeyboardEvent.code`; actions can be
+buttons, axes or vectors fed by keys, gamepads, the pointer and on-screen
+touch controls; up to eight seats share a keyboard or bring their own pads;
+a project's input map and a player's persisted remaps layer over the
+game's bindings. Recordings and input scripts move to v2: every seat's
+input, the pointer, commands, seat changes and sub-tick offsets are
+recorded, and v1 files migrate on read. Scenes and the simulation move to
+metres (scene format v4), with Rapier at its default length unit, which
+recaptures the golden traces once. The release also closes 0.10.0's
+leftovers: gameless projects edit in the site, the editor gains grid,
+occupancy and nav layers, and runtime ids, pools, contacts and the event
+loop guard get fixes.
+
+### Format
+
+- Scene format v4: every length is in metres (scenes, prefabs, fragments;
+  ops follow `SCENE_FORMAT_VERSION`). The v3 → v4 migration divides each
+  length by the game's px per metre (`roundLength`): bounds, gravity, the
+  grid, groups' and instances' `at`, shapes, points, paths, bulk entries,
+  and every field whose `meta.unit` is m, m/s or m/s², including instance
+  overrides and params through the prefab they name. Without the game's
+  registry, or when an override's prefab or child can't be resolved, it
+  refuses with `migration-unresolved`.
+- `material`, `game-settings`, `data-table` and `checks` files are v2, with
+  lengths in metres. Their v1 → v2 migrations divide by the game's px per
+  metre: material `physics.impulse` in m/s; game-settings `engine.gravity`
+  in m/s² and the game's `projectSettings` length fields by `meta.unit`;
+  data-table rows by their row schema's units; checks' `reaches.at` and
+  game checks' length args, and `reaches.expect`'s.
+- `recording:v2` (`urn:jams-engine:recording:v2`, `RECORDING_VERSION` 2):
+  per-seat `inputs` streams and a `system` stream of tuples, `seed`, `time`,
+  `platform`, `players`, `project`, `runHash`; `engine.physics` is null
+  without physics. `parseRecording(input, registry?)` reads v1 and v2 and
+  migrates v1 on read (`migratedFrom: 1`): key edges become seat 0's `b`
+  events, commands its `c` events (an `@elapsed` leading its tick becomes a
+  system `w` event), `start.seed` or the default seed becomes `seed`,
+  `tickRate` becomes `time` with the registry's time kind, else `fixed`;
+  platform unknown, project null, `runHash` empty so staleness falls back
+  to `sceneHash`. v1 command arguments are carried as they are (pre-0.11
+  px-valued arguments are not rescaled).
+- Recordings are written as v2: per-seat input streams and a system stream
+  (button, axis, vector, pointer and command events; `@elapsed`, joins and
+  leaves), every seed (the default one when the run named none), time,
+  platform, players, project and `runHash`; pointer samples only when they
+  change; sub-tick offsets only with `input.subTick`.
+- `input-script:v2` (`urn:jams-engine:input-script:v2`,
+  `input-script:<game>:v2`): exactly one of `steps` (seat 0's track, v1's
+  form) or `tracks: [{ player, steps }]`, one track per seat; new steps
+  `set` (axis values and vector pairs, alone or with `hold`), `pointer`
+  (`at`, `press`, `release`, `drag`, in metres), `join` and `leave`; header
+  `players?`. A v1 script migrates on read (the input-script kind's 1 → 2
+  migration, `parseInputScript`): `v: 2`, and its `at`, play options,
+  `until` predicates and command args divided by the game's px per metre
+  by their units.
+- `checks:v3`: inline scripts are input-script v2; a v1 or v2 checks file
+  migrates on read, inline v1 scripts lifted as script files are; `vp run
+scene fmt` writes v3.
+
+### Added
+
+- Input contracts in `./game`: `ActionKind`, `Binding` (keys by
+  `KeyboardEvent.code`, pad buttons, sticks and axes, pointer buttons,
+  on-screen controls), `ActionDef.kind`, `GameDefinition.input`
+  (`GameInputDef`: `players`, `subTick`, `deadzone`), `PlayersDef`,
+  `PlayerInfo`, `DeviceId`, `GameCommand.player`, `Macro.set` and
+  `Macro.pointer`, and `EngineContext.input` (`InputState`, `PointerState`):
+  every seat's held, pressed and released actions, values, vectors and
+  pointer for the tick. Until seats are assigned, seat 0 owns every device.
+- `ctx.input` is live: `held`, `pressed`, `released`, `value`, `vector` and
+  `pointer` per seat, rebuilt each tick from that tick's `TickInput`, so a
+  replay reads the same state. Sticks pass a radial deadzone that zeroes
+  them inside it and rescales their magnitude from dz…1 to 0…1; analog
+  values are clamped (axes to −1…1, vectors to the unit disc) and quantised
+  to 1/1000, pointer positions to 1/10,000 m.
+- The device vocabularies in `./game`: `KEY_CODES`, `PAD_BUTTONS`,
+  `PAD_AXES`, `POINTER_BUTTONS` and `KEY_TO_CODE` (a US-layout key to every
+  code that produced it: `"Shift"` is both Shifts, `"1"` the digit row and
+  the numpad), with `PadButton`, `PadAxis` and `PointerButton`.
+- `PLAYER_JOINED` and `PLAYER_LEFT` in `./game` and `./headless`;
+  `StepEvent.player`.
+- `InputAction.value`, `x`, `y`, `player` and `offset`; `InputBinding.bindings`.
+- `GameInstance.clientToWorld(clientX, clientY)` and `GameInstance.input`
+  (`GameInput`: `bindings`, `rebind`, `reset`, `capture`, `assign`,
+  `players`, `trackPointer`). `GameConfig.input` (`touch`, `remaps`).
+- In `.`: `memoryRemapStore`, `browserRemapStore`, `RemapStore`,
+  `RemapState`, and `createTouchControls` (`TouchControlDef`).
+- In `./headless`: the stream types `TickInput`, `SeatEvent`,
+  `SystemEvent`, `SeatChange`, `StreamTables`, the `RunRecordingV2`,
+  `RecordingStream` and `RecordingPlatform` types, the v2 script types
+  `InputScriptV2`, `InputScriptStepV2` and `InputScriptTrack`, and
+  `decodeStreams`; `PlaytestReport.stream`, `ReplayReport.issues` and
+  `ParseRecordingResult.migratedFrom?`.
+- In `./project`: the `input-map` kind's definition (`inputMapKind`,
+  `INPUT_MAP_KIND`, `INPUT_MAP_VERSION`, `INPUT_MAP_SCHEMA_ID`,
+  `InputMapFile`, `InputMapTouchControl`); `KindEnv.prefab`, a host's
+  lookup of the project's parsed prefabs for migrations.
+- `input-map` is a registered engine asset kind (after `input-script` in
+  `ENGINE_ASSET_KINDS`; `./schemas/input-map.schema.json`,
+  `urn:jams-engine:input-map:v1`). There is at most one per project
+  (`asset-kind` on a second; `inputMapIssues`, `inputMapEntries`). Its
+  schema judges each action against the game's (`binding-unknown`) and
+  every binding through `bindingProblems` (`binding-unknown` with a
+  did-you-mean over the code tables; `player-unknown` for seats).
+  `inputMapProblems` is that one rule; `usableInputMap` is what a run
+  reads. Docs are capped at 256 KiB and counted by `projectUsage` as docs.
+- `ProjectRuntimeView.inputMap` is the project's first input map by path,
+  without the seats, actions and touch controls it gets wrong, which keep
+  the game's. `RUNTIME_VIEW_KINDS` names the doc kinds a runtime view
+  reads; `snapshotRuntimeView` pins input maps.
+- The engine home has an `input-map.json` (two seats, `auto` join,
+  deadzone 0.2).
+- Units in `./scene`: `roundLength` (micrometres, no `-0`), `snapToPixel`,
+  `pxToMetres`, `isWholePixel`, `lengthDecimals`, `LENGTH_UNITS` and
+  `LengthUnitName`; in `./game`: `DEFAULT_LENGTH_UNIT` (100), `pxPerMetreOf`,
+  `lengthUnitOf` and `scaleLengths`, which scales every length-unit number
+  under a schema (objects, tuples, arrays, records, unions, optionals,
+  defaults; a shape's `rotDeg` stays degrees).
+- Migrations take an env: `MigrateEnv` (`registry`, `prefab`),
+  `MigrationRefusal` and `isMigrationRefusal` in `./scene`; `migrate`'s
+  fourth argument, `ParseOptions.prefab` on `parseScene`, `parsePrefab` and
+  `parseFragment`, and `MigrateDocOptions.env`.
+- `onePixel`, `pixelSize`, `snapToGrid` and `formatMetres` in `./editor`.
+- Testing: `migrationHarness` takes `prefabOf` and `current`; a fixture
+  name may appear in several older folders and must land on one
+  current-version file.
+- `resolveBindings(layers)` combines the four binding layers. Per action
+  and seat, the first layer that names the action wins and replaces its
+  bindings whole: the player's remap, then the host's `GameConfig.bindings`,
+  then the project's input map, then the game's `actions`. It returns each
+  seat's bindings, the layer each came from, and per-device lookup tables
+  (keys by `KeyboardEvent.code`, pad buttons, axes and sticks, pointer
+  buttons, touch controls). `bindingProblems(binding, { kind, max,
+controls? })` is the one binding check: unknown code, button, axis,
+  stick, pointer button or control, with did-you-mean; a shape that doesn't
+  fit the action's kind; a seat past `max`. `playersProblems` judges
+  `players` (max 1–8, a known join policy).
+- `BehaviorDef.template` (`./game`): the block the editor's Add behavior
+  writes before seeding required fields (default `{}`); `lifetime` uses
+  `{ ticks: 60 }`.
+- The editor's View layers: Grid (the scene grid's cells from
+  `settings.grid`, square or hex, else a line every metre), Occupancy (the
+  wall cells the game's `world.gridWalls` fill, rasterised as a load does)
+  and Nav (walk areas, holes and the nav mesh), toggled from a View group
+  in the toolbar's grid-step menu, off by default and remembered per
+  viewer.
+- Gamepads, polled once per shell tick (`navigator.getGamepads`): buttons,
+  sticks and triggers (`lt`/`rt` as axes) by their standard-mapping names,
+  other pads by raw index, through the input map's or the game's radial
+  deadzone. Pad bindings combine with the other bindings of their action,
+  a binding reads its seat's pad furthest from rest, and a disconnect
+  releases the pad's held inputs.
+- `ToolEvent` pointer events carry `pointerType` (`PointerKind`: "mouse" |
+  "pen" | "touch"), `pointerId`, and `left` (a `pointerleave`, routed as a
+  move); `pointercancel` routes as `up`. Play input takes pointer
+  `down`/`up` as well as `move`: pointer buttons (`{ device: "pointer",
+button }`) are button bindings, and a button changed mid-chord counts
+  from its move. `InputSystem.getPointer()` (`PointerReading`: position,
+  held `buttons`, `over`), `setTouchControls(target)`
+  (`TouchControlTarget`: a touch that starts where `controlAt` names a
+  control drives it through `drive` until it lifts; the first other touch
+  is the pointer holding its primary button), `setControl(control, value)`
+  (the on-screen controls' sink, raising touch bindings). `releaseAll` also
+  lets go of pointer buttons and control touches.
+- Pointer samples: at each tick start the shell converts the pointer
+  through the camera to world metres, quantised to 1/10,000 m, and a
+  `TickInput` carries a sample only when its position, `buttons` or `over`
+  changed; `GameAttachment.onTick` receives the sample's position.
+- `createTouchControls(host, controls, sink)` draws on-screen `stick`,
+  `button` and `dpad` controls as a framework-free DOM overlay; `at` and
+  `radius` are fractions of the canvas's shorter side. Sticks and d-pads
+  report quantised unit-disc vectors (y down; d-pads snap to eight
+  directions), buttons report `{ down }`; `show(false)` and `destroy()`
+  release held controls; `hitTest(clientX, clientY)` names the control
+  under a page point so a touch starting there is not the pointer.
+- On-screen touch controls from the input map's `touch`, shown in play per
+  `GameConfig.input.touch` (default "auto": `matchMedia("(pointer:
+coarse)")`); a touch that starts away from every control is the pointer.
+- `GameInstance.input.trackPointer(on)` follows document-wide pointer moves
+  for DOM drags.
+- `runProbe` takes `library`, every prefab `ctx.instantiate` may place
+  (default `prefabs`), like `runPlaytest`.
+- `browserRemapStore(prefix?)` keeps a player's remaps in `localStorage`
+  under `jams-engine:remap:<gameId>`; storage that is missing, blocked or
+  full, or a value that doesn't parse, loads as no remaps and never throws.
+- Seats in the shell: devices reach seats by the game's or input map's
+  `players` (`auto`: pads take free seats in connection order; `press`: a
+  device's first press takes the lowest free seat; `host`:
+  `GameInstance.input.assign`); a key binding's `player` drives that seat
+  on a shared keyboard; a disconnected pad is released on its seat, then
+  the seat is freed. Seat changes ride the next tick's `TickInput.joins`,
+  and a new world's first tick carries the live seats.
+  `GameInstance.input.players()`. The runtime's seats follow the input
+  map's `players` when it sets them, else the game's.
+- Remapping persisted in the player's browser: `GameInstance.input.rebind`
+  (judged by `bindingProblems`, refused with `binding-unknown` or
+  `player-unknown`), `reset`, `bindings(player?)`, and `capture` (the next
+  key, pad button or pointer press; null on Escape or timeout). A rebind
+  saves through `GameConfig.input.remaps` at once and applies from the
+  next tick; stored remaps the game no longer fits are dropped on load.
+  Remaps never reach a recording, the project or the site; the site passes
+  `browserRemapStore()`.
+- `encodeTick(input, tables, { subTick? })` and `decodeStreams(rec, {
+tickMs?, subTick? })` implement the recording v2 stream: per-seat
+  `b`/`a`/`v`/`p`/`c` events and the system stream's `w`/`j`/`l`, names by
+  table index, analog values as ints × 1000, pointer positions as ints ×
+  10,000 (metres), sub-tick offsets in thousandths; `mergeTick(input)` puts
+  a live tick in the order a replay feeds it (system first, then seats in
+  order).
+- `runRecordingV1Schema`, `RunRecordingV1` and `migrateRecordingV1`.
+- `runHash`: `preparePlay` hashes what a run runs (the expanded scene, the
+  resolved clock, the project view's settings, engine block, declared
+  tables in name order and input map, and the run's prefab library) and a
+  replay is stale when it differs; a recording migrated from v1 falls back
+  to `sceneHash`, so a re-format that leaves the expanded scene equal no
+  longer makes a recording stale.
+- `REPLAY_ACROSS_PLATFORMS` (true) and `platformIssues`;
+  `ReplayReport.issues` carries `recording-other-platform` when the flag is
+  false and a Rapier recording's known arch differs;
+  `ReplayReport.migratedFrom`.
+- `RecordingHost { platform?, projectRef? }` on `ReplayOptions` and
+  `runPlaytest` for the Rapier flavour and the project's snapshot.
+- `PlaytestReport.stream`, every seat's input as a v2 recording holds it,
+  beside the deprecated `inputs`.
+- `GameConfig.recording` (`RecordingHost`): the Rapier flavour and the
+  project's snapshot a host knows, carried into Play's recordings.
+- `parseInputScript`, `migrateInputScript`, `INPUT_SCRIPT_MIGRATIONS`,
+  `scriptShapeIssues`, `worldPointSchema`.
+- `compileInputScript` compiles input-script v2: `tracks` (one per seat,
+  run at once from slot 0, each with its own `until`s; `script-end` once
+  every track ran out), `set` (axis values and vector pairs held for the
+  step, alone or with `hold`; a value the next step drops returns to 0),
+  `pointer` (`at`; `press` on the first slot, `release` on the last; `drag`
+  moves linearly from `at` and reaches `drag` on the last slot),
+  `join`/`leave` (the system stream's `j`/`l` for the track's seat);
+  commands from a seat other than 0 carry `player`.
+- `scriptSource(script, holds, time?)` plays a compiled script as one
+  `TickInput` per slot for `runLoop`, `runPlaytest` and fuzz, plus the
+  shared helpers `analogValues`, `analogActions`, `compiledPointer`,
+  `pointerAt` and the types `CompiledScript`, `CompiledScriptStep`,
+  `CompiledTrack`, `CompiledPointer`, `AnalogValues`, `ScriptSource`,
+  `ScriptStepLog`.
+- `fuzz`'s default macro now also sets the game's axis and vector actions
+  (`Macro.set`) and moves, clicks and drags the pointer (`Macro.pointer`,
+  seat 0, inside the scene bounds) when an action is bound to a pointer
+  button; `defaultFuzzMacro(rng, actions, inputs?)` takes the new
+  `FuzzMacroInputs` (`axes`, `vectors`, `pointer: { buttons, actions?,
+bounds }`). A button-only game's rollouts are unchanged;
+  `GamePlayDef.macro` still wins, and a game macro's `set` and `pointer`
+  are checked (unknown action, wrong kind, a press and release in one
+  tick).
+- Commands per seat: every send (`GameInstance.send`, `GameShell.send`, a
+  host's DOM drop) is recorded as a `c` event on the sending seat's stream
+  (`GameCommand.player`, default 0) and replays on it; a seat past
+  `players.max` is refused with `player-unknown`. A tick's commands reach
+  the game seat by seat, live and on replay.
+- The `local-versus`, `point-and-click` and `rhythm-tap` genre probes.
+  `local-versus` (local-multiplayer and fighting, in part): two seats on
+  vector sticks join on the keyboard and `pad:0` and play a two-track v2
+  script with physics `none`. `point-and-click` (point-and-click, and rts in
+  part): a click on a walk area paths a walker along `ctx.nav`, and a click
+  on a hotspot found with `ctx.space.pointAt` walks it there and fires it.
+  `rhythm-tap` (rhythm, in part until the audio clock): with
+  `input.subTick` on, taps arrive as `TickInput`s with sub-tick offsets and
+  are judged by them. Each run reaches its result and its replay matches.
+
+### Changed
+
+- `SceneRuntime.step(dtMs, input, commands?)` takes a `TickInput` or 0.x's
+  action array; the runtime updates `ctx.input` from it before the systems'
+  `beforeStep`, and the game's `beforeStep` receives its actions and
+  commands as before.
+- `InputBinding.keys` is optional and deprecated (read through
+  `KEY_TO_CODE`); `GameConfig.bindings` is the host's layer of four.
+- `GameDefinition.world.lengthUnit` is documented as px per metre.
+- `Migration` steps receive the migration env as their second argument.
+- `migrateDoc` takes `env` (the registry and prefab lookup), lifts prefab
+  docs whose values change through `prefabPatch`, and throws without
+  changing the doc when a step refuses. `parsePrefab` migrates a whole
+  older prefab (its params' defaults, variant overrides and contract too),
+  and the file adapter and the scene CLI parse prefabs and scenes with the
+  project's other prefabs as the migration's lookup.
+- Every engine length field declares `meta.unit` `m`/`m/s`/`m/s²`
+  (pointField, vectorField, PathSchema, shape tuples, polygonField, sprite
+  size/offset, settings gravity and grid), with descriptions in metres;
+  input-script `at` and recording points are metres. `bounds` and op
+  points are no longer integers; `settings.grid` cells, hex sides and
+  origins must be whole px at the game's px per metre (`grid-invalid`);
+  `non-integer` now means a length off whole world px at the game's px per
+  metre, and its fix snaps through `snapToPixel`; a `rect` shape no longer
+  has to have even sides; `density` is kg/m². Ops and transforms keep
+  every moved coordinate to micrometres (`roundLength`), so a move and its
+  inverse round-trip, and `place` snaps its offset to whole world px.
+  `EMPTY_SCENE_TEMPLATE` is 19.2 × 10.8 m.
+- The simulation runs in metres, and Rapier's world keeps Rapier's default
+  length unit (1 m), which removes PHY-4's px-scale tolerance problem;
+  `world.lengthUnit` reaches nothing in the simulation. Engine constants
+  converted at 100 px per metre: `DEFAULT_GRAVITY` is `[0, 12]` m/s²;
+  `SIDE_VIEW_CONTROLLER` and `TOP_DOWN_CONTROLLER` keep a 0.0001 m offset,
+  and the side view autosteps 0.04 × 0.02 m and snaps 0.04 m; one-way
+  solids hold an actor within 0.04 m of their face; `createSpatialHash`'s
+  default cell is 2.56 m. `castSpawn`'s refusal and the physical checks'
+  messages give metres.
+- **Breaking:** `STUCK_PX` (4) is now `STUCK_METRES` (0.04); a `stuck`
+  cause reads 'the focus moved under 0.04 m in 120 ticks…'.
+- The camera works in metres: `CameraState.scale` is canvas px per metre
+  (the resolution policy's scale × `world.lengthUnit` × zoom);
+  `screenToWorld`, `clientToWorld`, `pointerWorld`, `frame` and
+  `extractPixels` take or give world metres; the camera's scene margin is
+  1 m, and `DEFAULT_GAME_CONFIG.camera.bounds` is -20..40 × -20..20 m.
+- `createPixiView` draws metres at its new `pxPerMetre` option (default
+  100), its container scaled to world px, so strokes, tiles and nine-slice
+  insets keep their px; a layer handle's container is in world px.
+  `drawShape` and `traceShape` take an optional `scale` (coordinates and
+  radii only; the stroke width stays px).
+- Debug layers: `DebugFrame.scale` (canvas px per metre),
+  `DebugLayerHost.pxPerMetre`, `DebugDeps.pxPerMetre?`,
+  `DebugSceneSource.grid?`; line widths and labels are screen px; the grid
+  layer draws the scene grid's cells, else a line every 1 m and 10 m (was
+  every 64 and 256 px).
+- A sprite's default drawn size is its frame's px over the game's px per
+  metre, times `scale` (`spriteGeometry`'s new `pxPerMetre` argument;
+  `SPRITE_FALLBACK_SIZE` is 0.32 × 0.32 m); `spriteBoxOf` takes the game's
+  px per metre.
+- `renderSceneSvg`, `renderSceneAscii`, `sceneViewport` and
+  `sceneAsciiMap` read scenes in metres and draw them in world px (metres ×
+  `world.lengthUnit`); a migrated v3 scene renders the same SVG and ASCII
+  as before at 100 px per metre. `region`, `margin` (default 1.28 m) and
+  overlay points are metres. `SceneViewport.region` is metres and
+  `SceneViewport.pxPerMetre` / `SceneAsciiMap.pxPerMetre` are added.
+- The editor works in metres: free drags, pastes, nudges and drawn shapes
+  land on whole world px through `snapToPixel` at the game's px per metre;
+  arrow keys nudge one world px (Shift ten, Alt one); `SnapSettings.step`
+  is metres and `SNAP_STEPS` is 0.25, 0.5, 1, 2 and 4 m (default 0.5 m);
+  the gizmo and draw readouts print metres (`Δ 0.64, 0 m`,
+  `W 1.6 H 0.16 m`); the inspector model steps an `m` field one world px
+  and gives it `lengthDecimals` decimals (`FieldWidget.decimals`), `m/s`
+  and `m/s²` fields 0.01, and writes metric values to micrometres; the
+  editor's spatial index cell is 2.56 m. The gizmo, batch, readout, nudge
+  and snap helpers take the game's px per metre, and peer cursors are
+  published to whole world px.
+- The editor shows every length in metres with its unit: the inspector's
+  shape, point and point-list fields step one world px (ten with Shift) at
+  the game's px per metre, typed lengths are kept to micrometres, read-only
+  metric fields read `3.25 m` / `4 m/s`, and the grid step reads `0.5 m`;
+  panel and column sizes stay screen px. The grid step's button shows the
+  number (`0.5`), its label and menu the metres.
+- `projectMaterialOf(value, registry?)` lifts a v1 material file to v2
+  through the game's px per metre, so a project overlay keeps a material
+  its file hasn't been formatted to v2 yet; `unitsRefusal` lives in
+  `./scene`'s issues module.
+- A prefab doc's view grows its parent's bounds by 0.64 m around its
+  children (was 64), to whole metres plus the margin. Grid wall cells, the
+  `out-of-bounds` check and a diff's inferred `move` read lengths at the
+  file's micrometre precision, so float sums on a cell or bounds edge (3.68 +
+  0.16) count as on it.
+- The platformer is authored in metres at 100 px per metre (`world: {
+gravity: [0, 12], lengthUnit: 100 }`): movement tuning, the player box
+  (0.6 × 0.6 m), the grapple range (4 m), construct sizes, bounce and
+  trampoline launch velocities (-6.5 and -7 m/s), wind (8 m/s²), the
+  new-scene template, and its issue texts and physical-check messages are
+  metric.
+- Game input matches keys by `KeyboardEvent.code`, so a binding means the
+  same physical key on every layout (a `KeyW` binding fires on an AZERTY
+  z). 0.x `keys` still work, mapped through the US-layout `KEY_TO_CODE`
+  table (`" "` is Space, `"Shift"` is either Shift); they are deprecated.
+  Editor shortcuts still match `KeyboardEvent.key`. `ToolEvent`'s key
+  variant gains `code`; a key event with no physical code (a virtual
+  keyboard) is read through its US-layout key. The shell combines
+  `GameConfig.bindings` with the game's `actions` per action (the host's
+  binding of an action replaces the game's whole, the game's bindings stay
+  for every other action) instead of replacing the whole list, and in dev
+  warns about each host binding `bindingProblems` refuses.
+- `createRegistry` refuses an action of unknown kind, `input.players`
+  outside 1–8 or with an unknown join policy, `input.deadzone` outside
+  0–1, and every binding `bindingProblems` refuses, naming
+  `binding-unknown` or `player-unknown`. 0.x `keys` still map through
+  `KEY_TO_CODE`. A key the table doesn't know still binds nothing and isn't
+  refused.
+- The golden traces and determinism pins were recaptured once, when the
+  simulation moved to metres: Rapier's default length unit fits a metre
+  world, which fixes PHY-4's px-scale tolerances. Measured against the old
+  m1-golden.json ÷ 100 on test-yard: every route differs from tick 0 by
+  float rounding (≤ 0.1 mm). Final positions drift 0.19 mm (parity),
+  0.12 mm (right-route) and 1.1 mm (left-route), with the same state,
+  ground and velocity. Rapier's character controller now reports grounded
+  up to its fixed prediction distance (about 5 cm) before contact, which
+  adds `landed` events with no ground entity (parity from tick 95,
+  right-route from tick 52, left-route from tick 18). The largest drift
+  between matched events is 1.94 m (parity's third landing comes at tick
+  169, not 192), 1.6 mm (right-route) and 0.34 m (left-route, whose path
+  diverges: the landings on ~solid:9 at tick 116 and ~solid:5 at tick 225
+  are gone). The determinism pins' script and fuzz digests moved (script
+  ec60f220d6590d0d → 4f2826bab91c676f, fuzz cede7d80dbf9a1bb →
+  319584c2c406e711); pile is plain Rapier and didn't move. Both
+  length-unit probes now show that `world.lengthUnit` (100, 32, 48) leaves
+  every digest identical. The genre pins of the shooter, top-down and
+  turn-tactics probes moved with their positions, now in metres, on every
+  variant (with and without physics); the other probes' pins didn't move.
+- Hosted scene and prefab docs stored at format v3 open read-only until
+  migrated: canvas-sync holds no game code, so it never runs the v3 → v4
+  step. It keeps them at v3 (lifting v1/v2 docs to v3), serves them to v4
+  clients with the `scene-read-only` notice reason `migration-unresolved`,
+  and stores no snapshot text for them. Migrate a hosted project with
+  `vp run scene project pull`, `fmt` and `push`. New docs and seeds at the
+  current format are written at v4. A bundle seed that can't reach v4 is
+  refused.
+- Play input combines an action's bindings: a button action is raised on
+  each edge of 'any binding held' (two keys on one button no longer raise
+  two presses), and an axis or vector action is raised whenever its
+  quantised value changes, with `value` (axis) or `x`/`y` (vector) and
+  `pressed` meaning non-zero. An axis takes the binding reading furthest
+  from zero; opposite readings tied for furthest cancel to 0. A vector sums
+  its keys and pad buttons (each its `value` on its `axis`), adds the stick
+  furthest from centre, and clamps the sum to the unit disc. The project's
+  input map is the third binding layer (remap > host > input map > game).
+- `createGame`'s `game` and `SceneEditor`/`mountSceneEditor`'s `game` prop
+  accept `null` for an engine-only project, whose scenes play and edit
+  under `createRegistry(null)`, the registry the dev server, `./vite`'s
+  `readFileProject` and the scene CLI judge it by, so the editor no longer
+  opens such a project read-only with the code-skew notice. In a scene no
+  game runs, Play's camera looks at the play start, else the centre of the
+  scene's bounds.
+- Event games wake on what the tick's input carries: any action (button
+  edges, analog changes, pointer-button bindings) and pointer-button
+  changes; pointer moves only with `wakeOnPointerMove`. Turns games wake
+  only on commands and `@elapsed`.
+- `renderSceneSvg` draws each one-way solid's landing face (a `<g
+id="one-way">` of `<path data-one-way="<id>" data-side="up|right|down|left">`
+  over the entities), from the same `oneWayEdges` rule as the editor's
+  overlay; `renderSceneAscii`/`sceneAsciiMap` mark one-way through
+  `oneWaySide`, so a `oneWay` string that isn't a side no longer draws `=`.
+- `PlayState.world` is required; every run path (runPlaytest, fuzz,
+  replay, runProbe, the shell's Play and its session recording) fills it
+  with `playWorld(runtime.ctx)`.
+- `runProbe` ends a run that an `EngineError` stops mid-step as
+  `report.blocked` (a `PlaytestBlocked` at stage `run`, the error's code on
+  its issue, the report covering the ticks before it) instead of throwing,
+  and gives `play.outcome` the live `world`.
+- `RunRecording` is the v2 type; the `recording` asset kind reads v1 or v2
+  bytes and `RecordingMeta` gains `v` (the file's format) and `players`
+  (seat count).
+- `RunRecorder.tick(state, input: TickInput, focus)` replaces the edges and
+  commands arguments; `RecorderOptions` takes `runHash` (required),
+  `players`, `platform` and `projectRef`; `recordingStart(start, seed?)`.
+- Headless runs step `TickInput`s merged system first, then seats in
+  order, with analog values and pointers quantised; `InputSource.tick`,
+  `RunLoopOptions.onTick`'s fifth argument (the `TickInput`), and
+  `tickWakes` judge waking from the whole tick input as the shell does.
+- `SessionRecording.input(tick, live)` feeds a replay's `TickInput`s;
+  `actions()` and `commands()` are deprecated; `stepped()` takes a
+  `TickInput`.
+- `PreparedPlay.runHash`; `preparePlay` takes `project` and `library`.
+- The shell records each tick's `TickInput` as recording v2 (every seat's
+  actions, pointer samples, seat joins and commands), and
+  `GameInstance.replay` steps the recorded ticks whole: the attachment's
+  `onTick` pointer, the seats and every command come from the recording,
+  never from live devices. Shell recordings name `platform.arch` from
+  `navigator.userAgentData` client hints (in `process.arch` names,
+  `unknown` elsewhere) and carry `runHash` over the run's project data and
+  prefab library.
+- `INPUT_SCRIPT_LAYOUT` keys tracks by `player`, so concurrent step
+  inserts into one track or two merge; keyed layouts match numeric ids.
+- A v1 script handed to `compileInputScript` compiles as written (its
+  steps and header only; v2 keys refused with a hint); reading a v1 file
+  through `parseInputScript` is what migrates its units. `runPlaytest`
+  plays scripts through `scriptSource`, and a `reaches` check reads its
+  script file through `migrateInputScript`.
+- `PlaytestStep.player` names the track of a `tracks` script.
+- The platformer's Shaper runs on commands. Placing sends `shaper-place {
+type, at: [x, y] (metres), rot (whole degrees) }` and right-click
+  removal sends `shaper-remove { id }` through `shell.send`. The runtime
+  applies them in `beforeStep` through the ConstructSystem, and a placed
+  construct is a `construct#<n>` entity spawned through `ctx.spawn`, so a
+  recording replays the same constructs in the shell and headless. A
+  refused command raises `shaper-refused`. The golden traces don't use the
+  Shaper and are unchanged.
+
+### Removed
+
+- The `src/engine/input.ts` module path: the input system lives in
+  `src/engine/input/system.ts`.
+
+### Fixed
+
+- Adding Lifetime from the inspector's Add behavior menu writes a valid
+  block instead of `{}`, which `applyOps` refused.
+- Runtime-id counters skip ids that are already live, so a scene loaded
+  back from `runtime.scene()` holding `player#1` gives the next
+  `ctx.spawn` `player#2` instead of claiming `player#1` again.
+- A pool belongs to the load it was made in: after the next `load` or
+  `unload`, `acquire` and `release` throw `EngineError("pool-stale")` and
+  `free`/`live` read 0, so a pool kept past its load can't take the next
+  load's `bullet#1`.
+- The event loop guard counts the second dispatch point's deliveries
+  across the end-of-tick flushes as one pass, as documented, so a tick
+  delivers at most 4,096 events per point; before, each flush got its own
+  budget. Checked spawns reuse each type's spawn schema instead of
+  rebuilding it. Contacts find a Rapier collider resized in place
+  (`setRadius`, `setHalfExtents`, `setHalfHeight`, `setRoundRadius`), and a
+  destroy forgets an entity's colliders without scanning every collider.
+  The Problems panel's hover names each row's rule code, which a long
+  message can clip in a narrow column.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 12, and every committed JSON Schema's
+  `x-agent-surface` with it.
+- Issue code `migration-unresolved` (error): a migration step can't run
+  without the game's registry or the prefabs the file names. The
+  `path-invalid`, `non-integer` and `grid-invalid` texts give metres.
+- Issue codes `binding-unknown` (error): a binding names an action, key
+  code, pad button or axis, pointer button or touch control that doesn't
+  exist, or doesn't fit its action's kind; `player-unknown` (error): a
+  binding's seat or a seats declaration is past the seats there are;
+  `recording-other-platform` (warn): a Rapier recording replayed on another
+  CPU architecture.
+- JSON Schema `input-map.schema.json` (`urn:jams-engine:input-map:v1`).
+- JSON Schema `recording.schema.json` is recording v2
+  (`urn:jams-engine:recording:v2`), `input-script.schema.json` is
+  `urn:jams-engine:input-script:v2` (`input-script:<game>:v2`), and checks
+  files are `urn:jams-engine:checks:v3`.
+- Every committed JSON Schema reads v4 (`scene:v4`, `prefab:v4`,
+  `fragment:v4`, `ops:v4`) and the material, game-settings and data-table
+  URNs v2; length fields carry `unit` m, m/s or m/s².
+- CLI: `show` and `step` print lengths in metres with their unit and px
+  per metre; `render --region/--margin`, `show --near` and MCP
+  `scene_render`/`scene_show`/`scene_playtest` take metres; `fmt` migrates
+  v3 scenes and prefabs through the project's prefabs and says `(from v3
+to v4)`; `grid` prints cell sizes in metres; text reports round to 1e-4;
+  `list`, `validate` and `project show` migrate through the project's
+  prefabs too.
+- CLI: `vp run scene input [--project p] [--player n] [--json]` prints
+  each seat's bindings per action, layer by layer (input map, game), and
+  their issues through `bindingProblems`; it loads no Rapier.
+- CLI: `playtest` takes v2 scripts (tracks, analog, pointer, seats),
+  migrates a v1 script before `--at` (now metres) and prints `script
+migratedFrom 1`; step lines name a track's seat (`step p1/0 …`).
+- CLI: `replay` prints the recorded engine version and physics,
+  `migratedFrom 1` for a v1 recording, a `platform recorded …; replayed …`
+  line and the `recording-other-platform` issue; JSON gains `recorded: {
+engine, platform }`.
+- CLI and MCP recordings name their Rapier package as `platform.flavour`
+  (`rapier2d-compat`, from the tool context's `rapierFlavour`).
+- CLI: `codes` prints `migration-unresolved`'s hint under its row and a
+  `notes` section (JSON `notes.keys`) on the deprecated 0.x `keys`.
+- MCP: `scene_playtest` and `scene_replay` take v2 inputs (scripts with
+  `tracks`, `set`, `pointer`, `join`/`leave`; v2 recordings, and v1 ones
+  migrated with `migratedFrom: 1`; `recording-other-platform` in the
+  replay's `issues`); `asset_apply_ops` edits input maps (`editAsset`
+  insert at `/actions/@<action>/bindings`, refused as
+  `binding-unknown`/`player-unknown`). Tool names unchanged.
+- CLI: `scene step` reports a blocked run (exit 1, `{ ok: false, blocked:
+true, stage: "run", issues, … }` and `<scene>: blocked at run` text)
+  instead of a CLI `error:`, and passes the project's whole prefab library.
+- The boundary test's game words no longer include `player` and `players`:
+  seats are the engine's own concept.
+
+### Docs
+
+- The engine README gains §Units (metres in the simulation and the
+  formats, `world.lengthUnit` as px per metre, what stays px, density in
+  kg/m², the rounding rule, hosted v3 docs), §Input (codes, analog, pads,
+  pointer, touch, `clientToWorld` and `trackPointer`, commands for DOM
+  drops), §The input map, §Remapping, §Local multiplayer and §Recordings
+  v2, each with an example that runs; the scene CLI README gains §Input v2
+  and §Units and format v4, and its examples and op batches are in metres.
+
 ## [0.10.0] — unreleased
 
 Entity lifecycle, spawning and events. Game code spawns, destroys,

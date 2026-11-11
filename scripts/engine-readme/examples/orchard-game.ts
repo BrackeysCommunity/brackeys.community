@@ -10,7 +10,7 @@ const HOUR = 3_600_000;
 export const orchardGame = defineGame<OrchardSnapshot>({
   id: "orchard",
   types: [],
-  actions: [{ action: "pick", keys: ["space"], description: "Pick every ripe apple." }],
+  actions: [{ action: "pick", keys: [" "], description: "Pick every ripe apple." }],
   time: { kind: "event", catchUp: { maxMs: 8 * HOUR } },
   world: { physics: "none" },
   commands: { plant: { description: "Plant one more tree." } },
@@ -43,10 +43,10 @@ export const orchardGame = defineGame<OrchardSnapshot>({
 
 /** The game keeps its trees in its runtime, so the scene is empty. */
 export const meadow: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "orchard",
   name: "meadow",
-  bounds: [0, 0, 640, 360],
+  bounds: [0, 0, 6.4, 3.6],
   entities: [],
 };
 

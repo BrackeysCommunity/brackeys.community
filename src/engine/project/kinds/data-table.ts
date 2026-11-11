@@ -2,15 +2,17 @@ import { z } from "zod";
 
 import { ID_PATTERN } from "../../game/fields";
 import type { GameTableDef, Registry } from "../../game/types";
+import { pxPerMetreOf, scaleLengths } from "../../game/units";
 import { closest } from "../../scene/did-you-mean";
-import { jsonPointer, makeIssue } from "../../scene/issues";
+import { jsonPointer, makeIssue, unitsRefusal } from "../../scene/issues";
+import type { MigrateEnv } from "../../scene/migrate";
 import type { SceneIssue } from "../../scene/types";
 import { schemaRefSites, type RefSite } from "../refs";
 import type { AssetEntry, AssetId, ProjectView } from "../types";
 import { byCodeUnit, byPathThenKey, defineAssetKind, isPlainObject, type KindEnv } from "./define";
 
 export const DATA_TABLE_KIND = "data-table";
-export const DATA_TABLE_VERSION = 1;
+export const DATA_TABLE_VERSION = 2;
 export const DATA_TABLE_SCHEMA_ID = `urn:jams-engine:data-table:v${DATA_TABLE_VERSION}`;
 
 export type DataTableRow = Record<string, unknown> & { id: string };
@@ -157,6 +159,24 @@ export function dataTableIssues(
   return issues;
 }
 
+/**
+ * v1 → v2: lengths become metres. Each row's length fields (its table's
+ * row schema, by `meta.unit`) are divided by the game's px per metre; a
+ * table the game doesn't declare keeps its rows as they are.
+ */
+function dataTableV1ToV2(raw: unknown, env: MigrateEnv): unknown {
+  const registry = env.registry;
+  if (!registry) return unitsRefusal("data-table");
+  const doc = raw as Record<string, unknown>;
+  const tables = tablesOf(registry);
+  const name = doc.table;
+  const def = typeof name === "string" && Object.hasOwn(tables, name) ? tables[name] : undefined;
+  if (!def || !Array.isArray(doc.rows)) return { ...doc, v: 2 };
+  const row = rowSchemaOf(def);
+  const ppm = pxPerMetreOf(registry);
+  return { ...doc, v: 2, rows: doc.rows.map((r) => scaleLengths(r, row, ppm)) };
+}
+
 /** Rows of one of the game's data tables; several assets may hold rows of one table. */
 export const dataTableKind = defineAssetKind({
   kind: DATA_TABLE_KIND,
@@ -167,6 +187,7 @@ export const dataTableKind = defineAssetKind({
   defaultFolder: () => "data",
   storage: "doc",
   version: DATA_TABLE_VERSION,
+  migrations: { 1: dataTableV1ToV2 },
   schemaId: DATA_TABLE_SCHEMA_ID,
   schema: (env: KindEnv) => dataTableSchema(env.registry),
   layout: {

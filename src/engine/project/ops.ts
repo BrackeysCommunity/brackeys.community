@@ -52,6 +52,7 @@ import { checksBeside } from "./kinds/checks";
 import { DATA_TABLE_KIND, dataTableIssues } from "./kinds/data-table";
 import { isPlainObject } from "./kinds/define";
 import { GAME_SETTINGS_KIND, gameSettingsEntries } from "./kinds/game-settings";
+import { INPUT_MAP_KIND, inputMapEntries } from "./kinds/input-map";
 import { MATERIAL_KIND } from "./kinds/material";
 import {
   buildRefIndex,
@@ -1845,17 +1846,28 @@ class BatchWork {
     this.put(next);
   }
 
-  /** A project has at most one game-settings asset. */
+  /** A project has at most one game-settings asset and one input map. */
   private checkSingle(kind: AssetKindName, field: Field): void {
-    if (kind !== GAME_SETTINGS_KIND) return;
-    const [held] = gameSettingsEntries(this.view);
-    if (held)
-      this.fail(
-        "asset-kind",
-        `the project already has its game settings, "${held.id}" (${held.path}); a project has at most one`,
-        field,
-        { entityIds: [held.id], got: kind },
-      );
+    if (kind === GAME_SETTINGS_KIND) {
+      const [held] = gameSettingsEntries(this.view);
+      if (held)
+        this.fail(
+          "asset-kind",
+          `the project already has its game settings, "${held.id}" (${held.path}); a project has at most one`,
+          field,
+          { entityIds: [held.id], got: kind },
+        );
+    }
+    if (kind === INPUT_MAP_KIND) {
+      const [held] = inputMapEntries(this.view);
+      if (held)
+        this.fail(
+          "asset-kind",
+          `the project already has its input map, "${held.id}" (${held.path}); a project has at most one`,
+          field,
+          { entityIds: [held.id], got: kind },
+        );
+    }
   }
 
   private checkFolder(folder: string, field: string): void {

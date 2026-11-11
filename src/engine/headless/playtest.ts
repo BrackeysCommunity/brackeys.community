@@ -5,31 +5,25 @@ import {
   recordedCommand,
   recordingRapier,
   trailPoint,
+  type RecordingHost,
 } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame } from "../runtime/runtime";
 import type { StepEvent } from "../runtime/types";
 import type { CountMatch, ExistsMatch } from "../scene/input-script";
 import type { RecordingCommand } from "../scene/recording-schema";
 import type { Pt } from "../scene/types";
-import { compileInputScript } from "./compile-input-script";
+import { compileInputScript, scriptSource } from "./compile-input-script";
 import { probeConfigHash } from "./headless";
-import {
-  blockedRun,
-  prepareRun,
-  runBlocked,
-  runLibrary,
-  runLoop,
-  type InputSource,
-} from "./play-loop";
+import { blockedRun, prepareRun, runBlocked, runLibrary, runLoop } from "./play-loop";
 import type {
   CompiledInputScript,
   EventMatch,
   InputEdge,
   InputScript,
+  InputScriptV2,
   PlaytestOptions,
   PlaytestReport,
   PlaytestRun,
-  PlaytestStep,
   UntilClause,
 } from "./playtest-types";
 
@@ -37,7 +31,9 @@ const DEFAULT_MAX_EVENTS = 1000;
 const DEFAULT_MAX_TRAIL = 2000;
 const TRAIL_EVERY = 4;
 
-function isCompiled(script: InputScript | CompiledInputScript): script is CompiledInputScript {
+function isCompiled(
+  script: InputScript | InputScriptV2 | CompiledInputScript,
+): script is CompiledInputScript {
   return (
     typeof script === "object" &&
     script !== null &&
@@ -57,13 +53,11 @@ function eventMatches(match: EventMatch, e: StepEvent): boolean {
 }
 
 function existsHolds(match: ExistsMatch, state: PlayState): boolean {
-  if (!state.world) return false;
   if (typeof match === "string") return state.world.exists(match);
   return state.world.exists(match.id, match.enabled === false ? { enabled: false } : undefined);
 }
 
 function countHolds(match: CountMatch, state: PlayState): boolean {
-  if (!state.world) return false;
   const { min, max, eq, ...sel } = match;
   const n = state.world.count(sel);
   if (eq !== undefined) return n === eq;
@@ -90,55 +84,6 @@ export function untilHolds(until: UntilClause, state: PlayState, registry: Regis
   return true;
 }
 
-/**
- * Plays a compiled script step by step, logging how each step went. A step's
- * length counts slots, so an idle turns or event game still moves through it;
- * `until` is checked only after simulated ticks.
- */
-function scriptInput(
-  script: CompiledInputScript,
-  registry: Registry,
-): InputSource & { log(): PlaytestStep[] } {
-  const { steps } = script;
-  const log: PlaytestStep[] = [];
-  let at = 0;
-  let ran = 0;
-  let start = 0;
-  const advance = (end: PlaytestStep["end"] | null) => {
-    if (!end) return;
-    log.push({ index: steps[at]!.index, start, ticks: ran, end });
-    at++;
-    ran = 0;
-  };
-  /** The step's end once its slots or its `max` run out. */
-  const lengthEnd = (step: (typeof steps)[number]): PlaytestStep["end"] | null => {
-    if (step.ticks !== undefined) return ran >= step.ticks ? "done" : null;
-    return ran >= step.max! ? "max" : null;
-  };
-  return {
-    done: () => at >= steps.length,
-    held(slot) {
-      if (ran === 0) start = slot;
-      return steps[at]!.hold;
-    },
-    commands() {
-      return ran === 0 ? (steps[at]!.commands ?? []) : [];
-    },
-    after(state) {
-      const step = steps[at]!;
-      ran++;
-      if (step.ticks === undefined && untilHolds(step.until!, state, registry)) advance("until");
-      else advance(lengthEnd(step));
-    },
-    skipped() {
-      ran++;
-      advance(lengthEnd(steps[at]!));
-    },
-    log: () =>
-      ran > 0 ? [...log, { index: steps[at]!.index, start, ticks: ran, end: "run" }] : log,
-  };
-}
-
 export type PlaytestHooks = {
   /** After the run, with its last simulated tick's state while its world is still live; not called when no tick ran. */
   onLastTick?(state: PlayState): void;
@@ -152,7 +97,7 @@ export type PlaytestHooks = {
  * Deterministic: the same scene, game and script give the same report.
  */
 export function runPlaytest<S = unknown, G = unknown>(
-  opts: PlaytestOptions<S, G> & PlaytestHooks,
+  opts: PlaytestOptions<S, G> & PlaytestHooks & RecordingHost,
 ): PlaytestRun<S> {
   const { registry, game } = resolveGame({
     game: opts.game as GameDefinition | null | undefined,
@@ -189,7 +134,11 @@ export function runPlaytest<S = unknown, G = unknown>(
     );
   }
 
-  const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs, engine);
+  const library = runLibrary(opts);
+  const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs, engine, {
+    project: opts.project,
+    library,
+  });
   if (!prepared.ok) return prepared.blocked as PlaytestRun<S>;
   const runtime = createSceneRuntime({
     rapier: opts.rapier,
@@ -198,7 +147,7 @@ export function runPlaytest<S = unknown, G = unknown>(
     registry,
     dev: opts.dev,
     project: opts.project,
-    prefabs: runLibrary(opts),
+    prefabs: library,
   });
   const load = runtime.load(prepared.scene, script.play);
   if (!load.ok) {
@@ -215,15 +164,19 @@ export function runPlaytest<S = unknown, G = unknown>(
     let trailTruncated = false;
     const inputs: InputEdge[] = [];
     const commands: RecordingCommand[] = [];
-    const input = scriptInput(script, registry);
     const time = runtime.ctx.time;
+    const input = scriptSource(script, (until, state) => untilHolds(until, state, registry), time);
     const recorder = createRunRecorder({
       rapier: recordingRapier(prepared.scene, opts.rapier),
       game,
       scene: name,
       sceneHash: prepared.hash,
+      runHash: prepared.runHash,
       start: script.play,
       time,
+      players: runtime.ctx.input.players(),
+      platform: opts.platform,
+      projectRef: opts.projectRef,
       maxTrail,
     });
 
@@ -236,9 +189,9 @@ export function runPlaytest<S = unknown, G = unknown>(
         maxTicks: script.maxTicks,
         input,
         record: inputs,
-        onTick(state, focus, edges, stepped) {
+        onTick(state, focus, _edges, stepped, tickInput) {
           last = state;
-          recorder.tick(state, edges, focus, stepped);
+          recorder.tick(state, tickInput, focus);
           for (const c of stepped) commands.push(recordedCommand(state.tick, c));
           for (const e of state.events) {
             if (events.length < maxEvents) events.push(e);
@@ -267,6 +220,8 @@ export function runPlaytest<S = unknown, G = unknown>(
     if (end.cause !== undefined) outcome.cause = end.cause;
     if (end.entityId !== undefined) outcome.entityId = end.entityId;
     const steps = input.log();
+    const recording = recorder.finish(end, final);
+    const { actions, commands: commandNames, inputs: seatStreams, system } = recording;
 
     return {
       blocked: false,
@@ -284,9 +239,10 @@ export function runPlaytest<S = unknown, G = unknown>(
       steps,
       final,
       inputs,
+      stream: structuredClone({ actions, commands: commandNames, inputs: seatStreams, system }),
       commands,
       issues: prepared.issues,
-      recording: recorder.finish(end, final),
+      recording,
     };
   } finally {
     runtime.destroy();

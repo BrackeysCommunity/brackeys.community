@@ -5,12 +5,11 @@ import { pathToFileURL } from "node:url";
 import { createRegistry, withProject, type GameDefinition, type Registry } from "@jams/engine/game";
 import {
   createKindRegistry,
-  DATA_TABLE_KIND,
-  GAME_SETTINGS_KIND,
   MATERIAL_KIND,
   parseProjectFile,
   PROJECT_FILE,
   projectView,
+  RUNTIME_VIEW_KINDS,
   runtimeView,
   type AssetId,
   type KindRegistry,
@@ -59,7 +58,7 @@ export type DiscoverOptions = {
 };
 
 const SKIPPED_DIR = /(^|\/)(node_modules|dist|__tests__|\.[^/]*)$/;
-const RUNTIME_KINDS: ReadonlySet<string> = new Set([GAME_SETTINGS_KIND, DATA_TABLE_KIND]);
+const RUNTIME_KINDS: ReadonlySet<string> = new Set(RUNTIME_VIEW_KINDS);
 
 const isGame = (v: unknown): v is GameDefinition =>
   typeof v === "object" &&

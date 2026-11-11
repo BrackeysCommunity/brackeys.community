@@ -3,6 +3,7 @@ import type { z } from "zod";
 import type { BlendMode, SceneView } from "../context";
 import type { AssetDrop } from "../editor/asset-drop";
 import type { EditorToolDef } from "../editor/tools";
+import type { InputState } from "../input/state";
 import type { PhysicsWorld } from "../physics";
 import type { AssetKindDef } from "../project/kinds";
 import type { ProjectRuntimeView } from "../project/runtime-view";
@@ -14,6 +15,7 @@ import type { RuntimeNav } from "../runtime/nav";
 import type { PoseIndex } from "../runtime/poses";
 import type { SpaceQuery } from "../runtime/space";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
+import type { AnalogSet, ScriptPointer } from "../scene/input-script";
 import type { SceneLayerDef } from "../scene/layers";
 import type {
   Aabb,
@@ -48,6 +50,7 @@ import type {
   BehaviorSystem,
   RegisteredBehavior,
 } from "./behaviors";
+import type { PadAxis, PadButton, PointerButton } from "./input-codes";
 import type { ResolvedTime, TimeModel } from "./time";
 
 export type { ResolvedTime, RuntimeGrid, RuntimeNav };
@@ -124,7 +127,7 @@ export type Style = {
 export type MaterialDef = {
   friction: number;
   restitution: number;
-  /** Launch velocity on contact, px/s; y is down, so a bounce is negative y. */
+  /** Launch velocity on contact, m/s; y is down, so a bounce is negative y. */
   impulse?: Vec2;
   description: string;
   /** Wins over the entity type's style for a body of this material. */
@@ -276,6 +279,8 @@ export type EngineContext = {
   query: EntityQuery;
   /** Contact starts and ends between watched entities, raised as step events. */
   contacts: Contacts;
+  /** Each seat's actions and pointer this tick, derived from the tick's input, so a replay rebuilds it exactly. */
+  input: InputState;
 };
 
 // ─── Lifecycle ───────────────────────────────────────────
@@ -562,7 +567,7 @@ export type GameEditorDef = {
 /** A collider found by a physical query. */
 export type PhysicalHit = {
   tag: ColliderTag;
-  /** The contact or impact point, world px. */
+  /** The contact or impact point, world metres. */
   at: Vec2;
 };
 
@@ -631,7 +636,57 @@ export type CheckKindDef<A = unknown> = {
 
 // ─── Games ───────────────────────────────────────────────
 
-export type ActionDef = InputBinding & { description: string };
+// ─── Input ───────────────────────────────────────────────
+
+/** A button is down or up; an axis is −1…1; a vector lies in the unit disc. */
+export type ActionKind = "button" | "axis" | "vector";
+
+/** One device input an action listens to. */
+export type Binding =
+  /** A key by `KeyboardEvent.code`; on an axis or vector action, `value` (default 1) is what it contributes on `axis` (vector: "x" or "y"). `player` drives that seat whoever owns the keyboard. */
+  | { device: "key"; code: string; value?: number; axis?: "x" | "y"; player?: number }
+  | { device: "pad"; button: PadButton; value?: number; axis?: "x" | "y" }
+  /** A stick as a vector action. */
+  | { device: "pad"; stick: "left" | "right" }
+  /** One stick axis or trigger as an axis action; `scale` -1 inverts. */
+  | { device: "pad"; axis: PadAxis | "lt" | "rt"; scale?: number }
+  | { device: "pointer"; button: PointerButton }
+  /** An on-screen control declared in the input map. */
+  | { device: "touch"; control: string };
+
+/** An input device, as seats own them. */
+export type DeviceId = "keyboard" | "pointer" | "touch" | `pad:${number}`;
+
+/** Input seats and how devices take them. */
+export type PlayersDef = {
+  /** Seats, 1–8; default 1. */
+  max: number;
+  /**
+   * auto: seat 0 owns keyboard, pointer and touch, and pads take free seats
+   * in connection order; press: a device's first press takes the lowest free
+   * seat; host: `GameInstance.input.assign`.
+   */
+  join: "auto" | "press" | "host";
+};
+
+/** A seat and the devices it owns. */
+export type PlayerInfo = { index: number; devices: readonly DeviceId[]; joined: boolean };
+
+/** How a game reads its input (`GameDefinition.input`). */
+export type GameInputDef = {
+  /** Default `{ max: 1, join: "auto" }`: every device drives seat 0. */
+  players?: PlayersDef;
+  /** Record sub-tick offsets (rhythm games); default false. */
+  subTick?: boolean;
+  /** Radial stick deadzone, 0…1; default 0.15. */
+  deadzone?: number;
+};
+
+export type ActionDef = InputBinding & {
+  description: string;
+  /** Default "button". */
+  kind?: ActionKind;
+};
 
 /** What a new scene starts with: everything but its header (`$schema`, `v`, `game`, `name`). */
 export type SceneTemplate = {
@@ -672,6 +727,8 @@ export type GameCommand = {
   name: string;
   /** Plain JSON, checked by the command's `args` schema. */
   args?: unknown;
+  /** The seat that sent it; 0 when absent. */
+  player?: number;
 };
 
 export type CommandDef = {
@@ -702,7 +759,7 @@ export type PlayState<S = unknown> = {
   /** This tick's events only; a game that needs history keeps it in its runtime and snapshot. */
   events: readonly StepEvent[];
   /** The live world after the tick: whether an entity exists (and is enabled), and how many match. */
-  world?: PlayWorld;
+  world: PlayWorld;
 };
 
 /** What `PlayState.world` answers about the entities live after a tick. */
@@ -744,7 +801,14 @@ export type MacroRandom = {
 };
 
 /** One fuzz macro: actions held together for `ticks` ticks (an empty `hold` waits). */
-export type Macro = { hold: readonly string[]; ticks: number };
+export type Macro = {
+  hold: readonly string[];
+  ticks: number;
+  /** Axis and vector values held with it. */
+  set?: AnalogSet;
+  /** A pointer move, press or drag over the macro's ticks. */
+  pointer?: ScriptPointer;
+};
 
 /** How a game plays: what Play, `runPlaytest` and `fuzz` ask it. Every hook is optional. */
 export type GamePlayDef<S = unknown, G = unknown> = {
@@ -760,7 +824,11 @@ export type GamePlayDef<S = unknown, G = unknown> = {
   outcome?(state: PlayState<S>): GameOutcome | null;
   /** `until` predicates beside the engine's `ENGINE_PREDICATES`. */
   predicates?: Readonly<Record<string, ScriptPredicate<S>>>;
-  /** The next fuzz macro; omitted, fuzz holds one or two random actions for 4–60 ticks. */
+  /**
+   * The next fuzz macro; omitted, fuzz holds one or two random button actions
+   * for 4–60 ticks, and sets the game's axis and vector actions and moves the
+   * pointer when it has them (`defaultFuzzMacro`).
+   */
   macro?(rng: MacroRandom, actions: readonly string[]): Macro;
   /** The schema of `PlayOptions.game` (abilities and the like) and of an input script's `game` key. */
   options?: z.ZodType<G>;
@@ -823,6 +891,8 @@ export type GameDefinition<S = unknown, G = unknown> = {
   spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
   /** Action names and default bindings, in the order tools list them. */
   actions: readonly ActionDef[];
+  /** Seats, sub-tick offsets and the stick deadzone. */
+  input?: GameInputDef;
   /** Fields the game adds to the scene's `settings`; must not redefine `gravity`. */
   settings?: z.ZodRawShape;
   /**
@@ -881,11 +951,12 @@ export type GameDefinition<S = unknown, G = unknown> = {
 /** A game's world defaults (`GameDefinition.world`). */
 export type GameWorldDef = {
   physics?: "rapier" | "none";
+  /** m/s²; y is down. */
   gravity?: Pt;
   grid?: GridSettings;
   /** Cells covered by these types' shapes become grid walls at load; default ["solid"], [] for none. */
   gridWalls?: readonly EntityTypeName[];
-  /** px per metre for Rapier's tolerances; default 100. Reserved: nothing reads it yet. */
+  /** px per metre: world metres to the resolution's virtual px; the simulation is in metres; default 100. */
   lengthUnit?: number;
 };
 

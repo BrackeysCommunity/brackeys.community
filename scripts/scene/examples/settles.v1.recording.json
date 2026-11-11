@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "engine": {
+    "version": "0.10.0",
+    "physics": "rapier 0.19.3"
+  },
+  "scene": "engine-yard",
+  "sceneHash": "238da20663ee0563",
+  "game": null,
+  "configHash": "6854da35c096b892",
+  "tickRate": 60,
+  "start": {},
+  "actions": [],
+  "inputs": [],
+  "ticks": 60,
+  "outcome": {
+    "result": "script-end",
+    "tick": 59,
+    "at": null
+  },
+  "markers": [],
+  "end": "77074ba4e710f879"
+}

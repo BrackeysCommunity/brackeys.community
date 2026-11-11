@@ -12,12 +12,14 @@ import {
   type ToolHost,
   type ToolOverlay,
 } from "../../../editor/index";
+import { pxPerMetreOf } from "../../../game/units";
 import type { GameStoreState } from "../../../index";
 import type { EditorNotify } from "../../host";
 import { Button, useKit } from "../../kit/index";
 import { runOverlay, type LoadedRun } from "../../session/loaded-run";
 import { useStoreValue } from "../../session/use-store-value";
 import { carriesAsset, readAssetDrag } from "../project-tree/tree-rows";
+import { EditLayers } from "./EditLayers";
 import { OneWayMarks } from "./OneWayMarks";
 import { RunMarks } from "./RunMarks";
 import { hostAsset, hostToWorld, useHostOverlay, useHostValue } from "./tool-host";
@@ -145,7 +147,8 @@ function useAssetDrop(
       const drop = readAssetDrag(e.dataTransfer) ?? carried();
       const at = worldOf(e);
       if (!drop || !at || !h) return;
-      const key = `${drop.entry.id}\n${drop.frame ?? ""}\n${Math.round(at[0])},${Math.round(at[1])}`;
+      const ppm = pxPerMetreOf(s.registry);
+      const key = `${drop.entry.id}\n${drop.frame ?? ""}\n${Math.round(at[0] * ppm)},${Math.round(at[1] * ppm)}`;
       if (shown === key) return;
       shown = key;
       const asset = hostAsset(h);
@@ -211,9 +214,9 @@ function withDropGhost(overlay: ToolOverlay, ghost: DropPreview | null): ToolOve
 /**
  * The editor's layer over the game canvas, in edit mode: the tool host's
  * overlay (selection outlines as previewed, handles, the marquee, guides,
- * paths, placement ghosts and the drag readout), one-way solids' landing
- * faces, a loaded run, and the fix the host offers after a commit. Only the
- * offer takes the pointer;
+ * paths, placement ghosts and the drag readout), the View menu's grid,
+ * occupancy and nav layers, one-way solids' landing faces, a loaded run, and
+ * the fix the host offers after a commit. Only the offer takes the pointer;
  * assets dragged from the project tree drop on the canvas beneath.
  */
 export function CanvasLayer({
@@ -254,6 +257,7 @@ export function CanvasLayer({
   return (
     <div data-canvas-layer="" className="je-canvas-layer">
       <svg aria-hidden width={view.width} height={view.height} className="je-canvas-svg">
+        <EditLayers session={session} view={view} transform={transform} />
         <OneWayMarks session={session} view={view} transform={transform} />
         {run ? <RunMarks overlay={run} view={view} transform={transform} /> : null}
         <ToolOverlayMarks overlay={overlay} view={view} transform={transform} />

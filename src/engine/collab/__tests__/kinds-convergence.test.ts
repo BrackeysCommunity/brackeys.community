@@ -296,7 +296,14 @@ describe("the engine's doc kinds and a game's converge", () => {
         { id: "heal", cost: 2 },
       ],
     },
-    "input-script": { v: 1, scene: "yard", steps: [{ wait: 10 }, { hold: ["right"], for: 20 }] },
+    "input-script": { v: 2, scene: "yard", steps: [{ wait: 10 }, { hold: ["right"], for: 20 }] },
+    "input-map": {
+      kind: "input-map",
+      v: 1,
+      players: { max: 2, join: "press" },
+      actions: [{ action: "push", bindings: [{ device: "key", code: "Space" }] }],
+      touch: [{ id: "jump", kind: "button", action: "push", at: [0.85, 0.8], radius: 0.08 }],
+    },
     checks: {
       v: 1,
       checks: [
@@ -469,6 +476,83 @@ describe("the engine's doc kinds and a game's converge", () => {
     expect(steps[1]).toEqual({ wait: 10 });
     expect(steps.slice(2, 4)).toEqual(expect.arrayContaining([nudge(2), nudge(3)]));
     expect(steps.slice(4)).toEqual([{ hold: ["right"], for: 20 }, nudge(4)]);
+  });
+
+  it("input-script: concurrent step inserts into two tracks merge", () => {
+    const start: Obj = {
+      v: 2,
+      scene: "yard",
+      players: 2,
+      tracks: [
+        { player: 0, steps: [{ wait: 10 }, { hold: ["right"], for: 20 }] },
+        { player: 1, steps: [{ hold: ["left"], for: 5 }] },
+      ],
+    };
+    const track = (x: Obj, i: number) => items(x, "tracks")[i]!;
+    const steps = (x: Obj, i: number) => track(x, i).steps as Obj[];
+    const v = offline(
+      "input-script",
+      [
+        (x) => ({
+          ...x,
+          tracks: [{ ...track(x, 0), steps: [...steps(x, 0), { press: "push" }] }, track(x, 1)],
+        }),
+        (x) => ({
+          ...x,
+          tracks: [track(x, 0), { ...track(x, 1), steps: [{ wait: 3 }, ...steps(x, 1)] }],
+        }),
+        (x) => ({
+          ...x,
+          tracks: [
+            { ...track(x, 0), steps: [{ wait: 1 }, ...steps(x, 0)] },
+            { ...track(x, 1), steps: [...steps(x, 1), { press: "push" }] },
+          ],
+        }),
+      ],
+      start,
+    );
+    expect(v.tracks).toEqual([
+      {
+        player: 0,
+        steps: [{ wait: 1 }, { wait: 10 }, { hold: ["right"], for: 20 }, { press: "push" }],
+      },
+      { player: 1, steps: [{ wait: 3 }, { hold: ["left"], for: 5 }, { press: "push" }] },
+    ]);
+  });
+
+  const bindings = (x: Obj, action: string) =>
+    items(x, "actions").find((a) => a.action === action)!.bindings as Obj[];
+  const withBindings = (x: Obj, action: string, next: Obj[]) => ({
+    ...x,
+    actions: items(x, "actions").map((a) => (a.action === action ? { ...a, bindings: next } : a)),
+  });
+
+  it("input-map: two clients adding bindings to one action both survive", () => {
+    const v = offline("input-map", [
+      (x) => withBindings(x, "push", [...bindings(x, "push"), { device: "key", code: "KeyW" }]),
+      (x) => withBindings(x, "push", [{ device: "pad", button: "south" }, ...bindings(x, "push")]),
+    ]);
+    expect(bindings(v, "push")).toEqual([
+      { device: "pad", button: "south" },
+      { device: "key", code: "Space" },
+      { device: "key", code: "KeyW" },
+    ]);
+  });
+
+  it("input-map: one client's players.max and another's new touch control merge", () => {
+    const v = offline("input-map", [
+      (x) => ({ ...x, players: { ...(x.players as Obj), max: 4 } }),
+      (x) => ({
+        ...x,
+        touch: [
+          ...items(x, "touch"),
+          { id: "walk", kind: "dpad", action: "left", at: [0.15, 0.8], radius: 0.12 },
+        ],
+      }),
+    ]);
+    expect(v.players).toEqual({ max: 4, join: "press" });
+    expect(items(v, "touch").map((t) => t.id)).toEqual(["jump", "walk"]);
+    expect(v.actions).toEqual(START["input-map"]!.actions);
   });
 
   it("checks: concurrent edits of different checks and fields all land", () => {

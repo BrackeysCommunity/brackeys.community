@@ -1,4 +1,4 @@
-import type { TimeKind } from "@jams/engine/game";
+import { pxPerMetreOf, type TimeKind } from "@jams/engine/game";
 import type { ProjectView } from "@jams/engine/project";
 import {
   aabb,
@@ -16,6 +16,7 @@ import {
   resolvePrefab,
   resolveSceneDetailed,
   resolveTime,
+  roundLength,
   sceneHash,
   scenePhysics,
   sceneSprites,
@@ -36,7 +37,7 @@ import {
 } from "@jams/engine/scene";
 
 import { openScene, usage, type Tool } from "../context";
-import { sceneProjectView } from "./render";
+import { roundBox, sceneProjectView } from "./render";
 import { projectEngine } from "./step";
 
 const addPt = (a: Pt, b: Pt): Pt => [a[0] + b[0], a[1] + b[1]];
@@ -51,11 +52,13 @@ export type ShownEntity = {
   type: string;
   bulk?: boolean;
   material?: string;
+  /** Metres, as the file writes it. */
   shape?: ShapeTuple;
+  /** Metres. */
   at?: Pt;
-  /** World-space; a shape that rides a path is placed at its first point. */
+  /** World-space metres; a shape that rides a path is placed at its first point. */
   aabb?: Aabb;
-  /** `[x0, x1, y]`, the walkable top edge. */
+  /** `[x0, x1, y]`, the walkable top edge, metres. */
   top?: [number, number, number];
   /** On an instance: the prefab it places. */
   prefab?: string;
@@ -89,8 +92,9 @@ export type ShownSprite = {
   label: string;
   asset?: string;
   frame?: string;
+  /** Metres. */
   size: [w: number, h: number];
-  /** The world box it draws. */
+  /** The world box it draws, metres. */
   aabb: Aabb;
 };
 
@@ -122,7 +126,8 @@ function geometry(tuple: ShapeTuple, offset?: Pt): Pick<ShownEntity, "aabb" | "t
   const parsed = parseShape(tuple);
   if (!parsed.ok) return {};
   const shape: ShapeObj = offset ? translateShape(parsed.shape, offset) : parsed.shape;
-  return { aabb: aabb(shape), top: topSpan(shape) };
+  const [x0, x1, y] = topSpan(shape);
+  return { aabb: roundBox(aabb(shape)), top: [roundLength(x0), roundLength(x1), roundLength(y)] };
 }
 
 /** An entity's first shape, point and path fields come out as `shape`, `at` and the AABB; every other field is `extra`. */
@@ -187,8 +192,8 @@ export function sceneRows(
       label: s.label,
       ...(s.asset !== undefined ? { asset: s.asset } : {}),
       ...(s.frame !== undefined ? { frame: s.frame } : {}),
-      size: s.size,
-      aabb: s.box,
+      size: [roundLength(s.size[0]), roundLength(s.size[1])],
+      aabb: roundBox(s.box),
     };
   }
   return rows;
@@ -296,10 +301,14 @@ function distanceTo(row: ShownEntity, [x, y]: Pt): number {
   return Infinity;
 }
 
+/** `x0,y0..x1,y1 m`. */
+const boxText = (b: Aabb) => `${b.minX},${b.minY}..${b.maxX},${b.maxY} m`;
+
+/** One row as text; lengths are metres, each followed by its unit. */
 function rowLine(r: ShownEntity): string {
-  const box = r.aabb ? ` aabb ${r.aabb.minX},${r.aabb.minY}..${r.aabb.maxX},${r.aabb.maxY}` : "";
-  const top = r.top ? ` top ${r.top[0]}..${r.top[1]}@${r.top[2]}` : "";
-  const at = r.at ? ` at ${r.at.join(",")}` : "";
+  const box = r.aabb ? ` aabb ${boxText(r.aabb)}` : "";
+  const top = r.top ? ` top ${r.top[0]}..${r.top[1]}@${r.top[2]} m` : "";
+  const at = r.at ? ` at ${r.at.join(",")} m` : "";
   const shape = r.shape ? ` ${JSON.stringify(r.shape)}` : "";
   const mat = r.material ? `:${r.material}` : "";
   const of = r.prefab ? ` of ${r.prefab}` : "";
@@ -310,9 +319,7 @@ function rowLine(r: ShownEntity): string {
   const nested = r.nested ? ` nests ${r.nested.join(",")}` : "";
   const behaviors = r.behaviors ? ` behaviors ${Object.keys(r.behaviors).join(",")}` : "";
   const b = r.sprite?.aabb;
-  const sprite = r.sprite
-    ? ` sprite ${r.sprite.label} ${b!.minX},${b!.minY}..${b!.maxX},${b!.maxY}`
-    : "";
+  const sprite = r.sprite ? ` sprite ${r.sprite.label} ${boxText(b!)}` : "";
   const grids = Object.entries(r.grids ?? {})
     .map(([field, { cells, bounds: b }]) => {
       const span = b ? ` ${b.c0},${b.r0}..${b.c1},${b.r1}` : "";
@@ -328,7 +335,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
   if (!loaded.ok) return loaded.result;
   const { def, registry, prefabs } = loaded;
   const near = input.near === undefined ? undefined : parseNear(input.near);
-  if (near === null) return usage("--near x,y,r (numbers, r >= 0)");
+  if (near === null) return usage("--near x,y,r in metres (numbers, r >= 0)");
   if (input.type !== undefined && !registry.types.has(input.type)) {
     const guess = closest(input.type, registry.typeNames);
     return usage(
@@ -350,6 +357,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
   if (near) rows = rows.filter((r) => distanceTo(r, [near[0], near[1]]) <= near[2]);
 
   const hash = sceneHash(def);
+  const pxPerMetre = pxPerMetreOf(registry);
   const total = rows.length;
   const truncated = total > MAX_ROWS;
   const shown = truncated ? rows.slice(0, MAX_ROWS) : rows;
@@ -359,6 +367,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
     game: def.game ?? null,
     sceneHash: hash,
     bounds: def.bounds,
+    pxPerMetre,
     ...(def.settings ? { settings: def.settings } : {}),
     time,
     physics,
@@ -379,7 +388,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
     };
   }
   const settings = def.settings ? ` settings ${JSON.stringify(def.settings)}` : "";
-  const head = `${loaded.name} ${hash} game ${def.game ?? "(none)"} bounds ${def.bounds.join(",")}${settings}`;
+  const head = `${loaded.name} ${hash} game ${def.game ?? "(none)"} bounds ${def.bounds.join(",")} m (${pxPerMetre} px/m)${settings}`;
   const more = truncated
     ? [`(${total - MAX_ROWS} more rows; narrow with --ref, --type or --near)`]
     : [];

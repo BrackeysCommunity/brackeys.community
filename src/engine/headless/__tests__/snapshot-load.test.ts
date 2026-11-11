@@ -230,7 +230,13 @@ describe("loadHeadless", () => {
         hero: { key: "hero", kind: "texture", path: "art/hero.png", sha256: "f".repeat(64) },
       },
     };
-    const project = { settings: {}, engine: {}, table: () => [], asset: () => undefined };
+    const project = {
+      settings: {},
+      engine: {},
+      table: () => [],
+      asset: () => undefined,
+      inputMap: null,
+    };
     const loaded = await loadHeadless({
       snapshot: withBlob,
       store,

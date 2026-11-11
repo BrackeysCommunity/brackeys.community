@@ -41,7 +41,7 @@ function yard(physics: "rapier" | "none"): ExpandedScene {
     .map(
       (e): RuntimeEntity =>
         e.id === "zone"
-          ? { ...e, shape: { type: "box", cx: 1700, cy: 750.5, hw: 40, hh: 30, rotDeg: 0 } }
+          ? { ...e, shape: { type: "box", cx: 17, cy: 7.505, hw: 0.4, hh: 0.3, rotDeg: 0 } }
           : e,
     );
   return scene;

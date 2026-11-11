@@ -18,13 +18,15 @@ export type TestGameOptions = { push?: boolean };
 /** The event the test game raises when the avatar enters a sensor tagged `goal`. */
 export const GOAL_EVENT = "goal";
 
-export const AVATAR_SPEED = 300;
+/** m/s. */
+export const AVATAR_SPEED = 3;
 
 /** The test game's physical check: something under the avatar. */
 export const AVATAR_FLOATING = "test-game/avatar-floating";
-export const PUSH_IMPULSE = 400;
+/** The push's change in velocity, m/s. */
+export const PUSH_IMPULSE = 4;
 
-/** The test game's command: moves the avatar `dx` px along x at once. */
+/** The test game's command: moves the avatar `dx` metres along x at once. */
 export const NUDGE = "nudge";
 
 /** The test game's data table: cards with a cost and an optional damage. */
@@ -131,14 +133,20 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
   actions: [
     { action: "left", keys: ["a"], description: "Walk left." },
     { action: "right", keys: ["d"], description: "Walk right." },
-    { action: "push", keys: ["space"], description: "Push the avatar up." },
+    { action: "push", keys: [" "], description: "Push the avatar up." },
   ],
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
   commands: {
     [NUDGE]: {
       description: "Move the avatar along x at once.",
       args: z.strictObject({
-        dx: z.number().int().min(-200).max(200).describe("How far, px; negative is left."),
+        dx: z
+          .number()
+          .int()
+          .min(-200)
+          .max(200)
+          .describe("How far, m; negative is left.")
+          .meta({ unit: "m" }),
       }),
     },
   },
@@ -156,12 +164,13 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
       .number()
       .positive()
       .default(AVATAR_SPEED)
-      .describe(`The avatar's walking speed, px/s; default ${AVATAR_SPEED}.`),
+      .describe(`The avatar's walking speed, m/s; default ${AVATAR_SPEED}.`)
+      .meta({ unit: "m/s" }),
     title: z.string().optional().describe("A name shown nowhere; tests read it back."),
   },
   editorKeys: [{ key: "1", scope: "edit", command: "test:one", description: "A game command." }],
   play: {
-    spawnShape: { type: "box", hw: 20, hh: 20 },
+    spawnShape: { type: "box", hw: 0.2, hh: 0.2 },
     focus: (snap) => snap?.position ?? null,
     movementActions: ["left", "right"],
     results: ["won"],
@@ -172,7 +181,7 @@ export const testGame = defineGame<TestGameSnapshot, TestGameOptions>({
     predicates: {
       past: {
         description: "The avatar's x is at least this.",
-        arg: z.number(),
+        arg: z.number().describe("x, m.").meta({ unit: "m" }),
         test: (arg, { snapshot }) => (snapshot?.position.x ?? -Infinity) >= (arg as number),
       },
     },

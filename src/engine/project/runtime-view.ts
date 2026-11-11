@@ -6,8 +6,14 @@ import { createKindRegistry } from "./kinds";
 import { DATA_TABLE_KIND, rowSchemaOf, tableAssets } from "./kinds/data-table";
 import { isPlainObject } from "./kinds/define";
 import { GAME_SETTINGS_KIND, gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
+import {
+  INPUT_MAP_KIND,
+  inputMapEntries,
+  usableInputMap,
+  type InputMapFile,
+} from "./kinds/input-map";
 import { jsonValues, pinnedDocs, snapshotView, type ProjectSnapshot } from "./snapshot";
-import type { AssetId, ProjectView } from "./types";
+import type { AssetId, AssetKindName, ProjectView } from "./types";
 
 /** What game code reads of its project, as of load and frozen for the run. */
 export type ProjectRuntimeView = {
@@ -19,7 +25,20 @@ export type ProjectRuntimeView = {
   table(name: string): readonly Readonly<Record<string, unknown> & { id: string }>[];
   /** What `assetInfo` gives for a blob asset, frozen at load; undefined for an unknown id, a doc asset or an unknown frame. */
   asset(id: AssetId, frame?: string): AssetInfo | undefined;
+  /**
+   * The project's input map, the first by path: the bindings layer between
+   * the host's and the game's. Seats, actions and touch controls it gets
+   * wrong are left out, so those keep the game's; null without one.
+   */
+  inputMap: InputMapFile | null;
 };
+
+/** The doc kinds a runtime view reads: a host loading one passes these docs' values. */
+export const RUNTIME_VIEW_KINDS: readonly AssetKindName[] = [
+  GAME_SETTINGS_KIND,
+  DATA_TABLE_KIND,
+  INPUT_MAP_KIND,
+];
 
 type Row = Readonly<Record<string, unknown> & { id: string }>;
 
@@ -31,7 +50,8 @@ type Row = Readonly<Record<string, unknown> & { id: string }>;
  * (defaults applied); a row that doesn't fit it, or whose id an earlier row
  * has, is left out (the editor reports both). A table the game doesn't
  * declare has no rows. `engine` is that asset's `engine` block, unparsed.
- * Read once, copied and frozen.
+ * `inputMap` is the first input-map asset by path, as `usableInputMap`
+ * reads it. Read once, copied and frozen.
  */
 export function runtimeView(
   view: ProjectView,
@@ -75,6 +95,10 @@ export function runtimeView(
     assets.set(entry.id, { info, frames });
   }
 
+  const [mapEntry] = inputMapEntries(view);
+  const map = mapEntry ? usableInputMap(values.get(mapEntry.id), registry) : null;
+  const inputMap = map ? deepFreeze(structuredClone(map)) : null;
+
   return Object.freeze({
     settings,
     engine,
@@ -83,11 +107,12 @@ export function runtimeView(
       const found = assets.get(id);
       return frame === undefined ? found?.info : found?.frames.get(frame);
     },
+    inputMap,
   });
 }
 
 /**
- * `runtimeView` of a snapshot: its game-settings and data-table docs, each
+ * `runtimeView` of a snapshot: its game-settings, data-table and input-map docs, each
  * read from its canonical text in `store`, and its blobs as the snapshot
  * pins them: hash, size, import settings and meta, so `asset` gives what
  * `assetInfo` gives over the project (pixel sizes and frames included)
@@ -100,7 +125,7 @@ export async function snapshotRuntimeView(
   store: ContentStore,
   registry: Registry,
 ): Promise<ProjectRuntimeView> {
-  const { texts } = await pinnedDocs(snapshot, store, [GAME_SETTINGS_KIND, DATA_TABLE_KIND]);
+  const { texts } = await pinnedDocs(snapshot, store, RUNTIME_VIEW_KINDS);
   const view = snapshotView(snapshot, createKindRegistry(registry.game));
   return runtimeView(view, jsonValues(texts), registry);
 }

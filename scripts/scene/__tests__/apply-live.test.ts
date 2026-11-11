@@ -121,7 +121,7 @@ describe("apply --live", () => {
 
     const own = applyOpsToDoc(
       human.doc,
-      { ops: [{ op: "move", refs: ["crate"], by: [5, 0] }] },
+      { ops: [{ op: "move", refs: ["crate"], by: [0.05, 0] }] },
       humanOrigin,
       ENGINE,
     );
@@ -129,10 +129,10 @@ describe("apply --live", () => {
     human.undo.commit({ before: [], after: [] });
     expect(human.undo.canUndo()).toBe(true);
     const crate = () => docToScene(human.doc).entities!.find((e) => e.id === "crate")!.shape;
-    expect(crate()).toEqual(["circle", 1205, 940, 20]);
+    expect(crate()).toEqual(["circle", 12.05, 9.4, 0.2]);
 
     human.undo.undo();
-    expect(crate()).toEqual(["circle", 1200, 940, 20]);
+    expect(crate()).toEqual(["circle", 12, 9.4, 0.2]);
     expect(speedOf(human.doc)).toBe(30);
     expect(human.undo.canUndo()).toBe(false);
   });
@@ -231,7 +231,7 @@ describe("apply --live", () => {
         scene: "engine-yard",
         ops: await opsFile({
           label: "Kit the crate",
-          ops: [{ op: "createPrefab", refs: ["crate"], id: "crate-kit", at: [1200, 940] }],
+          ops: [{ op: "createPrefab", refs: ["crate"], id: "crate-kit", at: [12, 9.4] }],
         }),
         url: server.url,
         agent: "claude",
@@ -262,7 +262,7 @@ describe("apply --live", () => {
       {
         scene: "engine-yard",
         ops: await opsFile({
-          ops: [{ op: "createPrefab", refs: ["crate"], id: "crate-kit", at: [1200, 940] }],
+          ops: [{ op: "createPrefab", refs: ["crate"], id: "crate-kit", at: [12, 9.4] }],
         }),
         url: server.url,
         dryRun: true,

@@ -36,13 +36,17 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
     probes: ["top-down"],
   },
   "physics-sandbox": { genre: "Physics sandbox", deliveredBy: "M14, M15, M26", probes: [] },
-  rts: { genre: "RTS / strategy", deliveredBy: "M14, M16, M22, M24, M25", probes: [] },
+  rts: {
+    genre: "RTS / strategy",
+    deliveredBy: "M14, M16, M22, M24, M25",
+    probes: ["point-and-click"],
+  },
   "tower-defense": {
     genre: "Tower defense",
     deliveredBy: "M11, M14, M15, M17",
     probes: ["shooter"],
   },
-  rhythm: { genre: "Rhythm", deliveredBy: "M11, M16, M23", probes: [] },
+  rhythm: { genre: "Rhythm", deliveredBy: "M11, M16, M23", probes: ["rhythm-tap"] },
   roguelike: {
     genre: "Roguelike",
     deliveredBy: "M14, M15, M18, M25",
@@ -52,7 +56,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
   "point-and-click": {
     genre: "Point-and-click adventure",
     deliveredBy: "M14, M16, M17, M23",
-    probes: [],
+    probes: ["point-and-click"],
   },
   idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18, M21", probes: [] },
   "endless-runner": {
@@ -60,8 +64,16 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
     deliveredBy: "M15, M16, M19, M22",
     probes: ["shooter"],
   },
-  fighting: { genre: "Fighting game", deliveredBy: "M16, M22 (ANI-5, FX-2), M27", probes: [] },
-  "local-multiplayer": { genre: "Local multiplayer", deliveredBy: "M16, M22", probes: [] },
+  fighting: {
+    genre: "Fighting game",
+    deliveredBy: "M16, M22 (ANI-5, FX-2), M27",
+    probes: ["local-versus"],
+  },
+  "local-multiplayer": {
+    genre: "Local multiplayer",
+    deliveredBy: "M16, M22",
+    probes: ["local-versus"],
+  },
   "online-multiplayer": { genre: "Online multiplayer", deliveredBy: "M27", probes: [] },
 };
 

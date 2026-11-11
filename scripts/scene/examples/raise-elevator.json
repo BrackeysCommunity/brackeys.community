@@ -1,4 +1,4 @@
 {
   "label": "Raise the elevator",
-  "ops": [{ "op": "update", "ref": "elevator", "set": { "path.pts.1": [1300, 640] } }]
+  "ops": [{ "op": "update", "ref": "elevator", "set": { "path.pts.1": [13, 6.4] } }]
 }

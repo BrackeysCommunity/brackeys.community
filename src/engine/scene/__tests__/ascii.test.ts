@@ -24,7 +24,7 @@ import {
   readPrefabFiles,
 } from "../../vite/project-files";
 import { renderSceneAscii, sceneAsciiMap } from "../ascii";
-import { parseSceneOrThrow } from "../parse";
+import { parseScene, parseSceneOrThrow } from "../parse";
 import { SCENE_GRID_MAX_CELLS } from "../svg";
 import { SCENE_FORMAT_VERSION, type GridSettings, type SceneDefinition } from "../types";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
@@ -68,16 +68,16 @@ describe("renderSceneAscii", () => {
 
   it("takes its characters from the types: the type's own, its base's, else its first letter", () => {
     const def: SceneDefinition = {
-      v: 1,
+      v: SCENE_FORMAT_VERSION,
       game: "fake",
       name: "fake-yard",
-      bounds: [0, 0, 512, 128],
-      pad: [["box", 32, 32, 30, 30]],
-      flag: [[96, 32]],
+      bounds: [0, 0, 5.12, 1.28],
+      pad: [["box", 0.32, 0.32, 0.3, 0.3]],
+      flag: [[0.96, 0.32]],
       entities: [
-        { id: "b", type: "button", shape: ["box", 160, 32, 30, 30] },
-        { id: "d", type: "door", shape: ["box", 224, 32, 30, 30], speed: 1 },
-        { id: "t", type: "button", shape: ["box", 288, 32, 30, 30], tags: ["hazard"] },
+        { id: "b", type: "button", shape: ["box", 1.6, 0.32, 0.3, 0.3] },
+        { id: "d", type: "door", shape: ["box", 2.24, 0.32, 0.3, 0.3], speed: 1 },
+        { id: "t", type: "button", shape: ["box", 2.88, 0.32, 0.3, 0.3], tags: ["hazard"] },
       ],
     };
     const map = sceneAsciiMap(def, { registry: fake });
@@ -110,7 +110,7 @@ describe("renderSceneAscii", () => {
       game: "lettered",
       pad: undefined,
       flag: undefined,
-      entities: [{ id: "l", type: "lava", shape: ["box", 32, 32, 30, 30] }],
+      entities: [{ id: "l", type: "lava", shape: ["box", 0.32, 0.32, 0.3, 0.3] }],
     } as SceneDefinition;
     expect(sceneAsciiMap(lettered, { registry: createRegistry(game) }).lines[0]).toBe("~.......");
   });
@@ -138,18 +138,18 @@ describe("renderSceneAscii", () => {
     expect(() => bad("b")).not.toThrow();
   });
 
-  it("frames a region or an entity on cell lines, with spaces outside the scene", () => {
+  it("frames a region (in metres) or an entity on cell lines (in world px), with spaces outside the scene", () => {
     const map = sceneAsciiMap(yard, { registry: engine, around: "lift" });
     expect(map.region).toEqual([1472, 448, 1920, 1088]);
     expect(map.lines.at(-1)).toBe("       ");
     expect(map.lines.at(-2)).toBe("#######");
-    const region = sceneAsciiMap(yard, { registry: engine, region: [-100, 900, 330, 1000] });
+    const region = sceneAsciiMap(yard, { registry: engine, region: [-1, 9, 3.3, 10] });
     expect(region.region).toEqual([-128, 896, 384, 1024]);
     expect(region.lines).toEqual(["  #...p.", "  ####S#"]);
   });
 
   it("grows its cells in steps of 64 to stay within maxCells", () => {
-    const huge: SceneDefinition = { ...generateScene(2), bounds: [0, 0, 100_000, 10_000] };
+    const huge: SceneDefinition = { ...generateScene(2), bounds: [0, 0, 1000, 100] };
     const map = sceneAsciiMap(huge, { registry: engine });
     expect(map.cell).toBe(512);
     expect(map.cols).toBeLessThanOrEqual(200);
@@ -162,15 +162,82 @@ describe("renderSceneAscii", () => {
       overlay: {
         trail: {
           pts: [
-            [300, 700],
-            [700, 700],
+            [3, 7],
+            [7, 7],
           ],
         },
-        outcome: { result: "won", at: { x: 700, y: 700 } },
+        outcome: { result: "won", at: { x: 7, y: 7 } },
       },
     });
     expect(map.lines[10]).toBe("#...******!...............~...##");
     expect(legendOf(map)).toMatchObject({ "*": "trail", "!": "outcome won" });
+  });
+});
+
+describe("one-way solids", () => {
+  const box = (x: number, oneWay?: unknown) => ({
+    id: `b${x}`,
+    type: "solid",
+    shape: ["box", 0.32 + x * 0.64, 0.32, 0.3, 0.3],
+    ...(oneWay === undefined ? {} : { oneWay }),
+  });
+  const def = {
+    v: SCENE_FORMAT_VERSION,
+    name: "sides",
+    bounds: [0, 0, 5.12, 0.64],
+    entities: [
+      box(0, "up"),
+      box(1, "right"),
+      box(2, "down"),
+      box(3, "left"),
+      box(4, true),
+      box(5, "sideways"),
+      box(6),
+    ],
+  } as unknown as SceneDefinition;
+
+  it("marks every side the way the edit overlay and the SVG do, and nothing else", () => {
+    const map = sceneAsciiMap(def, { registry: engine });
+    expect(map.lines[0]).toBe("=====##.");
+    expect(legendOf(map)).toEqual({ "=": "solid one-way", "#": "solid" });
+  });
+});
+
+describe("metres and px per metre", () => {
+  it("maps a v3 scene migrated to metres as its v3 file mapped at 100 px per metre", () => {
+    const text = readFileSync(new URL("./fixtures/v3/engine-yard.json", import.meta.url), "utf8");
+    const migrated = parseScene(text, engine);
+    expect(migrated.ok && migrated.migratedFrom).toBe(3);
+    expect(renderSceneAscii(migrated.ok ? migrated.def : yard, { registry: engine })).toBe(
+      readFileSync(golden, "utf8"),
+    );
+  });
+
+  it("samples world metres at the game's px per metre, its cells and ruler in world px", () => {
+    const registry = createRegistry(
+      defineGame({
+        id: "coarse",
+        types: [],
+        actions: [],
+        world: { lengthUnit: 32 },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const map = sceneAsciiMap(
+      {
+        v: SCENE_FORMAT_VERSION,
+        game: "coarse",
+        name: "metre",
+        bounds: [0, 0, 10, 5],
+        entities: [{ id: "block", type: "solid", shape: ["box", 3, 1, 1, 1] }],
+      },
+      { registry, cell: 32 },
+    );
+    expect(map).toMatchObject({ pxPerMetre: 32, cell: 32, cols: 10, rows: 5 });
+    expect(map.region).toEqual([0, 0, 320, 160]);
+    expect(map.lines[0]).toBe("..##......");
+    expect(map.lines[1]).toBe("..##......");
+    expect(map.lines[2]).toBe("..........");
   });
 });
 
@@ -180,7 +247,7 @@ describe("grid fields", () => {
     cells: Record<string, string[]>,
     grid: GridSettings,
     at: [number, number],
-    bounds: [number, number, number, number] = [0, 0, 1024, 768],
+    bounds: [number, number, number, number] = [0, 0, 10.24, 7.68],
   ): SceneDefinition => ({
     v: SCENE_FORMAT_VERSION,
     game: game.id,
@@ -194,7 +261,11 @@ describe("grid fields", () => {
 
   it("draws a painted entity's filled cells in its character, at its at", () => {
     const map = sceneAsciiMap(
-      paintScene({ "0,0": ["1*3", "", "0,2"] }, { kind: "square", cell: [64, 64] }, [64, 576]),
+      paintScene(
+        { "0,0": ["1*3", "", "0,2"] },
+        { kind: "square", cell: [0.64, 0.64] },
+        [0.64, 5.76],
+      ),
       { registry: game },
     );
     const t = charOf(map);
@@ -205,7 +276,7 @@ describe("grid fields", () => {
 
   it("marks the map cell under each grid cell smaller than a map cell", () => {
     const map = sceneAsciiMap(
-      paintScene({ "0,0": ["0*5,1"] }, { kind: "square", cell: [16, 16] }, [0, 0]),
+      paintScene({ "0,0": ["0*5,1"] }, { kind: "square", cell: [0.16, 0.16] }, [0, 0]),
       { registry: game },
     );
     const t = charOf(map);
@@ -223,7 +294,7 @@ describe("grid fields", () => {
         cells[`${cx},${cy}`] = cy === 3 ? rows.slice(0, 4) : rows;
       }
     const map = sceneAsciiMap(
-      paintScene(cells, { kind: "square", cell: [8, 8] }, [0, 0], [0, 0, 800, 800]),
+      paintScene(cells, { kind: "square", cell: [0.08, 0.08] }, [0, 0], [0, 0, 8, 8]),
       { registry: game, cell: 8 },
     );
     const t = charOf(map);
@@ -280,7 +351,7 @@ describe("sprite boxes", () => {
   it("marks the cell under a sprite smaller than a cell", () => {
     const def = structuredClone(sprites);
     def.entities = [
-      { id: "dot", type: "marker", at: [40, 40], behaviors: { sprite: { size: [4, 4] } } },
+      { id: "dot", type: "marker", at: [0.4, 0.4], behaviors: { sprite: { size: [0.04, 0.04] } } },
     ];
     const map = sceneAsciiMap(def, { registry: engine, cell: 64 });
     expect(at(map, 0, 0)).toBe("+");
@@ -300,8 +371,10 @@ async function loadKitchenSink() {
       if (entry.sha256 === undefined)
         values.set(entry.id, JSON.parse(await readFile(join(dir, entry.path), "utf8")));
     const registry = withProject(createRegistry(), view, values);
-    const scene = parseSceneOrThrow(values.get("kitchen-sink"), registry);
     const { prefabs } = await readPrefabFiles(dir, registry);
+    const scene = parseSceneOrThrow(values.get("kitchen-sink"), registry, {
+      prefab: (id) => prefabs.get(id),
+    });
     return { scene, view, registry, prefabs };
   } finally {
     await rm(cacheDir, { recursive: true, force: true });

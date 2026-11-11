@@ -15,8 +15,12 @@ import {
   type Registry,
   type RunResult,
 } from "../game/types";
+import { qAxis, qPointer, qVector } from "../input/quantize";
+import type { PointerState } from "../input/state";
+import { mergeTick, type TickInput } from "../input/stream";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import { playWorld, preparePlay } from "../runtime/play-session";
+import { inputAction } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { LoadReport, SceneRuntimeHandle } from "../runtime/types";
 import { makeIssue } from "../scene/issues";
@@ -27,14 +31,13 @@ import type {
   SceneDefinition,
   SceneIssue,
 } from "../scene/types";
-import type { RapierModule, Vec2 } from "../types";
+import type { InputAction, RapierModule, Vec2 } from "../types";
 import { heldEdges } from "./compile-input-script";
-import { inputAction } from "./headless";
 import type { InputEdge, PlaytestBlocked, PlayOptions, ScriptIssue } from "./playtest-types";
 
-/** Holding a movement action with the focus moving under `STUCK_PX` over `STUCK_TICKS` ticks is `stuck`. */
+/** Holding a movement action with the focus moving under `STUCK_METRES` over `STUCK_TICKS` ticks is `stuck`. */
 export const STUCK_TICKS = 120;
-export const STUCK_PX = 4;
+export const STUCK_METRES = 0.04;
 
 export function blockedRun(
   stage: PlaytestBlocked["stage"],
@@ -69,13 +72,14 @@ export function runBlocked(
 }
 
 export type PreparedRun =
-  | { ok: true; scene: ExpandedScene; hash: string; issues: SceneIssue[] }
+  | { ok: true; scene: ExpandedScene; hash: string; runHash: string; issues: SceneIssue[] }
   | { ok: false; blocked: PlaytestBlocked };
 
 /**
  * Play's first half (parse, validate, clone, freeze in dev, expand, hash);
  * errors block. `engine` is the project's `engine` block, which settings
- * resolve through.
+ * resolve through; `run` names the project view and the prefab library the
+ * run plays with, which `runHash` covers (its view's `engine` wins).
  */
 export function prepareRun(
   doc: SceneDefinition,
@@ -83,10 +87,23 @@ export function prepareRun(
   dev = false,
   prefabs?: PrefabLibrary,
   engine?: Readonly<Record<string, unknown>>,
+  run: { project?: ProjectRuntimeView | null; library?: PrefabLibrary } = {},
 ): PreparedRun {
-  const prepared = preparePlay(doc, registry, { dev, prefabs, engine });
+  const prepared = preparePlay(doc, registry, {
+    dev,
+    prefabs,
+    engine,
+    project: run.project,
+    library: run.library,
+  });
   if (!prepared.ok) return { ok: false, blocked: blockedRun("scene", doc.name, prepared.issues) };
-  return { ok: true, scene: prepared.scene, hash: prepared.hash, issues: prepared.issues };
+  return {
+    ok: true,
+    scene: prepared.scene,
+    hash: prepared.hash,
+    runHash: prepared.runHash,
+    issues: prepared.issues,
+  };
 }
 
 /**
@@ -137,18 +154,21 @@ export function startRun(
 }
 
 /**
- * What a run plays, one slot at a time: the actions held, or the exact edges
- * a recording stepped. A fixed game simulates every slot; a turns or event
- * game only the slots something wakes, so slot and tick numbers can differ.
+ * What a run plays, one slot at a time: a `TickInput` per slot, the actions
+ * held, or the exact edges a recording stepped. A fixed game simulates every
+ * slot; a turns or event game only the slots something wakes, so slot and
+ * tick numbers can differ.
  */
 export type InputSource = {
   /** True when the input has run out; the run ends as `script-end`. */
   done(): boolean;
+  /** The slot's whole input (actions of every seat, pointers, seat changes, commands), instead of `held` or `edges`. */
+  tick?(slot: number): TickInput;
   /** Every action held during `slot`; called once per slot, in order. */
   held?(slot: number): readonly string[];
   /** The edges to play in `slot`, in order, instead of `held`'s difference from the slot before. */
   edges?(slot: number): readonly InputEdge[];
-  /** The commands to step on `slot`, in order. A command wakes every model. */
+  /** The commands to step on `slot`, in order, beside `held` or `edges`. A command wakes every model. */
   commands?(slot: number): readonly GameCommand[];
   /** After each simulated tick, with what it produced. */
   after?(state: PlayState): void;
@@ -176,27 +196,51 @@ export type RunLoopOptions = {
   /** Slots before `timeout`, simulated or skipped; default unbounded. */
   maxSlots?: number;
   input: InputSource;
-  /** Every edge played is appended here, stamped with the tick that stepped it. */
+  /** Every seat-0 button edge played is appended here, stamped with the tick that stepped it. */
   record?: InputEdge[];
   /** False skips `stuck`, for replaying a run that ended some other way. Default true. */
   stuck?: boolean;
   /** Simulate every slot whatever the time model, as a replay of recorded ticks does. */
   everySlot?: boolean;
-  /** After each tick, with the edges and commands it stepped, before the run decides whether it is over. */
+  /**
+   * After each tick, before the run decides whether it is over: its state,
+   * the focus, its seat-0 button edges and commands, and the whole input it
+   * stepped.
+   */
   onTick?(
     state: PlayState,
     focus: Vec2 | null,
     edges: readonly InputEdge[],
     commands: readonly GameCommand[],
+    input: TickInput,
   ): void;
 };
 
 /**
- * Whether a slot's input wakes an idle game on `time`'s clock: a command
- * wakes every model, and an action edge wakes an event game. A fixed clock
- * never idles. Headless input has no pointer, so `wakeOnPointerMove` never
- * applies here.
+ * Whether a slot's input wakes an idle game on `time`'s clock, by the rule
+ * the shell's gate uses: a command wakes every model; an event game also
+ * wakes on any action (a button edge or an analog change), a pointer whose
+ * buttons differ from `pointers`' last (the pointer each seat last had),
+ * and a pointer move only with `wakeOnPointerMove`. Seat changes wake
+ * nothing; they ride the next simulated tick. A fixed clock never idles.
  */
+export function tickWakes(
+  time: Pick<ResolvedTime, "kind" | "wakeOnPointerMove">,
+  input: Pick<TickInput, "actions" | "commands" | "pointers">,
+  pointers: readonly (PointerState | null | undefined)[] = [],
+): boolean {
+  if (time.kind === "fixed" || input.commands.length > 0) return true;
+  if (time.kind !== "event") return false;
+  if (input.actions.length > 0) return true;
+  return input.pointers.some((p, seat) => {
+    if (!p) return false;
+    const was = pointers[seat];
+    if (p.buttons !== (was?.buttons ?? 0)) return true;
+    return time.wakeOnPointerMove === true && (!was || was.x !== p.x || was.y !== p.y);
+  });
+}
+
+/** `tickWakes` for 0.x's edges and commands: a seat-0 tick with no pointer. */
 export function slotWakes(
   time: Pick<ResolvedTime, "kind">,
   edges: readonly InputEdge[],
@@ -206,19 +250,8 @@ export function slotWakes(
   return time.kind === "event" && edges.length > 0;
 }
 
-/** `held` after `edges`: a down adds its action, an up removes it. */
-function applyEdges(held: readonly string[], edges: readonly InputEdge[]): string[] {
-  const next = [...held];
-  for (const [, action, pressed] of edges) {
-    const at = next.indexOf(action);
-    if (pressed === 1 && at < 0) next.push(action);
-    else if (pressed === 0 && at >= 0) next.splice(at, 1);
-  }
-  return next;
-}
-
-/** Tracks the focus while a movement action is held; true once it has moved under `STUCK_PX` in `STUCK_TICKS` ticks. */
-function stuckDetector(): (moving: boolean, focus: Vec2 | null) => boolean {
+/** Tracks the focus while a movement action is held; true once it has moved under `STUCK_METRES` in `STUCK_TICKS` ticks. */
+export function stuckDetector(): (moving: boolean, focus: Vec2 | null) => boolean {
   const window = STUCK_TICKS + 1;
   const xs = new Float64Array(window);
   const ys = new Float64Array(window);
@@ -233,15 +266,68 @@ function stuckDetector(): (moving: boolean, focus: Vec2 | null) => boolean {
     streak++;
     if (streak < window) return false;
     const then = streak % window;
-    return Math.hypot(focus.x - xs[then]!, focus.y - ys[then]!) < STUCK_PX;
+    const dx = focus.x - xs[then]!;
+    const dy = focus.y - ys[then]!;
+    return Math.sqrt(dx * dx + dy * dy) < STUCK_METRES;
   };
+}
+
+/** A seat-0 action with no analog value: a button edge as 0.x's reports list it. */
+const isSeat0Button = (a: InputAction): boolean =>
+  (a.player ?? 0) === 0 && a.value === undefined && a.x === undefined && a.y === undefined;
+
+/** The slot's input from whichever form the source gives, actions not yet stamped. */
+function slotInput(
+  input: InputSource,
+  slot: number,
+  held: readonly string[],
+  time: ResolvedTime,
+): { tick: TickInput; held: readonly string[] | null } {
+  if (input.tick) return { tick: input.tick(slot), held: null };
+  let edges: readonly InputEdge[];
+  let next: readonly string[];
+  if (input.edges) {
+    edges = input.edges(slot);
+    next = held;
+  } else {
+    next = input.held?.(slot) ?? [];
+    edges = heldEdges(held, next, slot);
+  }
+  const actions = edges.map(([, action, pressed]) =>
+    inputAction(action, pressed === 1, slot, time),
+  );
+  return {
+    tick: {
+      tick: slot,
+      actions,
+      commands: [...(input.commands?.(slot) ?? [])],
+      pointers: [],
+      joins: [],
+    },
+    held: input.edges ? null : next,
+  };
+}
+
+/** `held` after the seat-0 actions of a step: one going down or non-zero adds it, one going up removes it. */
+function applyActions(held: readonly string[], actions: readonly InputAction[]): string[] {
+  const next = [...held];
+  for (const a of actions) {
+    if ((a.player ?? 0) !== 0) continue;
+    const at = next.indexOf(a.action);
+    if (a.pressed && at < 0) next.push(a.action);
+    else if (!a.pressed && at >= 0) next.splice(at, 1);
+  }
+  return next;
 }
 
 /**
  * Steps `runtime` until the game's outcome, `stuck`, the input running out,
  * `maxTicks` simulated ticks or `maxSlots` slots. A turns or event game
- * skips a slot nothing wakes while it isn't busy; that slot's edges are
- * played, in order, with the next simulated tick.
+ * skips a slot nothing wakes (`tickWakes`) while it isn't busy; that slot's
+ * actions and seat changes are played, in order, with the next simulated
+ * tick, and its pointer stands until a later one replaces it. Each tick's
+ * input is merged (system first, then seats in order) and its actions
+ * stamped with the tick, as a replay of it is.
  */
 export function runLoop(opts: RunLoopOptions): RunEnd {
   const { runtime, input, maxTicks } = opts;
@@ -250,8 +336,10 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
   const play = opts.game?.play;
   const movement = play?.focus ? (play.movementActions ?? []) : [];
   const stuck = movement.length > 0 && opts.stuck !== false ? stuckDetector() : null;
+  const subTick = opts.game?.input?.subTick === true;
   let held: readonly string[] = [];
-  let carried: InputEdge[] = [];
+  let carried: TickInput | null = null;
+  const sent: (PointerState | undefined)[] = [];
   let tick = 0;
   const world = playWorld(runtime.ctx);
 
@@ -260,39 +348,33 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
     if (input.done()) return { result: "script-end", ...last };
     if (tick >= maxTicks || slot >= maxSlots) return { result: "timeout", ...last };
 
-    let slotEdges: readonly InputEdge[];
-    if (input.edges) {
-      slotEdges = input.edges(slot);
-      held = applyEdges(held, slotEdges);
-    } else {
-      const next = input.held?.(slot) ?? [];
-      slotEdges = heldEdges(held, next, slot);
-      held = next;
-    }
-    const commands = input.commands?.(slot) ?? [];
-    if (!opts.everySlot && !slotWakes(time, slotEdges, commands) && !runtime.busy()) {
-      carried.push(...slotEdges);
+    const read = slotInput(input, slot, held, time);
+    const slotTick = read.tick;
+    if (read.held) held = read.held;
+    if (!opts.everySlot && !tickWakes(time, slotTick, sent) && !runtime.busy()) {
+      carried = carried ? joinTicks(carried, slotTick) : slotTick;
       input.skipped?.(slot);
       continue;
     }
 
-    const edges: InputEdge[] = [...carried, ...slotEdges].map(([, action, pressed]) => [
-      tick,
-      action,
-      pressed,
-    ]);
-    carried = [];
-    opts.record?.push(...edges);
-    const result = runtime.step(
-      time.tickMs,
-      edges.map(([t, action, pressed]) => inputAction(action, pressed === 1, t, time)),
-      commands,
+    const merged = mergeTick(
+      stamped(carried ? joinTicks(carried, slotTick) : slotTick, tick, time, subTick),
     );
+    carried = null;
+    merged.pointers.forEach((p, seat) => {
+      if (p) sent[seat] = p;
+    });
+    if (!read.held) held = applyActions(held, merged.actions);
+    const edges: InputEdge[] = merged.actions
+      .filter(isSeat0Button)
+      .map((a) => [tick, a.action, a.pressed ? 1 : 0]);
+    opts.record?.push(...edges);
+    const result = runtime.step(time.tickMs, merged);
 
     const state: PlayState = { tick, snapshot: result.game, events: result.events, world };
     const focus = play?.focus ? play.focus(result.game) : null;
     input.after?.(state);
-    opts.onTick?.(state, focus, edges, commands);
+    opts.onTick?.(state, focus, edges, merged.commands, merged);
 
     const ended = { tick, ticks: tick + 1, slots: slot + 1 };
     tick++;
@@ -312,8 +394,66 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
       return {
         result: "stuck",
         ...ended,
-        cause: `the focus moved under ${STUCK_PX}px in ${STUCK_TICKS} ticks while holding ${held.filter((a) => movement.includes(a)).join(", ")}`,
+        cause: `the focus moved under ${STUCK_METRES} m in ${STUCK_TICKS} ticks while holding ${held.filter((a) => movement.includes(a)).join(", ")}`,
       };
     }
   }
+}
+
+/** A skipped slot's input followed by the next one's: actions, seat changes and commands in order, the later pointer winning. */
+function joinTicks(a: TickInput, b: TickInput): TickInput {
+  const pointers: (PointerState | undefined)[] = [];
+  for (let seat = 0; seat < Math.max(a.pointers.length, b.pointers.length); seat++) {
+    pointers.push(b.pointers[seat] ?? a.pointers[seat]);
+  }
+  return {
+    tick: b.tick,
+    actions: [...a.actions, ...b.actions],
+    commands: [...a.commands, ...b.commands],
+    pointers,
+    joins: [...a.joins, ...b.joins],
+  };
+}
+
+/** An offset as a recording keeps it: thousandths of a tick, inside the tick. */
+const qOffset = (offset: number): number =>
+  Math.min(999, Math.max(0, Math.round((Number.isFinite(offset) ? offset : 0) * 1000))) / 1000;
+
+/** An action as the runtime and a replay of it see it: values quantised, the offset kept only with `subTick`. */
+function settled(a: InputAction, tick: number, tickMs: number, subTick: boolean): InputAction {
+  const offset = subTick ? qOffset(a.offset ?? 0) : undefined;
+  const timestamp = (tick + (offset ?? 0)) * tickMs;
+  const analog = a.value !== undefined || a.x !== undefined || a.y !== undefined;
+  if (!analog && a.tick === tick && a.timestamp === timestamp && a.offset === offset) return a;
+  const out: InputAction = { ...a, tick, timestamp };
+  if (offset === undefined) delete out.offset;
+  else out.offset = offset;
+  if (a.value !== undefined) out.value = qAxis(a.value);
+  if (a.x !== undefined || a.y !== undefined) {
+    const v = qVector({ x: a.x ?? 0, y: a.y ?? 0 });
+    out.x = v.x;
+    out.y = v.y;
+  }
+  return out;
+}
+
+/**
+ * `input` as stepped on `tick`, in the form its replay rebuilds: each action
+ * stamped at the tick (plus its offset, with `subTick`) on `time`'s clock,
+ * analog values and pointers quantised.
+ */
+function stamped(
+  input: TickInput,
+  tick: number,
+  time: Pick<ResolvedTime, "tickMs">,
+  subTick: boolean,
+): TickInput {
+  return {
+    ...input,
+    tick,
+    actions: input.actions.map((a) => settled(a, tick, time.tickMs, subTick)),
+    pointers: input.pointers.map((p) =>
+      p ? { x: qPointer(p.x), y: qPointer(p.y), buttons: p.buttons | 0, over: p.over } : undefined,
+    ),
+  };
 }

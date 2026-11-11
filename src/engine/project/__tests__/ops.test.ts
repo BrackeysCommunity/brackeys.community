@@ -630,16 +630,16 @@ describe("references", () => {
     id: "gate",
     entities: [{ id: "slope", type: "solid", shape: ["box", 0, 0, 10, 10], material: "rubber" }],
   };
-  const walk = { v: 1, scene: "yard", steps: [{ wait: 60 }] };
+  const walk = { v: 2, scene: "yard", steps: [{ wait: 60 }] };
   const checks = {
-    v: 1,
+    v: 3,
     checks: [
       { id: "valid", kind: "valid" },
       {
         id: "settles",
         kind: "reaches",
         result: "script-end",
-        script: { v: 1, scene: "yard", steps: [{ wait: 60 }] },
+        script: { v: 2, scene: "yard", steps: [{ wait: 60 }] },
       },
     ],
   };
@@ -1151,14 +1151,14 @@ describe("references", () => {
       });
       expect(valueOf(r, keyOf(r, "post"))).toEqual({
         kind: "prefab",
-        v: 3,
+        v: 4,
         game: "surfaces",
         id: "post",
         entities: [],
       });
       expect(valueOf(r, keyOf(r, "red-post"))).toEqual({
         kind: "prefab",
-        v: 3,
+        v: 4,
         game: "surfaces",
         id: "red-post",
         base: "post",
@@ -1648,6 +1648,28 @@ describe("project-wide rules", () => {
       { op: "restoreAsset", id: "gone" },
     ]);
     expect(swapped.ok).toBe(true);
+  });
+
+  it("refuses a second input map", () => {
+    const withMap: ProjectState = {
+      ...state,
+      assets: {
+        ...state.assets,
+        map: entry("map", { id: "map", kind: "input-map", path: "input-map.json" }),
+      },
+    };
+    const create = (s: ProjectState) =>
+      checkProjectBatch(
+        s,
+        docs(),
+        { v: 1, ops: [{ op: "createAsset", kind: "input-map", path: "more/input-map2.json" }] },
+        env({ registry: createRegistry(cards), kinds: createKindRegistry(cards) }),
+      );
+    const created = create(withMap);
+    expect(created.ok || [created.issue.code, created.issue.path, created.issue.entityIds]).toEqual(
+      ["asset-kind", "/ops/0/kind", ["map"]],
+    );
+    expect(create(state).ok).toBe(true);
   });
 
   it("reports a row id two assets of one table hold as dup-id on the later by path, for tables the batch wrote", () => {

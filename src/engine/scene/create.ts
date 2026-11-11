@@ -1,8 +1,8 @@
 import { ENGINE_REGISTRY_ID, type Registry, type SceneTemplate } from "../game/types";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "./types";
 
-/** A new scene's content when its game gives no template: an empty 1920×1080 world. */
-export const EMPTY_SCENE_TEMPLATE: SceneTemplate = { bounds: [0, 0, 1920, 1080] };
+/** A new scene's content when its game gives no template: an empty world one 1920×1080 screen across at 100 px per metre. */
+export const EMPTY_SCENE_TEMPLATE: SceneTemplate = { bounds: [0, 0, 19.2, 10.8] };
 
 /**
  * A new scene named `name` for `registry`'s game (none for the engine's):

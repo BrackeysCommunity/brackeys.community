@@ -9,7 +9,7 @@ const registry = createRegistry(coinGame);
 export function picture(text: string, around: string): { svg: string; ascii: string } {
   const scene = parseSceneOrThrow(text, registry);
   return {
-    svg: renderSceneSvg(scene, { registry, around, margin: 200, labels: "entities" }),
+    svg: renderSceneSvg(scene, { registry, around, margin: 2, labels: "entities" }),
     ascii: renderSceneAscii(scene, { registry }),
   };
 }

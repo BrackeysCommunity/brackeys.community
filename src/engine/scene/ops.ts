@@ -4,6 +4,7 @@ import { BEHAVIORS_FIELD } from "../game/behaviors";
 import { isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, Z_LIMIT } from "../game/fields";
 import type { BulkKeyInfo, Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import { closest } from "./did-you-mean";
 import { bulkOffset, diffScenes, isObj, isStructured } from "./diff";
 import { setGroupFields } from "./diff-to-ops";
@@ -125,6 +126,7 @@ import {
   type ShapeTuple,
   type SpotAnchor,
 } from "./types";
+import { snapToPixel } from "./units";
 import { validateScene } from "./validate";
 
 /** A bulk entry with identity, so references keep pointing at it while indices shift. */
@@ -1175,7 +1177,11 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
       const t = resolve(w, op.ref);
       const spot = spotOf(w, t, op.ref, op.anchor ?? "center");
       markTouched(w, t);
-      translateTarget(w, t, [Math.round(op.at[0] - spot[0]), Math.round(op.at[1] - spot[1])]);
+      const ppm = pxPerMetreOf(w.registry);
+      translateTarget(w, t, [
+        snapToPixel(op.at[0] - spot[0], ppm),
+        snapToPixel(op.at[1] - spot[1], ppm),
+      ]);
       return;
     }
     case "remove": {

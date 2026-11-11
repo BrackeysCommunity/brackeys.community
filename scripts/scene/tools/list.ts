@@ -1,10 +1,17 @@
 import { readFile } from "node:fs/promises";
 
 import { projectView, type ProjectView } from "@jams/engine/project";
-import { expandScene, parseScene, sceneHash, validateScene } from "@jams/engine/scene";
+import { expandScene, sceneHash, validateScene } from "@jams/engine/scene";
 import type { ProjectScan } from "@jams/engine/vite";
 
-import { clashes, judgeScene, listSceneFiles, prefabsOf, type Tool } from "../context";
+import {
+  clashes,
+  judgeScene,
+  listSceneFiles,
+  parseSceneWith,
+  prefabsOf,
+  type Tool,
+} from "../context";
 import { projectRuntime, scanProject, type ProjectHandle } from "../projects";
 import { countEntities } from "./show";
 
@@ -38,10 +45,10 @@ export const list: Tool<ListInput> = async (_input, ctx) => {
       const game = judged.game ?? null;
       const failed = (issues: number) => ({ name, home, game, ok: false as const, issues });
       if (!judged.ok) return failed(1);
-      const parsed = parseScene(text, judged.registry);
+      const prefabs = await prefabsOf({ project }, judged.registry, await scanOf(project));
+      const parsed = parseSceneWith(text, judged.registry, prefabs);
       if (!parsed.ok) return failed(parsed.issues.length);
       const def = parsed.def;
-      const prefabs = await prefabsOf({ project }, judged.registry, await scanOf(project));
       const issues = { error: 0, warn: 0, info: 0 };
       const view = await viewOf(project);
       for (const i of validateScene(def, judged.registry, { prefabs, project: view }))

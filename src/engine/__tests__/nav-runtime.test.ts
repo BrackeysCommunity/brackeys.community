@@ -30,7 +30,7 @@ const ELL = poly(0, 0, 400, 0, 400, 200, 200, 200, 200, 500, 0, 500);
 
 function scene(entities: EntityDef[]): SceneDefinition {
   return {
-    v: 3,
+    v: 4,
     game: "navtest",
     name: "nav",
     bounds: [0, 0, 1000, 600],

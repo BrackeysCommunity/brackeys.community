@@ -59,14 +59,14 @@ const STATE: ProjectState = {
 
 const MATERIAL = formatAssetDoc(materialKind, {
   kind: "material",
-  v: 1,
+  v: 2,
   description: "Bouncy rubber.",
   physics: { friction: 0.4, restitution: 0.9 },
 });
 
 const TABLE = JSON.stringify({
   kind: "data-table",
-  v: 1,
+  v: 2,
   table: "card",
   rows: [
     { id: "fireball", cost: 3 },
@@ -204,13 +204,13 @@ describe("asset docs", () => {
     expect(seedOf(MATERIAL)).toEqual(state);
     expect(assetDocMeta(state)).toEqual({
       kind: "material",
-      schemaVersion: 1,
+      schemaVersion: 2,
       layout: COLLAB_LAYOUT_VERSION,
       project: "demo",
       key: "rubber",
     });
     expect(assetDocValue(state)).toEqual(JSON.parse(MATERIAL));
-    expect(assetSchemaVersion(state)).toBe(1);
+    expect(assetSchemaVersion(state)).toBe(2);
   });
 
   it("snapshot as the canonical text and its SHA-256", async () => {

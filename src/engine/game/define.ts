@@ -28,6 +28,7 @@ import { SPRITE } from "./behaviors/sprite";
 import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
 import { DEFAULT_TIME } from "./defaults";
 import { ID_PATTERN, isAttachField, RESERVED_FIELDS } from "./fields";
+import { ACTION_KINDS, bindingProblems, declaredBindings, playersProblems } from "./input-bindings";
 import {
   BASE_REQUIRED_FIELDS,
   ENGINE_SETTING_KEYS,
@@ -43,6 +44,7 @@ import {
   ENGINE_REGISTRY_ID,
   ENGINE_RUN_RESULTS,
   PRIMITIVE_TYPES,
+  type ActionKind,
   type BasePrimitive,
   type BehaviorRules,
   type BulkKeyInfo,
@@ -316,7 +318,10 @@ export function placeableTypes(registry: Registry): EntityTypeName[] {
  * schemas, a grid field without a point `at`, a `time.rate` the clock can't run
  * (`tick-rate-invalid`), an unknown `time.kind` or a `time.catchUp.maxMs` that
  * isn't a whole number ≥ 0, world defaults the scene settings would refuse, and
- * `world.gridWalls` naming a type that is unknown or never loads.
+ * `world.gridWalls` naming a type that is unknown or never loads, and input
+ * the shell can't read: seats outside 1–8, a deadzone outside 0–1, an
+ * unknown action kind, and every binding `bindingProblems` refuses
+ * (`binding-unknown`, `player-unknown`).
  */
 export function createRegistry(
   game?: GameDefinition | null,
@@ -539,6 +544,24 @@ export function createRegistry(
     if (seenActions.has(a)) problem(`action "${a}" is declared twice`);
     seenActions.add(a);
   }
+  const players = game?.input?.players;
+  for (const p of players ? playersProblems(players) : [])
+    problem(`input.players: ${p.message} (${p.code})`);
+  const deadzone: unknown = game?.input?.deadzone;
+  if (deadzone !== undefined && !(typeof deadzone === "number" && deadzone >= 0 && deadzone <= 1))
+    problem(`input.deadzone must be a number from 0 to 1; got ${JSON.stringify(deadzone)}`);
+  const seats = players?.max ?? 1;
+  for (const a of game?.actions ?? []) {
+    const kind: unknown = a.kind ?? "button";
+    if (!ACTION_KINDS.includes(kind as ActionKind)) {
+      problem(`action "${a.action}" has unknown kind "${String(kind)}"`);
+      continue;
+    }
+    declaredBindings(a).forEach((binding, i) => {
+      for (const p of bindingProblems(binding, { kind: kind as ActionKind, max: seats }))
+        problem(`action "${a.action}" binding ${i}${p.path}: ${p.message} (${p.code})`);
+    });
+  }
 
   // collision groups
   const groupNames: string[] = [...ENGINE_COLLISION_GROUPS];
@@ -722,7 +745,7 @@ export function withProject(
     .map((e) => e.id)
     .sort();
   for (const id of ids) {
-    const def = projectMaterialOf(values.get(id));
+    const def = projectMaterialOf(values.get(id), registry);
     if (def) materials[id] = def;
   }
   const live = [...view.byId.values()];

@@ -16,6 +16,7 @@ import {
   type ToolHost,
 } from "../../../../editor/index";
 import { defineGame } from "../../../../game/index";
+import { pxPerMetreOf } from "../../../../game/units";
 import { createGame, type GameInstance, type RapierModule } from "../../../../index";
 import type { AssetEntry, AssetInfo, ProjectTreeNode } from "../../../../project/index";
 import { SCENE_FORMAT_VERSION, type SceneDefinition, type ShapeObj } from "../../../../scene/index";
@@ -47,8 +48,12 @@ vi.mock("pixi.js", async (importOriginal) => {
 });
 
 const registry = toolRegistry;
+const PPM = pxPerMetreOf(registry);
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
+/** One screen px per metre, over a scene 2 km wide, so the test tools' 40 m crates fit. */
 const VIEW: View = { width: 2000, height: 1200, scale: 1, tx: 0, ty: 0 };
+/** A 64 m grid, so a snapped point is easy to follow. */
+const GRID: SnapSettings = { ...DEFAULT_SNAP, step: 64 };
 const box = (cx: number, cy: number, hw: number, hh: number): ShapeObj => ({
   type: "box",
   cx,
@@ -97,7 +102,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-function setup(snap: SnapSettings = DEFAULT_SNAP) {
+function setup(snap: SnapSettings = GRID) {
   const session = createEditorSession({
     doc: sceneToDoc(yard(), { key: sequentialKeys("t") }),
     origin: ada,
@@ -204,8 +209,8 @@ describe("placement previews", () => {
     const drawn = box(128, 128, 64, 64);
     const ghost = svg().querySelector('[data-placement="ghost"]');
     expect(dOf(ghost)).toBe(shapePath(drawn));
-    expect(readout()?.textContent).toBe(readShapeSize(drawn));
-    expect(readout()?.textContent).toBe("W 128 H 128");
+    expect(readout()?.textContent).toBe(readShapeSize(drawn, PPM));
+    expect(readout()?.textContent).toBe("W 128 H 128 m");
     ptr("up", 200, 180);
     expect(svg().querySelector("[data-placement]")).toBeNull();
     expect(session.store.state.selection).toHaveLength(1);
@@ -218,7 +223,7 @@ describe("placement previews", () => {
     ptr("move", 64, 256);
     const ghost = svg().querySelector("[data-placement]");
     expect(ghost?.getAttribute("data-tone")).toBe("invalid");
-    expect(readout()?.textContent).toBe("R 192");
+    expect(readout()?.textContent).toBe("R 192 m");
     expect(document.querySelector("[data-ghost-reason]")?.textContent).toBe("Out of bounds");
   });
 
@@ -234,7 +239,7 @@ describe("placement previews", () => {
         [192, 64],
       ] as Pt[]),
     );
-    expect(readout()?.textContent).toBe("192, 64  L 128");
+    expect(readout()?.textContent).toBe("192, 64 m  L 128 m");
     click(200, 70);
     click(200, 200);
     ptr("move", 70, 60);
@@ -395,9 +400,9 @@ describe("drop previews", () => {
     act(() => void canvas.dispatchEvent(dragEvent("drop", transfer, screenOf([1000, 300]))));
     expect(layer().querySelector("[data-placement]")).toBeNull();
     const placed = session.getDoc().entities?.[0];
-    expect(placed?.at).toEqual([1024, 320]);
-    // The ghost was the dragged picture's size, centred where it landed.
-    expect(d).toBe(shapePath(box(1024, 320, 32, 24)));
+    expect(placed?.at).toEqual([1000, 300]);
+    // The ghost was the dragged picture's size (64 × 48 px at 100 px per metre), centred where it landed.
+    expect(d).toBe(shapePath(box(1000, 300, 0.32, 0.24)));
   });
 
   it("tints a drop that would be refused invalid and says why, then clears when the drag leaves", async () => {

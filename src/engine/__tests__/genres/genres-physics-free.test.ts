@@ -2,14 +2,20 @@
 import { afterAll, describe, expect, it, vi } from "vite-plus/test";
 
 import { defineGame } from "../../game/define";
+import type { GameDefinition } from "../../game/types";
+import type { InputScript } from "../../headless/playtest-types";
+import type { TickInput } from "../../input/stream";
+import { defaultSeed } from "../../runtime/seed";
 import { SCENE_FORMAT_VERSION } from "../../scene/types";
 import {
   loadRapier,
+  playTicks,
   probePhysics,
   probeRuns,
   probeTimeout,
   probesFrom,
   runGenreProbe,
+  tickInput,
   type GenreProbe,
   type ProbeVariant,
 } from "./harness";
@@ -25,7 +31,7 @@ const counter: GenreProbe<{ ticks: number }> = {
   game: defineGame<{ ticks: number }>({
     id: "counter",
     types: [],
-    actions: [{ action: "go", keys: ["space"], description: "Go." }],
+    actions: [{ action: "go", keys: [" "], description: "Go." }],
     world: { physics: "none" },
     play: {
       results: ["won"],
@@ -40,8 +46,8 @@ const counter: GenreProbe<{ ticks: number }> = {
     v: SCENE_FORMAT_VERSION,
     name: "counter",
     game: "counter",
-    bounds: [0, 0, 200, 200],
-    entities: [{ id: "start", type: "marker", at: [20, 20], tags: ["spawn"] }],
+    bounds: [0, 0, 2, 2],
+    entities: [{ id: "start", type: "marker", at: [0.2, 0.2], tags: ["spawn"] }],
   },
   script: { v: 1, steps: [{ hold: ["go"], for: 4 }, { wait: 20 }] },
   expect: { result: "won", maxTicks: 11 },
@@ -50,6 +56,104 @@ const counter: GenreProbe<{ ticks: number }> = {
     { name: "rapier", settings: { physics: "rapier" } },
     { name: "seed-7", seed: 7 },
   ],
+};
+
+/** Two seats on vector sticks, each walking to x ≥ 1 m: the harness's v2 tracks check. */
+const seats: GenreProbe<{ x: number[] }> = {
+  id: "harness-seats",
+  rows: ["local-multiplayer"],
+  game: defineGame<{ x: number[] }>({
+    id: "seats",
+    types: [],
+    actions: [
+      {
+        action: "move",
+        kind: "vector",
+        bindings: [{ device: "pad", stick: "left" }],
+        description: "Move.",
+      },
+    ],
+    input: { players: { max: 2, join: "host" } },
+    world: { physics: "none" },
+    play: {
+      results: ["won"],
+      outcome: (s) => (s.snapshot.x.every((x) => x >= 1) ? { result: "won" } : null),
+    },
+    createRuntime: (ctx) => {
+      const x = [0, 0];
+      return {
+        beforeStep() {
+          for (const p of [0, 1])
+            x[p] = Math.round((x[p]! + ctx.input.vector("move", p).x / 10) * 1000) / 1000;
+        },
+        snapshot: () => ({ x: [...x] }),
+      };
+    },
+  }),
+  scene: {
+    v: SCENE_FORMAT_VERSION,
+    name: "seats",
+    game: "seats",
+    bounds: [0, 0, 4, 2],
+    entities: [{ id: "start", type: "marker", at: [0.5, 1], tags: ["spawn"] }],
+  },
+  script: {
+    v: 2,
+    players: 2,
+    tracks: [
+      { player: 0, steps: [{ set: { move: [1, 0] }, for: 12 }] },
+      { player: 1, steps: [{ join: "pad:0" }, { set: { move: [0.5, 0] }, for: 30 }] },
+    ],
+  },
+  expect: { result: "won", maxTicks: 22 },
+};
+
+type Taps = { taps: [tick: number, offset: number | null][] };
+
+const tapsGame = (subTick: boolean) =>
+  defineGame<Taps>({
+    id: "taps",
+    types: [],
+    actions: [{ action: "tap", bindings: [{ device: "key", code: "Space" }], description: "Tap." }],
+    input: { subTick },
+    world: { physics: "none" },
+    play: {
+      results: ["won"],
+      outcome: (s) => (s.snapshot.taps.length >= 3 ? { result: "won" } : null),
+    },
+    createRuntime: (ctx) => {
+      const taps: Taps["taps"] = [];
+      return {
+        beforeStep(_dt, actions) {
+          for (const a of actions)
+            if (a.action === "tap" && a.pressed) taps.push([ctx.tick, a.offset ?? null]);
+        },
+        snapshot: () => ({ taps: structuredClone(taps) }),
+      };
+    },
+  });
+
+const tap = (tick: number, offset: number, pressed = true) =>
+  tickInput(tick, { actions: [{ action: "tap", pressed, offset }] });
+
+/** Taps a script can't write: each lands partway into its tick. */
+const TAPS = [tap(2, 0.25), tap(3, 0, false), tap(6, 0.5), tap(7, 0, false), tap(9, 0.8)];
+const WAIT: InputScript = { v: 1, steps: [{ wait: 12 }] };
+
+const taps: GenreProbe<Taps> = {
+  id: "harness-taps",
+  rows: ["rhythm"],
+  game: tapsGame(true),
+  scene: {
+    v: SCENE_FORMAT_VERSION,
+    name: "taps",
+    game: "taps",
+    bounds: [0, 0, 2, 2],
+    entities: [{ id: "start", type: "marker", at: [0.2, 0.2], tags: ["spawn"] }],
+  },
+  script: WAIT,
+  ticks: TAPS,
+  expect: { result: "won", maxTicks: 10 },
 };
 
 const PROBES = probesFrom(
@@ -91,12 +195,67 @@ describe("physics-free genre runs never load Rapier", () => {
     "the harness plays and replays $name with rapier: null",
     async ({ name, variant }) => {
       const run = await expectPhysicsFree(counter as GenreProbe, name, variant);
-      expect(run.report.recording.engine.physics).toBe("none");
+      expect(run.report.recording.engine.physics).toBeNull();
       expect(run.digest).toMatch(/^[0-9a-f]{16}$/);
-      expect(run.report.recording.start.seed).toBe(variant?.seed);
-      expect(run.replay.recording.start.seed).toBe(variant?.seed);
+      const seed = variant?.seed ?? defaultSeed("counter", "counter");
+      expect(run.report.recording.seed).toBe(seed);
+      expect(run.replay.recording.seed).toBe(seed);
     },
   );
+
+  it("plays a two-track script, one seat per track, and replays it", async () => {
+    const run = await expectPhysicsFree(seats as GenreProbe, "default");
+    expect(run.report.final).toStrictEqual({ x: [2.1, 1] });
+    expect(run.report.ticks).toBe(21);
+    expect(run.report.recording.inputs).toHaveLength(2);
+    expect(run.report.recording.players.map((p) => p.devices)).toContainEqual(["pad:0"]);
+    const steps = run.report.steps
+      .map((s) => [s.player ?? 0, s.index, s.start])
+      .sort((a, b) => a[0]! - b[0]! || a[1]! - b[1]!);
+    expect(steps).toStrictEqual([
+      [0, 0, 0],
+      [1, 0, 0],
+      [1, 1, 1],
+    ]);
+  });
+
+  it("feeds tick inputs with sub-tick offsets, and the replay reproduces each", async () => {
+    const run = await expectPhysicsFree(taps as GenreProbe, "default");
+    const seen = [
+      [2, 0.25],
+      [6, 0.5],
+      [9, 0.8],
+    ];
+    expect(run.report.final).toStrictEqual({ taps: seen });
+    expect(run.replay.final).toStrictEqual({ taps: seen });
+    expect(run.report.recording.end).toBe(run.replay.recording.end);
+    expect(run.report.outcome).toMatchObject({ result: "won", tick: 9 });
+  });
+
+  it("ends tick inputs as script-end when the script's waits run out", async () => {
+    const short = {
+      ...taps,
+      script: { v: 2, tracks: [{ player: 0, steps: [{ wait: 2 }, { wait: 3 }] }] },
+      ticks: [tap(1, 0.5)],
+      expect: { result: "script-end" },
+    } as GenreProbe;
+    const run = await expectPhysicsFree(short, "short");
+    expect(run.report.ticks).toBe(5);
+    expect(run.report.final).toStrictEqual({ taps: [[1, 0.5]] });
+  });
+
+  it("refuses an offset the game wouldn't record, a slot named twice or past the waits, and steps", () => {
+    const run =
+      (game: GameDefinition, ticks: TickInput[], script: InputScript = WAIT) =>
+      () =>
+        playTicks({ rapier: null, game, scene: taps.scene, script, ticks });
+    expect(run(tapsGame(false), TAPS)).toThrow(/input\.subTick/);
+    expect(run(tapsGame(true), [tap(1, 0.5), tap(1, 0.6)])).toThrow(/slot 1 twice/);
+    expect(run(tapsGame(true), [tap(12, 0.5)])).toThrow(/slot 12, outside the script's 12/);
+    expect(run(tapsGame(true), TAPS, { v: 1, steps: [{ press: "tap" }] })).toThrow(
+      /only wait steps/,
+    );
+  });
 
   for (const probe of PROBES) {
     const runs = physicsFree(probe);

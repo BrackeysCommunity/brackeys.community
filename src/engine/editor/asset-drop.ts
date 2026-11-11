@@ -1,5 +1,6 @@
 import type { SpriteAssetLookup } from "../game/behaviors/sprite";
 import type { Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import type { AssetInfo } from "../project/asset-info";
 import type { ATLAS_KIND } from "../project/kinds/atlas";
 import type { TEXTURE_KIND } from "../project/kinds/texture";
@@ -23,6 +24,7 @@ import {
   type SceneIssue,
 } from "../scene/types";
 import type { ShapeObj } from "../scene/types";
+import { snapToPixel } from "../scene/units";
 import { pasteFragment, type PasteResult } from "./clipboard";
 import { boundsCheck } from "./placement";
 import { marksBounds, outlinesOfRef, type OutlineMarks } from "./tool-host";
@@ -119,25 +121,28 @@ export function dropBatch(
 
 export type DropOptions = Parameters<typeof dropBatch>[2];
 
-/** The asset's size, or 32 px square, centred on `at`: a drop with nothing else to show. */
-function assetBox(drop: AssetDrop, at: Pt): ShapeObj {
+/**
+ * The asset's size (texture px, one world px each), or 32 px square, in
+ * metres and centred on `at`: a drop with nothing else to show.
+ */
+function assetBox(drop: AssetDrop, at: Pt, pxPerMetre: number): ShapeObj {
   const [w, h] = drop.info.size ?? [32, 32];
   return {
     type: "box",
-    cx: Math.round(at[0]),
-    cy: Math.round(at[1]),
-    hw: w / 2,
-    hh: h / 2,
+    cx: snapToPixel(at[0], pxPerMetre),
+    cy: snapToPixel(at[1], pxPerMetre),
+    hw: w / 2 / pxPerMetre,
+    hh: h / 2 / pxPerMetre,
     rotDeg: 0,
   };
 }
 
-const refused = (drop: AssetDrop, at: Pt, reason: string): DropPreview => ({
-  ghosts: [{ shape: assetBox(drop, at), valid: false, reason }],
+const refused = (drop: AssetDrop, at: Pt, reason: string, pxPerMetre: number): DropPreview => ({
+  ghosts: [{ shape: assetBox(drop, at, pxPerMetre), valid: false, reason }],
 });
 
 /** World px around a drop of points only, so its invalid ghost has a size. */
-const POINT_PAD = 8;
+const POINT_PAD_PX = 8;
 
 /** What dropping an asset here would place, as overlay ghosts. */
 export type DropPreview = Required<Pick<ToolOverlay, "ghosts">> & Pick<ToolOverlay, "points">;
@@ -156,9 +161,10 @@ export function dropPreview(
   at: Pt,
   opts: DropOptions & { asset?: SpriteAssetLookup },
 ): DropPreview {
+  const ppm = pxPerMetreOf(opts.registry);
   const result = dropBatch(drop, at, opts);
   if (!result.ok)
-    return refused(drop, at, result.issues[0]?.message ?? "This asset can't be placed");
+    return refused(drop, at, result.issues[0]?.message ?? "This asset can't be placed", ppm);
   // Only what the batch adds is drawn, so it is applied to the scene without its entities.
   const { def, registry, prefabs } = opts;
   const bare: SceneDefinition = { ...def, entities: [] };
@@ -170,7 +176,7 @@ export function dropPreview(
     validate: "none",
     ...(prefabs ? { prefabs } : {}),
   });
-  if (!applied.ok) return refused(drop, at, applied.issue.message);
+  if (!applied.ok) return refused(drop, at, applied.issue.message, ppm);
   const placed = resolveScene(applied.def, registry, applied.prefabs ?? prefabs);
   const asset: SpriteAssetLookup =
     opts.asset ?? ((id) => (id === drop.entry.id ? drop.info : undefined));
@@ -180,17 +186,18 @@ export function dropPreview(
   const shapes = marks.outlines.map((o) => o.shape);
   const points = marks.points.map((p) => p.at);
   const box = marksBounds(marks.outlines, marks.points);
-  if (!box) return { ghosts: [{ shape: assetBox(drop, at), valid: true }] };
+  if (!box) return { ghosts: [{ shape: assetBox(drop, at, ppm), valid: true }] };
   const check = boundsCheck(box, def);
   const tone = check.valid ? ("ghost" as const) : ("invalid" as const);
   if (shapes.length === 0 && !check.valid) {
     const { minX, minY, maxX, maxY } = box;
+    const pad = POINT_PAD_PX / ppm;
     shapes.push({
       type: "box",
       cx: (minX + maxX) / 2,
       cy: (minY + maxY) / 2,
-      hw: (maxX - minX) / 2 + POINT_PAD,
-      hh: (maxY - minY) / 2 + POINT_PAD,
+      hw: (maxX - minX) / 2 + pad,
+      hh: (maxY - minY) / 2 + pad,
       rotDeg: 0,
     });
   }

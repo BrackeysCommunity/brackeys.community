@@ -13,6 +13,7 @@ import {
   type TestGameSnapshot,
 } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineGame } from "../../game/define";
+import type { TickInput } from "../../input/stream";
 import { hashText } from "../../scene/hash";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { prefabLibrary } from "../../scene/prefab";
@@ -20,7 +21,7 @@ import type { Prefab, SceneDefinition } from "../../scene/types";
 import type { RapierModule } from "../../types";
 import { ENGINE_VERSION } from "../../version";
 import { compileInputScript } from "../compile-input-script";
-import { prepareRun, runLoop, slotWakes, startRun, STUCK_TICKS } from "../play-loop";
+import { prepareRun, runLoop, slotWakes, startRun, STUCK_TICKS, tickWakes } from "../play-loop";
 import { runPlaytest } from "../playtest";
 import type {
   InputEdge,
@@ -68,7 +69,7 @@ describe("runPlaytest", () => {
     const r = report(play(toGoal));
     expect(r.outcome).toMatchObject({ result: "won", cause: "reached the goal", entityId: "zone" });
     expect(r.outcome.tick).toBe(r.ticks - 1);
-    expect(r.outcome.at!.x).toBeGreaterThan(800);
+    expect(r.outcome.at!.x).toBeGreaterThan(8);
     expect(r.sceneHash).toMatch(/^[0-9a-f]{16}$/);
     expect(r.configHash).toMatch(/^[0-9a-f]{16}$/);
     expect(r.tickRate).toBe(60);
@@ -78,6 +79,12 @@ describe("runPlaytest", () => {
     expect(r.stepsReached).toBe(1);
     expect(r.steps).toEqual([{ index: 0, start: 0, ticks: r.ticks, end: "until" }]);
     expect(r.inputs).toEqual([[0, "right", 1]]);
+    expect(r.stream).toEqual({
+      actions: ["right"],
+      commands: [],
+      inputs: [[[0, "b", 0, 1]]],
+      system: [],
+    });
     expect(r.final!.position.x).toBeCloseTo(r.outcome.at!.x);
     expect(r.trail.every).toBe(4);
     expect(r.trail.pts).toHaveLength(Math.ceil(r.ticks / 4));
@@ -103,7 +110,7 @@ describe("runPlaytest", () => {
     const r = report(play({ v: 1, steps: [{ hold: ["left"], for: 1000 }] }));
     expect(r.outcome.result).toBe("stuck");
     expect(r.outcome.cause).toContain("left");
-    // The wall is 240px away: about 48 ticks of walking, then the stuck window.
+    // The wall is 2.4 m away: about 48 ticks of walking, then the stuck window.
     expect(r.ticks).toBeGreaterThan(STUCK_TICKS);
     expect(r.ticks).toBeLessThan(48 + STUCK_TICKS + 20);
     expect(r.steps).toEqual([{ index: 0, start: 0, ticks: r.ticks, end: "run" }]);
@@ -125,8 +132,8 @@ describe("runPlaytest", () => {
         steps: [
           { hold: ["right"], until: { tick: 30 } },
           { wait: 10 },
-          { hold: ["right"], until: { past: 500 } },
-          { hold: ["left"], until: { past: 5000 }, max: 20 },
+          { hold: ["right"], until: { past: 5 } },
+          { hold: ["left"], until: { past: 50 }, max: 20 },
         ],
       }),
     );
@@ -198,20 +205,20 @@ describe("runPlaytest", () => {
   });
 
   it("plays from `at`, cast onto the floor with the game's spawn shape", () => {
-    const r = report(play({ v: 1, at: [600, 500], steps: [{ wait: 5 }] }));
-    expect(r.final!.position.x).toBeCloseTo(600, 0);
-    expect(r.final!.position.y).toBeCloseTo(940, 0);
+    const r = report(play({ v: 1, at: [6, 5], steps: [{ wait: 5 }] }));
+    expect(r.final!.position.x).toBeCloseTo(6, 2);
+    expect(r.final!.position.y).toBeCloseTo(9.4, 2);
     const walked = report(
-      play({ v: 1, at: [600, 500], steps: [{ hold: ["right"], until: { event: GOAL_EVENT } }] }),
+      play({ v: 1, at: [6, 5], steps: [{ hold: ["right"], until: { event: GOAL_EVENT } }] }),
     );
     const fromSpawn = report(play(toGoal));
     expect(walked.outcome.result).toBe("won");
     expect(walked.ticks).toBeLessThan(fromSpawn.ticks);
-    expect(walked.ticks).toBeCloseTo(((860 - 600 - 20) / AVATAR_SPEED) * 60, -1);
+    expect(walked.ticks).toBeCloseTo(((8.6 - 6 - 0.2) / AVATAR_SPEED) * 60, -1);
   });
 
   it("blocks a start inside a solid, a bad script, the wrong scene and a scene with errors", () => {
-    const inside = blocked(play({ v: 1, at: [1000, 975], steps: [{ wait: 1 }] }));
+    const inside = blocked(play({ v: 1, at: [10, 9.75], steps: [{ wait: 1 }] }));
     expect(inside.stage).toBe("load");
     expect(inside.load).toMatchObject({ ok: false, reason: "spawn-blocked" });
 
@@ -237,7 +244,7 @@ describe("runPlaytest", () => {
     const off = report(
       play({ v: 1, game: { push: false }, steps: [{ press: "push" }, { wait: 10 }] }),
     );
-    expect(pushed.final!.position.y).toBeLessThan(off.final!.position.y - 1);
+    expect(pushed.final!.position.y).toBeLessThan(off.final!.position.y - 0.01);
   });
 
   it("runs without a game, with no focus, trail or snapshot", () => {
@@ -348,7 +355,7 @@ describe("runPlaytest on the game's clock", () => {
     expect(r.slots).toBe(31);
     expect(r.steps[1]).toEqual({ index: 1, start: 1, ticks: 30, end: "done" });
     expect(r.tickRate).toBe(30);
-    expect(r.recording.tickRate).toBe(30);
+    expect(r.recording.time).toEqual({ kind: "fixed", rate: 30 });
     expect(r.configHash).not.toBe(report(play({ v: 1, steps: [{ wait: 1 }] })).configHash);
   });
 
@@ -367,7 +374,7 @@ describe("runPlaytest on the game's clock", () => {
     const r = report(play(toGoal));
     expect(r.tickRate).toBe(60);
     expect(r.slots).toBe(r.ticks);
-    expect(r.recording.tickRate).toBe(60);
+    expect(r.recording.time).toEqual({ kind: "fixed", rate: 60 });
     expect(r.configHash).toBe(
       hashText(
         JSON.stringify({
@@ -493,6 +500,106 @@ describe("runLoop", () => {
     expect(slotWakes({ kind: "event" }, [], [])).toBe(false);
     expect(slotWakes({ kind: "turns" }, [[0, "a", 1]], [])).toBe(false);
     expect(slotWakes({ kind: "turns" }, [], [{ name: "@elapsed" }])).toBe(true);
+  });
+
+  it("judges waking from the tick's whole input, as the shell's gate does", () => {
+    const tick = (input: Partial<TickInput>): TickInput => ({
+      tick: 0,
+      actions: [],
+      commands: [],
+      pointers: [],
+      joins: [],
+      ...input,
+    });
+    const at = (x: number, buttons = 0) => ({ x, y: 1, buttons, over: true });
+    const event = { kind: "event" as const, wakeOnPointerMove: false };
+    const moves = { ...event, wakeOnPointerMove: true };
+    const turnsClock = { kind: "turns" as const, wakeOnPointerMove: true };
+    const stick = { action: "move", pressed: true, x: 0.5, y: 0, tick: 0, timestamp: 0 };
+    expect(tickWakes({ kind: "fixed", wakeOnPointerMove: false }, tick({}))).toBe(true);
+    expect(tickWakes(event, tick({}))).toBe(false);
+    expect(tickWakes(event, tick({ actions: [stick] }))).toBe(true);
+    expect(tickWakes(turnsClock, tick({ actions: [stick] }))).toBe(false);
+    expect(tickWakes(turnsClock, tick({ commands: [{ name: "go" }] }))).toBe(true);
+    expect(tickWakes(event, tick({ pointers: [at(2, 1)] }), [at(2)])).toBe(true);
+    expect(tickWakes(event, tick({ pointers: [at(3)] }), [at(2)])).toBe(false);
+    expect(tickWakes(moves, tick({ pointers: [at(3)] }), [at(2)])).toBe(true);
+    expect(tickWakes(moves, tick({ pointers: [at(2)] }), [at(2)])).toBe(false);
+    expect(tickWakes(event, tick({ joins: [{ player: 1, device: "pad:0", joined: true }] }))).toBe(
+      false,
+    );
+  });
+
+  it("carries a turns game's skipped TickInputs to the tick a command wakes, seats merged in order", () => {
+    const prepared = prepareRun(yard, turnsRegistry);
+    if (!prepared.ok) throw new Error("blocked");
+    const started = startRun({
+      rapier,
+      game: turns,
+      registry: turnsRegistry,
+      scene: prepared.scene,
+      play: {},
+    });
+    if (!started.ok) throw new Error("load failed");
+    const stepped: TickInput[] = [];
+    const press = (action: string, player?: number) => ({
+      action,
+      pressed: true,
+      tick: 0,
+      timestamp: 0,
+      ...(player === undefined ? {} : { player }),
+    });
+    const slots: Record<number, Partial<TickInput>> = {
+      1: {
+        actions: [press("left", 1)],
+        pointers: [{ x: 1, y: 2, buttons: 0, over: true }],
+        joins: [{ player: 1, device: "pad:0", joined: true }],
+      },
+      2: { actions: [press("right")], pointers: [{ x: 1.23456, y: 2, buttons: 0, over: true }] },
+      3: {
+        commands: [
+          { name: NUDGE, args: { dx: 1 }, player: 1 },
+          { name: "@elapsed", args: { ms: 5 } },
+        ],
+      },
+    };
+    try {
+      runLoop({
+        runtime: started.runtime,
+        game: turns,
+        maxTicks: 100,
+        maxSlots: 6,
+        input: {
+          done: () => false,
+          tick: (slot) => ({
+            tick: slot,
+            actions: [],
+            commands: [],
+            pointers: [],
+            joins: [],
+            ...slots[slot],
+          }),
+        },
+        onTick: (_state, _focus, _edges, _commands, input) => stepped.push(input),
+      });
+      expect(stepped).toEqual([
+        {
+          tick: 0,
+          actions: [
+            { action: "right", pressed: true, tick: 0, timestamp: 0 },
+            { action: "left", pressed: true, tick: 0, timestamp: 0, player: 1 },
+          ],
+          commands: [
+            { name: "@elapsed", args: { ms: 5 } },
+            { name: NUDGE, args: { dx: 1 }, player: 1 },
+          ],
+          pointers: [{ x: 1.2346, y: 2, buttons: 0, over: true }],
+          joins: [{ player: 1, device: "pad:0", joined: true }],
+        },
+      ]);
+    } finally {
+      started.runtime.destroy();
+    }
   });
 });
 

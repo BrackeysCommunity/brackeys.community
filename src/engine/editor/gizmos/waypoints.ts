@@ -9,11 +9,17 @@ import type { GizmoTarget } from "./target";
 /** The fewest waypoints a path keeps. */
 export const MIN_WAYPOINTS = 2;
 
-function pathEdit(t: GizmoTarget, pts: Pt[], label: string, readout: string): GizmoEdit {
-  const next = pts.map(roundPt);
+function pathEdit(
+  t: GizmoTarget,
+  pts: Pt[],
+  pxPerMetre: number,
+  label: string,
+  readout: string,
+): GizmoEdit {
+  const next = pts.map((p) => roundPt(p, pxPerMetre));
   const first = next[0]!;
   return {
-    batch: pathBatch(t, next, label),
+    batch: pathBatch(t, next, pxPerMetre, label),
     readout,
     pts: next,
     // The shape rides the first waypoint, so it follows when that one moves.
@@ -33,8 +39,12 @@ export function dragWaypoint(
   if (!t.path || !start) return null;
   const { at, guides } = snapDraggedPoint(t, start, from, to, opts);
   const pts = t.path.pts.map((p, i) => (i === index ? at : p));
-  const moved = roundPt([at[0] - start[0], at[1] - start[1]]);
-  return { ...pathEdit(t, pts, `Move ${t.ref} waypoint ${index}`, readDelta(moved)), guides };
+  const ppm = opts.pxPerMetre;
+  const moved = roundPt([at[0] - start[0], at[1] - start[1]], ppm);
+  return {
+    ...pathEdit(t, pts, ppm, `Move ${t.ref} waypoint ${index}`, readDelta(moved, ppm)),
+    guides,
+  };
 }
 
 /**
@@ -68,13 +78,23 @@ export function dragInsertWaypoint(
   const next = [...pts];
   next.splice(segment + 1, 0, at);
   return {
-    ...pathEdit(t, next, `Add a waypoint to ${t.ref}`, readPoint(roundPt(at))),
+    ...pathEdit(
+      t,
+      next,
+      opts.pxPerMetre,
+      `Add a waypoint to ${t.ref}`,
+      readPoint(roundPt(at, opts.pxPerMetre), opts.pxPerMetre),
+    ),
     guides,
   };
 }
 
 /** Deleting waypoints `indices`; `null` (refused) when fewer than 2 would be left. */
-export function removeWaypoints(t: GizmoTarget, indices: readonly number[]): GizmoEdit | null {
+export function removeWaypoints(
+  t: GizmoTarget,
+  indices: readonly number[],
+  pxPerMetre: number,
+): GizmoEdit | null {
   const pts = t.path?.pts;
   if (!pts) return null;
   const drop = new Set(indices);
@@ -84,6 +104,7 @@ export function removeWaypoints(t: GizmoTarget, indices: readonly number[]): Giz
   return pathEdit(
     t,
     next,
+    pxPerMetre,
     `Delete ${n === 1 ? "a waypoint" : `${n} waypoints`} of ${t.ref}`,
     `${next.length} waypoints`,
   );

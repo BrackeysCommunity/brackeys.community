@@ -1,10 +1,11 @@
-import type { SceneValidator } from "@jams/engine/game";
+import { pxPerMetreOf, type SceneValidator } from "@jams/engine/game";
 import {
   aabb,
   bulkEntries,
   jsonPointer,
   makeIssue,
   parseShape,
+  roundLength,
   type EntityDef,
   type Pt,
   type SceneDefinition,
@@ -12,7 +13,7 @@ import {
 } from "@jams/engine/scene";
 
 import { PLAYER_HEIGHT, PLAYER_WIDTH } from "./entities/player";
-import { PLATFORMER_ISSUES, type PlatformerIssueCode } from "./issues";
+import { KILL_PLANE_HALF_HEIGHT, PLATFORMER_ISSUES, type PlatformerIssueCode } from "./issues";
 import { TYPE } from "./type-names";
 
 export type Spawn = { ref: string; at: Pt; path: string };
@@ -107,7 +108,7 @@ const windRotation: SceneValidator = (def) =>
       });
     });
 
-const playability: SceneValidator = (def) => {
+const playability: SceneValidator = (def, { registry }) => {
   const out: SceneIssue[] = [];
   const entities = live(def).map(([e]) => e);
   if (!entities.some((e) => e.type === TYPE.goal || e.type === TYPE.exit)) {
@@ -131,7 +132,10 @@ const playability: SceneValidator = (def) => {
     let id = "kill-plane";
     for (let n = 2; ids.has(id); n++) id = `kill-plane-${n}`;
     const maxY = def.bounds[3];
-    const cx = Math.floor((minX + maxX) / 2);
+    // On a whole world px at or left of the middle, so the half-width reaches both edges.
+    const ppm = pxPerMetreOf(registry);
+    const cx = roundLength(Math.floor(((minX + maxX) / 2) * ppm) / ppm);
+    const hh = KILL_PLANE_HALF_HEIGHT;
     out.push(
       platformerIssue("platformer/no-kill-plane", {
         message: "no hazard spans the bounds' full width, so a fall never ends",
@@ -141,7 +145,11 @@ const playability: SceneValidator = (def) => {
           ops: [
             {
               op: "add",
-              entity: { id, type: TYPE.hazard, shape: ["box", cx, maxY - 8, maxX - cx, 8] },
+              entity: {
+                id,
+                type: TYPE.hazard,
+                shape: ["box", cx, roundLength(maxY - hh), roundLength(maxX - cx), hh],
+              },
             },
           ],
         },

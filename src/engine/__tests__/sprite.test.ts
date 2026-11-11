@@ -5,7 +5,12 @@ import type { SpriteVisual } from "../context";
 import { LIFETIME } from "../game/behaviors/lifetime";
 import { OCCUPANT } from "../game/behaviors/occupant";
 import { SPRITE, spriteAssets, spriteGeometry, spriteOffset } from "../game/behaviors/sprite";
-import { createRegistry, ENGINE_BEHAVIORS, type ProjectMaterialDef } from "../game/define";
+import {
+  createRegistry,
+  defineGame,
+  ENGINE_BEHAVIORS,
+  type ProjectMaterialDef,
+} from "../game/define";
 import { PRIMITIVES } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { assetInfo } from "../project/asset-info";
@@ -38,6 +43,12 @@ const entry = (id: string, kind: string, extra: Partial<AssetEntry> = {}): Asset
   created: { at: 0, by: "t" },
   ...extra,
 });
+
+/** Within a micrometre: frame px over px per metre needn't be exact in binary. */
+function expectNear(actual: readonly number[] | undefined, expected: readonly number[]): void {
+  expect(actual).toHaveLength(expected.length);
+  expected.forEach((v, i) => expect(actual![i]).toBeCloseTo(v, 6));
+}
 
 /** The test project, each entry's fields overridden by `over[id]`. */
 const viewOf = (over: Record<string, Partial<AssetEntry>> = {}) =>
@@ -95,7 +106,7 @@ function project(registry: Registry): ProjectRuntimeView {
 function scene(entities: RuntimeEntity[]): ExpandedScene {
   return {
     name: "t",
-    bounds: [-1000, -1000, 1000, 1000],
+    bounds: [-10, -10, 10, 10],
     settings: {
       gravity: [0, 0],
       physics: "rapier",
@@ -107,14 +118,30 @@ function scene(entities: RuntimeEntity[]): ExpandedScene {
 }
 
 const marker = (id: string, sprite: Record<string, unknown>, over: Partial<RuntimeEntity> = {}) =>
-  ({ id, type: "marker", at: [100, 200], behaviors: { sprite }, ...over }) as RuntimeEntity;
+  ({ id, type: "marker", at: [1, 2], behaviors: { sprite }, ...over }) as RuntimeEntity;
+
+/** A gameless-like game drawn at `lengthUnit` px per metre. */
+const gameAt = (lengthUnit: number) =>
+  defineGame({
+    id: `px-${lengthUnit}`,
+    types: [],
+    actions: [],
+    world: { lengthUnit },
+    createRuntime: () => ({ snapshot: () => null }),
+  });
 
 function loaded(
   entities: RuntimeEntity[],
-  opts: { sprites?: boolean; sampling?: "linear" | "nearest"; withProject?: boolean } = {},
+  opts: {
+    sprites?: boolean;
+    sampling?: "linear" | "nearest";
+    withProject?: boolean;
+    lengthUnit?: number;
+  } = {},
 ) {
   const rec = recordingView({ sprites: opts.sprites ?? true });
-  const registry = createRegistry(null, { materials: { glass: GLASS, paint: PAINT } });
+  const game = opts.lengthUnit === undefined ? null : gameAt(opts.lengthUnit);
+  const registry = createRegistry(game, { materials: { glass: GLASS, paint: PAINT } });
   const rt = createSceneRuntime({
     rapier,
     view: rec.view,
@@ -162,26 +189,40 @@ describe("the sprite's visual", () => {
     const sid = spriteViewId("pic");
     expect(visualOf(live, "pic")).toEqual({
       texture: TEX,
-      size: [80, 40],
+      // 40 × 20 px at 100 px per metre, times the scale.
+      size: [0.8, 0.4],
       anchor: [0.5, 1],
       nineSlice: [1, 2, 3, 4],
       sampling: "nearest",
       fallback: {
-        shape: { type: "box", cx: 0, cy: -20, hw: 40, hh: 20, rotDeg: 0 },
+        shape: { type: "box", cx: 0, cy: -0.2, hw: 0.4, hh: 0.2, rotDeg: 0 },
         style: PRIMITIVES.marker.style ?? {},
       },
     });
-    expect(live.get(sid)).toMatchObject({ layer: 10, depth: 3, pose: { x: 100, y: 200, rot: 0 } });
+    expect(live.get(sid)).toMatchObject({ layer: 10, depth: 3, pose: { x: 1, y: 2, rot: 0 } });
     expect(callsFor(sid, "pose")).toEqual([
-      { op: "pose", id: sid, x: 100, y: 200, rot: 0, snap: true },
+      { op: "pose", id: sid, x: 1, y: 2, rot: 0, snap: true },
     ]);
+  });
+
+  it("sizes a frame by the game's px per metre: 40 × 20 px is 1.25 × 0.625 m at 32", () => {
+    const { live } = loaded(
+      [marker("pic", { asset: "crate" }), marker("a", { asset: "hero", frame: "idle-0" })],
+      {
+        lengthUnit: 32,
+      },
+    );
+    expectNear(visualOf(live, "pic").size, [1.25, 0.625]);
+    expectNear(visualOf(live, "a").size, [0.5, 0.75]);
+    // Texture px and insets stay px.
+    expect(visualOf(live, "pic").nineSlice).toEqual([1, 2, 3, 4]);
   });
 
   it("takes the block's fields over the info's", () => {
     const { live } = loaded([
       marker("pic", {
         asset: "crate",
-        size: [10, 12],
+        size: [0.1, 0.12],
         anchor: [0, 0],
         nineSlice: [0, 0, 0, 0],
         alpha: 0.5,
@@ -190,13 +231,13 @@ describe("the sprite's visual", () => {
       }),
     ]);
     expect(visualOf(live, "pic")).toMatchObject({
-      size: [10, 12],
+      size: [0.1, 0.12],
       anchor: [0, 0],
       nineSlice: [0, 0, 0, 0],
       alpha: 0.5,
       tile: true,
       flipY: true,
-      fallback: { shape: { type: "box", cx: 5, cy: -6, hw: 5, hh: 6 } },
+      fallback: { shape: { type: "box", cx: 0.05, cy: -0.06, hw: 0.05, hh: 0.06 } },
     });
   });
 
@@ -205,7 +246,11 @@ describe("the sprite's visual", () => {
       marker("a", { asset: "hero", frame: "idle-0" }),
       marker("b", { asset: "hero", frame: "run-0" }),
     ]);
-    expect(visualOf(live, "a")).toMatchObject({ texture: SHEET, size: [16, 24], anchor: [0.5, 1] });
+    expect(visualOf(live, "a")).toMatchObject({
+      texture: SHEET,
+      size: [0.16, 0.24],
+      anchor: [0.5, 1],
+    });
     expect(visualOf(live, "b")).toMatchObject({ texture: SHEET, anchor: [0.5, 0.5] });
     expect(visualOf(live, "a").nineSlice).toBeUndefined();
   });
@@ -222,7 +267,7 @@ describe("the sprite's visual", () => {
     for (const id of ["none", "frameless", "unknown"]) {
       expect(visualOf(live, id)).toMatchObject({
         texture: null,
-        size: [32, 32],
+        size: [0.32, 0.32],
         anchor: [0.5, 0.5],
         sampling: "nearest",
       });
@@ -241,7 +286,7 @@ describe("the sprite's visual", () => {
   });
 
   it("draws where its entity's own visuals would, falling back to its type's default layer", () => {
-    const box = { type: "box", cx: 0, cy: 0, hw: 10, hh: 10, rotDeg: 0 } as const;
+    const box = { type: "box", cx: 0, cy: 0, hw: 0.1, hh: 0.1, rotDeg: 0 } as const;
     const wall = (id: string, layer?: string, sprite?: Record<string, unknown>): RuntimeEntity => ({
       id,
       type: "solid",
@@ -277,7 +322,7 @@ describe("tint and blend", () => {
   ): RuntimeEntity => ({
     id,
     type: "solid",
-    shape: { type: "box", cx: 0, cy: 0, hw: 10, hh: 10, rotDeg: 0 },
+    shape: { type: "box", cx: 0, cy: 0, hw: 0.1, hh: 0.1, rotDeg: 0 },
     ...(material ? { material } : {}),
     behaviors: { sprite },
   });
@@ -313,51 +358,60 @@ describe("tint and blend", () => {
 describe("transforms", () => {
   it("a flipped instance draws a mirrored sprite, its offset mirrored", () => {
     const { live } = loaded([
-      marker("flip", { asset: "crate", offset: [10, -4] }, { transform: { turn: 0, flip: true } }),
+      marker(
+        "flip",
+        { asset: "crate", offset: [0.1, -0.04] },
+        { transform: { turn: 0, flip: true } },
+      ),
       marker("both", { asset: "crate", flipX: true }, { transform: { turn: 0, flip: true } }),
-      marker("plain", { asset: "crate", offset: [10, -4], anchor: [0, 0] }),
+      marker("plain", { asset: "crate", offset: [0.1, -0.04], anchor: [0, 0] }),
     ]);
+    const xyr = (id: string) => {
+      const { x, y, rot } = live.get(spriteViewId(id))!.pose;
+      return [x, y, rot];
+    };
     expect(visualOf(live, "flip").flipX).toBe(true);
-    expect(live.get(spriteViewId("flip"))?.pose).toEqual({ x: 90, y: 196, rot: 0 });
+    expectNear(xyr("flip"), [0.9, 1.96, 0]);
     expect(visualOf(live, "both").flipX).toBeUndefined();
     expect(visualOf(live, "plain").flipX).toBeUndefined();
-    expect(live.get(spriteViewId("plain"))?.pose).toEqual({ x: 110, y: 196, rot: 0 });
+    expectNear(xyr("plain"), [1.1, 1.96, 0]);
   });
 
   it("a turned box draws a turned sprite, its offset turned", () => {
     const turned: RuntimeEntity = {
       id: "wall",
       type: "solid",
-      shape: { type: "box", cx: 50, cy: 60, hw: 10, hh: 20, rotDeg: 90 },
+      shape: { type: "box", cx: 0.5, cy: 0.6, hw: 0.1, hh: 0.2, rotDeg: 90 },
       transform: { turn: 1, flip: false },
-      behaviors: { sprite: { asset: "crate", offset: [10, 0] } },
+      behaviors: { sprite: { asset: "crate", offset: [0.1, 0] } },
     };
     const { live } = loaded([turned]);
     const pose = live.get(spriteViewId("wall"))!.pose;
     expect(pose.rot).toBeCloseTo(Math.PI / 2);
-    expect(pose.x).toBeCloseTo(50);
-    expect(pose.y).toBeCloseTo(70);
+    expect(pose.x).toBeCloseTo(0.5, 6);
+    expect(pose.y).toBeCloseTo(0.7, 6);
   });
 
   it("with turn: false, stays upright and turns its offset by the quarter turns only", () => {
     const { live } = loaded([
       marker(
         "up",
-        { asset: "crate", offset: [10, 0], turn: false },
+        { asset: "crate", offset: [0.1, 0], turn: false },
         { transform: { turn: 1, flip: false } },
       ),
     ]);
-    expect(live.get(spriteViewId("up"))?.pose).toEqual({ x: 100, y: 210, rot: 0 });
+    const up = live.get(spriteViewId("up"))!.pose;
+    expectNear([up.x, up.y, up.rot], [1, 2.1, 0]);
   });
 
   it("a sprite on a prop rotates with its body", () => {
     const prop: RuntimeEntity = {
       id: "crate",
       type: "prop",
-      shape: { type: "box", cx: 0, cy: 0, hw: 10, hh: 10, rotDeg: 0 },
+      shape: { type: "box", cx: 0, cy: 0, hw: 0.1, hh: 0.1, rotDeg: 0 },
       density: 1,
       restitution: 0,
-      behaviors: { sprite: { asset: "crate", offset: [0, -10] } },
+      behaviors: { sprite: { asset: "crate", offset: [0, -0.1] } },
     };
     const { rt, live, calls } = loaded([prop]);
     rt.ctx.physics!.world.forEachRigidBody((b) => {
@@ -368,8 +422,8 @@ describe("transforms", () => {
     expect(body.rot).toBeGreaterThan(0.3);
     const pose = live.get(spriteViewId("crate"))!.pose;
     expect(pose.rot).toBeCloseTo(body.rot);
-    expect(pose.x).toBeCloseTo(body.x + 10 * Math.sin(body.rot));
-    expect(pose.y).toBeCloseTo(body.y - 10 * Math.cos(body.rot));
+    expect(pose.x).toBeCloseTo(body.x + 0.1 * Math.sin(body.rot), 6);
+    expect(pose.y).toBeCloseTo(body.y - 0.1 * Math.cos(body.rot), 6);
     expect(
       poseCalls(calls, "crate")
         .slice(1)
@@ -383,15 +437,15 @@ describe("posing", () => {
     const { rt, calls } = loaded([marker("pic", { asset: "crate" })]);
     rt.step(DT, []);
     expect(poseCalls(calls, "pic")).toHaveLength(1);
-    rt.ctx.poses.set("pic", 300, 300, 0, { snap: true });
+    rt.ctx.poses.set("pic", 3, 3, 0, { snap: true });
     rt.step(DT, []);
-    rt.ctx.poses.set("pic", 310, 300, 0);
+    rt.ctx.poses.set("pic", 3.1, 3, 0);
     rt.step(DT, []);
     rt.step(DT, []);
     expect(poseCalls(calls, "pic").map(({ x, snap }) => [x, snap])).toEqual([
-      [100, true],
-      [300, true],
-      [310, false],
+      [1, true],
+      [3, true],
+      [3.1, false],
     ]);
   });
 
@@ -401,7 +455,7 @@ describe("posing", () => {
     rt.update([marker("pic", { asset: "crate", tint: 0xabcdef })]);
     expect(callsFor(sid, "sprite")).toHaveLength(2);
     expect(visualOf(live, "pic").tint).toBe(0xabcdef);
-    rt.update([{ id: "pic", type: "marker", at: [100, 200] } as RuntimeEntity]);
+    rt.update([{ id: "pic", type: "marker", at: [1, 2] } as RuntimeEntity]);
     expect(live.has(sid)).toBe(false);
     rt.update([marker("pic", { asset: "crate" })]);
     expect(live.has(sid)).toBe(true);
@@ -412,10 +466,11 @@ describe("posing", () => {
 });
 
 describe("spriteGeometry", () => {
-  it("falls back from the block's size to the info's times scale to 32×32", () => {
+  it("falls back from the block's size to the info's px over px per metre times scale to 0.32 m", () => {
     expect(spriteGeometry({ size: [4, 6], scale: 3 }, { size: [10, 10] }).size).toEqual([4, 6]);
-    expect(spriteGeometry({ scale: 3 }, { size: [10, 20] }).size).toEqual([30, 60]);
-    expect(spriteGeometry({ scale: 3 }).size).toEqual([32, 32]);
+    expect(spriteGeometry({ scale: 3 }, { size: [10, 20] }).size).toEqual([0.3, 0.6]);
+    expectNear(spriteGeometry({ scale: 3 }, { size: [10, 20] }, 32).size, [0.9375, 1.875]);
+    expect(spriteGeometry({ scale: 3 }).size).toEqual([0.32, 0.32]);
   });
 
   it("anchors at the block's, else the pivot, else the centre, and mirrors its box with the flips", () => {
@@ -498,7 +553,7 @@ describe("hot reload", () => {
       crate: { sha256: NEW_TEX, meta: { format: "png", width: 50, height: 20 } },
     });
     rt.reloadAssets(runtimeView(next, new Map(), rt.ctx.registry), ["crate"]);
-    expect(visualOf(live, "pic")).toMatchObject({ texture: NEW_TEX, size: [50, 20] });
+    expect(visualOf(live, "pic")).toMatchObject({ texture: NEW_TEX, size: [0.5, 0.2] });
     expect(callsFor(spriteViewId("pic"), "sprite")).toHaveLength(2);
     expect(callsFor(spriteViewId("hero"), "sprite")).toHaveLength(1);
     expect(callsFor(spriteViewId("plain"), "sprite")).toHaveLength(1);
@@ -510,16 +565,16 @@ describe("hot reload", () => {
     const { rt, live, callsFor } = loaded([marker("hero", { asset: "hero", frame: "idle-0" })]);
     const next = viewOf({ sheet: { sha256: NEW_SHEET } });
     rt.reloadAssets(runtimeView(next, new Map(), rt.ctx.registry), ["sheet"]);
-    expect(visualOf(live, "hero")).toMatchObject({ texture: NEW_SHEET, size: [16, 24] });
+    expect(visualOf(live, "hero")).toMatchObject({ texture: NEW_SHEET, size: [0.16, 0.24] });
     expect(callsFor(spriteViewId("hero"), "sprite")).toHaveLength(2);
   });
 
   it("keeps an updated entity's latest block and pose", () => {
     const { rt, live } = loaded([marker("pic", { asset: "crate" })]);
-    rt.update([marker("pic", { asset: "crate", tint: 0x123456 }, { at: [10, 20] })]);
+    rt.update([marker("pic", { asset: "crate", tint: 0x123456 }, { at: [0.1, 0.2] })]);
     const next = viewOf({ crate: { sha256: NEW_TEX } });
     rt.reloadAssets(runtimeView(next, new Map(), rt.ctx.registry), ["crate"]);
     expect(visualOf(live, "pic")).toMatchObject({ texture: NEW_TEX, tint: 0x123456 });
-    expect(live.get(spriteViewId("pic"))?.pose).toMatchObject({ x: 10, y: 20 });
+    expect(live.get(spriteViewId("pic"))?.pose).toMatchObject({ x: 0.1, y: 0.2 });
   });
 });

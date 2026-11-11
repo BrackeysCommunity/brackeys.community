@@ -8,7 +8,7 @@ import type { SelectMode } from "./selection";
 /** Grid snapping as the editor's settings hold it; persisted per viewer by the host. */
 export type SnapSettings = {
   enabled: boolean;
-  /** World px between grid lines: 8, 16, 32, 64 or 128. */
+  /** Metres between grid lines, one of `SNAP_STEPS`. */
   step: number;
   /** Snap to other entities' edges, vertices and centres after the grid. */
   geometry: boolean;
@@ -16,8 +16,14 @@ export type SnapSettings = {
   angleDeg: number;
 };
 
-export const DEFAULT_SNAP: SnapSettings = { enabled: true, step: 64, geometry: true, angleDeg: 15 };
-export const SNAP_STEPS = [8, 16, 32, 64, 128] as const;
+export const DEFAULT_SNAP: SnapSettings = {
+  enabled: true,
+  step: 0.5,
+  geometry: true,
+  angleDeg: 15,
+};
+/** The grid steps in metres; each is whole world px at any px per metre divisible by 4. */
+export const SNAP_STEPS = [0.25, 0.5, 1, 2, 4] as const;
 
 /** One entry of the spatial index: a ref, its world AABB and what picking needs to know about it. */
 export type IndexEntry = {
@@ -104,7 +110,7 @@ export type ToolOverlay = {
   }[];
   /** Shapes about to be placed. */
   ghosts?: { shape: ShapeObj; style?: Style; valid: boolean; reason?: string }[];
-  /** The drag readout: `Δ 64, 0`, `W 160 H 16`, `37°`. */
+  /** The drag readout: `Δ 0.64, 0 m`, `W 1.6 H 0.16 m`, `37°`. */
   readout?: { at: Pt; text: string };
   /**
    * A fix the host may offer after a commit (a poly left concave offers
@@ -134,7 +140,7 @@ export type ToolModifiers = { shift: boolean; alt: boolean; mod: boolean };
 
 export type ToolPointerEvent = ToolModifiers & {
   type: "down" | "move" | "up" | "wheel";
-  /** World px under the pointer, unsnapped and unrounded. */
+  /** World metres under the pointer, unsnapped and unrounded. */
   world: Pt;
   button: number;
   deltaY: number;
@@ -167,7 +173,7 @@ export type EditorToolContext = {
   preview(batch: OpBatch | null): void;
   /** The resolved document as the current preview shows it; `null` with nothing previewed. */
   previewDoc?(): SceneDefinition | null;
-  /** Screen px per world px, for tolerances and handle sizes given in screen px. */
+  /** Screen px per metre, for tolerances and handle sizes given in screen px. */
   scale(): number;
   snap(): SnapSettings;
   /** Kept current with the doc by the host. */

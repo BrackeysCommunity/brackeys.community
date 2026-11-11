@@ -9,7 +9,7 @@ and edits them through a small command language (`SceneOp`) that also runs on
 a shared [Yjs](https://yjs.dev) document.
 
 This is 0.x. `./editor`, `./game` and `./headless` are `@experimental`: they
-may change in any 0.x minor. The scene format (`v: 3`), the issue codes, the
+may change in any 0.x minor. The scene format (`v: 4`, in metres), the issue codes, the
 ops and the JSON Schemas are versioned contracts (see
 [Versioning](#versioning)).
 
@@ -61,7 +61,7 @@ The JSON Schemas ship as files too: `@jams/engine/schemas/scene.schema.json`,
 `prefab.schema.json`, `fragment.schema.json`, `ops.schema.json`,
 `input-script.schema.json` and `recording.schema.json`, and the project's
 (`project`, `asset-sidecar`, `project-ops`, `material`, `game-settings`,
-`data-table`, `project-snapshot`), all under `@jams/engine/schemas/`.
+`data-table`, `input-map`, `project-snapshot`), all under `@jams/engine/schemas/`.
 
 ## Rapier is injected
 
@@ -79,6 +79,91 @@ Both flavours step a scene bit for bit alike; the engine's parity test checks
 it. A scene without physics never needs the module, and a host that passes
 a loader only pays for the wasm when a Rapier scene loads (see
 [Physics optional](#physics-optional)).
+
+## Units
+
+The simulation runs in metres: every length a scene, prefab, op, check,
+input script, material, setting or table holds is metres, every speed m/s
+and gravity m/s², and so is everything game code reads or writes through
+`ctx` (poses, velocities, casts and space queries, motion, grids, nav,
+spawn positions, contact points), recordings and saves. y is down. Each
+game says how many pixels a metre is drawn at, `GameDefinition.world.lengthUnit`
+(`DEFAULT_LENGTH_UNIT`, 100): it maps world metres to the resolution's
+virtual px for the camera and the drawing side, and reaches nothing else,
+so how a game draws never changes a run or a digest. `createRegistry`
+throws on one that isn't a positive finite number. Rapier keeps its own
+default length unit of one metre, which fits a metre world.
+
+Pixels stay where things are drawn or pointed at: texture and frame px,
+nine-slice insets, stroke widths, font sizes and line heights,
+`ResolutionPolicy.virtual`, screen px (snap distances, hit slop, handle
+sizes) and the pointer's client position before `clientToWorld`. Angles
+(degrees), times (ms and ticks) and unitless values (scales, restitution,
+friction) never changed. `density` keeps its number and now means kg/m²,
+so a body's mass is (px per metre)² smaller than it was in px: velocities,
+gravity and contacts behave the same, and game code that applies forces or
+impulses rather than velocities rescales them.
+
+One rounding rule writes a length: `roundLength` (micrometres, never `-0`).
+`snapToPixel(m, ppm)` lands on the nearest whole world px, which is what
+the editor's free drags and nudges do, so pixel art lines up at any px per
+metre; `lengthDecimals(ppm)` is how many decimals show one px (2 at 100, 5
+at 32), and `isWholePixel` is the check a grid's cell, origin and hex side
+must pass (`grid-invalid` otherwise). A game's own length fields declare
+`meta.unit` (`"m"`, `"m/s"` or `"m/s²"`), which the engine's field helpers
+already do; `scaleLengths` walks a value through its schema and scales only
+those:
+
+```ts metric-units.ts
+import { createRegistry, defineGame, pxPerMetreOf, scaleLengths } from "@jams/engine/game";
+import { isWholePixel, lengthDecimals, pxToMetres, snapToPixel } from "@jams/engine/scene";
+import { z } from "zod";
+
+/** Pixel art drawn at 32 px per metre: a 32 px tile is one metre of world. */
+export const tinyGame = defineGame({
+  id: "tiny",
+  types: [],
+  actions: [],
+  world: { physics: "none", lengthUnit: 32, grid: { kind: "square", cell: [1, 1] } },
+  createRuntime: () => ({ snapshot: () => null }),
+});
+
+/** A game's own length field declares its unit, so a migration knows to scale it. */
+const launch = z
+  .strictObject({
+    speed: z.number().describe("Launch speed, m/s.").meta({ unit: "m/s" }),
+    count: z.number().int().describe("How many."),
+  })
+  .describe("A launcher's tuning.");
+
+export function units() {
+  const ppm = pxPerMetreOf(createRegistry(tinyGame));
+  return {
+    ppm,
+    // A free drag lands on whole world px: 0.5 m is 16 px, and 0.51 m (16.32 px) snaps back to it.
+    snapped: [snapToPixel(0.5, ppm), snapToPixel(0.51, ppm)],
+    // What a v3 file's 48 px means here, written the one way.
+    fromPx: pxToMetres(48, ppm),
+    whole: [isWholePixel(1.5, ppm), isWholePixel(1.51, ppm)],
+    decimals: [lengthDecimals(100), lengthDecimals(32)],
+    // Only the field that declares a length unit is scaled: 320 px/s is 10 m/s, `count` keeps 3.
+    scaled: scaleLengths({ speed: 320, count: 3 }, launch, ppm),
+  };
+}
+```
+
+Scene format v4 is v3 with every length in metres. The v3 → v4 step
+divides each length by the game's px per metre, through those field units,
+and scales an instance's `overrides` and `params` through the prefab it
+names; `parseScene`, `parsePrefab` and `parseFragment` take a `prefab`
+lookup for that, and project kinds pass one. Without the game's registry
+or a prefab it needs, the step refuses with `migration-unresolved` and the
+file stays v3. The hosted sync service holds no game code, so it keeps a
+stored v3 doc at v3 and serves it read-only with that issue; a hosted
+project is migrated by tooling that has the game (the scene CLI's
+`project pull`, `fmt`, and a fresh seed) or reset. The `checks`,
+`material`, `game-settings` and `data-table` kinds moved to metres the same
+way, each one version up.
 
 ## Registering entity types
 
@@ -114,8 +199,22 @@ export const coinGame = defineGame<CoinSnapshot>({
   id: "coin-game",
   types: [coin],
   actions: [
-    { action: "left", keys: ["a", "arrowleft"], description: "Walk left." },
-    { action: "right", keys: ["d", "arrowright"], description: "Walk right." },
+    {
+      action: "left",
+      bindings: [
+        { device: "key", code: "KeyA" },
+        { device: "key", code: "ArrowLeft" },
+      ],
+      description: "Walk left.",
+    },
+    {
+      action: "right",
+      bindings: [
+        { device: "key", code: "KeyD" },
+        { device: "key", code: "ArrowRight" },
+      ],
+      description: "Walk right.",
+    },
   ],
   // Props (the engine's dynamic group) don't touch sensors unless a game says so.
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
@@ -303,11 +402,13 @@ if (!coverage.blocked) {
   enabled; `{ id, enabled: false }` exists at all) and `count` (a selector
   plus `min`, `max` or `eq`: `{ "type": "enemy", "max": 0 }`), or a
   predicate the game declares in `play.predicates`. A script's `seed`
-  seeds `ctx.random`. `compileInputScript` checks a script and turns it
-  into `[tick, action, pressed]` edges; `inputScriptJsonSchema(registry)`
-  describes a game's scripts.
+  seeds `ctx.random`. Scripts are `v: 2`: per-seat `tracks`, analog
+  `set`, `pointer`, `join` and `leave` steps (see
+  [Local multiplayer](#local-multiplayer)); a v1 script migrates on read.
+  `compileInputScript` checks a script and turns it into each slot's
+  `TickInput`; `inputScriptJsonSchema(registry)` describes a game's scripts.
 - The outcome comes from the game's `play.outcome`; otherwise a run ends as
-  `timeout`, `script-end`, or `stuck` (under 4px of movement over 120 ticks
+  `timeout`, `script-end`, or `stuck` (under 0.04 m of movement over 120 ticks
   while one of the game's `play.movementActions` is held). An
   `EngineError` thrown out of a step (a bad spawn id, a prefab it can't
   place) ends the run `blocked` at stage `"run"`, its code on the issue.
@@ -315,27 +416,58 @@ if (!coverage.blocked) {
   `fuzz` counts only scene entities as `touched`, never a runtime `#` id.
 - The same seed gives the same fuzz report, apart from `timing`.
 
-### Recordings and replay
+### Recordings v2
 
 Every playtest's report carries a `recording`, and every Play in the
-browser makes one (`GameInstance.recording()`, the `play:recorded` event):
-how the world started, each input edge as `[tick, actionIndex, pressed]`
-against an `actions` name table, the focus trail every 4 ticks, the game's
-markers (`play.markers`, or every event but `entity:*`), the run's
-`start.seed` when it was given one, the outcome and `end`, a digest of
-the game's snapshot after the last tick. `replayRecording({ rapier, game,
-scene, recording })` steps the same edges on the same ticks and reports
-whether the run `matches` (same result, ticks and end digest) or how it
-diverged; a changed scene (`stale`), other tuning, engine version or physics
-build is a warning, not a block. `GameInstance.replay(doc, recording)` plays
-one in the browser in place of the keyboard and pauses on its last tick.
+browser makes one (`GameInstance.recording()`, the `play:recorded` event).
+A recording (`RECORDING_VERSION` 2) is how the world started and every
+seat's input, enough to replay the run tick for tick:
+
+- **The stream.** `inputs` holds one stream per seat and `system` one for
+  the run, indexing the `actions` and `commands` name tables. A seat's
+  events are `[t, "b", action, 0|1]` (a button), `[t, "a", action, v]` (an
+  axis), `[t, "v", action, x, y]` (a vector; values × 1000 as ints),
+  `[t, "p", x, y, buttons, over]` (the pointer, world metres × 10,000,
+  written only when it changes) and `[t, "c", command, args?]` (a command
+  the seat sent); the system's are `[t, "w", ms]` (`@elapsed`) and
+  `[t, "j"|"l", seat, device]` (joins and leaves). A tick merges the system
+  stream first, then the seats in order. `t` carries a sub-tick fraction in
+  thousandths (`120.375`) when the game sets `input.subTick`.
+  `decodeStreams(recording)` gives back one `TickInput` per tick, the one
+  decoder the recorder, replays, headless runs and the shell share.
+- **`runHash`** hashes what the run ran: the expanded scene, the resolved
+  clock and the project's settings, engine block, tables, prefab library
+  and input map. A replay is `stale` when it differs; `sceneHash` is kept
+  and shown.
+- **Platforms.** `platform` names the `arch`, the `runtime` and the
+  Rapier `flavour` (`rapier2d`, `rapier2d-compat`,
+  `rapier2d-deterministic-compat`, or null when the host didn't say).
+  When `REPLAY_ACROSS_PLATFORMS` is false, replaying a Rapier recording
+  whose known `arch` differs from here adds `recording-other-platform` to
+  the report's `issues`; the cross-platform determinism check held on
+  `x86_64`, so it is true.
+- **The v1 migration.** `parseRecording(input, registry?)` reads v1 and v2
+  files and returns `{ ok, recording, migratedFrom?: 1 }`. A v1 file
+  migrates losslessly: its key edges and commands become seat 0's stream,
+  a leading `@elapsed` the system stream, its `tickRate` a `time` with the
+  registry's time kind. With no `runHash`, its replay judges staleness on
+  `sceneHash`. A v1 recording of a Rapier run made before 0.11.0 replays
+  as a mismatch: the simulation moved to metres and Rapier's own length
+  unit, which changed every Rapier run's numbers once.
+
+`replayRecording({ rapier, game, scene, recording })` steps the same tick
+inputs on the same ticks and reports whether the run `matches` (same
+result, ticks and end digest) or how it diverged, with `migratedFrom` for a
+v1 file; a stale run, other tuning, engine version or physics build is a
+warning, not a block. `GameInstance.replay(doc, recording)` plays one in
+the browser in place of the devices, the pointer and every command
+included, and pauses on its last tick.
 
 Replays are exact on the same build: the determinism probe
 (`src/engine/__tests__/probes/`) gets bit-identical results from
 `rapier2d`, `rapier2d-compat` and `rapier2d-deterministic-compat` on macOS
-and Linux, under Node and Bun. Input a game reads outside the action
-stream (a pointer a play-mode tool follows) isn't recorded, so a replay of
-a run that used it diverges, and says so.
+and Linux, under Node and Bun. Bindings never reach a recording (it holds
+actions), so a remap can't change a replay.
 
 ### Physical validation and checks
 
@@ -362,6 +494,504 @@ reaches an entity in at least N rollouts) and `connected` (cells or
 entities reach each other on the grid; see
 [Grids at runtime](#grids-at-runtime)); a game adds `<id>/<kind>` kinds
 in `checks`.
+
+## Input
+
+A game declares its actions; each is a `button` (the default), an `axis`
+(−1…1) or a `vector` (a point in the unit disc, y down), and its
+`bindings` say what drives it. The runtime turns each tick's input into
+`ctx.input` before any system's `beforeStep`, so game code reads
+`held`, `pressed`, `released`, `value`, `vector`, `pointer` and `players`
+the same live, headless and in a replay; `beforeStep` still gets the
+tick's action edges and commands.
+
+- **Codes.** Keys bind by `KeyboardEvent.code` (`KeyA`, `Digit1`,
+  `Space`, `ShiftLeft`, `ArrowUp`, `Numpad0`; the list is `KEY_CODES`),
+  so a key sits where the QWERTY key sits on any layout. The editor's own
+  shortcuts keep following the printed letter. A 0.x `keys` list still
+  works, deprecated: each key binds every code `KEY_TO_CODE` gives it
+  (`"Shift"` is both Shifts, `"1"` the digit row and the numpad).
+- **Analog.** A key or pad button on an axis or vector contributes its
+  `value` (default 1) on its `axis` (`"x"` or `"y"`). Bindings on a button
+  combine by OR; on an axis the reading furthest from zero wins; a vector
+  sums its keys, adds the stick furthest from the centre and clamps to the
+  disc. Values are quantised to thousandths after a radial deadzone
+  (`GameDefinition.input.deadzone`, default 0.15; the input map's wins),
+  and an axis or vector raises an action whenever its quantised value
+  changes.
+- **Pads.** `{ device: "pad", button }` by the W3C standard mapping's names
+  (`PAD_BUTTONS`: `south`, `east`, `west`, `north`, `lb`, `rb`, `lt`, `rt`,
+  `select`, `start`, `ls`, `rs`, the d-pad, `home`) or a raw index for a
+  non-standard pad; `{ stick: "left" | "right" }` for a vector;
+  `{ axis, scale? }` (`PAD_AXES` or a trigger, `lt`/`rt`) for an axis. The
+  shell polls `navigator.getGamepads()` once per tick.
+- **Pointer.** `{ device: "pointer", button }` binds `primary`,
+  `secondary` or `middle`; `ctx.input.pointer(seat)` is the pointer in
+  world metres (quantised to 1/10,000 m), its `buttons` bits and whether
+  it is `over` the canvas. A sample is recorded whenever one of those
+  changes, and `GameAttachment.onTick` gets the same position, the
+  recorded one in a replay.
+- **Touch.** A touch that starts on an on-screen control drives it; any
+  other first touch is the pointer's primary button. The controls are the
+  input map's `touch` list (below), bound with
+  `{ device: "touch", control }`; `GameConfig.input.touch` shows them
+  `"auto"` (on a coarse pointer, the default), `"always"` or `"never"`.
+
+The duel game binds two seats on one keyboard and a pad's stick:
+
+```ts duel-game.ts
+import { defineGame, type Binding, type EngineContext } from "@jams/engine/game";
+import type { Pt, SceneDefinition } from "@jams/engine/scene";
+
+export type Runner = { x: number; y: number; joined: boolean };
+export type DuelSnapshot = { runners: Runner[]; winner: number | null };
+
+/** m/s at full stick. */
+const SPEED = 4;
+/** How close to the flag a runner must get, m. */
+const REACH = 0.25;
+
+const key = (code: string, axis: "x" | "y", value: number, player: number): Binding => ({
+  device: "key",
+  code,
+  axis,
+  value,
+  player,
+});
+
+/** Two seats race to the flag: seat 0 on WASD, seat 1 on the arrows, either on a pad's left stick. */
+export const duelGame = defineGame<DuelSnapshot>({
+  id: "duel",
+  types: [],
+  actions: [
+    {
+      action: "move",
+      kind: "vector",
+      bindings: [
+        key("KeyA", "x", -1, 0),
+        key("KeyD", "x", 1, 0),
+        key("KeyW", "y", -1, 0),
+        key("KeyS", "y", 1, 0),
+        key("ArrowLeft", "x", -1, 1),
+        key("ArrowRight", "x", 1, 1),
+        key("ArrowUp", "y", -1, 1),
+        key("ArrowDown", "y", 1, 1),
+        { device: "pad", stick: "left" },
+      ],
+      description: "Run.",
+    },
+    {
+      action: "taunt",
+      bindings: [
+        { device: "key", code: "Space", player: 0 },
+        { device: "key", code: "Enter", player: 1 },
+        { device: "pad", button: "south" },
+      ],
+      description: "Wave at the other runner.",
+    },
+  ],
+  // A device's first press takes the lowest free seat.
+  input: { players: { max: 2, join: "press" }, deadzone: 0.2 },
+  world: { physics: "none" },
+  play: {
+    results: ["seat-0-wins", "seat-1-wins"],
+    outcome: ({ snapshot }) =>
+      snapshot.winner === null ? null : { result: `seat-${snapshot.winner}-wins` },
+  },
+  createRuntime(ctx: EngineContext) {
+    let runners: Runner[] = [];
+    let flag: Pt = [0, 0];
+    let winner: number | null = null;
+
+    return {
+      onLoad(scene) {
+        const marker = (tag: string) =>
+          scene.entities.filter(
+            (e) => e.type === "marker" && (e.tags as string[] | undefined)?.includes(tag),
+          );
+        runners = marker("runner").map((e) => {
+          const [x, y] = e.at as Pt;
+          return { x, y, joined: false };
+        });
+        flag = (marker("flag")[0]?.at as Pt | undefined) ?? [0, 0];
+        winner = null;
+      },
+      beforeStep(dtMs) {
+        if (winner !== null) return;
+        runners.forEach((r, seat) => {
+          r.joined = ctx.input.players()[seat]?.joined ?? false;
+          const v = ctx.input.vector("move", seat);
+          r.x += v.x * SPEED * (dtMs / 1000);
+          r.y += v.y * SPEED * (dtMs / 1000);
+          const dx = flag[0] - r.x;
+          const dy = flag[1] - r.y;
+          if (winner === null && Math.sqrt(dx * dx + dy * dy) <= REACH) winner = seat;
+        });
+      },
+      snapshot: () => ({ runners: runners.map((r) => ({ ...r })), winner }),
+    };
+  },
+});
+
+/** A 10 × 4 m field: two lanes, one flag at the far end of the top lane. */
+export const field: SceneDefinition = {
+  v: 4,
+  game: "duel",
+  name: "field",
+  bounds: [0, 0, 10, 4],
+  settings: { physics: "none" },
+  entities: [
+    { id: "lane-0", type: "marker", at: [1, 1], tags: ["runner"] },
+    { id: "lane-1", type: "marker", at: [1, 3], tags: ["runner"] },
+    { id: "flag", type: "marker", at: [9, 1], tags: ["flag"] },
+  ],
+};
+```
+
+An unknown code, button, axis or control, or a binding whose shape doesn't
+fit its action's kind, is `binding-unknown` with a did-you-mean over the
+code tables, and a seat past `players.max` is `player-unknown`.
+`bindingProblems` is that one check: `createRegistry` throws on it, the
+input map's kind reports it, `GameInstance.input.rebind` returns it, the
+host's `GameConfig.bindings` warn with it in dev, and the scene CLI's
+`input` prints it.
+
+**Play-mode tools change the simulation only through commands; draw
+previews freely.** Anything that reaches the world from outside the
+devices (a tool, a host button, a DOM drop) is a command (`send`), recorded
+on the sending seat's stream, so it replays; an attachment's preview is
+drawing only. The tabletop game takes cards as `play-card` commands and
+reads the pointer for a click:
+
+```ts tabletop-game.ts
+import { defineGame, type EngineContext } from "@jams/engine/game";
+import { runPlaytest } from "@jams/engine/headless";
+import type { SceneDefinition } from "@jams/engine/scene";
+import { z } from "zod";
+
+export type Card = { card: string; at: [x: number, y: number] };
+export type TabletopSnapshot = { table: Card[]; hover: [x: number, y: number] | null };
+
+/** How close to a card a click must land to pick it up, m. */
+const PICK = 0.3;
+
+/** Cards arrive from the host's DOM hand as `play-card` commands; a click on one takes it back. */
+export const tabletopGame = defineGame<TabletopSnapshot>({
+  id: "tabletop",
+  types: [],
+  actions: [
+    {
+      action: "take",
+      bindings: [{ device: "pointer", button: "primary" }],
+      description: "Take back the card under the pointer.",
+    },
+  ],
+  commands: {
+    "play-card": {
+      description: "Put a card from the hand on the table.",
+      args: z.strictObject({ card: z.string(), at: z.tuple([z.number(), z.number()]) }),
+    },
+  },
+  world: { physics: "none" },
+  createRuntime(ctx: EngineContext) {
+    let table: Card[] = [];
+    return {
+      onLoad() {
+        table = [];
+      },
+      beforeStep(_dtMs, _actions, commands) {
+        for (const c of commands) if (c.name === "play-card") table.push(c.args as Card);
+        const p = ctx.input.pointer();
+        if (!p || !ctx.input.pressed("take")) return;
+        const i = table.findIndex(({ at }) => Math.abs(at[0] - p.x) + Math.abs(at[1] - p.y) < PICK);
+        if (i >= 0) table.splice(i, 1);
+      },
+      snapshot() {
+        const p = ctx.input.pointer();
+        return { table: table.map((c) => ({ ...c })), hover: p?.over ? [p.x, p.y] : null };
+      },
+    };
+  },
+});
+
+export const felt: SceneDefinition = {
+  v: 4,
+  game: "tabletop",
+  name: "felt",
+  bounds: [0, 0, 6, 3],
+  settings: { physics: "none" },
+  entities: [{ id: "deck", type: "marker", at: [0.5, 0.5] }],
+};
+
+/** Two cards dropped from the hand, then a click on the first takes it back. */
+export function dealAndTake() {
+  const run = runPlaytest({
+    game: tabletopGame,
+    scene: felt,
+    script: {
+      v: 2,
+      steps: [
+        { command: "play-card", args: { card: "ace", at: [2, 1.5] } },
+        { command: "play-card", args: { card: "king", at: [4, 1.5] } },
+        { pointer: { at: [2.05, 1.5] } },
+        // Live, one primary click moves the pointer and raises `take`; a script writes them as two steps.
+        { press: "take" },
+        { pointer: { at: [2.05, 1.5], drag: [3, 1] }, for: 10 },
+      ],
+    },
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.scriptIssues)}`);
+  // Pointer samples are stored as world metres × 10,000.
+  const samples = run.recording.inputs[0]?.filter((e) => e[1] === "p") ?? [];
+  return { final: run.final, samples: samples.length, firstSample: samples[0] };
+}
+```
+
+A host turns a DOM drag into that command: `GameInstance.clientToWorld`
+maps page coordinates through the canvas's rect and the camera to world
+metres, and `input.trackPointer(true)` lets pointer moves anywhere in the
+document drive the pointer sample, so the world sees the drag:
+
+```ts hand-drop.ts
+import type { GameInstance } from "@jams/engine";
+import { roundLength } from "@jams/engine/scene";
+
+/**
+ * A DOM hand beside the canvas: while a card is dragged the world's pointer
+ * follows it, and the drop is a `play-card` command, so it is recorded and
+ * replays. The host never edits the world itself.
+ */
+export function dealFromHand(
+  game: Pick<GameInstance, "clientToWorld" | "input" | "send">,
+  hand: HTMLElement,
+): () => void {
+  let card: string | null = null;
+  const down = (e: PointerEvent) => {
+    card = (e.target as HTMLElement).closest<HTMLElement>("[data-card]")?.dataset.card ?? null;
+    if (card) game.input.trackPointer(true);
+  };
+  const up = (e: PointerEvent) => {
+    if (!card) return;
+    game.input.trackPointer(false);
+    const at = game.clientToWorld(e.clientX, e.clientY);
+    // Rounded the way a file writes metres, so the recorded args stay short.
+    game.send({ name: "play-card", args: { card, at: [roundLength(at.x), roundLength(at.y)] } });
+    card = null;
+  };
+  hand.addEventListener("pointerdown", down);
+  hand.ownerDocument.addEventListener("pointerup", up);
+  return () => {
+    hand.removeEventListener("pointerdown", down);
+    hand.ownerDocument.removeEventListener("pointerup", up);
+  };
+}
+```
+
+`createTouchControls(host, controls, sink)` is the overlay the shell
+draws over its canvas, framework-free DOM, for a host that wants its own
+pad (a menu, a custom shell). Sticks and d-pads report quantised unit-disc
+values, buttons `{ down }`; `hitTest` names the control under a point:
+
+```ts touch-pad.ts
+import { createTouchControls, type TouchControlDef, type TouchControlValue } from "@jams/engine";
+
+/** The duel's controls: `at` and `radius` are fractions of the frame's shorter side, from its top-left. */
+export const DUEL_TOUCH: TouchControlDef[] = [
+  { id: "stick", kind: "stick", action: "move", at: [0.2, 0.8], radius: 0.15 },
+  { id: "taunt", kind: "button", action: "taunt", at: [1.55, 0.8], radius: 0.1, label: "Hi" },
+];
+
+/**
+ * An overlay over `frame` outside `createGame`, e.g. a menu's own pad: each
+ * control reports its value whenever it changes, a stick in the unit disc
+ * (y down, quantised), a button as `{ down }`.
+ */
+export function mountPad(frame: HTMLElement) {
+  const seen: [control: string, value: TouchControlValue][] = [];
+  const pad = createTouchControls(frame, DUEL_TOUCH, (control, value) =>
+    seen.push([control, value]),
+  );
+  return { pad, seen };
+}
+```
+
+### The input map
+
+A project may hold one `input-map` doc (`INPUT_MAP_KIND`, schema
+`input-map.schema.json`). It sets `players`, `deadzone`, any action's
+`bindings` (each replaces the game's for that action whole; actions it
+omits keep the game's) and `touch`, the on-screen controls: `button`,
+`stick` or `dpad`, with `at` and `radius` as fractions of the canvas's
+shorter side from its top-left corner. `ProjectRuntimeView.inputMap` is
+the project's, or null. It co-edits like every doc, and the scene CLI's
+`input` prints what it resolves to.
+
+### Remapping
+
+Remaps live in the player's browser; input maps are project docs. A seat's
+bindings for an action come from the first of four layers that names it,
+replacing the rest whole: the player's remap, the host's
+`GameConfig.bindings`, the project's input map, the game's `actions`.
+`resolveBindings` is the one place they combine. `GameInstance.input`
+reads and changes them: `bindings(seat)`, `rebind(action, bindings, {
+player })` (checked, saved through the `RemapStore` at once and applied
+from the next tick), `reset`, and `capture` for a "press a key" prompt.
+`browserRemapStore()` keeps remaps in `localStorage` (every access in
+try/catch, empty when storage is unavailable) and is what the site passes;
+`memoryRemapStore()` keeps them for the page's life. They are never sent
+anywhere, and a recording holds actions, not bindings.
+
+```ts remapping.ts
+import {
+  browserRemapStore,
+  createGame,
+  memoryRemapStore,
+  resolveBindings,
+  type GameInstance,
+  type RemapState,
+} from "@jams/engine";
+import { bindingProblems, KEY_TO_CODE, type Binding } from "@jams/engine/game";
+
+import { duelGame } from "./duel-game";
+
+/** The duel in a page: remaps persist in this browser, and its touch controls show on a coarse pointer. */
+export function startDuel(canvas: HTMLCanvasElement): Promise<GameInstance> {
+  return createGame(canvas, {
+    game: duelGame,
+    displayWidth: canvas.clientWidth,
+    displayHeight: canvas.clientHeight,
+    dev: false,
+    input: { touch: "auto", remaps: browserRemapStore() },
+  });
+}
+
+/**
+ * A "press a key" prompt: the next key or pad button becomes the seat's
+ * binding for `action`. The rebind is checked, saved through the game's
+ * remap store and applies from the next tick.
+ */
+export async function remapPrompt(
+  game: Pick<GameInstance, "input">,
+  action: string,
+  player = 0,
+): Promise<string> {
+  const binding = await game.input.capture({ devices: ["key", "pad"], timeoutMs: 5000 });
+  if (!binding) return "cancelled";
+  const done = game.input.rebind(action, [binding], { player });
+  return done.ok ? "bound" : done.issue.code;
+}
+
+/**
+ * The four layers, first to last: the player's remap, the host's bindings,
+ * the project's input map and the game's actions. The first that names an
+ * action replaces its bindings whole, per seat.
+ */
+export function layers() {
+  const store = memoryRemapStore();
+  const remap: RemapState = {
+    v: 1,
+    players: { 1: { taunt: [{ device: "key", code: "Backslash", player: 1 }] } },
+  };
+  store.save("duel", remap);
+  const resolved = resolveBindings({
+    remap: store.load("duel"),
+    host: [{ action: "move", bindings: [{ device: "pad", stick: "right" }] }],
+    map: { actions: [{ action: "taunt", bindings: [{ device: "key", code: "KeyQ" }] }] },
+    game: duelGame.actions,
+    players: 2,
+  });
+  const typo: Binding = { device: "key", code: "space" };
+  return {
+    move: resolved.source("move", 0),
+    taunt0: [resolved.source("taunt", 0), resolved.bindings(0).taunt],
+    taunt1: [resolved.source("taunt", 1), resolved.bindings(1).taunt],
+    typo: bindingProblems(typo, { kind: "button", max: 2 }).map((p) => p.message),
+    // A 0.x `keys` entry still binds: "Shift" was either Shift key.
+    shift: KEY_TO_CODE.Shift,
+  };
+}
+```
+
+## Local multiplayer
+
+A game has seats: `GameDefinition.input.players` (`PlayersDef`, `{ max:
+1–8, join }`), overridden by the input map's `players`, default one seat.
+The join policy says how devices (`DeviceId`: `keyboard`, `pointer`,
+`touch`, `pad:<n>`) take them:
+
+- `auto`: seat 0 owns the keyboard, pointer and touch; pads take free seats
+  in connection order.
+- `press`: a device's first press takes the lowest free seat.
+- `host`: the host assigns them, `GameInstance.input.assign(device, seat |
+null)`.
+
+With one seat every device drives seat 0, which is 0.x's behaviour. A key
+binding with `player: n` drives seat `n` whoever owns the keyboard, so two
+players can share one. A pad that disconnects frees its seat. Joins and
+leaves raise `PLAYER_JOINED` and `PLAYER_LEFT` with the seat as `player`,
+and they are input, on the system stream, so a replay has the same seats
+on the same ticks. `ctx.input.players()` and `GameInstance.input.players()`
+list each seat's devices; `send` takes the sending seat as
+`GameCommand.player`. A script gives each seat a track:
+
+```ts duel-seats.ts
+import { createRegistry, PLAYER_JOINED } from "@jams/engine/game";
+import {
+  decodeStreams,
+  parseRecording,
+  replayRecording,
+  runPlaytest,
+  type InputScriptV2,
+} from "@jams/engine/headless";
+
+import { duelGame, field } from "./duel-game";
+
+const registry = createRegistry(duelGame);
+
+/** Seat 0 joins on the keyboard and runs straight; seat 1 joins on a pad later and cuts across. */
+export const race: InputScriptV2 = {
+  v: 2,
+  scene: "field",
+  players: 2,
+  maxTicks: 600,
+  tracks: [
+    {
+      player: 0,
+      steps: [{ join: "keyboard" }, { set: { move: [1, 0] }, for: 150 }],
+    },
+    {
+      player: 1,
+      steps: [
+        { wait: 10 },
+        { join: "pad:0" },
+        { set: { move: [0.8, -0.6] }, for: 60 },
+        { set: { move: [1, 0] }, for: 120 },
+      ],
+    },
+  ],
+};
+
+/** Plays the race, then replays its recording from JSON and reads its streams back. */
+export function runRace() {
+  const run = runPlaytest({ game: duelGame, registry, scene: field, script: race });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.scriptIssues)}`);
+  const text = JSON.stringify(run.recording);
+  const parsed = parseRecording(text, registry);
+  const replay = replayRecording({ game: duelGame, scene: field, recording: text });
+  const ticks = decodeStreams(run.recording);
+  return {
+    result: run.outcome.result,
+    joins: run.events.filter((e) => e.type === PLAYER_JOINED).map((e) => e.player ?? 0),
+    seats: run.recording.players,
+    actions: run.recording.actions,
+    // Seat 1's first input: its vector, as ints × 1000.
+    seat1First: run.recording.inputs[1]?.[0],
+    migrated: parsed.ok ? (parsed.migratedFrom ?? null) : "unparsed",
+    replayed: !replay.blocked && replay.matches,
+    ticksWithInput: ticks.size,
+  };
+}
+```
 
 ## Editor tools
 
@@ -398,12 +1028,16 @@ import { coinGame } from "./coin-game";
 
 const registry = createRegistry(coinGame);
 
-/** Moves a coin 32px right and returns the canonical text, or the issues that stopped it. */
+/** Moves a coin 0.32 m right and returns the canonical text, or the issues that stopped it. */
 export function nudgeCoin(text: string, id: string): string | string[] {
   const parsed = parseScene(text, registry);
   if (!parsed.ok) return parsed.issues.map((i) => `${i.code}: ${i.message}`);
 
-  const result = applyOps(parsed.def, { ops: [{ op: "move", refs: [id], by: [32, 0] }] }, registry);
+  const result = applyOps(
+    parsed.def,
+    { ops: [{ op: "move", refs: [id], by: [0.32, 0] }] },
+    registry,
+  );
   if (!result.ok) return [`${result.issue.code}: ${result.issue.message}`];
 
   const warnings = validateScene(result.def, registry).filter((i) => i.severity !== "error");
@@ -441,7 +1075,7 @@ const registry = createRegistry(coinGame);
 export function picture(text: string, around: string): { svg: string; ascii: string } {
   const scene = parseSceneOrThrow(text, registry);
   return {
-    svg: renderSceneSvg(scene, { registry, around, margin: 200, labels: "entities" }),
+    svg: renderSceneSvg(scene, { registry, around, margin: 2, labels: "entities" }),
     ascii: renderSceneAscii(scene, { registry }),
   };
 }
@@ -520,8 +1154,9 @@ A scene can declare **groups** and place **prefabs**:
 
 ## Scene format v3
 
-Format v3 is every format change the engine plans before 1.0, in one bump.
-Each addition is optional, and leaving it out keeps v2's behaviour:
+Format v3 added these keys, and format v4 is v3 with every length in
+metres (see [Units](#units)). Each addition is optional, and leaving it
+out keeps v2's behaviour:
 
 | Key or field                               | Where                      | Meaning                                                                         | Default             |
 | ------------------------------------------ | -------------------------- | ------------------------------------------------------------------------------- | ------------------- |
@@ -591,8 +1226,8 @@ Each addition is optional, and leaving it out keeps v2's behaviour:
 }
 ```
 
-The schemas' `$id`s are `urn:jams-engine:scene:v3`, `prefab:v3`,
-`fragment:v3` and `ops:v3` (and `<game>:scene:v3` for a game's).
+The schemas' `$id`s are `urn:jams-engine:scene:v4`, `prefab:v4`,
+`fragment:v4` and `ops:v4` (and `<game>:scene:v4` for a game's).
 
 **The migration.** v2 → v3 changes only `v`, on scenes, prefabs and
 fragments alike; `parseScene` and `parsePrefab` run it on load and `vp run
@@ -1340,7 +1975,7 @@ export const halo = defineBehavior({
   name: "coin-game/halo",
   description: "A ring drawn around the entity.",
   visualOnly: true,
-  fields: { radius: z.number().positive().default(24).describe("Ring radius, px; default 24.") },
+  fields: { radius: z.number().positive().default(0.24).describe("Ring radius, m; default 0.24.") },
   system(ctx): BehaviorSystem {
     const rings = new Set<string>();
     const ringOf = (id: string) => `${id}#halo`;
@@ -1510,7 +2145,7 @@ const HOUR = 3_600_000;
 export const orchardGame = defineGame<OrchardSnapshot>({
   id: "orchard",
   types: [],
-  actions: [{ action: "pick", keys: ["space"], description: "Pick every ripe apple." }],
+  actions: [{ action: "pick", keys: [" "], description: "Pick every ripe apple." }],
   time: { kind: "event", catchUp: { maxMs: 8 * HOUR } },
   world: { physics: "none" },
   commands: { plant: { description: "Plant one more tree." } },
@@ -1543,10 +2178,10 @@ export const orchardGame = defineGame<OrchardSnapshot>({
 
 /** The game keeps its trees in its runtime, so the scene is empty. */
 export const meadow: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "orchard",
   name: "meadow",
-  bounds: [0, 0, 640, 360],
+  bounds: [0, 0, 6.4, 3.6],
   entities: [],
 };
 
@@ -1591,7 +2226,7 @@ export const walkerGame = defineGame<WalkerSnapshot>({
   types: [],
   actions: [],
   time: { kind: "turns", rate: 30 },
-  world: { physics: "none", grid: { kind: "square", cell: [32, 32] } },
+  world: { physics: "none", grid: { kind: "square", cell: [0.32, 0.32] } },
   commands: {
     walk: {
       description: "Walk the hero to a cell along the shortest open path.",
@@ -1664,14 +2299,14 @@ const registry = createRegistry(walkerGame);
 
 /** Ten cells by five; a wall over the top four rows of column 4 sends the hero round the bottom. */
 export const corridor: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "walker",
   name: "corridor",
-  bounds: [0, 0, 320, 160],
+  bounds: [0, 0, 3.2, 1.6],
   entities: [
-    { id: "wall", type: "solid", shape: ["box", 144, 64, 16, 64] },
-    { id: "hero", type: "marker", at: [16, 16], tags: ["hero"] },
-    { id: "goal", type: "marker", at: [304, 16], tags: ["goal"] },
+    { id: "wall", type: "solid", shape: ["box", 1.44, 0.64, 0.16, 0.64] },
+    { id: "hero", type: "marker", at: [0.16, 0.16], tags: ["hero"] },
+    { id: "goal", type: "marker", at: [3.04, 0.16], tags: ["goal"] },
   ],
 };
 
@@ -1778,7 +2413,7 @@ export const balloon = defineEntityType({
         const body = physics.addRigidBody(
           rapier.RigidBodyDesc.dynamic().setTranslation(x, y).setGravityScale(-Number(e.lift)),
         );
-        const desc = rapier.ColliderDesc.ball(10);
+        const desc = rapier.ColliderDesc.ball(0.1);
         desc.setCollisionGroups(ctx.registry.collisionGroups("dynamic"));
         ctx.tags.set(physics.addCollider(desc, body).handle, { entityId: e.id, type: type.type });
         ctx.poses.set(e.id, x, y, 0, { snap: true });
@@ -1816,12 +2451,12 @@ const registry = createRegistry(party);
 /** The codes a physics-free scene with a balloon gets: `physics-required`, before anything loads. */
 export function balloonIssues(): string[] {
   const scene: SceneDefinition = {
-    v: 3,
+    v: 4,
     game: "party",
     name: "party",
-    bounds: [0, 0, 400, 300],
+    bounds: [0, 0, 4, 3],
     settings: { physics: "none" },
-    entities: [{ id: "red", type: "balloon", at: [200, 250] }],
+    entities: [{ id: "red", type: "balloon", at: [2, 2.5] }],
   };
   return validateScene(scene, registry).map((i) => i.code);
 }
@@ -2057,11 +2692,11 @@ export const roverGame = defineGame<RoverSnapshot>({
           { id, type: start.type },
           { x, y },
           {
-            shape: { type: "circle", cx: 0, cy: 0, r: 8 },
+            shape: { type: "circle", cx: 0, cy: 0, r: 0.08 },
           },
         );
         position = () => body.position();
-        rover = createTopDownController(body, { maxSpeed: 180, accel: 900, decel: 900 });
+        rover = createTopDownController(body, { maxSpeed: 1.8, accel: 9, decel: 9 });
       },
       beforeStep(dtMs, actions) {
         for (const a of actions) {
@@ -2085,11 +2720,11 @@ export const roverGame = defineGame<RoverSnapshot>({
         const at = position();
         const v = rover.velocity();
         // ctx.space answers on Rapier and on the geometry backend alike.
-        const hit = ctx.space.raycast(at, { x: 1, y: 0 }, 1000, { exclude: [id] });
+        const hit = ctx.space.raycast(at, { x: 1, y: 0 }, 10, { exclude: [id] });
         return {
           at,
           speed: Math.sqrt(v.x * v.x + v.y * v.y),
-          wallAhead: hit ? hit.toi * 1000 : null,
+          wallAhead: hit ? hit.toi * 10 : null,
         };
       },
     };
@@ -2097,16 +2732,16 @@ export const roverGame = defineGame<RoverSnapshot>({
 });
 
 const yard = (physics: "rapier" | "none"): SceneDefinition => ({
-  v: 3,
+  v: 4,
   game: "rover",
   name: "yard",
-  bounds: [0, 0, 400, 300],
+  bounds: [0, 0, 4, 3],
   settings: { physics },
   entities: [
-    { id: "east", type: "solid", shape: ["box", 392, 150, 8, 150] },
-    { id: "south", type: "solid", shape: ["box", 200, 292, 200, 8] },
-    { id: "start", type: "marker", at: [40, 40] },
-    { id: "home", type: "sensor", shape: ["box", 360, 260, 24, 24] },
+    { id: "east", type: "solid", shape: ["box", 3.92, 1.5, 0.08, 1.5] },
+    { id: "south", type: "solid", shape: ["box", 2, 2.92, 2, 0.08] },
+    { id: "start", type: "marker", at: [0.4, 0.4] },
+    { id: "home", type: "sensor", shape: ["box", 3.6, 2.6, 0.24, 0.24] },
   ],
 });
 
@@ -2295,7 +2930,7 @@ export function lanternNight(): string[] {
   const glow = defineBehavior({
     name: "night/glow",
     description: "A halo round a lantern.",
-    fields: { radius: z.number().positive().default(40).describe("Halo radius, px.") },
+    fields: { radius: z.number().positive().default(0.4).describe("Halo radius, m.") },
     system: (): BehaviorSystem => {
       const on = new Set<string>();
       return {
@@ -2346,14 +2981,14 @@ export function lanternNight(): string[] {
 
   const registry = createRegistry(night);
   const lane: SceneDefinition = {
-    v: 3,
+    v: 4,
     game: "night",
     name: "lane",
-    bounds: [0, 0, 200, 100],
+    bounds: [0, 0, 2, 1],
     settings: { physics: "none" },
     entities: [
-      { id: "west", type: "lantern", at: [20, 50], behaviors: { "night/glow": {} } },
-      { id: "east", type: "lantern", at: [180, 50], behaviors: { "night/glow": { radius: 60 } } },
+      { id: "west", type: "lantern", at: [0.2, 0.5], behaviors: { "night/glow": {} } },
+      { id: "east", type: "lantern", at: [1.8, 0.5], behaviors: { "night/glow": { radius: 0.6 } } },
     ],
   };
   const rt = createHeadlessRuntime({ game: night, registry, scene: expandScene(lane, registry) });
@@ -2388,7 +3023,8 @@ spawn doesn't refresh Rapier's queries; its colliders join them at the
 next physics step.
 
 - **Runtime ids.** Omitted, the id is `<type>#<n>` from a counter per
-  name, starting at 1 and reset at each load (`runtimeId(name, n)`). A
+  name, starting at 1, reset at each load and skipping ids already live
+  (`runtimeId(name, n)`). A
   type and a prefab of one name share their counter. An explicit id must
   be `<name>#<label>` for that name (`RUNTIME_ID_PATTERN`) with a label
   that isn't all digits and isn't live, or the spawn throws
@@ -2454,7 +3090,7 @@ const spout = defineEntityType({
   type: "spout",
   description: "Where drops fall from.",
   base: "marker",
-  fields: { at: pointField("The spout's mouth, absolute world px.") },
+  fields: { at: pointField("The spout's mouth, absolute world metres.") },
 });
 
 const drop = defineEntityType({
@@ -2493,12 +3129,12 @@ export const fountainGame = defineGame<FountainSnapshot>({
     const fall = (from: string, id?: string) => {
       const pose = ctx.poses.get(from);
       if (!pose) return;
-      const dx = drift.range(-6, 6);
+      const dx = drift.range(-6, 6) / 100;
       snap.jitter += dx;
       ctx.spawn({
         type: "drop",
         ...(id ? { id } : {}),
-        at: [pose.x + dx, pose.y + 8],
+        at: [pose.x + dx, pose.y + 0.08],
         behaviors: { lifetime: { ms: 1000 } },
       });
     };
@@ -2525,7 +3161,7 @@ export const fountainGame = defineGame<FountainSnapshot>({
           }
           if (c.name === "pour") {
             const { prefab } = c.args as { prefab: string };
-            ctx.instantiate(prefab, [ctx.bounds[2] / 2, 16]);
+            ctx.instantiate(prefab, [ctx.bounds[2] / 2, 0.16]);
           }
         }
       },
@@ -2536,22 +3172,22 @@ export const fountainGame = defineGame<FountainSnapshot>({
 
 /** A basin with one spout over it. */
 export const basin: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "fountain",
   name: "basin",
-  bounds: [0, 0, 160, 120],
-  entities: [{ id: "spout", type: "spout", at: [80, 40] }],
+  bounds: [0, 0, 1.6, 1.2],
+  entities: [{ id: "spout", type: "spout", at: [0.8, 0.4] }],
 };
 
 /** Two spouts side by side, for `pour`. */
 export const twinSpout: Prefab = {
   kind: "prefab",
-  v: 3,
+  v: 4,
   game: "fountain",
   id: "twin-spout",
   entities: [
-    { id: "left", type: "spout", at: [-24, 0] },
-    { id: "right", type: "spout", at: [24, 0] },
+    { id: "left", type: "spout", at: [-0.24, 0] },
+    { id: "right", type: "spout", at: [0.24, 0] },
   ],
 };
 ```
@@ -2622,7 +3258,7 @@ export function pourTwice() {
     sameSeedSameRun: again.recording.end === first.recording.end,
     otherSeedJitter: other.final?.jitter,
     // A run given a seed records it, so the replay draws the same numbers.
-    recordedSeed: first.recording.start.seed,
+    recordedSeed: first.recording.seed,
     replayed: !replay.blocked && replay.matches,
   };
 }
@@ -2717,7 +3353,7 @@ at each load from `PlayOptions.seed` (an input script's `seed`, the
 `play` options of `fuzz`, the shell's `play(doc, opts)`), or without one
 from `defaultSeed(gameId, sceneName)` (`./headless`), so
 a run that names no seed still draws the same numbers every time. A run
-given a seed records it as its recording's `start.seed`, and a replay
+records its seed as its recording's `seed`, and a replay
 draws the same. `fork(label)` gives each purpose its own stream, so
 drawing more for one never shifts another's numbers, as the fountain's
 `drift` does. No engine system, primitive or behavior draws from it (a
@@ -2774,7 +3410,8 @@ or calls `spawn` (which returns a live id) while `max` allows, or returns
 null; `release(id)` disables one and frees it. An entity disabled any
 other way is free again too, so a `lifetime` with `then: "disable"` hands
 an entity back with no game code; a destroyed one leaves the pool. Make a
-pool in `onLoad`, as its subscriptions end with the load.
+pool in `onLoad`: it belongs to that load, its subscriptions end with it,
+and after the next load `acquire` and `release` throw `pool-stale`.
 
 A shuttle runs between two buffers: contacts with the walls light sparks
 from a pool of two, which their `lifetime` hands back, and queries read
@@ -2866,7 +3503,7 @@ export const shuttleGame = defineGame<ShuttleSnapshot>({
           refused,
           lit: ctx.query.count({ type: "spark" }),
           nearest: at ? ctx.query.nearest({ x: at.x, y: at.y }, { type: "solid" }) : undefined,
-          west: ctx.query.inArea({ minX: 0, minY: 0, maxX: 100, maxY: 100 }),
+          west: ctx.query.inArea({ minX: 0, minY: 0, maxX: 1, maxY: 1 }),
         };
       },
     };
@@ -2874,26 +3511,26 @@ export const shuttleGame = defineGame<ShuttleSnapshot>({
 });
 
 const yard = (physics: "rapier" | "none"): SceneDefinition => ({
-  v: 3,
+  v: 4,
   game: "shuttle",
   name: "yard",
-  bounds: [0, 0, 200, 100],
+  bounds: [0, 0, 2, 1],
   settings: { physics },
   entities: [
-    { id: "west", type: "solid", shape: ["box", 6, 50, 6, 30] },
-    { id: "east", type: "solid", shape: ["box", 194, 50, 6, 30] },
+    { id: "west", type: "solid", shape: ["box", 0.07, 0.5, 0.07, 0.3] },
+    { id: "east", type: "solid", shape: ["box", 1.93, 0.5, 0.07, 0.3] },
     {
       id: "shuttle",
       type: "follower",
-      shape: ["circle", 0, 0, 8],
-      // Each end runs 4 px into a buffer, so the shuttle touches it there.
+      shape: ["circle", 0, 0, 0.08],
+      // Each end runs 6 cm into a buffer, so the shuttle touches it there.
       path: {
         pts: [
-          [16, 50],
-          [184, 50],
+          [0.16, 0.5],
+          [1.84, 0.5],
         ],
         mode: "ping_pong",
-        speed: 240,
+        speed: 2.4,
       },
     },
   ],
@@ -2923,13 +3560,16 @@ tests from the primitives and the APIs above, under
 `src/engine/__tests__/genres/`. Each probe is a game, a scene built in
 code, an input script and the result it must reach:
 
-| Probe          | Genres                                    | Physics | Time  | What it plays                                                                                        |
-| -------------- | ----------------------------------------- | ------- | ----- | ---------------------------------------------------------------------------------------------------- |
-| `grid-puzzle`  | puzzle, card and board games              | none    | event | a square-grid Sokoban: arrow keys step a pusher; won with both crates on goals                       |
-| `top-down`     | top-down, racing                          | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor                         |
-| `turn-tactics` | tactics, roguelikes                       | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target             |
-| `shooter`      | twin-stick, endless runner, tower defense | rapier  | fixed | a turret spawns a thousand bullets with a `lifetime`; each is destroyed on its first wall contact    |
-| `roguelike`    | roguelikes                                | none    | turns | `ctx.random` places rooms by `ctx.instantiate` of two prefabs; field of view and A\* find the stairs |
+| Probe             | Genres                                    | Physics | Time  | What it plays                                                                                                                |
+| ----------------- | ----------------------------------------- | ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `grid-puzzle`     | puzzle, card and board games              | none    | event | a square-grid Sokoban: arrow keys step a pusher; won with both crates on goals                                               |
+| `top-down`        | top-down, racing                          | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor                                                 |
+| `turn-tactics`    | tactics, roguelikes                       | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target                                     |
+| `shooter`         | twin-stick, endless runner, tower defense | rapier  | fixed | a turret spawns a thousand bullets with a `lifetime`; each is destroyed on its first wall contact                            |
+| `roguelike`       | roguelikes                                | none    | turns | `ctx.random` places rooms by `ctx.instantiate` of two prefabs; field of view and A\* find the stairs                         |
+| `local-versus`    | local multiplayer, fighting               | none    | fixed | two seats on vector sticks, one on the keyboard and one on a pad, in a two-track script; the first knock-out wins            |
+| `point-and-click` | point-and-click, RTS                      | none    | fixed | a press on a walk area paths the walker along `ctx.nav`; a press on a hotspot (`ctx.space.pointAt`) walks there and fires it |
+| `rhythm-tap`      | rhythm                                    | none    | fixed | sub-tick offsets on: taps between ticks are graded by their `offset`, and a replay grades them the same                      |
 
 `runGenreProbe` plays each, replays its recording, and compares a digest of
 the run with a pinned one, so CI on other machines checks the same numbers.
@@ -2953,49 +3593,75 @@ a project session ties them together: `createProjectSession({ project,
 openDoc, origin, registry, kinds })` opens docs lazily through the host's
 `openDoc`, applies project batches across them (`applyProjectBatch`), and
 keeps one undo stack per client over every doc it wrote. A host serving
-many docs shares one websocket between their providers.
+many docs shares one websocket between their providers. A doc is named by
+its asset's registry key, which survives renames, so a host asks the
+session for it (`session.docNameFor(entry)`) rather than building one from
+a scene's name.
 
 ```ts co-editing.ts
-import { HocuspocusProvider } from "@hocuspocus/provider";
+import { HocuspocusProvider, HocuspocusProviderWebsocket } from "@hocuspocus/provider";
 import type { GameInstance } from "@jams/engine";
-import { bindSceneDoc } from "@jams/engine/collab";
+import { bindSceneDoc, type OpenDoc, type ProjectSession } from "@jams/engine/collab";
 import { createEditorSession } from "@jams/engine/editor";
-import { docNameOf } from "@jams/engine/project";
+import { sceneKind } from "@jams/engine/project";
 import * as Y from "yjs";
 
-/** Opens scene `name` of `project` from the dev server, edits it as `userId`, and keeps the running game in step. */
-export function coEdit(game: GameInstance, project: string, name: string, userId: string) {
-  const doc = new Y.Doc();
-  const provider = new HocuspocusProvider({
-    url: "ws://localhost:3000/__scene-collab",
-    name: docNameOf({ kind: "scene", project, key: name }),
-    document: doc,
+/** The project session's `openDoc` over one websocket: a provider per doc, resolved once it has synced. */
+export function hocuspocusDocs(url = "ws://localhost:3000/__scene-collab"): OpenDoc {
+  const socket = new HocuspocusProviderWebsocket({ url });
+  return (name) =>
+    new Promise((resolve, reject) => {
+      const doc = new Y.Doc();
+      const provider = new HocuspocusProvider({ websocketProvider: socket, name, document: doc });
+      const awareness = provider.awareness;
+      if (!awareness) return reject(new Error(`"${name}": the provider has no awareness`));
+      provider.on("synced", () => resolve({ doc, awareness, close: () => provider.destroy() }));
+      provider.attach();
+    });
+}
+
+/** The scene `wanted` names by id or display name, and its doc, which the session names by registry key. */
+export function sceneDocOf(session: ProjectSession, wanted: string) {
+  const scenes = [...session.view().byId.values()].filter((e) => e.kind === sceneKind.kind);
+  const entry =
+    scenes.find((e) => e.id === wanted) ??
+    scenes.find((e) => (e.name ?? e.path.replace(/^.*\/|\.json$/g, "")) === wanted);
+  const docName = entry && session.docNameFor(entry);
+  return entry && docName ? { entry, docName } : null;
+}
+
+/** Opens scene `wanted` of the session's project, edits it as `userId`, and keeps the running game in step. */
+export async function coEdit(
+  game: Pick<GameInstance, "registry" | "runtime">,
+  session: ProjectSession,
+  wanted: string,
+  userId: string,
+) {
+  const found = sceneDocOf(session, wanted);
+  if (!found) throw new Error(`no scene "${wanted}" in ${session.project}`);
+  const { doc, awareness } = await session.open(found.docName);
+  const editor = createEditorSession({
+    doc,
+    origin: session.origin,
+    registry: game.registry,
+    name: found.entry.name ?? wanted,
+    awareness,
+    user: { id: userId, name: userId, color: "#6cf" },
+    project: session,
   });
   const runtime = game.runtime();
-  let binding: ReturnType<typeof bindSceneDoc> | null = null;
-  let session: ReturnType<typeof createEditorSession> | null = null;
-
-  provider.on("synced", () => {
-    if (session) return;
-    session = createEditorSession({
-      doc,
-      origin: { kind: "user", userId },
-      registry: game.registry,
-      name,
-      awareness: provider.awareness ?? undefined,
-      user: { id: userId, name: userId, color: "#6cf" },
-    });
-    // Each transaction becomes entity-level adds, updates and removes, not a reload.
-    if (runtime) binding = bindSceneDoc(doc, runtime, game.registry);
-  });
+  // Each transaction becomes entity-level adds, updates and removes, not a reload.
+  const binding = runtime ? bindSceneDoc(doc, runtime, game.registry) : null;
 
   return {
-    move: (id: string) => session?.dispatch({ ops: [{ op: "move", refs: [id], by: [16, 0] }] }),
-    undo: () => session?.undo(),
+    docName: found.docName,
+    editor,
+    move: (id: string) => editor.dispatch({ ops: [{ op: "move", refs: [id], by: [0.16, 0] }] }),
+    undo: () => editor.undo(),
     close() {
       binding?.destroy();
-      session?.destroy();
-      provider.destroy();
+      editor.destroy();
+      session.release(found.docName);
     },
   };
 }
@@ -3198,8 +3864,9 @@ mountSceneEditor(document.getElementById("editor")!, {
 ```
 
 Give the server and the page the same game, so that the build stamps both
-sides write agree. A project whose files name no game still needs one that
-declares every data table and setting its files use. `devProjectHost({ origin })`
+sides write agree. A project whose files name no game passes `game: null` on
+both sides: its scenes are judged by the engine alone (`createRegistry(null)`),
+as the scene CLI judges them. `devProjectHost({ origin })`
 points the page at a dev server on another origin (`http(s)://` or
 `ws(s)://`). The repo carries the same setup as `scripts/engine-editor/`
 (`vp run engine:editor`). It edits a scratch copy of `src/engine/scenes`
@@ -3232,18 +3899,18 @@ primitives); a game's schema adds its types and settings.
 
 ### Top-level keys
 
-| Field       | Type                                      | Required | Description                                                                                                                    |
-| ----------- | ----------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `$schema`   | string                                    |          | Path or URI of this file's JSON Schema, for editors. Ignored by the engine.                                                    |
-| `v`         | `3`                                       | yes      | Scene format version. Files are migrated up on load and always saved at the current version.                                   |
-| `name`      | string                                    | yes      | Scene name, same rules as an id; matches the file name without .json.                                                          |
-| `bounds`    | [integer, integer, integer, integer] (px) | yes      | World rectangle [minX, minY, maxX, maxY] in px; y is down. Limits the camera; anything outside it is flagged.                  |
-| `settings`  | object                                    |          | Scene-wide settings: the engine's, then the game's.                                                                            |
-| `assets`    | string[]                                  |          | Asset ids only game code names, so they count as used: sorted, each once.                                                      |
-| `groups`    | { id: [group](#groups-and-prefabs) }      |          | Groups by id. An entity or instance whose `group` names one stores its geometry relative to the group's `at`.                  |
-| `instances` | [instance](#groups-and-prefabs)[]         |          | Prefab instances, each a copy of a prefab file placed at `at`.                                                                 |
-| `solid`     | [shape](#shapes)[]                        |          | Static ground shapes, absolute px; `solid:<material>` for a material. Entries have no id; ops refer to them as ~solid:<index>. |
-| `entities`  | [entity](#entity-types)[]                 |          | Entities with stable ids: anything that moves, has parameters, or is referenced.                                               |
+| Field       | Type                                                 | Required | Description                                                                                                                        |
+| ----------- | ---------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `$schema`   | string                                               |          | Path or URI of this file's JSON Schema, for editors. Ignored by the engine.                                                        |
+| `v`         | `4`                                                  | yes      | Scene format version. Files are migrated up on load and always saved at the current version.                                       |
+| `name`      | string                                               | yes      | Scene name, same rules as an id; matches the file name without .json.                                                              |
+| `bounds`    | [number (m), number (m), number (m), number (m)] (m) | yes      | World rectangle [minX, minY, maxX, maxY] in metres; y is down. Limits the camera; anything outside it is flagged.                  |
+| `settings`  | object                                               |          | Scene-wide settings: the engine's, then the game's.                                                                                |
+| `assets`    | string[]                                             |          | Asset ids only game code names, so they count as used: sorted, each once.                                                          |
+| `groups`    | { id: [group](#groups-and-prefabs) }                 |          | Groups by id. An entity or instance whose `group` names one stores its geometry relative to the group's `at`.                      |
+| `instances` | [instance](#groups-and-prefabs)[]                    |          | Prefab instances, each a copy of a prefab file placed at `at`.                                                                     |
+| `solid`     | [shape](#shapes)[]                                   |          | Static ground shapes, absolute metres; `solid:<material>` for a material. Entries have no id; ops refer to them as ~solid:<index>. |
+| `entities`  | [entity](#entity-types)[]                            |          | Entities with stable ids: anything that moves, has parameters, or is referenced.                                                   |
 
 ### Fields every entity has
 
@@ -3265,7 +3932,7 @@ Static ground, walls and platforms: collides from every side, or from above only
 
 | Field       | Type                                                  | Required | Description                                                                                                                                                               |
 | ----------- | ----------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`     | [shape](#shapes)                                      | yes      | Collider shape. Absolute world px; y is down. Any tag, including chain for outlines.                                                                                      |
+| `shape`     | [shape](#shapes)                                      | yes      | Collider shape. Absolute world metres; y is down. Any tag, including chain for outlines.                                                                                  |
 | `material`  | none registered                                       |          | Surface material.                                                                                                                                                         |
 | `oneWay`    | `true` or `"up"` \| `"right"` \| `"down"` \| `"left"` |          | The one side actors collide with: they pass through from every other side and land on this one. `true` is "up": they pass up through it and land on top.                  |
 | `attach`    | string                                                |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
@@ -3277,7 +3944,7 @@ Trigger volume with no collision response; raises sensor:enter and sensor:exit w
 
 | Field       | Type             | Required | Description                                                                                                                                                               |
 | ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`     | [shape](#shapes) | yes      | Trigger shape. Absolute world px; y is down.                                                                                                                              |
+| `shape`     | [shape](#shapes) | yes      | Trigger shape. Absolute world metres; y is down.                                                                                                                          |
 | `tags`      | string[]         |          | Labels a game reads off the sensor's events.                                                                                                                              |
 | `attach`    | string           |          | A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.                                                   |
 | `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
@@ -3288,7 +3955,7 @@ A named point with tags; what it means is up to the game.
 
 | Field       | Type             | Required | Description                                                                                                                                                               |
 | ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `at`        | [point](#points) | yes      | Marker position. Absolute world px; y is down.                                                                                                                            |
+| `at`        | [point](#points) | yes      | Marker position. Absolute world metres; y is down.                                                                                                                        |
 | `tags`      | string[]         |          | Labels a game reads, e.g. spawn or checkpoint.                                                                                                                            |
 | `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
@@ -3298,8 +3965,8 @@ Dynamic physics object that can be pushed and stood on.
 
 | Field            | Type                  | Required | Description                                                                                                                                                               |
 | ---------------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`          | [body shape](#shapes) | yes      | Starting collider shape. Absolute world px; y is down. Not chain.                                                                                                         |
-| `density`        | number                | yes      | Density, mass per px²; heavier props are harder to push.                                                                                                                  |
+| `shape`          | [body shape](#shapes) | yes      | Starting collider shape. Absolute world metres; y is down. Not chain.                                                                                                     |
+| `density`        | number                | yes      | Density in kg/m²; heavier props are harder to push.                                                                                                                       |
 | `restitution`    | number                | yes      | Bounciness: 0 doesn't bounce, 1 keeps all its speed.                                                                                                                      |
 | `friction`       | number                |          | Surface friction; omitted uses the material's, else the physics default.                                                                                                  |
 | `material`       | none registered       |          | Surface material.                                                                                                                                                         |
@@ -3316,7 +3983,7 @@ Kinematic body that follows a waypoint path.
 
 | Field       | Type                  | Required | Description                                                                                                                                                               |
 | ----------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`     | [body shape](#shapes) | yes      | Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. ["box", 0, 0, 40, 6]). Not chain.                                                           |
+| `shape`     | [body shape](#shapes) | yes      | Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. ["box", 0, 0, 0.4, 0.06]). Not chain.                                                       |
 | `path`      | [path](#paths)        | yes      |                                                                                                                                                                           |
 | `material`  | none registered       |          | Surface material.                                                                                                                                                         |
 | `behaviors` | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
@@ -3327,7 +3994,7 @@ A picture with no body: drawn by its sprite, never collides.
 
 | Field       | Type             | Required | Description                                                                                                                                                               |
 | ----------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `at`        | [point](#points) | yes      | Where the sprite's pose is. Absolute world px; y is down.                                                                                                                 |
+| `at`        | [point](#points) | yes      | Where the sprite's pose is. Absolute world metres; y is down.                                                                                                             |
 | `behaviors` | object           |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `nav`
@@ -3336,7 +4003,7 @@ A walkable area, or a hole in one, for navigation without physics or a grid.
 
 | Field       | Type                  | Required | Description                                                                                                                                                               |
 | ----------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`     | [polygon](#shapes)    | yes      | A simple polygon, concave allowed. Absolute world px; y is down.                                                                                                          |
+| `shape`     | [polygon](#shapes)    | yes      | A simple polygon, concave allowed. Absolute world metres; y is down.                                                                                                      |
 | `mode`      | `"walk"` \| `"block"` |          | walk (default) or a hole cut out of the walk area it lies in.                                                                                                             |
 | `tags`      | string[]              |          | Labels a game reads, e.g. a room name.                                                                                                                                    |
 | `behaviors` | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
@@ -3345,26 +4012,26 @@ A walkable area, or a hole in one, for navigation without physics or a grid.
 
 Editor note: text pinned to a point. Never loaded into the game.
 
-| Field  | Type             | Required | Description                                 |
-| ------ | ---------------- | -------- | ------------------------------------------- |
-| `at`   | [point](#points) | yes      | Where the note shows, absolute world px.    |
-| `text` | string           | yes      | The note, for whoever edits the scene next. |
+| Field  | Type             | Required | Description                                  |
+| ------ | ---------------- | -------- | -------------------------------------------- |
+| `at`   | [point](#points) | yes      | Where the note shows, absolute world metres. |
+| `text` | string           | yes      | The note, for whoever edits the scene next.  |
 
 ### Shapes
 
-A shape tuple: ["box", cx, cy, hw, hh, rotDeg?] | ["circle", cx, cy, r] | ["capsule", cx, cy, halfLen, r, rotDeg?] | ["poly", x1, y1, x2, y2, x3, y3, ...] | ["chain", x1, y1, x2, y2, ...]. Integer pixels, y is down.
+A shape tuple: ["box", cx, cy, hw, hh, rotDeg?] | ["circle", cx, cy, r] | ["capsule", cx, cy, halfLen, r, rotDeg?] | ["poly", x1, y1, x2, y2, x3, y3, ...] | ["chain", x1, y1, x2, y2, ...]. Metres, y is down; rotDeg in degrees.
 
 A body shape is any of these but `chain`.
 
-- **`box`** `["box", cx, cy, hw, hh, rotDeg?]`: Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre. Items: Centre x (px); Centre y (y is down) (px); Half-width; the box is 2*hw wide (px); Half-height; the box is 2*hh tall (px); Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0 (deg).
-- **`circle`** `["circle", cx, cy, r]`: Circle (a Rapier ball) by centre and radius. Items: Centre x (px); Centre y (y is down) (px); Radius (px).
-- **`capsule`** `["capsule", cx, cy, halfLen, r, rotDeg?]`: Capsule, vertical before rotation: a segment of half-length halfLen through the centre, swept by radius r. Items: Centre x (px); Centre y (y is down) (px); Half the length of the inner segment (px); Radius (px); Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0 (deg).
+- **`box`** `["box", cx, cy, hw, hh, rotDeg?]`: Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre. Items: Centre x (m); Centre y (y is down) (m); Half-width; the box is 2*hw wide (m); Half-height; the box is 2*hh tall (m); Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0 (deg).
+- **`circle`** `["circle", cx, cy, r]`: Circle (a Rapier ball) by centre and radius. Items: Centre x (m); Centre y (y is down) (m); Radius (m).
+- **`capsule`** `["capsule", cx, cy, halfLen, r, rotDeg?]`: Capsule, vertical before rotation: a segment of half-length halfLen through the centre, swept by radius r. Items: Centre x (m); Centre y (y is down) (m); Half the length of the inner segment (m); Radius (m); Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0 (deg).
 - **`poly`** `["poly", x1, y1, x2, y2, x3, y3, ...]`: Convex polygon as flat x, y pairs (at least 3 points). Points are absolute; the loader centres the body on their centroid. Concave outlines must be split or drawn as a chain.
 - **`chain`** `["chain", x1, y1, x2, y2, ...]`: Open polyline as flat x, y pairs (at least 2 points), for static terrain. Allowed on solid and sensor only.
 
 ### Points
 
-A point [x, y] in integer world pixels; y is down.
+A point [x, y] in world metres; y is down.
 
 ### Paths
 
@@ -3372,9 +4039,9 @@ A waypoint path with linear segments.
 
 | Field     | Type                      | Required | Description                                                                                                                     |
 | --------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `pts`     | [point](#points)[]        | yes      | Waypoints in absolute world px. The entity's shape is centred on each point in turn. At least 2, no repeats.                    |
+| `pts`     | [point](#points)[]        | yes      | Waypoints in absolute world metres. The entity's shape is centred on each point in turn. At least 2, no repeats.                |
 | `mode`    | `"ping_pong"` \| `"loop"` | yes      | ping_pong: travel to the last point, then back. loop: after the last point, travel back to the first along the closing segment. |
-| `speed`   | number (px/s)             | yes      | Travel speed along the path, px per second; must be > 0.                                                                        |
+| `speed`   | number (m/s)              | yes      | Travel speed along the path, m/s; must be > 0.                                                                                  |
 | `pauseMs` | number (ms)               |          | How long it waits at each waypoint, in milliseconds. Omitted means 0.                                                           |
 
 <!-- format-reference:end -->

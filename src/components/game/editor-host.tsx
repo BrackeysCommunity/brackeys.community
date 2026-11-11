@@ -17,7 +17,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { DEFAULT_SCENE as ENGINE_DEFAULT_SCENE, engineEditorGame } from "@/games/engine-editor";
+import { DEFAULT_SCENE as ENGINE_DEFAULT_SCENE } from "@/games/engine-editor";
 import { platformerGame } from "@/games/platformer";
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
@@ -36,8 +36,8 @@ import { GameSiteIsland } from "./site-island";
  */
 export type SiteProject = {
   id: string;
-  /** The project's game; a project whose file names none is edited with the game its own editor uses. */
-  game: GameDefinition;
+  /** The game its `jams.project.json` names; null when it names none, as the dev server judges it. */
+  game: GameDefinition | null;
   /** The scene opened when the URL names none. */
   defaultScene: string;
   /** The game's debug layers (F3), beside the engine's. */
@@ -51,7 +51,7 @@ export const SITE_PROJECTS: readonly SiteProject[] = [
     defaultScene: BUNDLED_SCENE_ID,
     debugLayers: () => import("@/games/platformer/debug").then((m) => m.PLATFORMER_DEBUG_LAYERS),
   },
-  { id: "engine", game: engineEditorGame, defaultScene: ENGINE_DEFAULT_SCENE },
+  { id: "engine", game: null, defaultScene: ENGINE_DEFAULT_SCENE },
 ];
 
 /** The project `/game/<room>?edit=1` opens without `?project=`. */

@@ -2,7 +2,13 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { defineEntityType, defineGame } from "../game/define";
 import { pointField } from "../game/fields";
-import type { EngineContext, GameDefinition, Pool, SceneSystem } from "../game/types";
+import {
+  EngineError,
+  type EngineContext,
+  type GameDefinition,
+  type Pool,
+  type SceneSystem,
+} from "../game/types";
 import { createPool } from "../runtime/pool";
 import { createSceneRuntime } from "../runtime/runtime";
 import { ENTITY_DISABLED } from "../runtime/types";
@@ -227,6 +233,45 @@ describe("createPool", () => {
     expect([first.free, first.live]).toEqual([0, 0]);
     expect(second.acquire()).toBe("bullet#1");
     expect(rt.ctx.enabled("bullet#1")).toBe(true);
+    rt.destroy();
+  });
+
+  it("refuses to work after its load, so it can't take the next load's bullet#1", () => {
+    const { rt, pool } = setup();
+    const kept = pool();
+    expect(kept.acquire()).toBe("bullet#1");
+    kept.release("bullet#1");
+
+    expect(rt.load(scene)).toMatchObject({ ok: true });
+    const fresh = pool();
+    expect(fresh.acquire()).toBe("bullet#1");
+    fresh.release("bullet#1");
+
+    for (const use of [() => kept.acquire(), () => kept.release("bullet#1")]) {
+      let caught: unknown;
+      try {
+        use();
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(EngineError);
+      expect((caught as EngineError).code).toBe("pool-stale");
+      expect((caught as EngineError).message).toContain("earlier load");
+    }
+    expect([kept.free, kept.live]).toEqual([0, 0]);
+    expect(rt.ctx.enabled("bullet#1")).toBe(false);
+    expect([fresh.free, fresh.live]).toEqual([1, 0]);
+
+    rt.unload();
+    expect(() => fresh.acquire()).toThrow(expect.objectContaining({ code: "pool-stale" }));
+    rt.destroy();
+  });
+
+  it("never goes stale on a context without a load generation", () => {
+    const { rt } = setup();
+    const ctx = { ...rt.ctx } as EngineContext;
+    const p = createPool(ctx, { spawn: () => rt.ctx.spawn({ type: "bullet", at: [0, 0] }).id });
+    expect(p.acquire()).toBe("bullet#1");
     rt.destroy();
   });
 });

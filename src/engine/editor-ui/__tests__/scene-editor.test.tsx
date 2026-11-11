@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { z } from "zod";
 
 import {
   createProjectSession,
@@ -11,8 +12,8 @@ import {
   sequentialKeys,
   type ProjectSession,
 } from "../../collab/index";
-import { defineGame } from "../../game/index";
-import type { GameInstance } from "../../index";
+import { createRegistry, defineGame } from "../../game/index";
+import type { GameDefinition, GameInstance } from "../../index";
 import { createKindRegistry, type AssetEntry } from "../../project/index";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/index";
 import type { EditorHost, EditorNotify, ProjectConnection, ProjectConnectionState } from "../host";
@@ -74,7 +75,6 @@ const yardGame = defineGame({
   actions: [],
   createRuntime: () => ({ snapshot: () => null }),
 });
-const kinds = createKindRegistry(yardGame);
 
 const yard: SceneDefinition = {
   v: SCENE_FORMAT_VERSION,
@@ -94,8 +94,12 @@ const yardEntry: AssetEntry = {
   created: { at: 0, by: "seed" },
 };
 
-/** A project in memory and a host whose `connect` opens it, as the dev server's would. */
-function fakeProject() {
+/**
+ * A project in memory and a host whose `connect` opens it, as the dev
+ * server's would. With `buildAt`, the editor's sessions join as a build
+ * stamped then, under the kinds of the game the editor judges by.
+ */
+function fakeProject(opts: { buildAt?: number } = {}) {
   const server = memoryDocHost();
   seedProjectDoc(
     server.doc("project:p"),
@@ -131,7 +135,8 @@ function fakeProject() {
       openDoc: server.client().openDoc,
       origin,
       registry,
-      kinds,
+      kinds: createKindRegistry(registry.game),
+      ...(opts.buildAt === undefined ? {} : { buildAt: opts.buildAt }),
     }).then((session) => {
       record.session = session;
       state = { ...state, status: "live", session };
@@ -153,7 +158,20 @@ function fakeProject() {
     storage: null,
     connect,
   };
-  return { host, connect, connections };
+  /** A newer build than the editor's joins first, judging the project by `game`, and stamps its schemas. */
+  const stampedBy = async (game: GameDefinition | null, buildAt: number) => {
+    const session = await createProjectSession({
+      project: "p",
+      openDoc: server.client().openDoc,
+      origin: { kind: "user", userId: "server", name: "Server" },
+      registry: createRegistry(game),
+      kinds: createKindRegistry(game),
+      buildAt,
+    });
+    await session.open("scene:p.yard");
+    return session;
+  };
+  return { host, connect, connections, stampedBy };
 }
 
 const rapier = () => import("@dimforge/rapier2d");
@@ -217,6 +235,27 @@ describe("SceneEditor", () => {
     expect(connections.every((c) => c.destroy.mock.calls.length === 1)).toBe(true);
     expect(destroySession).toHaveBeenCalled();
     expect(games.made.every((g) => g.destroyed)).toBe(true);
+  }, 20_000);
+
+  it("shows its lengths in metres: the grid step and a shape's sizes", async () => {
+    const { host } = fakeProject();
+    render(<SceneEditor host={host} game={yardGame} project="p" scene="yard" rapier={rapier} />);
+    const row = await waitFor(() => outliner().getByRole("button", { name: /zone/ }), {
+      timeout: 10_000,
+    });
+    fireEvent.click(row);
+    const radius = screen.getByLabelText("shape.r");
+    expect(radius.closest(".je-insp-row")?.querySelector(".je-insp-suffix")?.textContent).toBe("m");
+    // A narrow window moves the grid step into More tools, where each step reads in metres.
+    const more = await waitFor(() => screen.getByRole("button", { name: "More tools" }), {
+      timeout: 10_000,
+    });
+    await act(async () => {
+      fireEvent.click(more);
+    });
+    const steps = await screen.findAllByRole("menuitemradio", { name: / m$/ });
+    expect(steps.map((s) => s.textContent)).toEqual(["0.25 m", "0.5 m", "1 m", "2 m", "4 m"]);
+    expect(steps.find((s) => s.getAttribute("aria-checked") === "true")?.textContent).toBe("0.5 m");
   }, 20_000);
 
   it("boots with every panel's tab over an empty scene, no counts and skeleton bodies", () => {
@@ -551,6 +590,45 @@ describe("SceneEditor", () => {
     expect(game.preload).toHaveBeenCalledTimes(1);
     expect(vi.mocked(game.preload).mock.lastCall![0]).toMatchObject({ name: "yard" });
     warn.mockRestore();
+  }, 20_000);
+
+  it("edits an engine-only project under the engine's registry, as its server judges it", async () => {
+    const { host, connect, stampedBy } = fakeProject({ buildAt: 100 });
+    const server = await stampedBy(null, 200);
+    render(<SceneEditor host={host} game={null} project="p" scene="yard" rapier={rapier} />);
+    const row = await waitFor(() => outliner().getByRole("button", { name: /zone/ }), {
+      timeout: 10_000,
+    });
+    expect(connect.mock.lastCall![0].registry.game).toBeNull();
+    const game = games.made.at(-1)!.game as GameInstance;
+    expect(game.registry.id).toBe(createRegistry(null).id);
+    expect(screen.queryByRole("status", { name: "Read only" })).toBeNull();
+    fireEvent.click(row);
+    const radius = screen.getByLabelText("shape.r") as HTMLInputElement;
+    expect(radius.matches(":disabled")).toBe(false);
+    server.destroy();
+  }, 20_000);
+
+  it("opens read-only when the server judges the project by another game", async () => {
+    const { host, stampedBy } = fakeProject({ buildAt: 100 });
+    const server = await stampedBy(
+      defineGame({ ...yardGame, id: "other", settings: { speed: z.number().default(1) } }),
+      200,
+    );
+    render(<SceneEditor host={host} game={null} project="p" scene="yard" rapier={rapier} />);
+    await waitFor(() => screen.getByRole("status", { name: "Read only" }), { timeout: 10_000 });
+    server.destroy();
+  }, 20_000);
+
+  it("points Play's camera at the centre of a gameless scene's bounds", async () => {
+    const { host } = fakeProject();
+    render(<SceneEditor host={host} game={null} project="p" scene="yard" rapier={rapier} />);
+    await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
+    const game = games.made.at(-1)!.game as GameInstance;
+    act(() => game.panBy({ x: 300, y: -200 }));
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    await waitFor(() => expect(game.getMode()).toBe("play"));
+    expect(cameraOf(game).position).toEqual({ x: 1000, y: 600 });
   }, 20_000);
 
   it("takes no inspector edits when the host is read-only", async () => {

@@ -18,8 +18,8 @@ import {
   readFileProject,
   readPrefabFiles,
 } from "../../vite/project-files";
-import { parseSceneOrThrow } from "../parse";
-import { drawnEntities, expandedOf } from "../render-geometry";
+import { parseScene, parseSceneOrThrow } from "../parse";
+import { drawnEntities, expandedOf, oneWayEdges } from "../render-geometry";
 import { shapeOutline } from "../shape-outline";
 import {
   renderSceneSvg,
@@ -31,14 +31,23 @@ import {
 import {
   PREFAB_KIND,
   SCENE_FORMAT_VERSION,
+  type Aabb,
   type GridSettings,
   type Prefab,
   type SceneDefinition,
 } from "../types";
+import { roundLength } from "../units";
 import { engine, engineYardText } from "./fixtures/fake-game";
 
 const yard = parseSceneOrThrow(engineYardText, engine);
 const golden = new URL("./engine-yard.golden.svg", import.meta.url);
+
+const roundBox = (b: Aabb): Aabb => ({
+  minX: roundLength(b.minX),
+  minY: roundLength(b.minY),
+  maxX: roundLength(b.maxX),
+  maxY: roundLength(b.maxY),
+});
 
 const size = (svg: string) => {
   const m = /<svg [^>]*width="(\d+)" height="(\d+)"/.exec(svg);
@@ -59,23 +68,23 @@ const report = {
       code: "test/pit" as const,
       message: "y",
       entityIds: [],
-      at: [640, 900] as [number, number],
+      at: [6.4, 9] as [number, number],
     },
   ],
   trail: {
     every: 4,
     pts: [
-      [300, 940],
-      [500, 940],
-      [880, 930],
+      [3, 9.4],
+      [5, 9.4],
+      [8.8, 9.3],
     ] as [number, number][],
     truncated: false,
   },
   events: [
-    { tick: 3, type: "sensor:enter", entityId: "zone", other: "avatar", at: { x: 880, y: 930 } },
-    { tick: 9, type: "landed", at: { x: 400, y: 940 } },
+    { tick: 3, type: "sensor:enter", entityId: "zone", other: "avatar", at: { x: 8.8, y: 9.3 } },
+    { tick: 9, type: "landed", at: { x: 4, y: 9.4 } },
   ],
-  outcome: { result: "won", tick: 90, at: { x: 880, y: 930 }, cause: "reached the goal" },
+  outcome: { result: "won", tick: 90, at: { x: 8.8, y: 9.3 }, cause: "reached the goal" },
 };
 
 describe("renderSceneSvg", () => {
@@ -171,7 +180,7 @@ describe("renderSceneSvg", () => {
     expect(renderSceneSvg(yard, { registry: engine, paths: false })).not.toContain("data-path");
   });
 
-  it("overlays a playtest report: issues, trail, events and outcome", () => {
+  it("overlays a playtest report (in metres): issues, trail, events and outcome", () => {
     const svg = renderSceneSvg(yard, { registry: engine, overlay: report });
     expect(svg).toContain(`<g id="trail"><path d="M300 940L500 940L880 930"`);
     expect(svg).toMatch(/<circle cx="880" cy="930"[^>]*data-event="sensor:enter" data-tick="3"/);
@@ -183,13 +192,100 @@ describe("renderSceneSvg", () => {
   });
 });
 
+/** One box per landing side, a plain `true`, a value that isn't a side, and a two-way box. */
+const sidesScene: SceneDefinition = {
+  v: SCENE_FORMAT_VERSION,
+  name: "sides",
+  bounds: [0, 0, 8, 2],
+  entities: [
+    { id: "up", type: "solid", shape: ["box", 1, 1, 0.5, 0.25], oneWay: "up" },
+    { id: "right", type: "solid", shape: ["box", 2, 1, 0.25, 0.5], oneWay: "right" },
+    { id: "down", type: "solid", shape: ["box", 3, 1, 0.5, 0.25], oneWay: "down" },
+    { id: "left", type: "solid", shape: ["box", 4, 1, 0.25, 0.5], oneWay: "left" },
+    { id: "plain", type: "solid", shape: ["box", 5, 1, 0.5, 0.25], oneWay: true },
+    { id: "odd", type: "solid", shape: ["box", 6, 1, 0.5, 0.25], oneWay: "sideways" },
+    { id: "two-way", type: "solid", shape: ["box", 7, 1, 0.5, 0.25] },
+  ],
+} as unknown as SceneDefinition;
+
+describe("one-way landing faces", () => {
+  const svg = renderSceneSvg(sidesScene, { registry: engine });
+  const face = (id: string) =>
+    new RegExp(`<path data-one-way="${id}" data-side="(\\w+)" d="([^"]+)"/>`).exec(svg);
+
+  it.each([
+    ["up", "up", "M50 75L150 75"],
+    ["right", "right", "M225 50L225 150"],
+    ["down", "down", "M350 125L250 125"],
+    ["left", "left", "M375 150L375 50"],
+    ["plain", "up", "M450 75L550 75"],
+  ])("draws %s's landing face on its %s side, where the edit overlay marks it", (id, side, d) => {
+    const m = face(id);
+    expect(m?.[1]).toBe(side);
+    expect(m?.[2]).toBe(d);
+    const drawn = drawnEntities(expandedOf(sidesScene, engine), engine);
+    const edge = oneWayEdges(drawn).find((e) => e.entity.id === id)!;
+    expect(edge.side).toBe(side);
+  });
+
+  it("draws no face for a value that isn't a side or a two-way solid", () => {
+    expect(face("odd")).toBeNull();
+    expect(face("two-way")).toBeNull();
+    expect(svg.match(/data-one-way=/g)).toHaveLength(5);
+  });
+
+  it("draws the faces over the entities and draws none without one-way solids", () => {
+    expect(svg.indexOf(`<g id="one-way"`)).toBeGreaterThan(svg.indexOf(`<g id="entities"`));
+    const twoWay = { ...sidesScene, entities: (sidesScene.entities ?? []).slice(-1) };
+    expect(renderSceneSvg(twoWay, { registry: engine })).not.toContain(`id="one-way"`);
+  });
+});
+
+describe("metres and px per metre", () => {
+  const fixture = (v: 3 | 4) =>
+    readFileSync(new URL(`./fixtures/v${v}/engine-yard.json`, import.meta.url), "utf8");
+
+  it("draws a v3 scene migrated to metres as its v3 file drew at 100 px per metre", () => {
+    const migrated = parseScene(fixture(3), engine);
+    expect(migrated.ok && migrated.migratedFrom).toBe(3);
+    const v4 = parseSceneOrThrow(fixture(4), engine);
+    expect(migrated.ok && migrated.def).toEqual(v4);
+    expect(renderSceneSvg(v4, { registry: engine })).toBe(readFileSync(golden, "utf8"));
+  });
+
+  it("draws world metres at the game's px per metre, and reports the region in metres", () => {
+    const game = defineGame({
+      id: "coarse",
+      types: [],
+      actions: [],
+      world: { lengthUnit: 32 },
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const registry = createRegistry(game);
+    const def: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      game: "coarse",
+      name: "metre",
+      bounds: [0, 0, 10, 5],
+      entities: [{ id: "block", type: "solid", shape: ["box", 1, 1, 0.5, 0.5] }],
+    };
+    const svg = renderSceneSvg(def, { registry });
+    expect(svg).toContain(`viewBox="0 0 320 160"`);
+    expect(svg).toMatch(/data-ref="block" data-type="solid" d="M16 16L48 16L48 48L16 48Z"/);
+    expect(sceneViewport(def, { registry, around: "block", margin: 0.5 })).toMatchObject({
+      region: [0, 0, 2, 2],
+      pxPerMetre: 32,
+    });
+  });
+});
+
 describe("the render's size", () => {
   it("is the region times the scale", () => {
     expect(size(renderSceneSvg(yard, { registry: engine }))).toEqual([1600, 800]);
     expect(size(renderSceneSvg(yard, { registry: engine, scale: 0.5 }))).toEqual([1000, 500]);
-    expect(
-      sceneViewport(yard, { registry: engine, region: [0, 0, 400, 300], scale: 2 }),
-    ).toMatchObject({ region: [0, 0, 400, 300], width: 800, height: 600, scale: 2 });
+    expect(sceneViewport(yard, { registry: engine, region: [0, 0, 4, 3], scale: 2 })).toMatchObject(
+      { region: [0, 0, 4, 3], pxPerMetre: 100, width: 800, height: 600, scale: 2 },
+    );
   });
 
   it(`never passes ${SCENE_SVG_MAX_SIZE}px on its longest side, however big the scene`, () => {
@@ -205,11 +301,11 @@ describe("the render's size", () => {
     expect(Math.max(...size(renderSceneSvg(generateScene(1), { registry: engine }))!)).toBe(1600);
   });
 
-  it("frames around an entity with a margin, path included", () => {
+  it("frames around an entity with a margin in metres, path included", () => {
     const vp = sceneViewport(yard, { registry: engine, around: "lift", margin: 0 });
-    expect(vp.region).toEqual([1640, 592, 1760, 908]);
+    expect(vp.region).toEqual([16.4, 5.92, 17.6, 9.08]);
     expect(sceneViewport(yard, { registry: engine, around: "~solid:1" }).region).toEqual([
-      -128, -128, 168, 1128,
+      -1.28, -1.28, 1.68, 11.28,
     ]);
     expect(() => renderSceneSvg(yard, { registry: engine, around: "lifft" })).toThrow(
       'no entity "lifft" to frame; did you mean "lift"?',
@@ -229,7 +325,7 @@ describe("svgPathData", () => {
 
 describe("grid fields", () => {
   const game = createRegistry(testGame);
-  const square: GridSettings = { kind: "square", cell: [32, 32] };
+  const square: GridSettings = { kind: "square", cell: [0.32, 0.32] };
   const paintScene = (
     cells: Record<string, string[]>,
     grid: GridSettings = square,
@@ -238,9 +334,9 @@ describe("grid fields", () => {
     v: SCENE_FORMAT_VERSION,
     game: game.id,
     name: "paint",
-    bounds: [0, 0, 1024, 768],
+    bounds: [0, 0, 10.24, 7.68],
     settings: { grid },
-    entities: [{ id: "floor", type: PAINT.type, at: [64, 640], cells }],
+    entities: [{ id: "floor", type: PAINT.type, at: [0.64, 6.4], cells }],
     ...extra,
   });
   const cellsOf = (svg: string) =>
@@ -271,8 +367,8 @@ describe("grid fields", () => {
   it("draws hex cells as hexagons, staggered as Tiled's", () => {
     const hexGrid: GridSettings = {
       kind: "hex",
-      cell: [32, 32],
-      side: 16,
+      cell: [0.32, 0.32],
+      side: 0.16,
       stagger: "y",
       index: "odd",
     };
@@ -299,7 +395,7 @@ describe("grid fields", () => {
       }
     const scene = paintScene(
       cells,
-      { kind: "square", cell: [4, 4] },
+      { kind: "square", cell: [0.04, 0.04] },
       {
         entities: [{ id: "floor", type: PAINT.type, at: [0, 0], cells }],
       },
@@ -311,7 +407,7 @@ describe("grid fields", () => {
     expect(svg).toMatch(/<text class="grid-more" data-more="5904" x="386" y="166"[^>]*>…<\/text>/);
 
     // A region draws only the cells in it, so a part of a big map is whole.
-    const part = renderSceneSvg(scene, { registry: game, region: [0, 0, 40, 40] });
+    const part = renderSceneSvg(scene, { registry: game, region: [0, 0, 0.4, 0.4] });
     expect(cellsOf(part)).toHaveLength(100);
     expect(part).not.toContain("grid-more");
   });
@@ -319,33 +415,35 @@ describe("grid fields", () => {
   it("frames around a painted entity over its cells", () => {
     const scene = paintScene({ "0,0": ["1*4"] });
     const vp = sceneViewport(scene, { registry: game, around: "floor", margin: 0 });
-    expect(vp.region).toEqual([64, 640, 192, 672]);
+    expect(vp.region).toEqual([0.64, 6.4, 1.92, 6.72]);
   });
 
   it("gives a painted entity a box over its filled cells, and none past its at without a grid", () => {
-    const boxOf = (scene: SceneDefinition) =>
-      drawnEntities(expandedOf(scene, game), game).find((d) => d.id === "floor")?.box;
+    const boxOf = (scene: SceneDefinition) => {
+      const box = drawnEntities(expandedOf(scene, game), game).find((d) => d.id === "floor")?.box;
+      return box && roundBox(box);
+    };
     expect(boxOf(paintScene({ "-1,0": ["0*31,1"], "0,0": ["", "", "1*3"] }))).toEqual({
-      minX: 32,
-      minY: 640,
-      maxX: 160,
-      maxY: 736,
+      minX: 0.32,
+      minY: 6.4,
+      maxX: 1.6,
+      maxY: 7.36,
     });
     const hexGrid: GridSettings = {
       kind: "hex",
-      cell: [32, 32],
-      side: 16,
+      cell: [0.32, 0.32],
+      side: 0.16,
       stagger: "y",
       index: "odd",
     };
     expect(boxOf(paintScene({ "0,0": ["1", "1"] }, hexGrid))).toEqual({
-      minX: 64,
-      minY: 640,
-      maxX: 112,
-      maxY: 696,
+      minX: 0.64,
+      minY: 6.4,
+      maxX: 1.12,
+      maxY: 6.96,
     });
     const { settings: _, ...gridless } = paintScene({ "0,0": ["1*4"] });
-    expect(boxOf(gridless)).toEqual({ minX: 64, minY: 640, maxX: 64, maxY: 640 });
+    expect(boxOf(gridless)).toEqual({ minX: 0.64, minY: 6.4, maxX: 0.64, maxY: 6.4 });
   });
 
   it("draws nothing for cells in a scene without a grid", () => {
@@ -365,7 +463,7 @@ describe("grid fields", () => {
     const scene = (inst: { rot?: 1 | 2 | 3; flip?: true }): SceneDefinition =>
       paintScene({}, square, {
         entities: [],
-        instances: [{ id: "a", prefab: "strip", at: [320, 320], ...inst }],
+        instances: [{ id: "a", prefab: "strip", at: [3.2, 3.2], ...inst }],
       });
     const turned = renderSceneSvg(scene({ rot: 1 }), { registry: game, prefabs });
     expect(turned).toContain(`data-ref="a/floor"`);
@@ -428,7 +526,7 @@ describe("sprite boxes", () => {
 
   it("frames a region around a sprite's box and leaves its label out with labels none", () => {
     const view = sceneViewport(sprites, { registry: engine, around: "tree", margin: 0 });
-    expect(view.region).toEqual([408, 160, 504, 288]);
+    expect(view.region).toEqual([4.08, 1.6, 5.04, 2.88]);
     const bare = renderSceneSvg(sprites, { registry: engine, labels: "none" });
     expect(spriteEl(bare, "tree")).toBeDefined();
     expect(bare).not.toContain("(no asset)");
@@ -436,8 +534,8 @@ describe("sprite boxes", () => {
 
   it("draws drawnEntities' sprite boxes, which grow the entity's box", () => {
     const tree = drawnEntities(expandedOf(sprites, engine), engine).find((d) => d.id === "tree");
-    expect(tree?.sprite).toMatchObject({ label: "(no asset)", size: [96, 128] });
-    expect(tree?.box).toEqual({ minX: 408, minY: 160, maxX: 504, maxY: 288 });
+    expect(tree?.sprite).toMatchObject({ label: "(no asset)", size: [0.96, 1.28] });
+    expect(roundBox(tree!.box)).toEqual({ minX: 4.08, minY: 1.6, maxX: 5.04, maxY: 2.88 });
   });
 });
 
@@ -493,8 +591,10 @@ async function loadKitchenSink() {
       if (entry.sha256 === undefined)
         values.set(entry.id, JSON.parse(await readFile(join(dir, entry.path), "utf8")));
     const registry = withProject(createRegistry(), view, values);
-    const scene = parseSceneOrThrow(values.get("kitchen-sink"), registry);
     const { prefabs } = await readPrefabFiles(dir, registry);
+    const scene = parseSceneOrThrow(values.get("kitchen-sink"), registry, {
+      prefab: (id) => prefabs.get(id),
+    });
     return { scene, view, registry, prefabs };
   } finally {
     await rm(cacheDir, { recursive: true, force: true });

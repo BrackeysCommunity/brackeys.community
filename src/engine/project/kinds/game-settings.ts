@@ -2,15 +2,17 @@ import { z } from "zod";
 
 import { MAX_TICK_RATE, MIN_TICK_RATE, tickRateProblem } from "../../game/time";
 import type { GameWorldDef, Registry } from "../../game/types";
+import { pxPerMetreOf, scaleLengths } from "../../game/units";
 import type { ResolutionPolicy } from "../../resolution";
-import { makeIssue } from "../../scene/issues";
+import { makeIssue, unitsRefusal } from "../../scene/issues";
+import type { MigrateEnv } from "../../scene/migrate";
 import type { SceneIssue } from "../../scene/types";
 import { schemaRefSites, type RefSite } from "../refs";
 import type { AssetEntry, ProjectView } from "../types";
-import { byPathThenKey, defineAssetKind, type KindEnv } from "./define";
+import { byPathThenKey, defineAssetKind, isPlainObject, type KindEnv } from "./define";
 
 export const GAME_SETTINGS_KIND = "game-settings";
-export const GAME_SETTINGS_VERSION = 1;
+export const GAME_SETTINGS_VERSION = 2;
 export const GAME_SETTINGS_SCHEMA_ID = `urn:jams-engine:game-settings:v${GAME_SETTINGS_VERSION}`;
 
 export type GameSettingsFile = {
@@ -30,18 +32,21 @@ export type GameSettingsEngine = {
   tickRate?: number;
 };
 
-const positive = (description: string) => z.number().positive().describe(description);
+const virtualPx = (description: string) =>
+  z.number().positive().describe(description).meta({ unit: "px" });
 
 const VirtualSchema = z
   .union([
     z.strictObject({
-      width: positive("World units across."),
-      height: positive("World units down."),
+      width: virtualPx("Virtual px across."),
+      height: virtualPx("Virtual px down."),
     }),
-    z.strictObject({ height: positive("World units down; the width follows the canvas.") }),
-    z.strictObject({ width: positive("World units across; the height follows the canvas.") }),
+    z.strictObject({ height: virtualPx("Virtual px down; the width follows the canvas.") }),
+    z.strictObject({ width: virtualPx("Virtual px across; the height follows the canvas.") }),
   ])
-  .describe("World units the camera shows at zoom 1 on the fixed axis or axes.");
+  .describe(
+    "Virtual px the camera shows at zoom 1 on the fixed axis or axes; the game's px per metre maps world metres onto them.",
+  );
 
 const resolutionFields = {
   virtual: VirtualSchema.optional(),
@@ -79,6 +84,31 @@ const ResolutionSchema = z
     "How the world maps onto the canvas; each field given wins over the game's and loses to the host's.",
   ) satisfies z.ZodType<Partial<ResolutionPolicy>>;
 
+const GravitySchema = z
+  .tuple([
+    z.number().describe("x, m/s²; positive pulls right.").meta({ unit: "m/s²" }),
+    z.number().describe("y, m/s²; positive pulls down.").meta({ unit: "m/s²" }),
+  ])
+  .meta({ unit: "m/s²" });
+
+/**
+ * v1 → v2: lengths become metres. `engine.gravity` and every length field
+ * of the game's `projectSettings` (by its `meta.unit`) are divided by the
+ * game's px per metre; the resolution's virtual px stay px.
+ */
+function gameSettingsV1ToV2(raw: unknown, env: MigrateEnv): unknown {
+  const registry = env.registry;
+  if (!registry) return unitsRefusal("game-settings");
+  const ppm = pxPerMetreOf(registry);
+  const doc = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...doc, v: 2 };
+  if (isPlainObject(doc.engine) && doc.engine.gravity !== undefined)
+    out.engine = { ...doc.engine, gravity: scaleLengths(doc.engine.gravity, GravitySchema, ppm) };
+  if (isPlainObject(doc.game))
+    out.game = scaleLengths(doc.game, z.object(registry.game?.projectSettings ?? {}), ppm);
+  return out;
+}
+
 const engineFields = {
   resolution: ResolutionSchema.optional(),
   physics: z
@@ -87,15 +117,9 @@ const engineFields = {
     .describe(
       'The physics world for every scene that doesn\'t set its own: "rapier" simulates bodies, "none" runs without one. Omitted: the game\'s.',
     ) satisfies z.ZodType<GameSettingsEngine["physics"]>,
-  gravity: z
-    .tuple([
-      z.number().describe("x, px/s²; positive pulls right."),
-      z.number().describe("y, px/s²; positive pulls down."),
-    ])
-    .optional()
-    .describe(
-      "World gravity [x, y] in px/s² for every scene that doesn't set its own; y is down. Omitted: the game's.",
-    ) satisfies z.ZodType<GameSettingsEngine["gravity"]>,
+  gravity: GravitySchema.optional().describe(
+    "World gravity [x, y] in m/s² for every scene that doesn't set its own; y is down. Omitted: the game's.",
+  ) satisfies z.ZodType<GameSettingsEngine["gravity"]>,
   tickRate: z
     .number()
     .optional()
@@ -210,6 +234,7 @@ export const gameSettingsKind = defineAssetKind({
   defaultFolder: () => "",
   storage: "doc",
   version: GAME_SETTINGS_VERSION,
+  migrations: { 1: gameSettingsV1ToV2 },
   schemaId: GAME_SETTINGS_SCHEMA_ID,
   schema: (env: KindEnv) => gameSettingsSchema(env.registry),
   layout: {

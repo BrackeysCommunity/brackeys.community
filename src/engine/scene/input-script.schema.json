@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:jams-engine:input-script:v1",
-  "x-agent-surface": 11,
-  "title": "jams engine input script, format v1",
+  "$id": "urn:jams-engine:input-script:v2",
+  "x-agent-surface": 12,
+  "title": "jams engine input script, format v2",
   "type": "object",
   "properties": {
     "$schema": {
@@ -11,7 +11,7 @@
     },
     "v": {
       "type": "number",
-      "const": 1,
+      "const": 2,
       "description": "Input-script format version."
     },
     "scene": {
@@ -24,13 +24,16 @@
       "prefixItems": [
         {
           "type": "number",
-          "description": "x in world pixels."
+          "description": "x in world metres.",
+          "unit": "m"
         },
         {
           "type": "number",
-          "description": "y in world pixels; y is down."
+          "description": "y in world metres; y is down.",
+          "unit": "m"
         }
-      ]
+      ],
+      "unit": "m"
     },
     "timeOffsetMs": {
       "description": "Advance time-driven entities (followers) by this much before tick 0.",
@@ -48,6 +51,12 @@
         }
       ]
     },
+    "players": {
+      "description": "The seats the run has, 1 to 8; default the game's (`input.players.max`, else 1).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
     "maxTicks": {
       "type": "integer",
       "minimum": 1,
@@ -55,17 +64,33 @@
       "description": "The run ends as `timeout` after this many ticks (default 1800, 30 s)."
     },
     "steps": {
+      "description": "Seat 0's steps, played in order from tick 0; a script has these or `tracks`.",
       "minItems": 1,
       "type": "array",
       "items": {
         "$ref": "#/$defs/Step"
-      },
-      "description": "The steps, played in order from tick 0."
+      }
+    },
+    "tracks": {
+      "description": "One track of steps per seat, all run at once from tick 0; or `steps`.",
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Track"
+      }
     }
   },
-  "required": ["v", "steps"],
+  "required": ["v"],
   "additionalProperties": false,
-  "description": "A headless playtest: steps of held actions at 60 ticks a second. The run ends when the game's outcome hook decides, when the steps run out (`script-end`), at `maxTicks` (`timeout`), or `stuck` (a movement action held with the focus moving under 4 px in 120 ticks).",
+  "oneOf": [
+    {
+      "required": ["steps"]
+    },
+    {
+      "required": ["tracks"]
+    }
+  ],
+  "description": "A headless playtest: steps of held actions, analog values, pointer moves and seat changes at 60 ticks a second, as `steps` for seat 0 or as `tracks`, one per seat, run at once. The run ends when the game's outcome hook decides, when every track's steps ran out (`script-end`), at `maxTicks` (`timeout`), or `stuck` (a movement action held with the focus moving under 0.04 m in 120 ticks).",
   "$defs": {
     "Step": {
       "anyOf": [
@@ -79,16 +104,20 @@
               },
               "description": "Every action held during the step; what the step before held and this one doesn't is released when it starts. Empty holds nothing."
             },
+            "set": {
+              "description": "Axis values and vector pairs held beside the actions.",
+              "$ref": "#/$defs/AnalogSet"
+            },
             "for": {
               "type": "integer",
               "minimum": 1,
               "maximum": 36000,
-              "description": "Hold for this many ticks (60 a second)."
+              "description": "Run for this many ticks (60 a second)."
             }
           },
           "required": ["hold", "for"],
           "additionalProperties": false,
-          "description": "Hold actions for a fixed number of ticks."
+          "description": "Hold actions, and with `set` analog values, for a fixed number of ticks."
         },
         {
           "type": "object",
@@ -100,16 +129,20 @@
               },
               "description": "Every action held during the step; what the step before held and this one doesn't is released when it starts. Empty holds nothing."
             },
+            "set": {
+              "description": "Axis values and vector pairs held beside the actions.",
+              "$ref": "#/$defs/AnalogSet"
+            },
             "forMs": {
               "type": "number",
               "exclusiveMinimum": 0,
               "maximum": 600000,
-              "description": "Hold for this many milliseconds, rounded to whole 60 Hz ticks (at least one)."
+              "description": "Run for this many milliseconds, rounded to whole 60 Hz ticks (at least one)."
             }
           },
           "required": ["hold", "forMs"],
           "additionalProperties": false,
-          "description": "Hold actions for a duration in milliseconds."
+          "description": "Hold actions, and with `set` analog values, for a duration in milliseconds."
         },
         {
           "type": "object",
@@ -120,6 +153,10 @@
                 "$ref": "#/$defs/Action"
               },
               "description": "Every action held during the step; what the step before held and this one doesn't is released when it starts. Empty holds nothing."
+            },
+            "set": {
+              "description": "Axis values and vector pairs held beside the actions.",
+              "$ref": "#/$defs/AnalogSet"
             },
             "until": {
               "$ref": "#/$defs/Until"
@@ -133,7 +170,126 @@
           },
           "required": ["hold", "until"],
           "additionalProperties": false,
-          "description": "Hold actions until a condition holds, capped by `max` ticks."
+          "description": "Hold actions, and with `set` analog values, until a condition holds, capped by `max` ticks."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "set": {
+              "$ref": "#/$defs/AnalogSet"
+            },
+            "for": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36000,
+              "description": "Run for this many ticks (60 a second)."
+            }
+          },
+          "required": ["set", "for"],
+          "additionalProperties": false,
+          "description": "Hold analog values for a fixed number of ticks."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "set": {
+              "$ref": "#/$defs/AnalogSet"
+            },
+            "forMs": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 600000,
+              "description": "Run for this many milliseconds, rounded to whole 60 Hz ticks (at least one)."
+            }
+          },
+          "required": ["set", "forMs"],
+          "additionalProperties": false,
+          "description": "Hold analog values for a duration in milliseconds."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "set": {
+              "$ref": "#/$defs/AnalogSet"
+            },
+            "until": {
+              "$ref": "#/$defs/Until"
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36000,
+              "description": "Give up waiting after this many ticks and go on to the next step (default 600)."
+            }
+          },
+          "required": ["set", "until"],
+          "additionalProperties": false,
+          "description": "Hold analog values until a condition holds, capped by `max` ticks."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ScriptPointer"
+            }
+          },
+          "required": ["pointer"],
+          "additionalProperties": false,
+          "description": "Drive the pointer for one slot."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ScriptPointer"
+            },
+            "for": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36000,
+              "description": "Run for this many ticks (60 a second)."
+            }
+          },
+          "required": ["pointer", "for"],
+          "additionalProperties": false,
+          "description": "Drive the pointer for a fixed number of ticks."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ScriptPointer"
+            },
+            "forMs": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 600000,
+              "description": "Run for this many milliseconds, rounded to whole 60 Hz ticks (at least one)."
+            }
+          },
+          "required": ["pointer", "forMs"],
+          "additionalProperties": false,
+          "description": "Drive the pointer for a duration in milliseconds."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ScriptPointer"
+            },
+            "until": {
+              "$ref": "#/$defs/Until"
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36000,
+              "description": "Give up waiting after this many ticks and go on to the next step (default 600)."
+            }
+          },
+          "required": ["pointer", "until"],
+          "additionalProperties": false,
+          "description": "Drive the pointer until a condition holds, capped by `max` ticks."
         },
         {
           "type": "object",
@@ -185,7 +341,7 @@
           },
           "required": ["command"],
           "additionalProperties": false,
-          "description": "Send a command for one slot, still holding what the hold step before it held (nothing after a press or wait). It wakes a turns or event game."
+          "description": "Send a command from the track's seat for one slot, still holding what the hold step before it held (nothing after a press or wait). It wakes a turns or event game."
         },
         {
           "type": "object",
@@ -199,13 +355,44 @@
           "required": ["elapse"],
           "additionalProperties": false,
           "description": "Report wall time away for one slot, as `@elapsed`, still holding what the hold step before it held (nothing after a press or wait). It wakes every game."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "join": {
+              "description": "The device that takes the track's seat.",
+              "$ref": "#/$defs/Device"
+            }
+          },
+          "required": ["join"],
+          "additionalProperties": false,
+          "description": "A device joins the track's seat, for one slot; it leaves the seat it held before."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "leave": {
+              "description": "The device the track's seat gives up.",
+              "$ref": "#/$defs/Device"
+            }
+          },
+          "required": ["leave"],
+          "additionalProperties": false,
+          "description": "The track's seat gives up a device, for one slot."
         }
       ],
-      "description": "One step: `hold` with exactly one of `for`, `forMs` or `until`; `press`; `wait`; `command`; or `elapse`."
+      "description": "One step: `hold` (with `set` beside it or not) or `set`, with exactly one of `for`, `forMs` or `until`; `pointer`, alone for one slot or with one of them; `press`; `wait`; `command`; `elapse`; `join`; or `leave`."
     },
     "Action": {
       "not": {},
       "description": "An action name; this registry has no game, so it declares none."
+    },
+    "AnalogSet": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "Axis values and vector pairs held for the step, by action; this game declares no axis or vector actions."
     },
     "Until": {
       "type": "object",
@@ -353,6 +540,93 @@
       "type": "string",
       "enum": ["solid", "sensor", "marker", "prop", "follower", "decor", "nav", "note"],
       "description": "An entity type: solid, sensor, marker, prop, follower, decor, nav, note."
+    },
+    "ScriptPointer": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "description": "x in world metres.",
+              "unit": "m"
+            },
+            {
+              "type": "number",
+              "description": "y in world metres; y is down.",
+              "unit": "m"
+            }
+          ],
+          "unit": "m",
+          "description": "Where the pointer is when the step starts, in world metres."
+        },
+        "press": {
+          "description": "A button that goes down when the step starts and stays down until a release.",
+          "type": "string",
+          "enum": ["primary", "secondary", "middle"]
+        },
+        "release": {
+          "description": "A button that lets go when the step ends.",
+          "type": "string",
+          "enum": ["primary", "secondary", "middle"]
+        },
+        "drag": {
+          "description": "Moves the pointer linearly from `at` to here over the step's length, reaching it on the step's last slot.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "description": "x in world metres.",
+              "unit": "m"
+            },
+            {
+              "type": "number",
+              "description": "y in world metres; y is down.",
+              "unit": "m"
+            }
+          ],
+          "unit": "m"
+        }
+      },
+      "required": ["at"],
+      "additionalProperties": false,
+      "description": "The seat's pointer: its position, a button pressed or released, and a drag."
+    },
+    "Device": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": ["keyboard", "pointer", "touch"]
+        },
+        {
+          "type": "string",
+          "pattern": "^pad:\\d+$"
+        }
+      ],
+      "description": "A device: `keyboard`, `pointer`, `touch` or `pad:<n>`, n in connection order."
+    },
+    "Track": {
+      "type": "object",
+      "properties": {
+        "player": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "The seat these steps drive, from 0."
+        },
+        "steps": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "description": "The seat's steps, played in order from tick 0."
+        }
+      },
+      "required": ["player", "steps"],
+      "additionalProperties": false,
+      "description": "One seat's steps; every track runs at once from tick 0, each with its own `until`s."
     }
   }
 }

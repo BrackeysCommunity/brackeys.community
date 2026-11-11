@@ -4,11 +4,50 @@ import { Container } from "pixi.js";
 import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
+import { actionProblem, bindingProblems, type BindingProblem } from "./game/input-bindings";
 import { isRuntimeId } from "./game/runtime-ids";
 import { resolveTime, type ResolvedTime } from "./game/time";
-import type { GameAttachment, GameCommand, GameOutcome, GameShell } from "./game/types";
+import type {
+  Binding,
+  DeviceId,
+  GameAttachment,
+  GameCommand,
+  GameOutcome,
+  GameShell,
+} from "./game/types";
+import { pxPerMetreOf } from "./game/units";
 import type { PlayOptions } from "./headless/playtest-types";
-import { createInputSystem } from "./input";
+import {
+  actionBindings,
+  resolveBindings,
+  seatTables,
+  type DeviceTables,
+  type ResolvedBindings,
+} from "./input/bindings";
+import {
+  createGamepadReader,
+  type GamepadPoll,
+  type PadBinding,
+  type PadChange,
+} from "./input/gamepad";
+import {
+  createSeatBook,
+  createSeats,
+  MAX_PLAYERS,
+  resolvePlayers,
+  seatProblem,
+} from "./input/players";
+import { DEFAULT_DEADZONE, qPointer } from "./input/quantize";
+import {
+  matchCapturePress,
+  type CaptureDevice,
+  type CapturePress,
+  type RemapState,
+} from "./input/remap";
+import type { PointerState } from "./input/state";
+import { mergeTick, type SeatChange, type TickInput } from "./input/stream";
+import { createInputSystem } from "./input/system";
+import { createTouchControls, type TouchControls } from "./input/touch-controls";
 import { createGameLoop } from "./loop";
 import {
   bundleOf,
@@ -36,8 +75,15 @@ import { createSceneRuntime, resolveGame, type ProjectOption } from "./runtime/r
 import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
 import { defaultPhysics, expandScene, isExpandedScene, scenePhysics } from "./scene/expand";
 import { checkCommand, elapsedCommand } from "./scene/input-script";
+import { makeIssue } from "./scene/issues";
 import type { RunRecording } from "./scene/recording-schema";
-import type { Aabb, ExpandedScene, PrefabLibrary, SceneDefinition } from "./scene/types";
+import type {
+  Aabb,
+  ExpandedScene,
+  PrefabLibrary,
+  SceneDefinition,
+  SceneIssue,
+} from "./scene/types";
 import {
   createGameStore,
   incrementTick,
@@ -51,15 +97,17 @@ import {
   setSimTimeScale,
   updateCamera,
 } from "./store";
-import { createToolRouter, resolveInputTarget } from "./tool-router";
+import { createToolRouter, resolveInputTarget, type ToolEvent } from "./tool-router";
 import type {
   CameraState,
   GameConfig,
   GameEventMap,
+  GameInput,
   GameInstance,
   GameMode,
   GameStoreState,
   InputAction,
+  InputBinding,
   PlayReport,
   RapierModule,
   Vec2,
@@ -78,7 +126,11 @@ type LoadedScene = {
 /** Time away shorter than this (a quick tab switch, one long frame) isn't worth an `@elapsed`. */
 const MIN_CATCH_UP_MS = 1000;
 
-/** `config.project` is what every scene's game reads as `EngineContext.project`; null without one. */
+/**
+ * `config.project` is what every scene's game reads as `EngineContext.project`;
+ * null without one. `config.game` null plays an engine-only project's scenes
+ * under `createRegistry(null)`.
+ */
 export async function createGame(
   canvas: HTMLCanvasElement,
   config: Partial<GameConfig> & Pick<GameConfig, "game"> & ProjectOption,
@@ -93,7 +145,7 @@ export async function createGame(
   const resolution = resolveResolution({
     ...(cfg.resolution ? { host: cfg.resolution } : {}),
     ...(projectResolution ? { project: projectResolution } : {}),
-    ...(game.resolution ? { game: game.resolution } : {}),
+    ...(game?.resolution ? { game: game.resolution } : {}),
   });
 
   // ─── Initialize subsystems ────────────────────────────────
@@ -101,17 +153,23 @@ export async function createGame(
   const store = createGameStore();
   const events = new GameEventEmitter();
   let destroyed = false;
+  // Read once for every recording this instance makes; "unknown" until (and unless) the browser says.
+  let arch = "unknown";
+  void browserArch().then((a) => (arch = a));
 
   setPhase(store, "loading");
 
   const renderer = await createRenderer(canvas, cfg, resolution);
 
+  // World metres to the policy's virtual px; nothing on the simulation side reads it.
+  const pxPerMetre = pxPerMetreOf(registry);
   const camera = createCamera(
     renderer.worldContainer,
     cfg.displayWidth,
     cfg.displayHeight,
     cfg.camera,
     resolution,
+    pxPerMetre,
   );
   updateCamera(store, { scale: camera.getState().scale });
 
@@ -141,11 +199,155 @@ export async function createGame(
   if (defaultPhysics(registry, project?.engine) === "rapier" || startPhysics === "rapier") {
     await loadRapier();
   }
-  const input = createInputSystem(cfg.bindings ?? game.actions);
+  // ─── Seats, bindings and devices ──────────────────────────
+
+  const playersDef = resolvePlayers(project?.inputMap, game);
+  const seatMax = Math.min(MAX_PLAYERS, Math.max(1, Math.floor(playersDef.max)));
+  const seats = createSeats(playersDef);
+  const remaps = cfg.input?.remaps ?? null;
+  // The player's remaps belong to the game they were made for; a gameless project keeps none.
+  const remapKey = game?.id ?? null;
+  const controls = (project?.inputMap?.touch ?? []).map((c) => c.id);
+  let remap: RemapState = loadRemaps();
+
+  function resolveAll(): ResolvedBindings {
+    return resolveBindings({
+      remap,
+      host: cfg.bindings,
+      map: project?.inputMap ?? null,
+      game: game?.actions ?? [],
+      players: seatMax,
+    });
+  }
+
+  let bindings = resolveAll();
+  if (cfg.dev && cfg.bindings) warnHostBindings(cfg.bindings, bindings);
+  /** What the input system reads: the bindings each device's seat drives now. */
+  const routed: Tables = { ...bindings.tables };
+  let padTables: PadTables[] = [];
+  /** The seat each device class was last routed to; undefined before the first routing. */
+  let routedOwners: Partial<Record<"keyboard" | "pointer" | "touch", number | null>> = {};
+  routeDevices(true);
+  const input = createInputSystem(routed);
+  const pads = createGamepadReader({
+    deadzone: project?.inputMap?.deadzone ?? game?.input?.deadzone ?? DEFAULT_DEADZONE,
+  });
   const inputTarget = resolveInputTarget(canvas, cfg.inputTarget);
   const keyTarget = cfg.keyTarget ?? inputTarget;
   const router = createToolRouter();
-  router.register(input.consumer());
+  const playConsumer = input.consumer();
+  // A device's first press may seat it, before the press itself is read for that seat.
+  router.register({
+    ...playConsumer,
+    handle(e) {
+      const device = pressedDevice(e);
+      if (device) {
+        seats.press(device);
+        syncSeats();
+      }
+      playConsumer.handle(e);
+    },
+  });
+
+  /** Seat changes for the next simulated tick's `joins`, in the order they happened. */
+  let queuedJoins: SeatChange[] = [];
+
+  /**
+   * Takes the seats' changes for the next tick, and routes devices to their
+   * new seats. A device leaving a seat lets go of what it held there first,
+   * unless its release was already read (a pad poll releases a pad that went
+   * away before freeing its seat).
+   */
+  function syncSeats(released = false): void {
+    const changes = seats.drain();
+    if (changes.length === 0) return;
+    if (!released && changes.some((c) => !c.joined)) input.releaseAll(performance.now());
+    queuedJoins.push(...changes);
+    routeDevices();
+  }
+
+  /**
+   * The joins that bring a fresh world's seats (which start as the join
+   * policy starts them) to the live ones, so a new world and its recording
+   * begin with the devices where they are.
+   */
+  function seatSync(): SeatChange[] {
+    seats.drain();
+    const fresh = createSeatBook(playersDef);
+    const out: SeatChange[] = [];
+    for (const { index, devices } of fresh.players()) {
+      for (const device of devices) {
+        if (seats.seatOf(device) !== index)
+          out.push(...fresh.apply({ player: index, device, joined: false }));
+      }
+    }
+    for (const { index, devices } of seats.players()) {
+      for (const device of devices)
+        out.push(...fresh.apply({ player: index, device, joined: true }));
+    }
+    return out;
+  }
+
+  /**
+   * Points the input system at the bindings each device's seat drives: a
+   * key binding that names its seat always, any other binding only while its
+   * seat owns the device; each pad reads its own seat's pad tables. With one
+   * seat every device drives seat 0, as the resolved tables already say. A
+   * class's tables are rebuilt only when its owner or the bindings change,
+   * so what other devices hold keeps reading the same entries.
+   */
+  function routeDevices(rebound = false): void {
+    const all = bindings.tables;
+    if (seatMax === 1) {
+      Object.assign(routed, all);
+      padTables = [{ padButtons: all.padButtons, padAxes: all.padAxes, padSticks: all.padSticks }];
+      return;
+    }
+    if (rebound) {
+      routedOwners = {};
+      padTables = Array.from({ length: seatMax }, (_, p) => {
+        const { padButtons, padAxes, padSticks } = seatTables(all, { pad: p });
+        return { padButtons, padAxes, padSticks };
+      });
+    }
+    const moved = (cls: "keyboard" | "pointer" | "touch"): number | null | undefined => {
+      const owner = seats.seatOf(cls);
+      if (Object.hasOwn(routedOwners, cls) && routedOwners[cls] === owner) return undefined;
+      routedOwners[cls] = owner;
+      return owner;
+    };
+    const keyboard = moved("keyboard");
+    if (keyboard !== undefined) routed.keys = seatTables(all, { keyboard }).keys;
+    const pointer = moved("pointer");
+    if (pointer !== undefined) routed.pointer = seatTables(all, { pointer }).pointer;
+    const touch = moved("touch");
+    if (touch !== undefined) routed.touch = seatTables(all, { touch }).touch;
+  }
+
+  /** The stored remaps that still fit the game: an action it declares, a seat it has, bindings that pass the check. */
+  function loadRemaps(): RemapState {
+    const players: Record<number, Record<string, readonly Binding[]>> = {};
+    let stored: RemapState | null = null;
+    try {
+      stored = remaps && remapKey !== null ? remaps.load(remapKey) : null;
+    } catch (error) {
+      if (cfg.dev) console.warn("[game] input remaps failed to load", error);
+    }
+    for (const [seat, actions] of Object.entries(stored?.players ?? {})) {
+      const player = Number(seat);
+      if (!(Number.isInteger(player) && player >= 0 && player < seatMax)) continue;
+      for (const [action, list] of Object.entries(actions)) {
+        if (remapProblem(action, list, player)) {
+          if (cfg.dev)
+            console.warn(`[game] dropped a stored remap of "${action}" for seat ${seat}`);
+          continue;
+        }
+        (players[player] ??= {})[action] = list;
+      }
+    }
+    return { v: 1, players };
+  }
+  const touch = createTouchOverlay();
 
   // Each loaded scene draws into its own container inside this layer, so a
   // reload never reorders it against the debug overlay.
@@ -158,6 +360,7 @@ export async function createGame(
     debugOverlay = cfg.debug({
       worldContainer: renderer.worldContainer,
       uiContainer: renderer.uiContainer,
+      pxPerMetre,
       store,
       router,
       layers: cfg.debugLayers,
@@ -267,6 +470,7 @@ export async function createGame(
       layers: registry.layers,
       textures: cfg.assets?.loader,
       editing: () => getMode() === "edit",
+      pxPerMetre,
       ...(resolution.pixelSnap ? { pixelSnap: true } : {}),
     });
     const runtime = createSceneRuntime({
@@ -296,12 +500,12 @@ export async function createGame(
     if (bundle && assets) void loadBundle(bundle);
     sceneLayer.addChild(container);
     const shell: GameShell = { view, router, dev: cfg.dev, getMode, send };
-    loaded = { runtime, view, attachment: game.attach?.(shell, runtime) ?? null, bundle };
+    loaded = { runtime, view, attachment: game?.attach?.(shell, runtime) ?? null, bundle };
     debugOverlay?.setPhysics(runtime.ctx);
     syncGameSlice();
     camera.setBoundsFromScene(scene.bounds);
     if (snap ?? (first || getMode() === "play")) {
-      camera.snapTo(runtime.game?.cameraTarget?.() ?? null);
+      camera.snapTo(cameraTargetOf(runtime));
     }
     updateCamera(store, camera.getState());
     return report;
@@ -349,6 +553,7 @@ export async function createGame(
   function enterMode(mode: GameMode): void {
     setStoreMode(store, mode);
     input.setEnabled(mode === "play");
+    touch?.sync();
     camera.setMode(mode === "play" ? "follow" : "free");
     updateCamera(store, camera.getState());
     loaded?.attachment?.onModeChange?.(mode);
@@ -407,19 +612,26 @@ export async function createGame(
     replay?: RunRecording,
   ): PlayReport {
     if (destroyed) return { ok: false, issues: [], error: "game destroyed" };
-    const prepared = preparePlay(doc, registry, { dev: cfg.dev, prefabs, engine: project?.engine });
+    const prepared = preparePlay(doc, registry, { dev: cfg.dev, prefabs, project });
     if (!prepared.ok) return { ok: false, issues: prepared.issues };
     finishRecording(session?.stop() ?? null);
     session = null;
     const report = startPlay(prepared.scene, bundleFor(prepared.scene, doc), opts);
-    if (report.ok) {
+    if (report.ok && loaded) {
       session = createSessionRecording({
         rapier: recordingRapier(prepared.scene, rapier),
         game,
         scene: doc.name,
         sceneHash: prepared.hash,
+        runHash: prepared.runHash,
+        platform: { arch, runtime: "browser", ...cfg.recording?.platform },
+        ...(cfg.recording?.projectRef !== undefined
+          ? { projectRef: cfg.recording.projectRef }
+          : {}),
         start: opts,
-        ...(loaded ? { time: loaded.runtime.ctx.time } : {}),
+        time: loaded.runtime.ctx.time,
+        players: loaded.runtime.ctx.input.players(),
+        world: playWorld(loaded.runtime.ctx),
         ...(replay ? { replay } : {}),
       });
       if (replay && loop.isPaused()) resume();
@@ -432,7 +644,7 @@ export async function createGame(
   }
 
   function replay(doc: SceneDefinition, recording: RunRecording): PlayReport {
-    return playRecorded(doc, recordingStart(recording.start), recording);
+    return playRecorded(doc, recordingStart(recording.start, recording.seed), recording);
   }
 
   function stop(): void {
@@ -475,7 +687,7 @@ export async function createGame(
   /** The game's first verdict on this tick, recorded once per session. */
   function judge(result: StepResult, runtime: SceneRuntimeHandle): GameOutcome | null {
     const current = store.state.session;
-    const hooks = game.play;
+    const hooks = game?.play;
     if (!current || current.outcome || !hooks?.outcome) return null;
     const verdict = hooks.outcome({
       tick: result.tick,
@@ -512,8 +724,20 @@ export async function createGame(
   let pendingCommands: GameCommand[] = [];
   /** Input polled while a turns or event game sat idle, delivered with its next tick. */
   let heldInput: InputAction[] = [];
-  /** The pointer at the last simulated tick, so an event game can tell it moved. */
+  /** The pointer's screen position at the last simulated tick, so an event game can tell it moved. */
   let tickPointer: Vec2 = input.getMousePosition();
+  /** The latest pointer sample, in world metres; null before the pointer was first seen. */
+  let pointerNow: PointerState | null = null;
+  /** The sample the runtime was last given; a tick carries a new one only when it differs. */
+  let pointerSent: PointerState | null = null;
+  /** The seat `pointerSent` went to. */
+  let pointerSeat: number | null = null;
+  /** Where the attachment last saw the pointer during a replay: the recording's latest sample. */
+  let replayPointer: Vec2 | null = null;
+  /** The devices were read for the coming tick, so the gate's look and the tick share one poll. */
+  let sampled = false;
+  /** Counts pad polls: an idle game reads its pads every frame without its tick advancing. */
+  let padPolls = 0;
 
   /** A new world starts with nothing pending from the last. */
   function resetQueues(): void {
@@ -521,6 +745,67 @@ export async function createGame(
     heldInput = [];
     pendingCommands = [];
     tickPointer = input.getMousePosition();
+    pointerNow = null;
+    pointerSent = null;
+    pointerSeat = null;
+    replayPointer = null;
+    sampled = false;
+    queuedJoins = seatSync();
+  }
+
+  /**
+   * Reads the devices at the start of a tick, once: the pads' changes into
+   * play input, and the pointer through the camera into a quantised world
+   * sample with its buttons and whether it is over the canvas.
+   */
+  function sampleDevices(): void {
+    if (sampled) return;
+    sampled = true;
+    applyPads(pads.poll(++padPolls));
+    if (!input.hasPointer()) return;
+    const reading = input.getPointer();
+    const at = camera.screenToWorld({ x: reading.x, y: reading.y });
+    pointerNow = {
+      x: qPointer(at.x),
+      y: qPointer(at.y),
+      buttons: reading.buttons,
+      over: reading.over,
+    };
+  }
+
+  /**
+   * A poll's pads reach their seats: new pads connect (and, under "auto",
+   * take free seats), a first button press may seat a pad, and its edges and
+   * value changes become play input for the seat that owns it, combined with
+   * every other device's. A pad that went away is released on its seat
+   * before the seat is freed. A press a capture takes is no play input.
+   */
+  function applyPads(poll: GamepadPoll, play = true): void {
+    for (const index of poll.connected) seats.connect(`pad:${index}`);
+    let changes = poll.changes;
+    const taken = capturing?.pad(changes);
+    if (taken) changes = changes.filter((c) => c !== taken);
+    for (const c of changes) if (c.kind === "button" && c.pressed) seats.press(`pad:${c.pad}`);
+    syncSeats();
+    if (play && changes.length > 0) routePads({ ...poll, changes });
+    for (const index of poll.disconnected) seats.disconnect(`pad:${index}`);
+    syncSeats(true);
+  }
+
+  function routePads(poll: GamepadPoll): void {
+    const now = performance.now();
+    if (seatMax === 1) return input.setPads(poll, pads, now);
+    padTables.forEach((tables, player) => {
+      const own = (pad: number) => seats.seatOf(`pad:${pad}`) === player;
+      const changes = poll.changes.filter((c) => own(c.pad));
+      if (changes.length === 0) return;
+      Object.assign(routed, tables);
+      const reader = {
+        pads: () => pads.pads().filter(own),
+        reading: (pad: number, binding: PadBinding) => pads.reading(pad, binding),
+      };
+      input.setPads({ ...poll, changes }, reader, now);
+    });
   }
 
   function takeInput(tick: number): InputAction[] {
@@ -532,14 +817,39 @@ export async function createGame(
     return actions;
   }
 
-  /** Commands wake every model; for event games so do button edges and, when asked, pointer moves. */
+  /**
+   * The pointer sample this tick carries, on the seat that owns the pointer:
+   * the latest, when it changed since the last tick's or the pointer changed
+   * seats. A pointer no seat owns drives none.
+   */
+  function takePointers(): (PointerState | undefined)[] {
+    tickPointer = input.getMousePosition();
+    const now = pointerNow;
+    const seat = seatMax === 1 ? 0 : seats.seatOf("pointer");
+    if (!now) return [];
+    const changed = !pointerSent || seat !== pointerSeat || !samePointer(now, pointerSent);
+    pointerSent = now;
+    pointerSeat = seat;
+    if (!changed || seat === null) return [];
+    const out: (PointerState | undefined)[] = Array.from({ length: seat });
+    out.push(now);
+    return out;
+  }
+
+  /**
+   * Commands wake every model. Event games also wake on what the tick's
+   * input would carry: a button edge or an analog change (any action), a
+   * pointer button, and a pointer move only with `wakeOnPointerMove`. Seat changes ride the next tick.
+   */
   function wakePending(time: ResolvedTime): boolean {
+    sampleDevices();
     if (pendingCommands.length > 0) return true;
     if (time.kind !== "event") return false;
     const polled = input.poll(store.state.tick);
     if (polled.length > 0) heldInput.push(...polled);
     if (heldInput.length > 0) return true;
-    if (!time.wakeOnPointerMove) return false;
+    if (pointerNow && pointerNow.buttons !== (pointerSent?.buttons ?? 0)) return true;
+    if (!time.wakeOnPointerMove || !input.hasPointer()) return false;
     const at = input.getMousePosition();
     return at.x !== tickPointer.x || at.y !== tickPointer.y;
   }
@@ -565,7 +875,7 @@ export async function createGame(
   /** The camera, the game's store slice and the debug overlay: what moves on with or without a step. */
   function shellTick(dt: number, mouseWorld: Vec2): void {
     const hooks = loaded?.runtime.game ?? null;
-    camera.update(dt, hooks?.cameraTarget?.() ?? null);
+    camera.update(dt, loaded ? cameraTargetOf(loaded.runtime) : null);
     syncGameSlice();
     updateCamera(store, { position: camera.getPosition() });
 
@@ -573,6 +883,7 @@ export async function createGame(
       dtMs: dt,
       mouseWorld,
       viewport: camera.getViewport(),
+      scale: camera.getState().scale,
       info: hooks?.debugInfo?.() ?? null,
     });
   }
@@ -583,27 +894,44 @@ export async function createGame(
     ...(initialTime.kind === "fixed" ? {} : { gate }),
 
     onTick(dt: number) {
+      const playing = loaded !== null && getMode() === "play";
+      if (playing) sampleDevices();
+      sampled = false;
       const polled = takeInput(store.state.tick);
-      const mouseWorld = camera.screenToWorld(input.getMousePosition());
+      let mouseWorld = camera.screenToWorld(input.getMousePosition());
 
-      if (loaded && getMode() === "play") {
-        const tick = loaded.runtime.ctx.tick;
-        const actions = session ? session.actions(tick, polled) : polled;
-        const queued = pendingCommands;
+      if (loaded && playing) {
+        const live: TickInput = {
+          tick: loaded.runtime.ctx.tick,
+          actions: polled,
+          commands: pendingCommands,
+          pointers: takePointers(),
+          joins: queuedJoins,
+        };
+        // Commands seat by seat, as a replay decodes them, so a run and its replay deliver one order.
+        live.commands = mergeTick(live).commands;
         pendingCommands = [];
-        const commands = session ? session.commands(tick, queued) : queued;
-        tickPointer = input.getMousePosition();
+        queuedJoins = [];
+        const replaying = session?.replaying ?? false;
+        // A replay steps the recorded tick whole: its pointer, seats and commands, never the live ones.
+        const tickInput = session ? session.input(live.tick, live) : live;
+        if (replaying) {
+          const sample = tickInput.pointers.find((p) => p !== undefined);
+          if (sample) replayPointer = { x: sample.x, y: sample.y };
+          mouseWorld = replayPointer ?? camera.screenToWorld({ x: 0, y: 0 });
+        } else if (pointerNow) {
+          mouseWorld = { x: pointerNow.x, y: pointerNow.y };
+        }
         loaded.attachment?.onTick?.(dt, mouseWorld);
-        const result = loaded.runtime.step(dt, actions, commands);
+        const result = loaded.runtime.step(dt, tickInput);
         incrementTick(store);
         events.emit("scene:step", result);
         const verdict = judge(result, loaded.runtime);
         if (session) {
-          const wasReplay = session.replaying;
-          const finished = session.stepped(result, actions, verdict, commands);
+          const finished = session.stepped(result, tickInput, verdict);
           finishRecording(finished);
           // A replay holds its last frame until Stop, so the end state can be looked at.
-          if (finished && wasReplay) pause();
+          if (finished && replaying) pause();
         }
       }
 
@@ -620,6 +948,8 @@ export async function createGame(
     },
 
     onRender(alpha: number) {
+      // A frame's look at the devices ends with it; the next frame reads them afresh.
+      sampled = false;
       if (loaded) {
         // Paused or editing, nothing steps, so visuals sit at their latest poses (an idle
         // turns or event game gets alpha 1 from the loop).
@@ -670,14 +1000,23 @@ export async function createGame(
     return loaded?.attachment?.onCommand?.(name) ?? false;
   }
 
-  /** Why `command` can't be queued now, or the command as it is queued. */
+  /**
+   * Why `command` can't be queued now, or the command as it is queued: a
+   * game command keeps its sending seat (`player`, 0 when absent and then
+   * left off, as a replay decodes it); `@elapsed` belongs to no seat.
+   */
   function commandProblem(command: GameCommand): { why: string } | { command: GameCommand } {
     if (destroyed) return { why: "game destroyed" };
     if (!loaded || getMode() !== "play") return { why: "nothing is playing" };
     if (session?.replaying) return { why: "a replay plays its recorded commands" };
+    const player = command.player ?? 0;
+    const seat = seatProblem(player, seatMax);
+    if (seat) return { why: `${seat.code}: ${seat.message}` };
     const checked = checkCommand(registry, command);
     if (!checked.ok) return { why: checked.message };
-    if (checked.command.name !== "@elapsed") return { command: checked.command };
+    if (checked.command.name !== "@elapsed") {
+      return { command: player === 0 ? checked.command : { ...checked.command, player } };
+    }
     const catchUp = clock().catchUp;
     if (!catchUp) return { why: "the game has no time.catchUp" };
     const { ms } = checked.command.args as { ms: number };
@@ -713,6 +1052,266 @@ export async function createGame(
   function pointerWorld(): Vec2 | null {
     return input.hasPointer() ? camera.screenToWorld(input.getMousePosition()) : null;
   }
+
+  /** Page px to world metres, through the input target's rect, the bars, the zoom and the px per metre. */
+  function clientToWorld(clientX: number, clientY: number): Vec2 {
+    const rect = inputTarget.getBoundingClientRect();
+    return camera.screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
+  }
+
+  /**
+   * The input map's on-screen controls over the canvas, shown in play per
+   * `GameConfig.input.touch` (auto: while the primary pointer is coarse). A
+   * touch that starts on a shown control drives it; any other is the pointer.
+   */
+  function createTouchOverlay(): { sync(): void; destroy(): void } | null {
+    const defs = project?.inputMap?.touch ?? [];
+    const policy = cfg.input?.touch ?? "auto";
+    // A canvas can't hold the overlay, so it goes in the canvas's frame.
+    const host = inputTarget instanceof HTMLCanvasElement ? inputTarget.parentElement : inputTarget;
+    if (defs.length === 0 || policy === "never" || !host) return null;
+    const coarse = policy === "auto" ? coarsePointer() : null;
+    const controls: TouchControls = createTouchControls(host, defs, (control, value) =>
+      input.setControl(control, value, performance.now()),
+    );
+    input.setTouchControls({
+      controlAt(screen) {
+        const rect = inputTarget.getBoundingClientRect();
+        return controls.hitTest(rect.left + screen.x, rect.top + screen.y);
+      },
+    });
+    const sync = () =>
+      controls.show(getMode() === "play" && (policy === "always" || (coarse?.matches ?? false)));
+    coarse?.addEventListener?.("change", sync);
+    sync();
+    return {
+      sync,
+      destroy() {
+        coarse?.removeEventListener?.("change", sync);
+        input.setTouchControls(null);
+        controls.destroy();
+      },
+    };
+  }
+
+  /** Document-wide pointer moves feed play input while a host tracks a DOM drag. */
+  let tracking = false;
+
+  function onDocumentPointerMove(e: PointerEvent): void {
+    // Moves over the input target already reach play input through the router.
+    if (e.target instanceof Node && inputTarget.contains(e.target)) return;
+    const rect = inputTarget.getBoundingClientRect();
+    const screen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const inside =
+      screen.x >= 0 && screen.y >= 0 && screen.x < rect.width && screen.y < rect.height;
+    const move: ToolEvent = {
+      kind: "pointer",
+      type: "move",
+      screen,
+      button: -1,
+      deltaY: 0,
+      // Read as a mouse whatever the device: a tracked move only moves the pointer.
+      pointerType: "mouse",
+      native: e,
+    };
+    if (!inside) move.left = true;
+    const play = input.consumer();
+    if (play.accepts(move)) play.handle(move);
+  }
+
+  function trackPointer(on: boolean): void {
+    if ((on && destroyed) || on === tracking) return;
+    tracking = on;
+    if (on) document.addEventListener("pointermove", onDocumentPointerMove, true);
+    else document.removeEventListener("pointermove", onDocumentPointerMove, true);
+  }
+
+  // ─── Remapping ────────────────────────────────────────────
+
+  function kindOfAction(action: string) {
+    return registry.actions.find((a) => a.action === action)?.kind ?? "button";
+  }
+
+  /** The first thing wrong with remapping `action` to `list` for `player`, by the one binding check. */
+  function remapProblem(
+    action: string,
+    list: readonly Binding[],
+    player: number,
+  ): BindingProblem | null {
+    const unknown = actionProblem(action, registry.actionNames);
+    if (unknown) return unknown;
+    const seat = seatProblem(player, seatMax);
+    if (seat) return { ...seat, path: "/player" };
+    if (!Array.isArray(list)) {
+      return { code: "binding-unknown", message: "bindings must be a list", path: "/bindings" };
+    }
+    const ctx = { kind: kindOfAction(action), max: seatMax, controls };
+    for (const [i, binding] of list.entries()) {
+      const problem = bindingProblems(binding, ctx)[0];
+      if (problem) return { ...problem, path: `/bindings/${i}${problem.path}` };
+    }
+    return null;
+  }
+
+  /** Saves the remaps at once (a store that fails leaves them applied for this session) and applies them from the next tick. */
+  function commitRemaps(): void {
+    try {
+      if (remaps && remapKey !== null) remaps.save(remapKey, remap);
+    } catch (error) {
+      if (cfg.dev) console.warn("[game] input remaps failed to save", error);
+    }
+    // What the old bindings hold lets go first, so nothing stays down under a binding that's gone.
+    input.releaseAll(performance.now());
+    bindings = resolveAll();
+    routeDevices(true);
+  }
+
+  function rebind(
+    action: string,
+    list: readonly Binding[],
+    opts: { player?: number } = {},
+  ): { ok: true } | { ok: false; issue: SceneIssue } {
+    const player = opts.player ?? 0;
+    const problem = remapProblem(action, list, player);
+    if (problem) {
+      const { code, message, path, expected, got, hint } = problem;
+      if (cfg.dev) console.warn(`[game] input.rebind("${action}"): ${message} (${code})`);
+      const issue = makeIssue(code, {
+        message,
+        path,
+        ...(expected !== undefined ? { expected } : {}),
+        ...(got !== undefined ? { got } : {}),
+        ...(hint !== undefined ? { hint } : {}),
+      });
+      return { ok: false, issue };
+    }
+    remap = {
+      v: 1,
+      players: {
+        ...remap.players,
+        [player]: { ...remap.players[player], [action]: list.map((b) => ({ ...b })) },
+      },
+    };
+    commitRemaps();
+    return { ok: true };
+  }
+
+  function reset(action?: string, opts: { player?: number } = {}): void {
+    const player = opts.player ?? 0;
+    const seat = remap.players[player];
+    if (!seat || (action !== undefined && !Object.hasOwn(seat, action))) return;
+    const players = { ...remap.players };
+    if (action === undefined) delete players[player];
+    else {
+      const { [action]: _dropped, ...rest } = seat;
+      if (Object.keys(rest).length > 0) players[player] = rest;
+      else delete players[player];
+    }
+    remap = { v: 1, players };
+    commitRemaps();
+  }
+
+  /** The capture waiting for a press, if any; a new capture ends the last one with null. */
+  let capturing: {
+    /** Takes the first pad press a capture accepts from a poll's changes, ending the capture. */
+    pad(changes: readonly PadChange[]): PadChange | null;
+    end(binding: Binding | null): void;
+  } | null = null;
+
+  /**
+   * Resolves with the next key, pad button or pointer press, whatever has
+   * focus, and keeps it from reaching the game or the page; Escape cancels.
+   * Pads are read while it waits, outside play too.
+   */
+  function capture(
+    opts: { devices?: readonly CaptureDevice[]; timeoutMs?: number } = {},
+  ): Promise<Binding | null> {
+    capturing?.end(null);
+    if (destroyed) return Promise.resolve(null);
+    const devices = opts.devices ?? ["key", "pad", "pointer"];
+    return new Promise((resolve) => {
+      const judge = (press: CapturePress, native?: Event): boolean => {
+        const result = matchCapturePress(press, devices);
+        if (result.kind === "wait") return false;
+        native?.preventDefault();
+        native?.stopPropagation();
+        current.end(result.kind === "bind" ? result.binding : null);
+        return true;
+      };
+      const onKey = (e: KeyboardEvent) =>
+        void judge({ device: "key", code: e.code, repeat: e.repeat }, e);
+      const onPointer = (e: PointerEvent) => void judge({ device: "pointer", button: e.button }, e);
+      const listening = devices.includes("pad") && typeof navigator.getGamepads === "function";
+      // Reads the pads only when no tick has since the last look, so a running game's polls stay one per tick.
+      let seen = padPolls;
+      const poll = listening
+        ? setInterval(() => {
+            if (padPolls === seen)
+              applyPads(pads.poll(++padPolls), loaded !== null && getMode() === "play");
+            seen = padPolls;
+          }, CAPTURE_POLL_MS)
+        : null;
+      const timeout =
+        opts.timeoutMs !== undefined ? setTimeout(() => current.end(null), opts.timeoutMs) : null;
+      window.addEventListener("keydown", onKey, true);
+      window.addEventListener("pointerdown", onPointer, true);
+      const current: NonNullable<typeof capturing> = {
+        pad(changes) {
+          for (const change of changes) {
+            if (change.kind !== "button" || !change.pressed) continue;
+            if (judge({ device: "pad", button: change.button })) return change;
+          }
+          return null;
+        },
+        end(binding) {
+          if (capturing === current) capturing = null;
+          window.removeEventListener("keydown", onKey, true);
+          window.removeEventListener("pointerdown", onPointer, true);
+          if (poll !== null) clearInterval(poll);
+          if (timeout !== null) clearTimeout(timeout);
+          resolve(binding);
+        },
+      };
+      capturing = current;
+    });
+  }
+
+  function assign(device: DeviceId, player: number | null): void {
+    if (destroyed) return;
+    const problem = seats.assign(device, player);
+    if (problem && cfg.dev) {
+      console.warn(
+        `[game] input.assign("${device}", ${player}): ${problem.message} (${problem.code})`,
+      );
+    }
+    syncSeats();
+  }
+
+  /** Pads reach seats as the browser reports them; in play the next poll does the same, in order with their input. */
+  function onPadConnected(e: GamepadEvent): void {
+    seats.connect(`pad:${e.gamepad.index}`);
+    syncSeats();
+  }
+
+  function onPadDisconnected(e: GamepadEvent): void {
+    // In play the poll releases what the pad held on its seat before freeing it.
+    if (loaded && getMode() === "play") return;
+    seats.disconnect(`pad:${e.gamepad.index}`);
+    syncSeats();
+  }
+
+  window.addEventListener("gamepadconnected", onPadConnected);
+  window.addEventListener("gamepaddisconnected", onPadDisconnected);
+
+  const playerInput: GameInput = {
+    bindings: (player) => bindings.bindings(player),
+    rebind,
+    reset,
+    capture,
+    assign,
+    players: () => seats.players(),
+    trackPointer,
+  };
 
   // ─── Editor camera ────────────────────────────────────────
 
@@ -915,6 +1514,10 @@ export async function createGame(
     destroyed = true;
 
     loop.stop();
+    capturing?.end(null);
+    trackPointer(false);
+    window.removeEventListener("gamepadconnected", onPadConnected);
+    window.removeEventListener("gamepaddisconnected", onPadDisconnected);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     inputTarget.removeEventListener("blur", onInputBlur);
     debugOverlay?.destroy();
@@ -923,6 +1526,8 @@ export async function createGame(
     editState = null;
     if (projectAssets) assets?.loader.release(projectAssets);
     router.destroy();
+    touch?.destroy();
+    pads.destroy();
     input.destroy();
     camera.destroy();
     renderer.destroy();
@@ -995,9 +1600,89 @@ export async function createGame(
     getMode,
     router,
     screenToWorld: (screen) => camera.screenToWorld(screen),
+    clientToWorld,
+    input: playerInput,
     panBy,
     zoomAt,
     frame,
     extractPixels: (world) => renderer.extractPixels(world),
   };
+}
+
+/**
+ * Where the camera looks: the game's target, or, in a scene no game runs,
+ * Play's start when Play began from a point, else the centre of the scene's
+ * bounds. An edit world without a game leaves the camera to the editor.
+ */
+function cameraTargetOf(runtime: SceneRuntimeHandle): Vec2 | null {
+  if (runtime.game) return runtime.game.cameraTarget?.() ?? null;
+  const { play, bounds } = runtime.ctx;
+  if (!play) return null;
+  if (play.at) return { x: play.at.x, y: play.at.y };
+  const [minX, minY, maxX, maxY] = bounds;
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+}
+
+/** Whether the primary pointer is coarse (a touch screen); null where media queries aren't available. */
+function coarsePointer(): MediaQueryList | null {
+  try {
+    return typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
+  } catch {
+    return null;
+  }
+}
+
+type UserAgentData = {
+  getHighEntropyValues?(hints: string[]): Promise<{ architecture?: unknown; bitness?: unknown }>;
+};
+
+/**
+ * The CPU architecture in `process.arch`'s names (`x64`, `arm64`), from
+ * Chromium's user-agent client hints; "unknown" where the browser doesn't
+ * say, which a replay never warns about.
+ */
+export async function browserArch(): Promise<string> {
+  try {
+    const data = (globalThis.navigator as { userAgentData?: UserAgentData } | undefined)
+      ?.userAgentData;
+    const values = await data?.getHighEntropyValues?.(["architecture", "bitness"]);
+    const cpu = values?.architecture;
+    if (typeof cpu !== "string" || cpu === "") return "unknown";
+    const wide = values?.bitness === "64";
+    if (cpu === "x86") return wide ? "x64" : "ia32";
+    if (cpu === "arm") return wide ? "arm64" : "arm";
+    return cpu;
+  } catch {
+    return "unknown";
+  }
+}
+
+/** How often a waiting capture reads the pads while nothing simulates. */
+const CAPTURE_POLL_MS = 16;
+
+type Tables = { -readonly [K in keyof DeviceTables]: DeviceTables[K] };
+type PadTables = Pick<DeviceTables, "padButtons" | "padAxes" | "padSticks">;
+
+/** The device a play event presses: a key (not a repeat), a mouse or pen button, or a touch. */
+function pressedDevice(e: ToolEvent): DeviceId | null {
+  if (e.kind === "key") return e.type === "down" && !e.native.repeat ? "keyboard" : null;
+  if (e.type !== "down") return null;
+  return e.pointerType === "touch" ? "touch" : "pointer";
+}
+
+const samePointer = (a: PointerState, b: PointerState): boolean =>
+  a.x === b.x && a.y === b.y && a.buttons === b.buttons && a.over === b.over;
+
+/** The host's bindings are judged by the same check as the game's, but only warned about: the game still plays. */
+function warnHostBindings(list: readonly InputBinding[], resolved: ResolvedBindings): void {
+  for (const entry of list) {
+    const ctx = { kind: resolved.kindOf(entry.action), max: resolved.players };
+    actionBindings(entry).forEach((binding, i) => {
+      for (const problem of bindingProblems(binding, ctx)) {
+        console.warn(
+          `[game] GameConfig.bindings "${entry.action}" #${i}${problem.path}: ${problem.message} (${problem.code})`,
+        );
+      }
+    });
+  }
 }

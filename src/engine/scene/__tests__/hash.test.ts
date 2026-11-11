@@ -44,7 +44,7 @@ const fixture = (name: string): Prefab => {
 describe("prefabs used through nesting", () => {
   const library = prefabLibrary(["gate", "door", "room"].map(fixture));
   const scene: SceneDefinition = {
-    v: 3,
+    v: 4,
     name: "hall",
     bounds: [0, 0, 1000, 1000],
     instances: [{ id: "room-1", prefab: "room", at: [500, 500] }],
@@ -61,10 +61,10 @@ describe("prefabs used through nesting", () => {
   });
 
   it("follows variant bases and stops at a cycle or a missing prefab", () => {
-    const red: Prefab = { kind: "prefab", v: 3, id: "red-door", base: "door", entities: [] };
+    const red: Prefab = { kind: "prefab", v: 4, id: "red-door", base: "door", entities: [] };
     const loop: Prefab = {
       kind: "prefab",
-      v: 3,
+      v: 4,
       id: "loop",
       instances: [
         { id: "self", prefab: "loop", at: [0, 0] },
@@ -101,7 +101,7 @@ describe("prefabs used through nesting", () => {
       instances: [{ id: "red-1", prefab: "red-gate", at: [0, 0] }],
     };
     expect(prefabsUsedBy(yardWithVariant, lib)).toEqual(["gate", "red-gate"]);
-    const deep: Prefab = { kind: "prefab", v: 3, id: "red-room", base: "room", entities: [] };
+    const deep: Prefab = { kind: "prefab", v: 4, id: "red-room", base: "room", entities: [] };
     const placedDeep: SceneDefinition = {
       ...scene,
       instances: [{ id: "r", prefab: "red-room", at: [0, 0] }],

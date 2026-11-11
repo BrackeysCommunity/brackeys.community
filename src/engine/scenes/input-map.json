@@ -1,0 +1,10 @@
+{
+  "$schema": "../project/input-map.schema.json",
+  "kind": "input-map",
+  "v": 1,
+  "players": {
+    "join": "auto",
+    "max": 2
+  },
+  "deadzone": 0.2
+}

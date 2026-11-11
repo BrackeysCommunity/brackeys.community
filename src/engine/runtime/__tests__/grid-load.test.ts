@@ -8,6 +8,7 @@ import type { Cell } from "../../grid/geometry";
 import { createGridStepper, type GridStepper } from "../../motion/grid-step";
 import { expandScene } from "../../scene/expand";
 import type { EntityDef, Pt, SceneDefinition } from "../../scene/types";
+import { gridWallTypes, sceneGrid } from "../grid";
 import { createSceneRuntime } from "../runtime";
 
 /** What each type system's spawn found on `ctx.grid`, by entity id. */
@@ -84,7 +85,7 @@ const entities = [
 ] as EntityDef[];
 
 const scene: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "grid-load",
   name: "grid-load",
   bounds: [0, 0, 50, 30],
@@ -138,6 +139,33 @@ describe("the grid at load", () => {
     };
     expect(rt.load(expandScene(boom as SceneDefinition, registry))).toMatchObject({ ok: false });
     expect(rt.ctx.grid).toBeNull();
+    rt.destroy();
+  });
+});
+
+describe("gridWallTypes", () => {
+  const withWalls = (gridWalls?: readonly string[]) =>
+    createRegistry(
+      defineGame({ ...game, id: "grid-walls", world: { physics: "none", gridWalls } }),
+    );
+
+  it("defaults to solid and takes a game's declared gridWalls", () => {
+    expect([...gridWallTypes(registry)]).toEqual(["solid"]);
+    expect([...gridWallTypes(withWalls(["piece"]))]).toEqual(["piece"]);
+    expect([...gridWallTypes(withWalls([]))]).toEqual([]);
+  });
+
+  it("is the set a load and sceneGrid rasterise walls from", () => {
+    const expanded = expandScene(scene, registry);
+    expect(sceneGrid(expanded, registry)!.occupancy.wall([2, 0])).toBe(true);
+    expect(sceneGrid(expanded, registry, [])!.occupancy.wall([2, 0])).toBe(false);
+
+    const none = withWalls([]);
+    const rt = createSceneRuntime({ rapier: null, view: null, game: none.game! });
+    expect(rt.load(expandScene({ ...scene, game: "grid-walls" }, none))).toMatchObject({
+      ok: true,
+    });
+    expect(rt.ctx.grid!.occupancy.wall([2, 0])).toBe(false);
     rt.destroy();
   });
 });

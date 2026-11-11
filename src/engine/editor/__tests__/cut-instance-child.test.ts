@@ -18,7 +18,7 @@ import { DEFAULT_SNAP } from "../tools";
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 const prefabs = yardPrefabs("fake");
 const yard: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "fake",
   name: "yard",
   bounds: [0, 0, 2000, 2000],
@@ -41,7 +41,7 @@ const fixturePrefab = (name: string): Prefab =>
 /** room holds a door instance, and the door holds a gate: three levels. */
 const nestedPrefabs = prefabLibrary(["gate", "door", "room"].map(fixturePrefab));
 const hall: SceneDefinition = {
-  v: 3,
+  v: 4,
   game: "fake",
   name: "hall",
   bounds: [0, 0, 2000, 2000],
